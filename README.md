@@ -19,7 +19,11 @@ anything you read into Anki cards. Eleven languages: Persian, Arabic,
 Italian, Japanese, French, German, Turkish, English, Hindi, Spanish and
 Chinese.
 
+<<<<<<< HEAD
 **Version a0.1.0** - 
+=======
+**Version a0.1.0**
+>>>>>>> 413ebbf (Update README.md)
 Currently released in alpha version, support for mobile version is still limited.
 Bugs are to be expected.
 
