@@ -74,7 +74,8 @@ on any page stops the whole toolbox, naming first whatever the server is
 still working on. Every page also loads the toolbox's `/lib/activity.js`,
 the pill in the corner that says what is running (a PDF being built, a
 backup going up or coming down) on every page until it is over — see the
-main README's *On every page*. Run alone, it binds to 127.0.0.1, has no
+guide's *The Working… indicator*
+(`html-guide/markdown/getting-started/working-indicator.md`). Run alone, it binds to 127.0.0.1, has no
 such list, and the page's tag for it simply finds nothing.
 
 On first start the server copies the web fonts into `app/static/fonts`

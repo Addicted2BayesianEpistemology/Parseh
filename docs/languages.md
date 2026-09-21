@@ -2810,8 +2810,7 @@ the same thing.
   gloss language equals its target — an Italian edition glossed in Italian is
   the same monolingual case, and an English one glossed in Italian is not a
   definition at all — and since `gloss` exists it is a per-book choice rather than a
-  property of the eighth row (§1, and the same sentence in `README.md`'s
-  table). What survives is `docs/lang/en.md`'s business and not the code's:
+  property of the eighth row (§1). What survives is `docs/lang/en.md`'s business and not the code's:
   in the monolingual case `voc` is a monolingual dictionary's work, and `tr`
   — which the shape makes optional — is the only line on the page carrying
   what the reader could not have got from the text, so that file requires it
