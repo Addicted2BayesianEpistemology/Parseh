@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — Parseh exercises</title>
+<link rel="stylesheet" href="{{STUDIO}}/static/app.css">
+<link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+</head>
+<body data-page="cram" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
+<header class="topbar">
+  <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
+  <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
+  <div class="topbar-actions"><a class="btn ghost dk-back" href="./">← Deck</a></div>
+</header>
+<main class="container dk-study-page">
+  <div class="dk-studyhead">
+    <h1 class="dk-title">{{TITLE}}</h1>
+    <div id="cram-progress" class="dk-study-counts" aria-live="polite"></div>
+  </div>
+  <p class="dk-cram-note">Selected exercises appear in random order. Wrong answers return at the end of this practice session. Deck scheduling does not change.</p>
+  <article id="cram-stage" class="sheet dk-sheet" data-lang="{{TARGET}}">
+    <p class="pv-status">Loading exercises…</p>
+  </article>
+  <div id="cram-result" class="dk-result" role="status" hidden></div>
+  <section id="cram-solution" class="dk-solution" aria-labelledby="cram-solution-head" hidden>
+    <h2 id="cram-solution-head" class="dk-solution-head">Correct answer</h2>
+    <div class="sheet dk-sheet" data-lang="{{TARGET}}"></div>
+  </section>
+  <div id="cram-actions" class="dk-study-actions" hidden>
+    <button type="button" class="btn primary big" id="cram-check" hidden>Check</button>
+    <button type="button" class="btn primary big" id="cram-show">Show answer</button>
+    <button type="button" class="btn big" id="cram-wrong" hidden>Wrong</button>
+    <button type="button" class="btn primary big" id="cram-correct" hidden>Correct</button>
+    <button type="button" class="btn big" id="cram-next" hidden>Next exercise</button>
+  </div>
+  <div id="cram-done" class="dk-done" hidden>
+    <h2>Practice complete</h2>
+    <button type="button" class="btn" id="cram-again">Shuffle and repeat</button>
+    <a class="btn primary dk-back" href="./">Back to the deck</a>
+  </div>
+</main>
+<script id="deck-json" type="application/json">{{DECK_JSON}}</script>
+<script id="doc-lang" type="application/json">{{LANG_JSON}}</script>
+<script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
+<div id="modal-root"></div>
+<div id="toast" class="toast" hidden></div>
+<link rel="stylesheet" href="{{STUDIO}}/static/mathjax.css">
+<script src="{{STUDIO}}/static/mathjax.js"></script>
+<!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
+<script src="/lib/activity.js" async></script>
+<script src="{{STUDIO}}/static/app.js"></script>
+<script src="{{STUDIO}}/static/decks.js"></script>
+</body>
+</html>

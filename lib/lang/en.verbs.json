@@ -1,0 +1,30 @@
+{
+  "_why": "What no English dictionary row says reliably enough, for lib/verbs/en.py. Everything here is a convention of the edition that docs/lang/en.md already writes out for the annotator, kept as data so it can be corrected without touching code; the recipe still finds every form in the dictionary's own rows and only takes from here what the rows cannot be trusted to give.",
+
+  "modals": ["can", "could", "will", "would", "shall", "should", "may", "might", "must", "ought"],
+  "_modals": "docs/lang/en.md: a modal has no principal parts and never gets a \\vb -- a p.p. could would be a form that does not exist. The list alone is not the test, because every one of these spellings but ought also names an ordinary verb: can is to put in cans (canned), will to bequeath (willed), must to go mouldy (musted), may to gather may (mayed). The recipe takes the entry of one of these spellings that has NO past participle of its own to be the modal, which is the reason the rule gives; the sense tags could not be used, since Wiktionary's `must` to make musty carries `auxiliary, defective, modal` from its head template and its `could` carries no tag at all.",
+
+  "present": {
+    "be":   {"past": "was",  "forms": [["am", ""], ["is", ""], ["are", ""]]},
+    "have": {"past": "had",  "forms": [["has", ""]]},
+    "do":   {"past": "did",  "forms": [["does", "dʌz"]]},
+    "say":  {"past": "said", "forms": [["says", "sɛz"]]}
+  },
+  "_present": "The one extra English has: the four verbs whose present nobody could build from the plain form, a closed list written exactly as docs/lang/en.md writes it -- `(pres. \\pw{am}, \\pw{is}, \\pw{are})`, `(pres. \\pw{has})`, `(pres. \\pw{does} \\textit{dʌz})`, `(pres. \\pw{says} \\textit{sɛz})`. The sounds are here and not read from the dictionary because the dictionary's are the wrong ones: the `does` page lists the weak form /dəz/ first and the extract keeps the first, and a reader is taught the strong form. `past` is how the recipe knows it has the right homograph: `say` is also a verb meaning to assay, whose past is sayed.",
+
+  "pp": {"get": "gotten"},
+  "_pp": "A past participle this edition's accent uses where the dictionary's first plain one is another's. Wiktionary gives get's p.p. as `got`, exactly, and `gotten` only under a string of region tags (Australia Canada Ireland New-Zealand UK US error-unknown-tag participle past recently); General American says have gotten for obtained. Taken only if the entry does have a row with that spelling tagged participle and past, and not where the chunk's own word is the other p.p. and nothing else -- `got` is the past too, and a word that is both is read as the past (and `have got` is simply have, which is what its gloss says).",
+
+  "particles": {
+    "about": "əˈbaʊt", "across": "əˈkrɔs", "after": "ˈæftər", "against": "əˈgɛnst",
+    "ahead": "əˈhɛd", "along": "əˈlɔŋ", "apart": "əˈpɑrt", "around": "əˈraʊnd",
+    "aside": "əˈsaɪd", "at": "æt", "away": "əˈweɪ", "back": "bæk",
+    "behind": "bɪˈhaɪnd", "by": "baɪ", "down": "daʊn", "for": "fɔr",
+    "forth": "fɔrθ", "forward": "ˈfɔrwərd", "from": "frʌm", "in": "ɪn",
+    "into": "ˈɪntu", "of": "ʌv", "off": "ɔf", "on": "ɑn", "onto": "ˈɑntu",
+    "out": "aʊt", "over": "ˈoʊvər", "past": "pæst", "round": "raʊnd",
+    "through": "θru", "to": "tu", "together": "təˈgɛðər", "under": "ˈʌndər",
+    "up": "ʌp", "upon": "əˈpɑn", "with": "wɪθ", "without": "wɪðˈaʊt"
+  },
+  "_particles": "The particles a phrasal verb is made with, and how each is said as one: strong, because the particle of a phrasal verb carries the stress (give UP), and General American. They are the words the recipe accepts as the rest of a phrasal verb's headword, and the sound it gives the particle where the phrasal verb has no pronunciation of its own -- give up, put down and wait for have none, and are said as their verb and their particle. The dictionary is least help for exactly these words, and keeps one transcription of each: `in` lists its weak /ən/ first, `at` gives its weak /ət/ with no note that it is one, `for` has a weak General American /fɚ/ tagged exactly as its strong /fɔɹ/ is, `on` has none tagged General American (/ɒn/ for RP, /ɔn/ for Scotland and Australia, /ɑn/ for the northern US -- the one American learners' dictionaries print first, and the one here), and `to` has none at all. Checked against the dictionary's own transcription of each where it has a General American one: 27 of the 37 are that transcription as the recipe writes it, 8 have none it can use; `behind` is not the dictionary's first (/ˈbiˌhaɪnd/ is the noun), and `together` is written with the edition's unstressed ə where the dictionary has /tʊˈɡɛðɚ/."
+}

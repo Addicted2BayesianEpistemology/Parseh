@@ -1,0 +1,143 @@
+---
+title: Starting and stopping
+weight: 3
+description: Starting the server on Linux, macOS and Windows, what it prints, the ⏻ button that stops it, and what that button warns you about.
+---
+
+Parseh is one small web server — `serve.py` — that serves every page of the
+toolbox at one address, `https://localhost:8765/`. While it runs, every
+browser that can reach it can use Parseh; when it stops, the pages stop
+answering until you start it again.
+
+## Starting it
+
+| System | How |
+|---|---|
+| Linux | `./serve.sh` in the Parseh folder |
+| macOS | double-click **Parseh.command** (or `./serve.sh` in Terminal) |
+| Windows | double-click **serve.bat** |
+
+Then open `https://localhost:8765/` in a browser. The Mac's
+**Parseh.command** and Windows' **serve.bat** open it for you. The first
+time, the browser warns about the certificate: Parseh made it for itself,
+so accept it — [From a phone or another computer](other-devices.md) says
+why there is one at all.
+
+**On Linux and macOS** `./serve.sh` starts the server *in the background*:
+the terminal is yours again at once, and closing it does not stop Parseh.
+It waits until the server really answers, and then shows the first
+fourteen lines of what the server printed: the books it found, one line
+each, and after them the addresses it can be reached at — on a short
+shelf, like this one:
+
+```text
+books:
+  english/my-first-book                English  (no narration)
+Parseh: serving /home/me/Parseh on 0.0.0.0:8765 (https)
+
+  https://100.101.102.103:8765/              (tailscale)
+  https://192.168.1.20:8765/                 (local network)
+  https://localhost:8765/                    (this machine)
+
+  /books/  /youtube/  /studio/  /exercises/  /anki/sync/
+
+self-signed certificate: each browser warns once -- accept it.
+Ctrl-C, or any of the page's stop buttons, to stop.
+
+running in the background: pid 4821,  log /home/me/Parseh/serve.log
+stop it with:  ./serve.sh stop      (or the stop button on any page)
+```
+
+On a longer shelf — some nine books or more — the books fill those
+fourteen lines, and some of the addresses, or all of them, fall below
+what is shown. Nothing is lost: the hub's foot, under **Reachable at**,
+always lists every address, and so does the top of `serve.log`.
+
+What the server goes on printing is kept in `serve.log`, in the Parseh
+folder, which each start begins afresh. When it is already running,
+`./serve.sh` says so and leaves it alone:
+
+```text
+already running: pid 4821 on port 8765
+use  ./serve.sh restart  to replace it, or  ./serve.sh stop
+```
+
+and when it cannot start — the port taken by another program, say — it
+says `failed to start -- the log says:` and shows the log.
+
+**On Windows** the server runs in the window serve.bat opened: that window
+is its log, and closing it stops Parseh. The first double-click is a
+[setup wizard](windows-wizard.md).
+
+**Without the environment**, Parseh still serves — the pages need nothing
+but Python — and says so as it starts:
+`note: no 'ilya-frank' environment -- serving with /usr/bin/python3`.
+Everything that rebuilds something then
+says, on its own page, what it needs; [Installing Parseh](installing.md)
+puts it all in place.
+
+## Stopping it
+
+Almost every page has a button that stops the server:
+
+| Where | The button |
+|---|---|
+| the hub, the books' library and its page for adding a book, the video pages, the Anki page, the clip tray | **⏻ stop**, at the right of the top bar |
+| a video's player | **⏻** |
+| a book's reader | **stop server**, which asks **really stop?** — click it again within four seconds; your place and the playback speed are saved first |
+| the studio's pages | **Stop server** |
+| the exercise decks' pages | **Stop server** |
+
+**It asks first**, *Stop the Parseh server?*, and **it warns you when
+Parseh is in the middle of something.** A book being built, a backup being
+packed, a bundle going up: stopping the server cuts it off, so the question
+names what is still running before you answer it —
+
+```text
+1 task is still running:
+
+  • Uploading “mini-en-full.zip” (8.7 MB)
+
+Stopping the server now cuts it off. Stop the Parseh server anyway?
+```
+
+— up to five of them, and *… and 2 more* after that (the studio's pages
+name the first five and stop there, though the count above them says how
+many there are). **Cancel** leaves everything as it was. On the exercise
+decks' pages the same question is a dialog of their own, with **Cancel**
+and **Stop server** — **Stop server anyway** when something is running.
+Even the reader, whose button has already asked *really stop?*, asks
+again when there is work in progress. [The Working…
+indicator](working-indicator.md) shows the same list at any time.
+
+Once it has stopped, the page says so — **Parseh stopped.**, or on the
+studio's and the exercises' pages **Server stopped**, *You can close this
+tab* — and every other page of Parseh, in every tab and on every device,
+stops answering. To start again, start it the way you started it before,
+and reload the page.
+
+The hub's **Mobile** layout has no stop button, on purpose: the mobile
+interface is for reading and studying, and shows nothing that administers
+the toolbox ([Browser and Mobile](mobile-mode.md)). Switch to **Browser**
+to stop the server from the hub, or use any other page.
+
+## For the command line
+
+On Linux and macOS, `./serve.sh` does more than start the server:
+
+```bash
+./serve.sh            # start it, in the background, on port 8765
+./serve.sh 9000       # ... on another port
+./serve.sh status     # is it running, and on which port
+./serve.sh log        # follow the log; Ctrl-C stops following
+./serve.sh stop       # stop it, as the page's button does
+./serve.sh restart    # stop it, then start it again
+./serve.sh cert       # a fresh certificate; then restart
+```
+
+`python3 serve.py` runs the same server in the foreground instead, until
+Ctrl-C. It takes a port too, and `--local` (this computer only),
+`--host <address>` (one address only), `--http` (no certificate) and
+`--cert` (make a fresh certificate, and exit). On Windows, `serve.bat stop`,
+`status` and `cert` are the same as these — the whole list is on
+[the wizard's page](windows-wizard.md#for-the-command-line).

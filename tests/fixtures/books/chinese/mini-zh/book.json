@@ -1,0 +1,14 @@
+{
+  "slug": "mini-zh",
+  "language": "zh",
+  "title": "山下的村子",
+  "title_latin": "Shān xià de cūnzi",
+  "title_en": "The Village Below the Hill",
+  "author": "一个小故事",
+  "author_latin": "a little story",
+  "year": "",
+  "blurb": "A fixture for the tests: two short Chinese paragraphs in simplified characters, two sentences each, with pinyin in the transliteration and no reading field -- the pinyin is the reading.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

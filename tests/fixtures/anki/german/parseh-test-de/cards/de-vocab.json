@@ -1,0 +1,30 @@
+{
+ "id": "de-vocab",
+ "guid": "fx-de-vocab",
+ "kind": "vocab",
+ "lang": "de",
+ "created": "2026-09-04 10:00:00",
+ "video": "fixture-de",
+ "book": "",
+ "time": 0,
+ "context": "die Straße ist sehr ruhig",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "Straße",
+ "kana": "",
+ "tr": "'schtra:se",
+ "en": "street",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "german-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

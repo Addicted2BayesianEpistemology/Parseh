@@ -1,0 +1,30 @@
+{
+ "id": "de-opp",
+ "guid": "fx-de-opp",
+ "kind": "opposites",
+ "lang": "de",
+ "created": "2026-09-04 10:00:00",
+ "video": "",
+ "book": "fixture-de",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "groß",
+ "kana": "",
+ "tr": "gro:s",
+ "en": "",
+ "opp": "klein",
+ "opp_kana": "",
+ "opp_tr": "klain",
+ "tags": [
+  "german-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

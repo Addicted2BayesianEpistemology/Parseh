@@ -1,0 +1,19 @@
+{
+  "_why": "What lib/verbs/ar.py needs and no row of dict/ar.db says: how the edition respells Wiktionary's romanisation, and which Arabic words are prepositions. Both are the conventions of docs/lang/ar.md written down as tables, so the next editor changes a line here and not the code.",
+  "roman": {
+    "ʔ": "ʾ",
+    "ʕ": "ʿ",
+    "ḵ": "ḫ",
+    "ḡ": "ġ"
+  },
+  "_roman": "Wiktionary romanises Arabic with ʔ ʕ ḵ ḡ, and docs/lang/ar.md writes ʾ ʿ ḫ ġ -- the rest (ā ī ū, ṯ ḏ š ṣ ḍ ṭ ẓ ḥ, j q) is the same letter in both. Counted over the verb rows the recipe reads (the romanization row, and the roman of the non-past and noun-from-verb rows): ʕ in 3648, ʔ in 3368, ḵ in 1778, ḡ in 1120, and no other letter outside the edition's set. So raʔā, ʔirāda and yaḵruju become raʾā, irāda and yaḫruju, as the fixture book writes them.",
+  "drop_initial": "ʾ",
+  "_drop_initial": "Hamza is never written at the start of a word (docs/lang/ar.md: `amal`, not `ʾamal`), and Wiktionary writes it there every time: ʔarāda, ʔirāda, ʔaktubu. Only at the start of the string or after a space -- inside a word it is a consonant the reader needs (raʾā, ruʾya).",
+  "prepositions": [
+    "إلى", "الى", "على", "في", "ب", "ل", "ك", "من", "عن", "مع",
+    "عند", "لدى", "حتى", "منذ", "بين", "أمام", "خلف", "وراء", "فوق",
+    "تحت", "بعد", "قبل", "نحو", "حول", "ضد", "دون", "ضمن", "عبر",
+    "تجاه", "إزاء"
+  ],
+  "_prepositions": "The words that may stand after the + of a governed preposition, bare (no harakat, no tatweel) and compared bare, so إِلَى, إلى and بِـ are found as written. The +obj template of a Wiktionary sense names its object as a case (acc), a preposition (:إِلَى) or something else entirely -- أَنْ with the subjunctive 17 times, نَفْسَهُ, a pronoun -- and only the prepositions are what the extra is for (docs/lang/ar.md: the preposition the verb governs, where it does not simply take a direct object). Counted over every obj: tag of the verbs: على 367, ب 313, إلى 230, من 151, عن 143, في 129, ل 108, مع 17, بين 9, حول 5, then single figures; the rest of the list is the doc's own never-gloss prepositions."
+}

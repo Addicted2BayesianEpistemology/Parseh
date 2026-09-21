@@ -1,0 +1,13 @@
+{
+ "_comment": "How this language's pronunciation becomes its transliteration. Read by lib/translit.py; optional, like every file of this name. Arabic has no `map`: the source's own romanisation is already the scheme docs/lang/ar.md uses, in all but four letters and one habit, and those are what `roman` fixes.",
+ "roman": {
+  "map": {
+   "ʔ": "ʾ",
+   "ʕ": "ʿ",
+   "ḵ": "ḫ",
+   "ḡ": "ġ"
+  },
+  "drop_initial": "ʾ"
+ },
+ "_roman": "Wiktionary writes hamza and ʿayn with the IPA letters ʔ and ʕ, and x and ġ with an underlined k and a macron g; docs/lang/ar.md writes ʾ ʿ ḫ ġ. Unfixed, a video's verb line read `أَرَى ʔarā`, `يَبْعَدُ yabʕadu`, and the sidebar's \\dw wrote `ḵaraja`. `drop_initial` is the hamza every word that begins with a vowel carries in the source (أَسْتَطِيعُ ʔastaṭīʕu) and that the edition does not write at the start of a word: astaṭīʿu. Inside a word it is a consonant and stays (saʾala). lib/verbs/ar.py respells its own slots the same way, and applying both changes nothing twice."
+}

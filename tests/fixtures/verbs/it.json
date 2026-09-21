@@ -1,0 +1,540 @@
+{
+ "_why": "Offline smoke cases for lib/verbs/it.py, cut from dict/it.db built 2026-09-10 (the entry's own rows the recipe reads, in rowid order, plus the chunk word's pointer row).  Build a one-entry dictionary with lookup.create, point lookup.DICT_DIR at it, and verbs.build('it', {'entry': <id>, 'headword': ..., 'pos': 'verb'}, word, text, gloss) must give `expect` (null = no vb).  Each case's `why` says what it exercises.",
+ "code": "it",
+ "cases": [
+  {
+   "entry": {
+    "headword": "parlare",
+    "translit": "",
+    "ipa": "/parˈla.re/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to talk, to speak\nto cant",
+    "sense_tags": "ambitransitive\nintransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "parlare",
+     "",
+     ""
+    ],
+    [
+     "parlàre",
+     "canonical",
+     ""
+    ],
+    [
+     "pàrlo",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "parlài",
+     "first-person historic past singular",
+     ""
+    ],
+    [
+     "parlàto",
+     "participle past",
+     ""
+    ],
+    [
+     "avére",
+     "auxiliary",
+     ""
+    ],
+    [
+     "parlàndo",
+     "gerund",
+     ""
+    ],
+    [
+     "parlò",
+     "historic indicative past singular third-person",
+     ""
+    ],
+    [
+     "parlo",
+     "first-person, indicative, present, singular",
+     ""
+    ]
+   ],
+   "word": "parlo",
+   "text": "Parlo italiano",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{parlare}{}{parlo}{}{parlato}{}{to talk}",
+    "plain": "parlare · pres. parlo · p.p. parlato · to talk",
+    "line": "pres. parlo · p.p. parlato",
+    "complete": true,
+    "missing": []
+   },
+   "why": "a regular -are verb: avere (not printed), regular p.r. (not printed), no sound, one equivalent of 'to talk, to speak'",
+   "run": "build"
+  },
+  {
+   "entry": {
+    "headword": "prendere",
+    "translit": "",
+    "ipa": "/ˈprɛn.de.re/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to take, hold, pick up, get\nto conquer (of a political territory or entity)\nto take (a means of transport)\nto choose (a certain route or path)\nto catch (a criminal, animal, etc.)\nto catch (an illness)\nto be beat up or defeated\nto get, buy\nto steal\nto assume (a task, responsibility, etc.)\nto hit or strike\nto eat, drink, ingest (of food, drink, medicine, etc.)",
+    "sense_tags": "transitive\ntransitive\ntransitive\nbroadly,transitive\ntransitive\nbroadly,transitive\ninformal,transitive\ntransitive\ninformal,transitive\ntransitive\ntransitive\ntransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "prendere",
+     "",
+     ""
+    ],
+    [
+     "prèndere",
+     "canonical",
+     ""
+    ],
+    [
+     "prèndo",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "prési",
+     "first-person historic past singular",
+     ""
+    ],
+    [
+     "préso",
+     "participle past",
+     ""
+    ],
+    [
+     "avére",
+     "auxiliary",
+     ""
+    ],
+    [
+     "èssere",
+     "also auxiliary",
+     ""
+    ],
+    [
+     "prendèndo",
+     "gerund",
+     ""
+    ],
+    [
+     "prése",
+     "historic indicative past singular third-person",
+     ""
+    ],
+    [
+     "prese",
+     "historic, past, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "prese",
+   "text": "Lo prese in mano",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{prendere}{prèndere}{prendo}{}{preso}{}{to take (p.r. \\pw{presi})}",
+    "plain": "prendere prèndere · pres. prendo · p.p. preso · to take (p.r. presi)",
+    "line": "pres. prendo · p.p. preso · p.r. presi",
+    "complete": true,
+    "missing": []
+   },
+   "why": "irregular -ere: the infinitive's stress off the penultimate (prèndere), p.r. presi, and èssere 'also auxiliary' dropped (the fixture's chunk)",
+   "run": "build"
+  },
+  {
+   "entry": {
+    "headword": "essere",
+    "translit": "",
+    "ipa": "/ˈɛs.se.re/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "Used as a copula. to be\nDenotes absolute time.\nUsed with as an auxiliary in the conjugation of other verbs, before their past participle.\nForms composite forms of some intransitive verbs. See the full list.\nForms composite forms for passive voice for all verbs.\nForms composite forms for reflexive voice for all verbs\nto exist, there be\nMost commonly with ci or vi, see the appropriate entries at esserci and esservi for more information.\nWithout any clitics.\nto be real\nto happen, occur; to be\nto cost",
+    "sense_tags": "copulative\n\nauxiliary\nauxiliary\nauxiliary\nauxiliary\nintransitive\nintransitive\narchaic,intransitive\nintransitive\nintransitive\nintransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "essere",
+     "",
+     ""
+    ],
+    [
+     "èssere",
+     "canonical",
+     ""
+    ],
+    [
+     "sóno",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "fùi",
+     "first-person historic past singular",
+     ""
+    ],
+    [
+     "stàto",
+     "participle past",
+     ""
+    ],
+    [
+     "èssere",
+     "auxiliary",
+     ""
+    ],
+    [
+     "essèndo",
+     "gerund",
+     ""
+    ],
+    [
+     "fù",
+     "historic indicative past singular third-person",
+     ""
+    ],
+    [
+     "sò",
+     "first-person indicative present singular",
+     ""
+    ],
+    [
+     "era",
+     "imperfect, indicative, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "era",
+   "text": "Non era",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{essere}{èssere}{sono}{}{stato}{}{to be (aux. \\pw{essere}; p.r. \\pw{fui})}",
+    "plain": "essere èssere · pres. sono · p.p. stato · to be (aux. essere; p.r. fui)",
+    "line": "pres. sono · p.p. stato · aux. essere · p.r. fui",
+    "complete": true,
+    "missing": []
+   },
+   "why": "irregular: the first sense 'Used as a copula. to be' made 'to be', aux. essere from its own auxiliary row, p.r. fui",
+   "run": "build"
+  },
+  {
+   "entry": {
+    "headword": "cominciare",
+    "translit": "",
+    "ipa": "/ko.minˈt͡ʃa.re/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to begin, to start, to commence, to set about",
+    "sense_tags": "ambitransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "cominciare",
+     "",
+     ""
+    ],
+    [
+     "cominciàre",
+     "canonical",
+     ""
+    ],
+    [
+     "comìncio",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "cominciài",
+     "first-person historic past singular",
+     ""
+    ],
+    [
+     "cominciàto",
+     "participle past",
+     ""
+    ],
+    [
+     "avére",
+     "adverb also auxiliary error-unknown-tag intransitive rare transitive",
+     ""
+    ],
+    [
+     "èssere",
+     "auxiliary intransitive",
+     ""
+    ],
+    [
+     "cominciàndo",
+     "gerund",
+     ""
+    ],
+    [
+     "cominciò",
+     "historic indicative past singular third-person",
+     ""
+    ],
+    [
+     "cominciò",
+     "historic, past, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "cominciò",
+   "text": "e cominciò",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{cominciare}{}{comincio}{}{cominciato}{}{to begin (aux. \\pw{avere}/\\pw{essere})}",
+    "plain": "cominciare · pres. comincio · p.p. cominciato · to begin (aux. avere/essere)",
+    "line": "pres. comincio · p.p. cominciato · aux. avere/essere",
+    "complete": true,
+    "missing": []
+   },
+   "why": "a dual auxiliary whose head line gives avére (qualified) before èssere: printed avere/essere (the fixture's chunk)",
+   "run": "build"
+  },
+  {
+   "entry": {
+    "headword": "alzarsi",
+    "translit": "",
+    "ipa": "/alˈt͡sar.si/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to stand up, rise to one's feet, get up, raise oneself, fly up, take off\nto get up (out of bed)\nto rise",
+    "sense_tags": "\n\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "alzarsi",
+     "",
+     ""
+    ],
+    [
+     "alzàrsi",
+     "canonical",
+     ""
+    ],
+    [
+     "mi àlzo",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "mi alzài",
+     "first-person historic past singular",
+     ""
+    ],
+    [
+     "alzàtosi",
+     "participle past",
+     ""
+    ],
+    [
+     "èssere",
+     "auxiliary",
+     ""
+    ],
+    [
+     "alzàndosi",
+     "gerund",
+     ""
+    ],
+    [
+     "si alzò",
+     "historic indicative past singular third-person",
+     ""
+    ]
+   ],
+   "word": "alzarsi",
+   "text": "alzarsi presto",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{alzarsi}{}{mi alzo}{}{alzato}{}{to stand up (aux. \\pw{essere})}",
+    "plain": "alzarsi · pres. mi alzo · p.p. alzato · to stand up (aux. essere)",
+    "line": "pres. mi alzo · p.p. alzato · aux. essere",
+    "complete": true,
+    "missing": []
+   },
+   "why": "pronominal: the first person keeps its clitic (mi alzo), the participle loses it (alzàtosi -> alzato), aux. essere",
+   "run": "build"
+  },
+  {
+   "entry": {
+    "headword": "accadere",
+    "translit": "",
+    "ipa": "/ak.kaˈde.re/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to happen",
+    "sense_tags": "intransitive,third-person",
+    "head": ""
+   },
+   "forms": [
+    [
+     "accadere",
+     "",
+     ""
+    ],
+    [
+     "accadére",
+     "canonical",
+     ""
+    ],
+    [
+     "accàde",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "accàdde",
+     "historic past singular third-person",
+     ""
+    ],
+    [
+     "accadùto",
+     "participle past",
+     ""
+    ],
+    [
+     "èssere",
+     "auxiliary",
+     ""
+    ],
+    [
+     "accadèndo",
+     "gerund",
+     ""
+    ],
+    [
+     "accadde",
+     "historic, past, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "accadde",
+   "text": "accadde una cosa",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{accadere}{}{accade}{}{accaduto}{}{to happen (aux. \\pw{essere}; p.r. \\pw{accadde})}",
+    "plain": "accadere · pres. accade · p.p. accaduto · to happen (aux. essere; p.r. accadde)",
+    "line": "pres. accade · p.p. accaduto · aux. essere · p.r. accadde",
+    "complete": true,
+    "missing": []
+   },
+   "why": "a verb of the third person only: pres. accade and p.r. accadde (irregular against accadé)",
+   "run": "build"
+  },
+  {
+   "entry": {
+    "headword": "vedasi",
+    "translit": "",
+    "ipa": "/ˈve.da.si/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "see; cf.; please see",
+    "sense_tags": "",
+    "head": ""
+   },
+   "forms": [
+    [
+     "vedasi",
+     "",
+     ""
+    ]
+   ],
+   "word": "vedasi",
+   "text": "vedasi sopra",
+   "gloss": "en",
+   "expect": null,
+   "why": "pos verb, but a fixed form with no table and no infinitive named: None, so the editor offers a \\dw",
+   "run": "build"
+  },
+  {
+   "entry": {
+    "headword": "dirimere",
+    "translit": "",
+    "ipa": "/diˈri.me.re/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to cut short\nto sort out\nto dispel",
+    "sense_tags": "transitive\ntransitive\nfiguratively,transitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "dirimere",
+     "",
+     ""
+    ],
+    [
+     "dirìmere",
+     "canonical",
+     ""
+    ],
+    [
+     "dirìmo",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "dirimétti",
+     "first-person historic past rare singular",
+     ""
+    ],
+    [
+     "dirimètti",
+     "first-person historic past singular traditional",
+     ""
+    ],
+    [
+     "diriméi",
+     "first-person historic past rare singular",
+     ""
+    ],
+    [
+     "avére",
+     "auxiliary",
+     ""
+    ],
+    [
+     "dirimèndo",
+     "gerund",
+     ""
+    ],
+    [
+     "dirimétte",
+     "historic indicative past rare singular third-person",
+     ""
+    ],
+    [
+     "dirimé",
+     "historic indicative past rare singular third-person",
+     ""
+    ]
+   ],
+   "word": "dirimere",
+   "text": "dirimere la questione",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{dirimere}{dirìmere}{dirimo}{}{}{}{to cut short}",
+    "plain": "dirimere dirìmere · pres. dirimo · to cut short",
+    "line": "pres. dirimo",
+    "complete": false,
+    "missing": [
+     "past participle"
+    ]
+   },
+   "why": "incomplete: the source gives no past participle and does not tag the verb as having none",
+   "run": "build"
+  }
+ ]
+}

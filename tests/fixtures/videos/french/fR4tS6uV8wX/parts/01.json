@@ -1,0 +1,38 @@
+[
+ {"start": 0,
+  "chunks": [
+   {"fa": "Welcome back to the channel, today we learn French at the café", "plain": true}
+  ]},
+ {"start": 5,
+  "chunks": [
+   {"fa": "Bonjour,", "tr": "bõʒour", "voc": "bonjour bõʒour hello, good day", "en": "hello,"},
+   {"fa": "je voudrais", "tr": "ʒe voudrè", "voc": "vouloir voulwar · pres. veux veu · p.p. voulu voulü · to want (fut. voudrai voudré); here voudrais voudrè, the conditional, which is how one orders politely", "en": "I would like"},
+   {"fa": "un café s'il vous plaît", "tr": "ẽ kafé sil vou plè", "voc": "café kafé coffee, m., and the place one drinks it; s'il vous plaît sil vou plè please, lit. if it pleases you — s' is si", "en": "a coffee please"}
+  ]},
+ {"start": 10,
+  "chunks": [
+   {"fa": "Vous prenez aussi", "tr": "vou prené-zosi", "voc": "prendre prãdr · pres. prends prã · p.p. pris pri · to take, to have food or drink (nous prenons prenõ)", "en": "are you also having"},
+   {"fa": "quelque chose d'autre", "tr": "kèlke ʃoz dotr", "voc": "quelque chose kèlke ʃoz something; autre otr other — d' is de", "en": "anything else"}
+  ]},
+ {"start": 15,
+  "chunks": [
+   {"fa": "Oui,", "tr": "wi", "en": "yes,"},
+   {"fa": "un croissant", "tr": "ẽ krwasã", "voc": "croissant krwasã croissant, m., the crescent-shaped roll", "en": "a croissant"},
+   {"fa": "et un verre d'eau", "tr": "é ẽ vèr do", "voc": "verre vèr glass, m.; eau o water, f. — d' is de", "en": "and a glass of water"}
+  ]},
+ {"start": 20,
+  "chunks": [
+   {"fa": "Voilà,", "tr": "vwala", "voc": "voilà vwala there you are", "en": "there you are,"},
+   {"fa": "ça fait quatre euros cinquante", "tr": "sa fè katr euro sẽkãt", "voc": "faire fèr · pres. fais fè · p.p. fait fè · to make, to come to (nous faisons fezõ; fut. ferai feré) — ça fait that comes to", "en": "that comes to four euros fifty"}
+  ]},
+ {"start": 26,
+  "chunks": [
+   {"fa": "Je n'ai", "tr": "ʒe né", "voc": "avoir avwar · pres. ai é · p.p. eu ü · to have (fut. aurai oré); ne … que only, n' for ne", "en": "I have only"},
+   {"fa": "qu'un billet de vingt euros", "tr": "kẽ biyè de vẽ-teuro", "voc": "billet biyè note, ticket, m. — qu' is que, the second half of ne … que; the silent t of vingt is sounded over onto euros", "en": "a twenty euro note"}
+  ]},
+ {"start": 31,
+  "chunks": [
+   {"fa": "Ce n'est pas grave,", "tr": "se nè pa grav", "voc": "ce n'est pas grave se nè pa grav never mind, lit. it is not serious; grave grav serious", "en": "never mind,"},
+   {"fa": "bonne journée", "tr": "bòn ʒourné", "voc": "journée ʒourné the day as it is lived, f., cf. jour ʒour the day as a date, m.", "en": "have a good day"}
+  ]}
+]

@@ -1,0 +1,30 @@
+{
+ "id": "fa-vocab",
+ "guid": "fx-fa-vocab",
+ "kind": "vocab",
+ "lang": "fa",
+ "created": "2026-09-03 10:00:00",
+ "video": "fixture-fa",
+ "book": "",
+ "time": 0,
+ "context": "این خانهٔ ماست",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "خانه",
+ "kana": "",
+ "tr": "khāne",
+ "en": "house",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "farsi-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": "https://example.org/fa"
+ }
+}

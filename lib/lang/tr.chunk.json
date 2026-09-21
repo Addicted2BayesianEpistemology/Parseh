@@ -1,0 +1,23 @@
+{
+  "_comment": "How this language's phrases hold together, for lib/chunker.py. Optional, like every file of this name.",
+  "np_head": "final",
+  "adposition": "after",
+  "_why": "Turkish is head-final throughout: the modifier before the noun (büyük ev), the case on the end of the word, the postposition after its noun (ev ile).",
+  "verb_final": true,
+  "_verb_final": "The verb comes last, so a noun before a verb is its object and leans toward it, and a noun after a verb begins a new clause (docs/lang/tr.md: end a chunk at the verb).",
+  "bind_forward": [],
+  "min": 2,
+  "max": 5,
+  "function_words": {
+    "_comment": "The closed classes, which the dictionary is the wrong authority on: it gives `için` more senses as a noun and a verb than as the postposition it nearly always is, and `ona` as a numeral. A word under two headings is read in its place: `o ev` is a determiner, `o geldi` a pronoun.",
+    "CONJ": ["ve", "veya", "yahut", "ya", "ama", "fakat", "ancak", "çünkü", "ki", "hem", "eğer", "yoksa", "oysa", "halbuki", "hatta", "yani", "madem", "ne"],
+    "INTJ": ["evet", "hayır", "merhaba", "tamam", "teşekkürler", "sağol", "peki", "haydi", "hadi", "maalesef", "günaydın", "hoşça"],
+    "DET": ["bir", "bu", "şu", "o", "her", "hiç", "bazı", "birkaç", "tüm", "bütün", "hangi", "öbür", "diğer", "hiçbir"],
+    "ADP": ["için", "gibi", "ile", "kadar", "sonra", "önce", "göre", "rağmen", "beri", "doğru", "karşı", "dolayı", "üzere", "boyunca", "ait", "dair"],
+    "PART": ["de", "da", "mi", "mı", "mu", "mü", "misin", "mısın", "musun", "müsün", "miyim", "mıyım", "muyum", "müyüm", "miyiz", "mıyız", "muyuz", "müyüz", "misiniz", "mısınız", "musunuz", "müsünüz", "midir", "mıdır", "mudur", "müdür", "bile", "dahi"],
+    "NEG": ["değil", "değilim", "değilsin", "değildir", "değiliz", "değilsiniz", "değiller"],
+    "PRON": ["ben", "sen", "o", "biz", "siz", "onlar", "bana", "sana", "ona", "bize", "size", "onlara", "beni", "seni", "onu", "bizi", "sizi", "onları", "benim", "senin", "onun", "bizim", "sizin", "onların", "bende", "sende", "onda", "benden", "senden", "ondan", "kendi", "kendisi", "kim", "ne", "bu", "şu", "bunu", "şunu", "buna", "şuna", "bunlar", "şunlar", "burada", "orada", "şurada", "herkes", "hepsi", "biri", "birisi", "kimse"]
+  },
+  "light_verbs": ["^(et|ed|eyle|yap|ol)"],
+  "_light_verbs": "The verbs that make a verb of the noun before them, written apart and still one verb: `teşekkür ederim`, `yardım etmek`, `alışveriş yapmak`, `mutlu olmak` (docs/lang/tr.md: the noun of a compound belongs to its verb). Matched at the start of the word the dictionary calls a verb, or does not know."
+}

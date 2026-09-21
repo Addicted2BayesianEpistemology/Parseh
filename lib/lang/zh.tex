@@ -1,0 +1,297 @@
+% Chinese (中文) -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define and
+% section 12 the ones it may, and the manual's "Adding a language" chapter
+% says in one line each what happens when one is missing.
+%
+% Simplified characters: everything zh teaches is written in them
+% (docs/lang/zh.md), and this file names one font accordingly.
+%
+% THE CJK MODEL, MINUS THE READING.  This is lib/lang/ja.tex without the
+% furigana: no word separator, so the seam between two chunks is glue and not
+% a space, and a pass that is a DIRECTION rather than a font -- the text set
+% vertically.  What Japanese has and Chinese has not is a second layer of
+% sound: kana is a reading written in the language's own script, and Chinese
+% has no such script, so pinyin is the transliteration and goes where every
+% other language's does, in the `tr' field -- \ch's third argument, and the
+% reason \FrankHasReading is false here and the gloss block carries three
+% lines and not four.  Nothing comes off the text either (the registry's `strip` is
+% null and Chinese writes no marks over its characters), and while pass 1 was
+% the text alone that meant no bare pass: it would have repeated pass 1.  A
+% chunk that carries its words, \chw, sets pinyin over each of them in pass 1
+% -- the per-word ruby Japanese sets in kana, \FrankRuby below -- so pass 1
+% has help to take off again, and a passage comes FIVE times: the sentence
+% with pinyin over its words, the pinyin alone, the chunks, the plain text,
+% the vertical setting.  (A book still written in \ch has no pinyin in pass 1,
+% and its plain pass repeats it until its chunks are given their words.)
+%
+% As in ja.tex, everything below is done with babel and fontspec alone --
+% there is no luatexja on this machine and the editions are built with
+% LuaLaTeX: babel's `chinese' locale with intraspace glue for the line breaks
+% (Chinese has no spaces to break at), and the vertical pass as a rotated box
+% in a font loaded with the OpenType `vert' feature.
+
+% ---- the babel language and the switches ----------------------------------
+% \FrankLangName is what \foreignlanguage and \begin{otherlanguage} are given
+% everywhere in the core preamble: babel must know this name, or every passage
+% comes out in the roman with a "Unknown language" error.
+\newcommand{\FrankLangName}{chinese}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBaretrue        % pass 4 is the text without the pinyin pass 1 sets over its words
+\FrankHasAltfalse        % no second face: the last pass is the vertical one
+\FrankHasReadingfalse    % pinyin is the transliteration, not a reading line
+\FrankHasVerttrue        % so pass 5 is \FrankVertPass, not the font pass
+\FrankHasAloudtrue       % pass 2 is the pinyin alone, chunk after chunk
+
+% ---- fonts ------------------------------------------------------------------
+% No face is NAMED here: \FrankPickFont walks the registry's tex.main and then
+% tex.main_fallbacks and takes the first one installed, so the .tex and the
+% .json cannot drift apart (docs/languages.md section 12).  A bundled face --
+% one that travels in lib/fonts/ -- is found because build.sh puts that
+% directory on OSFONTDIR; nothing CJK travels with the toolbox, the files are
+% too large, so this one is the system's Noto Serif CJK SC.  SC is the
+% simplified cut, and it is the only thing in this file that would change for
+% a traditional edition.
+% intraspace=0 .1 0 is the glue babel puts between two CJK characters: no
+% natural width, a tenth of an em of stretch, no shrink -- what lets a line
+% break anywhere and still be justified.  Renderer=HarfBuzz as for the Arabic
+% script and for Japanese, so one engine shapes every language.  Script=CJK is
+% fontspec's name for the hani script.
+% Language is fontspec's OpenType language tag, and fontspec knows no plain
+% `Chinese': the four it declares are Chinese Simplified (ZHS), Chinese
+% Traditional, Chinese Hong Kong and Chinese Phonetic.  The registry's
+% tex.language carries the name in full for that reason -- the row said
+% `Chinese' when it was scaffolded, and every book died at the preamble with
+% "Key 'fontspec-opentype/Language' accepts only a fixed set of choices".
+\babelprovide[import=zh,onchar=ids fonts,intraspace=0 .1 0]{chinese}
+\FrankPickFont{\FrankMainFontName}{zh}{main}{main_fallbacks}
+\babelfont[chinese]{rm}[Script=CJK,Language=Chinese Simplified,Renderer=HarfBuzz]{\FrankMainFontName}
+% The vertical face: the main font again, with the `vert' and `vrt2' features
+% on, so that the glyphs which change shape in vertical text -- the brackets,
+% the comma, the full stop, the ellipsis -- are the vertical forms.  Set
+% horizontally in this font and turned clockwise, each glyph then stands
+% upright in its column.  This is ja.tex's arrangement unchanged, and for the
+% same reason: HarfBuzz honours the features and leaves the text layer alone,
+% so pdftotext gives back the characters the book was written with.
+\newfontfamily\FrankVertFont[Script=CJK,Language=Chinese Simplified,Renderer=HarfBuzz,%
+  RawFeature={+vert,+vrt2}]{\FrankMainFontName}
+\usepackage{graphicx}   % \rotatebox and \resizebox for the vertical pass
+
+% ---- the two Lua filters ---------------------------------------------------
+% frank_strip(s): the bare form of a chunk.  Nothing is written over a Chinese
+% character and nothing comes off, so this is the identity: the plain pass
+% and the vertical pass set the text as it is written.
+% frank_latin(s): the label's digits as ASCII.  The registry's `digits' for
+% Chinese are the Latin ones, which is what a modern Chinese book numbers its
+% chapters with, so this is the identity too.  Both are called for every
+% language, so both must exist even when they do nothing.  No #, % or literal
+% backslash in a \directlua body: TeX reads it first (NOTES section 9 of the
+% Persian book).
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s) return s end
+}
+
+% ---- the seam between two chunks --------------------------------------------
+% The core joins the chunks of a sentence with \FrankChunkSep when it rebuilds
+% pass 1 and the plain and vertical passes from the buffers.  A space, the default, is right for a
+% language written with spaces; Chinese is not, and a space there would show
+% as a gap the source does not have.  So the seam is glue of no width with the
+% same stretch babel puts between two characters: invisible, and a place to
+% break the line.
+\newcommand{\FrankChunkSep}{\hskip 0pt plus .1em\relax}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{verb}{pinyin}{A了B}{pinyin}{A不B}{pinyin}{meaning}: A CHINESE VERB HAS NO
+% FORMS.  Nothing is added to it and nothing comes off it: what a European
+% verb says with an ending, Chinese says with a separate word standing next
+% to the verb, and 吃 is 吃 in every person, number and time there is.  So
+% almost every verb -- and every single character -- is glossed with \dw like
+% any other headword, and the three-form model has nothing to put in its
+% slots: its old labels, "verb" and "with 了", would have printed the headword
+% again and a V了 that reads as a past tense, which zh.md forbids.
+%
+% What a reader DOES need beside two kinds of verb, and cannot see in the
+% characters, is where it comes apart, and so \vb is for those two only:
+%   split  a separable verb-object verb (离合词): the verb with 了 between its
+%          halves, pinyin as zh.md writes a particle, joined to what precedes
+%          it -- \vb{睡觉}{shuìjiào}{睡了觉}{shuìle jiào}{}{}{to sleep}.  Without
+%          it 睡了一觉, 帮我的忙 and 见过面 cannot be traced back to a word at all.
+%   can't  a verb with a resultative or directional complement: the potential
+%          with 不 inside, one word in pinyin -- \vb{看见}{kànjiàn}{}{}{看不见}
+%          {kànbujiàn}{to see}; 得 in the same place is "can", so it is not given.
+% A verb is one or the other, never both, which is why \vb prints a pair only
+% when its form is given (lib/frank-preamble.tex): the split verb leaves the
+% third pair blank and the complement verb the second, and neither prints a
+% label standing over nothing.  Chinese has no extras in the parenthesis.
+% The editor's sidebar proposes these from the dictionary (lib/verbs/zh.py):
+% the kind from Wiktionary's zh-verb type (vo, vc), where it parts from the
+% entry's canonical row (睡⫽覺), and lib/lang/zh.verbs.json for the common
+% verbs Wiktionary leaves unmarked (散步, 听懂, 回来) or marks wrongly (想到).
+% The pair below is the registry's ("vb_labels": ["split", "can't"], with the
+% three forms in words as "vb_forms"), and lib/newlang.py --check compares it
+% with these two lines, so the two files must agree.
+\newcommand{\FrankVbPres}{split}
+\newcommand{\FrankVbPast}{can't}
+
+% ---- pinyin over a word --------------------------------------------------------
+% \FrankRuby{word}{pinyin}: what pass 1 and the chunk column set over each word
+% of a \chw -- lib/lang/ja.tex's \jruby, with pinyin for kana.  The pinyin is
+% small and upright, through \FrankRoman as every transliteration in the book
+% is, centred over the word, and the pair is one unbreakable box, which is why
+% the core puts \FrankWordSep between two words.  Pinyin is wider than the
+% characters it reads (zhōngguó over 中国), so the box is as wide as the wider
+% of the two -- and the pinyin is measured with a fifth of an em either side:
+% a word's pinyin has spaces of its own (yí ge), and without that margin the
+% pinyin of two words stood no further apart than two of its syllables.
+% Measured first, as \jruby is: a pair wider than the measure -- the chunk
+% column is a third of the line -- is set stacked instead, the pinyin on a
+% line of its own and the word under it.
+\newcommand{\FrankRuby}[2]{%
+  \begingroup
+    \setbox0\hbox{{\SzTrans\kern.2em\FrankRoman{#2}\kern.2em}}%
+    \setbox2\hbox{#1}%
+    \dimen0=\wd0 \ifdim\wd2>\dimen0 \dimen0=\wd2 \fi
+    \ifdim\dimen0>\hsize
+      \par\noindent{\SzTrans\FrankRoman{#2}\par}\nobreak\noindent #1%
+    \else
+      \leavevmode
+      \vbox{\hbox to\dimen0{\hss\box0\hss}%
+            \nointerlineskip\kern0.5pt
+            \hbox to\dimen0{\hss\box2\hss}}%
+    \fi
+  \endgroup}
+% \FrankAloudText{pinyin}: pass 2 sets each chunk's pinyin through \FrankRoman
+% too; the text's closing punctuation after it stays in the Chinese face.
+\newcommand{\FrankAloudText}[1]{\FrankRoman{#1}}
+
+% ---- the vertical pass -------------------------------------------------------
+% The text (\FrankBuf, the same buffer the plain pass sets) as
+% 直排: set in a \parbox whose WIDTH is the column height, in the
+% vertical-forms font, then turned clockwise with \rotatebox.  Line 1 becomes
+% the rightmost column and the columns run right to left, which is the order a
+% vertically set Chinese page is read in.
+%
+% HOW TALL THE COLUMNS ARE.  The turned box cannot be broken across pages, so
+% its height decides how the pages fill.  Columns of a fixed height whatever
+% the sentence's length follow the pass before them on the same page almost
+% never, and leave the page before mostly white; so the sentence is measured
+% first -- its natural width in the vertical face, \wd1, is its length as a
+% single column -- and spread over as many columns as it needs at
+% \FrankVertColumn, each column getting an equal share plus one em of slack so
+% that the whole-character line breaks can always fill the last column from
+% the others.  A short sentence is then a short box that sits under the
+% plain pass; a long one has many columns of a comfortable height rather than few
+% of a great one.  When that would want more columns than the measure holds (a
+% column is one leading wide once turned) the columns grow towards
+% \FrankVertHeight instead, and only a sentence too long even for that is
+% scaled down to \linewidth.
+% The column count is worked out in Lua because it is a ceiling and a floor of
+% quotients of dimensions, which TeX's own arithmetic (\numexpr rounds) makes
+% needlessly awkward: frank_vert_columns(width of the sentence, usable column
+% height, usable tallest height, measure, leading) in sp.
+% \raise removes the depth the rotation gives the box, so it sits on the page
+% like a paragraph and the page breaker sees its whole height.
+% Every number here was tuned on lib/lang/ja.tex's fixture edition and is kept
+% unchanged: the two languages set the same square characters at the same size
+% down the same column, and a value that balanced a Japanese page balances a
+% Chinese one.
+\newcommand{\FrankVertHeight}{0.78\textheight}   % the tallest a column may ever be
+\newcommand{\FrankVertColumn}{0.5\textheight}    % the height the columns are balanced to
+\directlua{
+  function frank_vert_columns(w, column, tallest, measure, leading)
+    local most = math.floor(measure / leading)
+    local n = math.ceil(w / column)
+    if n > most then n = math.ceil(w / tallest) end
+    if n < 1 then n = 1 end
+    return n
+  end
+}
+\newcommand{\FrankVertPass}{%
+  \par\addvspace{1.6ex}%
+  \begingroup
+    \FrankVertFont\SzPlain
+    \setbox1\hbox{\foreignlanguage{\FrankLangName}{\FrankBuf}}%
+    % the usable heights are the caps less the em of slack every column gets,
+    % so a balanced column never exceeds its cap; \fontdimen6 is the em
+    \dimen1=\dimexpr\FrankVertColumn-\fontdimen6\font\relax
+    \dimen2=\dimexpr\FrankVertHeight-\fontdimen6\font\relax
+    \count1=\directlua{tex.print(frank_vert_columns(\number\wd1, \number\dimen1,
+      \number\dimen2, \number\linewidth, \number\baselineskip))}\relax
+    \dimen3=\dimexpr\wd1/\count1+\fontdimen6\font\relax
+    \setbox0\hbox{\rotatebox[origin=c]{-90}{%
+      \parbox{\dimen3}{\FrankVertFont\SzPlain\color{ink}%
+        \begin{otherlanguage}{\FrankLangName}\FrankBuf\par\end{otherlanguage}}}}%
+    \ifdim\wd0>\linewidth
+      \setbox0\hbox{\resizebox{\linewidth}{!}{\box0}}%
+    \fi
+    \setbox0\hbox{\raise\dp0\box0}%
+    \noindent\hfill\box0\par
+  \endgroup}
+
+% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex, before the first chapter: the only
+% place the reader is told what the passes are for.  \pw{...} sets one word of
+% the language inside the English; it is defined by the core preamble, after
+% this file, and only expanded when the page is set.
+\newcommand{\FrankHowTo}{%
+Every passage comes five times.
+
+\smallskip
+\textbf{First} the whole sentence as Chinese is written, character after
+character with nothing between them, and its pinyin small above each word.
+Try to read it. Get as far as you can and do not worry about what you cannot
+get — the point is the attempt, made before any help arrives. The pinyin
+stands over words and not over characters, because a Chinese word is usually
+more than one character: \pw{中国} is one word written with two.
+
+\smallskip
+\textbf{Second} only the sound of it: the pinyin of each phrase, a gap between
+one phrase and the next, and no characters at all. Read it aloud, tones and
+all. The gaps are where the sentence divides.
+
+\smallskip
+\textbf{Third} the same sentence in those phrases, Chinese on the left, and on
+the right three lines: how it sounds in pinyin, then how to look each word up,
+then what it means. Now you find out how much you had right.
+
+\smallskip
+\textbf{Fourth} the same passage plain, with no pinyin anywhere — the way
+Chinese is printed. You have read it three times, so it should carry you.
+
+\smallskip
+\textbf{Fifth} the same again set vertically, top to bottom, the columns
+running from right to left — the way Chinese was set for two thousand years
+and is still set on a title page, a scroll and a shop sign. You already know
+what it says, which is the only comfortable way to learn a new direction.
+
+\smallskip
+The pinyin is the whole of the sound: there is no second spelling underneath
+it, as there is in a Japanese edition, because Chinese writes no alphabet of
+its own. The mark over a vowel is the tone, and the tone is part of the word —
+\textit{m\=a} mother, \textit{m\'a} hemp, \textit{m\v{a}} horse,
+\textit{m\`a} to scold. A syllable with no mark is said light and short
+(\textit{de}, \textit{le}, \textit{ma}). \textit{q} is roughly the
+\textit{ch} of \textit{cheese} and \textit{x} the \textit{sh} of \textit{she},
+both said far forward; \textit{zh ch sh r} are the same sounds with the tongue
+curled back; \textit{c} is \textit{ts} and \textit{z} is \textit{dz}.
+\textit{\"u} is the vowel of French \textit{tu}, and after \textit{j q x y} it
+is written \textit{u} because nothing else can stand there. An apostrophe only
+divides syllables that would otherwise run together: \pw{西安} is
+\textit{X\=i'\=an}, two syllables, not \textit{xian}.
+
+\smallskip
+Verbs are given as one form, because a Chinese verb has only one: nothing is
+added to it for person, number or time. What a tense would say is said by the
+words around the verb — \pw{了} that the thing was finished, \pw{过} that it
+has been done at some time, \pw{着} that it is going on — and the meaning line
+on the right is where you will find it. Two kinds of verb come apart in the
+sentence, and for those two the vocabulary shows how: \textit{split} is a verb
+made of a verb and its object, which takes \pw{了} between its halves
+(\pw{睡觉}, \pw{睡了觉}); \textit{can't} is a verb with a result or a
+direction after it, which takes \pw{不} between them (\pw{看见}, \pw{看不见},
+cannot see) — and \pw{得} in that place means \textit{can}. Nouns are
+counted with a measure word standing between the number and the noun, and the
+vocabulary names it whenever it is not the general \pw{个}: \pw{一个人} is
+\textit{one}, then the measure word, then \textit{person}.
+}

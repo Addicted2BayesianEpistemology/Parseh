@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edit: {{TITLE}} — Parseh studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D9%81%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{BASE}}/static/app.css">
+<link rel="stylesheet" href="{{BASE}}/static/langs.css">
+</head>
+<body data-page="edit" data-base="{{BASE}}" data-doc-id="{{DOC_ID}}" data-target="{{TARGET}}" data-decks-base="{{DECKS_BASE}}" data-notes-source="{{NOTES_SOURCE}}" data-names-mark="{{NAMES_MARK}}">
+<header class="topbar">
+  <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
+  <a class="btn ghost" id="btn-back" href="{{BASE}}/">← Back</a>
+  <div class="doc-title">{{TITLE}}</div>
+  <div class="topbar-actions">
+    <span class="insert-group" title="History">
+      <button class="btn ghost" id="btn-undo" title="Undo (⌘Z / Ctrl+Z)">↺</button>
+      <button class="btn ghost" id="btn-redo" title="Redo (⇧⌘Z / Ctrl+Shift+Z / Ctrl+Y)">↻</button>
+    </span>
+    <span class="insert-group" title="Editor">
+      <button class="btn ghost" id="btn-editor-dir" type="button" title="The source is written left to right. Click to write it right to left, for a right-to-left prose language (remembered for this document)">⇤ RTL editor</button>
+    </span>
+    <span class="insert-group" title="Insert at cursor">
+      <button class="btn ghost" id="ins-zwnj" title="Zero-width non-joiner (نیم‌فاصله)">ZWNJ</button>
+      <button class="btn ghost" id="ins-arrow" title="Arrow">→</button>
+      <button class="btn ghost" id="ins-ungram" title="Ungrammatical: ❌ + red on the following form">✗</button>
+      <button class="btn ghost" id="ins-ok" title="Correct-form check — standalone, does not colour what follows">✅</button>
+      <button class="btn ghost" id="ins-guill" title="Guillemets">«»</button>
+      <button class="btn ghost" id="ins-gloss" title="Gloss equals (spaces around)">=</button>
+      <button class="btn ghost" id="ins-note" title="Footnote: opens a box for its name and text, puts the reference at the cursor and the note itself in order with the others — bottom of the page in the PDF, hover cloud on the web">note</button>
+      <button class="btn ghost" id="ins-link" title="Link: [text](url)">link</button>
+      <button class="btn ghost" id="ins-color" title="Colour mark: [متن]{teal}">colour</button>
+      <button class="btn ghost" id="ins-tl" title="Target-language block: wraps the selected text in [ … ]{tl} (multiline form when the selection spans lines) — one unit in the target language's direction and font, punctuation, emoji and Latin words kept inside it; for a Latin-script target this is also how a single run is marked">tl</button>
+      <button class="btn ghost" id="ins-kana" hidden title="Reading mark: [text]{kana:…} — the kana reading of the selected text (the transliteration can share the braces: {kana:… translit:…})">kana</button>
+      <button class="btn ghost" id="ins-la" title="Latin block: wraps the selected paragraph in [ … ]{la} — click it in the reading view to set alignment, background, width and sideways shift (the image knobs)">block</button>
+      <button class="btn ghost" id="ins-math" title="Mathematics in the line: wraps the selection in [ … ]{math} — LaTeX notation, drawn where it is read. Neither $ nor \[ is a marker here; a brace word after a bracketed text is what every mark in this dialect looks like">math</button>
+      <button class="btn ghost" id="ins-br" title="Forced line break — source newlines are ignored; ⏎ keeps one">⏎</button>
+    </span>
+    <label class="btn" for="img-upload" title="Upload a PNG, JPEG, SVG or PDF figure into this document's images/ folder and embed it at the cursor (drag &amp; drop works too)">Image</label>
+    <input type="file" id="img-upload" accept="image/png,image/jpeg,image/svg+xml,application/pdf,.pdf" multiple hidden>
+    <button class="btn" id="btn-images" title="Browse, re-insert or delete this document's uploaded figures (PNG, JPEG, SVG, PDF)">Images…</button>
+    <label class="btn" for="audio-upload" title="Upload a recording ({{AUDIO_HUMAN}}) into this document's audio/ folder and embed it at the cursor (drag &amp; drop works too); its layout and clip are set by clicking ⚙ on the player">Audio</label>
+    <input type="file" id="audio-upload" accept="{{AUDIO_ACCEPT}}" data-formats="{{AUDIO_HUMAN}}" multiple hidden>
+    <button class="btn" id="btn-audios" title="Play, re-insert or delete this document's recordings, and add the clips cut from books and videos">Recordings…</button>
+    <button class="btn" id="btn-video" title="Embed a YouTube video — clip times and layout are set by clicking ⚙ on the embedded player">Video</button>
+    <button class="btn" id="btn-doclink" title="Link to another document in the library, by its name. Renaming that document rewrites the link, so it keeps working; leave the shown text empty and its current title is displayed.">Doc link…</button>
+    <button class="btn" id="btn-tl-editor" title="Open a text box in the target language's direction and font; the result is inserted as a [ … ]{tl} block. Hovering a block in the preview offers ✎ to reopen it here."><span id="btn-tl-editor-label">✎ Text</span></button>
+    <button class="btn" id="btn-math-editor" title="Write a formula with its picture beside it, in the line or on its own; the result is inserted as [ … ]{math} or a :::math block. Hovering a formula in the preview offers ✎ to reopen it here.">∑ Maths</button>
+    <details class="dropdown">
+      <summary class="btn">Exercises ▾</summary>
+      <div class="menu">
+        <button id="btn-exercise" title="Insert an interactive exercise or embedded flashcard">Add exercise…</button>
+        <button id="btn-exercise-prompt" title="Copy a dedicated LLM prompt that adds exercises to this page, optionally using vocabulary from your Anki decks">Generate with LLM…</button>
+        <button id="btn-exercise-deck" title="Put an exercise from one of your decks into this page — its pictures and recordings are copied into this document too">Load from a deck…</button>
+      </div>
+    </details>
+    <button class="btn primary" id="btn-save" title="⌘S / Ctrl+S">Save</button>
+    <button class="btn" id="btn-save-view">Save &amp; view</button>
+    <button class="btn danger ghost" id="btn-stop">Stop server</button>
+  </div>
+</header>
+<div class="split">
+  <div class="editor-pane">
+    <textarea id="src" spellcheck="false" wrap="soft">{{MARKDOWN}}</textarea>
+  </div>
+  <div class="preview-pane">
+    <div class="preview-head">
+      <span>Live preview</span>
+      <span id="pv-status" class="pv-status"></span>
+    </div>
+    <div class="preview-scroll">
+      <article id="sheet" class="sheet" lang="it" data-lang="{{TARGET}}"></article>
+    </div>
+  </div>
+</div>
+<script id="doc-lang" type="application/json">{{LANG_JSON}}</script>
+<script id="prose-lang" type="application/json">{{PROSE_JSON}}</script>
+<script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
+<div id="modal-root"></div>
+<div id="toast" class="toast" hidden></div>
+<div id="shutdown-overlay" class="shutdown-overlay" hidden>
+  <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
+  <code>./serve.sh</code> in the project directory.</p></div>
+</div>
+<link rel="stylesheet" href="{{BASE}}/static/mathjax.css">
+<script src="{{BASE}}/static/mathjax.js"></script>
+<!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
+<script src="/lib/activity.js" async></script>
+<script src="{{BASE}}/static/app.js"></script>
+</body>
+</html>

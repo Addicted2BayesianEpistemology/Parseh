@@ -1,0 +1,30 @@
+{
+ "id": "tr-vocab",
+ "guid": "fx-tr-vocab",
+ "kind": "vocab",
+ "lang": "tr",
+ "created": "2026-09-04 10:00:00",
+ "video": "fixture-tr",
+ "book": "",
+ "time": 0,
+ "context": "İstanbul'da yağmur yağıyor",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "yağmur",
+ "kana": "",
+ "tr": "yāmur",
+ "en": "rain",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "turkish-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

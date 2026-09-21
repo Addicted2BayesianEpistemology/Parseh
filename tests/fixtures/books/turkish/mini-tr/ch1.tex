@@ -1,0 +1,57 @@
+% For Turkish the middle slot of a gloss is a SEGMENTATION, not a
+% pronunciation (docs/lang/tr.md): the spelling already says how a word
+% sounds, and what a reader cannot do is find the seams in a word that is a
+% whole clause.  The pieces push back together into the word exactly as the
+% text spells it, and the meaning names them in the same order.  \vb is
+% infinitive, present in -iyor, aorist, both in the third person singular,
+% its three sound slots empty, and the form the text actually has is
+% segmented in \textit at the end of the meaning.  The second slot was the
+% bare stem here once (gülümse-, oku-), which is the infinitive less -mek and
+% taught nothing; gülümsüyor, with the e narrowed to ü before -yor, is what a
+% reader has to learn to see through.
+%
+% The pronunciation line is therefore empty for most chunks and appears only
+% for the three cases the conventions name: ğ, which is never a consonant
+% (yağmur is yāmur, okuyabileceğini is okuyabileceyini); a long vowel the
+% spelling does not show; and a stress that is not final (İsˈtanbulda,
+% ˈçünkü, yaˈvaşça, since -ça never takes the stress).  The orthographic
+% apostrophe is dropped from a tr and kept everywhere else.
+%
+% What this fixture exists to protect is the two i's.  ı and i are different
+% letters, and İ is the capital of i, not of ı: ıslanırdı begins with the
+% dotless one, İstanbul with the dotted capital, and any case fold that has
+% not been told it is Turkish damages both.
+\chapopen{1}
+
+\parstart{1.1}{Kışın İstanbul'da yağmur yağardı ve sokaklar}
+\parnum{1.1}
+\begin{frank}
+\ch{}{Kışın İstanbul'da}{kışın İsˈtanbulda}{\dw{kışın}{kış-ın} \pw{kış} winter + in, as a time; \pw{İstanbul'da} İstanbul + in, a proper noun's apostrophe being the seam already}{in winter in Istanbul}
+\ch{}{yağmur yağardı}{yāmur yāardı}{\dw{yağmur}{} rain; \vb{yağmak}{}{yağıyor}{}{yağar}{}{to fall, of rain; \textit{yağ-ar-dı} fall + aorist + past}}{it used to rain}
+\ch{}{ve sokaklar ıslanırdı.}{}{\dw{sokaklar}{sokak-lar} \pw{sokak} street + plural; \vb{ıslanmak}{}{ıslanıyor}{}{ıslanır}{}{to get wet; \textit{ıslan-ır-dı} get wet + aorist + past}}{and the streets would get wet.}
+\end{frank}
+
+\parnum{1.2}
+\begin{frank}
+\ch{}{Yaşlı adam}{}{\dw{yaşlı}{yaş-lı} \pw{yaş} age + with, elderly; \dw{adam}{} man}{the old man}
+\ch{}{penceresinden bakar,}{}{\dw{penceresinden}{pencere-si-nden} \pw{pencere} window + his + from; \vb{bakmak}{}{bakıyor}{}{bakar}{}{to look}}{would look out of his window,}
+\ch{}{çayını yavaşça içerdi.}{çayını yaˈvaşça içärdi}{\dw{çayını}{çay-ı-nı} \pw{çay} tea + his + object; \dw{yavaşça}{yavaş-ça} \pw{yavaş} slow + in the manner of; \vb{içmek}{}{içiyor}{}{içer}{}{to drink; \textit{iç-er-di} drink + aorist + past}}{and drink his tea slowly.}
+\end{frank}
+
+\parend
+
+\parstart{1.2}{Bir gün torunu geldi ve ona}
+\parnum{2.1}
+\begin{frank}
+\ch{}{Bir gün torunu geldi}{}{\dw{gün}{} day; \dw{torunu}{torun-u} \pw{torun} grandchild + his; \vb{gelmek}{}{geliyor}{}{gelir}{}{to come; \textit{gel-di} come + past}}{one day his grandchild came}
+\ch{}{ve ona bir kitap getirdi.}{}{\dw{ona}{o-na} \pw{o} he + to; \dw{kitap}{} book; \vb{getirmek}{}{getiriyor}{}{getirir}{}{to bring; \textit{getir-di} bring + past}}{and brought him a book.}
+\end{frank}
+
+\parnum{2.2}
+\begin{frank}
+\ch{}{Adam gülümsedi,}{}{\vb{gülümsemek}{}{gülümsüyor}{}{gülümser}{}{to smile; \textit{gülümse-di} smile + past}}{the man smiled,}
+\ch{}{çünkü artık}{ˈçünkü artık}{\dw{artık}{} now, from now on}{because now}
+\ch{}{okuyabileceğini biliyordu.}{okuyabileceyini biliyordu}{\vb{okumak}{}{okuyor}{}{okur}{}{to read; \textit{oku-yabil-eceğ-i-ni} read + can + will + his + object}; \vb{bilmek}{}{biliyor}{}{bilir}{}{to know; \textit{bil-iyor-du} know + -ing + past}}{he knew that he would be able to read.}
+\end{frank}
+
+\chapend

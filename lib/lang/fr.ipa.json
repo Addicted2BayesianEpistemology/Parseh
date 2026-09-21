@@ -1,0 +1,5 @@
+{
+ "_comment": "How this language's pronunciation becomes its transliteration. Read by lib/translit.py; optional, like every file of this name. French is written by a respelling and not a table: docs/lang/fr.md's scheme needs the final-schwa, elision-and-liaison and no-double rules, and its nasal vowels are a vowel and a combining tilde that a table walk would strip as a mark of manner (ɑ̃ ɛ̃ ɔ̃ came out a è ò). `respell` names the function in lib/translit.py RESPELL that does it (respell_fr), and from_ipa hands every French pronunciation to it.",
+ "respell": "fr",
+ "_respell": "Without it a French hit carried no sound at all -- head_sound, said and translit were empty for every French word, and the sidebar's \\dw for a French noun went out with an empty sound. With it the lemma is said (aller alé, prendre prãdr) and so is the form a chunk holds, from that row's own IPA (vint /vɛ̃/ is vẽ), which is what a video's `here` shape prints."
+}

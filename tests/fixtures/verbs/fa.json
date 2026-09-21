@@ -1,0 +1,935 @@
+{
+ "code": "fa",
+ "_note": "Each case is one entry of dict/fa.db (built 2026-09-10) with only the rows lib/verbs/fa.py and the lookup read for it, in rowid order; a dictionary holding that entry and those rows alone, looked up with `text`, gives `expect` for the hit of `word` (checked when this file was written). expect.tex null means the recipe returns None and the hit carries no vb. The recipe also reads lib/lang/fa.verbs.json (no_vb, no_mi, meaning, preverbs).",
+ "cases": [
+  {
+   "why": "a regular verb: the literary Iranian table gives both stems and all three sounds",
+   "entry": {
+    "headword": "خریدن",
+    "translit": "xarīdan",
+    "ipa": "[xæ.ɹiː.d̪æn]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to buy; to purchase",
+    "sense_tags": "",
+    "head": "{\"inf_tr\": \"xaridán\", \"prs\": \"خر\", \"prs_tr\": \"xar\", \"ps\": \"خرید\", \"ps_tr\": \"xarid\"}"
+   },
+   "forms": [
+    [
+     "خریدن",
+     "",
+     ""
+    ],
+    [
+     "xarīdan",
+     "romanization",
+     ""
+    ],
+    [
+     "xaridan",
+     "romanization",
+     ""
+    ],
+    [
+     "خر",
+     "present stem",
+     "xar"
+    ],
+    [
+     "میخرم",
+     "first-person indicative present singular",
+     "mí-xaram"
+    ],
+    [
+     "دارم میخرم",
+     "first-person indicative present progressive singular",
+     "dấram mí-xaram"
+    ],
+    [
+     "داری میخری",
+     "indicative present progressive second-person singular",
+     "dấri mí-xari"
+    ],
+    [
+     "دارد میخرد",
+     "indicative present progressive singular third-person",
+     "dấrad mí-xarad"
+    ],
+    [
+     "داریم میخریم",
+     "first-person indicative plural present progressive",
+     "dấrim mí-xarim"
+    ],
+    [
+     "دارید میخرید",
+     "indicative plural present progressive second-person",
+     "dấrid mí-xarid"
+    ],
+    [
+     "دارند میخرند",
+     "indicative plural present progressive third-person",
+     "dấrand mí-xarand"
+    ],
+    [
+     "خریدم",
+     "first-person indicative past singular",
+     "xaridam"
+    ],
+    [
+     "داشتم میخریدم",
+     "first-person indicative past progressive singular",
+     "dấštam mí-xaridam"
+    ],
+    [
+     "داشتی میخریدی",
+     "indicative past progressive second-person singular",
+     "dấšti mí-xaridi"
+    ],
+    [
+     "داشت میخرید",
+     "indicative past progressive singular third-person",
+     "dâšt mí-xarid"
+    ],
+    [
+     "داشتیم میخریدیم",
+     "first-person indicative past plural progressive",
+     "dấštim mí-xaridim"
+    ],
+    [
+     "داشتید میخریدید",
+     "indicative past plural progressive second-person",
+     "dấštid mí-xaridid"
+    ],
+    [
+     "داشتند میخریدند",
+     "indicative past plural progressive third-person",
+     "dấštand mí-xaridand"
+    ],
+    [
+     "داره میخره",
+     "indicative present progressive singular third-person",
+     "dấre mí-xare"
+    ],
+    [
+     "دارین میخرین",
+     "indicative plural present progressive second-person",
+     "dấrin mí-xarin"
+    ],
+    [
+     "دارن میخرن",
+     "indicative plural present progressive third-person",
+     "dấran mí-xaran"
+    ],
+    [
+     "داشتین میخریدین",
+     "indicative past plural progressive second-person",
+     "dấštin mí-xaridin"
+    ],
+    [
+     "داشتن میخریدن",
+     "indicative past plural progressive third-person",
+     "dấštan mí-xaridan"
+    ],
+    [
+     "خریده میرم",
+     "first-person indicative present progressive singular",
+     "xarīda mērum"
+    ],
+    [
+     "خریده میری",
+     "indicative present progressive second-person singular",
+     "xarīda mērī"
+    ],
+    [
+     "خریده میره",
+     "indicative present progressive singular third-person",
+     "xarīda mēra"
+    ],
+    [
+     "خریده میرم",
+     "first-person indicative plural present progressive",
+     "xarīda mērēm"
+    ],
+    [
+     "خریده میرن",
+     "indicative plural present progressive second-person",
+     "xarīda mērēn"
+    ],
+    [
+     "خریده میرن",
+     "indicative plural present progressive third-person",
+     "xarīda mēran"
+    ],
+    [
+     "خریدم",
+     "first-person indicative perfect present singular",
+     "xarīdám"
+    ]
+   ],
+   "word": "خریدم",
+   "text": "نان خریدم",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{خریدن}{xaridan}{خر}{xar}{خرید}{xarid}{to buy}",
+    "plain": "خریدن xaridan · pres. خر xar · past خرید xarid · to buy",
+    "line": "pres. خر xar · past خرید xarid",
+    "complete": true,
+    "here": "خریدم xaridam (خریدن xaridan · pres. خر xar · past خرید xarid · to buy)",
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "an irregular present stem (گو), and the colloquial present the video line adds and the book line never carries",
+   "entry": {
+    "headword": "گفتن",
+    "translit": "guftan",
+    "ipa": "[ɡ̥of.t̪ʰǽn]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to say\nto tell\nto talk\nto speak",
+    "sense_tags": "\n\n\n",
+    "head": "{\"inf_tr\": \"goftán\", \"prs\": \"گو\", \"prs_tr\": \"gu\", \"ps\": \"گفت\", \"ps_tr\": \"goft\"}"
+   },
+   "forms": [
+    [
+     "گفتن",
+     "",
+     ""
+    ],
+    [
+     "guftan",
+     "romanization",
+     ""
+    ],
+    [
+     "goftan",
+     "romanization",
+     ""
+    ],
+    [
+     "گو",
+     "present stem",
+     "gu"
+    ],
+    [
+     "گوی",
+     "present stem",
+     "guy"
+    ],
+    [
+     "گفت",
+     "past stem",
+     "goft"
+    ],
+    [
+     "میگویم",
+     "first-person indicative present singular",
+     "mí-guyam"
+    ],
+    [
+     "دارم میگویم",
+     "first-person indicative present progressive singular",
+     "dấram mí-guyam"
+    ],
+    [
+     "داری میگویی",
+     "indicative present progressive second-person singular",
+     "dấri mí-guyi"
+    ],
+    [
+     "دارد میگوید",
+     "indicative present progressive singular third-person",
+     "dấrad mí-guyad"
+    ],
+    [
+     "داریم میگوییم",
+     "first-person indicative plural present progressive",
+     "dấrim mí-guyim"
+    ],
+    [
+     "دارید میگویید",
+     "indicative plural present progressive second-person",
+     "dấrid mí-guyid"
+    ],
+    [
+     "دارند میگویند",
+     "indicative plural present progressive third-person",
+     "dấrand mí-guyand"
+    ],
+    [
+     "گفت",
+     "indicative past singular third-person",
+     "goft"
+    ],
+    [
+     "داشتم میگفتم",
+     "first-person indicative past progressive singular",
+     "dấštam mí-goftam"
+    ],
+    [
+     "داشتی میگفتی",
+     "indicative past progressive second-person singular",
+     "dấšti mí-gofti"
+    ],
+    [
+     "داشت میگفت",
+     "indicative past progressive singular third-person",
+     "dấšt mí-goft"
+    ],
+    [
+     "داشتیم میگفتیم",
+     "first-person indicative past plural progressive",
+     "dấštim mí-goftim"
+    ],
+    [
+     "داشتید میگفتید",
+     "indicative past plural progressive second-person",
+     "dấštid mí-goftid"
+    ],
+    [
+     "داشتند میگفتند",
+     "indicative past plural progressive third-person",
+     "dấštand mí-goftand"
+    ],
+    [
+     "گه",
+     "present stem",
+     "ge"
+    ],
+    [
+     "میگم",
+     "first-person indicative present singular",
+     "mí-gam"
+    ],
+    [
+     "دارم میگم",
+     "first-person indicative present progressive singular",
+     "dấram mí-gam"
+    ],
+    [
+     "داری میگی",
+     "indicative present progressive second-person singular",
+     "dấri mí-gi"
+    ],
+    [
+     "داره میگه",
+     "indicative present progressive singular third-person",
+     "dấre mí-ge"
+    ],
+    [
+     "داریم میگیم",
+     "first-person indicative plural present progressive",
+     "dấrim mí-gim"
+    ],
+    [
+     "دارین میگین",
+     "indicative plural present progressive second-person",
+     "dấrin mí-gin"
+    ],
+    [
+     "دارن میگن",
+     "indicative plural present progressive third-person",
+     "dấran mí-gan"
+    ],
+    [
+     "داشتین میگفتین",
+     "indicative past plural progressive second-person",
+     "dấštin mí-goftin"
+    ],
+    [
+     "داشتن میگفتن",
+     "indicative past plural progressive third-person",
+     "dấštan mí-goftan"
+    ],
+    [
+     "داشته میگفته",
+     "indicative past progressive singular third-person",
+     "dā́šta mḗ-gufta"
+    ],
+    [
+     "گفت",
+     "past, singular, third-person",
+     "goft"
+    ],
+    [
+     "گو",
+     "present, stem",
+     "gu"
+    ],
+    [
+     "گوی",
+     "present, stem",
+     "guy"
+    ]
+   ],
+   "word": "گفت",
+   "text": "او به من گفت",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{گفتن}{goftan}{گو}{gu}{گفت}{goft}{to say}",
+    "plain": "گفتن goftan · pres. گو gu · past گفت goft · to say (coll. می‌گم mi-gam)",
+    "line": "pres. گو gu · past گفت goft",
+    "complete": true,
+    "here": "گفت goft (گفتن goftan · pres. گو gu · past گفت goft · to say (coll. می‌گم mi-gam))",
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "irregular and tableless: باش has its sound only on the pointer row, which is read because no other verb is spelt بودن; the meaning is the hand-kept 'to be' (lib/lang/fa.verbs.json), not the source's first sense 'to exist'",
+   "entry": {
+    "headword": "بودن",
+    "translit": "būdan",
+    "ipa": "[buː.d̪ǽn]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to exist\nto be (See the Usage Notes)",
+    "sense_tags": "\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "بودن",
+     "",
+     ""
+    ],
+    [
+     "būdan",
+     "romanization",
+     ""
+    ],
+    [
+     "budan",
+     "romanization",
+     ""
+    ],
+    [
+     "باش",
+     "present stem",
+     ""
+    ],
+    [
+     "بو",
+     "present stem",
+     ""
+    ],
+    [
+     "بودم",
+     "error-unrecognized-form",
+     ""
+    ],
+    [
+     "باش",
+     "present, stem",
+     "bāš"
+    ]
+   ],
+   "word": "بودم",
+   "text": "من خسته بودم",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{بودن}{budan}{باش}{bāš}{بود}{bud}{to be}",
+    "plain": "بودن budan · pres. باش bāš · past بود bud · to be",
+    "line": "pres. باش bāš · past بود bud",
+    "complete": true,
+    "here": "بودم (بودن budan · pres. باش bāš · past بود bud · to be)",
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "the closed list of one: داشتن's extra 'pres. without mi-'; its stem sound is the Iranian half of the head row's 'dār /dâr'",
+   "entry": {
+    "headword": "داشتن",
+    "translit": "dāštan",
+    "ipa": "[d̪ɒːʃ.t̪ʰǽn]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to have; to possess, to own\nto be (doing something)\nto keep, to hold",
+    "sense_tags": "\nIran,auxiliary\nClassical-Persian",
+    "head": ""
+   },
+   "forms": [
+    [
+     "داشتن",
+     "",
+     ""
+    ],
+    [
+     "dāštan",
+     "romanization",
+     ""
+    ],
+    [
+     "dâštan",
+     "romanization",
+     ""
+    ],
+    [
+     "دار",
+     "present stem",
+     "dār /dâr"
+    ],
+    [
+     "دارم",
+     "aorist first-person indicative singular",
+     "dā́ram"
+    ],
+    [
+     "میدارم",
+     "first-person indicative present singular",
+     "mḗ-dāram"
+    ],
+    [
+     "داشته میرم",
+     "first-person indicative present progressive singular",
+     "dāšta mērum"
+    ],
+    [
+     "داشته میری",
+     "indicative present progressive second-person singular",
+     "dāšta mērī"
+    ],
+    [
+     "داشته میره",
+     "indicative present progressive singular third-person",
+     "dāšta mēra"
+    ],
+    [
+     "داشته میرم",
+     "first-person indicative plural present progressive",
+     "dāšta mērēm"
+    ],
+    [
+     "داشته میرن",
+     "indicative plural present progressive second-person",
+     "dāšta mērēn"
+    ],
+    [
+     "داشته میرن",
+     "indicative plural present progressive third-person",
+     "dāšta mēran"
+    ],
+    [
+     "دارم",
+     "error-unrecognized-form indicative",
+     ""
+    ],
+    [
+     "دار",
+     "present, stem",
+     "dār /dâr"
+    ],
+    [
+     "دارم",
+     "first-person, indicative, present, singular",
+     "dā́ram"
+    ]
+   ],
+   "word": "دارم",
+   "text": "من یک کتاب دارم",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{داشتن}{dāštan}{دار}{dār}{داشت}{dāšt}{to have (pres. without mi-)}",
+    "plain": "داشتن dāštan · pres. دار dār · past داشت dāšt · to have (pres. without mi-)",
+    "line": "pres. دار dār · past داشت dāšt · pres. without mi-",
+    "complete": true,
+    "here": "دارم dāram (داشتن dāštan · pres. دار dār · past داشت dāšt · to have (pres. without mi-))",
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "a preverb verb: the table writes the stems apart (بر گرد), so all three sounds are hyphened after the preverb and the forms are written in one piece",
+   "entry": {
+    "headword": "برگشتن",
+    "translit": "bargaštan",
+    "ipa": "[bæɹ ɡʲæʃ.t̪ʰǽn]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to return, to come back",
+    "sense_tags": "formal",
+    "head": "{\"inf_tr\": \"bar gaštán\", \"prs\": \"بر گرد\", \"prs_tr\": \"bar gard\", \"ps\": \"بر گشت\", \"ps_tr\": \"bar gašt\"}"
+   },
+   "forms": [
+    [
+     "برگشتن",
+     "",
+     ""
+    ],
+    [
+     "bargaštan",
+     "romanization",
+     ""
+    ],
+    [
+     "برگرد",
+     "present stem",
+     "bargard"
+    ],
+    [
+     "بر گرد",
+     "present stem",
+     "bar gard"
+    ],
+    [
+     "بر میگردم",
+     "first-person indicative present singular",
+     "bar mí-gardam"
+    ],
+    [
+     "بر میگردی",
+     "indicative present second-person singular",
+     "bar mí-gardi"
+    ],
+    [
+     "بر میگردد",
+     "indicative present singular third-person",
+     "bar mí-gardad"
+    ],
+    [
+     "بر میگردیم",
+     "first-person indicative plural present",
+     "bar mí-gardim"
+    ],
+    [
+     "بر میگردید",
+     "indicative plural present second-person",
+     "bar mí-gardid"
+    ],
+    [
+     "بر میگردند",
+     "indicative plural present third-person",
+     "bar mí-gardand"
+    ],
+    [
+     "بر میگشتم",
+     "first-person indicative past singular",
+     "bar mí-gaštam"
+    ],
+    [
+     "بر میگشتی",
+     "indicative past second-person singular",
+     "bar mí-gašti"
+    ],
+    [
+     "بر میگشت",
+     "indicative past singular third-person",
+     "bar mí-gašt"
+    ],
+    [
+     "بر میگشتیم",
+     "first-person indicative past plural",
+     "bar mí-gaštim"
+    ],
+    [
+     "بر میگشتید",
+     "indicative past plural second-person",
+     "bar mí-gaštid"
+    ],
+    [
+     "بر میگشتند",
+     "indicative past plural third-person",
+     "bar mí-gaštand"
+    ],
+    [
+     "بر میگرده",
+     "indicative present singular third-person",
+     "bar mí-gárde"
+    ],
+    [
+     "بر میگردین",
+     "indicative plural present second-person",
+     "bar mí-gárdin"
+    ],
+    [
+     "بر میگردن",
+     "indicative plural present third-person",
+     "bar mí-gárdan"
+    ],
+    [
+     "بر میگشتین",
+     "indicative past plural second-person",
+     "bar mí-gáštin"
+    ],
+    [
+     "بر میگشتن",
+     "indicative past plural third-person",
+     "bar mí-gáštan"
+    ],
+    [
+     "برگرد",
+     "present, stem",
+     "bargard"
+    ],
+    [
+     "برگشتم",
+     "first-person, indicative, preterite, singular",
+     ""
+    ]
+   ],
+   "word": "برگشتم",
+   "text": "دیروز برگشتم",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{برگشتن}{bar-gaštan}{برگرد}{bar-gard}{برگشت}{bar-gašt}{to return}",
+    "plain": "برگشتن bar-gaštan · pres. برگرد bar-gard · past برگشت bar-gašt · to return",
+    "line": "pres. برگرد bar-gard · past برگشت bar-gašt",
+    "complete": true,
+    "here": "برگشتم (برگشتن bar-gaštan · pres. برگرد bar-gard · past برگشت bar-gašt · to return)",
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "must return None: a pos=verb entry that is no infinitive (the suppletive existential stays a \\dw, docs/lang/fa.md)",
+   "entry": {
+    "headword": "هست",
+    "translit": "hast",
+    "ipa": "[hæst̪ʰ]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "there is, there are\nis, are",
+    "sense_tags": "\nTehrani,colloquial",
+    "head": ""
+   },
+   "forms": [
+    [
+     "هست",
+     "",
+     ""
+    ],
+    [
+     "hast",
+     "romanization",
+     ""
+    ]
+   ],
+   "word": "هست",
+   "text": "او اینجا هست",
+   "gloss": "en",
+   "expect": {
+    "tex": null,
+    "plain": null,
+    "line": null,
+    "complete": null
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "must return None: a compound's entry reached through a bare form of its light verb, with the element (اندازه) nowhere in the chunk",
+   "entry": {
+    "headword": "اندازه گرفتن",
+    "translit": "andâze gereftan",
+    "ipa": "[ʔæn̪.d̪ɒː.ze ɡʲe.ɹef.t̪ʰǽn]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to measure (size)",
+    "sense_tags": "",
+    "head": "{\"inf_tr\": \"andâze gereftán\", \"prs\": \"اندازه گیر\", \"prs_tr\": \"andâze gir\", \"ps\": \"اندازه گرفت\", \"ps_tr\": \"andâze gereft\"}"
+   },
+   "forms": [
+    [
+     "اندازه گرفتن",
+     "",
+     ""
+    ],
+    [
+     "andâze gereftan",
+     "romanization",
+     ""
+    ],
+    [
+     "اندازه گیر",
+     "present stem",
+     "andâze gir"
+    ],
+    [
+     "اندازه میگیرم",
+     "first-person indicative present singular",
+     "andâze mí-giram"
+    ],
+    [
+     "اندازه میگیری",
+     "indicative present second-person singular",
+     "andâze mí-giri"
+    ],
+    [
+     "اندازه میگیرد",
+     "indicative present singular third-person",
+     "andâze mí-girad"
+    ],
+    [
+     "اندازه میگیریم",
+     "first-person indicative plural present",
+     "andâze mí-girim"
+    ],
+    [
+     "اندازه میگیرید",
+     "indicative plural present second-person",
+     "andâze mí-girid"
+    ],
+    [
+     "اندازه میگیرند",
+     "indicative plural present third-person",
+     "andâze mí-girand"
+    ],
+    [
+     "اندازه میگرفتم",
+     "first-person indicative past singular",
+     "andâze mí-gereftam"
+    ],
+    [
+     "اندازه میگرفتی",
+     "indicative past second-person singular",
+     "andâze mí-gerefti"
+    ],
+    [
+     "اندازه میگرفت",
+     "indicative past singular third-person",
+     "andâze mí-gereft"
+    ],
+    [
+     "اندازه میگرفتیم",
+     "first-person indicative past plural",
+     "andâze mí-gereftim"
+    ],
+    [
+     "اندازه میگرفتید",
+     "indicative past plural second-person",
+     "andâze mí-gereftid"
+    ],
+    [
+     "اندازه میگرفتند",
+     "indicative past plural third-person",
+     "andâze mí-gereftand"
+    ],
+    [
+     "گیر",
+     "present stem",
+     "andâze gir"
+    ],
+    [
+     "میگیرم",
+     "first-person indicative present singular",
+     "andâze mí-giram"
+    ],
+    [
+     "دارم میگیرم",
+     "first-person indicative present progressive singular",
+     "dấram andâze mí-giram"
+    ],
+    [
+     "داری میگیری",
+     "indicative present progressive second-person singular",
+     "dấri andâze mí-giri"
+    ],
+    [
+     "داره میگیره",
+     "indicative present progressive singular third-person",
+     "dấre andâze mí-gire"
+    ],
+    [
+     "داریم میگیریم",
+     "first-person indicative plural present progressive",
+     "dấrim andâze mí-girim"
+    ],
+    [
+     "دارین میگیرین",
+     "indicative plural present progressive second-person",
+     "dấrin andâze mí-girin"
+    ],
+    [
+     "دارن میگیرن",
+     "indicative plural present progressive third-person",
+     "dấran andâze mí-giran"
+    ],
+    [
+     "گرفتم",
+     "first-person indicative past singular",
+     "andâze geréftam"
+    ],
+    [
+     "داشتم میگرفتم",
+     "first-person indicative past progressive singular",
+     "dấštam andâze mí-greftam"
+    ],
+    [
+     "داشتی میگرفتی",
+     "indicative past progressive second-person singular",
+     "dấšti andâze mí-grefti"
+    ],
+    [
+     "داشت میگرفت",
+     "indicative past progressive singular third-person",
+     "dấšt andâze mí-greft"
+    ],
+    [
+     "داشتیم میگرفتیم",
+     "first-person indicative past plural progressive",
+     "dấštim andâze mí-greftim"
+    ],
+    [
+     "داشتین میگرفتین",
+     "indicative past plural progressive second-person",
+     "dấštin andâze mí-greftin"
+    ],
+    [
+     "داشتن میگرفتن",
+     "indicative past plural progressive third-person",
+     "dấštan andâze mí-greftan"
+    ]
+   ],
+   "word": "گرفتم",
+   "text": "گرفتم",
+   "gloss": "en",
+   "expect": {
+    "tex": null,
+    "plain": null,
+    "line": null,
+    "complete": null
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "incomplete: no row gives a present stem, so it is named in missing; the meaning is the pointer's own quoted gloss of the word it points at",
+   "entry": {
+    "headword": "وایستادن",
+    "translit": "vâystâdan",
+    "ipa": "[vɒːjs.t̪ʰɒː.d̪ǽn]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "synonym of وایسادن (vâysâdan, “to stand, to stop”).",
+    "sense_tags": "colloquial",
+    "head": ""
+   },
+   "forms": [
+    [
+     "وایستادن",
+     "",
+     ""
+    ],
+    [
+     "vâystâdan",
+     "romanization",
+     ""
+    ]
+   ],
+   "word": "وایستادن",
+   "text": "وایستادن",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{وایستادن}{vāystādan}{}{}{وایستاد}{vāystād}{to stand}",
+    "plain": "وایستادن vāystādan · past وایستاد vāystād · to stand",
+    "line": "past وایستاد vāystād",
+    "complete": false,
+    "here": "وایستادن vāystādan · past وایستاد vāystād · to stand",
+    "missing": [
+     "present stem"
+    ]
+   },
+   "run": "lookup"
+  }
+ ]
+}

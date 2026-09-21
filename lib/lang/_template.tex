@@ -1,0 +1,96 @@
+% {{NAME}} ({{NATIVE}}) -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define and
+% section 12 the ones it may, and the manual's "Adding a language" chapter
+% says in one line each what happens when one is missing.
+%
+% Scaffolded from lib/lang/_template.tex by lib/newlang.py.  Everything below
+% the switches came out of lib/languages.json, so it agrees with the registry
+% by construction; \FrankHowTo did not, and is the one thing you must write.
+% The model to read while writing it is lib/lang/fa.tex.
+
+% ---- the babel language and the switches ----------------------------------
+% \FrankLangName is what \foreignlanguage and \begin{otherlanguage} are given
+% everywhere in the core preamble: babel must know this name, or every passage
+% comes out in the roman with a "Unknown language" error.
+\newcommand{\FrankLangName}{{{BABEL}}}
+{{RTL}}% {{RTL_WHY}}
+{{HAS_BARE}}% {{HAS_BARE_WHY}}
+{{HAS_ALT}}% whether \FrankAltFont exists (the title, the chapter number)
+{{HAS_READING}}% whether \chr's third argument is set as a reading
+{{HAS_VERT}}% whether pass 4 is \FrankVertPass rather than the font pass
+{{HAS_ALOUD}}% whether the chunks carry words, and pass 2 is each one's reading alone
+
+% ---- fonts ------------------------------------------------------------------
+% No face is NAMED here: \FrankPickFont walks the registry's tex.main and then
+% tex.main_fallbacks and takes the first one installed, so the .tex and the
+% .json cannot drift apart (docs/languages.md section 12).  A bundled face --
+% one that travels in lib/fonts/ -- is found because build.sh puts that
+% directory on OSFONTDIR.
+{{FONT_BLOCK}}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{{{VB_FORM1}}}{sound}{{{VB_FORM2}}}{sound}{{{VB_FORM3}}}{sound}{meaning}:
+% these two are the labels printed before the second and third forms.  The
+% three forms are the registry's "vb_forms", which the chunk editor names
+% when somebody types a \vb:
+%   {{VB_FORMS}}
+% Whatever you choose here, docs/lang/{{CODE}}.md must name the same three
+% forms in the same order, or the annotator fills slots the page labels
+% differently.
+% The core prints the second and the third pair only when its FORM is given
+% (lib/frank-preamble.tex), so a verb that has no such form leaves the pair
+% blank, {}{}, rather than repeating another one.  What the three cannot say
+% -- an auxiliary, a class, a governed case -- goes in ONE parenthesis after
+% the meaning, items parted by "; ", each only where it is not the ordinary
+% case: {to drive (er fährt; aux. sein)} is German's.
+% TODO: say here which forms this language gives and why those three, and
+% which extras it has, if any; lib/lang/tr.tex and lib/lang/zh.tex are the
+% models for a language whose forms are not a Western paradigm.
+% The pair below comes from the registry's "vb_labels" ({{VB_LABELS}}), which is
+% where the reader takes it from as well: change one and change the other, or
+% the PDF and the reader of one book label the same form differently.
+% lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{{{VB_PRES}}}
+\newcommand{\FrankVbPast}{{{VB_PAST}}}
+
+% ---- the two Lua filters ---------------------------------------------------
+% frank_strip(s): the bare form of a chunk -- what pass 3 shows.  Written from
+% the registry's `strip`; the identity when there is nothing to take off.
+% frank_latin(s): the label's digits as ASCII, because a PDF destination name
+% cannot carry the language's own figures.  Written from `digits`.
+% Both are called for every language, so both must exist even when they do
+% nothing.  No #, % or literal backslash in a \directlua body: TeX reads it
+% first (NOTES section 9 of the Persian book).
+\directlua{
+{{LUA_FILTERS}}
+}
+
+{{TODO}}% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex, before the first chapter: the only
+% place the reader is told what the passes are for.  Write it in the second
+% person, one paragraph per pass, then a paragraph on the transliteration
+% scheme and one on how verbs are given -- the shape lib/lang/fa.tex has.
+% \pw{...} sets one word of the language inside the English; it is defined by
+% the core preamble, after this file, and only expanded when the page is set.
+%
+% TODO: this is a placeholder.  A passage of {{NAME}} comes {{NPASSES}}:
+% {{PASSES}}.
+\newcommand{\FrankHowTo}{%
+Every passage comes {{NPASSES}}.
+
+\smallskip
+\textbf{First} the whole sentence, and nothing else. Try to read it. Get as
+far as you can and do not worry about what you cannot get --- the point is
+the attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, {{NAME}} on one side and on
+the other three lines: how it sounds, then how to look each word up, then what
+it means. Now you find out how much you had right.
+
+\smallskip
+TODO: one paragraph for each remaining pass, then the transliteration scheme
+(what the letters with marks stand for) and how verbs are given: as
+{{VB_FORM1}}, {{VB_FORM2}}, {{VB_FORM3}}, meaning, and what stands in brackets after it.
+}

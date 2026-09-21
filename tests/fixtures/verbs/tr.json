@@ -1,0 +1,773 @@
+{
+ "code": "tr",
+ "_why": "Offline smoke cases for lib/verbs/tr.py: each entry's real rows from the kaikki extract (2026-09-06), trimmed to those the recipe reads plus the rows it must refuse, in rowid order.  `expect` is null where the recipe must return None.  `why` says what the case is for.",
+ "cases": [
+  {
+   "entry": {
+    "headword": "gelmek",
+    "translit": "",
+    "ipa": "/ɟelˈmec/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to come, move closer\nto come, to appear, to manifest\nto weigh (have a certain weight)\nto seem, to appear\nto pretend\nto feel like doing something\nto visit, to come over\nto come off; to escape or get off, to come out of a situation without significant harm.\nto come off, to come across, to feel like, to seem like\nto arise, to become apparent\nto come, to ejaculate",
+    "sense_tags": "intransitive\nintransitive\nintransitive\nimpersonal,intransitive,obj:dat,with-dative\nintransitive,with-ablative\nimpersonal,obj:[<LINK(['-ası']){} >; ' + poss']\nintransitive\nintransitive\nintransitive\nintransitive\nrare,slang",
+    "head": ""
+   },
+   "forms": [
+    [
+     "gelmek",
+     "",
+     ""
+    ],
+    [
+     "gelir",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "gelirim",
+     "aorist singular third-person",
+     ""
+    ],
+    [
+     "gelirsin",
+     "aorist first-person plural",
+     ""
+    ],
+    [
+     "geliriz",
+     "aorist plural third-person",
+     ""
+    ],
+    [
+     "gelirsiniz",
+     "aorist",
+     ""
+    ],
+    [
+     "gelirler",
+     "aorist",
+     ""
+    ],
+    [
+     "geliyorum",
+     "continuative singular third-person",
+     ""
+    ],
+    [
+     "geliyorsun",
+     "continuative first-person plural",
+     ""
+    ],
+    [
+     "geliyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "geliyoruz",
+     "continuative plural third-person",
+     ""
+    ],
+    [
+     "geldi",
+     "past plural second-person",
+     ""
+    ],
+    [
+     "gelmez",
+     "aorist negative plural second-person",
+     ""
+    ],
+    [
+     "gelmiyor",
+     "continuative negative plural second-person",
+     ""
+    ],
+    [
+     "gelebilir",
+     "aorist plural second-person",
+     ""
+    ],
+    [
+     "gelebiliyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "gelemez",
+     "aorist plural second-person",
+     ""
+    ],
+    [
+     "gelemiyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "geliyorum",
+     "continuative, first-person, present, singular",
+     ""
+    ],
+    [
+     "geliyorsun",
+     "continuative, present, second-person, singular",
+     ""
+    ],
+    [
+     "geliyor",
+     "continuative, present, singular, third-person",
+     ""
+    ],
+    [
+     "geliyoruz",
+     "continuative, first-person, plural, present",
+     ""
+    ],
+    [
+     "gelirim",
+     "aorist, first-person, indicative, singular",
+     ""
+    ],
+    [
+     "gelirler",
+     "aorist, indicative, plural, third-person",
+     ""
+    ],
+    [
+     "gelmez",
+     "aorist, indicative, negative, singular, third-person",
+     ""
+    ],
+    [
+     "geliriz",
+     "first-person, plural, present",
+     ""
+    ],
+    [
+     "geldi",
+     "indicative, past, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "geldi",
+   "text": "Bir gün torunu geldi",
+   "gloss": "en",
+   "why": "regular: the aorist from the head row `present singular third-person`, the present from the table cell mis-tagged `continuative plural second-person`; gelirim (tagged `aorist singular third-person`), gelebiliyor and gelemiyor (neither tagged negative) are the rows it must NOT take",
+   "expect": {
+    "tex": "\\vb{gelmek}{}{geliyor}{}{gelir}{}{to come}",
+    "plain": "gelmek · pres. geliyor · aor. gelir · to come",
+    "line": "pres. geliyor · aor. gelir",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "entry": {
+    "headword": "gitmek",
+    "translit": "",
+    "ipa": "/ɟitˈmec/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to go\nto lead\nto deteriorate; to grow worse\nto suit; to be suitable or apt for one's image\nto die, to pass away\nto last\nto be traded at a certain rate",
+    "sense_tags": "\n\n\n\neuphemistic,intransitive\nintransitive\nintransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "gitmek",
+     "",
+     ""
+    ],
+    [
+     "gider",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "giderim",
+     "aorist singular third-person",
+     ""
+    ],
+    [
+     "gidersin",
+     "aorist first-person plural",
+     ""
+    ],
+    [
+     "gidiyorum",
+     "continuative singular third-person",
+     ""
+    ],
+    [
+     "gidiyorsun",
+     "continuative first-person plural",
+     ""
+    ],
+    [
+     "gidiyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "gitmez",
+     "aorist negative plural second-person",
+     ""
+    ],
+    [
+     "gitmiyor",
+     "continuative negative plural second-person",
+     ""
+    ],
+    [
+     "gidebilir",
+     "aorist plural second-person",
+     ""
+    ],
+    [
+     "gidebiliyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "gidemiyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "giderim",
+     "aorist, first-person, indicative, singular",
+     ""
+    ],
+    [
+     "gitmez",
+     "aorist, indicative, negative, singular, third-person",
+     ""
+    ],
+    [
+     "gidersin",
+     "aorist, indicative, second-person, singular",
+     ""
+    ]
+   ],
+   "word": "gidiyorum",
+   "text": "Okula gidiyorum.",
+   "gloss": "en",
+   "why": "irregular: t voices to d before a vowel (gider, gidiyor) -- and the two forms must voice alike",
+   "expect": {
+    "tex": "\\vb{gitmek}{}{gidiyor}{}{gider}{}{to go}",
+    "plain": "gitmek · pres. gidiyor · aor. gider · to go",
+    "line": "pres. gidiyor · aor. gider",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "entry": {
+    "headword": "demek",
+    "translit": "",
+    "ipa": "",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to say\nto assume, to suppose\nto want, to desire\nto call, name, dub",
+    "sense_tags": "transitive,obj:dat,with-dative\ncolloquial,transitive,obj:ind\ncolloquial,transitive,obj:subj\ntransitive,obj:dat,with-dative",
+    "head": ""
+   },
+   "forms": [
+    [
+     "demek",
+     "",
+     ""
+    ],
+    [
+     "der",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "derim",
+     "aorist singular third-person",
+     ""
+    ],
+    [
+     "dersin",
+     "aorist first-person plural",
+     ""
+    ],
+    [
+     "diyorum",
+     "continuative singular third-person",
+     ""
+    ],
+    [
+     "diyorsun",
+     "continuative first-person plural",
+     ""
+    ],
+    [
+     "diyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "demez",
+     "aorist negative plural second-person",
+     ""
+    ],
+    [
+     "demiyor",
+     "continuative negative plural second-person",
+     ""
+    ],
+    [
+     "diyebilir",
+     "aorist plural second-person",
+     ""
+    ],
+    [
+     "diyebiliyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "diyemiyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "demez",
+     "aorist, indicative, negative, singular, third-person",
+     ""
+    ],
+    [
+     "dersin",
+     "aorist, indicative, second-person, singular",
+     ""
+    ],
+    [
+     "derim",
+     "aorist, first-person, indicative, singular",
+     ""
+    ],
+    [
+     "diyor",
+     "continuative, definite, indicative, present, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "diyorsun",
+   "text": "Ne diyorsun?",
+   "gloss": "en",
+   "why": "irregular: de- narrows to di- before -yor (diyor) and the aorist is der; the first sense is tagged with-dative, so (-e); pos=verb chosen over the adj and adv entries spelt demek",
+   "expect": {
+    "tex": "\\vb{demek}{}{diyor}{}{der}{}{to say (-e)}",
+    "plain": "demek · pres. diyor · aor. der · to say (-e)",
+    "line": "pres. diyor · aor. der · -e",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "entry": {
+    "headword": "bakmak",
+    "translit": "",
+    "ipa": "/bakˈmak/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to look (at), gaze\nto look for\nto face, view, watch, have a sight of\nto examine, investigate, pay attention to, have a look\nto take care of, look after\nto maintain\nto attend to, tend to, see to, mind\nto look to, depend upon\nto answer, feed",
+    "sense_tags": "intransitive,with-dative\nintransitive\nintransitive,with-dative\nintransitive,with-dative\nintransitive,with-dative\nintransitive,with-dative\nintransitive,with-dative\nintransitive,with-dative\nintransitive,with-dative",
+    "head": ""
+   },
+   "forms": [
+    [
+     "bakmak",
+     "",
+     ""
+    ],
+    [
+     "bakar",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "bakarım",
+     "aorist singular third-person",
+     ""
+    ],
+    [
+     "bakarsın",
+     "aorist first-person plural",
+     ""
+    ],
+    [
+     "bakıyorum",
+     "continuative singular third-person",
+     ""
+    ],
+    [
+     "bakıyorsun",
+     "continuative first-person plural",
+     ""
+    ],
+    [
+     "bakıyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "baktı",
+     "past plural second-person",
+     ""
+    ],
+    [
+     "bakmaz",
+     "aorist negative plural second-person",
+     ""
+    ],
+    [
+     "bakmıyor",
+     "continuative negative plural second-person",
+     ""
+    ],
+    [
+     "bakabilir",
+     "aorist plural second-person",
+     ""
+    ],
+    [
+     "bakabiliyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "bakamıyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "bakarım",
+     "aorist, first-person, indicative, singular",
+     ""
+    ],
+    [
+     "bakmaz",
+     "aorist, indicative, negative, singular, third-person",
+     ""
+    ],
+    [
+     "bakarsın",
+     "aorist, indicative, second-person, singular",
+     ""
+    ],
+    [
+     "baktı",
+     "indicative, past, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "baktı",
+   "text": "Pencereye baktı.",
+   "gloss": "en",
+   "why": "government: first sense `to look (at), gaze` tagged with-dative -> one equivalent, the bracketed preposition opened, (-e)",
+   "expect": {
+    "tex": "\\vb{bakmak}{}{bakıyor}{}{bakar}{}{to look at (-e)}",
+    "plain": "bakmak · pres. bakıyor · aor. bakar · to look at (-e)",
+    "line": "pres. bakıyor · aor. bakar · -e",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "entry": {
+    "headword": "teşekkür etmek",
+    "translit": "",
+    "ipa": "/te.ʃecˈcyɾ et.mec/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to thank",
+    "sense_tags": "with-dative",
+    "head": ""
+   },
+   "forms": [
+    [
+     "teşekkür etmek",
+     "",
+     ""
+    ],
+    [
+     "teşekkür eder",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "teşekkür ederim",
+     "aorist singular third-person",
+     ""
+    ],
+    [
+     "teşekkür edersin",
+     "aorist first-person plural",
+     ""
+    ],
+    [
+     "teşekkür ediyorum",
+     "continuative singular third-person",
+     ""
+    ],
+    [
+     "teşekkür ediyorsun",
+     "continuative first-person plural",
+     ""
+    ],
+    [
+     "teşekkür ediyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "teşekkür etmiyor",
+     "continuative negative plural second-person",
+     ""
+    ],
+    [
+     "teşekkür edebilir",
+     "aorist plural second-person",
+     ""
+    ],
+    [
+     "teşekkür edebiliyor",
+     "continuative plural second-person",
+     ""
+    ]
+   ],
+   "word": "ederim",
+   "text": "Teşekkür ederim.",
+   "gloss": "en",
+   "why": "compound written as two words: a \\vb for the light verb with an EMPTY meaning (docs/lang/tr.md, the Persian way), the \\bw for the noun named in `missing` with the compound's meaning and government -- so complete is false.  REACHED BY build() WITH THIS ENTRY'S HIT and word `ederim`: lookup reads one word at a time and never reaches a two-word headword (in the live reader the same \\vb comes from etmek's hit, the compound found in the chunk)  The compound itself comes with it (Parts.compound): ONE entry, the \\bw run onto the \\vb, and one plain line for a video.",
+   "expect": {
+    "tex": "\\vb{etmek}{}{ediyor}{}{eder}{}{}",
+    "plain": "etmek · pres. ediyor · aor. eder",
+    "line": "pres. ediyor · aor. eder",
+    "complete": false,
+    "missing": [
+     "bw for teşekkür after it: to thank (-e)"
+    ],
+    "compound": {
+     "name": "compound verb",
+     "whole": "teşekkür etmek",
+     "sound": "",
+     "mean": "to thank (-e)",
+     "word": "teşekkür",
+     "bw": "\\bw{teşekkür}{}{to thank (-e)}",
+     "tex": "\\vb{etmek}{}{ediyor}{}{eder}{}{}\\bw{teşekkür}{}{to thank (-e)}",
+     "plain": "teşekkür etmek to thank (-e) (etmek · pres. ediyor · aor. eder)",
+     "complete": true,
+     "missing": []
+    }
+   },
+   "run": "build"
+  },
+  {
+   "entry": {
+    "headword": "yemek",
+    "translit": "",
+    "ipa": "/jeˈmec/",
+    "reading": "",
+    "pos": "noun",
+    "sense": "meal, food\nrepast\ndish, particular kind of food",
+    "sense_tags": "\n\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "yemek",
+     "",
+     ""
+    ],
+    [
+     "yemeği",
+     "accusative definite",
+     ""
+    ],
+    [
+     "yemekler",
+     "plural",
+     ""
+    ],
+    [
+     "yemeğe",
+     "dative singular",
+     ""
+    ],
+    [
+     "yemeği",
+     "accusative, definite, singular",
+     ""
+    ]
+   ],
+   "word": "Yemek",
+   "text": "Yemek hazır.",
+   "gloss": "en",
+   "why": "must return None: the noun yemek (meal), a homograph of the verb yemek (to eat) -- offered as \\dw",
+   "expect": null,
+   "run": "lookup"
+  },
+  {
+   "entry": {
+    "headword": "hafifletmek",
+    "translit": "",
+    "ipa": "",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to lighten, to alleviate, to mitigate",
+    "sense_tags": "",
+    "head": ""
+   },
+   "forms": [
+    [
+     "hafifletmek",
+     "",
+     ""
+    ],
+    [
+     "hafifletir",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "hafiflederim",
+     "aorist singular third-person",
+     ""
+    ],
+    [
+     "hafifleder",
+     "aorist plural second-person",
+     ""
+    ],
+    [
+     "hafiflediyorum",
+     "continuative singular third-person",
+     ""
+    ],
+    [
+     "hafiflediyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "hafifletti",
+     "past plural second-person",
+     ""
+    ],
+    [
+     "hafifletmiyor",
+     "continuative negative plural second-person",
+     ""
+    ],
+    [
+     "hafifledebiliyor",
+     "continuative plural second-person",
+     ""
+    ]
+   ],
+   "word": "hafifletti",
+   "text": "Acısını hafifletti.",
+   "gloss": "en",
+   "why": "incomplete: the head says hafifletir, the table voices (hafifleder, hafiflediyor); the head's aorist is kept and the table's present is left out and named, with why",
+   "expect": {
+    "tex": "\\vb{hafifletmek}{}{}{}{hafifletir}{}{to lighten}",
+    "plain": "hafifletmek · aor. hafifletir · to lighten",
+    "line": "aor. hafifletir",
+    "complete": false,
+    "missing": [
+     "present in -iyor (3rd sg.): the table's hafiflediyor does not voice like the aorist hafifletir"
+    ]
+   },
+   "run": "lookup"
+  },
+  {
+   "entry": {
+    "headword": "yapmak",
+    "translit": "",
+    "ipa": "/japˈmak/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to make; to build, construct, fashion; to create; to manufacture; to produce; to prepare\nto do; to busy oneself with, act, behave\nto repair, fix\nto defecate",
+    "sense_tags": "transitive\ntransitive\ntransitive\nintransitive,with-dative",
+    "head": ""
+   },
+   "forms": [
+    [
+     "yapmak",
+     "",
+     ""
+    ],
+    [
+     "yapar",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "yaparım",
+     "aorist singular third-person",
+     ""
+    ],
+    [
+     "yaparsın",
+     "aorist first-person plural",
+     ""
+    ],
+    [
+     "yapıyorum",
+     "continuative singular third-person",
+     ""
+    ],
+    [
+     "yapıyorsun",
+     "continuative first-person plural",
+     ""
+    ],
+    [
+     "yapıyor",
+     "continuative plural second-person",
+     ""
+    ],
+    [
+     "yapmıyor",
+     "continuative negative plural second-person",
+     ""
+    ],
+    [
+     "yaparım",
+     "aorist, first-person, indicative, singular",
+     ""
+    ],
+    [
+     "yapılmak",
+     "passive",
+     ""
+    ]
+   ],
+   "word": "yapılmak",
+   "text": "yapılmak istemiyor",
+   "gloss": "en",
+   "why": "a derived verb the dictionary has only as a note on its base (yapılmak, `passive` of yapmak): the \\vb is the derived infinitive with both forms and the meaning missing -- never yapmak's yapar/yapıyor under it",
+   "expect": {
+    "tex": "\\vb{yapılmak}{}{}{}{}{}{}",
+    "plain": "yapılmak",
+    "line": "",
+    "complete": false,
+    "missing": [
+     "present in -iyor (3rd sg.)",
+     "aorist (3rd sg.)",
+     "meaning: the dictionary has yapılmak only as the passive of yapmak"
+    ]
+   },
+   "run": "lookup"
+  }
+ ]
+}

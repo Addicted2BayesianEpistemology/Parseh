@@ -1,0 +1,23 @@
+{
+  "_comment": "How this language's phrases hold together, for lib/chunker.py. Optional, like every file of this name.",
+  "np_head": "initial",
+  "adposition": "before",
+  "_why": "Italian usually puts the adjective after the noun (la casa grande), and its prepositions before it (in casa). The adjectives that come first -- bello, buono, grande -- are the exception this cannot see; a model reading the sentence can.",
+  "bind_forward": [],
+  "min": 2,
+  "max": 5,
+  "function_words": {
+    "_comment": "The closed classes, which the dictionary is the wrong authority on: it files `la`, `lo` and `le` with more senses as pronouns than as articles, and `era` as a noun. A word under two headings is read in its place: `la casa` is an article, `la vedo` a clitic pronoun. The elided forms (`l'`, `dell'`) are listed with their apostrophe, and `elisions` below says they are written into the next word.",
+    "CONJ": ["e", "ed", "o", "od", "ma", "però", "che", "perché", "se", "quando", "mentre", "come", "dove", "cioè", "oppure", "quindi", "né", "benché", "sebbene", "affinché", "finché", "poiché", "siccome", "anzi", "eppure", "dunque", "infatti", "chi"],
+    "INTJ": ["sì", "no", "ciao", "buongiorno", "buonasera", "buonanotte", "grazie", "prego", "ecco", "ehi", "oh", "beh", "salve", "arrivederci", "scusi", "scusa", "pronto"],
+    "DET": ["il", "lo", "la", "i", "gli", "le", "l'", "un", "uno", "una", "un'", "questo", "questa", "questi", "queste", "quest'", "quello", "quella", "quelli", "quelle", "quel", "quei", "quegli", "quell'", "mio", "mia", "miei", "mie", "tuo", "tua", "tuoi", "tue", "suo", "sua", "suoi", "sue", "nostro", "nostra", "nostri", "nostre", "vostro", "vostra", "vostri", "vostre", "ogni", "qualche", "alcuni", "alcune", "molti", "molte", "pochi", "poche", "nessun", "nessuna", "altro", "altra", "altri", "altre", "tanti", "tante", "troppi", "troppe", "tutto", "tutta", "tutti", "tutte", "certi", "certe", "stesso", "stessa", "stessi", "stesse"],
+    "ADP": ["di", "d'", "a", "da", "in", "con", "su", "per", "tra", "fra", "del", "dello", "della", "dei", "degli", "delle", "dell'", "al", "allo", "alla", "ai", "agli", "alle", "all'", "dal", "dallo", "dalla", "dai", "dagli", "dalle", "dall'", "nel", "nello", "nella", "nei", "negli", "nelle", "nell'", "col", "coi", "sul", "sullo", "sulla", "sui", "sugli", "sulle", "sull'", "verso", "senza", "sopra", "sotto", "dopo", "durante", "contro", "presso", "dentro", "fuori", "oltre", "fino", "circa", "tranne", "davanti", "dietro"],
+    "PRON": ["io", "tu", "lui", "lei", "noi", "voi", "loro", "egli", "ella", "esso", "essa", "essi", "esse", "mi", "ti", "ci", "vi", "si", "ne", "me", "te", "se", "lo", "la", "li", "le", "gli", "l'", "c'", "s'", "m'", "t'", "v'", "n'", "glielo", "gliela", "glieli", "gliele", "gliene", "che", "cosa", "qualcuno", "qualcosa", "niente", "nulla", "ciò", "questo", "quello", "nessuno", "ognuno", "uno", "tutto", "tutti"],
+    "AUX": ["è", "sono", "sei", "siamo", "siete", "era", "erano", "ero", "eri", "eravamo", "eravate", "fu", "furono", "sarà", "saranno", "sarebbe", "sarebbero", "sia", "siano", "fosse", "fossero", "ho", "hai", "ha", "abbiamo", "avete", "hanno", "avevo", "avevi", "aveva", "avevamo", "avevate", "avevano", "ebbe", "avrà", "avrebbe", "abbia", "avesse", "sto", "stai", "sta", "stiamo", "stanno", "stavo", "stava", "stavano", "posso", "puoi", "può", "possiamo", "potete", "possono", "potevo", "poteva", "potrei", "potrebbe", "devo", "devi", "deve", "dobbiamo", "dovete", "devono", "dovevo", "doveva", "dovrei", "dovrebbe", "voglio", "vuoi", "vuole", "vogliamo", "volete", "vogliono", "volevo", "voleva", "vorrei", "vorrebbe"],
+    "NEG": ["non", "mai"]
+  },
+  "ties": ["di", "d'", "del", "dello", "della", "dei", "degli", "delle", "dell'"],
+  "_ties": "The preposition that ties a noun to the noun before it -- `un pezzo di legno`, `il nome della rosa` -- where every other preposition opens a phrase of its own and is cut before.",
+  "elisions": ["l'", "un'", "dell'", "all'", "dall'", "nell'", "sull'", "d'", "c'", "s'", "m'", "t'", "v'", "n'", "quest'", "quell'"],
+  "_elisions": "What Italian writes into the next word: the token `l'uomo` is an article to what precedes it and a noun to what follows, and `c'era` a pronoun and a verb."
+}

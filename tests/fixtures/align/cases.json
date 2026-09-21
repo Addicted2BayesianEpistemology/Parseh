@@ -1,0 +1,998 @@
+{
+ "_source": "The target and probe are bergamot-translator output (Mozilla models, 2026-09-10) for the fixture books and videos and for Tatoeba sentences (CC BY 2.0 FR); the words are dict/<code>.db lookups (Wiktionary via kaikki.org, CC BY-SA 4.0), trimmed to four hits of three senses as lib/lookup.py returns them.",
+ "cases": [
+  {
+   "why": "WORD ORDER: a Persian time phrase opens its sentence and ends the English one",
+   "lang": "fa",
+   "chunk": "امروز صبح",
+   "sentence": "امروز صبح به سگ غذا دادی؟",
+   "target": "Did you feed the dog this morning?",
+   "probe": "This morning",
+   "words": [
+    {
+     "word": "امروز",
+     "hits": [
+      {
+       "headword": "امروز",
+       "senses": [
+        "today"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "صبح",
+     "hits": [
+      {
+       "headword": "صبح",
+       "senses": [
+        "morning"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "text": "morning?"
+   }
+  },
+  {
+   "why": "WORD ORDER: a verb-final Persian chunk lands in two places in English",
+   "lang": "fa",
+   "chunk": "رؤیاهایش را پیدا کرد.",
+   "sentence": "یک روز کریس دختر زیبای رؤیاهایش را پیدا کرد.",
+   "target": "One day, Chris found the beautiful daughter of his dreams.",
+   "probe": "He found his dreams.",
+   "words": [
+    {
+     "word": "رؤیاهایش",
+     "hits": [
+      {
+       "headword": "رؤیا",
+       "senses": [
+        "dream"
+       ]
+      },
+      {
+       "headword": "رؤیا",
+       "senses": [
+        "a female given name, Roya, from Arabic"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "را",
+     "hits": [
+      {
+       "headword": "را",
+       "senses": [
+        "Used to mark certain noun phrases as the direct object. Since it is obligatory for all definite direct objects, it is often called the “definite object marker”, although it can be used for certain indefinite objects as well. See Usage notes.",
+        "Follows certain nouns being used adverbially, or as an exclamation.",
+        "Used as a topic marker for a sentence-initial noun phrase, with certain syntactic restrictions."
+       ]
+      }
+     ]
+    },
+    {
+     "word": "پیدا",
+     "hits": [
+      {
+       "headword": "پیدا",
+       "senses": [
+        "evident, visible, apparent",
+        "clear, obvious"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "کرد.",
+     "hits": [
+      {
+       "headword": "کرد",
+       "senses": [
+        "nomad"
+       ]
+      },
+      {
+       "headword": "کرد",
+       "senses": [
+        "Kurd"
+       ]
+      },
+      {
+       "headword": "کردن",
+       "senses": [
+        "to do",
+        "to make",
+        "A highly productive light verb that derives verbs from nouns and adjectives."
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "text": "found … dreams."
+   }
+  },
+  {
+   "why": "names found word by word, joined across the \"and\" the chunk's و means",
+   "lang": "fa",
+   "chunk": "باکو وُ رَشت بودَند",
+   "sentence": "چون سایِرین عُموماً کاسِب کارهایِ لَبّادِه دِراز وُ کُلاه کوتاهِ باکو وُ رَشت بودَند",
+   "target": "Because Cyrin was a businessman of the work of Labadde Deraz and the short hat of Baku and Rasht.",
+   "probe": "Baku was the lavrus of Rasht",
+   "words": [
+    {
+     "word": "باکو",
+     "hits": [
+      {
+       "headword": "باکو",
+       "senses": [
+        "Baku (the capital city of the Republic of Azerbaijan)"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "وُ",
+     "hits": [
+      {
+       "headword": "و",
+       "senses": [
+        "and"
+       ]
+      },
+      {
+       "headword": "را",
+       "senses": [
+        "Used to mark certain noun phrases as the direct object. Since it is obligatory for all definite direct objects, it is often called the “definite object marker”, although it can be used for certain indefinite objects as well. See Usage notes.",
+        "Follows certain nouns being used adverbially, or as an exclamation.",
+        "Used as a topic marker for a sentence-initial noun phrase, with certain syntactic restrictions."
+       ]
+      },
+      {
+       "headword": "و",
+       "senses": [
+        "The thirtieth letter of the Persian alphabet, called واو and written in the Arabic script; preceded by ن and followed by ه."
+       ]
+      }
+     ]
+    },
+    {
+     "word": "رَشت",
+     "hits": [
+      {
+       "headword": "رشت",
+       "senses": [
+        "bright"
+       ]
+      },
+      {
+       "headword": "رشت",
+       "senses": [
+        "Rasht (a city in Iran, the seat of Rasht County's Central District and the capital of Gilan Province, located on the southwestern shore of the Caspian Sea)",
+        "Rasht (a county of Iran, around the city)",
+        "Rasht (a district of Tajikistan)"
+       ]
+      },
+      {
+       "headword": "رشت",
+       "senses": [
+        "very dry"
+       ]
+      },
+      {
+       "headword": "رشت",
+       "senses": [
+        "earth, dust"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "بودَند",
+     "hits": [
+      {
+       "headword": "بودن",
+       "senses": [
+        "to exist",
+        "to be (See the Usage Notes)"
+       ]
+      },
+      {
+       "headword": "هستن",
+       "senses": [
+        "to be"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "text": "Baku and Rasht."
+   }
+  },
+  {
+   "why": "a Persian noun and its adjective, which English turns round",
+   "lang": "fa",
+   "chunk": "وُ کُلاه کوتاهِ",
+   "sentence": "چون سایِرین عُموماً کاسِب کارهایِ لَبّادِه دِراز وُ کُلاه کوتاهِ باکو وُ رَشت بودَند",
+   "target": "Because Cyrin was a businessman of the work of Labadde Deraz and the short hat of Baku and Rasht.",
+   "probe": "It's a short hat.",
+   "words": [
+    {
+     "word": "وُ",
+     "hits": [
+      {
+       "headword": "و",
+       "senses": [
+        "and"
+       ]
+      },
+      {
+       "headword": "را",
+       "senses": [
+        "Used to mark certain noun phrases as the direct object. Since it is obligatory for all definite direct objects, it is often called the “definite object marker”, although it can be used for certain indefinite objects as well. See Usage notes.",
+        "Follows certain nouns being used adverbially, or as an exclamation.",
+        "Used as a topic marker for a sentence-initial noun phrase, with certain syntactic restrictions."
+       ]
+      },
+      {
+       "headword": "و",
+       "senses": [
+        "The thirtieth letter of the Persian alphabet, called واو and written in the Arabic script; preceded by ن and followed by ه."
+       ]
+      }
+     ]
+    },
+    {
+     "word": "کُلاه",
+     "hits": [
+      {
+       "headword": "کلاه",
+       "senses": [
+        "hat",
+        "cap",
+        "bonnet"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "کوتاهِ",
+     "hits": [
+      {
+       "headword": "کوتاه",
+       "senses": [
+        "short, low (in stature)",
+        "short (in length)",
+        "short (in duration)"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "contains": "short hat"
+   }
+  },
+  {
+   "why": "a chunk of function words: its homographs (آن \"moment\", به \"good\") mark nothing",
+   "lang": "fa",
+   "chunk": "وَ بِه آن",
+   "sentence": "وَ بِه آن فَرّاش هایِ چِنانی حُکم کَرد که عَجالَتاً «خان صاحِب» را نِگاه دارَند تا «تَحقیقاتِ لازِمِه بِه عَمَل آید»",
+   "target": "And he has a ruler with those people who have the right to look at the Khan of the Sahab until the truth comes to the cause of the needy.",
+   "probe": "And to it",
+   "words": [
+    {
+     "word": "وَ",
+     "hits": [
+      {
+       "headword": "و",
+       "senses": [
+        "and"
+       ]
+      },
+      {
+       "headword": "را",
+       "senses": [
+        "Used to mark certain noun phrases as the direct object. Since it is obligatory for all definite direct objects, it is often called the “definite object marker”, although it can be used for certain indefinite objects as well. See Usage notes.",
+        "Follows certain nouns being used adverbially, or as an exclamation.",
+        "Used as a topic marker for a sentence-initial noun phrase, with certain syntactic restrictions."
+       ]
+      },
+      {
+       "headword": "و",
+       "senses": [
+        "The thirtieth letter of the Persian alphabet, called واو and written in the Arabic script; preceded by ن and followed by ه."
+       ]
+      }
+     ]
+    },
+    {
+     "word": "بِه",
+     "hits": [
+      {
+       "headword": "به",
+       "senses": [
+        "Expresses the indirect object: to; for",
+        "Expresses the direction of movement: to; towards; into",
+        "Forms adverbial phrases of manner: by, -ly"
+       ]
+      },
+      {
+       "headword": "به",
+       "senses": [
+        "quince"
+       ]
+      },
+      {
+       "headword": "به",
+       "senses": [
+        "good, excellent",
+        "better",
+        "elegant"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "آن",
+     "hits": [
+      {
+       "headword": "آن",
+       "senses": [
+        "that; the"
+       ]
+      },
+      {
+       "headword": "آن",
+       "senses": [
+        "that",
+        "he, she, it; colloquially pronounced اون (un) in Iran",
+        "Used with که to nominalize a clause."
+       ]
+      },
+      {
+       "headword": "آن",
+       "senses": [
+        "moment",
+        "breath"
+       ]
+      },
+      {
+       "headword": "آمدن",
+       "senses": [
+        "to come, to arrive",
+        "to become"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "text": null
+   }
+  },
+  {
+   "why": "no word of the translation means what the dictionary says: nothing is marked, not a place",
+   "lang": "zh",
+   "chunk": "山下",
+   "sentence": "从前，山下有一个小村子。",
+   "target": "Once upon a time there was a small village down the hill.",
+   "probe": "Yamashit",
+   "words": [
+    {
+     "word": "山下",
+     "hits": [
+      {
+       "headword": "山下",
+       "senses": [
+        "foot of a mountain; below a mountain"
+       ]
+      },
+      {
+       "headword": "山下",
+       "senses": [
+        "an orthographic borrowing of the Japanese surname 山下, Yamashita"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "text": null
+   }
+  },
+  {
+   "why": "a Chinese particle (的) does not mark \"clear\" through its first-ranked homograph",
+   "lang": "zh",
+   "chunk": "而最棒的是，",
+   "sentence": "她又漂亮，又聰明，而最棒的是，她還是一個十分善良的人。",
+   "target": "She was beautiful and clear, and the best thing was that she was a very kind person.",
+   "probe": "And the best is,",
+   "words": [
+    {
+     "word": "而",
+     "hits": [
+      {
+       "headword": "而",
+       "senses": [
+        "and (used to connect two clauses or adjectives)",
+        "then (connecting two verbs or verb-phrases); and",
+        "and yet; but; nevertheless (conjunction indicating concession or contrast)"
+       ]
+      },
+      {
+       "headword": "而",
+       "senses": [
+        "you; your"
+       ]
+      },
+      {
+       "headword": "挐",
+       "senses": [
+        "chaotic; messy; disorderly",
+        "to make trouble without reason; nagging unreasonably"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "最",
+     "hits": [
+      {
+       "headword": "最",
+       "senses": [
+        "most; -est",
+        "the most ... thing; the best"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "棒",
+     "hits": [
+      {
+       "headword": "棒",
+       "senses": [
+        "stick; club; truncheon",
+        "to hit with a stick",
+        "hefty; strong"
+       ]
+      },
+      {
+       "headword": "膀",
+       "senses": [
+        "only used in 吊膀子 (diào bàngzi) and 膀子吊"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "的",
+     "hits": [
+      {
+       "headword": "的",
+       "senses": [
+        "bright; clear; distinct",
+        "white; white-coloured",
+        "white forehead of horses; white-foreheaded horse"
+       ]
+      },
+      {
+       "headword": "的",
+       "senses": [
+        "genitive case marker",
+        "Used after an attribute. Indicates that the previous word has possession of the next one. It functions like ’s in English (or like the word “of” but with the position of possessor and possessee switched). ’s; of",
+        "Used to link a noun, an adjective or a phrase to a noun to describe it. that; who"
+       ]
+      },
+      {
+       "headword": "的",
+       "senses": [
+        "Used in transcription."
+       ]
+      },
+      {
+       "headword": "咧",
+       "senses": [
+        "in the process of; currently (placed before the verb)",
+        "in; at; on (placed after verbs indicating a change of location or position)",
+        "give something a go; give something a try"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "是",
+     "hits": [
+      {
+       "headword": "是",
+       "senses": [
+        "this; this thing",
+        "to be",
+        "indicating that the subject and object are the same."
+       ]
+      },
+      {
+       "headword": "是",
+       "senses": [
+        "Pronominal prefix"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "text": "best thing",
+    "not": [
+     "clear"
+    ]
+   }
+  },
+  {
+   "why": "a mark stops at the end of its sentence",
+   "lang": "zh",
+   "chunk": "是我发现她的。",
+   "sentence": "是我发现她的。她当时已经失去了意识，所以我把她送到了疗养院。",
+   "target": "It was I who found her. She had lost consciousness at the time, so I sent her to the nursing home.",
+   "probe": "It was I who found her.",
+   "words": [
+    {
+     "word": "是我",
+     "hits": [
+      {
+       "headword": "是我",
+       "senses": [
+        "I; me"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "发现",
+     "hits": [
+      {
+       "headword": "發現",
+       "senses": [
+        "to discover; to find; to find out"
+       ]
+      },
+      {
+       "headword": "發現",
+       "senses": [
+        "discovery"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "她",
+     "hits": [
+      {
+       "headword": "她",
+       "senses": [
+        "she, her"
+       ]
+      },
+      {
+       "headword": "伊",
+       "senses": [
+        "this; that",
+        "you (singular)",
+        "Yi River (a tributary of the Luo River in Henan, China)"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "的",
+     "hits": [
+      {
+       "headword": "的",
+       "senses": [
+        "bright; clear; distinct",
+        "white; white-coloured",
+        "white forehead of horses; white-foreheaded horse"
+       ]
+      },
+      {
+       "headword": "的",
+       "senses": [
+        "genitive case marker",
+        "Used after an attribute. Indicates that the previous word has possession of the next one. It functions like ’s in English (or like the word “of” but with the position of possessor and possessee switched). ’s; of",
+        "Used to link a noun, an adjective or a phrase to a noun to describe it. that; who"
+       ]
+      },
+      {
+       "headword": "的",
+       "senses": [
+        "Used in transcription."
+       ]
+      },
+      {
+       "headword": "咧",
+       "senses": [
+        "in the process of; currently (placed before the verb)",
+        "in; at; on (placed after verbs indicating a change of location or position)",
+        "give something a go; give something a try"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "not": [
+     "She"
+    ]
+   }
+  },
+  {
+   "why": "\"bring\" does not meet \"ring\"",
+   "lang": "zh",
+   "chunk": "盡快將它帶回家並好好對待它，",
+   "sentence": "一旦撿到一顆你喜歡的石頭，盡快將它帶回家並好好對待它，因為那是妳唯一得到的石頭。",
+   "target": "Once you have a quilled stone ring, go home, and treat it well, because it is the only stone kirk you get.",
+   "probe": "Go home and wait for it.",
+   "words": [
+    {
+     "word": "盡快",
+     "hits": [
+      {
+       "headword": "儘快",
+       "senses": [
+        "as soon as possible; as quickly as possible"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "將",
+     "hits": [
+      {
+       "headword": "將",
+       "senses": [
+        "will; going to",
+        "soon; in the near future",
+        "nearly; almost"
+       ]
+      },
+      {
+       "headword": "將",
+       "senses": [
+        "to command; to lead",
+        "general",
+        "high-ranking military officer"
+       ]
+      },
+      {
+       "headword": "將",
+       "senses": [
+        "to ask; to request; to invite",
+        "used in 將將／将将"
+       ]
+      },
+      {
+       "headword": "剛",
+       "senses": [
+        "just; exactly",
+        "only a short while ago; just",
+        "barely; just"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "它",
+     "hits": [
+      {
+       "headword": "它",
+       "senses": [
+        "third-person singular pronoun for inanimate objects; it",
+        "third-person singular pronoun for animals; it",
+        "A dummy pronoun."
+       ]
+      },
+      {
+       "headword": "它",
+       "senses": [
+        "used in 它它藉藉／它它借借"
+       ]
+      },
+      {
+       "headword": "它",
+       "senses": [
+        "only used in 它它"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "帶回",
+     "hits": [
+      {
+       "headword": "帶回",
+       "senses": [
+        "to bring back"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "家",
+     "hits": [
+      {
+       "headword": "家",
+       "senses": [
+        "home",
+        "family; household (Classifier: 頭／头 c)",
+        "my"
+       ]
+      },
+      {
+       "headword": "家",
+       "senses": [
+        "only used in 家己 (ka-kī)"
+       ]
+      },
+      {
+       "headword": "家",
+       "senses": [
+        "only used in 私家"
+       ]
+      },
+      {
+       "headword": "家",
+       "senses": [
+        "only used in 大家 (dàgū)"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "並",
+     "hits": [
+      {
+       "headword": "並",
+       "senses": [
+        "to be side by side; to be in a row",
+        "simultaneously; at the same time",
+        "Used before a negative for emphasis; actually; in fact"
+       ]
+      },
+      {
+       "headword": "傍",
+       "senses": [
+        "to draw near; to be beside; to approach; to be by the side of",
+        "to be close to; to be almost (in time)",
+        "to rely on; to depend on"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "好好",
+     "hits": [
+      {
+       "headword": "好好",
+       "senses": [
+        "all out; to one's heart's content; earnestly; hard (of way of working)",
+        "behaving oneself"
+       ]
+      },
+      {
+       "headword": "好好",
+       "senses": [
+        "very good; very well",
+        "in perfectly good condition"
+       ]
+      },
+      {
+       "headword": "好好",
+       "senses": [
+        "Used other than figuratively or idiomatically: see 好, 好: very good; excellent"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "對待",
+     "hits": [
+      {
+       "headword": "對待",
+       "senses": [
+        "to treat; to approach; to handle"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "not": [
+     "ring"
+    ]
+   }
+  },
+  {
+   "why": "Spanish: gusta means like",
+   "lang": "es",
+   "chunk": "Me gusta",
+   "sentence": "Me gusta el idioma francés, pero no lo entiendo.",
+   "target": "I like the French language, but I don't understand.",
+   "probe": "I like it",
+   "words": [
+    {
+     "word": "Me",
+     "hits": [
+      {
+       "headword": "me",
+       "senses": [
+        "Used as an emphatic pronoun or as an expletive."
+       ]
+      },
+      {
+       "headword": "yo",
+       "senses": [
+        "first-person singular pronoun in the nominative case; I"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "gusta",
+     "hits": [
+      {
+       "headword": "gustar",
+       "senses": [
+        "translated as \"to like\", analyzable in structure as \"to please\" [with dative ‘someone’] (the thing being liked is the subject, while the \"liker\" is in the dative case (\"indirect object\")). See the usage notes for more. Compare similar structures in Italian piacere, Romanian plăcea, German gefallen and Russian нравиться (nravitʹsja).",
+        "to like in a general sense",
+        "to like romantically"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "text": "I like"
+   }
+  },
+  {
+   "why": "a light first meaning (then) does not hide the word's content (later)",
+   "lang": "es",
+   "chunk": "hasta luego",
+   "sentence": "Aquí tiene, hasta luego",
+   "target": "Here you have, see you later",
+   "probe": "so far",
+   "words": [
+    {
+     "word": "hasta",
+     "hits": [
+      {
+       "headword": "hasta",
+       "senses": [
+        "even"
+       ]
+      },
+      {
+       "headword": "hasta",
+       "senses": [
+        "until",
+        "up to, to the point of, as much as"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "luego",
+     "hits": [
+      {
+       "headword": "luego",
+       "senses": [
+        "then (afterward)",
+        "later, later on (at some point in the future)",
+        "soon (within a short time)"
+       ]
+      },
+      {
+       "headword": "luego",
+       "senses": [
+        "therefore (consequently)"
+       ]
+      },
+      {
+       "headword": "logar",
+       "senses": [
+        "to rent"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "contains": "later"
+   }
+  },
+  {
+   "why": "mustache in the dictionary, moustaches in the translation",
+   "lang": "fa",
+   "chunk": "وُ سِبیل هایِ",
+   "sentence": "با صورَت هایِ اَخمو وُ عَبوس وُ سِبیل هایِ اَز بِناگوش دَر رَفتِه ای",
+   "target": "You are in the hands of the cum and the susms of the smites of the smugs and the moustaches of the ears of the ears.",
+   "probe": "The mustaches",
+   "words": [
+    {
+     "word": "وُ",
+     "hits": [
+      {
+       "headword": "و",
+       "senses": [
+        "and"
+       ]
+      },
+      {
+       "headword": "را",
+       "senses": [
+        "Used to mark certain noun phrases as the direct object. Since it is obligatory for all definite direct objects, it is often called the “definite object marker”, although it can be used for certain indefinite objects as well. See Usage notes.",
+        "Follows certain nouns being used adverbially, or as an exclamation.",
+        "Used as a topic marker for a sentence-initial noun phrase, with certain syntactic restrictions."
+       ]
+      },
+      {
+       "headword": "و",
+       "senses": [
+        "The thirtieth letter of the Persian alphabet, called واو and written in the Arabic script; preceded by ن and followed by ه."
+       ]
+      }
+     ]
+    },
+    {
+     "word": "سِبیل",
+     "hits": [
+      {
+       "headword": "سبیل",
+       "senses": [
+        "mustache"
+       ]
+      },
+      {
+       "headword": "سبیل",
+       "senses": [
+        "path",
+        "way"
+       ]
+      }
+     ]
+    },
+    {
+     "word": "هایِ",
+     "hits": [
+      {
+       "headword": "ها",
+       "senses": [
+        "yeah, yes"
+       ]
+      },
+      {
+       "headword": "شانه‌بسر",
+       "senses": [
+        "hoopoe"
+       ]
+      },
+      {
+       "headword": "پوپو",
+       "senses": [
+        "hoopoe"
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "text": "moustaches"
+   }
+  }
+ ]
+}

@@ -1,0 +1,85 @@
+/* Parseh — how a formula sits in a line, and on its own.  Served at
+   /lib/mathjax.css beside /lib/mathjax.js; the studio, the deck player and
+   the readers link both.  The colours are the toolbox's own tokens from
+   lib/parseh.css, with that file's values as fallbacks for a page that does
+   not link it.
+
+   A FORMULA IS LEFT TO RIGHT, WHATEVER THE LINE AROUND IT IS.  This is the
+   rule that would otherwise bite, and it bites silently: mathematics is
+   written left to right in every language, including the ones this toolbox
+   is mostly for, so a formula inside a Persian or an Arabic sentence must
+   be isolated from the paragraph's direction or the bidi algorithm will
+   reorder what sits beside it -- a trailing `= ۵` swapping sides, a
+   bracket mirroring.  `direction:ltr` with `unicode-bidi:isolate` is the
+   CSS of the `\babelsublr{\mbox{...}}` the book's LaTeX already uses for
+   the same reason. */
+.math{
+  --m-ink:var(--ink,#241e21); --m-dim:var(--dim,#635358);
+  --m-rule:var(--rule,#e3d9dd); --m-boxbg:var(--boxbg,#faf4f6);
+  --m-danger:var(--danger,#9b3327);
+  direction:ltr;
+  unicode-bidi:isolate;
+  text-align:left;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]):not([data-theme=sepia]) .math{
+    --m-ink:var(--ink,#e6dade); --m-dim:var(--dim,#ac9ba1);
+    --m-rule:var(--rule,#382c31); --m-boxbg:var(--boxbg,#2a2024);
+    --m-danger:var(--danger,#e79b84);
+  }
+}
+:root[data-theme=dark] .math{
+  --m-ink:var(--ink,#e6dade); --m-dim:var(--dim,#ac9ba1);
+  --m-rule:var(--rule,#382c31); --m-boxbg:var(--boxbg,#2a2024);
+  --m-danger:var(--danger,#e79b84);
+}
+
+/* in a line: it rides the text's own size and baseline, and never breaks
+   across one -- half a formula at the end of a line is not half a thought */
+span.math{display:inline-block;white-space:nowrap;vertical-align:-0.1em;
+  max-width:100%}
+span.math svg{vertical-align:-0.18em}
+
+/* on its own: centred, with room above and below, and a formula wider than
+   the page scrolls rather than pushing the page wide (the one thing that
+   ruins a phone) */
+.math.mathblock{display:block;margin:0.9em 0;text-align:center;
+  overflow-x:auto;overflow-y:hidden;max-width:100%}
+.math.mathblock svg{max-width:none}
+
+/* THE SVG TAKES ITS COLOUR FROM THE TEXT.  MathJax writes currentColor into
+   its paths, so this is all that is needed for light, dark and sepia -- and
+   for a formula sitting in a coloured chunk, which then matches it. */
+.math svg{color:var(--m-ink)}
+.math svg a{color:inherit}
+
+/* NOT DRAWN: the notation itself, told apart from the prose around it.  A
+   page whose script never ran, a renderer that is not on the machine, or a
+   formula with a mistake in it -- in every case what is shown is what the
+   author wrote, because that is the one thing that is certainly true, and
+   the only thing they could act on. */
+.math[data-drawn="no"]{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:0.92em;white-space:pre-wrap;
+  background:var(--m-boxbg);border:1px dashed var(--m-rule);border-radius:5px;
+  padding:0 3px;color:var(--m-dim);cursor:help;
+}
+.math[data-drawn="no"].mathblock{padding:6px 8px;text-align:left}
+/* a mistake is the author's to mend, so it is marked rather than hidden */
+.math[data-drawn="no"][title]:not([title=""]){border-color:var(--m-danger);
+  color:var(--m-danger)}
+
+/* before the script has run at all: the same, so nothing jumps about when
+   it does */
+.math:not([data-drawn]){
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:0.92em;color:var(--m-dim);
+}
+
+/* PRINT.  A drawn formula prints as the vector it is; one that never drew
+   prints its notation, which is better than a blank where a formula was. */
+@media print{
+  .math{color:#000}
+  .math svg{color:#000}
+  .math[data-drawn="no"]{background:none;border-color:#999;color:#000}
+}

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — Parseh exercises</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D8%AA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{STUDIO}}/static/app.css">
+<link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+</head>
+<body data-page="deck" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
+<header class="topbar">
+  <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
+  <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
+  <div class="topbar-actions">
+    <a class="btn ghost" href="{{BASE}}/">← All decks</a>
+    <button type="button" class="btn danger ghost" id="btn-stop">Stop server</button>
+  </div>
+</header>
+<main class="container dk-container">
+  <section class="dk-deckhead" aria-label="The deck">
+    <div class="dk-titlerow">
+      <h1 class="dk-title" id="deck-name">{{TITLE}}</h1>
+      <button type="button" class="btn ghost small" id="btn-rename"
+              title="Rename this deck" aria-label="Rename this deck">✎</button>
+      <span class="badge dk-lang" lang="{{TARGET}}" data-lang="{{TARGET}}">{{TARGET_NAME}}</span>
+    </div>
+    <div class="dk-counts" id="deck-counts" aria-live="polite"></div>
+    <div class="dk-deckactions">
+      <a class="btn primary" id="btn-study" href="{{BASE}}/">Study now</a>
+      <button type="button" class="btn" id="btn-add-exercise">Add exercise…</button>
+      <details class="dropdown">
+        <summary class="btn" title="Download the deck as a .zip another Parseh can import">Export ▾</summary>
+        <div class="menu">
+          <a id="btn-export-sched" href="{{BASE}}/">With scheduling</a>
+          <a id="btn-export-plain" href="{{BASE}}/">Without scheduling</a>
+        </div>
+      </details>
+      <button type="button" class="btn" id="btn-options" title="Daily limits, learning steps and intervals">Options…</button>
+      <button type="button" class="btn danger ghost dk-push" id="btn-delete-deck">Delete deck…</button>
+    </div>
+  </section>
+
+  <section class="dk-browse" aria-label="The exercises of the deck">
+    <div class="searchrow dk-browsebar">
+      <input id="browse-filter" type="search" placeholder="Filter the exercises by their text…"
+             autocomplete="off" spellcheck="false" aria-label="Filter the exercises by their text">
+      <select id="browse-type" aria-label="Exercise type"><option value="">All types</option></select>
+      <select id="browse-state" aria-label="Scheduling state">
+        <option value="">Any state</option>
+        <option value="new">New</option>
+        <option value="learning">Learning</option>
+        <option value="review">Review</option>
+        <option value="due">Due now</option>
+      </select>
+      <select id="browse-tag" aria-label="Filter by tag"><option value="">All tags</option></select>
+      <span id="browse-count" class="dk-browse-count" aria-live="polite"></span>
+    </div>
+    <div class="dk-bulkbar" role="group" aria-label="Selected exercises">
+      <button type="button" class="btn small" id="btn-select-all">Select all</button>
+      <button type="button" class="btn small" id="btn-select-shown">Select shown</button>
+      <button type="button" class="btn small" id="btn-select-tag">Select by tag</button>
+      <button type="button" class="btn small" id="btn-deselect-all">Deselect all</button>
+      <span id="browse-selected" aria-live="polite">0 selected</span>
+      <button type="button" class="btn small" id="btn-bulk-copy" disabled>Copy to deck…</button>
+      <button type="button" class="btn small" id="btn-bulk-move" disabled>Move to deck…</button>
+      <button type="button" class="btn small" id="btn-bulk-add-tag" disabled>Add tag…</button>
+      <button type="button" class="btn small" id="btn-bulk-remove-tag" disabled>Remove tag…</button>
+      <button type="button" class="btn small" id="btn-bulk-new" disabled>Set to new</button>
+      <button type="button" class="btn small danger ghost" id="btn-bulk-delete" disabled>Delete</button>
+      <button type="button" class="btn small" id="btn-cram" disabled>Cram exercises</button>
+    </div>
+    <p class="dk-selection-hint">Tip: Shift-click a checkbox or exercise row to select or deselect a range.</p>
+    <div id="browse-list" class="dk-list"></div>
+    <div id="browse-empty" class="empty dk-empty" hidden>
+      <div data-x="empty-deck">
+        <p>This deck has no exercises yet.</p>
+        <p>Use <b>Add exercise…</b> above — the same form the studio editor uses — or open a
+        <a href="{{STUDIO}}/">studio document</a> in this language and press <b>+ Deck</b>
+        beside one of its exercises. A book's reader and a video's player add the cards
+        made there, with their recordings.</p>
+      </div>
+      <p data-x="empty-filter" hidden>No exercise matches these filters.</p>
+    </div>
+  </section>
+</main>
+<script id="deck-json" type="application/json">{{DECK_JSON}}</script>
+<script id="doc-lang" type="application/json">{{LANG_JSON}}</script>
+<script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
+<div id="modal-root"></div>
+<div id="toast" class="toast" hidden></div>
+<div id="shutdown-overlay" class="shutdown-overlay" hidden>
+  <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
+  <code>./serve.sh</code> in the project directory.</p></div>
+</div>
+<link rel="stylesheet" href="{{STUDIO}}/static/mathjax.css">
+<script src="{{STUDIO}}/static/mathjax.js"></script>
+<!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
+<script src="/lib/activity.js" async></script>
+<script src="{{STUDIO}}/static/app.js"></script>
+<script src="{{STUDIO}}/static/decks.js"></script>
+</body>
+</html>

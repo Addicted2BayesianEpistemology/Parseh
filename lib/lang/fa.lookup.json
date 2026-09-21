@@ -1,0 +1,193 @@
+{
+  "_comment": "How a Persian word on the page is turned into something the dictionary can be asked about. Read by lib/lookup.py; optional, like every file of this name. Persian needs no `fold` -- Wiktionary's Persian is in the Persian script, as the page is -- and the two things lookup.py does for every language already carry most of the weight here: the harakat come off with the language's own `strip` range (a reading edition writes them and a headword does not), and the ZWNJ comes off with the zero-width joiners, so `می‌خوانم` reaches خواندن without a rule.",
+  "fold": "",
+  "_bare_stem": "A PRESENT STEM ALONE IS NOT A WORD OF RUNNING PERSIAN, and a preposition is. در is `in` and `door`, and it is also دریدن's present stem; بر is `on`, and بردن's. A hit reached only through a row with one of these notes, for a word that is also some entry's own headword, goes after every other hit (lib/lookup.py _tier_of). The past stem is not here: کرد and بود are the third person past as well, which is exactly what the text means by them.",
+  "bare_stem": ["present stem", "present, stem"],
+  "_join_next": "THE VERB PREFIX WRITTEN APART.  The joiner is what the spelling wants -- نمی‌سوزانند -- and a plain space is what a typewriter, an old printing and much of the Web give instead: the fixture book writes `نِمی سوزانَند` and `کَسی نِمی بینَد` (13 of its 299 chunks), and 1,500 Tatoeba sentences have 210 such words.  Split at the space, می was `wine` (and a preposition, a conjunction and a name), نمی was نم `moisture` with an -i taken off, and the verb was looked for without its prefix: `می کنم` offered کندن (to dig) beside کردن, `می برد` رفتن, بریدن and خواب رفتن beside بردن.  So these are looked up JOINED to the next word, as one (lib/lookup.py _joined): the reader sees both words as written, and the next is looked up alone only when the two together find no verb.  Measured: 11 of the book's 13 and 207 of the 210 are read as their verb, and every answer that goes was wrong where it stood (the four pages of می from 157 chunks, نم from 46, کندن from 26).  The two the book keeps apart are سوزاندن, which this dictionary does not have: Wiktionary names it only as a derived term of سوختن.\n`pos` IS WHAT A PREFIX OF THE VERB MAKES.  Without it, می being a prefix rule of its own, any word at all was found again behind it -- `می ناب` (pure wine) as ناب, the fixture's `با هَم می سوزانَد` as سوزان `burning`.\nNOT همی.  The literary hami- would need a prefix rule of its own to reach anything, and with one, five of the six headwords beginning همی, each hidden in turn, were explained away as something else -- همیشه (always) as شدن, همین (this very) as بودن -- while neither the fixture nor the 1,500 sentences has a single همی to gain.",
+  "join_next": {"words": ["می", "نمی"], "pos": ["verb"]},
+  "_affixes": "What is left after the folding is the transparent morphology docs/lang/fa.md already teaches an annotator. Order is longest first, because the rules are tried in file order and -هایشان must be reached before -شان and -شان before -ش. `add` is empty for the enclitics: a Persian stem loses nothing when one of those goes.  It is not empty for the past tense, and that is the second reason this file exists -- see below.\nTHE ENCLITICS ARE WHY THIS FILE EXISTS. Wiktionary's conjugation and possessive tables are good: می‌سازم, می‌رویم, دیدند, کتابت are all listed outright, so a rule for them would never fire. What it does NOT list is a form carrying an object enclitic -- می‌سازمت, نمی‌بینمش, پولشان -- and those are what these reach. The bare -م -ت -ش are the dangerous ones, being a single letter that ends a great many words; they are last, and they can only ever fire on a word the dictionary does not already have.\nTHE PAST TENSE IS REBUILT, NOT SHAVED.  456 of Persian's 1402 verbs reach Wiktionary with no conjugation table at all, so their entire past paradigm -- every person, every number -- is absent from the form table and no amount of taking letters off a word will find it.  What does find it is putting letters back: a Persian past stem is the infinitive minus its ن, so پوسیدم is پوسید + -am and پوسید is پوسیدن minus ن.  Strip the ending, add the ن, ask again.  Measured over the 1116 past forms the dictionary omits, this moves 1% found to 100% found with nothing wrong; measured over 590 words of running Persian it loses nothing and changes nothing.\nORDER INSIDE THE SEVEN MATTERS.  The bare stem (ت->تن, د->دن) comes before -ند, because سوزاند is سوزاندن with its ن gone and not سوزان with -and added; reversed, it answers سوزان (burning) for a verb.  And these rebuild rules sit in front of the enclitics because they reconstruct a whole word rather than shave one, so the reading they propose deserves to be tried first.\nTHE JOINED PREVERB.  برمی‌گردم is bar + mi + gard + -am written as one word, and Wiktionary's tables write it `بر میگردم`, preverb apart: taking بر off leaves a verb that is not this one (گشتن, to turn, where برگشتن is to return), so the preverb and mi- come off together and are PUT BACK in front the way the table spells them (`front`).  One rule per preverb docs/lang/fa.md lists: بر در فرا فرو باز وا ور.\nWHAT THIS DELIBERATELY IS NOT.  Not the bare personal endings -ید -ند -یم without the ن: those fire on the negative past and answer نزدیم (we did not hit) with نزد, the preposition `near`.  Because every rule here rebuilds an infinitive, نزدیم still reaches زدن by the ordinary road -- ending off, then the negative na- off.",
+  "affixes": [
+    {
+      "suffix": "ت",
+      "add": "تن",
+      "note": "a past stem given its infinitive back"
+    },
+    {
+      "suffix": "د",
+      "add": "دن",
+      "note": "a past stem given its infinitive back"
+    },
+    {
+      "suffix": "یم",
+      "add": "ن",
+      "note": "the past -im taken off, the infinitive put back"
+    },
+    {
+      "suffix": "ید",
+      "add": "ن",
+      "note": "the past -id taken off, the infinitive put back"
+    },
+    {
+      "suffix": "ند",
+      "add": "ن",
+      "note": "the past -and taken off, the infinitive put back"
+    },
+    {
+      "suffix": "م",
+      "add": "ن",
+      "note": "the past -am taken off, the infinitive put back"
+    },
+    {
+      "suffix": "ی",
+      "add": "ن",
+      "note": "the past -i taken off, the infinitive put back"
+    },
+    {
+      "suffix": "هایمان",
+      "note": "plural with the -emān clitic taken off"
+    },
+    {
+      "suffix": "هایتان",
+      "note": "plural with the -etān clitic taken off"
+    },
+    {
+      "suffix": "هایشان",
+      "note": "plural with the -ešān clitic taken off"
+    },
+    {
+      "suffix": "هایم",
+      "note": "plural with the -am clitic taken off"
+    },
+    {
+      "suffix": "هایت",
+      "note": "plural with the -at clitic taken off"
+    },
+    {
+      "suffix": "هایش",
+      "note": "plural with the -aš clitic taken off"
+    },
+    {
+      "suffix": "هایی",
+      "note": "indefinite plural, -hāyi taken off"
+    },
+    {
+      "suffix": "ترین",
+      "note": "superlative, -tarin taken off"
+    },
+    {
+      "suffix": "تر",
+      "note": "comparative, -tar taken off"
+    },
+    {
+      "suffix": "مان",
+      "note": "the -emān clitic taken off"
+    },
+    {
+      "suffix": "تان",
+      "note": "the -etān clitic taken off"
+    },
+    {
+      "suffix": "شان",
+      "note": "the -ešān clitic taken off"
+    },
+    {
+      "suffix": "مون",
+      "note": "the colloquial -emun clitic taken off"
+    },
+    {
+      "suffix": "تون",
+      "note": "the colloquial -etun clitic taken off"
+    },
+    {
+      "suffix": "شون",
+      "note": "the colloquial -ešun clitic taken off"
+    },
+    {
+      "suffix": "ها",
+      "note": "plural, -hā taken off"
+    },
+    {
+      "suffix": "ان",
+      "note": "plural, -ān taken off"
+    },
+    {
+      "suffix": "ام",
+      "note": "the -am clitic taken off"
+    },
+    {
+      "suffix": "ات",
+      "note": "the -at clitic taken off"
+    },
+    {
+      "suffix": "اش",
+      "note": "the -aš clitic taken off"
+    },
+    {
+      "suffix": "م",
+      "note": "the -am clitic taken off"
+    },
+    {
+      "suffix": "ت",
+      "note": "the -at clitic taken off"
+    },
+    {
+      "suffix": "ش",
+      "note": "the -aš clitic taken off"
+    },
+    {
+      "suffix": "ی",
+      "note": "a final -i taken off: the indefinite, or the ezafe glide"
+    },
+    {
+      "prefix": "برمی",
+      "front": "بر می",
+      "note": "the preverb bar- written apart from mi-, as the tables spell it"
+    },
+    {
+      "prefix": "درمی",
+      "front": "در می",
+      "note": "the preverb dar- written apart from mi-, as the tables spell it"
+    },
+    {
+      "prefix": "فرامی",
+      "front": "فرا می",
+      "note": "the preverb farā- written apart from mi-, as the tables spell it"
+    },
+    {
+      "prefix": "فرومی",
+      "front": "فرو می",
+      "note": "the preverb foru- written apart from mi-, as the tables spell it"
+    },
+    {
+      "prefix": "بازمی",
+      "front": "باز می",
+      "note": "the preverb bāz- written apart from mi-, as the tables spell it"
+    },
+    {
+      "prefix": "وامی",
+      "front": "وا می",
+      "note": "the preverb vā- written apart from mi-, as the tables spell it"
+    },
+    {
+      "prefix": "ورمی",
+      "front": "ور می",
+      "note": "the preverb var- written apart from mi-, as the tables spell it"
+    },
+    {
+      "prefix": "نمی",
+      "note": "the negative continuous nemi- taken off"
+    },
+    {
+      "prefix": "می",
+      "note": "the continuous mi- taken off"
+    },
+    {
+      "prefix": "ب",
+      "note": "the subjunctive be- taken off"
+    },
+    {
+      "prefix": "ن",
+      "note": "the negative na- taken off"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "_why": "What a Spanish \\vb needs and no dictionary row says, read by lib/verbs/es.py (ctx.data()). Optional, like every file of this name: without it the recipe still builds every \\vb, with the dictionary's first sense as the meaning of ser and estar and a \\vb offered under para. Kept by hand, and small on purpose: everything a row CAN say is read from the row.",
+  "meanings": {
+    "ser": "to be — ser: what a thing is (identity, origin, material, time, what it is like always)",
+    "estar": "to be — estar: where and how it is right now (place, state, the result of a change)"
+  },
+  "_meanings": "THE TWO VERBS FOR TO BE, in the words docs/lang/es.md prescribes for the meaning slot 'every time either verb is given a full entry'. The dictionary's own first senses are 'to be (essentially or identified as)' and 'to be (have a temporary or permanent location in space)', and trimmed to a vocabulary line both come out 'to be' -- the one gloss es.md says 'has told the reader nothing they did not already misunderstand'. es.md's wording puts `is` and `right now` in \\textit; the \\vb the server builds cannot carry a macro in its meaning (the core takes every backslash and brace out of it, because texwrite refuses them), so the italics are the editor's to add. Used for the plain verb only: a pronominal reading (estarse, from `me estoy quieto`) takes the dictionary's reflexive sense.",
+  "impersonal_meanings": {
+    "haber": "there to be"
+  },
+  "_impersonal_meanings": "haber WITHOUT A SUBJECT -- hay, había una vez, hubo -- is a different verb to a reader from the auxiliary of he visto, and docs/lang/es.md's model entry for it is \\vb{haber}{}{hay}{}{hubo}{}{there to be (fut. \\pw{habrá})}. The dictionary does have the sense, tagged impersonal, but writes it 'to exist; there be; “there is”, “there are” (hay)', which trims to 'to exist'. The recipe decides which haber the chunk has (lib/verbs/es.py _haber_impersonal); this is only what the impersonal one is called.",
+  "never_gloss": [
+    "el", "la", "los", "las", "lo", "un", "una", "unos", "unas",
+    "a", "de", "en", "con", "por", "para", "sin", "sobre", "entre", "hasta", "desde", "hacia", "según", "tras",
+    "al", "del",
+    "yo", "tú", "vos", "él", "ella", "usted", "nosotros", "nosotras", "vosotros", "vosotras",
+    "ellos", "ellas", "ustedes",
+    "me", "te", "se", "nos", "os", "le", "les", "mí", "ti", "sí", "conmigo", "contigo",
+    "y", "e", "o", "u", "ni", "pero", "sino", "que", "si", "no"
+  ],
+  "_never_gloss": "docs/lang/es.md's never-gloss list, word for word: these get no vocabulary entry at all, so no \\vb is offered for a verb they happen to spell. Measured on dict/es.db (2026-09-10) three of them do spell one -- para is parar's and parir's present, sobre sobrar's subjunctive, entre entrar's -- and each would otherwise put a `\\vb -> vocabulary` button under a preposition. The hit is still shown, and offered as the \\dw it always was. Keep this list and the one in es.md the same."
+}

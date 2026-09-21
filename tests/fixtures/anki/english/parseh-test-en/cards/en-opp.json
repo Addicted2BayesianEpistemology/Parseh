@@ -1,0 +1,30 @@
+{
+ "id": "en-opp",
+ "guid": "fx-en-opp",
+ "kind": "opposites",
+ "lang": "en",
+ "created": "2026-09-05 10:00:00",
+ "video": "",
+ "book": "fixture-en",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "old",
+ "kana": "",
+ "tr": "oʊld",
+ "en": "",
+ "opp": "young",
+ "opp_kana": "",
+ "opp_tr": "jʌŋ",
+ "tags": [
+  "english-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

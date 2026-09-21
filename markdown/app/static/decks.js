@@ -1,0 +1,1825 @@
+/* Parseh exercise decks — the pages of the Exercises door (/exercises):
+   the decks (decks.html), one deck to browse and manage (deck.html), and
+   studying it (study.html).
+
+   A classic script loaded after the studio's app.js, whose helpers it uses:
+   $, $$, PAGE, BASE, toast, escAttr, debounce, lang, foldCase, sharedLang,
+   setSharedLang, applyTypo, loadTypo, bindExercises, clipWindow and the
+   exercise form (openExercisePicker, openExerciseMarkdown).  Both scripts
+   share the page's global scope, so everything of this one lives inside the
+   function below: no name here can collide with a top-level name of app.js. */
+(function () {
+"use strict";
+
+if (!["decks", "deck", "study", "cram"].includes(PAGE)) return;
+
+/* the prefix the studio's own pages live under ("/studio" inside Parseh,
+   "" when the studio runs alone): a deck exercise links to the document it
+   was copied from there */
+const STUDIO = document.body.dataset.studio || "";
+const RATINGS = ["again", "hard", "good", "easy"];
+
+function readScript(el, fallback) {
+  if (!el) return fallback;
+  try { return JSON.parse(el.textContent) || fallback; } catch (e) { return fallback; }
+}
+const LANG_LIST = readScript($("#langs-json"), []);
+const LANG_BY_CODE = Object.fromEntries(LANG_LIST.map(l => [l.code, l]));
+
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + "s")}`;
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/* ---------------- talking to the deck store ---------------- */
+
+/* app.js's api() less one thing it cannot give: the kind of a 409 -- a
+   duplicate exercise, a deck that is already here -- which decides what
+   the page asks next. */
+async function call(path, opts = {}) {
+  const init = Object.assign({}, opts);
+  if (init.json !== undefined) {
+    init.body = JSON.stringify(init.json);
+    init.headers = Object.assign({"Content-Type": "application/json"}, init.headers);
+    delete init.json;
+  }
+  let r;
+  try { r = await fetch(BASE + path, init); }
+  catch (e) { throw new Error("the server does not answer — is Parseh still running?"); }
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* not JSON: an error page */ }
+  if (!r.ok || data.ok === false) {
+    const err = new Error(data.error || (r.status + " " + r.statusText));
+    err.status = r.status;
+    err.conflict = data.conflict || "";
+    throw err;
+  }
+  return data;
+}
+
+const seg = s => encodeURIComponent(String(s || ""));
+const deckApi = d => `/api/decks/${seg(d.folder)}/${seg(d.slug)}`;
+const deckPage = d => `${BASE}/deck/${seg(d.folder)}/${seg(d.slug)}/`;
+const studyPage = d => deckPage(d) + "study";
+const exportUrl = (d, scheduling) => `${BASE}${deckApi(d)}/export?scheduling=${scheduling ? 1 : 0}`;
+const toStudy = s => s ? (s.new || 0) + (s.learning || 0) + (s.review || 0) : 0;
+
+/* ---------------- time, as the scheduler labels it ---------------- */
+
+// srs.label's twin: the rating bar's labels come from the server, and the
+// "next exercise in …" lines written here must read the same way
+const DAY = 86400, MONTH = DAY * 365 / 12, YEAR = DAY * 365;
+const halfUp = x => Math.floor(x + 0.5);
+function tenths(x) {
+  const n = Math.floor(x * 10 + 0.5) / 10;
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+function spanLabel(seconds) {
+  const s = Math.max(0, seconds);
+  if (s < 60) return "<1m";
+  if (s < 3600) { const n = halfUp(s / 60); return n >= 60 ? "1h" : n + "m"; }
+  if (s < DAY) { const n = halfUp(s / 3600); return n >= 24 ? "1d" : n + "h"; }
+  if (s < MONTH) return halfUp(s / DAY) + "d";
+  if (s < YEAR) {
+    const m = Math.floor(s / MONTH * 10 + 0.5) / 10;
+    return m >= 12 ? "1y" : tenths(m) + "mo";
+  }
+  return tenths(s / YEAR) + "y";
+}
+
+/* The learner's day starts at the deck's rollover hour (04:00, as in Anki);
+   the server is this machine, so the browser's clock is its clock. */
+const rolloverOf = d => {
+  const h = ((d && d.settings) || {}).rollover_hour;
+  return Number.isFinite(h) ? h : 4;
+};
+/* Wall-clock hours, as srs.day_number takes them: shifting by elapsed time
+   instead puts the morning the clocks go forward on the day before. */
+function dayNumber(date, rollover) {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(),
+                             date.getHours() - rollover, date.getMinutes()) / 864e5);
+}
+/* When a due comes, in ms.  The scheduler writes a review's due as the start
+   of its day: the rollover hour on the clock of the moment it was answered,
+   with that moment's offset.  Its own date is the day meant.  Read as an
+   instant, a due written in summer time would begin at 03:00 in winter,
+   before the rollover, so it would fall on the day before.  srs.due_day
+   reads it the same way.  Any other due is an instant. */
+const DAY_START_RE = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):00:00(?:\.0+)?(?:Z|[+-]\d\d:\d\d)?$/;
+function dueTime(iso, rollover) {
+  const m = DAY_START_RE.exec(iso || "");
+  if (m && +m[4] === rollover) return new Date(+m[1], m[2] - 1, +m[3], rollover).getTime();
+  return Date.parse(iso || "");
+}
+/* The day a due counts on: a day-start due's own date, read straight from
+   its text (never through a local instant, which a clock change moves). */
+function dueDay(iso, rollover) {
+  const m = DAY_START_RE.exec(iso || "");
+  if (m && +m[4] === rollover) return Date.UTC(+m[1], m[2] - 1, +m[3]) / 864e5;
+  const t = Date.parse(iso || "");
+  return Number.isFinite(t) ? dayNumber(new Date(t), rollover) : NaN;
+}
+/* "now", "in 8m", "tomorrow", "in 5d" */
+function whenDue(iso, rollover = 4) {
+  const t = dueTime(iso, rollover);
+  if (!Number.isFinite(t)) return "";
+  const now = new Date(), secs = (t - now.getTime()) / 1000;
+  if (secs <= 0) return "now";
+  const days = dueDay(iso, rollover) - dayNumber(now, rollover);
+  if (days <= 0 || secs < 3600) return "in " + spanLabel(secs);
+  if (days === 1) return "tomorrow";
+  return "in " + spanLabel(days * DAY);
+}
+function nextDueText(iso, rollover) {
+  if (!iso) return "no exercises scheduled";
+  const w = whenDue(iso, rollover);
+  return w === "now" ? "next exercise due now" : "next exercise " + w;
+}
+
+/* new · learning · review, coloured as Anki colours its three queues;
+   `current` underlines the queue the exercise on screen comes from */
+function studyCounts(study, current) {
+  const s = study || {};
+  const box = el("span", "dk-study");
+  const parts = [["new", "dk-new", "new"], ["learning", "dk-learn", "learning"],
+                 ["review", "dk-rev", "to review"]];
+  box.appendChild(el("span", "dk-sr",
+    parts.map(([k, , words]) => `${s[k] || 0} ${words}`).join(", ")));
+  parts.forEach(([k, cls, words], i) => {
+    if (i) {
+      const sep = el("span", "dk-sep", "·");
+      sep.setAttribute("aria-hidden", "true");
+      box.appendChild(sep);
+    }
+    const n = el("span", `dk-n ${cls}${s[k] ? "" : " dk-zero"}${current === k ? " dk-current" : ""}`,
+                 String(s[k] || 0));
+    n.title = words;
+    n.setAttribute("aria-hidden", "true");
+    box.appendChild(n);
+  });
+  return box;
+}
+
+/* ---------------- dialogs ---------------- */
+
+/* A modal in the studio's markup (#modal-root > .modal-overlay > .modal).
+   It resolves to what the chosen button gives: the result of its `run()`
+   (which may be async; when it throws, the message is toasted and the
+   dialog stays open), else its `value` (true by default); null for Cancel,
+   Escape or a click beside the box.  `stack` opens it over what is already
+   open -- the exercise form asking "add it again?" -- instead of replacing
+   it. */
+function dialog({title, hint = "", body = null, buttons, cls = "", stack = false}) {
+  const root = $("#modal-root");
+  if (!stack) root.innerHTML = "";
+  const ov = el("div", "modal-overlay");
+  const box = el("div", "modal dk-modal" + (cls ? " " + cls : ""));
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  box.setAttribute("aria-label", title);
+  box.appendChild(el("h3", "", title));
+  if (hint) box.appendChild(el("p", "", hint));
+  if (body) box.appendChild(body);
+  const row = el("div", "row");
+  box.appendChild(row);
+  ov.appendChild(box);
+  return new Promise(resolve => {
+    let busy = false, settled = false;
+    const close = value => {
+      if (settled) return;
+      settled = true;
+      ov.remove();
+      resolve(value);
+    };
+    const made = buttons.map(spec => {
+      const b = el("button", "btn" + (spec.primary ? " primary" : "") + (spec.danger ? " danger" : ""),
+                   spec.label);
+      b.type = "button";
+      if (spec.cancel) b.dataset.x = "cancel";
+      b.addEventListener("click", async () => {
+        if (busy) return;                     // one request per click, however fast
+        if (spec.cancel) return close(null);
+        const fallback = spec.value === undefined ? true : spec.value;
+        if (!spec.run) return close(fallback);
+        busy = true;
+        made.forEach(x => { x.disabled = true; });
+        try {
+          const out = await spec.run();
+          close(out === undefined ? fallback : out);
+        } catch (e) {
+          toast(e.message, true);
+          busy = false;
+          made.forEach(x => { x.disabled = false; });
+        }
+      });
+      row.appendChild(b);
+      return b;
+    });
+    ov.addEventListener("click", e => { if (e.target === ov && !busy) close(null); });
+    // Enter in a one-line field is the main button
+    box.addEventListener("keydown", e => {
+      if (e.key !== "Enter" || !e.target.matches("input:not([type=checkbox]):not([type=radio])")) return;
+      e.preventDefault();
+      const main = made.find((b, i) => buttons[i].primary);
+      if (main) main.click();
+    });
+    root.appendChild(ov);
+    // typing starts in the first field; a question with a dangerous answer
+    // starts on Cancel, the first button
+    const first = $("input, select, textarea", box)
+      || made.find((b, i) => buttons[i].primary) || made[0];
+    if (first) {
+      first.focus();
+      if (first.matches("input[type=text]")) first.select();
+    }
+  });
+}
+
+const CANCEL = {label: "Cancel", cancel: true};
+function confirmDialog({title, hint, ok = "OK", danger = false, stack = false}) {
+  return dialog({title, hint, stack,
+                 buttons: [CANCEL, {label: ok, primary: !danger, danger, value: true}]})
+    .then(v => v === true);
+}
+
+function field(label, input, help) {
+  const lab = el("label", "modal-field");
+  lab.append(el("span", "", label), input);
+  if (help) lab.appendChild(el("small", "", help));
+  return lab;
+}
+function textInput(value, attrs = {}) {
+  const i = el("input");
+  i.type = "text";
+  i.value = value || "";
+  i.spellcheck = false;
+  i.autocomplete = "off";
+  for (const [k, v] of Object.entries(attrs)) i.setAttribute(k, v);
+  return i;
+}
+
+/* Escape closes what is on top: a dialog (through its Cancel, so whatever
+   it was waiting for hears the answer), else an open menu.  The exercise
+   form closes itself when the key is pressed inside it. */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || e.defaultPrevented) return;
+  const overlays = $$("#modal-root > .modal-overlay");
+  const top = overlays[overlays.length - 1];
+  if (top) {
+    e.preventDefault();
+    const cancel = $('[data-x="cancel"]', top);
+    if (!cancel) top.remove();
+    else if (!cancel.disabled) cancel.click();
+    return;
+  }
+  const menu = $("details.dropdown[open]");
+  if (menu) { e.preventDefault(); menu.open = false; }
+});
+// a menu closes when something is chosen in it or the click lands elsewhere
+document.addEventListener("click", e => {
+  $$("details.dropdown[open]").forEach(d => {
+    if (!d.contains(e.target) || e.target.closest(".menu a, .menu button")) d.open = false;
+  });
+});
+
+/* A link standing for a button that has nothing to do: dimmed, out of the
+   tab order, and inert to a click that reaches it anyway. */
+function setLinkEnabled(a, on, title) {
+  a.classList.toggle("dk-off", !on);
+  if (on) { a.removeAttribute("aria-disabled"); a.removeAttribute("tabindex"); }
+  else { a.setAttribute("aria-disabled", "true"); a.tabIndex = -1; }
+  if (title !== undefined) a.title = title;
+}
+document.addEventListener("click", e => {
+  if (e.target.closest && e.target.closest("a.dk-off")) e.preventDefault();
+}, true);
+
+/* What the server is still working on (lib/activity.py's list, as
+   /__activity hands it to every page) -> its entries, or none.  The
+   studio run on its own has no such address, and that is none too. */
+async function stillRunning() {
+  try {
+    const r = await fetch("/__activity", {cache: "no-store"});
+    if (r.ok) return (await r.json()).running || [];
+  } catch (e) { /* no list here */ }
+  return [];
+}
+
+function bindStop() {
+  const btn = $("#btn-stop");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    // WHAT IS STILL RUNNING IS NAMED FIRST, as the stop button on every
+    // other page names it (lib/parseh.js's stopServer, the studio's own):
+    // stopping the server cuts it off, and a deck being restored or a book
+    // being built is exactly what nobody should lose to a click on the
+    // wrong button.  One line a task, the first five of them.
+    const running = await stillRunning();
+    const n = running.length;
+    let list = null;
+    if (n) {
+      list = el("ul", "dk-running");
+      running.slice(0, 5).forEach(e => list.appendChild(el("li", "", e.label)));
+      if (n > 5) list.appendChild(el("li", "", `\u2026 and ${n - 5} more`));
+    }
+    const yes = await dialog({
+      title: "Stop the Parseh server?",
+      hint: n ? `${n === 1 ? "1 task is" : n + " tasks are"} still running, and stopping the `
+                + `server now cuts ${n === 1 ? "it" : "them"} off. Every Parseh page stops `
+                + "answering until it is started again."
+              : "Every Parseh page stops answering until it is started again.",
+      body: list,
+      buttons: [CANCEL, {label: n ? "Stop server anyway" : "Stop server", danger: true, value: true}],
+    }).then(v => v === true);
+    if (!yes) return;
+    try { await fetch(BASE + "/api/shutdown", {method: "POST"}); } catch (e) { /* on its way out */ }
+    $("#shutdown-overlay").hidden = false;
+  });
+}
+
+/* ---------------- the exercise form, pointed at a deck ---------------- */
+
+/* The deck renders the preview (the deck's language, its pictures, the
+   exercise's own footnotes when it is an existing one). */
+function formPreview(deck, itemId) {
+  return async markdown => {
+    const json = itemId ? {markdown, item: itemId} : {markdown};
+    return (await call(deckApi(deck) + "/preview", {method: "POST", json})).html;
+  };
+}
+
+/* A picture chosen in the form goes straight into the deck's images/, a
+   recording into its audio/.  The field gets the path the deck stored it
+   under -- the same bytes reuse a name, and a different file with that name
+   gets another -- and the form the address it is served at (its ▶ plays a
+   recording from there before the preview has drawn it). */
+function deckUpload(deck, kind = "images") {
+  return async file => {
+    const fallback = kind === "audio" ? "recording" : "picture";
+    // on the activity list when it is big enough to take a while (app.js)
+    const data = await working(file.size > BIG_UPLOAD && `Uploading ${file.name || fallback}`,
+      act => call(act.url(`${deckApi(deck)}/${kind}?name=${encodeURIComponent(file.name || fallback)}`),
+        {method: "POST", body: file, headers: {"Content-Type": file.type || "application/octet-stream"}}));
+    return {path: data.path || `${kind}/${data.name}`, url: data.url};
+  };
+}
+const uploads = deck => ({uploadImage: deckUpload(deck), uploadAudio: deckUpload(deck, "audio")});
+
+/* An exercise is saved even when a picture or a recording it names is not
+   in the deck.  The answer says so, and the toast passes it on. */
+function savedToast(what, data) {
+  const raw = (data && (data.warnings || (data.item && data.item.warnings))) || [];
+  const warnings = Array.isArray(raw) ? raw.filter(w => typeof w === "string" && w) : [];
+  if (!warnings.length) return toast(what);
+  toast(`${what}, but ${warnings.join("; ")}`, true);
+}
+
+/* Open an exercise in the form; a shape the form cannot show (an exercise
+   saved with errors, say) opens as its markdown instead, so it can still be
+   put right from here. */
+function editExercise(deck, item, onSave) {
+  const opts = Object.assign({preview: formPreview(deck, item.id), onSave, saveLabel: "Save exercise"},
+                             uploads(deck));
+  if (openExerciseMarkdown(item.markdown, opts)) return;
+  const ta = el("textarea", "dk-raw");
+  ta.value = item.markdown;
+  ta.spellcheck = false;
+  dialog({
+    title: "Edit the exercise as markdown", cls: "dk-raw-modal", body: ta,
+    hint: "The form cannot show this exercise, so here is its source: one :::exercise block, " +
+          "written as in a studio document.",
+    buttons: [CANCEL, {label: "Save exercise", primary: true, run: () => onSave(ta.value)}],
+  });
+}
+
+/* ================================================================ decks */
+
+function initDecks() {
+  const cardsEl = $("#deck-cards");
+  const empty = $("#decks-empty"), emptyLang = $("#decks-empty-lang");
+  const chipRow = $(".parseh-langs");
+  let decks = [];
+
+  /* The language chip row: rendered by the server for the first paint,
+     rebuilt from the decks after every change (a deck created, deleted or
+     imported changes the counts).  A click records the toolbox's shared
+     preference, as on every index page. */
+  function refreshChips() {
+    if (!chipRow) return;
+    const counts = {};
+    for (const d of decks) counts[d.lang] = (counts[d.lang] || 0) + 1;
+    chipRow.replaceChildren();
+    const all = el("button", "chip");
+    all.type = "button";
+    all.dataset.pick = "all";
+    all.append("all", el("span", "n", String(decks.length)));
+    chipRow.appendChild(all);
+    for (const l of LANG_LIST) {
+      if (!counts[l.code]) continue;
+      const c = el("button", "chip");
+      c.type = "button";
+      c.dataset.pick = c.dataset.lang = c.lang = l.code;
+      c.title = l.name;
+      c.append(el("span", "native", l.native), el("span", "n", String(counts[l.code])));
+      chipRow.appendChild(c);
+    }
+  }
+
+  function applyLangFilter() {
+    let pick = sharedLang();
+    // a stored preference no chip offers would hide every card and light
+    // no chip: read it as 'all' and put the store right, as the studio does
+    if (pick !== "all" && chipRow && !$$(".chip", chipRow).some(c => c.dataset.pick === pick)) {
+      pick = "all";
+      setSharedLang("all");
+    }
+    if (chipRow) $$(".chip", chipRow).forEach(c => c.classList.toggle("on", c.dataset.pick === pick));
+    let shown = 0;
+    $$(".dk-card", cardsEl).forEach(c => {
+      const on = pick === "all" || c.dataset.lang === pick;
+      c.hidden = !on;
+      if (on) shown++;
+    });
+    empty.hidden = decks.length > 0;
+    $(".lang-name", emptyLang).textContent = (LANG_BY_CODE[pick] || {}).name || pick;
+    emptyLang.hidden = !(decks.length > 0 && shown === 0);
+  }
+
+  if (chipRow) chipRow.addEventListener("click", e => {
+    const c = e.target.closest(".chip");
+    if (!c || !chipRow.contains(c)) return;
+    setSharedLang(c.dataset.pick);
+    applyLangFilter();
+  });
+
+  function deckCard(d) {
+    const l = LANG_BY_CODE[d.lang] || {code: d.lang, name: d.language || d.lang, native: d.lang, dir: "ltr"};
+    const total = (d.counts || {}).total || 0, due = toStudy(d.study);
+    const card = el("article", "card dk-card");
+    card.dataset.lang = d.lang;
+    card.dataset.path = d.path;
+    card.innerHTML = `
+      <h3><a class="dk-card-title" href="${escAttr(deckPage(d))}"></a></h3>
+      <div class="badges">
+        <span class="badge lang" lang="${escAttr(l.code)}" dir="${escAttr(l.dir)}"
+              title="${escAttr(l.name)}"></span>
+        <span class="badge dk-total"></span>
+      </div>
+      <div class="dk-card-study"></div>
+      <div class="dk-card-actions">
+        <a class="btn primary small" data-x="study" href="${escAttr(studyPage(d))}">Study</a>
+        <a class="btn small" data-x="browse" href="${escAttr(deckPage(d))}">Browse</a>
+        <details class="dropdown">
+          <summary class="btn small" title="Export or delete" aria-label="More for this deck">⋯</summary>
+          <div class="menu">
+            <a href="${escAttr(exportUrl(d, true))}">Export with scheduling</a>
+            <a href="${escAttr(exportUrl(d, false))}">Export without scheduling</a>
+            <button type="button" class="danger" data-x="delete">Delete deck…</button>
+          </div>
+        </details>
+      </div>`;
+    $(".dk-card-title", card).textContent = d.name;
+    $(".badge.lang", card).textContent = l.native;
+    $(".dk-total", card).textContent = plural(total, "exercise");
+    const study = $(".dk-card-study", card);
+    if (!total) {
+      study.textContent = "Empty: add exercises from its page, or from a studio document.";
+    } else {
+      study.append(el("span", "dk-label", "To study"), studyCounts(d.study));
+      if (!due) study.appendChild(el("span", "dk-next", nextDueText(d.next_due, rolloverOf(d))));
+    }
+    setLinkEnabled($('[data-x="study"]', card), due > 0,
+                   due ? `Study ${plural(due, "exercise")} now` : "Nothing to study now");
+    $('[data-x="delete"]', card).addEventListener("click", async () => {
+      const gone = await dialog({
+        title: `Delete “${d.name}”?`,
+        hint: `Its ${plural(total, "exercise")} and their scheduling are moved to exercises/.trash/ ` +
+              "in the Parseh folder, not erased: move the folder back to restore the deck.",
+        buttons: [CANCEL, {label: "Delete deck", danger: true,
+                           run: () => call(deckApi(d), {method: "DELETE"})}],
+      });
+      if (!gone) return;
+      toast(`“${d.name}” moved to exercises/.trash`);
+      load();
+    });
+    return card;
+  }
+
+  let loadSeq = 0;
+  async function load() {
+    const seq = ++loadSeq;
+    let data;
+    try { data = await call("/api/decks"); }
+    catch (e) { toast("Could not read the decks: " + e.message, true); return; }
+    if (seq !== loadSeq) return;            // a newer reload is on its way
+    decks = data.decks || [];
+    cardsEl.replaceChildren(...decks.map(deckCard));
+    refreshChips();
+    applyLangFilter();
+  }
+
+  async function newDeck() {
+    const body = el("div", "modal-fields");
+    const name = textInput("", {placeholder: "e.g. Everyday verbs", maxlength: "200"});
+    const sel = el("select");
+    for (const l of LANG_LIST) {
+      const o = el("option", "", `${l.name} — ${l.native}`);
+      o.value = l.code;
+      sel.appendChild(o);
+    }
+    const pick = sharedLang();
+    sel.value = LANG_BY_CODE[pick] ? pick : ((LANG_LIST[0] || {}).code || "");
+    body.append(field("Name", name),
+                field("Language", sel, "Every exercise of a deck is in its language."));
+    const made = await dialog({
+      title: "New exercise deck", body,
+      buttons: [CANCEL, {label: "Create deck", primary: true, run: async () => {
+        const n = name.value.trim();
+        if (!n) { name.focus(); throw new Error("Give the deck a name"); }
+        return (await call("/api/decks", {method: "POST", json: {name: n, lang: sel.value}})).deck;
+      }}],
+    });
+    // an empty deck is filled on its own page
+    if (made && made.folder) location.href = deckPage(made);
+  }
+
+  /* Import: the file goes up as it is; the scheduling it carries is kept
+     unless unticked.  A deck already here (the same deck id) is a 409, and
+     the learner decides between replacing it and keeping both. */
+  async function importDeck(file) {
+    const body = el("div", "modal-fields");
+    const lab = el("label", "check dk-check");
+    const keep = el("input");
+    keep.type = "checkbox";
+    keep.checked = true;
+    lab.append(keep, " Keep the scheduling saved in the file");
+    body.append(lab, el("small", "dk-help", "Unticked, every exercise starts again as new."));
+    // each press is on the activity list while the file goes up (app.js)
+    const send = mode => working(`Importing the deck ${file.name}`, act => call(
+      act.url(`/api/import?scheduling=${keep.checked ? 1 : 0}&mode=${mode}`
+              + `&name=${encodeURIComponent(file.name)}`),
+      {method: "POST", body: file, headers: {"Content-Type": "application/zip"}}));
+    let out = await dialog({
+      title: `Import “${file.name}”`,
+      hint: "A deck exported from Parseh: its exercises, their pictures and recordings and, if it was " +
+            "saved with it, the scheduling.",
+      body,
+      buttons: [CANCEL, {label: "Import", primary: true, run: async () => {
+        try { return await send("new"); }
+        catch (e) { if (e.conflict === "exists") return {conflict: e.message}; throw e; }
+      }}],
+    });
+    if (!out) return;
+    if (out.conflict) {
+      out = await dialog({
+        title: "This deck is already here",
+        hint: cap(out.conflict) + ". Replace it moves the deck that is here to exercises/.trash/ " +
+              "and puts the imported one in its place; a copy keeps both.",
+        buttons: [CANCEL,
+                  {label: "Import as a copy", run: () => send("copy")},
+                  {label: "Replace it", danger: true, run: () => send("replace")}],
+      });
+      if (!out) return;
+    }
+    const skipped = (out.skipped || []).length, deck = out.deck || {};
+    toast(`Imported “${deck.name}”: ${plural(out.imported || 0, "exercise")}` +
+          (skipped ? `, ${skipped} skipped (not a valid exercise)` : "") +
+          (out.scheduling ? ", with its scheduling" : ", all new"), skipped > 0);
+    load();
+  }
+
+  $("#btn-new-deck").addEventListener("click", () => newDeck().catch(e => toast(e.message, true)));
+  $$('[data-x="new-deck"]', empty).forEach(b =>
+    b.addEventListener("click", () => newDeck().catch(e => toast(e.message, true))));
+  const fileInput = $("#file-import");
+  $("#btn-import").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    fileInput.value = "";            // the same file can be picked again
+    if (file) importDeck(file).catch(e => toast(e.message, true));
+  });
+
+  /* THE WHOLE SHELF PUT BACK.  Not importDeck: that one adds a deck
+     somebody sent you, under a new id where the id is taken and with the
+     scheduling left behind if you say so.  This puts back what the Backup
+     button wrote -- the ids, the settings, the pictures nothing names any
+     more and the months of answers -- and a deck already here is KEPT
+     until replacing it is asked for, which is the studio's own rule for a
+     library and is right for the same reason: the backup is usually the
+     older of the two. */
+  async function restoreShelf(file) {
+    // each sending of the backup is on the activity list while it runs
+    // (app.js), and what is sent is THE FILE ITSELF, streamed from the disk
+    // and sent again if replacing is asked for: read into the page first, a
+    // big backup held the page -- and the pill that says it has begun --
+    // still for seconds
+    const post = replace => working(`Restoring the decks from ${file.name}`, act => call(
+      act.url("/api/restore?name=" + encodeURIComponent(file.name) + (replace ? "&replace=1" : "")),
+      {method: "POST", body: file, headers: {"Content-Type": "application/zip"}}));
+    let out = await post(false);
+    if ((out.kept || []).length) {
+      const names = out.kept.slice(0, 4).join(", ")
+        + (out.kept.length > 4 ? ", …" : "");
+      const go = await dialog({
+        title: `${plural(out.kept.length, "deck")} already here`,
+        hint: `${names} — left exactly as they are. Replacing them puts the `
+            + `backup's copy in their place, and anything written or studied `
+            + `since the backup was made is lost. The backup is sent again.`,
+        buttons: [{label: "Keep mine", cancel: true},
+                  {label: "Replace them", danger: true, run: () => post(true)}],
+      });
+      if (go && go !== true) out = go;
+    }
+    const n = (out.restored || []).length, kept = (out.kept || []).length;
+    const notes = out.warnings || [];
+    // a warning is not a failure: a backup that put ten decks back and
+    // skipped one stray file has not failed, and colouring it red would say
+    // it had.  Red is for nothing restored at all.
+    toast(`${plural(n, "deck")} restored`
+          + (kept ? `, ${kept} left as ${kept === 1 ? "it is" : "they are"}` : "")
+          + (notes.length ? `; ${notes[0]}` : ""), n === 0);
+    if (notes.length > 1) console.warn("[decks] restore:", notes);
+    load();
+  }
+
+  const restoreInput = $("#file-restore");
+  const restoreBtn = $("#btn-restore");
+  if (restoreBtn && restoreInput) {
+    restoreBtn.addEventListener("click", () => restoreInput.click());
+    restoreInput.addEventListener("change", () => {
+      const file = restoreInput.files[0];
+      restoreInput.value = "";
+      if (!file) return;
+      // a shelf is big and nothing else says so: the button says it while
+      // the bytes go up, because there is no progress to show over a body
+      const was = restoreBtn.textContent;
+      restoreBtn.disabled = true;
+      restoreBtn.textContent = "Restoring…";
+      restoreShelf(file)
+        .catch(e => toast(e.message, true))
+        .finally(() => { restoreBtn.disabled = false; restoreBtn.textContent = was; });
+    });
+  }
+
+  applyLangFilter();
+  load();
+}
+
+/* ================================================================ deck */
+
+function initDeck() {
+  // the chrome outside the sheets (modals, the form) takes the deck's language
+  document.body.dataset.lang = lang().code;
+  let deck = readScript($("#deck-json"), null);
+  if (!deck || !deck.folder) { toast("This page came without its deck", true); return; }
+  const base = deckApi(deck);
+  let items = [];
+  let visible = [];
+  const selected = new Set();
+  let selectionAnchor = null;
+  const selectionKey = `parseh-selected:${deck.path}`;
+  try {
+    const kept = JSON.parse(sessionStorage.getItem(selectionKey) || "[]");
+    if (Array.isArray(kept)) kept.forEach(id => { if (typeof id === "string") selected.add(id); });
+  } catch (e) { /* private browsing or an old selection */ }
+  const arrival = new URLSearchParams(location.search);
+  const movedIds = arrival.get("selected");
+  if (movedIds) {
+    movedIds.split(",").filter(id => /^[0-9a-f]{12}$/.test(id)).forEach(id => selected.add(id));
+  }
+  if (movedIds || arrival.has("notice") || arrival.has("warning"))
+    history.replaceState(null, "", location.pathname);
+  if (arrival.has("warning")) toast(arrival.get("warning"), true);
+  else if (arrival.has("notice")) toast(arrival.get("notice"));
+  const openIds = new Set();          // rows whose solved preview is open
+  const shownHtml = new Map();        // id -> {updated, html}
+
+  function renderHead() {
+    $("#deck-name").textContent = deck.name;
+    document.title = `${deck.name} — Parseh exercises`;
+    const c = deck.counts || {}, due = toStudy(deck.study);
+    const box = $("#deck-counts");
+    box.replaceChildren(el("span", "dk-totals",
+      `${plural(c.total || 0, "exercise")} · ${c.new || 0} new · ${c.learning || 0} learning · ` +
+      `${c.review || 0} in review`));
+    if (c.total) {
+      const now = el("span", "dk-now");
+      now.append(el("span", "dk-label", "To study now"), studyCounts(deck.study));
+      if (!due) now.appendChild(el("span", "dk-next", nextDueText(deck.next_due, rolloverOf(deck))));
+      box.appendChild(now);
+    }
+    const study = $("#btn-study");
+    study.href = studyPage(deck);
+    setLinkEnabled(study, due > 0, due ? `${plural(due, "exercise")} to study now` : "Nothing to study now");
+    $("#btn-export-sched").href = exportUrl(deck, true);
+    $("#btn-export-plain").href = exportUrl(deck, false);
+  }
+
+  async function load() {
+    const data = await call(base);
+    deck = data.deck;
+    items = data.items || [];
+    const live = new Set(items.map(it => it.id));
+    for (const id of selected) if (!live.has(id)) selected.delete(id);
+    renderHead();
+    fillTypes();
+    fillTags();
+    renderList();
+  }
+  const reload = () => load().catch(e => toast("Could not read the deck: " + e.message, true));
+
+  /* ---- the browse list ---- */
+
+  /* An exercise copied from notes beside a book or a video records the
+     notes' mount (/books/<folder>/<slug>/notes, /youtube/v/<id>/notes); its
+     document lives there, not in the studio.  Only a path on this server,
+     as the store keeps it: a hand-edited file cannot make the link go
+     elsewhere. */
+  const notesMount = source =>
+    typeof source === "string" && /^\/[A-Za-z0-9._~%-][A-Za-z0-9._~%\/-]{0,299}$/.test(source)
+      && !source.split("/").includes("..") ? source.replace(/\/+$/, "") : "";
+  /* A card made in a book's reader or a video's player names the book
+     (/books/<folder>/<slug>) or the video (its id), the moment in it and a
+     link back to that moment -- as the store keeps them (decks._clean_origin):
+     a path on this server or a YouTube address, nothing a browser would take
+     for another host. */
+  const bookPath = b =>
+    typeof b === "string" && /^\/books\/[A-Za-z0-9_~%-][A-Za-z0-9._~%-]{0,99}\/[A-Za-z0-9_~%-][A-Za-z0-9._~%-]{0,199}$/.test(b)
+      && !b.split("/").includes("..") ? b : "";
+  const videoId = v => typeof v === "string" && /^(?!\.+$)[A-Za-z0-9._-]{1,90}$/.test(v) ? v : "";
+  const backUrl = u =>
+    typeof u === "string" && u.length <= 500
+      && /^(?:\/(?![\/\\])|https:\/\/www\.youtube\.com\/)[^\s\\\x00-\x1f\x7f]*$/.test(u) ? u : "";
+
+  const typeKey = it => it.subtype || "unreadable";
+  const bucket = it => {
+    const s = (it.schedule || {}).state;
+    return s === "relearning" || s === "learning" ? "learning" : s === "review" ? "review" : "new";
+  };
+  function dueNow(it) {
+    const s = it.schedule || {};
+    if (!s.state || s.state === "new" || !s.due) return false;
+    const r = rolloverOf(deck);
+    // a review is due for its whole day, as the scheduler counts it;
+    // a learning step is an instant
+    if (s.state === "review") {
+      const day = dueDay(s.due, r);
+      return Number.isFinite(day) && day <= dayNumber(new Date(), r);
+    }
+    const t = Date.parse(s.due);
+    return Number.isFinite(t) && t <= Date.now();
+  }
+
+  function fillTypes() {
+    const sel = $("#browse-type"), current = sel.value;
+    const seen = new Map();
+    for (const it of items) {
+      const k = typeKey(it);
+      const row = seen.get(k) || {label: it.subtype ? (it.label || it.subtype) : "Unreadable", n: 0};
+      row.n++;
+      seen.set(k, row);
+    }
+    const all = el("option", "", "All types");
+    all.value = "";
+    sel.replaceChildren(all);
+    [...seen.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label)).forEach(([k, row]) => {
+      const o = el("option", "", `${row.label} (${row.n})`);
+      o.value = k;
+      sel.appendChild(o);
+    });
+    sel.value = seen.has(current) ? current : "";
+  }
+
+  function fillTags() {
+    const sel = $("#browse-tag"), current = sel.value;
+    const counts = new Map();
+    items.forEach(it => (it.tags || []).forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1)));
+    const all = el("option", "", "All tags");
+    all.value = "";
+    sel.replaceChildren(all);
+    [...counts].sort((a, b) => a[0].localeCompare(b[0])).forEach(([tag, count]) => {
+      const option = el("option", "", `${tag} (${count})`);
+      option.value = tag;
+      sel.appendChild(option);
+    });
+    sel.value = counts.has(current) ? current : "";
+  }
+
+  function updateSelection() {
+    const n = selected.size;
+    try { sessionStorage.setItem(selectionKey, JSON.stringify([...selected])); }
+    catch (e) { /* page-local selection still works */ }
+    $("#browse-selected").textContent = `${n} selected`;
+    ["copy", "move", "add-tag", "remove-tag", "new", "delete"].forEach(x => {
+      $(`#btn-bulk-${x}`).disabled = n === 0;
+    });
+    $("#btn-cram").disabled = n === 0;
+    $("#btn-cram").textContent = n ? `Cram ${plural(n, "exercise")}` : "Cram exercises";
+  }
+
+  function selectRange(id, checked) {
+    const end = visible.findIndex(it => it.id === id);
+    const start = visible.findIndex(it => it.id === selectionAnchor);
+    if (end < 0) return;
+    // Only rows currently shown are between the two clicks. A filtered-out
+    // anchor starts a new range without changing hidden selections.
+    const range = start < 0 ? [visible[end]] :
+      visible.slice(Math.min(start, end), Math.max(start, end) + 1);
+    const rows = new Map($$(".dk-row", $("#browse-list")).map(row => [row.dataset.id, row]));
+    for (const it of range) {
+      if (checked) selected.add(it.id);
+      else selected.delete(it.id);
+      const row = rows.get(it.id);
+      if (row) {
+        $(".dk-select", row).checked = checked;
+        row.classList.toggle("selected", checked);
+      }
+    }
+    selectionAnchor = id;
+    updateSelection();
+  }
+
+  function renderList() {
+    const q = foldCase($("#browse-filter").value.trim());
+    const type = $("#browse-type").value, state = $("#browse-state").value;
+    const tag = $("#browse-tag").value;
+    const shown = items.filter(it =>
+      (!q || foldCase(it.excerpt || "").includes(q) || foldCase(it.markdown || "").includes(q))
+      && (!type || typeKey(it) === type)
+      && (!state || (state === "due" ? dueNow(it) : bucket(it) === state))
+      && (!tag || (it.tags || []).includes(tag)));
+    visible = shown;
+    $("#browse-list").replaceChildren(...shown.map(itemRow));
+    $("#browse-count").textContent = q || type || state || tag
+      ? `${shown.length} of ${items.length}` : plural(items.length, "exercise");
+    const empty = $("#browse-empty");
+    empty.hidden = shown.length > 0;
+    $('[data-x="empty-deck"]', empty).hidden = items.length > 0;
+    $('[data-x="empty-filter"]', empty).hidden = items.length === 0;
+    updateSelection();
+  }
+
+  function itemRow(it) {
+    const s = it.schedule || {};
+    const row = el("article", "dk-row" + (selected.has(it.id) ? " selected" : ""));
+    row.dataset.id = it.id;
+    row.innerHTML = `
+      <input type="checkbox" class="dk-select" aria-label="Select exercise" ${selected.has(it.id) ? "checked" : ""}>
+      <button type="button" class="dk-row-toggle" aria-expanded="false"
+              title="Show the exercise, solved">
+        <span class="dk-kickers"><span class="ex-kicker"></span></span>
+        <span class="dk-excerpt" dir="auto"></span>
+      </button>
+      <div class="dk-row-meta">
+        <span class="dk-state dk-state-${bucket(it)}"></span>
+        <span class="dk-when"></span>
+        <span class="dk-reps"></span>
+        <span class="dk-origin"></span>
+        <span class="dk-item-tags"></span>
+      </div>
+      <div class="dk-row-actions">
+        <button type="button" class="btn small" data-x="edit">Edit</button>
+        <button type="button" class="btn small" data-x="duplicate">Duplicate</button>
+        <button type="button" class="btn small" data-x="copy">Copy to deck…</button>
+        <button type="button" class="btn small" data-x="move">Move to deck…</button>
+        <button type="button" class="btn small danger ghost" data-x="delete">Delete</button>
+      </div>
+      <div class="dk-row-preview" hidden></div>`;
+    $(".ex-kicker", row).textContent = it.label || it.subtype || "Exercise";
+    if ((it.errors || []).length) {
+      const bad = el("span", "badge err", "needs attention");
+      bad.title = it.errors.join("\n");
+      $(".dk-kickers", row).appendChild(bad);
+    }
+    $(".dk-excerpt", row).textContent = it.excerpt || "(no text)";
+    $(".dk-select", row).setAttribute("aria-label",
+      `Select ${it.label || it.subtype || "exercise"}: ${(it.excerpt || "no text").slice(0, 100)}`);
+    $(".dk-select", row).title = "Shift-click to select or deselect a range";
+    $(".dk-state", row).textContent = s.state === "relearning" ? "relearning" : bucket(it);
+    $(".dk-when", row).textContent = bucket(it) === "new" ? "not studied yet"
+      : dueNow(it) ? "due now" : ("due " + whenDue(s.due, rolloverOf(deck))).trim();
+    $(".dk-reps", row).textContent = `${plural(it.reps || 0, "review")} · ${plural(it.lapses || 0, "lapse")}`;
+    $(".dk-item-tags", row).textContent = (it.tags || []).length ? `Tags: ${it.tags.join(", ")}` : "";
+    $(".dk-select", row).addEventListener("click", e => {
+      if (e.shiftKey) selectRange(it.id, e.currentTarget.checked);
+    });
+    $(".dk-select", row).addEventListener("change", e => {
+      if (e.target.checked) selected.add(it.id);
+      else selected.delete(it.id);
+      row.classList.toggle("selected", e.target.checked);
+      selectionAnchor = it.id;
+      updateSelection();
+    });
+    const origin = $(".dk-origin", row), o = it.origin;
+    const book = o ? bookPath(o.book) : "", video = o ? videoId(o.video) : "";
+    if (o && o.doc_id) {
+      const a = el("a", "", o.title || o.doc_id);
+      const notes = notesMount(o.source);
+      a.href = `${notes || STUDIO}/doc/${seg(o.doc_id)}`;
+      a.title = notes ? "The notes it was copied from" : "The studio document it was copied from";
+      origin.append("from ", a);
+      if (o.duplicate_of) origin.append(" (a duplicate)");
+    } else if (book || video) {
+      // the book or the video, and where in it: its link opens that moment
+      const name = (typeof o.title === "string" && o.title) || (book ? book.split("/").pop() : video);
+      const label = typeof o.label === "string" ? o.label : "";
+      const a = el("a", "dk-made", label ? `${name} · ${label}` : name);
+      // a book at the link it was made with, else its reader; a video in
+      // Parseh's own player at its second, its link only when no second
+      // was kept (a YouTube address would leave Parseh)
+      const at = Number.isFinite(o.time) && o.time >= 0 ? Math.floor(o.time) : null;
+      const player = `/youtube/v/${seg(video)}/`;
+      a.href = book ? backUrl(o.url) || `${book}/reader/`
+        : at !== null ? `${player}#t=${at}` : backUrl(o.url) || player;
+      a.title = book ? "The book the card was made from" : "The video the card was made from";
+      origin.append("from ", a);
+      if (o.duplicate_of) origin.append(" (a duplicate)");
+    } else {
+      origin.textContent = o && o.duplicate_of ? "a duplicate" : "written here";
+    }
+
+    row.addEventListener("click", e => {
+      // the buttons, the links and the exercise itself keep their own clicks
+      if (e.target.closest(".dk-row-actions, .dk-row-preview, a, input")) return;
+      if (e.target.closest("button:not(.dk-row-toggle)")) return;
+      if (e.shiftKey) {
+        selectRange(it.id, !selected.has(it.id));
+        return;
+      }
+      togglePreview(row, it);
+    });
+    $('[data-x="edit"]', row).addEventListener("click", () =>
+      editExercise(deck, it, async markdown => {
+        savedToast("Exercise saved", await call(`${base}/items/${it.id}`, {method: "PUT", json: {markdown}}));
+        reload();
+      }));
+    $('[data-x="duplicate"]', row).addEventListener("click", async e => {
+      const b = e.currentTarget;
+      b.disabled = true;
+      try {
+        await call(`${base}/items/${it.id}/duplicate`, {method: "POST"});
+        toast("Duplicated: the copy starts as new");
+        reload();
+      } catch (err) { toast(err.message, true); b.disabled = false; }
+    });
+    $('[data-x="copy"]', row).addEventListener("click", () => transfer("copy", [it.id]));
+    $('[data-x="move"]', row).addEventListener("click", () => transfer("move", [it.id], selected.has(it.id)));
+    $('[data-x="delete"]', row).addEventListener("click", async () => {
+      const gone = await dialog({
+        title: "Delete this exercise?",
+        hint: `“${it.excerpt || it.label}” and its scheduling (${plural(it.reps || 0, "review")}) ` +
+              "leave the deck for good.",
+        buttons: [CANCEL, {label: "Delete exercise", danger: true,
+                           run: () => call(`${base}/items/${it.id}`, {method: "DELETE"})}],
+      });
+      if (!gone) return;
+      openIds.delete(it.id);
+      toast("Exercise deleted");
+      reload();
+    });
+    if (openIds.has(it.id)) togglePreview(row, it, true);
+    return row;
+  }
+
+  async function togglePreview(row, it, open) {
+    const box = $(".dk-row-preview", row), toggle = $(".dk-row-toggle", row);
+    if (open === undefined) open = box.hidden;
+    toggle.setAttribute("aria-expanded", String(open));
+    row.classList.toggle("open", open);
+    box.hidden = !open;
+    if (!open) { openIds.delete(it.id); return; }
+    openIds.add(it.id);
+    let shown = shownHtml.get(it.id);
+    if (!shown || shown.updated !== it.updated) {
+      box.replaceChildren(el("p", "pv-status", "Rendering…"));
+      try {
+        const data = await call(`${base}/items/${it.id}`);
+        shown = {updated: it.updated, html: data.html || ""};
+        shownHtml.set(it.id, shown);
+      } catch (e) {
+        box.replaceChildren(el("p", "pv-status err", "Preview unavailable: " + e.message));
+        return;
+      }
+      if (box.hidden || !row.isConnected) return;     // closed or redrawn meanwhile
+    }
+    // a row reopened while the list is being redrawn is not in the page
+    // yet, and applyTypo styles only the sheets it can find there
+    if (!row.isConnected) await Promise.resolve();
+    const sheet = el("div", "sheet dk-sheet");
+    sheet.dataset.lang = deck.lang;
+    sheet.innerHTML = shown.html;
+    $$(".ex-edit, .ex-to-deck, .exercise-correction", sheet).forEach(x => x.remove());
+    box.replaceChildren(sheet);
+    applyTypo(loadTypo(null));                    // the new sheet takes the typography
+    bindExercises(sheet, {preview: true});
+  }
+
+  const redraw = debounce(renderList, 120);
+  $("#browse-filter").addEventListener("input", redraw);
+  $("#browse-type").addEventListener("change", renderList);
+  $("#browse-state").addEventListener("change", renderList);
+  $("#browse-tag").addEventListener("change", renderList);
+
+  $("#btn-select-all").addEventListener("click", () => {
+    items.forEach(it => selected.add(it.id));
+    renderList();
+  });
+  $("#btn-select-shown").addEventListener("click", () => {
+    visible.forEach(it => selected.add(it.id));
+    renderList();
+  });
+  $("#btn-deselect-all").addEventListener("click", () => {
+    selected.clear();
+    renderList();
+  });
+  $("#btn-select-tag").addEventListener("click", async () => {
+    const tags = [...new Set(items.flatMap(it => it.tags || []))].sort();
+    if (!tags.length) { toast("This deck has no exercise tags yet"); return; }
+    const pick = el("select");
+    tags.forEach(tag => {
+      const option = el("option", "", tag);
+      option.value = tag;
+      pick.appendChild(option);
+    });
+    if (tags.includes($("#browse-tag").value)) pick.value = $("#browse-tag").value;
+    const tag = await dialog({title: "Select exercises by tag", body: field("Tag", pick),
+                              buttons: [CANCEL, {label: "Select matching", primary: true,
+                                                 run: () => pick.value}]});
+    if (!tag) return;
+    selected.clear();
+    items.filter(it => (it.tags || []).includes(tag)).forEach(it => selected.add(it.id));
+    renderList();
+  });
+
+  async function transfer(action, ids, carrySelection = false) {
+    let choices;
+    try {
+      const data = await call(`/api/decks?lang=${seg(deck.lang)}`);
+      choices = (data.decks || []).filter(d => d.path !== deck.path && d.lang === deck.lang);
+    } catch (e) { toast(e.message, true); return; }
+    if (!choices.length) { toast("Create another deck in this language first"); return; }
+    const pick = el("select");
+    choices.forEach(d => {
+      const option = el("option", "", d.name);
+      option.value = d.path;
+      pick.appendChild(option);
+    });
+    const verb = action === "move" ? "Move" : "Copy";
+    let destination = null;
+    const done = await dialog({
+      title: `${verb} ${plural(ids.length, "exercise")} to another deck`,
+      hint: action === "move" ? "Scheduling and tags travel with moved exercises." :
+                               "Copies keep their tags and start with fresh scheduling.",
+      body: field("Destination deck", pick),
+      buttons: [CANCEL, {label: `${verb} to deck`, primary: action === "copy",
+                         run: async () => {
+                           const target = choices.find(d => d.path === pick.value);
+                           destination = target;
+                           return call(base + "/items/bulk", {method: "POST", json: {
+                             action, ids, target: {folder: target.folder, slug: target.slug}}});
+                         }}],
+    });
+    if (!done) return;
+    if (action === "move" && carrySelection && destination) {
+      const key = `parseh-selected:${destination.path}`;
+      let saved = false;
+      try {
+        const previous = JSON.parse(sessionStorage.getItem(key) || "[]");
+        const kept = Array.isArray(previous) ? previous : [];
+        sessionStorage.setItem(key, JSON.stringify([...new Set([...kept, ...(done.ids || [])])]));
+        saved = true;
+      } catch (e) { /* selection travels in the URL when storage is unavailable */ }
+      const params = new URLSearchParams();
+      if (!saved) params.set("selected", (done.ids || []).join(","));
+      params.set("notice", `${plural(done.count, "exercise")} moved`);
+      if ((done.warnings || []).length) params.set("warning", done.warnings.join("; "));
+      location.href = deckPage(destination) + "?" + params;
+      return;
+    }
+    if (action === "move") ids.forEach(id => selected.delete(id));
+    toast(`${done.count} ${done.count === 1 ? "exercise" : "exercises"} ${action === "move" ? "moved" : "copied"}`);
+    if ((done.warnings || []).length) toast(done.warnings.join("; "), true);
+    reload();
+  }
+  $("#btn-bulk-copy").addEventListener("click", () => transfer("copy", [...selected]));
+  $("#btn-bulk-move").addEventListener("click", () => transfer("move", [...selected], true));
+  $("#btn-bulk-delete").addEventListener("click", async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const okay = await confirmDialog({title: `Delete ${plural(ids.length, "exercise")}?`,
+      hint: "Their scheduling will be deleted too.", ok: "Delete selected", danger: true});
+    if (!okay) return;
+    try {
+      await call(base + "/items/bulk", {method: "POST", json: {action: "delete", ids}});
+      selected.clear();
+      toast(`${plural(ids.length, "exercise")} deleted`);
+      reload();
+    } catch (e) { toast(e.message, true); }
+  });
+  $("#btn-bulk-new").addEventListener("click", async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const okay = await confirmDialog({title: `Set ${plural(ids.length, "exercise")} to new?`,
+      hint: "Their review history and scheduling will be cleared. They will remain selected.",
+      ok: "Set to new"});
+    if (!okay) return;
+    try {
+      await call(base + "/items/bulk", {method: "POST", json: {action: "set-new", ids}});
+      toast(`${plural(ids.length, "exercise")} set to new`);
+      reload();
+    } catch (e) { toast(e.message, true); }
+  });
+  $("#btn-bulk-add-tag").addEventListener("click", async () => {
+    const ids = [...selected], input = textInput("");
+    const done = await dialog({title: `Tag ${plural(ids.length, "exercise")}`,
+      body: field("Tag", input), buttons: [CANCEL, {label: "Add tag", primary: true,
+        run: () => call(base + "/items/bulk", {method: "POST", json: {
+          action: "add-tag", ids, tag: input.value}})}]});
+    if (done) { toast("Tag added"); reload(); }
+  });
+  $("#btn-bulk-remove-tag").addEventListener("click", async () => {
+    const ids = [...selected];
+    const tags = [...new Set(items.filter(it => selected.has(it.id)).flatMap(it => it.tags || []))].sort();
+    if (!tags.length) { toast("The selected exercises have no tags"); return; }
+    const pick = el("select");
+    tags.forEach(tag => {
+      const option = el("option", "", tag);
+      option.value = tag;
+      pick.appendChild(option);
+    });
+    const done = await dialog({title: `Remove a tag from ${plural(ids.length, "exercise")}`,
+      body: field("Tag", pick), buttons: [CANCEL, {label: "Remove tag", primary: true,
+        run: () => call(base + "/items/bulk", {method: "POST", json: {
+          action: "remove-tag", ids, tag: pick.value}})}]});
+    if (done) { toast("Tag removed"); reload(); }
+  });
+  $("#btn-cram").addEventListener("click", () => {
+    const ids = items.filter(it => selected.has(it.id)).map(it => it.id);
+    if (!ids.length) return;
+    let stored = false;
+    try { sessionStorage.setItem(`parseh-cram:${deck.path}`, JSON.stringify(ids)); stored = true; }
+    catch (e) { /* carry the selected ids in the URL instead */ }
+    location.href = deckPage(deck) + "cram" + (stored ? "" : `?selected=${ids.join(",")}`);
+  });
+
+  /* ---- adding, the deck's own buttons ---- */
+
+  async function addExercise(markdown) {
+    let data;
+    try {
+      data = await call(base + "/items", {method: "POST", json: {markdown}});
+    } catch (e) {
+      if (e.conflict !== "duplicate") throw e;
+      const again = await confirmDialog({
+        stack: true, title: "Already in this deck",
+        hint: cap(e.message) + ". Add it a second time?", ok: "Add again"});
+      // the form stays open, so the exercise can still be changed
+      if (!again) throw new Error("Not added: the same exercise is already in this deck");
+      data = await call(base + "/items", {method: "POST", json: {markdown, force: true}});
+    }
+    savedToast(`Added to “${deck.name}”`, data);
+    reload();
+  }
+
+  $("#btn-add-exercise").addEventListener("click", () => openExercisePicker(Object.assign({
+    onSave: addExercise, preview: formPreview(deck), saveLabel: "Add to deck"}, uploads(deck))));
+
+  $("#btn-rename").addEventListener("click", async () => {
+    const input = textInput(deck.name, {maxlength: "200"});
+    const renamed = await dialog({
+      title: "Rename the deck", body: field("Name", input),
+      hint: "Only the name changes: the deck's address, exercises and scheduling stay.",
+      buttons: [CANCEL, {label: "Rename", primary: true, run: async () => {
+        const name = input.value.trim();
+        if (!name) throw new Error("The name cannot be empty");
+        return (await call(base, {method: "PATCH", json: {name}})).deck;
+      }}],
+    });
+    if (!renamed || !renamed.name) return;
+    deck = renamed;
+    renderHead();
+    toast("Deck renamed");
+  });
+
+  $("#btn-options").addEventListener("click", async () => {
+    const S = deck.settings || {};
+    const whole = (key, label, help) => ({key, label, help, kind: "whole"});
+    const steps = (key, label, help) => ({key, label, help, kind: "steps"});
+    const specs = [
+      whole("new_per_day", "New exercises a day", "How many never-studied exercises a day brings."),
+      whole("reviews_per_day", "Reviews a day", "The most review answers a day asks for."),
+      steps("learning_steps", "Learning steps (minutes)",
+            "Separated by spaces, e.g. 1 10. Empty: a new exercise graduates at its first Good."),
+      steps("relearning_steps", "Relearning steps (minutes)",
+            "After an Again on a review. Empty: straight back to review."),
+      whole("graduating_interval", "Graduating interval (days)", "After the last learning step."),
+      whole("easy_interval", "Easy interval (days)", "A new exercise answered Easy."),
+      whole("maximum_interval", "Maximum interval (days)", "No exercise waits longer than this."),
+    ];
+    const grid = el("div", "dk-options");
+    const inputs = {};
+    for (const spec of specs) {
+      const v = S[spec.key];
+      const shown = spec.kind === "steps" ? (Array.isArray(v) ? v.join(" ") : "")
+                                         : (v === undefined || v === null ? "" : String(v));
+      inputs[spec.key] = textInput(shown, {inputmode: spec.kind === "steps" ? "decimal" : "numeric"});
+      grid.appendChild(field(spec.label, inputs[spec.key], spec.help));
+    }
+    const saved = await dialog({
+      title: "Deck options", cls: "dk-options-modal", body: grid,
+      hint: "How this deck schedules its exercises, as in Anki.",
+      buttons: [CANCEL, {label: "Save options", primary: true, run: async () => {
+        const settings = {};
+        for (const spec of specs) {
+          const raw = inputs[spec.key].value.trim();
+          if (spec.kind === "whole") {
+            if (!/^\d+$/.test(raw)) throw new Error(`${spec.label}: a whole number, please`);
+            settings[spec.key] = Number(raw);
+          } else {
+            const parts = raw ? raw.split(/[\s,;]+/).filter(Boolean) : [];
+            if (parts.some(p => !/^\d+(\.\d+)?$/.test(p) || !(Number(p) > 0)))
+              throw new Error(`${spec.label}: minutes above zero, separated by spaces`);
+            settings[spec.key] = parts.map(Number);
+          }
+        }
+        return (await call(base, {method: "PATCH", json: {settings}})).deck;
+      }}],
+    });
+    if (!saved || !saved.settings) return;
+    deck = saved;
+    renderHead();
+    toast("Options saved");
+  });
+
+  $("#btn-delete-deck").addEventListener("click", async () => {
+    const total = (deck.counts || {}).total || 0;
+    const gone = await dialog({
+      title: `Delete “${deck.name}”?`,
+      hint: `Its ${plural(total, "exercise")} and their scheduling are moved to exercises/.trash/ ` +
+            "in the Parseh folder, not erased: move the folder back to restore the deck.",
+      buttons: [CANCEL, {label: "Delete deck", danger: true, run: () => call(base, {method: "DELETE"})}],
+    });
+    if (gone) location.href = BASE + "/";
+  });
+
+  renderHead();
+  reload();
+}
+
+/* ================================================================ study */
+
+function initStudy() {
+  document.body.dataset.lang = lang().code;
+  const deck = readScript($("#deck-json"), null);
+  if (!deck || !deck.folder) { toast("This page came without its deck", true); return; }
+  const base = deckApi(deck);
+  const stage = $("#study-stage"), actions = $("#study-actions");
+  const result = $("#study-result"), bar = $("#rating-bar"), done = $("#study-done");
+  const btnCheck = $("#btn-check"), btnShow = $("#btn-show");
+  const btnEdit = $("#btn-edit-card"), btnSkip = $("#btn-skip");
+  const solution = $("#study-solution"), solutionSheet = $(".dk-sheet", solution);
+  const skipped = new Set();          // left for later, this visit only
+  // the exercise on screen: {item, intervals, run, ex, kind, revealed, result}
+  let card = null;
+  let rating = false, pollTimer = 0, loadSeq = 0;
+  /* The control of the exercise a pointer last pressed, while it keeps the
+     focus.  Enter right after a click on an answer checks the exercise.  On
+     a control reached from the keyboard, Enter presses that control
+     instead: it picks the answer, places the item, opens the footnote.
+     :focus-visible cannot tell the two apart: Chromium turns it on at the
+     keypress itself.  A card's player is such a control too. */
+  let pointed = null;
+  const CONTROL = "button, a[href], summary, [tabindex], audio, video";
+  document.addEventListener("pointerdown", e => {
+    const c = e.target.closest && e.target.closest(CONTROL);
+    pointed = c && stage.contains(c) ? c : null;
+  }, true);
+  document.addEventListener("focusin", e => { if (e.target !== pointed) pointed = null; });
+
+  function clearSolution() {
+    solution.hidden = true;
+    solutionSheet.replaceChildren();
+  }
+
+  /* A card's recordings, played as Anki plays them.  A flashcard shown plays
+     the first recording of the side in view, once; turned over, the back's
+     first.  A recording is a card's front-audio or back-audio (its 🔊,
+     .ex-card-audio) or a recording line inside a jolly field (figure.audio,
+     with a player of its own), whichever comes first on that side; one laid
+     out with a clip plays only its window (app.js, on its play event).
+     Whatever plays stops when the card is rated or skipped, or the next one
+     comes.  A browser that lets no page make a sound before it has been
+     clicked plays nothing: the card's 🔊 and players are still there.
+     Enlarged (app.js openCardZoom), the card in view is the window's copy,
+     drawn again from the card as it turns: that copy plays, where its own 🔊
+     shows it playing and stops it, and the card it covers keeps still.
+     A clip waits for the recording's length before it plays: a window that
+     starts at or past the end has nothing to play and is not started at
+     all (app.js would stop it again at once, but the card would have said
+     it played).  A clip still waiting gives way to whatever plays first. */
+  const ZOOMED = ".ex-zoom-overlay .ex-zoom-stage .ex-flashcard";
+  const RECORDING = ".ex-card-audio audio, figure.audio audio";
+  let waiting = null;
+  function hush() {
+    waiting = null;
+    [...$$("audio, video", stage), ...$$("audio, video", solution),
+     ...$$(".ex-zoom-overlay audio, .ex-zoom-overlay video")].forEach(m => {
+      if (!m.paused) m.pause();
+    });
+  }
+  document.addEventListener("play", e => {
+    if (waiting && e.target !== waiting) waiting = null;
+  }, true);
+  function recordingOf(shown, side) {
+    const own = shown && shown.ex && $(".ex-flashcard", shown.ex);
+    const flash = own && ($(ZOOMED) || own);
+    const face = flash && $(`:scope > .ex-card-${side}`, flash);
+    // a selector list: the first match in the side's own order
+    return face && $(RECORDING, face);
+  }
+  function playSide(shown, side) {
+    const audio = recordingOf(shown, side);
+    if (!audio || card !== shown) return;
+    hush();
+    const w = clipWindow(audio);
+    const speak = () => {
+      if (w && Number.isFinite(audio.duration) && w.start >= audio.duration) return;
+      const playing = audio.play();
+      if (playing && playing.catch) playing.catch(() => { /* not allowed yet, or gone */ });
+    };
+    if (!w || audio.readyState >= 1) { speak(); return; }
+    waiting = audio;
+    audio.addEventListener("loadedmetadata", () => {
+      // meanwhile hushed, turned, enlarged, played by hand, or gone
+      if (waiting !== audio || card !== shown || recordingOf(shown, side) !== audio) return;
+      waiting = null;
+      speak();
+    }, {once: true});
+  }
+
+  /* The enlarged window shows a copy of the card on the stage.  One opened
+     while the answer was on its way would be left over the next card drawn
+     there, and taken for it: it closes (its own ✕, which gives the keys
+     back to the page) whenever the stage is drawn again. */
+  function closeZoom() {
+    $$(".ex-zoom-overlay .ex-zoom-close").forEach(b => b.click());
+  }
+
+  /* A flashcard is turned by app.js -- a click on it, but not on a control
+     inside it (its player, a link, its 🔊), Enter or Space on it, the
+     enlarged copy, Show answer -- and the first turn is the answer shown,
+     however it came. */
+  let turning = null;
+  function watchTurn(shown) {
+    if (turning) turning.disconnect();
+    turning = null;
+    const flash = shown.kind === "flashcard" && $(".ex-flashcard", shown.ex);
+    if (!flash) return;
+    turning = new MutationObserver(() => {
+      if (flash.classList.contains("flipped")) revealed(shown);
+    });
+    turning.observe(flash, {attributes: true, attributeFilter: ["class"]});
+  }
+  function revealed(shown) {
+    if (card !== shown || shown.revealed) return;
+    shown.revealed = true;
+    btnShow.hidden = true;
+    showBar("good");
+    playSide(shown, "back");
+  }
+
+  $("#study-name").textContent = deck.name;
+  document.title = `Study: ${deck.name} — Parseh exercises`;
+  $("#btn-back-deck").href = deckPage(deck);
+  $$(".dk-back").forEach(a => { a.href = deckPage(deck); });
+
+  const queueOf = item => {
+    const s = ((item || {}).schedule || {}).state;
+    return s === "learning" || s === "relearning" ? "learning" : s === "review" ? "review" : "new";
+  };
+
+  async function load() {
+    clearTimeout(pollTimer);
+    const seq = ++loadSeq;
+    const q = skipped.size ? "?skip=" + [...skipped].map(encodeURIComponent).join(",") : "";
+    try {
+      const next = await call(base + "/next" + q);
+      if (seq === loadSeq) show(next);
+    } catch (e) {
+      if (seq !== loadSeq) return;
+      card = null;
+      hush();
+      closeZoom();
+      clearSolution();
+      done.hidden = true;
+      bar.hidden = result.hidden = true;
+      stage.hidden = false;
+      stage.replaceChildren(el("p", "pv-status err", "Could not read the next exercise: " + e.message));
+      btnCheck.hidden = btnShow.hidden = btnEdit.hidden = btnSkip.hidden = true;
+    }
+  }
+
+  /* An answer is saved when the learner has seen it come back: the bar is
+     not shown before the exercise is checked, or the card turned over. */
+  function show(next) {
+    hush();
+    closeZoom();
+    $("#study-counts").replaceChildren(studyCounts(next.counts, next.item ? queueOf(next.item) : ""));
+    result.hidden = true;
+    result.textContent = "";
+    bar.hidden = true;
+    clearSolution();
+    pointed = null;
+    if (next.done || !next.item) {
+      card = null;
+      stage.hidden = actions.hidden = true;
+      stage.replaceChildren();
+      done.hidden = false;
+      $("#study-next-due").textContent = nextDueText(next.next_due, rolloverOf(deck));
+      const left = $(".dk-skipped", done), again = $(".dk-unskip", done);
+      left.hidden = again.hidden = skipped.size === 0;
+      left.textContent = skipped.size ? `${plural(skipped.size, "exercise")} skipped this time.` : "";
+      $("#btn-back-deck").focus();
+      // a learning step that ends soon brings the next exercise by itself
+      const t = Date.parse(next.next_due || "");
+      if (Number.isFinite(t) && t - Date.now() <= 20 * 60e3)
+        pollTimer = setTimeout(load, Math.max(1000, t - Date.now() + 1000));
+      return;
+    }
+    done.hidden = true;
+    stage.hidden = actions.hidden = false;
+    stage.innerHTML = next.html || "";
+    // one exercise, checked here: the page's own "Check exercises" goes
+    $$(".exercise-correction, .ex-edit, .ex-to-deck", stage).forEach(x => x.remove());
+    applyTypo(loadTypo(null));
+    const run = bindExercises(stage);
+    const ex = run.exercises[0] || null;
+    const kind = !ex || $(".ex-invalid", ex) ? "invalid"
+      : ex.dataset.primitive === "flashcard" ? "flashcard"
+      : ex.dataset.scored === "1" ? "scored" : "invalid";
+    card = {item: next.item, intervals: next.intervals || {}, run, ex, kind,
+            revealed: false, result: null};
+    watchTurn(card);
+    btnCheck.hidden = kind !== "scored";
+    btnShow.hidden = kind !== "flashcard";
+    btnEdit.hidden = btnSkip.hidden = false;
+    // held while an answer was on its way; this card's own from here (and Edit may take the focus)
+    btnEdit.disabled = btnSkip.disabled = false;
+    const keys = $(".dk-keys", actions);
+    keys.textContent = kind === "scored" ? "Enter checks · 1–4 rate"
+      : kind === "flashcard" ? "Enter shows the answer · 1–4 rate" : "";
+    keys.hidden = kind === "invalid";
+    RATINGS.forEach((r, i) => {
+      const b = $(`[data-rating="${r}"]`, bar);
+      const ivl = card.intervals[r] || "";
+      $(".dk-ivl", b).textContent = ivl;
+      b.setAttribute("aria-label", `${cap(r)}${ivl ? ": comes back in " + ivl : ""} (key ${i + 1})`);
+      b.disabled = false;
+    });
+    if (stage.getBoundingClientRect().top < 0) stage.scrollIntoView({block: "start"});
+    const first = kind === "scored" ? btnCheck : kind === "flashcard" ? btnShow : btnEdit;
+    first.focus({preventScroll: true});
+    if (kind === "flashcard") playSide(card, "front");
+  }
+
+  function showBar(focus) {
+    bar.hidden = false;
+    const b = $(`[data-rating="${focus}"]`, bar);
+    // the card enlarged over the page keeps the focus while it is open
+    if (b && !$(".ex-zoom-overlay")) b.focus({preventScroll: true});
+    bar.scrollIntoView({block: "nearest"});
+  }
+
+  function check() {
+    if (!card || card.kind !== "scored" || card.revealed) return;
+    const good = card.run.judge(card.ex);
+    card.revealed = true;
+    card.result = good;
+    // the answer stays as it was checked; the explanations below stay readable
+    const body = $(".ex-body", card.ex);
+    if (body) body.inert = true;
+    btnCheck.hidden = true;
+    result.textContent = good ? "Correct" : "Not quite";
+    result.className = "dk-result " + (good ? "ok" : "err");
+    result.hidden = false;
+    showBar(good ? "good" : "again");
+    if (!good && ["matching", "placement"].includes(card.ex.dataset.primitive)) showSolution(card);
+  }
+
+  /* A choice marks the answer it wanted when it is judged; a match or a
+     placement only marks what is right or wrong, and the exercise is locked
+     now.  So the deck's solved form of it (the browse preview) goes under
+     the result until the next exercise comes. */
+  async function showSolution(checked) {
+    let data;
+    try {
+      data = await call(`${base}/items/${checked.item.id}`);
+    } catch (e) {
+      if (card === checked) toast("Could not show the correct answer: " + e.message, true);
+      return;
+    }
+    if (card !== checked) return;           // skipped, rated or edited meanwhile
+    solutionSheet.innerHTML = data.html || "";
+    // the card above already shows the explanations and the exercise's own
+    // pictures and recordings, and is the one checked -- a second player
+    // here would be a second copy of the same sound
+    $$(".ex-edit, .ex-to-deck, .exercise-correction, .ex-explanation, .ex-image, .ex-audio, .footnotes",
+       solutionSheet).forEach(x => x.remove());
+    // its footnote clouds would repeat the ids of the card's own
+    $$("[id]", solutionSheet).forEach(x => { x.id = "solution-" + x.id; });
+    $$("[aria-describedby]", solutionSheet).forEach(x =>
+      x.setAttribute("aria-describedby", "solution-" + x.getAttribute("aria-describedby")));
+    if (!$(".exercise", solutionSheet)) return clearSolution();
+    solution.hidden = false;
+    applyTypo(loadTypo(null));              // the sheet takes the typography
+    bindExercises(solutionSheet, {preview: true});
+    if (!bar.hidden) bar.scrollIntoView({block: "nearest"});
+  }
+
+  function reveal() {
+    if (!card || card.kind !== "flashcard" || card.revealed) return;
+    const flash = $(".ex-flashcard", card.ex);
+    if (flash) flash.click();             // bindExercises turns it; watchTurn notes it
+  }
+
+  /* One answer per card.  While it is on its way, Skip and Edit wait with
+     the rating buttons, which stay held whatever comes back: the next card
+     brings its own. */
+  async function rate(r) {
+    if (!card || rating || bar.hidden) return;
+    rating = true;
+    const rated = card;
+    hush();
+    $$("button", bar).forEach(b => { b.disabled = true; });
+    btnSkip.disabled = btnEdit.disabled = true;
+    try {
+      let data;
+      try {
+        data = await call(base + "/review", {method: "POST", json: {
+          item: rated.item.id, rating: r, result: rated.kind === "scored" ? rated.result : null,
+          // the state the labels were worked out for: an exercise answered
+          // since (in another tab, or before this page came back from
+          // history) is refused, not scheduled a second time
+          reps: rated.item.reps,
+          // what comes next leaves out what was skipped, as /next does
+          skip: [...skipped]}});
+      } catch (e) {
+        if (e.status === 409 && e.conflict === "reviewed") toast(cap(e.message));
+        // a lost answer or a failure after the save cannot say which: the
+        // deck can -- this exercise again if it was not saved, else the next
+        else toast("The answer may not have been saved: " + e.message, true);
+        await load();
+        return;
+      }
+      if (!data.next || (!data.next.done && !data.next.html)) await load();
+      else {
+        loadSeq++;                  // a load() still on its way would draw over it
+        show(data.next);
+      }
+    } finally {
+      rating = false;
+      btnSkip.disabled = btnEdit.disabled = false;
+    }
+  }
+
+  btnCheck.addEventListener("click", check);
+  btnShow.addEventListener("click", reveal);
+  bar.addEventListener("click", e => {
+    const b = e.target.closest("button[data-rating]");
+    if (b) rate(b.dataset.rating);
+  });
+  btnSkip.addEventListener("click", () => {
+    if (!card || rating) return;
+    skipped.add(card.item.id);
+    hush();
+    // it is done with for this visit: a rating key pressed before the next
+    // card arrives finds nothing to rate
+    card = null;
+    bar.hidden = true;
+    clearSolution();
+    load();
+  });
+  $(".dk-unskip", done).addEventListener("click", () => {
+    skipped.clear();
+    load();
+  });
+  btnEdit.addEventListener("click", () => {
+    if (!card || rating) return;
+    const item = card.item;
+    editExercise(deck, item, async markdown => {
+      savedToast("Exercise saved: its scheduling is unchanged",
+                 await call(`${base}/items/${item.id}`, {method: "PUT", json: {markdown}}));
+      load();                    // the queue has not moved: the same exercise, as edited
+    });
+  });
+
+  document.addEventListener("keydown", e => {
+    if (!card || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+    if ($("#modal-root .modal-overlay")) return;         // the form or a dialog is open
+    const t = e.target;
+    if (t.closest && t.closest("input, textarea, select, [contenteditable]")) return;
+    if (/^[1-4]$/.test(e.key)) {
+      if (bar.hidden) return;
+      e.preventDefault();
+      rate(RATINGS[+e.key - 1]);
+      return;
+    }
+    if (e.key !== "Enter") return;
+    // a button of the page itself (Check, Skip, Edit, a rating) does what it
+    // says; so does a control of the exercise reached from the keyboard
+    const control = t.closest && t.closest(CONTROL);
+    if (control && (!stage.contains(control) || control !== pointed)) return;
+    if (card.kind === "scored" && !card.revealed) {
+      // Enter just after a click on an answer: it checks, and does not
+      // toggle the answer the click left the focus on
+      e.preventDefault();
+      check();
+    } else if (card.kind === "flashcard" && !card.revealed) {
+      e.preventDefault();
+      reveal();
+    }
+  });
+
+  load();
+}
+
+/* ================================================================ cram */
+
+function initCram() {
+  document.body.dataset.lang = lang().code;
+  const deck = readScript($("#deck-json"), null);
+  if (!deck || !deck.folder) { toast("This page came without its deck", true); return; }
+  const base = deckApi(deck), stage = $("#cram-stage"), actions = $("#cram-actions");
+  const done = $("#cram-done"), progress = $("#cram-progress");
+  const result = $("#cram-result"), solution = $("#cram-solution");
+  const solutionSheet = $(".dk-sheet", solution);
+  const carried = new URLSearchParams(location.search).get("selected") || "";
+  const back = deckPage(deck) + (carried ? `?selected=${carried}` : "");
+  $$(".dk-back").forEach(a => { a.href = back; });
+  let cards = [], order = [], index = 0, current = null;
+  let turnObserver = null, waitingAudio = null;
+  function stopMedia() {
+    if (turnObserver) turnObserver.disconnect();
+    turnObserver = null;
+    waitingAudio = null;
+    [...$$("audio, video", stage), ...$$("audio, video", solution)].forEach(m => {
+      if (!m.paused) m.pause();
+    });
+    $$(".ex-zoom-overlay .ex-zoom-close").forEach(b => b.click());
+  }
+  function playSide(side) {
+    const audio = $(`.ex-card-${side} audio`, stage);
+    if (!audio) return;
+    const window = clipWindow(audio);
+    const play = () => {
+      if (window && Number.isFinite(audio.duration) && window.start >= audio.duration) return;
+      const promise = audio.play();
+      if (promise && promise.catch) promise.catch(() => { /* browser needs a click first */ });
+    };
+    if (!window || audio.readyState >= 1) { play(); return; }
+    waitingAudio = audio;
+    audio.addEventListener("loadedmetadata", () => {
+      if (waitingAudio !== audio) return;
+      waitingAudio = null;
+      play();
+    }, {once: true});
+  }
+  function shuffle() {
+    order = [...cards];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    index = 0;
+    show();
+  }
+  function show() {
+    stopMedia();
+    result.hidden = true;
+    result.textContent = "";
+    solution.hidden = true;
+    solutionSheet.replaceChildren();
+    if (index >= order.length) {
+      current = null;
+      stage.hidden = actions.hidden = true;
+      done.hidden = false;
+      progress.textContent = `${plural(order.length, "exercise")} reviewed`;
+      return;
+    }
+    const card = order[index];
+    stage.hidden = actions.hidden = false;
+    done.hidden = true;
+    progress.textContent = `${index + 1} of ${order.length}`;
+    stage.innerHTML = card.html;
+    $$(".exercise-correction, .ex-edit, .ex-to-deck", stage).forEach(x => x.remove());
+    applyTypo(loadTypo(null));
+    const run = bindExercises(stage);
+    const ex = run.exercises[0] || null;
+    const kind = !ex || $(".ex-invalid", ex) ? "invalid"
+      : ex.dataset.primitive === "flashcard" ? "flashcard"
+      : ex.dataset.scored === "1" ? "scored" : "invalid";
+    current = {card, run, ex, kind, checked: false};
+    const flash = $(".ex-flashcard", stage);
+    if (flash) {
+      turnObserver = new MutationObserver(() => {
+        const flipped = flash.classList.contains("flipped");
+        $("#cram-show").disabled = flipped;
+        $("#cram-wrong").hidden = $("#cram-correct").hidden = !flipped;
+        playSide(flipped ? "back" : "front");
+      });
+      turnObserver.observe(flash, {attributes: true, attributeFilter: ["class"]});
+    }
+    $("#cram-check").hidden = kind !== "scored";
+    $("#cram-show").hidden = kind !== "flashcard";
+    $("#cram-show").disabled = false;
+    $("#cram-wrong").hidden = $("#cram-correct").hidden = true;
+    $("#cram-next").hidden = kind !== "invalid";
+    if (kind === "flashcard") playSide("front");
+    $("#cram-next").textContent = index === order.length - 1 ? "Finish" : "Next exercise";
+  }
+  async function showSolution(checked) {
+    let data;
+    try { data = await call(`${base}/items/${checked.card.item.id}`); }
+    catch (e) {
+      if (current === checked) toast("Could not show the correct answer: " + e.message, true);
+      return;
+    }
+    if (current !== checked) return;
+    solutionSheet.innerHTML = data.html || "";
+    $$(".ex-edit, .ex-to-deck, .exercise-correction, .ex-explanation, .ex-image, .ex-audio, .footnotes",
+       solutionSheet).forEach(x => x.remove());
+    $$("[id]", solutionSheet).forEach(x => { x.id = "cram-solution-" + x.id; });
+    $$("[aria-describedby]", solutionSheet).forEach(x =>
+      x.setAttribute("aria-describedby", "cram-solution-" + x.getAttribute("aria-describedby")));
+    if (!$(".exercise", solutionSheet)) return;
+    solution.hidden = false;
+    applyTypo(loadTypo(null));
+    bindExercises(solutionSheet, {preview: true});
+  }
+  $("#cram-check").addEventListener("click", () => {
+    if (!current || current.kind !== "scored" || current.checked) return;
+    const good = current.run.judge(current.ex);
+    current.checked = true;
+    if (!good) order.push(current.card);
+    const body = $(".ex-body", current.ex);
+    if (body) body.inert = true;
+    $("#cram-check").hidden = true;
+    result.textContent = good ? "Correct" : "Not quite";
+    result.className = "dk-result " + (good ? "ok" : "err");
+    result.hidden = false;
+    progress.textContent = `${index + 1} of ${order.length}`;
+    $("#cram-next").hidden = false;
+    $("#cram-next").textContent = index === order.length - 1 ? "Finish" : "Next exercise";
+    if (!good && ["matching", "placement"].includes(current.ex.dataset.primitive))
+      showSolution(current);
+  });
+  $("#cram-show").addEventListener("click", () => {
+    const flash = $(".ex-flashcard", stage);
+    if (flash && !flash.classList.contains("flipped")) flash.click();
+    $("#cram-show").disabled = true;
+  });
+  function gradeFlash(good) {
+    if (!current || current.kind !== "flashcard" || current.checked ||
+        !$(".ex-flashcard.flipped", stage)) return;
+    current.checked = true;
+    if (!good) order.push(current.card);
+    index++;
+    show();
+  }
+  $("#cram-wrong").addEventListener("click", () => gradeFlash(false));
+  $("#cram-correct").addEventListener("click", () => gradeFlash(true));
+  $("#cram-next").addEventListener("click", () => { index++; show(); });
+  $("#cram-again").addEventListener("click", shuffle);
+  let ids = [];
+  try { ids = JSON.parse(sessionStorage.getItem(`parseh-cram:${deck.path}`) || "[]"); }
+  catch (e) { /* unavailable or invalid selection */ }
+  if ((!Array.isArray(ids) || !ids.length) && carried)
+    ids = carried.split(",").filter(id => /^[0-9a-f]{12}$/.test(id));
+  if (!Array.isArray(ids) || !ids.length) {
+    stage.replaceChildren(el("p", "pv-status", "Select exercises in Browse, then choose Cram exercises."));
+    return;
+  }
+  call(base + "/cram", {method: "POST", json: {ids}}).then(data => {
+    cards = data.cards || [];
+    if (!cards.length) {
+      stage.replaceChildren(el("p", "pv-status", "No selected exercises are available."));
+      return;
+    }
+    shuffle();
+  }).catch(e => stage.replaceChildren(el("p", "pv-status err", e.message)));
+}
+
+/* ---------------- boot ---------------- */
+
+// the shared theme (and, on the deck pages, the target script's size)
+applyTypo(loadTypo(null));
+bindStop();
+if (PAGE === "decks") initDecks();
+else if (PAGE === "deck") initDeck();
+else if (PAGE === "study") initStudy();
+else initCram();
+})();

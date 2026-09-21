@@ -1,0 +1,30 @@
+{
+ "id": "zh-opp",
+ "guid": "fx-zh-opp",
+ "kind": "opposites",
+ "lang": "zh",
+ "created": "2026-09-09 10:00:00",
+ "video": "",
+ "book": "fixture-zh",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "大",
+ "kana": "",
+ "tr": "dà",
+ "en": "",
+ "opp": "小",
+ "opp_kana": "",
+ "opp_tr": "xiǎo",
+ "tags": [
+  "chinese-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

@@ -1,0 +1,52 @@
+% The pronunciation line follows docs/lang/de.md: all small letters, a colon
+% for a long vowel, ' before the stressed syllable, x and ç for the two ch
+% sounds, z for the voiced s and s for ß, scht- and schp- for st- and sp- at
+% the start of a word or a stem, a final b d g hardened to p t k, and a final
+% -er written a.  Every chunk here earns a line -- each holds a ch, an initial
+% st-, an ß, a hardened ending or a stress that is not on the first syllable.
+% \vb gives infinitive, preterite, past participle; a noun's headword carries
+% its article and its plural, and \bw takes a compound apart.
+%
+% The last sentence splits aufstehen across a chunk boundary on purpose: the
+% full entry sits on the finite verb and says what is still to come, and the
+% stranded auf gets a pointer and never a gloss of its own.  That is the rule
+% docs/lang/de.md calls German's own difficulty, and this is where a change
+% to the chunking or to the gloss macros would show.
+%
+% What this fixture exists to protect is the spelling: every noun's capital
+% and every ß must come back out of the pipeline exactly as they went in.
+% A case fold would turn Straße into STRASSE and change its length.
+\chapopen{1}
+
+\parstart{1.1}{Der alte Schuster saß in seiner}
+\parnum{1.1}
+\begin{frank}
+\ch{}{Der alte Schuster}{de:a 'alte 'schu:sta}{\dw{alt}{} old; \dw{der Schuster, -}{'schu:sta} shoemaker, cobbler}{the old shoemaker}
+\ch{}{saß in seiner Werkstatt}{za:s in 'zaina 'verkschtat}{\vb{sitzen}{'zitsen}{saß}{za:s}{gesessen}{ge'zesen}{to sit}; \dw{die Werkstatt, Werkstätten}{'verkschtat} workshop \bw{Werk}{}{work} \bw{Statt}{}{place}}{sat in his workshop}
+\ch{}{und schnitt ein Stück Leder.}{unt schnit ain schtük 'le:da}{\vb{schneiden}{'schnaiden}{schnitt}{schnit}{geschnitten}{ge'schniten}{to cut}; \dw{das Stück, -e}{schtük} piece; \dw{das Leder, -}{'le:da} leather}{and cut a piece of leather.}
+\end{frank}
+
+\parnum{1.2}
+\begin{frank}
+\ch{}{Draußen war es kalt,}{'drausen va:r es kalt}{\dw{draußen}{'drausen} outside; \vb{sein}{zain}{war}{va:r}{gewesen}{ge've:zen}{to be (er ist; aux. sein)}}{outside it was cold,}
+\ch{}{und die Straße lag still}{unt di: 'schtra:se la:k schtil}{\dw{die Straße, -n}{'schtra:se} street; \vb{liegen}{'li:gen}{lag}{la:k}{gelegen}{ge'le:gen}{to lie}; \dw{still}{schtil} quiet}{and the street lay quiet}
+\ch{}{unter dem Schnee.}{'unta de:m schne:}{\dw{der Schnee}{schne:} snow, no plural}{under the snow.}
+\end{frank}
+
+\parend
+
+\parstart{1.2}{Ein Mädchen öffnete die Tür und}
+\parnum{2.1}
+\begin{frank}
+\ch{}{Ein Mädchen öffnete die Tür}{ain 'mä:tçen 'öfnete di: tü:r}{\dw{das Mädchen, -}{'mä:tçen} girl \bw{Magd}{}{maid}, the diminutive \pw{-chen} making it neuter; \vb{öffnen}{'öfnen}{öffnete}{'öfnete}{geöffnet}{ge'öfnet}{to open}; \dw{die Tür, -en}{tü:r} door}{a girl opened the door}
+\ch{}{und fragte nach ihren Schuhen.}{unt 'fra:kte na:x 'i:ren 'schu:en}{\vb{fragen}{'fra:gen}{fragte}{'fra:kte}{gefragt}{ge'fra:kt}{to ask; \pw{fragen nach} (+ dat.) to ask for}; \dw{der Schuh, -e}{schu:} shoe}{and asked for her shoes.}
+\end{frank}
+
+\parnum{2.2}
+\begin{frank}
+\ch{}{Der Schuster lächelte}{de:a 'schu:sta 'läçelte}{\vb{lächeln}{'läçeln}{lächelte}{'läçelte}{gelächelt}{ge'läçelt}{to smile}}{the shoemaker smiled}
+\ch{}{und stand langsam}{unt schtant 'langza:m}{\vb{aufstehen}{'aufschte:en}{stand auf}{schtant auf}{aufgestanden}{'aufgeschtanden}{to get up (aux. sein)}, \pw{auf} at the end of the clause; \dw{langsam}{'langza:m} slow, slowly}{and slowly got up}
+\ch{}{von seinem Stuhl auf.}{fon 'zainem schtu:l auf}{\dw{der Stuhl, Stühle}{schtu:l} chair; \pw{auf} — the second half of \pw{aufstehen}, above}{from his chair.}
+\end{frank}
+
+\chapend

@@ -1,0 +1,33 @@
+{
+  "_comment": "How a French word on the page is turned into something the dictionary can be asked about. Read by lib/lookup.py; optional, like every file of this name. Wiktionary's French carries the whole conjugation, so an inflected verb needs no rule here. What it does not carry is a word with an elided word written onto it -- s'approcha, C'était, l'hiver, qu'il attendait -- and three of the French fixture book's eight verbs came back with nothing at all.",
+  "fold": "",
+  "_affixes": "THE ELISIONS, both apostrophes (' and ’), longest first so that jusqu' is jusqu' and never j' followed by usqu'. What is taken off is named, and the hit keeps the word as the text wrote it (s'approcha, not approcha): lib/verbs/fr.py reads the pronoun written onto a verb from the word itself to know that the verb is pronominal.",
+  "_also_peel": "A PAGE FOR THE CONTRACTION IS NOT THE VERB. Wiktionary has n'avait and n'ai as pages of their own (pointers at ne, noted `contraction`), c'est and m'a as contractions and j'ai as a phrase -- so the word was found as written, the elision was never taken off, and avoir and être were never among the answers. Where everything the whole word found is such a page, the elided word is taken off as well and both answers are shown.",
+  "also_peel": {"pos": ["contraction", "phrase"], "note_has": ["contraction"]},
+  "affixes": [
+    {"prefix": "jusqu'", "note": "jusqu' (jusque) taken off"},
+    {"prefix": "jusqu’", "note": "jusqu’ (jusque) taken off"},
+    {"prefix": "lorsqu'", "note": "lorsqu' (lorsque) taken off"},
+    {"prefix": "lorsqu’", "note": "lorsqu’ (lorsque) taken off"},
+    {"prefix": "puisqu'", "note": "puisqu' (puisque) taken off"},
+    {"prefix": "puisqu’", "note": "puisqu’ (puisque) taken off"},
+    {"prefix": "qu'", "note": "the elided qu' (que) taken off"},
+    {"prefix": "qu’", "note": "the elided qu’ (que) taken off"},
+    {"prefix": "l'", "note": "the elided l' (le, la) taken off"},
+    {"prefix": "l’", "note": "the elided l’ (le, la) taken off"},
+    {"prefix": "d'", "note": "the elided d' (de) taken off"},
+    {"prefix": "d’", "note": "the elided d’ (de) taken off"},
+    {"prefix": "j'", "note": "the elided j' (je) taken off"},
+    {"prefix": "j’", "note": "the elided j’ (je) taken off"},
+    {"prefix": "m'", "note": "the elided m' (me) taken off"},
+    {"prefix": "m’", "note": "the elided m’ (me) taken off"},
+    {"prefix": "t'", "note": "the elided t' (te) taken off"},
+    {"prefix": "t’", "note": "the elided t’ (te) taken off"},
+    {"prefix": "s'", "note": "the elided s' (se, si) taken off"},
+    {"prefix": "s’", "note": "the elided s’ (se, si) taken off"},
+    {"prefix": "n'", "note": "the elided n' (ne) taken off"},
+    {"prefix": "n’", "note": "the elided n’ (ne) taken off"},
+    {"prefix": "c'", "note": "the elided c' (ce) taken off"},
+    {"prefix": "c’", "note": "the elided c’ (ce) taken off"}
+  ]
+}

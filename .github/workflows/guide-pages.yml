@@ -1,0 +1,88 @@
+# The HTML guide (html-guide/) on GitHub Pages.
+#
+# The guide is published from what is committed: html-guide/site/ holds the
+# compiled pages, and the repository's root index.html and .nojekyll let
+# GitHub Pages serve them as they are.  One-time setup, on GitHub:
+#   Settings -> Pages -> "Build and deployment" -> Source: Deploy from a
+#   branch; Branch: main, folder / (root); Save.
+# The guide is then at https://<user>.github.io/<repository>/, published
+# again on every push to main (html-guide/README.md says more).
+#
+# THIS WORKFLOW, on every push to main that changes the guide, the studio's
+# renderer it draws with, the language registry, the fonts or MathJax,
+# compiles the guide: a check that it still builds on a clean machine.  It
+# publishes only when run by hand (Actions -> guide on GitHub Pages -> Run
+# workflow), and only after Settings -> Pages -> Source is set to GitHub
+# Actions: GitHub then serves the guide it compiled here instead of the
+# committed pages.
+#
+# The compile is html-guide/build.py --pages _site: the front page, assets/
+# and the compiled site/ in one folder, laid out as html-guide/ is, so the
+# pages' relative addresses hold.  Standard library only: setup-python is all
+# it needs.  fonts-texgyre gives the pages the TeX Gyre faces the studio's
+# sheet is set in; without it they fall back to Palatino and the like.
+name: guide on GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "html-guide/**"
+      - "markdown/exlex/**"
+      - "markdown/app/htmlgen.py"
+      - "markdown/app/static/**"
+      - "lib/languages.*"
+      - "lib/fonts/**"
+      - "lib/mathjax/**"
+      - "lib/mathjax.*"
+      - "HOW TO USE THIS TOOLBOX.pdf"
+      - ".github/workflows/guide-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# one publication at a time; a newer push waits for the one in progress
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The TeX Gyre fonts
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-texgyre || true
+      - name: Compile the guide
+        run: python3 html-guide/build.py --pages _site
+      # upload-pages-artifact's own advice: Pages refuses a site with a file
+      # others cannot read or a folder they cannot enter
+      # (deployment_perms_error)
+      - name: Every file readable
+        run: chmod -c -R +rX _site
+      # the rest publishes, which only a run by hand does: a push is a check
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/configure-pages@v5
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    # published only by hand, from main (see the top of this file)
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish
+        id: deployment
+        uses: actions/deploy-pages@v4

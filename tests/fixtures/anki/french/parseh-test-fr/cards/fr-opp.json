@@ -1,0 +1,30 @@
+{
+ "id": "fr-opp",
+ "guid": "fx-fr-opp",
+ "kind": "opposites",
+ "lang": "fr",
+ "created": "2026-09-04 10:00:00",
+ "video": "",
+ "book": "fixture-fr",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "grand",
+ "kana": "",
+ "tr": "grã",
+ "en": "",
+ "opp": "petit",
+ "opp_kana": "",
+ "opp_tr": "peti",
+ "tags": [
+  "french-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

@@ -1,0 +1,26 @@
+{
+  "_comment": "How this language's phrases hold together, for lib/chunker.py. Optional, like every file of this name.",
+  "np_head": "final",
+  "adposition": "before",
+  "_why": "English puts the adjective before its noun (the big house) and its prepositions before it (in the house).",
+  "bind_forward": [],
+  "min": 2,
+  "max": 5,
+  "function_words": {
+    "_comment": "The closed classes, which a dictionary is the wrong authority on: Wiktionary files `man` under an interjection and a pronoun as well as a noun, and `not` under a conjunction, and the reading it listed first used to decide the cut. A word under two headings is read in its place (lib/chunker.py _in_context): `that man` is a determiner, `that he` a conjunction, `that is` a pronoun; `in the house` a preposition, `came in and` a particle of the verb. The order of the headings is the order a word under several of them is tried in when its neighbours say nothing. The wh-words are conjunctions here because they open the clause they introduce (docs/lang/en.md: `asked him | what he was waiting for`).",
+    "PREF": ["to"],
+    "CONJ": ["and", "or", "but", "nor", "because", "although", "though", "unless", "whereas", "while", "whilst", "if", "whether", "that", "when", "where", "why", "how", "what", "which", "who", "whom", "whose", "whenever", "wherever", "whatever", "whoever", "since", "until", "till", "before", "after"],
+    "INTJ": ["yes", "no", "oh", "ah", "hello", "hi", "hey", "thanks", "okay", "ok", "wow", "sorry", "goodbye", "bye"],
+    "DET": ["the", "a", "an", "this", "that", "these", "those", "my", "your", "his", "her", "its", "our", "their", "some", "any", "no", "every", "each", "all", "both", "either", "neither", "another", "such", "what", "which", "whose", "much", "many", "few", "several", "enough"],
+    "ADP": ["of", "in", "on", "at", "to", "from", "with", "by", "for", "about", "into", "onto", "over", "under", "above", "below", "between", "among", "through", "throughout", "during", "before", "after", "since", "until", "till", "without", "within", "against", "across", "along", "around", "behind", "beside", "besides", "beyond", "near", "off", "out", "up", "down", "upon", "toward", "towards", "per", "via", "despite", "except", "inside", "outside", "than", "as"],
+    "PRON": ["i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them", "myself", "yourself", "himself", "herself", "itself", "ourselves", "yourselves", "themselves", "mine", "yours", "hers", "ours", "theirs", "this", "that", "these", "those", "someone", "somebody", "something", "anyone", "anybody", "anything", "everyone", "everybody", "everything", "nobody", "nothing", "none", "there", "all", "both", "each", "some", "any", "many", "much", "who", "what", "which"],
+    "AUX": ["am", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would", "shall", "should", "can", "could", "may", "might", "must", "ought", "don't", "doesn't", "didn't", "can't", "cannot", "couldn't", "won't", "wouldn't", "shouldn't", "isn't", "aren't", "wasn't", "weren't", "hasn't", "haven't", "hadn't", "mustn't", "needn't", "mightn't", "shan't", "ain't"],
+    "NEG": ["not", "never"]
+  },
+  "particles": ["up", "down", "out", "off", "in", "on", "over", "around", "through", "along", "by", "about", "across", "behind"],
+  "_particles": "The prepositions that are also the particle of a phrasal verb (docs/lang/en.md: `give up`, `take the coat off`). One with no noun after it -- before a verb, a conjunction or the end -- is read as the verb's, and stays with it: `given up | counting the days`. Any other preposition before a verb is a preposition still: `accused him | of having stolen it`.",
+  "ties": ["of", "than"],
+  "_ties": "Prepositions that tie a noun to the noun or adjective before them rather than opening a phrase of their own: `a pound of apples`, `bigger than me`. The seam before them leans toward joining, where before any other preposition it is a cut.",
+  "enclitics": {"n't": "NEG", "'s": "AUX", "'re": "AUX", "'m": "AUX", "'ve": "AUX", "'d": "AUX", "'ll": "AUX"},
+  "_enclitics": "What English writes into the word before it. The token `I'd` is a pronoun to what precedes it and an auxiliary to what follows, so `I'd like` holds together as `he would like` does."
+}

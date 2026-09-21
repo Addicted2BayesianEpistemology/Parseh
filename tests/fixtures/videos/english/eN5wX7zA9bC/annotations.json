@@ -1,0 +1,136 @@
+{
+ "video": "eN5wX7zA9bC",
+ "language": "en",
+ "segments": [
+  {
+   "start": 0,
+   "text": "Thanks to today's sponsor, and remember to like and subscribe",
+   "chunks": [
+    {
+     "fa": "Thanks to today's sponsor, and remember to like and subscribe",
+     "plain": true
+    }
+   ]
+  },
+  {
+   "start": 6,
+   "chapter": "At the market",
+   "text": "Good morning, I'd like a pound of those apples",
+   "chunks": [
+    {
+     "fa": "Good morning,",
+     "tr": "gʊd ˈmɔrnɪŋ",
+     "voc": "morning ˈmɔrnɪŋ the first part of the day, before noon",
+     "en": "hello, said before noon"
+    },
+    {
+     "fa": "I'd like",
+     "tr": "aɪd laɪk",
+     "voc": "'d is would; would like wʊd laɪk a polite way of saying want",
+     "en": "I want, politely"
+    },
+    {
+     "fa": "a pound of those apples",
+     "tr": "ə paʊnd əv ðoʊz ˈæpəlz",
+     "voc": "pound paʊnd a weight, a little under half a kilo; apple ˈæpəl a round hard fruit, pl. apples ˈæpəlz",
+     "en": "a little under half a kilo of those apples"
+    }
+   ]
+  },
+  {
+   "start": 12,
+   "text": "They're two dollars, or three for five",
+   "chunks": [
+    {
+     "fa": "They're two dollars,",
+     "tr": "ðɛr tu ˈdɑlərz",
+     "voc": "they're is they are; dollar ˈdɑlər the money of the United States, pl. dollars ˈdɑlərz",
+     "en": "each one costs two dollars,"
+    },
+    {
+     "fa": "or three for five",
+     "tr": "ɔr θri fɔr faɪv",
+     "en": "or three of them for five dollars"
+    }
+   ]
+  },
+  {
+   "start": 18,
+   "text": "I'll take three, and could you put them in a bag",
+   "chunks": [
+    {
+     "fa": "I'll take three,",
+     "tr": "aɪl teɪk θri",
+     "voc": "'ll is will; take teɪk · past took tʊk · p.p. taken ˈteɪkən · to buy, in a shop",
+     "en": "I will buy three,"
+    },
+    {
+     "fa": "and could you put them",
+     "tr": "ən kʊd jə pʊt ðəm",
+     "voc": "could kʊd the past of can, and a softer can — here a request, not a past; put pʊt · past put pʊt · p.p. put pʊt · to move a thing to a place, all three parts the same word",
+     "en": "and please put them"
+    },
+    {
+     "fa": "in a bag",
+     "tr": "ɪn ə bæg",
+     "voc": "bag bæg a soft container you carry things in",
+     "en": "into a bag"
+    }
+   ]
+  },
+  {
+   "start": 25,
+   "text": "Here you are, that comes to five dollars",
+   "chunks": [
+    {
+     "fa": "Here you are,",
+     "tr": "hɪr jə ɑr",
+     "voc": "here you are hɪr jə ɑr said while handing something over — the are is stressed and so not weak",
+     "en": "take them,"
+    },
+    {
+     "fa": "that comes to five dollars",
+     "tr": "ðæt kʌmz tə faɪv ˈdɑlərz",
+     "voc": "come to kʌm tə · past came to keɪm tə · p.p. come to kʌm tə · to add up to a total",
+     "en": "the total is five dollars"
+    }
+   ]
+  },
+  {
+   "start": 31,
+   "text": "I've only got a ten, I'm afraid",
+   "chunks": [
+    {
+     "fa": "I've only got a ten,",
+     "tr": "aɪv ˈoʊnli gɑt ə tɛn",
+     "voc": "'ve is have; get gɛt · past got gɑt · p.p. gotten ˈgɑtən · to come to have — have got is simply have; a ten ə tɛn a ten-dollar note",
+     "en": "the smallest note I have is a ten,"
+    },
+    {
+     "fa": "I'm afraid",
+     "tr": "aɪm əˈfreɪd",
+     "voc": "I'm afraid aɪm əˈfreɪd said before small bad news, and nothing to do with fear",
+     "en": "I am sorry to say"
+    }
+   ]
+  },
+  {
+   "start": 36,
+   "text": "That's all right, here's your change",
+   "chunks": [
+    {
+     "fa": "That's all right,",
+     "tr": "ðæts ɔl raɪt",
+     "voc": "that's is that is; all right ɔl raɪt fine, no trouble",
+     "en": "that is no trouble,"
+    },
+    {
+     "fa": "here's your change",
+     "tr": "hɪrz jər tʃeɪndʒ",
+     "voc": "here's is here is; change tʃeɪndʒ the money handed back when you pay with more than the price",
+     "en": "this is the money owed back to you"
+    }
+   ]
+  }
+ ]
+}

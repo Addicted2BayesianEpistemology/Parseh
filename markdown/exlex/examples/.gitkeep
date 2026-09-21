@@ -1,0 +1,6 @@
+# The studio's example documents live here: the document the library is
+# offered on a first start, one per language when they are written.
+# There are none at present -- the four that shipped were written when the
+# studio read Persian for Italians.  Drop a .md in with its `target:` in the
+# front matter and it is seeded, rendered by both generators and built to a
+# PDF by the suite, with no line of code to add.

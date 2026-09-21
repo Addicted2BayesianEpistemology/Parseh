@@ -1,0 +1,10 @@
+{
+  "_why": "What the dictionary's rows say wrongly for a reader of modern French, for lib/verbs/fr.py. Wiktionary's conjugation table gives 21 verbs both auxiliaries, as a bare `avoir` row beside the `être + past participle` one, and for most of them that is the language: monter, descendre, sortir, rentrer, retourner and passer take avoir with an object (il a monté les valises) and être without (il est monté), and a learner needs both. For the verbs below the avoir is one sense no reader of this century meets -- partir `to divide` (obsolete, left only in avoir maille à partir), repartir `to retort` (archaic and literary), apparaître with avoir (archaic) -- or a familiar one a learner must not copy (il a tombé la veste). Printed as `aux. être/avoir`, the entry teaches j'ai parti; printed as `aux. être`, it says what every grammar says. A verb is listed here only for that reason, and the recipe prints its value in place of the table's.",
+  "aux": {
+    "partir": "être",
+    "repartir": "être",
+    "tomber": "être",
+    "apparaître": "être",
+    "apparaitre": "être"
+  }
+}

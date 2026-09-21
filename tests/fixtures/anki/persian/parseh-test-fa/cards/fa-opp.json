@@ -1,0 +1,30 @@
+{
+ "id": "fa-opp",
+ "guid": "fx-fa-opp",
+ "kind": "opposites",
+ "lang": "fa",
+ "created": "2026-09-03 10:00:00",
+ "video": "",
+ "book": "fixture-fa",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "بزرگ",
+ "kana": "",
+ "tr": "bozorg",
+ "en": "",
+ "opp": "کوچک",
+ "opp_kana": "",
+ "opp_tr": "kuchak",
+ "tags": [
+  "farsi-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

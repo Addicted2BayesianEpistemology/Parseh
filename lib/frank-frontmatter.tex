@@ -1,0 +1,51 @@
+% Title page and the how-to-read note, shared by every book.
+% Input after lib/frank-preamble.tex, which has read the language file by then.
+\begin{document}
+\frenchspacing
+% The front matter is numbered in roman and the body restarts at 1, so the
+% length of the contents list cannot move the page numbers printed in it.
+% That is what lets build.sh's two lualatex passes converge.
+\pagenumbering{roman}
+
+% ─────────────────────────── title ───────────────────────────
+\thispagestyle{empty}
+\vspace*{\fill}
+% The title in the language's alternate face where it has one (nastaliq for
+% Persian, gothic for Japanese), else in the main face; the author in the
+% main face.
+{\ifFrankHasAlt\FrankAltFont\fi\fontsize{30}{50}\selectfont\color{ink}
+ \begin{otherlanguage}{\FrankLangName}\centering\BookTitle\par\end{otherlanguage}}
+\vspace{4mm}
+{\SzPlain\color{ink}
+ \begin{otherlanguage}{\FrankLangName}\centering\BookAuthor\par\end{otherlanguage}}
+\vspace{10mm}
+{\centering\color{gloss}\normalfont\small
+ \BookTitleLatin\\[2pt]
+ \textit{\BookAuthorLatin}\\[10pt]
+ {\footnotesize a reading edition after the method of Ilya Frank}\par}
+\vspace*{\fill}
+\clearpage
+
+% ───────────────────────── how to read ───────────────────────
+\thispagestyle{empty}
+{\centering\normalfont\small\textbf{How to read this}\par}
+\vspace{2.5mm}
+% The text is the language's (\FrankHowTo, from lib/lang/<code>.tex): how
+% many passes there are and what each is for differs per language.
+% \emergencystretch only reaches a paragraph TeX could not set within its
+% tolerance (the third pass), so a text that already fits is set exactly as
+% before; the Japanese and Arabic texts had lines that did not.
+{\normalfont\footnotesize\color{ink}\emergencystretch=1.5em
+\FrankHowTo
+\par}
+\clearpage
+
+% ───────────────────────────── contents ──────────────────────────
+% One line per paragraph -- the unit the reader navigates by -- each a
+% live link to it.  Built from the .toc that \parstart and \chapopen
+% write, so no book, chapter or paragraph is named anywhere here.
+\frankcontents
+\clearpage
+\pagenumbering{arabic}
+
+% ═════════════════════════ CHAPTER 1 ═════════════════════════

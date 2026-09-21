@@ -1,0 +1,650 @@
+{
+ "code": "fr",
+ "_forms": "each form row is [form, note, roman, ipa]: the French recipe reads form.ipa for every sound but the infinitive's; rows are the entry's own, trimmed to those lib/verbs/fr.py reads, in rowid order, the headword's own row (note '') first -- insert them consecutively, as getdict does, since the recipe takes an entry's own rows to be one run of rowids",
+ "cases": [
+  {
+   "why": "regular -er verb, reached as its imperfect: nothing in brackets",
+   "entry": {
+    "headword": "regarder",
+    "translit": "",
+    "ipa": "/ʁə.ɡaʁ.de/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to look at\nto watch\nto face\nto concern (be associated with)",
+    "sense_tags": "transitive\ntransitive\ntransitive\ntransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "regarder",
+     "",
+     "",
+     ""
+    ],
+    [
+     "regarder",
+     "infinitive",
+     "",
+     ""
+    ],
+    [
+     "avoir + past participle",
+     "infinitive multiword-construction",
+     "",
+     ""
+    ],
+    [
+     "regardé",
+     "participle past",
+     "",
+     "/ʁə.ɡaʁ.de/"
+    ],
+    [
+     "regarde",
+     "first-person indicative present singular",
+     "",
+     "/ʁə.ɡaʁd/"
+    ],
+    [
+     "regarde",
+     "indicative present singular third-person",
+     "",
+     "/ʁə.ɡaʁd/"
+    ],
+    [
+     "regardons",
+     "first-person indicative plural present",
+     "",
+     "/ʁə.ɡaʁ.dɔ̃/"
+    ],
+    [
+     "regardait",
+     "imperfect indicative singular third-person",
+     "",
+     "/ʁə.ɡaʁ.dɛ/"
+    ],
+    [
+     "regarderai",
+     "first-person future indicative singular",
+     "",
+     "/ʁə.ɡaʁ.də.ʁe/"
+    ],
+    [
+     "regardera",
+     "future indicative singular third-person",
+     "",
+     "/ʁə.ɡaʁ.də.ʁa/"
+    ]
+   ],
+   "word": "regardait",
+   "text": "il regardait l'arbre",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{regarder}{regardé}{regarde}{regard}{regardé}{regardé}{to look at}",
+    "plain": "regarder regardé · pres. regarde regard · p.p. regardé regardé · to look at",
+    "line": "pres. regarde regard · p.p. regardé regardé",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "irregular: aux. être and a future not built on the infinitive",
+   "entry": {
+    "headword": "aller",
+    "translit": "",
+    "ipa": "/a.le/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to go\nto attend (school, church regularly)\nto be going (to); will soon; forms a near-future tense\nto be (feeling)\nto go well\nto suit\nto be X-proof (to be suitable for use in an appliance without running the risk of being damaged in the process)",
+    "sense_tags": "obj::à<to a location>\nobj::à\n\n\nobj::avec<with (clothes; colors; etc.)>\nobj::à<someone>\nobj::à",
+    "head": ""
+   },
+   "forms": [
+    [
+     "aller",
+     "",
+     "",
+     ""
+    ],
+    [
+     "aller",
+     "infinitive",
+     "",
+     ""
+    ],
+    [
+     "être + past participle",
+     "infinitive multiword-construction",
+     "",
+     ""
+    ],
+    [
+     "allé",
+     "participle past",
+     "",
+     "/a.le/"
+    ],
+    [
+     "vais",
+     "first-person indicative present singular",
+     "",
+     "/vɛ/"
+    ],
+    [
+     "va",
+     "indicative present singular third-person",
+     "",
+     "/va/"
+    ],
+    [
+     "allons",
+     "first-person indicative plural present",
+     "",
+     "/a.lɔ̃/"
+    ],
+    [
+     "irai",
+     "first-person future indicative singular",
+     "",
+     "/i.ʁe/"
+    ],
+    [
+     "ira",
+     "future indicative singular third-person",
+     "",
+     "/i.ʁa/"
+    ]
+   ],
+   "word": "vais",
+   "text": "je vais à l'école",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{aller}{alé}{vais}{vè}{allé}{alé}{to go (aux. être; fut. \\pw{irai} \\textit{iré})}",
+    "plain": "aller alé · pres. vais vè · p.p. allé alé · to go (aux. être; fut. irai iré)",
+    "line": "pres. vais vè · p.p. allé alé · aux. être · fut. irai iré",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "irregular plural: the nous form printed, -re final mute e dropped from the sound",
+   "entry": {
+    "headword": "prendre",
+    "translit": "",
+    "ipa": "/pʁɑ̃.dʁə/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to take\nto eat; to drink\nto get; to buy\nto rob; to deprive\nto make\nto catch, to work, to start\nto get (something) caught (in), to jam\nto get into, to come over (to cause to behave uncharacteristically, to affect in a surprising manner, to possess)\nto start having a negative feeling towards someone\nto gain\nto take (a certain amount of time)\nto take (a certain number or amount of)",
+    "sense_tags": "transitive\ntransitive\ntransitive\ntransitive\ntransitive\nintransitive\nreflexive\nintransitive,obj:à<someone>\ntransitive\n\ncolloquial,impersonal\nbroadly,colloquial,impersonal",
+    "head": ""
+   },
+   "forms": [
+    [
+     "prendre",
+     "",
+     "",
+     ""
+    ],
+    [
+     "prendre",
+     "infinitive",
+     "",
+     ""
+    ],
+    [
+     "avoir + past participle",
+     "infinitive multiword-construction",
+     "",
+     ""
+    ],
+    [
+     "pris",
+     "participle past",
+     "",
+     "/pʁi/"
+    ],
+    [
+     "prends",
+     "first-person indicative present singular",
+     "",
+     "/pʁɑ̃/"
+    ],
+    [
+     "prend",
+     "indicative present singular third-person",
+     "",
+     "/pʁɑ̃/"
+    ],
+    [
+     "prenons",
+     "first-person indicative plural present",
+     "",
+     "/pʁə.nɔ̃/"
+    ],
+    [
+     "prendrai",
+     "first-person future indicative singular",
+     "",
+     "/pʁɑ̃.dʁe/"
+    ],
+    [
+     "prendra",
+     "future indicative singular third-person",
+     "",
+     "/pʁɑ̃.dʁa/"
+    ],
+    [
+     "prenons",
+     "first-person imperative plural",
+     "",
+     "/pʁə.nɔ̃/"
+    ]
+   ],
+   "word": "prenons",
+   "text": "nous prenons le train",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{prendre}{prãdr}{prends}{prã}{pris}{pri}{to take (nous \\pw{prenons} \\textit{prenõ})}",
+    "plain": "prendre prãdr · pres. prends prã · p.p. pris pri · to take (nous prenons prenõ)",
+    "line": "pres. prends prã · p.p. pris pri · nous prenons prenõ",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "impersonal: no first person, so il + the third person, and il + the future",
+   "entry": {
+    "headword": "falloir",
+    "translit": "",
+    "ipa": "/fa.lwaʁ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to need, have to, to be necessary (that)\nto take (time)\nto be missing",
+    "sense_tags": "defective,impersonal\ndefective\ndefective,reflexive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "falloir",
+     "",
+     "",
+     ""
+    ],
+    [
+     "falloir",
+     "infinitive",
+     "",
+     ""
+    ],
+    [
+     "avoir + past participle",
+     "infinitive multiword-construction",
+     "",
+     ""
+    ],
+    [
+     "fallu",
+     "participle past",
+     "",
+     "/fa.ly/"
+    ],
+    [
+     "faut",
+     "indicative present singular third-person",
+     "",
+     "/fo/"
+    ],
+    [
+     "faudra",
+     "future indicative singular third-person",
+     "",
+     "/fo.dʁa/"
+    ],
+    [
+     "s'en falloir",
+     "infinitive",
+     "",
+     ""
+    ],
+    [
+     "s'en être + past participle",
+     "infinitive multiword-construction",
+     "",
+     ""
+    ],
+    [
+     "s'en faut",
+     "indicative present singular third-person",
+     "",
+     "/sɑ̃ fo/"
+    ],
+    [
+     "s'en faudra",
+     "future indicative singular third-person",
+     "",
+     "/sɑ̃ fo.dʁa/"
+    ]
+   ],
+   "word": "faut",
+   "text": "il faut partir",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{falloir}{falwar}{il faut}{il fo}{fallu}{falü}{to need (fut. \\pw{il faudra} \\textit{il fodra})}",
+    "plain": "falloir falwar · pres. il faut il fo · p.p. fallu falü · to need (fut. il faudra il fodra)",
+    "line": "pres. il faut il fo · p.p. fallu falü · fut. il faudra il fodra",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "pronominal by rule from the chunk's se: se/me written on, aux. être, the reflexive sense",
+   "entry": {
+    "headword": "lever",
+    "translit": "",
+    "ipa": "/lə.ve/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to raise, lift\nto rise, stand up\nto rise, come up\nto get up (out of bed)\nto clear, lift",
+    "sense_tags": "transitive\nreflexive\nreflexive\nreflexive\nreflexive,usually",
+    "head": ""
+   },
+   "forms": [
+    [
+     "lever",
+     "",
+     "",
+     ""
+    ],
+    [
+     "lever",
+     "infinitive",
+     "",
+     ""
+    ],
+    [
+     "avoir + past participle",
+     "infinitive multiword-construction",
+     "",
+     ""
+    ],
+    [
+     "levé",
+     "participle past",
+     "",
+     "/lə.ve/"
+    ],
+    [
+     "lève",
+     "first-person indicative present singular",
+     "",
+     "/lɛv/"
+    ],
+    [
+     "lève",
+     "indicative present singular third-person",
+     "",
+     "/lɛv/"
+    ],
+    [
+     "levons",
+     "first-person indicative plural present",
+     "",
+     "/lə.vɔ̃/"
+    ],
+    [
+     "lèverai",
+     "first-person future indicative singular",
+     "",
+     "/lɛ.vʁe/"
+    ],
+    [
+     "lèvera",
+     "future indicative singular third-person",
+     "",
+     "/lɛ.vʁa/"
+    ],
+    [
+     "lève",
+     "first-person present singular subjunctive",
+     "",
+     "/lɛv/"
+    ],
+    [
+     "lève",
+     "present singular subjunctive third-person",
+     "",
+     "/lɛv/"
+    ],
+    [
+     "lève",
+     "imperative second-person singular",
+     "",
+     "/lɛv/"
+    ]
+   ],
+   "word": "lève",
+   "text": "il se lève tôt",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{se lever}{se levé}{me lève}{me lèv}{levé}{levé}{to rise (aux. être)}",
+    "plain": "se lever se levé · pres. me lève me lèv · p.p. levé levé · to rise (aux. être)",
+    "line": "pres. me lève me lèv · p.p. levé levé · aux. être",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "a verb whose only table is pronominal: se souvenir, me souviens",
+   "entry": {
+    "headword": "souvenir",
+    "translit": "",
+    "ipa": "/su.v(ə).niʁ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to remember",
+    "sense_tags": "pronominal,obj::de<someone/something>",
+    "head": ""
+   },
+   "forms": [
+    [
+     "souvenir",
+     "",
+     "",
+     ""
+    ],
+    [
+     "se souvenir",
+     "infinitive reflexive",
+     "",
+     ""
+    ],
+    [
+     "s'être + past participle",
+     "infinitive multiword-construction reflexive",
+     "",
+     ""
+    ],
+    [
+     "souvenu",
+     "participle past reflexive",
+     "",
+     "/suv.ny/"
+    ],
+    [
+     "me souviens",
+     "first-person indicative present reflexive singular",
+     "",
+     "/mə su.vjɛ̃/"
+    ],
+    [
+     "se souvient",
+     "indicative present reflexive singular third-person",
+     "",
+     "/sə su.vjɛ̃/"
+    ],
+    [
+     "nous souvenons",
+     "first-person indicative plural present reflexive",
+     "",
+     "/nu suv.nɔ̃/"
+    ],
+    [
+     "me souviendrai",
+     "first-person future indicative reflexive singular",
+     "",
+     "/mə su.vjɛ̃.dʁe/"
+    ],
+    [
+     "se souviendra",
+     "future indicative reflexive singular third-person",
+     "",
+     "/sə su.vjɛ̃.dʁa/"
+    ],
+    [
+     "souviens",
+     "first-person, indicative, present, second-person, singular",
+     "",
+     ""
+    ],
+    [
+     "souviens",
+     "imperative, second-person, singular",
+     "",
+     ""
+    ]
+   ],
+   "word": "souviens",
+   "text": "je me souviens de lui",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{se souvenir}{se souvenir}{me souviens}{me souvyẽ}{souvenu}{souvnü}{to remember (aux. être; fut. \\pw{souviendrai} \\textit{souvyẽdré})}",
+    "plain": "se souvenir se souvenir · pres. me souviens me souvyẽ · p.p. souvenu souvnü · to remember (aux. être; fut. souviendrai souvyẽdré)",
+    "line": "pres. me souviens me souvyẽ · p.p. souvenu souvnü · aux. être · fut. souviendrai souvyẽdré",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "must return None: the word only reaches passer through its table's bare avoir auxiliary row",
+   "entry": {
+    "headword": "passer",
+    "translit": "",
+    "ipa": "/pa.se/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to go past\nto cross (a border)\nto pass\nto spend (time)\nto publish (a newspaper)\nto take, to sit (an exam or test)\nto pass (an exam or test)\n(transitive) to pass (an exam or test)\nto run\nto exceed (a limit)\nto percolate\nto hand down, to pass on\nto take place, to happen, to come to pass\nto go by\nto do without",
+    "sense_tags": "\n\n\n\n\ntransitive\nintransitive\ndated\n\n\n\n\nreflexive\nreflexive\nreflexive,obj::de<something>",
+    "head": ""
+   },
+   "forms": [
+    [
+     "passer",
+     "",
+     "",
+     ""
+    ],
+    [
+     "passer",
+     "infinitive",
+     "",
+     ""
+    ],
+    [
+     "avoir",
+     "infinitive multiword-construction",
+     "",
+     ""
+    ],
+    [
+     "être + past participle",
+     "infinitive multiword-construction",
+     "",
+     ""
+    ],
+    [
+     "passé",
+     "participle past",
+     "",
+     "/pa.se/"
+    ],
+    [
+     "passe",
+     "first-person indicative present singular",
+     "",
+     "/pas/"
+    ],
+    [
+     "passe",
+     "indicative present singular third-person",
+     "",
+     "/pas/"
+    ],
+    [
+     "passons",
+     "first-person indicative plural present",
+     "",
+     "/pa.sɔ̃/"
+    ],
+    [
+     "passerai",
+     "first-person future indicative singular",
+     "",
+     "/pa.sʁe/"
+    ],
+    [
+     "passera",
+     "future indicative singular third-person",
+     "",
+     "/pa.sʁa/"
+    ]
+   ],
+   "word": "avoir",
+   "text": "avoir peur",
+   "gloss": "en",
+   "expect": null,
+   "run": "build"
+  },
+  {
+   "why": "incomplete: a verb entry with no table -- the infinitive and its sound, the rest in missing",
+   "entry": {
+    "headword": "scléroser",
+    "translit": "",
+    "ipa": "/skle.ʁo.ze/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to harden\nto harden, to sclerose, to become sclerosed\nto paralyse\nto ossify, to become fossilized, to grind to a halt",
+    "sense_tags": "transitive\nreflexive\nfiguratively,transitive\nfiguratively,reflexive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "scléroser",
+     "",
+     "",
+     ""
+    ]
+   ],
+   "word": "scléroser",
+   "text": "scléroser",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{scléroser}{sklérozé}{}{}{}{}{to harden}",
+    "plain": "scléroser sklérozé · to harden",
+    "line": "",
+    "complete": false,
+    "missing": [
+     "first person present",
+     "past participle",
+     "auxiliary"
+    ]
+   },
+   "run": "lookup"
+  }
+ ]
+}

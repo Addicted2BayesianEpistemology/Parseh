@@ -1,0 +1,248 @@
+% Japanese -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define.
+% The CJK model: a reading (kana) over every word -- or over every chunk, for
+% a chunk written without its words -- the reading alone as a pass of its own,
+% no marks to strip, and a last pass that is not a font but a direction -- the
+% text set vertically.
+%
+% There is no luatexja on this machine, and the editions are built with
+% LuaLaTeX, so everything Japanese here is done with babel and fontspec alone:
+% babel's `japanese` locale with intraspace glue for the line breaks (Japanese
+% has no spaces to break at), and the vertical pass as a rotated box in a
+% font loaded with the OpenType `vert` feature -- the same trick the studio
+% uses under XeLaTeX with Vertical=RotatedGlyphs (docs/languages.md section 5).
+% Both were tried on this machine before this file was written.
+
+% ---- the babel language and the switches ----------------------------------
+\newcommand{\FrankLangName}{japanese}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBaretrue        % pass 4 is the same text without the furigana
+\FrankHasAlttrue         % an alternate face exists (gothic): chapter numbers, the title
+\FrankHasReadingtrue     % \chr carries the kana: over the chunk in pass 1, heading the gloss
+\FrankHasVerttrue        % the last pass is \FrankVertPass, not the font pass
+\FrankHasAloudtrue       % pass 2 is the kana alone, chunk after chunk
+
+% ---- fonts ------------------------------------------------------------------
+% From the registry's "tex" record: Noto Serif CJK JP (the system's; nothing
+% CJK travels with the toolbox, the files are too large), then the fallbacks.
+% intraspace=0 .1 0 is the glue babel puts between two CJK characters: no
+% natural width, a tenth of an em of stretch, no shrink -- what lets a line
+% break anywhere and still be justified.  Renderer=HarfBuzz as for the Arabic
+% script, so one engine shapes every language.  Script=CJK is fontspec's name
+% for the hani/kana scripts.
+\babelprovide[import=ja,onchar=ids fonts,intraspace=0 .1 0]{japanese}
+\FrankPickFont{\FrankMainFontName}{ja}{main}{main_fallbacks}
+\babelfont[japanese]{rm}[Script=CJK,Language=Japanese,Renderer=HarfBuzz]{\FrankMainFontName}
+% The alternate face is the gothic (sans).  The PDF's fourth pass is the
+% vertical one, so this face is only used where \ifFrankHasAlt asks for it:
+% the chapter number and the title page.  The HTML reader labels its own
+% fourth pass with it (docs/languages.md section 6).
+\FrankPickFont{\FrankAltFontName}{ja}{alt}{alt_fallbacks}
+\newfontfamily\FrankGothicFont[Script=CJK,Language=Japanese,Renderer=HarfBuzz]{\FrankAltFontName}
+\newcommand{\FrankAltFont}{\FrankGothicFont}
+% The vertical face: the main font again, with the `vert` and `vrt2` features
+% on, so that the glyphs which change shape in vertical text -- the brackets,
+% the long-vowel mark, the small kana, the comma and the full stop -- are the
+% vertical forms.  Set horizontally in this font and turned clockwise, each
+% glyph then stands upright in its column.  HarfBuzz honours the features on
+% this machine (checked: the rotated brackets and the vertical comma appear);
+% Renderer=Node does too, and additionally maps the punctuation to its
+% presentation forms in the text layer, which is why HarfBuzz was kept --
+% pdftotext then gives back the characters the book was written with.
+\newfontfamily\FrankVertFont[Script=CJK,Language=Japanese,Renderer=HarfBuzz,%
+  RawFeature={+vert,+vrt2}]{\FrankMainFontName}
+\usepackage{graphicx}   % \rotatebox and \resizebox for the vertical pass
+
+% ---- the two Lua filters ---------------------------------------------------
+% Identity: the kana lives in its own field, so the bare text is the text
+% itself (the registry's `strip` is null), and the labels are in Latin digits.
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s) return s end
+}
+
+% ---- the seam between two chunks --------------------------------------------
+% The core joins the chunks of a sentence with \FrankChunkSep when it rebuilds
+% pass 1 and the plain and vertical passes from the buffers.  A space, the default, is right for a
+% language written with spaces; Japanese is not, and a space there would show
+% as a gap the source does not have.  So the seam is glue of no width with the
+% same stretch babel puts between two characters: invisible, and a place to
+% break the line -- which the ruby boxes of pass 1 need, because babel never
+% inserts its glue between two boxes, only between two characters.
+\newcommand{\FrankChunkSep}{\hskip 0pt plus .1em\relax}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{dictionary form}{romaji}{-masu stem}{romaji}{-te form}{romaji}{meaning}:
+% the labels the core prints before the two extra forms.  The stem is what
+% -masu, -tai and -nagara attach to, the -te form what te, ta, tara and teiru
+% are made of and the one form nobody can guess (書いて, 泳いで, 読んで, and
+% 行って against every other -ku verb); the past is the -te form with ta and is
+% not printed.  A -suru verb is the whole of it in every slot: 勉強する,
+% 勉強し, 勉強して.  The sounds are rōmaji; the kana line of the chunk already
+% carries the reading, so no kana goes into a \vb.
+% What the three forms do not name goes in ONE parenthesis after the meaning,
+% items parted by "; ": first the class, which is what builds every form that
+% is NOT printed (買う makes 買わない, 食べる 食べない) --
+%   godan | ichidan | suru | irregular      (する itself, 来る and its compounds;
+%                                            a noun + する, 気にする, is suru)
+% then tr. / intr. / tr./intr. where the dictionary says (開く and 開ける share
+% one English gloss and not one particle), then hon. or hum. for a verb that
+% is honorific or humble:
+%   \vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}
+% lib/verbs/ja.py writes this entry for the editor's sidebar from dict/ja.db:
+% the forms and their rōmaji from the head line of the Wiktionary page (the
+% -te form is the past with た made て), the class from its head template,
+% transitivity where the page gives one -- about half the verbs.
+% The reader takes the same pair of labels from the registry
+% (lib/languages.json, "vb_labels": ["stem", "-te"], with the three forms in
+% words as "vb_forms"); the two must agree, or the PDF and the reader of one
+% book label the same form differently.  The registry holds the word alone --
+% the italics below are this page's typography, not part of the label -- and
+% lib/newlang.py --check compares them that way.
+\newcommand{\FrankVbPres}{stem}
+\newcommand{\FrankVbPast}{\textit{-te}}
+
+% ---- group ruby --------------------------------------------------------------
+% \jruby{text}{kana}: the reading, small, centred over the chunk.  A plain
+% \vbox with the text's baseline as its own; the pair is one unbreakable box,
+% which is why the seam glue above matters.  The kana inherits the colour, so a
+% highlighted chunk (\Cred etc.) is highlighted with its reading.  In a
+% language without a reading the core's \providecommand prints the text alone.
+% It is the core's \FrankRuby too: a \chrw sets each WORD's reading with this
+% same box, measured the same way, and the seam between two words is glue for
+% the reason the seam between two chunks is.
+%
+% A box cannot be broken, and the chunk column is a third of the measure: a
+% chunk of nine characters at 13pt is wider than it, and its ruby box ran into
+% the gloss (14 overfull boxes in the fixture edition).  So the pair is
+% measured first, in vertical mode -- \setbox starts no paragraph, whereas a
+% \leavevmode before the test would leave an empty line behind -- and when it
+% is wider than the current measure (\hsize: the column, or the whole line in
+% pass 1) it is set stacked instead: the reading on a line of its own, then
+% the text as an ordinary paragraph, which babel breaks between characters.
+\newcommand{\jruby}[2]{%
+  \begingroup
+    \setbox0\hbox{{\SzTrans #2}}%
+    \setbox2\hbox{#1}%
+    \dimen0=\wd0 \ifdim\wd2>\dimen0 \dimen0=\wd2 \fi
+    \ifdim\dimen0>\hsize
+      \par\noindent{\SzTrans #2\par}\nobreak\noindent #1%
+    \else
+      \leavevmode
+      \vbox{\hbox to\dimen0{\hss\box0\hss}%
+            \nointerlineskip\kern0.5pt
+            \hbox to\dimen0{\hss\box2\hss}}%
+    \fi
+  \endgroup}
+
+% ---- the vertical pass -------------------------------------------------------
+% The bare text (\FrankBuf, the same buffer the plain pass sets) as tategaki: set in a
+% \parbox whose WIDTH is the column height, in the vertical-forms font, then
+% turned clockwise with \rotatebox.  Line 1 becomes the rightmost column and
+% the columns run right to left, which is the order a Japanese book is read in.
+%
+% HOW TALL THE COLUMNS ARE.  The turned box cannot be broken across pages, so
+% its height decides how the pages fill.  A first version set every sentence
+% in columns of 0.78\textheight whatever its length: a box that tall follows
+% pass 3 on the same page almost never, so every fourth pass opened a fresh
+% page and left the one before it mostly white, and a sentence of a column and
+% a bit left its second column mostly empty (the fixture edition came out at
+% 22 pages).  So the sentence is measured first -- its natural width in the
+% vertical face, \wd1, is its length as a single column -- and spread over as
+% many columns as it needs at \FrankVertColumn, each column getting an equal
+% share of the text plus one em of slack so that the whole-character line
+% breaks can always fill the last column from the others.  A short sentence
+% is then a short box that sits under pass 3; a long one has many columns of
+% a comfortable height rather than few of a great one.  When that would want
+% more columns than the measure holds (a column is one leading wide once
+% turned) the columns grow towards \FrankVertHeight instead, and only a
+% sentence too long even for that is scaled down to \linewidth, as before.
+% The column count is worked out in Lua because it is a ceiling and a floor
+% of quotients of dimensions, which TeX's own arithmetic (\numexpr rounds)
+% makes needlessly awkward: frank_vert_columns(width of the sentence, usable
+% column height, usable tallest height, measure, leading) in sp.
+% \raise removes the depth the rotation gives the box, so it sits on the page
+% like a paragraph and the page breaker sees its whole height.
+\newcommand{\FrankVertHeight}{0.78\textheight}   % the tallest a column may ever be
+\newcommand{\FrankVertColumn}{0.5\textheight}    % the height the columns are balanced to
+\directlua{
+  function frank_vert_columns(w, column, tallest, measure, leading)
+    local most = math.floor(measure / leading)
+    local n = math.ceil(w / column)
+    if n > most then n = math.ceil(w / tallest) end
+    if n < 1 then n = 1 end
+    return n
+  end
+}
+\newcommand{\FrankVertPass}{%
+  \par\addvspace{1.6ex}%
+  \begingroup
+    \FrankVertFont\SzPlain
+    \setbox1\hbox{\foreignlanguage{japanese}{\FrankBuf}}%
+    % the usable heights are the caps less the em of slack every column gets,
+    % so a balanced column never exceeds its cap; \fontdimen6 is the em
+    \dimen1=\dimexpr\FrankVertColumn-\fontdimen6\font\relax
+    \dimen2=\dimexpr\FrankVertHeight-\fontdimen6\font\relax
+    \count1=\directlua{tex.print(frank_vert_columns(\number\wd1, \number\dimen1,
+      \number\dimen2, \number\linewidth, \number\baselineskip))}\relax
+    \dimen3=\dimexpr\wd1/\count1+\fontdimen6\font\relax
+    \setbox0\hbox{\rotatebox[origin=c]{-90}{%
+      \parbox{\dimen3}{\FrankVertFont\SzPlain\color{ink}%
+        \begin{otherlanguage}{japanese}\FrankBuf\par\end{otherlanguage}}}}%
+    \ifdim\wd0>\linewidth
+      \setbox0\hbox{\resizebox{\linewidth}{!}{\box0}}%
+    \fi
+    \setbox0\hbox{\raise\dp0\box0}%
+    \noindent\hfill\box0\par
+  \endgroup}
+
+% ---- the "How to read this" page -----------------------------------------------
+\newcommand{\FrankHowTo}{%
+Every passage comes five times.
+
+\smallskip
+\textbf{First} the whole sentence with its reading written small above each
+word — furigana, as a children's edition prints them — and nothing else.
+Try to read it. Get as far as you can and do not worry about what you cannot
+get; the point is the attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} only the sound of it: the reading of each phrase in kana, a
+gap between one phrase and the next, and no kanji at all. Read it aloud. The
+gaps are where the sentence divides.
+
+\smallskip
+\textbf{Third} the same sentence in those phrases, Japanese on the left, and
+on the right four lines: the reading in kana, then the same in rōmaji, then
+how to look each word up, then what it means. Now you find out how much you
+had right.
+
+\smallskip
+\textbf{Fourth} the same passage again plain, without the furigana, the way
+Japanese is printed for adults. You have read it three times, so it should
+carry you.
+
+\smallskip
+\textbf{Fifth} the same again set vertically, top to bottom, the columns
+running from right to left — the way most Japanese books are set. You already
+know what it says, which is the only comfortable way to learn a new direction.
+
+\smallskip
+The reading over a word is the reading of the whole word, its kana ending
+included, not of each character; the kana of a phrase is the reading of the
+whole phrase. The rōmaji are Hepburn: long vowels carry a macron
+(\textit{\=o}, \textit{\=u}),
+the particles are written as they are said (\textit{wa}, \textit{o},
+\textit{e}), and a doubled consonant is the small \textit{tsu}. Verbs are
+given as dictionary form, \textit{-masu} stem, \textit{-te} form, meaning —
+the \textit{-te} form is the one you cannot always guess. In brackets after
+the meaning comes the verb's class, which makes every form not printed:
+\textit{godan} verbs change the last vowel (\pw{書く}, \pw{書かない}),
+\textit{ichidan} verbs drop the \textit{-ru} (\pw{食べる}, \pw{食べない}), and
+\pw{する} and \pw{来る} are \textit{irregular}; a noun made a verb with
+\pw{する} (\pw{勉強する}) is \textit{suru}. Then \textit{tr.} or
+\textit{intr.} where it is known — it matters most for a pair that differs
+only in that (\pw{開ける} you open a door, \pw{開く} it opens) — and
+\textit{hon.} or \textit{hum.} for a word of respect or of modesty.
+}

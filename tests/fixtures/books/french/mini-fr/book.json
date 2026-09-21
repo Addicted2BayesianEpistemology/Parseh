@@ -1,0 +1,14 @@
+{
+  "slug": "mini-fr",
+  "language": "fr",
+  "title": "Le vieil homme et l'arbre",
+  "title_latin": "Le vieil homme et l'arbre",
+  "title_en": "The Old Man and the Tree",
+  "author": "une fable",
+  "author_latin": "a fable",
+  "year": "",
+  "blurb": "A fixture for the tests: two short French paragraphs, two sentences each, written to carry an elision or an apostrophe in every one.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

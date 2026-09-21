@@ -1,0 +1,13 @@
+%% mini-zh -- a fixture edition for the tests, not a book of the library.
+%% Build by hand from this directory, as build.sh's run_latex does:
+%%   OSFONTDIR=<root>/lib/fonts:/usr/share/fonts lualatex -interaction=nonstopmode main.tex
+\newcommand{\BookLang}{zh}
+\newcommand{\FrankLib}{../../../../../lib}
+\newcommand{\BookTitle}{山下的村子}
+\newcommand{\BookAuthor}{一个小故事}
+\newcommand{\BookTitleLatin}{THE VILLAGE BELOW THE HILL}
+\newcommand{\BookAuthorLatin}{a little story}
+\input{\FrankLib/frank-preamble.tex}
+\input{\FrankLib/frank-frontmatter.tex}
+\input{ch1.tex}
+\end{document}

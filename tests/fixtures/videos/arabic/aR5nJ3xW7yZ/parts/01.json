@@ -1,0 +1,105 @@
+[
+ {
+  "start": 6,
+  "chunks": [
+   {
+    "fa": "مرحبا،",
+    "tr": "marḥaban",
+    "voc": "مرحبا marḥaban hello, welcome",
+    "en": "hello,"
+   },
+   {
+    "fa": "كم ثمن هذا الكتاب",
+    "tr": "kam ṯamanu hāḏā l-kitāb",
+    "voc": "كم kam how much, how many · ثمن ṯaman price — ثمن هذا الكتاب ṯamanu hāḏā l-kitāb the price of this book, an idafa and so one chunk · هذا hāḏā this, written with the dagger alif · كتاب kitāb book, pl. كتب kutub",
+    "en": "how much is this book"
+   }
+  ]
+ },
+ {
+  "start": 12,
+  "chunks": [
+   {
+    "fa": "ثمنه",
+    "tr": "ṯamanu-hu",
+    "voc": "ـه -hu his, its — the pronoun suffix",
+    "en": "its price is"
+   },
+   {
+    "fa": "خمسون جنيها",
+    "tr": "ḫamsūna junayhan",
+    "voc": "خمسون ḫamsūna fifty · جنيه junayh pound, + the accusative ـا -an after a number",
+    "en": "fifty pounds"
+   },
+   {
+    "fa": "فقط",
+    "tr": "faqaṭ",
+    "voc": "فقط faqaṭ only",
+    "en": "only"
+   }
+  ]
+ },
+ {
+  "start": 18,
+  "chunks": [
+   {
+    "fa": "هل عندكم",
+    "tr": "hal ʿinda-kum",
+    "voc": "هل hal — marks a yes-or-no question · عند ʿinda at, with; عندكم ʿinda-kum you have",
+    "en": "do you have"
+   },
+   {
+    "fa": "كتاب آخر",
+    "tr": "kitābun āḫar",
+    "voc": "آخر āḫar other, another",
+    "en": "another book"
+   },
+   {
+    "fa": "عن التاريخ",
+    "tr": "ʿani t-tārīḫ",
+    "voc": "عن ʿan about · تاريخ tārīḫ history — the article assimilates to the sun letter ت",
+    "en": "about history"
+   }
+  ]
+ },
+ {
+  "start": 24,
+  "chunks": [
+   {
+    "fa": "نعم،",
+    "tr": "naʿam",
+    "voc": "نعم naʿam yes",
+    "en": "yes,"
+   },
+   {
+    "fa": "عندنا كتب كثيرة",
+    "tr": "ʿinda-nā kutubun kaṯīra",
+    "voc": "ـنا -nā our, us · كثير kaṯīr many, fem. كثيرة kaṯīra",
+    "en": "we have many books"
+   },
+   {
+    "fa": "هناك",
+    "tr": "hunāk",
+    "voc": "هناك hunāk there",
+    "en": "over there"
+   }
+  ]
+ },
+ {
+  "start": 30,
+  "chunks": [
+   {
+    "fa": "شكرا جزيلا،",
+    "tr": "šukran jazīlan",
+    "voc": "شكرا šukran thank you · جزيلا jazīlan abundantly — شكرا جزيلا thank you very much",
+    "en": "thank you very much,"
+   },
+   {
+    "fa": "مع السلامة",
+    "tr": "maʿa s-salāma",
+    "voc": "مع maʿa with · سلامة salāma safety — مع السلامة goodbye",
+    "en": "goodbye"
+   }
+  ]
+ }
+]

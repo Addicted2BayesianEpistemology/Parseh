@@ -1,0 +1,14 @@
+{
+  "slug": "mini-de",
+  "language": "de",
+  "title": "Der Schuster in der Straße",
+  "title_latin": "Der Schuster in der Straße",
+  "title_en": "The Shoemaker in the Street",
+  "author": "eine Erzählung",
+  "author_latin": "a tale",
+  "year": "",
+  "blurb": "A fixture for the tests: two short German paragraphs, two sentences each, carrying the capitalised nouns, the ß and the umlauts the pipeline must leave alone, and one separable verb split across a chunk boundary.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

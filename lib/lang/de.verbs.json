@@ -1,0 +1,9 @@
+{
+  "_why": "What no German dictionary row says, for lib/verbs/de.py. Wiktionary's {{+obj}} names the preposition a verb governs and very often not its case -- `:mit`, `:für<for>`, `:von<of>` -- because for these prepositions the case is the preposition's and not the verb's: mit always takes the dative, für always the accusative. So a `mit` with no case is `mit + dat.` by the grammar of mit, and that is what this table says; it is not a guess about the verb. The two-way prepositions (`both`) take the accusative for motion and the dative for a place, and with a verb which one is a fact of the verb (warten auf + acc., bestehen auf + dat.): where the dictionary gives no case for one of them the recipe prints `auf + …` and names the case in `missing`, for the annotator, rather than choose.",
+  "prepositions": {
+    "acc": ["bis", "durch", "für", "gegen", "ohne", "um", "wider"],
+    "dat": ["ab", "aus", "außer", "bei", "gegenüber", "mit", "nach", "seit", "von", "zu"],
+    "gen": ["angesichts", "anstatt", "außerhalb", "innerhalb", "statt", "trotz", "während", "wegen"],
+    "both": ["an", "auf", "hinter", "in", "neben", "über", "unter", "vor", "zwischen"]
+  }
+}

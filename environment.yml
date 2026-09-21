@@ -1,0 +1,43 @@
+# The environment Parseh rebuilds books, divides words and opens Anki exports in.
+#
+#   ./install.sh                             makes it, or adds what it lacks (Linux, macOS)
+#   install.bat                              the same on Windows; serve.bat's wizard offers it
+#   conda env create -f environment.yml      by hand, with a conda of your own
+#
+# The installers make it in the checkout, .runtime/env, with micromamba, unless
+# the machine already has an environment called ilya-frank; lib/runtime.py
+# finds either, and adds to it whatever this file lists and it lacks -- so a
+# package added here reaches every machine the next time it is installed.
+# lib/runtime.py PACKAGES and ENV_TOOLS say what each one is for, and
+# tests/test_runtime.py holds this file and those lists together.  The models
+# pkuseg downloads for itself (~/.pkuseg) are fetched by the installers too.
+#
+# Nothing here is needed merely to *serve* a built reader -- that is stdlib
+# Python 3 only.
+#
+# Not conda's business, install from the system: poppler-utils (pdftotext),
+# ffmpeg, and a LuaLaTeX-capable TeX Live -- which needs the hyphenation
+# patterns of every language you build as well as its packages, they being the
+# one missing piece that breaks nothing and spoils every line.  ./install.sh
+# reports on all three, and `./install.sh --pdf` fetches what TeX Live lacks.
+name: ilya-frank
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - openssl           # the https certificate: Windows has no openssl of its own
+  - deno              # the browser tests, and a new language's patterns checked
+  - pip:
+      - PyMuPDF>=1.24     # fitz -- page geometry, so paragraphs can be found
+      - rapidfuzz>=3.0    # fuzzy match of transcript against the .tex
+      - fonttools>=4.50   # ttf/ttc -> woff2 for the reader
+      - brotli>=1.1       # woff2 compression, required by fonttools
+      - zstandard>=0.22   # a modern Anki export is zstd-compressed
+      # A Japanese or Chinese chunk divided into words, each with a proposed
+      # reading (lib/words.py).  Without them no words are proposed and a
+      # chunk is written without a word line, which is always legal.
+      - sudachipy>=0.6.11           # Japanese: cut and read
+      - SudachiDict-core>=20260723  # its dictionary
+      - spacy-pkuseg>=1.0.1         # Chinese: cut, and tag (the maintained pkuseg)
+      - pypinyin>=0.55              # Chinese: read, in pinyin

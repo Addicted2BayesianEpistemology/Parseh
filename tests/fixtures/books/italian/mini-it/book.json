@@ -1,0 +1,14 @@
+{
+  "slug": "mini-it",
+  "language": "it",
+  "title": "Il pezzo di legno",
+  "title_latin": "Il pezzo di legno",
+  "title_en": "The Piece of Wood",
+  "author": "una favola",
+  "author_latin": "a fable",
+  "year": "",
+  "blurb": "A fixture for the tests: two short Italian paragraphs, two sentences each.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

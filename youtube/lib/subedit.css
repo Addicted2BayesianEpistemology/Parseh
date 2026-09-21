@@ -1,0 +1,133 @@
+/* Parseh — the add page's transcript editor (youtube/lib/subedit.js).
+
+   Every rule is under .se-root, so nothing here reaches the page under it,
+   and the colours are the toolbox's own tokens (lib/parseh.css) with the
+   same fallbacks the card kit's sheet uses — light, dark and sepia follow
+   the page without a rule of their own.  The cut editor opens OVER this one
+   (z 300 against 290), which is why it is the one that answers Escape. */
+.se-root{
+  --se-bg:var(--bg,#f3eff1); --se-card:var(--card,#ffffff); --se-ink:var(--ink,#241e21);
+  --se-dim:var(--dim,#635358); --se-faint:var(--faint,#a2949a); --se-rule:var(--rule,#e3d9dd);
+  --se-accent:var(--accent,#be3455); --se-accentlt:var(--accentlt,#ce5b78);
+  --se-accent-fg:var(--accent-fg,#ffffff); --se-hl:var(--hl,#f7dde5);
+  --se-boxbg:var(--boxbg,#faf4f6); --se-danger:var(--danger,#9b3327);
+  --se-veil:rgba(36,30,33,.38);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]):not([data-theme=sepia]) .se-root{
+    --se-bg:var(--bg,#171214); --se-card:var(--card,#211a1d); --se-ink:var(--ink,#e6dade);
+    --se-dim:var(--dim,#ac9ba1); --se-faint:var(--faint,#6e6065); --se-rule:var(--rule,#382c31);
+    --se-accent:var(--accent,#ee8aa3); --se-accentlt:var(--accentlt,#d97c93);
+    --se-accent-fg:var(--accent-fg,#171214); --se-hl:var(--hl,#3d222a);
+    --se-boxbg:var(--boxbg,#2a2024); --se-danger:var(--danger,#e79b84);
+    --se-veil:rgba(0,0,0,.55);
+  }
+}
+:root[data-theme=dark] .se-root{
+  --se-bg:var(--bg,#171214); --se-card:var(--card,#211a1d); --se-ink:var(--ink,#e6dade);
+  --se-dim:var(--dim,#ac9ba1); --se-faint:var(--faint,#6e6065); --se-rule:var(--rule,#382c31);
+  --se-accent:var(--accent,#ee8aa3); --se-accentlt:var(--accentlt,#d97c93);
+  --se-accent-fg:var(--accent-fg,#171214); --se-hl:var(--hl,#3d222a);
+  --se-boxbg:var(--boxbg,#2a2024); --se-danger:var(--danger,#e79b84);
+  --se-veil:rgba(0,0,0,.55);
+}
+
+.se-root{position:fixed;inset:0;z-index:290;display:flex;align-items:center;
+  justify-content:center;padding:10px;background:var(--se-veil);overscroll-behavior:contain}
+.se-root *{box-sizing:border-box}
+.se-root [hidden]{display:none!important}
+.se-box{width:min(900px,100%);max-height:100%;display:flex;flex-direction:column;
+  background:var(--se-card);color:var(--se-ink);border:1px solid var(--se-rule);
+  border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.28);padding:12px 14px 10px;
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  text-align:left}
+
+.se-head{display:flex;align-items:baseline;gap:10px;flex:none}
+.se-count{color:var(--se-dim);font-size:12.5px}
+.se-sp{flex:1}
+.se-stat{color:var(--se-dim);font-size:12.5px;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.se-stat.se-bad{color:var(--se-danger)}
+.se-box button.se-x{font:inherit;font-size:14px;line-height:1;padding:5px 8px;
+  border:1px solid transparent;border-radius:6px;background:none;color:var(--se-dim);cursor:pointer}
+.se-box button.se-x:hover{color:var(--se-accent);border-color:var(--se-rule)}
+
+/* The video, SMALL: it is here to be heard and glanced at, not watched, and
+   the captions are what the room is for.  align-items matters -- a flex item
+   left to stretch takes the whole height and its aspect-ratio never bites. */
+.se-stage{flex:none;margin-top:8px;display:flex;justify-content:center;align-items:flex-start}
+.se-yt{width:min(300px,100%);aspect-ratio:16/9;flex:none;border-radius:8px;overflow:hidden;
+  background:#000}
+.se-yt>*{width:100%;height:100%;border:0;display:block}
+.se-noyt{font-size:12px;color:var(--se-faint);padding:6px 0}
+
+.se-note{flex:none;margin:8px 0 0;font-size:12px;line-height:1.5;color:var(--se-dim)}
+.se-tools{flex:none;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0 6px}
+.se-tlab{color:var(--se-faint);font-size:12px}
+.se-box input.se-shift{width:70px;font:inherit;font-size:12.5px;padding:3px 5px;text-align:right;
+  border:1px solid var(--se-rule);border-radius:5px;background:var(--se-bg);color:var(--se-ink)}
+
+/* the other road: the prompt copied out, the answer pasted back */
+.se-llm{flex:none;margin:0 0 8px;padding:8px 10px;border:1px dashed var(--se-rule);
+  border-radius:8px;background:var(--se-boxbg)}
+.se-llmnote{font-size:12px;line-height:1.5;color:var(--se-dim);margin-bottom:6px}
+.se-llmrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 0}
+.se-box textarea.se-answer{width:100%;margin-top:6px;font:inherit;font-size:12.5px;
+  line-height:1.5;padding:5px 7px;border:1px solid var(--se-rule);border-radius:6px;
+  background:var(--se-card);color:var(--se-ink);resize:vertical}
+.se-box textarea.se-answer:focus{border-color:var(--se-accent);outline:none}
+
+/* the captions themselves: one row each, the whole list scrolling */
+.se-list{flex:1;min-height:80px;overflow:auto;overscroll-behavior:contain;
+  border:1px solid var(--se-rule);border-radius:8px;padding:4px;background:var(--se-bg)}
+.se-row{display:flex;gap:6px;align-items:flex-start;padding:3px 4px;border-radius:6px}
+.se-row:hover{background:var(--se-card)}
+.se-row.se-wrong{background:var(--se-hl);outline:1px solid var(--se-danger)}
+.se-n{flex:none;width:2.2em;text-align:right;color:var(--se-faint);font-size:12px;
+  padding-top:6px;font-variant-numeric:tabular-nums}
+/* When a caption starts: the six steps of the book's timing editor around
+   the time itself, the minus ones before it and the plus ones after, so a
+   press moves the number it sits beside. */
+.se-when{flex:none;display:flex;gap:2px;align-items:center}
+.se-box .se-when button{font:inherit;font-size:11px;line-height:1.3;padding:3px 4px;
+  min-width:2.1em;border:1px solid var(--se-rule);border-radius:5px;
+  background:var(--se-card);color:var(--se-dim);cursor:pointer;
+  font-variant-numeric:tabular-nums}
+.se-box .se-when button:hover{border-color:var(--se-accentlt);color:var(--se-accent)}
+.se-box input.se-at{flex:none;width:80px;margin:0 2px;font:inherit;font-size:12.5px;padding:4px 6px;
+  text-align:right;border:1px solid var(--se-rule);border-radius:5px;
+  background:var(--se-card);color:var(--se-ink);
+  font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.se-box textarea.se-text{flex:1;min-width:0;font:inherit;font-size:13.5px;line-height:1.45;
+  padding:4px 7px;border:1px solid var(--se-rule);border-radius:5px;resize:none;overflow:hidden;
+  background:var(--se-card);color:var(--se-ink)}
+.se-box input.se-at:focus,.se-box textarea.se-text:focus,.se-box input.se-shift:focus{
+  border-color:var(--se-accent);outline:none}
+.se-acts{flex:none;display:flex;gap:3px;align-items:center;padding-top:2px}
+.se-box .se-acts button{font:inherit;font-size:12px;line-height:1.3;padding:3px 6px;
+  border:1px solid var(--se-rule);border-radius:5px;background:var(--se-card);
+  color:var(--se-dim);cursor:pointer;white-space:nowrap}
+.se-box .se-acts button:hover{border-color:var(--se-accentlt);color:var(--se-accent)}
+
+.se-foot{flex:none;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.se-box button.se-btn{font:inherit;font-size:13px;padding:5px 11px;border:1px solid var(--se-rule);
+  background:var(--se-bg);color:var(--se-ink);border-radius:6px;cursor:pointer;white-space:nowrap}
+.se-box button.se-btn:hover{border-color:var(--se-accentlt);color:var(--se-accent)}
+.se-box button.se-use{background:var(--se-accent);border-color:var(--se-accent);color:var(--se-accent-fg)}
+.se-box button.se-use:hover{color:var(--se-accent-fg);filter:brightness(1.06)}
+.se-box button.se-use[disabled]{opacity:.55;cursor:default;filter:none}
+.se-box button.se-quiet{font-size:12px;padding:4px 8px;color:var(--se-dim)}
+.se-box button:focus-visible,.se-box input:focus-visible,.se-box textarea:focus-visible{
+  outline:2px solid var(--se-accent);outline-offset:1px}
+
+/* a phone: the row stacks, the actions run under the words */
+@media (max-width:560px){
+  .se-box{padding:10px 10px 8px;border-radius:10px}
+  .se-row{flex-wrap:wrap}
+  .se-n{width:1.8em;padding-top:5px}
+  .se-when{flex-wrap:wrap}
+  .se-box .se-when button{min-width:2.4em;padding:4px 5px}
+  .se-box textarea.se-text{flex:1 0 100%;margin-left:calc(1.8em + 6px)}
+  .se-acts{width:100%;padding-left:calc(1.8em + 6px);flex-wrap:wrap}
+  .se-yt{width:100%}
+}

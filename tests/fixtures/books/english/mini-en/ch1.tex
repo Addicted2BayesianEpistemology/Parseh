@@ -1,0 +1,62 @@
+% The pronunciation line follows docs/lang/en.md: IPA, General American, one
+% line for every chunk, lower case and unpunctuated; the stress mark before
+% the stressed syllable of every word longer than one; a silent letter simply
+% absent; a function word written weak (the ðə, and ən, of əv, had həd) and
+% strong only where the chunk stresses it, which is why the stranded "for" at
+% the end of 2.1 is fɔr and not fər; -ed written t, d or ɪd as it is said; a
+% contraction one word with no apostrophe.  \vb gives the three principal
+% parts -- plain form, past, past participle -- for every verb including the
+% regular ones, whose three are the same word twice over, and a phrasal verb
+% is given whole with its particle.  say is one of the four whose present
+% cannot be built (be, have, do, say), so its says sɛz stands in brackets
+% after the meaning; no other verb here has anything there.
+%
+% What this fixture exists to protect is the middle line.  English is the one
+% language here whose glosses are in the language being taught, so the
+% pronunciation is the only thing on the page the reader could not have got
+% from the page; and it is written in an alphabet TeX Gyre Pagella has no
+% glyph for -- esh, open-e, script-a, small-capital-I, upsilon, turned-v,
+% open-o and the stress mark all come from the DejaVu Serif fallback the core
+% preamble declares.  A build whose log is clean of "Missing character" is the
+% thing being checked, and every chunk below is a witness.
+%
+% Two of them turn on a homograph, which is what the vocabulary line is for
+% in this language: \pw{wound} \textit{waʊnd} the past of \pw{wind}
+% \textit{waɪnd} to turn, against \pw{wind} \textit{wɪnd} the moving air, five
+% letters holding two words that share no sound at all.
+\chapopen{1}
+
+\parstart{1.1}{The old man wound the clock}
+\parnum{1.1}
+\begin{frank}
+\ch{}{The old man}{ðə oʊld mæn}{\dw{old}{oʊld} having lived a long time}{the old man}
+\ch{}{wound the clock}{waʊnd ðə klɑk}{\vb{wind}{waɪnd}{wound}{waʊnd}{wound}{waʊnd}{to turn a key until the spring inside is tight}; here \pw{wound} \textit{waʊnd}, not the noun \pw{wound} \textit{wund}, a hurt; \dw{clock}{klɑk} the thing on a wall that tells the time}{turned the key of the clock}
+\ch{}{and put it down.}{ən pʊt ɪt daʊn}{\vb{put down}{pʊt daʊn}{put down}{pʊt daʊn}{put down}{pʊt daʊn}{to set a thing you are holding on a surface} — all three parts the same word, and the object stands between them}{and set it down.}
+\end{frank}
+
+\parnum{1.2}
+\begin{frank}
+\ch{}{He hadn't slept,}{hi ˈhædənt slɛpt}{\vb{sleep}{slip}{slept}{slɛpt}{slept}{slɛpt}{to rest with the eyes closed}; \pw{hadn't} is \pw{had not}}{he had not slept,}
+\ch{}{and the wind outside}{ən ðə wɪnd ˌaʊtˈsaɪd}{\dw{wind}{wɪnd} moving air — not \pw{wind} \textit{waɪnd} to turn, above; \dw{outside}{ˌaʊtˈsaɪd} out of doors}{and the wind outside}
+\ch{}{had not dropped all night.}{həd nɑt drɑpt ɔl naɪt}{\vb{drop}{drɑp}{dropped}{drɑpt}{dropped}{drɑpt}{to fall, and of wind to grow weaker}}{had not died down all night.}
+\end{frank}
+
+\parend
+
+\parstart{1.2}{A child came in and asked}
+\parnum{2.1}
+\begin{frank}
+\ch{}{A child came in}{ə tʃaɪld keɪm ɪn}{\dw{child}{tʃaɪld} a young person, pl. \pw{children} \textit{ˈtʃɪldrən}; \vb{come in}{kʌm ɪn}{came in}{keɪm ɪn}{come in}{kʌm ɪn}{to enter}}{a child came in}
+\ch{}{and asked him}{ən æskt ɪm}{\vb{ask}{æsk}{asked}{æskt}{asked}{æskt}{to put a question to someone}}{and asked him}
+\ch{}{what he was waiting for.}{wʌt hi wəz ˈweɪtɪŋ fɔr}{\vb{wait for}{weɪt fɔr}{waited for}{ˈweɪtɪd fɔr}{waited for}{ˈweɪtɪd fɔr}{to stay where you are until a thing comes} — the \pw{for} carries the sentence stress here and is said \textit{fɔr}, not weak \textit{fər}}{what he was waiting for.}
+\end{frank}
+
+\parnum{2.2}
+\begin{frank}
+\ch{}{The old man smiled}{ðə oʊld mæn smaɪld}{\vb{smile}{smaɪl}{smiled}{smaɪld}{smiled}{smaɪld}{to turn the mouth up, pleased}}{the old man smiled}
+\ch{}{and said}{ən sɛd}{\vb{say}{seɪ}{said}{sɛd}{said}{sɛd}{to put a thing into words (pres. \pw{says} \textit{sɛz})}}{and said}
+\ch{}{he had given up}{hi həd ˈgɪvən ʌp}{\vb{give up}{gɪv ʌp}{gave up}{geɪv ʌp}{given up}{ˈgɪvən ʌp}{to stop trying at something} — one word in two halves, glossed whole}{he had stopped}
+\ch{}{counting the days.}{ˈkaʊntɪŋ ðə deɪz}{\vb{count}{kaʊnt}{counted}{ˈkaʊntɪd}{counted}{ˈkaʊntɪd}{to say the numbers over a set of things}}{counting the days.}
+\end{frank}
+
+\chapend

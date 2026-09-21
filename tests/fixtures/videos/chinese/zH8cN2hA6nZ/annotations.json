@@ -1,0 +1,114 @@
+{
+ "video": "zH8cN2hA6nZ",
+ "language": "zh",
+ "segments": [
+  {
+   "start": 0,
+   "plain": true,
+   "text": "Welcome back to the channel, today we learn Chinese at the tea house"
+  },
+  {
+   "start": 6,
+   "chapter": "在茶馆",
+   "text": "你好，我想要一杯茶",
+   "chunks": [
+    {
+     "fa": "你好，",
+     "tr": "nǐ hǎo",
+     "voc": "你 nǐ you; 好 hǎo good — 你好 nǐ hǎo is the whole greeting",
+     "en": "hello,"
+    },
+    {
+     "fa": "我想要一杯茶",
+     "tr": "wǒ xiǎng yào yì bēi chá",
+     "voc": "我 wǒ I; 想要 xiǎng yào would like; 杯 bēi the measure word for a cup of something; 茶 chá tea",
+     "en": "I would like a cup of tea"
+    }
+   ]
+  },
+  {
+   "start": 11,
+   "text": "好的，你要什么茶",
+   "chunks": [
+    {
+     "fa": "好的，",
+     "tr": "hǎo de",
+     "voc": "好的 hǎo de all right, fine — the everyday yes",
+     "en": "all right,"
+    },
+    {
+     "fa": "你要什么茶",
+     "tr": "nǐ yào shénme chá",
+     "voc": "要 yào to want; 什么 shénme what — it stands where the answer would stand, so nothing else in the sentence moves",
+     "en": "what tea do you want"
+    }
+   ]
+  },
+  {
+   "start": 15,
+   "text": "绿茶，谢谢",
+   "chunks": [
+    {
+     "fa": "绿茶，",
+     "tr": "lǜ chá",
+     "voc": "绿 lǜ green; 绿茶 lǜchá green tea",
+     "en": "green tea,"
+    },
+    {
+     "fa": "谢谢",
+     "tr": "xièxie",
+     "voc": "谢谢 xièxie thank you — the second syllable is toneless",
+     "en": "thank you"
+    }
+   ]
+  },
+  {
+   "start": 20,
+   "text": "请等一下，两分钟就好",
+   "chunks": [
+    {
+     "fa": "请等一下，",
+     "tr": "qǐng děng yíxià",
+     "voc": "请 qǐng please; 等 děng to wait; 一下 yíxià for a moment, which softens any verb it follows",
+     "en": "please wait a moment,"
+    },
+    {
+     "fa": "两分钟就好",
+     "tr": "liǎng fēnzhōng jiù hǎo",
+     "voc": "两 liǎng two, before a measure word — 二 èr is for counting; 分钟 fēnzhōng minute; 就 jiù then, and no later than that",
+     "en": "two minutes and it is ready"
+    }
+   ]
+  },
+  {
+   "start": 24,
+   "text": "多少钱",
+   "chunks": [
+    {
+     "fa": "多少钱",
+     "tr": "duōshao qián",
+     "voc": "多少 duōshao how much; 钱 qián money — 多少钱 is the whole question",
+     "en": "how much is it"
+    }
+   ]
+  },
+  {
+   "start": 28,
+   "text": "十块钱，谢谢",
+   "chunks": [
+    {
+     "fa": "十块钱，",
+     "tr": "shí kuài qián",
+     "voc": "十 shí ten; 块 kuài the spoken measure word for the yuan, 元 yuán in writing",
+     "en": "ten yuan,"
+    },
+    {
+     "fa": "谢谢",
+     "tr": "xièxie",
+     "voc": "谢谢 xièxie thank you",
+     "en": "thank you"
+    }
+   ]
+  }
+ ]
+}

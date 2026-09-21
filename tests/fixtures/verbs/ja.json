@@ -1,0 +1,420 @@
+{
+ "code": "ja",
+ "_why": "Offline smoke cases for lib/verbs/ja.py, taken from dict/ja.db built 2026-09-10 (with entry.head). `forms` are the entry's own rows the recipe reads (headword row, stem, past, alternative kanji), in rowid order: inserted in that order into a scratch db they are the entry's own block, and the recipe gives `expect` from them with a hit that carries only headword and entry (head_sound falls back to entry.translit). expect null = recipe returns None (no vb).",
+ "cases": [
+  {
+   "what": "regular godan, reached by its -te form; the -te sound kaite from the past kaita",
+   "entry": {
+    "headword": "書く",
+    "translit": "kaku",
+    "ipa": "[ka̠kɯ̟]",
+    "reading": "かく",
+    "pos": "verb",
+    "sense": "to write; to record (words, figures) on the surface of (something)\nto compose; to put (an idea, etc) into words",
+    "sense_tags": "\n",
+    "head": "{\"class\": \"godan\", \"tr\": \"tr.\"}"
+   },
+   "forms": [
+    [
+     "書く",
+     "",
+     ""
+    ],
+    [
+     "書き",
+     "stem",
+     "kaki"
+    ],
+    [
+     "書いた",
+     "past",
+     "kaita"
+    ],
+    [
+     "書きき",
+     "past",
+     ""
+    ],
+    [
+     "かきき",
+     "past",
+     ""
+    ],
+    [
+     "書きけり",
+     "past",
+     ""
+    ],
+    [
+     "かきけり",
+     "past",
+     ""
+    ]
+   ],
+   "word": "書いて",
+   "text": "手紙を書いています",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}",
+    "plain": "書く かく kaku · stem 書き kaki · -te 書いて kaite · to write (godan; tr.)",
+    "line": "stem 書き kaki · -te 書いて kaite · godan · tr.",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "する itself: class irregular although the head template says suru",
+   "entry": {
+    "headword": "する",
+    "translit": "suru",
+    "ipa": "[sɨɾɯ̟]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to do; to perform an action\nto act as; to play a role of\nto render; to make become (used as the suppletive causative form of なる (naru))\nto be\nto wear (accessories)\nto decide; to choose or to make a judgment\nto do it; to have sex\nto exist; to come up (of inanimate objects)\nto exist (in someone or something) (of a specified state; of a specified quality)\nto be worth; to have the value of\nto pass; to elapse (of time)\n\"Adverb + する\", forming predicates or attributives from adverbs.",
+    "sense_tags": "intransitive,suru,transitive\nintransitive,suru,transitive\nintransitive,suru,transitive\nintransitive,suru,transitive\nintransitive,suru,transitive\nintransitive,suru,transitive\ninformal,intransitive,suru,transitive\nintransitive,suru\nintransitive,suru\nintransitive,suru\nintransitive,suru\nauxiliary,intransitive,suru",
+    "head": "{\"class\": \"suru\", \"tr\": \"tr./intr.\"}"
+   },
+   "forms": [
+    [
+     "する",
+     "",
+     ""
+    ],
+    [
+     "し",
+     "stem",
+     "shi"
+    ],
+    [
+     "した",
+     "past",
+     "shita"
+    ],
+    [
+     "しき",
+     "past",
+     ""
+    ],
+    [
+     "しけり",
+     "past",
+     ""
+    ],
+    [
+     "為る",
+     "alternative kanji obsolete",
+     ""
+    ]
+   ],
+   "word": "する",
+   "text": "何かする",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{する}{suru}{し}{shi}{して}{shite}{to do (irregular; tr./intr.)}",
+    "plain": "する suru · stem し shi · -te して shite · to do (irregular; tr./intr.)",
+    "line": "stem し shi · -te して shite · irregular · tr./intr.",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "irregular 来る, whose rows include kitaru's pointers (来った past) filed under it",
+   "entry": {
+    "headword": "来る",
+    "translit": "kuru",
+    "ipa": "[kɯ̟ɾɯ̟]",
+    "reading": "くる",
+    "pos": "verb",
+    "sense": "to come (toward the speaker)\nto come; to be upon one\nto come and stimulate\nwhen it comes to\n[with (verb in ren'yōkei +) て (te)]\nto do something in the direction of the speaker\nto go somewhere else, do something, and then come back\nto do something and thereby come about, appear, come to be\nused to express that a certain action having continued or repeated has led to the current state\nused to express that a state has been reached",
+    "sense_tags": "\n\n\n\nauxiliary,obj:['::て (verb in '; <LINK([\"Appendix:Japanese glossary#ren'yōkei\"]; [\"ren'yōkei\"]){} >; ')']\nauxiliary,obj:['::て (verb in '; <LINK([\"Appendix:Japanese glossary#ren'yōkei\"]; [\"ren'yōkei\"]){} >; ')']\nauxiliary,obj:['::て (verb in '; <LINK([\"Appendix:Japanese glossary#ren'yōkei\"]; [\"ren'yōkei\"]){} >; ')']\nauxiliary,obj:['::て (verb in '; <LINK([\"Appendix:Japanese glossary#ren'yōkei\"]; [\"ren'yōkei\"]){} >; ')']\nauxiliary,obj:['::て (verb in '; <LINK([\"Appendix:Japanese glossary#ren'yōkei\"]; [\"ren'yōkei\"]){} >; ')']\nauxiliary,obj:['::て (verb in '; <LINK([\"Appendix:Japanese glossary#ren'yōkei\"]; [\"ren'yōkei\"]){} >; ')']",
+    "head": "{\"class\": \"irregular\", \"tr\": \"intr.\"}"
+   },
+   "forms": [
+    [
+     "来る",
+     "",
+     ""
+    ],
+    [
+     "来",
+     "stem",
+     "ki"
+    ],
+    [
+     "来た",
+     "past",
+     "kita"
+    ],
+    [
+     "來し",
+     "past",
+     ""
+    ],
+    [
+     "こし",
+     "past",
+     ""
+    ],
+    [
+     "きし",
+     "past",
+     ""
+    ],
+    [
+     "來けり",
+     "past",
+     ""
+    ],
+    [
+     "きけり",
+     "past",
+     ""
+    ],
+    [
+     "來る",
+     "alternative kanji kyūjitai",
+     ""
+    ]
+   ],
+   "word": "来た",
+   "text": "友達が来た",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{来る}{kuru}{来}{ki}{来て}{kite}{to come (toward the speaker; irregular; intr.)}",
+    "plain": "来る くる kuru · stem 来 ki · -te 来て kite · to come (toward the speaker; irregular; intr.)",
+    "line": "stem 来 ki · -te 来て kite · irregular · intr.",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "noun + する: entry 勉強, printed 勉強する in every slot",
+   "entry": {
+    "headword": "勉強",
+    "translit": "benkyō suru",
+    "ipa": "[bẽ̞ŋʲkʲo̞ː]",
+    "reading": "べんきょう",
+    "pos": "verb",
+    "sense": "to study\nto discount, to reduce the price of something",
+    "sense_tags": "intransitive,suru\nintransitive,suru",
+    "head": "{\"class\": \"suru\", \"tr\": \"tr./intr.\"}"
+   },
+   "forms": [
+    [
+     "勉強",
+     "",
+     ""
+    ],
+    [
+     "勉強し",
+     "stem",
+     "benkyō shi"
+    ],
+    [
+     "勉強した",
+     "past",
+     "benkyō shita"
+    ],
+    [
+     "勉強",
+     "alternative kanji kyūjitai",
+     ""
+    ]
+   ],
+   "word": "勉強し",
+   "text": "日本語を勉強しています",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{勉強する}{benkyō suru}{勉強し}{benkyō shi}{勉強して}{benkyō shite}{to study (suru; tr./intr.)}",
+    "plain": "勉強する べんきょうする benkyō suru · stem 勉強し benkyō shi · -te 勉強して benkyō shite · to study (suru; tr./intr.)",
+    "line": "stem 勉強し benkyō shi · -te 勉強して benkyō shite · suru · tr./intr.",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "honorific godan with two stems: the -masu stem is the い one; hon. from the sense tags",
+   "entry": {
+    "headword": "いらっしゃる",
+    "translit": "irassharu",
+    "ipa": "[iɾa̠ɕːa̠ɾɯ̟]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to go\nto come\nto be",
+    "sense_tags": "honorific\nhonorific\nhonorific",
+    "head": "{\"class\": \"godan\", \"tr\": \"intr.\"}"
+   },
+   "forms": [
+    [
+     "いらっしゃる",
+     "",
+     ""
+    ],
+    [
+     "いらっしゃり",
+     "stem",
+     "irasshari"
+    ],
+    [
+     "いらっしゃい",
+     "stem",
+     "irasshai"
+    ],
+    [
+     "いらっしゃった",
+     "past",
+     "irasshatta"
+    ]
+   ],
+   "word": "いらっしゃいます",
+   "text": "先生がいらっしゃいます",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{いらっしゃる}{irassharu}{いらっしゃい}{irasshai}{いらっしゃって}{irasshatte}{to go (godan; intr.; hon.)}",
+    "plain": "いらっしゃる irassharu · stem いらっしゃい irasshai · -te いらっしゃって irasshatte · to go (godan; intr.; hon.)",
+    "line": "stem いらっしゃい irasshai · -te いらっしゃって irasshatte · godan · intr. · hon.",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "filed under the kana のむ; the chunk writes it 飲んだ, so the forms take the entry's own alternative kanji 飲む",
+   "entry": {
+    "headword": "のむ",
+    "translit": "nomu",
+    "ipa": "[no̞mɯ̟]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "飲む, 呑む: to drink, to gulp, to swallow; to eat (soup)\n飲む, 喫む: (smoking) to smoke tobacco\n飲む: to overwhelm, to engulf\n飲む: to suppress, to keep down\n飲む, 呑む: to take (medicine)\n飲む, 呑む: to accept something like a demand or a condition",
+    "sense_tags": "\n\n\n\n\n",
+    "head": "{\"class\": \"godan\", \"tr\": \"tr.\"}"
+   },
+   "forms": [
+    [
+     "のむ",
+     "",
+     ""
+    ],
+    [
+     "のみ",
+     "stem",
+     "nomi"
+    ],
+    [
+     "のんだ",
+     "past",
+     "nonda"
+    ],
+    [
+     "のみき",
+     "past",
+     ""
+    ],
+    [
+     "のみけり",
+     "past",
+     ""
+    ],
+    [
+     "飲む",
+     "alternative kanji",
+     ""
+    ],
+    [
+     "呑む",
+     "alternative kanji",
+     ""
+    ],
+    [
+     "喫む",
+     "alternative kanji uncommon",
+     ""
+    ]
+   ],
+   "word": "飲んだ",
+   "text": "水を飲んだ",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{飲む}{nomu}{飲み}{nomi}{飲んで}{nonde}{to drink, to gulp, to swallow (godan; tr.)}",
+    "plain": "飲む のむ nomu · stem 飲み nomi · -te 飲んで nonde · to drink, to gulp, to swallow (godan; tr.)",
+    "line": "stem 飲み nomi · -te 飲んで nonde · godan · tr.",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "the copula, filed as a verb: no stem, no past -> None",
+   "entry": {
+    "headword": "だ",
+    "translit": "da",
+    "ipa": "[da̠]",
+    "reading": "",
+    "pos": "verb",
+    "sense": "Following parts of speech that do not inflect by themselves, including nouns, na-adjectives, adverbs and postpositional phrases.\nto be\nshould; be obliged to; ought to\nSome forms also follow inflectable words.\nです follows i-adjectives, as the standard polite terminal form for i-adjectives.\nだろう / でしょう / なら can follow any inflectable word, forming suppletive volitional/polite volitional/conditional forms.\nNot following any words, but used before some conjunctives or in some inflected forms, to represent the aforementioned statement.",
+    "sense_tags": "auxiliary\nauxiliary\nauxiliary\nauxiliary\nauxiliary\nauxiliary\nauxiliary",
+    "head": ""
+   },
+   "forms": [
+    [
+     "だ",
+     "",
+     ""
+    ]
+   ],
+   "word": "だ",
+   "text": "学生だ",
+   "gloss": "en",
+   "expect": null,
+   "run": "build"
+  },
+  {
+   "what": "suru verb whose only sense is 'Same as above.': the meaning is missing -> incomplete",
+   "entry": {
+    "headword": "贖罪",
+    "translit": "tokuzai suru",
+    "ipa": "[to̞kɯ̟za̠i]",
+    "reading": "とくざい",
+    "pos": "verb",
+    "sense": "Same as above.",
+    "sense_tags": "",
+    "head": "{\"class\": \"suru\"}"
+   },
+   "forms": [
+    [
+     "贖罪",
+     "",
+     ""
+    ],
+    [
+     "贖罪し",
+     "stem",
+     "tokuzai shi"
+    ],
+    [
+     "贖罪した",
+     "past",
+     "tokuzai shita"
+    ]
+   ],
+   "word": "贖罪",
+   "text": "贖罪する",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{贖罪する}{tokuzai suru}{贖罪し}{tokuzai shi}{贖罪して}{tokuzai shite}{(suru)}",
+    "plain": "贖罪する とくざいする tokuzai suru · stem 贖罪し tokuzai shi · -te 贖罪して tokuzai shite · (suru)",
+    "line": "stem 贖罪し tokuzai shi · -te 贖罪して tokuzai shite · suru",
+    "complete": false,
+    "missing": [
+     "the meaning (the dictionary only points at another sense)"
+    ]
+   },
+   "run": "build"
+  }
+ ]
+}

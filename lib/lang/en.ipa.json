@@ -1,0 +1,37 @@
+{
+ "_comment": "Which of Wiktionary's English pronunciations this edition wants. Read by lib/translit.py prefers() for lib/getdict.py _ipa; there is no `map` -- the English verb recipe writes the house style itself (n̩ as ən, no stress on one syllable, r-colour), which a character table cannot.",
+ "prefer": [
+  "General-American"
+ ],
+ "avoid": [
+  "Australia",
+  "New-Zealand",
+  "Scotland",
+  "Northumbria",
+  "West-Midlands",
+  "Wales",
+  "Ireland",
+  "Northern-Ireland",
+  "Northern-England",
+  "Geordie",
+  "Yorkshire",
+  "Multicultural-London-English",
+  "India",
+  "South-Africa",
+  "General-South-African",
+  "Singapore",
+  "Hong-Kong",
+  "Philippines",
+  "Jamaica",
+  "Caribbean",
+  "Early",
+  "Modern",
+  "obsolete",
+  "archaic",
+  "dialectal",
+  "cot-caught-merger",
+  "pin-pen-merger"
+ ],
+ "avoid_mode": "all",
+ "_avoid": "Received-Pronunciation, UK, US and Canada are deliberately not avoided: kill's only /ˈkɪl/ is tagged Received-Pronunciation and US, and fight's /faɪt/ is tagged RP while its US-tagged one is the Canadian-raising /fəɪt/. A sound is avoided only when every one of its tags is in this list (fix's only /fɪks/ is tagged Australia, Canada, UK and US), and a `weak form` is skipped while any other is left (do /də/, was /wəz/) -- both lib/getdict.py _ipa's to apply."
+}

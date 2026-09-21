@@ -1,0 +1,14 @@
+{
+  "slug": "mini-es",
+  "language": "es",
+  "title": "El panadero y la niña",
+  "title_latin": "El panadero y la niña",
+  "title_en": "The Baker and the Girl",
+  "author": "un cuento",
+  "author_latin": "a tale",
+  "year": "",
+  "blurb": "A fixture for the tests: two short Spanish paragraphs, two sentences each, with the transliteration left empty -- Spanish spelling already says the sound -- and the few rules that are not obvious put in the vocabulary line where they apply.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

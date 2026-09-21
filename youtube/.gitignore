@@ -1,0 +1,9 @@
+serve.log
+.serve.pid
+anki/build/
+.tls/
+# where a replaced video goes (ytpages.api_add, import_old_video.py --replace)
+videos/.trash/
+# where api_add builds a video before moving it into place; emptied on
+# every request, left behind only if the server dies mid-way
+videos/.staging-*/

@@ -1,0 +1,994 @@
+{
+ "code": "es",
+ "_why": "Offline smoke cases for lib/verbs/es.py, written by the Spanish recipe agent from dict/es.db built 2026-09-10. Each case is one real entry and ONLY the form rows the recipe reads (the cells it asks for by exact tag set, the chunk word's own rows, the headword row), in rowid order; the expected \\vb was produced on a one-entry dictionary holding exactly these rows and checked equal to the full dictionary's. `expect` null means the recipe must return None (no hit['vb']). Needs lib/lang/es.verbs.json (ser/estar/haber meanings, the never-gloss list).",
+ "cases": [
+  {
+   "why": "a regular verb",
+   "entry": {
+    "headword": "hablar",
+    "translit": "",
+    "ipa": "/aˈblaɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to talk; to speak; to communicate using words\nto speak (a language)\nto talk or speak regularly with someone, sometimes online",
+    "sense_tags": "obj::con<with> + :de/:sobre<about> + :en<in (a language)> + dat<person spoken to> + acc<what is said>\ntransitive\ninformal,reflexive,obj::con<with>",
+    "head": ""
+   },
+   "forms": [
+    [
+     "hablar",
+     "",
+     ""
+    ],
+    [
+     "hablo",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "hablé",
+     "first-person preterite singular",
+     ""
+    ],
+    [
+     "hablado",
+     "participle past",
+     ""
+    ],
+    [
+     "habla",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "hablaba",
+     "first-person imperfect indicative singular",
+     ""
+    ],
+    [
+     "hablaba",
+     "imperfect indicative singular third-person",
+     ""
+    ],
+    [
+     "habló",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "hablaré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "hablará",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "habla",
+     "indicative, present, singular, third-person",
+     ""
+    ],
+    [
+     "hablado",
+     "participle, past",
+     ""
+    ],
+    [
+     "hablo",
+     "first-person, indicative, present, singular",
+     ""
+    ],
+    [
+     "hablaba",
+     "first-person, imperfect, indicative, singular, third-person",
+     ""
+    ],
+    [
+     "hablé",
+     "first-person, indicative, preterite, singular",
+     ""
+    ],
+    [
+     "habló",
+     "indicative, preterite, singular, third-person",
+     ""
+    ],
+    [
+     "hablaré",
+     "first-person, future, indicative, singular",
+     ""
+    ],
+    [
+     "hablará",
+     "future, indicative, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "Hablaba",
+   "text": "Hablaba con su madre.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{hablar}{}{hablo}{}{habló}{}{to talk}",
+    "plain": "hablar · pres. hablo · pret. habló · to talk",
+    "line": "pres. hablo · pret. habló",
+    "complete": true,
+    "missing": [],
+    "here": "Hablaba (hablar · pres. hablo · pret. habló · to talk)"
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "irregular: p.p. and future both printed; its reflexive table (me hago, se hizo) must not leak into the plain verb",
+   "entry": {
+    "headword": "hacer",
+    "translit": "",
+    "ipa": "/aˈθeɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to do, perform, execute, carry out\nForms ad hoc verbs from borrowed nouns.\nto make\nto create, to build, to bring forth\nto write, to compose\nto prepare (food)\nin various expressions about the weather\nto release, to excrete\nto prep, adorn, do (a body part)\nto make, to cause to be\nto make, to cause to\nto play (a character)\nto become; to get\nused with time\nto pretend being, play\nto move (over), scoot (over)\nto get used to (chiefly in idioms)",
+    "sense_tags": "transitive\ntransitive\ntransitive\ntransitive\ntransitive\ntransitive\nidiomatic,impersonal,transitive\ntransitive\ntransitive\ntransitive\ntransitive\nambitransitive\nditransitive,reflexive\nditransitive,impersonal,reflexive\nambitransitive,reflexive\nreflexive,obj::para<direction>\nintransitive,reflexive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "hacer",
+     "",
+     ""
+    ],
+    [
+     "hago",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "hice",
+     "first-person preterite singular",
+     ""
+    ],
+    [
+     "hecho",
+     "participle past",
+     ""
+    ],
+    [
+     "hace",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "hiciste",
+     "indicative preterite second-person singular",
+     ""
+    ],
+    [
+     "hizo",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "haré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "hará",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "me hago",
+     "first-person indicative present singular",
+     ""
+    ],
+    [
+     "se hace",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "me hice",
+     "first-person indicative preterite singular",
+     ""
+    ],
+    [
+     "se hizo",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "me haré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "se hará",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "hecho",
+     "participle, past",
+     ""
+    ],
+    [
+     "hizo",
+     "indicative, preterite, singular, third-person",
+     ""
+    ],
+    [
+     "hice",
+     "first-person, indicative, preterite, singular",
+     ""
+    ],
+    [
+     "hago",
+     "first-person, indicative, present, singular",
+     ""
+    ],
+    [
+     "hace",
+     "indicative, present, singular, third-person",
+     ""
+    ],
+    [
+     "hiciste",
+     "indicative, preterite, second-person, singular",
+     ""
+    ],
+    [
+     "haré",
+     "first-person, future, indicative, singular",
+     ""
+    ],
+    [
+     "hará",
+     "future, indicative, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "hiciste",
+   "text": "¿Qué hiciste ayer?",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{hacer}{}{hago}{}{hizo}{}{to do, perform, execute, carry out (p.p. \\pw{hecho}; fut. \\pw{haré})}",
+    "plain": "hacer · pres. hago · pret. hizo · to do, perform, execute, carry out (p.p. hecho; fut. haré)",
+    "line": "pres. hago · pret. hizo · p.p. hecho · fut. haré",
+    "complete": true,
+    "missing": [],
+    "here": "hiciste (hacer · pres. hago · pret. hizo · to do, perform, execute, carry out (p.p. hecho; fut. haré))"
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "impersonal: the head line's 3sg present, never the table's lluevo",
+   "entry": {
+    "headword": "llover",
+    "translit": "",
+    "ipa": "/ʝoˈbeɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to rain",
+    "sense_tags": "impersonal,intransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "llover",
+     "",
+     ""
+    ],
+    [
+     "llueve",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "llovió",
+     "preterite singular third-person",
+     ""
+    ],
+    [
+     "llovido",
+     "participle past",
+     ""
+    ],
+    [
+     "lloverá",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "lluevo",
+     "first-person indicative present singular",
+     ""
+    ],
+    [
+     "lloví",
+     "first-person indicative preterite singular",
+     ""
+    ],
+    [
+     "lloveré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "lloverá",
+     "future, indicative, singular, third-person",
+     ""
+    ],
+    [
+     "lloveré",
+     "first-person, future, indicative, singular",
+     ""
+    ],
+    [
+     "llovido",
+     "participle, past",
+     ""
+    ],
+    [
+     "llovió",
+     "indicative, preterite, singular, third-person",
+     ""
+    ],
+    [
+     "lloví",
+     "first-person, indicative, preterite, singular",
+     ""
+    ],
+    [
+     "llueve",
+     "indicative, present, singular, third-person",
+     ""
+    ],
+    [
+     "lluevo",
+     "first-person, indicative, present, singular",
+     ""
+    ]
+   ],
+   "word": "Llovió",
+   "text": "Llovió toda la noche.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{llover}{}{llueve}{}{llovió}{}{to rain}",
+    "plain": "llover · pres. llueve · pret. llovió · to rain",
+    "line": "pres. llueve · pret. llovió",
+    "complete": true,
+    "missing": [],
+    "here": "Llovió (llover · pres. llueve · pret. llovió · to rain)"
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "haber without a subject: hay / hubo / fut. habrá and the hand-kept meaning",
+   "entry": {
+    "headword": "haber",
+    "translit": "",
+    "ipa": "/aˈbeɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to have; forms the perfect aspect\nto hold, to possess\nto exist; there be; “there is”, “there are” (hay); “there was”, “there were” (hubo/había)\nto have to\nto be necessary\nused to denote a past obligation",
+    "sense_tags": "auxiliary,obj:m&s&past&part\nobsolete\nimpersonal\ndated,formal,obj::de(inf)<do something>\nobj::que(inf)<to do something>\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "haber",
+     "",
+     ""
+    ],
+    [
+     "he",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "hube",
+     "first-person preterite singular",
+     ""
+    ],
+    [
+     "habido",
+     "participle past",
+     ""
+    ],
+    [
+     "ha",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "hay",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "había",
+     "first-person imperfect indicative singular",
+     ""
+    ],
+    [
+     "había",
+     "imperfect indicative singular third-person",
+     ""
+    ],
+    [
+     "hubo",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "habré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "habrá",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "me he",
+     "first-person indicative present singular",
+     ""
+    ],
+    [
+     "se ha",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "se hay",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "me hube",
+     "first-person indicative preterite singular",
+     ""
+    ],
+    [
+     "se hubo",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "me habré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "se habrá",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "he",
+     "first-person, indicative, present, singular",
+     ""
+    ],
+    [
+     "hay",
+     "impersonal, indicative, present, singular, third-person",
+     ""
+    ],
+    [
+     "ha",
+     "indicative, present, singular, third-person",
+     ""
+    ],
+    [
+     "hube",
+     "first-person, indicative, preterite, singular",
+     ""
+    ],
+    [
+     "hubo",
+     "indicative, preterite, singular, third-person",
+     ""
+    ],
+    [
+     "había",
+     "first-person, imperfect, indicative, singular, third-person",
+     ""
+    ],
+    [
+     "habido",
+     "participle, past",
+     ""
+    ],
+    [
+     "habrá",
+     "future, indicative, singular, third-person",
+     ""
+    ],
+    [
+     "habré",
+     "first-person, future, indicative, singular",
+     ""
+    ]
+   ],
+   "word": "Había",
+   "text": "Había una vez un panadero",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{haber}{}{hay}{}{hubo}{}{there to be (fut. \\pw{habrá})}",
+    "plain": "haber · pres. hay · pret. hubo · there to be (fut. habrá)",
+    "line": "pres. hay · pret. hubo · fut. habrá",
+    "complete": true,
+    "missing": [],
+    "here": "Había (haber · pres. hay · pret. hubo · there to be (fut. habrá))"
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "pronominal from the chunk: me + 1sg is certain, so irse, complete",
+   "entry": {
+    "headword": "ir",
+    "translit": "",
+    "ipa": "/ˈiɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to go (away from speaker and listener)\nto be suitable or apt for its purpose, to match or suit well (of clothing)\nto head towards or lead to a place away from the speaker\nto extend in time or space, from one point to another\nto play\nto approach or consider (something) from a specific angle, or to direct attention towards a particular goal\ndenotes an ongoing action with a sense of progression or movement through space or time; to go on (doing something), to carry on, to keep on\nan action or process is beginning to occur or unfold; to grow (dark), get (cloudy)\nused ironically with certain adjectives or passive participles\nused with the past participle of reflexive verbs to indicate being in a state caused by the verb\nwhether something works or not\nto look, to be dressed\nto go away, to leave, to depart, to go (when the destination is not essential; when something or someone is going somewhere else)\nto leak out (with liquids and gasses), to boil away, to go flat (gas in drinks)\nto overflow\nto go out (lights)\nto finish, to wear out, to disappear (e.g. money, paint, pains, mechanical parts)\nto die\nto break wind, to fart\nto wet/soil oneself (i.e., urinate or defecate in one's pants)\nto come, to cum, to ejaculate, to orgasm",
+    "sense_tags": "intransitive\nintransitive\nintransitive\nintransitive\nintransitive\nintransitive\nintransitive\nintransitive\ncolloquial,intransitive\nauxiliary\n\n\nreflexive\nreflexive\nreflexive\nreflexive\nreflexive\nreflexive\ninformal,reflexive\ninformal,reflexive\nreflexive,vulgar",
+    "head": ""
+   },
+   "forms": [
+    [
+     "ir",
+     "",
+     ""
+    ],
+    [
+     "voy",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "fui",
+     "first-person preterite singular",
+     ""
+    ],
+    [
+     "ido",
+     "participle past",
+     ""
+    ],
+    [
+     "va",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "fue",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "iré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "irá",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "me voy",
+     "first-person indicative present singular",
+     ""
+    ],
+    [
+     "se va",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "me fui",
+     "first-person indicative preterite singular",
+     ""
+    ],
+    [
+     "se fue",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "me iré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "se irá",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "ido",
+     "participle, past",
+     ""
+    ],
+    [
+     "va",
+     "indicative, present, singular, third-person",
+     ""
+    ],
+    [
+     "fui",
+     "first-person, indicative, preterite, singular",
+     ""
+    ],
+    [
+     "voy",
+     "first-person, indicative, present, singular",
+     ""
+    ],
+    [
+     "irá",
+     "future, indicative, singular, third-person",
+     ""
+    ],
+    [
+     "fue",
+     "indicative, preterite, singular, third-person",
+     ""
+    ],
+    [
+     "iré",
+     "first-person, future, indicative, singular",
+     ""
+    ]
+   ],
+   "word": "voy",
+   "text": "me voy a casa",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{irse}{}{me voy}{}{se fue}{}{to go away, to leave, to depart, to go}",
+    "plain": "irse · pres. me voy · pret. se fue · to go away, to leave, to depart, to go",
+    "line": "pres. me voy · pret. se fue",
+    "complete": true,
+    "missing": [],
+    "here": "voy (irse · pres. me voy · pret. se fue · to go away, to leave, to depart, to go)"
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "pronominal from se: irse, but se may be passive -- incomplete, and the button says so",
+   "entry": {
+    "headword": "ir",
+    "translit": "",
+    "ipa": "/ˈiɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to go (away from speaker and listener)\nto be suitable or apt for its purpose, to match or suit well (of clothing)\nto head towards or lead to a place away from the speaker\nto extend in time or space, from one point to another\nto play\nto approach or consider (something) from a specific angle, or to direct attention towards a particular goal\ndenotes an ongoing action with a sense of progression or movement through space or time; to go on (doing something), to carry on, to keep on\nan action or process is beginning to occur or unfold; to grow (dark), get (cloudy)\nused ironically with certain adjectives or passive participles\nused with the past participle of reflexive verbs to indicate being in a state caused by the verb\nwhether something works or not\nto look, to be dressed\nto go away, to leave, to depart, to go (when the destination is not essential; when something or someone is going somewhere else)\nto leak out (with liquids and gasses), to boil away, to go flat (gas in drinks)\nto overflow\nto go out (lights)\nto finish, to wear out, to disappear (e.g. money, paint, pains, mechanical parts)\nto die\nto break wind, to fart\nto wet/soil oneself (i.e., urinate or defecate in one's pants)\nto come, to cum, to ejaculate, to orgasm",
+    "sense_tags": "intransitive\nintransitive\nintransitive\nintransitive\nintransitive\nintransitive\nintransitive\nintransitive\ncolloquial,intransitive\nauxiliary\n\n\nreflexive\nreflexive\nreflexive\nreflexive\nreflexive\nreflexive\ninformal,reflexive\ninformal,reflexive\nreflexive,vulgar",
+    "head": ""
+   },
+   "forms": [
+    [
+     "ir",
+     "",
+     ""
+    ],
+    [
+     "voy",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "fui",
+     "first-person preterite singular",
+     ""
+    ],
+    [
+     "ido",
+     "participle past",
+     ""
+    ],
+    [
+     "va",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "fue",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "iré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "irá",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "me voy",
+     "first-person indicative present singular",
+     ""
+    ],
+    [
+     "se va",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "me fui",
+     "first-person indicative preterite singular",
+     ""
+    ],
+    [
+     "se fue",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "me iré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "se irá",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "ido",
+     "participle, past",
+     ""
+    ],
+    [
+     "va",
+     "indicative, present, singular, third-person",
+     ""
+    ],
+    [
+     "fui",
+     "first-person, indicative, preterite, singular",
+     ""
+    ],
+    [
+     "voy",
+     "first-person, indicative, present, singular",
+     ""
+    ],
+    [
+     "irá",
+     "future, indicative, singular, third-person",
+     ""
+    ],
+    [
+     "fue",
+     "indicative, preterite, singular, third-person",
+     ""
+    ],
+    [
+     "iré",
+     "first-person, future, indicative, singular",
+     ""
+    ]
+   ],
+   "word": "fue",
+   "text": "Tom se fue de aquí",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{irse}{}{me voy}{}{se fue}{}{to go away, to leave, to depart, to go}",
+    "plain": "irse · pres. me voy · pret. se fue · to go away, to leave, to depart, to go",
+    "line": "pres. me voy · pret. se fue",
+    "complete": false,
+    "missing": [
+     "whether it is irse here (se may be passive or impersonal)"
+    ],
+    "here": "fue (irse · pres. me voy · pret. se fue · to go away, to leave, to depart, to go)"
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "defective verb: no 1st sg. present in the source, so incomplete",
+   "entry": {
+    "headword": "manir",
+    "translit": "",
+    "ipa": "/maˈniɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to stay, remain, abide\nto hang (meat)",
+    "sense_tags": "intransitive,obsolete\ntransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "manir",
+     "",
+     ""
+    ],
+    [
+     "maní",
+     "first-person preterite singular",
+     ""
+    ],
+    [
+     "manido",
+     "participle past",
+     ""
+    ],
+    [
+     "manió",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "maniré",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "manirá",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "maní",
+     "first-person, indicative, preterite, singular",
+     ""
+    ],
+    [
+     "manido",
+     "participle, past",
+     ""
+    ],
+    [
+     "maniré",
+     "first-person, future, indicative, singular",
+     ""
+    ],
+    [
+     "manirá",
+     "future, indicative, singular, third-person",
+     ""
+    ],
+    [
+     "manió",
+     "indicative, preterite, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "manió",
+   "text": "manió la carne",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{manir}{}{}{}{manió}{}{to hang (meat)}",
+    "plain": "manir · pret. manió · to hang (meat)",
+    "line": "pret. manió",
+    "complete": false,
+    "missing": [
+     "1st sg. present"
+    ],
+    "here": "manió (manir · pret. manió · to hang (meat))"
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "never-gloss word spelling a verb (para): no \\vb at all",
+   "entry": {
+    "headword": "parar",
+    "translit": "",
+    "ipa": "/paˈɾaɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to stop, halt\nto stand up\nto put something in a vertical position\nto put someone in a vertical position\nto get up (from bed)\nto become erect (in the sense of upright)\n(of one's penis) to become erect\nsee pararlas\nto tend to do or to be (followed by a gerund)",
+    "sense_tags": "intransitive,transitive\nCaribbean,Central-America,Chile,Colombia,Mexico,Rioplatense,Venezuela,intransitive\nCaribbean,Chile,Colombia,Costa-Rica,Guatemala,Mexico,Panama,Paraguay,Rioplatense,Venezuela,transitive\nBolivia,Chile,Colombia,Costa-Rica,Cuba,Dominican-Republic,Ecuador,Guatemala,Mexico,Nicaragua,Paraguay,Rioplatense,Venezuela,transitive\nBolivia,Colombia,Cuba,Dominican-Republic,Guatemala,Mexico,Nicaragua,Panama,Peru,Venezuela,reflexive\nreflexive\nCaribbean,Central-America,Mexico,South-America,reflexive,vulgar\nChile\nPeru,colloquial",
+    "head": ""
+   },
+   "forms": [
+    [
+     "parar",
+     "",
+     ""
+    ],
+    [
+     "paro",
+     "first-person present singular",
+     ""
+    ],
+    [
+     "paré",
+     "first-person preterite singular",
+     ""
+    ],
+    [
+     "parado",
+     "participle past",
+     ""
+    ],
+    [
+     "para",
+     "indicative present singular third-person",
+     ""
+    ],
+    [
+     "paró",
+     "indicative preterite singular third-person",
+     ""
+    ],
+    [
+     "pararé",
+     "first-person future indicative singular",
+     ""
+    ],
+    [
+     "parará",
+     "future indicative singular third-person",
+     ""
+    ],
+    [
+     "para",
+     "imperative informal second-person singular",
+     ""
+    ],
+    [
+     "pará",
+     "imperative informal second-person singular vos-form",
+     ""
+    ],
+    [
+     "para",
+     "indicative, present, singular, third-person",
+     ""
+    ],
+    [
+     "para",
+     "imperative, second-person, singular",
+     ""
+    ],
+    [
+     "paro",
+     "first-person, indicative, present, singular",
+     ""
+    ],
+    [
+     "parado",
+     "participle, past",
+     ""
+    ],
+    [
+     "paré",
+     "first-person, indicative, preterite, singular",
+     ""
+    ],
+    [
+     "paró",
+     "indicative, preterite, singular, third-person",
+     ""
+    ],
+    [
+     "pararé",
+     "first-person, future, indicative, singular",
+     ""
+    ],
+    [
+     "parará",
+     "future, indicative, singular, third-person",
+     ""
+    ],
+    [
+     "pará",
+     "imperative, second-person, singular, with-voseo",
+     ""
+    ]
+   ],
+   "word": "para",
+   "text": "para la casa",
+   "gloss": "en",
+   "expect": null,
+   "run": "lookup"
+  }
+ ]
+}

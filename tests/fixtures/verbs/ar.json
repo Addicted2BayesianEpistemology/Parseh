@@ -1,0 +1,500 @@
+{
+ "code": "ar",
+ "_how": "Each case is one entry: build a dictionary holding only it (lookup.create, the entry row, then its forms in the order given, rowids ascending), point lookup.DICT_DIR at it, run lookup.look_up('ar', text) and verbs.attach(result, 'ar', text, 'en'), and find the hit for `word`: its vb must equal `expect` (null: the hit must have no vb). texparse.voc_text(tex, 'ar') == plain for every one.",
+ "cases": [
+  {
+   "why": "regular form I, reached by its imperfect",
+   "entry": {
+    "headword": "كتب",
+    "translit": "kataba",
+    "ipa": "/ka.ta.ba/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to mark (symbols, shapes, graphs, glyphs, letters, and the like) on a surface, to write, to inscribe\nto draw (figures)\nto cut (figures)\nto produce or generate by writing\nto write up, to compose, to draw up, to draft\nto set down figures with a typewriter or a keyboard, to typewrite or keyboard, to type\nto put down in writing, to write down; to record; to register; to track\nto write down (an event, such as a destiny or a fatality); to destine or predestine; to foreordain\nto write down (an ordinance, a law, a commandment, or the like); to prescribe\nto bequeath",
+    "sense_tags": "transitive\ntransitive\ntransitive\ntransitive\ntransitive\ntransitive\ntransitive\ntransitive\ntransitive\ntransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "كتب",
+     "",
+     ""
+    ],
+    [
+     "كَتَبَ",
+     "canonical form-i",
+     ""
+    ],
+    [
+     "kataba",
+     "romanization",
+     ""
+    ],
+    [
+     "يَكْتُبُ",
+     "non-past",
+     "yaktubu"
+    ],
+    [
+     "كِتَابَة",
+     "noun-from-verb",
+     "kitāba"
+    ],
+    [
+     "كَتْب",
+     "noun-from-verb",
+     "katb"
+    ],
+    [
+     "كِتَاب",
+     "noun-from-verb",
+     "kitāb"
+    ],
+    [
+     "كَاتِب",
+     "active participle",
+     "kātib"
+    ]
+   ],
+   "word": "يَكْتُبُ",
+   "text": "يَكْتُبُ الوَلَدُ رِسَالَةً",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{كَتَبَ}{kataba (I)}{يَكْتُبُ}{yaktubu}{كِتَابَة}{kitāba}{to mark on a surface, to write, to inscribe}",
+    "plain": "كتب kataba (I) · impf. يكتب yaktubu · masdar كتابة kitāba · to mark on a surface, to write, to inscribe",
+    "line": "impf. يَكْتُبُ yaktubu · masdar كِتَابَة kitāba",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "hamzated and defective: raʾā, yarā, ruʾya -- the source's ʔ respelt",
+   "entry": {
+    "headword": "رأى",
+    "translit": "raʔā",
+    "ipa": "/ra.ʔaː/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to see (to perceive with the eyes)\nto see again in one's mind, to play back a memory, to look back on",
+    "sense_tags": "transitive\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "رأى",
+     "",
+     ""
+    ],
+    [
+     "رَأَى",
+     "canonical form-i",
+     ""
+    ],
+    [
+     "raʔā",
+     "romanization",
+     ""
+    ],
+    [
+     "يَرَى",
+     "non-past",
+     "yarā"
+    ],
+    [
+     "رُؤْيَة",
+     "noun-from-verb",
+     "ruʔya"
+    ],
+    [
+     "رَاءٍ",
+     "active participle",
+     "rāʔin"
+    ],
+    [
+     "أَرَى",
+     "active first-person imperfective indicative masculine non-past singular",
+     "ʔarā"
+    ],
+    [
+     "أَرَى",
+     "active feminine first-person imperfective indicative non-past singular",
+     "ʔarā"
+    ],
+    [
+     "أَرَى",
+     "active first-person masculine singular subjunctive",
+     "ʔarā"
+    ],
+    [
+     "أَرَى",
+     "active feminine first-person singular subjunctive",
+     "ʔarā"
+    ]
+   ],
+   "word": "أَرَى",
+   "text": "أَرَى البَيْتَ الكَبِيرَ",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{رَأَى}{raʾā (I)}{يَرَى}{yarā}{رُؤْيَة}{ruʾya}{to see (to perceive with the eyes)}",
+    "plain": "رأى raʾā (I) · impf. يرى yarā · masdar رؤية ruʾya · to see (to perceive with the eyes)",
+    "line": "impf. يَرَى yarā · masdar رُؤْيَة ruʾya",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "form IV, hollow: no hamza starts a word (ʔarāda -> arāda, ʔirāda -> irāda)",
+   "entry": {
+    "headword": "أراد",
+    "translit": "ʔarāda",
+    "ipa": "/ʔa.raː.da/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to want, will\nto be about to",
+    "sense_tags": "\nfiguratively",
+    "head": ""
+   },
+   "forms": [
+    [
+     "أراد",
+     "",
+     ""
+    ],
+    [
+     "أَرَادَ",
+     "canonical form-iv",
+     ""
+    ],
+    [
+     "ʔarāda",
+     "romanization",
+     ""
+    ],
+    [
+     "يُرِيدُ",
+     "non-past",
+     "yurīdu"
+    ],
+    [
+     "إِرَادَة",
+     "noun-from-verb",
+     "ʔirāda"
+    ],
+    [
+     "مُرِيد",
+     "active participle",
+     "murīd"
+    ],
+    [
+     "يُرِيدُونَ",
+     "active imperfective indicative masculine non-past plural third-person",
+     "yurīdūna"
+    ]
+   ],
+   "word": "يُرِيدُونَ",
+   "text": "يُرِيدُونَ السَّفَرَ",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{أَرَادَ}{arāda (IV)}{يُرِيدُ}{yurīdu}{إِرَادَة}{irāda}{to want, will}",
+    "plain": "أراد arāda (IV) · impf. يريد yurīdu · masdar إرادة irāda · to want, will",
+    "line": "impf. يُرِيدُ yurīdu · masdar إِرَادَة irāda",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "the governed preposition, from the sense's +obj tag; the first masdar the source lists (صِلَة, before وُصُول)",
+   "entry": {
+    "headword": "وصل",
+    "translit": "waṣala",
+    "ipa": "",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to arrive at; to reach\nto reach; to come to\nto reach; to amount to\nto enter\nto bring",
+    "sense_tags": "obj::إِلَى/acc<somewhere>\nobj:acc/:إِلَى<someone/something>\nobj:acc/:إِلَى<a specific quantity>\nobj::إِلَى<a phase>\nobj:acc/:إِلَى<someone> + :بِ<something>",
+    "head": ""
+   },
+   "forms": [
+    [
+     "وصل",
+     "",
+     ""
+    ],
+    [
+     "وَصَلَ",
+     "canonical form-i",
+     ""
+    ],
+    [
+     "waṣala",
+     "romanization",
+     ""
+    ],
+    [
+     "يَصِلُ",
+     "non-past",
+     "yaṣilu"
+    ],
+    [
+     "صِلَة",
+     "noun-from-verb",
+     "ṣila"
+    ],
+    [
+     "وُصُول",
+     "noun-from-verb",
+     "wuṣūl"
+    ],
+    [
+     "وَاصِل",
+     "active participle",
+     "wāṣil"
+    ],
+    [
+     "يَصِلْ",
+     "active jussive masculine singular third-person",
+     "yaṣil"
+    ]
+   ],
+   "word": "يَصِلْ",
+   "text": "لَمْ يَصِلْ إِلَيْهِ.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{وَصَلَ}{waṣala (I)}{يَصِلُ}{yaṣilu}{صِلَة}{ṣila}{to arrive at (+ \\pw{إِلَى})}",
+    "plain": "وصل waṣala (I) · impf. يصل yaṣilu · masdar صلة ṣila · to arrive at (+ إلى)",
+    "line": "impf. يَصِلُ yaṣilu · masdar صِلَة ṣila · + إِلَى",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "the +obj bracket written inside the gloss comes out of the meaning, and is the extra",
+   "entry": {
+    "headword": "خرج",
+    "translit": "ḵaraja",
+    "ipa": "/xa.ra.d͡ʒa/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to move [with مِنْ (min) ‘from inside’] (somewhere) to outside; to leave; to exit; to get out\nto go or come [with مِنْ (min) ‘out of’] somewhere physically or otherwise (depending on whether the view is from inside or outside); to go out or come out\nto go forth or come forth; to issue; to emerge\nto get\nto deviate\nto depart or drift away\nto march [with عَلَى (ʕalā) ‘against’], to take up arms against, to fight or rebel against",
+    "sense_tags": "intransitive,obj::مِنْ<from inside>\nintransitive,obj::مِنْ<out of>\nintransitive,obj::مِنْ<out of>\nintransitive,obj::مِنْ<out of an unwelcome or undesirable situation; a problem; and so on>\nintransitive,obj::عَنْ<from>\nintransitive,obj::عَنْ<from>,obj::عَنْ<from conventionality; orthodoxy; a religion; and so on>\nintransitive,obj::عَلَى<against>",
+    "head": ""
+   },
+   "forms": [
+    [
+     "خرج",
+     "",
+     ""
+    ],
+    [
+     "خَرَجَ",
+     "canonical form-i",
+     ""
+    ],
+    [
+     "ḵaraja",
+     "romanization",
+     ""
+    ],
+    [
+     "يَخْرُجُ",
+     "non-past",
+     "yaḵruju"
+    ],
+    [
+     "خُرُوج",
+     "noun-from-verb",
+     "ḵurūj"
+    ],
+    [
+     "خَارِج",
+     "active participle",
+     "ḵārij"
+    ]
+   ],
+   "word": "خَرَجَ",
+   "text": "خَرَجَ الثَّعْلَبُ",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{خَرَجَ}{ḫaraja (I)}{يَخْرُجُ}{yaḫruju}{خُرُوج}{ḫurūj}{to move (somewhere) to outside (+ \\pw{مِنْ})}",
+    "plain": "خرج ḫaraja (I) · impf. يخرج yaḫruju · masdar خروج ḫurūj · to move (somewhere) to outside (+ من)",
+    "line": "impf. يَخْرُجُ yaḫruju · masdar خُرُوج ḫurūj · + مِنْ",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "an entry of two heads (بَعُدَ / بَعِدَ): the vowelled word picks the second; a preposition written by hand in the gloss",
+   "entry": {
+    "headword": "بعد",
+    "translit": "baʕuda",
+    "ipa": "",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to be distant, afar, to become distant, go away (مِنْ (min) or عَنْ (ʕan) from)\nto die, to perish",
+    "sense_tags": "\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "بعد",
+     "",
+     ""
+    ],
+    [
+     "بَعُدَ",
+     "canonical form-i",
+     ""
+    ],
+    [
+     "baʕuda",
+     "romanization",
+     ""
+    ],
+    [
+     "يَبْعُدُ",
+     "non-past",
+     "yabʕudu"
+    ],
+    [
+     "بُعْد",
+     "noun-from-verb",
+     "buʕd"
+    ],
+    [
+     "بَعِدَ",
+     "canonical form-i",
+     ""
+    ],
+    [
+     "baʕida",
+     "romanization",
+     ""
+    ],
+    [
+     "يَبْعَدُ",
+     "non-past",
+     "yabʕadu"
+    ],
+    [
+     "بَعَد",
+     "noun-from-verb",
+     "baʕad"
+    ],
+    [
+     "بَعِيد",
+     "active participle",
+     "baʕīd"
+    ]
+   ],
+   "word": "يَبْعَدُ",
+   "text": "يَبْعَدُ عَنِ البَيْتِ",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{بَعِدَ}{baʿida (I)}{يَبْعَدُ}{yabʿadu}{بَعَد}{baʿad}{to be distant, afar, to become distant, go away (+ \\pw{مِنْ}/\\pw{عَنْ})}",
+    "plain": "بعد baʿida (I) · impf. يبعد yabʿadu · masdar بعد baʿad · to be distant, afar, to become distant, go away (+ من/عن)",
+    "line": "impf. يَبْعَدُ yabʿadu · masdar بَعَد baʿad · + مِنْ/عَنْ",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "a verb with no imperfect and no form: لَيْسَ is a \\dw, so no vb",
+   "entry": {
+    "headword": "ليس",
+    "translit": "laysa",
+    "ipa": "/laj.sa/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "not to be\nexcept",
+    "sense_tags": "copulative,defective\nrare",
+    "head": ""
+   },
+   "forms": [
+    [
+     "ليس",
+     "",
+     ""
+    ],
+    [
+     "لَيْسَ",
+     "canonical",
+     ""
+    ],
+    [
+     "laysa",
+     "romanization",
+     ""
+    ],
+    [
+     "لَسْتُ",
+     "active first-person indicative masculine past perfective singular",
+     "lastu"
+    ]
+   ],
+   "word": "لَيْسَ",
+   "text": "لَيْسَ هُنَا",
+   "gloss": "en",
+   "expect": null,
+   "run": "lookup"
+  },
+  {
+   "why": "the source does not know the masdar (verbal noun ?): the pair is blank and named",
+   "entry": {
+    "headword": "بن",
+    "translit": "banna",
+    "ipa": "",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to stop over or have a stay",
+    "sense_tags": "obsolete,uncountable,usually,obj::بِ",
+    "head": ""
+   },
+   "forms": [
+    [
+     "بن",
+     "",
+     ""
+    ],
+    [
+     "بَنَّ",
+     "canonical form-i",
+     ""
+    ],
+    [
+     "banna",
+     "romanization",
+     ""
+    ],
+    [
+     "يَبِنُّ",
+     "non-past",
+     "yabinnu"
+    ],
+    [
+     "بَانّ",
+     "active participle",
+     "bānn"
+    ]
+   ],
+   "word": "بَنَّ",
+   "text": "بَنَّ بِالمَكَانِ",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{بَنَّ}{banna (I)}{يَبِنُّ}{yabinnu}{}{}{to stop over or have a stay (+ \\pw{بِ})}",
+    "plain": "بن banna (I) · impf. يبن yabinnu · to stop over or have a stay (+ ب)",
+    "line": "impf. يَبِنُّ yabinnu · + بِ",
+    "complete": false,
+    "missing": [
+     "masdar"
+    ]
+   },
+   "run": "lookup"
+  }
+ ]
+}

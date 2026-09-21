@@ -1,0 +1,9 @@
+{
+  "_comment": "How this language's phrases hold together, for lib/chunker.py. Optional, like every file of this name.",
+  "np_head": "initial",
+  "adposition": "before",
+  "_why": "French usually puts the adjective after the noun (la maison blanche) and its prepositions before it (dans la maison). The short adjectives that come first (grand, petit, bon) are the exception, as in Italian.",
+  "bind_forward": [],
+  "min": 2,
+  "max": 5
+}

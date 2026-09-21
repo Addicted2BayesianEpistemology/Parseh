@@ -1,0 +1,25 @@
+{
+  "_comment": "How Japanese words are cut out of a chunk, for lib/words.py. SudachiPy's morphemes are SHORT units -- お|じい|さん, 住ん|で|い|まし|た -- and the split modes do not change that for inflection, so the morphemes are merged here by part of speech into the unit a learner looks up and marks known. Measured on the mini-ja fixture: the merged words were the editor's own vocabulary headwords 26 times in 32, the rest being honest judgement calls (していると against と alone, 大切に against 大切) -- which is why every cut is a proposal the word strip edits.",
+
+  "analyzer": "sudachipy",
+  "split_mode": "C",
+  "_split_mode": "C keeps a compound noun whole (選挙管理委員会), which is the headword a reader looks for; A and B only cut it finer and never touch a verb's inflection.",
+
+  "attach_forward": ["接頭辞"],
+  "_attach_forward": "A prefix belongs to what follows it: お|母さん is one word.",
+
+  "attach_back": ["接尾辞"],
+  "_attach_back": "A suffix belongs to what precedes it: お婆|さん, 学生|たち.",
+
+  "inflected": ["動詞", "形容詞", "助動詞", "形状詞"],
+  "_inflected": "The heads an inflection tail may attach to. A tail after anything else starts a word of its own: 天気|です, は|良い -- without this rule both came out glued (はよい, てんきです).",
+
+  "tail": [["助動詞", "*"], ["助詞", "接続助詞"], ["*", "非自立可能"]],
+  "_tail": "[part of speech, subtype] pairs that continue an inflected word, * matching anything: the auxiliaries (住んでいまし|た), the conjunctive particle て/で (住ん|で), and the dependent verbs and adjectives (て|いる, たく|なかっ). So 住んでいました and 食べたくなかった are one word each, and their readings are the readings of their parts run together.",
+
+  "reading": "hiragana",
+  "_reading": "Sudachi's reading_form is katakana, and docs/lang/ja.md writes readings in hiragana, particles and long vowels as written -- which reading_form already does (は stays は). Only a word holding a kanji is given a reading: a kana word needs no ruby, and a katakana word read back as hiragana (テレビ as てれび) would be wrong.",
+
+  "oov_reading": false,
+  "_oov_reading": "An out-of-vocabulary token's reading is invented -- 2024 comes back ニレイニシ, 15 as イチゴ -- so none is proposed for it."
+}

@@ -1,0 +1,13 @@
+{
+  "_comment": "How Chinese words are cut out of a chunk, for lib/words.py. spacy-pkuseg cuts (the maintained pkuseg: the original stopped at Python 3.8), and pypinyin reads each word. Both are proposals the word strip edits: a single-character word takes its commonest reading, and 很长 comes back zhǎng where it is cháng.",
+
+  "analyzer": "spacy_pkuseg",
+  "model": "spacy_ontonotes",
+  "_analyzer": "spacy-pkuseg DROPS WHITESPACE from what it cuts -- 我 爱 北京 comes back 我|爱|北京 and no longer rejoins the text -- so lib/words.py hands it only the runs between whitespace and never the whitespace itself.",
+
+  "reading": "pinyin",
+  "_reading": "Tone marks, the syllables of one word written together (běijīng), as docs/lang/zh.md writes tr. pypinyin is asked for the whole word list of a chunk in one call, so its phrase dictionary reads 银行 yínháng and 还给 huángěi where a character at a time would not.",
+
+  "tone_change": ["一", "不"],
+  "_tone_change": "docs/lang/zh.md writes the tone sentences say for these two and no other: 不 before a fourth tone is bú; 一 before a fourth tone is yí and before any other tone yì, but stays yī where it counts (第一, 一二三) or ends the phrase. Every other tone is written as the word has it, sandhi or not."
+}

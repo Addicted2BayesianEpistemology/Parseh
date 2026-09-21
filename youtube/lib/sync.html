@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sync with Anki &mdash; __APP__</title>
+<link rel="stylesheet" href="/lib/parseh.css">
+<link rel="stylesheet" href="__BASE__/lib/style.css">
+<script src="/lib/parseh.js"></script>
+</head><body class="index wizard">
+<div class="parseh-bar">
+  <a class="home" href="/" title="the hub"><span class="glyph">&#x67E;</span>__APP__</a>
+  <span class="where">anki &rsaquo; sync</span>
+  <span class="sp"></span>
+  <button type="button" data-parseh-theme title="theme">&#9680;</button>
+  <button type="button" class="stop" data-parseh-stop title="stop the server">&#9211; stop</button>
+</div>
+<main>
+  <h1>Sync with Anki</h1>
+  <p class="sub">Bring the edits you made <i>inside Anki</i> home before you
+  export again &mdash; so re-importing adds your new cards without
+  overwriting anything you changed there.
+  <a class="crumb" href="__BASE__/">&lsaquo; back to the videos</a> &nbsp;
+  <a class="crumb" href="/">&lsaquo; the hub</a></p>
+
+  <!-- 1 --------------------------------------------------------------->
+  <section class="step" id="s1">
+    <div class="shead"><span class="num">1</span>
+      <h2>Export your deck from Anki</h2></div>
+    <div class="sbody">
+      <p>In Anki: <b>File &rarr; Export&hellip;</b></p>
+      <ul class="tips">
+        <li><b>Export format:</b> Anki Deck Package (<code>.apkg</code>)</li>
+        <li><b>Include:</b> the deck you study these cards in
+            (or <i>All Decks</i> &mdash; extra decks are simply ignored)</li>
+        <li><b>Include media</b> &mdash; tick it if you have cards with
+            screenshots or recordings, otherwise it does not matter</li>
+        <li>Scheduling makes no difference either way; it is never read</li>
+      </ul>
+      <p class="muted">Save it anywhere &mdash; your Desktop is fine. The next
+      step puts it where it belongs.</p>
+      <p class="muted"><b>Or a package built by __APP__</b> &mdash; the
+      <code>.apkg</code> the build button makes, from your other computer or
+      from someone else who made the cards with __APP__: drop it in the same
+      way. It cannot be <i>synced</i> (it says nothing about what Anki holds),
+      but it is brought in: a deck you do not have yet is created, a deck you
+      already have is given the cards it lacks, and either is then yours to
+      build and import into Anki.</p>
+      <button class="wbtn" data-done="1">I have the file &rarr;</button>
+    </div>
+  </section>
+
+  <!-- 2 --------------------------------------------------------------->
+  <section class="step" id="s2">
+    <div class="shead"><span class="num">2</span>
+      <h2>Drop it here</h2></div>
+    <div class="sbody">
+      <p>This is how the export gets into the folder: drop it below and it
+      is saved into <code>youtube/anki/inbox/</code> for you. Nothing is changed
+      yet.</p>
+      <div id="drop" tabindex="0" role="button">
+        <div class="dz-icon">&#8681;</div>
+        <div class="dz-main">Drop the <code>.apkg</code> here</div>
+        <div class="dz-sub">or click to choose it</div>
+        <input type="file" id="file" accept=".apkg" hidden>
+      </div>
+      <div id="upinfo" class="note" hidden></div>
+      <div id="recent" hidden>
+        <p class="muted" style="margin-top:14px">Already uploaded:</p>
+        <div id="recentlist"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 --------------------------------------------------------------->
+  <section class="step" id="s3">
+    <div class="shead"><span class="num">3</span>
+      <h2>See what would change</h2></div>
+    <div class="sbody">
+      <p>A dry run: it reads the export and compares it with the store,
+      <b>writing nothing</b>.</p>
+      <button class="wbtn" id="dry">Preview the changes</button>
+      <div id="dryout"></div>
+    </div>
+  </section>
+
+  <!-- 4 --------------------------------------------------------------->
+  <section class="step" id="s4">
+    <div class="shead"><span class="num">4</span>
+      <h2>Pull the edits in</h2></div>
+    <div class="sbody">
+      <p>This writes the changes above into the deck store. Your Anki
+      collection is not touched.</p>
+      <div id="delrow" hidden>
+        <label class="achk"><input type="checkbox" id="dodel" checked>
+          <span>also remove the <b id="delcount">0</b> card(s) you deleted
+          inside Anki &mdash; their files move to
+          <code>anki/&lt;deck&gt;/deleted/</code>, so this can be undone</span>
+        </label>
+      </div>
+      <button class="wbtn go" id="apply">Apply to the store</button>
+      <div id="applyout"></div>
+    </div>
+  </section>
+
+  <!-- 5 --------------------------------------------------------------->
+  <section class="step" id="s5">
+    <div class="shead"><span class="num">5</span>
+      <h2>Rebuild and import back</h2></div>
+    <div class="sbody">
+      <p>Now the store and Anki agree, so this import only adds what is new
+      here and disturbs nothing you edited there.</p>
+      <div id="builds"></div>
+      <ul class="tips" style="margin-top:14px">
+        <li>In Anki: <b>File &rarr; Import&hellip;</b> and pick the file you
+            just downloaded</li>
+        <li>Notes are matched by their identifier, so existing cards are
+            <b>updated in place</b> &mdash; your review history and due dates
+            are kept</li>
+      </ul>
+      <p class="done-note">That is the whole loop. Do it in this order every
+      time &mdash; sync first, export second &mdash; and the two can never
+      fight.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="idx">
+  Wizard for <code>youtube/lib/sync_apkg.py</code>; the same merge is available on
+  the command line. See <code>youtube/anki/README.md</code>.
+</footer>
+
+<script>
+var UP = null;            // the uploaded file name on the server
+var LAST = null;          // the last dry-run result
+
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c];
+  });
+}
+function open_(n) {
+  var s = $('s' + n);
+  s.classList.add('on');
+  s.classList.remove('locked');
+}
+function lock(n) { $('s' + n).classList.add('locked'); }
+function mark(n) { $('s' + n).classList.add('ok'); }
+
+// steps 3-5 stay shut until the one before them has happened
+[2, 3, 4, 5].forEach(lock);
+open_(1);
+
+document.querySelector('[data-done="1"]').onclick = function () {
+  mark(1); open_(2); $('drop').focus();
+  $('s2').scrollIntoView({behavior: 'smooth', block: 'center'});
+};
+
+/* ---- step 2: the upload ---- */
+var drop = $('drop'), fileInput = $('file');
+drop.onclick = function () { fileInput.click(); };
+drop.onkeydown = function (e) {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+};
+['dragenter', 'dragover'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) {
+    e.preventDefault(); drop.classList.add('over');
+  });
+});
+['dragleave', 'drop'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) {
+    e.preventDefault(); drop.classList.remove('over');
+  });
+});
+drop.addEventListener('drop', function (e) {
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) send(e.dataTransfer.files[0]);
+});
+fileInput.onchange = function () { if (fileInput.files[0]) send(fileInput.files[0]); };
+
+/* Each of the three requests below is on the activity list while it runs
+   (lib/activity.js, through parseh.js): a big export takes a while to go up
+   and longer to merge, and the hub says so too. */
+function working(label) {
+  return window.Parseh && Parseh.working ? Parseh.working(label)
+    : {url: function (u) { return u; }, end: function () {}};
+}
+function send(f) {
+  var info = $('upinfo');
+  info.hidden = false;
+  info.className = 'note busy';
+  info.textContent = 'Uploading ' + f.name + ' (' + fmtSize(f.size) + ')…';
+  var act = working('Uploading ' + f.name);
+  fetch(act.url('/anki/sync/upload?name=' + encodeURIComponent(f.name)),
+        {method: 'POST', body: f})
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      act.end(!!j.ok);
+      if (!j.ok) throw new Error(j.error || 'upload failed');
+      UP = j.file;
+      info.className = 'note good';
+      info.innerHTML = 'Saved as <code>' + esc(j.path) + '</code> (' +
+        fmtSize(j.bytes) + ').';
+      mark(2); open_(3); reset(3);
+      $('s3').scrollIntoView({behavior: 'smooth', block: 'center'});
+    })
+    .catch(function (e) {
+      act.end(false);
+      info.className = 'note bad';
+      info.textContent = String(e.message || e);
+    });
+}
+function fmtSize(n) {
+  return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB'
+       : n > 1024 ? Math.round(n / 1024) + ' kB' : n + ' bytes';
+}
+function reset(from) {
+  for (var i = from; i <= 5; i++) {
+    $('s' + i).classList.remove('ok');
+    if (i > from) lock(i);
+  }
+  $('dryout').innerHTML = ''; $('applyout').innerHTML = '';
+  $('builds').innerHTML = ''; LAST = null;
+  $('delrow').hidden = true; $('delcount').textContent = '0';
+}
+
+/* what already sits in the inbox, so a reload does not lose the upload */
+fetch('/anki/sync/inbox').then(function (r) { return r.json(); })
+  .then(function (j) {
+    if (!j.ok || !j.files.length) return;
+    $('recent').hidden = false;
+    $('recentlist').innerHTML = j.files.slice(0, 5).map(function (f) {
+      return '<button class="pick" data-f="' + esc(f.file) + '">' +
+        esc(f.file) + '<span>' + f.when + ' &middot; ' + fmtSize(f.bytes) +
+        '</span></button>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('.pick'), function (b) {
+      b.onclick = function () {
+        UP = b.dataset.f;
+        var info = $('upinfo');
+        info.hidden = false; info.className = 'note good';
+        info.innerHTML = 'Using <code>anki/inbox/' + esc(UP) + '</code>.';
+        mark(2); open_(3); reset(3);
+        $('s3').scrollIntoView({behavior: 'smooth', block: 'center'});
+      };
+    });
+  }).catch(function () {});
+
+/* ---- steps 3 & 4: preview, then apply ---- */
+$('dry').onclick = function () { run(true); };
+$('apply').onclick = function () {
+  var nd = $('delrow').hidden ? 0
+         : ($('dodel').checked ? parseInt($('delcount').textContent, 10) : 0);
+  if (!confirm('Write these changes into the deck store?' + (nd
+      ? '\n\n' + nd + ' card(s) you deleted in Anki will be removed here too'
+        + ' (recoverable: their files move to the deck\'s deleted/ folder).'
+      : ''))) return;
+  run(false);
+};
+
+function run(dry) {
+  var box = $(dry ? 'dryout' : 'applyout');
+  var btn = $(dry ? 'dry' : 'apply');
+  var forFile = UP;            // the answer must belong to THIS file
+  btn.disabled = true;
+  box.innerHTML = '<div class="note busy">' +
+    (dry ? 'Reading the export…' : 'Merging…') + '</div>';
+  var act = working(dry ? 'Reading the Anki export' : 'Merging the Anki export into the card store');
+  fetch(act.url('/anki/sync/run'), {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({file: UP, dry: dry,
+                          delete: !dry && $('dodel').checked
+                                  && !$('delrow').hidden
+                                  && !!LAST && LAST.file === UP})
+  }).then(function (r) { return r.json(); })
+    .then(function (j) {
+      act.end(!!j.ok);
+      btn.disabled = false;
+      if (forFile !== UP) return;      // a different file was picked meanwhile
+      if (!j.ok) throw new Error(j.error || 'failed');
+      box.innerHTML = render(j, dry);
+      wireBootstrap(box);
+      if (dry) {
+        j.file = forFile;                // whose preview this is
+        LAST = j;
+        mark(3);
+        var ndel = j.decks.reduce(function (a, d) {
+          return a + ((d.deleted || []).length); }, 0);
+        $('delrow').hidden = !ndel;
+        $('delcount').textContent = ndel;
+        var n = j.decks.reduce(function (a, d) { return a + d.changes; }, 0)
+              + ndel;
+        if (j.decks.length && !j.own_build) { open_(4); $('apply').textContent =
+          n ? 'Apply ' + n + ' change' + (n === 1 ? '' : 's') + ' to the store'
+            : 'Nothing to apply — the store already matches'; }
+        if (!n) $('apply').classList.add('quiet');
+        else $('apply').classList.remove('quiet');
+      } else {
+        mark(4); open_(5); buildLinks(j);
+        $('s5').scrollIntoView({behavior: 'smooth', block: 'center'});
+      }
+    })
+    .catch(function (e) {
+      act.end(false);
+      btn.disabled = false;
+      if (forFile !== UP) return;
+      box.innerHTML = '<div class="note bad">' + esc(e.message || e) + '</div>';
+    });
+}
+
+var GROUPS = [
+  ['updated',    'Updated from your Anki edits', 'good',
+   'These cards now say exactly what Anki says.'],
+  ['moved',      'Moved to another deck in Anki', 'good',
+   'Updated in the store deck that holds them.'],
+  ['new',        'New cards you made in Anki', 'good',
+   'Added to the store, so they survive the next rebuild.'],
+  ['reclaimed',  'Reclaimed', 'good',
+   'Back to plain content on a normal card type, so this project manages them again.'],
+  ['taken_over', 'Taken over by Anki (note type changed there)', 'warn',
+   'These now live in Anki alone and are left out of every future export — ' +
+   'which is exactly what you want after splitting a card’s two directions apart.'],
+  ['kept',       'Kept in Anki (formatting the store cannot hold)', 'warn',
+   'Bold, colour or extra HTML would be flattened by a rebuild, so these are ' +
+   'left to Anki too. Strip the formatting there and the next sync takes them back.'],
+  ['new_owned',  'New notes of another type', 'warn',
+   'Mirrored for the record and left out of exports — Anki owns them.']
+];
+
+function render(j, dry) {
+  var h = '';
+  if (j.own_build) {
+    // a package this toolbox built: never synced, but brought in
+    h += '<div class="note warn"><b>A package built by __APP__</b> (deck ' +
+      '<code>' + esc(j.own_build) + '</code>), not an export from Anki. It says ' +
+      'nothing about what Anki holds, so there is nothing to sync &mdash; but it ' +
+      'can be brought in:</div>';
+    j.unmatched.forEach(function (u) {
+      h += '<div class="note"><b>' + esc(u.name) + '</b> is not in the store ' +
+        'yet (' + u.notes + ' card' + (u.notes === 1 ? '' : 's') + ').' +
+        '<div style="margin-top:10px"><button class="wbtn small boot" ' +
+        'data-did="' + esc(u.id) + '">Bring this deck in</button></div></div>';
+    });
+    (j.held || []).forEach(function (d) {
+      h += '<div class="note"><b>' + esc(d.name) + '</b> is already in the ' +
+        'store as <code>' + esc(d.path || d.slug) + '</code> (' +
+        esc(d.language || '') + '): ' +
+        (d.new
+          ? d.new + ' of its ' + d.notes + ' cards ' + (d.new === 1 ? 'is' : 'are') +
+            ' not here yet.<div style="margin-top:10px"><button class="wbtn small boot" ' +
+            'data-did="' + esc(d.id) + '" data-merge="1">Add the ' + d.new +
+            ' new card' + (d.new === 1 ? '' : 's') + '</button></div>'
+          : 'nothing in it is new here.') + '</div>';
+    });
+    if (j.unmatched.length > 1) h += allButton(j.unmatched);
+    if (!j.unmatched.length && !(j.held || []).length)
+      h += '<div class="note bad">No cards of this toolbox\'s note types in it.</div>';
+    return h;
+  }
+  if (!j.decks.length && !j.unmatched.length)
+    return '<div class="note bad">No decks in that file.</div>';
+
+  (j.notetypes || []).forEach(function (nt) {
+    h += '<div class="note good"><b>Card appearance &mdash; ' + esc(nt.name) +
+      ':</b> ' + esc(nt.what) + (dry ? ' would be taken' : ' taken') +
+      ' from your collection. Styling and templates live in the note type, ' +
+      'not in the cards, so this is what stops a rebuild from overwriting ' +
+      'the look you set inside Anki.</div>';
+  });
+
+  j.unmatched.forEach(function (u) {
+    h += '<div class="note warn"><b>' + esc(u.name) + '</b> is not in the ' +
+      'store yet (' + u.notes + ' note' + (u.notes === 1 ? '' : 's') + '). ' +
+      'Syncing only updates decks the store already holds.' +
+      '<div style="margin-top:10px"><button class="wbtn small boot" ' +
+      'data-did="' + esc(u.id) + '">' +
+      'Bring this deck in for the first time</button></div></div>';
+  });
+  if (j.unmatched.length > 1) h += allButton(j.unmatched);
+
+  j.decks.forEach(function (d) {
+    // a deck's name no longer says which deck it is: two languages may
+    // hold one of the same name, so the language is shown beside it
+    h += '<div class="deck"><div class="dname">' + esc(d.name) +
+      '<span class="slug">' + esc(d.path || d.slug) + '</span>' +
+      (d.language ? '<span class="slug lang">' + esc(d.language) + '</span>' : '') +
+      '</div>';
+    var gone0 = d.deleted || [];
+    if (!d.changes && !gone0.length) {
+      h += '<div class="note">Nothing to change &mdash; all ' + d.unchanged +
+        ' cards already match Anki.</div>';
+    } else {
+      h += '<div class="counts">' + d.unchanged + ' unchanged</div>';
+      GROUPS.forEach(function (g) {
+        var list = d[g[0]];
+        if (!list || !list.length) return;
+        h += '<div class="grp ' + g[2] + '"><div class="glab">' +
+          esc(g[1]) + ' <b>' + list.length + '</b></div>' +
+          '<div class="gwhy">' + g[3] + '</div>' +
+          '<div class="files">' + list.slice(0, 8).map(function (f) {
+            return '<code>' + esc(f) + '</code>';
+          }).join('') + (list.length > 8 ? '<span class="more">and ' +
+            (list.length - 8) + ' more</span>' : '') + '</div></div>';
+      });
+      if (d.media_updated.length)
+        h += '<div class="grp good"><div class="glab">Images and recordings edited in Anki ' +
+          '<b>' + d.media_updated.length + '</b></div><div class="gwhy">' +
+          'Their new versions were copied into the deck.</div></div>';
+    }
+    if (d.media_missing.length)
+      h += '<div class="grp bad"><div class="glab">Images and recordings not in this export ' +
+        '<b>' + d.media_missing.length + '</b></div><div class="gwhy">' +
+        'Re-export from Anki with <i>Include media</i> ticked, or these ' +
+        'pictures and recordings will go missing from the cards.</div><div class="files">' +
+        d.media_missing.map(function (f) { return '<code>' + esc(f) + '</code>'; })
+          .join('') + '</div></div>';
+    var gone = d.deleted || [], pend = d.pending_import || [];
+    if (gone.length) {
+      var done = gone.some(function (c) { return c.moved_to; });
+      h += '<div class="grp bad"><div class="glab">Deleted inside Anki ' +
+        '<b>' + gone.length + '</b></div><div class="gwhy">' +
+        (done
+          ? 'Removed from the deck here too. Their files moved to ' +
+            '<code>anki/' + esc(d.path || d.slug) + '/deleted/</code> — move one back ' +
+            'to undo.'
+          : 'Anki has held these before and no longer does, so you deleted ' +
+            'them there. Unless they are removed here too, the next import ' +
+            'puts them back.') +
+        '</div><div class="files">' + gone.slice(0, 12).map(function (c) {
+          return '<code title="' + esc(c.file) + '">' + esc(c.label) + '</code>';
+        }).join('') + (gone.length > 12 ? '<span class="more">and ' +
+          (gone.length - 12) + ' more</span>' : '') + '</div></div>';
+    }
+    if (pend.length) {
+      h += '<div class="grp"><div class="glab">Here, not in Anki yet ' +
+        '<b>' + pend.length + '</b></div><div class="gwhy">' +
+        'Made on these websites since your last import — Anki has never ' +
+        'seen them, so their absence means nothing. The import in step 5 ' +
+        'is what gives them to Anki. Nothing to do.</div>' +
+        '<div class="files">' + pend.slice(0, 10).map(function (c) {
+          return '<code title="' + esc(c.file) + '">' + esc(c.label) + '</code>';
+        }).join('') + (pend.length > 10 ? '<span class="more">and ' +
+          (pend.length - 10) + ' more</span>' : '') + '</div></div>';
+    }
+    h += '</div>';
+  });
+  if (dry) h += '<div class="note">Nothing has been written yet.</div>';
+  return h;
+}
+
+function allButton(list) {
+  var n = list.reduce(function (a, u) { return a + u.notes; }, 0);
+  return '<div class="note"><button class="wbtn small boot" data-did="' +
+    list.map(function (u) { return u.id; }).join(',') + '">Bring all ' +
+    list.length + ' decks in (' + n + ' notes)</button></div>';
+}
+
+function wireBootstrap(box) {
+  Array.prototype.forEach.call(box.querySelectorAll('.boot'), function (b) {
+    b.onclick = function () {
+      var merge = b.dataset.merge === '1';
+      b.disabled = true; b.textContent = merge ? 'Adding them…' : 'Bringing it in…';
+      var act = working('Bringing decks in from the Anki export');
+      fetch(act.url('/anki/sync/bootstrap'), {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({file: UP, merge: merge,
+                              dids: b.dataset.did.split(',').map(Number)})
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        act.end(!!j.ok);
+        if (!j.ok) throw new Error(j.error || 'failed');
+        var got = (j.decks || []).map(function (d) {
+          return esc(d.name) + ' (' + d.cards + ' card' + (d.cards === 1 ? '' : 's') + ')';
+        }).concat((j.merged || []).map(function (d) {
+          return d.added + ' new card' + (d.added === 1 ? '' : 's') + ' into ' + esc(d.name);
+        }));
+        var kept = (j.decks || []).concat(j.merged || []).reduce(function (a, d) {
+          return a + (d.kept || 0); }, 0);
+        var media = j.media || {copied: 0, missing: []};
+        b.outerHTML = '<span class="note good">' +
+          (got.length ? 'Brought in: ' + got.join(', ') + '.' : 'Nothing to bring in.') +
+          (media.copied ? ' ' + media.copied + ' image' + (media.copied === 1 ? '' : 's') +
+            ' or recording' + (media.copied === 1 ? '' : 's') + ' copied.' : '') +
+          (media.missing.length ? ' <b>Not in the package:</b> ' +
+            media.missing.map(function (f) { return '<code>' + esc(f) + '</code>'; }).join(' ')
+            : '') +
+          (kept ? ' ' + kept + ' note' + (kept === 1 ? '' : 's') + ' carr' + (kept === 1 ? 'ies' : 'y') +
+            ' formatting the store cannot hold and ' + (kept === 1 ? 'is' : 'are') +
+            ' kept in Anki: mirrored as Anki-owned, left out of every build, so a rebuild ' +
+            'never flattens ' + (kept === 1 ? 'it' : 'them') + '.' : '') +
+          (j.own_build
+            ? ' Build it below and import that into Anki; from then on, export from ' +
+              'Anki and sync as usual.'
+            : ' Preview again to sync it from now on.') + '</span>';
+        if (j.own_build) {
+          var decks = (j.decks || []).concat(j.merged || []);
+          if (decks.length) { mark(3); open_(5); buildLinks({decks: decks});
+            $('s5').scrollIntoView({behavior: 'smooth', block: 'center'}); }
+        }
+      }).catch(function (e) {
+        act.end(false);
+        b.disabled = false;
+        b.outerHTML = '<span class="note bad">' + esc(e.message || e) + '</span>';
+      });
+    };
+  });
+}
+
+function buildLinks(j) {
+  var h = j.decks.map(function (d) {
+    // <folder>/<slug>: the build URL names the language too, since two
+    // languages may hold a deck of the same name
+    var where = d.folder ? encodeURIComponent(d.folder) + '/' : '';
+    return '<a class="dl" href="/anki/build/' + where +
+      encodeURIComponent(d.slug) + '.apkg" download><b>Download ' +
+      esc(d.name) + '.apkg</b><span>rebuilt from the store' +
+      (d.language ? ' (' + esc(d.language) + ')' : '') +
+      ' &mdash; import this into Anki</span></a>';
+  }).join('');
+  $('builds').innerHTML = h || '<div class="note">No decks to rebuild.</div>';
+}
+</script>
+</body></html>

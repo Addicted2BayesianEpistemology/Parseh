@@ -1,0 +1,30 @@
+{
+ "id": "fr-vocab",
+ "guid": "fx-fr-vocab",
+ "kind": "vocab",
+ "lang": "fr",
+ "created": "2026-09-04 10:00:00",
+ "video": "fixture-fr",
+ "book": "",
+ "time": 0,
+ "context": "c'est notre maison",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "maison",
+ "kana": "",
+ "tr": "mèzõ",
+ "en": "house",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "french-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

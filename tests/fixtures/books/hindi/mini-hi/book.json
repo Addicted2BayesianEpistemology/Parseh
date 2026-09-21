@@ -1,0 +1,14 @@
+{
+  "slug": "mini-hi",
+  "language": "hi",
+  "title": "किसान की अँगूठी",
+  "title_latin": "Kisān kī aṁgūṭhī",
+  "title_en": "The Farmer's Ring",
+  "author": "एक कहानी",
+  "author_latin": "a tale",
+  "year": "",
+  "blurb": "A fixture for the tests: two short Hindi paragraphs, in Devanagari with the schwa dropped in the transliteration.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

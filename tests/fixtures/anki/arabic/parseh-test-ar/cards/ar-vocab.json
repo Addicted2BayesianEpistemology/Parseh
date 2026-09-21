@@ -1,0 +1,30 @@
+{
+ "id": "ar-vocab",
+ "guid": "fx-ar-vocab",
+ "kind": "vocab",
+ "lang": "ar",
+ "created": "2026-09-03 10:00:00",
+ "video": "fixture-ar",
+ "book": "",
+ "time": 0,
+ "context": "هذا بيتُنا",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "بَيْت",
+ "kana": "",
+ "tr": "bayt",
+ "en": "house",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "arabic-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

@@ -1,0 +1,20 @@
+{
+ "_comment": "How this language's pronunciation becomes its transliteration. Read by lib/translit.py; optional, like every file of this name. Hindi has no `map` on purpose: the source's own romanisation is the scheme docs/lang/hi.md uses, save for how it writes a nasal vowel and two letters, and from_ipa and lib/getdict.py _said stay exactly as they are.",
+ "roman": {
+  "map": {
+   "a͠i": "aiṁ",
+   "a͠u": "auṁ",
+   "ā̃": "āṁ",
+   "ī̃": "īṁ",
+   "ū̃": "ūṁ",
+   "ã": "aṁ",
+   "ĩ": "iṁ",
+   "ũ": "uṁ",
+   "ẽ": "eṁ",
+   "õ": "oṁ",
+   "ŕ": "ri",
+   "ṣ": "ś"
+  }
+ },
+ "_roman": "Wiktionary writes a nasal vowel with a tilde (हँसा hãsā, a͠i for the diphthong) where docs/lang/hi.md writes the candrabindu's ṁ after it (haṁsā), ŕ for ऋ where the edition writes ri, and ṣ for ष where it writes ś. Unfixed, the panel showed हँसा as hãsā and a video's `here` read 'हँसा hãsā (हँसना haṁsnā ...)', the \\vb inside respelt and the word before it not. The keys are NFC -- ā̃ is ā and a combining tilde, which NFC leaves as two -- and there are no drop_marks: dropping the tilde would lose the nasal. lib/verbs/hi.py applies the same map to its own slots, and applying both changes nothing twice."
+}

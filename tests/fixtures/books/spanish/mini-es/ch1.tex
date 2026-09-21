@@ -1,0 +1,66 @@
+% The transliteration line is EMPTY in every chunk below, and that is the
+% convention and not an unwritten field: lib/languages.json gives Spanish
+% require_tr false, because Spanish spelling already says the sound.  A line
+% under each chunk repeating the chunk would teach nothing, so the handful of
+% rules an English reader does not already know are put where they earn
+% their place -- in the vocabulary line, at the word they apply to.  They are
+% five: qu is k with the u silent (que, pequeño), ll is the y of yes (llegó),
+% ñ is the ny of canyon (mañana, niña, pequeño), h is silent everywhere
+% (Había), and a written accent marks the stressed syllable and nothing else
+% (más, cobró).
+%
+% \vb gives the infinitive, the first person present and the third person
+% preterite -- what the registry's vb_labels call pres. and pret. -- with the
+% meaning last, and in brackets after the meaning an irregular past
+% participle or future (abierto, saldré): docs/lang/es.md.  haber, which has no
+% subject to be the first person of, gives the third (hay).  The present was
+% the third person here once, sale where the conventions want salgo, which
+% threw away the one form the present subjunctive is built on.  Where the
+% form in the text is none of those three it is named beside the entry,
+% because the imperfect and the imperfect subjunctive are what this narration
+% is told in.  A noun's headword carries its gender, which is the one thing
+% about a Spanish noun the page cannot be read off: mano is feminine though
+% it ends in -o, and it is here.
+%
+% What this fixture exists to protect is the spelling: every á é í ó ú and
+% every ñ must come back out of the pipeline exactly as it went in, and the
+% chunks joined with single spaces must reproduce the paragraphs in source/
+% character for character.
+\chapopen{1}
+
+\parstart{1.1}{Había una vez un panadero que}
+\parnum{1.1}
+\begin{frank}
+\ch{}{Había una vez}{}{\vb{haber}{}{hay}{}{hubo}{}{there to be (fut. \pw{habrá})}, which never takes a subject, and so gives the third person where every other verb gives the first; \pw{había} there was, the imperfect; \dw{vez}{} time, occasion, f. — \pw{una vez} once, and \pw{había una vez} is the once upon a time of every Spanish tale; the h is silent}{once upon a time there was}
+\ch{}{un panadero}{}{\dw{panadero}{} baker, m., from \pw{pan} bread}{a baker}
+\ch{}{que vivía}{}{\pw{que} who, which, that — the one relative for all of them, and its qu is k with the u silent; \vb{vivir}{}{vivo}{}{vivió}{}{to live}, \pw{vivía} lived, the imperfect: what went on for a while rather than what happened once}{who lived}
+\ch{}{en un pueblo pequeño.}{}{\dw{pueblo}{} village, town, m., and also a people; \dw{pequeño}{} small — qu again k, and ñ the ny of canyon}{in a small village.}
+\end{frank}
+
+\parnum{1.2}
+\begin{frank}
+\ch{}{Cada mañana}{}{\dw{cada}{} each, every — invariable, with no plural and no feminine; \dw{mañana}{} morning, f., and by itself also tomorrow}{every morning}
+\ch{}{abría la puerta}{}{\vb{abrir}{}{abro}{}{abrió}{}{to open (p.p. \pw{abierto})}, and not the expected abrido; \pw{abría} he would open, the imperfect of habit; \dw{puerta}{} door, f.}{he would open the door}
+\ch{}{de su tienda}{}{\pw{de} of, from; \pw{su} his, her, their — one word for all three, agreeing with what is owned and never with the owner; \dw{tienda}{} shop, f.}{of his shop}
+\ch{}{antes de que saliera el sol.}{}{\pw{antes de que} before, and it takes the subjunctive every time; \vb{salir}{}{salgo}{}{salió}{}{to go out, and of the sun to rise (fut. \pw{saldré})}, \pw{saliera} the imperfect subjunctive, which is what \pw{antes de que} asks for in a past narration; \dw{sol}{} sun, m.}{before the sun rose.}
+\end{frank}
+
+\parend
+
+\parstart{1.2}{Una mañana llegó una niña con}
+\parnum{2.1}
+\begin{frank}
+\ch{}{Una mañana}{}{\pw{una} a, f., agreeing with \pw{mañana}}{one morning}
+\ch{}{llegó una niña}{}{\vb{llegar}{}{llego}{}{llegó}{}{to arrive}, the ll said like the y of yes; \dw{niña}{} girl, f., \pw{niño} boy}{a girl arrived}
+\ch{}{con una moneda}{}{\pw{con} with; \dw{moneda}{} coin, f., and also a currency}{with a coin}
+\ch{}{en la mano.}{}{\dw{mano}{} hand — feminine, though it ends in -o, which is the exception worth learning first}{in her hand.}
+\end{frank}
+
+\parnum{2.2}
+\begin{frank}
+\ch{}{El panadero le dio}{}{\vb{dar}{}{doy}{}{dio}{}{to give}, whose preterite carries no accent because it is one syllable; \pw{le} to him, to her — the indirect object stands in front of the verb}{the baker gave her}
+\ch{}{el pan más grande}{}{\dw{pan}{} bread, a loaf, m.; \pw{más} more, and \pw{más} before an adjective is the comparative — with \pw{el} in front of it, the superlative; \dw{grande}{} big, the same form for both genders}{the biggest loaf}
+\ch{}{y no le cobró nada.}{}{\pw{y} and; \vb{cobrar}{}{cobro}{}{cobró}{}{to charge, to be paid}; \pw{no … nada} nothing — Spanish wants both halves of the negative, where English wants one}{and charged her nothing.}
+\end{frank}
+
+\chapend

@@ -1,0 +1,147 @@
+% Turkish (Türkçe) -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define and
+% section 12 the ones it may, and the manual's "Adding a language" chapter
+% says in one line each what happens when one is missing.
+%
+% A Latin-script file like it.tex: no font of its own, no marks to strip, two
+% passes.  What is Turkish about it is the vocabulary line -- an agglutinative
+% word is a clause, so the gloss is a segmentation -- and the three verb forms
+% that segmentation needs, which is why the second label below is not the
+% default and the first, pres., does not mean the Persian present stem.
+
+% ---- the babel language and the switches ----------------------------------
+% \FrankLangName is what \foreignlanguage and \begin{otherlanguage} are given
+% everywhere in the core preamble: babel must know this name, or every passage
+% comes out in the roman with a "Unknown language" error.
+\newcommand{\FrankLangName}{turkish}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBarefalse       % Turkish spelling leaves nothing out, so pass 3 would repeat pass 1
+\FrankHasAltfalse        % one hand only: no nastaliq, no gothic
+\FrankHasReadingfalse    % the spelling is the reading
+\FrankHasVertfalse       % horizontal, like every Latin script
+
+% ---- fonts ------------------------------------------------------------------
+% No face is NAMED here: \FrankPickFont walks the registry's tex.main and then
+% tex.main_fallbacks and takes the first one installed, so the .tex and the
+% .json cannot drift apart (docs/languages.md section 12).  Turkish asks for
+% none of that -- tex.main is null, so the text is set in the roman the core
+% preamble already loaded (TeX Gyre Pagella, which has ı İ ğ ş and the dotted
+% capital), the same face as the glosses.  What import=tr is here for is the
+% Turkish locale: the case pairs, so that an \MakeUppercase anywhere in the
+% chrome gives i -> İ and I -> ı and not the English pair, and the hyphenation
+% patterns of hyph-tr, which install.sh --pdf installs (hyphen-turkish) and
+% checks.  A machine that skipped it makes babel say "Hyphen rules for
+% 'turkish' set to \l@english" as an Info and then break Turkish at English
+% points for the rest of the run -- biliy-ordu, gülümsedi whole and unbroken,
+% where the patterns give bi-li-yordu and gü-lüm-sedi.  Agglutination makes
+% Turkish the language this costs most: its words are long enough that nearly
+% every one of them reaches a line end sooner or later.
+\babelprovide[import=tr]{turkish}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{infinitive}{}{present in -iyor}{}{aorist}{}{meaning} -- the -mek/-mak
+% citation form, then the two forms a Turkish gloss cannot do without, both
+% in the bare third person singular.  The aorist is the one form the
+% infinitive does not predict -- gelir but bakar, alır but olur -- so it is
+% the Turkish counterpart of Persian's present stem.  The -iyor present is
+% the form a reader meets most, and the one where a verb is hardest to
+% recognise: demek gives diyor, yemek yiyor, aramak arıyor, oynamak oynuyor,
+% gitmek gidiyor.
+%
+% THE SECOND SLOT USED TO BE THE STEM, written as the endings "really attach"
+% to it -- gid-, ed-, tad- -- and that was wrong for half the paradigm: before
+% a consonant the stem is git- (gitti, gitmiş, the imperative git!), so a
+% reader told "stem gid-" built *gidti.  And the stem is the infinitive less
+% -mek/-mak in every other verb, so the slot taught nothing that the page did
+% not already print.  The -iyor present carries what it tried to carry (the
+% d of gidiyor) and the narrowing of de-, ye- and every a/e stem besides; the
+% t/d of gider was already in the aorist.
+%
+% All three sound slots stay empty: the spelling already says how each form
+% is said.  The one extra, in ONE parenthesis after the meaning and only
+% where the gloss-language verb would not lead the reader to it, is the case
+% the verb's complement takes: -e, -i, -den, -de, ile --
+%   \vb{bakmak}{}{bakıyor}{}{bakar}{}{to look at (-e)}
+% and the form the text actually has, segmented in \textit, still comes last
+% after a semicolon (docs/lang/tr.md).  That file names these same three in
+% this same order, and must be changed with these two lines.
+% The reader takes the same pair from the registry (lib/languages.json,
+% "vb_labels": ["pres.", "aor."], the three forms in words as "vb_forms"); the
+% two must agree, or the PDF and the reader of one book label the same form
+% differently.  lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{pres.}
+\newcommand{\FrankVbPast}{aor.}
+
+% ---- the two Lua filters ---------------------------------------------------
+% frank_strip(s): the bare form of a chunk -- what pass 3 shows.  Written from
+% the registry's `strip`; the identity when there is nothing to take off.
+% frank_latin(s): the label's digits as ASCII, because a PDF destination name
+% cannot carry the language's own figures.  Written from `digits`.
+% Both are the identity for Turkish: the alphabet writes every vowel it has,
+% so nothing is added for pass 1 to carry and dropped for pass 3, and the
+% figures are already 0-9.  They still have to exist -- the core calls them
+% for every language.  No #, % or literal backslash in a \directlua body: TeX
+% reads it first (NOTES section 9 of the Persian book).
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s) return s end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex, before the first chapter: the only
+% place the reader is told what the passes are for, and the only place the
+% hyphens of the vocabulary line are explained -- without that paragraph
+% ev-ler-imiz-den is a word with hyphens in it and nothing more.
+% \pw sets a word as Turkish inside the English and \textit sets a sound or a
+% segmentation, which is the division every gloss line makes (\dw is \pw then
+% \textit): the reader meets the two typographies here in the roles they keep
+% for the rest of the book.  \pw is defined by the core preamble, after this
+% file is read, and is only expanded when the page is set.
+\newcommand{\FrankHowTo}{%
+Every passage comes twice.
+
+\smallskip
+\textbf{First} the whole sentence, and nothing else. Try to read it. Get as
+far as you can and do not worry about what you cannot get — the point is
+the attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, Turkish on the left, and
+on the right three lines: how it is pronounced, then how each word is built,
+then what it means. Now you find out how much you had right. Turkish is
+written as it is said, one letter to one sound, so there is no third pass:
+nothing can be taken away.
+
+\smallskip
+The middle line takes the words apart, because a Turkish word is often a
+whole clause: \pw{evlerimizden} is \textit{ev-ler-imiz-den}, house + plural +
+our + from. The hyphens are seams: put the pieces back and you have the word
+as it is spelled; the names run in that order. A stem that changed
+shape is followed by the form you would look up: \textit{kitab-ı} is
+\pw{kitap}.
+
+\smallskip
+Verbs are given as the infinitive, the present in \textit{-iyor} and the
+aorist, both as \textit{he} or \textit{she} would say them: \pw{gelmek},
+\pw{geliyor}, \pw{gelir}. The present is the form you will meet most and
+the one that hides the verb best — \pw{demek} is \pw{diyor}, \pw{aramak}
+\pw{arıyor}. The aorist vowel is the one thing a Turkish verb will not tell
+you — \pw{gelir} but \pw{bakar}, \pw{alır} but \pw{olur}. A case ending in
+brackets after the meaning is the one the verb wants on what it governs:
+\pw{bakmak} (\textit{-e}), to look \emph{at}, takes \pw{pencereye}, at the
+window. In a compound with \pw{etmek} or \pw{olmak}, only the noun's meaning
+is given.
+
+\smallskip
+The pronunciation line is given only where the spelling misleads, which is
+seldom. A macron is a long vowel — an Arabic or Persian loan printed short
+(\pw{kâr} \textit{kār} profit, \pw{kar} snow), or the vowel \pw{ğ} has
+melted into (\pw{dağ} \textit{dā}); between front vowels \pw{ğ} is a
+\textit{y} instead (\pw{değil} \textit{deyil}). \textit{ä} is the open
+\textit{e} of \pw{gel} and \pw{ben}. \textit{ˈ} goes before the stressed
+syllable, and only where the stress is not final, where Turkish otherwise
+puts it: \textit{ˈyalnız}, and always before the negative \pw{-ma},
+\pw{-me} — \textit{ˈgelme} is ``do not come'', \textit{gelˈme}
+``coming''.
+}

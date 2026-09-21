@@ -1,0 +1,25 @@
+{
+  "_why": "What lib/verbs/fa.py needs and no row of dict/fa.db says. Each is a convention of docs/lang/fa.md or a closed class of the grammar, written down as a table so the next editor changes a line here and not the code.",
+  "no_vb": {
+    "هستن": "the present of بودن given an infinitive: its table is بودن's, its past stem row is بود, and a \\vb for it would print هست as a past stem"
+  },
+  "_no_vb": "The verbs that ARE verbs and still get no \\vb. docs/lang/fa.md: بودن keeps باش as its stem and هست is the suppletive existential, a \\dw of its own (check_batch refuses \\vb{بودن}{...}{هست}). Wiktionary also has هستن, `to be`, whose rows are بودن's table -- so every هستم, هستند and هست reached it -- and whose infinitive minus ن is هست, which is no past stem of anything. Its words are glossed as what they are: هست as the \\dw the doc says, the rest as بودن.",
+  "no_mi": {
+    "داشتن": "its present takes no mi-: دارم, never می‌دارم"
+  },
+  "_no_mi": "The one thing a Persian \\vb says after the meaning (docs/lang/fa.md: a closed list, and it has one member). Wiktionary cannot say it: داشتن has no literary Iranian table at all, and the tables it has are the Dari and Kabuli ones, whose first person present IS mḗ-dāram. Printed only where داشتن is the verb itself -- in a compound (نگاه داشتن, نگه داشتن) it is the light verb with an empty meaning and nothing after it, as the fixture book writes it, and there it does take mi- (نگه می‌دارم).",
+  "meaning": {
+    "بودن": "to be"
+  },
+  "_meaning": "Where the source's FIRST sense is not the verb a reader meets. بودن's senses are `to exist` and then `to be (See the Usage Notes)`: the existential first, the copula second -- and the copula is what a text has, which is why the fixture book glosses بودن `to be` 22 times and `to exist` never. The value is the source's own second sense, trimmed the way the core trims the first. Only for an English gloss; any other gloss gets no meaning from the dictionary at all.",
+  "preverbs": [
+    "بر",
+    "در",
+    "فرا",
+    "فرو",
+    "باز",
+    "وا",
+    "ور"
+  ],
+  "_preverbs": "The closed class of Persian preverbs. A verb that begins with one is often WRITTEN apart in a text -- `بر می‌گردم`, `در آورده بود` (the fixture book, ch1.tex:452) -- and the lookup then reaches گشتن or آوردن; the recipe asks whether the preverb and the verb make a verb the dictionary spells as one word (برگشتن, درآوردن) and offers that verb's \\vb. Only a preverb of this list directly before the verb (a separate mi- aside), only where the preverb verb's own table has the two words as one of its forms, and never before a pronoun or a determiner: بر and در are also the prepositions `on` and `in`, and `در آن` (in that) is also the colloquial `they come out` of درآمدن -- 28 times over the Tatoeba corpus before that last test. Where the hyphen goes in the romanisation (bar-gard) is the dictionary's to say, never this list's."
+}

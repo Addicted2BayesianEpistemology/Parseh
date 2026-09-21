@@ -1,0 +1,14 @@
+{
+  "slug": "mini-ja",
+  "language": "ja",
+  "title": "桃太郎",
+  "title_latin": "Momotaro",
+  "title_en": "Peach Boy",
+  "author": "日本の昔話",
+  "author_latin": "a Japanese folk tale",
+  "year": "",
+  "blurb": "A fixture for the tests: the opening of Momotaro in two paragraphs, with \\chr chunks, kana and romaji.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

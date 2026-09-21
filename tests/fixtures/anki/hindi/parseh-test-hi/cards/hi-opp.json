@@ -1,0 +1,30 @@
+{
+ "id": "hi-opp",
+ "guid": "fx-hi-opp",
+ "kind": "opposites",
+ "lang": "hi",
+ "created": "2026-09-06 10:00:00",
+ "video": "",
+ "book": "fixture-hi",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "बड़ा",
+ "kana": "",
+ "tr": "baṛā",
+ "en": "",
+ "opp": "छोटा",
+ "opp_kana": "",
+ "opp_tr": "choṭā",
+ "tags": [
+  "hindi-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

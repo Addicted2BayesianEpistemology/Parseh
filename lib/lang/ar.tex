@@ -1,0 +1,124 @@
+% Arabic -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define.
+% Copied from fa.tex: the same script, the same direction, one pass fewer.
+
+% ---- the babel language and the switches ----------------------------------
+\newcommand{\FrankLangName}{arabic}
+\FrankRTLtrue            % chunk right, gloss left; \pw isolates with \babelsublr
+\FrankHasBaretrue        % pass 3 is the same text without the tashkil
+\FrankHasAltfalse        % no alternate face, so no fourth pass
+\FrankHasReadingfalse
+\FrankHasVertfalse
+
+% ---- fonts ------------------------------------------------------------------
+% From the registry's "tex" record: Noto Naskh Arabic travels with the toolbox
+% (lib/fonts), Amiri and Vazirmatn are the fallbacks.  No alternate face:
+% \FrankAltFont stays undefined, which is what \ifFrankHasAlt false promises.
+\babelprovide[import=ar,onchar=ids fonts]{arabic}
+\FrankPickFont{\FrankMainFontName}{ar}{main}{main_fallbacks}
+\babelfont[arabic]{rm}[Script=Arabic,Language=Arabic,Renderer=HarfBuzz]{\FrankMainFontName}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{perfect}{sound (form)}{imperfect}{sound}{masdar}{sound}{meaning}
+% The perfect is the dictionary's form, third person masculine singular, and
+% its sound slot carries the verb's FORM after the transliteration, in
+% brackets: kataba (I), ʿallama (II), arāda (IV), tarjama (Iq).  The number
+% is what turns the other two slots into a pattern for every form but the
+% first, so it rides where docs/lang/ar.md always put it and needs no slot of
+% its own.  The imperfect is the third person masculine singular indicative,
+% final -u and all: its vowel is the one thing a form-I verb will not tell
+% you (yaktubu, yaqūlu, yaṣilu, yarā).  The masdar is the verbal noun that
+% goes with the sense in the text -- وُصُول for "to arrive", not صِلَة -- and
+% never the perfect written a second time: the first fixture edition did
+% exactly that nine times over and printed "masdar رَأَى raʾā", and nothing
+% caught it, because check_batch checks Arabic for fidelity and not for this.
+% A verb with no masdar in use leaves the third pair blank, {}{}, and the
+% core then prints neither the form nor the label (lib/frank-preamble.tex).
+% The one extra, in a parenthesis after the meaning, is the preposition the
+% verb governs where it is not a plain object:
+%   \vb{وَصَلَ}{waṣala (I)}{يَصِلُ}{yaṣilu}{وُصُول}{wuṣūl}{to arrive (+ \pw{إِلَى})}
+% Two alternatives share one + with a slash, (+ \pw{مِنْ}/\pw{عَنْ}); a second
+% object has a second +, (+ \pw{لِ} + \pw{بِ}).  The gloss editor proposes the
+% whole \vb from the dictionary (lib/verbs/ar.py): Wiktionary's head line gives
+% the perfect and its form, the imperfect and the masdars, and the sense's
+% +obj template the preposition -- but the masdar it proposes is the FIRST one
+% listed, and for "to arrive" that is صِلَة: a draft, which the annotator
+% corrects to the one above.
+% The reader takes the same pair of labels from the registry
+% (lib/languages.json, "vb_labels": ["impf.", "masdar"], and the three forms in
+% words as "vb_forms"); the two must agree, or the PDF and the reader of one
+% book label the same form differently.  lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{impf.}
+\newcommand{\FrankVbPast}{masdar}
+
+% ---- the two Lua filters ---------------------------------------------------
+% frank_strip drops the tashkil the vowelled pass carries: the harakat range
+% U+064B..U+0652 as for Persian, plus U+0670, the superscript alef of words
+% like رَحْمٰن, which Persian text never writes and Arabic school editions do
+% (the registry's `strip` for ar).  frank_latin maps the Arabic-Indic digits
+% U+0660..U+0669 to ASCII for the destination names.  No #, % or backslash in
+% a \directlua body (NOTES section 9 of the Persian book).
+\directlua{
+  function frank_strip(s)
+    local t, n = {}, 0
+    for _, c in utf8.codes(s) do
+      if (c < 0x064B or c > 0x0652) and not (c == 0x0670) then n = n + 1 ; t[n] = utf8.char(c) end
+    end
+    return table.concat(t)
+  end
+  function frank_latin(s)
+    local t, n = {}, 0
+    for _, c in utf8.codes(s) do
+      if c >= 0x0660 and c <= 0x0669 then c = c - 0x0660 + 0x30 end
+      n = n + 1 ; t[n] = utf8.char(c)
+    end
+    return table.concat(t)
+  end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+\newcommand{\FrankHowTo}{%
+Every passage comes three times.
+
+\smallskip
+\textbf{First} the whole sentence with the tashkil written in — fatha, kasra,
+damma, sukun, shadda and the tanwin, the way a school edition or the Qur'an is
+pointed — and nothing else. Try to read it. Get as far as you can and do not
+worry about what you cannot get; the point is the attempt, made before any
+help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, Arabic on the right, and on
+the left three lines: how it sounds, then how to look each word up, then what
+it means. Now you find out how much you had right.
+
+\smallskip
+\textbf{Third} the same passage again without the vowel marks, the way Arabic
+is really written and printed. You have read it twice, so it should carry
+you; the article, the long vowels and the shape of the word are what you are
+learning to read by.
+
+\smallskip
+Verbs are given as the perfect (the dictionary form, third person masculine
+singular), then the imperfect — the vowel of the imperfect is the one you
+cannot guess — then the verbal noun (masdar), then the meaning. The Roman
+numeral after the first transliteration is the verb's form: \textit{I} is the
+plain verb, \textit{II} doubles its middle letter (\textit{ʿallama}, to
+teach), \textit{X} begins \textit{ista-}, and every form but the first makes
+its imperfect, and nearly always its masdar, to a pattern — so it is only a
+verb of form \textit{I} whose three words have to be learnt one by one. A
+preposition in brackets after the meaning is the one the verb takes:
+\textit{to arrive} (+ \pw{إِلَى}) is to arrive \emph{at} somewhere; two with a
+slash between them are two ways of saying it, and a second + is a second
+object. Nouns that are broken plurals are given with their singular.
+
+\smallskip
+\textit{\=a}, \textit{\=\i}, \textit{\=u} are the long vowels; \textit{ʾ} is
+the hamza and \textit{ʿ} the \textit{ʿayn}; a dot under a letter
+(\textit{ṣ ḍ ṭ ẓ ḥ}) marks the emphatic and pharyngeal sounds, and
+\textit{ṯ ḏ ḫ ġ š} are one letter each (\textit{th, dh, kh, gh, sh} in other
+books); a doubled consonant is the shadda. The article is written
+\textit{al-} with a hyphen and as it is heard: \textit{aš-šams},
+\textit{an-nūr}, but \textit{al-qamar}.
+}

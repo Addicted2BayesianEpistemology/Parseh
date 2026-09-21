@@ -1,0 +1,30 @@
+{
+ "id": "ar-opp",
+ "guid": "fx-ar-opp",
+ "kind": "opposites",
+ "lang": "ar",
+ "created": "2026-09-03 10:00:00",
+ "video": "",
+ "book": "fixture-ar",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "كَبير",
+ "kana": "",
+ "tr": "kabīr",
+ "en": "",
+ "opp": "صَغير",
+ "opp_kana": "",
+ "opp_tr": "ṣaghīr",
+ "tags": [
+  "arabic-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

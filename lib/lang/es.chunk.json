@@ -1,0 +1,13 @@
+{
+  "_comment": "How this language's phrases hold together, for lib/chunker.py. Optional, like every file of this name.",
+  "np_head": "initial",
+  "adposition": "before",
+  "_why": "Spanish puts the adjective after the noun (la casa grande) and its prepositions before it (en la casa), as Italian and French do. The handful that come first -- buen, gran, mal, and the demonstratives and possessives -- are the exception this cannot see; a model reading the sentence can.",
+  "bind_forward": [
+    "^(?i:me|te|se|nos|os|le|les)$"
+  ],
+  "_bind_forward": "THE PROCLITIC PRONOUN, which is the one Spanish word that is never finished. `me`, `te`, `se`, `nos`, `os`, `le`, `les` before a verb lean on it and gloss into nothing on their own, but the dictionary calls them pronouns -- content words, as far as the gap rules can see -- and two content words with nothing binding them is the likeliest boundary there is. Measured on `El padre le dio el libro nuevo al niño.`: with this line, `El padre | le dio | el libro nuevo al niño.`; without it, `El padre le | dio el libro nuevo | al niño.`, which cuts the clitic off the verb it belongs to. `lo`, `la`, `los`, `las` are left out on purpose -- they are the articles as well, and the determiner rule binds them forward already. Enclitics need no rule at all: they are written onto the verb (dime, decírtelo, verlo), so there is no gap to cut.",
+  "_contractions": "`al` and `del` are a preposition with an article swallowed (a + el, de + el) and govern what follows exactly as `en la` does. Nothing is written for them here because nothing here could reach them: where the dictionary files them as prepositions the adposition rule above binds them forward already (`La casa grande está | al final | de la calle.`), and where it files them as `contraction` -- the part of speech kaikki gives Italian's nel and del, and so presumably Spanish's -- the gap rules stop at the unknown class before any pattern is tried, and `bind_forward` is unreachable. The unknown class leans towards joining, so the two stay together in ordinary sentences; in one long enough to be split for size, that lean is the weakest seam in the group and the split can land after `al` (`Se lo | dio al | vecino viejo del centro.`). That is a limit of the offline cut, which is why it is offered as a choice; a model reading the sentence does not have it.",
+  "min": 2,
+  "max": 5
+}

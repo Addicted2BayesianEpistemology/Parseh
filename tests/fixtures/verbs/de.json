@@ -1,0 +1,593 @@
+{
+ "code": "de",
+ "cases": [
+  {
+   "what": "a regular weak verb: the preterite and participle from the head line, öffnet = stem + et so no third person, haben so no auxiliary",
+   "entry": {
+    "headword": "öffnen",
+    "translit": "",
+    "ipa": "/ˈœfnən/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to open (to make something accessible or allow for passage by moving from a shut position)\nto open (to make accessible to customers or clients)\nto open (to load into memory for viewing or editing)\nto open, get, or answer the door\nto open (to become open)\nto open up (to), confide (in) (to reveal oneself; share personal information about oneself)",
+    "sense_tags": "transitive,weak\ntransitive,weak\ntransitive,weak\nintransitive,weak\nreflexive,weak\nreflexive,weak",
+    "head": ""
+   },
+   "forms": [
+    [
+     "öffnen",
+     "",
+     ""
+    ],
+    [
+     "öffnet",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "öffnete",
+     "past",
+     ""
+    ],
+    [
+     "geöffnet",
+     "participle past",
+     ""
+    ],
+    [
+     "haben",
+     "auxiliary",
+     ""
+    ],
+    [
+     "hat geöffnet",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "öffnete",
+     "first-person, preterite, singular, third-person",
+     ""
+    ],
+    [
+     "öffnete",
+     "first-person, singular, subjunctive-ii, third-person",
+     ""
+    ]
+   ],
+   "word": "öffnete",
+   "text": "Ein Mädchen öffnete die Tür",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{öffnen}{}{öffnete}{}{geöffnet}{}{to open}",
+    "plain": "öffnen · pret. öffnete · p.p. geöffnet · to open",
+    "line": "pret. öffnete · p.p. geöffnet",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "what": "irregular sein: er ist (not stem + t), aux. sein from its only auxiliary row; the first ranked senses are 'forms the present perfect ...' and 'As a copulative verb:', passed over for 'to be'",
+   "entry": {
+    "headword": "sein",
+    "translit": "",
+    "ipa": "/zaɪ̯n/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "forms the present perfect and past perfect tenses of certain verbs\nAs a copulative verb:\nto be\nUsed to indicate dates, times of day, time periods, etc., be\nUsed to indicate temperatures in degrees, be\nUsed to indicate ambient conditions such as temperature, weather, light, noise or air quality, be\nthere be\ntranslated with to feel (to experience a condition)\ntranslated with to feel like, to be in the mood for\nAs an intransitive verb:\nto exist, be, be alive\nto have the next turn (in a game, in a queue, etc.)",
+    "sense_tags": "auxiliary,irregular\ncopulative,irregular\ncopulative,irregular\ncopulative,irregular\ncopulative,irregular\ncopulative,irregular\ncopulative,irregular,regional\ncopulative,impersonal,irregular,obj:dat<someone> + adjective<in some way><qq:only for certain adjectives>\ncopulative,impersonal,irregular,obj:dat<someone> + :nach(dat)<something desired>/:danach<that thing> + :zumute<q:sometimes>,with-dative\nintransitive,irregular\nintransitive,irregular\ncolloquial,intransitive,irregular",
+    "head": ""
+   },
+   "forms": [
+    [
+     "sein",
+     "",
+     ""
+    ],
+    [
+     "ist",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "war",
+     "past",
+     ""
+    ],
+    [
+     "gewesen",
+     "participle past",
+     ""
+    ],
+    [
+     "sein",
+     "auxiliary",
+     ""
+    ],
+    [
+     "ist gewesen",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "war",
+     "first-person, preterite, singular",
+     ""
+    ],
+    [
+     "war",
+     "preterite, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "war",
+   "text": "Draußen war es kalt,",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{sein}{}{war}{}{gewesen}{}{to be (er ist; aux. sein)}",
+    "plain": "sein · pret. war · p.p. gewesen · to be (er ist; aux. sein)",
+    "line": "pret. war · p.p. gewesen · er ist · aux. sein",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "what": "a modal: ich kann, because the pointer row `kann` is also first person singular; gekonnt is the first of two participle rows (the second is the substitute infinitive können); the object placeholder '(to do or be something)' is dropped from the meaning",
+   "entry": {
+    "headword": "können",
+    "translit": "",
+    "ipa": "/ˈkœnən/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to be able (to do or be something), to have the possibility of, can.\nto be able to do something implied; can.\nto know how to do (something); to know; to understand; to be able to do (something); to be capable of; can do (something), to have a specific skill. (which is notably unlike in English where another verb is needed for a main verb)\nto be possible, to make sense\nto be allowed (to do something); to be permitted (to do something); may.\nto be in the legal situation of being able to realize a legal effect even if it be legally disallowed\nto be to blame, to be at fault",
+    "sense_tags": "auxiliary,participle,past,preterite-present\nintransitive,participle,past,preterite-present\nparticiple,past,preterite-present,transitive\ncolloquial,intransitive,negative,preterite-present,regional\nauxiliary,informal,participle,past,preterite-present\nauxiliary,participle,past,preterite-present\ninformal,preterite-present,obj::für<for something><qq:obligatory>",
+    "head": ""
+   },
+   "forms": [
+    [
+     "können",
+     "",
+     ""
+    ],
+    [
+     "kann",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "konnte",
+     "past",
+     ""
+    ],
+    [
+     "gekonnt",
+     "participle past",
+     ""
+    ],
+    [
+     "können",
+     "participle past",
+     ""
+    ],
+    [
+     "haben",
+     "auxiliary",
+     ""
+    ],
+    [
+     "hat gekonnt",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "hat können",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "kann",
+     "first-person, present, singular, third-person",
+     ""
+    ]
+   ],
+   "word": "kann",
+   "text": "Ich kann schwimmen.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{können}{}{konnte}{}{gekonnt}{}{to be able (ich kann)}",
+    "plain": "können · pret. konnte · p.p. gekonnt · to be able (ich kann)",
+    "line": "pret. konnte · p.p. gekonnt · ich kann",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "what": "separable: the preterite is the head line's `stand auf`, the third person `steht auf` is regular and not printed, and the sense's aux:sein settles the head line's two auxiliary rows (and ignores the pseudo-row `haben or sein`)",
+   "entry": {
+    "headword": "aufstehen",
+    "translit": "",
+    "ipa": "/ˈʔaufˌʃteːən/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to get up (move from a sitting or lying position to a standing position; to get up from bed)\nto rise up, to rebel\nto rest (on something)\nto be open (to not be closed or shut)",
+    "sense_tags": "intransitive,irregular,strong,aux:sein\narchaic,formal,intransitive,irregular,strong,aux:sein\ncolloquial,irregular,strong,aux:haben/sein\ncolloquial,intransitive,irregular,strong,usually,aux:haben/sein",
+    "head": ""
+   },
+   "forms": [
+    [
+     "aufstehen",
+     "",
+     ""
+    ],
+    [
+     "steht auf",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "stand auf",
+     "past",
+     ""
+    ],
+    [
+     "aufgestanden",
+     "participle past",
+     ""
+    ],
+    [
+     "haben",
+     "auxiliary",
+     ""
+    ],
+    [
+     "sein",
+     "auxiliary",
+     ""
+    ],
+    [
+     "haben or sein",
+     "auxiliary",
+     ""
+    ],
+    [
+     "aufsteht",
+     "indicative plural present second-person subordinate-clause",
+     ""
+    ],
+    [
+     "aufsteht",
+     "indicative present singular subordinate-clause third-person",
+     ""
+    ],
+    [
+     "hat aufgestanden",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "ist aufgestanden",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "aufsteht",
+     "dependent, present, singular, third-person",
+     ""
+    ],
+    [
+     "aufsteht",
+     "dependent, plural, present, second-person",
+     ""
+    ]
+   ],
+   "word": "aufsteht",
+   "text": "weil er früh aufsteht",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{aufstehen}{}{stand auf}{}{aufgestanden}{}{to get up (aux. sein)}",
+    "plain": "aufstehen · pret. stand auf · p.p. aufgestanden · to get up (aux. sein)",
+    "line": "pret. stand auf · p.p. aufgestanden · aux. sein",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "what": "reflexive: `sich` in the clause chooses the reflexive senses and puts sich in slot 1; the clause's `auf` passes over the first reflexive sense (über + acc.) for the one governing auf",
+   "entry": {
+    "headword": "freuen",
+    "translit": "",
+    "ipa": "/ˈfʁɔʏ̯ən/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to gladden, to make glad, to make pleased\nto be glad, pleased, or happy about something\nto look forward to\nto be happy for someone\nto take delight in",
+    "sense_tags": "impersonal,often,transitive,weak\nreflexive,weak,obj::über(acc)\nreflexive,weak,obj::auf(acc)\nreflexive,weak,obj::für(acc)\npoetic,reflexive,weak,obj:gen,with-genitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "freuen",
+     "",
+     ""
+    ],
+    [
+     "freut",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "freute",
+     "past",
+     ""
+    ],
+    [
+     "gefreut",
+     "participle past",
+     ""
+    ],
+    [
+     "haben",
+     "auxiliary",
+     ""
+    ],
+    [
+     "hat gefreut",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "freut",
+     "present, singular, third-person",
+     ""
+    ],
+    [
+     "freut",
+     "plural, present, second-person",
+     ""
+    ],
+    [
+     "freut",
+     "imperative, plural",
+     ""
+    ]
+   ],
+   "word": "freut",
+   "text": "Er freut sich auf den Urlaub.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{sich freuen}{}{freute}{}{gefreut}{}{to look forward to (auf + acc.)}",
+    "plain": "sich freuen · pret. freute · p.p. gefreut · to look forward to (auf + acc.)",
+    "line": "pret. freute · p.p. gefreut · auf + acc.",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "what": "must be None: the word reaches raven only through its `auxiliary` row (haben is the auxiliary row of 9 241 verbs)",
+   "entry": {
+    "headword": "raven",
+    "translit": "",
+    "ipa": "/ˈʁɛɪ̯vn̩/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to rave (to attend a rave)",
+    "sense_tags": "colloquial,weak",
+    "head": ""
+   },
+   "forms": [
+    [
+     "raven",
+     "",
+     ""
+    ],
+    [
+     "ravt",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "ravte",
+     "past",
+     ""
+    ],
+    [
+     "geravt",
+     "participle past",
+     ""
+    ],
+    [
+     "haben",
+     "auxiliary",
+     ""
+    ],
+    [
+     "hat geravt",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ]
+   ],
+   "word": "haben",
+   "text": "Wir haben Zeit.",
+   "gloss": "en",
+   "expect": null,
+   "run": "build"
+  },
+  {
+   "what": "must be None: a capitalised word inside a sentence is a noun (the gerund pointer row brings the verb into the lookup)",
+   "entry": {
+    "headword": "schwimmen",
+    "translit": "",
+    "ipa": "/ˈʃvɪmən/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to swim (to use swimming motions to move in the water)\nto swim (for pleasure, as a sport, etc.)\nto swim (a certain distance)\nto transport by floating\nto float, to be floating\nto float (somewhere), to move (somewhere) by floating\nto be doused or covered in liquid\nto be swimming in (money, etc.)\nto be moving in a blurry or indistinct fashion, to swim (in someone's vision)\nto lose control (of a situation)",
+    "sense_tags": "class-3,intransitive,strong,aux:sein\nclass-3,intransitive,strong,aux:sein/haben\nclass-3,intransitive,strong,transitive,aux:haben/sein\nclass-3,intransitive,strong,aux:haben\nclass-3,intransitive,strong\nclass-3,intransitive,strong,aux:sein\nclass-3,intransitive,strong,aux:haben\nclass-3,intransitive,strong,aux:haben\nclass-3,intransitive,strong,aux:sein\nclass-3,colloquial,intransitive,strong,aux:haben",
+    "head": ""
+   },
+   "forms": [
+    [
+     "schwimmen",
+     "",
+     ""
+    ],
+    [
+     "schwimmt",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "schwamm",
+     "past",
+     ""
+    ],
+    [
+     "geschwommen",
+     "participle past",
+     ""
+    ],
+    [
+     "sein",
+     "auxiliary",
+     ""
+    ],
+    [
+     "haben",
+     "auxiliary",
+     ""
+    ],
+    [
+     "sein or haben",
+     "auxiliary",
+     ""
+    ],
+    [
+     "schwimmen",
+     "infinitive",
+     ""
+    ],
+    [
+     "schwimmen",
+     "first-person indicative plural present",
+     ""
+    ],
+    [
+     "schwimmen",
+     "first-person plural subjunctive subjunctive-i",
+     ""
+    ],
+    [
+     "schwimmen",
+     "indicative plural present third-person",
+     ""
+    ],
+    [
+     "schwimmen",
+     "plural subjunctive subjunctive-i third-person",
+     ""
+    ],
+    [
+     "ist geschwommen",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "hat geschwommen",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "Schwimmen",
+     "gerund, neuter, no-plural, strong",
+     ""
+    ],
+    [
+     "schwimmen",
+     "gerund, neuter, no-plural, strong",
+     ""
+    ]
+   ],
+   "word": "Schwimmen",
+   "text": "Er hilft beim Schwimmen.",
+   "gloss": "en",
+   "expect": null,
+   "run": "lookup"
+  },
+  {
+   "what": "incomplete: the sense governs `:an` with no case, and an takes either, so it is printed `an + …` and the case is named as missing",
+   "entry": {
+    "headword": "zweifeln",
+    "translit": "",
+    "ipa": "/ˈtsvaɪ̯fəln/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to doubt, to be doubtful",
+    "sense_tags": "weak,obj::an<of>",
+    "head": ""
+   },
+   "forms": [
+    [
+     "zweifeln",
+     "",
+     ""
+    ],
+    [
+     "zweifelt",
+     "present singular third-person",
+     ""
+    ],
+    [
+     "zweifelte",
+     "past",
+     ""
+    ],
+    [
+     "gezweifelt",
+     "participle past",
+     ""
+    ],
+    [
+     "haben",
+     "auxiliary",
+     ""
+    ],
+    [
+     "hat gezweifelt",
+     "indicative multiword-construction perfect singular third-person",
+     ""
+    ],
+    [
+     "zweifelt",
+     "present, singular, third-person",
+     ""
+    ],
+    [
+     "zweifelt",
+     "plural, present, second-person",
+     ""
+    ],
+    [
+     "zweifelt",
+     "imperative, plural",
+     ""
+    ]
+   ],
+   "word": "zweifelt",
+   "text": "Er zweifelt an allem.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{zweifeln}{}{zweifelte}{}{gezweifelt}{}{to doubt (an + …)}",
+    "plain": "zweifeln · pret. zweifelte · p.p. gezweifelt · to doubt (an + …)",
+    "line": "pret. zweifelte · p.p. gezweifelt · an + …",
+    "complete": false,
+    "missing": [
+     "the case after an (acc. or dat.)"
+    ]
+   },
+   "run": "lookup"
+  }
+ ]
+}

@@ -1,0 +1,38 @@
+[
+ {"start": 0,
+  "chunks": [
+   {"fa": "Welcome back to the channel, today we learn Italian at the market", "plain": true}
+  ]},
+ {"start": 6,
+  "chunks": [
+   {"fa": "Buongiorno,", "tr": "bwon'dʒorno", "voc": "buongiorno good morning (buon + giorno, day)", "en": "good morning,"},
+   {"fa": "vorrei", "tr": "vor'rɛi", "voc": "volere to want · vorrei I would like (conditional)", "en": "I would like"},
+   {"fa": "un chilo di pomodori", "voc": "chilo kilo; pomodoro tomato, pl. pomodori", "en": "a kilo of tomatoes"}
+  ]},
+ {"start": 11,
+  "chunks": [
+   {"fa": "Quanto costano", "voc": "quanto how much; costare to cost · costano they cost", "en": "how much do they cost"},
+   {"fa": "le mele oggi", "voc": "mela apple, pl. mele; oggi today", "en": "the apples today"}
+  ]},
+ {"start": 15,
+  "chunks": [
+   {"fa": "Sono due euro", "en": "they are two euros"},
+   {"fa": "al chilo,", "voc": "al = a + il, per the", "en": "per kilo,"},
+   {"fa": "signora", "voc": "signora madam, Mrs", "en": "madam"}
+  ]},
+ {"start": 20,
+  "chunks": [
+   {"fa": "Va bene,", "voc": "va bene all right (lit. it goes well)", "en": "all right,"},
+   {"fa": "ne prendo tre", "voc": "ne of them (partitive clitic); prendere to take · prendo I take", "en": "I'll take three of them"}
+  ]},
+ {"start": 24,
+  "chunks": [
+   {"fa": "Ecco a lei,", "voc": "ecco here is; a lei to you (formal)", "en": "here you are,"},
+   {"fa": "arrivederci", "voc": "arrivederci goodbye", "en": "goodbye"}
+  ]},
+ {"start": 28,
+  "chunks": [
+   {"fa": "Grazie mille", "voc": "grazie thank you; mille a thousand", "en": "thanks a lot"},
+   {"fa": "e buona giornata", "voc": "giornata the day (as lived), cf. giorno", "en": "and have a good day"}
+  ]}
+]

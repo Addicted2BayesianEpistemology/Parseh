@@ -1,0 +1,71 @@
+% The transliteration line is PINYIN, which is what lib/languages.json calls
+% Chinese's transliteration (translit_label: "pinyin"), and it is the only
+% one Chinese has: there is no reading beside it, so a chunk is written with
+% \ch and never \chr, and no chunk here carries a kana field.  Tone marks on
+% every syllable, the syllables of one word run together and the words
+% spaced, a neutral tone written with no mark at all (cūnzi, zǎoshang), and
+% the sandhi written as it is SAID rather than as the character is listed:
+% 一个 is yí ge and not yī ge.  The punctuation is left out of the pinyin,
+% as it is in every other edition here.
+%
+% What this fixture exists to protect is the join.  Chinese has no word
+% separator -- lib/languages.json gives it word_sep "" -- so the chunks of a
+% subparagraph are put back together with NOTHING between them, and the
+% result has to be the paragraph in source/paras/ character for character,
+% the full-width comma and full stop included.  A chunk boundary here is a
+% place between two characters and nothing else, which is also what
+% lib/chunkdiv.py offers when the reader divides one.
+%
+% One \vb below and no more, and that is the convention, not an omission:
+% a Chinese verb has no principal parts to give, so a verb is glossed with
+% \dw like any other word -- 有, 住, 去, 打, 看 all are.  The two
+% kinds of verb that DO get a \vb are the ones that come apart in a sentence
+% (docs/lang/zh.md): a verb-object verb, whose second slot is the verb with
+% 了 between its halves (the registry's label is "split"), and a verb with a
+% result or a direction after it, whose third slot is the potential with 不
+% inside ("can't").  睡觉 is the first kind -- 睡了一觉, he had a sleep -- so
+% its \vb gives the split and leaves the "can't" pair blank, and the core
+% prints no label over the blank.  This fixture used to say of 睡觉 that its
+% two characters never travel apart, which was the one false thing in it.
+%
+% The characters are simplified throughout, which is what the registry's
+% `chars` for zh is drawn for -- it deliberately excludes the kana blocks,
+% so nothing here can be read as Japanese.
+\chapopen{1}
+
+\parstart{1.1}{从前，山下有一个小村子。}
+\parnum{1.1}
+\begin{frank}
+\ch{}{从前，}{cóngqián}{\dw{从前}{cóngqián} formerly, in the past — the way a tale opens}{once upon a time,}
+\ch{}{山下}{shān xià}{\dw{山}{shān} mountain, hill; \dw{下}{xià} under, below — a place word, and in Chinese it comes AFTER its noun}{below a hill}
+\ch{}{有一个小村子。}{yǒu yí ge xiǎo cūnzi}{\dw{有}{yǒu} to have, and at the head of a sentence there is, there was; \dw{个}{ge} the measure word that stands between a number and most nouns, said toneless; \dw{小}{xiǎo} small; \dw{村子}{cūnzi} village}{there was a small village.}
+\end{frank}
+
+\parnum{1.2}
+\begin{frank}
+\ch{}{村子里}{cūnzi lǐ}{\dw{里}{lǐ} in, inside — after its noun, like \pw{下} above}{in the village}
+\ch{}{住着}{zhù zhe}{\dw{住}{zhù} to live, to dwell; \dw{着}{zhe} the suffix of a state that goes on, toneless}{there lived}
+\ch{}{一位老人}{yí wèi lǎorén}{\dw{位}{wèi} the polite measure word for a person, where \pw{个} would be plain; \dw{老人}{lǎorén} an old person}{an old man}
+\ch{}{和他的猫。}{hé tā de māo}{\dw{和}{hé} and — it joins two nouns and never two sentences; \dw{他}{tā} he; \dw{的}{de} the possessive, toneless; \dw{猫}{māo} cat}{and his cat.}
+\end{frank}
+
+\parend
+
+\parstart{1.2}{每天早上，老人去河边打水}
+\parnum{2.1}
+\begin{frank}
+\ch{}{每天早上，}{měitiān zǎoshang}{\dw{每天}{měitiān} every day; \dw{早上}{zǎoshang} morning}{every morning,}
+\ch{}{老人去河边}{lǎorén qù hébiān}{\dw{去}{qù} to go to; \dw{河}{hé} river, \pw{边} side, edge}{the old man went to the river}
+\ch{}{打水。}{dǎ shuǐ}{\dw{打}{dǎ} to strike, and with \pw{水} to draw water; \dw{水}{shuǐ} water}{to fetch water.}
+\end{frank}
+
+\parnum{2.2}
+\begin{frank}
+\ch{}{晚上，}{wǎnshang}{\dw{晚上}{wǎnshang} evening}{in the evening,}
+\ch{}{他在灯下}{tā zài dēng xià}{\dw{在}{zài} at, in — the word that puts an action somewhere, and it stands before the verb; \dw{灯}{dēng} lamp}{under the lamp he}
+\ch{}{看书，}{kàn shū}{\dw{看}{kàn} to look at, to read; \dw{书}{shū} book}{read,}
+\ch{}{猫在他的脚边}{māo zài tā de jiǎo biān}{\dw{脚}{jiǎo} foot; \pw{边} side, as in \pw{河边} above}{the cat, at his feet,}
+\ch{}{睡觉。}{shuìjiào}{\vb{睡觉}{shuìjiào}{睡了觉}{shuìle jiào}{}{}{to sleep}, a verb and its object made one word, which part again to let \pw{了} in}{slept.}
+\end{frank}
+
+\chapend

@@ -1,0 +1,123 @@
+{
+ "video": "eS3pA7nO1lA",
+ "language": "es",
+ "segments": [
+  {
+   "start": 0,
+   "text": "Welcome back to the channel, today we learn Spanish at the market",
+   "chunks": [
+    {
+     "fa": "Welcome back to the channel, today we learn Spanish at the market",
+     "plain": true
+    }
+   ]
+  },
+  {
+   "start": 6,
+   "chapter": "En el mercado",
+   "text": "Buenos días, ¿me pone un kilo de naranjas?",
+   "chunks": [
+    {
+     "fa": "Buenos días,",
+     "voc": "bueno good, pl. buenos; día day, m. though it ends in -a — buenos días is the fixed greeting and is always plural",
+     "en": "good morning,"
+    },
+    {
+     "fa": "¿me pone",
+     "voc": "pone you put, formal (poner · pres. pongo · pret. puso · to put (p.p. puesto; fut. pondré)); me pone, lit. do you put me, is how one asks a shopkeeper for something",
+     "en": "could I have"
+    },
+    {
+     "fa": "un kilo de naranjas?",
+     "voc": "naranja orange, f.; the question mark opens as well as closes, and only the question is inside it",
+     "en": "a kilo of oranges?"
+    }
+   ]
+  },
+  {
+   "start": 11,
+   "text": "¿Cuánto cuestan las manzanas hoy?",
+   "chunks": [
+    {
+     "fa": "¿Cuánto cuestan",
+     "voc": "cuánto how much, with the accent every question word carries; cuestan they cost (costar · pres. cuesto · pret. costó · to cost), the o breaking to ue under the stress",
+     "en": "how much do they cost"
+    },
+    {
+     "fa": "las manzanas hoy?",
+     "voc": "manzana apple, f.; hoy today",
+     "en": "the apples today?"
+    }
+   ]
+  },
+  {
+   "start": 15,
+   "text": "Están a dos euros el kilo, señora",
+   "chunks": [
+    {
+     "fa": "Están a dos euros",
+     "voc": "están they are (estar · pres. estoy · pret. estuvo · to be — estar: where and how it is right now (place, state, the result of a change)), of a price here; ser would be for what a thing is",
+     "en": "they are two euros"
+    },
+    {
+     "fa": "el kilo,",
+     "voc": "el kilo the kilo — Spanish says the where English says a",
+     "en": "a kilo,"
+    },
+    {
+     "fa": "señora",
+     "voc": "señora madam; ñ is the ny of canyon",
+     "en": "madam"
+    }
+   ]
+  },
+  {
+   "start": 20,
+   "text": "Vale, me llevo tres",
+   "chunks": [
+    {
+     "fa": "Vale,",
+     "voc": "vale all right — in Spain, the everyday yes",
+     "en": "all right,"
+    },
+    {
+     "fa": "me llevo tres",
+     "voc": "me llevo I will take (llevarse · pres. me llevo · pret. se llevó · to take away with one); the ll is said like the y of yes",
+     "en": "I will take three"
+    }
+   ]
+  },
+  {
+   "start": 24,
+   "text": "Aquí tiene, hasta luego",
+   "chunks": [
+    {
+     "fa": "Aquí tiene,",
+     "voc": "aquí here, the qu said k with the u silent; tiene you have, formal (tener · pres. tengo · pret. tuvo · to have (fut. tendré)) — aquí tiene is here you are",
+     "en": "here you are,"
+    },
+    {
+     "fa": "hasta luego",
+     "voc": "hasta until; luego later — the ordinary goodbye",
+     "en": "see you later"
+    }
+   ]
+  },
+  {
+   "start": 28,
+   "text": "Muchas gracias y buen día",
+   "chunks": [
+    {
+     "fa": "Muchas gracias",
+     "voc": "mucho much, pl. muchas agreeing with gracias, which is feminine and plural",
+     "en": "thank you very much"
+    },
+    {
+     "fa": "y buen día",
+     "voc": "bueno shortened to buen before a masculine singular noun; día day, m.",
+     "en": "and have a good day"
+    }
+   ]
+  }
+ ]
+}

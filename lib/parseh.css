@@ -1,0 +1,420 @@
+/* Parseh — the one palette and the shared chrome.
+   Served at /lib/parseh.css and linked by every page of the toolbox except
+   the studio's own sheet, whose app.css is where these colours come FROM
+   (the studio's --chrome-* and --accent tokens, restated here under the
+   token names the book reader and the video player were built with).
+   Change a colour here and the hub, the book library, the readers, the
+   video pages and the Anki wizard all follow; the readers link this file
+   rather than embedding it, so no rebuild is needed for a palette change. */
+:root{
+  --bg:#f3eff1;        /* the chrome background: an off-white with plum in it */
+  --card:#ffffff;      /* its panels and sheet */
+  --ink:#241e21;       /* text */
+  --dim:#635358;       /* secondary text, glosses */
+  --faint:#a2949a;     /* hints, labels, the lines not in play */
+  --rule:#e3d9dd;      /* borders */
+  --accent:#be3455;    /* Viva Magenta, PANTONE 18-1750 */
+  --accentlt:#ce5b78;  /* its lighter partner: hovers, links */
+  --accent-fg:#ffffff; /* text on an accent background */
+  --hl:#f7dde5;        /* the line being spoken / played */
+  --boxbg:#faf4f6;
+  /* Danger is a deeper, browner red than it was: beside a magenta accent an
+     ordinary alarm red reads as another shade of the same thing, and the
+     stop button has to say STOP at a glance.  Green and amber are untouched
+     -- both sit far enough from the accent's hue to speak for themselves. */
+  --danger:#9b3327; --ok:#2e7d4f; --warn:#a8760a;
+  --danger-fg:#ffffff;  /* text laid ON --danger: white over the light
+     theme's deep red, but near-black over the dark theme's pale salmon */
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]):not([data-theme=sepia]){
+    --bg:#171214; --card:#211a1d; --ink:#e6dade; --dim:#ac9ba1; --faint:#6e6065;
+    --rule:#382c31; --accent:#ee8aa3; --accentlt:#d97c93; --accent-fg:#171214;
+    --hl:#3d222a; --boxbg:#2a2024;
+    --danger:#e79b84; --ok:#6fbf8b; --warn:#dda653;
+    --danger-fg:#171214;
+  }
+}
+:root[data-theme=dark]{
+  --bg:#171214; --card:#211a1d; --ink:#e6dade; --dim:#ac9ba1; --faint:#6e6065;
+  --rule:#382c31; --accent:#ee8aa3; --accentlt:#d97c93; --accent-fg:#171214;
+  --hl:#3d222a; --boxbg:#2a2024;
+  --danger:#e79b84; --ok:#6fbf8b; --warn:#dda653;
+  --danger-fg:#171214;
+}
+/* Sepia is a paper, not a palette.  It restates only the warm ground, the
+   ink and the rules -- the accent, the danger red and the good/warn pair
+   come straight from the light theme above, so the magenta carries onto
+   the cream exactly as it does onto white.  These are the studio's sepia
+   values under the names the rest of the toolbox uses; the two must stay
+   in step, since a reading edition and a studio sheet sit side by side. */
+:root[data-theme=sepia]{
+  --bg:#ece5d4;        /* the studio's --chrome-bg */
+  --card:#f8f3e6;      /* its --chrome-panel: the sheet */
+  --ink:#3c3425;
+  --dim:#6f6653;
+  --faint:#9d9078;
+  --rule:#d8cfba;
+  --hl:#efd6d0;        /* the accent at 15% over the cream, as --hl is over white */
+  --boxbg:#efe7d1;
+}
+
+/* The three faces that travel with the toolbox, in lib/fonts/: the Persian
+   naskh and nastaliq, and the Arabic naskh.  Japanese and Italian rely on
+   the device's fonts (lib/languages.json names the stacks).  Nothing else
+   in this file is per language: WHICH face an element gets comes from
+   /lib/langs.css, generated from the registry, which sets --tl-font,
+   --tl-alt, --tl-dir and --tl-alt-lh on every element with data-lang. */
+@font-face{font-family:Vazirmatn;src:url(fonts/Vazirmatn.woff2) format('woff2');
+  font-weight:100 900;font-display:swap}
+@font-face{font-family:'Noto Nastaliq Urdu';
+  src:url(fonts/NotoNastaliqUrdu.woff2) format('woff2');font-display:swap}
+@font-face{font-family:'Noto Naskh Arabic';
+  src:url(fonts/NotoNaskhArabic.woff2) format('woff2');font-display:swap}
+@font-face{font-family:'Noto Serif Devanagari';
+  src:url(fonts/NotoSerifDevanagari.woff2) format('woff2');font-display:swap}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif}
+/* Parseh.lang hides a card with el.hidden; the browser's own [hidden] rule
+   loses to any author display (a.book is display:block), so it is restated
+   here with the weight it needs. */
+[hidden]{display:none!important}
+
+/* ---------------- the target language's text ----------------
+   Every rule below that sets a script face reads it from the tokens
+   langs.css puts on [data-lang]; when no ancestor carries data-lang (a
+   page built before languages, the brand) the fallback inside var() is
+   the Persian look the toolbox was born with, so nothing old changes. */
+
+/* ---------------- the brand strip ----------------
+   A slim bar at the top of the hub-level pages: the way home, where you
+   are, the theme, the stop button.  The readers keep their own headers and
+   simply carry the home link inside them. */
+.parseh-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:8px 14px;background:var(--card);border-bottom:1px solid var(--rule)}
+.parseh-bar .home{display:inline-flex;align-items:center;gap:8px;
+  text-decoration:none;color:var(--ink);font-weight:600;font-size:15px}
+/* the پ of the home link is the brand, Persian on every page -- including a
+   Japanese reader whose <html data-lang="ja"> would otherwise hand it the
+   gothic face -- so it names the Persian token, not the inherited one */
+.parseh-bar .home .glyph{font-family:var(--tl-alt-fa,'Noto Nastaliq Urdu',Vazirmatn,serif);
+  font-size:16px;line-height:1;width:28px;height:28px;border-radius:50%;
+  background:var(--accent);color:var(--accent-fg);
+  display:inline-flex;align-items:center;justify-content:center;padding-bottom:6px}
+.parseh-bar .home:hover{color:var(--accent)}
+.parseh-bar .where{color:var(--faint);font-size:13px}
+.parseh-bar .where a{color:var(--dim);text-decoration:none}
+.parseh-bar .where a:hover{color:var(--accent)}
+.parseh-bar .sp{flex:1}
+/* on a phone the bar gets out of the way as the page moves down and comes
+   back on the smallest move up: parseh.js (bars()) toggles body.barhidden,
+   and the bar -- which is otherwise in the flow -- is pinned first so that
+   there is something to take away.  Wide screens never see either rule. */
+@media (max-width:560px){
+  .parseh-bar{position:sticky;top:0;z-index:50;transition:transform .18s ease}
+  body.barhidden .parseh-bar{transform:translateY(-100%)}
+}
+.parseh-bar button,.parseh-btn{font:inherit;font-size:13px;padding:5px 10px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);
+  border-radius:6px;cursor:pointer;white-space:nowrap;text-decoration:none}
+.parseh-bar button:hover,.parseh-btn:hover{border-color:var(--accentlt);color:var(--accent)}
+.parseh-bar button.stop:hover{background:var(--danger);border-color:var(--danger);color:var(--danger-fg)}
+/* The switch between the browser and the mobile interface (Parseh.mode):
+   two halves of one control, the one in force filled with the accent.  The
+   fill is read off <html data-mode>, which parseh.js sets before the first
+   paint, and not off aria-pressed, which it can set only once the buttons
+   exist -- so the wrong half is never shown pressed, not even for a frame.
+   These come after the bar's own button rules, and override them by being
+   later at the same weight. */
+.parseh-mode{display:inline-flex;border:1px solid var(--rule);border-radius:6px;
+  background:var(--bg)}
+.parseh-mode button{font:inherit;font-size:13px;padding:4px 10px;margin:0;border:0;
+  border-radius:0;background:none;color:var(--dim);cursor:pointer;white-space:nowrap}
+.parseh-mode button:first-child{border-start-start-radius:5px;border-end-start-radius:5px}
+.parseh-mode button:last-child{border-start-end-radius:5px;border-end-end-radius:5px}
+.parseh-mode button+button{border-inline-start:1px solid var(--rule)}
+.parseh-mode button:hover{color:var(--accent);border-color:var(--rule)}
+html:not([data-mode=mobile]) .parseh-mode [data-parseh-mode=browser],
+html[data-mode=mobile] .parseh-mode [data-parseh-mode=mobile]{
+  background:var(--accent);color:var(--accent-fg);cursor:default}
+/* The hub's bar carries the switch as well as everything it had before,
+   and that is more than a phone's width holds on one line: the bar went to
+   two rows and pushed the whole hub down.  So on a phone a bar with the
+   switch in it sheds what the page says anyway -- "the hub" (the brand is
+   right under it), the word after the stop button's glyph (its title still
+   says what it does), and under 420px the name beside the home glyph (the
+   brand again) -- and draws the switch a little tighter: one row from 340px
+   up, where it used to be one row from 360px.  The words go from the eye
+   only (each is a .word span): a screen reader still hears "Parseh" and
+   "stop".  Every bar without the switch is left as it was, and so is the
+   mobile layout's own bar, which mobile.css fits.  (A browser too old for
+   :has() shows the two rows.) */
+@media (max-width:560px){
+  .parseh-bar:not(.m-bar):has(> .parseh-mode){gap:8px}
+  .parseh-bar:not(.m-bar):has(> .parseh-mode) .where{display:none}
+  .parseh-bar:not(.m-bar):has(> .parseh-mode) .parseh-mode button{padding:4px 8px}
+  .parseh-bar:not(.m-bar):has(> .parseh-mode) .stop .word{position:absolute;
+    width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+@media (max-width:420px){
+  .parseh-bar:not(.m-bar):has(> .parseh-mode) .home .word{position:absolute;
+    width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+
+/* ---------------- index pages: a heading and a stack of cards ------- */
+body.index main{max-width:760px;margin:0 auto;padding:7vh 20px 14vh}
+h1.idx{font:400 15px/1.3 inherit;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);margin:0 0 4px}
+p.sub{color:var(--dim);font-size:14px;margin:0 0 30px}
+p.sub code,footer code{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+/* the heading over one language's group of cards (books, videos, the
+   studio's library); carries data-lang like the cards under it */
+.lang-head{font:400 13px/1.3 inherit;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);margin:26px 0 10px;display:flex;align-items:baseline;gap:10px}
+.lang-head:first-child,h1.idx+.lang-head,p.sub+.lang-head,.parseh-langs+.lang-head{margin-top:0}
+.lang-head .native{font-family:var(--tl-font,inherit);text-transform:none;
+  letter-spacing:0;font-size:15px;color:var(--dim)}
+.lang-head .n{color:var(--faint);letter-spacing:0;font-variant-numeric:tabular-nums}
+
+/* ---------------- the language row ----------------
+   One chip per language with its count, plus "all"; languages.chips_html
+   writes it, Parseh.lang marks the picked one .on and, when the row says
+   data-lang-filter, hides the cards of the other languages. */
+.parseh-langs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 22px}
+.parseh-langs .chip{font:inherit;font-size:13px;line-height:1.3;padding:4px 11px;
+  border:1px solid var(--rule);border-radius:20px;background:var(--card);
+  color:var(--dim);cursor:pointer;display:inline-flex;align-items:baseline;gap:6px;
+  white-space:nowrap}
+.parseh-langs .chip:hover{border-color:var(--accentlt);color:var(--accent)}
+.parseh-langs .chip.on{color:var(--accent);border-color:var(--accent);
+  background:var(--hl)}
+/* the native name in the language's own face (the chip carries data-lang,
+   so langs.css hands it the token); the count and "all" stay in the UI's */
+.parseh-langs .chip .native{font-family:var(--tl-font,inherit)}
+.parseh-langs .chip .n{font-size:11px;color:var(--faint);
+  font-variant-numeric:tabular-nums;font-feature-settings:'locl' 0}
+.parseh-langs .chip.on .n{color:var(--accent)}
+
+a.book{display:block;text-decoration:none;color:inherit;background:var(--card);
+  border:1px solid var(--rule);border-radius:12px;padding:18px 20px;
+  margin-bottom:14px;transition:border-color .12s, transform .12s}
+a.book:hover{border-color:var(--accentlt);transform:translateY(-1px)}
+/* Taking something off the shelf.  Quiet until the card is under the pointer,
+   because it is the one control here that ends something -- and never quiet
+   once it has focus, or it could not be reached from a keyboard at all. */
+a.book{position:relative}
+a.book .card-del{position:absolute;top:8px;inset-inline-end:8px;z-index:2;
+  opacity:0;transition:opacity .12s;font:inherit;font-size:12px;line-height:1;
+  padding:3px 7px;border:1px solid var(--rule);border-radius:8px;
+  background:var(--card);color:var(--faint);cursor:pointer}
+a.book:hover .card-del,a.book .card-del:focus{opacity:1}
+a.book .card-del:hover{border-color:var(--danger);color:var(--danger)}
+a.book .card-del[disabled]{opacity:.4;cursor:default}
+/* Building a book from its card: beside the x, and as quiet as it until the
+   card is under the pointer -- except on a card whose book has no reader yet,
+   where building is the one thing the card can do, and the whole card does it. */
+a.book .card-build{position:absolute;top:8px;inset-inline-end:40px;z-index:2;
+  opacity:0;transition:opacity .12s;font:inherit;font-size:11.5px;line-height:1;
+  padding:3px 8px;border:1px solid var(--rule);border-radius:8px;
+  background:var(--card);color:var(--dim);cursor:pointer}
+a.book:hover .card-build,a.book .card-build:focus,a.book.pending .card-build{opacity:1}
+a.book .card-build:hover{border-color:var(--accent);color:var(--accent)}
+a.book .card-build[disabled]{opacity:.5;cursor:progress}
+a.book.pending{cursor:pointer}
+/* The title in the display face (--tl-alt: nastaliq for Persian, gothic
+   for Japanese, the main face where a language has no second one), the
+   author line in the reading face; both take their direction from the
+   language.  A title's leading is 81% of what the display face wants in
+   running text (nastaliq's 2.6 -> the 2.1 the Persian card always had),
+   and never under 1.45 so a wrapped Latin or CJK title keeps its lines
+   apart. */
+a.book .fa{font-family:var(--tl-alt,'Noto Nastaliq Urdu',serif);font-size:26px;
+  line-height:max(1.45,calc(var(--tl-alt-lh,2.6) * .81));direction:var(--tl-dir,rtl);
+  color:var(--ink)}
+a.book .by{font-family:var(--tl-font,Vazirmatn,serif);direction:var(--tl-dir,rtl);
+  color:var(--dim);font-size:15px;margin-top:2px}
+a.book .lat{color:var(--ink);font-size:15px;margin-top:8px}
+a.book .lat i{color:var(--dim);font-style:italic}
+a.book .blurb{color:var(--dim);font-size:13.5px;margin-top:7px}
+a.book .tags{margin-top:11px;display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:11px;color:var(--dim);border:1px solid var(--rule);
+  border-radius:20px;padding:2px 9px;font-variant-numeric:tabular-nums}
+.tag.on{color:var(--accent);border-color:var(--accent)}
+.tag.no{color:var(--faint)}
+a.book.pending{opacity:.6}
+a.book.pending:hover{transform:none;border-color:var(--rule)}
+a.book.chan{padding:20px 22px}
+a.book.chan .chname{font-family:var(--tl-font,Vazirmatn,serif);direction:ltr;
+  font-size:19px;color:var(--ink)}
+a.book.sync{margin-top:26px;border-style:dashed}
+a.book.sync .chname{font-family:inherit;font-size:16px;color:var(--accent)}
+a.book.sync .blurb{margin-top:5px}
+a.crumb{color:var(--dim);text-decoration:none;font-size:14px}
+a.crumb:hover{color:var(--accent)}
+footer.idx{color:var(--faint);font-size:12.5px;margin-top:34px;line-height:1.7}
+footer.idx a{color:var(--dim)}
+.stopbtn{font:inherit;font-size:12.5px;color:var(--dim);background:var(--card);
+  border:1px solid var(--rule);border-radius:6px;padding:5px 10px;
+  cursor:pointer;margin-top:10px}
+.stopbtn:hover{color:var(--danger-fg);background:var(--danger);border-color:var(--danger)}
+
+/* ---------------- the hub: the four doors ----------------
+   Books, videos, the studio and the exercise decks: one row of four on a
+   desktop, two by two on a narrow window, one above another on a phone. */
+.hub{max-width:980px;margin:0 auto;padding:6vh 20px 12vh}
+.hub .brand{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+/* the brand (پارسه) and the door glyphs are written in the hub with
+   data-lang="fa": the toolbox's name is Persian whatever is being learned */
+.hub .brand .fa{font-family:var(--tl-alt,'Noto Nastaliq Urdu',Vazirmatn,serif);font-size:44px;
+  line-height:1.6;direction:var(--tl-dir,rtl);color:var(--accent)}
+.hub .brand .lat{font-size:30px;font-weight:600;letter-spacing:.01em}
+.hub .tagline{color:var(--dim);font-size:15px;margin:0 0 34px}
+.hub .tagline+.parseh-langs{margin:-16px 0 30px}
+.hub .doors{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+@media (max-width:900px){.hub .doors{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:540px){.hub .doors{grid-template-columns:1fr}}
+a.door{display:block;text-decoration:none;color:inherit;background:var(--card);
+  border:1px solid var(--rule);border-radius:14px;padding:20px 20px 16px;
+  transition:border-color .12s, transform .12s;min-height:170px}
+a.door:hover{border-color:var(--accentlt);transform:translateY(-2px)}
+a.door .dfa{font-family:var(--tl-alt,'Noto Nastaliq Urdu',Vazirmatn,serif);font-size:28px;
+  line-height:1.9;direction:var(--tl-dir,rtl);text-align:start;color:var(--accent)}
+a.door .dname{font-size:19px;font-weight:600;margin-top:2px}
+a.door .dwhat{color:var(--dim);font-size:13.5px;margin-top:6px;line-height:1.5}
+a.door .tags{margin-top:12px;display:flex;gap:6px;flex-wrap:wrap}
+.hub .row2{margin-top:14px;display:grid;grid-template-columns:1fr;gap:14px}
+a.door.wide{min-height:0;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+a.door.wide .dname{margin:0;font-size:16px}
+a.door.wide .dwhat{margin:0;flex:1;min-width:200px}
+a.door.wide .tags{margin:0}
+.hub .foot{color:var(--faint);font-size:12.5px;margin-top:36px;line-height:1.8}
+.hub .foot code{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.hub .foot a{color:var(--dim)}
+.hub .addr{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:4px}
+.hub .addr code{color:var(--dim)}
+
+/* ---------------- text & margins: the readers' panel ----------------
+   Opened by the Aa button in a reader's header; Parseh.typo builds it. */
+.parseh-typo{position:fixed;z-index:120;width:min(340px,94vw);
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 12px 36px rgba(0,0,0,.28);padding:12px 14px 10px;
+  font:13px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  color:var(--ink);text-align:left}
+.parseh-typo[hidden]{display:none}
+.parseh-typo .thead{display:flex;align-items:center;gap:8px;color:var(--dim);
+  font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.parseh-typo .sp{flex:1}
+.parseh-typo .trow{display:grid;grid-template-columns:64px 1fr 56px;align-items:center;
+  gap:10px;margin:7px 0}
+.parseh-typo label{color:var(--dim);font-size:12.5px}
+.parseh-typo input[type=range]{width:100%;margin:0;accent-color:var(--accent)}
+.parseh-typo output{font-variant-numeric:tabular-nums;text-align:right;font-size:12px;
+  color:var(--ink);font-family:ui-monospace,Menlo,monospace;font-feature-settings:'locl' 0}
+.parseh-typo button{font:inherit;font-size:12px;padding:3px 9px;border:1px solid var(--rule);
+  background:var(--bg);color:var(--ink);border-radius:6px;cursor:pointer;line-height:1.3}
+.parseh-typo button:hover{border-color:var(--accentlt);color:var(--accent)}
+.parseh-typo .tfoot{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;
+  border-top:1px solid var(--rule)}
+.parseh-typo .hint{color:var(--faint);font-size:11.5px}
+
+/* ---------------- the toast every page can raise ---------------- */
+#parseh-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);
+  z-index:400;background:var(--ink);color:var(--bg);border-radius:99px;
+  padding:7px 16px;font-size:13.5px;box-shadow:0 6px 24px rgba(0,0,0,.3);
+  max-width:80vw;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+  direction:ltr;unicode-bidi:plaintext}
+#parseh-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#parseh-toast.err{background:var(--danger);color:var(--danger-fg)}
+
+/* ---------------- copy mode ----------------
+   In the book reader and the video player a plain click PLAYS, so copying
+   takes a held shift: while it is down the hoverable phrases say so. */
+body.shiftdown .w,body.shiftdown .seg .fa,body.shiftdown .sub .pass,
+body.shiftdown .seg .en-line{cursor:copy}
+body.shiftdown .w:hover{outline:2px solid var(--accentlt);outline-offset:2px;
+  border-radius:4px;background:var(--hl)}
+/* the copy button that sits beside "+ anki card" in a gloss cloud */
+#cloud .mkrow{display:flex;gap:6px;flex-wrap:wrap}
+
+/* Reading preferences affect running text; the cloud keeps its full reading. */
+html[data-lang="ja"] :is(.p1,.p3,.p4,.row .fa,.seg .fa),
+html[data-lang="zh"] :is(.p1,.p3,.p4,.row .fa,.seg .fa){letter-spacing:var(--cjk-space,0em)}
+html[data-lang="ja"] :is(.p1,.seg .fa) rt{
+  font-size:var(--kana-size,50%);letter-spacing:0;line-height:1.2;
+  color:var(--dim);color:color-mix(in srgb,var(--ink) var(--kana-contrast,0%),var(--dim));
+  font-family:var(--tl-font,serif);user-select:none}
+html[data-lang="ja"] :is(.p1,.seg .fa) ruby{ruby-position:over}
+html[data-lang="ja"] :is(.p1,.seg .fa) ruby.reading-known rt{visibility:hidden}
+.reading-controls{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+#cloud .reading-controls button{font:inherit;font-size:11.5px;padding:3px 7px;
+  background:var(--bg);color:var(--dim);border:1px solid var(--rule);border-radius:5px;cursor:pointer}
+#cloud .reading-controls button[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}
+.reading-controls small{flex-basis:100%;font-size:11px;color:var(--faint)}
+/* A chunk drawn from its word line hides a known word's reading the same
+   way, in either language: Chinese hangs its pinyin over its words too.
+   Only a word the line drew (data-w): both readers already wrap a chunk
+   without words in a plain .wd, and that one is left as it was. */
+.wd[data-w] ruby.reading-known rt{visibility:hidden}
+.wd[data-w] rt{user-select:none}
+/* Pinyin over a Chinese word is Latin letters with tone marks, not a CJK
+   annotation: the chrome's own upright sans instead of the characters' serif,
+   small but never below the size a tone mark reads at, its letters unspaced
+   whatever the character spacing, and held tight so it keeps to the leading
+   over its word. */
+html[data-lang="zh"] :is(.p1,.seg .fa) .wd[data-w] rt{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  font-size:max(10px,48%);font-style:normal;font-weight:400;letter-spacing:0;
+  line-height:1.1;color:var(--dim)}
+
+/* ---------------- the word strip ----------------
+   Parseh.wordstrip: a chunk's words as chips, each reading in a box under
+   its word, and the line itself behind "edit as text". */
+.wordstrip{background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  padding:10px 12px 8px;color:var(--ink);font-size:13px;text-align:start}
+.ws-chips{display:flex;flex-wrap:wrap;align-items:center;row-gap:10px;min-height:8px}
+.ws-chips.ws-stale{opacity:.45}
+.ws-chip{display:inline-flex;flex-direction:column;border:1px solid var(--rule);
+  border-radius:7px;background:var(--bg);padding:6px 5px 3px}
+.ws-chip:focus-within{border-color:var(--accent)}
+.ws-surf{font-family:var(--tl-font,serif);font-size:21px;line-height:1.3;text-align:center;
+  white-space:nowrap;border-radius:4px;padding:0 3px;outline:none;cursor:default}
+.ws-surf:focus{background:var(--hl)}
+.ws-read{font:inherit;font-size:12px;width:100%;margin-top:3px;padding:2px 0 0;border:0;
+  border-top:1px dashed var(--rule);background:transparent;color:var(--dim);
+  text-align:center;outline:none}
+.ws-read[lang]{font-family:var(--tl-font,serif)}
+.ws-read:focus{color:var(--ink);border-top-color:var(--accent)}
+.ws-read::placeholder{color:var(--faint)}
+/* ✂ between two characters, on the chip in hand only, riding its top
+   edge; the negative margins give its width back, so no character moves */
+.ws-cut{position:relative;z-index:1;top:-13px;display:inline-block;vertical-align:top;
+  width:14px;height:14px;margin:0 -7px;padding:0;border:0;border-radius:50%;
+  background:var(--card);color:var(--accent);font:10px/14px sans-serif;
+  cursor:pointer;visibility:hidden}
+.ws-cut::before{content:'\2702'}
+.ws-chip:hover .ws-cut,.ws-chip:focus-within .ws-cut{visibility:visible}
+.ws-cut:hover{background:var(--accent);color:var(--accent-fg)}
+.ws-join{font:inherit;font-size:13px;line-height:1;padding:3px 2px;margin:0 1px;border:0;
+  background:none;color:var(--faint);cursor:pointer}
+.ws-join:hover,.ws-join:focus-visible{color:var(--accent)}
+.ws-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ws-sp{flex:1}
+.ws-bar button{font:inherit;font-size:12px;line-height:1.3;padding:3px 9px;
+  border:1px solid var(--rule);border-radius:6px;background:var(--bg);color:var(--ink);cursor:pointer}
+.ws-bar button:hover,.ws-bar button.on{border-color:var(--accent);color:var(--accent)}
+.ws-bar button[disabled]{opacity:.5;cursor:default}
+.ws-say{color:var(--faint);font-size:11.5px}
+.ws-say.err{color:var(--danger)}
+.ws-text{display:block;width:100%;margin-top:6px;padding:6px 8px;resize:vertical;
+  font-family:var(--tl-font,serif);font-size:15px;line-height:1.6;color:var(--ink);
+  background:var(--bg);border:1px solid var(--rule);border-radius:6px}
+.ws-text:focus{outline:none;border-color:var(--accent)}
+.ws-note{margin-top:6px;font-size:12px;line-height:1.45}
+.ws-note .ws-err{color:var(--danger)}
+.ws-note .ws-warn{color:var(--dim);padding-inline-start:8px;border-inline-start:2px solid var(--warn)}
+.ws-note .ws-warn+.ws-warn,.ws-note .ws-err+.ws-warn{margin-top:2px}
+.ws-note .ws-empty{color:var(--faint)}
+mark.pair-match{background:transparent;color:var(--accent);font-weight:600}
+.parseh-typo{max-height:calc(100vh - 90px);overflow-y:auto}

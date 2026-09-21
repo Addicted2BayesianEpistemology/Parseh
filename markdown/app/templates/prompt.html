@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM prompt — Parseh studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D9%81%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{BASE}}/static/app.css">
+<link rel="stylesheet" href="{{BASE}}/static/langs.css">
+</head>
+<body data-page="prompt" data-base="{{BASE}}">
+<header class="topbar">
+  <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
+  <a class="btn ghost" href="{{BASE}}/">← Library</a>
+  <div class="doc-title">LLM authoring prompt</div>
+  <div class="topbar-actions">
+    <button class="btn" id="btn-edit-prompt">Edit prompt</button>
+    <button class="btn primary hidden" id="btn-save-prompt">Save custom prompt</button>
+    <button class="btn hidden" id="btn-cancel-edit">Cancel</button>
+    <button class="btn" id="btn-reset-prompt" title="Discard the custom prompt and go back to exlex/PROMPT.md">Reset to default</button>
+    <button class="btn danger ghost" id="btn-stop">Stop server</button>
+  </div>
+</header>
+<main class="container narrow">
+  <p class="hint">Paste the prompt <strong>before your question, in the same
+  message</strong>. The model will write a <code>.md</code> file; download it
+  and open it here with <em>Upload .md</em> to read it typeset and compile the
+  verified PDF.</p>
+
+  <div class="prompt-box">
+    <div class="prompt-box-head">
+      <span>Prompt <span id="prompt-badge" class="badge"></span></span>
+      <label class="prompt-target" title="The language the document is about: the copied prompt states it, and the language's own conventions are appended">target language
+        <select id="prompt-target"></select></label>
+      <button class="btn small" id="btn-copy-prompt">Copy prompt only</button>
+    </div>
+    <textarea id="prompt-text" readonly rows="18" spellcheck="false"></textarea>
+  </div>
+
+  <h3 class="qlabel">Your question</h3>
+  <textarea id="question" rows="4"
+    placeholder="Es.: Le parole persiane per «caldo» e «freddo»: usi, registri, opposti, composti."></textarea>
+
+  <div class="row">
+    <button class="btn primary big" id="btn-copy-all">Copy prompt + question</button>
+    <span id="copy-info" class="pv-status"></span>
+  </div>
+
+  <div class="workflow-hint">
+    <strong>Workflow</strong> — ① copy prompt + question · ② ask your LLM ·
+    ③ download the <code>.md</code> file it writes · ④ back in the
+    <a href="{{BASE}}/">library</a>, <em>Upload .md</em> · ⑤ read it typeset, tag it,
+    build the verified PDF.
+    <br><span class="pv-status">If a model answers inline instead of writing a
+    file, <em>Paste LLM answer</em> still works: the markdown is pulled out of
+    its code fence automatically.</span>
+  </div>
+</main>
+<script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
+<div id="modal-root"></div>
+<div id="toast" class="toast" hidden></div>
+<div id="shutdown-overlay" class="shutdown-overlay" hidden>
+  <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
+  <code>./serve.sh</code> in the project directory.</p></div>
+</div>
+<link rel="stylesheet" href="{{BASE}}/static/mathjax.css">
+<script src="{{BASE}}/static/mathjax.js"></script>
+<!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
+<script src="/lib/activity.js" async></script>
+<script src="{{BASE}}/static/app.js"></script>
+</body>
+</html>

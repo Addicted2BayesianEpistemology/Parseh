@@ -1,0 +1,7514 @@
+/* exlex studio — client logic for library, reading view, editor, prompt. */
+"use strict";
+
+const $ = (sel, el) => (el || document).querySelector(sel);
+const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
+const PAGE = document.body.dataset.page;
+const DOC_ID = document.body.dataset.docId || "";
+// the prefix the studio is served under: "" on its own, "/studio" inside
+// Parseh.  Every absolute URL the script builds goes through it.
+const BASE = document.body.dataset.base || "";
+
+// Framed -- this document is a note opened over a book or a video -- Escape
+// belongs to the page that opened it, which cannot hear a key pressed in
+// here.  Only when nothing in this document has already claimed it.
+if (window.parent !== window) {
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    try { window.parent.postMessage({ parseh: "close-note" }, location.origin); }
+    catch (_) {}
+  });
+}
+
+/* The document's target language (docs/languages.md): the page embeds
+   the registry record (`Lang.as_json()`) as #doc-lang and the registry
+   list (for chips, badges and the prompt select) as #langs-json.  Nothing
+   here names a language: direction, labels, whether there is a reading
+   (kana) or a vertical mode, the alternate face -- all come from the
+   record.  The editor replaces LANG when a preview reports another
+   `target:` in the front matter. */
+function readJson(id, fallback) {
+  const el = document.getElementById(id);
+  if (!el) return fallback;
+  try { return JSON.parse(el.textContent) || fallback; } catch (e) { return fallback; }
+}
+const LANGS = readJson("langs-json", []);
+// what a page without a record (the library, the prompt) falls back to:
+// the toolbox's first language, described minimally
+let LANG = readJson("doc-lang", null);
+const FALLBACK_LANG = {code: "fa", name: "Persian", native: "فارسی", dir: "rtl",
+                       script: "arabic", reading: false, vertical: false,
+                       translit_label: "transliteration", reading_label: null,
+                       fonts: {alt_key: null}};
+function lang() { return LANG || FALLBACK_LANG; }
+function langAttrs(el) {
+  el.setAttribute("lang", lang().code);
+  el.setAttribute("dir", lang().dir);
+}
+function capital(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; }
+/* The toolbox's one case fold (`languages.fold`), spliced in by the server
+   from `languages.FOLD_JS` so it is written once and the browser narrows a
+   list exactly as store.py does.  Every comparison of typed text with
+   target text goes through it: toLowerCase alone spells Turkish's İ as
+   i + a combining dot, and a filter keyed on that finds nothing a Turk
+   can type.  For matching only -- never for what is stored or shown. */
+const foldCase = __FOLD__;
+/* the default size of the target script relative to the Latin: the
+   Arabic-script faces are small on the x-height and were always set
+   "very big"; CJK glyphs fill their em box; a Latin-script target is the
+   same alphabet as the prose (texgen.default_scale is the PDF twin) */
+function defaultScale(L) {
+  if (L.script === "latin") return 1.0;
+  if (L.script === "arabic") return 1.52;
+  return 1.2;
+}
+/* the shared language preference of the toolbox (`parseh_lang`: "all" or
+   a code), read directly -- parseh.js is not loaded in the studio */
+function sharedLang() {
+  try { return localStorage.getItem("parseh_lang") || "all"; } catch (e) { return "all"; }
+}
+function setSharedLang(v) {
+  try { localStorage.setItem("parseh_lang", v); } catch (e) { /* private mode */ }
+}
+
+/* The library's sort order, remembered the way the language is: coming back
+   to the page and finding it sorted by something else is the page forgetting
+   what the reader chose.  Only the three the menu offers are accepted, so a
+   stale or hand-written value cannot leave the list sorted by nothing. */
+const SORTS = ["updated", "created", "title"];
+function savedSort() {
+  let v = null;
+  try { v = localStorage.getItem("parseh_studio_sort"); } catch (e) { /* private mode */ }
+  return SORTS.includes(v) ? v : "updated";
+}
+function saveSort(v) {
+  try { localStorage.setItem("parseh_studio_sort", v); } catch (e) { /* private mode */ }
+}
+
+/* A library visit should survive opening a document in this tab.  The
+   language chip and sort already have their own shared preferences; search
+   and tags belong to this tab, so another window can browse independently. */
+const LIBRARY_FILTERS_KEY = "parseh_studio_filters";
+function savedLibraryFilters() {
+  let saved = {};
+  try { saved = JSON.parse(sessionStorage.getItem(LIBRARY_FILTERS_KEY) || "{}"); }
+  catch (e) { /* private mode or an old, unreadable value */ }
+  if (!saved || typeof saved !== "object") saved = {};
+  const tags = value => new Set(Array.isArray(value)
+    ? value.filter(tag => typeof tag === "string" && tag) : []);
+  return {q: typeof saved.q === "string" ? saved.q : "",
+          intext: saved.intext === true,
+          tags: tags(saved.tags), excludedTags: tags(saved.excludedTags)};
+}
+
+/* ---------------- helpers ---------------- */
+
+async function api(path, opts = {}) {
+  if (opts.json !== undefined) {
+    opts.body = JSON.stringify(opts.json);
+    opts.headers = Object.assign({"Content-Type": "application/json"},
+                                 opts.headers);
+    delete opts.json;
+  }
+  const r = await fetch(BASE + path, opts);
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* non-JSON error page */ }
+  if (!r.ok) throw new Error(data.error || (r.status + " " + r.statusText));
+  return data;
+}
+
+/* A document's name as a `[…](doc:Name)` link writes it: itself, with a
+   backslash before every backslash and before every parenthesis that does
+   not pair up (or pairs up more than two deep) -- texgen.escape_doc_name,
+   character for character, so the link closes where it should and the
+   server reads back the very name that was picked. */
+function escapeDocName(name) {
+  const s = String(name || "").replace(/\s*\n\s*/g, " ").trim();
+  const keep = new Set(), open = [];
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "(") open.push([i, open.length + 1]);
+    else if (s[i] === ")" && open.length) {
+      const [j, depth] = open.pop();
+      if (depth <= 2) { keep.add(i); keep.add(j); }
+    }
+  }
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "\\" || ((c === "(" || c === ")") && !keep.has(i))) out += "\\";
+    out += c;
+  }
+  return out;
+}
+
+/* api() for the requests whose refusal is an answer to act on rather than
+   an error to show -- an upload short of its header (422), a name already
+   taken (409): {status, ok, data}, and never a throw for a status. */
+async function send(path, opts) {
+  const init = Object.assign({}, opts);
+  if (init.json !== undefined) {
+    init.body = JSON.stringify(init.json);
+    init.headers = {"Content-Type": "application/json"};
+    delete init.json;
+  }
+  const r = await fetch(BASE + path, init);
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* not JSON */ }
+  return {status: r.status, ok: r.ok && data.ok !== false, data};
+}
+const nameClash = a => !!(a && a.status === 409 && a.data && a.data.name_conflicts);
+
+/* THE NAME-CONFLICT DIALOG.  A document's name is its title, and a link
+   names its target (`[…](doc:Name)`), so no two documents of one library
+   may share a name.  Whatever adds a document or renames one -- a save, a
+   new document, a paste, an upload, a zip, a backup -- is answered 409 when
+   a name is taken, with nothing written, and `first` is that answer.
+
+   For each clash this asks for two names: one for the document already in
+   the library (or already in the zip), one for the document being saved or
+   added; either may stay as it is, not both.  `resend(renames)` sends the
+   same request again with them -- {existing: {id: name}, incoming: {ref:
+   name}} -- and the server checks every name again, together: a name still
+   taken comes back as a problem shown under its own field, and the dialog
+   stays open for another.  Resolves to the answer that went through
+   ({status, ok, data}), or to null when cancelled: nothing was written.
+   `verb` says what the incoming document is being: "saved" or "added".
+
+   The first answer may refuse a name the page itself sent -- a backup's
+   second pass (Replace) goes with the names its first pass was given --
+   or a name no other document has but that cannot be one (a "|"): every
+   name refused gets a field all the same, from the pair the server makes
+   of it or, failing that, on its own (`fields` says what it was). */
+function askNames(first, resend, {verb = "added"} = {}) {
+  return new Promise(resolve => {
+    const root = $("#modal-root");
+    root.innerHTML = "";
+    const ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    const clash = (first.name_conflicts || []).length > 0;
+    ov.innerHTML = `<div class="modal names-modal" role="dialog" aria-modal="true"
+                         aria-labelledby="names-title">
+      <h3 id="names-title">${clash ? "This name is already in use" : "This name cannot be used"}</h3>
+      <p>${clash ? `A link to a document names it, so two documents of one library cannot
+         share a name. Rename the document already there, the one being ${verb},
+         or both — every link to a renamed document follows it to its new name.`
+         : `Give the document being ${verb} another name — what is wrong with this
+         one is said under it.`}</p>
+      <div class="names-list"></div>
+      <p class="names-error" role="alert" hidden></p>
+      <div class="row">
+        <button class="btn" type="button" data-x="cancel">Cancel</button>
+        <button class="btn primary" type="button" data-x="ok">Use these names</button>
+      </div></div>`;
+    const list = $(".names-list", ov), errBox = $(".names-error", ov);
+    const okBtn = $('[data-x="ok"]', ov), cancelBtn = $('[data-x="cancel"]', ov);
+    const fields = new Map();          // "existing:<id>" / "incoming:<ref>" -> input
+    let settled = false, busy = false;
+
+    function field(box, key, label, value, extra) {
+      const lab = document.createElement("label");
+      lab.className = "modal-field names-field";
+      if (fields.has(key)) {           // the same document in a second clash
+        lab.innerHTML = `<span class="names-label"></span><span class="names-same">renamed above</span>`;
+        $(".names-label", lab).textContent = label;
+        box.appendChild(lab);
+        return;
+      }
+      lab.innerHTML = `<span class="names-label"></span>
+        <input type="text" dir="auto" spellcheck="false" autocomplete="off">
+        <span class="names-problem" dir="ltr" hidden></span>`;
+      $(".names-label", lab).textContent = label;
+      if (extra) $(".names-label", lab).appendChild(extra);
+      const input = $("input", lab);
+      input.value = value || "";
+      input.dataset.key = key;
+      input.addEventListener("input", () => problem(key, ""));
+      fields.set(key, input);
+      box.appendChild(lab);
+    }
+    // a way to look at a document of the library first, in a tab of its
+    // own: this one holds the unsaved text or the upload being answered
+    function opener(id) {
+      const open = document.createElement("a");
+      open.className = "names-open";
+      open.href = `${BASE}/doc/${encodeURIComponent(id)}`;
+      open.target = "_blank";
+      open.rel = "noopener";
+      open.textContent = "open it ↗";
+      return open;
+    }
+    const keyOf = side => side.id ? "existing:" + side.id
+      : "incoming:" + (side.ref !== undefined ? side.ref : side.incoming_ref);
+    // a side's field: prefilled with the name it was given, else its own
+    function side(box, s, label) {
+      field(box, keyOf(s), label, s.name !== undefined ? s.name : s.title,
+            s.id ? opener(s.id) : null);
+    }
+    function pair(c) {
+      const ex = c.existing || {}, inc = c.incoming || {};
+      // asked again, the pair of a document that has its field already
+      // says nothing new: the problem under that field says it
+      if (fields.has(keyOf(inc))) return;
+      const box = document.createElement("fieldset");
+      box.className = "names-pair";
+      const legend = document.createElement("legend");
+      const wanted = inc.name !== undefined ? inc.name : ex.name;
+      legend.textContent = wanted !== undefined ? `Both would be called “${wanted}”`
+        : `Both are called “${ex.title || inc.title}”`;
+      box.appendChild(legend);
+      side(box, ex, ex.id ? "Rename the document already in the library"
+        : `Rename the other document being ${verb}` + (ex.file ? ` (${ex.file})` : ""));
+      side(box, inc, inc.id ? "Rename this other document of the library"
+        : `Rename the document being ${verb}` + (inc.file ? ` (${inc.file})` : ""));
+      list.appendChild(box);
+    }
+    // a name refused that no pair brought a field for
+    function lone(key, f) {
+      const box = document.createElement("fieldset");
+      box.className = "names-pair";
+      const legend = document.createElement("legend");
+      legend.textContent = `“${f.title || f.name || ""}”`;
+      box.appendChild(legend);
+      const id = key.startsWith("existing:") ? key.slice(9) : "";
+      field(box, key, id ? "Rename the document already in the library"
+        : `Rename the document being ${verb}` + (f.file ? ` (${f.file})` : ""),
+            f.name || f.title || "", id ? opener(id) : null);
+      list.appendChild(box);
+    }
+    function problem(key, text) {
+      const input = fields.get(key);
+      if (!input) return false;
+      const out = input.parentNode.querySelector(".names-problem");
+      out.textContent = text || "";
+      out.hidden = !text;
+      input.classList.toggle("bad", !!text);
+      input.setAttribute("aria-invalid", text ? "true" : "false");
+      return true;
+    }
+    function show(answer) {
+      for (const c of answer.name_conflicts || []) pair(c);
+      const problems = answer.problems || {};
+      for (const key of Object.keys(problems))
+        if (!fields.has(key)) lone(key, (answer.fields || {})[key] || {});
+      let shown = 0;
+      for (const [key, text] of Object.entries(problems)) if (problem(key, text)) shown++;
+      const bad = [...fields.values()].find(i => i.classList.contains("bad"));
+      (bad || fields.values().next().value || okBtn).focus();
+      return shown;
+    }
+    function hold(on) {
+      busy = on;
+      okBtn.disabled = cancelBtn.disabled = on;
+      okBtn.textContent = on ? "Checking…" : "Use these names";
+    }
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKey, true);
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      resolve(value);
+    };
+    async function submit() {
+      if (busy) return;
+      errBox.hidden = true;
+      const renames = {existing: {}, incoming: {}};
+      let empty = null;
+      for (const [key, input] of fields) {
+        const value = input.value.replace(/\s+/g, " ").trim();
+        const cut = key.indexOf(":");
+        renames[key.slice(0, cut)][key.slice(cut + 1)] = value;
+        if (!value) { problem(key, "A document needs a name — give it one"); empty = empty || input; }
+      }
+      if (empty) { empty.focus(); return; }
+      hold(true);
+      let answer;
+      try {
+        answer = await resend(renames);
+      } catch (e) {
+        errBox.textContent = e.message;
+        errBox.hidden = false;
+        hold(false);
+        return;
+      }
+      if (nameClash(answer)) {
+        hold(false);
+        for (const key of fields.keys()) problem(key, "");
+        if (!show(answer.data)) {
+          errBox.textContent = answer.data.error || "a name is still taken";
+          errBox.hidden = false;
+        }
+        return;
+      }
+      finish(answer);
+    }
+    function onKey(e) {
+      if (e.key === "Escape" && !busy) { e.preventDefault(); e.stopPropagation(); finish(null); }
+      else if (e.key === "Enter" && e.target.matches && e.target.matches(".names-field input")) {
+        e.preventDefault(); submit();
+      }
+    }
+    document.addEventListener("keydown", onKey, true);
+    okBtn.addEventListener("click", submit);
+    cancelBtn.addEventListener("click", () => { if (!busy) finish(null); });
+    ov.addEventListener("click", e => { if (e.target === ov && !busy) finish(null); });
+    root.appendChild(ov);
+    show(first);
+  });
+}
+/* THE TOOLBOX'S ACTIVITY LIST (lib/activity.js, which every studio page
+   loads with a tag of its own): work started here is on it at once, under
+   `label`, until the promise `fn(act)` returns settles.  `act.url(u)` puts
+   the list's token on the request, so the server's own entry for it -- the
+   one with the sizes -- is shown as the same one and not beside it.  A
+   studio run on its own has no list, and a falsy label means the work is
+   too small to be worth an entry (a picture of a few kilobytes): either
+   way `fn` simply runs. */
+const NO_ACTIVITY = {job: "", url: u => u, end() {}, progress() {}, set() {}, adopt() {}};
+function working(label, fn) {
+  const A = window.ParsehActivity;
+  return A && label ? A.track(fn, label) : fn(NO_ACTIVITY);
+}
+// the size from which a file put into a document is worth an entry: the
+// same line the server draws (serve.py's BIG_BODY)
+const BIG_UPLOAD = 4 * 1024 * 1024;
+
+let toastTimer = null;
+function toast(msg, isErr) {
+  const t = $("#toast");
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.toggle("err", !!isErr);
+  t.hidden = false;
+  t.style.opacity = "1";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    t.style.opacity = "0";
+    setTimeout(() => { t.hidden = true; }, 300);
+  }, isErr ? 4200 : 2200);
+}
+
+/* A FLASHCARD, LARGE, OVER THE PAGE.  A card on the page is a column wide,
+   and a picture on it is shrunk to fit -- which is what makes a picture card
+   hard to see.  So every flashcard has ⤢ Enlarge: the same card in a window
+   over the page, as big as the window holds.  The window shows a copy, and
+   turning it turns the card on the page -- a click on that card, so
+   whatever listens there hears it (the study page counts a turned card as
+   the answer shown) -- and the copy is drawn again from it.  While the
+   window is open the keys are its own: Space or Enter turns the card,
+   Escape closes it, and nothing reaches the page underneath.
+
+   THE SAME CARD, ONLY BIGGER.  A card's fields are not all centred: a
+   paragraph of right-to-left text sits on the right, a Latin block is
+   justified, a field of several blocks starts where its lines start -- and
+   what puts them there is the page around the card as much as the card:
+   the sheet's typography (its "justify", its sizes), the direction and
+   language of the exercise it is in, and the card's width, which decides
+   which lines wrap and so which fields fill the card.  A copy set loose in
+   a window as wide as the screen had none of that, and every line of it
+   came out centred.  So the copy is laid out as the card on the page is --
+   at the card's own width, in its own text size, inside that same context --
+   and only then magnified whole, by a transform: the lines break where they
+   break on the page (they are laid out at the page's size, and a zoom that
+   laid them out again at the larger one would break a long paragraph a word
+   differently), and every picture, player and margin keeps its place and
+   its proportion.  How much larger is what the window holds: the whole
+   card, the taller of its two sides deciding, when that is at least half as
+   large again; a card too tall for that is drawn at least that large, never
+   wider than the window, and scrolls.
+
+   ON A PHONE the card on the page is already nearly as wide as the window,
+   and a card magnified whole can grow no more than that -- a third or so,
+   the rest of the window left empty.  There the copy is laid out narrower
+   than the card on the page instead, at the window's width divided by the
+   magnification, and magnified to the window's width: every field, picture
+   and player as it is on the page, in the page's text size and context.
+   Narrower, a line may break that did not break on the page, and a card
+   whose short fields -- a word, its meaning, a sentence -- wrap onto two
+   lines is no longer the card on the page, only bigger.  So no line breaks
+   that is whole on the page: a field, a paragraph or a line of a Jolly
+   field (up to its ⏎) that is one line there is one line enlarged, and
+   only a paragraph that already wraps on the page may wrap at other words.
+   Nor is a picture or a player laid out any narrower than on the page: a
+   figure is a share of its field's width, and a card's picture or a
+   recording that fills its field narrows with it, so laid out narrower
+   they would come out smaller beside the words than on the page -- a
+   recording a few centimetres wide losing its timeline -- in the very
+   window that is there to show them.
+   The magnification is as much as that allows, and the window's height,
+   up to ZOOM_RELAID_AT_MOST, and never so much that anything is wider than
+   its box at the narrower width that is not on the page (a word sticking
+   out of the card, a table that would scroll).  Where that is hardly more
+   than magnifying the card whole -- less than ZOOM_RELAID_GAIN times as
+   much -- or where even the card magnified whole is too tall for the
+   window, it is magnified whole at the page's width instead, as far as
+   the window's width allows, every line where it is on the page; one too
+   tall scrolls. */
+const ZOOM_AT_LEAST = 1.5, ZOOM_RELAID_AT_MOST = 2, ZOOM_RELAID_GAIN = 1.1;
+/* How many lines each stretch of an element's text is drawn in, in the
+   order the stretches come: a stretch is what only wrapping breaks -- the
+   text of a paragraph, a field, a cell, a button, up to its end or to a
+   hard line break (a <br>, a Jolly field's ⏎).  Its lines are its text's
+   boxes as drawn, grouped by where they sit down the block (across it, in
+   vertical text); ruby's reading above a word and a footnote's cloud,
+   which is out of the flow until it is shown, are no line of it, nor is
+   anything hidden.  The same element gives the same stretches in the same
+   order at any width, so two counts compare stretch by stretch. */
+function lineCounts(el) {
+  const blocks = new Map();      // a block -> the lines of each of its stretches
+  // (the box a run of text wraps in: not an inline one, but an inline
+  // block -- a button, a 🔊 -- wraps its own text)
+  const inline = b => /^(inline|contents|ruby)$|^ruby-/.test(getComputedStyle(b).display);
+  const blockOf = node => {
+    let b = node.parentElement;
+    while (b !== el && inline(b)) b = b.parentElement;
+    if (!blocks.has(b)) blocks.set(b, [[]]);
+    return blocks.get(b);
+  };
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode: n => n.nodeType === 1 && n.matches("rt, rp, .fncloud, [hidden], script, style")
+      ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+  const range = document.createRange();
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    if (n.nodeType === 1) {
+      if (n.localName === "br") blockOf(n).push([]);
+      continue;
+    }
+    if (!/\S/.test(n.data)) continue;
+    const stretches = blockOf(n), lines = stretches[stretches.length - 1];
+    const horizontal = !/^(vertical|sideways)/.test(getComputedStyle(n.parentElement).writingMode);
+    range.selectNodeContents(n);
+    for (const q of range.getClientRects()) {
+      if (!q.width || !q.height) continue;
+      const [a, b] = horizontal ? [q.top, q.bottom] : [q.left, q.right];
+      const line = lines.find(([c, d]) => Math.min(b, d) - Math.max(a, c) > Math.min(b - a, d - c) / 2);
+      if (line) { line[0] = Math.min(line[0], a); line[1] = Math.max(line[1], b); }
+      else lines.push([a, b]);
+    }
+  }
+  return [...blocks.values()].flat().map(lines => lines.length);
+}
+function openCardZoom(ex) {
+  const card = ex && $(".ex-flashcard", ex);
+  if (!card) return;
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay ex-zoom-overlay";
+  ov.innerHTML = `<div class="modal ex-zoom-modal" role="dialog" aria-modal="true" tabindex="-1">
+      <div class="ex-zoom-head"><span class="ex-kicker"></span>
+        <span class="ex-zoom-hint">click the card or press Space to turn it · Esc closes</span>
+        <button type="button" class="btn ghost ex-zoom-close" title="Close (Esc)">✕</button></div>
+      <div class="sheet ex-zoom-stage"><div class="ex-zoom-card"><div class="ex-zoom-scale"></div></div></div></div>`;
+  const modal = $(".ex-zoom-modal", ov), stage = $(".ex-zoom-stage", ov);
+  const frame = $(".ex-zoom-card", ov), scaled = $(".ex-zoom-scale", ov);
+  const kicker = $(":scope > .ex-head > .ex-kicker", ex);
+  $(".ex-kicker", ov).textContent = kicker ? kicker.textContent : "Flashcard";
+  modal.setAttribute("aria-label", $(".ex-kicker", ov).textContent + ", enlarged");
+  // the page the card is on: its language, and the typography the reader
+  // set on it (applyTypo: the scale of the target script, the text size,
+  // the leading, and whether its paragraphs are justified)
+  const home = ex.closest(".sheet, [data-lang]");
+  if (home) {
+    for (const a of ["lang", "dir", "data-lang"])
+      if (home.hasAttribute(a)) stage.setAttribute(a, home.getAttribute(a));
+    for (const p of Array.from(home.style))
+      if (p.startsWith("--")) stage.style.setProperty(p, home.style.getPropertyValue(p));
+    const scale = getComputedStyle(home).getPropertyValue("--fa-scale").trim();
+    if (scale) stage.style.setProperty("--fa-scale", scale);
+    stage.classList.toggle("justify", home.classList.contains("justify"));
+  }
+  // and the exercise it is in: the direction its content-direction gives
+  // the body, and the text size there
+  const around = card.parentElement;
+  for (const a of ["dir", "lang"]) {
+    const from = around.closest(`[${a}]`);
+    if (from && ex.contains(from)) scaled.setAttribute(a, from.getAttribute(a));
+  }
+  scaled.style.fontSize = getComputedStyle(around).fontSize;
+  // the copy is a card of its own, with players of its own: one playing on
+  // the page underneath is stopped, and the copy's stop when it is drawn again
+  const hush = el => $$("audio, video", el).forEach(m => m.pause());
+  let magnified = 1;
+  // a picture arriving, a player laying itself out, a face loading: the
+  // copy changes size after it was drawn, and is measured again -- in the
+  // next frame, since fitting it may change its size itself (laid out at
+  // another width), which the observer would otherwise have to report
+  // again in the frame it is reporting
+  let fitting = 0;
+  const sizer = window.ResizeObserver ? new ResizeObserver(() => {
+    if (!fitting) fitting = requestAnimationFrame(() => { fitting = 0; fit(); });
+  }) : null;
+  const draw = () => {
+    hush(stage);
+    const copy = card.cloneNode(true);
+    $$("[id]", copy).forEach(x => x.removeAttribute("id"));
+    $$(".ex-card-play.playing", copy).forEach(x => x.classList.remove("playing"));
+    copy.tabIndex = -1;                  // the window takes the keys, not the copy
+    scaled.replaceChildren(copy);
+    if (sizer) { sizer.disconnect(); sizer.observe(copy); }
+    fit();
+  };
+  // Measured at the page card's width as it is now (a phone turned on its
+  // side gives the page another), and magnified by what fits.  Both sides
+  // count, so that turning the card does not change its size.  The frame
+  // takes the magnified size, which is what the window centres and scrolls:
+  // a transform draws larger but takes no more room.
+  function fit() {
+    const copy = scaled.firstElementChild;
+    if (!copy || !ov.isConnected) return;
+    const cs = getComputedStyle(stage);
+    const roomX = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const roomY = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    // (a card not drawn on the page has no width there: the widest it can be)
+    const onPage = card.getBoundingClientRect().width > 0 ? getComputedStyle(card).width : "34em";
+    const front = $(":scope > .ex-card-front", copy), back = $(":scope > .ex-card-back", copy);
+    // the copy laid out at a width: how wide it is, and how tall its taller
+    // side -- to the fraction of a pixel (offsetWidth rounds, and a card
+    // magnified from a width rounded down comes out wider than the window,
+    // which then scrolls sideways by a pixel) -- and how many things on
+    // either side are wider than their box: a word sticking out of the
+    // card, a table its wrapper has to scroll
+    const size = () => {
+      const c = getComputedStyle(copy);
+      return [parseFloat(c.width), parseFloat(c.height)];
+    };
+    const sticksOut = () => [copy, ...$$("*", copy)]
+      .filter(el => el.scrollWidth > el.clientWidth + 1).length;
+    // the width of every picture and player shown, in the order they come
+    // (the same at any width)
+    const media = () => $$("img, video, audio, iframe", copy)
+      .filter(el => el.getClientRects().length)
+      .map(el => parseFloat(getComputedStyle(el).width) || 0);
+    // -- and, asked to `count`, how many lines each stretch of its text is
+    // drawn in on either side (lineCounts), and how wide each of its
+    // pictures and players is
+    const layOut = (width, count) => {
+      copy.style.width = width;
+      let [wide, high] = size(), out = sticksOut();
+      const counts = count ? lineCounts(copy) : [], widths = count ? media() : [];
+      if (front && back && front.hidden !== back.hidden) {
+        front.hidden = !front.hidden; back.hidden = !back.hidden;
+        high = Math.max(high, size()[1]);
+        out += sticksOut();
+        if (count) { counts.push(...lineCounts(copy)); widths.push(...media()); }
+        front.hidden = !front.hidden; back.hidden = !back.hidden;
+      }
+      return {wide, high, out, counts, widths};
+    };
+    const {wide, high, out} = layOut(onPage);
+    const across = roomX / Math.max(1, wide), down = roomY / Math.max(1, high);
+    let zoom = Math.max(0.1, Math.min(across, Math.max(down, Math.min(across, ZOOM_AT_LEAST))));
+    if (across < ZOOM_AT_LEAST && high * across <= roomY) {
+      // a phone, and a card the window holds whole: laid out narrower,
+      // magnified to the window's width, as much as its height holds with
+      // no line of the page broken, no picture or player narrower than on
+      // the page, and nothing wider than its box that is not so on the
+      // page.  Magnified whole it fits, and every step narrower is taller,
+      // breaks more and narrows more, so what fits is found halving the
+      // gap between what does and what does not.
+      const {counts, widths} = layOut(onPage, true);
+      const fits = m => {
+        const at = layOut(roomX / m + "px", true);
+        return at.high * m <= roomY && at.out <= out
+          && at.counts.every((n, i) => counts[i] !== 1 || n === 1)
+          && at.widths.every((w, i) => w >= widths[i] - 0.5);
+      };
+      let lo = across, hi = ZOOM_RELAID_AT_MOST;
+      if (fits(hi)) lo = hi;
+      else for (let i = 0; i < 7; i++) {
+        const m = (lo + hi) / 2;
+        if (fits(m)) lo = m; else hi = m;
+      }
+      if (lo >= across * ZOOM_RELAID_GAIN) {
+        zoom = lo;
+        layOut(roomX / zoom + "px");
+      } else layOut(onPage);
+    }
+    scaled.style.transform = `scale(${zoom})`;
+    scaled.style.setProperty("--zoom", zoom);    // a footnote's cloud fits the window
+    magnified = zoom;
+    // as drawn, to the fraction of a pixel: a width rounded up would make
+    // a card as wide as the window scroll sideways
+    const drawn = copy.getBoundingClientRect();
+    frame.style.width = drawn.width + "px";
+    frame.style.height = drawn.height + "px";
+  }
+  // A footnote's cloud on the copy is over its mark, as on the page, but
+  // kept inside the window, which cuts off whatever sticks out of it: put
+  // under its line where there is no room above it (as bindFootnoteClouds
+  // does on the page) -- on the side with more room, where it fits on
+  // neither -- and moved along its line where it would stick out at a side.
+  // Measured shown, however far the hover or the focus that shows it has got.
+  function placeCloud(e) {
+    const fn = e.target.closest && e.target.closest(".fn");
+    const cloud = fn && stage.contains(fn) && $(".fncloud", fn);
+    if (!cloud) return;
+    cloud.style.removeProperty("--fn-shift");
+    fn.classList.remove("fn-below");
+    cloud.style.display = "block";
+    const box = stage.getBoundingClientRect();
+    const gutter = (box.width - stage.clientWidth) / 2;   // a scrollbar's, kept on both sides
+    const left = box.left + gutter + 4, right = box.right - gutter - 4;
+    const above = cloud.getBoundingClientRect();
+    if (above.top < box.top + 4) {
+      fn.classList.add("fn-below");
+      const below = cloud.getBoundingClientRect();
+      if (below.bottom > box.bottom - 4 && above.top - box.top > box.bottom - below.bottom)
+        fn.classList.remove("fn-below");
+    }
+    const r = cloud.getBoundingClientRect();
+    const dx = r.left < left ? left - r.left : r.right > right ? right - r.right : 0;
+    if (dx) cloud.style.setProperty("--fn-shift", dx / magnified + "px");
+    cloud.style.display = "";
+  }
+  stage.addEventListener("mouseover", placeCloud);
+  stage.addEventListener("focusin", placeCloud);
+  hush(card);
+  const opener = document.activeElement;
+  const refit = debounce(fit, 120);
+  const close = () => {
+    document.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("resize", refit);
+    if (sizer) sizer.disconnect();
+    cancelAnimationFrame(fitting);
+    hush(stage);
+    ov.remove();
+    if (opener && opener.isConnected && opener.focus) opener.focus({preventScroll: true});
+  };
+  const turn = () => {
+    if (!card.isConnected) { close(); return; }   // the page moved on under it
+    card.click();
+    draw();
+    modal.focus({preventScroll: true});          // a turned card may take the focus below
+  };
+  function onKey(e) {
+    if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close(); return; }
+    const onControl = e.target !== modal && e.target.closest && e.target.closest(CARD_CONTROLS);
+    // a key on the close button or on a player, a link or a 🔊 in the copy is
+    // theirs, and goes on down to it: a native player hears Space only there.
+    // The window stops it on its way back up.
+    if (onControl && ov.contains(onControl)) return;
+    e.stopImmediatePropagation();                // the page underneath hears nothing
+    if ((e.key === " " || e.key === "Enter") && !onControl) { e.preventDefault(); turn(); }
+  }
+  document.addEventListener("keydown", onKey, true);
+  ov.addEventListener("keydown", e => e.stopPropagation());
+  ov.addEventListener("click", e => {
+    if (e.target === ov || e.target.closest(".ex-zoom-close")) { close(); return; }
+    const copy = e.target.closest(".ex-flashcard");
+    if (!copy) return;
+    // the same rules as the card on the page: 🔊 plays, a player or a link
+    // does its own thing, anywhere else turns it
+    const play = e.target.closest(".ex-card-play");
+    if (play) {
+      toggleCardAudio(play);
+      // clicked, not pressed: the keys go back to the window, where Space turns
+      if (e.detail) modal.focus({preventScroll: true});
+      return;
+    }
+    const control = e.target.closest(CARD_CONTROLS);
+    if (control && copy.contains(control)) return;
+    turn();
+  });
+  // in the page before it is drawn: the room it has is measured there
+  document.body.appendChild(ov);
+  draw();
+  window.addEventListener("resize", refit);
+  modal.focus({preventScroll: true});
+}
+
+function debounce(fn, ms) {
+  let h = null;
+  return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); };
+}
+
+function fmtDate(s) { return (s || "").replace("T", " ").slice(0, 16); }
+
+/* A clip time as m:ss.  A video's is whole seconds (YouTube takes no
+   more); a recording's keeps hundredths when `frac` (1:05.25), which is
+   what its clip window is written in. */
+function fmtClock(s, frac) {
+  if (s === null || s === undefined || s === "") return "";
+  const cs = frac ? Math.round(Math.max(0, +s) * 100) : Math.floor(Math.max(0, +s)) * 100;
+  const whole = Math.floor(cs / 100), rest = cs % 100;
+  const h = Math.floor(whole / 3600), m = Math.floor((whole % 3600) / 60), sec = whole % 60;
+  const tail = rest ? "." + String(rest).padStart(2, "0").replace(/0$/, "") : "";
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}${tail}`
+           : `${m}:${String(sec).padStart(2, "0")}${tail}`;
+}
+
+function parseClock(v, frac) {
+  v = String(v || "").trim();
+  if (!v) return null;
+  const parts = v.split(":");
+  let s = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const last = i === parts.length - 1;
+    if (!(frac && last ? /^(?:\d+(?:\.\d*)?|\.\d+)$/ : /^\d+$/).test(parts[i])) return null;
+    s = s * 60 + Number(parts[i]);
+  }
+  return frac ? Math.round(s * 100) / 100 : s;
+}
+
+/* ---- recordings on a page -------------------------------------------
+   What a file picker offers for a recording: lib/audiofile.py's ACCEPT,
+   written again here (tests/exercises.mjs holds the two together), and
+   the one list of extensions on a page: a recording's file name, and a
+   path the dialect takes (audiofile.PATH_RE), are made from it.  The
+   editor's own picker has its accept from the server. */
+const AUDIO_ACCEPT = "audio/*,.mp3,.m4a,.aac,.ogg,.oga,.opus,.wav,.flac,.webm";
+const AUDIO_EXTS = AUDIO_ACCEPT.split(",").filter(x => x.startsWith(".")).map(x => x.slice(1)).join("|");
+const AUDIO_NAME_RE = new RegExp(`\\.(?:${AUDIO_EXTS})$`, "i");
+const AUDIO_PATH_RE = new RegExp(`^audio/[A-Za-z0-9][A-Za-z0-9._\\-]*\\.(?:${AUDIO_EXTS})$`, "i");
+const IMAGE_ACCEPT = ".png,.jpg,.jpeg,.svg,.pdf";
+// what a click on a flashcard may land on without turning it: a player, a
+// link, a form control, a note's mark and its cloud -- each does its own
+// thing there (a tap on the mark is how a phone opens the note)
+const CARD_CONTROLS = "audio, video, iframe, a, button, input, select, textarea, label, summary, details, "
+  + ".fnref, .fncloud";
+
+/* The window of a recording laid out with a clip (figure.audio, or an
+   exercise's own .ex-audio box, with data-start and/or data-end), or null. */
+function clipWindow(media) {
+  const fig = media.closest && media.closest("figure.audio, .ex-audio");
+  if (!fig) return null;
+  const num = v => (v === undefined || v === "" || !Number.isFinite(+v)) ? null : +v;
+  const start = num(fig.dataset.start), end = num(fig.dataset.end);
+  if (start === null && end === null) return null;
+  return {start: start || 0, end: end !== null && end > (start || 0) ? end : null};
+}
+
+/* A window that starts at or past the end of its recording has nothing to
+   play: the browser puts a seek to its start at the end, which is before
+   the start again, and a player that kept seeking there would never stop. */
+function clipPastEnd(media, w) {
+  return Number.isFinite(media.duration) && w.start >= media.duration - 0.05;
+}
+
+/* It stops at its end by a timer that looks again as the end comes near:
+   timeupdate arrives four times a second at best, which is a syllable. */
+function watchClipEnd(media) {
+  clearTimeout(media._clipTimer);
+  const w = clipWindow(media);
+  if (!w || media.paused) return;
+  if (clipPastEnd(media, w)) { media.pause(); return; }
+  if (media.currentTime < w.start - 0.25) media.currentTime = w.start;   // dragged back before it
+  if (w.end === null) return;
+  const left = (w.end - media.currentTime) / (media.playbackRate || 1);
+  if (left <= 0.02) { media.pause(); return; }
+  media._clipTimer = setTimeout(() => watchClipEnd(media), Math.max(8, Math.min(250, left * 1000 - 30)));
+}
+
+/* A card's 🔊 plays its own recording, or pauses it. */
+function toggleCardAudio(button) {
+  const box = button.closest(".ex-card-audio");
+  const audio = box && $("audio", box);
+  if (!audio) return;
+  if (!audio.paused) { audio.pause(); return; }
+  const p = audio.play();
+  if (p && p.catch) p.catch(e => {
+    // a play cut short by a pause (the card turned) is no failure
+    if (e.name !== "AbortError") toast("Could not play the recording: " + e.message, true);
+  });
+}
+
+/* Every page that loads this script, once: a recording with a clip window
+   plays that window only -- played from outside it, it starts at its start
+   -- and among the flashcards one recording speaks at a time.  Media events
+   do not bubble, so these listen on the way down. */
+document.addEventListener("play", e => {
+  const media = e.target;
+  if (!(media instanceof HTMLMediaElement)) return;
+  const w = clipWindow(media);
+  if (w && clipPastEnd(media, w)) { media.pause(); return; }
+  if (w && (media.currentTime < w.start - 0.05
+            || (w.end !== null && media.currentTime >= w.end - 0.05)))
+    media.currentTime = w.start;
+  if (w) watchClipEnd(media);
+  if (media.closest(".ex-flashcard"))
+    $$(".ex-flashcard audio, .ex-flashcard video").forEach(x => { if (x !== media && !x.paused) x.pause(); });
+  // and one recording of an exercise at a time, by the same rule: its
+  // question's and its answer's would otherwise sound over each other
+  const own = media.closest(".ex-audio") && media.closest(".exercise");
+  if (own) $$(".ex-audio audio", own).forEach(x => { if (x !== media && !x.paused) x.pause(); });
+  const play = media.parentElement && media.parentElement.querySelector(":scope > .ex-card-play");
+  if (play) play.classList.add("playing");
+}, true);
+document.addEventListener("seeked", e => {
+  if (e.target instanceof HTMLMediaElement && !e.target.paused) watchClipEnd(e.target);
+}, true);
+for (const type of ["pause", "ended", "emptied"]) {
+  document.addEventListener(type, e => {
+    const media = e.target;
+    if (!(media instanceof HTMLMediaElement)) return;
+    clearTimeout(media._clipTimer);
+    const play = media.parentElement && media.parentElement.querySelector(":scope > .ex-card-play");
+    if (play) play.classList.remove("playing");
+  }, true);
+}
+
+/* A flashcard turned: the other side shown, and whatever was playing on the
+   side going out of sight stopped. */
+function flipCard(card) {
+  const flipped = card.classList.toggle("flipped");
+  const front = $(":scope > .ex-card-front", card), back = $(":scope > .ex-card-back", card);
+  if (front) front.hidden = flipped;
+  if (back) back.hidden = !flipped;
+  const hidden = flipped ? front : back;
+  if (hidden) $$("audio, video", hidden).forEach(m => m.pause());
+  card.setAttribute("aria-pressed", flipped ? "true" : "false");
+  const hint = $(":scope > .ex-card-hint", card) || $(":scope > small", card);
+  if (hint) hint.textContent = flipped ? "tap to see front" : "tap to reveal";
+}
+
+function escAttr(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+
+/* Direction is a typing aid for exercise source fields.  `dir=auto` makes
+   an existing Persian answer readable on opening, while the adjacent button
+   can force either direction for mixed text or an empty field.  It never
+   changes the markdown that is saved or the rendered activity's direction. */
+function exerciseTextDirectionButton(input) {
+  input.dir = "auto";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "ex-text-direction";
+  const sync = () => {
+    const rtl = getComputedStyle(input).direction === "rtl";
+    button.textContent = rtl ? "⇥ LTR" : "⇤ RTL";
+    button.title = rtl ? "Write this text box left to right" : "Write this text box right to left";
+    button.setAttribute("aria-label", button.title);
+  };
+  input.addEventListener("input", sync);
+  button.addEventListener("click", e => {
+    e.preventDefault();
+    e.stopPropagation();
+    input.dir = getComputedStyle(input).direction === "rtl" ? "ltr" : "rtl";
+    input.focus();
+    sync();
+  });
+  sync();
+  queueMicrotask(sync); // the field is attached after this helper returns
+  return button;
+}
+
+/* `fields` adds single-line inputs above the textarea; their values reach
+   onOk as a third argument, keyed by `key`.  Callers that pass none are
+   unaffected. */
+function showModal({title, hint, value, okLabel, onOk, onCancel,
+                    fields, textarea}) {
+  const root = $("#modal-root");
+  root.innerHTML = "";
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3></h3><p></p>
+      <div class="modal-fields"></div>
+      <textarea spellcheck="false"></textarea>
+      <div class="row">
+        <button class="btn" data-x="cancel">Cancel</button>
+        <button class="btn primary" data-x="ok"></button>
+      </div>
+    </div>`;
+  $("h3", ov).textContent = title;
+  $("p", ov).textContent = hint || "";
+  const fieldBox = $(".modal-fields", ov);
+  fieldBox.hidden = !(fields && fields.length);
+  for (const f of fields || []) {
+    const lab = document.createElement("label");
+    lab.className = "modal-field";
+    lab.textContent = f.label || f.key;
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.spellcheck = false;
+    inp.dataset.key = f.key;
+    inp.value = f.value || "";
+    if (f.placeholder) inp.placeholder = f.placeholder;
+    lab.appendChild(inp);
+    fieldBox.appendChild(lab);
+  }
+  const fieldValues = () => Object.fromEntries(
+    $$("input[data-key]", fieldBox).map(i => [i.dataset.key, i.value]));
+  const ta = $("textarea", ov);
+  ta.value = value || "";
+  // a dialog made only of single-line fields has nothing to put in it
+  if (textarea === false) ta.hidden = true;
+  $('[data-x="ok"]', ov).textContent = okLabel || "OK";
+  // `onCancel` lets a caller undo whatever it did to open the dialog —
+  // a paste, say, that suppressed the browser's own handling of it
+  let settled = false;
+  const drop = () => { settled = true; if (ov.parentNode) root.removeChild(ov); };
+  const close = drop;
+  const cancel = () => {
+    if (settled) return;
+    drop();
+    if (onCancel) onCancel();
+  };
+  ov.addEventListener("click", e => { if (e.target === ov) cancel(); });
+  $('[data-x="cancel"]', ov).addEventListener("click", cancel);
+  const okBtn = $('[data-x="ok"]', ov);
+  let busy = false;
+  okBtn.addEventListener("click", async () => {
+    if (busy) return;                    // guard against double-submit
+    busy = true;
+    okBtn.disabled = true;
+    $('[data-x="cancel"]', ov).disabled = true;
+    try {
+      await onOk(ta.value, close, fieldValues());
+    } catch (e) {
+      toast(e.message, true);
+      busy = false;
+      okBtn.disabled = false;
+      $('[data-x="cancel"]', ov).disabled = false;
+    }
+  });
+  root.appendChild(ov);
+  // with extra fields the first of them is where typing starts
+  const first = $("input[data-key]", fieldBox);
+  (first || ta).focus();
+}
+
+/* The toolbar is sticky and wraps to a variable number of rows, so the
+   offset an anchor jump has to clear is only known at runtime.  It is
+   also recomputed immediately before each jump: an observer can miss a
+   reflow that happened while the page was not being rendered, and the
+   jump is the one moment the number has to be right. */
+let stickyObserver = null;
+function measureSticky(target) {
+  const bar = $("#typobar");
+  if (!bar) return;
+  let h = bar.getBoundingClientRect().height + 10;
+  if (pinnedPair()) {
+    // on a phone the topbar is pinned above the toolbar, so a jump up has
+    // both to clear; a jump down puts both away (bindBarHide), and clearing
+    // them there would leave the heading halfway down the screen
+    const top = $(".topbar");
+    h += top ? top.getBoundingClientRect().height : 0;
+    if (target) {
+      const r = target.getBoundingClientRect();
+      if (r.top > 0 && r.top + (window.pageYOffset || 0) - 10 > barsStand()) h = 10;
+    }
+    h = Math.min(h, window.innerHeight * .6);   // never a margin past the screen
+  }
+  document.documentElement.style.setProperty("--sticky-h", h + "px");
+}
+function syncStickyOffset() {
+  const bar = $("#typobar");
+  if (!bar) return;
+  measureSticky();
+  if (window.ResizeObserver) {
+    stickyObserver = new ResizeObserver(() => measureSticky());   // kept referenced
+    stickyObserver.observe(bar);
+  }
+  window.addEventListener("resize", debounce(() => measureSticky(), 120));
+  // A link to a heading, opened on a phone: the browser scrolls to it before
+  // anything here runs, with a margin for both bars -- and that scroll, down
+  // the page, is what puts both bars away.  So the heading is placed again
+  // once the page is laid out, with the margin a jump down has.  Only when
+  // the link was followed: a reload or Back puts the reader where they were,
+  // and a reader who has touched the page before it finished loading has
+  // moved on from the heading.
+  const nav = performance.getEntriesByType ? performance.getEntriesByType("navigation")[0] : null;
+  if (location.hash && pinnedPair() && (!nav || nav.type === "navigate")) {
+    let el = null;
+    try { el = document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch (e) { el = null; }
+    if (el) {
+      const TOUCHES = ["touchstart", "wheel", "keydown", "pointerdown"];
+      let moved = false;
+      const mark = () => { moved = true; };
+      TOUCHES.forEach(t => window.addEventListener(t, mark, {capture: true, passive: true}));
+      const place = () => requestAnimationFrame(() => {
+        TOUCHES.forEach(t => window.removeEventListener(t, mark, {capture: true}));
+        if (moved) return;
+        measureSticky(el);
+        el.scrollIntoView({block: "start"});
+      });
+      if (document.readyState === "complete") place();
+      else window.addEventListener("load", place, {once: true});
+    }
+  }
+}
+
+/* On a phone the toolbar holds the way to the contents and the glosses, and
+   "Aa", which opens the typography controls under them: sliders in a row
+   that scrolled sideways took the finger that meant to scroll the row, and
+   moved a setting every document shares.  Nothing of it shows on a wide
+   screen, where the controls are always there (app.css). */
+/* THE BARS, PUT AWAY BY HAND.  Three of them stand over a reading page --
+   the topbar, the tags, the typography -- and once the text is set the way
+   somebody wants it, they are in the way.  "⌃ bars" takes all three off and
+   leaves one faint button in the corner; pressing that brings them back.
+
+   Remembered for every document and not for one: it is a way of reading, not
+   a property of a page, and a reader who has cleared the window does not want
+   it filled again by opening the next note.  A phone's own hiding (barhidden,
+   bindBarHide) is the other thing and is untouched: that comes back on the
+   smallest move up, this holds until it is undone. */
+/* WHETHER A SEQUENCE MAY BE DRAGGED.  Its blocks carry arrows, and on a
+   touch screen the arrows are the only thing that works properly: a drag the
+   phone never reports as one leaves the block where it was, and the touch
+   path that stands in for dragging reads a tap as "put this at the end".  So
+   dragging starts turned off where the pointer is a finger -- and because
+   that guess is a guess, every such exercise carries a switch that says which
+   it is, remembered here for every page this browser opens.  Only sequences:
+   an exercise with no arrows has nothing to fall back on, and is never
+   touched by this. */
+const DRAG_KEY = "parseh_exercise_drag";
+// What the reader said on this page, which is the answer wherever there is
+// one: a browser that refuses storage (a private window, site data blocked)
+// must still obey the switch -- it only forgets it when the page goes.
+let dragChoice = null;
+function dragIsOn() {
+  if (dragChoice !== null) return dragChoice;
+  let v = null;
+  try { v = localStorage.getItem(DRAG_KEY); } catch (e) { /* private mode */ }
+  if (v === "1" || v === "0") return (dragChoice = v === "1");
+  // nothing said yet: a coarse pointer is a finger, and a finger drags badly
+  return !(window.matchMedia && matchMedia("(pointer: coarse)").matches);
+}
+function setDragOn(v) {
+  dragChoice = !!v;
+  try { localStorage.setItem(DRAG_KEY, v ? "1" : "0"); } catch (e) { /* private mode */ }
+}
+
+const BARS_KEY = "parseh_bars_off";
+function barsAreOff() {
+  try { return localStorage.getItem(BARS_KEY) === "1"; } catch (e) { return false; }
+}
+function bindBarsToggle() {
+  const off = $("#btn-bars"), on = $("#btn-bars-show");
+  if (!off || !on) return;
+  const set = (v, byHand) => {
+    // A bar that goes or comes moves the text under it, and the browser
+    // would scroll to keep the text where it was: the phone's scroll
+    // watcher must not read that as a reader's move.  Only when a hand
+    // moved it, though -- held at load, the watcher would sit out the jump
+    // a link to a heading makes, and the bars would stand over it.
+    if (byHand) holdBars(400);
+    document.body.classList.toggle("chrome-off", v);
+    off.hidden = v;
+    on.hidden = !v;
+    off.setAttribute("aria-expanded", String(!v));
+    on.setAttribute("aria-expanded", String(!v));
+    try { localStorage.setItem(BARS_KEY, v ? "1" : "0"); } catch (e) { /* private mode */ }
+    measureSticky();               // no bar to clear: a jump lands at the text
+    if (byHand) (v ? on : off).focus({preventScroll: true});
+  };
+  off.addEventListener("click", () => set(true, true));
+  on.addEventListener("click", () => set(false, true));
+  set(barsAreOff(), false);
+}
+
+function bindTypoToggle() {
+  const b = $("#btn-typo");
+  if (!b) return;
+  b.addEventListener("click", () => {
+    holdBars(400);
+    const open = document.body.classList.toggle("typo-open");
+    b.setAttribute("aria-expanded", String(open));
+  });
+}
+
+/* ---------------- glosses: table + flashcards ----------------
+
+   The list is assembled server-side from the markdown itself (every
+   `فارسی = *translation*`), so it stays in step with the document with
+   nothing to keep in sync by hand. */
+
+function bindGlosses() {
+  const btn = $("#btn-glosses");
+  const data = $("#doc-glosses");
+  if (!btn || !data) return;
+  let items = [];
+  try { items = JSON.parse(data.textContent) || []; } catch (e) { items = []; }
+
+  btn.disabled = !items.length;
+  const L = lang();
+  if (!items.length) {
+    btn.title = `This document has no glosses (${L.name} text = *translation*) yet`;
+    return;
+  }
+  btn.title = `${items.length} gloss${items.length === 1 ? "" : "es"} in this document`;
+
+  // Shown on rows whose translation had to be guessed: the source wrote
+  // the gloss without italics, so only the single word after the `=`
+  // could be taken, and it may well be short of the real translation.
+  const GUESS_CLOUD =
+    `<span class="gl-warn" role="note"><span class="gl-warn-x">!</span>` +
+    `<span class="gl-cloud">Only this one word could be read as the` +
+    ` translation. The gloss is written without italics, so where it` +
+    ` ends is not marked — write it as` +
+    ` <code>فارسی = *translation*</code> and the whole translation will` +
+    ` appear here.</span></span>`;
+
+  // Lemma entries come from a `= *…*` on a lemma heading, which is
+  // printed nowhere in the document; restricting to them turns the
+  // glossary into the document's word list rather than everything it
+  // happens to gloss in passing.
+  const lemmaCount = items.filter(g => g.lemma).length;
+
+  // one shuffled pass through the deck, so a drill asks every gloss once
+  // before any of them comes round again
+  function shuffled(pool) {
+    const a = pool.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function open() {
+    const root = $("#modal-root");
+    root.innerHTML = "";
+    const ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal gl-modal" role="dialog" aria-modal="true"
+                         aria-label="Glosses">
+      <div class="gl-head">
+        <h3>Glosses</h3>
+        <span class="gl-count"></span>
+        <button class="btn ghost gl-x" data-x="close" title="Close (Esc)">✕</button>
+      </div>
+      <div class="gl-tabs">
+        <button class="btn small on" data-tab="list">Table</button>
+        <button class="btn small" data-tab="cards">Flashcards</button>
+        <button class="btn small gl-lemma" data-x="lemmas" hidden
+                title="Only the words that head a lemma entry">Lemmas only</button>
+      </div>
+      <input class="gl-filter" type="search" placeholder="Filter — ${escAttr(L.name)}, ${L.reading ? escAttr(L.reading_label || "reading") + ", " : ""}${escAttr(L.translit_label)} or translation"
+             autocomplete="off" spellcheck="false">
+      <div class="gl-body"></div>
+      <div class="gl-foot" hidden>
+        <span class="gl-progress"></span>
+        <button class="btn small grow" data-x="reveal">Show answer</button>
+        <button class="btn small primary" data-x="next">Next →</button>
+      </div>
+    </div>`;
+
+    const body = $(".gl-body", ov);
+    const filter = $(".gl-filter", ov);
+    const foot = $(".gl-foot", ov);
+    const count = $(".gl-count", ov);
+    const progress = $(".gl-progress", ov);
+    const btnReveal = $('[data-x="reveal"]', ov);
+    const btnNext = $('[data-x="next"]', ov);
+
+    let mode = "list", lemmaOnly = false;
+    // what both views draw from; the deck holds the entries themselves,
+    // so narrowing the pool cannot leave stale indices behind
+    const pool = () => lemmaOnly ? items.filter(g => g.lemma) : items;
+    let deck = shuffled(pool()), pos = 0, shown = false;
+    // null = the order the glosses appear in the text (the default)
+    let sortKey = null, sortDir = 1;
+
+    /* The target language collates by its own code, and the translation
+       column follows the document's prose language; base sensitivity
+       keeps macrons and case from scattering the transliterations (ārām
+       next to arnia).  A reading language gets a Reading column between
+       the text and the transliteration. */
+    const docLang = ($("#sheet") || {}).lang || undefined;
+    const collators = {
+      fa: new Intl.Collator(L.code, {sensitivity: "base"}),
+      kana: new Intl.Collator(L.code, {sensitivity: "base"}),
+      translit: new Intl.Collator(undefined, {sensitivity: "base"}),
+      tr: new Intl.Collator(docLang, {sensitivity: "base"}),
+    };
+    const COLS = [{key: "fa", label: L.name}];
+    if (L.reading) COLS.push({key: "kana", label: capital(L.reading_label || "reading")});
+    COLS.push({key: "translit", label: capital(L.translit_label)},
+              {key: "tr", label: "Translation"});
+    const SORT_LABEL = {fa: L.name, kana: L.reading_label || "reading",
+                        translit: L.translit_label, tr: "translation"};
+    ov.firstElementChild.setAttribute("data-lang", L.code);
+
+    function sortRows(rows) {
+      if (!sortKey) return rows;             // already in document order
+      const cmp = collators[sortKey];
+      return rows.slice().sort((a, b) => {
+        const x = (a[sortKey] || "").trim(), y = (b[sortKey] || "").trim();
+        // a gloss with no transliteration sinks to the bottom either way,
+        // rather than heading a column of blanks
+        if (!x || !y) return !x && !y ? 0 : (!x ? 1 : -1);
+        return cmp.compare(x, y) * sortDir;
+      });
+    }
+
+    /* click cycles ascending -> descending -> back to document order */
+    function cycleSort(key) {
+      if (sortKey !== key) { sortKey = key; sortDir = 1; }
+      else if (sortDir === 1) { sortDir = -1; }
+      else { sortKey = null; sortDir = 1; }
+      renderList();
+    }
+
+    /* ---- table ---- */
+    function renderList() {
+      // foldCase on both sides, never toLowerCase: the headword column is
+      // target text, and "İyi günler" has to answer to "iyi"
+      const q = foldCase(filter.value.trim());
+      const rows = sortRows(pool().filter(g => !q
+        || foldCase(g.fa).includes(q)
+        || foldCase(g.kana).includes(q)
+        || foldCase(g.translit).includes(q)
+        || foldCase(g.tr).includes(q)));
+      const how = sortKey
+        ? `by ${SORT_LABEL[sortKey]} ${sortDir === 1 ? "A→Z" : "Z→A"}`
+        : "in text order";
+      const total = pool().length;
+      const scope = lemmaOnly ? "lemmas" : "in this document";
+      count.textContent = (q ? `${rows.length} of ${total} ${scope}`
+                             : `${total} ${scope}`) + ` · ${how}`;
+      if (!rows.length) {
+        body.innerHTML = `<div class="gl-empty">Nothing matches “${escAttr(filter.value)}”.</div>`;
+        return;
+      }
+      const head = COLS.map(c => {
+        // a column nothing fills (an older document with no transliteration
+        // marks) would sort to a no-op — say so instead of pretending
+        if (!pool().some(x => (x[c.key] || "").trim()))
+          return `<th title="No ${SORT_LABEL[c.key]} in this document">${c.label}</th>`;
+        const on = sortKey === c.key;
+        const arrow = on ? (sortDir === 1 ? "▲" : "▼") : "";
+        const tip = on && sortDir === -1
+          ? "Click to go back to the order they appear in the text"
+          : `Sort by ${SORT_LABEL[c.key]}`;
+        return `<th class="sortable${on ? " on" : ""}" data-sort="${c.key}"
+                    tabindex="0" role="button" title="${escAttr(tip)}"
+                    aria-sort="${on ? (sortDir === 1 ? "ascending" : "descending") : "none"}"
+                >${c.label}<span class="gl-ar">${arrow}</span></th>`;
+      }).join("");
+      body.innerHTML = `<table class="gl-table${L.dir === "rtl" ? " dir-rtl" : ""}"><thead><tr>${head}</tr></thead>
+        <tbody>${rows.map(g => `<tr${g.guessed ? ' class="gl-guessed"' : ""}>
+          <td class="gl-fa" lang="${L.code}" dir="${L.dir}">${escAttr(g.fa)}</td>
+          ${L.reading ? `<td class="gl-kana" lang="${L.code}">${g.kana ? escAttr(g.kana) : "—"}</td>` : ""}
+          <td class="gl-tr">${g.translit ? escAttr(g.translit) : "—"}</td>
+          <td class="gl-tx">${escAttr(g.tr)}${g.guessed ? GUESS_CLOUD : ""}</td>
+        </tr>`).join("")}</tbody></table>`;
+      $$("th.sortable", body).forEach(th => {
+        th.addEventListener("click", () => cycleSort(th.dataset.sort));
+        th.addEventListener("keydown", e => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            cycleSort(th.dataset.sort);
+          }
+        });
+      });
+    }
+
+    /* ---- flashcards ---- */
+    function renderCard() {
+      const g = deck[pos];
+      count.textContent = lemmaOnly ? `${deck.length} lemmas`
+                                    : `${deck.length} in this document`;
+      progress.textContent = `${pos + 1} / ${deck.length}`;
+      btnReveal.textContent = shown ? "Hide answer" : "Show answer";
+      body.innerHTML = `<div class="gl-card" role="button" tabindex="0">
+        <div class="q" lang="${L.code}" dir="${L.dir}">${escAttr(g.fa)}</div>
+        ${shown ? `<div class="a">
+             ${g.kana ? `<div class="a-kana" lang="${L.code}">${escAttr(g.kana)}</div>` : ""}
+             ${g.translit ? `<div class="a-tr">${escAttr(g.translit)}</div>` : ""}
+             <div class="a-tx${g.guessed ? " guessed" : ""}">${escAttr(g.tr)}</div>
+             ${g.guessed ? `<div class="a-warn">only the first word — this
+                gloss is written without italics</div>` : ""}
+           </div>`
+          : `<div class="tap">click the card, or press space, to see the answer</div>`}
+      </div>`;
+      const card = $(".gl-card", body);
+      card.addEventListener("click", () => { shown = !shown; renderCard(); });
+      card.focus();
+    }
+
+    function next() {
+      pos += 1;
+      if (pos >= deck.length) { deck = shuffled(pool()); pos = 0; }
+      shown = false;
+      renderCard();
+    }
+
+    function setMode(m) {
+      mode = m;
+      $$('[data-tab]', ov).forEach(b =>
+        b.classList.toggle("on", b.dataset.tab === m));
+      filter.hidden = m !== "list";
+      foot.hidden = m !== "cards";
+      if (m === "list") renderList();
+      else { shown = false; renderCard(); }
+    }
+
+    /* The cloud is positioned in viewport coordinates (the scrolling
+       table body would otherwise clip it): put it above the badge when
+       there is room, below when there is not, and keep it inside the
+       window horizontally. */
+    body.addEventListener("mouseover", e => {
+      const w = e.target.closest(".gl-warn");
+      if (!w || !body.contains(w)) return;
+      const cloud = $(".gl-cloud", w);
+      if (!cloud) return;
+      const r = w.getBoundingClientRect();
+      const cw = cloud.offsetWidth, ch = cloud.offsetHeight, gap = 6;
+      const top = r.top - ch - gap >= gap ? r.top - ch - gap : r.bottom + gap;
+      const left = Math.min(Math.max(gap, r.left),
+                            window.innerWidth - cw - gap);
+      cloud.style.top = top + "px";
+      cloud.style.left = left + "px";
+    });
+
+    /* Restrict both views to the words that head a lemma entry.  The
+       control is offered only when the document actually has some —
+       otherwise it would be a toggle that empties the overlay. */
+    const lemmaBtn = $('[data-x="lemmas"]', ov);
+    lemmaBtn.hidden = !lemmaCount;
+    lemmaBtn.title = `Only the ${lemmaCount} words that head a lemma entry`;
+    lemmaBtn.addEventListener("click", () => {
+      lemmaOnly = !lemmaOnly;
+      lemmaBtn.classList.toggle("on", lemmaOnly);
+      deck = shuffled(pool());          // the drill follows the choice
+      pos = 0;
+      shown = false;
+      if (mode === "list") renderList(); else renderCard();
+    });
+
+    $$('[data-tab]', ov).forEach(b =>
+      b.addEventListener("click", () => setMode(b.dataset.tab)));
+    filter.addEventListener("input", renderList);
+    btnReveal.addEventListener("click", () => { shown = !shown; renderCard(); });
+    btnNext.addEventListener("click", next);
+
+    const close = () => {
+      document.removeEventListener("keydown", onKey);
+      if (ov.parentNode) root.removeChild(ov);
+    };
+    function onKey(e) {
+      if (e.key === "Escape") { e.preventDefault(); return close(); }
+      if (mode !== "cards") return;
+      // don't steal the space bar from a focused text field
+      if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+      if (e.key === " ") { e.preventDefault(); shown = !shown; renderCard(); }
+      else if (e.key === "ArrowRight" || e.key === "Enter") { e.preventDefault(); next(); }
+    }
+    document.addEventListener("keydown", onKey);
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    $('[data-x="close"]', ov).addEventListener("click", close);
+
+    root.appendChild(ov);
+    setMode("list");
+    filter.focus();
+  }
+
+  btn.addEventListener("click", open);
+}
+
+function bindStopServer() {
+  $$("#btn-stop").forEach(btn => btn.addEventListener("click", async () => {
+    // what is still running is named first, as lib/parseh.js's stopServer
+    // does on every other page: stopping cuts it off.  A studio run on its
+    // own has no /__activity and gets the plain question.
+    let running = [];
+    try {
+      const r = await fetch("/__activity", {cache: "no-store"});
+      if (r.ok) running = (await r.json()).running || [];
+    } catch (e) { /* no list here */ }
+    const names = running.slice(0, 5).map(e => "  \u2022 " + e.label).join("\n");
+    const ask = running.length
+      ? `${running.length === 1 ? "1 task is" : running.length + " tasks are"} still running:\n\n`
+        + names + `\n\nStopping the server now cuts ${running.length === 1 ? "it" : "them"} off. `
+        + "Stop the Parseh server anyway?"
+      : "Stop the Parseh server?";
+    if (!confirm(ask)) return;
+    try { await api("/api/shutdown", {method: "POST"}); } catch (e) { /* dying */ }
+    $("#shutdown-overlay").hidden = false;
+  }));
+}
+
+/* ---------------- typography (reading + preview) ---------------- */
+
+/* `fa` (the target-script scale) has no fixed default: it is the
+   language's (defaultScale), and a stored value is honoured only when it
+   was set for a language of the same script -- a Persian 1.6 must not
+   reach a Japanese document through the global key. */
+const TYPO_DEFAULTS = {fa: null, base: 17, lead: 1.45, voce: 3.4,
+                       width: 720, justify: true, theme: "paper"};
+
+/* The whole toolbox shares one theme preference -- `parseh_theme`, the ◐
+   button on every other page, which cycles light / dark / sepia.  The sheet
+   has the same three under its own names (paper, dark, sepia), so it
+   FOLLOWS the shared one until a theme is picked in its selector; from then
+   on its own choice wins.  `auto`, the value before anything is picked,
+   means the system decides between paper and dark. */
+function sharedSheetTheme() {
+  try {
+    const s = localStorage.getItem("parseh_theme") || "auto";
+    if (s === "dark" || s === "sepia") return s;
+    if (s === "light") return "paper";
+    return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "paper";
+  } catch (e) { return "paper"; }
+}
+
+function loadTypo(id) {
+  let t = Object.assign({}, TYPO_DEFAULTS);
+  let chosen = false;
+  for (const key of ["exlex-typo:global", id ? "exlex-typo:" + id : null]) {
+    if (!key) continue;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || "{}");
+      if ("theme" in saved) chosen = true;
+      Object.assign(t, saved);
+    } catch (e) { /* ignore */ }
+  }
+  if (!chosen) { t.theme = sharedSheetTheme(); t.themeFollows = true; }
+  const L = lang();
+  // a record written before the script was noted beside the scale is a
+  // Persian one (the only language there was), so it keeps its value for
+  // an Arabic-script target and is reset, like any other, for the rest
+  if (t.faScript === undefined && t.fa > 0) t.faScript = "arabic";
+  if (t.fa == null || !(t.fa > 0) || t.faScript !== L.script) t.fa = defaultScale(L);
+  t.faScript = L.script;
+  return t;
+}
+
+function saveTypo(id, t) {
+  // a followed theme is never written down, or it would stop following
+  const out = Object.assign({}, t);
+  if (out.themeFollows) delete out.theme;
+  delete out.themeFollows;
+  try {
+    localStorage.setItem("exlex-typo:global", JSON.stringify(out));
+    if (id) localStorage.setItem("exlex-typo:" + id, JSON.stringify(out));
+  } catch (e) { /* private mode */ }
+}
+
+function applyTypo(t) {
+  $$(".sheet").forEach(sheet => {
+    sheet.style.setProperty("--fa-scale", t.fa == null ? defaultScale(lang()) : t.fa);
+    sheet.style.setProperty("--voce-scale", t.voce);
+    sheet.style.setProperty("--base-size", t.base + "px");
+    sheet.style.setProperty("--leading", t.lead);
+    sheet.style.setProperty("--sheet-width", t.width + "px");
+    sheet.classList.toggle("justify", !!t.justify);
+  });
+  if (t.theme && t.theme !== "paper") document.body.dataset.theme = t.theme;
+  else delete document.body.dataset.theme;
+}
+
+function bindTypoControls(id, onChange) {
+  const t = loadTypo(id);
+  const els = {
+    fa: $("#sl-fa"), base: $("#sl-base"), lead: $("#sl-lead"),
+    voce: $("#sl-voce"), width: $("#sl-width"),
+    justify: $("#ck-justify"), theme: $("#sel-theme"),
+  };
+  const outs = {fa: $("#out-fa"), base: $("#out-base"),
+                lead: $("#out-lead"), voce: $("#out-voce"),
+                width: $("#out-width")};
+  const lbl = $("#lbl-fa");
+  if (lbl) lbl.textContent = lang().name;
+  const refresh = () => {
+    if (outs.fa) outs.fa.textContent = Number(t.fa).toFixed(2) + "×";
+    if (outs.base) outs.base.textContent = t.base + "px";
+    if (outs.lead) outs.lead.textContent = Number(t.lead).toFixed(2);
+    if (outs.voce) outs.voce.textContent = Number(t.voce).toFixed(1) + "×";
+    if (outs.width) outs.width.textContent = Math.round(t.width) + "px";
+    if (els.fa) els.fa.value = t.fa;
+    if (els.base) els.base.value = t.base;
+    if (els.lead) els.lead.value = t.lead;
+    if (els.voce) els.voce.value = t.voce;
+    if (els.width) els.width.value = t.width;
+    if (els.justify) els.justify.checked = !!t.justify;
+    if (els.theme) els.theme.value = t.theme;
+    applyTypo(t);
+    if (onChange) onChange(t);
+  };
+  for (const k of ["fa", "base", "lead", "voce", "width"]) {
+    if (!els[k]) continue;
+    els[k].addEventListener("input", () => {
+      const v = parseFloat(els[k].value);
+      if (k === "base" && t.base > 0) {
+        // The column width follows the Latin size through whatever ratio
+        // the two sliders currently hold (as when the width was in em).
+        // Hand-moving the width slider rebases that ratio — nothing is
+        // stored, so the next base change scales from where the width is
+        // NOW, never snapping back to where it "would have been".
+        const ratio = t.width / t.base;
+        t.width = Math.max(420, Math.min(1400, ratio * v));
+      }
+      t[k] = v;
+      saveTypo(id, t); refresh();
+    });
+  }
+  if (els.justify) els.justify.addEventListener("change", () => {
+    t.justify = els.justify.checked; saveTypo(id, t); refresh();
+  });
+  if (els.theme) els.theme.addEventListener("change", () => {
+    t.theme = els.theme.value; t.themeFollows = false; saveTypo(id, t); refresh();
+  });
+  const reset = $("#btn-typo-reset");
+  if (reset) reset.addEventListener("click", () => {
+    Object.assign(t, TYPO_DEFAULTS);
+    t.fa = defaultScale(lang()); t.faScript = lang().script;
+    saveTypo(id, t); refresh();
+    toast("Typography reset to PDF defaults");
+  });
+  refresh();
+  return () => t;
+}
+
+function bindPersianCopy(container) {
+  container.addEventListener("click", async e => {
+    if (e.target.closest(".fapal")) return;      // palette clicks aren't copies
+    const fa = e.target.closest(".fa, .voce-fa");
+    if (!fa || !container.contains(fa)) return;
+    const text = fa.textContent.trim();
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Copied: " + (text.length > 40 ? text.slice(0, 40) + "…" : text));
+    } catch (err) { toast("Clipboard unavailable", true); }
+  });
+}
+
+/* Footnote clouds open upwards; flip them below when the top of the
+   viewport would clip them, and move them along their line when they
+   would stick out of the window at a side (a mark near the edge of a
+   phone): --fn-shift, which the cloud's tail undoes to stay on its mark.
+   Measured shown, whether a hover or a focus (a tap) shows it. */
+function bindFootnoteClouds(container) {
+  function place(e) {
+    const fn = e.target.closest && e.target.closest(".fn");
+    if (!fn || !container.contains(fn) || fn.closest(".ex-zoom-stage")) return;
+    const cloud = $(".fncloud", fn);
+    if (!cloud) return;
+    fn.classList.remove("fn-below");
+    cloud.style.removeProperty("--fn-shift");
+    cloud.style.display = "block";
+    const r = fn.getBoundingClientRect();
+    if (r.top < cloud.offsetHeight + 60) fn.classList.add("fn-below");
+    const c = cloud.getBoundingClientRect(), right = document.documentElement.clientWidth - 6;
+    const dx = c.left < 6 ? 6 - c.left : c.right > right ? right - c.right : 0;
+    if (dx) cloud.style.setProperty("--fn-shift", dx + "px");
+    cloud.style.display = "";
+  }
+  container.addEventListener("mouseover", place);
+  container.addEventListener("focusin", place);
+}
+
+/* Hovering a run of the target language (or a lemma heading) opens a
+   small palette; clicking a swatch writes the colour into the markdown
+   source, so it reaches the PDF too.  `opts.apply(payload, span)` performs
+   the write: the reading view saves the stored document, the editor
+   rewrites its (possibly unsaved) buffer.  `opts.applyTranslit` and
+   `opts.applyKana` do the same for the transliteration and, for a
+   language with a reading, the kana -- two independent halves of the
+   same mark, each with its own field at the head of the cloud. */
+function bindColorPalette(container, opts) {
+  if (!opts || !opts.apply) return;
+  let pal = null, target = null, hideTimer = null;
+  let picker = null, pickerPinned = false, pickerSpan = null;
+  // an open text field pins the cloud open the same way the native
+  // colour picker does, and remembers which run it belongs to
+  let editPinned = false, trSpan = null;
+  // the mark fields the current language has: the reading first (it sits
+  // above the transliteration everywhere else), then the transliteration.
+  // Resolved when the cloud is built, not when it is bound: the editor
+  // swaps the language live as the preview reports another `target:`,
+  // and show() rebuilds the cloud when that has happened.
+  let MARKS = [];
+  function markFields(L) {
+    const out = [];
+    if (L.reading && opts.applyKana)
+      out.push({kind: "kana", label: L.reading_label || "reading", cls: "kana-edit"});
+    out.push({kind: "translit", label: L.translit_label, cls: "translit-edit"});
+    return out;
+  }
+
+  const colors = ["crimson", "indigo", "teal", "violet", "amber"];
+  const PAL_HEX = {crimson: "#8E2B34", indigo: "#2F3E8F", teal: "#13605C",
+                   violet: "#5C2E7E", amber: "#8A5A0B"};
+
+  function build() {
+    const L = lang();
+    MARKS = markFields(L);
+    pal = document.createElement("div");
+    pal.className = "fapal";
+    pal.setAttribute("data-lang", L.code);
+    // the mark fields sit at the head of the cloud: click one to edit,
+    // or click + to annotate a run that has none
+    pal.innerHTML = MARKS.map(m =>
+      `<span class="tr-edit ${m.cls}" data-kind="${m.kind}">` +
+        `<button type="button" class="tr-val" hidden` +
+        ` title="Click to edit this ${escAttr(m.label)}"></button>` +
+        `<button type="button" class="tr-add" hidden` +
+        ` title="Add a ${escAttr(m.label)}">+</button>` +
+        `<input class="tr-in" hidden spellcheck="false" autocomplete="off"` +
+        ` placeholder="${escAttr(m.label)}" aria-label="${escAttr(capital(m.label))}"` +
+        `${m.kind === "kana" ? ` lang="${L.code}"` : ""}>` +
+      `</span>`).join("") +
+      `<span class="lbl">colour</span>`;
+    for (const c of colors) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.color = c;
+      b.title = c;
+      b.style.background = `var(--fac-${c})`;
+      b.addEventListener("click", ev => { ev.stopPropagation(); apply(c); });
+      pal.appendChild(b);
+    }
+    // arbitrary colour: the swatch IS a native colour input, which opens
+    // the system HSV picker initialised to the word's current colour
+    picker = document.createElement("input");
+    picker.type = "color";
+    picker.title = "any colour (opens the HSV picker)";
+    picker.value = PAL_HEX.crimson;
+    picker.addEventListener("click", ev => {
+      ev.stopPropagation();
+      pickerPinned = true;              // keep the palette while it's open
+      pickerSpan = target;
+      clearTimeout(hideTimer);
+    });
+    picker.addEventListener("change", ev => {
+      ev.stopPropagation();
+      pickerPinned = false;
+      apply(("#" + picker.value.slice(1).toUpperCase()), pickerSpan);
+    });
+    pal.appendChild(picker);
+    const none = document.createElement("button");
+    none.type = "button";
+    none.className = "none";
+    none.textContent = "✕";
+    none.title = "no colour";
+    none.addEventListener("click", ev => { ev.stopPropagation(); apply(null); });
+    pal.appendChild(none);
+    MARKS.forEach(bindMarkEditor);
+    pal.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+    pal.addEventListener("mouseleave", scheduleHide);
+    document.body.appendChild(pal);
+  }
+
+  // the reading applier is gated on the language at the moment of use: a
+  // buffer switched away from Japanese has no reading field to write
+  const applier = kind => kind === "kana"
+    ? (lang().reading ? opts.applyKana : null) : opts.applyTranslit;
+
+  /* A mark control: a label that turns into a text field on click, or a
+     + when the run carries no annotation yet.  Writing it back is the
+     same kind of edit as a colour — it lands in the markdown as
+     `[متن]{translit:…}` / `[漢字]{kana:…}` and so reaches the glossary
+     and the LLM. */
+  function bindMarkEditor(m) {
+    const box = $(`.tr-edit[data-kind="${m.kind}"]`, pal);
+    const val = $(".tr-val", box), add = $(".tr-add", box),
+          input = $(".tr-in", box);
+
+    const open = ev => {
+      ev.stopPropagation();
+      trSpan = target;
+      input.value = val.hidden ? "" : val.textContent;
+      val.hidden = add.hidden = true;
+      input.hidden = false;
+      editPinned = true;
+      clearTimeout(hideTimer);
+      input.focus();
+      input.select();
+    };
+    val.addEventListener("click", open);
+    add.addEventListener("click", open);
+
+    // Enter commits directly rather than by blurring the field: a blur
+    // does not fire when the window itself is not focused, and an edit
+    // that silently evaporates is worse than one that needs a click.
+    let committing = false;
+    async function commit(value) {
+      if (committing) return;
+      committing = true;
+      editPinned = false;
+      try { await applyMark(m, value); } finally { committing = false; }
+    }
+    function cancel() {
+      editPinned = false;
+      showMarks(trSpan);                       // also re-hides the field
+      scheduleHide();
+    }
+
+    // keystrokes stay inside the field: the page binds ⌘Z, Esc and more
+    input.addEventListener("keydown", ev => {
+      ev.stopPropagation();
+      if (ev.key === "Enter") { ev.preventDefault(); commit(input.value); }
+      else if (ev.key === "Escape") { ev.preventDefault(); cancel(); }
+    });
+    // clicking away commits too; the hidden check keeps that from
+    // running again after Enter or Esc already closed the field
+    input.addEventListener("blur", () => {
+      if (!input.hidden) commit(input.value);
+    });
+  }
+
+  function currentMark(span, kind) {
+    if (!span) return "";
+    return span.dataset[kind]
+      || (span.parentElement && span.parentElement.dataset[kind]) || "";
+  }
+  const currentTranslit = span => currentMark(span, "translit");
+
+  function showMarks(span) {
+    for (const m of MARKS) {
+      const box = $(`.tr-edit[data-kind="${m.kind}"]`, pal);
+      const val = $(".tr-val", box), add = $(".tr-add", box),
+            input = $(".tr-in", box);
+      const v = currentMark(span, m.kind);
+      input.hidden = true;
+      val.textContent = v;
+      // a lemma heading already carries its transliteration and reading
+      // in the heading itself (`## فارسی | translit | …`); a second,
+      // marked-up copy would be a competing source of truth, so the
+      // editor is offered only on ordinary runs
+      const editable = !!applier(m.kind) && span
+        && span.classList.contains("fa");
+      val.hidden = !v;
+      add.hidden = !!v || !editable;
+      val.disabled = !editable;
+    }
+  }
+  const showTranslit = () => showMarks(target);
+
+  async function applyMark(m, value) {
+    const span = trSpan;
+    const fn = applier(m.kind);
+    if (!span || !fn) return;
+    const v = value.trim(), before = currentMark(span, m.kind);
+    if (v === before) { showMarks(span); return scheduleHide(); }
+    const body = {text: span.dataset.fa, occurrence: Number(span.dataset.occ)};
+    body[m.kind] = v;
+    const what = capital(m.label);
+    try {
+      await fn(body, span);
+      showMarks(span);
+      toast(v ? `${what} saved: ${v}` : `${what} removed`);
+      hide();
+    } catch (e) {
+      toast(`Could not save the ${m.label}: ` + e.message, true);
+      showMarks(span);
+    }
+  }
+
+  function currentColor(span) {
+    if (span.dataset.color) return span.dataset.color;   // voce lemma
+    const wrap = span.parentElement;
+    return wrap && wrap.classList.contains("fac")
+      ? wrap.dataset.color : null;
+  }
+
+  function show(span) {
+    // a cloud built for another language is thrown away: its fields, face
+    // and labels are that language's (never while a field is open in it)
+    if (pal && pal.dataset.lang !== lang().code && !editPinned && !pickerPinned) {
+      pal.remove();
+      pal = null;
+    }
+    if (!pal) build();
+    target = span;
+    showMarks(span);
+    const cur = currentColor(span);
+    $$("button[data-color]", pal).forEach(b =>
+      b.classList.toggle("on", b.dataset.color === cur));
+    // initialise the HSV picker on the word's colour (crimson if none)
+    const isHex = cur && cur.startsWith("#");
+    picker.classList.toggle("on", !!isHex);
+    picker.value = isHex ? cur.toLowerCase()
+      : (PAL_HEX[cur] || PAL_HEX.crimson).toLowerCase();
+    pal.style.visibility = "hidden";
+    pal.style.display = "flex";
+    const r = span.getBoundingClientRect();
+    const top = r.top + window.scrollY - pal.offsetHeight - 8;
+    let left = r.left + window.scrollX + r.width / 2 - pal.offsetWidth / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - pal.offsetWidth - 8));
+    pal.style.top = (top < window.scrollY + 4
+      ? r.bottom + window.scrollY + 8 : top) + "px";
+    pal.style.left = left + "px";
+    pal.style.visibility = "visible";
+  }
+
+  function hide() {
+    if (pickerPinned || editPinned) return;   // a field is open in it
+    if (pal) pal.style.display = "none";
+    target = null;
+  }
+  function scheduleHide() { hideTimer = setTimeout(hide, 220); }
+
+  async function apply(color, spanArg) {
+    const span = spanArg || target;
+    if (!span) return;
+    const body = {
+      text: span.dataset.fa,
+      occurrence: Number(span.dataset.occ),
+      color: color,
+    };
+    try {
+      await opts.apply(body, span);
+      hide();
+      toast(color ? `Marked ${color} — saved in the markdown`
+                  : "Colour removed");
+    } catch (e) {
+      toast("Could not set the colour: " + e.message, true);
+    }
+  }
+
+  container.addEventListener("mouseover", e => {
+    const span = e.target.closest(".fa[data-fa], .voce-fa[data-fa]");
+    if (!span || !container.contains(span)) return;
+    clearTimeout(hideTimer);
+    if (span !== target) show(span);
+  });
+  container.addEventListener("mouseout", e => {
+    if (e.target.closest(".fa[data-fa], .voce-fa[data-fa]")) scheduleHide();
+  });
+  window.addEventListener("scroll", hide, {passive: true});
+}
+
+/* The reading view's appliers: save on the server, then patch the DOM in
+   place (wrap/re-class/unwrap inline runs; toggle classes on a lemma). */
+/* Hovering the "N FAIL" badge explains what the check is and what a
+   failure does and does not mean.  It is pointer-events:none, so it can
+   never swallow the click that opens the list of failing strings. */
+function verifyCloud() {
+  const L = lang();
+  const rtl = L.dir === "rtl";
+  return `<span class="vfx-cloud">` +
+    `<b>${rtl ? "Right-to-left verification." : "Text verification."}</b>` +
+    ` After each build every ${escAttr(L.name)} string in the generated` +
+    ` <code>.tex</code> is looked for in the finished PDF — read back glyph` +
+    ` by glyph, in the order the glyphs actually sit on the page.` +
+    (rtl
+      ? ` A failure means one of two things: the text never reached the` +
+        ` PDF, or its words came out left-to-right, which is the bidi bug` +
+        ` this toolchain exists to catch.`
+      : ` A failure means the text never reached the PDF as written.`) +
+    `<span class="vfx-note"><b>One false alarm is known.</b> A long` +
+    ` run may wrap across a line, and a run split over two lines` +
+    ` may be reported <i>missing</i> even though it is set correctly. Check a` +
+    ` <i>missing</i> on a long run by eye before treating it as real.` +
+    `</span><span class="vfx-hint">Click to see which strings failed.</span>` +
+    `</span>`;
+}
+
+/* Writing a transliteration or a reading into the stored document.  A
+   run with no mark yet is bare text in the DOM, so the annotation may
+   need a wrapper built around it — and removing the last mark takes it
+   away.  `kind` is "translit" or "kana": the endpoint, the request key
+   and the data attribute all carry that name. */
+function docMarkApplier(docId, kind) {
+  return async (body, span) => {
+    const data = await api(`/api/docs/${docId}/${kind}`,
+                           {method: "POST", json: body});
+    let wrap = span.parentElement;
+    const wrapped = wrap && wrap.classList.contains("fac");
+    if (data[kind]) {
+      if (!wrapped) {
+        wrap = document.createElement("span");
+        wrap.className = "fac";
+        span.replaceWith(wrap);
+        wrap.appendChild(span);
+      }
+      wrap.dataset[kind] = data[kind];
+    } else if (wrapped) {
+      delete wrap.dataset[kind];
+      // nothing left to hold: no colour and no other mark
+      if (!wrap.dataset.color && !wrap.dataset.translit && !wrap.dataset.kana)
+        wrap.replaceWith(span);
+    }
+    if (onSourceChanged) onSourceChanged(data.meta);
+  };
+}
+const docTranslitApplier = docId => docMarkApplier(docId, "translit");
+
+function docColorApplier(docId) {
+  const paint = (el, color) => {
+    el.classList.remove(
+      ...[...el.classList].filter(c => c === "fac" || c.startsWith("fac-")));
+    el.style.color = "";
+    delete el.dataset.color;
+    if (!color) return;
+    el.classList.add("fac");
+    if (color.startsWith("#")) el.style.color = color;   // arbitrary hex
+    else el.classList.add("fac-" + color);               // palette name
+    el.dataset.color = color;
+  };
+  return async (body, span) => {
+    const data = await api(`/api/docs/${docId}/color`,
+                           {method: "POST", json: body});
+    const color = body.color;
+    if (span.classList.contains("voce-fa")) {
+      paint(span, color);
+      span.classList.add("voce-fa");     // paint() must not drop identity
+    } else {
+      const wrap = span.parentElement;
+      const wrapped = wrap && wrap.classList.contains("fac");
+      if (color) {
+        if (wrapped) {
+          paint(wrap, color);
+        } else {
+          const w = document.createElement("span");
+          span.replaceWith(w);
+          w.appendChild(span);
+          paint(w, color);
+        }
+      } else if (wrapped) {
+        if (wrap.dataset.translit || wrap.dataset.kana)
+          paint(wrap, null);                          // keep the marks
+        else wrap.replaceWith(span);
+      }
+    }
+    if (typeof onSourceChanged === "function") onSourceChanged(data.meta);
+  };
+}
+
+let onSourceChanged = null;
+
+/* ---- clipped YouTube embeds: make every play the same snippet -------
+   The embed honours start/end only on the FIRST playback.  Each clipped
+   player is registered with the iframe's postMessage protocol (no
+   external script); when it reports `ended`, the iframe is reloaded, so
+   the clip is re-armed for the next play. */
+const clipRegistry = new Map();     // listener id -> figure
+let clipSeq = 0;
+
+function videoSrc(fig) {
+  const qs = ["rel=0"];
+  if (fig.dataset.start !== "") qs.push("start=" + fig.dataset.start);
+  if (fig.dataset.end !== "") qs.push("end=" + fig.dataset.end);
+  if (fig.dataset.start !== "" || fig.dataset.end !== "")
+    qs.push("enablejsapi=1");
+  return `https://www.youtube-nocookie.com/embed/${fig.dataset.vid}?`
+    + qs.join("&");
+}
+
+function armClipReplay(container) {
+  $$("figure.video", container).forEach(fig => {
+    if (fig.dataset.start === "" && fig.dataset.end === "") return;
+    const ifr = $("iframe", fig);
+    if (!ifr || ifr.dataset.clipArmed) return;
+    ifr.dataset.clipArmed = "1";
+    const id = "exlex-clip-" + (++clipSeq);
+    clipRegistry.set(id, fig);
+    const hello = () => {
+      try {
+        ifr.contentWindow.postMessage(
+          JSON.stringify({event: "listening", id}), "*");
+      } catch (e) { /* iframe not ready yet */ }
+    };
+    ifr.addEventListener("load", () => {
+      hello();                       // the player script needs a moment
+      setTimeout(hello, 700);
+      setTimeout(hello, 2000);
+    });
+    hello();
+    setTimeout(hello, 700);
+    setTimeout(hello, 2000);
+  });
+}
+
+window.addEventListener("message", e => {
+  if (typeof e.data !== "string" ||
+      !/^https:\/\/www\.youtube/.test(e.origin)) return;
+  let d;
+  try { d = JSON.parse(e.data); } catch (err) { return; }
+  if (d.event !== "infoDelivery" || !d.info || d.info.playerState !== 0)
+    return;                          // 0 = ended
+  const fig = clipRegistry.get(d.id);
+  if (!fig) return;
+  if (fig.dataset.start === "" && fig.dataset.end === "") return;
+  const ifr = $("iframe", fig);
+  if (ifr) ifr.src = videoSrc(fig);  // reload re-arms start/end
+});
+
+/* Clicking an image opens a layout panel: width, alignment, and a
+   horizontal shift in percentage points of the column width.  Every
+   change is written into the image's attribute block in the markdown,
+   so the PDF lays the figure out identically.  A video and a recording
+   take a clip too (start and end; a recording's to the hundredth).  A
+   figure on a flashcard has no layout of its own: a click there turns
+   the card. */
+function bindImageLayout(container, opts) {
+  if (!opts || !opts.save) return {close: () => {}};
+  let panel = null, fig = null, queue = Promise.resolve();
+
+  const mlOf = (w, align, off) => {
+    const base = align === "center" ? (100 - w) / 2
+               : align === "right" ? 100 - w : 0;
+    return Math.max(-25, Math.min(base + off, 125));
+  };
+  const kindOf = f => f.classList.contains("video") ? "video"
+                    : f.classList.contains("audio") ? "audio" : "image";
+  const KIND_NAME = {image: "Image", video: "Video", audio: "Recording"};
+  const state = () => ({
+    width: +fig.dataset.width, align: fig.dataset.align,
+    offset: +fig.dataset.offset,
+  });
+
+  function build() {
+    panel = document.createElement("div");
+    panel.className = "imgpanel";
+    panel.innerHTML = `
+      <div class="panel-head"><span>Image layout</span>
+        <button type="button" data-x="close" title="Close (Esc)">✕</button></div>
+      <div class="row2"><label>Width</label>
+        <input type="range" data-k="width" min="10" max="100" step="1">
+        <output data-o="width"></output></div>
+      <div class="row2"><label>Shift</label>
+        <input type="range" data-k="offset" min="-50" max="50" step="1">
+        <output data-o="offset"></output></div>
+      <div class="row2"><label>Align</label><div class="aligns">
+        <button type="button" data-a="left">left</button>
+        <button type="button" data-a="center">center</button>
+        <button type="button" data-a="right">right</button></div></div>
+      <div class="row2 times-row" hidden><label>Clip</label><div class="times">
+        <input data-t="start" placeholder="start"> –
+        <input data-t="end" placeholder="end"></div></div>
+      <div class="hint2">Saved into the markdown — the PDF uses the same layout.</div>`;
+    $('[data-x="close"]', panel).addEventListener("click", close);
+    $$(".times input", panel).forEach(inp =>
+      inp.addEventListener("change", () => {
+        const frac = kindOf(fig) === "audio";
+        const v = parseClock(inp.value, frac);
+        if (inp.value.trim() && v === null) {
+          toast(frac ? "Time as seconds or m:ss, to the hundredth (e.g. 65.25 or 1:05.25)"
+                     : "Time as seconds or m:ss (e.g. 90 or 1:30)", true);
+          inp.value = fmtClock(fig.dataset[inp.dataset.t], frac);
+          return;
+        }
+        fig.dataset[inp.dataset.t] = v === null ? "" : v;
+        inp.value = fmtClock(v, frac);
+        persist();
+      }));
+    for (const k of ["width", "offset"]) {
+      const sl = $(`[data-k="${k}"]`, panel);
+      sl.addEventListener("input", () => {          // live while dragging
+        const s = state(); s[k] = +sl.value; apply(s);
+      });
+      sl.addEventListener("change", persist);       // save on release
+    }
+    $$(".aligns button", panel).forEach(b =>
+      b.addEventListener("click", () => {
+        const s = state(); s.align = b.dataset.a; apply(s); persist();
+      }));
+    document.body.appendChild(panel);
+  }
+
+  function apply(s) {
+    const kind = kindOf(fig);
+    fig.dataset.width = s.width;
+    fig.dataset.align = s.align;
+    fig.dataset.offset = s.offset;
+    fig.style.width = s.width + "%";
+    fig.style.marginLeft = mlOf(s.width, s.align, s.offset).toFixed(2) + "%";
+    fig.className = "img align-" + s.align + " img-editing"
+      + (kind === "image" ? "" : " " + kind);
+    $('[data-k="width"]', panel).value = s.width;
+    $('[data-k="offset"]', panel).value = s.offset;
+    $('[data-o="width"]', panel).textContent = s.width + "%";
+    $('[data-o="offset"]', panel).textContent =
+      (s.offset > 0 ? "+" : "") + s.offset + "%";
+    $$(".aligns button", panel).forEach(b =>
+      b.classList.toggle("on", b.dataset.a === s.align));
+  }
+
+  function refreshVideo(f) {
+    const ifr = $("iframe", f);
+    if (ifr) ifr.src = videoSrc(f);
+    armClipReplay(f.parentNode || document);  // a video that just gained
+  }                                           // a clip needs its listener
+
+  // the recording's own media fragment follows its window, so its player
+  // shows the start before it is played (the window itself is kept by the
+  // play listener); a change of width or alignment leaves it alone
+  function refreshAudio(f) {
+    const a = $("audio", f);
+    if (!a) return;
+    const has = v => v !== undefined && v !== "";
+    const {start, end} = f.dataset;
+    const frag = has(start) || has(end)
+      ? "#t=" + (has(start) ? start : 0) + (has(end) ? "," + end : "") : "";
+    const src = (a.getAttribute("src") || "").replace(/#.*$/, "") + frag;
+    if (a.getAttribute("src") !== src) a.setAttribute("src", src);
+  }
+
+  function persist() {
+    const target = fig;
+    const kind = kindOf(target);
+    queue = queue.then(async () => {
+      const s = {index: +target.dataset.idx,
+                 width: +target.dataset.width,
+                 align: target.dataset.align,
+                 offset: +target.dataset.offset};
+      if (kind !== "image") {
+        const time = v => v === undefined || v === "" ? null : +v;
+        s.start = time(target.dataset.start);
+        s.end = time(target.dataset.end);
+      }
+      await opts.save(s, target);
+      if (kind === "video") refreshVideo(target);
+      if (kind === "audio") refreshAudio(target);
+      toast(KIND_NAME[kind] + " layout saved in the markdown");
+    }).catch(e => toast("Layout not saved: " + e.message, true));
+  }
+
+  function place() {
+    const r = fig.getBoundingClientRect();
+    panel.style.display = "block";
+    let top = r.top + window.scrollY - panel.offsetHeight - 10;
+    if (top < window.scrollY + 8) top = r.bottom + window.scrollY + 10;
+    let left = r.left + window.scrollX;
+    left = Math.max(8, Math.min(left, window.innerWidth - panel.offsetWidth - 8));
+    panel.style.top = top + "px";
+    panel.style.left = left + "px";
+  }
+
+  function open(f) {
+    if (!panel) build();
+    if (fig) fig.classList.remove("img-editing");
+    fig = f;
+    const kind = kindOf(f), frac = kind === "audio";
+    $(".panel-head span", panel).textContent = KIND_NAME[kind] + " layout";
+    $(".times-row", panel).hidden = kind === "image";
+    if (kind !== "image") {
+      const unit = frac ? "seconds or m:ss, to the hundredth" : "seconds or m:ss";
+      $('[data-t="start"]', panel).title = `Start time — ${unit}; empty = from the beginning`;
+      $('[data-t="end"]', panel).title = `End time — ${unit}; empty = to the end`;
+      $('[data-t="start"]', panel).value = fmtClock(f.dataset.start, frac);
+      $('[data-t="end"]', panel).value = fmtClock(f.dataset.end, frac);
+    }
+    apply(state());
+    place();
+  }
+  function close() {
+    if (panel) panel.style.display = "none";
+    if (fig) fig.classList.remove("img-editing");
+    fig = null;
+  }
+
+  container.addEventListener("click", e => {
+    const btn = e.target.closest(".video-edit, .audio-edit");
+    if (btn && container.contains(btn) && !btn.closest(".ex-flashcard")) {
+      e.preventDefault();
+      open(btn.closest("figure.img"));
+      return;
+    }
+    const f = e.target.closest("figure.img");
+    if (!f || !container.contains(f) || f.closest(".ex-flashcard")) return;
+    // videos and recordings open via their ⚙ handle or caption (the player
+    // takes the clicks on itself); images open on any click
+    if (f.classList.contains("video") || f.classList.contains("audio")) {
+      if (e.target.closest("figcaption")) open(f);
+      return;
+    }
+    e.preventDefault();
+    open(f);
+  });
+  document.addEventListener("click", e => {
+    if (fig && !fig.contains(e.target) && !e.target.closest(".imgpanel"))
+      close();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && fig) close();
+  });
+  window.addEventListener("resize", () => { if (fig) place(); });
+  return {close};
+}
+
+/* Clicking a [ … ]{la} block opens its layout panel: width, sideways
+   shift and text alignment (the image knobs) plus a background tint.
+   Every change is written into the block's attribute marker. */
+function bindLaLayout(container, opts) {
+  if (!opts || !opts.save) return {close: () => {}};
+  let panel = null, blk = null, queue = Promise.resolve();
+
+  const state = () => ({
+    width: +blk.dataset.laWidth, offset: +blk.dataset.laOffset,
+    align: blk.dataset.laAlign, bg: blk.dataset.laBg,
+  });
+
+  function build() {
+    panel = document.createElement("div");
+    panel.className = "imgpanel";
+    panel.innerHTML = `
+      <div class="panel-head"><span>Block layout</span>
+        <button type="button" data-x="close" title="Close (Esc)">✕</button></div>
+      <div class="row2"><label>Width</label>
+        <input type="range" data-k="width" min="10" max="100" step="1">
+        <output data-o="width"></output></div>
+      <div class="row2"><label>Shift</label>
+        <input type="range" data-k="offset" min="-50" max="50" step="1">
+        <output data-o="offset"></output></div>
+      <div class="row2"><label>Text</label><div class="aligns">
+        <button type="button" data-a="left">left</button>
+        <button type="button" data-a="center">center</button>
+        <button type="button" data-a="right">right</button></div></div>
+      <div class="row2 bgsel"><label>Backg.</label>
+        <select data-k="bg">
+          <option value="">none</option>
+          <option value="quote">quote</option>
+          <option value="sand">sand</option>
+          <option value="rose">rose</option>
+          <option value="sage">sage</option>
+          <option value="lilac">lilac</option>
+        </select></div>
+      <div class="hint2">Saved into the markdown — the PDF uses the same layout.</div>`;
+    $('[data-x="close"]', panel).addEventListener("click", close);
+    for (const k of ["width", "offset"]) {
+      const sl = $(`[data-k="${k}"]`, panel);
+      sl.addEventListener("input", () => {
+        const s = state(); s[k] = +sl.value; apply(s);
+      });
+      sl.addEventListener("change", persist);
+    }
+    $$(".aligns button", panel).forEach(b =>
+      b.addEventListener("click", () => {
+        const s = state(); s.align = b.dataset.a; apply(s); persist();
+      }));
+    $('[data-k="bg"]', panel).addEventListener("change", ev => {
+      const s = state(); s.bg = ev.target.value; apply(s); persist();
+    });
+    document.body.appendChild(panel);
+  }
+
+  function apply(s) {
+    blk.dataset.laWidth = s.width;
+    blk.dataset.laOffset = s.offset;
+    blk.dataset.laAlign = s.align;
+    blk.dataset.laBg = s.bg;
+    if (s.width === 100 && s.offset === 0) {
+      blk.style.width = ""; blk.style.marginLeft = "";
+    } else {
+      blk.style.width = s.width + "%";
+      blk.style.marginLeft =
+        Math.max(-25, Math.min(s.offset, 125)).toFixed(2) + "%";
+    }
+    blk.className = "la-par align-" + s.align
+      + (s.bg ? " rtl-bg-" + s.bg : "") + " img-editing";
+    $('[data-k="width"]', panel).value = s.width;
+    $('[data-k="offset"]', panel).value = s.offset;
+    $('[data-o="width"]', panel).textContent = s.width + "%";
+    $('[data-o="offset"]', panel).textContent =
+      (s.offset > 0 ? "+" : "") + s.offset + "%";
+    $('[data-k="bg"]', panel).value = s.bg;
+    $$(".aligns button", panel).forEach(b =>
+      b.classList.toggle("on", b.dataset.a === s.align));
+  }
+
+  function persist() {
+    const target = blk;
+    queue = queue.then(async () => {
+      const content = target.dataset.laSrc;
+      const same = $$(".la-par", container)
+        .filter(x => x.dataset.laSrc === content);
+      const s = {content, occurrence: Math.max(0, same.indexOf(target)),
+                 width: +target.dataset.laWidth,
+                 offset: +target.dataset.laOffset,
+                 align: target.dataset.laAlign,
+                 bg: target.dataset.laBg};
+      await opts.save(s, target);
+      toast("Block layout saved in the markdown");
+    }).catch(e => toast("Layout not saved: " + e.message, true));
+  }
+
+  function place() {
+    const r = blk.getBoundingClientRect();
+    panel.style.display = "block";
+    let top = r.top + window.scrollY - panel.offsetHeight - 10;
+    if (top < window.scrollY + 8) top = r.bottom + window.scrollY + 10;
+    panel.style.top = top + "px";
+    panel.style.left = Math.max(8, Math.min(
+      r.left + window.scrollX,
+      window.innerWidth - panel.offsetWidth - 8)) + "px";
+  }
+
+  function open(el) {
+    if (!panel) build();
+    if (blk) blk.classList.remove("img-editing");
+    blk = el;
+    apply(state());
+    place();
+  }
+  function close() {
+    if (panel) panel.style.display = "none";
+    if (blk) blk.classList.remove("img-editing");
+    blk = null;
+  }
+
+  container.addEventListener("click", e => {
+    const el = e.target.closest(".la-par");
+    // a block on a flashcard is part of the card: a click there turns it
+    if (!el || !container.contains(el) || el.closest(".ex-flashcard")) return;
+    if (e.target.closest("a, .fa, .fnref")) return;   // links/copy still work
+    e.preventDefault();
+    open(el);
+  });
+  document.addEventListener("click", e => {
+    if (blk && !e.target.closest(".la-par") && !e.target.closest(".imgpanel"))
+      close();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && blk) close();
+  });
+  window.addEventListener("resize", () => { if (blk) place(); });
+  return {close};
+}
+
+/* Upload helper shared by the editor's button, drag-drop and manager. */
+/* `name` overrides the file's own — a pasted figure has no filename of
+   its own, so one is asked for.  Only the stem matters: the server sniffs
+   the bytes and appends the extension that actually matches them. */
+async function uploadImage(docId, file, name) {
+  return working(file.size > BIG_UPLOAD && `Uploading ${name || file.name}`, async act => {
+    const r = await fetch(act.url(
+      BASE + `/api/docs/${docId}/images?name=` + encodeURIComponent(name || file.name)),
+      {method: "POST", body: file});
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    return data;
+  });
+}
+
+/* Its twin for a recording, into the document's audio/ folder: the server
+   names it by its bytes as it does a picture -> {name, path, url}. */
+async function uploadAudio(docId, file, name) {
+  return working(file.size > BIG_UPLOAD && `Uploading ${name || file.name}`, async act => {
+    const r = await fetch(act.url(
+      BASE + `/api/docs/${docId}/audio?name=` + encodeURIComponent(name || file.name)),
+      {method: "POST", body: file});
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    return data;
+  });
+}
+
+/* A document's file keeps its address when it is deleted, and when another
+   is uploaded under its name; and a page keeps drawing what it once loaded
+   from an address for as long as it lives, whatever the server says since:
+   a picture deleted with ✕ went on showing in the editor's preview, and one
+   uploaded in its place showed the old picture, until the page was
+   reloaded.  So a name this page deletes gets a mark, and the preview asks
+   for a marked file under an address carrying it (freshMedia), which the
+   page never loaded while the file was there: it shows the file missing,
+   and then whatever is uploaded under the name, since an address that
+   failed is asked for again.  Any other file keeps its plain address.  The
+   server reads no query on a file's route. */
+const MEDIA_CHANGED = new Map();          // "images/cat.png" -> its mark
+let mediaSerial = 0;
+function mediaChanged(path) {
+  MEDIA_CHANGED.set(path, String(++mediaSerial));
+}
+function freshMedia(root, docId) {
+  if (!MEDIA_CHANGED.size || !docId) return;
+  const own = `/media/${docId}/`;
+  for (const el of root.querySelectorAll("img[src], audio[src]")) {
+    const src = el.getAttribute("src"), cut = src.search(/[?#]|$/);
+    const at = src.lastIndexOf(own, cut);
+    if (at < 0 || src[cut] === "?") continue;
+    const path = src.slice(at + own.length, cut);
+    // a PDF figure is drawn through its x.pdf.svg twin
+    const mark = MEDIA_CHANGED.get(path)
+      || (/\.pdf\.svg$/i.test(path) && MEDIA_CHANGED.get(path.slice(0, -4)));
+    if (mark) el.setAttribute("src", src.slice(0, cut) + "?v=" + mark + src.slice(cut));
+  }
+}
+
+/* ---------------- primitive-driven exercises ----------------------- */
+
+// The picker names pedagogical activities.  Their editors below share a few
+// repeatable form controls, but never ask the author to understand the four
+// implementation primitives or the Markdown wire format.
+const EXERCISE_DEFINITIONS = [
+  {label: "Fill in blanks", subtype: "fill-blanks", editor: "fill",
+   description: "Build a sentence from ordinary text, blank spaces, and movable distractors."},
+  {label: "Embedded vocabulary flashcard", subtype: "flashcard", cardType: "vocab", editor: "flashcard",
+   description: "A self-checked vocabulary card inside the page."},
+  {label: "Order sentences", subtype: "order-sentences", editor: "order",
+   description: "Enter the sentences in their correct final order."},
+  {label: "Match translations", subtype: "match-translations", editor: "matching",
+   description: "Pair words, phrases, or sentences with their translations."},
+  {label: "Match opposites", subtype: "match-opposites", editor: "matching",
+   description: "Pair each word or expression with its opposite."},
+  {label: "Match definitions", subtype: "match-definitions", editor: "matching",
+   description: "Pair words with definitions in either direction."},
+  {label: "Yes / No questions", subtype: "yes-no", editor: "boolean",
+   description: "Add one or more questions whose answer is Yes or No."},
+  {label: "True / False questions", subtype: "true-false", editor: "boolean",
+   description: "Add one or more statements to judge True or False."},
+  {label: "Choose one answer", subtype: "single-choice", editor: "choice",
+   description: "Provide alternatives and mark exactly one as correct."},
+  {label: "Construct a sentence", subtype: "construct-sentence", editor: "order",
+   description: "Enter words or chunks in the correct final sequence."},
+  {label: "Identify the incorrect part", subtype: "incorrect-part", editor: "choice",
+   description: "Split a sentence into segments and mark the segment containing the error."},
+  {label: "Choose all correct answers", subtype: "choose-all", editor: "choice",
+   description: "Provide alternatives and mark every valid answer."},
+  {label: "Odd one out", subtype: "odd-one-out", editor: "choice",
+   description: "Provide a group and mark the one item that does not belong."},
+  {label: "Embedded opposites flashcard", subtype: "flashcard", cardType: "opposites", editor: "flashcard",
+   description: "A self-checked card with a word on one side and its opposite on the other."},
+  {label: "Embedded Jolly flashcard", subtype: "flashcard", cardType: "jolly", editor: "flashcard",
+   description: "A self-checked card with a primary and secondary field on each side."},
+];
+
+const TRANSLITERATION_VISIBILITY_KEY = "parseh_exercise_hide_transliteration";
+let hideExerciseTransliterations = false;
+try { hideExerciseTransliterations = localStorage.getItem(TRANSLITERATION_VISIBILITY_KEY) === "1"; }
+catch (e) { /* private pages keep the choice until this page closes */ }
+
+function bindExercises(container, opts = {}) {
+  // EVERY PIECE OF RENDERED HTML IN THIS TOOLBOX COMES PAST HERE -- the
+  // document page, the editor's preview, the exercise form's stage, a deck
+  // row, the study stage, the solution sheet, and the card kit's iframe,
+  // which loads this file for exactly that reason.  So a formula is drawn
+  // in one place rather than in seven, and a site added later gets it
+  // without anybody remembering to.  Nothing waits on it: it is drawn
+  // while the rest of this binds.
+  if (window.ParsehMath) ParsehMath.typeset(container);
+  if (container._parsehExercises) container._parsehExercises.abort();
+  const controller = new AbortController();
+  container._parsehExercises = controller;
+  const listen = (el, type, fn, options = {}) =>
+    el.addEventListener(type, fn, Object.assign({}, options, {signal: controller.signal}));
+  const preview = !!opts.preview;
+  const exercises = $$(".exercise", container);
+  if (!exercises.length) return {judge: () => false, exercises: []};
+
+  function showTransliterationChoice() {
+    document.body.classList.toggle("ex-hide-transliteration", hideExerciseTransliterations);
+    $$(".ex-translit-switch").forEach(button => {
+      button.textContent = hideExerciseTransliterations ? "Show transliterations" : "Hide transliterations";
+      button.setAttribute("aria-pressed", String(hideExerciseTransliterations));
+      button.title = "Apply to all exercise flashcards";
+    });
+  }
+  showTransliterationChoice();
+  listen(container, "click", e => {
+    const button = e.target.closest(".ex-translit-switch");
+    if (!button || !container.contains(button)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    hideExerciseTransliterations = !hideExerciseTransliterations;
+    try { localStorage.setItem(TRANSLITERATION_VISIBILITY_KEY, hideExerciseTransliterations ? "1" : "0"); }
+    catch (err) { /* page-local choice still works */ }
+    showTransliterationChoice();
+  });
+
+  const shuffled = a => {
+    a = a.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  const shuffleInto = el => shuffled([...el.children]).forEach(x => el.appendChild(x));
+
+  function clearFeedback(ex) {
+    if (preview) return;
+    ex.classList.remove("correct", "incorrect");
+    $$(".answer-correct,.answer-wrong,.answer-missed", ex).forEach(x =>
+      x.classList.remove("answer-correct", "answer-wrong", "answer-missed"));
+    $$(".ex-explanation", ex).forEach(why => {
+      why.hidden = true; why.classList.remove("success", "error");
+    });
+    $$(".ex-image-answer", ex).forEach(img => { img.hidden = true; });
+    // and the recording kept for the answer, which is stopped as it goes:
+    // a player hidden while it plays would go on sounding out of nowhere
+    $$(".ex-audio-answer", ex).forEach(box => {
+      box.hidden = true;
+      $$("audio", box).forEach(a => { if (!a.paused) a.pause(); });
+    });
+    const score = $("[data-exercise-results] .ex-score", container);
+    if (score) { score.hidden = true; score.textContent = "Answers changed — check again"; }
+  }
+
+  function bankFor(ex) { return $(".ex-bank[data-bank]", ex); }
+  function moveItem(item, drop, anchor) {
+    if (!item || !drop || item.closest(".exercise") !== drop.closest(".exercise")) return;
+    const ex = drop.closest(".exercise"), bank = bankFor(ex);
+    if (drop.dataset.drop === "slot" || drop.dataset.drop === "match") {
+      const old = $(".ex-item", drop);
+      if (old && old !== item && bank) bank.appendChild(old);
+      drop.appendChild(item);
+    } else if (drop.dataset.drop === "sequence") {
+      if (anchor && anchor !== item) drop.insertBefore(item, anchor);
+      else drop.appendChild(item);
+    } else if (drop.dataset.bank && bank) {
+      bank.appendChild(item);
+    }
+    item.classList.remove("picked");
+    clearFeedback(ex);
+    $$(".ex-sequence", ex).forEach(markEnds);
+  }
+
+  /* THE ARROWS: a box moved one place, without dragging it.  Dragging is
+     what a mouse does best and a touch screen worst -- a drag the page never
+     sees as one leaves the box where it was, or drops it at the end -- so
+     every box in a sequence carries two arrows, and they are also the way
+     through from the keyboard.  What they do is what a drag does, and it is
+     recorded the same way: the answer is the order of the boxes, and any
+     move unsettles the mark the exercise was given. */
+  function moveAlong(item, by) {
+    const seq = item && item.parentElement;
+    if (!seq || seq.dataset.drop !== "sequence") return;
+    const kin = $$(".ex-item", seq), i = kin.indexOf(item), j = i + by;
+    if (i < 0 || j < 0 || j >= kin.length) return;
+    // insertBefore with the neighbour, or with what follows it: the two
+    // boxes change places, and nothing else in the order moves
+    seq.insertBefore(item, by < 0 ? kin[j] : kin[j].nextElementSibling);
+    clearFeedback(seq.closest(".exercise"));
+    markEnds(seq);
+  }
+
+  /* A block of a sequence: the only kind the switch governs, and the only
+     kind with arrows to fall back on. */
+  const inSequence = item => !!item && !!item.parentElement
+    && item.parentElement.dataset.drop === "sequence";
+  const mayDrag = item => !inSequence(item) || dragIsOn();
+
+  /* The switch, and what it does: every sequence on the page follows it at
+     once, and so does every page opened afterwards. */
+  function applyDrag() {
+    const on = dragIsOn();
+    exercises.forEach(ex => {
+      const seq = $(".ex-sequence", ex);
+      if (!seq) return;
+      ex.classList.toggle("no-drag", !on);
+      $$(".ex-item", seq).forEach(item => { item.draggable = on; });
+      const sw = $(".ex-drag-switch", ex);
+      if (!sw) return;
+      sw.hidden = false;
+      sw.textContent = on ? "✥ dragging on" : "✥ dragging off";
+      sw.setAttribute("aria-pressed", on ? "true" : "false");
+      sw.title = on
+        ? "Blocks can be dragged as well as moved with their arrows. Press to use the arrows alone."
+        : "Only the arrows move the blocks, which is what a touch screen does well. Press to allow dragging too.";
+    });
+  }
+
+  /* An arrow at the end of the line has nowhere to go and says so.  Run
+     after every move, whoever made it -- a drag, a tap, an arrow, the
+     shuffle that opens the exercise. */
+  function markEnds(seq) {
+    if (!seq || seq.dataset.drop !== "sequence") return;
+    const kin = $$(".ex-item", seq);
+    kin.forEach((item, i) => {
+      const back = $('.ex-move[data-move="earlier"]', item);
+      const on = $('.ex-move[data-move="later"]', item);
+      if (back) back.disabled = i === 0;
+      if (on) on.disabled = i === kin.length - 1;
+    });
+  }
+
+  // Sentence chunks flow across rows, unlike ordered sentences. Work out
+  // whether the pointer means "before" in the sequence's visual direction;
+  // an RTL flex row starts on the right, while vertical lists still use Y.
+  function sequenceAnchor(drop, over, clientX, clientY) {
+    if (!over || over.parentElement !== drop) return null;
+    const rect = over.getBoundingClientRect();
+    if (drop.classList.contains("ex-sequence-inline")) {
+      const rtl = getComputedStyle(drop).direction === "rtl";
+      const before = rtl ? clientX > rect.left + rect.width / 2
+                         : clientX < rect.left + rect.width / 2;
+      return before ? over : over.nextElementSibling;
+    }
+    return clientY < rect.top + rect.height / 2
+      ? over : over.nextElementSibling;
+  }
+
+  let dragged = null, picked = null;
+  listen(container, "dragstart", e => {
+    const item = e.target.closest(".ex-item");
+    if (!item || preview || !mayDrag(item)) return;
+    dragged = item; item.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", item.dataset.item || "item");
+  });
+  listen(container, "dragend", () => {
+    if (dragged) dragged.classList.remove("dragging");
+    dragged = null;
+  });
+  listen(container, "dragover", e => {
+    if (!dragged) return;
+    const drop = e.target.closest("[data-drop], [data-bank]");
+    if (drop && drop.closest(".exercise") === dragged.closest(".exercise")) e.preventDefault();
+  });
+  listen(container, "drop", e => {
+    const drop = e.target.closest("[data-drop], [data-bank]");
+    if (dragged && drop) {
+      e.preventDefault();
+      const over = e.target.closest(".ex-item");
+      const anchor = sequenceAnchor(drop, over, e.clientX, e.clientY);
+      moveItem(dragged, drop, anchor);
+    }
+  });
+
+  // Tap-to-place is the touch and keyboard-friendly twin of dragging.
+  listen(container, "click", e => {
+    // the document page's copy-to-deck button belongs to initDoc
+    if (e.target.closest(".ex-to-deck")) return;
+    const zoom = e.target.closest(".ex-card-zoom");
+    if (zoom) { openCardZoom(zoom.closest(".exercise")); return; }
+    const edit = e.target.closest(".ex-edit");
+    if (edit && opts.onEdit) {
+      const ex = edit.closest(".exercise");
+      opts.onEdit(+ex.dataset.srcLine, +ex.dataset.srcEnd);
+      return;
+    }
+    // A flashcard turns on a click anywhere on it but on what does a thing
+    // of its own there: its 🔊 plays the recording, a player plays, a link
+    // is followed.  None of those is an answer shown (the study page counts
+    // a turn as one), and none of them turns it.
+    const flash = e.target.closest(".ex-flashcard");
+    if (flash) {
+      const play = e.target.closest(".ex-card-play");
+      if (play && flash.contains(play)) { toggleCardAudio(play); return; }
+      const control = e.target.closest(CARD_CONTROLS);
+      if (control && flash.contains(control)) return;
+      flipCard(flash);
+      return;
+    }
+    if (preview) return;
+    const sw = e.target.closest(".ex-drag-switch");
+    if (sw) { setDragOn(!dragIsOn()); applyDrag(); sw.focus(); return; }
+    const arrow = e.target.closest(".ex-move");
+    if (arrow) {
+      // the box keeps the focus for the next press; where the arrow it was
+      // pressed with has just reached the end, the other one takes it
+      const item = arrow.closest(".ex-item");
+      moveAlong(item, arrow.dataset.move === "earlier" ? -1 : 1);
+      const still = arrow.disabled ? $$(".ex-move", item).find(b => !b.disabled) : arrow;
+      if (still) still.focus();
+      return;
+    }
+    const option = e.target.closest(".ex-option");
+    if (option) {
+      const group = option.closest(".ex-choice-group");
+      if (group.dataset.choice === "single")
+        $$(".ex-option", group).forEach(x => {
+          x.classList.remove("selected"); x.setAttribute("aria-pressed", "false");
+        });
+      option.classList.toggle("selected");
+      option.setAttribute("aria-pressed", option.classList.contains("selected") ? "true" : "false");
+      clearFeedback(option.closest(".exercise"));
+      return;
+    }
+    const item = e.target.closest(".ex-item");
+    if (item) {
+      if (!mayDrag(item)) return;        // the arrows move this one
+      if (picked && picked !== item) picked.classList.remove("picked");
+      picked = item.classList.toggle("picked") ? item : null;
+      return;
+    }
+    const drop = e.target.closest("[data-drop], [data-bank]");
+    if (drop && picked) { const item0 = picked; picked = null; moveItem(item0, drop); }
+  });
+  listen(container, "keydown", e => {
+    // the card is no <button> any more (a side may hold one): Enter and
+    // Space on the card itself turn it, as a click does -- through a click,
+    // so whoever listens for one hears this too
+    if (["Enter", " "].includes(e.key) && e.target.classList && e.target.classList.contains("ex-flashcard")) {
+      e.preventDefault();                          // Space would scroll the page
+      if (!e.repeat) e.target.click();
+      return;
+    }
+    if (preview || !["Enter", " "].includes(e.key)) return;
+    // a box with arrows is a div (it holds them), so the browser makes no
+    // click of its own here: this is the click the <button> used to make
+    const box = e.target.classList && e.target.classList.contains("ex-item")
+      && e.target.tagName !== "BUTTON" ? e.target : null;
+    if (box) {
+      e.preventDefault();
+      if (!e.repeat) box.click();
+      return;
+    }
+    const drop = e.target.closest("[data-drop], [data-bank]");
+    if (drop && picked) { e.preventDefault(); const item = picked; picked = null; moveItem(item, drop); }
+  });
+
+  // Native HTML dragging is inconsistent on touch screens. A short touch
+  // selects the block; releasing over a destination places it there.
+  let touchItem = null;
+  listen(container, "pointerdown", e => {
+    if (preview || e.pointerType !== "touch") return;
+    // A PRESS ON AN ARROW IS NOT A DRAG OF THE BLOCK IT IS IN.  Without this
+    // a finger on an arrow picked the block up and the release put it at the
+    // end of the line -- the very thing the arrows are there to avoid.
+    if (e.target.closest(".ex-move")) return;
+    touchItem = e.target.closest(".ex-item");
+    if (touchItem && !mayDrag(touchItem)) { touchItem = null; return; }
+    if (touchItem) touchItem.classList.add("picked");
+  });
+  listen(container, "pointerup", e => {
+    if (!touchItem) return;
+    const at = document.elementFromPoint(e.clientX, e.clientY);
+    const drop = at && at.closest("[data-drop], [data-bank]");
+    const over = at && at.closest(".ex-item");
+    if (drop) moveItem(touchItem, drop,
+      over && over !== touchItem
+        ? sequenceAnchor(drop, over, e.clientX, e.clientY) : null);
+    touchItem.classList.remove("picked"); touchItem = null;
+  });
+
+  function judgeChoice(ex) {
+    let good = true;
+    $$(".ex-choice-group", ex).forEach(group => {
+      $$(".ex-option", group).forEach(o => {
+        const chosen = o.classList.contains("selected"), correct = o.dataset.correct === "1";
+        if (chosen && correct) o.classList.add("answer-correct");
+        else if (chosen) o.classList.add("answer-wrong");
+        else if (correct) o.classList.add("answer-missed");
+        if (chosen !== correct) good = false;
+      });
+    });
+    return good;
+  }
+  function judgePlacement(ex) {
+    let good = true;
+    if (ex.dataset.subtype === "fill-blanks") {
+      $$(".ex-blank", ex).forEach(drop => {
+        const item = $(".ex-item", drop), ok = item && item.dataset.item === drop.dataset.answer;
+        drop.classList.add(ok ? "answer-correct" : "answer-wrong");
+        if (!ok) good = false;
+      });
+    } else {
+      const seq = $(".ex-sequence", ex);
+      const expected = (seq.dataset.answer || "").split(",");
+      $$(".ex-item", seq).forEach((item, i) => {
+        const ok = item.dataset.item === expected[i];
+        item.classList.add(ok ? "answer-correct" : "answer-wrong");
+        if (!ok) good = false;
+      });
+      if ($$(".ex-item", seq).length !== expected.length) good = false;
+    }
+    return good;
+  }
+  function judgeMatching(ex) {
+    let good = true;
+    $$(".ex-match-drop", ex).forEach(drop => {
+      const item = $(".ex-item", drop), ok = item && item.dataset.item === drop.dataset.answer;
+      drop.classList.add(ok ? "answer-correct" : "answer-wrong");
+      if (!ok) good = false;
+    });
+    return good;
+  }
+  function judge(ex) {
+    clearFeedback(ex);
+    const good = ex.dataset.primitive === "choice" ? judgeChoice(ex)
+      : ex.dataset.primitive === "matching" ? judgeMatching(ex) : judgePlacement(ex);
+    ex.classList.add(good ? "correct" : "incorrect");
+    // the picture and the recording the author kept for the answer, right
+    // or wrong: both are shown, neither is played by itself
+    $$(".ex-image-answer", ex).forEach(img => { img.hidden = false; });
+    $$(".ex-audio-answer", ex).forEach(box => { box.hidden = false; });
+    $$(".ex-explanation", ex).forEach(why => {
+      const wanted = why.dataset.explanationFor;
+      why.hidden = !!wanted && wanted !== (good ? "correct" : "incorrect");
+      if (!why.hidden && why.classList.contains("ex-explanation-result"))
+        why.classList.add(good ? "success" : "error");
+    });
+    return good;
+  }
+
+  if (!preview) {
+    exercises.forEach(ex => {
+      if (ex.dataset.primitive === "placement" && ex.dataset.subtype !== "fill-blanks") {
+        shuffleInto($(".ex-sequence", ex));
+        markEnds($(".ex-sequence", ex));
+      }
+      if (ex.dataset.primitive === "choice" &&
+          !["yes-no", "true-false", "incorrect-part"].includes(ex.dataset.subtype))
+        $$(".ex-options", ex).forEach(shuffleInto);
+      $$(".ex-bank", ex).forEach(shuffleInto);
+    });
+    applyDrag();
+    const correct = $(".ex-correct-all", container);
+    if (correct) listen(correct, "click", () => {
+      const scored = exercises.filter(ex => ex.dataset.scored === "1");
+      const points = scored.reduce((n, ex) => n + (judge(ex) ? 1 : 0), 0);
+      const out = $(".ex-score", correct.closest("[data-exercise-results]"));
+      out.textContent = `${points} / ${scored.length} correct`;
+      out.hidden = false;
+      out.classList.toggle("perfect", points === scored.length);
+    });
+  } else {
+    $$(".ex-option,.ex-item", container).forEach(x => {
+      x.disabled = true; x.draggable = false;
+    });
+  }
+  // the study page checks one exercise at a time with the same judge the
+  // "Check exercises" button uses
+  return {judge, exercises};
+}
+
+/* ---------------- the exercise form ------------------------------- */
+
+const defaultPrompts = {
+  "fill-blanks": "Drag the blocks into the blanks.",
+  "order-sentences": "Put the sentences in the correct order.",
+  "match-translations": "Match each item with its translation.",
+  "match-opposites": "Match each item with its opposite.",
+  "match-definitions": "Match each word with its definition.",
+  "yes-no": "Answer each question Yes or No.",
+  "true-false": "Decide whether each statement is True or False.",
+  "single-choice": "Choose the correct answer.",
+  "construct-sentence": "Build the complete sentence.",
+  "incorrect-part": "Select the segment containing the error.",
+  "choose-all": "Choose every correct answer.",
+  "odd-one-out": "Choose the item that does not belong.",
+};
+
+function splitExercisePair(text) {
+  for (let i = 0; i < text.length - 1; i++) {
+    if (text[i] === "=" && text[i + 1] === ">" && (i === 0 || text[i - 1] !== "\\"))
+      return [text.slice(0, i).trim().replaceAll("\\=>", "=>"),
+              text.slice(i + 2).trim().replaceAll("\\=>", "=>")];
+  }
+  return [text.trim(), ""];
+}
+
+/* The text under a `key: |` field, as mdparser.parse_exercise keeps it for
+   a card's blocks: Python's textwrap.dedent of the lines (a line of blanks
+   is empty; the longest indentation every other line starts with goes),
+   the blank lines at either end dropped.  The same text both sides, or a
+   list nested by its indentation or a table would come back changed from
+   the form. */
+function dedentBlock(lines, keepEdges) {
+  const text = lines.map(l => /^[ \t]+$/.test(l) ? "" : l);
+  let margin = null;
+  for (const l of text) {
+    if (!l) continue;
+    const indent = l.match(/^[ \t]*/)[0];
+    if (margin === null) margin = indent;
+    else {
+      let k = 0;
+      while (k < margin.length && k < indent.length && margin[k] === indent[k]) k++;
+      margin = margin.slice(0, k);
+    }
+  }
+  const out = text.map(l => margin && l.startsWith(margin) ? l.slice(margin.length) : l);
+  // a field going on over the lines under it keeps the blank line that
+  // parts two paragraphs, wherever it stands (Python's textwrap.dedent)
+  if (!keepEdges) {
+    while (out.length && !out[0].trim()) out.shift();
+    while (out.length && !out[out.length - 1].trim()) out.pop();
+  }
+  return out.join("\n");
+}
+
+/* the four fields of a jolly card, which hold blocks of the page's markdown
+   (mdparser.JOLLY_FIELDS) */
+const JOLLY_KEYS = ["front-primary", "front-secondary", "back-primary", "back-secondary"];
+
+function parseExerciseSource(source) {
+  const lines = String(source || "").replaceAll("\r\n", "\n").split("\n");
+  // a deck item may come with blank lines around it; the editor's slice
+  // always starts on the opening line
+  while (lines.length > 1 && !lines[0].trim()) lines.shift();
+  const opening = (lines[0] || "").trim().match(/^:::exercise(?:\s+([a-z][a-z0-9-]*))?/i);
+  const model = {subtype: opening && opening[1] ? opening[1].toLowerCase() : "",
+                 fields: {}, rows: []};
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const raw = lines[i], s = raw.trim();
+    if (s === ":::") break;
+    if (!s || s.startsWith("<!--")) continue;
+    const fm = s.match(/^([a-z][a-z0-9-]*):\s*(.*)$/i);
+    if (fm && !s.startsWith("-")) {
+      const key = fm[1].toLowerCase();
+      // mdparser.parse_exercise: `type:` names the subtype when the
+      // opening line does not
+      if (key === "type" && !model.subtype) {
+        model.subtype = fm[2].trim().toLowerCase();
+        continue;
+      }
+      if (fm[2].trim() === "|") {
+        const value = [];
+        while (i + 1 < lines.length && lines[i + 1].trim() !== ":::"
+               && (!lines[i + 1].trim() || /^[ \t]/.test(lines[i + 1])))
+          value.push(lines[++i]);
+        model.fields[key] = dedentBlock(value);
+      } else if (JOLLY_KEYS.includes(key)) {
+        // a jolly field simply goes on: the lines under it, until another
+        // field or a row, are its own, written `key: |` or not (mdparser
+        // parse_exercise, carry_on)
+        const value = [fm[2].trim()];
+        while (i + 1 < lines.length) {
+          const next = lines[i + 1], t = next.trim();
+          if (t === ":::" || /^-/.test(t) || (/^[a-z][a-z0-9-]*:\s/i.test(t) && !/^[ \t]/.test(next))) break;
+          value.push(lines[++i]);
+        }
+        while (value.length > 1 && !value[value.length - 1].trim()) value.pop();
+        model.fields[key] = value.length > 1
+          ? [value[0]].concat(dedentBlock(value.slice(1), true).split("\n")).join("\n")
+          : value[0];
+      } else model.fields[key] = fm[2].trim();
+      continue;
+    }
+    if (s.startsWith("-")) rows.push(s);
+  }
+  // The row reader follows the subtype, as in mdparser: a matching or
+  // yes/no row is ALWAYS `left => right`, so `- [سلام]{tl} => hello` is a
+  // pair whose left side happens to open with a bracket, not a mark.
+  const def = EXERCISE_DEFINITIONS.find(d => d.subtype === model.subtype);
+  const pairs = def ? ["matching", "boolean"].includes(def.editor) : null;
+  for (const s of rows) {
+    const marked = pairs ? null : s.match(/^-\s*\[([^\]]*)\]\s*(.*)$/);
+    if (marked) model.rows.push({mark: marked[1].trim(), text: marked[2].trim()});
+    else {
+      const pair = splitExercisePair(s.replace(/^-\s*/, ""));
+      model.rows.push({left: pair[0], right: pair[1]});
+    }
+  }
+  if (model.fields.explanation && !model.fields["explanation-correct"])
+    model.fields["explanation-correct"] = model.fields.explanation;
+  model.cardType = (model.fields["card-type"] || "vocab").toLowerCase();
+  return model;
+}
+
+function newExerciseModel(def) {
+  const model = {subtype: def.subtype, cardType: def.cardType || "", fields: {}, rows: []};
+  if (def.subtype !== "flashcard") model.fields.prompt = defaultPrompts[def.subtype] || "";
+  if (def.editor === "fill") {
+    model.parts = [{kind: "text", text: ""}, {kind: "blank", answer: ""},
+                   {kind: "text", text: ""}];
+    model.distractors = [];
+  } else if (def.editor === "matching") {
+    model.rows = [{left: "", right: ""}, {left: "", right: ""}];
+    if (def.subtype === "match-translations") model.fields.direction = "target-to-translation";
+    if (def.subtype === "match-definitions") model.fields.direction = "word-to-definition";
+  } else if (def.editor === "boolean") {
+    model.rows = [{left: "", right: def.subtype === "yes-no" ? "yes" : "true"}];
+  } else if (def.editor === "choice") {
+    model.rows = [{text: "", correct: true}, {text: "", correct: false}];
+  } else if (def.editor === "order") {
+    model.rows = [{text: ""}, {text: ""}, {text: ""}];
+  } else if (def.editor === "flashcard") {
+    model.fields["card-type"] = def.cardType;
+    model.fields.direction = "forward";
+    if (def.cardType === "jolly") {
+      for (const key of ["front-primary", "front-secondary", "back-primary", "back-secondary"])
+        model.fields[key] = "";
+    }
+  }
+  return model;
+}
+
+function definitionFor(model) {
+  return EXERCISE_DEFINITIONS.find(d => d.subtype === model.subtype &&
+    (model.subtype !== "flashcard" || d.cardType === model.cardType));
+}
+
+/* `[من بابک [[slot]]]{tl}` -> `[من بابک]{tl} [[slot]]`: the visual editor's
+   half of texgen.spread_slots, which the renderers apply when the document
+   is parsed.  A mark's content holds no brackets, so a sentence written as
+   one mark with blanks in it is spread over the pieces round each blank --
+   here too, or the editor would show the mark's own brackets as text to be
+   typed over, and `[[[slot]]` would come apart at the wrong bracket. */
+const SLOT_RE = /\[\[([^\[\]]+)\]\]/;
+const SLOT_SPLIT_RE = /(\[\[[^\[\]]+\]\])/;
+
+function spreadSlots(text) {
+  const L = lang(), markers = ["tl", L.code].concat(L.code === "fa" ? ["rtl"] : []);
+  const rx = new RegExp("\\[((?:[^\\[\\]]|\\[\\[[^\\[\\]]+\\]\\])+)\\]\\{\\s*(" +
+                        markers.join("|") + ")\\b([^{}]*)\\}", "g");
+  return String(text || "").replace(rx, (whole, content, marker, attrs) => {
+    if (!SLOT_RE.test(content)) return whole;
+    return content.split(SLOT_SPLIT_RE).filter(Boolean).map(piece => {
+      if (new RegExp("^" + SLOT_SPLIT_RE.source + "$").test(piece)) return piece;
+      const core = piece.trim();
+      if (!core) return piece;
+      const lead = piece.slice(0, piece.length - piece.trimStart().length);
+      const trail = piece.slice(piece.trimEnd().length);
+      return `${lead}[${core}]{${marker}${attrs}}${trail}`;
+    }).join("");
+  });
+}
+
+function prepareExerciseModel(model) {
+  const def = definitionFor(model);
+  if (!def) throw new Error("This exercise type is not supported by the visual editor");
+  if (def.editor === "choice")
+    model.rows = model.rows.map(r => ({text: r.text || "", correct: /^(x|yes|true|correct)$/i.test(r.mark || "")}));
+  if (def.editor === "order")
+    model.rows = model.rows.slice().sort((a, b) => (+a.mark || 0) - (+b.mark || 0)).map(r => ({text: r.text || ""}));
+  if (def.editor === "fill") {
+    const answers = new Map(model.rows.filter(r => r.mark).map(r => [r.mark, r.text]));
+    const text = spreadSlots(model.fields.text || "");
+    model.parts = text.split(SLOT_SPLIT_RE).filter(Boolean).map(part => {
+      const m = part.match(new RegExp("^" + SLOT_RE.source + "$"));
+      return m ? {kind: "blank", answer: answers.get(m[1]) || ""} : {kind: "text", text: part};
+    });
+    if (!model.parts.length) model.parts = [{kind: "text", text: ""}, {kind: "blank", answer: ""}];
+    model.distractors = model.rows.filter(r => !r.mark).map(r => r.text || "");
+  }
+  return {model, def};
+}
+
+function sourceField(lines, key, value) {
+  value = String(value || "");
+  if (!value.trim()) return;
+  if (value.includes("\n") || value.trim() === "|") {
+    // the block as written: its first line's indentation is part of it (a
+    // nested list may open it), so only the blank lines around it go
+    const block = value.split("\n");
+    while (!block[0].trim()) block.shift();
+    while (!block[block.length - 1].trim()) block.pop();
+    lines.push(key + ": |");
+    block.forEach(x => lines.push(x.trim() ? "  " + x : ""));
+  } else lines.push(key + ": " + value.trim());
+}
+
+/* A flashcard field that names a file: `-image` a picture, `-audio` a
+   recording; null for a field of text. */
+function mediaKind(key) {
+  // image, image-answer, front-image, back-image -- and the recordings by
+  // the same rule, audio and audio-answer among them
+  return /(^|-)image(-answer)?$/.test(key) ? "image"
+       : /(^|-)audio(-answer)?$/.test(key) ? "audio" : null;
+}
+
+/* The pictures every exercise but a flashcard may carry: one with the
+   question, one shown once it has been answered (mdparser
+   EXERCISE_IMAGE_FIELDS).  Each takes the layout a figure line takes --
+   `images/map.png {width=50 align=center}` -- with a figure's defaults. */
+const EXERCISE_IMAGES = [
+  ["image", "Picture with the question"],
+  ["image-answer", "Picture shown after the answer"],
+];
+const EXERCISE_IMAGE_VALUE_RE = /^(images\/[A-Za-z0-9][A-Za-z0-9._\-]*)\s*(?:\{([^{}]*)\})?$/;
+const EXERCISE_IMAGE_WIDTH = 60, EXERCISE_IMAGE_ALIGN = "left";
+function splitExerciseImage(value) {
+  const text = String(value || "").trim();
+  const m = EXERCISE_IMAGE_VALUE_RE.exec(text);
+  const out = {path: m ? m[1] : text, width: EXERCISE_IMAGE_WIDTH, align: EXERCISE_IMAGE_ALIGN};
+  for (const hit of ((m && m[2]) || "").matchAll(/([a-z]+)\s*=\s*(-?[\w.]+)/g)) {
+    const [, key, value] = hit;
+    if (key === "width") {
+      const n = Math.round(+value);
+      if (Number.isFinite(n)) out.width = Math.max(5, Math.min(100, n));
+    } else if (key === "align" && ["left", "center", "right"].includes(value)) out.align = value;
+  }
+  return out;
+}
+function joinExerciseImage(parts) {
+  const path = String(parts.path || "").trim();
+  if (!path) return "";
+  const n = Math.round(+parts.width), attrs = [];
+  if (Number.isFinite(n) && n !== EXERCISE_IMAGE_WIDTH)
+    attrs.push("width=" + Math.max(5, Math.min(100, n)));
+  if (parts.align && parts.align !== EXERCISE_IMAGE_ALIGN) attrs.push("align=" + parts.align);
+  return attrs.length ? `${path} {${attrs.join(" ")}}` : path;
+}
+
+/* The recordings every exercise but a flashcard may carry, the pictures'
+   twins: one with the question, one played once it has been answered
+   (mdparser EXERCISE_AUDIO_FIELDS).  Written exactly as a picture is, which
+   is this dialect's rule for recordings everywhere -- the same width and
+   side, and the clip a recording line takes:
+   `audio/word.mp3 {width=40 start=1:05.2 end=1:09}`.  The times are kept as
+   the author wrote them, clock or seconds; the parser reads both. */
+const EXERCISE_AUDIOS = [
+  ["audio", "Recording with the question"],
+  ["audio-answer", "Recording played after the answer"],
+];
+const EXERCISE_AUDIO_VALUE_RE = /^(audio\/[A-Za-z0-9][A-Za-z0-9._\-]*)\s*(?:\{([^{}]*)\})?$/;
+function splitExerciseAudio(value) {
+  const text = String(value || "").trim();
+  const m = EXERCISE_AUDIO_VALUE_RE.exec(text);
+  const out = {path: m ? m[1] : text, width: EXERCISE_IMAGE_WIDTH,
+               align: EXERCISE_IMAGE_ALIGN, start: "", end: ""};
+  for (const hit of ((m && m[2]) || "").matchAll(/([a-z]+)\s*=\s*(-?[\w.:]+)/g)) {
+    const [, key, value] = hit;
+    if (key === "width") {
+      const n = Math.round(+value);
+      if (Number.isFinite(n)) out.width = Math.max(5, Math.min(100, n));
+    } else if (key === "align" && ["left", "center", "right"].includes(value)) out.align = value;
+    else if (key === "start" || key === "end") out[key] = value;
+  }
+  return out;
+}
+function joinExerciseAudio(parts) {
+  const path = String(parts.path || "").trim();
+  if (!path) return "";
+  const n = Math.round(+parts.width), attrs = [];
+  if (Number.isFinite(n) && n !== EXERCISE_IMAGE_WIDTH)
+    attrs.push("width=" + Math.max(5, Math.min(100, n)));
+  if (parts.align && parts.align !== EXERCISE_IMAGE_ALIGN) attrs.push("align=" + parts.align);
+  for (const key of ["start", "end"]) {
+    const v = String(parts[key] || "").trim();
+    if (v) attrs.push(`${key}=${v}`);
+  }
+  return attrs.length ? `${path} {${attrs.join(" ")}}` : path;
+}
+
+function exerciseSource(model, def) {
+  const f = model.fields, lines = [":::exercise " + model.subtype];
+  sourceField(lines, "prompt", f.prompt);
+  if (model.subtype !== "flashcard") sourceField(lines, "content-direction", f["content-direction"]);
+  if (model.subtype === "construct-sentence") sourceField(lines, "answer-direction", f["answer-direction"]);
+  const rowText = value => String(value || "").replace(/\r?\n/g, " ⏎ ").trim();
+  const pairText = value => rowText(value).replace(/(^|[^\\])=>/g, "$1\\=>");
+  if (def.editor === "fill") {
+    let slot = 0, sentence = "";
+    const answers = [];
+    model.parts.forEach(part => {
+      if (part.kind === "blank") {
+        const name = "blank" + (++slot);
+        sentence += "[[" + name + "]]";
+        answers.push([name, part.answer]);
+      } else sentence += part.text || "";
+    });
+    sourceField(lines, "text", sentence);
+    answers.forEach(([name, answer]) => lines.push(`- [${name}] ${rowText(answer)}`));
+    model.distractors.forEach(answer => lines.push(`- [ ] ${rowText(answer)}`));
+  } else if (def.editor === "matching") {
+    sourceField(lines, "direction", f.direction);
+    model.rows.forEach(r => lines.push(`- ${pairText(r.left)} => ${pairText(r.right)}`));
+  } else if (def.editor === "boolean") {
+    model.rows.forEach(r => lines.push(`- ${pairText(r.left)} => ${r.right}`));
+  } else if (def.editor === "choice") {
+    model.rows.forEach(r => lines.push(`- [${r.correct ? "x" : " "}] ${rowText(r.text)}`));
+  } else if (def.editor === "order") {
+    model.rows.forEach((r, i) => lines.push(`- [${i + 1}] ${rowText(r.text)}`));
+  } else {
+    sourceField(lines, "card-type", model.cardType);
+    const keys = flashcardFields(model.cardType).map(x => x[0]);
+    keys.forEach(key => sourceField(lines, key, f[key]));
+    for (const key of keys.filter(k => !mediaKind(k))) {
+      if (!String(f[key] || "").trim()) continue;
+      const base = flashDefaults(key);
+      if (f[key + "-size"] && String(f[key + "-size"]) !== String(base.size))
+        sourceField(lines, key + "-size", f[key + "-size"]);
+      if (f[key + "-shade"] && f[key + "-shade"] !== base.shade)
+        sourceField(lines, key + "-shade", f[key + "-shade"]);
+    }
+    sourceField(lines, "direction", f.direction);
+    // not in the form, but kept: a card sheet writes it, and a card opened
+    // here and saved again still says it
+    if (model.cardType !== "jolly") sourceField(lines, "bidirectional", f.bidirectional);
+  }
+  if (model.subtype !== "flashcard") {
+    for (const [key] of EXERCISE_IMAGES) sourceField(lines, key, f[key]);
+    for (const [key] of EXERCISE_AUDIOS) sourceField(lines, key, f[key]);
+    sourceField(lines, "explanation-correct", f["explanation-correct"]);
+    sourceField(lines, "explanation-incorrect", f["explanation-incorrect"]);
+  }
+  lines.push(":::");
+  return lines.join("\n");
+}
+
+function flashcardFields(kind) {
+  if (kind === "jolly") return [
+    ["front-primary", "Front — primary text"], ["front-secondary", "Front — secondary text"],
+    ["back-primary", "Back — primary text"], ["back-secondary", "Back — secondary text"],
+  ];
+  if (kind === "opposites") return [
+    ["target", "Word or expression"], ["reading", "Reading"], ["transliteration", "Transliteration"],
+    ["opposite", "Opposite"], ["opposite-reading", "Opposite reading"],
+    ["opposite-transliteration", "Opposite transliteration"], ["notes", "Notes"],
+    ["source", "Source"], ["front-image", "Front image path"], ["back-image", "Back image path"],
+    ["front-audio", "Front recording path"], ["back-audio", "Back recording path"],
+  ];
+  return [
+    ["target", "Word or expression"], ["reading", "Reading"], ["transliteration", "Transliteration"],
+    ["meaning", "Meaning"], ["context", "Example or context"], ["notes", "Notes"], ["source", "Source"],
+    ["front", "Custom front (replaces the word fields)"], ["back", "Custom back (replaces the meaning fields)"],
+    ["front-image", "Front image path"], ["back-image", "Back image path"],
+    ["front-audio", "Front recording path"], ["back-audio", "Back recording path"],
+  ];
+}
+
+function flashDefaults(key) {
+  const secondary = ["front-secondary", "back-secondary", "reading", "transliteration", "context", "notes",
+    "source", "opposite-reading", "opposite-transliteration"].includes(key);
+  return {size: secondary ? 88 : 120, shade: secondary ? "subdued" : "primary"};
+}
+
+function validateExercise(model, def) {
+  const filled = value => !!String(value || "").trim();
+  if (def.editor === "fill") {
+    const blanks = model.parts.filter(x => x.kind === "blank");
+    if (!blanks.length) throw new Error("Add at least one blank");
+    if (blanks.some(x => !filled(x.answer))) throw new Error("Every blank needs its correct movable block");
+    if (model.distractors.some(x => !filled(x))) throw new Error("Complete or delete every distractor");
+  } else if (["matching", "boolean"].includes(def.editor)) {
+    if (!model.rows.length || model.rows.some(r => !filled(r.left) || !filled(r.right)))
+      throw new Error("Complete both fields in every row");
+  } else if (["choice", "order"].includes(def.editor)) {
+    if (!model.rows.length || model.rows.some(r => !filled(r.text))) throw new Error("Complete every item");
+    if (def.editor === "choice") {
+      const correct = model.rows.filter(r => r.correct).length;
+      if (model.subtype === "choose-all" ? correct < 1 : correct !== 1)
+        throw new Error(model.subtype === "choose-all" ? "Mark at least one correct answer" : "Mark exactly one correct answer");
+    }
+  } else if (model.cardType === "jolly") {
+    // one field a side is a card; the secondary ones are there when wanted
+    if (!filled(model.fields["front-primary"]) && !filled(model.fields["front-secondary"]))
+      throw new Error("Fill in at least one field on the front");
+    if (!filled(model.fields["back-primary"]) && !filled(model.fields["back-secondary"]))
+      throw new Error("Fill in at least one field on the back");
+  } else if (model.cardType === "opposites") {
+    if (!filled(model.fields.target) || !filled(model.fields.opposite))
+      throw new Error("Enter the word and its opposite");
+  } else if (!filled(model.fields.target) && !filled(model.fields.front)) {
+    throw new Error("Enter the word or a custom front");
+  }
+  if (def.editor !== "flashcard") {
+    // what mdparser says of a picture path, said before the exercise is saved
+    for (const [key] of EXERCISE_IMAGES) {
+      const value = String(model.fields[key] || "").trim();
+      if (value && !EXERCISE_IMAGE_VALUE_RE.test(value))
+        throw new Error(`${key} must name a file under images/ (e.g. images/map.png)`);
+    }
+    // and of a recording path, the same words for the same mistake
+    for (const [key] of EXERCISE_AUDIOS) {
+      const value = String(model.fields[key] || "").trim();
+      if (value && !(EXERCISE_AUDIO_VALUE_RE.test(value)
+                     && AUDIO_PATH_RE.test(EXERCISE_AUDIO_VALUE_RE.exec(value)[1])))
+        throw new Error(`${key} must name a file under audio/ (e.g. audio/word.mp3)`);
+    }
+  }
+  if (def.editor === "flashcard") {
+    // what mdparser says of a recording path, said before the card is saved
+    for (const [key] of flashcardFields(model.cardType).filter(([k]) => mediaKind(k) === "audio")) {
+      const path = String(model.fields[key] || "").trim();
+      if (path && !AUDIO_PATH_RE.test(path))
+        throw new Error(`${key} must name a file under audio/ (e.g. audio/word.mp3)`);
+    }
+    for (const [key] of flashcardFields(model.cardType).filter(([k]) => !mediaKind(k))) {
+      if (!filled(model.fields[key])) continue;
+      const size = +(model.fields[key + "-size"] || flashDefaults(key).size);
+      const shade = model.fields[key + "-shade"] || flashDefaults(key).shade;
+      if (!Number.isFinite(size) || size < 50 || size > 250)
+        throw new Error("Text sizes must be between 50% and 250%");
+      if (!new Set(["primary", "subdued", "muted", "accent"]).has(shade) && !/^#[0-9a-f]{6}$/i.test(shade))
+        throw new Error("Choose one of the available color treatments");
+    }
+  }
+}
+
+/* What the form shows as its preview when the caller brings none: the
+   editor's own renderer, with the document's images and links. */
+async function defaultExercisePreview(markdown) {
+  const target = String(lang().code || "fa").replace(/[^a-z0-9-]/gi, "") || "fa";
+  const data = await api("/api/preview", {method: "POST",
+    json: {markdown: `---\ntitle: Exercise preview\ntarget: ${target}\n---\n\n${markdown}`,
+           doc_id: DOC_ID}});
+  if (!data.ok) throw new Error(data.error);
+  return {html: data.doc.html, lang: data.doc.lang, target: data.doc.target};
+}
+
+/* The visual exercise form, for the editor and for the exercise decks.
+   `onSave(markdown)` receives the one `:::exercise` block; it may be async,
+   and when it throws the message is shown and the form stays open.
+   `preview(markdown)` resolves to rendered document html (a string, or
+   {html, lang, target}); the form keeps the first exercise of it.
+   `title` and `saveLabel` override the headings an editor caller gets.
+   `uploadImage(file)`, when given, resolves to the stored picture's path
+   ("images/<name>"), and `uploadAudio(file)` to a recording's
+   ("audio/<name>") -- or either to {path, url}: each picture or recording
+   field of a flashcard then gets an "Upload…" button that fills it in, and
+   a jolly card's fields "Image…" and "Recording…" buttons that put the
+   line in at the cursor.  Without them the fields are paths. */
+function openExerciseForm({model, def, mode = "add", onSave, preview, title, saveLabel,
+                           uploadImage: upload, uploadAudio}) {
+  const adding = mode !== "edit";
+  const renderPreview = preview || defaultExercisePreview;
+  const root = $("#modal-root"); root.innerHTML = "";
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.dataset.lang = lang().code;
+  ov.innerHTML = `<div class="modal ex-form-modal" role="dialog" aria-modal="true">
+    <div class="ex-form-head"><div><h3></h3><p></p></div><button type="button" class="btn ghost" data-x="cancel" title="Close">✕</button></div>
+    <div class="ex-form-body"></div>
+    <div class="row ex-form-actions">
+    <button class="btn ghost" data-x="math" title="Write a formula with its picture beside it and put it in the field you were last in — the same sheet the document editor uses. In an exercise a formula may sit in the prompt, in the sentence, in an answer or on a card; it may not sit inside a blank.">∑ Maths…</button>
+    <span class="ex-form-spacer"></span>
+    <button class="btn" data-x="cancel">Cancel</button>
+    <button class="btn primary" data-x="save"></button></div></div>`;
+  $("h3", ov).textContent = title || (adding ? "Add " + def.label : "Edit " + def.label);
+  $(".ex-form-head p", ov).textContent = def.description;
+  $('[data-x="save"]', ov).textContent = saveLabel || (adding ? "Insert exercise" : "Save exercise");
+  const body = $(".ex-form-body", ov);
+  let scheduleExercisePreview = () => {};
+  let stopPlayer = () => {};
+
+  const section = title => {
+    const s = document.createElement("section"); s.className = "ex-form-section";
+    const h = document.createElement("h4"); h.textContent = title; s.appendChild(h); body.appendChild(s); return s;
+  };
+  const field = (box, label, value, change, options = {}) => {
+    const lab = document.createElement("label"); lab.className = "ex-author-field";
+    const name = document.createElement("span"); name.textContent = label; lab.appendChild(name);
+    const input = document.createElement(options.single ? "input" : "textarea");
+    if (options.single) input.type = options.type || "text";
+    input.value = value || ""; input.spellcheck = options.spellcheck !== false;
+    if (options.placeholder) input.placeholder = options.placeholder;
+    input.addEventListener("input", () => {
+      change(input.value);
+      scheduleExercisePreview();
+    });
+    if (input.tagName === "TEXTAREA" || input.type === "text") {
+      lab.classList.add("ex-dir-field");
+      lab.appendChild(exerciseTextDirectionButton(input));
+    }
+    lab.appendChild(input);
+    if (options.help) { const help = document.createElement("small"); help.textContent = options.help; lab.appendChild(help); }
+    box.appendChild(lab); return input;
+  };
+  const select = (box, label, value, choices, change) => {
+    const lab = document.createElement("label"); lab.className = "ex-author-field";
+    const name = document.createElement("span"); name.textContent = label; lab.appendChild(name);
+    const input = document.createElement("select");
+    choices.forEach(([v, text]) => { const o = document.createElement("option"); o.value = v; o.textContent = text; input.appendChild(o); });
+    input.value = value || choices[0][0]; input.addEventListener("change", () => {
+      change(input.value);
+      scheduleExercisePreview();
+    });
+    lab.appendChild(input); box.appendChild(lab); return input;
+  };
+  const miniButton = (text, title, fn) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn small ghost";
+    b.textContent = text; b.title = title; b.addEventListener("click", () => {
+      fn();
+      scheduleExercisePreview();
+    }); return b;
+  };
+  const removeMoveButtons = (bar, rows, i, rerender) => {
+    bar.append(miniButton("↑", "Move earlier", () => { if (i) [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; rerender(); }),
+               miniButton("↓", "Move later", () => { if (i < rows.length - 1) [rows[i + 1], rows[i]] = [rows[i], rows[i + 1]]; rerender(); }),
+               miniButton("Delete", "Delete this item", () => { rows.splice(i, 1); rerender(); }));
+  };
+
+  // A field that names a file -- a card's picture or recording, an
+  // exercise's own picture -- with the file picker behind its Upload…
+  const uploaders = {image: upload, audio: uploadAudio};
+  const MEDIA = {
+    image: {accept: IMAGE_ACCEPT, placeholder: "images/example.png", what: "picture"},
+    audio: {accept: AUDIO_ACCEPT, placeholder: "audio/example.mp3", what: "recording"},
+  };
+  const urls = {};                   // what an upload said a path is served at
+  const uploadButton = (kind, label, title, cls, done) => {
+    const pick = document.createElement("input");
+    pick.type = "file"; pick.accept = MEDIA[kind].accept; pick.hidden = true;
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "btn small ghost " + cls;
+    button.textContent = label; button.title = title;
+    button.addEventListener("click", () => pick.click());
+    pick.addEventListener("change", async () => {
+      const file = pick.files && pick.files[0];
+      if (!file || button.disabled) return;
+      button.disabled = true; button.textContent = "Uploading…";
+      try {
+        const got = await uploaders[kind](file);
+        const path = typeof got === "string" ? got : got && got.path;
+        if (!path) throw new Error("the upload named no file");
+        if (got && got.url) urls[path] = got.url;
+        if (previewClosed) return;
+        done(path);
+      } catch (e) {
+        toast(`Could not upload the ${MEDIA[kind].what}: ` + e.message, true);
+      } finally {
+        button.disabled = false; button.textContent = label; pick.value = "";
+      }
+    });
+    return [button, pick];
+  };
+  // a path field with its Upload… beside it, when the caller can store one
+  const mediaField = (box, key, label, kind, help, part) => {
+    const change = part ? part.change : (v => model.fields[key] = v);
+    const input = field(box, label, part ? part.value : model.fields[key], change,
+      {single: true, spellcheck: false, placeholder: MEDIA[kind].placeholder, help});
+    if (typeof uploaders[kind] !== "function") return input;
+    const row = document.createElement("div"); row.className = "ex-upload-row";
+    input.replaceWith(row); row.append(input);
+    row.append(...uploadButton(kind, "Upload…", `Upload a ${MEDIA[kind].what} for this exercise`,
+      "ex-upload", path => {
+        input.value = path;
+        if (part) part.uploaded(path); else model.fields[key] = path;
+        scheduleExercisePreview();
+      }));
+    return input;
+  };
+
+  if (model.subtype !== "flashcard") {
+    const common = section("Instructions");
+    field(common, "Prompt shown to the learner", model.fields.prompt,
+          v => model.fields.prompt = v, {placeholder: defaultPrompts[model.subtype]});
+    select(common, "Writing direction of the activity", model.fields["content-direction"] || "",
+      [["", "Automatic"], ["target", `Use ${lang().name} direction`], ["rtl", "Right to left"], ["ltr", "Left to right"]],
+      v => model.fields["content-direction"] = v);
+  }
+
+  if (def.editor === "fill") {
+    const area = section("Sentence and blanks");
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const buttons = document.createElement("div"); buttons.className = "row ex-add-row"; area.appendChild(buttons);
+    const render = () => {
+      list.innerHTML = "";
+      model.parts.forEach((part, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const title = document.createElement("strong"); title.textContent = part.kind === "blank" ? `Blank ${model.parts.slice(0, i + 1).filter(x => x.kind === "blank").length}` : "Sentence text";
+        bar.appendChild(title); removeMoveButtons(bar, model.parts, i, render); row.appendChild(bar);
+        field(row, part.kind === "blank" ? "Correct movable word or chunk" : "Text that stays visible",
+              part.kind === "blank" ? part.answer : part.text,
+              v => part.kind === "blank" ? part.answer = v : part.text = v,
+              {placeholder: part.kind === "blank" ? "Correct answer" : "Include spaces and punctuation exactly as they should appear"});
+        list.appendChild(row);
+      });
+    };
+    buttons.append(miniButton("+ Add sentence text", "Add visible sentence text", () => { model.parts.push({kind: "text", text: ""}); render(); }),
+                   miniButton("+ Add blank", "Add a blank with its correct block", () => { model.parts.push({kind: "blank", answer: ""}); render(); }));
+    render();
+    const dist = section("Extra movable blocks (optional distractors)");
+    const dlist = document.createElement("div"); dlist.className = "ex-form-list"; dist.appendChild(dlist);
+    const renderDist = () => {
+      dlist.innerHTML = "";
+      model.distractors.forEach((value, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row compact";
+        field(row, `Distractor ${i + 1}`, value, v => model.distractors[i] = v);
+        row.appendChild(miniButton("Delete", "Delete this distractor", () => { model.distractors.splice(i, 1); renderDist(); }));
+        dlist.appendChild(row);
+      });
+    };
+    const add = miniButton("+ Add distractor", "Add an incorrect movable block", () => { model.distractors.push(""); renderDist(); });
+    dist.appendChild(add); renderDist();
+  } else if (def.editor === "order") {
+    const area = section(model.subtype === "construct-sentence" ? "Words or chunks in the correct order" : "Sentences in the correct order");
+    if (model.subtype === "construct-sentence")
+      select(area, "Direction of the answer (including wrapped lines)", model.fields["answer-direction"] || "",
+        [["", `Automatic (${lang().dir === "rtl" ? "right to left" : "left to right"})`],
+         ["rtl", "Right to left"], ["ltr", "Left to right"]],
+        v => model.fields["answer-direction"] = v);
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const render = () => {
+      list.innerHTML = "";
+      model.rows.forEach((item, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const title = document.createElement("strong"); title.textContent = `Correct position ${i + 1}`; bar.appendChild(title);
+        removeMoveButtons(bar, model.rows, i, render); row.appendChild(bar);
+        field(row, model.subtype === "construct-sentence" ? "Word or chunk" : "Sentence", item.text, v => item.text = v);
+        list.appendChild(row);
+      });
+    };
+    area.appendChild(miniButton(model.subtype === "construct-sentence" ? "+ Add word or chunk" : "+ Add sentence", "Add another item", () => { model.rows.push({text: ""}); render(); }));
+    if (model.subtype === "construct-sentence")
+      area.appendChild(miniButton("Reverse order", "Reverse the correct order of all words or chunks", () => { model.rows.reverse(); render(); }));
+    render();
+  } else if (def.editor === "matching") {
+    const area = section("Pairs");
+    if (model.subtype === "match-translations")
+      select(area, "What the learner sees on the left", model.fields.direction || "target-to-translation",
+        [["target-to-translation", "Word or sentence"], ["translation-to-target", "Translation"]], v => model.fields.direction = v);
+    if (model.subtype === "match-definitions")
+      select(area, "What the learner sees on the left", model.fields.direction || "word-to-definition",
+        [["word-to-definition", "Word"], ["definition-to-word", "Definition"]], v => model.fields.direction = v);
+    const labels = model.subtype === "match-translations" ? ["Word, phrase, or sentence", "Translation"]
+      : model.subtype === "match-opposites" ? ["Word or expression", "Its opposite"] : ["Word", "Its definition"];
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const render = () => {
+      list.innerHTML = "";
+      model.rows.forEach((item, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const title = document.createElement("strong"); title.textContent = `Pair ${i + 1}`; bar.appendChild(title);
+        removeMoveButtons(bar, model.rows, i, render); row.appendChild(bar);
+        const cols = document.createElement("div"); cols.className = "ex-field-cols"; row.appendChild(cols);
+        field(cols, labels[0], item.left, v => item.left = v); field(cols, labels[1], item.right, v => item.right = v);
+        list.appendChild(row);
+      });
+    };
+    area.appendChild(miniButton("+ Add pair", "Add another matching pair", () => { model.rows.push({left: "", right: ""}); render(); }));
+    render();
+  } else if (def.editor === "boolean") {
+    const area = section(model.subtype === "yes-no" ? "Questions and answers" : "Statements and answers");
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const answers = model.subtype === "yes-no" ? [["yes", "Yes"], ["no", "No"]] : [["true", "True"], ["false", "False"]];
+    const render = () => {
+      list.innerHTML = "";
+      model.rows.forEach((item, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const title = document.createElement("strong"); title.textContent = `${model.subtype === "yes-no" ? "Question" : "Statement"} ${i + 1}`; bar.appendChild(title);
+        removeMoveButtons(bar, model.rows, i, render); row.appendChild(bar);
+        field(row, model.subtype === "yes-no" ? "Question" : "Statement", item.left, v => item.left = v);
+        select(row, "Correct answer", item.right, answers, v => item.right = v); list.appendChild(row);
+      });
+    };
+    area.appendChild(miniButton(model.subtype === "yes-no" ? "+ Add question" : "+ Add statement", "Add another item", () => { model.rows.push({left: "", right: answers[0][0]}); render(); }));
+    render();
+  } else if (def.editor === "choice") {
+    const area = section(model.subtype === "incorrect-part" ? "Sentence segments" : "Answer choices");
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const multiple = model.subtype === "choose-all";
+    const render = () => {
+      list.innerHTML = "";
+      model.rows.forEach((item, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const check = document.createElement("label"); check.className = "ex-correct-toggle";
+        const input = document.createElement("input"); input.type = multiple ? "checkbox" : "radio"; input.name = "exercise-correct";
+        input.checked = !!item.correct; input.addEventListener("change", () => {
+          if (!multiple) model.rows.forEach(x => x.correct = false);
+          item.correct = input.checked; render(); scheduleExercisePreview();
+        });
+        check.append(input, document.createTextNode(model.subtype === "incorrect-part" ? " This is the incorrect segment" : " Correct answer"));
+        bar.appendChild(check); removeMoveButtons(bar, model.rows, i, render); row.appendChild(bar);
+        field(row, model.subtype === "incorrect-part" ? `Sentence segment ${i + 1}` : `Choice ${i + 1}`,
+              item.text, v => item.text = v); list.appendChild(row);
+      });
+    };
+    area.appendChild(miniButton(model.subtype === "incorrect-part" ? "+ Add segment" : "+ Add choice", "Add another option", () => { model.rows.push({text: "", correct: false}); render(); }));
+    render();
+  } else {
+    const card = section("Card content");
+    const textKeys = flashcardFields(model.cardType);
+    const jolly = model.cardType === "jolly";
+    // A recording field's ▶: the file its path names, from the upload that
+    // stored it or from the card the preview drew (whose players have the
+    // address of the deck or the document the form belongs to).
+    const player = new Audio();
+    player.preload = "auto";
+    const audioUrl = path => {
+      if (urls[path]) return urls[path];
+      const drawn = $$("audio", previewStage).find(a =>
+        (a.getAttribute("src") || "").replace(/#.*$/, "").endsWith("/" + path));
+      return drawn ? drawn.getAttribute("src").replace(/#.*$/, "") : "";
+    };
+    let playing = null;
+    const playButton = input => {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "btn small ghost ex-audio-play";
+      button.textContent = "▶"; button.title = "Play the recording";
+      button.setAttribute("aria-label", "Play the recording");
+      button.addEventListener("click", () => {
+        if (playing === button && !player.paused) { player.pause(); return; }
+        const path = input.value.trim(), url = path && audioUrl(path);
+        if (!url) {
+          toast(path ? `Nothing to play: the preview shows no ${path}` : "No recording named yet", true);
+          return;
+        }
+        if (player.getAttribute("src") !== url) player.src = url;
+        playing = button;
+        player.currentTime = 0;
+        player.play().catch(e => { if (e.name !== "AbortError") toast("Could not play the recording: " + e.message, true); });
+      });
+      return button;
+    };
+    const showPlaying = () => $$(".ex-audio-play", card).forEach(b => {
+      const on = b === playing && !player.paused;
+      b.textContent = on ? "❚❚" : "▶";
+      b.classList.toggle("playing", on);
+    });
+    for (const type of ["play", "pause", "ended", "emptied"]) player.addEventListener(type, showPlaying);
+    stopPlayer = () => { player.pause(); player.removeAttribute("src"); player.load(); };
+
+    textKeys.forEach(([key, label]) => {
+      const kind = mediaKind(key);
+      const input = field(card, label, model.fields[key], v => model.fields[key] = v,
+        {single: !!kind, spellcheck: !kind, placeholder: kind ? MEDIA[kind].placeholder : "",
+         help: jolly ? "Any studio markdown: paragraphs, lists, tables, > boxes, images, recordings" : ""});
+      const lab = input.parentElement;
+      if (kind === "image" || kind === "audio") {
+        const canUpload = typeof uploaders[kind] === "function";
+        if (canUpload || kind === "audio") {
+          const row = document.createElement("div"); row.className = "ex-upload-row";
+          input.replaceWith(row);
+          row.append(input);
+          if (canUpload) row.append(...uploadButton(kind, "Upload…",
+            `Upload a ${MEDIA[kind].what} for this side of the card`, "ex-upload", path => {
+              input.value = path; model.fields[key] = path;
+              scheduleExercisePreview();
+            }));
+          if (kind === "audio") row.append(playButton(input));
+        }
+        return;
+      }
+      if (jolly) {
+        // the jolly field is markdown of any kind: written on several lines,
+        // and a picture or a recording put in on a line of its own
+        input.classList.add("ex-jolly-text");
+        input.rows = 4;
+        const put = path => {
+          const at = input.selectionStart ?? input.value.length;
+          const to = input.selectionEnd ?? at;
+          const before = input.value.slice(0, at), after = input.value.slice(to);
+          const line = `![](${path})`;
+          const pre = before && !before.endsWith("\n") ? "\n" : "";
+          const post = after && !after.startsWith("\n") ? "\n" : "";
+          input.value = before + pre + line + post + after;
+          const end = (before + pre + line).length;
+          input.focus();
+          input.setSelectionRange(end, end);
+          input.dispatchEvent(new Event("input"));
+        };
+        const inserts = document.createElement("div"); inserts.className = "ex-insert-row";
+        for (const kind2 of ["image", "audio"]) {
+          if (typeof uploaders[kind2] !== "function") continue;
+          inserts.append(...uploadButton(kind2, kind2 === "image" ? "Image…" : "Recording…",
+            kind2 === "image" ? "Upload a picture and put it in this field, on a line of its own, at the cursor"
+                              : "Upload a recording and put it in this field, on a line of its own, at the cursor",
+            kind2 === "image" ? "ex-insert-image" : "ex-insert-audio", put));
+        }
+        if (inserts.children.length) input.after(inserts);
+      }
+      {
+        const style = document.createElement("details"); style.className = "ex-field-style";
+        const summary = document.createElement("summary"); summary.textContent = "Text appearance"; style.appendChild(summary);
+        const cols = document.createElement("div"); cols.className = "ex-field-cols"; style.appendChild(cols);
+        const defaults = flashDefaults(key);
+        const sizeInput = field(cols, "Text size (%)", model.fields[key + "-size"] || defaults.size,
+          v => model.fields[key + "-size"] = v, {single: true, type: "number", spellcheck: false,
+          help: "50–250%; 100% is the surrounding text size"});
+        sizeInput.min = "50"; sizeInput.max = "250";
+        const shade = model.fields[key + "-shade"] || defaults.shade;
+        const isCustom = /^#[0-9a-f]{6}$/i.test(shade);
+        const shadeSelect = select(cols, "Color treatment", isCustom ? "custom" : shade,
+          [["primary", "Primary text"], ["subdued", "Subdued"], ["muted", "Muted"],
+           ["accent", "Accent color"], ["custom", "Custom color"]], value => {
+            colorInput.parentElement.hidden = value !== "custom";
+            model.fields[key + "-shade"] = value === "custom" ? colorInput.value : value;
+          });
+        const colorInput = field(cols, "Custom color", isCustom ? shade : "#4466aa",
+          v => model.fields[key + "-shade"] = v, {single: true, type: "color", spellcheck: false});
+        colorInput.parentElement.hidden = shadeSelect.value !== "custom";
+        lab.appendChild(style);
+      }
+    });
+    select(card, "Which side appears first", model.fields.direction || "forward",
+      [["forward", "Front"], ["reverse", "Back"]], v => model.fields.direction = v);
+  }
+
+  if (model.subtype !== "flashcard") {
+    const pics = section("Pictures (optional)");
+    // the path, and under it the width and the side the picture sits on,
+    // which are written into the same field the way a figure line writes them
+    const pictureField = (key, label, help) => {
+      const parts = splitExerciseImage(model.fields[key]);
+      const write = () => { model.fields[key] = joinExerciseImage(parts); };
+      const input = mediaField(pics, key, label, "image", help,
+        {value: parts.path,
+         change: v => { parts.path = v.trim(); write(); },
+         uploaded: path => { parts.path = path; write(); }});
+      const style = document.createElement("details");
+      style.className = "ex-field-style";
+      const summary = document.createElement("summary");
+      summary.textContent = "Size and position"; style.appendChild(summary);
+      const cols = document.createElement("div"); cols.className = "ex-field-cols";
+      style.appendChild(cols);
+      const width = field(cols, "Width (% of the column)", parts.width,
+        v => { parts.width = v; write(); },
+        {single: true, type: "number", spellcheck: false,
+         help: "5–100; 60 is what a picture takes when nothing is said"});
+      width.min = "5"; width.max = "100";
+      select(cols, "Where it sits", parts.align,
+        [["left", "Left"], ["center", "Centre"], ["right", "Right"]],
+        v => { parts.align = v; write(); });
+      // under the path and its Upload…, not inside the row they share
+      (input.closest(".ex-author-field") || input.parentElement).appendChild(style);
+    };
+    pictureField("image", EXERCISE_IMAGES[0][1], "Shown between the prompt and the activity");
+    pictureField("image-answer", EXERCISE_IMAGES[1][1],
+                 "Shown once the exercise has been answered, right or wrong, above the explanations");
+
+    // and the recordings, which are the same two fields over again: the same
+    // width and side, and the clip a recording line takes.  The preview
+    // below plays them, so there is no ▶ here to duplicate it.
+    const recs = section("Recordings (optional)");
+    const recordingField = (key, label, help) => {
+      const parts = splitExerciseAudio(model.fields[key]);
+      const write = () => { model.fields[key] = joinExerciseAudio(parts); };
+      const input = mediaField(recs, key, label, "audio", help,
+        {value: parts.path,
+         change: v => { parts.path = v.trim(); write(); },
+         uploaded: path => { parts.path = path; write(); }});
+      const style = document.createElement("details");
+      style.className = "ex-field-style";
+      const summary = document.createElement("summary");
+      summary.textContent = "Size, position and clip"; style.appendChild(summary);
+      const cols = document.createElement("div"); cols.className = "ex-field-cols";
+      style.appendChild(cols);
+      const width = field(cols, "Width (% of the column)", parts.width,
+        v => { parts.width = v; write(); },
+        {single: true, type: "number", spellcheck: false,
+         help: "5–100; 60 is what a player takes when nothing is said"});
+      width.min = "5"; width.max = "100";
+      select(cols, "Where it sits", parts.align,
+        [["left", "Left"], ["center", "Centre"], ["right", "Right"]],
+        v => { parts.align = v; write(); });
+      field(cols, "Play from", parts.start, v => { parts.start = v.trim(); write(); },
+            {single: true, spellcheck: false, placeholder: "1:05.2",
+             help: "Left empty, from the beginning"});
+      field(cols, "Play to", parts.end, v => { parts.end = v.trim(); write(); },
+            {single: true, spellcheck: false, placeholder: "1:09",
+             help: "Left empty, to the end"});
+      (input.closest(".ex-author-field") || input.parentElement).appendChild(style);
+    };
+    recordingField("audio", EXERCISE_AUDIOS[0][1], "Played between the prompt and the activity");
+    recordingField("audio-answer", EXERCISE_AUDIOS[1][1],
+                   "Shown once the exercise has been answered, right or wrong, above the explanations");
+  }
+
+  if (model.subtype !== "flashcard") {
+    const why = section("Explanation after checking (optional)");
+    field(why, "Shown when the answer is correct", model.fields["explanation-correct"],
+      v => model.fields["explanation-correct"] = v,
+      {help: "If the next field is empty, this becomes one neutral explanation shown after either result."});
+    field(why, "Shown when the answer is incorrect", model.fields["explanation-incorrect"],
+      v => model.fields["explanation-incorrect"] = v,
+      {help: "Once this is filled, the two explanations are selected according to the learner's result."});
+  }
+
+  const previewSection = section("Preview");
+  const previewStatus = document.createElement("small");
+  previewStatus.className = "pv-status ex-form-preview-status";
+  previewStatus.textContent = "Rendering preview…";
+  const previewStage = document.createElement("div");
+  previewStage.className = "sheet ex-form-preview";
+  previewStage.dataset.lang = lang().code;
+  previewSection.append(previewStatus, previewStage);
+  let previewTimer = 0, previewRequest = 0, previewClosed = false;
+  const renderExercisePreview = async () => {
+    const request = ++previewRequest;
+    previewStatus.textContent = "Rendering preview…";
+    previewStatus.classList.remove("err");
+    const target = String(lang().code || "fa").replace(/[^a-z0-9-]/gi, "") || "fa";
+    try {
+      const out = await renderPreview(exerciseSource(model, def));
+      if (previewClosed || request !== previewRequest) return;
+      const doc = typeof out === "string" ? {html: out} : (out || {});
+      previewStage.innerHTML = doc.html || "";
+      previewStage.lang = doc.lang || "it";
+      previewStage.dataset.lang = doc.target || target;
+      const exercise = $(".exercise", previewStage);
+      if (exercise) previewStage.replaceChildren(exercise);
+      $$(".ex-edit,.ex-to-deck", previewStage).forEach(x => x.remove());
+      bindExercises(previewStage, {preview: true});
+      previewStatus.textContent = "Correct answer shown as it will appear in the editor preview.";
+    } catch (e) {
+      if (previewClosed || request !== previewRequest) return;
+      previewStage.innerHTML = "";
+      previewStatus.textContent = "Preview unavailable: " + e.message;
+      previewStatus.classList.add("err");
+    }
+  };
+  scheduleExercisePreview = () => {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(renderExercisePreview, 180);
+  };
+
+  const close = () => {
+    previewClosed = true;
+    stopPlayer();
+    clearTimeout(previewTimer);
+    previewRequest++;
+    if (ov.parentNode) root.removeChild(ov);
+  };
+  $$('[data-x="cancel"]', ov).forEach(x => x.addEventListener("click", close));
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); close(); } });
+  const saveButton = $('[data-x="save"]', ov);
+  let saving = false;
+  saveButton.addEventListener("click", async () => {
+    if (saving) return;                  // a deck save is a round trip
+    saving = true;
+    saveButton.disabled = true;
+    try {
+      validateExercise(model, def);
+      await onSave(exerciseSource(model, def));
+      close();
+    } catch (e) { toast(e.message, true); }
+    finally { saving = false; saveButton.disabled = false; }
+  });
+  /* A FORMULA GOES INTO THE FIELD THE HAND WAS LAST IN.  The form is a
+     dozen boxes and a formula belongs in one of them; pressing the button
+     takes the focus off whichever it was, so the form remembers it as the
+     focus moves rather than asking afterwards.  Writing goes through the
+     box's own `input` event, which is what makes the form's preview
+     redraw -- the same seam the jolly field's `put` uses. */
+  let lastField = null;
+  ov.addEventListener("focusin", e => {
+    const t = e.target;
+    if (t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type === "text")))
+      lastField = t;
+  });
+  const mathBtn = $('[data-x="math"]', ov);
+  if (mathBtn) mathBtn.addEventListener("click", () => {
+    const into = lastField || $("textarea,input", body);
+    if (!into) { toast("Put the cursor in a field first.", true); return; }
+    if (typeof openMathOverlay !== "function") {
+      toast("The maths sheet is only in the document editor.", true);
+      return;
+    }
+    const a = into.selectionStart, b = into.selectionEnd;
+    const picked = (a == null || a === b) ? "" : String(into.value).slice(a, b).trim();
+    openMathOverlay({
+      tex: picked,
+      // a field of an exercise is a line of prose: a formula in it sits in
+      // that line, and a fence would be a block inside a field that has no
+      // room for one
+      display: false,
+      blockAllowed: false,
+      title: "Mathematics in this field",
+      onSave: tex => {
+        const mark = "[" + tex + "]{math}";
+        const at = (a == null ? String(into.value).length : a);
+        const to = (b == null ? at : b);
+        into.value = String(into.value).slice(0, at) + mark + String(into.value).slice(to);
+        into.selectionStart = into.selectionEnd = at + mark.length;
+        into.focus();
+        into.dispatchEvent(new Event("input", {bubbles: true}));
+      },
+    });
+  });
+
+  root.appendChild(ov);
+  scheduleExercisePreview();
+  $("textarea,input", body)?.focus();
+}
+
+/* THE MATHS SHEET: the notation on the left, the picture under it, and
+   the choice of whether it sits in the line or on its own.
+
+   The preview is drawn HERE and not asked of the server, which is the one
+   way this differs from the exercise form's stage.  A formula is drawn by
+   MathJax in this very page, so a round trip would add a tenth of a
+   second to every keystroke and tell us less: MathJax does not throw on a
+   mistake, it draws it and marks it, and ParsehMath.svg hands back that
+   mark as a sentence -- "Missing close brace" -- which is the thing an
+   author can act on and the thing a server preview would have swallowed.
+
+   Escape closes it.  openTlOverlay, which this is otherwise modelled on,
+   has no Escape handler; every other dialog in the studio does, and a box
+   you cannot leave by the key everything else leaves by is a small
+   cruelty. */
+function openMathOverlay(opts) {
+  opts = opts || {};
+  const root = $("#modal-root");
+  // IT OPENS OVER WHATEVER IS ALREADY THERE, and does not clear the root
+  // as the other sheets do: as often as not it is opened FROM the exercise
+  // form, and clearing would take that form -- and the half-written
+  // exercise in it -- away with it.  Only a maths sheet left over from
+  // before is removed, so pressing the button twice leaves one.
+  $$(".math-overlay", root).forEach(n => n.remove());
+  const was = document.activeElement;
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay math-overlay";
+  ov.innerHTML = `<div class="modal math-modal" role="dialog" aria-modal="true"
+      aria-label="Mathematics">
+    <h3></h3>
+    <p>LaTeX notation — the same you would write on paper. Neither
+    <code>$</code> nor <code>\[</code> is a marker here: the block is
+    <code>[ … ]{math}</code> in a line, or a <code>:::math</code> fence on
+    its own.</p>
+    <textarea class="mathbox" rows="5" spellcheck="false" dir="ltr"
+      placeholder="\frac{-b \pm \sqrt{b^2-4ac}}{2a}"></textarea>
+    <div class="row math-opts">
+      <label><input type="radio" name="mathwhere" value="inline"> in the line</label>
+      <label><input type="radio" name="mathwhere" value="block"> on its own</label>
+    </div>
+    <div class="math-stage-wrap">
+      <small class="pv-status math-status"></small>
+      <div class="sheet math-stage"></div>
+    </div>
+    <div class="row">
+      <button class="btn" data-x="cancel">Cancel</button>
+      <button class="btn primary" data-x="ok"></button>
+    </div></div>`;
+  const box = $(".math-modal", ov);
+  const ta = $(".mathbox", ov);
+  const stage = $(".math-stage", ov);
+  const status = $(".math-status", ov);
+  const ok = $('[data-x="ok"]', ov);
+  $("h3", ov).textContent = opts.title || "Mathematics";
+  ok.textContent = opts.okLabel || "Insert";
+  ta.value = opts.tex || "";
+  const radios = $$('input[name="mathwhere"]', ov);
+  radios.forEach(r => { r.checked = (r.value === (opts.display ? "block" : "inline")); });
+  // a field of an exercise has no room for a block, so the choice is not
+  // offered there rather than offered and then refused
+  if (opts.blockAllowed === false) {
+    $(".math-opts", ov).hidden = true;
+    radios.forEach(r => { r.checked = (r.value === "inline"); });
+  }
+  const isBlock = () => $$('input[name="mathwhere"]', ov).some(r => r.checked && r.value === "block");
+
+  let closed = false, drawing = 0;
+  const draw = async () => {
+    const mine = ++drawing;
+    const tex = ta.value.trim();
+    if (!tex) {
+      stage.innerHTML = "";
+      status.textContent = "Nothing to draw yet.";
+      status.classList.remove("err");
+      ok.disabled = true;
+      return;
+    }
+    if (!window.ParsehMath) {
+      status.textContent = "The maths renderer did not load.";
+      status.classList.add("err");
+      ok.disabled = false;         // the notation is still worth keeping
+      return;
+    }
+    try {
+      const out = await ParsehMath.svg(tex, isBlock());
+      if (closed || mine !== drawing) return;
+      if (out.error) {
+        // what MathJax itself calls the mistake, in its own words
+        status.textContent = out.error;
+        status.classList.add("err");
+        stage.innerHTML = "";
+      } else {
+        status.textContent = "";
+        status.classList.remove("err");
+        stage.innerHTML = '<div class="math ' + (isBlock() ? "mathblock" : "")
+          + '" data-drawn="yes">' + out.svg + "</div>";
+      }
+    } catch (e) {
+      if (closed || mine !== drawing) return;
+      status.textContent = (e && e.message) || "That could not be drawn.";
+      status.classList.add("err");
+      stage.innerHTML = "";
+    }
+    ok.disabled = false;
+  };
+  const later = debounce(draw, 150);
+  ta.addEventListener("input", later);
+  radios.forEach(r => r.addEventListener("change", draw));
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    if (ov.parentNode) root.removeChild(ov);
+    // WHERE THE CARET GOES BACK TO.  Into the box it came from when it
+    // came from one -- a field of the exercise form, say, where the
+    // formula is being written into that field and the hand is still
+    // there -- and otherwise into the document, because this is an
+    // editor and a caret parked on a toolbar button types nothing.
+    const box = was && (was.tagName === "TEXTAREA" || was.tagName === "INPUT");
+    const back = box ? was : (opts.backTo || null);
+    if (back && back.focus) { try { back.focus(); } catch (e) { /* gone */ } }
+  };
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.addEventListener("keydown", e => {
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    // the box is for a formula, so Enter is a newline in it; the sheet is
+    // sent with the modifier every other box here is sent with
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ok.click(); }
+  });
+  $('[data-x="cancel"]', ov).addEventListener("click", close);
+
+  let busy = false;
+  ok.addEventListener("click", async () => {
+    if (busy) return;
+    const tex = ta.value.trim();
+    if (!tex) { close(); return; }
+    busy = true; ok.disabled = true;
+    try {
+      await opts.onSave(tex, isBlock(), close);
+    } catch (e) {
+      toast((e && e.message) || "That could not be inserted.", true);
+      busy = false; ok.disabled = false;
+      return;
+    }
+    close();
+  });
+
+  root.appendChild(ov);
+  box.focus ? ta.focus() : null;
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  draw();
+}
+
+/* how a formula is written into the document, in either shape */
+function mathMarkup(tex, block) {
+  return block ? ":::math\n" + tex + "\n:::" : "[" + tex + "]{math}";
+}
+
+
+/* An existing `:::exercise` block, reopened in the form -- or, with
+   `opts.mode` "add", a pasted one opened as a new exercise.  A shape the
+   form cannot show (an unknown type, a card type it has no fields for) is
+   said in a toast rather than thrown: the caller is usually a click
+   handler. */
+function openExerciseMarkdown(markdown, opts = {}) {
+  let prepared;
+  try {
+    prepared = prepareExerciseModel(parseExerciseSource(markdown));
+  } catch (e) {
+    toast(e.message, true);
+    return false;
+  }
+  openExerciseForm(Object.assign({}, opts,
+    {model: prepared.model, def: prepared.def, mode: opts.mode === "add" ? "add" : "edit"}));
+  return true;
+}
+
+/* The one `:::exercise` block of a text pasted into the picker -- a card
+   sheet's "copy markdown", a block copied out of a document -- from its
+   opening line to its closing `:::`; what is around it is left out.  An
+   Error says why there is none to open. */
+function pastedExercise(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+  const starts = [];
+  lines.forEach((line, i) => { if (/^\s*:::exercise(?:\s|$)/.test(line)) starts.push(i); });
+  if (!starts.length)
+    throw new Error("There is no :::exercise block to open: paste one whole, from its :::exercise line to its closing :::");
+  if (starts.length > 1)
+    throw new Error(`That is ${starts.length} exercises: paste one at a time`);
+  const end = lines.findIndex((line, i) => i > starts[0] && line.trim() === ":::");
+  if (end < 0) throw new Error("The exercise has no closing ::: line: paste it whole");
+  return lines.slice(starts[0], end + 1).join("\n");
+}
+
+/* The type grid, then the form for a new exercise of the chosen type --
+   or "Paste markdown…": an exercise copied as markdown (a book's or a
+   video's card sheet gives one) pasted in and opened in the form as a new
+   exercise, to look over before it goes where `onSave` puts it.  Ctrl+V on
+   the grid does the same at once.  `onPaste(text)`, when given, is told
+   what was pasted before the form opens (the editor brings the clips it
+   names in from the clip tray, so the form's preview plays them). */
+function openExercisePicker(opts = {}) {
+  const root = $("#modal-root"); root.innerHTML = "";
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.dataset.lang = lang().code;
+  // two steps in one dialog, each a set of its children (a wrapper would
+  // take the grid out of the dialog's column, which is what scrolls it)
+  ov.innerHTML = `<div class="modal ex-picker" role="dialog" aria-modal="true" aria-label="Add an exercise" tabindex="-1">
+    <h3 data-step="types">Add an exercise</h3>
+    <p data-step="types">Choose the activity the learner will see. You can edit every field in the next step.
+      Paste markdown… opens an exercise copied as markdown instead.</p>
+    <div class="ex-type-grid" data-step="types"></div>
+    <div class="row" data-step="types"><button class="btn" data-x="paste" title="Paste one :::exercise block copied as markdown (a card sheet's “copy markdown” gives one) and open it in the form">Paste markdown…</button>
+      <button class="btn" data-x="cancel">Cancel</button></div>
+    <h3 data-step="paste" hidden>Paste an exercise</h3>
+    <p data-step="paste" hidden>One :::exercise block, as “copy markdown” on a book's or a video's card sheet gives it.
+      It opens in the form, to look over before it goes in; the recordings and pictures it names come along from the
+      clip tray.</p>
+    <textarea class="ex-paste" data-step="paste" hidden spellcheck="false" aria-label="The exercise's markdown"
+      placeholder=":::exercise flashcard&#10;card-type: jolly&#10;front-primary: …&#10;back-primary: …&#10;:::"></textarea>
+    <div class="row" data-step="paste" hidden><button class="btn" data-x="back">Back</button>
+      <button class="btn" data-x="cancel">Cancel</button>
+      <button class="btn primary" data-x="open">Open in the form</button></div></div>`;
+  const grid = $(".ex-type-grid", ov), area = $(".ex-paste", ov);
+  const pasteDirection = exerciseTextDirectionButton(area);
+  pasteDirection.dataset.step = "paste";
+  pasteDirection.hidden = true;
+  area.before(pasteDirection);
+  let step = "types";
+  const toStep = name => {
+    step = name;
+    $$("[data-step]", ov).forEach(x => { x.hidden = x.dataset.step !== name; });
+  };
+  EXERCISE_DEFINITIONS.forEach(def => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "ex-type";
+    const strong = document.createElement("strong"); strong.textContent = def.label;
+    const small = document.createElement("small"); small.textContent = def.description;
+    b.append(strong, small);
+    b.addEventListener("click", () => {
+      close();
+      const model = newExerciseModel(def);
+      openExerciseForm(Object.assign({}, opts, {model, def, mode: "add"}));
+    });
+    grid.appendChild(b);
+  });
+  const onKeyPaste = e => {
+    if (!ov.isConnected) { document.removeEventListener("paste", onKeyPaste); return; }
+    // Ctrl+V anywhere on the grid; in the paste step the box takes it
+    if (step !== "types") return;
+    const text = e.clipboardData && e.clipboardData.getData("text/plain");
+    if (!text || !/:::exercise/.test(text)) return;
+    e.preventDefault();
+    showPaste(text);
+    openPasted();
+  };
+  const close = () => {
+    document.removeEventListener("paste", onKeyPaste);
+    if (ov.parentNode) root.removeChild(ov);
+  };
+  const showPaste = text => {
+    toStep("paste");
+    if (text !== undefined) area.value = text;
+    area.focus();
+  };
+  let opening = false;
+  async function openPasted() {
+    if (opening) return;
+    let block;
+    try { block = pastedExercise(area.value); } catch (e) { toast(e.message, true); area.focus(); return; }
+    opening = true;
+    try {
+      if (opts.onPaste) {
+        try { await opts.onPaste(block); }
+        catch (e) { toast("Could not bring the clips in: " + e.message, true); }
+      }
+      if (!ov.isConnected) return;               // closed meanwhile
+      // the form takes the dialog's place; one it cannot show leaves the text here
+      if (openExerciseMarkdown(block, Object.assign({}, opts, {mode: "add"})))
+        document.removeEventListener("paste", onKeyPaste);
+      else area.focus();
+    } finally { opening = false; }
+  }
+  $('[data-x="paste"]', ov).addEventListener("click", () => showPaste());
+  $('[data-x="back"]', ov).addEventListener("click", () => {
+    toStep("types");
+    $('[data-x="paste"]', ov).focus();
+  });
+  $('[data-x="open"]', ov).addEventListener("click", openPasted);
+  area.addEventListener("keydown", e => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); openPasted(); }
+  });
+  $$('[data-x="cancel"]', ov).forEach(b => b.addEventListener("click", close));
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); close(); } });
+  document.addEventListener("paste", onKeyPaste);
+  root.appendChild(ov);
+  $(".ex-picker", ov).focus({preventScroll: true});
+}
+
+
+/* ---------------- index page ---------------- */
+
+function initIndex() {
+  const state = {...savedLibraryFilters(), sort: savedSort()};
+  function saveFilters() {
+    try { sessionStorage.setItem(LIBRARY_FILTERS_KEY, JSON.stringify({
+      q: state.q, intext: state.intext,
+      tags: [...state.tags], excludedTags: [...state.excludedTags],
+    })); } catch (e) { /* private mode */ }
+  }
+  $("#search").value = state.q;
+  $("#intext").checked = state.intext;
+  const cards = $("#cards"), tagbar = $("#tagbar"), empty = $("#empty");
+  const emptyLang = $("#empty-lang");
+  const byCode = Object.fromEntries(LANGS.map(l => [l.code, l]));
+  let listed = 0;      // the documents the last query returned, all languages
+
+  /* Every document the filters show, at once.  The count follows each
+     filter pass (a search answered, a language chip); the ids go up in
+     the order the cards are shown, through a plain form, so the browser
+     saves the zip the server answers with as a file.  The form answers
+     into a hidden frame: a zip is saved and leaves the frame as it was,
+     so the frame only ever loads a refusal (its JSON), which is told in a
+     toast while the library, its search and its filters stay put. */
+  const btnDownload = $("#btn-download-shown");
+  const dlBox = $("#download-shown");
+  function refreshDownloadShown(n) {
+    if (!btnDownload) return;
+    btnDownload.textContent = `Download ${n} shown`;
+    btnDownload.title = `Download the ${n} document${n === 1 ? "" : "s"} shown`;
+    // a <summary> takes no disabled attribute: the menu is shut and made
+    // unclickable instead, which is the same thing to look at and to press
+    if (dlBox) {
+      dlBox.classList.toggle("disabled", n === 0);
+      if (n === 0) dlBox.open = false;
+    }
+  }
+  /* Either shape, the same way the per-document Download ▾ offers them: the
+     .md sources in one zip, or each document's own zip (its markdown, its
+     tags and its pictures) inside one. */
+  function sendDownload(shape) {
+    const ids = $$(".card:not([hidden])", cards).map(c => c.dataset.id).filter(Boolean);
+    if (!ids.length) return;
+    // on the activity list at once, and followed there by its token until
+    // the server has packed and sent it: the frame below says nothing of a
+    // download that worked
+    const form = $("#download-form");
+    const A = window.ParsehActivity;
+    if (form) {
+      const plain = form.getAttribute("data-action") || form.getAttribute("action");
+      form.setAttribute("data-action", plain);
+      form.setAttribute("action", A
+        ? A.expect(`Packing ${ids.length} document${ids.length === 1 ? "" : "s"} to download`).url(plain)
+        : plain);
+    }
+    $("#download-ids").value = ids.join(",");
+    const sh = $("#download-shape");
+    if (sh) sh.value = shape;
+    if (dlBox) dlBox.open = false;
+    // A fresh frame each time: its one navigation replaces the new frame's
+    // own blank page, so a refusal never adds an entry to the tab's history
+    // (Back would otherwise walk the hidden frame and toast the old error).
+    const old = $("#download-sink");
+    if (old) {
+      const sink = document.createElement("iframe");
+      sink.name = sink.id = "download-sink";
+      sink.title = "Download";
+      sink.hidden = true;
+      sink.addEventListener("load", onDownloadSinkLoad);
+      old.replaceWith(sink);
+    }
+    $("#download-form").submit();
+  }
+  const dlShownMd = $("#dl-shown-md"), dlShownZip = $("#dl-shown-zip");
+  if (dlShownMd) dlShownMd.addEventListener("click", () => sendDownload("md"));
+  if (dlShownZip) dlShownZip.addEventListener("click", () => sendDownload("zip"));
+
+  /* A backup put back — the other half of the Backup button.  The documents
+     already here are KEPT and counted first, and replacing them is offered
+     only then: a restore is not a merge, and a backup is usually older than
+     the work sitting beside it. */
+  function askReplace(kept) {
+    return new Promise(done => {
+      const root = $("#modal-root"); root.innerHTML = "";
+      const ov = document.createElement("div");
+      ov.className = "modal-overlay";
+      ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
+        <h3>${kept.length} document${kept.length === 1 ? " is" : "s are"} already here</h3>
+        <p>They were left exactly as they are. Replacing them puts the backup's
+        copy in their place — anything written since the backup was made is lost.</p>
+        <div class="row"><button class="btn" data-x="keep">Keep mine</button>
+        <button class="btn danger" data-x="replace">Replace them</button></div></div>`;
+      const close = v => { root.innerHTML = ""; done(v); };
+      $('[data-x="keep"]', ov).addEventListener("click", () => close(false));
+      $('[data-x="replace"]', ov).addEventListener("click", () => close(true));
+      ov.addEventListener("click", e => { if (e.target === ov) close(false); });
+      root.appendChild(ov);
+    });
+  }
+  /* A document of the backup with an id of its own whose name is taken
+     is asked about first (askNames), before anything is written; the names
+     given are sent again with the "Replace them" of the same backup, so a
+     document restored under a new name keeps it when it is put back again. */
+  async function restoreBackup(file) {
+    // THE FILE ITSELF is the body, as the book and video shelves send theirs:
+    // the browser streams it from the disk, and sends it again for the second
+    // request if replacing or new names are asked for.  Read into the page
+    // first, a backup of a few hundred megabytes held the page still for
+    // seconds -- the activity pill included, which is what says the restore
+    // has begun.
+    let renames = {existing: {}, incoming: {}};
+    const post = replace => sendWorking(`Restoring the library from ${file.name}`,
+      withName("/api/library/zip" + query({
+        replace: replace ? 1 : 0, renames: Object.keys(renames.existing).length
+          || Object.keys(renames.incoming).length ? renames : null}), file.name),
+      {method: "POST", body: file, headers: {"Content-Type": "application/zip"}});
+    const named = async (a, replace) => !nameClash(a) ? a : askNames(a.data, given => {
+      renames = {existing: Object.assign({}, renames.existing, given.existing),
+                 incoming: Object.assign({}, renames.incoming, given.incoming)};
+      return post(replace);
+    });
+    let a = await named(await post(false), false);
+    if (!a) return;                      // cancelled: nothing was restored
+    if (!a.ok) throw refusal(a);
+    let out = a.data;
+    if ((out.kept || []).length && await askReplace(out.kept)) {
+      const b = await named(await post(true), true);
+      if (b && !b.ok) throw refusal(b);
+      if (b) out = b.data;
+    }
+    const n = (out.restored || []).length, kept = (out.kept || []).length;
+    const notes = out.warnings || [];
+    toast(`${n} document${n === 1 ? "" : "s"} restored`
+          + (kept ? `, ${kept} left as ${kept === 1 ? "it is" : "they are"}` : "")
+          + (notes.length ? `; ${notes[0]}` : ""), notes.length > 0);
+    await loadTags();
+    await loadDocs();
+  }
+  const btnRestore = $("#btn-restore"), backupFile = $("#backup-file");
+  if (btnRestore && backupFile) {
+    btnRestore.addEventListener("click", () => backupFile.click());
+    backupFile.addEventListener("change", () => {
+      const f = backupFile.files[0];
+      backupFile.value = "";          // the same file can be picked again
+      if (f) restoreBackup(f).catch(e => toast(e.message, true));
+    });
+  }
+  const downloadSink = $("#download-sink");
+  if (downloadSink) downloadSink.addEventListener("load", onDownloadSinkLoad);
+  function onDownloadSinkLoad(e) {
+    const sink = e.currentTarget;
+    let doc = null, msg = "";
+    try { doc = sink.contentDocument; } catch (err) { doc = null; }
+    if (!doc) {
+      // not ours to read: the browser's own error page, no server answered
+      msg = "the server did not answer";
+    } else {
+      if (doc.URL === "about:blank") return;             // the frame's own first page
+      const text = (doc.body ? doc.body.textContent : "").trim();
+      try { msg = (JSON.parse(text) || {}).error || text; } catch (e) { msg = text; }
+    }
+    if (msg) toast("Could not download: " + msg.slice(0, 200), true);
+  }
+
+  /* The language chip row (rendered server-side, the same row every index
+     page of the toolbox has).  A click records the shared preference and
+     hides the cards of the other languages; the counts follow the
+     current search.  parseh.js does this elsewhere; it is not loaded
+     here, so the wiring is repeated with the same storage key. */
+  const chipRow = $(".parseh-langs");
+  function applyLangFilter() {
+    let pick = sharedLang();
+    // a stored preference no chip offers (including a language with no
+    // remaining documents) would hide every card and mark
+    // no chip: read it as 'all' and put the store right, as parseh.js does
+    if (pick !== "all" && chipRow && !$(`.chip[data-pick="${pick}"]`, chipRow)) {
+      pick = "all";
+      setSharedLang("all");
+    }
+    if (chipRow) $$(".chip", chipRow).forEach(c =>
+      c.classList.toggle("on", c.dataset.pick === pick));
+    let shown = 0;
+    $$(".card", cards).forEach(c => {
+      const on = pick === "all" || c.dataset.lang === pick;
+      c.hidden = !on;
+      if (on) shown++;
+    });
+    refreshDownloadShown(shown);
+    // the first-run message is for an empty library; when the chip is
+    // what hides every card the page says so instead
+    empty.classList.toggle("hidden", listed > 0);
+    const filtered = listed > 0 && shown === 0;
+    if (emptyLang) {
+      const name = $(".lang-name", emptyLang);
+      if (name) name.textContent = (byCode[pick] || {}).name || pick;
+      emptyLang.classList.toggle("hidden", !filtered);
+    }
+    // +New opens on the picked language's own starting document -- a
+    // Japanese one carries the kana marks and a vertical block, a
+    // Latin-script one the marked runs.  On 'all' the link stays bare and
+    // the server picks the registry's first language.
+    $$('a[href$="/new"], a[href*="/new?"]').forEach(a => {
+      a.href = BASE + "/new" + (pick === "all" ? "" : "?target=" + encodeURIComponent(pick));
+    });
+  }
+  function refreshChipCounts(docs) {
+    if (!chipRow) return;
+    const counts = {};
+    for (const d of docs) counts[d.target || "fa"] = (counts[d.target || "fa"] || 0) + 1;
+    // Rebuild from the results so deleting the last document removes its
+    // language, and clearing a search restores the available languages.
+    chipRow.innerHTML = `<button type="button" class="chip" data-pick="all">all<span class="n">${docs.length}</span></button>`;
+    for (const l of LANGS) {
+      if (!counts[l.code]) continue;
+      const c = document.createElement("button");
+      c.type = "button";
+      c.className = "chip";
+      c.dataset.pick = c.dataset.lang = c.lang = l.code;
+      c.title = l.name;
+      const native = document.createElement("span");
+      native.className = "native";
+      native.textContent = l.native;
+      const n = document.createElement("span");
+      n.className = "n";
+      n.textContent = counts[l.code];
+      c.append(native, n);
+      chipRow.appendChild(c);
+    }
+  }
+  if (chipRow) chipRow.addEventListener("click", e => {
+    const c = e.target.closest(".chip");
+    if (!c || !chipRow.contains(c)) return;
+    setSharedLang(c.dataset.pick);
+    applyLangFilter();
+    renderTagbar();     // a language picked narrows what the tags can offer
+  });
+
+  let allTags = [];       // every tag in the library, by name, from /api/tags
+  let lastDocs = [];      // what the last query answered, for the counts
+
+  /* THE TAG BAR COUNTS WHAT IS STILL VISIBLE.  How many documents in the
+     whole library wear a tag is no use once a filter is on: what the reader
+     wants to know is how many of the ones in front of them it would leave.
+     So the numbers are counted from the documents the last query returned,
+     narrowed by the language chip, and a tag that would leave none is not
+     offered at all -- it could only ever empty the page.
+
+     A TAG DOING THE FILTERING ALWAYS STAYS, whatever its count. An excluded
+     tag shows zero by its very nature (those documents are the ones being
+     kept out), and hiding it would take away the only way to switch it off. */
+  function renderTagbar() {
+    const pick = sharedLang();
+    const docs = lastDocs.filter(d => pick === "all" || (d.target || "fa") === pick);
+    const counts = {};
+    for (const d of docs) for (const t of d.tags || []) counts[t] = (counts[t] || 0) + 1;
+    // a tag doing the filtering that the library no longer holds would
+    // otherwise be unreachable: it goes in the row so it can be cleared
+    const names = allTags.slice();
+    for (const t of [...state.tags, ...state.excludedTags])
+      if (!names.includes(t)) names.push(t);
+    tagbar.innerHTML = "";
+    let shown = 0;
+    for (const tag of names) {
+      const on = state.tags.has(tag), off = state.excludedTags.has(tag);
+      const n = counts[tag] || 0;
+      if (!on && !off && !n) continue;
+      shown++;
+      const b = document.createElement("button");
+      b.className = "tagchip" + (on ? " active" : "") + (off ? " excluded" : "");
+      b.innerHTML = `<span></span><span class="n"></span>`;
+      b.firstChild.textContent = tag;
+      b.lastChild.textContent = n;
+      b.title = on ? "Included — click to exclude"
+        : off ? "Excluded — click to clear"
+        : "Click to include; Shift-click to exclude";
+      b.addEventListener("click", event => {
+        // neutral → include → exclude → neutral. Shift-click goes straight
+        // to exclusion, useful when a shelf has many tags.
+        if (event.shiftKey) {
+          state.tags.delete(tag);
+          if (state.excludedTags.has(tag)) state.excludedTags.delete(tag);
+          else state.excludedTags.add(tag);
+        } else if (state.tags.has(tag)) {
+          state.tags.delete(tag); state.excludedTags.add(tag);
+        } else if (state.excludedTags.has(tag)) {
+          state.excludedTags.delete(tag);
+        } else state.tags.add(tag);
+        saveFilters();
+        loadDocs();          // which draws this row again, with the new counts
+      });
+      tagbar.appendChild(b);
+    }
+    const hint = $("#tag-filter-hint");
+    if (hint) hint.hidden = !shown;
+    updateClearFilters();
+  }
+
+  function updateClearFilters() {
+    const b = $("#btn-clear-filters");
+    if (!b) return;
+    b.hidden = !(state.q || state.intext || state.tags.size
+                 || state.excludedTags.size || sharedLang() !== "all");
+  }
+
+  function clearFilters() {
+    state.q = "";
+    state.intext = false;
+    state.tags.clear();
+    state.excludedTags.clear();
+    const s = $("#search"); if (s) s.value = "";
+    const t = $("#intext"); if (t) t.checked = false;
+    setSharedLang("all");          // the chip row is a filter on this page too
+    saveFilters();
+    loadDocs();
+  }
+
+  async function loadTags() {
+    const data = await api("/api/tags");
+    allTags = (data.tags || []).map(t => t.tag);
+    renderTagbar();
+  }
+
+  function buildBadge(b) {
+    if (!b || b.status === "none")
+      return `<span class="badge">no PDF yet</span>`;
+    if (b.status === "error")
+      return `<span class="badge err">build failed</span>`;
+    const stale = b.stale ? `<span class="badge warn">source changed</span>` : "";
+    // the check is "RTL order" for a right-to-left target, "found in the
+    // PDF" for the others; the card badge says "verified" for both
+    const verify = b.verify_failed
+      ? `<span class="badge err">${b.verify_failed} verify fail</span>`
+      : (b.verified === false
+          ? `<span class="badge warn">not verified</span>`
+          : `<span class="badge ok">${b.verify_ok}/${b.verify_ok} verified</span>`);
+    const pp = b.pages != null ? ` ${b.pages} pp` : "";
+    return `<span class="badge ok">PDF ✓${pp}</span>${verify}${stale}`;
+  }
+
+  let loadSeq = 0;
+  async function loadDocs() {
+    const seq = ++loadSeq;
+    const p = new URLSearchParams();
+    if (state.q) p.set("q", state.q);
+    if (state.intext) p.set("intext", "1");
+    if (state.tags.size) p.set("tags", [...state.tags].join(","));
+    if (state.excludedTags.size) p.set("exclude_tags", [...state.excludedTags].join(","));
+    p.set("sort", state.sort);
+    const data = await api("/api/docs?" + p.toString());
+    if (seq !== loadSeq) return;      // a newer filter superseded this one
+    cards.innerHTML = "";
+    listed = data.docs.length;
+    lastDocs = data.docs;             // what the tag counts are counted from
+    refreshChipCounts(data.docs);
+    for (const d of data.docs) {
+      const el = document.createElement("a");
+      el.className = "card";
+      el.href = BASE + "/doc/" + d.id;
+      const code = d.target || "fa";
+      const l = byCode[code] || {code, name: code, native: code, dir: "ltr"};
+      el.dataset.lang = code;
+      el.dataset.id = d.id;
+      const s = d.stats || {};
+      const statBits = [];
+      if (s.voci) statBits.push(s.voci + (s.voci === 1 ? " lemma" : " lemmi"));
+      if (s.words) statBits.push(s.words + " words");
+      if (s.fa_runs) statBits.push(s.fa_runs + " runs");
+      el.innerHTML = `
+        <h3>${d.title_html || "Untitled"}</h3>
+        <p class="sub">${d.subtitle_html || ""}</p>
+        <div class="badges"><span class="badge lang" lang="${escAttr(l.code)}" dir="${escAttr(l.dir)}"
+            title="${escAttr(l.name)}">${escAttr(l.native)}</span>${buildBadge(d.build)}
+          ${statBits.map(x => `<span class="badge">${x}</span>`).join("")}
+        </div>
+        <div class="tagrow"></div>
+        <div class="dates">updated ${fmtDate(d.updated)} · created ${fmtDate(d.created)}</div>
+        <button class="card-del" title="Delete">✕</button>`;
+      const tagrow = $(".tagrow", el);
+      for (const t of d.tags || []) {
+        const sp = document.createElement("span");
+        sp.className = "tag"; sp.textContent = t;
+        tagrow.appendChild(sp);
+      }
+      $(".card-del", el).addEventListener("click", async e => {
+        e.preventDefault(); e.stopPropagation();
+        if (!confirm(`Delete “${d.title}” and its builds? This cannot be undone.`)) return;
+        await api("/api/docs/" + d.id, {method: "DELETE"});
+        toast("Deleted " + d.title);
+        loadDocs(); loadTags();
+      });
+      cards.appendChild(el);
+    }
+    applyLangFilter();
+    renderTagbar();          // the counts follow the filters that are on now
+  }
+
+  const btnClearFilters = $("#btn-clear-filters");
+  if (btnClearFilters) btnClearFilters.addEventListener("click", clearFilters);
+
+  const searchDocs = debounce(() => loadDocs(), 200);
+  $("#search").addEventListener("input", e => {
+    state.q = e.target.value.trim();
+    saveFilters();
+    searchDocs();
+  });
+  $("#intext").addEventListener("change", e => {
+    state.intext = e.target.checked; saveFilters(); loadDocs();
+  });
+  // the menu opens on what it was left on, and remembers what it is moved to
+  $("#sort").value = state.sort;
+  $("#sort").addEventListener("change", e => {
+    state.sort = e.target.value;
+    saveSort(state.sort);
+    loadDocs();
+  });
+
+  $("#btn-paste-answer").addEventListener("click", () => pasteAnswer(""));
+  // A title already in the library makes way for the name-conflict dialog;
+  // cancelling that brings the paste back, text and all.
+  function pasteAnswer(value) {
+    showModal({
+      title: "Paste the LLM answer",
+      hint: "Paste the model's whole reply — the markdown document inside " +
+            "the code fence is extracted automatically.",
+      value,
+      okLabel: "Create document",
+      onOk: async (value, close) => {
+        if (!value.trim()) throw new Error("Nothing pasted");
+        let a = await send("/api/docs", {method: "POST", json: {markdown: value}});
+        if (nameClash(a)) {
+          close();
+          a = await askNames(a.data, renames =>
+            send("/api/docs", {method: "POST", json: {markdown: value, renames}}));
+          if (!a) return pasteAnswer(value);
+        }
+        if (!a.ok) throw refusal(a);
+        close();
+        location.href = BASE + "/doc/" + a.data.meta.id;
+      },
+    });
+  }
+
+  /* UPLOAD.  A .md (or .markdown, .txt) is one document; a .zip is what a
+     document's Download ▾ gives as "Markdown + media" -- the markdown and
+     the pictures and recordings it shows -- or several documents at once.
+     The server looks at each markdown file's header first: one without the
+     lines a document is filed by (title, subtitle, note, lang, target), or
+     short of some of them, makes nothing and answers with what is missing,
+     and the dialog asks for exactly that.  A complete header, extra keys
+     and all, goes in as it is. */
+  const refusal = a => new Error(a.data.error || `the server answered ${a.status}`);
+  /* `send`, on the activity list while the request runs (working(), above):
+     a zip going up is minutes for a big library.  One entry a request -- not
+     one for the whole exchange, which waits on the dialogs between two
+     requests -- and "done" only when the answer was ok, since send() hands
+     a refusal back rather than throwing it. */
+  async function sendWorking(label, path, opts) {
+    const A = window.ParsehActivity;
+    const act = A ? A.local(label) : NO_ACTIVITY;
+    try {
+      const a = await send(act.url(path), opts);
+      act.end(a.ok);
+      return a;
+    } catch (e) { act.end(false); throw e; }
+  }
+  const HEADER_FIELDS = {
+    title: ["Title", "the note's title"],
+    subtitle: ["Subtitle", "what the note is about"],
+    note: ["Note", "the small line under the title"],
+    lang: ["Written in", ""],
+    target: ["The language it is about", ""],
+  };
+  // the header an upload lacks, asked for: the fields it lacks, and the lines
+  // that will go in.  Resolves to those fields, or null when the file is skipped.
+  function askHeader(label, need, lists) {
+    return new Promise(resolve => {
+      const missing = need.missing || [], defaults = need.defaults || {};
+      const root = $("#modal-root"); root.innerHTML = "";
+      const ov = document.createElement("div"); ov.className = "modal-overlay";
+      ov.innerHTML = `<div class="modal header-modal" role="dialog" aria-modal="true">
+        <h3></h3><p></p><div class="modal-fields"></div>
+        <pre class="header-preview" aria-label="What goes into the header"></pre>
+        <div class="row"><button class="btn" data-x="skip">Skip this file</button>
+          <button class="btn primary" data-x="ok"></button></div></div>`;
+      $("h3", ov).textContent = need.present ? `“${label}”: the header is incomplete`
+                                             : `“${label}” has no header`;
+      $("p", ov).textContent = need.present
+        ? `Its header has no ${missing.join(", ")}. Only these lines are added; the rest of the header stays as it is.`
+        : "A document is filed by the lines at its top. Fill them in and they are added above the text.";
+      $('[data-x="ok"]', ov).textContent = need.present ? "Add them and import" : "Add the header and import";
+      const box = $(".modal-fields", ov), preview = $(".header-preview", ov);
+      for (const key of missing) {
+        const [name, hint] = HEADER_FIELDS[key] || [key, ""];
+        const lab = document.createElement("label"); lab.className = "modal-field";
+        lab.textContent = name;
+        let input;
+        if (key === "lang" || key === "target") {
+          input = document.createElement("select");
+          const options = (key === "lang" ? lists.langs : lists.targets) || [];
+          for (const o of options) {
+            const opt = document.createElement("option");
+            opt.value = o.code; opt.textContent = `${o.name} (${o.code})`;
+            input.appendChild(opt);
+          }
+          // the library's language chip, when one is picked, is the likeliest target
+          const chip = sharedLang();
+          const want = key === "target" && options.some(o => o.code === chip) ? chip : defaults[key];
+          if (want && options.some(o => o.code === want)) input.value = want;
+        } else {
+          input = document.createElement("input");
+          input.type = "text"; input.spellcheck = false; input.autocomplete = "off";
+          input.value = defaults[key] || ""; input.placeholder = hint;
+        }
+        input.dataset.key = key;
+        lab.appendChild(input);
+        box.appendChild(lab);
+      }
+      const values = () => Object.fromEntries($$("[data-key]", box).map(i => [i.dataset.key, i.value.trim()]));
+      const draw = () => {
+        const v = values(), lines = missing.map(k => `${k}: ${v[k] || ""}`.trimEnd());
+        preview.textContent = need.present ? lines.map(l => "+ " + l).join("\n")
+                                           : ["---", ...lines, "---"].join("\n");
+      };
+      box.addEventListener("input", draw);
+      box.addEventListener("change", draw);
+      draw();
+      const done = answer => { root.innerHTML = ""; resolve(answer); };
+      const ok = () => {
+        const v = values();
+        if (missing.includes("title") && !v.title) {
+          toast("Give the note a title", true);
+          $('[data-key="title"]', box).focus();
+          return;
+        }
+        done(v);
+      };
+      $('[data-x="skip"]', ov).addEventListener("click", () => done(null));
+      $('[data-x="ok"]', ov).addEventListener("click", ok);
+      ov.addEventListener("keydown", e => {
+        if (e.key === "Escape") { e.preventDefault(); done(null); }
+        else if (e.key === "Enter" && e.target.matches("input")) { e.preventDefault(); ok(); }
+      });
+      root.appendChild(ov);
+      const first = $("[data-key]", box);
+      if (first) first.focus();
+    });
+  }
+  /* The header first, then the name: a file whose title another document
+     of the library has already -- or, in a zip, another file of it -- is
+     asked about in the name-conflict dialog (askNames), and cancelling it
+     skips the file, as skipping its header does. */
+  async function uploadMarkdown(file) {
+    const text = await file.text();
+    let body = {markdown: text, check_header: true, name: file.name};
+    let a = await send("/api/docs", {method: "POST", json: body});
+    if (a.status === 422 && a.data.header_needed) {
+      const header = await askHeader(file.name, a.data, a.data);
+      if (!header) return null;
+      body = {markdown: text, header, name: file.name};
+      a = await send("/api/docs", {method: "POST", json: body});
+    }
+    if (nameClash(a)) {
+      a = await askNames(a.data, renames =>
+        send("/api/docs", {method: "POST", json: Object.assign({}, body, {renames})}));
+      if (!a) return null;
+    }
+    if (!a.ok) throw refusal(a);
+    return {docs: [a.data.meta], warnings: []};
+  }
+  async function uploadZip(file) {
+    // the file itself, streamed and sent again as often as it is asked for
+    // (restoreBackup, above, says why)
+    const post = (headers, renames) => sendWorking(`Importing ${file.name}`,
+      withName("/api/docs/zip" + query({headers, renames}), file.name),
+      {method: "POST", body: file, headers: {"Content-Type": "application/zip"}});
+    let a = await post(null, null), headers = null;
+    if (a.status === 422 && a.data.header_needed) {
+      // each file asked about in turn; one skipped is left out, the rest go in
+      headers = {};
+      for (const need of a.data.files || [])
+        headers[need.name] = await askHeader(`${need.name}, in ${file.name}`, need, a.data);
+      a = await post(headers, null);
+    }
+    if (nameClash(a)) {
+      a = await askNames(a.data, renames => post(headers, renames));
+      if (!a) return null;
+    }
+    if (!a.ok) throw refusal(a);
+    return {docs: a.data.docs || [], warnings: a.data.warnings || []};
+  }
+  // ?headers=…&renames=… for the raw-body routes: each a JSON, when there is one
+  function query(parts) {
+    const q = Object.entries(parts).filter(([, v]) => v)
+      .map(([k, v]) => `${k}=${encodeURIComponent(JSON.stringify(v))}`);
+    return q.length ? "?" + q.join("&") : "";
+  }
+  // …and the file's own name, plain, which the activity list shows while it goes up
+  function withName(path, name) {
+    return path + (path.includes("?") ? "&" : "?") + "name=" + encodeURIComponent(name);
+  }
+  $("#file-upload").addEventListener("change", async e => {
+    const files = [...e.target.files];
+    e.target.value = "";
+    if (!files.length) return;
+    const made = [], notes = [];
+    for (const f of files) {
+      try {
+        const out = /\.zip$/i.test(f.name) ? await uploadZip(f) : await uploadMarkdown(f);
+        if (!out) continue;                         // skipped in its dialog
+        made.push(...out.docs);
+        notes.push(...out.warnings);
+      } catch (err) {
+        notes.push(`${f.name}: ${err.message}`);
+      }
+    }
+    if (made.length === 1 && !notes.length) { location.href = BASE + "/doc/" + made[0].id; return; }
+    if (!made.length && !notes.length) return;
+    toast(`${made.length} document${made.length === 1 ? "" : "s"} imported`
+          + (notes.length ? " — " + notes.join(" · ") : ""), notes.length > 0);
+    loadDocs(); loadTags();
+  });
+
+  api("/api/status").then(s => {
+    $("#statusline").textContent =
+      `${s.docs} document${s.docs === 1 ? "" : "s"} · ` +
+      `XeLaTeX ${s.xelatex ? "✓" : "✗ missing"} · Italian hyphenation ` +
+      (s.hyphenation === null ? "…" : s.hyphenation ? "✓" : "✗") +
+      ` · library: ${s.library}`;
+  }).catch(() => {});
+
+  loadTags();
+  loadDocs();
+}
+
+/* ---------------- doc page ---------------- */
+
+/* The bar on a phone: away as the page moves down, back on the smallest move
+   up -- not only at the top of the page, which would mean scrolling a whole
+   note back to reach one button. This is lib/parseh.js's bars() written again
+   in the studio's own script, down to the class name and the breakpoint,
+   because the studio does not load parseh.js; the toolbox should behave as
+   one thing. NOTHING CHANGES ON A WIDE SCREEN: the listener is wired only
+   while the media query matches, and the class it toggles is defined only
+   inside the same query.
+
+   A document's reading page has TWO bars, the topbar and the toolbar under
+   it, and on a wide screen only the toolbar is pinned. On a phone both are:
+   the topbar at the top, the toolbar right under it (--topbar-h, measured
+   here while the query matches), and both go away together and come back
+   together -- two bars pinned are a good part of a phone's screen however
+   short app.css makes them there, and one left standing is the reading
+   page's whole problem.  Near the top they stand, as everywhere: there that
+   means until the page's whole head (topbar, tags, toolbar) has scrolled
+   by, because putting the bars away while their places are still on the
+   screen would only leave those places empty. */
+const PHONE_MQ = "(max-width: 560px)";
+const pinnedPair = () => PAGE === "doc" && !!window.matchMedia
+  && window.matchMedia(PHONE_MQ).matches && !!$(".topbar") && !!$("#typobar");
+// Until this moment the bars neither go nor come: a bar that grows (Aa opening
+// its controls) moves the text under it, the browser scrolls to keep the text
+// where it was, and that scroll is no reader's.
+let barsHeldUntil = 0;
+const holdBars = ms => { barsHeldUntil = performance.now() + ms; };
+function barsStand() {
+  if (!pinnedPair()) return 56;
+  const h = sel => { const e = $(sel); return e ? e.getBoundingClientRect().height : 0; };
+  return Math.max(56, h(".topbar") + h(".metabar") + h("#typobar"));
+}
+function bindBarHide() {
+  if (!window.matchMedia) return;
+  const mq = window.matchMedia(PHONE_MQ);
+  const topbar = PAGE === "doc" && $("#typobar") ? $(".topbar") : null;
+  let lastY = 0, ticking = false, off = false, sizer = null;
+  const set = v => {
+    if (v === off) return;
+    off = v;
+    document.body.classList.toggle("barhidden", v);
+    // a menu hung from the reading page's bars would stay over the text,
+    // catching taps; and the typography controls, left open, would bring the
+    // bars back over most of a small screen, which is what pinning them
+    // short was for
+    if (v && PAGE === "doc") {
+      document.querySelectorAll(".topbar details[open], .toolbar details[open]")
+        .forEach(d => { d.open = false; });
+      if (document.body.classList.contains("typo-open")) {
+        holdBars(400);
+        document.body.classList.remove("typo-open");
+        const t = $("#btn-typo");
+        if (t) t.setAttribute("aria-expanded", "false");
+      }
+    }
+  };
+  const read = () => {
+    ticking = false;
+    const y = Math.max(0, window.pageYOffset || 0);
+    const d = y - lastY;
+    if (Math.abs(d) < 4) return;          // a finger resting is not a move
+    lastY = y;
+    if (performance.now() < barsHeldUntil) return;
+    set(y > barsStand() && d > 0);
+  };
+  const onScroll = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(read);
+  };
+  const measure = () => document.documentElement.style.setProperty(
+    "--topbar-h", topbar.getBoundingClientRect().height + "px");
+  const follow = () => {
+    if (mq.matches) {
+      lastY = window.pageYOffset || 0;
+      window.addEventListener("scroll", onScroll, {passive: true});
+      if (topbar) {
+        measure();
+        if (window.ResizeObserver && !sizer) {
+          sizer = new ResizeObserver(measure);
+          sizer.observe(topbar);
+        }
+      }
+    } else {
+      window.removeEventListener("scroll", onScroll);
+      set(false);
+      if (sizer) { sizer.disconnect(); sizer = null; }
+      document.documentElement.style.removeProperty("--topbar-h");
+      // The window widened past a phone's -- a phone turned on its side --
+      // with the bars standing: the pinned topbar was the first thing on the
+      // screen, the browser keeps the page where that thing is, and the
+      // topbar, back in the flow, is at the very top of the page.  So the
+      // page is put back where it was, as it stays on a desktop.
+      const was = topbar ? Math.max(lastY, window.pageYOffset || 0) : 0;
+      if (was > 1) requestAnimationFrame(() => requestAnimationFrame(() => {
+        if ((window.pageYOffset || 0) < 1) window.scrollTo(0, was);
+      }));
+    }
+  };
+  follow();
+  if (mq.addEventListener) mq.addEventListener("change", follow);
+  // Tab moving along the topbar's row, which scrolls sideways on a phone:
+  // the control that takes the focus is brought into the row's view
+  if (topbar) document.addEventListener("focusin", e => {
+    const row = mq.matches && e.target.closest ? e.target.closest(".topbar-actions") : null;
+    if (row && row.scrollWidth > row.clientWidth)
+      e.target.scrollIntoView({block: "nearest", inline: "nearest"});
+  });
+}
+
+/* Back to the top of a long note. It shows itself only once the page has
+   moved a screenful down: a button that is always there is one more thing
+   between the reader and the text. */
+function bindToTop() {
+  const b = $("#btn-top");
+  if (!b) return;
+  const show = () => { b.hidden = (window.pageYOffset || 0) < 400; };
+  window.addEventListener("scroll", show, {passive: true});
+  show();
+  b.addEventListener("click", () => {
+    window.scrollTo({top: 0, behavior: "smooth"});
+  });
+}
+
+/* THE DECK DOOR, from both studio pages.  A reading view copies one of its
+   exercises into a deck ("+ Deck"); the editor takes one out of a deck and
+   puts it in the document ("Load from a deck…").  The decks are another door
+   with an address of their own (data-decks-base), so they are fetched there
+   and not through api(), which prefixes the studio's.  Empty where no deck
+   store is reachable: no button, no handler.  A note beside a book or a video
+   names its mount (data-notes-source), since the decks read and write that
+   shelf's documents and not the studio library's. */
+const decksBase = document.body.dataset.decksBase || "";
+const notesSource = document.body.dataset.notesSource || "";
+async function decksFetch(path, opts = {}) {
+  const init = Object.assign({}, opts);
+  if (init.json !== undefined) {
+    init.body = JSON.stringify(init.json);
+    init.headers = {"Content-Type": "application/json"};
+    delete init.json;
+  }
+  const r = await fetch(decksBase + path, init);
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* not JSON: no deck store answered */ }
+  if (!r.ok || data.ok === false) {
+    const err = new Error(data.error || (r.status + " " + r.statusText));
+    err.conflict = data.conflict || "";
+    throw err;
+  }
+  return data;
+}
+const deckUrl = path => "/api/decks/" + String(path).split("/").map(encodeURIComponent).join("/");
+
+/* THE DECK HALF OF BOTH COPY DIALOGS -- one exercise (+ Deck) and a page's
+   worth (+ Add all exercises): the decks of the page's language in a select,
+   the one used last already chosen, "+ New deck…" at its foot and the name
+   field that option needs.  `ensure()` makes the new deck when that is what
+   is chosen, and answers what it made.  `unmake()` takes a deck made for a
+   copy that then failed away again, so the store is as it was before -- and
+   when the deck cannot be removed it stays selected, so that trying again
+   does not make a second one. */
+const DECK_FIELDS = `<label class="modal-field">Deck<select data-x="deck"></select></label>
+    <label class="modal-field" data-x="new-field">Name of the new deck
+      <input type="text" data-x="name" spellcheck="false" autocomplete="off"></label>`;
+async function deckPicker(ov, {allowNew = true} = {}) {
+  const code = lang().code, lastKey = "parseh_deck_last_" + code;
+  const data = await decksFetch("/api/decks?lang=" + encodeURIComponent(code));
+  const decks = (data.decks || []).filter(d => d.lang === code);
+  let last = "";
+  try { last = localStorage.getItem(lastKey) || ""; } catch (e) { /* private mode */ }
+  const select = $('[data-x="deck"]', ov), newField = $('[data-x="new-field"]', ov);
+  const nameInput = $('[data-x="name"]', ov);
+  nameInput.placeholder = `${lang().name} exercises`;
+  // a copy INTO a deck may make one on the way; a copy OUT of one has
+  // nothing to take from a deck that does not exist yet (allowNew: false)
+  const newOption = document.createElement("option");
+  newOption.value = ""; newOption.textContent = "+ New deck…";
+  if (allowNew) select.appendChild(newOption);
+  const addDeck = d => {
+    const o = document.createElement("option");
+    const n = (d.counts || {}).total || 0;
+    o.value = d.path; o.dataset.name = d.name;
+    o.textContent = `${d.name} · ${n} exercise${n === 1 ? "" : "s"}`;
+    select.insertBefore(o, newOption.parentNode ? newOption : null);
+    return o;
+  };
+  decks.forEach(addDeck);
+  select.value = decks.some(d => d.path === last) ? last : (decks[0] ? decks[0].path : "");
+  const syncNew = () => { newField.hidden = !allowNew || select.value !== ""; };
+  select.addEventListener("change", () => { syncNew(); if (!select.value) nameInput.focus(); });
+  syncNew();
+  return {
+    select, nameInput,
+    name: () => (select.selectedOptions[0] && select.selectedOptions[0].dataset.name) || select.value,
+    async ensure() {
+      if (select.value) return null;
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); throw new Error("Give the new deck a name"); }
+      const answer = await decksFetch("/api/decks", {method: "POST", json: {name, lang: code}});
+      const made = {deck: answer.deck, option: addDeck(answer.deck)};
+      select.value = answer.deck.path;
+      syncNew();
+      return made;
+    },
+    async unmake(made) {
+      const gone = await decksFetch(deckUrl(made.deck.path), {method: "DELETE"})
+        .then(() => true, () => false);
+      if (!gone) return;
+      made.option.remove();
+      select.value = "";
+      syncNew();
+    },
+    remember(path) {
+      try { localStorage.setItem(lastKey, path); } catch (e) { /* private mode */ }
+    },
+    focus() { (select.value ? select : nameInput).focus(); }
+  };
+}
+
+function initDoc() {
+  let meta = JSON.parse($("#doc-meta").textContent);
+  const sheet = $("#sheet");
+  const frame = $("#pdfframe");
+  const btnBuild = $("#btn-build");
+  const btnPdf = $("#btn-pdf-toggle");
+  // the chrome outside the sheet (build badges, modals) takes the
+  // document's language too, so its tokens resolve there
+  document.body.dataset.lang = lang().code;
+  let getTypo = bindTypoControls(DOC_ID);
+  bindPersianCopy(sheet);
+  bindFootnoteClouds(sheet);
+  bindColorPalette(sheet, {apply: docColorApplier(DOC_ID),
+                           applyTranslit: docMarkApplier(DOC_ID, "translit"),
+                           applyKana: docMarkApplier(DOC_ID, "kana")});
+  bindImageLayout(sheet, {save: async payload => {
+    const data = await api(`/api/docs/${DOC_ID}/image-layout`,
+                           {method: "POST", json: payload});
+    if (onSourceChanged) onSourceChanged(data.meta);
+  }});
+  bindLaLayout(sheet, {save: async payload => {
+    const data = await api(`/api/docs/${DOC_ID}/la-layout`,
+                           {method: "POST", json: payload});
+    if (onSourceChanged) onSourceChanged(data.meta);
+  }});
+  armClipReplay(sheet);
+  bindExercises(sheet);
+  syncStickyOffset();
+  bindTypoToggle();
+  bindBarsToggle();
+  bindGlosses();
+  bindToTop();
+  bindStopServer();
+
+  // what one exercise of this page is copied as: which it is, of what kind,
+  // the page as it was when it loaded -- and the shelf a note is on
+  function copyPayload(ex) {
+    const payload = {doc_id: DOC_ID, ordinal: +ex.dataset.exercise,
+                     subtype: ex.dataset.subtype, updated: meta.updated};
+    if (notesSource) payload.source = notesSource;
+    return payload;
+  }
+
+  async function copyToDeck(ex) {
+    const ov = document.createElement("div"); ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal ex-to-deck-modal" role="dialog" aria-modal="true">
+      <h3>Copy this exercise into a deck</h3><p></p>
+      ${DECK_FIELDS}
+      <div class="row"><button class="btn" data-x="cancel">Cancel</button>
+        <button class="btn primary" data-x="copy">Copy</button></div></div>`;
+    const picker = await deckPicker(ov);
+    const root = $("#modal-root"); root.innerHTML = "";
+    const kicker = $(".ex-kicker", ex);
+    $("p", ov).textContent = `${kicker ? kicker.textContent : "Exercise"} — copied exactly as it `
+      + `is written here. A deck holds exercises in one language: these are your ${lang().name} decks.`;
+    const copyBtn = $('[data-x="copy"]', ov);
+    const close = () => { if (ov.parentNode) root.removeChild(ov); };
+    $('[data-x="cancel"]', ov).addEventListener("click", close);
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    ov.addEventListener("keydown", e => {
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "Enter" && e.target === picker.nameInput) { e.preventDefault(); copyBtn.click(); }
+    });
+    let busy = false;
+    copyBtn.addEventListener("click", async () => {
+      if (busy) return;                  // one copy per click, however fast
+      busy = true; copyBtn.disabled = true;
+      let made = null;
+      try {
+        made = await picker.ensure();
+        const path = picker.select.value, deckName = picker.name();
+        const payload = copyPayload(ex);
+        let result;
+        try {
+          result = await decksFetch(deckUrl(path) + "/copy", {method: "POST", json: payload});
+        } catch (err) {
+          if (made && err.conflict !== "duplicate") await picker.unmake(made);
+          if (err.conflict === "stale") {
+            close();
+            throw new Error("This page is out of date — reload it, then copy");
+          }
+          if (err.conflict !== "duplicate") throw err;
+          if (!confirm(`This exercise is already in “${deckName}” — add it again?`)) return;
+          result = await decksFetch(deckUrl(path) + "/copy",
+            {method: "POST", json: Object.assign({}, payload, {force: true})});
+        }
+        picker.remember(path);
+        close();
+        const warnings = result.warnings || [];
+        toast(`Copied into “${(result.deck || {}).name || deckName}”`
+          + (warnings.length ? " — " + warnings.join(" · ") : ""), warnings.length > 0);
+      } catch (err) {
+        toast(err.message, true);
+      } finally {
+        busy = false; copyBtn.disabled = false;
+      }
+    });
+    root.appendChild(ov);
+    picker.focus();
+  }
+  // capture, and stopped there: the click is the modal's alone, never an
+  // answer to the exercise it sits on or a copy of the text around it
+  if (decksBase) sheet.addEventListener("click", e => {
+    const button = e.target.closest(".ex-to-deck");
+    if (!button || !sheet.contains(button)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const ex = button.closest(".exercise");
+    if (ex) copyToDeck(ex).catch(err => toast("Could not open the decks: " + err.message, true));
+  }, true);
+
+  /* "+ Add all exercises": the exercises of this page into one deck at once.
+     It offers every exercise + Deck could copy -- one that shows errors has
+     no button, and a deck would refuse it -- in the page's order, all of them
+     ticked: untick the ones to leave out.  Each goes through the same /copy
+     as + Deck, one after another.  One the deck already has is left out
+     unless "add again" is ticked, one the deck refuses is counted and the
+     rest still go in, and a page gone stale stops the run, since every
+     exercise after it could be the wrong one.  A deck made for a run that
+     then added nothing is taken away again, as + Deck takes away its own. */
+  const addAllBtn = $("#btn-add-all");
+  const copyable = () => $$(".exercise", sheet)
+    .filter(ex => $(":scope > .ex-head > .ex-to-deck", ex));
+  let glossCards = [];
+  try { glossCards = JSON.parse($("#doc-glosses").textContent) || []; }
+  catch (e) { /* a document without a usable gloss list offers exercises only */ }
+  // an exercise as the list names it: its kind, and its first words -- the
+  // prompt, a flashcard's front, or failing both whatever its body says
+  function exerciseWords(ex) {
+    const kicker = $(":scope > .ex-head > .ex-kicker", ex);
+    const words = $(":scope > .ex-prompt", ex) || $(".ex-card-front", ex) || $(":scope > .ex-body", ex);
+    const text = (words ? words.textContent : "").replace(/\s+/g, " ").trim();
+    return {kind: kicker ? kicker.textContent.trim() : "Exercise",
+            text: text.length > 90 ? text.slice(0, 89).trimEnd() + "…" : text};
+  }
+  async function addAll() {
+    const exs = copyable(), unoffered = $$(".exercise", sheet).length - exs.length;
+    const ov = document.createElement("div"); ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal ex-all-modal" role="dialog" aria-modal="true">
+      <h3>Add all exercises to a deck</h3><p></p>
+      ${DECK_FIELDS}
+      <div class="ex-all-head"><span data-x="count"></span>
+        <button class="btn ghost" data-x="all">Select all</button>
+        <button class="btn ghost" data-x="none">Select none</button></div>
+      <button class="btn small ghost ex-all-gloss-toggle" data-x="glosses" type="button"
+              aria-pressed="false" ${glossCards.length ? "" : "hidden"}></button>
+      <div class="ex-all-list" data-x="list"></div>
+      <label class="ex-all-again"><input type="checkbox" data-x="again">
+        Add again the ones this deck already has</label>
+      <div class="row"><span class="ex-all-progress" data-x="progress"></span>
+        <button class="btn" data-x="cancel">Cancel</button>
+        <button class="btn primary" data-x="add">Add</button></div></div>`;
+    const picker = await deckPicker(ov);
+    const root = $("#modal-root"); root.innerHTML = "";
+    $("p", ov).textContent = "Every exercise on this page, each copied exactly as it is written "
+      + `— untick the ones to leave out. A deck holds exercises in one language: these are your ${lang().name} decks.`
+      + (unoffered ? ` ${unoffered} exercise${unoffered === 1 ? " that needs attention is"
+                                                           : "s that need attention are"} not offered.` : "");
+    const list = $('[data-x="list"]', ov), count = $('[data-x="count"]', ov);
+    const addBtn = $('[data-x="add"]', ov), again = $('[data-x="again"]', ov);
+    const progress = $('[data-x="progress"]', ov);
+    function addRow(kind, text, ordinal, subtype, gloss = false) {
+      const row = document.createElement("label"); row.className = "ex-all-item";
+      row.hidden = gloss;
+      const box = document.createElement("input");
+      box.type = "checkbox"; box.checked = true;
+      box.dataset.ordinal = ordinal; box.dataset.subtype = subtype;
+      const num = document.createElement("span");
+      num.className = "ex-all-num"; num.textContent = gloss ? `G${ordinal}` : ordinal;
+      const what = document.createElement("span");
+      what.className = "ex-all-kind"; what.textContent = kind;
+      const words = document.createElement("span");
+      words.className = "ex-all-text"; words.dir = "auto"; words.textContent = text; words.title = text;
+      row.append(box, num, what, words);
+      list.appendChild(row);
+    }
+    for (const ex of exs) {
+      const {kind, text} = exerciseWords(ex);
+      addRow(kind, text, ex.dataset.exercise, ex.dataset.subtype);
+    }
+    glossCards.forEach((g, i) => addRow("Gloss flashcard", `${g.fa} — ${g.tr}`,
+                                        i + 1, "gloss-flashcard", true));
+    const glossToggle = $('[data-x="glosses"]', ov);
+    glossToggle.textContent = `Show gloss flashcards (${glossCards.length})`;
+    glossToggle.addEventListener("click", () => {
+      const show = glossToggle.getAttribute("aria-pressed") !== "true";
+      glossToggle.setAttribute("aria-pressed", String(show));
+      glossToggle.textContent = `${show ? "Hide" : "Show"} gloss flashcards (${glossCards.length})`;
+      $$(".ex-all-item", list).slice(exs.length).forEach(row => { row.hidden = !show; });
+      sync();
+    });
+    let busy = false;
+    const boxes = () => $$(".ex-all-item:not([hidden]) input[type=checkbox]", list);
+    const sync = () => {
+      const n = boxes().filter(b => b.checked).length;
+      count.textContent = `${n} of ${boxes().length} selected`;
+      addBtn.textContent = `Add ${n} exercise${n === 1 ? "" : "s"}`;
+      addBtn.disabled = busy || !n;
+    };
+    list.addEventListener("change", sync);
+    $('[data-x="all"]', ov).addEventListener("click", () => { boxes().forEach(b => { b.checked = true; }); sync(); });
+    $('[data-x="none"]', ov).addEventListener("click", () => { boxes().forEach(b => { b.checked = false; }); sync(); });
+    const close = () => { if (ov.parentNode) root.removeChild(ov); };
+    $('[data-x="cancel"]', ov).addEventListener("click", close);
+    ov.addEventListener("click", e => { if (e.target === ov && !busy) close(); });
+    ov.addEventListener("keydown", e => {
+      if (e.key === "Escape") { e.preventDefault(); if (!busy) close(); }
+      else if (e.key === "Enter" && e.target === picker.nameInput) { e.preventDefault(); addBtn.click(); }
+    });
+    addBtn.addEventListener("click", async () => {
+      const picked = boxes().filter(b => b.checked)
+        .map(b => b.dataset.subtype === "gloss-flashcard"
+          ? {doc_id: DOC_ID, ordinal: +b.dataset.ordinal, subtype: "gloss-flashcard",
+             updated: meta.updated, ...(notesSource ? {source: notesSource} : {})}
+          : copyPayload(exs.find(ex => ex.dataset.exercise === b.dataset.ordinal)));
+      if (busy || !picked.length) return;
+      // the dialog holds still while it works: nothing in it changes under a
+      // run, and nothing closes it
+      busy = true;
+      const controls = $$("select, input, button", ov);
+      controls.forEach(el => { el.disabled = true; });
+      let made = null, added = 0, already = 0, stale = false, deckName = "";
+      const refused = [], warnings = [];
+      try {
+        made = await picker.ensure();
+        const path = picker.select.value;
+        deckName = picker.name();
+        for (let i = 0; i < picked.length; i++) {
+          progress.textContent = `Adding ${i + 1} of ${picked.length}…`;
+          const payload = picked[i];
+          if (again.checked) payload.force = true;
+          try {
+            const result = await decksFetch(deckUrl(path) + "/copy", {method: "POST", json: payload});
+            added++;
+            if ((result.deck || {}).name) deckName = result.deck.name;
+            for (const w of result.warnings || []) if (!warnings.includes(w)) warnings.push(w);
+          } catch (err) {
+            if (err.conflict === "duplicate") { already++; continue; }
+            if (err.conflict === "stale") { stale = true; break; }
+            refused.push(`${payload.subtype === "gloss-flashcard" ? "gloss " : ""}${payload.ordinal}: ${err.message}`);
+          }
+        }
+        if (made && !added) await picker.unmake(made);
+        if (added) picker.remember(path);
+        if (stale) {
+          close();
+          throw new Error((added ? `Added ${added} to “${deckName}”, then stopped: ` : "")
+                          + "this page is out of date — reload it, then add");
+        }
+        if (!added) {
+          // nothing went in, and the dialog stays: another deck, another choice
+          throw new Error(refused.length
+            ? `Nothing was added — ${refused.length} refused (${refused[0]})`
+              + (already ? `, ${already} already in “${deckName}”` : "")
+            : `${already === 1 ? "That exercise is" : `All ${already} are`} already in “${deckName}”`
+              + " — tick “Add again” to add them anyway");
+        }
+        close();
+        const notes = [];
+        if (already) notes.push(`${already} already there, left out`);
+        if (refused.length) notes.push(`${refused.length} refused (${refused[0]})`);
+        toast(`Added ${added} exercise${added === 1 ? "" : "s"} to “${deckName}”`
+          + (notes.length ? " — " + notes.join(" · ") : "")
+          + (warnings.length ? " — " + warnings.join(" · ") : ""),
+          refused.length > 0 || warnings.length > 0);
+      } catch (err) {
+        toast(err.message, true);
+      } finally {
+        busy = false;
+        progress.textContent = "";
+        controls.forEach(el => { el.disabled = false; });
+        sync();
+      }
+    });
+    sync();
+    root.appendChild(ov);
+    picker.focus();
+  }
+  const offered = copyable().length;
+  if (decksBase && addAllBtn && (offered || glossCards.length)) {
+    addAllBtn.hidden = false;
+    addAllBtn.title = "Choose this page's exercises and optional gloss flashcards to add to a deck";
+    addAllBtn.addEventListener("click", () =>
+      addAll().catch(err => toast("Could not open the decks: " + err.message, true)));
+  }
+
+  // a colour change edits the markdown, so the built PDF goes stale
+  onSourceChanged = m => {
+    if (m) { meta = Object.assign(meta, m); renderBuildInfo(); }
+  };
+
+  // A failed build attempt is tracked separately from meta.build so it
+  // never destroys the record of the last GOOD build: the previous PDF
+  // and .tex are still on disk and downloadable, and the toggle keeps
+  // working. buildError is cleared on the next success.
+  let buildError = null;
+
+  /* The PDF options: the print size (11 pt, or 14, 17, 20 for readers with
+     low vision) and black and white (for the photocopier).  They belong to
+     the build, not to the markdown, so they are kept in this browser, per
+     document, beside its typography (exlex-typo:<id>); a document with no
+     choice made here yet starts from the options its PDF was built with, so
+     the menu says what the PDF on disk is. */
+  const PDF_SIZES = [11, 14, 17, 20];
+  const pdfKey = "exlex-pdf:" + DOC_ID;
+  const pdfOptionsOf = o => ({
+    size: PDF_SIZES.includes(Number(o && o.size)) ? Number(o.size) : 11,
+    mono: !!(o && o.mono === true),
+  });
+  let pdfOpts = (() => {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(pdfKey) || "null"); } catch (e) { /* none */ }
+    const b = meta.build || {};
+    return pdfOptionsOf(saved || (b.status === "ok" ? b : {}));
+  })();
+  const describePdf = o => `${o.size} pt, ${o.mono ? "black and white" : "in colour"}`;
+  const sizeRadios = $$('input[name="pdf-size"]');
+  const monoBox = $("#ck-pdf-mono");
+  sizeRadios.forEach(r => { r.checked = Number(r.value) === pdfOpts.size; });
+  if (monoBox) monoBox.checked = pdfOpts.mono;
+  const readPdfOptions = () => {
+    const on = sizeRadios.find(r => r.checked);
+    pdfOpts = pdfOptionsOf({size: on ? on.value : 11, mono: !!(monoBox && monoBox.checked)});
+    try { localStorage.setItem(pdfKey, JSON.stringify(pdfOpts)); } catch (e) { /* private mode */ }
+    renderBuildInfo();
+  };
+  sizeRadios.forEach(r => r.addEventListener("change", readPdfOptions));
+  if (monoBox) monoBox.addEventListener("change", readPdfOptions);
+
+  function renderBuildInfo() {
+    const b = meta.build || {status: "none"};
+    const box = $("#buildinfo");
+    const built = b.status === "ok";
+    // download/toggle availability follows the last GOOD build, not the
+    // last attempt.
+    btnPdf.disabled = !built;
+    const dlPdf = $("#dl-pdf"), dlTex = $("#dl-tex");
+    if (dlPdf) dlPdf.classList.toggle("disabled", !built);
+    if (dlTex) dlTex.classList.toggle("disabled", !built);
+
+    const errBadge = buildError
+      ? `<span class="badge err" title="${escAttr(buildError)}">build failed — see message</span>` : "";
+    if (!built) {
+      box.innerHTML = errBadge || `<span class="badge">no PDF built yet</span>`;
+      return;
+    }
+    const stale = b.stale
+      ? `<span class="badge warn" title="The markdown changed after this PDF was built">source changed — rebuild</span>` : "";
+    const overfull = (b.overfull || []).length
+      ? `<span class="badge warn">${b.overfull.length} overfull</span>` : "";
+    let verify;
+    const L = lang();
+    const vlabel = L.dir === "rtl" ? "RTL" : "text";
+    if (b.verify_failed > 0) {
+      verify = `<details><summary class="badge err">${b.verify_failed} ${vlabel} FAIL`
+        + verifyCloud() + `</summary>
+        <div class="fails">${(b.failures || []).map(() =>
+          `<div><span class="fa" dir="${L.dir}" lang="${L.code}"></span> — <em></em></div>`).join("")}</div></details>`;
+    } else if (b.verified === false) {
+      verify = `<span class="badge warn" title="PyMuPDF not installed — the PDF text was not checked">not verified</span>`;
+    } else {
+      verify = `<span class="badge ok" title="Every ${escAttr(L.name)} string verified in the PDF${L.dir === "rtl" ? ", in correct RTL order" : ""}">${b.verify_ok}/${b.verify_ok} ${vlabel} ✓</span>`;
+    }
+    const pages = b.pages != null ? `${b.pages} pages · ` : "";
+    // what this PDF was built with (a build from before the options is an
+    // 11 pt one in colour, which is what every build was), and, when the
+    // menu now says otherwise, that it was -- a PDF to rebuild, not a
+    // fault: its own badge, its own words
+    const was = pdfOptionsOf(b);
+    const printed = `${was.size} pt${was.mono ? " · B&W" : ""}`;
+    const other = (was.size !== pdfOpts.size || was.mono !== pdfOpts.mono)
+      ? `<span class="badge warn" id="pdf-options-stale" title="${escAttr(
+          `This PDF was built at ${describePdf(was)}; the PDF options now say ${describePdf(pdfOpts)}. Build PDF again to use them.`)}">built with other options — rebuild</span>` : "";
+    box.innerHTML =
+      `<span class="badge ok">PDF ✓ ${pages}scale ${b.scale} · ${printed}</span>` +
+      verify + overfull + stale + other +
+      `<span class="badge">built ${fmtDate(b.built_at)}</span>` + errBadge;
+    if (b.verify_failed > 0) {
+      $$(".fails > div", box).forEach((div, i) => {
+        const f = (b.failures || [])[i] || ["", ""];
+        $(".fa", div).textContent = f[0];
+        $("em", div).textContent = f[1];
+      });
+    }
+  }
+
+  function refreshFrame() {
+    // A hidden iframe still loads a new src, so always bust it after a
+    // build — otherwise toggling to PDF later would show the old file.
+    frame.src = `${BASE}/pdf/${DOC_ID}?t=` + Date.now();
+  }
+
+  btnBuild.addEventListener("click", async () => {
+    const old = btnBuild.innerHTML;
+    btnBuild.disabled = true;
+    btnBuild.innerHTML = `<span class="spin"></span> Compiling…`;
+    try {
+      const t = getTypo();
+      const data = await working(`Building the PDF of ${meta.title || DOC_ID}`,
+        act => api(act.url(`/api/docs/${DOC_ID}/build`),
+                   {method: "POST", json: {scale: t.fa, size: pdfOpts.size,
+                                           mono: pdfOpts.mono}}));
+      meta.build = data.build;
+      buildError = null;
+      renderBuildInfo();
+      const vtot = (data.build.verify_ok || 0) + (data.build.verify_failed || 0);
+      const vmsg = data.build.verified === false
+        ? "not verified (PyMuPDF missing)"
+        : `${data.build.verify_ok}/${vtot} ${lang().name} strings verified`;
+      const pmsg = data.build.pages != null ? `${data.build.pages} pages, ` : "";
+      toast(`PDF built: ${pmsg}${vmsg}`);
+      refreshFrame();
+    } catch (e) {
+      buildError = e.message;             // keep the last good build intact
+      renderBuildInfo();
+      toast("Build failed: " + e.message, true);
+    } finally {
+      btnBuild.disabled = false;
+      btnBuild.innerHTML = old;
+    }
+  });
+
+  btnPdf.addEventListener("click", () => {
+    const showPdf = frame.hidden;
+    if (showPdf && !frame.getAttribute("src")) refreshFrame();
+    frame.hidden = !showPdf;
+    sheet.hidden = showPdf;
+    btnPdf.textContent = showPdf ? "View web" : "View PDF";
+  });
+
+  $("#btn-duplicate").addEventListener("click", async () => {
+    try {
+      const data = await api(`/api/docs/${DOC_ID}/duplicate`, {method: "POST"});
+      location.href = BASE + "/doc/" + data.meta.id;
+    } catch (e) { toast("Duplicate failed: " + e.message, true); }
+  });
+
+  $("#btn-delete").addEventListener("click", async () => {
+    if (!confirm(`Delete “${meta.title}” and its builds? This cannot be undone.`)) return;
+    try {
+      await api("/api/docs/" + DOC_ID, {method: "DELETE"});
+      location.href = BASE + "/";
+    } catch (e) { toast("Delete failed: " + e.message, true); }
+  });
+
+  const btnPrint = $("#btn-print");
+  if (btnPrint) btnPrint.addEventListener("click", () => window.print());
+
+  // A .disabled download link is inert to the mouse via pointer-events,
+  // but stays in the tab order — block keyboard/programmatic activation
+  // too, so Enter on an unbuilt-PDF link can't navigate away.
+  ["#dl-pdf", "#dl-tex"].forEach(sel => {
+    const a = $(sel);
+    if (a) a.addEventListener("click", e => {
+      if (a.classList.contains("disabled")) { e.preventDefault(); e.stopPropagation(); }
+    });
+  });
+
+  /* tags editor */
+  const chips = $("#tag-chips"), input = $("#tag-input");
+  function renderTags() {
+    chips.innerHTML = "";
+    for (const t of meta.tags || []) {
+      const sp = document.createElement("span");
+      sp.className = "tag";
+      const label = document.createElement("span");
+      label.textContent = t;
+      const x = document.createElement("button");
+      x.textContent = "✕"; x.title = "Remove tag";
+      x.addEventListener("click", () => patchTags(cur => cur.filter(v => v !== t)));
+      sp.append(label, x);
+      chips.appendChild(sp);
+    }
+  }
+  // Serialize tag edits through one promise chain, each computing its
+  // payload from the CURRENT tags at execution time — so rapid add/remove
+  // clicks compose instead of racing to a last-writer-wins loss.
+  let tagQueue = Promise.resolve();
+  function patchTags(compute) {
+    tagQueue = tagQueue.then(async () => {
+      const tags = compute(meta.tags || []);
+      const data = await api(`/api/docs/${DOC_ID}/meta`,
+                             {method: "PATCH", json: {tags}});
+      meta = Object.assign(meta, data.meta);
+      renderTags();
+      refreshTagOptions();
+    }).catch(e => toast("Tag update failed: " + e.message, true));
+    return tagQueue;
+  }
+  async function refreshTagOptions() {
+    try {
+      const data = await api("/api/tags");
+      const dl = $("#tag-options");
+      dl.innerHTML = "";
+      for (const {tag} of data.tags) {
+        const o = document.createElement("option");
+        o.value = tag; dl.appendChild(o);
+      }
+    } catch (e) { /* non-fatal */ }
+  }
+  // The tag goes up as it was typed: the store lower-cases it (and knows
+  // that the small İ is a plain i, which toLowerCase here would spell
+  // i + a combining dot -- a tag nobody could type again).  So the
+  // duplicate check below is exact rather than case-blind; at worst it
+  // sends a tag the store then folds into one it already has.
+  input.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== ",") return;
+    e.preventDefault();
+    const v = input.value.trim().replace(/,+$/, "");
+    if (!v) return;
+    input.value = "";
+    patchTags(cur => cur.includes(v) ? cur : [...cur, v]);
+  });
+  input.addEventListener("change", () => {   // datalist pick
+    const v = input.value.trim();
+    if (!v) return;
+    input.value = "";
+    patchTags(cur => cur.includes(v) ? cur : [...cur, v]);
+  });
+
+  /* contents drawer — closed by default so the sheet stays centred */
+  const tocPane = $("#tocpane"), tocBtn = $("#btn-toc"),
+        tocBackdrop = $("#toc-backdrop");
+  function setToc(open) {
+    if (open) setLinks(false);
+    document.body.classList.toggle("toc-open", open);
+    tocBackdrop.hidden = !open;
+    tocPane.setAttribute("aria-hidden", String(!open));
+    tocBtn.setAttribute("aria-expanded", String(open));
+  }
+  tocBtn.addEventListener("click", () =>
+    setToc(!document.body.classList.contains("toc-open")));
+  $("#btn-toc-close").addEventListener("click", () => setToc(false));
+  tocBackdrop.addEventListener("click", () => setToc(false));
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && document.body.classList.contains("toc-open"))
+      setToc(false);
+  });
+
+  /* "Linked from": the documents of this library whose text links here,
+     listed by the server (store.backlinks), in a drawer of their own from
+     the other side.  One drawer at a time; Esc closes it. */
+  const linksPane = $("#linkspane"), linksBtn = $("#btn-backlinks"),
+        linksBackdrop = $("#links-backdrop");
+  function setLinks(open) {
+    if (!linksPane) return;
+    if (open) setToc(false);
+    document.body.classList.toggle("links-open", open);
+    linksBackdrop.hidden = !open;
+    linksPane.setAttribute("aria-hidden", String(!open));
+    linksBtn.setAttribute("aria-expanded", String(open));
+    if (open) (($(".link-doc", linksPane)) || $(".toc-close", linksPane)).focus();
+  }
+  if (linksPane) {
+    linksBtn.addEventListener("click", () =>
+      setLinks(!document.body.classList.contains("links-open")));
+    $("#btn-links-close").addEventListener("click", () => { setLinks(false); linksBtn.focus(); });
+    linksBackdrop.addEventListener("click", () => setLinks(false));
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && document.body.classList.contains("links-open")) {
+        setLinks(false);
+        linksBtn.focus();
+      }
+    });
+  }
+
+  /* smooth TOC scroll; jumping closes the drawer, giving the text back */
+  $$(".toc-list a").forEach(a => a.addEventListener("click", e => {
+    const target = $(a.getAttribute("href"));
+    if (!target) return;
+    e.preventDefault();
+    setToc(false);
+    measureSticky(target);    // the toolbar may have rewrapped since load
+    target.scrollIntoView({behavior: "smooth", block: "start"});
+    history.replaceState(null, "", a.getAttribute("href"));
+  }));
+
+  renderTags();
+  refreshTagOptions();
+  renderBuildInfo();
+}
+
+/* ---------------- edit page ---------------- */
+
+function initEdit() {
+  const src = $("#src");
+  const sheet = $("#sheet");
+  const status = $("#pv-status");
+  let dirty = false;
+  bindPersianCopy(sheet);
+  bindFootnoteClouds(sheet);
+  bindStopServer();
+
+  // a new document starts in the language the toolbox is set to (the
+  // shared preference), unless it is "all"
+  if (!DOC_ID) {
+    const pick = sharedLang();
+    if (pick !== "all" && LANGS.some(l => l.code === pick))
+      src.value = src.value.replace(/^target:\s*\S+\s*$/m, "target: " + pick);
+  }
+
+  /* The language of the buffer: the record the page came with, replaced
+     by whatever the preview reports (a `target:` typed into the front
+     matter takes effect live).  Everything language-dependent in the
+     chrome is set here so a change reaches every control. */
+  function applyLangUi() {
+    const L = lang();
+    document.body.dataset.lang = L.code;
+    sheet.dataset.lang = L.code;
+    const kanaBtn = $("#ins-kana");
+    if (kanaBtn) kanaBtn.hidden = !L.reading;
+    const tlLabel = $("#btn-tl-editor-label");
+    if (tlLabel) tlLabel.textContent = "✎ " + L.name;
+    applyTypo(loadTypo(DOC_ID));
+  }
+  applyLangUi();
+
+  const back = $("#btn-back");
+  back.href = DOC_ID ? BASE + "/doc/" + DOC_ID : BASE + "/";
+
+  const panelClosers = [];   // layout panels die with the DOM they point at
+
+  /* The exercise form itself lives at top level (openExerciseForm), shared
+     with the exercise decks; here it only has to know where the result
+     goes: at the cursor for a new exercise, over lines line..endLine for
+     one reopened from the preview's ✎ Edit. */
+  /* A card's pictures and recordings go into this document's own folders,
+     as the toolbar's do: a document not saved yet has none. */
+  const formUploads = {
+    uploadImage: async file => {
+      if (!DOC_ID) throw new Error("Save the document first");
+      const data = await uploadImage(DOC_ID, file);
+      return {path: data.path, url: data.url};
+    },
+    uploadAudio: async file => {
+      if (!DOC_ID) throw new Error("Save the document first");
+      const data = await uploadAudio(DOC_ID, file);
+      return {path: data.path, url: data.url};
+    },
+  };
+
+  function editExerciseAt(line, endLine) {
+    const lines = src.value.split("\n");
+    openExerciseMarkdown(lines.slice(line, endLine + 1).join("\n"), Object.assign({
+      onSave: text => {
+        const current = src.value.split("\n");
+        current.splice(line, Math.max(1, endLine - line + 1), ...text.split("\n"));
+        setSource(current.join("\n"));
+      },
+    }, formUploads));
+  }
+
+  // a pasted exercise names its clips; they come into the document before
+  // the form opens, so its preview plays them (a document not saved yet
+  // brings them in when it is saved)
+  function chooseExercise() {
+    openExercisePicker(Object.assign({onSave: text => insertStandaloneLine(text),
+                                      onPaste: text => adoptFromTray(text)}, formUploads));
+  }
+
+  /* ---- an exercise out of a deck ----
+
+     The other direction of "+ Deck": a deck of this page's language, one of
+     its exercises, and it goes in at the cursor.  The copy is the server's
+     (POST …/items/<id>/to-doc), not this script's, because an exercise
+     brings its pictures and recordings with it and they have to be written
+     into THIS document's images/ and audio/ -- renamed where a different
+     file of that name is already there, with the references rewritten to
+     match, which is the deck store's own rule read backwards.  What comes
+     back is the markdown and the definitions of the footnotes it calls. */
+  function deckItemRow(item) {
+    const row = document.createElement("button");
+    row.type = "button"; row.className = "dl-item"; row.dataset.id = item.id;
+    const label = document.createElement("span");
+    label.className = "dl-t"; label.textContent = item.label || "Exercise";
+    const text = document.createElement("span");
+    // dir="auto": a prompt is often written in the gloss language and a
+    // target-language excerpt in the target's, and the first strong
+    // character says which -- one rule for both, and no Latin sentence
+    // shown with its question mark on the wrong end
+    text.className = "dl-s"; text.lang = lang().code; text.dir = "auto";
+    text.textContent = item.excerpt || "(no text)";
+    row.append(label, text);
+    if ((item.errors || []).length) {
+      row.classList.add("dk-broken");
+      row.title = item.errors.join("; ");
+    }
+    return row;
+  }
+
+  /** The definition lines of `footnotes` put into `text`, and the ids that
+      had to be renamed on the way rewritten in `block`.
+      A document of its own may already call a note "n1" and mean something
+      else by it; the same id with the same words is the same note and is
+      left alone. */
+  function mergeFootnotes(text, block, footnotes) {
+    const lines = (footnotes || "").split("\n").filter(l => FN_DEF_RE.test(l));
+    if (!lines.length) return {text, block};
+    const here = new Map();
+    for (const d of footnoteDefs(text.split("\n")))
+      here.set(d.id, text.split("\n").slice(d.from, d.to).join("\n").replace(FN_DEF_RE, "").trim());
+    for (const line of lines) {
+      const id = line.match(FN_DEF_RE)[1];
+      const body = line.replace(FN_DEF_RE, "").trim();
+      if (here.has(id) && here.get(id) === body) continue;   // the same note
+      let final = id, n = 2;
+      while (here.has(final)) final = `${id}-${n++}`;
+      if (final !== id)                       // only whole references, and
+        block = block.split(`[^${id}]`).join(`[^${final}]`);   // only in the block
+      here.set(final, body);
+      text = placeFootnoteDef(text, final, body);
+    }
+    return {text, block};
+  }
+
+  async function loadFromDeck() {
+    if (!DOC_ID) {
+      toast("Save the document first — an exercise's pictures live in its folder", true);
+      return;
+    }
+    const root = $("#modal-root"); root.innerHTML = "";
+    const ov = document.createElement("div"); ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal ex-from-deck-modal" role="dialog" aria-modal="true">
+      <h3>Load an exercise from a deck</h3>
+      <p>It goes in at the cursor, exactly as it is in the deck. Its pictures and
+        recordings are copied into this document.</p>
+      ${DECK_FIELDS}
+      <div class="dl-list" data-x="items"></div>
+      <div class="row"><span class="pv-status" data-x="status"></span>
+        <button class="btn" data-x="cancel">Cancel</button>
+        <button class="btn primary" data-x="insert" disabled>Insert</button></div></div>`;
+    let picker;
+    try {
+      picker = await deckPicker(ov, {allowNew: false});
+    } catch (e) {
+      toast("Could not read the decks: " + e.message, true);
+      return;
+    }
+    const list = $('[data-x="items"]', ov), status = $('[data-x="status"]', ov);
+    const insert = $('[data-x="insert"]', ov);
+    let chosen = null, items = [];
+    const close = () => { root.innerHTML = ""; src.focus(); };
+    $('[data-x="cancel"]', ov).addEventListener("click", close);
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+
+    async function showDeck() {
+      chosen = null; insert.disabled = true; list.innerHTML = "";
+      const path = picker.select.value;
+      if (!path) {
+        status.textContent = `No ${lang().name} deck yet — make one with “+ Deck” on a page.`;
+        return;
+      }
+      status.textContent = "Reading the deck…";
+      try {
+        const data = await decksFetch(deckUrl(path));
+        items = data.items || [];
+      } catch (e) {
+        status.textContent = "Could not read that deck: " + e.message;
+        return;
+      }
+      status.textContent = items.length
+        ? `${items.length} exercise${items.length === 1 ? "" : "s"}`
+        : "That deck is empty.";
+      for (const item of items) list.appendChild(deckItemRow(item));
+    }
+    list.addEventListener("click", e => {
+      const row = e.target.closest(".dl-item");
+      if (!row) return;
+      $$(".dl-item", list).forEach(r => r.classList.toggle("on", r === row));
+      chosen = row.dataset.id;
+      insert.disabled = false;
+    });
+    picker.select.addEventListener("change", showDeck);
+    await showDeck();
+    picker.focus();
+
+    insert.addEventListener("click", async () => {
+      if (!chosen) return;
+      insert.disabled = true; status.textContent = "Copying…";
+      try {
+        const body = {doc_id: DOC_ID};
+        if (notesSource) body.source = notesSource;
+        const got = await decksFetch(
+          `${deckUrl(picker.select.value)}/items/${encodeURIComponent(chosen)}/to-doc`,
+          {method: "POST", json: body});
+        picker.remember(picker.select.value);
+        // the footnotes first: an id that had to be renamed is renamed in
+        // the block before the block goes in
+        const merged = mergeFootnotes(src.value, got.markdown, got.footnotes);
+        if (merged.text !== src.value) {
+          // the cursor is where the writer left it, and the notes went in
+          // further down; setSource keeps it there
+          const at = src.selectionStart;
+          setSource(merged.text, at);
+        }
+        insertStandaloneLine(merged.block);
+        close();
+        // one toast, as the copies into a deck answer: a second would only
+        // rub out the first, and a warning nobody reads is no warning
+        const warnings = got.warnings || [];
+        toast("Exercise inserted" + (warnings.length ? " — " + warnings.join(" · ") : ""),
+              warnings.length > 0);
+      } catch (e) {
+        status.textContent = "";
+        insert.disabled = false;
+        toast("Could not load it: " + e.message, true);
+      }
+    });
+    root.appendChild(ov);
+  }
+
+  async function exercisePrompt() {
+    const data = await api("/api/exercise-decks");
+    const root = $("#modal-root"); root.innerHTML = "";
+    const ov = document.createElement("div"); ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal ex-prompt-modal" role="dialog" aria-modal="true">
+      <h3>Generate exercises with an LLM</h3>
+      <p>The page itself is always included. Optionally add vocabulary the learner already knows from these Anki decks.</p>
+      <div class="ex-decks"></div>
+      <div class="row"><span class="pv-status ex-copy-status"></span>
+        <button class="btn" data-x="cancel">Cancel</button>
+        <button class="btn primary" data-x="copy">Copy complete prompt</button></div></div>`;
+    const list = $(".ex-decks", ov);
+    if (!(data.decks || []).length) list.innerHTML = '<span class="pv-status">No Anki decks installed — the prompt works without them.</span>';
+    for (const d of data.decks || []) {
+      const label = document.createElement("label"); label.className = "ex-deck";
+      const ck = document.createElement("input"); ck.type = "checkbox"; ck.value = d.path;
+      const text = document.createElement("span");
+      text.textContent = `${d.name} · ${d.language} · ${d.cards} card${d.cards === 1 ? "" : "s"}`;
+      label.append(ck, text); list.appendChild(label);
+    }
+    const close = () => root.innerHTML = "";
+    $('[data-x="cancel"]', ov).addEventListener("click", close);
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    $('[data-x="copy"]', ov).addEventListener("click", async e => {
+      const btn = e.currentTarget; btn.disabled = true;
+      try {
+        const decks = $$('input[type="checkbox"]:checked', list).map(x => x.value);
+        const result = await api("/api/exercise-prompt", {method: "POST", json: {markdown: src.value, decks}});
+        await navigator.clipboard.writeText(result.prompt);
+        $(".ex-copy-status", ov).textContent = `Copied · ${result.vocabulary} known item${result.vocabulary === 1 ? "" : "s"}`;
+        toast("Exercise-generation prompt copied");
+      } catch (err) { toast("Could not copy: " + err.message, true); }
+      finally { btn.disabled = false; }
+    });
+    root.appendChild(ov);
+  }
+
+  async function preview() {
+    try {
+      const data = await api("/api/preview",
+                             {method: "POST",
+                              json: {markdown: src.value, doc_id: DOC_ID}});
+      if (!data.ok) throw new Error(data.error);
+      panelClosers.forEach(c => c());
+      sheet.innerHTML = data.doc.html;
+      freshMedia(sheet, DOC_ID);
+      sheet.lang = data.doc.lang || "it";
+      const target = lang().code;
+      if (data.doc.lang_record && data.doc.target !== lang().code) {
+        LANG = data.doc.lang_record;
+        applyLangUi();
+      }
+      // a `lang:` or a `target:` typed into the front matter: the way the
+      // source is written by default, and its face, may follow them
+      if ((data.doc.prose && (data.doc.prose.code !== prose.code || data.doc.prose.dir !== prose.dir))
+          || lang().code !== target) {
+        if (data.doc.prose) prose = data.doc.prose;
+        applyEditorDir();
+      }
+      armClipReplay(sheet);
+      bindExercises(sheet, {preview: true, onEdit: editExerciseAt});
+      status.textContent = (data.doc.target_error ? data.doc.target_error + " · " : "")
+        + "rendered " + new Date().toTimeString().slice(0, 8);
+      status.classList.toggle("err", !!data.doc.target_error);
+      setTimeout(alignPanes, 0);   // not rAF: it stalls in a hidden pane
+    } catch (e) {
+      status.textContent = "render error: " + e.message;
+      status.classList.add("err");
+    }
+  }
+
+  /* ---- pane alignment --------------------------------------------------
+     The renderer tags every top-level block with its source line
+     (data-src-line).  A textarea has ONE line-height, so per-block
+     spacing is impossible; instead: (1) the editor's line-height and top
+     padding are least-squares fitted against ALL anchors, so the whole
+     document — not just its end — pulls the interline into place, and
+     (2) the same anchors drive piecewise-corrected synchronised
+     scrolling, which keeps the middle of the two panes lined up in view
+     where a single interline cannot. Recomputed on every render. */
+  const scroller = $(".preview-scroll");
+  const alignState = {off: null, lh: null, srcYs: [], prevYs: [],
+                      fontPx: parseFloat(getComputedStyle(src).fontSize)};
+  let mirror = null;
+
+  function measureRows() {
+    // per-source-line wrapped row counts, via a mirror at a fixed 20px
+    // line-height (wrap count depends on width/font, not on line-height)
+    const cs = getComputedStyle(src);
+    if (!mirror) {
+      mirror = document.createElement("div");
+      mirror.className = "src-mirror";
+      mirror.setAttribute("aria-hidden", "true");
+      src.parentElement.appendChild(mirror);
+    }
+    mirror.style.font = cs.font;
+    // and its direction, and its unicode-bidi (whatever a style gives the
+    // textarea's lines, its lines have): a line wraps where the textarea
+    // wraps it
+    mirror.style.direction = cs.direction;
+    mirror.style.unicodeBidi = cs.unicodeBidi;
+    mirror.style.textAlign = cs.textAlign;
+    mirror.style.lineHeight = "20px";
+    mirror.style.width = Math.max(
+      60, src.clientWidth - parseFloat(cs.paddingLeft)
+      - parseFloat(cs.paddingRight)) + "px";
+    const lines = src.value.split("\n");
+    const frag = document.createDocumentFragment();
+    for (const l of lines) {
+      const d = document.createElement("div");
+      d.textContent = l || " ";
+      frag.appendChild(d);
+    }
+    mirror.textContent = "";
+    mirror.appendChild(frag);
+    const rows = [];
+    for (const d of mirror.children) rows.push(d.offsetTop / 20);
+    rows.push(mirror.scrollHeight / 20);      // total, as a sentinel
+    return rows;
+  }
+
+  function alignPanes() {
+    if (!scroller) return;
+    // a collapsed pane (tiny window, hidden panel) produces degenerate
+    // geometry — leave the defaults alone until there is room to fit
+    if (src.clientWidth < 200 || scroller.clientWidth < 200) return;
+    const els = $$("[data-src-line]", sheet);
+    if (els.length < 2) {
+      src.style.lineHeight = "";
+      src.style.paddingTop = "";
+      alignState.srcYs = [];
+      return;
+    }
+    const rows = measureRows();
+    // measure the preview at its baseline margin (a previous pass may
+    // have shifted it)
+    sheet.style.marginTop = "";
+    const baseMargin = parseFloat(getComputedStyle(sheet).marginTop) || 0;
+    const scRect = scroller.getBoundingClientRect();
+    const seen = new Set();
+    const xs = [], ys = [];
+    for (const el of els) {
+      const line = +el.dataset.srcLine;
+      if (seen.has(line) || line >= rows.length - 1) continue;
+      seen.add(line);
+      xs.push(rows[line]);
+      ys.push(el.getBoundingClientRect().top - scRect.top
+              + scroller.scrollTop);
+    }
+    if (xs.length < 2) return;
+    // least squares y = off + lh * rows
+    const n = xs.length;
+    const mx = xs.reduce((a, b) => a + b, 0) / n;
+    const my = ys.reduce((a, b) => a + b, 0) / n;
+    let sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) {
+      sxx += (xs[i] - mx) * (xs[i] - mx);
+      sxy += (xs[i] - mx) * (ys[i] - my);
+    }
+    if (sxx < 1e-6) return;
+    let lh = sxy / sxx;
+    lh = Math.max(alignState.fontPx * 1.25,
+                  Math.min(lh, alignState.fontPx * 6));
+    let off = my - lh * mx;
+    // a negative intercept means the source's opening lines are taller
+    // than the rendered title block: the editor cannot have negative
+    // padding, so the PREVIEW is shifted down by a container margin
+    // instead (its typography is untouched)
+    const MINPAD = 12;
+    let shift = 0;
+    if (off < MINPAD) {
+      shift = MINPAD - off;
+      off = MINPAD;
+    }
+    sheet.style.marginTop = shift ? (baseMargin + shift) + "px" : "";
+
+    // keep the source line at the viewport top where it was
+    const cs = getComputedStyle(src);
+    const oldLh = alignState.lh || parseFloat(cs.lineHeight);
+    const oldOff = alignState.off !== null
+      ? alignState.off : parseFloat(cs.paddingTop);
+    const topRows = Math.max(0, (src.scrollTop - oldOff) / oldLh);
+    src.style.lineHeight = lh.toFixed(2) + "px";
+    src.style.paddingTop = off.toFixed(1) + "px";
+    src.scrollTop = off + topRows * lh - 0.0001;
+    alignState.lh = lh;
+    alignState.off = off;
+
+    // piecewise map for the synchronised scroll (0,0 and totals close it)
+    const srcYs = [0], prevYs = [0];
+    for (let i = 0; i < n; i++) {
+      srcYs.push(off + xs[i] * lh);
+      prevYs.push(ys[i] + shift);
+    }
+    srcYs.push(off + rows[rows.length - 1] * lh + 40);
+    prevYs.push(scroller.scrollHeight);
+    alignState.srcYs = srcYs;
+    alignState.prevYs = prevYs;
+  }
+
+  function pwMap(y, from, to) {
+    if (!from.length) return y;
+    let i = 1;
+    while (i < from.length - 1 && from[i] < y) i++;
+    const a = from[i - 1], b = from[i];
+    const t = b > a ? (y - a) / (b - a) : 0;
+    return to[i - 1] + t * (to[i] - to[i - 1]);
+  }
+
+  let syncLock = null;
+  function syncFrom(which) {
+    if (!alignState.srcYs.length || syncLock === (which === "src"
+        ? "preview" : "src")) return;
+    syncLock = which;
+    const focus = 0.35;      // align at just above the middle of the view
+    if (which === "src") {
+      const yv = src.scrollTop + src.clientHeight * focus;
+      scroller.scrollTop = pwMap(yv, alignState.srcYs, alignState.prevYs)
+        - scroller.clientHeight * focus;
+    } else {
+      const yv = scroller.scrollTop + scroller.clientHeight * focus;
+      src.scrollTop = pwMap(yv, alignState.prevYs, alignState.srcYs)
+        - src.clientHeight * focus;
+    }
+    setTimeout(() => { syncLock = null; }, 60);
+  }
+  src.addEventListener("scroll", () => syncFrom("src"), {passive: true});
+  if (scroller) scroller.addEventListener(
+    "scroll", () => syncFrom("preview"), {passive: true});
+  window.addEventListener("resize", debounce(alignPanes, 250));
+  if (document.fonts && document.fonts.ready)
+    document.fonts.ready.then(() => setTimeout(alignPanes, 50));
+  const debouncedPreview = debounce(preview, 350);
+
+  /* ---- the direction of the source -------------------------------------
+     A Persian writing to teach English to Persians writes Persian prose
+     around English words, and a textarea laid out left to right puts every
+     full stop, question mark and heading mark of that prose at the wrong
+     end of its line.  ⇤ RTL editor turns the whole source right to left:
+     the textarea alone -- the preview is drawn as it always is, and the
+     exercise form's own direction buttons are their own.  Until it is
+     pressed the source goes the way its prose language (`lang:`, the
+     server's prose record) is written, and follows a `lang:` typed into
+     the front matter; once pressed, the choice is the document's,
+     remembered in this browser under parseh_editor_dir:<id>.  A document
+     not saved yet has no id: its choice is kept with the page it is being
+     written in, in that page's entry of the browser's history -- a reload
+     keeps it, and the next new document, a page of its own, starts from
+     its own `lang:` and never from a choice made for another one -- and is
+     the saved document's own from its first save.  Right to left, the
+     source is set in a face made for the script: the prose language's,
+     when that is a right-to-left language the registry has a face for
+     (Vazirmatn for Persian), else the target's, when that is one; left to
+     right it stays monospace. */
+  const DIR_KEY = "parseh_editor_dir:";
+  function storedDir(id) {
+    let v = null;
+    try { v = id ? localStorage.getItem(DIR_KEY + id) : (history.state || {}).editorDir; }
+    catch (e) { /* private mode */ }
+    return v === "rtl" || v === "ltr" ? v : null;
+  }
+  function storeDir(id, v) {
+    try {
+      if (id) localStorage.setItem(DIR_KEY + id, v);
+      else history.replaceState({...(history.state || {}), editorDir: v}, "");
+    } catch (e) { /* private mode: the page keeps it */ }
+  }
+  let prose = readJson("prose-lang", null) || {code: "en", dir: "ltr"};
+  let chosenDir = storedDir(DOC_ID);
+  const btnDir = $("#btn-editor-dir");
+  function rtlFace() {
+    const tokens = getComputedStyle(document.documentElement);
+    const face = [prose, lang()].find(L => L && L.dir === "rtl"
+                                      && tokens.getPropertyValue("--tl-font-" + L.code).trim());
+    return face ? face.code : null;
+  }
+  function applyEditorDir() {
+    const rtl = (chosenDir || (prose.dir === "rtl" ? "rtl" : "ltr")) === "rtl";
+    src.dir = rtl ? "rtl" : "ltr";
+    const face = rtl ? rtlFace() : null;
+    if (face) {
+      src.dataset.face = face;
+      src.style.setProperty("--src-face", `var(--tl-font-${face})`);
+    } else {
+      delete src.dataset.face;
+      src.style.removeProperty("--src-face");
+    }
+    if (btnDir) {
+      btnDir.textContent = rtl ? "⇥ LTR editor" : "⇤ RTL editor";
+      btnDir.title = rtl
+        ? "The source is written right to left. Click to write it left to right (remembered for this document)"
+        : "The source is written left to right. Click to write it right to left, "
+          + "for a right-to-left prose language (remembered for this document)";
+      btnDir.setAttribute("aria-label", btnDir.title);
+    }
+    // another face wraps the lines elsewhere: the panes are lined up again
+    alignState.fontPx = parseFloat(getComputedStyle(src).fontSize);
+    alignPanes();
+  }
+  if (btnDir) btnDir.addEventListener("click", () => {
+    chosenDir = src.dir === "rtl" ? "ltr" : "rtl";
+    storeDir(DOC_ID, chosenDir);
+    applyEditorDir();
+    src.focus({preventScroll: true});
+  });
+  applyEditorDir();
+
+  /* ---- undo / redo -----------------------------------------------------
+     An own stack: programmatic edits (paste-answer, image insert, colour
+     marks) would break the browser's native one.  Rapid typing within
+     700 ms collapses into one step. */
+  const hist = {stack: [{v: src.value, s: 0, e: 0}], idx: 0, last: 0,
+                muted: false};
+  const btnUndo = $("#btn-undo"), btnRedo = $("#btn-redo");
+  const snapState = () =>
+    ({v: src.value, s: src.selectionStart, e: src.selectionEnd});
+  function histButtons() {
+    if (btnUndo) btnUndo.disabled = hist.idx <= 0;
+    if (btnRedo) btnRedo.disabled = hist.idx >= hist.stack.length - 1;
+  }
+  function pushHistory(force) {
+    if (hist.muted) return;
+    const now = Date.now();
+    const cur = snapState();
+    if (cur.v === hist.stack[hist.idx].v) {
+      hist.stack[hist.idx] = cur;
+      return;
+    }
+    hist.stack.splice(hist.idx + 1);          // typing drops the redo branch
+    if (!force && now - hist.last < 700 && hist.idx > 0) {
+      hist.stack[hist.idx] = cur;             // group rapid keystrokes
+    } else {
+      hist.stack.push(cur);
+      hist.idx++;
+      if (hist.stack.length > 300) { hist.stack.shift(); hist.idx--; }
+    }
+    hist.last = now;
+    histButtons();
+  }
+  function restoreHist(state) {
+    hist.muted = true;
+    const st = src.scrollTop;
+    src.value = state.v;
+    src.setSelectionRange(state.s, state.e);
+    src.scrollTop = st;
+    hist.muted = false;
+    dirty = true;
+    src.focus();
+    debouncedPreview();
+    histButtons();
+  }
+  function undo() {
+    if (hist.idx > 0) { hist.idx--; hist.last = 0; restoreHist(hist.stack[hist.idx]); }
+  }
+  function redo() {
+    if (hist.idx < hist.stack.length - 1) {
+      hist.idx++; hist.last = 0; restoreHist(hist.stack[hist.idx]);
+    }
+  }
+  if (btnUndo) btnUndo.addEventListener("click", undo);
+  if (btnRedo) btnRedo.addEventListener("click", redo);
+  histButtons();
+
+  /* every programmatic replacement goes through here so it is undoable */
+  function setSource(value, selStart, selEnd) {
+    pushHistory(true);
+    const st = src.scrollTop;
+    src.value = value;
+    if (selStart !== undefined)
+      src.setSelectionRange(selStart, selEnd !== undefined ? selEnd : selStart);
+    src.scrollTop = st;
+    dirty = true;
+    pushHistory(true);
+    debouncedPreview();
+  }
+
+  src.addEventListener("input", () => {
+    dirty = true;
+    pushHistory(false);
+    debouncedPreview();
+  });
+
+  let saving = false;
+  const btnSave = $("#btn-save"), btnSaveView = $("#btn-save-view");
+  /* How far the library's renames go in the text here (store.names_mark):
+     sent with every save, which follows in the text the renames made
+     elsewhere since -- another tab, an upload's names dialog -- so an editor
+     left open does not put a name back that a rename took away. */
+  let namesMark = document.body.dataset.namesMark || "";
+  /* The text the server wrote, when it is not the text that was sent: a
+     save that renamed the document rewrote its own links to itself, and
+     one that followed a rename made elsewhere rewrote those (store.save);
+     the next save must not put the old names back.  Taken only when
+     nothing was typed meanwhile, and undoable like any edit -> whether the
+     editor now holds what was written (else the renames are followed
+     again at the next save, from the mark it had). */
+  function takeBack(sent, written) {
+    if (typeof written !== "string") written = sent;
+    if (written !== sent && src.value === sent) {
+      setSource(written, Math.min(src.selectionStart, written.length),
+                Math.min(src.selectionEnd, written.length));
+    }
+    dirty = src.value !== written;
+    return written === sent || src.value === written;
+  }
+  async function save(thenView) {
+    if (saving) return;          // in-flight guard: no duplicate POST on /new
+    saving = true;
+    btnSave.disabled = btnSaveView.disabled = true;
+    let id = DOC_ID;
+    try {
+      // the text as it was when Save was pressed: what goes up, and what
+      // goes up again with the names the dialog is given, however long it
+      // stays open (Save stays disabled meanwhile, and the text untouched)
+      const sent = src.value;
+      const path = id ? "/api/docs/" + id : "/api/docs", method = id ? "PUT" : "POST";
+      const since = namesMark;
+      let a = await send(path, {method, json: {markdown: sent, since}});
+      if (nameClash(a)) {
+        a = await askNames(a.data, renames =>
+          send(path, {method, json: {markdown: sent, since, renames}}), {verb: "saved"});
+        if (!a) {
+          toast("Not saved: that name is taken — nothing was written", true);
+          src.focus();
+          return;
+        }
+      }
+      if (!a.ok) throw new Error(a.data.error || `the server answered ${a.status}`);
+      if (id) {
+        if (takeBack(sent, a.data.markdown) && a.data.names_mark) namesMark = a.data.names_mark;
+        $(".doc-title").textContent = a.data.meta.title;
+        toast("Saved");
+        if (thenView) location.href = BASE + "/doc/" + id;
+      } else {
+        dirty = false;
+        // the direction chosen for it before it had an id is now its own
+        if (chosenDir) storeDir(a.data.meta.id, chosenDir);
+        location.href = thenView ? BASE + "/doc/" + a.data.meta.id
+                                 : BASE + "/doc/" + a.data.meta.id + "/edit";
+      }
+    } catch (e) {
+      toast("Save failed: " + e.message, true);
+    } finally {
+      // On success we navigate away; only re-enable if we're still here.
+      saving = false;
+      btnSave.disabled = btnSaveView.disabled = false;
+    }
+  }
+
+  $("#btn-save").addEventListener("click", () => save(false));
+  $("#btn-save-view").addEventListener("click", () => save(true));
+  document.addEventListener("keydown", e => {
+    const mod = e.metaKey || e.ctrlKey;
+    if (!mod) return;
+    const k = e.key.toLowerCase();
+    const inModal = e.target.closest && e.target.closest(".modal");
+    if (k === "s") {
+      e.preventDefault(); save(false);
+    } else if (!inModal && k === "z" && !e.shiftKey) {
+      e.preventDefault(); undo();      // ⌘Z (mac) / Ctrl+Z (win, linux)
+    } else if (!inModal && ((k === "z" && e.shiftKey) || k === "y")) {
+      e.preventDefault(); redo();      // ⇧⌘Z, Ctrl+Shift+Z, Ctrl+Y
+    }
+  });
+  window.addEventListener("beforeunload", e => {
+    if (dirty) { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  function insertAtCursor(text, cursorBack) {
+    pushHistory(true);
+    const [a, b] = [src.selectionStart, src.selectionEnd];
+    src.setRangeText(text, a, b, "end");
+    if (cursorBack) src.selectionStart = src.selectionEnd = a + text.length - cursorBack;
+    src.focus();
+    dirty = true;
+    pushHistory(true);
+    debouncedPreview();
+  }
+  const inserts = [["#ins-zwnj", "‌", 0], ["#ins-arrow", "→", 0],
+                   ["#ins-ungram", "✗", 0], ["#ins-ok", "✅ ", 0],
+                   ["#ins-guill", "«»", 1],
+                   ["#ins-gloss", " = ", 0],
+                   ["#ins-link", "[testo](https://)", 1],
+                   ["#ins-color", "[]{teal}", 7],
+                   ["#ins-br", "⏎", 0]];
+  for (const [sel, text, back2] of inserts) {
+    const b = $(sel);
+    if (b) b.addEventListener("click", () => insertAtCursor(text, back2));
+  }
+  // every entry of the Exercises menu opens a dialog over it, and a menu
+  // left standing behind one is a menu whose next use closes it instead of
+  // opening it -- so the menu shuts as the entry is pressed
+  document.addEventListener("click", e => {
+    const entry = e.target.closest(".dropdown .menu button");
+    const menu = entry && entry.closest("details.dropdown");
+    if (menu) menu.open = false;
+  });
+  const btnExercise = $("#btn-exercise");
+  if (btnExercise) btnExercise.addEventListener("click", chooseExercise);
+  const btnExercisePrompt = $("#btn-exercise-prompt");
+  if (btnExercisePrompt) btnExercisePrompt.addEventListener("click", () =>
+    exercisePrompt().catch(e => toast("Could not open exercise prompt: " + e.message, true)));
+  // no deck store within reach (the studio alone beside a shelf it does not
+  // know): no address, and so no entry rather than one that cannot work
+  const btnExerciseDeck = $("#btn-exercise-deck");
+  if (btnExerciseDeck && !decksBase) btnExerciseDeck.remove();
+  else if (btnExerciseDeck) btnExerciseDeck.addEventListener("click", () =>
+    loadFromDeck().catch(e => toast("Could not open the decks: " + e.message, true)));
+
+  /* ---- footnotes ----
+
+     A note is two separate pieces of markdown: the reference `[^id]`
+     where it is called, and the definition `[^id]: …` further down.
+     Writing them by hand means keeping the ids in step and, if the
+     definitions are to read in the order the reader meets them, putting
+     each new one in the right place among the others.  The dialog does
+     both from one form. */
+
+  const FN_DEF_RE = /^\[\^([^\[\]\s]+)\]:/;
+
+  /** Every definition block in `lines`: the `[^id]:` line plus any
+      indented continuation lines that belong to it. */
+  function footnoteDefs(lines) {
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(FN_DEF_RE);
+      if (!m) continue;
+      let j = i + 1;
+      while (j < lines.length && /^\s+\S/.test(lines[j])) j++;
+      out.push({id: m[1], from: i, to: j});
+      i = j - 1;
+    }
+    return out;
+  }
+
+  /** The ids in the order the reader first meets them in the body. */
+  function footnoteRefOrder(lines) {
+    const order = [];
+    for (const l of lines) {
+      if (FN_DEF_RE.test(l)) continue;          // a definition, not a call
+      for (const m of l.matchAll(/\[\^([^\[\]\s]+)\]/g))
+        if (!order.includes(m[1])) order.push(m[1]);
+    }
+    return order;
+  }
+
+  /** Splice `[^id]: content` into `text` so the definitions stay in the
+      same order as the references that call them. */
+  function placeFootnoteDef(text, id, content) {
+    const lines = text.split("\n");
+    const defs = footnoteDefs(lines);
+    const order = footnoteRefOrder(lines);
+    const rank = x => {
+      const i = order.indexOf(x);
+      return i === -1 ? Number.MAX_SAFE_INTEGER : i;   // never called: last
+    };
+    const line = `[^${id}]: ${content}`.trimEnd();
+    const mine = rank(id);
+
+    const after = defs.find(d => rank(d.id) > mine);
+    if (after) {                       // before the first later-called note
+      lines.splice(after.from, 0, line);
+    } else if (defs.length) {          // after the last definition
+      lines.splice(defs[defs.length - 1].to, 0, line);
+    } else {                           // the document's first note
+      while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+      lines.push("", line);
+    }
+    return lines.join("\n");
+  }
+
+  const btnNote = $("#ins-note");
+  if (btnNote) btnNote.addEventListener("click", () => {
+    const taken = new Set(footnoteDefs(src.value.split("\n")).map(d => d.id));
+    let auto = 1;
+    while (taken.has("n" + auto)) auto++;
+
+    showModal({
+      title: "Footnote",
+      hint: "The reference goes in at the cursor; the note itself is placed "
+          + "with the others, in the order the reader meets them.",
+      value: "",
+      okLabel: "Insert note",
+      fields: [{key: "name", label: "Name", value: "",
+                placeholder: `optional — “n${auto}” if you leave it empty`}],
+      onOk: async (content, close, fields) => {
+        const body = (content || "").trim();
+        if (!body) throw new Error("the note has no text");
+        let id = (fields.name || "").trim()
+                   .replace(/\s+/g, "-").replace(/[\[\]^:]/g, "");
+        if (!id) id = "n" + auto;
+        if (taken.has(id))
+          throw new Error(`there is already a note called “${id}”`);
+
+        const a = src.selectionStart, b = src.selectionEnd;
+        const ref = `[^${id}]`;
+        const withRef = src.value.slice(0, a) + ref + src.value.slice(b);
+        setSource(placeFootnoteDef(withRef, id, body), a + ref.length);
+        src.focus();
+        close();
+        toast(`Note “${id}” inserted`);
+      },
+    });
+  });
+
+  /* tl button: with a selection, wrap it in [ … ]{tl} — multiline form
+     when the selection spans lines; without one, insert an empty mark.
+     `{tl}` is the generic marker; the Persian `{fa}` stays readable. */
+  const insTl = $("#ins-tl");
+  if (insTl) insTl.addEventListener("click", () => {
+    const a = src.selectionStart, b = src.selectionEnd;
+    if (a === b) { insertAtCursor("[]{tl}", 5); return; }
+    const clean = src.value.slice(a, b).replace(/[\[\]]/g, "");
+    const wrapped = clean.includes("\n")
+      ? "[\n" + clean.replace(/^\n+|\n+$/g, "") + "\n]{tl}"
+      : "[" + clean + "]{tl}";
+    pushHistory(true);
+    src.setRangeText(wrapped, a, b, "end");
+    src.focus();
+    dirty = true;
+    pushHistory(true);
+    debouncedPreview();
+  });
+
+  /* math button: wrap the selection in [ … ]{math}.  Brackets are NOT
+     stripped as the tl button strips them -- an interval [0,1] and a
+     \sqrt[3]{x} are ordinary mathematics, and MATH_RE reads its body up to
+     the `]{math}` that ends it, so they survive. */
+  const insMath = $("#ins-math");
+  if (insMath) insMath.addEventListener("click", () => {
+    const a = src.selectionStart, b = src.selectionEnd;
+    if (a === b) { insertAtCursor("[]{math}", 7); return; }
+    pushHistory(true);
+    src.setRangeText("[" + src.value.slice(a, b) + "]{math}", a, b, "end");
+    src.focus();
+    dirty = true;
+    pushHistory(true);
+    debouncedPreview();
+  });
+
+  /* kana button (reading languages): wrap the selection as [ … ]{kana:}
+     with the caret before the closing brace, ready for the reading;
+     without a selection the caret lands inside the brackets */
+  const insKana = $("#ins-kana");
+  if (insKana) insKana.addEventListener("click", () => {
+    const a = src.selectionStart, b = src.selectionEnd;
+    if (a === b) { insertAtCursor("[]{kana:}", 8); return; }
+    const clean = src.value.slice(a, b).replace(/[\[\]\n]/g, "");
+    pushHistory(true);
+    src.setRangeText("[" + clean + "]{kana:}", a, b, "end");
+    src.selectionStart = src.selectionEnd = src.selectionEnd - 1;
+    src.focus();
+    dirty = true;
+    pushHistory(true);
+    debouncedPreview();
+  });
+
+  /* la button: wrap the selection (or an empty mark) in [ … ]{la} —
+     the Latin mirror of rtl; content keeps its markdown untouched */
+  const insLa = $("#ins-la");
+  if (insLa) insLa.addEventListener("click", () => {
+    const a = src.selectionStart, b = src.selectionEnd;
+    if (a === b) { insertAtCursor("[]{la}", 5); return; }
+    const sel = src.value.slice(a, b);
+    const wrapped = sel.includes("\n")
+      ? "[\n" + sel.replace(/^\n+|\n+$/g, "") + "\n]{la}"
+      : "[" + sel + "]{la}";
+    pushHistory(true);
+    src.setRangeText(wrapped, a, b, "end");
+    src.focus();
+    dirty = true;
+    pushHistory(true);
+    debouncedPreview();
+  });
+
+  /* Tidying one line of the target-text overlay.  `trim()` and `\s` take
+     U+3000, the ideographic space, for blank space; in a language without
+     a word separator that space is an indent the writer meant (the first
+     line of a Japanese verse), so there only ASCII whitespace is trimmed
+     and nothing inside the line is collapsed.  (The store's rewriter
+     must keep the same rule, or the indent is lost on the server.) */
+  function tidyTlLine(s, collapse) {
+    if (lang().word_sep === "") return s.replace(/^[ \t]+|[ \t]+$/g, "");
+    if (collapse) s = s.replace(/\s+/g, " ");
+    return s.trim();
+  }
+
+  /* the target-text overlay: a big box in the document's direction and
+     face for comfortable typing; every line of the box becomes a real
+     line (⏎ in markdown).  Font is offered only when the language has an
+     alternate face, Vertical (with a column height) only when it can be
+     set vertically; the result is a [ … ]{tl …} block. */
+  function openTlOverlay(opts) {
+    const L = lang();
+    const altKey = (L.fonts || {}).alt_key;
+    const root = $("#modal-root");
+    root.innerHTML = "";
+    const ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal rtl-modal" data-lang="${escAttr(L.code)}">
+      <h3></h3>
+      <p>Every line of the box becomes a real line (a ⏎ in the markdown).
+      Square brackets are not allowed inside and will be removed.</p>
+      <textarea class="rtlbox" dir="${escAttr(L.dir)}" lang="${escAttr(L.code)}" rows="8" spellcheck="false"></textarea>
+      <div class="row rtl-opts">
+        <label ${altKey ? "" : "hidden"}>Font
+          <select data-k="font">
+            <option value="">${escAttr(L.name)} (default)</option>
+            ${altKey ? `<option value="${escAttr(altKey)}">${escAttr(altKey)}</option>` : ""}
+          </select></label>
+        <label>Background
+          <select data-k="bg">
+            <option value="">none (default)</option>
+            <option value="quote">quote</option>
+            <option value="sand">sand</option>
+            <option value="rose">rose</option>
+            <option value="sage">sage</option>
+            <option value="lilac">lilac</option>
+          </select></label>
+        <label ${L.vertical ? "" : "hidden"} title="Columns top-to-bottom, progressing right-to-left (tategaki)">
+          <input type="checkbox" data-k="vertical"> vertical</label>
+        <label ${L.vertical ? "" : "hidden"} title="Column height, in em (8–60)">height
+          <input type="number" data-k="height" min="8" max="60" step="1" value="22"></label>
+      </div>
+      <div class="row">
+        <button class="btn" data-x="cancel">Cancel</button>
+        <button class="btn primary" data-x="ok"></button>
+      </div></div>`;
+    $("h3", ov).textContent = opts.title;
+    $('[data-x="ok"]', ov).textContent = opts.okLabel || "Insert";
+    const ta = $("textarea", ov);
+    ta.value = (opts.lines || []).join("\n");
+    const selFont = $('[data-k="font"]', ov), selBg = $('[data-k="bg"]', ov);
+    const ckVert = $('[data-k="vertical"]', ov), inHeight = $('[data-k="height"]', ov);
+    selFont.value = altKey && opts.font === altKey ? altKey : "";
+    selBg.value = opts.bg || "";
+    ckVert.checked = !!(L.vertical && opts.vertical);
+    if (opts.height) inHeight.value = opts.height;
+    const applyBoxStyle = () => {
+      ta.classList.toggle("alt", !!selFont.value);
+      ta.style.background = selBg.value
+        ? `var(--rtlbg-${selBg.value})` : "";
+    };
+    selFont.addEventListener("change", applyBoxStyle);
+    selBg.addEventListener("change", applyBoxStyle);
+    applyBoxStyle();
+    const close = () => { if (ov.parentNode) root.removeChild(ov); };
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    $('[data-x="cancel"]', ov).addEventListener("click", close);
+    let busy = false;
+    $('[data-x="ok"]', ov).addEventListener("click", async () => {
+      if (busy) return;
+      const lines = ta.value.split("\n")
+        .map(l => tidyTlLine(l.replace(/[\[\]]/g, ""))).filter(Boolean);
+      if (!lines.length) { toast("The block cannot be empty", true); return; }
+      const height = Math.max(8, Math.min(60, parseInt(inHeight.value, 10) || 22));
+      busy = true;
+      try {
+        await opts.onSave(lines,
+                          {font: selFont.value, bg: selBg.value,
+                           vertical: L.vertical && ckVert.checked,
+                           height}, close);
+      } catch (e) {
+        toast(e.message, true);
+        busy = false;
+      }
+    });
+    root.appendChild(ov);
+    ta.focus();
+  }
+
+  /* the marker the overlay writes: `{tl …}` for every language (the
+     store's _tl_marker is the server twin) */
+  function tlMarker(style) {
+    const parts = ["tl"];
+    if (style.font) parts.push("font=" + style.font);
+    if (style.bg) parts.push("bg=" + style.bg);
+    if (style.vertical) {
+      parts.push("vertical");
+      if (style.height && style.height !== 22) parts.push("height=" + style.height);
+    }
+    return "{" + parts.join(" ") + "}";
+  }
+
+  const btnMathEditor = $("#btn-math-editor");
+  if (btnMathEditor) btnMathEditor.addEventListener("click", () => {
+    // a selection is taken as the formula to start from, which is how the
+    // tl editor behaves and what somebody who has just typed one expects
+    const a = src.selectionStart, b = src.selectionEnd;
+    const picked = a === b ? "" : src.value.slice(a, b).trim();
+    openMathOverlay({
+      backTo: src,
+      tex: picked,
+      display: picked.includes("\n"),
+      onSave: (tex, block) => {
+        if (block) insertStandaloneLine(mathMarkup(tex, true));
+        else if (a === b) insertAtCursor(mathMarkup(tex, false));
+        else {
+          pushHistory(true);
+          src.setRangeText(mathMarkup(tex, false), a, b, "end");
+          dirty = true;
+          pushHistory(true);
+          debouncedPreview();
+        }
+      },
+    });
+  });
+
+  const btnTlEditor = $("#btn-tl-editor");
+  if (btnTlEditor) btnTlEditor.addEventListener("click", () => {
+    openTlOverlay({
+      title: lang().name + " text", okLabel: "Insert", lines: [],
+      onSave: (lines, style, close) => {
+        const marker = tlMarker(style);
+        if (lines.length === 1 && !style.vertical) {
+          insertAtCursor(`[${lines[0]}]` + marker, 0);
+        } else {
+          insertStandaloneLine("[\n" + lines.join("⏎\n") + "\n]" + marker);
+        }
+        close();
+      },
+    });
+  });
+
+  /* hovering a rendered block in the preview offers ✎ — it reopens the
+     block in the overlay and writes the edit back into the buffer */
+  (function bindTlEditCloud(container) {
+    let btn = null, target = null, hideTimer = null;
+    function build() {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rtl-edit-btn";
+      btn.title = "Edit this block in the overlay editor";
+      btn.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+      btn.addEventListener("mouseleave", scheduleHide);
+      btn.addEventListener("click", () => {
+        const el = target;
+        hide();
+        openFor(el);
+      });
+      document.body.appendChild(btn);
+    }
+    function show(el) {
+      if (!btn) build();
+      target = el;
+      btn.textContent = "✎ " + lang().code;   // the buffer's language, live
+      btn.style.display = "block";
+      const r = el.getBoundingClientRect();
+      btn.style.top = Math.max(4, r.top + window.scrollY - 24) + "px";
+      btn.style.left = Math.max(4,
+        r.right + window.scrollX - btn.offsetWidth) + "px";
+    }
+    function hide() { if (btn) btn.style.display = "none"; target = null; }
+    function scheduleHide() { hideTimer = setTimeout(hide, 260); }
+    container.addEventListener("mouseover", e => {
+      const el = e.target.closest("[data-tl-src]");
+      if (el && container.contains(el)) { clearTimeout(hideTimer); show(el); }
+    });
+    container.addEventListener("mouseout", e => {
+      if (e.target.closest("[data-tl-src]")) scheduleHide();
+    });
+    window.addEventListener("scroll", hide, {passive: true});
+
+    function openFor(el) {
+      const kind = el.dataset.tlKind, content = el.dataset.tlSrc;
+      // which of the blocks with this text it is, as the source counts
+      // them: the page draws an exercise out of the source's order, and
+      // numbers each block in the source's (htmlgen, data-tl-occ)
+      const occ = el.dataset.tlOcc !== undefined ? Number(el.dataset.tlOcc)
+        : Math.max(0, $$('[data-tl-kind="' + kind + '"]', container)
+            .filter(x => x.dataset.tlSrc === content).indexOf(el));
+      const lines = content.split(lang().word_sep === "" ? /[ \t]*⏎[ \t]*/ : /\s*⏎\s*/)
+        .map(s => tidyTlLine(s, true)).filter(Boolean);
+      openTlOverlay({
+        title: "Edit " + lang().name + " block", okLabel: "Save", lines,
+        font: el.dataset.tlFont || "",
+        bg: el.dataset.tlBg || "",
+        vertical: el.dataset.tlVertical === "1",
+        height: parseInt(el.dataset.tlHeight, 10) || 22,
+        onSave: async (newLines, style, close) => {
+          const data = await api("/api/tl-edit", {method: "POST",
+            json: {markdown: src.value, kind, content,
+                   occurrence: occ, lines: newLines,
+                   font: style.font, bg: style.bg,
+                   vertical: style.vertical, height: style.height}});
+          setSource(data.markdown);
+          close();
+          preview();
+        },
+      });
+    }
+  })(sheet);
+
+  /* Importing a whole document — "Paste LLM answer", "Load .md" — belongs
+     to the library page, which is where a document is started.  Inside
+     the editor both replaced everything already typed, which is not an
+     edit but an accident waiting to happen. */
+
+  /* layout panels over the preview: same interactive tools as the
+     reading view, but they rewrite the (possibly unsaved) buffer via
+     the pure endpoints.  The preview DOM is already updated live by the
+     panel itself, so the buffer is patched quietly — no re-render, no
+     lost panel — and only the alignment map is refreshed. */
+  function setSourceQuiet(value) {
+    pushHistory(true);
+    const st = src.scrollTop;
+    src.value = value;
+    src.scrollTop = st;
+    dirty = true;
+    pushHistory(true);
+    histButtons();
+  }
+  panelClosers.push(bindImageLayout(sheet, {save: async payload => {
+    const data = await api("/api/image-layout",
+                           {method: "POST",
+                            json: Object.assign({markdown: src.value},
+                                                payload)});
+    setSourceQuiet(data.markdown);
+    setTimeout(alignPanes, 0);
+  }}).close);
+  panelClosers.push(bindLaLayout(sheet, {save: async payload => {
+    const data = await api("/api/la-layout",
+                           {method: "POST",
+                            json: Object.assign({markdown: src.value},
+                                                payload)});
+    setSourceQuiet(data.markdown);
+    setTimeout(alignPanes, 0);
+  }}).close);
+
+  /* colour palette over the preview: rewrites the (possibly unsaved)
+     editor buffer through the same server-side logic the reading view
+     uses, so occurrence targeting is identical */
+  bindColorPalette(sheet, {
+    apply: async body => {
+      const data = await api("/api/recolor",
+                             {method: "POST",
+                              json: Object.assign({markdown: src.value}, body)});
+      setSource(data.markdown);
+      preview();
+    },
+    applyTranslit: async body => {
+      const data = await api("/api/translit",
+                             {method: "POST",
+                              json: Object.assign({markdown: src.value}, body)});
+      setSource(data.markdown);
+      preview();
+    },
+    applyKana: async body => {
+      const data = await api("/api/kana",
+                             {method: "POST",
+                              json: Object.assign({markdown: src.value}, body)});
+      setSource(data.markdown);
+      preview();
+    },
+  });
+
+  /* ---- images: upload, insert, manage ---- */
+
+  // The embed put in last, while its placeholder is still selected.  Another
+  // embed arriving then -- the next of several files uploaded or dropped at
+  // once -- goes in on the line after it, not over the word inside it.
+  let lastEmbed = null;
+  function insertStandaloneLine(line, selectWord) {
+    // the dialect wants embeds on a line of their own
+    pushHistory(true);
+    const last = lastEmbed;
+    lastEmbed = null;
+    if (last && src.selectionStart === last.word[0] && src.selectionEnd === last.word[1]
+        && src.value.slice(last.from, last.to) === last.line)
+      src.setSelectionRange(last.to, last.to);
+    const a = src.selectionStart;
+    const before = src.value.slice(0, a), after = src.value.slice(src.selectionEnd);
+    const pre = before && !before.endsWith("\n\n")
+      ? (before.endsWith("\n") ? "\n" : "\n\n") : "";
+    // the same blank line on the way out: an embed pushed straight up
+    // against the next heading parses, but it is not what anyone writes
+    const post = !after ? ""
+      : after.startsWith("\n\n") ? ""
+      : after.startsWith("\n") ? "\n" : "\n\n";
+    src.setRangeText(pre + line + post, a, src.selectionEnd, "end");
+    if (selectWord) {
+      // leave the placeholder selected so typing replaces it
+      const p = line.indexOf(selectWord);
+      if (p >= 0) {
+        const s = a + pre.length + p;
+        src.setSelectionRange(s, s + selectWord.length);
+        lastEmbed = {line, from: a + pre.length, to: a + pre.length + line.length,
+                     word: [s, s + selectWord.length]};
+      }
+    }
+    src.focus();
+    dirty = true;
+    pushHistory(true);
+    debouncedPreview();
+  }
+
+  const insertImageLine = path =>
+    insertStandaloneLine(`![didascalia](${path})`, "didascalia");
+  // a recording is written as a picture is, its path under audio/
+  const insertAudioLine = insertImageLine;
+
+  /* ---- the clip tray ----
+
+     A recording cut in a book or a video, or a frame captured from a film,
+     waits in the toolbox's clip tray under a name unique across it, and
+     `audio/<name>` or `images/<name>` pasted anywhere names that one file.
+     The document has no copy of it until the server brings one in
+     (POST …/adopt): a saved document does so on every save, and the editor
+     asks at once for what was just pasted or added, so the preview plays
+     it before anything is saved. */
+  const MEDIA_REF_RE = /(?<![A-Za-z0-9._\/\-])(?:images|audio)\/[A-Za-z0-9][A-Za-z0-9._\-]*/;
+  async function adoptFromTray(markdown) {
+    if (!DOC_ID || !MEDIA_REF_RE.test(markdown)) return null;
+    const data = await api(`/api/docs/${DOC_ID}/adopt`, {method: "POST", json: {markdown}});
+    const n = (data.adopted || []).length;
+    if (n) {
+      toast(`Brought ${n} file${n === 1 ? "" : "s"} from the clip tray`);
+      preview();
+    }
+    return data;
+  }
+
+  /* ---- pasting a figure ----
+
+     A figure on the clipboard arrives as bytes with no useful name — a
+     screenshot is "image.png" at best — so ask what to call it, store it
+     in the document's own images/ folder, and put the embed back where
+     the cursor was.  The cursor has to be remembered before the dialog
+     opens, because opening it takes the focus out of the textarea. */
+
+  const FIGURE_TYPE = /^(?:image\/(?:png|jpeg|svg\+xml)|application\/pdf)$/;
+  const FIGURE_KIND = {"image/png": "PNG", "image/jpeg": "JPEG",
+                       "image/svg+xml": "SVG", "application/pdf": "PDF"};
+
+  function clipboardFigure(cd) {
+    const named = [...(cd.files || [])].find(f => FIGURE_TYPE.test(f.type));
+    if (named) return named;
+    const item = [...(cd.items || [])]
+      .find(i => i.kind === "file" && FIGURE_TYPE.test(i.type));
+    return item ? item.getAsFile() : null;
+  }
+
+  src.addEventListener("paste", e => {
+    const cd = e.clipboardData;
+    if (!cd) return;
+    let file = clipboardFigure(cd);
+    let svgText = null;
+    if (!file) {
+      // SVG often travels as markup rather than as a file
+      const text = cd.getData("text/plain") || "";
+      if (/^\s*(?:<\?xml[^>]*\?>\s*)?<svg[\s>]/i.test(text)) {
+        svgText = text;
+        file = new File([text], "figure.svg", {type: "image/svg+xml"});
+      }
+    }
+    if (!file) {
+      // ordinary paste: left to the browser -- and what it names from the
+      // clip tray brought into the document
+      adoptFromTray(cd.getData("text/plain") || "")
+        .catch(err => toast("Could not bring the clips in: " + err.message, true));
+      return;
+    }
+    e.preventDefault();
+
+    if (!DOC_ID) {
+      // fall back to the plain paste rather than losing what was copied
+      if (svgText) insertAtCursor(svgText);
+      toast("Save the document first — figures live in its own folder", true);
+      return;
+    }
+
+    const at = src.selectionStart, to = src.selectionEnd;
+    const stem = (file.name || "").replace(/\.[^.]*$/, "").trim();
+    const kind = FIGURE_KIND[file.type] || "figure";
+
+    showModal({
+      title: `Paste ${kind} figure`,
+      hint: `${Math.max(1, Math.round(file.size / 1024))} kB. It is saved in `
+          + "this document's images/ folder and embedded where the cursor "
+          + "was; the extension follows the file's actual type.",
+      textarea: false,
+      okLabel: "Save and insert",
+      onCancel: () => {
+        // the browser's own paste was suppressed to open this; if the
+        // clipboard held SVG markup rather than a file, give it back
+        if (!svgText) return;
+        src.focus();
+        src.setSelectionRange(at, to);
+        insertAtCursor(svgText);
+      },
+      fields: [
+        {key: "name", label: "File name", value: stem && stem !== "image" ? stem : "",
+         placeholder: "figure"},
+        {key: "caption", label: "Caption (optional)", value: "",
+         placeholder: "shown under the figure"},
+      ],
+      onOk: async (_ignored, close, f) => {
+        const name = (f.name || "").trim() || "figure";
+        const data = await uploadImage(DOC_ID, file, name);
+        close();
+        // put the caret back where the paste happened before inserting
+        src.focus();
+        src.setSelectionRange(at, to);
+        const cap = (f.caption || "").trim();
+        if (cap) insertStandaloneLine(`![${cap}](${data.path})`);
+        else insertImageLine(data.path);
+        toast(`Saved as ${data.name}`);
+      },
+    });
+  });
+
+  const btnVideo = $("#btn-video");
+  if (btnVideo) btnVideo.addEventListener("click", () => {
+    const url = prompt(
+      "YouTube URL (watch / youtu.be / shorts link, or the 11-char ID).\n" +
+      "The whole video is embedded; optional clip times and the layout\n" +
+      "can be set at any moment by clicking ⚙ on the embedded player.");
+    if (!url || !url.trim()) return;
+    insertStandaloneLine(`@[didascalia](${url.trim()})`, "didascalia");
+  });
+
+  /* Link to another document.  What goes into the markdown is the
+     target's NAME -- its title, as its front matter spells it -- which a
+     person can read and which the studio keeps pointing at the same
+     document: a rename rewrites every link to it.  The shown text is
+     optional and, left empty, the target's current title is displayed. */
+  const btnDocLink = $("#btn-doclink");
+  if (btnDocLink) btnDocLink.addEventListener("click", async () => {
+    let docs = [];
+    try {
+      docs = (await api("/api/docs")).docs || [];
+    } catch (e) {
+      return toast("Could not read the library: " + e.message, true);
+    }
+    // linking a document to itself is never what is meant
+    docs = docs.filter(d => d.title && d.id !== DOC_ID);
+    if (!docs.length)
+      return toast("No other document in the library to link to");
+
+    const selected = src.value.slice(src.selectionStart, src.selectionEnd);
+    const root = $("#modal-root");
+    root.innerHTML = "";
+    const ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal dl-modal" role="dialog" aria-modal="true">
+      <h3>Link to another document</h3>
+      <p>The link names the document by its title; renaming it rewrites
+         every link to it, so it keeps working. Leave the shown text empty
+         to display that document's current title.</p>
+      <input class="dl-filter" type="search" placeholder="Filter by title or tag"
+             autocomplete="off" spellcheck="false">
+      <div class="dl-list"></div>
+      <label class="dl-textrow">Shown text
+        <input class="dl-text" type="text" spellcheck="false"
+               placeholder="(empty — use the linked document's title)"></label>
+      <div class="row">
+        <button class="btn" data-x="cancel">Cancel</button>
+        <button class="btn primary" data-x="ok" disabled>Insert link</button>
+      </div></div>`;
+
+    const list = $(".dl-list", ov), filter = $(".dl-filter", ov);
+    const textIn = $(".dl-text", ov), okBtn = $('[data-x="ok"]', ov);
+    let chosen = null;
+    textIn.value = selected.trim();
+
+    function draw() {
+      // titles and tags are the target's own words: "İstanbul Rehberi"
+      // must answer to "istanbul", and the tag "italyanca" to the
+      // "İtalyanca" its language spells it with (the fold store.py
+      // searches the library by, so the two lists narrow alike)
+      const q = foldCase(filter.value.trim());
+      const rows = docs.filter(d => !q
+        || foldCase(d.title).includes(q)
+        || (d.tags || []).some(t => foldCase(t).includes(q)));
+      if (!rows.length) {
+        list.innerHTML = `<div class="dl-empty">Nothing matches.</div>`;
+        return;
+      }
+      list.innerHTML = rows.map(d => `
+        <button type="button" class="dl-item${chosen && d.id === chosen.id ? " on" : ""}"
+                data-id="${escAttr(d.id)}">
+          <span class="dl-t">${escAttr(d.title || d.id)}</span>
+          <span class="dl-s">${escAttr(d.subtitle || "")}</span>
+        </button>`).join("");
+      $$(".dl-item", list).forEach(b => b.addEventListener("click", () => {
+        chosen = docs.find(d => d.id === b.dataset.id) || null;
+        okBtn.disabled = false;
+        draw();
+      }));
+    }
+    filter.addEventListener("input", draw);
+    draw();
+
+    const close = () => { if (ov.parentNode) root.removeChild(ov); };
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    $('[data-x="cancel"]', ov).addEventListener("click", close);
+    okBtn.addEventListener("click", () => {
+      if (!chosen) return;
+      const label = textIn.value.trim();
+      close();
+      // replaces the selection when the button was used on one.  A name
+      // holding "|" -- only one from before names were checked can -- would
+      // split a table's cell: that document is linked by its uid, which
+      // reaches it as well (and which the next start writes by name, once
+      // it has one without)
+      const target = chosen.title.includes("|") && chosen.uid ? chosen.uid
+        : escapeDocName(chosen.title);
+      insertAtCursor(`[${label}](doc:${target})`);
+      toast(label ? "Link inserted" : "Link inserted — shows the target's title");
+    });
+    root.appendChild(ov);
+    filter.focus();
+  });
+
+  async function handleImageFiles(files) {
+    if (!DOC_ID) {
+      toast("Save the document first — images are stored in its folder", true);
+      return;
+    }
+    for (const f of files) {
+      try {
+        const data = await uploadImage(DOC_ID, f);
+        insertImageLine(data.path);
+        toast("Uploaded " + data.name);
+      } catch (e) {
+        toast(`${f.name}: ${e.message}`, true);
+      }
+    }
+  }
+
+  async function handleAudioFiles(files) {
+    if (!DOC_ID) {
+      toast("Save the document first — recordings are stored in its folder", true);
+      return;
+    }
+    for (const f of files) {
+      try {
+        const data = await uploadAudio(DOC_ID, f);
+        insertAudioLine(data.path);
+        toast("Uploaded " + data.name);
+      } catch (e) {
+        toast(`${f.name}: ${e.message}`, true);
+      }
+    }
+  }
+
+  const imgUpload = $("#img-upload");
+  if (imgUpload) imgUpload.addEventListener("change", e => {
+    handleImageFiles([...e.target.files]);
+    e.target.value = "";
+  });
+  const audioUpload = $("#audio-upload");
+  if (audioUpload) audioUpload.addEventListener("change", e => {
+    handleAudioFiles([...e.target.files]);
+    e.target.value = "";
+  });
+
+  /* A file dropped on the page is never opened in place of it, which would
+     leave the editor and whatever was not saved.  On the editor a picture
+     or a recording is stored and embedded; anywhere else nothing happens. */
+  const draggingFiles = e => !!e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+  const isFigureFile = f => /^image\/(png|jpeg|svg\+xml)$/.test(f.type)
+    || f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+  const isAudioFile = f => /^audio\//.test(f.type) || AUDIO_NAME_RE.test(f.name);
+  window.addEventListener("dragover", e => {
+    if (!draggingFiles(e) || e.defaultPrevented) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "none";
+  });
+  window.addEventListener("drop", e => {
+    if (draggingFiles(e)) e.preventDefault();
+  });
+  const editorPane = $(".editor-pane");
+  if (editorPane) {
+    editorPane.addEventListener("dragover", e => {
+      if (draggingFiles(e)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        editorPane.classList.add("dragover");
+      }
+    });
+    editorPane.addEventListener("dragleave", () =>
+      editorPane.classList.remove("dragover"));
+    editorPane.addEventListener("drop", async e => {
+      if (!draggingFiles(e)) return;
+      e.preventDefault();
+      editorPane.classList.remove("dragover");
+      const files = [...e.dataTransfer.files];
+      const refused = files.filter(f => !isFigureFile(f) && !isAudioFile(f));
+      if (refused.length)
+        toast(`${refused.map(f => f.name).join(", ")}: only pictures (PNG, JPEG, SVG, PDF) `
+              + `and recordings (${audioUpload.dataset.formats}) go into a document`, true);
+      // in the order dropped, one line after another from the cursor
+      for (const f of files) {
+        if (isFigureFile(f)) await handleImageFiles([f]);
+        else if (isAudioFile(f)) await handleAudioFiles([f]);
+      }
+    });
+  }
+
+  const btnImages = $("#btn-images");
+  if (btnImages) btnImages.addEventListener("click", async () => {
+    if (!DOC_ID) {
+      toast("Save the document first — images are stored in its folder", true);
+      return;
+    }
+    const root = $("#modal-root");
+    root.innerHTML = "";
+    const ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal"><h3>Images of this document</h3>
+      <p>Click one to insert it at the cursor; ✕ deletes the file.</p>
+      <div class="imggrid"></div>
+      <div class="row"><button class="btn" data-x="close">Close</button></div></div>`;
+    const closeM = () => { if (ov.parentNode) root.removeChild(ov); };
+    ov.addEventListener("click", e => { if (e.target === ov) closeM(); });
+    $('[data-x="close"]', ov).addEventListener("click", closeM);
+    root.appendChild(ov);
+    const grid = $(".imggrid", ov);
+
+    async function refresh() {
+      const data = await api(`/api/docs/${DOC_ID}/images`);
+      grid.innerHTML = "";
+      if (!data.images.length) {
+        grid.innerHTML = '<p class="hint">No figures uploaded yet — use the Image button, or drag a PNG, JPEG, SVG or PDF into the editor.</p>';
+        return;
+      }
+      for (const im of data.images) {
+        const cell = document.createElement("div");
+        cell.className = "imgcell";
+        cell.innerHTML = `<img loading="lazy"><div class="nm"></div>
+          ${im.referenced ? '<span class="ref">in use</span>' : ""}
+          <button class="del" title="Delete file">✕</button>`;
+        $("img", cell).src = `${BASE}/media/${DOC_ID}/images/${im.name}`;
+        $(".nm", cell).textContent =
+          `${im.name} · ${Math.round(im.size / 1024)} kB`;
+        cell.addEventListener("click", e => {
+          if (e.target.closest(".del")) return;
+          insertImageLine("images/" + im.name);
+          closeM();
+        });
+        $(".del", cell).addEventListener("click", async () => {
+          const warn = im.referenced
+            ? `“${im.name}” is used by the document — the embed will break. Delete anyway?`
+            : `Delete “${im.name}”?`;
+          if (!confirm(warn)) return;
+          await api(`/api/docs/${DOC_ID}/images/${im.name}`,
+                    {method: "DELETE"});
+          // the preview shows it gone at once, as the warning said
+          mediaChanged("images/" + im.name);
+          preview();
+          refresh();
+        });
+        grid.appendChild(cell);
+      }
+    }
+    refresh().catch(e => toast(e.message, true));
+  });
+
+  /* ---- recordings: the manager ----
+
+     The document's own recordings -- ▶ plays one, a click puts it in at the
+     cursor, ✕ deletes the file -- and, where the toolbox has a clip tray
+     (the hub; the studio run on its own has none), the clips cut from books
+     and videos in the document's language, each put in with "Add" and
+     brought into the document at once, or deleted from the tray with ✕.
+     "In use" is what the editor's text names now, saved or not. */
+  const btnAudios = $("#btn-audios");
+  if (btnAudios) btnAudios.addEventListener("click", () => {
+    if (!DOC_ID) {
+      toast("Save the document first — recordings are stored in its folder", true);
+      return;
+    }
+    const root = $("#modal-root");
+    root.innerHTML = "";
+    const ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal audio-modal" role="dialog" aria-modal="true" aria-label="Recordings" tabindex="-1">
+      <h3>Recordings of this document</h3>
+      <p>Click one to insert it at the cursor; ▶ plays it, ✕ deletes the file.</p>
+      <div class="audlist" data-x="mine"></div>
+      <section class="audclips" hidden>
+        <h4>Clips cut from books and videos</h4>
+        <p>Cut with “🔊 cut the audio…” on a book's or a video's card sheet. Add puts one in at the cursor and copies it into this document; ✕ deletes it from the tray.</p>
+        <div class="audlist" data-x="clips"></div>
+      </section>
+      <div class="row"><button class="btn" data-x="close">Close</button></div></div>`;
+    const player = new Audio();
+    let playing = null;
+    // the keys go to the dialog while it is open, and Escape closes it
+    // wherever the focus is -- a deleted row takes a focused ✕ with it
+    const opener = document.activeElement;
+    const onKey = e => {
+      if (!ov.isConnected) { document.removeEventListener("keydown", onKey); return; }
+      if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); closeM(); }
+    };
+    const closeM = () => {
+      player.pause();
+      document.removeEventListener("keydown", onKey);
+      if (!ov.parentNode) return;
+      const inside = ov.contains(document.activeElement);
+      root.removeChild(ov);
+      if (inside && opener && opener.isConnected && opener.focus) opener.focus({preventScroll: true});
+    };
+    ov.addEventListener("click", e => { if (e.target === ov) closeM(); });
+    document.addEventListener("keydown", onKey);
+    $('[data-x="close"]', ov).addEventListener("click", closeM);
+    root.appendChild(ov);
+    $(".audio-modal", ov).focus({preventScroll: true});
+    const mine = $('[data-x="mine"]', ov), clipList = $('[data-x="clips"]', ov);
+    const clipBox = $(".audclips", ov);
+
+    const showPlaying = () => $$(".audplay", ov).forEach(b => {
+      const on = b === playing && !player.paused;
+      b.textContent = on ? "❚❚" : "▶";
+      b.classList.toggle("playing", on);
+    });
+    for (const type of ["play", "pause", "ended", "emptied"]) player.addEventListener(type, showPlaying);
+    const playButton = (url, name) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "audplay"; b.textContent = "▶";
+      b.title = "Play"; b.setAttribute("aria-label", "Play " + name);
+      b.addEventListener("click", e => {
+        e.stopPropagation();                       // not an insert
+        if (playing === b && !player.paused) { player.pause(); return; }
+        if (player.getAttribute("src") !== url) player.src = url;
+        playing = b;
+        player.play().catch(err => { if (err.name !== "AbortError") toast("Could not play: " + err.message, true); });
+      });
+      return b;
+    };
+    const kb = size => `${Math.max(1, Math.round(size / 1024))} kB`;
+    const namedNow = () => new Set((src.value.match(
+      /(?<![A-Za-z0-9._\/\-])audio\/[A-Za-z0-9][A-Za-z0-9._\-]*/g) || []).map(p => p.slice(6)));
+
+    async function refresh() {
+      const data = await api(`/api/docs/${DOC_ID}/audio`);
+      const used = namedNow();
+      mine.innerHTML = "";
+      if (!data.audio.length) {
+        mine.innerHTML = '<p class="hint">No recordings uploaded yet — use the Audio button, or drag an MP3, M4A, Ogg, WAV or other recording into the editor.</p>';
+        return;
+      }
+      for (const rec of data.audio) {
+        const row = document.createElement("div");
+        row.className = "audrow";
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        row.title = "Insert at the cursor";
+        row.dataset.name = rec.name;
+        const name = document.createElement("span");
+        name.className = "audname"; name.textContent = rec.name;
+        const size = document.createElement("span");
+        size.className = "audsize"; size.textContent = kb(rec.size);
+        const del = document.createElement("button");
+        del.type = "button"; del.className = "del"; del.textContent = "✕"; del.title = "Delete file";
+        row.append(playButton(`${BASE}/media/${DOC_ID}/audio/${rec.name}`, rec.name), name, size);
+        if (used.has(rec.name)) {
+          const ref = document.createElement("span");
+          ref.className = "ref"; ref.textContent = "in use";
+          row.append(ref);
+        }
+        row.append(del);
+        const insert = () => { closeM(); insertAudioLine("audio/" + rec.name); };
+        row.addEventListener("click", e => { if (!e.target.closest("button")) insert(); });
+        row.addEventListener("keydown", e => {
+          if ((e.key === "Enter" || e.key === " ") && e.target === row) { e.preventDefault(); insert(); }
+        });
+        del.addEventListener("click", async e => {
+          e.stopPropagation();
+          const warn = used.has(rec.name)
+            ? `“${rec.name}” is used by the document — the embed will break. Delete anyway?`
+            : `Delete “${rec.name}”?`;
+          if (!confirm(warn)) return;
+          try {
+            if (playing && player.getAttribute("src").endsWith("/" + rec.name)) player.pause();
+            await api(`/api/docs/${DOC_ID}/audio/${encodeURIComponent(rec.name)}`, {method: "DELETE"});
+            // the preview shows it gone at once, as the warning said
+            mediaChanged("audio/" + rec.name);
+            preview();
+            await refresh();
+            // the row went with its ✕: the focus stays in the dialog
+            if (ov.isConnected && !ov.contains(document.activeElement))
+              $(".audio-modal", ov).focus({preventScroll: true});
+          } catch (err) { toast(err.message, true); }
+        });
+        mine.appendChild(row);
+      }
+    }
+
+    // the tray is the hub's (/clips), not the studio's: no BASE before it,
+    // and nothing shown where nothing answers
+    async function refreshClips() {
+      let clips = [];
+      try {
+        const r = await fetch("/clips/api/list?kind=audio&lang=" + encodeURIComponent(lang().code));
+        const data = await r.json();
+        if (r.ok && data.ok !== false && Array.isArray(data.clips)) clips = data.clips;
+      } catch (e) { clips = []; }
+      clipList.innerHTML = "";
+      clipBox.hidden = !clips.length;
+      for (const clip of clips) {
+        const row = document.createElement("div");
+        row.className = "audrow clip";
+        row.dataset.name = clip.name;
+        const words = String(clip.text || clip.label || "").replace(/\s+/g, " ").trim();
+        const name = document.createElement("span");
+        name.className = "audname";
+        const said = document.createElement("span");
+        said.className = "audtext"; said.textContent = words || clip.name;
+        const detail = document.createElement("small");
+        detail.textContent = [words ? clip.name : "", clip.duration ? clip.duration.toFixed(1) + " s" : "",
+          (clip.source && clip.source.title) || ""].filter(Boolean).join(" · ");
+        name.append(said, detail);
+        const add = document.createElement("button");
+        add.type = "button"; add.className = "btn small"; add.dataset.x = "add"; add.textContent = "Add";
+        add.title = "Put it in at the cursor and copy it into this document";
+        add.addEventListener("click", async () => {
+          closeM();
+          // its words as the caption, when a caption can hold them
+          const caption = words.replace(/[\[\]]/g, "").slice(0, 120).trim() || "didascalia";
+          insertStandaloneLine(`![${caption}](${clip.path})`, caption);
+          try {
+            const data = await adoptFromTray(src.value);
+            if (data && (data.missing || []).includes(clip.path))
+              toast(`${clip.name} is no longer in the clip tray`, true);
+          } catch (err) { toast("Could not bring the clip in: " + err.message, true); }
+        });
+        // a clip nobody wants any more leaves the tray from here; whatever
+        // it went into kept its own copy
+        const del = document.createElement("button");
+        del.type = "button"; del.className = "del"; del.textContent = "✕";
+        del.title = "Delete it from the clip tray";
+        del.setAttribute("aria-label", "Delete " + clip.name + " from the clip tray");
+        del.addEventListener("click", async e => {
+          e.stopPropagation();
+          if (!confirm(`Delete “${clip.name}” from the clip tray? A document, a deck or a card `
+                       + "it already went into keeps its own copy.")) return;
+          try {
+            if (playing && player.getAttribute("src") === clip.url) player.pause();
+            const r = await fetch("/clips/api/" + encodeURIComponent(clip.name), {method: "DELETE"});
+            let data = {};
+            try { data = await r.json(); } catch (_) { /* not JSON */ }
+            // gone already (another page emptied the tray) is what was wanted
+            if (!r.ok && r.status !== 404) throw new Error(data.error || r.status + " " + r.statusText);
+            await refreshClips();
+            if (ov.isConnected && !ov.contains(document.activeElement))
+              $(".audio-modal", ov).focus({preventScroll: true});
+          } catch (err) { toast("Could not delete the clip: " + err.message, true); }
+        });
+        row.append(playButton(clip.url, clip.name), name, add, del);
+        clipList.appendChild(row);
+      }
+    }
+    refresh().catch(e => toast(e.message, true));
+    refreshClips();
+  });
+
+  preview();
+}
+
+/* ---------------- prompt page ---------------- */
+
+function initPrompt() {
+  const ta = $("#prompt-text");
+  const badge = $("#prompt-badge");
+  const question = $("#question");
+  const info = $("#copy-info");
+  const sel = $("#prompt-target");
+  let current = {text: "", custom: false, target: "fa", target_name: "Persian",
+                 lang_block: ""};
+  let editing = false;
+  bindStopServer();
+
+  /* The target-language select: the prompt text is generic and says to
+     set `target:`; the language's own conventions (docs/lang/<code>.md,
+     served with the prompt) are shown under it and copied with it, and
+     the copied text opens with the target stated.  Starts on the
+     toolbox's shared preference when that is a language. */
+  const pick = sharedLang();
+  for (const l of LANGS) {
+    const o = document.createElement("option");
+    o.value = l.code;
+    o.textContent = `${l.name} (${l.code})`;
+    sel.appendChild(o);
+  }
+  sel.value = LANGS.some(l => l.code === pick) ? pick : (LANGS[0] || {}).code || "fa";
+
+  function guidance() {
+    return `target: ${current.target} — this document is about ${current.target_name}: `
+      + `write \`target: ${current.target}\` in the front matter.\n\n`;
+  }
+  function fullText() {
+    return ta.value.trim() + (current.lang_block
+      ? "\n\n" + current.lang_block.trim() : "") + "\n";
+  }
+  function show(p) {
+    current = p;
+    // the conventions block is shown with the prompt but is not part of
+    // the editable text: it belongs to the language, not to the prompt
+    ta.value = editing ? p.text : p.text.trim()
+      + (p.lang_block ? "\n\n" + p.lang_block.trim() : "") + "\n";
+    badge.textContent = (p.custom ? "custom" : "default (exlex/PROMPT.md)")
+      + ` · ${p.target_name}`;
+    badge.className = "badge " + (p.custom ? "warn" : "");
+  }
+  const load = () => api("/api/prompt?target=" + encodeURIComponent(sel.value))
+    .then(show).catch(e => toast(e.message, true));
+  sel.addEventListener("change", load);
+  load();
+
+  async function copy(text, label) {
+    try {
+      await navigator.clipboard.writeText(text);
+      info.textContent = `${label} copied — ${text.length} chars ✓`;
+      toast(label + " copied");
+    } catch (e) { toast("Clipboard unavailable", true); }
+  }
+  $("#btn-copy-prompt").addEventListener("click", () =>
+    copy(guidance() + (editing ? fullText() : ta.value.trim() + "\n"), "Prompt"));
+  $("#btn-copy-all").addEventListener("click", () => {
+    const q = question.value.trim();
+    if (!q) { toast("Write your question first", true); question.focus(); return; }
+    copy(guidance() + (editing ? fullText() : ta.value.trim() + "\n")
+         + "\n" + q + "\n", "Prompt + question");
+  });
+
+  const btnEdit = $("#btn-edit-prompt"), btnSave = $("#btn-save-prompt"),
+        btnCancel = $("#btn-cancel-edit"), btnReset = $("#btn-reset-prompt");
+  btnEdit.addEventListener("click", () => {
+    editing = true;
+    ta.value = current.text;        // the text alone, without the block
+    ta.readOnly = false; ta.focus();
+    btnEdit.classList.add("hidden");
+    btnSave.classList.remove("hidden");
+    btnCancel.classList.remove("hidden");
+  });
+  const endEdit = () => {
+    editing = false;
+    ta.readOnly = true;
+    btnEdit.classList.remove("hidden");
+    btnSave.classList.add("hidden");
+    btnCancel.classList.add("hidden");
+  };
+  // a save or a reset answers with the bare prompt record (text, custom):
+  // the target and its conventions block belong to the page and stay
+  const withTarget = p => Object.assign({}, current, p);
+  btnSave.addEventListener("click", async () => {
+    const p = await api("/api/prompt?target=" + encodeURIComponent(sel.value),
+                        {method: "PUT", json: {text: ta.value}});
+    endEdit(); show(withTarget(p)); toast("Custom prompt saved");
+  });
+  btnCancel.addEventListener("click", () => { endEdit(); show(current); });
+  btnReset.addEventListener("click", async () => {
+    if (current.custom &&
+        !confirm("Discard the custom prompt and return to the default?")) return;
+    const p = await api("/api/prompt?target=" + encodeURIComponent(sel.value),
+                        {method: "DELETE"});
+    endEdit(); show(withTarget(p)); toast("Prompt reset to default");
+  });
+}
+
+/* ---------------- boot ---------------- */
+
+// the library and the prompt page have no sheet, but they still take the
+// theme (the toolbox's shared one until a theme is picked in a reading view)
+if (PAGE === "index" || PAGE === "prompt") applyTypo(loadTypo(null));
+
+// every page of the studio, whichever it is: the bar behaves on a phone
+bindBarHide();
+if (PAGE === "index") { bindStopServer(); initIndex(); }
+else if (PAGE === "doc") initDoc();
+else if (PAGE === "edit") initEdit();
+else if (PAGE === "prompt") initPrompt();

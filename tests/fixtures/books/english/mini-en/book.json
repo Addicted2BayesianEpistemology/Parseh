@@ -1,0 +1,14 @@
+{
+  "slug": "mini-en",
+  "language": "en",
+  "title": "The Clock and the Wind",
+  "title_latin": "The Clock and the Wind",
+  "title_en": "The Clock and the Wind",
+  "author": "a fable",
+  "author_latin": "a fable",
+  "year": "",
+  "blurb": "A fixture for the tests: two short English paragraphs, two sentences each, written so that every chunk needs a pronunciation line and two of them turn on a word English spells one way and says two.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

@@ -1,0 +1,126 @@
+% Spanish (español) -- what the reading editions' preamble leaves to the
+% language.  Input by lib/frank-preamble.tex as
+% \input{\FrankLib/lang/\BookLang.tex}; docs/languages.md section 6 lists the
+% hooks every file here must define and section 12 the ones it may.
+% A Latin-script language, the same shape as lib/lang/it.tex: no font of its
+% own, no marks to strip, two passes.
+
+% ---- the babel language and the switches ----------------------------------
+% \FrankLangName is what \foreignlanguage and \begin{otherlanguage} are given
+% everywhere in the core preamble: babel must know this name, or every passage
+% comes out in the roman with a "Unknown language" error.
+\newcommand{\FrankLangName}{spanish}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBarefalse       % nothing comes off, so pass 3 would repeat pass 1
+\FrankHasAltfalse        % whether \FrankAltFont exists (the title, the chapter number)
+\FrankHasReadingfalse    % whether \chr's third argument is set as a reading
+\FrankHasVertfalse       % whether pass 4 is \FrankVertPass rather than the font pass
+
+% ---- fonts ------------------------------------------------------------------
+% No face is NAMED here: \FrankPickFont walks the registry's tex.main and then
+% tex.main_fallbacks and takes the first one installed, so the .tex and the
+% .json cannot drift apart (docs/languages.md section 12).  Spanish names
+% none: tex.main is null in the registry, so the text is set in the roman the
+% core preamble already loaded -- the same face as the glosses, which is right
+% for a Latin script and wrong for any other.  import=es brings babel's
+% Spanish hyphenation (the registry's tex.hyphen) and its quoting rules.
+\babelprovide[import=es]{spanish}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{infinitive}{sound}{first person present}{sound}{third person preterite}{sound}{meaning}
+% Those two are the forms a reader cannot guess: the yo present carries the odd
+% consonant (tengo, salgo, conozco) and the stem change (quiero, pido), and is
+% what the present subjunctive is built on; the él preterite carries a stem of
+% its own (tuvo, dijo, fue) and the -ir stem change the yo form hides.
+%
+% THE THIRD SLOT WAS THE FIRST PERSON PRETERITE, and its label "past".  Both
+% were wrong for Spanish.  pedí, sentí, dormí, leí show nothing of what pidió,
+% sintió, durmió, leyó show -- the e to i, the o to u, the y -- which is why
+% the conventions had to write (e→i) beside pedí; the third person is the
+% form a story is told in, and its stem comes back in the imperfect
+% subjunctive and the gerund (pidiera, pidiendo).  All the yo preterite adds
+% is spelling (llegué, busqué).  And "past" named one of two simple pasts as
+% THE past, in a language whose conventions spend a paragraph on the preterite
+% and the imperfect not being one tense: pret. is what es.md already wrote
+% everywhere else, and what German's pair already says.
+%
+% An impersonal verb has no yo to give, and takes the third person there too
+% (llueve, hay).  What the three forms cannot say goes in ONE parenthesis
+% after the meaning, items parted by "; ", and only where it is irregular:
+%   p.p. \pw{hecho}     the past participle (dicho, visto, puesto, escrito ...)
+%   fut. \pw{tendré}    the future, whose stem also makes the conditional
+%   \vb{hacer}{}{hago}{}{hizo}{}{to do, to make (p.p. \pw{hecho}; fut. \pw{haré})}
+% Where there are two and one is irregular, both, parted by a slash:
+% p.p. \pw{imprimido}/\pw{impreso}.  The \vb the sources sidebar drafts
+% (lib/verbs/es.py) writes exactly this, from the dictionary's own rows.
+% The class label (-ar, -er, -ir) and the stem-change label (e→i) are gone:
+% the infinitive and the two forms show both.
+% The pair below comes from the registry's "vb_labels" ("pres.", "pret."), which
+% is where the reader takes it from as well, beside "vb_forms", the three forms
+% in words: change one and change the other, or the PDF and the reader of one
+% book label the same form differently.  docs/lang/es.md names the same three
+% forms in the same order.  lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{pres.}
+\newcommand{\FrankVbPast}{pret.}
+
+% ---- the two Lua filters ---------------------------------------------------
+% Both are the identity: Spanish carries no marks the bare pass would drop
+% (the registry's `strip` is null -- the written accent is spelling and stays
+% in every pass) and its labels are already in Latin digits.  They still have
+% to exist, because the core calls them for every language.  No #, % or
+% literal backslash in a \directlua body: TeX reads it first (NOTES section 9
+% of the Persian book).
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s) return s end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex, before the first chapter: the only
+% place the reader is told what the passes are for.  Spanish words are set with
+% \textit and not \pw, as Italian's page does: the language is in the same
+% roman as the prose round it, so there is no face to switch to and \pw would
+% only make them smaller.
+\newcommand{\FrankHowTo}{%
+Every passage comes twice.
+
+\smallskip
+\textbf{First} the whole sentence, and nothing else. Try to read it. Get as
+far as you can and do not worry about what you cannot get — the point is the
+attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, Spanish on the left, and
+on the right three lines: how it sounds, then how to look each word up, then
+what it means. Now you find out how much you had right. Spanish is written as
+it is said, so there is no third pass: the sentence you attempted is already
+the sentence as it is printed.
+
+\smallskip
+The pronunciation line is given only where the spelling misleads, which is
+seldom, and never marks stress: a word stressed against the ordinary rule
+carries a written accent already (\textit{corazón}). What it shows is the few
+letters that do not say themselves — \textit{x} for the \textit{ch} of
+\textit{loch} (\textit{j}, and \textit{g} before \textit{e} or \textit{i}); a
+silent \textit{h}; \textit{ʝ} for \textit{ll} and \textit{y}; \textit{ɲ} for
+\textit{ñ}; \textit{rr} for the trill, which \textit{r} also is at the start
+of a word. \textit{c} before \textit{e} or \textit{i}, and \textit{z}, are
+\textit{s} in the Americas and \textit{θ} in most of Spain, whichever the
+book's own recording says; \textit{b} and \textit{v} are one sound.
+
+\smallskip
+Verbs are given as infinitive, the present as \textit{yo} says it, the
+preterite as \textit{él} or \textit{ella} says it, meaning — the two middle
+forms are the ones you cannot guess (\textit{tener}, \textit{tengo},
+\textit{tuvo}; \textit{pedir}, \textit{pido}, \textit{pidió}), and
+everything else is built from them. An irregular past participle and an
+irregular future stand in brackets after the meaning (\textit{p.p. hecho},
+\textit{fut. tendré}): the future's stem makes the conditional too, and
+\textit{tendría} is on every page of a story.
+
+\smallskip
+Spanish has two verbs for \textit{to be} and the line always says which:
+\textit{ser} for what a thing is, \textit{estar} for where and how it is at
+this moment. A subjunctive is named where it appears, since your own language
+may have no form for that mood.
+}

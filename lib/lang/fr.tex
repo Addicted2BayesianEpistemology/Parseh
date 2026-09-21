@@ -1,0 +1,127 @@
+% French -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define.
+% Latin script, like Italian: no font of its own, nothing to strip, two
+% passes.  What is not like Italian is the how-to page.  French spelling
+% records a pronunciation the language has moved away from, so the middle
+% line of every gloss is doing real work, and the reader has to be told how
+% to read it before the first chapter rather than at the first surprise.
+
+% ---- the babel language and the switches ----------------------------------
+\newcommand{\FrankLangName}{french}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBarefalse       % there is nothing to strip, so pass 3 would repeat pass 1
+\FrankHasAltfalse        % no alternate face
+\FrankHasReadingfalse
+\FrankHasVertfalse
+
+% ---- fonts ------------------------------------------------------------------
+% The registry's tex.main is null for French: the text is set in the main
+% roman the core preamble already loaded (TeX Gyre Pagella), the same face as
+% the glosses.  Pagella carries the whole of written French -- the accents,
+% the cedilla, the oe ligature -- and the letters the pronunciation line adds
+% to it (ã ẽ õ ò ü ʃ ʒ ɲ) come from the DejaVu Serif fallback the core declares
+% glyph by glyph; checked on this machine: the fixture edition builds with no
+% Missing character in its log.
+% import=fr asks babel for the French locale, which brings the hyphenation
+% patterns of hyph-fr when the machine has them.  install.sh --pdf installs
+% them (hyphen-french) and says so; what a machine without them does is leave
+% \language at 0 and break a French paragraph at the English patterns' points
+% -- print-emps for prin-temps, répon-dit for ré-pon-dit -- silently, so it is
+% install.sh and build.sh that have to say it, and both now do.
+%% transforms=punctuation.space is what makes the spacing French.  Without
+%% it \babelprovide loads the fr locale but not french.ldf, so `Oui?' and
+%% `Oui ?' set 23.2pt and 26.0pt -- English spacing, or a full word space --
+%% and the guillemets sit tight or loose according to what was typed.  With
+%% it both come out at 24.6pt, a thin space, and `<<mot>>' and `<< mot >>'
+%% both at 34.4pt: whatever the source did, the page is right.  That is what
+%% lets docs/lang/fr.md tell the annotator to reproduce the source and
+%% nothing more.  Measured with lualatex at 11pt in TeX Gyre Pagella.
+\babelprovide[import=fr,transforms=punctuation.space]{french}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{infinitive}{sound}{first person present}{sound}{past participle}{sound}{meaning}
+% The three forms a French verb cannot be rebuilt from any one of.  The present
+% is where the stem breaks (aller but je vais, pouvoir but je peux, boire but
+% je bois); the participle is what every compound past is made of (j'ai fait,
+% elle est venue) and what agrees after être.  The imperfect, the future and
+% the conditional follow a pattern from those two, so they get no slot -- and
+% the past historic, which follows nothing, is named in the gloss where a book
+% uses it (docs/lang/fr.md, the vocabulary section).
+% What the three cannot say goes in ONE parenthesis after the meaning, items
+% parted by "; ", each only where it is not the ordinary case:
+%   aux. être, or aux. être/avoir     avoir is the default and never printed
+%   nous \pw{prenons}                 where the plural is not the infinitive's stem + -ons
+%   fut. \pw{irai}                    where the future is not the infinitive's
+%   \vb{aller}{alé}{vais}{vè}{allé}{alé}{to go (aux. être; fut. \pw{irai} \textit{iré})}
+% The class the gloss once carried (-er, -ir, -re) is not among them: the
+% infinitive prints its own ending, and it was wrong for aller anyway.
+% The reader takes the same pair from the registry (lib/languages.json,
+% "vb_labels": ["pres.", "p.p."], the three forms in words as "vb_forms"); the
+% two must agree, or the PDF and the reader of one book label the same form
+% differently.  lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{pres.}
+\newcommand{\FrankVbPast}{p.p.}
+
+% ---- the two Lua filters ---------------------------------------------------
+% Both are the identity.  A French accent belongs to the spelling and is not
+% help written in for pass 1 -- ou and où, a and à, sur and sûr are different
+% words -- so there is nothing a bare pass could take off without changing what
+% the page says (the registry's `strip` is null), and the labels are already in
+% Latin digits.  They still have to exist, because the core calls them for
+% every language.
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s) return s end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex under its heading.  \pw sets a word as
+% French inside the English and \textit sets a sound, which is the division
+% the gloss line itself makes (\dw is \pw then \textit): so the reader meets
+% the two typographies here in the same roles they have on every later page.
+% \pw is defined by the core preamble, after this file is read, and is only
+% expanded when the page is set.
+\newcommand{\FrankHowTo}{%
+Every passage comes twice.
+
+\smallskip
+\textbf{First} the whole sentence, and nothing else. Try to read it. Get as far
+as you can and do not worry about what you cannot get — the point is the
+attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, French on the left, and on
+the right three lines: how it sounds, then how to look each word up, then what
+it means. Now you find out how much you had right. There is no third pass: an
+accent belongs to the spelling and not to you (\pw{ou} and \pw{où} are two
+words), so there is nothing to take away and a bare pass would reprint the
+sentence you have just read.
+
+\smallskip
+The first of those lines is how the chunk is said, which in French is far from
+how it is written. Silent letters are not there: the \textit{t} of \pw{petit},
+the \textit{-ent} of \pw{ils parlent}. A consonant silent alone but sounded
+before a vowel is carried on a hyphen onto the word it moves to: \pw{les amis}
+is \textit{lé-zami}. A tilde is a vowel said through the nose, with no
+\textit{n} after it: \textit{ã} in \pw{grand}, \textit{ẽ} in \pw{vin},
+\textit{õ} in \pw{bon} — and \pw{bonne} is \textit{bòn}, because there the
+\textit{n} really is said. \textit{é} and \textit{è} are the closed and open
+\textit{e} of \pw{été} and \pw{mère}, \textit{o} and \textit{ò} the same pair
+for \textit{o}, a plain \textit{e} the light vowel of \pw{le}, often
+swallowed, and \textit{ü} the \textit{u} of \pw{tu}; \textit{ʃ}, \textit{ʒ}
+and \textit{ɲ} are what \textit{ch}, \textit{j} and \textit{gn} spell. It is
+left out only where nothing in the chunk can be got wrong.
+
+\smallskip
+Verbs are given as infinitive, first person present, past participle, meaning,
+each with its sound: the present is where the stem breaks (\pw{aller} makes
+\pw{je vais}) and the participle is what every compound past is built on
+(\pw{j'ai fait}, \pw{elle est venue}). In brackets after the meaning comes
+whatever else the verb will not tell you, and only where it is there to tell:
+\textit{aux. être} for a verb whose perfect is made with \pw{être}, and the
+\pw{nous} form (\pw{nous prenons}) and the future (\pw{j'irai}) where they
+are not built on the infinitive — which is how to build them where they are
+not given. A verb welded to a bare noun (\pw{avoir peur}) is given no meaning
+of its own; the noun carries the sense.
+}

@@ -1,0 +1,159 @@
+/* Parseh — the timeline editor (lib/timeline.js), over the book reader and
+   the video player alike.  Every rule is under .tl-root, so nothing here
+   reaches either page, and the colours are the toolbox's own tokens from
+   lib/parseh.css -- light, dark and sepia follow the page.  The fallbacks
+   under each token are that file's values, for a page that does not link it.
+
+   The steps are the book's timing editor and the cut editor's, restated
+   here for the same reason cardkit.css restates them: a hand that has timed
+   a book already knows them, and the player has no such rules of its own. */
+.tl-root{
+  --tl-bg:var(--bg,#f3eff1); --tl-card:var(--card,#ffffff); --tl-ink:var(--ink,#241e21);
+  --tl-dim:var(--dim,#635358); --tl-faint:var(--faint,#a2949a); --tl-rule:var(--rule,#e3d9dd);
+  --tl-accent:var(--accent,#be3455); --tl-accentlt:var(--accentlt,#ce5b78);
+  --tl-accent-fg:var(--accent-fg,#ffffff); --tl-hl:var(--hl,#f7dde5);
+  --tl-boxbg:var(--boxbg,#faf4f6); --tl-danger:var(--danger,#9b3327);
+  --tl-veil:rgba(36,30,33,.38);
+  /* read by the script when it draws the waveform */
+  --tl-wave:var(--tl-faint); --tl-wave-on:var(--tl-accent);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]):not([data-theme=sepia]) .tl-root{
+    --tl-bg:var(--bg,#171214); --tl-card:var(--card,#211a1d); --tl-ink:var(--ink,#e6dade);
+    --tl-dim:var(--dim,#ac9ba1); --tl-faint:var(--faint,#6e6065); --tl-rule:var(--rule,#382c31);
+    --tl-accent:var(--accent,#ee8aa3); --tl-accentlt:var(--accentlt,#d97c93);
+    --tl-accent-fg:var(--accent-fg,#171214); --tl-hl:var(--hl,#3d222a);
+    --tl-boxbg:var(--boxbg,#2a2024); --tl-danger:var(--danger,#e79b84);
+    --tl-veil:rgba(0,0,0,.55);
+  }
+}
+:root[data-theme=dark] .tl-root{
+  --tl-bg:var(--bg,#171214); --tl-card:var(--card,#211a1d); --tl-ink:var(--ink,#e6dade);
+  --tl-dim:var(--dim,#ac9ba1); --tl-faint:var(--faint,#6e6065); --tl-rule:var(--rule,#382c31);
+  --tl-accent:var(--accent,#ee8aa3); --tl-accentlt:var(--accentlt,#d97c93);
+  --tl-accent-fg:var(--accent-fg,#171214); --tl-hl:var(--hl,#3d222a);
+  --tl-boxbg:var(--boxbg,#2a2024); --tl-danger:var(--danger,#e79b84);
+  --tl-veil:rgba(0,0,0,.55);
+}
+
+/* the veil, and the editor in the middle of it: above every sheet of the
+   reader and the player, below the toast (400) -- the cut editor's own 300 */
+.tl-root{position:fixed;inset:0;z-index:300;display:flex;align-items:center;
+  justify-content:center;padding:8px;background:var(--tl-veil);
+  overscroll-behavior:contain}
+.tl-root [hidden]{display:none!important}
+.tl-root *{box-sizing:border-box}
+.tl-box{width:min(760px,100%);max-height:100%;overflow:auto;overscroll-behavior:contain;
+  background:var(--tl-card);color:var(--tl-ink);border:1px solid var(--tl-rule);
+  border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.28);padding:12px 14px 10px;
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif}
+.tl-box:focus{outline:none}
+
+.tl-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.tl-title{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.tl-x{background:none;border:none;color:var(--tl-dim);font-size:16px;cursor:pointer;
+  padding:2px 6px;border-radius:6px;line-height:1}
+.tl-x:hover{color:var(--tl-accent);background:var(--tl-hl)}
+
+/* the three that matter: what is being timed, and what is either side of it */
+.tl-texts{border:1px solid var(--tl-rule);border-radius:9px;background:var(--tl-boxbg);
+  padding:6px 8px;margin-bottom:8px}
+.tl-line{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:13px}
+.tl-line + .tl-line{border-top:1px solid var(--tl-rule)}
+.tl-who{flex:0 0 46px;color:var(--tl-faint);font-size:11px;text-transform:uppercase;
+  letter-spacing:.04em}
+.tl-say{flex:1;min-width:0;color:var(--tl-dim);overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tl-now{padding:5px 0}
+.tl-now .tl-who{color:var(--tl-accent);font-weight:700}
+.tl-now .tl-say{color:var(--tl-ink);font-size:15px;-webkit-line-clamp:3}
+.tl-none .tl-say{color:var(--tl-faint);font-style:italic}
+
+/* the boundary's own number, and the six steps that move it */
+.tl-edit{margin-bottom:8px}
+.tl-what{font-size:12px;color:var(--tl-dim);margin-bottom:5px}
+.tl-row{display:flex;align-items:center;gap:3px;padding:3px 4px;border-radius:8px;
+  flex-wrap:wrap}
+.tl-row.tl-on{background:var(--tl-hl)}
+.tl-lbl{flex:0 0 46px;font-size:11px;color:var(--tl-faint);text-transform:uppercase;
+  letter-spacing:.04em}
+.tl-step{font:inherit;font-size:12px;padding:3px 7px;border:1px solid var(--tl-rule);
+  background:var(--tl-card);color:var(--tl-ink);border-radius:6px;cursor:pointer;
+  min-width:34px}
+.tl-step:hover:not(:disabled){border-color:var(--tl-accent);color:var(--tl-accent)}
+.tl-step:disabled{opacity:.45;cursor:default}
+.tl-stamp{min-width:30px}
+.tl-at{font:inherit;font-size:13px;width:84px;text-align:center;padding:3px 4px;
+  border:1px solid var(--tl-rule);border-radius:6px;background:var(--tl-card);
+  color:var(--tl-ink)}
+.tl-at:focus{outline:2px solid var(--tl-accentlt);outline-offset:-1px}
+
+.tl-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tl-btn{font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--tl-rule);
+  background:var(--tl-card);color:var(--tl-ink);border-radius:7px;cursor:pointer}
+.tl-btn:hover:not(:disabled){border-color:var(--tl-accent);color:var(--tl-accent)}
+.tl-btn:disabled{opacity:.45;cursor:default}
+.tl-save{background:var(--tl-accent);color:var(--tl-accent-fg);border-color:var(--tl-accent)}
+.tl-save:hover:not(:disabled){background:var(--tl-accentlt);border-color:var(--tl-accentlt);
+  color:var(--tl-accent-fg)}
+.tl-save:disabled{background:var(--tl-card);color:var(--tl-ink);border-color:var(--tl-rule)}
+
+/* the sound, at the foot of the sheet */
+.tl-zoom{display:flex;align-items:center;gap:5px;margin-bottom:4px;font-size:11px;
+  color:var(--tl-faint)}
+.tl-zb{font:inherit;font-size:12px;min-width:28px;padding:2px 7px;border-radius:6px;
+  border:1px solid var(--tl-rule);background:var(--tl-card);color:var(--tl-ink);
+  cursor:pointer}
+.tl-zb:hover{border-color:var(--tl-accent);color:var(--tl-accent)}
+.tl-span{flex:1;text-align:center}
+
+.tl-strip{position:relative;height:104px;border:1px solid var(--tl-rule);border-radius:9px;
+  background:var(--tl-boxbg);overflow:hidden;touch-action:none;user-select:none;
+  cursor:crosshair}
+.tl-strip.tl-plain{background:repeating-linear-gradient(135deg,var(--tl-boxbg),
+  var(--tl-boxbg) 7px,var(--tl-bg) 7px,var(--tl-bg) 14px)}
+.tl-wave{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+
+/* one tinted block per piece, the one being timed picked out */
+.tl-bands{position:absolute;inset:0;pointer-events:none}
+.tl-band{position:absolute;top:0;bottom:0;pointer-events:auto;cursor:pointer;
+  border-left:1px solid transparent;border-right:1px solid transparent}
+.tl-band:nth-child(odd){background:rgba(127,127,127,.055)}
+.tl-band-on{background:var(--tl-hl);opacity:.55}
+.tl-blab{position:absolute;top:2px;left:4px;font-size:10px;color:var(--tl-dim);
+  pointer-events:none;white-space:nowrap;opacity:.8}
+/* said by neither: this piece has ended and the next has not begun */
+.tl-gap{position:absolute;top:0;bottom:0;pointer-events:none;
+  background:repeating-linear-gradient(135deg,transparent,transparent 4px,
+    var(--tl-faint) 4px,var(--tl-faint) 5px);opacity:.5}
+
+.tl-lines{position:absolute;inset:0;pointer-events:none}
+.tl-edge{position:absolute;top:-7px;bottom:-7px;width:24px;margin-left:-12px;
+  pointer-events:auto;cursor:ew-resize;touch-action:none;background:none;border:none;
+  padding:0}
+.tl-edge::before{content:'';position:absolute;top:7px;bottom:7px;left:11px;width:2px;
+  background:var(--tl-dim)}
+.tl-edge::after{content:'';position:absolute;top:7px;left:7px;width:10px;height:10px;
+  border-radius:50%;background:var(--tl-dim)}
+.tl-edge:hover::before,.tl-edge:hover::after{background:var(--tl-accent)}
+.tl-edge-on::before,.tl-edge-on::after{background:var(--tl-accent)}
+.tl-edge:focus{outline:none}
+.tl-edge:focus::after{outline:2px solid var(--tl-accentlt);outline-offset:2px}
+
+.tl-playhead{position:absolute;top:0;bottom:0;width:1px;margin-left:-0.5px;
+  background:var(--tl-ink);opacity:.65;pointer-events:none}
+
+.tl-hint{font-size:11px;color:var(--tl-faint);margin:6px 0 0}
+.tl-foot{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.tl-stat{flex:1;min-width:120px;font-size:12px;color:var(--tl-dim)}
+.tl-stat.tl-bad{color:var(--tl-danger)}
+
+@media (max-width:520px){
+  .tl-box{padding:10px 10px 8px}
+  .tl-strip{height:86px}
+  .tl-hint{display:none}
+  .tl-who,.tl-lbl{flex-basis:38px}
+  .tl-at{width:72px}
+  .tl-step{min-width:30px;padding:3px 5px}
+}

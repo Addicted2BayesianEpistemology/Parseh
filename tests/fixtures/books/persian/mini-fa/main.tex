@@ -1,0 +1,14 @@
+%% mini-fa -- a fixture edition for the tests, not a book of the library: the
+%% first two paragraphs of Farsi shekar ast (books/persian/farsi-shakar-ast).
+%% Build by hand from this directory, as build.sh's run_latex does:
+%%   OSFONTDIR=<root>/lib/fonts:/usr/share/fonts lualatex -interaction=nonstopmode main.tex
+\newcommand{\BookLang}{fa}
+\newcommand{\FrankLib}{../../../../../lib}
+\newcommand{\BookTitle}{فارسی شکر است}
+\newcommand{\BookAuthor}{محمدعلی جمال‌زاده}
+\newcommand{\BookTitleLatin}{PERSIAN IS SUGAR}
+\newcommand{\BookAuthorLatin}{Mohammad-Ali Jamalzadeh}
+\input{\FrankLib/frank-preamble.tex}
+\input{\FrankLib/frank-frontmatter.tex}
+\input{ch1.tex}
+\end{document}

@@ -1,0 +1,708 @@
+{
+  "_comment": "The language registry of Parseh -- one entry per language a learner can study. Read by lib/languages.py (Python) and embedded, per page, into the HTML the tools write; nothing else holds a table of languages. Order here is display order. Character classes are regex ranges usable by both Python's re and JavaScript's RegExp.",
+  "fa": {
+    "name": "Persian", "native": "فارسی", "folder": "persian", "tag": "farsi",
+    "iso3": "pes",
+    "dir": "rtl", "script": "arabic",
+    "chars": "\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF\\u200C",
+    "word_sep": " ", "digits": "۰۱۲۳۴۵۶۷۸۹",
+    "strip": "\\u064B-\\u0652",
+    "reading": false, "vertical": false, "require_tr": true,
+    "translit_label": "transliteration", "reading_label": null,
+    "vocal_label": "vowelled", "bare_label": "bare",
+    "vb_labels": ["pres.", "past"],
+    "vb_forms": ["infinitive", "present stem", "past stem"],
+    "fonts": {
+      "main": "Vazirmatn",
+      "alt": "Noto Nastaliq Urdu", "alt_key": "nastaliq",
+      "css_main": "Vazirmatn, 'Noto Naskh Arabic', serif",
+      "css_alt": "'Noto Nastaliq Urdu', Vazirmatn, serif",
+      "alt_line_height": 2.6,
+      "web_files": ["Vazirmatn.woff2", "NotoNastaliqUrdu.woff2"]
+    },
+    "tex": {"babel": "persian", "import": "fa", "options": "onchar=ids fonts",
+            "script": "Arabic", "language": "Parsi",
+            "main": "Vazirmatn", "main_fallbacks": ["Noto Naskh Arabic"],
+            "alt": "Noto Nastaliq Urdu", "alt_options": "Language=Urdu",
+            "hyphen": null},
+    "passes": [
+      {"key": "vocal",  "label": "1", "title": "the vowelled attempt"},
+      {"key": "chunks", "label": "2", "title": "chunks and glosses"},
+      {"key": "bare",   "label": "3", "title": "bare naskh"},
+      {"key": "alt",    "label": "4", "title": "nastaliq", "kind": "font"}
+    ],
+    "anki": {"field": "Persian", "vocab_model": 1724563200001, "opposites_model": 1724563200002,
+             "vocab_name": "Frank YouTube Persian", "opposites_name": "Frank Persian Opposites"},
+    "duration_units": ["ثانیه", "دقیقه", "ساعت"],
+    "chapter_words": ["فصل"]
+  },
+  "ar": {
+    "name": "Arabic", "native": "العربية", "folder": "arabic", "tag": "arabic",
+    "iso3": "ara",
+    "dir": "rtl", "script": "arabic",
+    "chars": "\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF\\u200C",
+    "word_sep": " ", "digits": "٠١٢٣٤٥٦٧٨٩",
+    "strip": "\\u064B-\\u0652\\u0670",
+    "reading": false, "vertical": false, "require_tr": true,
+    "translit_label": "transliteration", "reading_label": null,
+    "vocal_label": "vowelled", "bare_label": "unvowelled",
+    "vb_labels": ["impf.", "masdar"],
+    "vb_forms": ["perfect (3rd m. sg.; its form number in the sound)", "imperfect (3rd m. sg.)", "masdar"],
+    "vb_video_bare": true,
+    "fonts": {
+      "main": "Noto Naskh Arabic",
+      "alt": null, "alt_key": null,
+      "css_main": "'Noto Naskh Arabic', Vazirmatn, Amiri, serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": ["NotoNaskhArabic.woff2", "Vazirmatn.woff2"]
+    },
+    "tex": {"babel": "arabic", "import": "ar", "options": "onchar=ids fonts",
+            "script": "Arabic", "language": "Arabic",
+            "main": "Noto Naskh Arabic", "main_fallbacks": ["Amiri", "Vazirmatn"],
+            "alt": null, "alt_options": null,
+            "hyphen": null},
+    "passes": [
+      {"key": "vocal",  "label": "1", "title": "the vowelled attempt"},
+      {"key": "chunks", "label": "2", "title": "chunks and glosses"},
+      {"key": "bare",   "label": "3", "title": "unvowelled, as Arabic is written"}
+    ],
+    "anki": {"field": "Arabic", "vocab_model": 1724563200011, "opposites_model": 1724563200012,
+             "vocab_name": "Frank Arabic", "opposites_name": "Frank Arabic Opposites"},
+    "duration_units": ["ثانية", "ثوان", "ثوانٍ", "دقيقة", "دقائق", "ساعة", "ساعات"],
+    "chapter_words": ["الفصل", "فصل"]
+  },
+  "it": {
+    "name": "Italian", "native": "italiano", "folder": "italian", "tag": "italian",
+    "iso3": "ita",
+    "dir": "ltr", "script": "latin",
+    "chars": null,
+    "word_sep": " ", "digits": "0123456789",
+    "strip": null,
+    "reading": false, "vertical": false, "require_tr": false,
+    "translit_label": "pronunciation", "reading_label": null,
+    "vocal_label": "the sentence", "bare_label": null,
+    "vb_labels": ["pres.", "p.p."],
+    "vb_forms": ["infinitive", "1st sg. present", "past participle"],
+    "fonts": {
+      "main": "TeX Gyre Pagella",
+      "alt": null, "alt_key": null,
+      "css_main": "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, Georgia, serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": []
+    },
+    "tex": {"babel": "italian", "import": "it", "options": "",
+            "script": "Latin", "language": "Italian",
+            "main": null, "main_fallbacks": [],
+            "alt": null, "alt_options": null,
+            "hyphen": "italian"},
+    "passes": [
+      {"key": "vocal",  "label": "1", "title": "the sentence"},
+      {"key": "chunks", "label": "2", "title": "chunks and glosses"}
+    ],
+    "anki": {"field": "Italian", "vocab_model": 1724563200021, "opposites_model": 1724563200022,
+             "vocab_name": "Frank Italian", "opposites_name": "Frank Italian Opposites"},
+    "duration_units": ["secondo", "secondi", "minuto", "minuti", "ora", "ore"],
+    "chapter_words": ["capitolo"]
+  },
+  "ja": {
+    "name": "Japanese", "native": "日本語", "folder": "japanese", "tag": "japanese",
+    "iso3": "jpn",
+    "dir": "ltr", "script": "japanese",
+    "chars": "\\u3000-\\u303F\\u3040-\\u309F\\u30A0-\\u30FF\\u31F0-\\u31FF\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF\\uFF00-\\uFFEF\\u2E80-\\u2FDF",
+    "word_sep": "", "digits": "0123456789",
+    "strip": null,
+    "reading": true, "vertical": true, "words": true, "require_tr": true,
+    "reading_chars": "\\u3040-\\u30FF\\u31F0-\\u31FF",
+    "translit_label": "rōmaji", "reading_label": "kana",
+    "vocal_label": "with furigana", "bare_label": "plain",
+    "vb_labels": ["stem", "-te"],
+    "vb_forms": ["dictionary form", "-masu stem", "-te form"],
+    "fonts": {
+      "main": "Noto Serif CJK JP",
+      "alt": "Noto Sans CJK JP", "alt_key": "gothic",
+      "css_main": "'Noto Serif CJK JP', 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'IPAexMincho', 'MS Mincho', serif",
+      "css_alt": "'Noto Sans CJK JP', 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', 'IPAexGothic', Meiryo, sans-serif",
+      "alt_line_height": null,
+      "web_files": []
+    },
+    "tex": {"babel": "japanese", "import": "ja", "options": "onchar=ids fonts,intraspace=0 .1 0",
+            "script": "CJK", "language": "Japanese",
+            "main": "Noto Serif CJK JP", "main_fallbacks": ["Noto Serif JP", "IPAexMincho", "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho"],
+            "alt": "Noto Sans CJK JP", "alt_options": "",
+            "hyphen": null},
+    "passes": [
+      {"key": "vocal",  "label": "1", "title": "with furigana over each word"},
+      {"key": "aloud",  "label": "2", "title": "the reading alone, in kana"},
+      {"key": "chunks", "label": "3", "title": "chunks and glosses"},
+      {"key": "bare",   "label": "4", "title": "plain, as Japanese is written"},
+      {"key": "alt",    "label": "5", "title": "vertical (tategaki)", "kind": "vertical"}
+    ],
+    "anki": {"field": "Japanese", "vocab_model": 1724563200031, "opposites_model": 1724563200032,
+             "vocab_name": "Frank Japanese", "opposites_name": "Frank Japanese Opposites"},
+    "duration_units": ["秒", "分", "時間"],
+    "chapter_words": ["章", "第"]
+  },
+  "fr": {
+    "name": "French",
+    "iso3": "fra",
+    "native": "français",
+    "folder": "french",
+    "tag": "french",
+    "dir": "ltr",
+    "script": "latin",
+    "chars": null,
+    "word_sep": " ",
+    "digits": "0123456789",
+    "strip": null,
+    "reading": false,
+    "vertical": false,
+    "require_tr": false,
+    "translit_label": "pronunciation",
+    "reading_label": null,
+    "vocal_label": "the sentence",
+    "bare_label": null,
+    "vb_labels": [
+      "pres.",
+      "p.p."
+    ],
+    "vb_forms": [
+      "infinitive",
+      "1st sg. present",
+      "past participle"
+    ],
+    "fonts": {
+      "main": "TeX Gyre Pagella",
+      "alt": null,
+      "alt_key": null,
+      "css_main": "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, Georgia, serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": []
+    },
+    "tex": {
+      "babel": "french",
+      "import": "fr",
+      "options": "transforms=punctuation.space",
+      "script": "Latin",
+      "language": "French",
+      "main": null,
+      "main_fallbacks": [],
+      "alt": null,
+      "alt_options": null,
+      "hyphen": "french"
+    },
+    "passes": [
+      {
+        "key": "vocal",
+        "label": "1",
+        "title": "the sentence"
+      },
+      {
+        "key": "chunks",
+        "label": "2",
+        "title": "chunks and glosses"
+      }
+    ],
+    "anki": {
+      "field": "French",
+      "vocab_model": 1724563200041,
+      "opposites_model": 1724563200042,
+      "vocab_name": "Frank French",
+      "opposites_name": "Frank French Opposites"
+    },
+    "duration_units": [
+      "seconde",
+      "secondes",
+      "minute",
+      "minutes",
+      "heure",
+      "heures"
+    ],
+    "chapter_words": [
+      "chapitre"
+    ]
+  },
+  "de": {
+    "name": "German",
+    "iso3": "deu",
+    "native": "Deutsch",
+    "folder": "german",
+    "tag": "german",
+    "dir": "ltr",
+    "script": "latin",
+    "chars": null,
+    "word_sep": " ",
+    "digits": "0123456789",
+    "strip": null,
+    "reading": false,
+    "vertical": false,
+    "require_tr": false,
+    "translit_label": "pronunciation",
+    "reading_label": null,
+    "vocal_label": "the sentence",
+    "bare_label": null,
+    "vb_labels": [
+      "pret.",
+      "p.p."
+    ],
+    "vb_forms": [
+      "infinitive",
+      "preterite (3rd sg.)",
+      "past participle"
+    ],
+    "fonts": {
+      "main": "TeX Gyre Pagella",
+      "alt": null,
+      "alt_key": null,
+      "css_main": "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, Georgia, serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": []
+    },
+    "tex": {
+      "babel": "ngerman",
+      "import": "de",
+      "options": "",
+      "script": "Latin",
+      "language": "German",
+      "main": null,
+      "main_fallbacks": [],
+      "alt": null,
+      "alt_options": null,
+      "hyphen": "ngerman"
+    },
+    "passes": [
+      {
+        "key": "vocal",
+        "label": "1",
+        "title": "the sentence"
+      },
+      {
+        "key": "chunks",
+        "label": "2",
+        "title": "chunks and glosses"
+      }
+    ],
+    "anki": {
+      "field": "German",
+      "vocab_model": 1724563200051,
+      "opposites_model": 1724563200052,
+      "vocab_name": "Frank German",
+      "opposites_name": "Frank German Opposites"
+    },
+    "duration_units": [
+      "Sekunde",
+      "Sekunden",
+      "Minute",
+      "Minuten",
+      "Stunde",
+      "Stunden"
+    ],
+    "chapter_words": [
+      "Kapitel"
+    ]
+  },
+  "tr": {
+    "name": "Turkish",
+    "iso3": "tur",
+    "native": "Türkçe",
+    "folder": "turkish",
+    "tag": "turkish",
+    "dir": "ltr",
+    "script": "latin",
+    "chars": null,
+    "word_sep": " ",
+    "digits": "0123456789",
+    "strip": null,
+    "reading": false,
+    "vertical": false,
+    "require_tr": false,
+    "translit_label": "pronunciation",
+    "reading_label": null,
+    "vocal_label": "the sentence",
+    "bare_label": null,
+    "vb_labels": [
+      "pres.",
+      "aor."
+    ],
+    "vb_forms": [
+      "infinitive",
+      "present in -iyor (3rd sg.)",
+      "aorist (3rd sg.)"
+    ],
+    "fonts": {
+      "main": "TeX Gyre Pagella",
+      "alt": null,
+      "alt_key": null,
+      "css_main": "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, Georgia, serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": []
+    },
+    "tex": {
+      "babel": "turkish",
+      "import": "tr",
+      "options": "",
+      "script": "Latin",
+      "language": "Turkish",
+      "main": null,
+      "main_fallbacks": [],
+      "alt": null,
+      "alt_options": null,
+      "hyphen": "turkish"
+    },
+    "passes": [
+      {
+        "key": "vocal",
+        "label": "1",
+        "title": "the sentence"
+      },
+      {
+        "key": "chunks",
+        "label": "2",
+        "title": "chunks and glosses"
+      }
+    ],
+    "anki": {
+      "field": "Turkish",
+      "vocab_model": 1724563200061,
+      "opposites_model": 1724563200062,
+      "vocab_name": "Frank Turkish",
+      "opposites_name": "Frank Turkish Opposites"
+    },
+    "duration_units": [
+      "saniye",
+      "dakika",
+      "saat"
+    ],
+    "chapter_words": [
+      "bölüm"
+    ]
+  },
+  "en": {
+    "name": "English",
+    "iso3": "eng",
+    "native": "English",
+    "folder": "english",
+    "tag": "english",
+    "dir": "ltr",
+    "script": "latin",
+    "chars": null,
+    "word_sep": " ",
+    "digits": "0123456789",
+    "strip": null,
+    "reading": false,
+    "vertical": false,
+    "require_tr": false,
+    "translit_label": "pronunciation",
+    "reading_label": null,
+    "vocal_label": "the sentence",
+    "bare_label": null,
+    "vb_labels": [
+      "past",
+      "p.p."
+    ],
+    "vb_forms": [
+      "plain form",
+      "past",
+      "past participle"
+    ],
+    "fonts": {
+      "main": "TeX Gyre Pagella",
+      "alt": null,
+      "alt_key": null,
+      "css_main": "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, Georgia, serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": []
+    },
+    "tex": {
+      "babel": "english",
+      "import": "en",
+      "options": "",
+      "script": "Latin",
+      "language": "English",
+      "main": null,
+      "main_fallbacks": [],
+      "alt": null,
+      "alt_options": null,
+      "hyphen": "english"
+    },
+    "passes": [
+      {
+        "key": "vocal",
+        "label": "1",
+        "title": "the sentence"
+      },
+      {
+        "key": "chunks",
+        "label": "2",
+        "title": "chunks and glosses"
+      }
+    ],
+    "anki": {
+      "field": "Headword",
+      "vocab_model": 1724563200071,
+      "opposites_model": 1724563200072,
+      "vocab_name": "Frank English",
+      "opposites_name": "Frank English Opposites"
+    },
+    "duration_units": [
+      "second",
+      "seconds",
+      "minute",
+      "minutes",
+      "hour",
+      "hours"
+    ],
+    "chapter_words": [
+      "chapter"
+    ]
+  },
+  "hi": {
+    "name": "Hindi",
+    "iso3": "hin",
+    "native": "हिन्दी",
+    "folder": "hindi",
+    "tag": "hindi",
+    "dir": "ltr",
+    "script": "devanagari",
+    "chars": "\\u0900-\\u097F\\uA8E0-\\uA8FF\\u1CD0-\\u1CFF\\u200C\\u200D",
+    "word_sep": " ",
+    "digits": "०१२३४५६७८९",
+    "strip": null,
+    "reading": false,
+    "vertical": false,
+    "require_tr": true,
+    "translit_label": "transliteration",
+    "reading_label": null,
+    "vocal_label": "the sentence",
+    "bare_label": null,
+    "vb_labels": [
+      "stem",
+      "perf."
+    ],
+    "vb_forms": [
+      "infinitive",
+      "stem",
+      "perfective (m. sg.)"
+    ],
+    "fonts": {
+      "main": "Noto Serif Devanagari",
+      "alt": null,
+      "alt_key": null,
+      "css_main": "'Noto Serif Devanagari', 'Noto Sans Devanagari', 'Nirmala UI', 'Kohinoor Devanagari', serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": [
+        "NotoSerifDevanagari.woff2"
+      ]
+    },
+    "tex": {
+      "babel": "hindi",
+      "import": "hi",
+      "options": "onchar=ids fonts",
+      "script": "Devanagari",
+      "language": "Hindi",
+      "main": "Noto Serif Devanagari",
+      "main_fallbacks": [
+        "Noto Sans Devanagari"
+      ],
+      "alt": null,
+      "alt_options": null,
+      "hyphen": null
+    },
+    "passes": [
+      {
+        "key": "vocal",
+        "label": "1",
+        "title": "the sentence"
+      },
+      {
+        "key": "chunks",
+        "label": "2",
+        "title": "chunks and glosses"
+      }
+    ],
+    "anki": {
+      "field": "Hindi",
+      "vocab_model": 1724563200081,
+      "opposites_model": 1724563200082,
+      "vocab_name": "Frank Hindi",
+      "opposites_name": "Frank Hindi Opposites"
+    },
+    "duration_units": [
+      "सेकंड",
+      "सेकेंड",
+      "मिनट",
+      "घंटा",
+      "घंटे"
+    ],
+    "chapter_words": [
+      "अध्याय",
+      "पाठ",
+      "भाग"
+    ]
+  },
+  "es": {
+    "name": "Spanish",
+    "native": "español",
+    "iso3": "spa",
+    "folder": "spanish",
+    "tag": "spanish",
+    "dir": "ltr",
+    "script": "latin",
+    "chars": null,
+    "word_sep": " ",
+    "digits": "0123456789",
+    "strip": null,
+    "reading": false,
+    "vertical": false,
+    "require_tr": false,
+    "translit_label": "pronunciation",
+    "reading_label": null,
+    "vocal_label": "the sentence",
+    "bare_label": null,
+    "vb_labels": [
+      "pres.",
+      "pret."
+    ],
+    "vb_forms": [
+      "infinitive",
+      "1st sg. present",
+      "3rd sg. preterite"
+    ],
+    "fonts": {
+      "main": null,
+      "alt": null,
+      "alt_key": null,
+      "css_main": "'TeX Gyre Pagella', 'Palatino Linotype', Palatino, Georgia, serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": []
+    },
+    "tex": {
+      "babel": "spanish",
+      "import": "es",
+      "options": "",
+      "script": "Latin",
+      "language": "Spanish",
+      "main": null,
+      "main_fallbacks": [],
+      "alt": null,
+      "alt_options": null,
+      "hyphen": "spanish"
+    },
+    "passes": [
+      {
+        "key": "vocal",
+        "label": "1",
+        "title": "the sentence"
+      },
+      {
+        "key": "chunks",
+        "label": "2",
+        "title": "chunks and glosses"
+      }
+    ],
+    "anki": {
+      "field": "Spanish",
+      "vocab_model": 1724563200101,
+      "opposites_model": 1724563200102,
+      "vocab_name": "Frank Spanish",
+      "opposites_name": "Frank Spanish Opposites"
+    },
+    "duration_units": ["segundo", "segundos", "minuto", "minutos", "hora", "horas"],
+    "chapter_words": ["capítulo"]
+  },
+  "zh": {
+    "name": "Chinese",
+    "native": "中文",
+    "iso3": "cmn",
+    "folder": "chinese",
+    "tag": "chinese",
+    "dir": "ltr",
+    "script": "cjk",
+    "chars": "\u3000-\u303F\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uFF00-\uFF64\uFFE0-\uFFEF\u2E80-\u2FDF",
+    "word_sep": "",
+    "digits": "0123456789",
+    "strip": null,
+    "reading": false,
+    "vertical": true,
+    "words": true,
+    "require_tr": true,
+    "translit_label": "pinyin",
+    "reading_label": null,
+    "vocal_label": "the sentence",
+    "bare_label": null,
+    "vb_labels": [
+      "split",
+      "can't"
+    ],
+    "vb_forms": [
+      "verb",
+      "A了B (a separable verb only)",
+      "A不B (a verb with a complement only)"
+    ],
+    "fonts": {
+      "main": "Noto Serif CJK SC",
+      "alt": null,
+      "alt_key": null,
+      "css_main": "'Noto Serif CJK SC', serif",
+      "css_alt": null,
+      "alt_line_height": null,
+      "web_files": []
+    },
+    "tex": {
+      "babel": "chinese",
+      "import": "zh",
+      "options": "onchar=ids fonts,intraspace=0 .1 0",
+      "script": "CJK",
+      "language": "Chinese Simplified",
+      "main": "Noto Serif CJK SC",
+      "main_fallbacks": [],
+      "alt": null,
+      "alt_options": null,
+      "hyphen": null
+    },
+    "passes": [
+      {
+        "key": "vocal",
+        "label": "1",
+        "title": "with pinyin over each word"
+      },
+      {
+        "key": "aloud",
+        "label": "2",
+        "title": "the reading alone, in pinyin"
+      },
+      {
+        "key": "chunks",
+        "label": "3",
+        "title": "chunks and glosses"
+      },
+      {
+        "key": "bare",
+        "label": "4",
+        "title": "plain, as Chinese is written"
+      },
+      {
+        "key": "alt",
+        "label": "5",
+        "title": "vertical",
+        "kind": "vertical"
+      }
+    ],
+    "anki": {
+      "field": "Chinese",
+      "vocab_model": 1724563200111,
+      "opposites_model": 1724563200112,
+      "vocab_name": "Frank Chinese",
+      "opposites_name": "Frank Chinese Opposites"
+    },
+    "duration_units": ["秒", "秒", "分钟", "分钟", "小时", "小时"],
+    "chapter_words": ["第", "章", "回"]
+  }
+}

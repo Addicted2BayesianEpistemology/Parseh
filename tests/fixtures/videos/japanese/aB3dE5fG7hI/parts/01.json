@@ -1,0 +1,60 @@
+[
+ {"start": 5,
+  "chunks": [
+   {"fa": "こんにちは、", "kana": "こんにちは、", "tr": "konnichiwa,",
+    "voc": "こんにちは konnichiwa hello, good afternoon", "en": "hello,"},
+   {"fa": "みなさん", "kana": "みなさん", "tr": "minasan",
+    "voc": "皆さん みなさん minasan everyone (polite)", "en": "everyone"}
+  ]},
+ {"start": 9,
+  "chunks": [
+   {"fa": "今日は", "kana": "きょうは", "tr": "kyō wa",
+    "voc": "今日 きょう kyō today; は wa topic marker", "en": "today"},
+   {"fa": "天気が", "kana": "てんきが", "tr": "tenki ga",
+    "voc": "天気 てんき tenki weather; が ga subject marker", "en": "the weather"},
+   {"fa": "いいですね", "kana": "いいですね", "tr": "ii desu ne",
+    "voc": "いい ii good; です desu is (polite); ね ne isn't it", "en": "is nice, isn't it"}
+  ]},
+ {"start": 14,
+  "chunks": [
+   {"fa": "私は", "kana": "わたしは", "tr": "watashi wa",
+    "voc": "私 わたし watashi I", "en": "I"},
+   {"fa": "毎朝", "kana": "まいあさ", "tr": "maiasa",
+    "voc": "毎朝 まいあさ maiasa every morning", "en": "every morning"},
+   {"fa": "コーヒーを", "kana": "コーヒーを", "tr": "kōhī o",
+    "voc": "コーヒー kōhī coffee (Eng.); を o object marker", "en": "coffee"},
+   {"fa": "飲みます", "kana": "のみます", "tr": "nomimasu",
+    "voc": "飲む のむ nomu to drink · 飲みます nomimasu (polite present)", "en": "drink"}
+  ]},
+ {"start": 20,
+  "chunks": [
+   {"fa": "駅まで", "kana": "えきまで", "tr": "eki made",
+    "voc": "駅 えき eki station; まで made up to, as far as", "en": "to the station"},
+   {"fa": "歩いて", "kana": "あるいて", "tr": "aruite",
+    "voc": "歩く あるく aruku to walk · 歩いて aruite (te-form)", "en": "on foot"},
+   {"fa": "十分", "kana": "じゅっぷん", "tr": "juppun",
+    "voc": "十分 じゅっぷん juppun ten minutes", "en": "ten minutes",
+    "note": "十分 read じゅうぶん jūbun means 'enough'; here it is the time"},
+   {"fa": "かかります", "kana": "かかります", "tr": "kakarimasu",
+    "voc": "かかる kakaru to take (time)", "en": "it takes"}
+  ]},
+ {"start": 26,
+  "chunks": [
+   {"fa": "この本は", "kana": "このほんは", "tr": "kono hon wa",
+    "voc": "この kono this; 本 ほん hon book", "en": "this book"},
+   {"fa": "いくらですか", "kana": "いくらですか", "tr": "ikura desu ka",
+    "voc": "いくら ikura how much; か ka question marker", "en": "how much is it?"}
+  ]},
+ {"start": 30,
+  "chunks": [
+   {"fa": "少し", "kana": "すこし", "tr": "sukoshi",
+    "voc": "少し すこし sukoshi a little", "en": "a little"},
+   {"fa": "高いですね", "kana": "たかいですね", "tr": "takai desu ne",
+    "voc": "高い たかい takai expensive; high", "en": "expensive, isn't it"}
+  ]},
+ {"start": 34,
+  "chunks": [
+   {"fa": "ありがとうございました", "kana": "ありがとうございました", "tr": "arigatō gozaimashita",
+    "voc": "ありがとうございました arigatō gozaimashita thank you (for what was done)", "en": "thank you very much"}
+  ]}
+]

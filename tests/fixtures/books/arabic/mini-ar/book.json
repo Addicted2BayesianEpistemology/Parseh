@@ -1,0 +1,14 @@
+{
+  "slug": "mini-ar",
+  "language": "ar",
+  "title": "الثعلب والعنب",
+  "title_latin": "Aṯ-ṯaʿlab wa-l-ʿinab",
+  "title_en": "The Fox and the Grapes",
+  "author": "حكاية",
+  "author_latin": "a fable after Aesop",
+  "year": "",
+  "blurb": "A fixture for the tests: the fox and the grapes in two paragraphs of fully vowelled Arabic.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

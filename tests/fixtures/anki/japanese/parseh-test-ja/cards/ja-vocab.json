@@ -1,0 +1,30 @@
+{
+ "id": "ja-vocab",
+ "guid": "fx-ja-vocab",
+ "kind": "vocab",
+ "lang": "ja",
+ "created": "2026-09-03 10:00:00",
+ "video": "fixture-ja",
+ "book": "",
+ "time": 0,
+ "context": "これは私たちの家です",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "家",
+ "kana": "いえ",
+ "tr": "ie",
+ "en": "house",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "japanese-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": "https://example.org/ja"
+ }
+}

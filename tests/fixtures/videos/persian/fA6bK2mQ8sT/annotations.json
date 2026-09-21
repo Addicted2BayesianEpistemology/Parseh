@@ -1,0 +1,114 @@
+{
+ "video": "fA6bK2mQ8sT",
+ "language": "fa",
+ "segments": [
+  {
+   "start": 0,
+   "plain": true,
+   "text": "Welcome back to the channel, today we learn Persian at the greengrocer's"
+  },
+  {
+   "start": 6,
+   "chapter": "در میوه‌فروشی",
+   "text": "سلام، ببخشید سیب چند است",
+   "chunks": [
+    {
+     "fa": "سلام،",
+     "tr": "salām",
+     "voc": "سلام salām hello (peace)",
+     "en": "hello,"
+    },
+    {
+     "fa": "ببخشید",
+     "tr": "bebaxšid",
+     "voc": "ببخشید bebaxšid excuse me (بخشیدن baxšidan · pres. بخش baxš · past بخشید baxšid · to forgive)",
+     "en": "excuse me,"
+    },
+    {
+     "fa": "سیب چند است",
+     "tr": "sib čand ast",
+     "voc": "سیب sib apple · چند čand how much, how many · است ast is",
+     "en": "how much are the apples"
+    }
+   ]
+  },
+  {
+   "start": 12,
+   "text": "کیلویی سی هزار تومان، تازه آمده",
+   "chunks": [
+    {
+     "fa": "کیلویی سی هزار تومان،",
+     "tr": "kilu-yi si hezār tomān",
+     "voc": "کیلو kilu kilo, + یی -yi a kilo, per kilo · سی si thirty · هزار hezār thousand · تومان tomān toman",
+     "en": "thirty thousand tomans a kilo,"
+    },
+    {
+     "fa": "تازه آمده",
+     "tr": "tāze āmade",
+     "voc": "تازه tāze fresh, newly · آمده āmade come (آمدن āmadan · pres. آ ā · past آمد āmad · to come)",
+     "en": "just come in"
+    }
+   ]
+  },
+  {
+   "start": 18,
+   "text": "دو کیلو می‌خواهم لطفا",
+   "chunks": [
+    {
+     "fa": "دو کیلو می‌خواهم",
+     "tr": "do kilu mi-xāham",
+     "voc": "دو do two · می‌خواهم mi-xāham I want (خواستن xāstan · pres. خواه xāh · past خواست xāst · to want); می mi- present",
+     "en": "I want two kilos"
+    },
+    {
+     "fa": "لطفا",
+     "tr": "lotfan",
+     "voc": "لطفا lotfan please",
+     "en": "please"
+    }
+   ]
+  },
+  {
+   "start": 24,
+   "text": "چشم، چیز دیگری نمی‌خواهید",
+   "chunks": [
+    {
+     "fa": "چشم،",
+     "tr": "češm",
+     "voc": "چشم češm eye — as an answer, certainly, at once",
+     "en": "certainly,"
+    },
+    {
+     "fa": "چیز دیگری",
+     "tr": "čiz-e digar-i",
+     "voc": "چیز čiz thing, + ezafe · دیگر digar other, + indefinite ی -i",
+     "en": "anything else"
+    },
+    {
+     "fa": "نمی‌خواهید",
+     "tr": "nemi-xāhid",
+     "voc": "نمی nemi- the negative present",
+     "en": "you do not want"
+    }
+   ]
+  },
+  {
+   "start": 30,
+   "text": "نه ممنون، خدا حافظ",
+   "chunks": [
+    {
+     "fa": "نه ممنون،",
+     "tr": "na mamnun",
+     "voc": "نه na no · ممنون mamnun grateful, thank you",
+     "en": "no, thank you,"
+    },
+    {
+     "fa": "خدا حافظ",
+     "tr": "xodā hāfez",
+     "voc": "خدا xodā God · حافظ hāfez guardian — goodbye",
+     "en": "goodbye"
+    }
+   ]
+  }
+ ]
+}

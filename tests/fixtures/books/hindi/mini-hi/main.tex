@@ -1,0 +1,13 @@
+%% mini-hi -- a fixture edition for the tests, not a book of the library.
+%% Build by hand from this directory, as build.sh's run_latex does:
+%%   OSFONTDIR=<root>/lib/fonts:/usr/share/fonts lualatex -interaction=nonstopmode main.tex
+\newcommand{\BookLang}{hi}
+\newcommand{\FrankLib}{../../../../../lib}
+\newcommand{\BookTitle}{किसान की अँगूठी}
+\newcommand{\BookAuthor}{एक कहानी}
+\newcommand{\BookTitleLatin}{THE FARMER'S RING}
+\newcommand{\BookAuthorLatin}{a tale}
+\input{\FrankLib/frank-preamble.tex}
+\input{\FrankLib/frank-frontmatter.tex}
+\input{ch1.tex}
+\end{document}

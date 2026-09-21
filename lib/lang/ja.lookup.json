@@ -1,0 +1,43 @@
+{
+  "_comment": "How a Japanese word on the page is turned into something the dictionary can be asked about. Read by lib/lookup.py; optional, like every file of this name. Japanese needs no `fold` -- Wiktionary's Japanese is written as the page is -- but it needs the rules below more than any other language here, for two reasons. Its verbs and adjectives inflect by ENDING rather than by a table Wiktionary lists in full, and it is written WITHOUT SPACES, so these rules are used twice: once to look a piece up, and once, in _segment, to decide that a run of characters is a word at all.",
+
+  "fold": "",
+
+  "_affixes": "Two kinds, longest first. The AUXILIARIES (ます, ません, ない, たい) attach to a stem the source's own inflection table already lists -- 行きました is 行き + ました, and 行き is in the table as the continuative stem of 行く -- so taking the auxiliary off is enough and `add` stays empty. The て AND た FORMS are not in those tables and have to be rebuilt: 住んで is 住む, 書いて is 書く. The ending does not say which dictionary form it came from -- んで is む or ぶ or ぬ -- so each possibility is its own rule and the cascade takes the first that is actually in the dictionary, which is the right answer nearly always and a visible wrong one otherwise.",
+  "_prefer": "WHAT IS LEFT WHEN AN AUXILIARY COMES OFF IS A STEM, and a stem of one character is also a word of its own: 来ました without -mashita is 来, which is a prefix, a suffix, an affix, a name and a classical verb before it is 来る, and with four places 来る was the fifth -- so were 出る, 寝る and いる. `prefer` names the rows that make an entry the answer when this rule is the one that answered: the verb's own `stem` row (and its pointer's, `continuative, stem`), and for -nai the stem it takes, `imperfective` or `irrealis stem`. The classical verbs' `continuative stem` is deliberately not among them.",
+  "affixes": [
+    {"suffix": "ませんでした", "note": "polite negative past, -masen deshita taken off", "prefer": ["stem", "continuative, stem"]},
+    {"suffix": "ましょう", "note": "polite volitional, -mashō taken off", "prefer": ["stem", "continuative, stem"]},
+    {"suffix": "ました", "note": "polite past, -mashita taken off", "prefer": ["stem", "continuative, stem"]},
+    {"suffix": "ません", "note": "polite negative, -masen taken off", "prefer": ["stem", "continuative, stem"]},
+    {"suffix": "まして", "note": "polite te-form, -mashite taken off", "prefer": ["stem", "continuative, stem"]},
+    {"suffix": "ます", "note": "polite, -masu taken off", "prefer": ["stem", "continuative, stem"]},
+    {"suffix": "なかった", "note": "negative past, -nakatta taken off", "prefer": ["stem", "continuative, stem", "imperfective", "irrealis stem"]},
+    {"suffix": "ない", "note": "negative, -nai taken off", "prefer": ["stem", "continuative, stem", "imperfective", "irrealis stem"]},
+    {"suffix": "たい", "note": "desiderative, -tai taken off", "prefer": ["stem", "continuative, stem"]},
+    {"suffix": "ながら", "note": "-nagara taken off", "prefer": ["stem", "continuative, stem"]},
+
+    {"suffix": "んで", "add": "む", "note": "te-form of a -mu verb"},
+    {"suffix": "んで", "add": "ぶ", "note": "te-form of a -bu verb"},
+    {"suffix": "んで", "add": "ぬ", "note": "te-form of a -nu verb"},
+    {"suffix": "んだ", "add": "む", "note": "past of a -mu verb"},
+    {"suffix": "んだ", "add": "ぶ", "note": "past of a -bu verb"},
+    {"suffix": "んだ", "add": "ぬ", "note": "past of a -nu verb"},
+    {"suffix": "いて", "add": "く", "note": "te-form of a -ku verb"},
+    {"suffix": "いた", "add": "く", "note": "past of a -ku verb"},
+    {"suffix": "いで", "add": "ぐ", "note": "te-form of a -gu verb"},
+    {"suffix": "いだ", "add": "ぐ", "note": "past of a -gu verb"},
+    {"suffix": "して", "add": "す", "note": "te-form of a -su verb"},
+    {"suffix": "した", "add": "す", "note": "past of a -su verb"},
+    {"suffix": "って", "add": "る", "note": "te-form of a -ru verb"},
+    {"suffix": "って", "add": "う", "note": "te-form of a -u verb"},
+    {"suffix": "って", "add": "つ", "note": "te-form of a -tsu verb"},
+    {"suffix": "った", "add": "る", "note": "past of a -ru verb"},
+    {"suffix": "った", "add": "う", "note": "past of a -u verb"},
+    {"suffix": "った", "add": "つ", "note": "past of a -tsu verb"},
+    {"suffix": "て", "add": "る", "note": "te-form of an ichidan verb"},
+    {"suffix": "た", "add": "る", "note": "past of an ichidan verb"},
+    {"suffix": "くて", "add": "い", "note": "te-form of an -i adjective"},
+    {"suffix": "かった", "add": "い", "note": "past of an -i adjective"}
+  ]
+}

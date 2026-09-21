@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Library — Parseh studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D9%81%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{BASE}}/static/app.css">
+<link rel="stylesheet" href="{{BASE}}/static/langs.css">
+</head>
+<body data-page="index" data-base="{{BASE}}">
+<header class="topbar">
+  <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
+  <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ف</span> Studio</a>
+  <div class="topbar-actions">
+    <a class="btn" href="{{BASE}}/prompt">LLM prompt</a>
+    <button class="btn" id="btn-paste-answer">Paste LLM answer</button>
+    <label class="btn" for="file-upload"
+           title="A markdown document, or a .zip of one with its pictures and recordings (a document's Download ▾ gives one)">Upload .md / .zip</label>
+    <input type="file" id="file-upload" accept=".md,.markdown,.txt,.zip,application/zip" multiple hidden>
+    <a class="btn" href="{{BASE}}/api/export" title="Download the whole library as a zip">Backup</a>
+    <button type="button" class="btn" id="btn-restore"
+            title="Put a backup zip back: every document it holds, with its id, its tags and the links that point at it">Load from backup</button>
+    <input type="file" id="backup-file" accept=".zip,application/zip" hidden>
+    <details class="dropdown" id="download-shown">
+      <summary class="btn" id="btn-download-shown"
+               title="Download the documents shown">Download 0 shown</summary>
+      <div class="menu">
+        <button type="button" id="dl-shown-md"
+                title="One zip of their .md sources">Markdown (.md)</button>
+        <button type="button" id="dl-shown-zip"
+                title="One zip holding each document's own zip: its markdown, its tags, its pictures and its recordings">Markdown + media (.zip)</button>
+      </div>
+    </details>
+    <form id="download-form" method="post" action="{{BASE}}/api/download" target="download-sink" hidden>
+      <input type="hidden" id="download-ids" name="ids">
+      <input type="hidden" id="download-shape" name="shape" value="md">
+    </form>
+    <iframe name="download-sink" id="download-sink" title="Download" hidden></iframe>
+    <a class="btn primary" href="{{BASE}}/new">+ New</a>
+    <button class="btn danger ghost" id="btn-stop">Stop server</button>
+  </div>
+</header>
+<main class="container">
+  <div class="searchrow">
+    <input id="search" type="search" placeholder="Search by title, subtitle or tag…" autocomplete="off">
+    <label class="check"><input type="checkbox" id="intext"> search in text too</label>
+    <button type="button" class="btn ghost" id="btn-clear-filters" hidden
+            title="Clear the search, every tag filter and the language chip">Clear all filters</button>
+    <select id="sort" title="Sort order">
+      <option value="updated">Last modified</option>
+      <option value="created">Created</option>
+      <option value="title">Title A–Z</option>
+    </select>
+  </div>
+  {{LANG_CHIPS}}
+  <div id="tagbar" class="tagbar"></div>
+  <p id="tag-filter-hint" class="tag-filter-hint" hidden>Tags: click to include (+), again to exclude (−), again to clear. Shift-click excludes directly.</p>
+  <div id="cards" class="cards" data-lang-filter="[data-lang]"></div>
+  <div id="empty" class="empty hidden">
+    <p>No documents yet.</p>
+    <p>Start from the <a href="{{BASE}}/prompt">LLM prompt</a>, then paste the
+    answer here — or create a <a href="{{BASE}}/new">new document</a> by hand.</p>
+  </div>
+  <div id="empty-lang" class="empty hidden">
+    <p>No <span class="lang-name"></span> documents here.</p>
+    <p>Pick another language chip above, or <b>all</b>.</p>
+  </div>
+  <footer id="statusline" class="statusline"></footer>
+</main>
+<script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
+<div id="modal-root"></div>
+<div id="toast" class="toast" hidden></div>
+<div id="shutdown-overlay" class="shutdown-overlay" hidden>
+  <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
+  <code>./serve.sh</code> in the project directory.</p></div>
+</div>
+<!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
+<script src="/lib/activity.js" async></script>
+<script src="{{BASE}}/static/app.js"></script>
+</body>
+</html>

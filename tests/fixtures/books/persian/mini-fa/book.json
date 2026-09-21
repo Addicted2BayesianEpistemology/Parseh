@@ -1,0 +1,14 @@
+{
+  "slug": "mini-fa",
+  "language": "fa",
+  "title": "فارسی شکر است",
+  "title_latin": "Farsi shekar ast",
+  "title_en": "Persian is Sugar",
+  "author": "محمدعلی جمال‌زاده",
+  "author_latin": "Mohammad-Ali Jamalzadeh",
+  "year": "1921",
+  "blurb": "A fixture for the tests: the first two paragraphs of Farsi shekar ast, from the edition that used to sit at books/persian/farsi-shakar-ast before the owner took their own reading out of the repository.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

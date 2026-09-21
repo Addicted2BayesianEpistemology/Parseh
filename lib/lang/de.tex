@@ -1,0 +1,129 @@
+% German -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define.
+% The Latin-script model, as Italian: no font of its own, no marks to strip,
+% two passes.  What is German's own is which of the two Germans babel gets.
+
+% ---- the babel language and the switches ----------------------------------
+% ngerman, not german: the two are different sets of hyphenation patterns.
+% What tells them apart is ck and st.  The old spelling divided Zucker as
+% Zuk-ker, a break that changes a letter and so cannot be written as a
+% pattern at all, so the old set declines ck outright -- Zucker backen
+% Drucker Wecker come out unbroken -- and it never divides s from t
+% (Fen-ster, Mei-ster).  The reformed set, which every book printed since
+% 1996 follows, gives Zu-cker ba-cken Dru-cker We-cker, Fens-ter Meis-ter.
+% Schiff-fahrt is not the test it looks like: both sets break it there.
+% Measured with \showhyphens under \babelprovide[import=de-1901]{german}
+% against [import=de-1996]{ngerman}.
+% This name is also what every \foreignlanguage and \begin{otherlanguage} in
+% the core preamble is handed, so babel must know it exactly as spelt here.
+\newcommand{\FrankLangName}{ngerman}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBarefalse       % nothing is written in, so nothing can come off again
+\FrankHasAltfalse        % no alternate face
+\FrankHasReadingfalse
+\FrankHasVertfalse
+
+% ---- fonts ------------------------------------------------------------------
+% The registry's tex.main is null for German: the text is set in the main
+% roman the core preamble already loaded (TeX Gyre Pagella), the same face as
+% the glosses, so a German chunk and its English gloss differ by size and
+% colour only.  Pagella has the umlauts, the ß and the two letters the
+% pronunciation line uses beyond them (ç and ž), so German needs no face of
+% its own.  It does need the core's DejaVu Serif fallback for one letter, as
+% the Italian and French lines need it for ʃ ʒ ɲ: Pagella has no capital ẞ --
+% font.characters[0x1E9E] is nil for it and set for DejaVu Serif, asked of
+% luaotfload on this machine.  Nothing here case-folds, so a ẞ reaches the
+% page only where the source itself wrote one, a name or a title in capitals
+% (STRAẞE), and there it costs the book a second embedded face.
+% import=de brings babel's German hyphenation and its quotation marks.
+\babelprovide[import=de]{ngerman}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{infinitive}{sound}{preterite}{sound}{past participle}{sound}{meaning}:
+% the three principal parts, which is what a German dictionary prints and what
+% every other form is built out of (geben, gab, gegeben).  The present is
+% deliberately not among them: a strong verb changes its vowel there too
+% (er gibt), but that form is one person of one tense, while the participle
+% decides the whole perfect -- so the vowel change rides with the meaning
+% instead.  docs/lang/de.md names the same three in the same order, which is
+% what keeps the annotator's slots and these labels from drifting apart.
+% What rides with the meaning is ONE parenthesis after it, items parted by
+% "; ", each only where it is not the ordinary case:
+%   er fährt            the third person present, where it is not the stem
+%                       plus -t or -et (er gibt, er nimmt; ich kann for a
+%                       modal), and a separable verb's whole: er fährt ab
+%   aux. sein           the perfect is made with sein; aux. haben/sein where
+%                       it takes both.  haben alone is never printed
+%   + dat., auf + acc.  the case or the preposition the verb governs
+%   \vb{fahren}{}{fuhr}{}{gefahren}{}{to drive (er fährt; aux. sein)}
+% A reflexive verb carries its sich in the first slot, sich freuen, and the
+% two other forms stay bare (freute, gefreut).  The chunk editor's sidebar
+% drafts this same line from the dictionary (lib/verbs/de.py), in this
+% order and these words, so a change to it is a change there too.
+% The reader takes the same pair from the registry (lib/languages.json,
+% "vb_labels": ["pret.", "p.p."], the three forms in words as "vb_forms"); the
+% two must agree, or the PDF and the reader of one book label the same form
+% differently.  lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{pret.}
+\newcommand{\FrankVbPast}{p.p.}
+
+% ---- the two Lua filters ---------------------------------------------------
+% Both are the identity: German writes no mark the bare pass would drop (the
+% registry's `strip` is null) and its labels are already in Latin digits.
+% They still have to exist, because the core calls them for every language.
+% Nothing here folds ß into ss, either.  That is a spelling and not a mark --
+% Straße and the Swiss Strasse are both right, and a book printed before 1996
+% says daß -- so a filter that tidied it would put on the page a word the
+% source does not contain.  No #, % or literal backslash in a \directlua body:
+% TeX reads it first (NOTES section 9 of the Persian book).
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s) return s end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex, before the first chapter: the only
+% place the reader is told what the passes are for.  German words are set in
+% \textit and not in \pw, as in the Italian file: \pw shrinks a word to 8.6pt
+% for a script that needs telling apart from the English, and here the two are
+% the same face, where the italic is what does the telling.
+\newcommand{\FrankHowTo}{%
+Every passage comes twice.
+
+\smallskip
+\textbf{First} the whole sentence, and nothing else. Try to read it. Get as far
+as you can and do not worry about what you cannot get — the point is the
+attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, German on the left, and on
+the right three lines: how it is pronounced, then how to look each word up,
+then what it means. Now you find out how much you had right. There is no third
+pass, because nothing was written into the German for the first one and so
+there is nothing to take away again: the sentence you attempted is already the
+sentence as a German book prints it, capital nouns and all.
+
+\smallskip
+The pronunciation line is given only where the spelling misleads, and is empty
+otherwise. It respells the chunk in small letters: a colon after a vowel means
+the vowel is long (\textit{schta:t} \textit{Staat} against \textit{schtat}
+\textit{Stadt}), an apostrophe stands before the stressed syllable, \textit{x}
+is the \textit{ch} of \textit{Bach} and \textit{ç} the thinner one of
+\textit{ich}, a final \textit{-er} is a dark vowel written \textit{a}
+(\textit{'fa:ta}, \textit{Vater}). Stress alone separates
+\textit{'ü:bazetsen}, to ferry someone across, from \textit{ü:ba'zetsen}, to
+translate, so a verb with a prefix always gets a line.
+
+\smallskip
+Verbs are given as infinitive, preterite, past participle, meaning —
+\textit{geben}, \textit{gab}, \textit{gegeben} — the three you cannot work
+out from one another. What they leave out stands in brackets after the
+meaning: the present where it changes its vowel too (\textit{er gibt}),
+\textit{aux. sein} where the perfect takes \textit{sein} and not
+\textit{haben}, and the case or the preposition the verb governs
+(\textit{+ dat.}, \textit{auf + acc.}). A reflexive verb is given with its
+\textit{sich}. A verb with a separable prefix is given whole,
+\textit{aufstehen}, even where the sentence has pulled it in two and the
+\textit{auf} waits at the end of the clause.
+}

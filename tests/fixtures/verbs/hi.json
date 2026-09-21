@@ -1,0 +1,411 @@
+{
+ "code": "hi",
+ "_why": "Offline smoke cases for lib/verbs/hi.py, each built from the real rows of dict/hi.db (built 2026-09-10) and checked to give the same answer from a one-entry dictionary made of the case alone. `expect` null means the recipe returns None (no \\vb).",
+ "cases": [
+  {
+   "why": "regular: पढ़ना reached as its feminine perfective; the stem and perfective are the table's, (+ने) from lib/lang/hi.verbs.json",
+   "entry": {
+    "headword": "पढ़ना",
+    "translit": "paṛhnā",
+    "ipa": "/pəɽʱ.nɑː/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to read\nto study, learn\nto recite; to read out (an announcement, a poem)",
+    "sense_tags": "transitive\ntransitive\ntransitive",
+    "head": "{\"tr\": \"tr.\"}"
+   },
+   "forms": [
+    [
+     "पढ़ना",
+     "",
+     ""
+    ],
+    [
+     "पढ़",
+     "stem",
+     "paṛh"
+    ],
+    [
+     "पढ़ा",
+     "direct masculine perfective singular",
+     "paṛhā"
+    ],
+    [
+     "पढ़ी",
+     "feminine perfective singular",
+     "paṛhī"
+    ],
+    [
+     "पढ़ी",
+     "feminine first-person indicative perfect singular third-person",
+     "paṛhī"
+    ],
+    [
+     "पढ़ी",
+     "feminine indicative perfect second-person",
+     "paṛhī"
+    ],
+    [
+     "पढ़ी",
+     "feminine, participle, perfective, singular",
+     "paṛhī"
+    ],
+    [
+     "पढ़ी",
+     "feminine, indicative, perfect, singular",
+     "paṛhī"
+    ]
+   ],
+   "word": "पढ़ी",
+   "text": "उसने किताब पढ़ी।",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{पढ़ना}{paṛhnā}{पढ़}{paṛh}{पढ़ा}{paṛhā}{to read (+\\pw{ने})}",
+    "plain": "पढ़ना paṛhnā · stem पढ़ paṛh · perf. पढ़ा paṛhā · to read (+ ने)",
+    "line": "stem पढ़ paṛh · perf. पढ़ा paṛhā · + ने",
+    "complete": true
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "irregular: करना/किया; करना is a light verb, so the chunk is read, and no conjunct page is made with उसने",
+   "entry": {
+    "headword": "करना",
+    "translit": "karnā",
+    "ipa": "/kəɾ.nɑː/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to do, to perform, to execute\nto work, to engage in a profession\nto render or convert from one state to another\nto move, shift, or place\nto apply\nto extinguish a light\nto kill or slaughter\nto hire, to engage\nto marry or take as a spouse\nto engage in sexual intercourse",
+    "sense_tags": "\n\n\n\n\n\n\n\n\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "करना",
+     "",
+     ""
+    ],
+    [
+     "कर",
+     "stem",
+     "kar"
+    ],
+    [
+     "किया",
+     "direct masculine perfective singular",
+     "kiyā"
+    ],
+    [
+     "किया",
+     "indicative masculine perfect singular",
+     "kiyā"
+    ],
+    [
+     "किया",
+     "masculine, participle, perfective, singular",
+     "kiyā"
+    ],
+    [
+     "किया",
+     "indicative, masculine, perfect, singular",
+     "kiyā"
+    ]
+   ],
+   "word": "किया",
+   "text": "उसने बहुत सोचकर किया।",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\\pw{ने})}",
+    "plain": "करना karnā · stem कर kar · perf. किया kiyā · to do (+ ने)",
+    "line": "stem कर kar · perf. किया kiyā · + ने",
+    "complete": true
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "irregular with NO table: जाना's perfective गया comes from the pointer page (masculine, participle, perfective, singular) and the bogus oblique जाये is refused; the stem is the infinitive less -ना; nothing for ने",
+   "entry": {
+    "headword": "जाना",
+    "translit": "jānā",
+    "ipa": "/d͡ʒɑː.nɑː/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to go, move, travel, leave, depart; to proceed from one place to another\nto lead to, extend to, reach [with तक (tak) ‘to, until’] (of a road, path, river, etc.)\nto flow, issue, discharge, leak [with से (se) ‘from’] (of bodily fluids, liquids, etc.)\nto pass, elapse, spend, go by (of time, periods, seasons)\nto continue, to go on, to keep proceeding\nto heed, to turn to, to judge or act according to\nto be lost, to disappear, to be stolen, to be missing\nto be go waste, ruined, spoiled, wrecked\nto be removed, to go away, to clear (of illness, troubles, stains, etc.)\nto be lost to someone, to cost, to entail harm or expense (used in possessive expressions, often interrogative or negative)\nto be deprived of, to forfeit, to lose entitlement to\nto be overlooked, to be forgotten, to be passed over (of an offense, fault, or matter)",
+    "sense_tags": "\nobj:::तक<to; until>\nobj:::से<from>\n\n\nobj:::पर<on; upon>\n\n\n\n\nobj:::से<from>\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "जाना",
+     "",
+     ""
+    ],
+    [
+     "जा",
+     "a form of",
+     "jā"
+    ],
+    [
+     "जा",
+     "imperative, present, second-person, singular",
+     "jā"
+    ],
+    [
+     "गया",
+     "a form of",
+     "gayā"
+    ],
+    [
+     "गया",
+     "masculine, participle, perfective, singular",
+     "gayā"
+    ],
+    [
+     "गया",
+     "indicative, masculine, perfect, singular",
+     "gayā"
+    ],
+    [
+     "जाये",
+     "masculine, participle, perfective, plural",
+     "jāye"
+    ],
+    [
+     "जाये",
+     "masculine, oblique, participle, perfective, singular",
+     "jāye"
+    ],
+    [
+     "जाये",
+     "future, intimate, second-person, singular, subjunctive",
+     "jāye"
+    ],
+    [
+     "जाये",
+     "future, singular, subjunctive, third-person",
+     "jāye"
+    ]
+   ],
+   "word": "गया",
+   "text": "वह बाज़ार गया।",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{जाना}{jānā}{जा}{jā}{गया}{gayā}{to go}",
+    "plain": "जाना jānā · stem जा jā · perf. गया gayā · to go",
+    "line": "stem जा jā · perf. गया gayā",
+    "complete": true
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "Hindi's own: the perfective's sound is the table's (samjhā, not samajh+ā), and समझना goes either way, (±ने)",
+   "entry": {
+    "headword": "समझना",
+    "translit": "samajhnā",
+    "ipa": "/sə.məd͡ʒʱ.nɑː/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to understand\nto comprehend\nto perceive\nto think, consider",
+    "sense_tags": "\n\n\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "समझना",
+     "",
+     ""
+    ],
+    [
+     "समझ",
+     "stem",
+     "samajh"
+    ],
+    [
+     "समझा",
+     "direct masculine perfective singular",
+     "samjhā"
+    ],
+    [
+     "समझा",
+     "indicative masculine perfect singular",
+     "samjhā"
+    ],
+    [
+     "समझा",
+     "masculine, participle, perfective, singular",
+     "samjhā"
+    ],
+    [
+     "समझा",
+     "indicative, masculine, perfect, singular",
+     "samjhā"
+    ]
+   ],
+   "word": "समझा",
+   "text": "मैं समझा नहीं।",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{समझना}{samajhnā}{समझ}{samajh}{समझा}{samjhā}{to understand (±\\pw{ने})}",
+    "plain": "समझना samajhnā · stem समझ samajh · perf. समझा samjhā · to understand (± ने)",
+    "line": "stem समझ samajh · perf. समझा samjhā · ± ने",
+    "complete": true
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "Hindi's own: Wiktionary's nasal tilde respelt as this series writes it (hãsnā -> haṁsnā), and हँसना never takes ने",
+   "entry": {
+    "headword": "हँसना",
+    "translit": "hãsnā",
+    "ipa": "/ɦə̃s.nɑː/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to laugh, chuckle\nto smile\nto laugh [with पर (par) ‘at’], to make fun of or joke about\nto be or appear cheerful or pleasant",
+    "sense_tags": "intransitive\nintransitive\nintransitive,obj:::पर<at>\nfiguratively,intransitive",
+    "head": "{\"tr\": \"intr.\"}"
+   },
+   "forms": [
+    [
+     "हँसना",
+     "",
+     ""
+    ],
+    [
+     "हँस",
+     "stem",
+     "hãs"
+    ],
+    [
+     "हँसा",
+     "direct masculine perfective singular",
+     "hãsā"
+    ],
+    [
+     "हँसा",
+     "indicative masculine perfect singular",
+     "hãsā"
+    ]
+   ],
+   "word": "हँसा",
+   "text": "किसान हँसा।",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{हँसना}{haṁsnā}{हँस}{haṁs}{हँसा}{haṁsā}{to laugh}",
+    "plain": "हँसना haṁsnā · stem हँस haṁs · perf. हँसा haṁsā · to laugh",
+    "line": "stem हँस haṁs · perf. हँसा haṁsā",
+    "complete": true
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "a sense that only points at another verb: the meaning is the gloss the pointer quotes; (+ने) from the head code, the verb not being in the hand-kept list",
+   "entry": {
+    "headword": "चोरना",
+    "translit": "cornā",
+    "ipa": "/t͡ʃoːɾ.nɑː/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "synonym of चुराना (curānā, “to steal”)",
+    "sense_tags": "dated,rare,transitive",
+    "head": "{\"tr\": \"tr.\"}"
+   },
+   "forms": [
+    [
+     "चोरना",
+     "",
+     ""
+    ],
+    [
+     "चोर",
+     "stem",
+     "cor"
+    ],
+    [
+     "चोरना",
+     "infinitive",
+     "cornā"
+    ],
+    [
+     "चोरना",
+     "direct infinitive masculine singular",
+     "cornā"
+    ],
+    [
+     "चोरा",
+     "direct masculine perfective singular",
+     "corā"
+    ],
+    [
+     "चोरना",
+     "feminine future imperative masculine plural second-person",
+     "cornā"
+    ]
+   ],
+   "word": "चोरना",
+   "text": "चोरना",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{चोरना}{cornā}{चोर}{cor}{चोरा}{corā}{to steal (+\\pw{ने})}",
+    "plain": "चोरना cornā · stem चोर cor · perf. चोरा corā · to steal (+ ने)",
+    "line": "stem चोर cor · perf. चोरा corā · + ने",
+    "complete": true
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "not a \\vb: a pos=verb page that is not an infinitive (conjunctive of खेलना)",
+   "entry": {
+    "headword": "खेलकर",
+    "translit": "khelkar",
+    "ipa": "/kʰeːl.kəɾ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "conjunctive of खेलना (khelnā)",
+    "sense_tags": "",
+    "head": ""
+   },
+   "forms": [
+    [
+     "खेलकर",
+     "",
+     ""
+    ]
+   ],
+   "word": "खेलकर",
+   "text": "खेलकर",
+   "gloss": "en",
+   "expect": null,
+   "run": "lookup"
+  },
+  {
+   "why": "incomplete: सालना has no conjugation table, so its perfective is missing; (+ने) from the head code",
+   "entry": {
+    "headword": "सालना",
+    "translit": "sālnā",
+    "ipa": "/sɑːl.nɑː/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to pierce, to prick\nto cause pain or suffering",
+    "sense_tags": "transitive\ntransitive",
+    "head": "{\"tr\": \"tr.\"}"
+   },
+   "forms": [
+    [
+     "सालना",
+     "",
+     ""
+    ]
+   ],
+   "word": "सालना",
+   "text": "सालना",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{सालना}{sālnā}{साल}{sāl}{}{}{to pierce (+\\pw{ने})}",
+    "plain": "सालना sālnā · stem साल sāl · to pierce (+ ने)",
+    "line": "stem साल sāl · + ने",
+    "complete": false
+   },
+   "run": "lookup"
+  }
+ ]
+}

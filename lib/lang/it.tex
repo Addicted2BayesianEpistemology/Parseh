@@ -1,0 +1,93 @@
+% Italian -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define.
+% The Latin-script model: no font of its own, no marks to strip, two passes.
+
+% ---- the babel language and the switches ----------------------------------
+\newcommand{\FrankLangName}{italian}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBarefalse       % there is nothing to strip, so pass 3 would repeat pass 1
+\FrankHasAltfalse        % no alternate face
+\FrankHasReadingfalse
+\FrankHasVertfalse
+
+% ---- fonts ------------------------------------------------------------------
+% The registry's tex.main is null for Italian: the text is set in the main
+% roman the core preamble already loaded (TeX Gyre Pagella), the same face as
+% the glosses, so an Italian chunk and its English gloss differ by size and
+% colour only.  import=it brings babel's Italian hyphenation and quoting rules.
+\babelprovide[import=it]{italian}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{infinitive}{sound}{first person present}{sound}{past participle}{sound}{meaning}
+% A sound is the form with its stressed vowel marked, and only where the
+% stress is not on the next-to-last syllable: \vb{prendere}{prèndere}{prendo}{}...
+% (the open or closed e and o are the pronunciation line's, not the \vb's).
+% A verb of the third person only gives its third (accadere: accade, p.r.
+% accadde), as the dictionary does.
+% The first person present is the one form that shows what the infinitive
+% hides -- the -isc- of finisco, the stem of vado, esco, vengo, devo -- and the
+% participle is what every compound past is made of (è andata, ha parlato),
+% which is why the class label the gloss once carried (-are, -ire, -isc-) is
+% gone: those two forms and the infinitive's own ending already say it.
+% What they cannot say goes in ONE parenthesis after the meaning, items
+% parted by "; ", and only when it is not the ordinary case:
+%   aux. \pw{essere}           the perfect is made with essere (avere is the
+%                              default and is never printed);
+%   aux. \pw{avere}/\pw{essere} it takes both (finire, correre, cominciare);
+%   p.r. \pw{venni}            the passato remoto, first person, and only when
+%                              it is irregular -- the narrative past of every
+%                              book here, and fece, disse, prese, venne cannot
+%                              be walked back to their infinitives.
+%   \vb{venire}{}{vengo}{}{venuto}{}{to come (aux. \pw{essere}; p.r. \pw{venni})}
+% The reader takes the same pair of labels from the registry
+% (lib/languages.json, "vb_labels": ["pres.", "p.p."], the forms in words as
+% "vb_forms"); the two must agree, or the PDF and the reader of one book label
+% the same form differently.  lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{pres.}
+\newcommand{\FrankVbPast}{p.p.}
+
+% ---- the two Lua filters ---------------------------------------------------
+% Both are the identity: Italian carries no marks the bare pass would drop
+% (the registry's `strip` is null) and its labels are already in Latin digits.
+% They still have to exist, because the core calls them for every language.
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s) return s end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+\newcommand{\FrankHowTo}{%
+Every passage comes twice.
+
+\smallskip
+\textbf{First} the whole sentence, and nothing else. Try to read it. Get as far
+as you can and do not worry about what you cannot get — the point is the
+attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, Italian on the left, and on
+the right three lines: how it is pronounced, then how to look each word up,
+then what it means. Now you find out how much you had right. Italian is
+written as it is spoken, so there is no third pass: the sentence you attempted
+is already the sentence as it is printed.
+
+\smallskip
+The pronunciation line is given only where the spelling misleads, and is
+empty otherwise: the stressed vowel carries an accent when it is not the
+penultimate, open \textit{è}, \textit{ò} against closed \textit{é},
+\textit{ó}; a dot marks the voiced \textit{ṡ} and \textit{ż}
+(\textit{càṡa}, \textit{żèro}); \textit{gli} is written \textit{ʎ},
+\textit{gn} is \textit{ɲ} and \textit{sc} before \textit{e} or \textit{i}
+is \textit{ʃ}; a doubled consonant is held. Verbs are given as infinitive,
+first person present, past participle, meaning — the past participle is the
+one you cannot always guess — and a form carries an accent beside it only
+where its stress is not on the next-to-last syllable (\textit{prèndere},
+\textit{àbito}). What those three cannot tell you stands in brackets after
+the meaning: \textit{aux. essere} where the perfect is made with
+\textit{essere} (\textit{è andata}), \textit{aux. avere/essere} where it can
+be made with either, and nothing at all where it takes only \textit{avere};
+and the past historic, \textit{p.r.}, wherever it is irregular —
+\textit{venni}, \textit{feci}, \textit{presi} — since that is the tense a
+story is told in.
+}

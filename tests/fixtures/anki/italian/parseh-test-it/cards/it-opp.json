@@ -1,0 +1,30 @@
+{
+ "id": "it-opp",
+ "guid": "fx-it-opp",
+ "kind": "opposites",
+ "lang": "it",
+ "created": "2026-09-03 10:00:00",
+ "video": "",
+ "book": "fixture-it",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "grande",
+ "kana": "",
+ "tr": "",
+ "en": "",
+ "opp": "piccolo",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "italian-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

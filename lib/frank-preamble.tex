@@ -1,0 +1,1068 @@
+% Shared preamble for every reading edition in this project.
+% A book's main.tex defines \BookLang and \FrankLib (and \BookGloss, if the
+% glosses are not in English), then \BookTitle, \BookAuthor, \BookTitleLatin
+% and \BookAuthorLatin, then inputs this file.
+% Nothing here names a book, and nothing here names a language either: what a
+% language decides lives in lib/lang/<code>.tex (docs/languages.md section 6).
+% =====================================================================
+%  THE ILYA FRANK READING EDITIONS  —  the preamble every book shares
+%  A reading edition after the method of Ilya Frank.
+%
+%  ENGINE:  lualatex main.tex, via ./build.sh   (run twice for the ToC)
+%
+%  Every passage is given up to five times:
+%    1. the whole sentence with its help written in -- the short vowels for
+%       Persian and Arabic, the reading over each word (or each chunk) for
+%       Japanese and Chinese
+%    2. the reading alone, chunk after chunk: kana, or pinyin (only where
+%       the chunks carry words: Japanese, Chinese)
+%    3. broken into small chunks, each beside a gloss
+%    4. the same text bare, the way the language is really printed
+%       (only where that differs from 1: Persian, Arabic, Japanese, Chinese)
+%    5. the same text once more in the language's other form: nastaliq for
+%       Persian, vertical for Japanese and Chinese; nothing for Arabic or Italian
+%  A language numbers only the passes it has (the registry's labels): Persian
+%  reads 1 the attempt, 2 the chunks, 3 bare, 4 nastaliq.
+%
+%  The text is written ONCE, in the \ch (\chr, \chw, \chrw) chunks.  Every
+%  other pass is assembled from those same tokens, so they can never drift apart.
+%
+%  WHAT A LANGUAGE FILE DEFINES (lib/lang/<code>.tex), and this file uses:
+%    \FrankLangName            babel's name for the language, with its
+%                              \babelprovide and \babelfont already issued
+%    \FrankRTLtrue/false       which side the chunk sits on; bidi isolates
+%    \FrankHasBaretrue/false   whether the bare pass exists
+%    \FrankHasAlttrue/false    whether \FrankAltFont exists (a font switch:
+%                              the title, the chapter number, and the last
+%                              pass unless the language has a vertical pass)
+%    \FrankHasVerttrue/false   the last pass is \FrankVertPass (defined by the file)
+%    \FrankHasReadingtrue/false  \chr's kana is set (over the chunk, and as
+%                              the first line of the gloss); \jruby exists
+%    \FrankHasAloudtrue/false  whether the reading pass exists: every
+%                              chunk's reading alone, right after pass 1
+%                              (a language whose chunks carry words)
+%    frank_strip(s)            Lua: the bare form of a chunk (marks dropped)
+%    frank_latin(s)            Lua: the label's digits as ASCII, for the ids
+%    \FrankHowTo               the "How to read this" text of the front matter
+%  and may define \FrankChunkSep (the seam between two chunks in the rebuilt
+%  passes; a space unless the file says otherwise), \jruby{text}{kana},
+%  \FrankRuby{word}{reading} (the reading over one word of a \chw or \chrw;
+%  \jruby unless the file says otherwise), \FrankAloudText{reading} (how a
+%  reading is set in the reading pass), and \FrankVbPres / \FrankVbPast (the
+%  labels of \vb's two extra forms, each printed only where its form is given).
+% =====================================================================
+\documentclass[11pt]{book}
+
+% A main.tex written before languages were declared defines neither of these;
+% it is a Persian book that finds this file two directories up.
+\providecommand{\BookLang}{fa}
+\providecommand{\FrankLib}{../../lib}
+% The language the glosses are WRITTEN in, which is not always the language
+% being taught: an Italian learning English reads English chunks glossed in
+% Italian.  Absent it is English, so every book written before the macro
+% existed means exactly what it meant (docs/languages.md sections 3 and 11).
+\providecommand{\BookGloss}{en}
+
+% ─────────── PAGE + SIZE KNOBS (tune these first) ───────────
+\usepackage[paperwidth=105mm,paperheight=140mm,
+            top=9mm,bottom=11mm,inner=9mm,outer=9mm]{geometry}
+\newcommand{\SzChunk}{\fontsize{13}{25}\selectfont}  % pass 2, the annotated text
+\newcommand{\SzGloss}{\fontsize{8.2}{11}\selectfont} % transliteration (and the kana line)
+\newcommand{\SzDict} {\fontsize{7.6}{10}\selectfont} % dictionary / vocabulary forms
+\newcommand{\SzTrans}{\fontsize{7.2}{9.4}\selectfont}% the meaning (and the ruby kana)
+\newcommand{\SzPlain}{\fontsize{15}{27}\selectfont}  % passes 1 and 3, no glosses
+\newcommand{\SzNast} {\fontsize{15}{36}\selectfont}  % pass 4 in the alternate face (nastaliq needs air)
+\newcommand{\SzToc}  {\fontsize{7.4}{9.4}\selectfont}  % the printed table of contents
+% ─────────────────────────────────────────────────────────────
+
+\usepackage{fontspec}
+\usepackage[bidi=basic,english,provide+=*]{babel}
+% The document's own language -- what babel was just loaded with, and what the
+% roman below is set for.  It is not the gloss language (\FrankGlossName, and
+% a book may be glossed in Italian) and it is not the book's: it is the name
+% of the face and the script the series is set in, which is what a
+% transliteration goes back into wherever the glosses around it are set in
+% another (\FrankRoman below).
+\newcommand{\FrankRomanLang}{english}
+% Glyphs the roman lacks come from a fallback face, glyph by glyph: the
+% IPA-lite marks an Italian pronunciation line uses (ʎ ɲ ʃ ṡ), the dotted
+% letters of a scholarly transliteration.  luaotfload does the substitution
+% only for characters TeX Gyre Pagella has no glyph for, so a book whose
+% glosses stay inside Pagella's repertoire -- every Persian one -- is set
+% exactly as before.  Without DejaVu Serif on the machine the fallback is
+% simply not declared and a missing glyph is reported in the log as always.
+\IfFontExistsTF{DejaVu Serif}{%
+  \directlua{luaotfload.add_fallback("frankfallback", {"DejaVu Serif:mode=node;script=latn;"})}%
+  \babelfont{rm}[RawFeature={fallback=frankfallback}]{TeX Gyre Pagella}%
+}{%
+  \babelfont{rm}{TeX Gyre Pagella}%
+}
+\babelfont{sf}{TeX Gyre Heros}
+\newfontfamily\symbolfont{DejaVu Sans}   % carries the sun the 1951 edition uses
+\usepackage{etoolbox}
+
+% ---------------------------------------------------------------------
+%  THE LANGUAGE
+% ---------------------------------------------------------------------
+% The switches the language file sets.  All false until it speaks.
+\newif\ifFrankRTL
+\newif\ifFrankHasBare
+\newif\ifFrankHasAlt
+\newif\ifFrankHasVert
+\newif\ifFrankHasReading
+\newif\ifFrankHasAloud
+
+% The fonts a language is set in are the registry's, lib/languages.json --
+% no .tex file names a font (docs/languages.md section 1).  LuaTeX reads the
+% registry itself: lualibs, which luaotfload loads, brings utilities.json.
+% The file is looked for beside this one, through \FrankLib, from the book
+% directory lualatex runs in.  A registry that cannot be read is a real error
+% (tex.error gives a "!" line, which build.sh stops on), not a quiet fallback:
+% the book would otherwise come out in whatever face fontspec picked.
+% No #, %, ~ or literal backslash in a \directlua body: TeX reads it first,
+% and ~ is an active character that expands to \nobreakspace -- so Lua's
+% "not equal" is written not (a == b) here (see frank_breaks below too).
+\directlua{
+  frank_registry = nil
+  function frank_reg_load()
+    if frank_registry then return frank_registry end
+    local path = "\FrankLib/languages.json"
+    local f = io.open(path, "r")
+    if not f then
+      tex.error("frank: cannot read the language registry at " .. path)
+      frank_registry = {} ; return frank_registry
+    end
+    local s = f:read("*a") ; f:close()
+    if not (utilities and utilities.json and utilities.json.tolua) then
+      tex.error("frank: this LuaTeX has no JSON reader (lualibs); cannot read " .. path)
+      frank_registry = {} ; return frank_registry
+    end
+    frank_registry = utilities.json.tolua(s) or {}
+    return frank_registry
+  end
+  function frank_reg(lang, ...)
+    local t = frank_reg_load()[lang]
+    for _, k in ipairs({...}) do
+      if not (type(t) == "table") then return "" end
+      t = t[k]
+    end
+    if type(t) == "table" then return table.concat(t, ",") end
+    if t == nil or t == false then return "" end
+    return tostring(t)
+  end
+  function frank_reg_fonts(lang, key, fbkey)
+    local out, n = {}, 0
+    local function add(v)
+      if type(v) == "table" then
+        for _, x in ipairs(v) do add(x) end
+      elseif type(v) == "string" and string.len(v) > 0 then
+        n = n + 1 ; out[n] = v
+      end
+    end
+    local tex_rec = frank_reg_load()[lang]
+    tex_rec = type(tex_rec) == "table" and tex_rec.tex or nil
+    if type(tex_rec) == "table" then
+      add(tex_rec[key])
+      if fbkey and string.len(fbkey) > 0 then add(tex_rec[fbkey]) end
+    end
+    return table.concat(out, ",")
+  end
+}
+% \FrankPickFont{\Name}{<code>}{<key>}{<fallbacks key>}
+%   \Name becomes the first face, of the registry's tex.<key> followed by
+%   tex.<fallbacks key>, that is installed (fontspec's \IfFontExistsTF, which
+%   sees OSFONTDIR and so the faces in lib/fonts).  When none is, \Name is the
+%   first name anyway and a warning says so: fontspec then fails loudly on it,
+%   which is right -- a book without a font for its language must not build.
+\makeatletter
+\newcommand{\FrankPickFont}[4]{%
+  \edef\Frank@cands{\directlua{tex.sprint(-2, frank_reg_fonts("#2","#3","#4"))}}%
+  \def#1{}%
+  \def\Frank@first{}%
+  \renewcommand*{\do}[1]{%
+    \ifdefempty{\Frank@first}{\def\Frank@first{##1}}{}%
+    \ifdefempty{#1}{\IfFontExistsTF{##1}{\def#1{##1}}{}}{}}%
+  \expandafter\docsvlist\expandafter{\Frank@cands}%
+  \ifdefempty{#1}{%
+    \PackageWarningNoLine{frank-preamble}{none of the registry's fonts for
+      #2/#3 is installed (\Frank@cands); trying \Frank@first}%
+    \let#1\Frank@first}{}}
+\makeatother
+
+\input{\FrankLib/lang/\BookLang.tex}
+
+% What a language file may leave to the defaults:
+%   \FrankChunkSep -- the seam between two chunks when a pass is rebuilt from
+%   the buffers.  A space, for every language written with spaces.
+%   \jruby{text}{kana} -- a language without a reading prints the text alone,
+%   so \chr can be written for every language and set the same way.
+\providecommand{\FrankChunkSep}{\space}
+\providecommand{\jruby}[2]{#1}
+%   \FrankRuby{word}{reading} -- the reading over ONE word of a \chw or
+%   \chrw.  Japanese's is its \jruby, measured per word as it is per chunk;
+%   a language that gives neither prints the word alone.
+\providecommand{\FrankRuby}[2]{\jruby{#1}{#2}}
+%   \FrankAloudText{reading} -- a chunk's reading in the reading pass, as it
+%   stands in the language's face (Chinese puts its pinyin in the roman).
+\providecommand{\FrankAloudText}[1]{#1}
+%   \FrankVbPres, \FrankVbPast -- the two labels \vb prints before its third
+%   and fifth arguments, each only when that argument is not blank (see \vb
+%   below).  "pres." and "past" are the Persian stems; a language whose verb
+%   is given by other forms renames them (ja: the -masu stem and the -te
+%   form; tr: the -iyor present and the aorist; zh: the split and the "can't"
+%   form).  Every language file sets them, and the registry's "vb_labels"
+%   carries the same pair for the reader, which cannot read this file;
+%   lib/newlang.py --check refuses to let the two spellings drift apart.
+%   These defaults are what an unmigrated language file would fall back to.
+\providecommand{\FrankVbPres}{pres.}
+\providecommand{\FrankVbPast}{past}
+
+% ---------------------------------------------------------------------
+%  THE GLOSS LANGUAGE
+% ---------------------------------------------------------------------
+% The book TEACHES \BookLang and its glosses are WRITTEN in \BookGloss.  Those
+% are two questions, and until a book could answer the second every gloss,
+% vocabulary line and contents row below said `english' outright.
+% \FrankGlossName is what they say now.
+%
+% A gloss language is PROSE and need not be one of the eight this toolbox
+% teaches -- somebody may gloss Persian in Spanish, and nobody studies Spanish
+% here.  So the name is asked of the registry first, which for a language the
+% toolbox does teach also gives the direction it runs in and the face it is
+% set in; and of babel's own locale file otherwise, under a name of ours,
+% because babel takes any name and reads the locale from `import'.  That is
+% why no list of the languages one may write in is kept here either
+% (docs/languages.md section 1).
+%
+% `en' is the one code nothing is provided for: babel was loaded with
+% `english' as the document's language at the top of this file, so
+% \FrankGlossName is already a language babel has.  A book that says nothing
+% -- every book written before \BookGloss existed -- therefore reaches
+% \begin{otherlanguage}{english} through the very tokens it always did, which
+% is how the Persian edition rebuilds to the same PDF (section 11).
+%
+% frank_gloss_opts(code) builds the option list of the gloss's \babelprovide.
+% `import' is a BCP-47 tag, whose region subtag is written in capitals, and
+% babel names its locale files after the tag: en-gb finds babel-en-gb.ini on a
+% case-sensitive disk, which is not there, and says nothing about it.
+% Then every option the registry gives that language EXCEPT onchar, which
+% hands a whole script to ONE babel language: the book's own must keep it, or
+% a Persian gloss would take the Arabic of the text it is glossing away from
+% the language teaching it.  Nothing is lost by dropping it -- every gloss
+% below names its language outright, so none of them needs switching on sight.
+% No #, %, ~ or literal backslash in a \directlua body, and no Lua comment
+% either: TeX reads the body first and turns its line ends into spaces, so a
+% -- comment swallows the rest of the function (that is why every block here
+% is commented from the outside).  No Lua character class, for the % in it.
+\directlua{
+  function frank_gloss_opts(code)
+    local tag = frank_reg(code, "tex", "import")
+    if string.len(tag) == 0 then tag = code end
+    local i = string.find(tag, "-", 1, true)
+    if i then tag = string.sub(tag, 1, i) .. string.upper(string.sub(tag, i + 1)) end
+    local out = "import=" .. tag
+    for piece in string.gmatch(frank_reg(code, "tex", "options") .. ",", "([^,]*),") do
+      if string.len(piece) > 0 and not (string.sub(piece, 1, 7) == "onchar=") then
+        out = out .. "," .. piece
+      end
+    end
+    return out
+  end
+}
+\makeatletter
+\edef\FrankGlossName{\directlua{tex.sprint(-2, frank_reg("\BookGloss", "tex", "babel"))}}
+\ifdefempty{\FrankGlossName}{\def\FrankGlossName{frankgloss}}{}
+% Which way the glosses run.  The registry answers for the eight; a code it
+% does not carry is one of the prose languages the studio writes notes in
+% (docs/languages.md section 5), every one of them Latin-script and left to
+% right, and guessing otherwise would set a page backwards without a word.
+\newif\ifFrankGlossRTL
+\edef\Frank@gdir{\directlua{tex.sprint(-2, frank_reg("\BookGloss", "dir"))}}
+\ifdefstring{\Frank@gdir}{rtl}{\FrankGlossRTLtrue}{}
+% \FrankRoman{...} is what in a gloss is Latin script BY NATURE and not by
+% choice: the transliteration line, the sound beside each word of a vocabulary
+% entry, and the two labels a \vb prints (every language's pair is a Latin
+% abbreviation -- pres., masdar, -te).  Where the gloss language brings a face
+% of its own -- Persian, Arabic, Japanese -- that face would set them, and it
+% has no italic (babel substitutes the upright and says so once in the log)
+% and shapes their diacritics with the wrong script: risālatan ṭawīlatan came
+% out of Vazirmatn with the dot of the ṭ on the letter before it.  So they go
+% back into the language the roman is set for, which is also what makes each
+% of them a left-to-right run of its own.  For a gloss the roman already sets
+% -- every Latin-script one, English included -- this is nothing at all, and
+% the Persian edition's vocabulary lines keep the tokens they had (§11).
+\newcommand{\FrankRoman}[1]{#1}
+% Provide it only where nobody has: `english' is the document's own language,
+% and lib/lang/<code>.tex has already provided the gloss's when a book is
+% glossed in the language it teaches (an English edition, a monolingual one).
+\newif\ifFrank@needgloss  \Frank@needglosstrue
+\ifdefstring{\FrankGlossName}{english}{\Frank@needglossfalse}{}
+\ifdefstrequal{\FrankGlossName}{\FrankLangName}{\Frank@needglossfalse}{}
+\ifFrank@needgloss
+  \edef\Frank@gloss@provide{\noexpand\babelprovide[%
+    \directlua{tex.sprint(-2, frank_gloss_opts("\BookGloss"))}]{\FrankGlossName}}%
+  \Frank@gloss@provide
+  % The face, where the registry names one: Persian glosses want Vazirmatn,
+  % Italian ones the roman the core already loaded (tex.main is null for every
+  % Latin-script language, and a second face would set one alphabet two ways).
+  \edef\Frank@gloss@main{\directlua{tex.sprint(-2, frank_reg("\BookGloss", "tex", "main"))}}%
+  \ifdefempty{\Frank@gloss@main}{}{%
+    \FrankPickFont{\FrankGlossFont}{\BookGloss}{main}{main_fallbacks}%
+    \edef\Frank@gloss@font{\noexpand\babelfont[\FrankGlossName]{rm}[%
+      Script=\directlua{tex.sprint(-2, frank_reg("\BookGloss", "tex", "script"))},%
+      Language=\directlua{tex.sprint(-2, frank_reg("\BookGloss", "tex", "language"))},%
+      Renderer=HarfBuzz]{\FrankGlossFont}}%
+    \Frank@gloss@font
+    \renewcommand{\FrankRoman}[1]{\foreignlanguage{\FrankRomanLang}{#1}}}%
+\fi
+\makeatother
+% Whether a word of the book's language, set inside a gloss, has to be
+% isolated from what surrounds it: it does exactly when the two run opposite
+% ways (\pw below).  Every book glossed in English asks this of \ifFrankRTL,
+% which is what this was until the gloss could run the other way.
+\newif\ifFrankMixedDir
+\ifFrankRTL
+  \ifFrankGlossRTL\else\FrankMixedDirtrue\fi
+\else
+  \ifFrankGlossRTL\FrankMixedDirtrue\fi
+\fi
+
+% One pairing is refused rather than set backwards.  A gloss block is ONE
+% paragraph and runs the gloss language's way; every island of the other
+% direction in it has to be isolated, and \pw isolates the ones this file
+% knows about -- the words of the book's own language.  When the gloss runs
+% left to right those are the only islands there are, because a
+% transliteration and a label are Latin and Latin is then the paragraph's own
+% direction: that is every book in the toolbox today, the Persian one
+% included.  When the gloss runs right to left and the book does too, the
+% islands are the romanisations, one to an entry, with the language's own
+% words on both sides of them, and the bidi algorithm places them correctly
+% (an Arabic text glossed in Persian sets exactly as it should).  But when the
+% gloss runs right to left and the BOOK runs left to right, a vocabulary line
+% is a chain of Latin runs joined by punctuation -- the period of `pres.', the
+% semicolons, the middle dots -- and every one of those neutral characters
+% takes the paragraph's direction and throws the entries it separates out of
+% order.  Isolating each entry instead would put it in an \mbox, which cannot
+% break across a line, and a \vb is longer than the gloss column.
+\ifFrankGlossRTL\ifFrankRTL\else
+  \PackageError{frank-preamble}{%
+    \BookGloss\space glosses cannot be written for a \BookLang\space book}{%
+    The glosses run right to left and the text they gloss runs left to
+    right.\MessageBreak
+    A vocabulary line would then come out with its entries in the wrong
+    order: the punctuation between them takes the direction of the
+    paragraph, not of the words on either side.\MessageBreak
+    Gloss this book in a left-to-right language, or give a right-to-left
+    gloss to a right-to-left text -- Persian glosses of an Arabic edition
+    are set correctly.}%
+\fi\fi
+
+\usepackage{xcolor}
+\usepackage{environ}   % \BODY: lets a sentence be collected before it is set
+
+% ---------------------------------------------------------------------
+%  NAVIGATION -- PDF outline, named destinations, printed contents
+% ---------------------------------------------------------------------
+% The unit the reader navigates by is the PARAGRAPH, never the sentence:
+% one \parend or \chapend per paragraph, so each already opens a page.
+%
+%   identity      chapter + paragraph, both in LATIN digits
+%   destination   par.3.12   (chapter 3, paragraph 12)
+%   human label   ۳.۱۲       -- the book's own digits (the language's)
+%
+% hyperref must come after babel, and bookmark after hyperref.
+\usepackage{hyperref}
+\hypersetup{unicode,bookmarks,bookmarksnumbered=false,hidelinks,
+            bookmarksopen,bookmarksdepth=2,
+            pdftitle={\BookTitleLatin},pdfauthor={\BookAuthorLatin}}
+\usepackage{bookmark}
+
+% The language's digits are the label, Latin digits are the id, so a
+% destination name has to be transliterated: frank_latin, from the language
+% file, does it.  \directlua is expandable, which is what lets this survive an
+% \edef and be built into a name argument.
+\newcommand{\FrankLatin}[1]{%
+  \directlua{tex.sprint(-2, frank_latin("\luaescapestring{#1}"))}}
+
+% \parstart is handed chapter.paragraph, because that is what makes a unique
+% destination.  But the page itself prints paragraph.subparagraph (NOTES §3),
+% so showing "۱.۲" in the contents beside a page headed "۲.۱" reads as the same
+% number reversed.  The chapter is already the level above, in the outline and
+% under its own heading in the printed list, so the entry shows the paragraph
+% alone and the reader sees ۲ against a page of ۲.۱, ۲.۲, ...
+% No Lua patterns here: TeX reads the argument of \directlua first, and % is
+% still its comment character, so "%.(.*)$" would silently comment out the rest
+% of the line and the function would return nothing.  A plain find avoids it.
+\directlua{
+  function frank_parno(s)
+    local i = s:find(".", 1, true)
+    if i then return s:sub(i + 1) end
+    return s
+  end
+}
+\newcommand{\FrankParNo}[1]{%
+  \directlua{tex.sprint(-2, frank_parno("\luaescapestring{#1}"))}}
+
+\makeatletter
+% A named destination that is legal in VERTICAL mode.  \Hy@raisedlink drops
+% the whatsit straight onto the vertical list when there is no line to hang
+% it from, so \parstart contributes no box, no glue and no paragraph --
+% \hypertarget would have had to start one.
+\newcommand{\FrankAnchor}[1]{%
+  \Hy@raisedlink{\hyper@anchorstart{#1}\hyper@anchorend}}
+
+% ---- the two kinds of contents line ----
+% \contentsline{frankpar}{\frankparentry{label}{incipit}}{page}{} is what
+% \parstart writes; \l@frankpar sets it.  Both are paragraphs of the GLOSS
+% language and run its way, so that the label comes before the incipit and
+% the page number lands at the end of the line for whoever is reading the
+% apparatus -- left to right for an English or Italian gloss, the other way
+% for a Persian one.  The label is a number in an RTL run and needs
+% the \mbox isolate or ۳.۱۲ comes out ۱۲.۳ (NOTES §9); the incipit is one
+% continuous phrase of the language, so it is left a plain run and is free to
+% break over two lines.  \hfil between two \parbox es is a legal breakpoint
+% under \raggedright, hence the enclosing \hbox to\linewidth (NOTES §9).
+% \parbox[t] takes its baseline from the FIRST BOX on its vertical list, so
+% both columns must be in horizontal mode before anything else -- \color
+% alone leaves a whatsit there, the box height comes out 0, and the page
+% number drops half a line below the line it belongs to.
+\newcommand{\FrankTocRow}[2]{%
+  \par\noindent
+  \hbox to\linewidth{%
+    \parbox[t]{0.84\linewidth}{\raggedright
+      \hyphenpenalty=10000\exhyphenpenalty=10000 \leavevmode#1}%
+    \hfil
+    \parbox[t]{0.12\linewidth}{\raggedleft\leavevmode\color{faint}#2}}%
+  \par}
+
+\newcommand{\frankparentry}[2]{% #1 = ۳.۱۲ (chapter.paragraph), #2 = the incipit
+  \edef\Frank@dest{par.\FrankLatin{#1}}%
+  \expandafter\hyperlink\expandafter{\Frank@dest}{%
+    \mbox{\foreignlanguage{\FrankLangName}{\FrankParNo{#1}}}\hskip0.9em\relax
+    \foreignlanguage{\FrankLangName}{#2}}}
+
+\newcommand{\l@frankpar}[2]{%
+  \begin{otherlanguage}{\FrankGlossName}%
+    {\SzToc\color{ink}\FrankTocRow{#1}{#2}}%
+  \end{otherlanguage}%
+  \addvspace{0.15ex}}
+
+\newcommand{\frankchapentry}[1]{% #1 = ۳
+  \edef\Frank@dest{ch.\FrankLatin{#1}}%
+  \expandafter\hyperlink\expandafter{\Frank@dest}{%
+    \mbox{\foreignlanguage{\FrankLangName}{#1}}}}
+
+\newcommand{\l@frankchap}[2]{%
+  \addvspace{1.8ex}%
+  \begin{otherlanguage}{\FrankGlossName}%
+    {\normalfont\footnotesize\color{ink}\FrankTocRow{#1}{#2}}%
+  \end{otherlanguage}%
+  \addvspace{0.9ex}}
+
+% \parstart{۳.۱۲}{first six words of pass 1}
+%   The destination, the outline bookmark and the contents line for one
+%   paragraph.  It must produce NO visible output and NO vertical space:
+%   verify_book.py proves the body still reproduces the source word for
+%   word, and the four passes must stay exactly where they were.
+%   Every name is expanded HERE -- \bookmark and \addtocontents both write
+%   at shipout, by which time \Frank@dest has moved on to another paragraph.
+\newcommand{\parstart}[2]{%
+  \edef\Frank@dest{par.\FrankLatin{#1}}%
+  \FrankAnchor{\Frank@dest}%
+  \edef\Frank@bkm{\noexpand\bookmark[dest=\Frank@dest,level=1]}%
+  % \bookmark writes its text out to the .out file, and a \directlua sitting in
+  % that text is gone by the time it is written -- the number simply vanished
+  % and the title began with the dash.  Expand it here, like the destination.
+  \edef\Frank@no{\FrankParNo{#1}}%
+  \expandafter\Frank@bkm\expandafter{\Frank@no\space— #2}%
+  \addtocontents{toc}{%
+    \protect\contentsline{frankpar}{\protect\frankparentry{#1}{#2}}{\thepage}{}}}
+
+% the same, for a chapter: level 0, and its own contents line
+\newcommand{\chapstart}[1]{%
+  \edef\Frank@dest{ch.\FrankLatin{#1}}%
+  \FrankAnchor{\Frank@dest}%
+  \edef\Frank@bkm{\noexpand\bookmark[dest=\Frank@dest,level=0]}%
+  \Frank@bkm{#1}%
+  \addtocontents{toc}{%
+    \protect\contentsline{frankchap}{\protect\frankchapentry{#1}}{\thepage}{}}}
+
+% The printed contents, called once by the front matter.  The front matter
+% is numbered in roman and the body restarts at 1, so however many pages
+% this list runs to it cannot move the numbers printed inside it -- which
+% is what lets build.sh's two lualatex passes be enough.
+\newcommand{\frankcontents}{%
+  \thispagestyle{fancy}%
+  \FrankAnchor{frank.toc}%
+  \bookmark[dest=frank.toc,level=0]{Contents}%
+  {\centering\normalfont\small\textbf{Contents}\par}%
+  \vspace{2.5mm}%
+  \@starttoc{toc}%
+  \par}
+\makeatother
+
+% Pass 1 carries the help -- the short vowels, the way a children's edition
+% does.  Passes 3 and 4 must not, but the text is only written once -- so the
+% marks are filtered out of the copy that feeds them, by the language file's
+% frank_strip (the harakat for Persian and Arabic; nothing for the others).
+\newcommand{\Strip}[1]{\directlua{tex.sprint(frank_strip("\luaescapestring{#1}"))}}
+
+% The 1951 edition writes a colon with no space after it -- بکند:بوی,
+% فاسقهایی:سیرابی‌فروش.  Arabic script offers no break inside a joined run, so
+% such a pair is one unbreakable token; at 13pt in the 0.34\linewidth chunk
+% column فاسِقهایی:سیرابی‌فُروش، came out 41pt too wide and ran off the page.
+% Re-chunking cannot help -- the token itself is too wide -- and splitting it
+% would put a space where the source has none and fail the fidelity test.  So
+% the colon is given a break opportunity, in the chunk column only: passes 1, 3
+% and 4 set the sentence across the full measure, where it already fits.
+%
+% The backslash is built from its char code.  Writing it literally does not
+% work: TeX reads the body of \directlua before Lua ever sees it, so a \\ in
+% there is an undefined control sequence, not an escaped backslash.
+%
+% A pre_linebreak_filter callback was tried first and never fired on this text:
+% babel's bidi=basic boxes the run, so the glyphs are not on the list the
+% callback is handed.
+% The same problem arrives twice more.  The edition marks a pause with a row of
+% 58 dots (chapter 3 paragraphs 73 and 90), which is one unbreakable token 204pt
+% wider than the chunk column, and it writes «مرگ... مرگ...» with ellipses inside
+% a chunk.  A period gets the same treatment as a colon: elsewhere a period is
+% followed by a space, so nothing else moves.
+% No Lua patterns: TeX reads the body of \directlua first, so a %. in there is
+% a comment, not an escaped dot.  Walking the bytes avoids the question, and is
+% safe over UTF-8 because a break is only ever appended after an ASCII byte.
+% And no # either -- string.len(s), never #s.  TeX DOUBLES a macro parameter
+% character on its way into \directlua, so #s reaches Lua as ##s, which is the
+% length of a length: "attempt to get length of a number value".  \directlua
+% then abandons the chunk, tex.sprint never runs, and the Persian column comes
+% out EMPTY -- silently, because that error does not start with a ! and so read
+% as a clean build.  It cost the book every chunk in passes 2 and 3 once.
+\directlua{
+  function frank_breaks(s)
+    local br = string.char(92) .. "allowbreak "
+    local out, n = {}, 0
+    for i = 1, string.len(s) do
+      local c = s:sub(i, i)
+      n = n + 1 ; out[n] = c
+      if c == ":" or c == "." then n = n + 1 ; out[n] = br end
+    end
+    return table.concat(out)
+  end
+}
+\newcommand{\FrankBreaks}[1]{%
+  \directlua{tex.sprint(frank_breaks("\luaescapestring{#1}"))}}
+\usepackage{fancyhdr}
+
+% Kindle is greyscale: everything below is a grey, not a colour.
+\definecolor{ink}  {gray}{0.10}
+\definecolor{gloss}{gray}{0.42}
+\definecolor{tlit} {gray}{0.22}
+\definecolor{dict} {gray}{0.30}
+\definecolor{faint}{gray}{0.70}
+
+\pagestyle{fancy}\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\color{faint}\normalfont\footnotesize\thepage}
+
+% ---------------------------------------------------------------------
+%  THE PASSES
+% ---------------------------------------------------------------------
+% \ch{colour}{text}{transliteration}{vocabulary forms}{meaning}
+%   The text is written ONCE, with its help (the vowels).  \ch typesets the
+%   chunk with its gloss and appends a bare copy to \FrankBuf, out of which
+%   passes 3 and 4 are rebuilt, so the passes cannot drift apart.
+% \chr{colour}{text}{kana}{transliteration}{vocabulary forms}{meaning}
+%   The same for a language with a reading (docs/languages.md section 3): the
+%   kana is set over the chunk in passes 1 and 2 and heads the gloss.  A
+%   distinct macro, not a sixth argument, so every parser knows the arity
+%   from the name.  In a language without a reading it behaves as \ch.
+% \chw{colour}{text}{transliteration}{vocabulary forms}{meaning}{words}
+% \chrw{colour}{text}{kana}{transliteration}{vocabulary forms}{meaning}{words}
+%   \ch and \chr carrying the chunk's WORD LINE, `山(やま) へ 柴刈り(しばかり) に 、'
+%   (lib/wordline.py): pass 1 and the chunk column set the text a word at a
+%   time, each word's reading over it.  The words come LAST, so every reader
+%   of the older two keeps its argument numbers.
+%
+% LAYOUT: \FrankFlowtrue puts the glosses inline, the way Frank's printed
+%   editions do.  It needs a wide measure -- on a page this narrow a long
+%   chunk and its gloss will not fit on one line, and an inline gloss that
+%   breaks gets its halves thrown to opposite corners by the bidi algorithm.
+%   \FrankFlowfalse gives each chunk its own line, text on the language's
+%   side, gloss on the other.
+\newif\ifFrankFlow
+\FrankFlowfalse
+
+% ------------------- the highlight palette ---------------------------
+% Four colours to mark a chunk with, put in \ch's first argument.  They reach
+% pass 1 only -- the whole sentence the reader attempts before any help -- so
+% a mark can point at a word without giving the game away in the chunks, the
+% bare text or the fourth pass, which stay in \c@ink like everything else.
+%
+% The rest of this book is deliberately greyscale, because it is read on
+% e-ink (see NOTES section 3).  On such a screen these will come out as four
+% greys, and dark red against green may not separate; on paper or a colour
+% screen they will.
+\definecolor{frankred}   {HTML}{8E1B1B}
+\definecolor{frankblue}  {HTML}{1F4E79}
+\definecolor{frankorange}{HTML}{BF5B04}
+\definecolor{frankgreen} {HTML}{22643A}
+\newcommand{\Cred}   {\color{frankred}}
+\newcommand{\Cblue}  {\color{frankblue}}
+\newcommand{\Corange}{\color{frankorange}}
+\newcommand{\Cgreen} {\color{frankgreen}}
+
+\newcommand{\ChunkCol}{0.34\linewidth}
+\newcommand{\GlossCol}{0.62\linewidth}
+
+% \FrankVocBuf keeps the help (pass 1), \FrankBuf drops it (the bare pass and
+% the alternate), \FrankAloudBuf holds each chunk's reading alone (the reading
+% pass, where the language has one)
+\newif\ifFrankCollect
+\newcommand{\FrankBuf}{}
+\newcommand{\FrankVocBuf}{}
+\newcommand{\FrankAloudBuf}{}
+\newcommand{\FrankBufReset}{\gdef\FrankBuf{}\gdef\FrankVocBuf{}\gdef\FrankAloudBuf{}}
+
+% ------------------ pieces of the vocabulary line --------------------
+% A word of the book's language sitting inside a run of the gloss's.  When the
+% two run opposite ways it has to be isolated: two such words separated only
+% by a space merge into one run of their own direction and come out in reverse
+% order, and \babelsublr+\mbox keeps each one where it was typed.  When they
+% run the same way -- an Italian book glossed in Italian, an Arabic one
+% glossed in Persian -- only the \mbox is wanted, and \babelsublr would be
+% wrong: it opens a run of the direction that is already current, which babel
+% does not expect.  For every book glossed in English this is \ifFrankRTL,
+% which is the test that stood here while English was the only gloss there was.
+\newcommand{\pw}[1]{%
+  \ifFrankMixedDir
+    \babelsublr{\mbox{\foreignlanguage{\FrankLangName}{\PwScale #1}}}%
+  \else
+    \mbox{\foreignlanguage{\FrankLangName}{\PwScale #1}}%
+  \fi}
+\newcommand{\PwScale}{\fontsize{8.6}{10}\selectfont}
+
+% \FrankSound{sound}: the space before a word's sound, and the sound -- or,
+% when the sound is blank, NOTHING, not even the space.  A sound slot is left
+% blank wherever the conventions give none: in every \vb docs/lang/tr.md,
+% es.md and de.md model and in most of it.md's, in the \dw of a Spanish or
+% German noun (de.md's own model is \dw{der Tisch, -e}{} table), in a German
+% \bw.  Written out as `\ \FrankRoman{\textit{#2}}', the space stayed when
+% the sound was not there and met the space the next piece brings, so each
+% blank sound set two: in the Turkish fixture every dot of "yağmak · pres.
+% yağıyor · aor. yağar · to fall" had 3.79pt before it where a \vb with its
+% sounds has 1.89pt, and \dw{vez}{} time and \bw{Werk}{}{work} had the same
+% 3.79pt before the next word.  The reader never printed the second space
+% (texparse drops an empty sound run), so the PDF now sets the line as the
+% reader does.  A filled sound is the very same tokens it always was: nine of
+% the eleven fixture editions come out of pdftotext byte for byte as before
+% (mini-de among them, whose \bw{Werk}{}{work} closed up without moving a
+% line break), and in the other two, mini-tr and mini-es, only line breaks
+% move -- the same words on every page of mini-tr, and in mini-es a line of
+% pass 1 that now fits at the foot of page 8.
+\newcommand{\FrankSound}[1]{\ifblank{#1}{}{\ \FrankRoman{\textit{#1}}}}
+\newcommand{\dw}[2]{\pw{#1}\FrankSound{#2}}     % headword + sound
+\newcommand{\bw}[3]{\ \textperiodcentered\ \pw{#1}\FrankSound{#2} `#3'} % base of a compound verb
+% \vb{form1}{sound1}{form2}{sound2}{form3}{sound3}{meaning}: the same seven
+% arguments in every language, the three forms being the language's own
+% (lib/lang/<code>.tex names them, the registry's "vb_forms" says them in
+% words, \FrankVbPres / \FrankVbPast label the second and the third).
+%
+% A PAIR WHOSE FORM IS BLANK IS NOT PRINTED -- neither the form nor its label
+% nor the dot before it -- and the same test is made on the meaning, which
+% always had it.  Two languages need a pair left out, and before the test
+% they could only print a label standing over nothing.  Chinese gives a
+% separable verb its split and a verb with a complement its "can't" form,
+% never both: \vb{睡觉}{shuìjiào}{睡了觉}{shuìle jiào}{}{}{to sleep} came out
+% as "... · split 睡了觉 shuìle jiào · can't · to sleep".  And an Arabic verb
+% whose masdar is not in use would have printed "· masdar" and nothing.
+% Only the FORM decides whether a pair is printed: a sound slot is empty in
+% every \vb docs/lang/tr.md, es.md and de.md model and in most of it.md's,
+% and a pair with a form and no sound is a pair.  The sound decides only
+% whether there is a space for it: each of the three goes through \FrankSound
+% above, so \vb{yağmak}{}{yağıyor}{}{yağar}{}{to fall} sets one space before
+% each dot and not two.
+% \ifblank (etoolbox, loaded above) takes spaces for blank and expands
+% nothing in the test, so \vb{a}{}{ }{}{c}{}{} leaves the second pair out too.
+%
+% Why not an optional argument, or a macro per language, for the pieces a
+% language adds (an auxiliary, a verb class, a governed case)?  Both were
+% tried: every tool that reads a \vb -- texparse, check_batch and texwrite
+% through it, normalize_batch, chunkdiv, assemble -- would have had to learn
+% the new shape on the same day, and one that did not failed loudly or, worse,
+% quietly: texparse.parse_voc died on \vb[aux. sein]{...} with "expected a
+% group at 3", which takes the reader's build down with it, while check_batch
+% counted its arguments as 0 and a per-language \vbde was refused as a macro
+% not allowed.  So the extras stay where docs/lang/<code>.md already put them,
+% in ONE parenthesis after the meaning, items parted by "; ":
+% \vb{fahren}{}{fuhr}{}{gefahren}{}{to drive (er fährt; aux. sein)}.
+%
+% Every pair in every book written before the test is filled, so they print
+% exactly as they did: the pdftotext of six fixture editions (mini-fa with
+% its 136 \vb, mini-ar, -de, -ja, -it, -en) is byte for byte what it was.
+% lib/texparse.py's _voc_runs makes the same test for the reader, and must
+% keep making it: a pair the PDF leaves out and the reader prints is one book
+% teaching two things.
+\newcommand{\vb}[7]{%
+  \pw{#1}\FrankSound{#2}%
+  \ifblank{#3}{}{\ \textperiodcentered\ \FrankRoman{\FrankVbPres}~\pw{#3}\FrankSound{#4}}%
+  \ifblank{#5}{}{\ \textperiodcentered\ \FrankRoman{\FrankVbPast}~\pw{#5}\FrankSound{#6}}%
+  \ifblank{#7}{}{\ \textperiodcentered\ #7}}
+
+% ------------------------ the gloss block ----------------------------
+% The block is set in the GLOSS language, whatever the book teaches: which
+% way it runs, which face sets it, and its locale's own punctuation -- a
+% French gloss gets the space before ; : ! ? and the right apostrophe from
+% babel rather than from whoever typed it.  Not its break points: the line
+% below forbids hyphenation in this column altogether, and always has.
+% \glbodyr{kana}{tr}{voc}{en}: the kana line comes first, upright, in the
+% language's own font, and only for a language with a reading -- for the
+% others the first argument is ignored, so \glbody is \glbodyr with it empty.
+% Every line but the meaning is guarded: the transliteration is optional
+% wherever the registry's require_tr is false (Turkish gives one only for the
+% three cases its conventions name), and an unguarded \textit{} would print a
+% blank line the gloss has to be read across.
+\newcommand{\glbodyr}[4]{%
+  \begin{otherlanguage}{\FrankGlossName}%
+    \raggedright\hyphenpenalty=10000\exhyphenpenalty=10000
+    \emergencystretch=1em
+    \ifFrankHasReading
+      \ifblank{#1}{}{{\SzGloss\color{tlit}\foreignlanguage{\FrankLangName}{#1}\par}}%
+    \fi
+    \ifblank{#2}{}{{\SzGloss\color{tlit}\FrankRoman{\textit{#2}}\par}}%
+    \ifblank{#3}{}{{\SzDict\color{dict}#3\par}}%
+    {\SzTrans\color{gloss}#4\par}%
+  \end{otherlanguage}}
+\newcommand{\glbody}[3]{\glbodyr{}{#1}{#2}{#3}}
+
+% The chunk and its gloss side by side.  The two \parbox es are written chunk
+% first, and the paragraph's direction puts them on the right side: inside an
+% RTL language an \hbox lays its contents out right to left, so the chunk is
+% on the RIGHT and the gloss on the left; inside an LTR language the same
+% \hbox puts the chunk on the LEFT and the gloss on the right.  No swap is
+% needed, and none must be written -- swapping for LTR would put the gloss
+% first.  \hfil between the boxes is a legal breakpoint under \raggedright,
+% hence the enclosing \hbox to\linewidth (NOTES §9).
+\newcommand{\FrankChunkRow}[2]{%
+  \par\noindent
+  \hbox to\linewidth{%
+    \parbox[t]{\ChunkCol}{\raggedright #1}%
+    \hfil
+    \parbox[t]{\GlossCol}{#2}}%
+  \par\addvspace{1.1ex}}
+
+% \ch{colour}{fa}{tr}{voc}{en}
+% The first argument is normally empty.  Give it \Cred, \Cblue, \Corange or
+% \Cgreen and that chunk is coloured IN PASS 1 ONLY; every other pass takes
+% the text from a separate buffer that never sees it.
+\newcommand{\FrankVocAppend}[2]{%
+  \ifblank{#1}{\gappto\FrankVocBuf{#2\FrankChunkSep}}%
+              {\gappto\FrankVocBuf{{#1#2}\FrankChunkSep}}}
+
+% ------------------------- the word line -----------------------------
+% lib/wordline.lua reads a chunk's words for the PDF.  It is loaded ONCE, here,
+% with dofile: ordinary Lua in a file of its own, out of reach of every
+% \directlua trap this file warns about, and held to the same cases as the
+% Python and the JavaScript parsers by tests/fixtures/wordline.json.
+\directlua{frank_wordline = dofile("\FrankLib/wordline.lua")}
+% \FrankWords{fa}{words}: what wordline.lua's tex() writes -- one
+% \FrankWord{text}{reading} per word and \FrankWordSep between two, the
+% characters drawn from fa and only the division and the readings from the
+% line.  A line that does not fit its text stops the build (tex.error names
+% the chunk) rather than print a reading over the wrong characters.  Blank
+% words are the text alone: the macro that carried them has said so.
+\newcommand{\FrankWords}[2]{\ifblank{#2}{#1}{%
+  \directlua{tex.sprint(frank_wordline.tex("\luaescapestring{#1}","\luaescapestring{#2}"))}}}
+\newcommand{\FrankWord}[2]{\ifblank{#2}{#1}{\FrankRuby{#1}{#2}}}
+% \FrankWordP{opening}{text}{reading}{closing}{hanging}: a word with the
+% bracket that opens before it and the marks that close after it (「おい」,
+% 行きました。), which no line may be broken away from.  #5 is the 、 。 ， ．
+% at the very end: the only marks Japanese and Chinese setting lets hang past
+% the edge of the line (burasagari), #4 whatever closes before them.
+%   - All of it fits the measure: one box.
+%   - It does not, but it would without #5: one box with #5 in no width,
+%     hanging past the edge.  The long word and its comma at the end of the
+%     chunk column (切ってみると、, a third of the line): the gutter to the
+%     gloss, 0.04 of the line, holds the mark.  Two boxes with no break
+%     between them ran 6.8pt into it with an overfull warning, twice, in the
+%     fixture edition divided into words.
+%   - Not even that: the reading macro is handed all of it, and its own
+%     measured fallback takes over -- the reading on a line of its own and
+%     the text wrapping beneath, what a chunk too wide for its column gets.
+% A word with no reading is its marks and its text, broken the usual way.
+\newcommand{\FrankWordP}[5]{%
+  \ifblank{#3}{#1#2#4#5}{\FrankWordPRuby{#1}{#2}{#3}{#4}{#5}}}
+% The reading may reach past its word over the marks beside it, which have
+% no reading of their own: a pinyin wider than its characters (zǎoshang over
+% 早上) otherwise pushed the comma a gap away from the word it closes.  Box 2
+% is the word under its reading, \dimen2 how far the reading reaches past the
+% word on either side, \dimen4/\dimen6 how much of that the opening and the
+% closing marks take, never more than the marks are wide.
+\newcommand{\FrankWordPRuby}[5]{%
+  \begingroup
+  \setbox2\hbox{\FrankRuby{#2}{#3}}%
+  \setbox4\hbox{#2}%
+  \dimen2=\dimexpr(\wd2-\wd4)/2\relax
+  \ifdim\dimen2<0pt \dimen2=0pt \fi
+  \setbox6\hbox{#1}%
+  \ifdim\wd6<\dimen2 \dimen4=\wd6 \else\dimen4=\dimen2 \fi
+  \setbox6\hbox{#4#5}%
+  \ifdim\wd6<\dimen2 \dimen6=\wd6 \else\dimen6=\dimen2 \fi
+  \setbox0\hbox{#1\kern-\dimen4 \copy2\kern-\dimen6 #4#5}%
+  \ifdim\wd0>\hsize
+    \setbox6\hbox{#4}%
+    \ifdim\wd6<\dimen2 \dimen6=\wd6 \else\dimen6=\dimen2 \fi
+    \setbox0\hbox{#1\kern-\dimen4 \copy2\kern-\dimen6 #4\rlap{#5}}%
+    \ifdim\wd0>\hsize \FrankRuby{#1#2#4#5}{#3}\else\leavevmode\box0 \fi
+  \else\leavevmode\box0 \fi
+  \endgroup}
+% Between two words: no width, a little stretch, and a legal break.  babel
+% puts its glue between two characters and never beside a box, and a word
+% with its ruby is an unbreakable box.
+\newcommand{\FrankWordSep}{\hskip 0pt plus .1em\relax}
+% A \chw or \chrw whose words are blank is the chunk without them, which has
+% a name of its own.  Said once per chunk, as it is set.
+\newcommand{\FrankNeedWords}[4]{% {\chw}{\ch}{fa}{words}
+  \ifblank{#4}{\PackageError{frank-preamble}{%
+    \string#1 has blank words for `#3':\MessageBreak
+    use \string#2, which is this chunk without words}{%
+    The last argument of \string#1 is the chunk's word line.}}{}}
+
+% ------------------------- the reading pass --------------------------
+% \FrankAloudAppend{kana}{tr}{fa}: a chunk's part in the reading pass, where
+% the language has one.  The reading is the kana where the language has a
+% reading and the transliteration where it has not (Chinese: the pinyin), and
+% never taken from the words: a kanbun reading reorders them, and a Chinese tr
+% writes the changed tones of 一 and 不.  \gappto: nothing is expanded until
+% the pass is set.
+\newcommand{\FrankAloudAppend}[3]{%
+  \ifFrankHasAloud
+    \ifFrankHasReading
+      \gappto\FrankAloudBuf{\FrankAloud{#1}{#3}\FrankAloudSep}%
+    \else
+      \gappto\FrankAloudBuf{\FrankAloud{#2}{#3}\FrankAloudSep}%
+    \fi
+  \fi}
+% \FrankAloud{reading}{fa}: wordline.lua's tex_aloud -- the reading in
+% \FrankAloudText, then the closing punctuation of the text that the reading
+% leaves out (やまへしばかりに over 山へ柴刈りに、 reads やまへしばかりに、); the text
+% itself where the reading is blank, which is every \chp and a Japanese \ch.
+\newcommand{\FrankAloud}[2]{%
+  \directlua{tex.sprint(frank_wordline.tex_aloud("\luaescapestring{#1}","\luaescapestring{#2}"))}}
+% The gap between two chunks of that pass: visible, because a reading run on
+% without a break hides where one chunk ends, and the line's preferred break.
+% Kana break between any two characters, and the fixture edition cut いきました
+% after its い, stranded at a line's end after the gap.  -1 and no more: under
+% \raggedright every line is as good as any other, so the least penalty tips
+% the tie, and at -50 -- more than \linepenalty squared -- TeX broke at every
+% chunk and set each on a line of its own.  A language file may set its own.
+\providecommand{\FrankAloudSep}{\penalty-1\hskip .6em plus .2em\relax}
+
+\newcommand{\ch}[5]{%
+  \ifFrankCollect
+    \FrankVocAppend{#1}{#2}%
+    \xappto\FrankBuf{\Strip{#2}\FrankChunkSep}%
+    \FrankAloudAppend{}{#3}{#2}%
+  \else
+  \ifFrankFlow
+    #2\,\penalty300 \mbox{{\SzGloss\color{gloss}%
+      \foreignlanguage{\FrankGlossName}{(\FrankRoman{\textit{#3}} — #5)}}}\ %
+  \else
+    \FrankChunkRow{\FrankBreaks{#2}}{\glbody{#3}{#4}{#5}}%
+  \fi\fi}
+
+% \chr{colour}{fa}{kana}{tr}{voc}{en} -- the chunk with its reading.  The
+% buffers receive exactly what \ch would give them, except that the pass-1
+% copy carries the ruby, so the reader's own attempt is made WITH the kana
+% over each chunk (and the bare copy without).  \jruby is the language file's
+% (ja.tex); elsewhere it prints the text alone and the kana line is not set,
+% so for a language without a reading this is \ch with an argument ignored.
+\newcommand{\chr}[6]{%
+  \ifFrankCollect
+    \FrankVocAppend{#1}{\jruby{#2}{#3}}%
+    \xappto\FrankBuf{\Strip{#2}\FrankChunkSep}%
+    \FrankAloudAppend{#3}{#4}{#2}%
+  \else
+  \ifFrankFlow
+    \jruby{#2}{#3}\,\penalty300 \mbox{{\SzGloss\color{gloss}%
+      \foreignlanguage{\FrankGlossName}{(\FrankRoman{\textit{#4}} — #6)}}}\ %
+  \else
+    \FrankChunkRow{\jruby{\FrankBreaks{#2}}{#3}}{\glbodyr{#3}{#4}{#5}{#6}}%
+  \fi\fi}
+
+% \chw{colour}{fa}{tr}{voc}{en}{words}, \chrw{colour}{fa}{kana}{tr}{voc}{en}{words}
+% -- \ch and \chr line for line, except where the text is SET: pass 1 and the
+% chunk column take \FrankWords, and the chunk's kana is no longer ruby over
+% the whole chunk; it stays the first line of the gloss.  The pass-1 copy goes
+% in through \FrankVocAppend's \gappto, unexpanded -- an \xappto of anything
+% but the plain text is fatal, a ruby box being nothing an \edef can take
+% apart -- and the bare copy is \Strip{fa} exactly as ever.
+\newcommand{\chw}[6]{%
+  \ifFrankCollect
+    \FrankVocAppend{#1}{\FrankWords{#2}{#6}}%
+    \xappto\FrankBuf{\Strip{#2}\FrankChunkSep}%
+    \FrankAloudAppend{}{#3}{#2}%
+  \else
+  \FrankNeedWords{\chw}{\ch}{#2}{#6}%
+  \ifFrankFlow
+    \FrankWords{#2}{#6}\,\penalty300 \mbox{{\SzGloss\color{gloss}%
+      \foreignlanguage{\FrankGlossName}{(\FrankRoman{\textit{#3}} — #5)}}}\ %
+  \else
+    \FrankChunkRow{\FrankWords{#2}{#6}}{\glbody{#3}{#4}{#5}}%
+  \fi\fi}
+
+\newcommand{\chrw}[7]{%
+  \ifFrankCollect
+    \FrankVocAppend{#1}{\FrankWords{#2}{#7}}%
+    \xappto\FrankBuf{\Strip{#2}\FrankChunkSep}%
+    \FrankAloudAppend{#3}{#4}{#2}%
+  \else
+  \FrankNeedWords{\chrw}{\chr}{#2}{#7}%
+  \ifFrankFlow
+    \FrankWords{#2}{#7}\,\penalty300 \mbox{{\SzGloss\color{gloss}%
+      \foreignlanguage{\FrankGlossName}{(\FrankRoman{\textit{#4}} — #6)}}}\ %
+  \else
+    \FrankChunkRow{\FrankWords{#2}{#7}}{\glbodyr{#3}{#4}{#5}{#6}}%
+  \fi\fi}
+
+% a chunk that needs no gloss
+% \chp{colour}{fa} -- the same, for a chunk that needs no gloss
+\newcommand{\chp}[2]{%
+  \ifFrankCollect
+    \FrankVocAppend{#1}{#2}%
+    \xappto\FrankBuf{\Strip{#2}\FrankChunkSep}%
+    \FrankAloudAppend{}{}{#2}%
+  \else
+  \ifFrankFlow #2\ \else
+    \par\noindent\hbox to\linewidth{\parbox[t]{\ChunkCol}{\raggedright \FrankBreaks{#2}}\hfil}%
+    \par\addvspace{1.1ex}\fi\fi}
+
+% The passes.  The body is read once silently to fill the buffers, so that
+% pass 1 -- the whole sentence, with its help, unglossed -- can be set BEFORE
+% the chunks.  That is the reader's own attempt, made before any help arrives.
+% Then, where the chunks carry words, the reading alone; then the chunks; then,
+% where the language has them, the bare text and the last pass -- the
+% alternate face, or the vertical setting for a language that has one (the
+% vertical pass takes the place of the font pass, so no language has both,
+% and five is the most passes there are).
+\NewEnviron{frank}{%
+  \par\FrankBufReset
+  {\FrankCollecttrue\BODY}%
+  \FrankVocalPass
+  \ifFrankHasAloud\FrankAloudPass\fi
+  \begingroup\SzChunk\color{ink}
+  \begin{otherlanguage}{\FrankLangName}\raggedright
+  \BODY
+  \par\end{otherlanguage}\endgroup
+  \ifFrankHasBare\FrankPlainPass\fi
+  \ifFrankHasVert\FrankVertPass\else\ifFrankHasAlt\FrankNastPass\fi\fi
+  \par\addvspace{3.4ex}%
+}
+
+% The paragraph's number, set small and grey at the language's margin, just
+% above the reader's own first attempt at it.  Printed as given: assemble.py
+% writes it in the language's digits.
+\newcommand{\parnum}[1]{%
+  \par\addvspace{1.4ex}%
+  {\SzGloss\color{faint}
+   \begin{otherlanguage}{\FrankLangName}\raggedright\mbox{#1}\par\end{otherlanguage}}%
+  \par\addvspace{0.2ex}}
+
+\newcommand{\FrankVocalPass}{%
+  \par\addvspace{0.6ex}%
+  {\SzPlain\color{ink}
+   \begin{otherlanguage}{\FrankLangName}\raggedright\FrankVocBuf\par\end{otherlanguage}}%
+  \par\addvspace{2.4ex}%
+  {\centering\color{faint}\rule{0.18\linewidth}{0.4pt}\par}%
+  \par\addvspace{1.8ex}}
+
+% the READING pass: every chunk's reading alone, a gap between two chunks, set
+% as the plain pass is and closed with pass 1's short rule -- the sound of the
+% sentence, still before any meaning.  The last chunk's gap comes off first.
+\newcommand{\FrankAloudPass}{%
+  {\SzPlain\color{ink}
+   \begin{otherlanguage}{\FrankLangName}\raggedright
+     \FrankAloudBuf\unskip\unpenalty\par\end{otherlanguage}}%
+  \par\addvspace{2.4ex}%
+  {\centering\color{faint}\rule{0.18\linewidth}{0.4pt}\par}%
+  \par\addvspace{1.8ex}}
+
+\newcommand{\FrankPlainPass}{%
+  \par\addvspace{2.2ex}%
+  {\SzPlain\color{ink}
+   \begin{otherlanguage}{\FrankLangName}\raggedright\FrankBuf\par\end{otherlanguage}}}
+
+% the FONT pass: the bare text in the alternate face (nastaliq, for Persian)
+\newcommand{\FrankNastPass}{%
+  \par\addvspace{1.6ex}%
+  {\FrankAltFont\SzNast\color{ink}
+   \begin{otherlanguage}{\FrankLangName}%
+     \raggedright\tolerance=3000\emergencystretch=3em
+     \FrankBuf\par
+   \end{otherlanguage}}}
+
+% ------------------- structural marks -------------------------------
+% A page turn happens only where the original paragraph ends, so that the
+% bare and fourth passes are never visible beside their own glosses.
+% \parend closes a paragraph, \chapend closes a chapter -- the sun is the
+% mark the 1951 Sepehr edition itself uses between sections.
+\newcommand{\parend}{%
+  \par\addvspace{2.4ex}%
+  {\centering\color{faint}\normalfont\large\P\par}%
+  \newpage}
+
+\newcommand{\chapend}{%
+  \par\addvspace{2.6ex}%
+  {\centering\color{faint}\symbolfont\large ☼\,☼\,☼\par}%
+  \newpage}
+
+\newcommand{\pline}[2][\SzPlain]{%
+  {#1\color{ink}\begin{otherlanguage}{\FrankLangName}\centering #2\par\end{otherlanguage}}}
+
+\newcommand{\numbersep}[1]{%
+  \par\addvspace{2ex}{\centering\color{faint}\rule{0.32\linewidth}{0.4pt}\par}%
+  \pline[\SzPlain]{#1}\addvspace{1.6ex}}
+
+% THE CHAPTER'S NAME, under the number \chapopen has just printed.  Optional:
+% a chapter without one is written exactly as every chapter was before names
+% existed, and both the PDF and the reader fall back to the number alone.
+% It names; it does not number.  The number is \chapopen's and is printed
+% already, so nothing here is counted and nothing downstream can be shifted
+% by adding, changing or removing a name.
+\newcommand{\chapname}[1]{%
+  \par\vspace{-4mm}%
+  {\fontsize{15}{24}\selectfont\color{ink}
+   \begin{otherlanguage}{\FrankLangName}\centering #1\par\end{otherlanguage}}%
+  \vspace{6mm}\par}
+
+% A SECTION INSIDE A CHAPTER: a place between two paragraphs, and nothing
+% more.  It has NO NUMBER OF ITS OWN and no effect whatever on the numbering
+% of the paragraphs, which is \parnum's alone -- the same guarantee \parstart
+% carries, for the same reason: verify_book.py proves the body still
+% reproduces the source word for word, and a mark between two paragraphs
+% must not move a single one of them.
+%
+% Smaller than \chapopen's number, as a subheading is smaller than a heading,
+% and on the shorter centred rule so the two cannot be mistaken for each
+% other at a glance.  A whole-line comment above it in the file is consumed
+% with its newline and cannot reach the page (lib/timestamp.py).
+\newcommand{\secmark}[1]{%
+  \par\addvspace{3.4ex}%
+  {\centering\color{faint}\rule{0.18\linewidth}{0.4pt}\par}%
+  \vspace{2.5mm}%
+  {\fontsize{15}{24}\selectfont\color{ink}
+   \begin{otherlanguage}{\FrankLangName}\centering #1\par\end{otherlanguage}}%
+  \addvspace{2.8ex}\par}
+
+% opens a chapter: the number, in the alternate face where the language has
+% one (nastaliq, gothic) and in the main face otherwise, on a fresh page
+\newcommand{\chapopen}[1]{%
+  \chapstart{#1}%
+  \thispagestyle{fancy}%
+  \vspace*{6mm}%
+  {\centering\color{faint}\rule{0.30\linewidth}{0.4pt}\par}%
+  \vspace{4mm}%
+  {\ifFrankHasAlt\FrankAltFont\fi\fontsize{22}{34}\selectfont\color{ink}
+   \begin{otherlanguage}{\FrankLangName}\centering #1\par\end{otherlanguage}}%
+  \vspace{5mm}%
+  {\centering\color{faint}\rule{0.30\linewidth}{0.4pt}\par}%
+  \vspace{7mm}\par}

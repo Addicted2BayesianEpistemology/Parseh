@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""A book built from a page -- its PDF and its reader -- as a job the page polls.
+
+    bookbuild.start(book_dir, "pdf")    the PDF and the reader, as ./build.sh <folder>/<slug>
+    bookbuild.start(book_dir, "html")   the reader alone, as ./build.sh --html <folder>/<slug>
+    bookbuild.status(book_dir)          {"state", "what", "log", "started", "finished", "ok", "code"}
+
+    python3 lib/bookbuild.py <book dir> [--html]    the same build, in Python, where there is no sh
+
+WHY A JOB.  A book's PDF is lualatex over every pass of every chapter: a few
+seconds for a two-paragraph example, three quarters of an hour for the Persian
+edition of 2,500 pages.  No request can wait for that, so the card's build
+button and the reader's start a job and poll it: `state` is "running",
+"done" or "failed" ("idle" for a book nothing has built since the server
+started), and `log` is the build's own output, its last lines kept.  One
+build a book at a time; asking again while one runs answers with that one.
+
+WHAT RUNS.  ./build.sh wherever there is a POSIX shell: its cache, its log
+checks and its retry are the build, and nothing here copies them.  Windows
+has no sh, so there the same steps run in Python (build() below): the
+narration's timing comments restored, lualatex twice where the machine has
+it, the reader, the library page -- without build.sh's cache, which only
+ever saves time.  Either way the build runs in the ilya-frank environment
+(lib/runtime.py), whose python3 has the packages the reader is built with.
+"""
+import os
+import re
+import shutil
+import subprocess
+import sys
+import threading
+import time
+
+LIB = os.path.dirname(os.path.realpath(__file__))
+ROOT = os.path.realpath(os.path.join(LIB, ".."))
+if LIB not in sys.path:
+    sys.path.insert(0, LIB)
+import runtime  # noqa: E402
+
+WAYS = {"pdf": "the PDF and the reader", "html": "the reader"}
+KEEP = 400                      # lines of a build's output a job keeps
+JOBS = {}                       # the book's directory -> its job
+LOCK = threading.Lock()
+
+
+def book_arg(book_dir):
+    """The book as build.sh names it: <folder>/<slug>, or <slug> for a book
+    from before languages, lying directly under books/."""
+    return os.path.relpath(os.path.realpath(book_dir),
+                           os.path.realpath(os.path.join(ROOT, "books"))).replace(os.sep, "/")
+
+
+def command(book_dir, what):
+    """The command that builds this book this way on this machine."""
+    if not runtime.WIN and shutil.which("sh"):
+        return (["sh", os.path.join(ROOT, "build.sh")] + (["--html"] if what == "html" else [])
+                + [book_arg(book_dir)])
+    python = runtime.find_env()[1] or sys.executable
+    return [python, os.path.realpath(__file__), os.path.realpath(book_dir)] + (
+        ["--html"] if what == "html" else [])
+
+
+def _view(job):
+    return {"state": job["state"], "what": job["what"], "log": list(job["log"]),
+            "started": job["started"], "finished": job["finished"],
+            "ok": job["ok"], "code": job["code"]}
+
+
+def status(book_dir):
+    with LOCK:
+        job = JOBS.get(os.path.realpath(book_dir))
+        return _view(job) if job else {"state": "idle", "what": None, "log": [], "ok": None}
+
+
+def jobs():
+    """Every build started since the server did -> [(book dir, its view)].
+
+    For the list of what the server is busy with (serve.py's /__activity),
+    which shows a running build on every page and not only on the one that
+    polls its status."""
+    with LOCK:
+        return [(key, _view(job)) for key, job in JOBS.items()]
+
+
+def _say(job, line):
+    line = line.rstrip()
+    if not line.strip():
+        return
+    with LOCK:
+        job["log"].append(line)
+        del job["log"][:-KEEP]
+
+
+def _run(job, cmd, runner):
+    try:
+        if runner is not None:
+            code = runner(cmd, lambda line: _say(job, line))
+        else:
+            env = runtime.environ_for(runtime.find_env()[0])
+            env["PYTHONUNBUFFERED"] = "1"
+            p = subprocess.Popen(cmd, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 text=True, encoding="utf-8", errors="replace", bufsize=1)
+            for line in p.stdout:
+                _say(job, line)
+            code = p.wait()
+    except Exception as e:                      # sh missing, the environment gone
+        _say(job, "the build could not run: %s" % e)
+        code = 127
+    with LOCK:
+        job.update(code=code, ok=code == 0, state="done" if code == 0 else "failed",
+                   finished=time.time())
+
+
+def start(book_dir, what="pdf", runner=None):
+    """Start building this book -> (job, True), or (the build already
+    running, False).  `runner(cmd, say) -> exit status` stands in for the
+    subprocess, for a test."""
+    if what not in WAYS:
+        raise ValueError("no such build: %r (%s)" % (what, ", ".join(WAYS)))
+    key = os.path.realpath(book_dir)
+    with LOCK:
+        job = JOBS.get(key)
+        if job and job["state"] == "running":
+            return _view(job), False
+        job = {"state": "running", "what": what, "log": [], "started": time.time(),
+               "finished": None, "ok": None, "code": None}
+        JOBS[key] = job
+        view = _view(job)
+    threading.Thread(target=_run, args=(job, command(book_dir, what), runner),
+                     daemon=True).start()
+    return view, True
+
+
+# ------------------------------------------------------------------ without sh
+def _first_error(log_text):
+    lines = log_text.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("!"):
+            return lines[i:i + 5]
+    return []
+
+
+def build(book_dir, html_only=False, say=print, index=True):
+    """What ./build.sh does for one book, in Python, for a machine with no sh
+    -> True when everything asked for was built.  No cache: a rebuild it could
+    have skipped costs time, never a stale page."""
+    import books
+    b = books.Book(book_dir)
+    if not os.path.isfile(b.main):
+        say("no %s yet: nothing to build" % os.path.basename(b.main))
+        return False
+    python = sys.executable
+    if os.path.isfile(os.path.join(book_dir, "timings.json")):
+        subprocess.run([python, os.path.join(LIB, "timestamp.py"), "--from-sidecar"],
+                       cwd=book_dir, capture_output=True)
+    ok = True
+    if not html_only:
+        lualatex = shutil.which("lualatex")
+        if not lualatex:
+            say("no lualatex on this machine: the PDF needs TeX Live (or MiKTeX); "
+                "building the reader alone")
+            ok = False
+        else:
+            base = os.path.splitext(os.path.basename(b.main))[0]
+            log = os.path.join(book_dir, base + ".log")
+            fonts = [os.path.join(LIB, "fonts")] + ([os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")]
+                                                   if runtime.WIN else [])
+            env = dict(os.environ, OSFONTDIR=os.pathsep.join(fonts))
+            text = ""
+            for n in (1, 2):
+                say("lualatex, pass %d" % n)
+                if os.path.exists(log):
+                    os.remove(log)
+                subprocess.run([lualatex, "-interaction=nonstopmode", os.path.basename(b.main)],
+                               cwd=book_dir, env=env, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    with open(log, encoding="utf-8", errors="replace") as f:
+                        text = f.read()
+                except OSError:
+                    text = ""
+                if not re.search(r"Output written on .*%s\.pdf" % re.escape(base), text) \
+                        or re.search(r"^!", text, re.M):
+                    say("   PDF FAILED -- the first error in %s:" % log)
+                    for line in _first_error(text):
+                        say("     " + line)
+                    ok = False
+                    break
+            else:
+                pages = re.findall(r"%s\.pdf \((\d+) pages" % re.escape(base), text)
+                say("   pdf: %s pages" % (pages[-1] if pages else "?"))
+    say("the reader")
+    r = subprocess.run([python, os.path.join(LIB, "tex2html.py")], cwd=book_dir,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    for line in (r.stdout + r.stderr).splitlines():
+        say("   " + line)
+    if r.returncode != 0:
+        say("   reader FAILED")
+        ok = False
+    if not index:
+        return ok
+    r = subprocess.run([python, os.path.join(LIB, "make_index.py")], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        say("the library page could not be rewritten: " + (r.stderr.strip().splitlines() or [""])[-1])
+        ok = False
+    return ok
+
+
+def main(argv):
+    args = [a for a in argv if not a.startswith("--")]
+    if len(args) != 1:
+        print(__doc__.strip().split("\n\n")[0])
+        return 2
+    return 0 if build(args[0], html_only="--html" in argv) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

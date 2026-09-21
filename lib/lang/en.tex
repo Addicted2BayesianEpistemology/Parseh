@@ -1,0 +1,155 @@
+% English -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define and
+% section 12 the ones it may.
+%
+% The Latin-script model, as it.tex: no font of its own, no marks to strip,
+% two passes.  What is English's own is that it is also the language the
+% GLOSSES are written in.  Every other file here describes a language the
+% core preamble treats as foreign; this one describes the language the core
+% preamble is already in.  So \FrankLangName below is the same name the core
+% hands \begin{otherlanguage}{english} for every gloss block, and an English
+% edition is the first where the chunk column and the gloss column are set in
+% one language.  Nothing in the core asks whether they differ, which is why
+% this costs no code -- but it is why \pw is not used on this page (below),
+% and why the middle line of the gloss carries more weight here than
+% anywhere else.
+
+% ---- the babel language and the switches ----------------------------------
+% \FrankLangName is what \foreignlanguage and \begin{otherlanguage} are given
+% everywhere in the core preamble: babel must know this name, or every passage
+% comes out in the roman with a "Unknown language" error.  Here it is the name
+% babel was loaded with in the first place.
+\newcommand{\FrankLangName}{english}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBarefalse       % nothing is written in, so nothing can come off again
+\FrankHasAltfalse        % no alternate face
+\FrankHasReadingfalse
+\FrankHasVertfalse
+
+% ---- fonts ------------------------------------------------------------------
+% The registry's tex.main is null for English: the text is set in the main
+% roman the core preamble already loaded (TeX Gyre Pagella), which is what a
+% Latin script wants and here is not even a choice -- the glosses are English
+% too, so a face of its own would set the same language two ways on one page.
+%
+% import=en is not redundant, though the core already loaded babel with the
+% `english' option.  Measured with \showhyphens{establishment representative}
+% under lualatex, with and without this line: both give es-tab-lish-ment
+% rep-re-sen-ta-tive, so the break points are untouched -- what the line adds
+% is one Info in the log, "Importing data for english from babel-en.ini", and
+% with it the locale data (the quotation marks, the case pairs) comes from the
+% same ini file every other language's does instead of from english.ldf alone.
+% Hyphenation is why that had to be checked and not assumed: hyphen-english is
+% in every TeX Live, so unlike the other Latin four English cannot lose its
+% patterns -- and a second \babelprovide silently replacing them would be the
+% one way it could.
+\babelprovide[import=en]{english}
+% The pronunciation line is IPA (docs/lang/en.md), so this language leans on
+% the core's DejaVu Serif fallback harder than any other: asked of luaotfload
+% on this machine, TeX Gyre Pagella has theta, eth, eng, ae and schwa and has
+% NO glyph for esh, ezh, open-e, script-a, small-capital-I, upsilon, turned-v,
+% open-o, the stress mark or the length mark -- ten of the sixteen letters a
+% transcription needs.  DejaVu Serif has all sixteen.  A machine without it
+% still builds, and every one of those ten is then a "Missing character" line
+% in the .log and a hole in the page, which is the same bargain Italian and
+% French already take for a smaller number of letters.
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{plain form}{sound}{past}{sound}{past participle}{sound}{meaning}: the
+% three principal parts, which is what an English dictionary prints for an
+% irregular verb and the only thing about a verb that cannot be worked out
+% (go, went, gone; regular verbs make both with -ed, and are given all three
+% anyway so the slots always mean the same thing).  The present is not among
+% them: English inflects it in one person only -- except in four verbs, and
+% those four get it in ONE parenthesis after the meaning, a closed list:
+%   be    (pres. \pw{am}, \pw{is}, \pw{are})     have  (pres. \pw{has})
+%   do    (pres. \pw{does} \textit{dʌz})        say   (pres. \pw{says} \textit{sɛz})
+% -- does and says because their vowel is not the one the spelling promises.
+% Nothing else goes in a parenthesis for English.  A MODAL (can could will
+% would shall should may might must ought) gets no \vb at all: it has no
+% principal parts to give, "p.p. could" would be a form that does not exist,
+% so it is a \dw and its past, where it has one, is named in the meaning.
+% A phrasal verb is one headword in all three slots (give up, gave up,
+% given up) however far the sentence has carried the particle.
+% The reader takes the same pair from the registry (lib/languages.json,
+% "vb_labels": ["past", "p.p."], the three forms in words as "vb_forms"); the
+% two must agree, or the PDF and the reader of one book label the same form
+% differently.  lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{past}
+\newcommand{\FrankVbPast}{p.p.}
+
+% ---- the two Lua filters ---------------------------------------------------
+% frank_strip(s): the bare form of a chunk -- what pass 3 shows.  Written from
+% the registry's `strip`; the identity when there is nothing to take off.
+% frank_latin(s): the label's digits as ASCII, because a PDF destination name
+% cannot carry the language's own figures.  Written from `digits`.
+% Both are the identity for English: nothing is added to the page for pass 1
+% to carry, and the figures are already 0-9.  They still have to exist -- the
+% core calls them for every language.  No #, % or literal backslash in a
+% \directlua body: TeX reads it first (NOTES section 9 of the Persian book).
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s) return s end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex, before the first chapter: the only
+% place the reader is told what the passes are for, and the only place the
+% alphabet of the middle line is explained.
+% English words are set in \textit and not in \pw, as in it.tex and de.tex.
+% \pw shrinks a word to 8.6pt so a foreign script can be told from the English
+% around it; here the word and the prose are the same language in the same
+% face, and shrinking it would say nothing.  The sounds are in \textit too --
+% that is what the gloss line itself does with them -- and they need no other
+% mark to be told from the words, because the letters they are written in are
+% not English letters.  That is the whole argument for the alphabet, and the
+% page makes it by using it.
+\newcommand{\FrankHowTo}{%
+Every passage comes twice.
+
+\smallskip
+\textbf{First} the whole sentence, and nothing else. Try to read it, aloud if
+you can. Get as far as you can and do not worry about what you cannot get —
+the point is the attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, English on the left, and on
+the right three lines: how it is said, then how to look each word up, then
+what it means. Now you find out how much you had right. There is no third
+pass: nothing was written into the English for the first one, so there is
+nothing to take away.
+
+\smallskip
+The middle line is here for every chunk, which it is in no other edition of
+this series: \textit{through}, \textit{though}, \textit{thought} and
+\textit{tough} share five letters and no vowel. It is written in the
+dictionaries' alphabet, because respelled English would be read as English:
+\textit{ˈbʌtər} cannot be mistaken for a spelling of \textit{butter}.
+
+\smallskip
+\textit{ˈ} stands before the stressed syllable, and every word longer than one
+has it: stress is what English does not write and the thing most often got
+wrong (\textit{ˈrɛkərd} the thing, \textit{rəˈkɔrd} the act).
+\textit{ə} is the colourless vowel of every unstressed syllable — the
+\textit{a} of \textit{about}, the \textit{o} of \textit{lemon}. The vowels that
+keep their colour are \textit{æ} \textit{cat}, \textit{ɛ} \textit{bed},
+\textit{ɪ} \textit{sit}, \textit{ɑ} \textit{hot}, \textit{ʌ} \textit{cup},
+\textit{ʊ} \textit{book}, \textit{ɔ} \textit{caught}, \textit{i}
+\textit{see}, \textit{u} \textit{too}; \textit{θ} \textit{ð} \textit{ʃ}
+\textit{ʒ} \textit{ŋ} the sounds of \textit{thin}, \textit{this},
+\textit{sh}, \textit{measure}, \textit{sing}; \textit{j} the \textit{y} of
+\textit{yes}, \textit{dʒ} the \textit{j} of \textit{jam}. The rest are as you
+expect, and every written \textit{r} is sounded: the accent is General
+American.
+
+\smallskip
+Verbs are given as plain form, past, past participle — \textit{go},
+\textit{went}, \textit{gone}. One with a particle is given whole,
+\textit{give up}, however far the sentence has carried it: the meaning is the
+pair's, never the sum. Four verbs have a present you could not build, and it
+stands in brackets after the meaning: \textit{am}, \textit{is}, \textit{are}
+for \textit{be}; \textit{has}; \textit{does} \textit{dʌz}; \textit{says}
+\textit{sɛz}. \textit{Can}, \textit{must}, \textit{will} and the other
+modals have none of these forms, and are given as words like any other.
+}

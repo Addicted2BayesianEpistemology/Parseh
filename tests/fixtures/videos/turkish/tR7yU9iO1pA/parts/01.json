@@ -1,0 +1,34 @@
+[
+ {"start": 0,
+  "chunks": [
+   {"fa": "Welcome back to the channel, today we learn Turkish in a bookshop", "plain": true}
+  ]},
+ {"start": 6,
+  "chunks": [
+   {"fa": "Merhaba,", "voc": "merhaba hello", "en": "hello,"},
+   {"fa": "İngilizce bir kitap", "voc": "İngilizce İngiliz-ce İngiliz English + in the manner of, so the language — İ is the capital of i, its dot kept; kitap book", "en": "an English book"},
+   {"fa": "arıyorum", "voc": "aramak · pres. arıyor · aor. arar · to look for; ar-ıyor-um look for + -ing + I", "en": "I am looking for"}
+  ]},
+ {"start": 11,
+  "chunks": [
+   {"fa": "Şu raftakiler", "voc": "raftakiler raf-ta-ki-ler raf shelf + on + which is + plural", "en": "the ones on that shelf"},
+   {"fa": "yeni geldi,", "voc": "yeni new, newly; gelmek · pres. geliyor · aor. gelir · to come; gel-di come + past", "en": "have just come in,"},
+   {"fa": "bakabilirsiniz", "voc": "bakmak · pres. bakıyor · aor. bakar · to look; bak-abil-ir-siniz look + can + aorist + you", "en": "you can have a look"}
+  ]},
+ {"start": 16,
+  "chunks": [
+   {"fa": "Bu kitabın fiyatı", "voc": "kitabın kitab-ın kitap book + of, a final p voicing to b before a vowel; fiyatı fiyat-ı fiyat price + its", "en": "the price of this book"},
+   {"fa": "ne kadar", "voc": "ne what, and ne kadar how much", "en": "how much is it"}
+  ]},
+ {"start": 21,
+  "chunks": [
+   {"fa": "Yetmiş beş lira,", "voc": "yetmiş seventy; beş five; lira the Turkish lira", "en": "seventy-five lira,"},
+   {"fa": "öğrenciyseniz", "tr": "ȫrenciyseniz", "voc": "öğrenciyseniz öğrenci-yse-niz öğrenci student + if + you", "en": "if you are a student"},
+   {"fa": "indirim var", "voc": "indirim discount; var there is", "en": "there is a discount"}
+  ]},
+ {"start": 26,
+  "chunks": [
+   {"fa": "Çok teşekkür ederim,", "voc": "etmek · pres. ediyor · aor. eder, the light verb, carrying teşekkür thanks (-e); ed-er-im + aorist + I", "en": "thank you very much,"},
+   {"fa": "iyi günler", "voc": "iyi good; günler gün-ler gün day + plural, and the plural is what makes it a greeting", "en": "good day"}
+  ]}
+]

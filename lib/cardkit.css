@@ -1,0 +1,174 @@
+/* Parseh — the card kit's cut editor (lib/cardkit.js), over the book reader
+   and the video player alike.  Every rule is under .pc-root, so nothing here
+   reaches either page, and the colours are the toolbox's own tokens from
+   lib/parseh.css -- light, dark and sepia follow the page.  The fallbacks
+   under each token are that file's values, for a page that does not link it.
+
+   The rows are the book's timing editor (tex2html.py CSS, .edit and .erow),
+   restated here because the player has no such rules, and made stronger than
+   the reader's own: there `.edit` is hidden until "edit times" is on, and a
+   book with no narration hides it with !important. */
+.pc-root{
+  --pc-bg:var(--bg,#f3eff1); --pc-card:var(--card,#ffffff); --pc-ink:var(--ink,#241e21);
+  --pc-dim:var(--dim,#635358); --pc-faint:var(--faint,#a2949a); --pc-rule:var(--rule,#e3d9dd);
+  --pc-accent:var(--accent,#be3455); --pc-accentlt:var(--accentlt,#ce5b78);
+  --pc-accent-fg:var(--accent-fg,#ffffff); --pc-hl:var(--hl,#f7dde5);
+  --pc-boxbg:var(--boxbg,#faf4f6); --pc-danger:var(--danger,#9b3327);
+  --pc-veil:rgba(36,30,33,.38);
+  /* read by the script when it draws the waveform */
+  --pc-wave:var(--pc-faint); --pc-wave-on:var(--pc-accent);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]):not([data-theme=sepia]) .pc-root{
+    --pc-bg:var(--bg,#171214); --pc-card:var(--card,#211a1d); --pc-ink:var(--ink,#e6dade);
+    --pc-dim:var(--dim,#ac9ba1); --pc-faint:var(--faint,#6e6065); --pc-rule:var(--rule,#382c31);
+    --pc-accent:var(--accent,#ee8aa3); --pc-accentlt:var(--accentlt,#d97c93);
+    --pc-accent-fg:var(--accent-fg,#171214); --pc-hl:var(--hl,#3d222a);
+    --pc-boxbg:var(--boxbg,#2a2024); --pc-danger:var(--danger,#e79b84);
+    --pc-veil:rgba(0,0,0,.55);
+  }
+}
+:root[data-theme=dark] .pc-root{
+  --pc-bg:var(--bg,#171214); --pc-card:var(--card,#211a1d); --pc-ink:var(--ink,#e6dade);
+  --pc-dim:var(--dim,#ac9ba1); --pc-faint:var(--faint,#6e6065); --pc-rule:var(--rule,#382c31);
+  --pc-accent:var(--accent,#ee8aa3); --pc-accentlt:var(--accentlt,#d97c93);
+  --pc-accent-fg:var(--accent-fg,#171214); --pc-hl:var(--hl,#3d222a);
+  --pc-boxbg:var(--boxbg,#2a2024); --pc-danger:var(--danger,#e79b84);
+  --pc-veil:rgba(0,0,0,.55);
+}
+
+/* the veil over the page, and the editor in the middle of it: above every
+   sheet of the reader and the player, below the toast (400) */
+.pc-root{position:fixed;inset:0;z-index:300;display:flex;align-items:center;
+  justify-content:center;padding:8px;background:var(--pc-veil);
+  overscroll-behavior:contain}
+.pc-root [hidden]{display:none!important}
+.pc-root *{box-sizing:border-box}
+.pc-cut{width:min(660px,100%);max-height:100%;overflow:auto;overscroll-behavior:contain;
+  background:var(--pc-card);color:var(--pc-ink);border:1px solid var(--pc-rule);
+  border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.28);padding:12px 14px 10px;
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  text-align:left;outline:none}
+.pc-cut.pc-busy .pc-strip{opacity:.7}
+
+.pc-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.pc-title{font-weight:600;white-space:nowrap}
+.pc-what{flex:1;min-width:0;color:var(--pc-dim);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-family:var(--tl-font,inherit)}
+.pc-cut button.pc-x{font:inherit;font-size:14px;line-height:1;padding:5px 8px;border:1px solid transparent;
+  border-radius:6px;background:none;color:var(--pc-dim);cursor:pointer}
+.pc-cut button.pc-x:hover{color:var(--pc-accent);border-color:var(--pc-rule)}
+
+/* A TAB'S RECORDING, before there is one: what is about to happen (and what
+   Chrome will ask), the button that starts it, how far it has gone */
+.pc-take{margin:4px 6px 0;padding:10px 12px;border:1px dashed var(--pc-rule);border-radius:8px;
+  background:var(--pc-boxbg)}
+.pc-take-text{margin:0 0 9px;color:var(--pc-dim);font-size:13px}
+.pc-take .pc-take-bar{display:block;margin-top:9px;height:6px;border-radius:3px;overflow:hidden;
+  background:var(--pc-rule)}
+.pc-take .pc-fill{display:block;height:100%;width:0;background:var(--pc-accent)}
+
+/* THE STRIP: the recording around the sentence.  The sentence's own stretch
+   is the faint band, the clip the tinted one between the two edges. */
+.pc-strip{position:relative;height:88px;margin:4px 6px 0;border:1px solid var(--pc-rule);
+  border-radius:8px;background:var(--pc-bg);cursor:pointer;touch-action:none;
+  user-select:none;-webkit-user-select:none}
+.pc-wave{position:absolute;inset:0;width:100%;height:100%;border-radius:7px;display:block}
+.pc-ctx{position:absolute;top:0;bottom:0;pointer-events:none;
+  background:color-mix(in srgb,var(--pc-ink) 5%,transparent);
+  border-top:2px solid color-mix(in srgb,var(--pc-ink) 18%,transparent)}
+/* a server with no ffmpeg draws no waveform: the strip says only where the
+   sentence and the clip are */
+.pc-strip.pc-plain{background:repeating-linear-gradient(90deg,var(--pc-bg) 0 9px,
+  color-mix(in srgb,var(--pc-rule) 55%,var(--pc-bg)) 9px 10px)}
+.pc-sel{position:absolute;top:0;bottom:0;pointer-events:none;
+  background:color-mix(in srgb,var(--pc-accent) 16%,transparent)}
+.pc-playhead{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;pointer-events:none;
+  background:var(--pc-ink);z-index:1}
+/* an edge: a line to see and a tab to take hold of, on a hit area wide
+   enough for a finger */
+.pc-edge{position:absolute;top:-7px;bottom:-7px;width:24px;margin-left:-12px;z-index:2;
+  cursor:ew-resize;touch-action:none;outline:none}
+.pc-edge::before{content:"";position:absolute;top:7px;bottom:7px;left:11px;width:2px;
+  background:var(--pc-accent)}
+.pc-edge::after{content:"";position:absolute;top:0;left:7px;width:10px;height:15px;
+  border-radius:3px;background:var(--pc-accent)}
+.pc-edge1::after{top:auto;bottom:0}
+.pc-edge:hover::after,.pc-edge:focus-visible::after{box-shadow:0 0 0 3px
+  color-mix(in srgb,var(--pc-accent) 35%,transparent)}
+.pc-edge:focus::before{width:3px;left:10.5px}
+.pc-scale{display:flex;justify-content:space-between;gap:8px;margin:3px 6px 0;
+  font:11px/1.3 ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:var(--pc-faint);
+  font-variant-numeric:tabular-nums}
+.pc-scale .pc-at{color:var(--pc-dim)}
+
+/* THE ROWS: the book's .edit */
+.pc-cut div.edit.pc-rows{display:block!important;margin:10px 0 2px;padding:6px 8px;
+  background:var(--pc-card);border:1px solid var(--pc-rule);border-radius:8px;font-size:12px}
+/* ...and still hidden while a tab's editor has no recording to time */
+.pc-cut div.edit.pc-rows[hidden]{display:none!important}
+.pc-cut .erow{display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:2px 0}
+.pc-cut .erow .lbl{color:var(--pc-dim);width:34px}
+.pc-cut .edit .who,.pc-cut .edit .dur,.pc-cut .edit input{
+  font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  font-feature-settings:'locl' 0;font-variant-numeric:tabular-nums}
+.pc-cut .edit .who{color:var(--pc-accent);font-weight:600}
+.pc-cut .edit input{width:82px;font-size:12px;padding:3px 5px;text-align:right;
+  border:1px solid var(--pc-rule);border-radius:5px;background:var(--pc-bg);color:var(--pc-ink)}
+.pc-cut .edit button{font:inherit;font-size:12px;line-height:1.35;padding:3px 7px;
+  border:1px solid var(--pc-rule);background:var(--pc-bg);color:var(--pc-ink);
+  border-radius:5px;cursor:pointer}
+.pc-cut .edit button:hover{border-color:var(--pc-accentlt);color:var(--pc-accent)}
+.pc-cut .edit .dur{color:var(--pc-faint)}
+/* the reach row: two small signed boxes, each with a word before it, saying
+   how much further "record again" goes than the sentence and its second */
+.pc-cut .erow .pc-rlab{color:var(--pc-faint)}
+.pc-cut .edit input.pc-r{width:64px}
+
+/* the clip as the tray keeps it: ▶, how far it has played, its name */
+.pc-saved{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;
+  padding:6px 8px;border:1px dashed var(--pc-rule);border-radius:8px;background:var(--pc-boxbg)}
+.pc-cut button.pc-hear{font:inherit;font-size:13px;line-height:1;width:32px;height:28px;padding:0;
+  border:1px solid var(--pc-rule);border-radius:6px;background:var(--pc-bg);color:var(--pc-ink);
+  cursor:pointer;flex:none}
+.pc-cut button.pc-hear:hover{border-color:var(--pc-accentlt);color:var(--pc-accent)}
+.pc-saved .pc-bar{flex:1 1 120px;min-width:80px;height:6px;border-radius:3px;overflow:hidden;
+  background:var(--pc-rule)}
+.pc-saved .pc-fill{display:block;height:100%;width:0;background:var(--pc-accent)}
+.pc-saved .pc-name{font:12px ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:var(--pc-dim);
+  overflow-wrap:anywhere}
+.pc-saved.pc-stale{opacity:.55}
+
+.pc-foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.pc-cut button.pc-btn{font:inherit;font-size:13px;padding:5px 11px;border:1px solid var(--pc-rule);
+  background:var(--pc-bg);color:var(--pc-ink);border-radius:6px;cursor:pointer;white-space:nowrap}
+.pc-cut button.pc-btn:hover{border-color:var(--pc-accentlt);color:var(--pc-accent)}
+.pc-cut button.pc-use{background:var(--pc-accent);border-color:var(--pc-accent);color:var(--pc-accent-fg)}
+.pc-cut button.pc-use:hover{color:var(--pc-accent-fg);filter:brightness(1.06)}
+/* a tab's first step has one thing to do */
+.pc-cut .pc-take button.pc-record{background:var(--pc-accent);border-color:var(--pc-accent);color:var(--pc-accent-fg)}
+.pc-cut .pc-take button.pc-record:hover{color:var(--pc-accent-fg);filter:brightness(1.06)}
+/* busy: the buttons keep the focus, and say they will do nothing */
+.pc-cut button.pc-btn[aria-disabled=true]{opacity:.5;cursor:default}
+.pc-cut button.pc-use[aria-disabled=true]:hover{filter:none}
+.pc-cut button:focus-visible,.pc-cut input:focus-visible{outline:2px solid var(--pc-accent);outline-offset:1px}
+.pc-stat{flex:1 1 180px;font-size:12px;color:var(--pc-dim);min-width:0}
+.pc-stat.pc-bad{color:var(--pc-danger)}
+.pc-hint{margin-top:6px;font-size:11.5px;color:var(--pc-faint)}
+
+/* a phone: the rows keep to one line each where they can */
+@media (max-width:480px){
+  .pc-root{padding:6px}
+  .pc-cut{padding:10px 10px 8px;border-radius:10px}
+  .pc-strip{height:76px}
+  .pc-cut .erow{gap:3px}
+  .pc-cut .erow .lbl{width:30px}
+  /* no spin buttons to take the room of the digits: a video's "1234.56"
+     shows whole (the arrow keys still nudge) */
+  .pc-cut .edit input{width:calc(7.5ch + 14px);-moz-appearance:textfield;appearance:textfield}
+  .pc-cut .edit input.pc-r{width:calc(4.5ch + 14px)}
+  .pc-cut .edit input::-webkit-inner-spin-button,
+  .pc-cut .edit input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  .pc-cut .edit button{padding:3px 5px}
+  .pc-hint{display:none}
+}

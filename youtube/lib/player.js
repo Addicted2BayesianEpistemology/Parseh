@@ -1,0 +1,4923 @@
+/* The Frank-method video player.
+ *
+ * Renders videos/<folder>/<id>/annotations.json under the embedded YouTube
+ * video, one block per caption.  Each block is split into the annotator's
+ * phrases; hovering a phrase opens the gloss cloud — the reading (kana)
+ * where the language has one, transliteration, vocabulary, meaning — set
+ * exactly like a gloss block in the reading editions.  The caption whose
+ * time the video is inside is highlighted and followed.
+ *
+ * A phrase is also WRITTEN from that cloud: four colours to mark it with,
+ * the same four the reading editions use, and a ✎ that opens the chunk's
+ * own fields.  Both POST to /youtube/api/edit, which puts the edit through
+ * check_annotations before anything is written and refuses it in the
+ * checker's own words -- and those words are what the cloud shows.
+ *
+ * Everything the script knows about the LANGUAGE comes from CFG.lang, the
+ * registry record (lib/languages.json) the server embedded in the page:
+ * its direction, its character class (for isolating runs of the script
+ * inside a gloss, and for telling target text from a bare run of
+ * something else), its word separator (a Japanese chunk is one word), its
+ * name for the labels, its Anki tag.  No script, digit or font is named
+ * in this file.
+ *
+ * A video declares a second language, CFG.gloss: the one its meanings are
+ * WRITTEN in (video.json's "gloss"; absent means English, which is what
+ * every video written before the field existed means).  It is a prose
+ * language and need not be one the toolbox teaches -- Persian glossed in
+ * Spanish -- so its record carries only what a page asks of it: a name, a
+ * direction, and whether the registry knows it too.  Everything on the
+ * page that is PROSE rather than target text takes it: the meaning, the
+ * vocabulary line, the note, and the labels over them.
+ */
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var CFG = window.YTFRANK || {};
+  // The language record.  The server always embeds one; the fallback is
+  // only so a page served without it does not throw.  It stands for the
+  // toolbox's default language (content from before languages was Persian)
+  // as far as that can be said without a regex or a font: no character
+  // class, so nothing is isolated or told apart -- the record proper comes
+  // from lib/languages.json, never from here.
+  var L = CFG.lang || { code: 'fa', name: 'Persian', native: '', dir: 'rtl',
+                        chars: null, word_sep: ' ', reading: false,
+                        require_tr: true, tag: 'farsi', fonts: {} };
+  var RTL = L.dir === 'rtl';
+  // The gloss language.  The same fallback reasoning as L's: the server
+  // always embeds one, and English is what a page served without it means,
+  // since that is what every video that says nothing is glossed in.
+  var G = CFG.gloss || { code: 'en', name: 'English', native: 'English',
+                         dir: 'ltr', taught: true };
+  var GRTL = G.dir === 'rtl';
+  // one character of the target script; null for a Latin-script language,
+  // which cannot be told from English by its letters
+  var scriptRe = L.chars ? new RegExp('[' + L.chars + ']') : null;
+  function hasScript(s) { return !!(scriptRe && s && scriptRe.test(s)); }
+  /* ONE WORD HOWEVER IT IS WRITTEN, for telling whether two are the same
+     word -- the book reader's wordKey (lib/tex2html.py), fold for fold:
+     composed alike (NFC), the language's marks off (its registry `strip`,
+     the range frank_strip drops in LaTeX) and its case folded the way
+     languages.FOLD_JS folds it, which the two have to agree with character
+     for character (a plain toLowerCase spells Turkish İ as i + U+0307).
+     Compared as written, every Arabic verb row drew an arrow to itself: the
+     hit is headed by its bare page title وصل and its \vb by the vowelled
+     وَصَلَ -- "وصل → وَصَلَ", one verb, on all three verb rows the lookup
+     gives وصل (a scratch ar.db, 2026-09-10).  Never for anything shown. */
+  var marksRe = L.strip ? new RegExp('[' + L.strip + ']', 'g') : null;
+  function foldCase(s) {
+    return (s || '').normalize('NFC').replace(/[\u0130\u0131]/g, 'i')
+                    .replace(/\u0307/g, '').toLowerCase();
+  }
+  function wordKey(s) {
+    var k = foldCase(String(s || '').normalize('NFC').replace(/\s+/g, ' ').trim());
+    return marksRe ? k.replace(marksRe, '') : k;
+  }
+  document.documentElement.setAttribute('data-lang', L.code);
+  document.documentElement.setAttribute('data-dir', L.dir);
+  // an element that holds target text: its language, and its direction
+  // only when the language reads right-to-left (a dir="ltr" on a Persian
+  // field would be a lie; no dir on a Japanese one lets the page's own win)
+  function targetAttrs(el) {
+    el.setAttribute('lang', L.code);
+    if (RTL) el.setAttribute('dir', 'rtl'); else el.removeAttribute('dir');
+  }
+  // an element that holds gloss prose -- a meaning, a vocabulary line, a
+  // note.  Same rule, the other language: the page and every box on it is
+  // left-to-right chrome, so only a right-to-left gloss has anything to
+  // say about its direction, and saying it is what stops the browser
+  // laying an Arabic meaning out as if it began on the left.
+  //
+  // The alignment has to be said as well, and the dir attribute does not
+  // say it: the cloud is chrome and its sheet aligns everything in it
+  // LEFT, which a dir of rtl does not undo -- a wrapped Arabic meaning
+  // would read right to left and still hang its second line off the left
+  // edge.  `start` is the same rule written once for both: left in a
+  // left-to-right gloss, so nothing that reads English moves.
+  var GALIGN = 'start';
+  function glossAttrs(el) {
+    el.setAttribute('lang', G.code);
+    if (GRTL) el.setAttribute('dir', 'rtl'); else el.removeAttribute('dir');
+    el.style.textAlign = GALIGN;
+  }
+  // the gloss language's own name for a field of prose, and "meaning"
+  // when it is the language being taught as well: a video that teaches
+  // English and glosses in English would otherwise label the text field
+  // and the meaning field alike, and neither label would say which was
+  // which (player.html says the same beside the dashboard's row).
+  var GLOSS_LABEL = G.code === L.code ? 'meaning' : G.name.toLowerCase();
+  // a mouse gets glosses on hover, so a click is free to mean "replay";
+  // a touch screen has no hover, so the tap must open the gloss instead
+  var HOVER_OK = window.matchMedia &&
+                 window.matchMedia('(hover: hover)').matches;
+  // ...but `hover: hover` is a claim about the device, and a phone may make
+  // it too -- and there the tap path was switched off while no hover ever
+  // came: the tap's own synthetic mouseover opened the gloss and the click
+  // behind it closed the same gloss again.  So every pointer event says what
+  // it was, and the hover paths stand down while the last one was a finger.
+  // A mouse never sets this, so a desktop is untouched.
+  var touchNow = false;
+  document.addEventListener('pointerdown', function (e) {
+    touchNow = e.pointerType === 'touch' || e.pointerType === 'pen';
+  }, true);
+  function hoverPointer() { return HOVER_OK && !touchNow; }
+  var segs = [];          // [{start, text, chunks:[{fa,tr,voc,en,note}]}]
+  var els = [];           // the .seg elements, same order
+  // video.json's flag: a video still being written.  It changes one thing
+  // here -- a chunk nobody has glossed yet is still a phrase, hoverable
+  // and writable, because it is the very chunk the author came to fill in.
+  var draft = false;
+  // and its "reorders": a text read out of its written order (kanbun), whose
+  // words the word strip does not compare with the chunk's reading
+  var reorders = false;
+  var player = null, ready = false, active = -1;
+  var lastUserScroll = 0;
+
+  /* ---------------- settings, remembered like the reader's ---------------- */
+  var store = function (k, d) {
+    var v = localStorage.getItem(k);
+    return v === null ? d : v === '1';
+  };
+  var opts = {
+    follow: store('yt_follow', true),
+    hoverpause: store('yt_hoverpause', false),
+    pin: store('yt_pin', true),
+    sbs: store('yt_sbs', false),
+    // Defaults OFF, and stays hidden until the server says there is
+    // something behind it.  A reader who does not want it never sees it
+    // and the page never asks anything of the server.
+    dict: store('yt_dict', false),
+    // English's definitions, and the same translated: switches of their own,
+    // offered only where the dictionary defines its words (DICT.defines)
+    defs: store('yt_defs', false),
+    defsMt: store('yt_defs_mt', false),
+    // the reading alone in place of the text (#aloud), for a language
+    // divided into words; remembered for every such video
+    aloud: store('yt_aloud', false)
+  };
+  // what the switch has behind it, filled by the question asked once at the
+  // foot of this file
+  var DICT = { ready: false, src: null, words: false, pairs: false,
+               corpus: null, cache: {}, defines: false };
+  // how far ahead the preparing loop looks, in captions
+  var AHEAD = 10;
+  // and a translation model, if one has been fetched for this pair: a
+  // separate thing from the dictionary, asked for separately, and loaded
+  // only when the reader presses the button, because it is 20 MB.
+  // WHAT IS KEPT, AND WHY TWO.  A caption's translation is shared by every
+  // phrase in it and is what the panel shows; a phrase's own translation is
+  // a probe, used only to guess which words of the caption are its.
+  var MT = { ready: false, about: null, sent: {}, probe: {} };
+  var MT_KEEP = 400;
+  // Pasted external-chatbot translations use the complete caption as their
+  // key.  Every phrase in it therefore reuses the same answer, while the
+  // dictionary marks are recalculated for the phrase currently being edited.
+  var LLM = { sent: {} };
+  // Side by side only makes sense with room for two columns; below that the
+  // page stays stacked whatever the setting says, and the CSS agrees (the
+  // layout lives inside the same media query).
+  var WIDE = '(min-width: 860px)';
+  function sideOn() {
+    return opts.sbs && window.matchMedia && window.matchMedia(WIDE).matches;
+  }
+  // the theme (light / dark / sepia) is the toolbox's own, one preference
+  // for every page: /lib/parseh.js keeps it and wires the ◐ button
+  function paintButtons() {
+    $('#follow').classList.toggle('on', opts.follow);
+    $('#hoverpause').classList.toggle('on', opts.hoverpause);
+    $('#pin').classList.toggle('on', opts.pin);
+    $('#sbs').classList.toggle('on', opts.sbs);
+    $('#dictmode').classList.toggle('on', opts.dict);
+    // hidden where they mean nothing, greyed while what each hangs from is off
+    $('#defmode').classList.toggle('on', opts.defs);
+    $('#defmode').hidden = !DICT.defines;
+    $('#defmode').disabled = !opts.dict;
+    $('#defmt').classList.toggle('on', opts.defsMt);
+    $('#defmt').hidden = !(DICT.defines && MT.ready);
+    $('#defmt').disabled = !(opts.dict && opts.defs);
+    $('#aloud').classList.toggle('on', opts.aloud);
+    document.body.classList.toggle('aloud', aloudOn());
+    document.body.classList.toggle('nopin', !opts.pin);
+    document.body.classList.toggle('sbs', opts.sbs);
+    // beside the text the video is always in view, so pinning has nothing
+    // left to decide -- say so rather than leaving a dead button
+    $('#pin').disabled = sideOn();
+    $('#grip').title = sideOn()
+      ? 'drag to resize the video column — double-click to reset'
+      : 'drag to resize the video — double-click to reset';
+  }
+  $('#follow').onclick = function () {
+    opts.follow = !opts.follow; localStorage.setItem('yt_follow', opts.follow ? '1' : '0');
+    paintButtons(); if (opts.follow && active >= 0) show(active);
+  };
+  $('#hoverpause').onclick = function () {
+    opts.hoverpause = !opts.hoverpause;
+    localStorage.setItem('yt_hoverpause', opts.hoverpause ? '1' : '0'); paintButtons();
+  };
+  $('#pin').onclick = function () {
+    opts.pin = !opts.pin; localStorage.setItem('yt_pin', opts.pin ? '1' : '0');
+    paintButtons(); measure();
+  };
+  $('#sbs').onclick = function () {
+    opts.sbs = !opts.sbs; localStorage.setItem('yt_sbs', opts.sbs ? '1' : '0');
+    paintButtons(); applySize();
+    // the caption in play was positioned for the old layout
+    if (active >= 0) show(active);
+  };
+  $('#dictmode').onclick = function () {
+    opts.dict = !opts.dict; localStorage.setItem('yt_dict', opts.dict ? '1' : '0');
+    paintButtons(); refillCloud();
+  };
+  /* ENGLISH, EXPLAINED IN ENGLISH -- the book reader's two switches
+     (lib/tex2html.py), for its reason: every dictionary here is the English
+     Wiktionary's, and English's own senses are definitions written in the
+     language being learned.  So they wait behind a switch of their own, off
+     until it is turned on, and a second puts each into the gloss language
+     under it with the model on this machine.                              */
+  var DEFS_SHOWN = 3;             // what an entry opens with: lookup's MAX_SENSES
+  var DEFT = Object.create(null), DEFT_KEEP = 2000, DEFT_FAILED = false;
+  function defsOn() { return DICT.defines && opts.defs; }
+  function defsTranslated() {
+    return defsOn() && opts.defsMt && MT.ready && typeof ParsehMT !== 'undefined';
+  }
+  $('#defmode').title = "the dictionary's own definitions, in " + (L.name || L.code) +
+                        ', under each word it finds';
+  $('#defmt').textContent = 'in ' + G.name.toLowerCase();
+  $('#defmt').title = 'each definition put into ' + G.name + ' under it, by the translation ' +
+                      "model on this machine: a machine's reading, not a gloss";
+  $('#defmode').onclick = function () {
+    opts.defs = !opts.defs; localStorage.setItem('yt_defs', opts.defs ? '1' : '0');
+    PRE.queue = [];               // lined up for the switch as it was
+    paintButtons(); refillCloud();
+  };
+  $('#defmt').onclick = function () { setDefsMt(!opts.defsMt); };
+  // the one way the translation switch moves -- from the header, or from the
+  // editor's own over its dictionary rows -- so the header, the cloud and an
+  // open editor all follow it
+  function setDefsMt(on) {
+    opts.defsMt = on; localStorage.setItem('yt_defs_mt', on ? '1' : '0');
+    paintButtons(); srcDefs(); refillCloud();
+  }
+  /* THE READING ALONE: every phrase of the transcript drawn as it is said --
+     its kana, or its pinyin -- where its text was, the gloss still one hover
+     away.  Only a language divided into words has the button, and a
+     preference left on by one of those does nothing to a video of any other. */
+  function aloudOn() { return !!(L.words && opts.aloud); }
+  $('#aloud').hidden = !L.words;
+  if (L.words) $('#aloud').textContent = (L.reading ? L.reading_label : L.translit_label) || 'reading';
+  $('#aloud').onclick = function () {
+    opts.aloud = !opts.aloud; localStorage.setItem('yt_aloud', opts.aloud ? '1' : '0');
+    paintButtons();
+    Array.prototype.forEach.call($('#segs').querySelectorAll('.seg .fa .w'), function (w) {
+      var sg = segs[+w.parentNode.parentNode.dataset.i];
+      var ch = sg && sg.chunks && sg.chunks[+w.dataset.j];
+      if (ch) paintWords(w, ch);
+    });
+    refillCloud();
+  };
+  // Ask once whether it has anything behind it.  A button nobody can use is
+  // a button that should not be there, so it stays hidden until the server
+  // says otherwise -- which for a toolbox with no dictionary is never, and
+  // the player is then exactly the player it was.
+  fetch('/youtube/api/lookup', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ video: CFG.id, about: 1 })
+  }).then(function (r) { return r.json(); }).then(function (j) {
+    // THE SWITCH IS FOR ALL OF THEM.  The dictionary and the corpus are
+    // separate downloads and either can be here without the other; gating on
+    // the dictionary alone left a reader with a corpus and no dictionary no
+    // way to reach what they had downloaded.
+    if (!j || !j.help) return;
+    DICT.ready = true; DICT.src = j.source || {};
+    DICT.words = !!j.available; DICT.pairs = !!j.corpus_available;
+    DICT.corpus = j.corpus || {};
+    DICT.defines = !!j.definitions;
+    showHelp();
+    // one local SQLite read per phrase, so preparing ahead is free
+    preStart();
+  }).catch(function () {});
+
+  /* The header button, and what it says it is for -- which depends on which
+     of the three this reader has actually got. */
+  function showHelp() {
+    if (!(DICT.ready || MT.ready)) return;
+    var has = [];
+    if (DICT.words) has.push('look the words up');
+    if (DICT.pairs) has.push('show a sentence somebody translated');
+    if (MT.ready) has.push('translate the line');
+    $('#dictmode').hidden = false;
+    $('#dictmode').title = has.length
+      ? has.join(', ') + ' — where nothing is glossed'
+      : 'reading help where nothing is glossed';
+    paintButtons();
+  }
+  if (typeof ParsehMT !== 'undefined')
+    ParsehMT.has(L.code, G.code).then(function (m) {
+      if (!m) return;
+      MT.ready = true; MT.about = m;
+      // a model alone is enough to want the switch
+      showHelp();
+      preStart();
+      refillCloud();
+    }).catch(function () {});
+  paintButtons();
+
+  Parseh.CharacterDecomposition.mount({lang: L.code, toolbar: $('#typo').parentNode,
+    scope: '#segs .seg .fa', observe: $('#segs'),
+    onModeChange: function (on) { if (on) closeCloud(); },
+    onOpen: function () {
+      clearTimeout(resumeTimer); wasPlaying = false;
+      if (player && ready) player.pauseVideo();
+    }
+  });
+
+  /* ---------------- text size and margins ----------------
+     The Aa button opens the toolbox's panel (Parseh.typo): four sliders
+     setting the --yt-* tokens the stylesheet is written against, remembered
+     per browser under yt_typo like the other settings. */
+  if (window.Parseh && Parseh.typo) {
+    Parseh.typo({key: 'yt_typo', button: $('#typo'), fields: [
+      {name: 'fa',    label: L.name,    min: 14,  max: 36,   step: 0.5,  unit: 'px', def: 20,   prop: '--yt-fa'},
+      {name: 'gl',    label: 'glosses', min: 10,  max: 20,   step: 0.5,  unit: 'px', def: 12.5, prop: '--yt-gl'},
+      {name: 'width', label: 'width',   min: 480, max: 1400, step: 10,   unit: 'px', def: 760,  prop: '--yt-width'},
+      {name: 'lead',  label: 'leading', min: 0.7, max: 1.6,  step: 0.05, unit: '×',  def: 1,    prop: '--yt-lead'}
+    ].concat(Parseh.readingFields(L.code))});
+  }
+  // The reading over the transcript.  Japanese has always had its chunk's
+  // kana split over a chunk as far as the kana allows (GUESS); a language
+  // divided into words -- Japanese, Chinese -- draws a chunk that carries
+  // its word line a word at a time instead, each word's own reading over it.
+  var READINGS = (L.code === 'ja' || L.words) ? Parseh.readings({
+    scope: 'video:' + L.code + ':' + CFG.id, kind: 'video', selector: '.seg .fa'
+  }) : null;
+  var GUESS = L.code === 'ja';
+
+  /* the header wraps on a phone; measure it, and the pinned video, so the
+     followed caption can stop short of both (same trick as the reader) */
+  function measure() {
+    document.documentElement.style.setProperty('--headh',
+      document.querySelector('header').offsetHeight + 'px');
+    document.documentElement.style.setProperty('--vidh',
+      (opts.pin && !sideOn() ? $('#playerwrap').offsetHeight : 0) + 'px');
+  }
+  /* ---------------- the video's own size ---------------- */
+  /* The grip resizes whichever thing is resizable in the layout in force.
+     Stacked, it sits under the video and drags VERTICALLY: down for
+     bigger, up for smaller, the width stored and the height following
+     from 16:9.  Side by side, it is the divider between the columns and
+     drags HORIZONTALLY, storing the column's width instead.  Either way a
+     double-click forgets that layout's choice. */
+  var vid = $('#vid'), wrap = $('#playerwrap'), grip = $('#grip');
+  function maxVidW() { return Math.max(280, wrap.clientWidth - 28); }
+  // side by side, what is resized is the COLUMN, so the two layouts keep
+  // their own remembered size: a width that suited a video stacked above
+  // the text is not the width that suits a column beside it
+  function maxColW() { return Math.max(320, Math.round(window.innerWidth * 0.72)); }
+  function applySize() {
+    if (sideOn()) {
+      vid.style.width = '';                 // the video fills its column
+      var c = parseInt(localStorage.getItem('yt_sidew') || '', 10);
+      if (c > 0) {
+        document.documentElement.style.setProperty('--sidew',
+          Math.min(Math.max(320, c), maxColW()) + 'px');
+      } else {                              // no choice made: the CSS default
+        document.documentElement.style.removeProperty('--sidew');
+      }
+      document.body.classList.remove('sized');
+    } else {
+      document.documentElement.style.removeProperty('--sidew');
+      var w = parseInt(localStorage.getItem('yt_vidw') || '', 10);
+      if (w > 0) {
+        vid.style.width = Math.min(w, maxVidW()) + 'px';
+        document.body.classList.add('sized');
+      } else {
+        vid.style.width = '';
+        document.body.classList.remove('sized');
+      }
+    }
+    measure();
+  }
+  (function () {
+    var dragging = false, side = false, startX = 0, startY = 0, startW = 0;
+    grip.addEventListener('pointerdown', function (e) {
+      dragging = true;
+      side = sideOn();                      // fixed for the whole drag
+      startX = e.clientX; startY = e.clientY;
+      startW = side ? wrap.offsetWidth : vid.offsetWidth;
+      grip.setPointerCapture(e.pointerId);
+      document.body.classList.add('resizing');
+      e.preventDefault();
+    });
+    grip.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      if (side) {
+        // the divider follows the pointer: one pixel right, one pixel wider
+        var c = Math.round(startW + (e.clientX - startX));
+        document.documentElement.style.setProperty('--sidew',
+          Math.min(Math.max(320, c), maxColW()) + 'px');
+      } else {
+        var w = Math.round(startW + (e.clientY - startY) * 16 / 9);
+        vid.style.width = Math.min(Math.max(280, w), maxVidW()) + 'px';
+        document.body.classList.add('sized');
+      }
+      measure();
+    });
+    function done() {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove('resizing');
+      localStorage.setItem(side ? 'yt_sidew' : 'yt_vidw',
+                           String(side ? wrap.offsetWidth : vid.offsetWidth));
+      measure();
+    }
+    grip.addEventListener('pointerup', done);
+    grip.addEventListener('pointercancel', done);
+    grip.addEventListener('dblclick', function () {
+      localStorage.removeItem(sideOn() ? 'yt_sidew' : 'yt_vidw');
+      applySize();
+    });
+  })();
+  // crossing the two-column breakpoint changes which layout is in force,
+  // so the buttons and the sizes both want redoing
+  window.addEventListener('resize', function () { paintButtons(); applySize(); });
+  applySize();
+
+  /* the ⏻ button is wired by /lib/parseh.js (data-parseh-stop) */
+
+  /* ---------------- helpers ---------------- */
+  function fmt(t) {
+    t = Math.max(0, Math.floor(t));
+    var m = Math.floor(t / 60), s = t % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  /* Words of the target script inside a gloss line must sit in their own
+     isolate or the bidi algorithm scrambles them (Persian), and want the
+     language's face (every script) -- the reader wraps them in
+     <bdi class=v>, and so does this.  The run regex is built from the
+     record's character class: a run is a maximal stretch of the script,
+     with inner separators when the language has one (a compound like
+     فکر کردن stays one isolate, in reading order; Japanese, with no
+     separator, is contiguous characters).  A Latin-script language has no
+     class, so nothing is isolated: Italian inside an English gloss needs
+     no help.
+
+     The gloss language changes nothing here, and the case that looks as
+     though it should is the one to see: gloss Persian in Arabic and the
+     regex matches the whole line, which is a single maximal run and comes
+     out as one isolate wearing one face -- the face it is written in.  So
+     the rule holds for a gloss in the target's own script without being
+     told about it. */
+  var runRe = null;
+  if (L.chars) {
+    var cls = '[' + L.chars + ']';
+    runRe = new RegExp(cls + '+' + (L.word_sep
+      ? '(?:' + L.word_sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + cls + '+)*' : ''), 'g');
+  }
+  // what glossAttrs sets, written out: the cloud is assembled as a string
+  // of HTML, and the elements holding gloss prose are made there
+  var GATTRS = ' lang="' + esc(G.code) + '"' + (GRTL ? ' dir="rtl"' : '') +
+               ' style="text-align:' + GALIGN + '"';
+  function glossHTML(s) {
+    if (!runRe) return esc(s);
+    var out = '', last = 0, m;
+    runRe.lastIndex = 0;
+    while ((m = runRe.exec(s)) !== null) {
+      out += esc(s.slice(last, m.index)) + '<bdi class="v" lang="' + L.code + '">' +
+             esc(m[0]) + '</bdi>';
+      last = m.index + m[0].length;
+    }
+    return out + esc(s.slice(last));
+  }
+  // the words of a chunk, for the per-word spans: split at the language's
+  // separator; a language without one (Japanese) makes the chunk one word
+  function wordsOf(s) { return L.word_sep ? s.split(L.word_sep) : [s]; }
+  // a chunk's word line, where its language is divided into words and the
+  // chunk has one; '' for every other chunk, which is drawn, looked up and
+  // carded exactly as it always was
+  function lineOf(ch) {
+    return (READINGS && L.words && typeof ch.words === 'string' && ch.words.trim())
+      ? ch.words : '';
+  }
+  // a lookup's body, with the chunk's word line where it has one: the
+  // dictionary then looks up the words a person divided, one row each
+  function withLine(body, ch) {
+    var line = lineOf(ch);
+    if (line) body.words = line;
+    return body;
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  /* ---------------- the reader's own mark ----------------
+     Four colours, the same four as the reading editions: a chunk carries
+     one in its "col" key, and the phrase wears it as hl-red and friends --
+     the very class names lib/tex2html.py gives a coloured chunk, set to
+     the very same values (style.css says where they come from).  A colour
+     means nothing to any tool; it is the reader's mark on the text, and
+     the two doors must not show it in two different reds.
+     The names are check_annotations.COLOURS.  Nothing serves that tuple to
+     a browser -- the page's config carries the language record and not the
+     checker -- so they are written here once and nowhere else in this
+     file, and the server refuses any fifth name in the checker's words. */
+  var COLOURS = ['red', 'blue', 'orange', 'green'];
+  function paintCol(el, ch) {
+    COLOURS.forEach(function (c) { el.classList.remove('hl-' + c); });
+    if (ch.col && COLOURS.indexOf(ch.col) >= 0) el.classList.add('hl-' + ch.col);
+  }
+  // the words of a chunk as spans of their own, so a modifier-click can
+  // name the WORD even though the hover gloss belongs to the whole phrase
+  // (a Japanese chunk is one word: its card is the phrase).  A function
+  // and not code inside render(), because a saved edit draws the phrase
+  // again: an fa edit may vocalise it or move a stop.
+  //
+  // A CHUNK DIVIDED INTO WORDS carries the division in "words" beside its
+  // text (lib/wordline.js): it is drawn from that line, one .wd per word with
+  // its own reading, each .wd still a child of the phrase -- and a line that
+  // does not give the text back draws the chunk as a chunk without one.
+  // With the reading alone switched on (#aloud) the phrase is its reading.
+  function paintWords(w, ch) {
+    w.classList.remove('words-bad');
+    if (aloudOn()) {
+      w.textContent = '';
+      var said = document.createElement('span');
+      said.className = 'wd';
+      said.textContent = ParsehWordline.aloud((L.reading ? ch.kana : ch.tr) || '', ch.fa);
+      w.appendChild(said);
+      return;
+    }
+    var line = lineOf(ch);
+    if (line && READINGS.renderWords(w, ch.fa, line)) return;
+    w.textContent = '';
+    wordsOf(ch.fa).forEach(function (wordTxt, k) {
+      if (k) w.appendChild(document.createTextNode(L.word_sep));
+      var wd = document.createElement('span');
+      wd.className = 'wd'; wd.textContent = wordTxt;
+      // Japanese's guess only: READINGS is there for Chinese too now, and a
+      // stray kana on a Chinese chunk was never hung over its text
+      if (GUESS && ch.kana) READINGS.render(wd, wordTxt, ch.kana);
+      w.appendChild(wd);
+    });
+  }
+
+  /* ---------------- the cloud ---------------- */
+  var cloud = $('#cloud'), cloudFor = null, hideTimer = null, resumeTimer = null;
+  var wasPlaying = false, cloudCtx = null, ankiOpen = false;
+  // While a phrase is being written the cloud stops being a hover: it has
+  // to survive the pointer leaving it, and the next phrase hovered must not
+  // wipe a half-typed form.  `editing` is that latch, and every way the
+  // cloud closes itself asks it first.
+  var editing = false, editWasPlaying = false;
+
+  /* The colour row, at the foot of the cloud in BOTH its states: marking a
+     phrase is a reading gesture and not an edit, so it is one click and it
+     never sits behind the ✎. */
+  function colourRow(ch) {
+    var h = '<div class="colrow"><span class="clab">mark</span>' +
+            '<button type="button" class="sw no' + (ch.col ? '' : ' on') +
+            '" data-col="" title="no colour">&#10005;</button>';
+    COLOURS.forEach(function (c) {
+      h += '<button type="button" class="sw hl-' + c +
+           (ch.col === c ? ' on' : '') + '" data-col="' + c +
+           '" title="mark this phrase ' + c + '"></button>';
+    });
+    return h + '</div><div class="cstat"></div>';
+  }
+  function fillCloud(ch) {
+    var h = '<div class="arrow"></div>';
+    // with the transcript showing the reading alone, the text is here
+    if (aloudOn()) h += '<div class="ctext" lang="' + L.code + '">' + esc(ch.fa) + '</div>';
+    // the reading (kana) sits above the transliteration, in the target face;
+    // a language without a reading ignores the field (a stray key copied
+    // from another language's template must not become a line)
+    if (L.reading && ch.kana) h += '<div class="kana" lang="' + L.code + '">' + esc(ch.kana) + '</div>';
+    // the transliteration is a romanisation of the TARGET and belongs to
+    // no gloss language, so it takes no lang of its own -- the three lines
+    // under it are prose the reader reads, and take the gloss's
+    if (ch.tr) h += '<div class="tr">' + esc(ch.tr) + '</div>';
+    if (ch.voc) h += '<div class="voc"' + GATTRS + '>' + glossHTML(ch.voc) + '</div>';
+    if (ch.en) h += '<div class="en"' + GATTRS + '>' + glossHTML(ch.en) + '</div>';
+    if (ch.note) h += '<div class="note"' + GATTRS + '>' + glossHTML(ch.note) + '</div>';
+    // a draft's chunk before anybody has written on it: say so, rather than
+    // opening a cloud that looks broken
+    if (!(ch.tr || ch.voc || ch.en || ch.note || (L.reading && ch.kana))) {
+      h += '<div class="unwritten">nothing glossed yet</div>';
+      // NOTHING SET UP AT ALL, and the reader is looking at an empty phrase:
+      // this is the moment they want to know the feature exists, so say so
+      // here rather than only in a header they have not read
+      if (!DICT.ready && !MT.ready)
+        h += '<div class="dict"><div class="dnone">A dictionary can look ' +
+             'these words up, a corpus can show a sentence somebody ' +
+             'translated, and a model can read the line. ' +
+             '<a href="/lookup/">Set any of them up</a> — it takes a couple ' +
+             'of minutes.</div></div>';
+    }
+    // The dictionary goes BELOW that line and never in place of it: it is
+    // not a gloss, and the reader is told so twice -- once by the line
+    // saying nothing is written, once by the panel's own label.  It is empty
+    // here and filled when the answer comes back, because the cloud must
+    // open at once and a lookup is a round trip.  Only where no vocabulary
+    // line exists: a written phrase looks exactly as it did before this was
+    // built.
+    if (!ch.voc && (DICT.ready || MT.ready) && opts.dict)
+      h += '<div class="dict" data-fill="1"></div>';
+    h += '<div class="mkrow"><button type="button" class="mkcard">' +
+         '+ card</button><button type="button" class="mkcopy" ' +
+         'title="copy this phrase">&#10697; copy</button>' +
+         '<button type="button" class="mkedit" ' +
+         'title="write this phrase: its text and its gloss">&#9998; edit</button></div>';
+    cloud.innerHTML = h + colourRow(ch);
+    // "I know this" a word at a time for a chunk its line draws -- asked of
+    // renderWords, into a span nobody sees, so a line gone stale is offered
+    // the controls of the chunk the transcript drew instead
+    var line = lineOf(ch);
+    if (line && READINGS.renderWords(document.createElement('span'), ch.fa, line))
+      READINGS.wordControls(cloud, line);
+    else if (GUESS && ch.kana) READINGS.controls(cloud, ch.fa);
+    var dbox = cloud.querySelector('.dict[data-fill]');
+    if (dbox) dictInto(dbox, ch);
+  }
+
+  /* ---------------- the dictionary behind an unglossed phrase ------------
+     The same panel the book reader draws (lib/tex2html.py), for the same
+     reason and under the same rule: this is a dictionary and not a gloss.
+     It lists every sense a word can carry and cannot say which is meant,
+     which is exactly the judgement a written vocabulary line is.  So it is
+     ruled off, tinted, labelled, and the source and its licence are printed
+     under it -- an entry with no provenance is a rumour.                  */
+  function dictText(ch) { return (ch && ch.fa) || ''; }
+
+  // `at` is the word of the chunk's word line the row was asked for,
+  // [surface, reading], headed as the line writes it
+  function dictLine(w, at) {
+    var h = '<div class="dw"><div class="dwd" lang="' + esc(L.code) + '">' +
+            esc(at ? at[0] : w.word) +
+            (at && at[1] ? ' <span class="dread">' + esc(at[1]) + '</span>' : '') + '</div>';
+    if (!w.hits.length) {
+      // what it looked for, not merely that it failed: a reader can then
+      // tell "not in the dictionary" from "the dictionary was never asked"
+      return h + '<div class="dnone">not found (tried ' +
+             esc(w.tried.join(', ')) + ')</div></div>';
+    }
+    w.hits.forEach(function (x) {
+      // as the caption spells it, like the editor's row (srcHit) and the
+      // book's panel: 睡觉 in a Simplified video, not the 睡覺 Wiktionary
+      // files it under -- which the title still names
+      var head = x.spelled || x.headword;
+      h += '<div class="dhit"><span class="dhead2"' +
+           (x.spelled && x.spelled !== x.headword
+             ? ' title="the dictionary files it under ' + esc(x.headword) + '"' : '') +
+           '>' + esc(head) + (x.translit ? ' ' + esc(x.translit) : '') + '</span>' +
+           (x.pos ? '<span class="dpos"> ' + esc(x.pos) + '</span>' : '') +
+           (x.note ? '<span class="dnote"> — ' + esc(x.note) + '</span>' : '');
+      // A VERB'S OTHER FORMS, under its headword and before its senses.  The
+      // dictionary answers می‌سازم with ساختن "to make, to build", and the
+      // reader is left to get from the infinitive to the stem the form in
+      // front of him is built on -- which is the whole difficulty of a
+      // Persian verb, and the part a translation of the infinitive does not
+      // say.  hit.vb is the language's own recipe (lib/verbs/) reading the
+      // dictionary's conjugation table, present only on a hit it recognises
+      // as a verb; its line is "pres. ساز sāz · past ساخت sāxt" in Persian,
+      // "pres. vado · p.p. andato · aux. essere" in Italian.  Set like the
+      // rest of the panel's prose, its target words isolated.  Headed by the
+      // verb it belongs to when that is not the headword, as the editor's
+      // row is (srcHit): German's "stand … auf" reaches stehen and carries
+      // aufstehen's forms, "→ aufstehen · pret. stand auf · p.p. …".  The
+      // same word is not another verb: folded (wordKey), so Arabic's وصل and
+      // its vowelled وَصَلَ, or 睡觉 and the lemma 睡觉 the recipe writes in
+      // the video's Simplified, get no arrow pointing at themselves.
+      var lem = x.vb && x.vb.lemma && wordKey(x.vb.lemma) !== wordKey(head)
+                ? x.vb.lemma : '';
+      if (x.vb && (x.vb.line || lem))
+        h += '<div class="dvb">' + (lem ? '\u2192 ' + glossHTML(lem) +
+                                           (x.vb.line ? ' · ' : '') : '') +
+             glossHTML(x.vb.line || '') + '</div>';
+      // a dictionary that defines its words in their own language shows its
+      // senses only with that switch on, and then as definitions
+      if (!DICT.defines)
+        x.senses.forEach(function (s) {
+          h += '<div class="dsense">' + esc(s) + '</div>';
+        });
+      else if (opts.defs)
+        h += defsHTML(x);
+      h += '</div>';
+    });
+    if (w.via && w.via !== 'as written')
+      h += '<div class="dnone">found ' + esc(w.via) + '</div>';
+    return h + '</div>';
+  }
+
+  // a hit's definitions: the first DEFS_SHOWN, and the rest behind a button
+  function defsHTML(x) {
+    var all = (x.senses || []).map(function (s, i) { return [s, (x.marks || [])[i] || '']; })
+      .concat((x.more || []).map(function (s, i) { return [s, (x.more_marks || [])[i] || '']; }));
+    var h = '<div class="ddefs">';
+    all.forEach(function (d, i) {
+      // what Wiktionary labels the sense with (lib/parseh.js, the book's too)
+      var label = Parseh.senseLabels(d[1], x.pos).join(', ');
+      h += '<div class="dsense ddef" lang="' + esc(L.code) + '" data-def="' + esc(d[0]) + '"' +
+           (i >= DEFS_SHOWN ? ' hidden' : '') + '>' +
+           (label ? '<span class="dlabel">(' + esc(label) + ') </span>' : '') + esc(d[0]) + '</div>';
+    });
+    var more = all.length - DEFS_SHOWN;
+    if (more > 0)
+      h += '<button type="button" class="ddefmore">' + more + ' more definition' +
+           (more === 1 ? '' : 's') + '</button>';
+    return h + '</div>';
+  }
+  // what a string of HTML cannot carry: the buttons' handlers
+  function wireDefs(box) {
+    box.querySelectorAll('.ddefmore').forEach(function (b) {
+      b.onclick = function () {
+        var defs = b.parentNode;
+        defs.querySelectorAll('.ddef[hidden]').forEach(function (d) { d.hidden = false; });
+        // hidden and not removed: the page asks next whether the click was
+        // inside the cloud, and a removed button is inside nothing
+        b.hidden = true;
+        defsInto(defs);
+        settleCloud();
+      };
+    });
+  }
+  // The definitions in `box` read in the gloss language: each element `sel`
+  // names that shows holds its definition in data-def and is given the
+  // translation as a .dtr of its own -- the ones already read at once, the
+  // rest in one call.  `after` runs when a late answer lands; `onRead(el,
+  // text)` once for an element, when its translation is in.
+  function defsRead(box, sel, after, onRead) {
+    // what shows inside `box`: neither the element nor anything between it
+    // and the box hidden -- the cloud around a box may well be, for it is
+    // filled before it is placed and shown
+    function shows(d) {
+      for (var e = d; e && e !== box; e = e.parentElement) if (e.hidden) return false;
+      return true;
+    }
+    function shown() {
+      return Array.prototype.filter.call(box.querySelectorAll(sel), shows);
+    }
+    function draw() {
+      shown().forEach(function (d) {
+        var t = d.querySelector(':scope > .dtr');
+        if (!t) {
+          t = document.createElement('div');
+          t.className = 'dtr';
+          t.setAttribute('lang', G.code);
+          if (GRTL) t.setAttribute('dir', 'rtl');
+          d.appendChild(t);
+        }
+        var got = DEFT[d.dataset.def];
+        t.textContent = got === undefined ? '…' : got;
+        t.classList.toggle('dwaiting', got === undefined);
+        if (got !== undefined && onRead && !d.dataset.read) { d.dataset.read = '1'; onRead(d, got); }
+      });
+    }
+    var want = [];
+    shown().forEach(function (d) {
+      if (DEFT[d.dataset.def] === undefined && want.indexOf(d.dataset.def) < 0)
+        want.push(d.dataset.def);
+    });
+    draw();
+    if (!want.length) return;
+    ParsehMT.translate(L.code, G.code, want).then(function (got) {
+      want.forEach(function (s, k) { mtKeep(DEFT, s, got[k] || '', DEFT_KEEP); });
+      if (!box.isConnected) return;
+      draw();
+      if (after) after();
+    }).catch(function (err) {
+      if (!box.isConnected) return;
+      box.querySelectorAll('.dtr.dwaiting').forEach(function (t) {
+        t.textContent = (err && err.message) || 'the model could not be run';
+      });
+      if (after) after();
+    });
+  }
+  // the panel's definitions, while their switch is on
+  function defsInto(box) {
+    if (defsTranslated()) defsRead(box, '.ddef', settleCloud);
+  }
+
+  function dictFill(box, j, ch, sg) {
+    // Each of the three draws only if it has something to draw: a reader with
+    // a corpus and no dictionary gets the sentences and no empty heading.
+    var h = '', words = j.words || [];
+    if (words.length) {
+      // A BLOCK OF ITS OWN, like the two after it.  The dictionary used to go
+      // straight into the panel, so the only thing between it and the model's
+      // reading was the same dotted line that sits over each block's source
+      // -- --rule on the panel's tint, 1.08:1 in every theme, which is to say
+      // nothing -- and the three read as one list.  Wrapped, the stylesheet
+      // can rule the three apart (.ddict | .dmt | .dpairs) and leave the
+      // source line inside its block, where it belongs.
+      h += '<div class="ddict"><div class="dhead">dictionary — not a gloss</div>';
+      // asked with the chunk's word line, each row names its word's place in
+      // the line (`i`): it goes under that word, and nothing is filtered here
+      var line = lineOf(ch), pairs = null;
+      if (line) { try { pairs = ParsehWordline.parse(line); } catch (_) {} }
+      words.forEach(function (w) {
+        h += dictLine(w, pairs && typeof w.i === 'number' ? pairs[w.i] || null : null);
+      });
+      // the definitions off, their switch never touched: the one moment to
+      // say there are any, since without them the entry looks as if not
+      if (DICT.defines && !opts.defs && localStorage.getItem('yt_defs') === null)
+        h += '<div class="dnone">the dictionary explains these words in ' +
+             esc(L.name || L.code) + ': “definitions”, in the header, shows what it says</div>';
+      var src = (j.source && j.source.source) || 'a dictionary';
+      if (j.source && j.source.licence) src += ' · ' + j.source.licence;
+      if (defsTranslated())
+        src += ' · the definitions put into ' + G.name + ' by ' +
+               ((MT.about && MT.about.source) || 'a model');
+      h += '<div class="dsrc">' + esc(src) + '</div></div>';
+    }
+    box.innerHTML = h;
+    box.removeAttribute('data-fill');
+    wireDefs(box);
+    defsInto(box);
+    mtInto(box, ch, sg, words);
+    pairsInto(box, j, ch, sg);
+    if (!box.childNodes.length)
+      box.innerHTML = '<div class="dnone">' + (DICT.words
+        ? 'the dictionary has nothing for these words'
+        : 'nothing here has anything to say about this phrase') + '</div>';
+  }
+
+  /* ---------- a machine's reading, of the CAPTION ------------------------
+     NOT OF THE PHRASE.  A phrase is a fragment by construction, and a
+     fragment translated alone comes back as one; the caption holding it
+     comes back as sense.  So the caption is translated, the whole of it is
+     shown, and the words of it that seem to be THIS phrase's are marked
+     inside it -- a guess, drawn as one, because the engine offers no word
+     alignment: made from what the dictionary says the phrase's words mean
+     (the lookup this panel has just drawn), never from where the phrase
+     sits in its caption.  The book reader's block (lib/tex2html.py), same
+     rule.
+
+     NO BUTTON: the captions around the playing head have already been
+     translated (preSentences), so there is nothing to wait for.          */
+  function mtInto(box, ch, sg, words) {
+    if (!MT.ready || typeof ParsehMT === 'undefined') return;
+    var text = dictText(ch);
+    var sentence = (sg && sg.text) || text;
+    if (!sentence) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'dmt';
+    box.appendChild(wrap);
+    if (MT.sent[sentence] !== undefined && MT.probe[text] !== undefined) {
+      wrap.innerHTML = mtHTML(MT.sent[sentence], MT.probe[text], words,
+                              sentence === text);
+      return;
+    }
+    wrap.innerHTML = '<div class="dwait">reading the caption…</div>';
+    var want = [sentence];
+    if (text && text !== sentence) want.push(text);
+    ParsehMT.translate(L.code, G.code, want).then(function (got) {
+      mtKeep(MT.sent, sentence, got[0] || '');
+      if (want.length > 1) mtKeep(MT.probe, text, got[1] || '');
+      if (!wrap.isConnected) return;
+      wrap.innerHTML = mtHTML(MT.sent[sentence], MT.probe[text] || '', words,
+                              sentence === text);
+      settleCloud();
+    }).catch(function (err) {
+      if (!wrap.isConnected) return;
+      wrap.innerHTML = '<div class="dwait">' +
+        esc((err && err.message) || 'the model could not be run') + '</div>';
+      settleCloud();
+    });
+  }
+
+  /* Each map bounded on its own, as the book reader bounds its two Maps --
+     one shared list let a run of caption translations push every chunk probe
+     out, and the two are used for different things. */
+  function mtKeep(map, key, val, keep) {
+    var fresh = map[key] === undefined;
+    map[key] = val;
+    if (!fresh) return;
+    var keys = Object.keys(map);
+    while (keys.length > (keep || MT_KEEP)) delete map[keys.shift()];
+  }
+
+  function mtHTML(out, probe, words, whole) {
+    var src = (MT.about && MT.about.source) || 'a model';
+    if (MT.about && MT.about.engine) src += ' · ' + MT.about.engine;
+    var span = whole || !out ? null : ParsehMT.align(out, probe, words, G.code);
+    var body;
+    if (span) {
+      // in as many places as the phrase's meaning landed in
+      body = ParsehMT.marked(out, span).map(function (seg) {
+        return seg.here ? '<b class="mthere' + (span.sure ? '' : ' mtmaybe') + '">' +
+                          esc(seg.text) + '</b>'
+                        : esc(seg.text);
+      }).join('');
+    } else {
+      body = esc(out || '(it produced nothing)');
+    }
+    return '<div class="dhead">' +
+           (whole ? 'a machine\'s reading — not a gloss'
+                  : 'a machine\'s reading of the caption — not a gloss') +
+           '</div><div class="mtout">' + body + '</div>' +
+           (!whole && out ? '<div class="dnone">' + esc(mtWhy(span, 'phrase')) + '</div>' : '') +
+           '<div class="dsrc">' + esc(src) + '</div>';
+  }
+
+  /* The line under the machine's reading: what the mark stands on -- which
+     of the phrase's words the dictionary found there -- or, where nothing
+     matched, that nothing is marked.  The book's mtWhy, same words. */
+  function mtWhy(span, what) {
+    if (!span)
+      return 'no word of this reading matches what the dictionary says of the ' +
+             what + ', so none is marked';
+    var why = ParsehMT.why(span);
+    return (span.sure ? 'this ' + what + ' is likely: ' : 'part of this ' + what + ' is likely: ') +
+           '\u201c' + span.text + '\u201d' +
+           (why ? ' \u2014 ' + why
+                : span.by === 'translation' ? ' \u2014 by the ' + what + ' translated on its own' : '');
+  }
+
+  /* ---------- sentences somebody has already translated -------------------
+     The book reader's block (lib/tex2html.py), for the same reason and under
+     the same rule: this is NOT the caption in front of the reader and not a
+     gloss of it, but a sentence a person translated that happens to share
+     its rare words -- which is what lets somebody choose between the senses
+     the dictionary lists without anybody guessing.                        */
+  function pairHTML(p, j) {
+      var marked = Parseh.pairMarkup(p, j, L, G);
+      return '<div class="dpair"><div class="psrc" lang="' + esc(L.code) + '"' +
+           (L.dir === 'rtl' ? ' dir="rtl"' : '') + '>' + marked.src + '</div>' +
+           '<div class="pdst"' + GATTRS + '>' + marked.dst + '</div>' +
+           ((p.matched && p.matched.length)
+             ? '<div class="pwhy">shares ' + esc(p.matched.join(', ')) + '</div>'
+             : '') + '</div>';
+  }
+
+  function pairsInto(box, j, ch, sg) {
+    var pairs = (j.pairs || []).slice();
+    if (!pairs.length) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'dpairs';
+    wrap.innerHTML = '<div class="dhead">a sentence somebody translated — not this one</div>' +
+                     '<div class="dpair-list"></div>';
+    var list = wrap.querySelector('.dpair-list');
+    function addPair(p) {
+      var holder = document.createElement('div');
+      holder.innerHTML = pairHTML(p, j);
+      if (holder.firstChild) list.appendChild(holder.firstChild);
+    }
+    pairs.forEach(addPair);
+    var c = (j.corpus && j.corpus.source) ? j.corpus : (DICT.corpus || {});
+    var src = c.source || 'a corpus';
+    if (c.licence) src += ' · ' + c.licence;
+    var source = document.createElement('div');
+    source.className = 'dsrc'; source.textContent = src; wrap.appendChild(source);
+    if (j.pairs_more) {
+      var more = document.createElement('button');
+      more.type = 'button'; more.className = 'dmore'; more.textContent = 'Load more';
+      more.onclick = function () {
+        more.disabled = true; more.textContent = 'Loading…';
+        fetch('/youtube/api/lookup', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(withLine({video: CFG.id, text: (ch && ch.fa) || '',
+            sentence: (sg && sg.text) || '', corpus_only: true,
+            corpus_offset: pairs.length, corpus_limit: 5}, ch || {}))
+        }).then(function (r) { return r.json(); }).then(function (next) {
+          if (!next || !next.ok) throw new Error('refused');
+          var added = next.pairs || [];
+          added.forEach(function (p) { pairs.push(p); addPair(p); });
+          if (next.pairs_more) {
+            more.disabled = false; more.textContent = 'Load more';
+          } else more.remove();
+          if (wrap.isConnected) settleCloud();
+        }).catch(function () {
+          more.disabled = false; more.textContent = 'Load more';
+        });
+      };
+      wrap.appendChild(more);
+    }
+    box.appendChild(wrap);
+  }
+
+  /* WHAT AN ANSWER IS FOR: the phrase AND the caption it was asked in.  The
+     server reads the sentence (a verb's recipe does: German leaves a
+     separable verb's prefix at the clause's end), so one phrase is two
+     answers in two captions -- `stand langsam` is aufstehen in "Er stand
+     langsam von seinem Stuhl auf." and stehen in "Er stand langsam am
+     Fenster.", each with its own "pret. stand auf" or "pret. stand"
+     (dict/de.db, 2026-09-10).  Keyed by the phrase alone, one answer served
+     both: with one phrase put in two captions, the second caption hovered
+     showed the first's answer, and once the look-ahead had asked for both,
+     the first showed the second's.  The book keys by chunk, which is both
+     at once.  And the chunk's word line with them: the same text divided
+     otherwise is other words, and another answer. */
+  function dictKey(text, sentence, line) {
+    // and the whole entry, asked for with the definitions on, kept apart
+    var k = [text || '', sentence || '', line || ''];
+    if (defsOn()) k.push('all');
+    return JSON.stringify(k);
+  }
+  // the whole entry is asked for with the definitions on, and only then
+  function withSenses(body) { if (defsOn()) body.senses = 'all'; return body; }
+
+  function dictInto(box, ch) {
+    var text = dictText(ch);
+    if (!text) { box.remove(); return; }
+    var sg = cloudCtx && cloudCtx.sg;
+    var sentence = (sg && sg.text) || '', key = dictKey(text, sentence, lineOf(ch));
+    if (DICT.cache[key]) { dictFill(box, DICT.cache[key], ch, sg); return; }
+    box.innerHTML = '<div class="dwait">looking it up…</div>';
+    fetch('/youtube/api/lookup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(withSenses(withLine({ video: CFG.id, text: text, sentence: sentence }, ch)))
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.ok) throw new Error('refused');
+      DICT.cache[key] = j;
+      // the cloud may have moved on while the server was answering
+      if (box.isConnected) { dictFill(box, j, ch, sg); settleCloud(); }
+    }).catch(function () {
+      box.innerHTML = '<div class="dwait">the dictionary could not be reached</div>';
+      if (box.isConnected) settleCloud();
+    });
+  }
+
+  /* ---------------- preparing what you are about to hear -----------------
+     The reader's own loop (lib/tex2html.py), with a caption where that has a
+     subparagraph.  One request at a time; anything asked for by hand stops
+     it; and a moment's quiet before it starts again.  Every request is one
+     local SQLite read, so this costs nothing but a little idle time.     */
+  var PRE = { busy: false, queue: [], timer: null, touched: Date.now() };
+  ['pointerdown', 'keydown', 'wheel', 'scroll', 'touchstart'].forEach(function (e) {
+    addEventListener(e, function () { PRE.touched = Date.now(); }, { passive: true });
+  });
+
+  function preTargets() {
+    var from = active >= 0 ? active : 0, out = [];
+    for (var i = from; i < Math.min(segs.length, from + AHEAD); i++) {
+      var sg = segs[i];
+      if (!sg || sg.plain) continue;
+      (sg.chunks || []).forEach(function (ch) {
+        if (!ch.fa || ch.voc) return;          // somebody wrote this one
+        if (DICT.ready && opts.dict && !DICT.cache[dictKey(ch.fa, sg.text, lineOf(ch))])
+          out.push({ ch: ch, sg: sg, dict: true });
+      });
+    }
+    return out;
+  }
+
+  function preOne(t) {
+    var post = function (where, body) {
+      return fetch(where, { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) }).then(function (r) { return r.json(); });
+    };
+    var chain = Promise.resolve(), line = lineOf(t.ch);
+    if (t.dict)
+      chain = chain.then(function () {
+        return post('/youtube/api/lookup', withSenses(withLine({ video: CFG.id, text: t.ch.fa,
+                 sentence: t.sg.text || '' }, t.ch)));
+      }).then(function (j) {
+        if (j && j.ok) { DICT.cache[dictKey(t.ch.fa, t.sg.text, line)] = j; }
+      });
+    return chain.catch(function () {});
+  }
+
+  /* THE CAPTIONS AHEAD, ALL IN ONE CALL: the engine's cost is almost all
+     fixed, so ten cost about what one costs, and the panel opens filled. */
+  function preSentences() {
+    // ONLY WHILE THE SWITCH IS ON: the reading ahead is for somebody who has
+    // asked to be helped.
+    if (!MT.ready || !opts.dict || typeof ParsehMT === 'undefined') return null;
+    var from = active >= 0 ? active : 0, want = [];
+    for (var i = from; i < Math.min(segs.length, from + AHEAD); i++) {
+      var sg = segs[i];
+      if (!sg || sg.plain || !sg.text) continue;
+      if (!(sg.chunks || []).some(function (c) { return c.fa && !c.voc; })) continue;
+      if (MT.sent[sg.text] === undefined && want.indexOf(sg.text) < 0)
+        want.push(sg.text);
+    }
+    if (!want.length) return null;
+    return ParsehMT.translate(L.code, G.code, want).then(function (got) {
+      want.forEach(function (t, k) { mtKeep(MT.sent, t, got[k] || ''); });
+    }).catch(function () {});
+  }
+
+  /* THE DEFINITIONS AHEAD, where they are read in the gloss language: the
+     ones the phrases ahead open with, all in one call once their lookups are
+     in.  A failure stops it; the panel still asks, and says why.          */
+  function preDefinitions() {
+    if (!defsTranslated() || DEFT_FAILED) return null;
+    var from = active >= 0 ? active : 0, want = [];
+    for (var i = from; i < Math.min(segs.length, from + AHEAD) && want.length < 60; i++) {
+      var sg = segs[i];
+      if (!sg || sg.plain) continue;
+      (sg.chunks || []).forEach(function (ch) {
+        if (!ch.fa || ch.voc) return;
+        var j = DICT.cache[dictKey(ch.fa, sg.text, lineOf(ch))];
+        ((j && j.words) || []).forEach(function (w) {
+          (w.hits || []).forEach(function (x) {
+            (x.senses || []).slice(0, DEFS_SHOWN).forEach(function (s) {
+              if (DEFT[s] === undefined && want.indexOf(s) < 0) want.push(s);
+            });
+          });
+        });
+      });
+    }
+    if (!want.length) return null;
+    return ParsehMT.translate(L.code, G.code, want).then(function (got) {
+      want.forEach(function (s, k) { mtKeep(DEFT, s, got[k] || '', DEFT_KEEP); });
+    }).catch(function () { DEFT_FAILED = true; });
+  }
+
+  function prePump() {
+    if (PRE.busy || cloudFor || editing) return;
+    if (Date.now() - PRE.touched < 1500) return;
+    var batch = preSentences();
+    if (batch) { PRE.busy = true; batch.then(function () { PRE.busy = false; }); return; }
+    if (!PRE.queue.length) PRE.queue = preTargets();
+    var t = PRE.queue.shift();
+    if (!t) {
+      // every lookup ahead is in: what their definitions say, in one call
+      var defs = preDefinitions();
+      if (defs) { PRE.busy = true; defs.then(function () { PRE.busy = false; }); }
+      return;
+    }
+    PRE.busy = true;
+    preOne(t).then(function () { PRE.busy = false; });
+  }
+  function preStart() { if (!PRE.timer) PRE.timer = setInterval(prePump, 900); }
+
+  /* ---------------- writing a phrase ----------------
+     The three numbers the edit endpoint wants are already in the page: the
+     video is CFG.id, the caption's element carries the index render() gave
+     it (data-i) and the phrase carries its own within the caption (data-j,
+     which is the chunk's number in annotations.json).  So nothing new is
+     remembered anywhere -- the coordinates are read back off the DOM at the
+     moment of the click, from the phrase the cloud is open on. */
+  function coords() {
+    var w = cloudFor;
+    if (!w || !w.parentNode || !w.parentNode.parentNode) return null;
+    var si = +w.parentNode.parentNode.dataset.i;   // .w -> .fa -> .seg
+    var ci = +w.dataset.j;
+    if (isNaN(si) || isNaN(ci)) return null;
+    var sg = segs[si];
+    var ch = sg && sg.chunks && sg.chunks[ci];
+    // the caption goes with it: the sources sidebar reads `at.sg` to give
+    // the model the whole caption, and without it every sidebar translated
+    // the phrase alone -- the fragment the panel was built never to translate
+    return ch ? { w: w, si: si, ci: ci, ch: ch, sg: sg } : null;
+  }
+  function stat(msg, bad) {
+    var el = cloud.querySelector('.cstat');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('bad', !!bad);
+  }
+  /* One edit, saved.  The server puts it through the checker first and
+     refuses in the CHECKER'S OWN WORDS -- an fa that no longer reproduces
+     its caption, a colour that is not one of the four, a chunk left
+     half-written -- and that sentence is what the reader has to see: it
+     names the rule that stopped him, where "failed" would name nothing.
+     A refusal writes nothing at all, so the page and the file still agree
+     and the form can simply stay open with the text in it. */
+  function post(fields, after) {
+    var at = coords();
+    if (!at) return;
+    stat('saving…');
+    fetch('/youtube/api/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video: CFG.id, segment: at.si, chunk: at.ci,
+                             fields: fields })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || 'the edit was refused');
+      // the answer replaces the chunk IN PLACE: every hover, card button
+      // and copy in the transcript closes over this very object, and
+      // swapping it for a new one would leave all of them on the old text
+      var ch = at.ch, now = res.chunk_now || {};
+      Object.keys(ch).forEach(function (k) { delete ch[k]; });
+      Object.keys(now).forEach(function (k) { ch[k] = now[k]; });
+      paintWords(at.w, ch);
+      paintCol(at.w, ch);
+      // the answer may arrive after the pointer has moved to the next
+      // phrase, whose cloud must not be told about this one
+      if (cloudFor !== at.w) return;
+      if (after) after(ch);
+      stat('saved ✓');
+    }).catch(function (e) {
+      // a refusal is never dropped, though: it names the rule the edit
+      // broke, so a cloud that has moved on comes back to the phrase the
+      // message is about and says it there
+      if (cloudFor !== at.w && !editing) openCloud(at.w, at.ch, segs[at.si]);
+      var msg = (e && e.message) || String(e);
+      // the one refusal that has a box to answer it: the phrase does not
+      // reproduce the transcript, and the transcript is exactly what the
+      // box at the foot of the form says need not be reproduced.  It is
+      // below the fold of a scrolling column, so the message would
+      // otherwise be a dead end -- bring it into view
+      if (/reproduce the text|transcript\.txt/.test(msg)) {
+        var row = cloud.querySelector('.efreerow');
+        if (row) row.scrollIntoView({block: 'nearest'});
+      }
+      stat(msg, true);
+    });
+  }
+  function setColour(col) {
+    var at = coords();
+    if (!at || (at.ch.col || '') === col) return;   // already that mark
+    post({ col: col }, function (ch) {
+      Array.prototype.forEach.call(cloud.querySelectorAll('.sw'), function (b) {
+        b.classList.toggle('on', (b.dataset.col || '') === (ch.col || ''));
+      });
+    });
+  }
+  /* The fields annwrite lets a page set, each named the way THIS video
+     names them: the first is the language taught, the reading row exists
+     only where the language has a reading, the transliteration is called
+     what the registry calls it (Italian gives a pronunciation, Japanese
+     rōmaji), and the meaning is called after the language it is written
+     in.  The third column is what the field holds: 'tl' target text, so
+     it takes the language's face and direction, 'gl' gloss prose, so it
+     takes the gloss language's -- and the vocabulary is 'gl' too, being a
+     line of that prose with target words quoted inside it. */
+  function editRows() {
+    var rows = [['fa', L.name.toLowerCase(), 'tl']];
+    if (L.reading) rows.push(['kana', L.reading_label || 'reading', 'tl']);
+    rows.push(['tr', L.translit_label || 'transliteration', ''],
+              ['voc', 'vocabulary', 'gl'],
+              ['en', GLOSS_LABEL, 'gl']);
+    return rows;
+  }
+  // Each box the size of what is in it before the cloud is placed: a phrase,
+  // a vocabulary line and a meaning are all different lengths, and a field
+  // showing half of its own text cannot be read back.  MEASURED AGAIN
+  // whenever the cloud changes width, not once at open.  A wide window keeps
+  // the field column's width when the sources open (style.css), but a
+  // narrow one stacks them and widens the whole cloud -- 434px of fields
+  // become 646 in a 700px window -- and any window can be resized with the
+  // editor open; a vocabulary line sized for three lines at the old width
+  // keeps an empty third one, or loses one, at the new.  The height is let
+  // go first, or a box could only ever grow.
+  function fitFields() {
+    Array.prototype.forEach.call(cloud.querySelectorAll('.ef'), function (el) {
+      el.style.height = '';
+      el.style.height = (el.scrollHeight + 2) + 'px';
+    });
+  }
+  /* THE WORD LINE, in the editor of a language divided into words: the
+     shared strip (Parseh.wordstrip) under the text box, its check run against
+     what that box holds -- so it is made again, keeping its line, whenever
+     the text or the reading is changed.  Propose is offered once the server
+     has said, a single time for the page, that it can propose at all. */
+  var strip = null, proposing = null, canPropose = false;
+  function askPropose() {
+    if (!proposing)
+      proposing = fetch('/youtube/api/words', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video: CFG.id, text: '' })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        return (canPropose = !!(j && j.ok && j.available));
+      }).catch(function () { return false; });
+    return proposing;
+  }
+  function mountStrip(at, value) {
+    var box = cloud.querySelector('.ewords');
+    if (!box) return;
+    var fa = cloud.querySelector('.ef[data-f="fa"]');
+    var said = cloud.querySelector('.ef[data-f="' + (L.reading ? 'kana' : 'tr') + '"]');
+    var o = { lang: L, fa: fa ? fa.value : at.ch.fa, value: value,
+              reading: said ? said.value : '', reorders: !!(CFG.reorders || reorders),
+              door: 'video',
+              // what the line said is the server's answer no longer
+              onchange: function () { stat(''); } };
+    if (canPropose)
+      o.propose = function () {
+        return fetch('/youtube/api/words', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          // the reading box as it stands reads the proposed words
+          body: JSON.stringify({ video: CFG.id, text: fa ? fa.value : at.ch.fa,
+                                 reading: said ? said.value : (at.ch[L.reading ? 'kana' : 'tr'] || '') })
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (!j || !j.ok) throw new Error((j && j.error) || 'nothing could be proposed');
+          return j.available ? (j.words || '') : '';
+        });
+      };
+    if (strip) strip.destroy();
+    strip = Parseh.wordstrip(o);
+    box.appendChild(strip.el);
+  }
+  function wordsInto(at) {
+    if (!L.words) return;
+    mountStrip(at, at.ch.words || '');
+    [cloud.querySelector('.ef[data-f="fa"]'),
+     cloud.querySelector('.ef[data-f="' + (L.reading ? 'kana' : 'tr') + '"]')].forEach(function (el) {
+      if (el) el.addEventListener('input', function () { mountStrip(at, strip.value()); });
+    });
+    if (!proposing) askPropose().then(function (yes) {
+      // not under somebody typing into the strip: the next editor has it
+      if (yes && editing && cloudFor === at.w && strip && !strip.el.contains(document.activeElement))
+        mountStrip(at, strip.value());
+    });
+  }
+  function openEditor() {
+    var at = coords();
+    if (!at) return;
+    editing = true;
+    clearTimeout(hideTimer);
+    // the page follows the playing video, and the cloud is fixed to the
+    // viewport: left running, the video would scroll the phrase out from
+    // under the form being typed into
+    if (player && ready && player.getPlayerState &&
+        player.getPlayerState() === 1) {
+      editWasPlaying = true; player.pauseVideo();
+    } else editWasPlaying = false;
+    // the coordinates are shown as the checker writes them, so a refusal
+    // about "segment 4 chunk 1" is recognisably about this phrase
+    //
+    // THE SOURCES OPEN TO THE LEFT OF THE FIELDS, AND THE WINDOW GROWS.  They
+    // used to be a block over the fields in the same 460px column: up to 40vh
+    // of dictionary rows, a model's reading and somebody's sentences pushed
+    // the text, the vocabulary and the meaning down under the fold, so the
+    // line being copied and the box it was being copied into were never on
+    // screen together -- and the column was too narrow for a verb's forms.
+    // So the body is two columns, .eside | .emain, each scrolling on its own,
+    // with the head above them and the save row and the colours below them
+    // (outside both, so neither column can scroll them away).  Everything
+    // stays inside #cloud: the click dispatch and the hover-close below both
+    // assume the form lives there, and tests/mtcheck.py looks for
+    // `#cloud .eside` and `#cloud .esrcbody`.
+    var h = '<div class="ehead">editing<span class="ewhere">segment ' + at.si +
+            ' chunk ' + at.ci + '</span><span class="sp"></span>' +
+            '<button type="button" class="esrc" title="what the dictionary, ' +
+            'the model, the corpus and an external chatbot can offer for this ' +
+            'phrase">\u2295 sources</button>' +
+            '<button type="button" class="ecancel" title="close (Esc)">&#10005;</button></div>' +
+            '<div class="ebody">' +
+            '<div class="eside"' + (srcOpen ? '' : ' hidden') + '>' +
+            '<div class="enote">Everything the toolbox already knows about ' +
+            'this phrase. Nothing here is a gloss and nothing writes itself: ' +
+            'each line has the buttons that put it into a field.</div>' +
+            '<div class="esrcbody">looking\u2026</div></div>' +
+            '<div class="emain">';
+    editRows().forEach(function (f) {
+      h += '<label class="erow"><span class="elab">' + esc(f[1]) + '</span>' +
+           '<textarea class="ef' + (f[2] ? ' ' + f[2] : '') + '" data-f="' + f[0] +
+           '" rows="' + (f[0] === 'voc' || f[0] === 'en' ? 2 : 1) + '">' +
+           esc(at.ch[f[0]] || '') + '</textarea></label>';
+      // the word line, under the text it divides (a div, not a label: the
+      // strip is buttons and boxes of its own)
+      if (f[0] === 'fa' && L.words)
+        h += '<div class="erow"><span class="elab">words</span><div class="ewords"></div></div>';
+    });
+    // WHAT YOUTUBE HEARD IS SOMETIMES WRONG.  transcript.txt is what the
+    // caption's text is held against, so an edit that changes a word is
+    // refused -- unless this box says the phrase is the annotator's.  The
+    // reading editions offer the same, per paragraph (lib/tex2html.py).
+    h += '<div class="erow efreerow"><span class="elab">the transcript</span>' +
+         '<label class="echk"><input type="checkbox" class="efree"' +
+         (at.ch.free ? ' checked' : '') + '> this phrase need not reproduce ' +
+         '<code>transcript.txt</code></label>' +
+         '<div class="efnote">The pasted transcript is what YouTube heard, and it is ' +
+         'sometimes wrong. The check that a caption still reproduces it is what stops ' +
+         'a model, or a careless edit, quietly rewriting the video &mdash; and it stays ' +
+         'on for every other caption. Ticked, <b>this phrase is yours</b>: an edit that ' +
+         'departs from the transcript is written instead of refused, the ' +
+         'caption&#8217;s text follows its phrases, and the checker reports the caption ' +
+         'as not checked rather than as a fault. The whole CAPTION, because that is what ' +
+         'is compared: one phrase departing takes its caption with it.</div></div>';
+    h += '</div></div>';                  // .emain, .ebody
+    h += '<div class="mkrow"><button type="button" class="esave">save' +
+         ' <span class="kbd">Ctrl+↵</span></button>' +
+         '<button type="button" class="edv" data-dv="split" title="cut this ' +
+         'phrase in two">✂ cut in two</button>' +
+         '<button type="button" class="edv" data-dv="next" title="join this ' +
+         'phrase to the one after it">join next</button>' +
+         (at.ci > 0 ? '<button type="button" class="edv" data-dv="prev" ' +
+          'title="join the phrase before this one to it">join previous</button>'
+          : '') + '</div>';
+    cloud.classList.add('editing');
+    // the wide window from the first frame when the sources were left open:
+    // the fields are measured below at the width they will actually have
+    cloud.classList.toggle('sideon', srcOpen);
+    cloud.innerHTML = h + colourRow(at.ch);
+    Array.prototype.forEach.call(cloud.querySelectorAll('.ef.tl'), targetAttrs);
+    Array.prototype.forEach.call(cloud.querySelectorAll('.ef.gl'), glossAttrs);
+    fitFields();
+    wordsInto(at);
+    var srcBtn = cloud.querySelector('.esrc');
+    if (srcBtn) {
+      srcBtn.classList.toggle('on', srcOpen);
+      srcBtn.onclick = function (e) {
+        e.preventDefault(); e.stopPropagation();
+        srcShow(!srcOpen, at);
+      };
+    }
+    if (srcOpen) srcFill(at);
+    placeCloud(at.w);
+    var first = cloud.querySelector('.ef');
+    if (first) first.focus();
+  }
+
+  /* ---------- the sources sidebar ----------------------------------------
+     THE SAME THREE THINGS THE READER'S PANEL SHOWS, where the gloss is
+     actually written -- reading them in the cloud and retyping them into the
+     editor was the whole of the work, and retyping is where a romanisation
+     loses a macron.  It writes into a BOX and never into the video: what
+     lands here is unsaved, for somebody to correct before they press save.
+     Closed by default, and the choice is remembered.  The book reader's
+     sidebar (lib/tex2html.py), same rule.                                 */
+  var SRC_KEY = 'yt_side';
+  var srcOpen = localStorage.getItem(SRC_KEY) === '1';
+
+  function srcShow(on, at) {
+    srcOpen = on;
+    localStorage.setItem(SRC_KEY, on ? '1' : '0');
+    var box = cloud.querySelector('.eside');
+    var btn = cloud.querySelector('.esrc');
+    if (box) box.hidden = !on;
+    if (btn) btn.classList.toggle('on', on);
+    // the window widens with the sources in it (style.css, .sideon), which
+    // changes the width every field wraps at -- so they are measured again
+    // before the cloud is placed at its new size
+    cloud.classList.toggle('sideon', on && editing);
+    fitFields();
+    if (on && at) srcFill(at);
+    else srcGen++;          // closed: whatever is still on its way is for nobody
+    if (at) placeCloud(at.w);
+  }
+
+  // append rather than replace: a vocabulary line is built entry by entry
+  function srcPut(field, text, sep) {
+    if (!text) return;
+    var el = cloud.querySelector('.ef[data-f="' + field + '"]');
+    if (!el) return;
+    var had = (el.value || '').trim();
+    el.value = had ? had + (sep === undefined ? ' ' : sep) + text : text;
+    el.style.height = (el.scrollHeight + 2) + 'px';
+    el.focus();
+    // at the end, so the next thing typed carries the line on rather than
+    // landing in front of what was just put there
+    try { el.setSelectionRange(el.value.length, el.value.length); }
+    catch (e) { /* a field that cannot be indexed is a field left alone */ }
+  }
+
+  // a button is [label, title, what it does] and, fourth, a class of its own
+  // (`sgap`: it puts a line somebody still has to finish)
+  function srcRow(into, mainHTML, sub, buttons) {
+    var d = document.createElement('div');
+    d.className = 'srow';
+    d.innerHTML = '<div class="stxt">' + mainHTML + '</div>' +
+                  (sub ? '<div class="ssub">' + esc(sub) + '</div>' : '') +
+                  '<div class="sput"></div>';
+    var put_ = d.querySelector('.sput');
+    buttons.forEach(function (b) {
+      var el = document.createElement('button');
+      el.type = 'button'; el.textContent = b[0]; el.title = b[1];
+      if (b[3]) el.className = b[3];
+      el.onclick = function (e) { e.preventDefault(); e.stopPropagation(); b[2](); };
+      put_.appendChild(el);
+    });
+    into.appendChild(d);
+    return d;
+  }
+
+  function srcHead(into, text) {
+    var h = document.createElement('h4');
+    h.textContent = text;
+    into.appendChild(h);
+  }
+
+  // a heading and the block under it, holding its place with a waiting line
+  // until its answer comes back (the book's sideSection)
+  function srcSection(into, head, waiting) {
+    srcHead(into, head);
+    var box = document.createElement('div');
+    box.innerHTML = '<div class="snone"></div>';
+    box.firstChild.textContent = waiting;
+    into.appendChild(box);
+    return box;
+  }
+
+  /* THE LEMMA'S OWN SOUND, for an entry that names the lemma.  hit.translit
+     is the sound of the form the reader is looking at wherever the source
+     romanises its forms -- mi-sāzam for می‌سازم -- which is right for the
+     transliteration box and wrong beside the headword: the vocabulary line
+     came out "ساختن mi-sāzam", an infinitive wearing a first person's
+     sound.  The server says the lemma's own as head_sound (the pronunciation
+     it derived, or the entry's romanisation); a server from before that
+     field did not, and then the pronunciation is still the lemma's, and
+     translit is too wherever the form had no romanisation of its own. */
+  function headSound(h) {
+    if (typeof h.head_sound === 'string') return h.head_sound;
+    return h.said || (h.of_form ? '' : (h.translit || ''));
+  }
+
+  /* A word of the language inside the row's chrome, isolated.  The row is
+     left-to-right and an arrow between two words is a neutral: "فکر کردن →
+     کردن" left bare resolves the arrow to the Persian on both sides of it
+     and prints the three right to left -- the lemma first, the arrow
+     pointing from it to the headword, the relation read backwards.  An
+     isolate is one neutral to the paragraph around it, so the pair reads
+     left to right like the rest of the row, each word keeping its own order
+     inside.  The lang is the language's: a Han character is drawn one way
+     for Chinese and another for Japanese. */
+  function tlWord(s, title) {
+    return '<bdi lang="' + esc(L.code) + '"' +
+           (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(s) + '</bdi>';
+  }
+
+  /* What the recipe says is left to fill, whole, and one item to a line
+     where it says several.  The items are sentences somebody reads and they
+     carry their own punctuation -- Persian's compound puts "bw for فکر fekr
+     after it: to think" there, English "the sound of go (the dictionary's
+     /ɡəʊ/ is ...)" -- so the ", " they used to be joined with made two items
+     and one indistinguishable, and any other separator a meaning can hold
+     would too (";" is in Wiktionary's senses: "to research and develop; to
+     do R&D").  A line each cannot be misread.  The row draws its lines
+     (srcHit); a title has only "\n" to give, so it gets that and a dot. */
+  function missTitle(items) {
+    return items.length === 1 ? ' ' + items[0]
+                              : '\n\u00b7 ' + items.join('\n\u00b7 ');
+  }
+  // a list the server sent, as strings; anything else as no list at all
+  function strs(x) {
+    return Array.isArray(x) ? x.filter(Boolean).map(String) : [];
+  }
+
+  /* One dictionary hit, as a row with the buttons that put it somewhere.
+     A VERB IS OFFERED AS A VERB.  Where the language's recipe recognised the
+     hit (hit.vb, lib/verbs/), the vocabulary entry is the one a person
+     writes for a verb -- the form in the phrase, then the lemma with its
+     other forms: "آمده āmade come (آمدن āmadan · pres. آ ā · past آمد āmad
+     · to come)", as this video's own annotations write آمده -- and the row
+     shows those forms under the headword, so what the button will put is
+     read before it is pressed.  The recipe says when it could not fill
+     something the language needs (a stem nobody romanised); the button then
+     says what, and so does the row, rather than the line going in looking
+     finished.  Anything else is the plain headword, its sound, a sense.
+
+     WHAT GOES IN IS NAMED WHEN IT IS NOT THE HEADWORD.  German puts a
+     separated verb back together: "stand … auf" is looked up as stand,
+     reaches stehen, and the recipe hands back aufstehen's \vb -- whose line,
+     "pret. stand auf · p.p. aufgestanden", sat under "stehen" unexplained.
+     A reflexive does the same (freuen gives sich freuen), and a Persian
+     compound (فکر کردن gives its light verb کردن, the noun left to a \bw).
+     So the row says "stehen → aufstehen": the arrow is "what the vocabulary
+     gets" when that is ANOTHER word than the one heading the row.
+
+     THE ROW IS HEADED AS THE CAPTION SPELLS IT, as the book's is (sideHit):
+     h.spelled, 睡觉 where Wiktionary files the entry under 睡覺, with the
+     dictionary's headword in the title.  It used to be headed by the
+     headword and point at the spelling -- and a verb's lemma is written the
+     way the video writes it, so the real 睡觉 hit (dict/zh.db) read
+     "睡覺 → 睡觉", one word pointing at itself.  Compared folded
+     (wordKey), as the book compares, because Arabic did the same with its
+     marks: "وصل → وَصَلَ", the bare page title and the vowelled \vb of one
+     verb. */
+  function srcHit(into, h) {
+    var sense = (h.senses || [])[0] || '';
+    var vb = (h.vb && h.vb.here) ? h.vb : null;
+    var head = h.spelled || h.headword;
+    var word = (vb && vb.lemma) || head;
+    var btns = [], main = tlWord(head, h.spelled && h.spelled !== h.headword
+                                         ? 'the dictionary files it under ' + h.headword
+                                         : '') +
+                          (wordKey(word) !== wordKey(head) ? ' \u2192 ' + tlWord(word) : '') +
+                          (h.translit ? ' \u00b7 ' + esc(h.translit) : '');
+    if (h.translit)
+      btns.push(['romanisation \u2192', 'put it in the transliteration',
+                 function () { srcPut('tr', h.translit); }]);
+    if (vb) {
+      var missing = strs(vb.missing);
+      // hints the recipe could give and not decide -- Arabic's other masdars,
+      // the right one depending on the sense -- are a choice and not a gap:
+      // under the forms, quieter than they are, never in `missing`'s colour
+      // and never in the button's list of what to fill
+      var notes = strs(vb.notes);
+      // INCOMPLETE IS WHAT THE RECIPE SAYS, whether or not it could name the
+      // gap -- and then the row still says so, in the book's words.  The
+      // title used to send the reader to "the line above" and the row drew
+      // no such line, since there was no item to put on it.
+      var partial = vb.complete === false;
+      if (partial && !missing.length)
+        missing = ['part of it (the dictionary did not say which)'];
+      // AND THE BUTTON LOOKS UNFINISHED, dashed (style.css .sgap), as the
+      // book's \vb button does.  The row says what is left, but the button
+      // is the thing pressed, and the book's says so on its border: the same
+      // half-made verb was drawn dashed in the book's editor and solid in
+      // this one, as if the video's line went in finished.
+      // A VERB THAT IS MORE THAN ONE WORD GETS ITS OWN BUTTON.  لبخند زدن is
+      // ONE verb, and what the row says under "to fill in" -- a word to put
+      // after the light verb -- is the other half of one entry, not a second
+      // entry beside it.  A video's line has no macro to say which word
+      // belongs to which, so the compound goes in as a whole and is glossed
+      // as a whole (docs/lang/fa.md: `compounds as فکر کردن fekr kardan to
+      // think`), with the verb that does the conjugating after it.  That is
+      // another line than "\u2192 vocabulary" puts, not that line with something
+      // added to it, so it is its own button -- and it stands first, because
+      // for a compound it is the one to press.
+      var cp = (vb.compound && vb.compound.plain) ? vb.compound : null;
+      if (cp)
+        btns.push(['\u2192 ' + cp.name,
+                   cp.whole + (cp.sound ? ' ' + cp.sound : '') +
+                   ' is ONE verb written in two words, not two entries: ' +
+                   word + ' carries the forms, ' + cp.word +
+                   ' never changes, and the pair means ' +
+                   (cp.mean || 'what neither word means alone') +
+                   '. This puts the whole compound in as one entry:\n' + cp.plain +
+                   (cp.complete ? ''
+                    : '\n\nthen fill in by hand what the dictionary did not give:' +
+                      missTitle(cp.missing || [])),
+                   function () { srcPut('voc', cp.plain, ' \u00b7 '); },
+                   cp.complete ? '' : 'sgap']);
+      btns.push(['\u2192 vocabulary', partial
+                   ? 'add this verb and its forms to the vocabulary line \u2014 ' +
+                     'then fill in by hand what the dictionary did not give:' +
+                     missTitle(missing)
+                   : 'add this verb and its forms to the vocabulary line',
+                 function () { srcPut('voc', vb.here, ' \u00b7 '); },
+                 partial ? 'sgap' : '']);
+      if (vb.line || notes.length || partial) {
+        main += '<div class="svb">' + (vb.line ? glossHTML(vb.line) : '');
+        notes.forEach(function (n) {
+          main += '<div class="svbnote">' + glossHTML(n) + '</div>';
+        });
+        if (partial)
+          main += '<div class="svbmiss"><span>to fill in: </span><span>' +
+                  missing.map(glossHTML).join('<br>') + '</span></div>';
+        main += '</div>';
+      }
+    } else {
+      var hs = headSound(h);
+      btns.push(['\u2192 vocabulary', 'add this word to the vocabulary line',
+                 function () {
+                   srcPut('voc', word + (hs ? ' ' + hs : '') +
+                          (sense ? ' ' + sense : ''), ' \u00b7 ');
+                 }]);
+    }
+    if (sense)
+      btns.push(['meaning \u2192', 'put this sense in the meaning',
+                 function () { srcPut('en', sense); }]);
+    var row = srcRow(into, main, sense, btns);
+    // ENGLISH, EXPLAINED IN ENGLISH, read in the gloss language here too --
+    // the book's sideHit: the sense as the model puts it, under the row, with
+    // the buttons that put that, while the switch over the dictionary's rows
+    // (or the header's) is on
+    if (sense && DICT.defines && MT.ready) {
+      var t = document.createElement('div');
+      t.className = 'sdef'; t.dataset.def = sense;
+      if (!vb) {
+        var hsd = headSound(h);
+        t.dataset.voc = word + (hsd ? ' ' + hsd : '') + ' ';
+      }
+      t.hidden = !opts.defsMt;
+      row.appendChild(t);
+    }
+  }
+  // the buttons under a sense read in the gloss language, once it is in
+  function srcDefPut(el, text) {
+    if (!text) return;
+    var put_ = document.createElement('div');
+    put_.className = 'sput';
+    var btns = [];
+    if (el.dataset.voc !== undefined)
+      btns.push(['\u2192 vocabulary', 'add this word to the vocabulary line, its sense in ' + G.name,
+                 function () { srcPut('voc', el.dataset.voc + text, ' \u00b7 '); }]);
+    btns.push(['meaning \u2192', 'put this sense, in ' + G.name + ', in the meaning',
+               function () { srcPut('en', text); }]);
+    btns.forEach(function (b) {
+      var x = document.createElement('button');
+      x.type = 'button'; x.textContent = b[0]; x.title = b[1];
+      x.onclick = function (e) { e.preventDefault(); e.stopPropagation(); b[2](); };
+      put_.appendChild(x);
+    });
+    el.appendChild(put_);
+  }
+  // the switch inside the editor, just over the dictionary's rows
+  function srcDefsSwitch(dict) {
+    if (!dict || !(DICT.defines && MT.ready)) return;
+    var bar = document.createElement('div');
+    bar.className = 'sdefbar';
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'sdefmt';
+    b.textContent = 'in ' + G.name.toLowerCase();
+    b.title = 'each sense put into ' + G.name + ' under it, by the translation model ' +
+              "on this machine: a machine's reading, not a gloss";
+    b.classList.toggle('on', opts.defsMt);
+    b.onclick = function (e) { e.preventDefault(); e.stopPropagation(); setDefsMt(!opts.defsMt); };
+    bar.appendChild(b);
+    dict.parentNode.insertBefore(bar, dict);
+  }
+  // an open editor's sources after the switch moved: the senses in the gloss
+  // language shown or hidden, and read where they are wanted
+  function srcDefs() {
+    var body = editing ? cloud.querySelector('.esrcbody') : null;
+    if (!body) return;
+    body.querySelectorAll('.sdefmt').forEach(function (b) { b.classList.toggle('on', opts.defsMt); });
+    body.querySelectorAll('.sdef').forEach(function (t) { t.hidden = !opts.defsMt; });
+    if (opts.defsMt && DICT.defines && MT.ready) defsRead(body, '.sdef', null, srcDefPut);
+  }
+
+  // One rendering path for both the browser model and a pasted external
+  // answer.  That keeps the dictionary-derived marks and insertion buttons
+  // identical.  The external chatbot has no phrase-only probe, so its marks
+  // are derived from `words` alone.
+  function srcTranslation(box, whole, probe, words, text, sentence) {
+    box.textContent = '';
+    var split = !!(text && sentence && text !== sentence);
+    var span = split && whole
+      ? ParsehMT.align(whole, probe || '', words || [], G.code) : null;
+    if (span) {
+      var why = ParsehMT.why(span);
+      srcRow(box, ParsehMT.marked(whole, span).map(function (seg) {
+                return seg.here ? '<span class="shere">' + esc(seg.text) + '</span>'
+                                : esc(seg.text);
+              }).join(''),
+              (span.sure ? 'the marked words are this phrase\u2019s'
+                         : 'the marked words are part of this phrase\u2019s') +
+              (why ? ': ' + why
+                   : span.by === 'translation' ? ', by the phrase translated on its own' : ''),
+              [['the marked words \u2192 meaning', 'put the guess in the meaning',
+                function () { srcPut('en', span.text); }],
+               ['the whole caption \u2192 meaning', 'put the whole translation in',
+                function () { srcPut('en', whole); }]]);
+    } else {
+      srcRow(box, esc(whole || '(it produced nothing)'),
+              whole && split
+                ? 'no word of it matches what the dictionary says of this phrase' : '',
+              whole ? [['meaning \u2192', 'put it in the meaning',
+                        function () { srcPut('en', whole); }]] : []);
+    }
+  }
+
+  function srcContext(si) {
+    var out = { before: [], after: [] };
+    for (var d = 1; d <= 3; d++) {
+      var prev = segs[si - d], next = segs[si + d];
+      var p = prev && String(prev.text || '').trim();
+      var q = next && String(next.text || '').trim();
+      if (p) out.before.unshift(p);
+      if (q) out.after.push(q);
+    }
+    return out;
+  }
+
+  function srcLLM(box, at, text, evidence, gen) {
+    box.textContent = '';
+    if (typeof ParsehLLM === 'undefined') {
+      box.innerHTML = '<div class="snone">the prompt helper could not be loaded</div>';
+      return;
+    }
+    var sentence = (at.sg && at.sg.text) || text;
+    var around = srcContext(at.si);
+    var controls = document.createElement('div'); controls.className = 'sllmctl';
+    var actions = document.createElement('div'); actions.className = 'sllmactions';
+    var ask = document.createElement('button');
+    ask.type = 'button'; ask.textContent = 'Ask LLM';
+    ask.title = 'copy a prompt for an external chatbot';
+    var use = document.createElement('button');
+    use.type = 'button'; use.textContent = 'Use translation';
+    use.title = 'use the translation pasted below';
+    actions.appendChild(ask); actions.appendChild(use);
+    var paste = document.createElement('textarea');
+    paste.rows = 3; paste.placeholder = 'Paste the chatbot\u2019s translation here';
+    paste.setAttribute('aria-label', 'Chatbot translation');
+    glossAttrs(paste);
+    var status = document.createElement('div');
+    status.className = 'sllmstat'; status.setAttribute('aria-live', 'polite');
+    var result = document.createElement('div'); result.className = 'sllmout';
+    controls.appendChild(actions); controls.appendChild(paste);
+    controls.appendChild(status); controls.appendChild(result); box.appendChild(controls);
+
+    var cached = LLM.sent[sentence];
+    if (cached !== undefined) {
+      paste.value = cached;
+      status.textContent = 'Reusing the translation pasted for this caption.';
+      srcTranslation(result, cached, '', evidence.words || [], text, sentence);
+    }
+
+    var allPairs = null;
+    function corpusPage(offset) {
+      return fetch('/youtube/api/lookup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(withLine({ video: CFG.id, text: text, sentence: sentence,
+                               corpus_only: true, corpus_offset: offset,
+                               corpus_limit: 50 }, at.ch))
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok) throw new Error('the corpus request was refused');
+        return j;
+      });
+    }
+    // Fetch the remaining local corpus rows while the sidebar is being read.
+    // The later clipboard write then occurs directly in the click handler,
+    // which browsers with strict transient clipboard permission require.
+    function preparePairs() {
+      ask.disabled = true; status.classList.remove('bad');
+      status.textContent = evidence.pairs_more
+        ? 'Preparing Ask LLM with all Tatoeba examples\u2026' : 'Preparing Ask LLM\u2026';
+      var preparing = ParsehLLM.collectPairs(evidence, corpusPage).then(function (pairs) {
+        allPairs = pairs;
+        if (gen !== srcGen || !box.isConnected) return;
+        ask.disabled = false;
+        status.textContent = LLM.sent[sentence] !== undefined
+          ? 'Reusing the translation pasted for this caption.'
+          : 'Ready to copy a prompt for an external chatbot.';
+      }).catch(function () {
+        if (gen !== srcGen || !box.isConnected) return;
+        allPairs = null; ask.disabled = false;
+        status.textContent = 'Could not collect all Tatoeba examples. Press Ask LLM to retry.';
+        status.classList.add('bad');
+      });
+      return preparing;
+    }
+    preparePairs();
+    ask.onclick = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (!allPairs) { preparePairs(); return; }
+      status.classList.remove('bad'); status.textContent = 'Copying the prompt\u2026';
+      try {
+        var prompt = ParsehLLM.prompt({
+          sourceName: L.name, targetName: G.name, sentence: sentence,
+          before: around.before, after: around.after,
+          words: evidence.words || [], pairs: allPairs
+        });
+        ParsehLLM.copy(prompt).then(function (copied) {
+          if (gen !== srcGen || !box.isConnected) return;
+          status.textContent = copied
+            ? 'Prompt copied. Paste it into a chatbot, then paste its answer below.'
+            : 'The clipboard is unavailable. Try Ask LLM again after allowing clipboard access.';
+          status.classList.toggle('bad', !copied);
+        });
+      } catch (_) {
+        if (gen !== srcGen || !box.isConnected) return;
+        status.textContent = 'The prompt could not be copied. Try Ask LLM again.';
+        status.classList.add('bad');
+      }
+    };
+    function accept() {
+      var out = paste.value.trim();
+      if (!out) {
+        status.textContent = 'Paste the chatbot\u2019s translation first.';
+        status.classList.add('bad'); paste.focus(); return;
+      }
+      mtKeep(LLM.sent, sentence, out);
+      status.textContent = 'Translation ready for this whole caption.';
+      status.classList.remove('bad');
+      srcTranslation(result, out, '', evidence.words || [], text, sentence);
+      fitFields();
+    }
+    use.onclick = function (e) { e.preventDefault(); e.stopPropagation(); accept(); };
+    paste.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault(); accept();
+      }
+    });
+  }
+
+  /* WHICH FILLING IS CURRENT.  The dictionary's answer and the model's come
+     back when they come back, and they wrote into the body they were asked
+     for -- which is the SAME element after the sources are closed and opened
+     again, or refilled for a phrase edited since.  So a late answer appended
+     a second "sentences somebody translated", with the old phrase's
+     sentences in it, under the new ones: duplicate headings. Every filling
+     takes a number; an answer whose number is no
+     longer the current one is dropped. */
+  var srcGen = 0;
+
+  function srcFill(at) {
+    var body = cloud.querySelector('.esrcbody');
+    if (!body) return;
+    var gen = ++srcGen;
+    body.textContent = '';
+    var text = dictText(at.ch), sg = at.sg;
+    if (!text) { body.innerHTML = '<div class="snone">no text yet</div>'; return; }
+
+    /* THE SOURCE TOOLS, DRAWN AT ONCE AND IN THEIR ORDER -- dictionary,
+       model, corpus, then the external-chatbot handoff -- each holding its
+       book's sidebar draws them (sideFill).  The corpus's heading used to be
+       drawn only when the lookup came back, so a lookup that failed (the
+       server stopped, a refusal that is not JSON) left two headings where
+       the book always has three, and no word on whether there had been any
+       sentences to show. */
+    var dict = srcSection(body, 'dictionary', 'looking the words up\u2026');
+    srcDefsSwitch(dict);
+    var mt = srcSection(body, 'a machine\u2019s reading',
+                        MT.ready ? 'reading the caption\u2026'
+                                 : 'no translation model for this pair');
+    var pairs = srcSection(body, 'sentences somebody translated', 'looking\u2026');
+    var llm = srcSection(body, 'external chatbot', 'waiting for the sources\u2026');
+    // ONE lookup, read twice: by the dictionary block, and by the model's,
+    // which marks the phrase's share of the caption by what it says the
+    // phrase's words mean
+    var look = fetch('/youtube/api/lookup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(withLine({ video: CFG.id, text: text,
+                             sentence: (sg && sg.text) || '' }, at.ch))
+    }).then(function (r) { return r.json(); });
+    look.then(function (j) {
+      if (gen !== srcGen) return;
+      dict.textContent = '';
+      var found = (j && j.words) || [];
+      if (!found.length)
+        dict.innerHTML = '<div class="snone">the dictionary has nothing for ' +
+                         'these words</div>';
+      found.forEach(function (w) {
+        (w.hits || []).forEach(function (h) { srcHit(dict, h); });
+      });
+      if (opts.defsMt && DICT.defines && MT.ready) defsRead(dict, '.sdef', null, srcDefPut);
+      srcPairs(pairs, j);
+      srcLLM(llm, at, text, j || {}, gen);
+    }).catch(function () {
+      if (gen !== srcGen) return;
+      // the corpus rides on the same request, so it failed with it
+      dict.innerHTML = '<div class="snone">the dictionary could not be ' +
+                       'reached</div>';
+      pairs.innerHTML = '<div class="snone">the corpus could not be ' +
+                        'reached</div>';
+      llm.innerHTML = '<div class="snone">the prompt needs the dictionary ' +
+                      'and corpus results</div>';
+    });
+
+    if (!MT.ready) return;
+    var sentence = (sg && sg.text) || text;
+    var want = [sentence];
+    if (text !== sentence) want.push(text);
+    Promise.all([ParsehMT.translate(L.code, G.code, want),
+                 look.catch(function () { return null; })]).then(function (both) {
+      var got = both[0], j = both[1];
+      mtKeep(MT.sent, sentence, got[0] || '');
+      if (want.length > 1) mtKeep(MT.probe, text, got[1] || '');
+      if (gen !== srcGen) return;      // kept for the panel; not drawn here
+      var whole = got[0] || '', probe = want.length > 1 ? (got[1] || '') : '';
+      srcTranslation(mt, whole, probe, (j && j.words) || [], text, sentence);
+    }).catch(function () {
+      if (gen !== srcGen) return;
+      mt.innerHTML = '<div class="snone">the model could not be run</div>';
+    });
+  }
+
+  // the sentences somebody translated, which come back with the lookup,
+  // into the block srcFill has already put under its heading
+  function srcPairs(box, j) {
+    box.textContent = '';
+    var pairs = (j && j.pairs) || [];
+    if (!pairs.length) {
+      box.innerHTML = '<div class="snone">nothing in the corpus is about ' +
+                      'this phrase</div>';
+      return;
+    }
+    pairs.forEach(function (p) {
+      var marked = Parseh.pairMarkup(p, j, L, G);
+      var row = srcRow(box, marked.src, p.dst,
+              [['its meaning \u2192', 'put the translation in the meaning',
+                function () { srcPut('en', p.dst); }]]);
+      if (row.querySelector('.ssub')) row.querySelector('.ssub').innerHTML = marked.dst;
+    });
+  }
+  function closeEditor() {
+    if (!editing) return;
+    editing = false;
+    srcGen++;              // a lookup still on its way has nobody to tell
+    if (strip) { strip.destroy(); strip = null; }   // and a proposal neither
+    cloud.classList.remove('editing', 'sideon');
+    cloud.style.maxHeight = '';
+    if (editWasPlaying && player && ready) player.playVideo();
+    editWasPlaying = false;
+    closeCloud();          // the gloss it now has is one hover away again
+  }
+  function saveEdit() {
+    var at = coords();
+    if (!at) return;
+    var fields = {}, n = 0;
+    Array.prototype.forEach.call(cloud.querySelectorAll('.ef'), function (el) {
+      var was = at.ch[el.dataset.f];
+      was = (was === undefined || was === null) ? '' : String(was);
+      if (el.value.trim() !== was.trim()) { fields[el.dataset.f] = el.value; n++; }
+    });
+    // The word line when it was changed -- and with any changed text of a
+    // chunk that has a line or is being given one, changed or not: the
+    // server holds the two together and refuses a text its words no longer
+    // give back.  A chunk that had none and was given none sends nothing.
+    if (strip) {
+      var line = strip.value(), had = String(at.ch.words || '');
+      if (line.trim() !== had.trim() ||
+          (fields.fa !== undefined && (had.trim() || line.trim()))) {
+        fields.words = line; n++;
+      }
+    }
+    // the mark goes with the edit it permits, and on its own when it is the
+    // only thing that moved
+    var freeBox = cloud.querySelector('.efree');
+    if (freeBox && freeBox.checked !== !!at.ch.free) { fields.free = freeBox.checked; n++; }
+    // only what the hand actually touched is sent, so a refusal names that
+    // field and not every field the chunk happens to have
+    if (!n) { stat('nothing changed'); return; }
+    post(fields, function (ch) {
+      // the server trims, and drops a field emptied altogether: show the
+      // boxes what is now on disk rather than what was typed at them
+      Array.prototype.forEach.call(cloud.querySelectorAll('.ef'), function (el) {
+        el.value = ch[el.dataset.f] || '';
+      });
+      if (freeBox) freeBox.checked = !!ch.free;
+      if (strip) mountStrip(at, ch.words || '');
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!editing || dvOn) return;      // the divide sheet is over the editor
+    if (e.key === 'Escape') { e.preventDefault(); closeEditor(); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault(); saveEdit();
+    }
+  });
+  /* THE SIZE THE HOVER CLOUD WAS PLACED AT, and what an answer arriving
+     later compares with.  The panel under an unglossed phrase opens saying
+     "looking it up…" -- a round trip is not something the cloud waits for
+     -- and it was placed at that size and never again: at 1280x800 the
+     first hover on a phrase at y 660 sat at 485..650, 165px tall, and the
+     dictionary's answer, then the model's, grew it DOWNWARD to 488px, over
+     the phrase it was pointing at and down to y 973 of an 800px window, the
+     buttons at its foot out of reach.  Hovered again, the answer cached, the
+     same phrase got a cloud placed at its full size, 162..650, above it --
+     so that fault was only ever the placing having come too early (the
+     cloud that fits neither side is the other fault, below).  Whatever
+     fills the cloud after it is placed asks for it to be placed again
+     (settleCloud), and gets it only if the cloud really changed size: an
+     answer that changes nothing visible moves nothing, and the model's
+     reading landing in a panel already at its full height does not shake
+     the cloud under the pointer.  Placed again, a cloud above the phrase
+     keeps its foot where it was and grows upward -- the row of buttons
+     stays under the pointer that was travelling to it. */
+  var placedW = -1, placedH = -1;
+  function settleCloud() {
+    if (editing || cloud.hidden || !cloudFor || !cloudFor.isConnected) return;
+    if (cloud.offsetWidth === placedW && cloud.offsetHeight === placedH) return;
+    placeCloud(cloudFor);
+  }
+  // The least of the panel worth drawing when it has to be cut to the room
+  // there is: about five of its lines, a word and two of its senses.
+  var PANEL_MIN = 96;
+  function placeCloud(target) {
+    if (editing) { placeEditor(target); return; }
+    var r = target.getBoundingClientRect();
+    cloud.hidden = false;
+    cloud.classList.remove('below');
+    // measure from a neutral position: the previous placement's inline left
+    // still constrains the shrink-to-fit width and squeezes the cloud
+    cloud.style.left = '8px'; cloud.style.top = '-9999px';
+    // and the panel at its own height, not at the cut the last placing made
+    var panel = cloud.querySelector('.dict');
+    if (panel) panel.style.maxHeight = '';
+    var vw = document.documentElement.clientWidth || window.innerWidth;
+    var vh = document.documentElement.clientHeight || window.innerHeight;
+    var cw = cloud.offsetWidth, chh = cloud.offsetHeight;
+    // open towards the TOP of the page: sit above the phrase, and when
+    // the room up there is short, ride up over the pinned video and the
+    // header rather than flipping below (below runs off the page's
+    // bottom edge).  Flip below only when the phrase itself is hugging
+    // the top of the viewport, so the cloud would otherwise bury it.
+    var top = r.top - chh - 10;
+    var below = r.top < chh + 18;
+    if (below) top = r.bottom + 10;
+    else if (top < 8) top = 8;
+    // A CLOUD WITH THE PANEL IN IT CAN FIT NEITHER SIDE.  At 1280x800 the
+    // panel (44vh of it, style.css) makes the cloud 488px, and the phrase
+    // just under the pinned video, at y 430, has 412px above it: the rule
+    // above sent it below, where 320px were left, and it ran 160px off the
+    // window.  The panel scrolls and the cloud must not (style.css: its arrow
+    // is set against it), so the panel is what gives way -- cut to the room
+    // on whichever side has more of it, above when that is the larger, the
+    // cloud kept whole inside the window and off the phrase.  A gloss with
+    // no panel is small and always fits; this never touches it.
+    if (panel && top + chh > vh - 8) {
+      var up = r.top - 18, down = vh - r.bottom - 18;
+      below = down > up;
+      panel.style.maxHeight = Math.max(PANEL_MIN,
+        panel.offsetHeight - (chh - (below ? down : up))) + 'px';
+      chh = cloud.offsetHeight;
+      top = below ? r.bottom + 10 : Math.max(8, r.top - chh - 10);
+    }
+    if (below) cloud.classList.add('below');
+    var left = Math.min(Math.max(8, r.left + r.width / 2 - cw / 2),
+                        vw - cw - 8);
+    cloud.style.top = top + 'px';
+    cloud.style.left = left + 'px';
+    var ar = cloud.querySelector('.arrow');
+    if (ar) ar.style.left = Math.min(Math.max(10, r.left + r.width / 2 - left - 5),
+                                     cw - 20) + 'px';
+    placedW = cloud.offsetWidth; placedH = cloud.offsetHeight;
+  }
+  /* THE EDITING CLOUD IS PLACED BY RULES OF ITS OWN; the hover cloud above
+     keeps every one of its.  The hover rule -- sit above the phrase, go below
+     only when the phrase hugs the top -- looks at the bottom edge only to
+     cut its panel, and for a small gloss it need not look.  The editor is
+     not small: with its sources it was often most of the window's height,
+     so it nearly always flipped below and ran off the page, the save button
+     reachable only by scrolling inside it.  Here:
+       . it goes on whichever side of the phrase has more room, above when
+         it fits there, and is kept wholly inside the window;
+       . when neither side holds it but the larger one still holds a usable
+         editor (EDIT_ROOM), it is cut to that side's height -- the two
+         columns scroll -- rather than laid over the phrase being written;
+       . with the sources open it grows TO THE LEFT: the right edge stays
+         where the fields-only editor's would be, so pressing ⊕ opens the
+         sources beside the fields and leaves the fields where they were.
+     Stacked (a narrow window, where the sources go under the fields) there is
+     no left to grow into, and it is simply centred on the phrase. */
+  // style.css says the same two things: the width below which the sources
+  // stack under the fields, and the fields-only editor's width
+  var STACK = '(max-width: 720px)';
+  function editW() { return Math.min(460, window.innerWidth * 0.94); }
+  // The fields-only editor of a Persian phrase measures 402px tall at
+  // 1280x800 (head, four fields, the save row, the colours), so a side of the
+  // phrase with 400px holds the fields whole, and the sources, cut to that,
+  // scroll beside them.  Below that the columns would scroll for their first
+  // lines, and covering the phrase is the lesser loss: its text is in the
+  // first field anyway.
+  var EDIT_ROOM = 400;
+  function placeEditor(target) {
+    var r = target.getBoundingClientRect();
+    cloud.hidden = false;
+    cloud.classList.remove('below');
+    cloud.style.maxHeight = '';
+    cloud.style.left = '8px'; cloud.style.top = '-9999px';
+    var vw = document.documentElement.clientWidth || window.innerWidth;
+    var vh = document.documentElement.clientHeight || window.innerHeight;
+    var stacked = !!(window.matchMedia && window.matchMedia(STACK).matches);
+    // STACKED, THE FIELDS COME FIRST IN HEIGHT AS WELL AS IN ORDER.  The
+    // sources' strip is 36vh (style.css), and in a 390x844 window that left
+    // the fields 258px of the 300 they need -- the meaning box scrolled out
+    // of its own column.  So the strip gives back whatever the fields would
+    // have to scroll for, down to a strip still worth reading.  Measured
+    // here, once, rather than left to flex-shrink: the fields' height is
+    // known when the cloud is placed, and the strip must not change size
+    // again when the dictionary's answer lands in it.
+    var side = cloud.querySelector('.eside'), main = cloud.querySelector('.emain');
+    if (side) side.style.flexBasis = '';
+    if (stacked && side && main && !side.hidden) {
+      var over = main.scrollHeight - main.clientHeight;
+      if (over > 0)
+        side.style.flexBasis = Math.max(Math.min(140, vh * 0.2),
+                                        side.offsetHeight - over) + 'px';
+    }
+    var cw = cloud.offsetWidth, chh = cloud.offsetHeight;
+    var up = r.top - 18, down = vh - r.bottom - 18;
+    var below = chh > up && down > up;
+    var room = below ? down : up;
+    if (chh > room && room >= EDIT_ROOM && !stacked) {
+      cloud.style.maxHeight = room + 'px';
+      chh = cloud.offsetHeight;
+    }
+    var top = below ? r.bottom + 10 : r.top - chh - 10;
+    top = Math.max(8, Math.min(top, vh - chh - 8));
+    var mid = r.left + r.width / 2, left;
+    if (cloud.classList.contains('sideon') && !stacked) {
+      var fw = editW();
+      var right = Math.min(Math.max(mid + fw / 2, fw + 8), vw - 8);
+      left = Math.max(8, right - cw);
+    } else {
+      left = Math.max(8, Math.min(mid - cw / 2, vw - cw - 8));
+    }
+    if (below) cloud.classList.add('below');
+    cloud.style.top = top + 'px';
+    cloud.style.left = left + 'px';
+  }
+  // a window resized with the editor open: across the stacking width the
+  // columns change places, and at any width the fields wrap differently
+  window.addEventListener('resize', function () {
+    if (editing && cloudFor) { fitFields(); placeCloud(cloudFor); }
+  });
+  function openCloud(span, ch, sg) {
+    if (editing) return;      // a form is open in there, half typed into
+    clearTimeout(hideTimer);
+    if (cloudFor && cloudFor !== span) cloudFor.classList.remove('hot');
+    cloudFor = span; span.classList.add('hot');
+    cloudCtx = { ch: ch, sg: sg };
+    fillCloud(ch); placeCloud(span);
+    if (opts.hoverpause && player && ready) {
+      clearTimeout(resumeTimer);
+      var st = player.getPlayerState && player.getPlayerState();
+      if (st === 1) { wasPlaying = true; player.pauseVideo(); }
+    }
+  }
+  /* The hover cloud drawn again for what the reader has just switched on,
+     or what has just arrived (a model), and placed again at its new size.
+     NEVER THE EDITOR: it is a form half typed into, and pressing the
+     reading-help switch with it open redrew it as a gloss -- the typing
+     gone, and the page still latched in `editing`, so no phrase would open
+     a cloud until Esc. */
+  function refillCloud() {
+    if (!cloudFor || !cloudCtx || editing) return;
+    fillCloud(cloudCtx.ch); placeCloud(cloudFor);
+  }
+  function closeCloud() {
+    // while a phrase is being written only ✕ and Esc close the cloud: a
+    // pointer wandering off the form, or a click on the video, must not
+    // throw the typing away
+    if (editing) return;
+    if (cloudFor) cloudFor.classList.remove('hot');
+    cloudFor = null; cloud.hidden = true;
+    if (opts.hoverpause && wasPlaying && player && ready) {
+      // a small grace: darting to the neighbouring phrase must not stutter
+      clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(function () {
+        // never resume underneath the card dashboard
+        if (!cloudFor && wasPlaying && !ankiOpen) {
+          wasPlaying = false; player.playVideo();
+        }
+      }, 350);
+    }
+  }
+  function scheduleClose() {
+    if (editing) return;
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(closeCloud, 120);
+  }
+  cloud.addEventListener('mouseenter', function () { clearTimeout(hideTimer); });
+  cloud.addEventListener('mouseleave', scheduleClose);
+  cloud.addEventListener('click', function (e) {
+    if (!cloudCtx || !e.target.classList) return;
+    // the button, not whatever inside it was hit: the save button carries
+    // its shortcut in a span of its own
+    var t = e.target.closest ? (e.target.closest('button') || e.target) : e.target;
+    if (t.classList.contains('mkcopy')) {
+      if (window.Parseh) Parseh.copy(cloudCtx.ch.fa);
+      return;
+    }
+    if (t.classList.contains('mkcard')) {
+      var c = cloudCtx;                 // closeCloud() clears cloudCtx
+      // the whole phrase: its caption and its chunk, no word of it
+      openAnki(c.ch.fa, c.ch, c.sg, undefined,
+               { i: segs.indexOf(c.sg), j: (c.sg.chunks || []).indexOf(c.ch), k: null, line: '' });
+      return;
+    }
+    if (t.classList.contains('sw')) { setColour(t.dataset.col || ''); return; }
+    if (t.classList.contains('mkedit')) { openEditor(); return; }
+    if (t.classList.contains('ecancel')) { closeEditor(); return; }
+    if (t.classList.contains('edv')) { dvStart(t.dataset.dv); return; }
+    if (t.classList.contains('esave')) { saveEdit(); }
+  });
+  document.addEventListener('click', function (e) {
+    if (!cloud.hidden && !cloud.contains(e.target) &&
+        !(e.target.classList && e.target.classList.contains('w'))) closeCloud();
+  });
+
+  /* ---------------- notes: what the transcript has no room for ----------
+     The same thing the book reader has, in the same shape and against the
+     same server: a markdown file in the seam between two captions, kept in
+     the video's own folder under markdown/, written with the studio's
+     editor and read in a frame over the page.  Never inline -- the
+     transcript is the point -- and never in a prompt: a note is somebody's
+     own reading, and a model has nothing to put in one.
+
+     A note is anchored to a caption's START, which is what transcript.txt
+     is keyed by and what survives a re-merge and a re-chunk.  One that
+     names a start no longer in the video is shown at the end, marked
+     adrift, rather than dropped. */
+  var NOTES = CFG.notes || '';
+  var NT = { back: $('#ntback'), box: $('#ntbox'), title: $('#nttitle'),
+             frame: $('#ntframe'), edit: $('#ntedit'), read: $('#ntread'),
+             close: $('#ntclose') };
+  var ntOn = false, ntId = '', noteList = [];
+
+  function ntFrame(url) {
+    // a fresh element, not a new src: an iframe's navigations land on the
+    // joint session history, so three notes read would be three presses of
+    // Back before the page moved
+    var old = NT.frame;
+    var f = document.createElement('iframe');
+    f.id = 'ntframe'; f.title = old.title; f.src = url;
+    old.parentNode.replaceChild(f, old);
+    NT.frame = f;
+  }
+  function ntShow(id, title, editing) {
+    peekHide();             // the note itself is coming; its preview goes
+    ntId = id; ntOn = true;
+    NT.title.textContent = title || 'note';
+    ntFrame(NOTES + '/doc/' + encodeURIComponent(id) + (editing ? '/edit' : ''));
+    NT.edit.hidden = !!editing; NT.read.hidden = !editing;
+    NT.back.hidden = false; NT.box.hidden = false;
+    if (player && ready && player.pauseVideo) player.pauseVideo();
+  }
+  function ntShut() {
+    if (!ntOn) return;
+    ntOn = false; NT.box.hidden = true; NT.back.hidden = true;
+    ntFrame('about:blank');
+    loadNotes();            // the title may have changed, or the note be gone
+  }
+  // a key pressed inside the frame belongs to the frame's document; the
+  // studio posts up when it is framed, so "close (Esc)" is true in there too
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin) return;
+    if (e.data && e.data.parseh === 'close-note') ntShut();
+  });
+  NT.close.onclick = ntShut;
+  NT.back.addEventListener('click', ntShut);
+  NT.edit.onclick = function () { ntShow(ntId, NT.title.textContent, true); };
+  NT.read.onclick = function () { ntShow(ntId, NT.title.textContent, false); };
+  document.addEventListener('keydown', function (e) {
+    if (ntOn && e.key === 'Escape') {
+      // stopImmediatePropagation, not stopPropagation: the divide sheet's own
+      // Escape is registered on this very node in this very phase, and only
+      // the immediate form stops a listener that is already a sibling
+      e.preventDefault(); e.stopImmediatePropagation(); ntShut();
+    }
+  }, true);
+
+  /* ---------- a note, before it is opened ---------------------------------
+     A mark is a title in a pill, cut at 52 characters, and the only way to
+     know what a note says was to open it: a frame over the whole page, the
+     video paused, Esc to come back.  So a pointer resting on a mark shows a
+     small card of what is in it -- the title whole, the opening of the text,
+     and what a click will do -- and leaves the moment the pointer does.
+     The text is notes.index()'s `excerpt`, which rides on the /api/marks
+     answer loadNotes already fetches (front matter, anchor and markup taken
+     out, about 280 characters), so a preview costs no request; a server
+     from before that field gives the title and the invitation alone.
+
+     TEXT, NEVER MARKUP.  A note can be somebody else's -- they travel inside
+     video bundles -- and a preview is involuntary: it happens to whoever's
+     pointer crosses the seam.  Clicking a note has always meant choosing to
+     run it in the frame; resting on one must not.  So every word of it goes
+     in by textContent and nothing here is ever innerHTML.
+
+     Only where there is a hover (HOVER_OK): a touch screen's tap already
+     opens the note, and a preview flashed on the way would be noise.  It is
+     never in the way: pointer-events none, below the sheets and the note's
+     own frame, and gone on leave, blur, Escape, a click, and any scroll --
+     the follow mode scrolls the transcript on every caption, and a fixed
+     card left behind would point at a different seam. */
+  var PEEK_WAIT = 350;
+  var peekEl = null, peekTimer = null, peekOn = null;
+  function peekHide() {
+    clearTimeout(peekTimer); peekTimer = null;
+    if (peekOn) peekOn.removeAttribute('aria-describedby');
+    peekOn = null;
+    if (peekEl) peekEl.hidden = true;
+  }
+  function peekLine(cls, text) {
+    var d = document.createElement('div');
+    d.className = cls; d.textContent = text;
+    peekEl.appendChild(d);
+    return d;
+  }
+  function peekShow(b, n, adrift) {
+    if (!b.isConnected || ntOn || dvOn || ankiOpen) return;
+    if (!peekEl) {
+      peekEl = document.createElement('div');
+      peekEl.id = 'ntpeek';
+      peekEl.setAttribute('role', 'tooltip');
+      peekEl.hidden = true;
+      document.body.appendChild(peekEl);
+    }
+    peekEl.textContent = '';
+    peekLine('pkt', n.title || 'note');
+    if (n.excerpt) peekLine('pkx', String(n.excerpt));
+    peekLine('pkf', adrift
+      ? 'this note names a caption that is no longer in the video — open it ' +
+        'and change its anchor line'
+      : 'click to open');
+    // placed the way the cloud is: above the mark, below it only when the
+    // mark is too near the top to leave room, and always inside the window
+    peekEl.style.left = '8px'; peekEl.style.top = '-9999px';
+    peekEl.hidden = false;
+    var r = b.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth || window.innerWidth;
+    var vh = document.documentElement.clientHeight || window.innerHeight;
+    var pw = peekEl.offsetWidth, ph = peekEl.offsetHeight;
+    var top = r.top - ph - 8;
+    if (top < 8) top = r.bottom + 8;
+    top = Math.max(8, Math.min(top, vh - ph - 8));
+    // its start edge on the mark's: a mark is a pill at the seam's start,
+    // and a card centred on a short one would hang off to the left of it
+    var left = Math.max(8, Math.min(r.left, vw - pw - 8));
+    peekEl.style.top = top + 'px'; peekEl.style.left = left + 'px';
+    b.setAttribute('aria-describedby', 'ntpeek');
+    peekOn = b;
+  }
+  if (HOVER_OK) {
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') peekHide();
+    });
+    // capture: a scroll does not bubble, and the transcript's is the window's
+    window.addEventListener('scroll', peekHide, { capture: true, passive: true });
+    window.addEventListener('resize', peekHide);
+  }
+
+  function noteMark(n, adrift) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'mark' + (adrift ? ' adrift' : '');
+    b.textContent = n.title || 'note';
+    if (HOVER_OK) {
+      // the card says it -- and more -- so the browser's own tooltip, which
+      // would land on top of the card a second later, is not asked for
+      var arm = function () {
+        clearTimeout(peekTimer);
+        peekTimer = setTimeout(function () {
+          peekTimer = null; peekShow(b, n, adrift);
+        }, PEEK_WAIT);
+      };
+      b.addEventListener('mouseenter', arm);
+      b.addEventListener('focus', arm);
+      b.addEventListener('mouseleave', peekHide);
+      b.addEventListener('blur', peekHide);
+    } else {
+      b.title = adrift
+        ? 'this note names a caption that is no longer in the video — open it ' +
+          'and change its anchor line'
+        : 'read this note';
+    }
+    b.onclick = function (e) {
+      e.stopPropagation(); peekHide(); ntShow(n.id, n.title);
+    };
+    return b;
+  }
+  function newNote(gap) {
+    if (!NOTES) return;
+    fetch(NOTES + '/api/marks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(gap.dataset.at
+        ? { side: 'before', kind: 'cap', at: gap.dataset.at, target: L.code }
+        : { side: 'after', kind: 'cap', at: gap.dataset.after, target: L.code })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok || !j.note) return;
+      return loadNotes().then(function () {
+        ntShow(j.note.id, j.note.title, true);   // straight into the editor
+      });
+    }).catch(function () {});
+  }
+  function paintNotes() {
+    peekHide();             // every mark is about to be drawn again
+    var gaps = document.querySelectorAll('#segs .gap');
+    Array.prototype.forEach.call(gaps, function (g) {
+      g.textContent = '';
+      var plus = document.createElement('button');
+      plus.type = 'button'; plus.className = 'plus'; plus.textContent = '+';
+      plus.title = 'write a note here';
+      plus.onclick = function (e) { e.stopPropagation(); newNote(g); };
+      g.appendChild(plus);
+    });
+    var last = document.querySelector('#segs .gap.last');
+    noteList.forEach(function (n) {
+      var a = n.anchor, g = null;
+      if (a && a.kind === 'cap') {
+        // compared, not put into a selector: the anchor is a line somebody
+        // typed into a file, and a quote in it would throw out of
+        // querySelector and take every mark on the page with it
+        var want = a.side === 'after' ? 'after' : 'at', at = String(a.at);
+        g = Array.prototype.filter.call(gaps, function (x) {
+          return x.dataset[want] === at;
+        })[0] || null;
+      }
+      if (g) g.appendChild(noteMark(n, false));
+      else if (last) last.appendChild(noteMark(n, true));
+    });
+  }
+  function loadNotes() {
+    if (!NOTES) { noteList = []; paintNotes(); return Promise.resolve(); }
+    return fetch(NOTES + '/api/marks').then(function (r) { return r.json(); })
+      .then(function (j) { noteList = (j && j.ok && j.notes) ? j.notes : []; })
+      .catch(function () { noteList = []; })
+      .then(function () { paintNotes(); });
+  }
+
+  /* ---------------- where a chunk ends ----------------
+     A chunk is a sense group, and the groups an LLM cut on its first pass
+     are the first thing somebody who knows the language wants to move.
+     Two operations, in a sheet of its own above the cloud:
+
+       JOIN this phrase to the one after it (or, from the second phrase on,
+       the one before it to this one -- so a run left unglossed, which has
+       no cloud of its own, is still reachable from either side).  The texts
+       go end to end with the language's word separator, so the caption is
+       reproduced character for character and the fidelity check cannot
+       fail; the romanisation and the meaning are joined with a space and
+       the vocabulary with its own middle dot, and the server names in a
+       note whatever could not simply be run together.
+
+       CUT it in two, at one of the places the text divides: a space for a
+       language written with spaces, and any two characters for Japanese,
+       which writes none.  What goes to which half is a judgement, and this
+       is where it is made -- the vocabulary entries arrive on the side
+       whose text holds their headword and cross over with an arrow, every
+       box is typed over freely, and nothing is written until the button.
+
+     The proposals come from the server (lib/chunkdiv.py), which is also
+     what the book reader's sheet draws: one set of rules, shown twice.
+
+     AFTERWARDS the caption's chunks have been renumbered, and the page is
+     redrawn from the list the server sends back -- not patched, because
+     every phrase after the change has moved and every closure in the
+     caption would be one out.  A page left open is safe too: each divide
+     sends the text it is looking at, and the server refuses when the file
+     no longer says that. */
+  var dvBack = $('#dvback'), dvBox = $('#dvbox'), dvOn = false;
+  var dvMode = '', dvAt = null, dvData = null, dvEntries = null, dvSides = [];
+
+  function dvSay(m, bad) {
+    var el = $('#dvstat');
+    el.textContent = m || ''; el.classList.toggle('bad', !!bad);
+  }
+  function dvShut() {
+    if (!dvOn) return;
+    dvOn = false; dvBox.hidden = true; dvBack.hidden = true;
+  }
+  function dvAsk(body) {
+    body.video = CFG.id;
+    return fetch('/youtube/api/divide', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); });
+  }
+  function dvNotes(list) {
+    var box = $('#dvnotes');
+    box.textContent = '';
+    (list || []).forEach(function (t) {
+      var p = document.createElement('p'); p.textContent = t; box.appendChild(p);
+    });
+  }
+  // one column of boxes: the half's text above, unchangeable -- a split
+  // divides and does not rewrite, and changing a letter is the editor's job
+  function dvCol(head, ch) {
+    var c = document.createElement('div');
+    c.className = 'dvcol';
+    c.dataset.fa = ch.fa || '';
+    var h = document.createElement('h4'); h.textContent = head; c.appendChild(h);
+    var fa = document.createElement('div');
+    fa.className = 'dvfa'; fa.setAttribute('dir', L.dir); fa.lang = L.code;
+    fa.textContent = ch.fa || ''; c.appendChild(fa);
+    var carry = ['col', 'plain', 'note'];
+    carry.forEach(function (k) {
+      if (ch[k] !== undefined && ch[k] !== '') c.dataset['x' + k] = String(ch[k]);
+    });
+    var add = function (key, label, rows, kind) {
+      var l = document.createElement('label'); l.textContent = label;
+      var t = document.createElement('textarea');
+      t.rows = rows; t.value = ch[key] || ''; t.dataset.k = key;
+      if (kind === 'voc') t.className = 'dvvoc';
+      if (kind === 'tl') targetAttrs(t);
+      if (kind === 'gl' || kind === 'voc') glossAttrs(t);
+      c.appendChild(l); c.appendChild(t);
+    };
+    if (L.reading) add('kana', L.reading_label || 'reading', 1, 'tl');
+    add('tr', L.translit_label || 'transliteration', 1);
+    var chips = document.createElement('div');
+    chips.className = 'dvchips'; c.appendChild(chips); c._chips = chips;
+    add('voc', 'vocabulary', 3, 'voc');
+    add('en', GLOSS_LABEL, 2, 'gl');
+    return c;
+  }
+  function dvRead(col) {
+    var out = { fa: col.dataset.fa };
+    Array.prototype.forEach.call(col.querySelectorAll('textarea'), function (t) {
+      out[t.dataset.k] = t.value.trim();
+    });
+    if (col.dataset.xcol) out.col = col.dataset.xcol;
+    if (col.dataset.xnote) out.note = col.dataset.xnote;
+    if (col.dataset.xplain) out.plain = col.dataset.xplain === 'true';
+    return out;
+  }
+  function dvPaintChips() {
+    var cols = $('#dvpair').querySelectorAll('.dvcol');
+    if (cols.length !== 2 || !dvEntries) return;
+    Array.prototype.forEach.call(cols, function (c) {
+      if (c._chips) c._chips.textContent = '';
+    });
+    ['a', 'b'].forEach(function (side, k) {
+      var box = cols[k].querySelector('textarea[data-k="voc"]');
+      if (box) box.value = dvEntries.filter(function (_e, i) {
+        return dvSides[i] === side;
+      }).map(function (e) { return e.text; }).join(dvData.voc_sep);
+    });
+    dvEntries.forEach(function (e, i) {
+      var host = cols[dvSides[i] === 'a' ? 0 : 1]._chips;
+      if (!host) return;
+      var row = document.createElement('div'); row.className = 'dvchip';
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = dvSides[i] === 'a' ? '→' : '←';
+      b.title = 'send this entry to the other phrase';
+      b.onclick = function () {
+        dvSides[i] = dvSides[i] === 'a' ? 'b' : 'a'; dvPaintChips();
+      };
+      var t = document.createElement('span');
+      t.className = 'dvtxt'; t.textContent = e.text;
+      row.appendChild(b); row.appendChild(t); host.appendChild(row);
+    });
+  }
+  function dvPick(i) {
+    var c = dvData.cuts[i], pair = $('#dvpair');
+    Array.prototype.forEach.call($('#dvwhere').querySelectorAll('.dvcut'),
+      function (b, k) { b.classList.toggle('on', k === i); });
+    dvEntries = c.entries || [];
+    dvSides = dvEntries.map(function (e) { return e.side; });
+    pair.textContent = '';
+    pair.appendChild(dvCol('first phrase', c.first));
+    pair.appendChild(dvCol('second phrase', c.second));
+    dvPaintChips();
+    dvNotes(c.notes);
+    $('#dvdo').disabled = false;
+  }
+  function dvSplitUI() {
+    var where = $('#dvwhere'), cuts = dvData.cuts || [];
+    $('#dvdo').textContent = 'divide'; $('#dvdo').disabled = true;
+    where.textContent = ''; $('#dvpair').textContent = ''; dvNotes([]);
+    var hint = document.createElement('div'); hint.className = 'anote';
+    if (!cuts.length) {
+      hint.textContent = L.word_sep
+        ? 'This phrase is one word, and a phrase of a language written with ' +
+          'spaces divides at a space. Join it to a neighbour instead.'
+        : 'This phrase is a single character, so there is nothing to divide.';
+      where.appendChild(hint); return;
+    }
+    var box = document.createElement('div');
+    box.className = 'dvtext'; box.setAttribute('dir', L.dir); box.lang = L.code;
+    // the pieces, not a slice by offset: the offsets are Python's code points
+    // and this counts UTF-16 units, so one character outside the basic plane
+    // would slide every mark a place along
+    (dvData.pieces || []).forEach(function (pc, i) {
+      box.appendChild(document.createTextNode(pc.text));
+      if (i >= cuts.length) return;
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'dvcut'; b.textContent = '✂';
+      b.title = 'divide here';
+      b.onclick = function () { dvPick(i); };
+      box.appendChild(b);
+    });
+    where.appendChild(box);
+    hint.textContent = L.word_sep
+      ? 'Pick where it divides. Joined back with the space, the two halves ' +
+        'have to be this caption again — which is why a word is never cut through.'
+      : 'Pick where it divides. This language writes no spaces, so it divides ' +
+        'between any two characters.';
+    where.appendChild(hint);
+    if (cuts.length === 1) dvPick(0);
+  }
+  function dvMergeUI() {
+    var where = $('#dvwhere'), pair = $('#dvpair');
+    $('#dvdo').textContent = 'join';
+    where.textContent = ''; pair.textContent = '';
+    dvEntries = null; dvSides = [];
+    if (!dvData.merge) {
+      var n = document.createElement('div'); n.className = 'anote';
+      n.textContent = dvData.merge_error || 'these two cannot be joined';
+      where.appendChild(n); $('#dvdo').disabled = true; dvNotes([]); return;
+    }
+    $('#dvdo').disabled = false;
+    var two = document.createElement('div');
+    two.className = 'dvtext'; two.setAttribute('dir', L.dir); two.lang = L.code;
+    two.textContent = (dvData.chunk.fa || '') + '  ·  ' +
+                      ((dvData.next || {}).fa || '');
+    where.appendChild(two);
+    pair.appendChild(dvCol('the one phrase they become', dvData.merge.fields));
+    var notes = (dvData.merge.notes || []).slice();
+    if (dvData.merge.words > 7)
+      notes.push('That is ' + dvData.merge.words + ' words in one phrase; the ' +
+                 'conventions ask for two to six, and the checker warns above seven.');
+    dvNotes(notes);
+  }
+  function dvStart(which) {
+    var at = coords();
+    if (!at) return;
+    var si = at.si, ci = which === 'prev' ? at.ci - 1 : at.ci;
+    if (ci < 0) return;
+    dvMode = which === 'split' ? 'split' : 'merge';
+    dvAt = { si: si, ci: ci };
+    dvData = null; dvEntries = null;
+    $('#dvtitle').textContent = (dvMode === 'split'
+      ? 'cut segment ' + si + ' chunk ' + ci + ' in two'
+      : 'join segment ' + si + ' chunk ' + ci + ' to the next');
+    $('#dvwhere').textContent = ''; $('#dvpair').textContent = ''; dvNotes([]);
+    $('#dvdo').disabled = true; $('#dvcancel').hidden = false;
+    $('#dvdo').onclick = dvCommit;
+    dvSay('reading the annotations…');
+    dvBox.hidden = false; dvBack.hidden = false; dvOn = true;
+    dvAsk({ action: 'preview', segment: si, chunk: ci }).then(function (j) {
+      if (!j.ok) { dvSay(j.error || 'could not read the chunk', true); return; }
+      dvData = j; dvSay('');
+      if (dvMode === 'split') dvSplitUI(); else dvMergeUI();
+    }).catch(function (e) {
+      dvSay('the server did not answer (' + ((e && e.message) || e) +
+            ') — nothing was written', true);
+    });
+  }
+  function dvDone(j) {
+    // the caption's whole new chunk list, and the transcript drawn again
+    // from it: every phrase after the change has a new number, and a patch
+    // would leave the hover closures one out
+    segs[dvAt.si].chunks = j.chunks;
+    closeEditor();
+    render();
+    // render() has replaced every .seg, and the on-air highlight was a class
+    // on the old ones.  `active` still names the caption, so forgetting it is
+    // what makes the next tick put the highlight back rather than skip it.
+    active = -1;
+    $('#dvwhere').textContent = ''; $('#dvpair').textContent = '';
+    $('#dvcancel').hidden = false;
+    dvNotes([(dvMode === 'split'
+      ? 'The phrase is two phrases now.'
+      : 'The two phrases are one now.') +
+      ' Segment ' + dvAt.si + ' has ' + j.count + ' of them, and the ' +
+      'transcript has been drawn again from the file.',
+      'annotations.json is what was written. parts/ is the paste it was ' +
+      'built from and is untouched, so running merge_parts.py again would ' +
+      'put the old division back — the same as for any edit made here.']);
+    dvSay('done ✓');
+    $('#dvdo').textContent = 'close';
+    $('#dvdo').disabled = false;
+    $('#dvdo').onclick = dvShut;
+    $('#dvdo').focus();
+  }
+  function dvCommit() {
+    if (!dvData || !dvAt) return;
+    var cols = $('#dvpair').querySelectorAll('.dvcol'), body;
+    if (dvMode === 'split') {
+      if (cols.length !== 2) return;
+      body = { action: 'split', segment: dvAt.si, chunk: dvAt.ci,
+               expect: dvData.chunk.fa,
+               first: dvRead(cols[0]), second: dvRead(cols[1]) };
+    } else {
+      if (!cols.length) return;
+      body = { action: 'merge', segment: dvAt.si, chunk: dvAt.ci,
+               expect: dvData.chunk.fa,
+               expect_next: (dvData.next || {}).fa, fields: dvRead(cols[0]) };
+    }
+    $('#dvdo').disabled = true; dvSay('writing…');
+    dvAsk(body).then(function (j) {
+      if (!j.ok) {
+        dvSay(j.error || 'refused', true); $('#dvdo').disabled = false; return;
+      }
+      dvDone(j);
+    }).catch(function (e) {
+      dvSay('the server did not answer (' + ((e && e.message) || e) +
+            ') — nothing was written', true);
+      $('#dvdo').disabled = false;
+    });
+  }
+  $('#dvcancel').onclick = dvShut;
+  dvBack.addEventListener('click', dvShut);
+  dvBox.addEventListener('submit', function (e) { e.preventDefault(); });
+  document.addEventListener('keydown', function (e) {
+    if (dvOn && e.key === 'Escape' && !$('#dvcancel').hidden) {
+      e.preventDefault(); e.stopPropagation(); dvShut();
+    }
+  }, true);
+
+  /* ---------------- render the transcript ---------------- */
+  function render() {
+    var box = $('#segs');
+    box.textContent = '';
+    els = [];
+    segs.forEach(function (sg, i) {
+      // The seam a note sits in: one before every caption and, after the
+      // loop, one after the last -- so every gap between two lines is a
+      // place, named by the caption's start, which is what transcript.txt
+      // is keyed by and what survives a re-merge and a re-chunk.  Empty
+      // here; what is in it is drawn from the notes beside the video, which
+      // are written without the page being rebuilt.
+      var gap = document.createElement('div');
+      gap.className = 'gap';
+      // the seam knows the caption above it and the caption below it, so
+      // `after 12` and `before 18` are two spellings of the one place
+      gap.dataset.at = String(sg.start);
+      gap.dataset.after = i ? String(segs[i - 1].start) : '';
+      box.appendChild(gap);
+      // a chapter heading belongs to the caption it was pasted above
+      if (sg.chapter) {
+        var h = document.createElement('div');
+        h.className = 'chap'; h.setAttribute('dir', 'auto');
+        h.textContent = sg.chapter;
+        box.appendChild(h);
+      }
+      var d = document.createElement('div');
+      d.className = 'seg' + (sg.plain ? ' plain' : '');
+      d.dataset.i = i;
+      var lab = document.createElement('button');
+      lab.className = 'lab'; lab.textContent = fmt(sg.start);
+      lab.title = 'play from ' + fmt(sg.start);
+      lab.onclick = function (e) { e.stopPropagation(); seek(sg.start); };
+      d.appendChild(lab);
+      var fa = document.createElement('div');
+      if (sg.plain) {
+        // the video's own framing, not the language it teaches and not the
+        // language it is glossed in: shown as it stands, never glossed.
+        // English in every video the toolbox holds, which is what the class
+        // and these attributes are named after and say.
+        fa.className = 'en-line';
+        fa.setAttribute('dir', 'ltr'); fa.lang = 'en';
+        fa.textContent = sg.text || '';
+      } else {
+        // the line reads in the language's direction and face: the dir
+        // attribute sets the direction, data-lang on <html> the font token
+        fa.className = 'fa'; fa.setAttribute('dir', L.dir); fa.lang = L.code;
+        (sg.chunks || []).forEach(function (ch, j) {
+          // chunks are joined with the caption's own separator: a space for
+          // most languages, nothing for Japanese, which the annotator split
+          // at nothing (the fidelity check joins them the same way)
+          if (j && L.word_sep) fa.appendChild(document.createTextNode(L.word_sep));
+          // a chunk with nothing to say -- a run of the video's own framing
+          // inside a caption of the target script, or an aside marked plain,
+          // which for a Latin-script target is how one is said -- is text, not
+          // a target: no hover, no card, no dots.  Where the language has
+          // a reading, the kana alone is something to say (a part still
+          // being annotated shows its readings before its glosses).
+          // In a DRAFT every chunk that is not plain stays a phrase even
+          // with nothing written on it: an unglossed chunk is precisely
+          // what the author opened the page to write, and a span with no
+          // hover is a chunk the player could never be used to fill in.
+          // CFG.help: a dictionary or a model is set up, so an unglossed
+          // chunk is something the reader can still be given an answer
+          // about, and must stay a phrase to be asked about at all.
+          if (ch.plain || !(draft || CFG.help || ch.tr || ch.en || ch.voc ||
+                            ch.note || (L.reading && ch.kana))) {
+            var bare = document.createElement('span');
+            // target text left unglossed (ch.plain, from an import) reads
+            // as the text around it, in the language's face (.tl); a run
+            // of another script keeps its own quieter dress.  For a
+            // Latin-script language nothing can be told apart, so a bare
+            // run is always the quiet aside it was marked as.
+            bare.className = 'bare' + (hasScript(ch.fa) ? ' tl' : '');
+            bare.setAttribute('dir', 'auto');
+            bare.textContent = ch.fa;
+            // a mark set by hand in the file still shows on a chunk the
+            // player itself would not offer to colour
+            paintCol(bare, ch);
+            fa.appendChild(bare);
+            return;
+          }
+          var w = document.createElement('span');
+          w.className = 'w'; w.dataset.j = j;
+          paintWords(w, ch);
+          paintCol(w, ch);
+          w.addEventListener('mouseenter', function () {
+            if (!hoverPointer()) return;    // a tap's synthetic hover: not one
+            openCloud(w, ch, sg);
+          });
+          w.addEventListener('mouseleave', scheduleClose);
+          // wired always, and deciding per event rather than per device: a
+          // screen that claims a hover it never delivers still glosses a tap
+          w.addEventListener('click', function (e) {     // touch: tap = gloss
+            if (hoverPointer()) return;                  // a mouse: replay
+            e.stopPropagation();
+            if (cloudFor === w) closeCloud(); else openCloud(w, ch, sg);
+          });
+          fa.appendChild(w);
+        });
+      }
+      d.appendChild(fa);
+      // clicking a sentence replays it from its own beginning -- including
+      // a click on a phrase (the gloss is already open from the hover)
+      d.addEventListener('click', function (e) {
+        if (e.altKey || e.ctrlKey || e.metaKey) return;   // that's a card
+        if (e.shiftKey) return;                           // that's a copy
+        if (String(window.getSelection ? window.getSelection() : '')) return;
+        seek(sg.start);
+      });
+      box.appendChild(d);
+      els.push(d);
+      if (i === segs.length - 1) {
+        var end = document.createElement('div');
+        end.className = 'gap last';
+        end.dataset.at = ''; end.dataset.after = String(sg.start);
+        box.appendChild(end);
+      }
+      if (i === segs.length - 1) paintNotes();   // the seams exist now
+    });
+    measure();
+  }
+
+  // shift-click copies: the phrase under the cursor (the hoverable unit),
+  // or the whole caption when the click lands beside one.  A plain click
+  // still replays, and the modifier-click below still makes a card.
+  // Capture phase, so the sentence's replay-click never fires for it.
+  $('#segs').addEventListener('click', function (e) {
+    if (!e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+    var segEl = e.target.closest ? e.target.closest('.seg') : null;
+    if (!segEl) return;
+    e.preventDefault(); e.stopPropagation();
+    var w = e.target.closest('.w');
+    var sg = segs[+segEl.dataset.i];
+    var line = segEl.querySelector('.fa, .en-line');
+    var text = w ? Parseh.baseText(w)
+             : (sg && sg.text) ? sg.text
+             : (line ? line.textContent : '');
+    if (window.Parseh) Parseh.copy(text);
+  }, true);
+  // ... and the shift-click must not start a text selection of its own
+  $('#segs').addEventListener('mousedown', function (e) {
+    if (e.shiftKey && !(e.altKey || e.ctrlKey || e.metaKey)) e.preventDefault();
+  });
+
+  // alt/ctrl-click on a word -> the card dashboard, with that very word.
+  // Capture phase, so the sentence's replay-click never fires for it.
+  $('#segs').addEventListener('click', function (e) {
+    if (!(e.altKey || e.ctrlKey || e.metaKey)) return;
+    var t = e.target.closest ? e.target.closest('.wd') : null;
+    if (!t) return;
+    e.preventDefault(); e.stopPropagation();
+    var wEl = t.parentNode, segEl = wEl.parentNode.parentNode;
+    var sg = segs[+segEl.dataset.i];
+    var ch = sg && sg.chunks[+wEl.dataset.j];
+    if (!ch) return;
+    // where the card's text is, for the cut editor: this caption, this
+    // chunk, and (below) the word of it
+    var at = { i: +segEl.dataset.i, j: +wEl.dataset.j, k: null, line: '' };
+    // A WORD THE CHUNK'S LINE DREW (its data-k, the word's place in the
+    // line): the card is that word, with the reading the line gives it
+    var line = t.dataset.k !== undefined ? lineOf(ch) : '';
+    var said = line ? ParsehWordline.parse(line)[+t.dataset.k] : null;
+    if (said) {
+      at.k = +t.dataset.k; at.line = line;
+      openAnki(said[0], ch, sg, said[1], at);
+      return;
+    }
+    // a language without a word separator (Japanese) makes the chunk its
+    // one word, so the card is the phrase exactly as the cloud's button
+    // gives it: the chunk untouched, so its reading (the kana of the whole
+    // chunk) and its caption still fit -- stripping a closing 。、 would
+    // make the word differ from the chunk and lose both
+    if (!L.word_sep) { openAnki(ch.fa, ch, sg, undefined, at); return; }
+    // the word's place among the chunk's words, where they are drawn one
+    // span each (not while the chunk shows its reading alone)
+    var wds = Array.prototype.slice.call(wEl.querySelectorAll('.wd'));
+    if (wds.length === wordsOf(ch.fa).length) at.k = wds.indexOf(t);
+    // the quotation marks and stops a word may be glued to, of every script
+    // the toolbox meets -- punctuation, not a language table.  The same
+    // class the reader trims off a card's front (lib/tex2html.py): the
+    // ASCII , ; ? belong to the Latin-script captions, which write them
+    // where Persian and Arabic write ، ؛ ؟, so a word cut from "Merhaba,
+    // İngilizce" or "Nasılsın?" comes away clean.  “ is in both halves
+    // (it opens in English, closes in German), and the apostrophe in
+    // neither: "po'" and "İstanbul'da" wear it as part of the word.
+    var word = Parseh.baseText(t).replace(/^[«"(「『（„“‹]+|[»".,;:?!،؛؟)」』、。！？）”“›…]+$/g, '');
+    openAnki(word || Parseh.baseText(t), ch, sg, undefined, at);
+  }, true);
+
+  // while a modifier is down, the word under the cursor lights up
+  document.addEventListener('keydown', function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey)
+      document.body.classList.add('altdown');
+  });
+  document.addEventListener('keyup', function (e) {
+    if (!e.altKey && !e.ctrlKey && !e.metaKey)
+      document.body.classList.remove('altdown');
+  });
+  window.addEventListener('blur', function () {
+    document.body.classList.remove('altdown');
+  });
+
+  /* ---------------- sync with the video ---------------- */
+  function findSeg(t) {
+    var lo = 0, hi = segs.length - 1, ans = -1;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (segs[mid].start <= t + 0.15) { ans = mid; lo = mid + 1; }
+      else hi = mid - 1;
+    }
+    return ans;
+  }
+  function show(i) {
+    if (i < 0 || i >= els.length) return;
+    els[i].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function tick() {
+    if (!ready || !player || !player.getCurrentTime) return;
+    var t = player.getCurrentTime();
+    var dur = player.getDuration ? player.getDuration() : 0;
+    $('#pos').textContent = fmt(t) + (dur ? ' / ' + fmt(dur) : '');
+    var i = findSeg(t);
+    if (i !== active) {
+      [active - 1, active, active + 1].forEach(function (k) {
+        if (k >= 0 && k < els.length)
+          els[k].classList.remove('on-air', 'near');
+      });
+      active = i;
+      document.body.classList.toggle('synced', active >= 0);
+      if (active >= 0) {
+        els[active].classList.add('on-air');
+        // the neighbours stay readable: a sentence often carries over
+        if (active > 0) els[active - 1].classList.add('near');
+        if (active + 1 < els.length) els[active + 1].classList.add('near');
+        if (opts.follow && Date.now() - lastUserScroll > 2500) show(active);
+      }
+    }
+  }
+  function seek(t) {
+    if (player && ready && player.seekTo) { player.seekTo(t, true); player.playVideo(); }
+  }
+  ['wheel', 'touchmove'].forEach(function (ev) {
+    window.addEventListener(ev, function () { lastUserScroll = Date.now(); },
+                            { passive: true });
+  });
+
+  /* ---------------- the card dashboard ---------------- */
+  // Alt-click a word (or "+ card" in a cloud) and this modal opens,
+  // prefilled from the phrase.  Saving POSTs to /anki/cards, which stores
+  // the card as JSON under anki/<deck>/ -- the ground truth the .apkg is
+  // built from.  GUIDs are minted once at save, so a rebuilt deck can be
+  // re-imported into Anki forever: old notes update in place and keep
+  // their scheduling, new cards arrive as new.
+  //
+  // THE SAME SHEET MAKES TWO OTHER CARDS (the switch at its top): an
+  // exercise in one of the toolbox's exercise decks, and the card as studio
+  // markdown on the clipboard.  Both are one `:::exercise flashcard` block
+  // written by the card kit (lib/cardkit.js, ParsehCards), which the book
+  // reader shares; they take a fourth type, jolly, that Anki has no note
+  // type for.  Whichever it goes to, a card can carry the word's own sound:
+  // a clip cut out of the film into the clip tray (/clips), which Anki copies
+  // into its deck and a deck or a pasted document brings in from there.
+  var A = {
+    back: $('#ankiback'), box: $('#anki'), time: $('#atime'),
+    deck: $('#adeck'), deckNew: $('#adecknew'), deckRow: $('#adeckrow'),
+    fa: $('#afa'), kana: $('#akana'), tr: $('#atr'), en: $('#aen'), ctx: $('#actx'),
+    notes: $('#anotes'), tags: $('#atags'), src: $('#asrc'),
+    opp: $('#aopp'), oppKana: $('#aoppkana'), oppTr: $('#aopptr'),
+    stat: $('#astat'), saveLab: $('#asavelab'), note: $('#atnote'),
+    prev: $('#ashotprev'), img: $('#ashotimg'), hint: $('#ashothint'),
+    snd: $('#asnd'), sndPrev: $('#asndprev'), sndAudio: $('#asndaudio'),
+    sndName: $('#asndname'), sndWhy: $('#asndwhy'),
+    mdRow: $('#amdrow'), mdOut: $('#amdout'),
+    pvRow: $('#apvrow'), pvFrame: $('#apvframe'), pvNote: $('#apvnote'),
+    // the jolly card's fields, by the names the markdown gives them
+    jolly: { 'front-primary': $('#ajfp'), 'front-secondary': $('#ajfs'),
+             'back-primary': $('#ajbp'), 'back-secondary': $('#ajbs') }
+  };
+  var JOLLY_KEYS = ['front-primary', 'front-secondary', 'back-primary', 'back-secondary'];
+  // the dashboard follows the language: the first field is labelled with
+  // its name and reads in its direction (as do the context and the
+  // opposite), the reading row exists only when the language has one,
+  // and the deck-name hint suggests a name nested under the language.
+  // The meaning and the notes follow the GLOSS language the same way --
+  // they are the two boxes the card's prose is typed into, and an Arabic
+  // meaning has to run right to left inside this left-to-right form.
+  $('#afalab').textContent = L.name.toLowerCase();
+  $('#aenlab').textContent = GLOSS_LABEL;
+  [A.fa, A.ctx, A.opp].forEach(targetAttrs);
+  [A.en, A.notes].forEach(glossAttrs);
+  $('#akanarow').hidden = !L.reading;
+  A.oppKana.hidden = !L.reading;
+  A.deckNew.placeholder = 'name the new deck (use :: to nest, e.g. ' + L.name + '::YouTube)';
+  var ankiWasPlaying = false, ankiShot = null, ankiTime = 0;
+  // EVERY OPENING OF THE SHEET IS ITS OWN.  sheetSeq counts them, and whatever
+  // answers later -- a save, an add, a copy, the cut editor -- asks whether the
+  // sheet that asked is still the one open before it touches it.  closeTimer
+  // is the sheet closing itself after a save; cutting, how many cut editors
+  // are open over it; busyFor, the sheet whose press is out (one at a time).
+  var sheetSeq = 0, closeTimer = 0, cutting = 0, busyFor = 0;
+  // which note type the card will use: "vocab" (the default) or
+  // "opposites" -- the second asks "what is the opposite of X?", and its
+  // answer side is written by hand in the dashboard -- or, for an exercise
+  // deck and for markdown, "jolly"
+  var ankiKind = 'vocab';
+  // which cards the note makes: 'both', 'forward' (fa->en only) or
+  // 'reverse' (en->fa only; vocab only -- the opposites note type has no
+  // ReverseOnly field, so the option is hidden there)
+  var ankiDir = 'both';
+  function setDir(d) {
+    ankiDir = d;
+    var btns = document.querySelectorAll('#adir .dbtn');
+    Array.prototype.forEach.call(btns, function (b) {
+      b.classList.toggle('on', b.dataset.dir === d);
+    });
+  }
+  Array.prototype.forEach.call(
+    document.querySelectorAll('#adir .dbtn'), function (b) {
+      b.onclick = function () { setDir(b.dataset.dir); };
+    });
+  // the rows the type shows: a jolly card is its four fields, and the
+  // frame and the recording go into one of them rather than on a side
+  function paintKind() {
+    var k = ankiKind, opp = k === 'opposites', jolly = k === 'jolly';
+    $('#akvocab').classList.toggle('on', k === 'vocab');
+    $('#akopp').classList.toggle('on', opp);
+    $('#akjolly').classList.toggle('on', jolly);
+    ['#afarow', '#atrrow', '#anotesrow', '#asrcrow', '#adirrow'].forEach(function (s) {
+      $(s).hidden = jolly;
+    });
+    $('#akanarow').hidden = jolly || !L.reading;
+    $('#aenrow').hidden = opp || jolly;
+    $('#actxrow').hidden = opp || jolly;
+    $('#aopprow').hidden = !opp;
+    $('#ajollyrow').hidden = !jolly;
+    $('#adirrev').hidden = opp;
+    $('#adirfwd').textContent = opp
+      ? '→ word → opposite' : '→ ' + L.name + ' → ' + G.name;
+    Array.prototype.forEach.call(document.querySelectorAll('#anki .ashotpick'),
+      function (l) { l.hidden = jolly; });
+    $('#asndsides').hidden = jolly;
+    Array.prototype.forEach.call(document.querySelectorAll('#anki .ajollyinto'),
+      function (l) { l.hidden = !jolly; });
+  }
+  function setKind(k) {
+    // Anki has no note type for a jolly card
+    if (k === 'jolly' && ankiTarget === 'anki') k = 'vocab';
+    var was = ankiKind;
+    ankiKind = k;
+    if (k === 'opposites' && ankiDir === 'reverse') setDir('both');
+    paintKind();
+    if (k === 'opposites' && !A.opp.value) A.opp.focus();
+    if (k === 'jolly' && was !== 'jolly') jollyOn();
+  }
+  $('#akvocab').onclick = function () { setKind('vocab'); };
+  $('#akopp').onclick = function () { setKind('opposites'); };
+  $('#akjolly').onclick = function () { setKind('jolly'); };
+  var decksCache = [];
+  var capFor = null, capVideo = null, capCropped = false, capSurface = '';
+
+  function vidTitle() {
+    return document.title.replace(/ — Parseh videos$/, '');
+  }
+  // A deck belongs to a language and a card goes to the deck of its own
+  // language (the store refiles it if not), so this video's language comes
+  // first, under its own heading; the other languages' decks are still
+  // listed, each under its own, so an existing deck is never invisible --
+  // picking one just means the card lands in the deck of THIS language
+  // with that name, and the save says so.  The option value is
+  // "<folder>/<slug>": a slug alone no longer names one deck.
+  function deckOptions(list) {
+    decksCache = list;
+    var last = deckChoice('anki', list.map(function (d) { return d.folder + '/' + d.slug; }),
+                          localStorage.getItem('yt_deck') || '');
+    A.deck.innerHTML = '';
+    A.deck.dataset.of = 'anki';
+    var groups = {}, order = [];
+    list.forEach(function (d) {
+      if (!groups[d.lang]) { groups[d.lang] = []; order.push(d.lang); }
+      groups[d.lang].push(d);
+    });
+    order.sort(function (a, b) {
+      return (a === L.code ? 0 : 1) - (b === L.code ? 0 : 1);
+    });
+    order.forEach(function (code) {
+      var g = document.createElement('optgroup');
+      g.label = groups[code][0].language +
+                (code === L.code ? '' : ' (another language)');
+      groups[code].forEach(function (d) {
+        var o = document.createElement('option');
+        o.value = d.folder + '/' + d.slug;
+        o.dataset.lang = d.lang;
+        o.dataset.name = d.name;
+        o.textContent = d.name + ' (' + d.cards + ' card' +
+                        (d.cards === 1 ? '' : 's') + ')';
+        if (o.value === last) o.selected = true;
+        g.appendChild(o);
+      });
+      A.deck.appendChild(g);
+    });
+    var o = document.createElement('option');
+    o.value = ''; o.textContent = '+ new deck…';
+    if (!list.length || last === '') o.selected = true;
+    A.deck.appendChild(o);
+    deckPick();
+  }
+  /* THE CHOICE ON THE SCREEN OUTLIVES A NEW LIST.  The options are drawn
+     again whenever the decks are listed anew (loadDecks(again): a count
+     changed), and the answer can come after the owner has already picked --
+     "+ new deck…" with its name being typed, or another deck.  Drawn from the
+     deck used last, that pick would be undone and the card go where it was
+     not sent.  So once the owner has picked (the select's own change), a list
+     for the same destination keeps the pick while it is still one of the
+     options; a card gone somewhere (the deck used last is written) hands the
+     choice back to the deck used last.  '' is "+ new deck…"; null selects
+     no option, which leaves the browser's first. */
+  var deckPicked = false;
+  function deckChoice(kind, values, last) {
+    if (deckPicked && A.deck.dataset.of === kind && A.deck.options.length) {
+      var shown = A.deck.value;
+      if (shown === '' || values.indexOf(shown) >= 0) return shown;
+    }
+    return last && values.indexOf(last) >= 0 ? last : (values.length ? null : '');
+  }
+  function deckPick() {
+    A.deckNew.hidden = A.deck.value !== '';
+    if (!A.deckNew.hidden && !A.deckNew.value) A.deckNew.focus();
+  }
+  A.deck.addEventListener('change', function () { deckPicked = true; deckPick(); });
+
+  /* -- where the card goes.  One <select> lists the decks of whichever
+     destination is picked: Anki's (every language, as above) or the
+     exercise decks of this video's language, which is the only language an
+     exercise deck of this card could be in.  A list that arrives after the
+     switch has moved on is dropped. -- */
+  var CARD_TARGETS = ['anki', 'deck', 'md'];
+  var ankiTarget = 'anki', exDecks = [], deckAsk = 0;
+  var KIT = window.ParsehCards || null;
+  // said wherever the kit is needed and is not there (the book reader's
+  // sheet says the same)
+  var KIT_GONE = 'the card kit (lib/cardkit.js) did not load: reload the page';
+  // the sheet's head and its button, per destination
+  var TARGET_TITLE = { anki: 'anki card', deck: 'exercise card', md: 'card markdown' };
+  var SAVE_LABEL = { anki: 'save card', deck: 'add to deck', md: 'copy markdown' };
+  function exDeckOptions(list) {
+    exDecks = list;
+    var last = deckChoice('deck', list.map(function (d) { return d.path; }),
+                          localStorage.getItem('yt_exdeck') || '');
+    A.deck.innerHTML = '';
+    A.deck.dataset.of = 'deck';
+    list.forEach(function (d) {
+      var o = document.createElement('option');
+      o.value = d.path;
+      o.dataset.name = d.name;
+      var n = (d.counts && d.counts.total) || 0;
+      o.textContent = d.name + ' (' + n + ' exercise' + (n === 1 ? '' : 's') + ')';
+      if (o.value === last) o.selected = true;
+      A.deck.appendChild(o);
+    });
+    var o = document.createElement('option');
+    o.value = ''; o.textContent = '+ new deck…';
+    if (!list.length || last === '') o.selected = true;
+    A.deck.appendChild(o);
+    deckPick();
+  }
+  // `again`: the same destination's list asked for anew (a count changed),
+  // which keeps showing the old one until it comes
+  function loadDecks(again) {
+    var n = ++deckAsk, t = ankiTarget;
+    if (t === 'md') return;
+    if (!again) A.deck.innerHTML = '';
+    A.deckNew.placeholder = t === 'anki'
+      ? 'name the new deck (use :: to nest, e.g. ' + L.name + '::YouTube)'
+      : 'name the new exercise deck';
+    if (t === 'anki') {
+      fetch('/anki/decks', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (list) { if (n === deckAsk) deckOptions(list); })
+        .catch(function () { if (n === deckAsk) deckOptions(decksCache); });
+      return;
+    }
+    if (!KIT) { exDeckOptions([]); return; }
+    KIT.decks(L.code).then(function (list) {
+      if (n === deckAsk) exDeckOptions(list);
+    }, function (e) {
+      if (n !== deckAsk) return;
+      exDeckOptions(exDecks);
+      A.stat.textContent = 'the exercise decks did not list: ' + e.message;
+    });
+  }
+  var TARGET_NOTE = {
+    anki: '',
+    deck: 'an exercise in the deck, studied on its page; the recording and the frame go in with it',
+    md: 'one :::exercise block on the clipboard, for a studio document or a deck’s “Add exercise”'
+  };
+  // the name typed for a new deck, per destination: an Anki name nests with
+  // ::, an exercise deck's does not, and neither is the other's deck
+  var newDeckNames = { anki: '', deck: '' };
+  function setTarget(t) {
+    if (CARD_TARGETS.indexOf(t) < 0) t = 'anki';
+    if (ankiTarget !== 'md') newDeckNames[ankiTarget] = A.deckNew.value;
+    if (t !== 'md') A.deckNew.value = newDeckNames[t];
+    ankiTarget = t;
+    localStorage.setItem('yt_card_target', t);
+    [['anki', '#atanki'], ['deck', '#atdeck'], ['md', '#atmd']].forEach(function (p) {
+      $(p[1]).classList.toggle('on', p[0] === t);
+      $(p[1]).setAttribute('aria-pressed', p[0] === t ? 'true' : 'false');
+    });
+    var anki = t === 'anki';
+    $('#akjolly').hidden = anki;
+    if (anki && ankiKind === 'jolly') setKind('vocab');
+    A.deckRow.hidden = t === 'md';
+    $('#atagsrow').hidden = !anki;
+    $('#abuild').hidden = !anki;
+    $('#async').hidden = !anki;
+    $('#ahtitle').textContent = TARGET_TITLE[t];
+    dupArmed = false;
+    A.saveLab.textContent = SAVE_LABEL[t];
+    $('#apreview').title = anki ? 'how the finished card will look in Anki, both directions'
+                                : 'how the card will look in a deck: click it to turn it';
+    A.note.textContent = TARGET_NOTE[t];
+    A.note.hidden = !TARGET_NOTE[t];
+    A.pvRow.hidden = true; A.pvFrame.srcdoc = '';
+    A.mdRow.hidden = true;
+    A.stat.textContent = '';
+    if (!anki && !KIT) A.stat.textContent = KIT_GONE;
+    loadDecks();
+  }
+  $('#atanki').onclick = function () { setTarget('anki'); };
+  $('#atdeck').onclick = function () { setTarget('deck'); };
+  $('#atmd').onclick = function () { setTarget('md'); };
+
+  /* -- the jolly fields.  Prefilled from the word when jolly is picked, and
+     left alone once written in; a picture or a recording goes in as a line
+     of its own after the line the cursor was on, in the box the cursor was
+     last in, typed in or not (jollyFocus; the back's main text until one
+     has been). -- */
+  var jollyTouched = false, jollyFocus = null;
+  JOLLY_KEYS.forEach(function (k) {
+    var ta = A.jolly[k];
+    ta.addEventListener('focus', function () { jollyFocus = ta; });
+    ta.addEventListener('input', function () { jollyTouched = true; });
+  });
+  function jollyValues() {
+    var out = {};
+    JOLLY_KEYS.forEach(function (k) { out[k] = A.jolly[k].value; });
+    return out;
+  }
+  function fillJolly() {
+    var word = A.fa.value.trim();
+    // a Latin-script target cannot be told from English by its letters, so
+    // its word is marked as the target's, as the kit marks a vocab card's
+    A.jolly['front-primary'].value = (L.script === 'latin' && word)
+      ? '[' + word.replace(/[\[\]]/g, '').replace(/\s+/g, ' ') + ']{tl}' : word;
+    A.jolly['front-secondary'].value = [L.reading ? A.kana.value.trim() : '', A.tr.value.trim()]
+      .filter(Boolean).join(' · ');
+    A.jolly['back-primary'].value = A.en.value.trim();
+    A.jolly['back-secondary'].value = A.ctx.value.trim();
+    // written anew, so the recording and the frame are offered anew
+    if (ankiClip) ankiClip.offered = false;
+    if (ankiFrame) ankiFrame.offered = false;
+  }
+  function mediaLineOf(line) {
+    var m = /^\s*!\[[^\]]*\]\(\s*([^()\s]+)\s*\)\s*$/.exec(line);
+    return m ? m[1] : null;
+  }
+  function jollyNames(path) {
+    return JOLLY_KEYS.some(function (k) { return A.jolly[k].value.indexOf(path) >= 0; });
+  }
+  function jollyInsert(path) {
+    if (jollyNames(path)) return;
+    var ta = jollyFocus || A.jolly['back-primary'];
+    var v = ta.value, line = '![](' + path + ')';
+    var at = (ta === jollyFocus && ta.selectionEnd != null) ? ta.selectionEnd : v.length;
+    var end = v.indexOf('\n', at);
+    if (end < 0) end = v.length;
+    var head = v.slice(0, end), lead = head && head.slice(-1) !== '\n' ? '\n' : '';
+    ta.value = head + lead + line + v.slice(end);
+    var caret = (head + lead + line).length;
+    try { ta.setSelectionRange(caret, caret); } catch (e) {}
+    // tall enough to show the line it was given
+    ta.rows = Math.min(8, Math.max(ta.rows, ta.value.split('\n').length));
+  }
+  function jollyRemove(path) {
+    JOLLY_KEYS.forEach(function (k) {
+      var ta = A.jolly[k], lines = ta.value.split('\n');
+      var kept = lines.filter(function (l) { return mediaLineOf(l) !== path; });
+      if (kept.length !== lines.length) ta.value = kept.join('\n');
+    });
+  }
+  // the recording's line and the frame's go into the fields ONCE each: a
+  // line the person then deletes stays deleted (the save does not bring it
+  // back), and the save says the card goes without it
+  function offerClip() {
+    if (!ankiClip || ankiClip.offered) return;
+    ankiClip.offered = true;
+    jollyInsert('audio/' + ankiClip.clip.name);
+  }
+  function offerFrame(rec) {
+    var f = ankiFrame;
+    if (!rec || !f || f.clip !== rec || f.offered) return;
+    f.offered = true;
+    jollyInsert('images/' + rec.name);
+  }
+  function jollyOn() {
+    if (!jollyTouched) fillJolly();
+    offerClip();
+    if (ankiShot && KIT) {
+      ensureFrame().then(function (rec) {
+        if (ankiKind === 'jolly') offerFrame(rec);
+      }, function (e) { A.stat.textContent = e.message; });
+    }
+  }
+  // what a press's markdown was to carry and does not name: the lines taken
+  // out of a jolly card's fields.  '' when it names everything.  `clip` and
+  // `frame` are the tray's records the press was made with
+  function leftOut(md, clip, frame) {
+    var gone = [];
+    if (clip && md.indexOf('audio/' + clip.name) < 0) gone.push('the recording');
+    if (frame && md.indexOf('images/' + frame.name) < 0) gone.push('the frame');
+    return gone.length ? gone.join(' and ') + (gone.length > 1 ? ' are' : ' is') +
+      ' not on the card: ' + (gone.length > 1 ? 'their lines were' : 'its line was') +
+      ' taken out of the fields' : '';
+  }
+  // what the markdown does name, of the recording and the frame
+  function carried(md, its, clip, frame) {
+    return [clip && md.indexOf('audio/' + clip.name) >= 0 ? its + ' recording' : '',
+            frame && md.indexOf('images/' + frame.name) >= 0 ? its + ' frame' : '']
+      .filter(Boolean);
+  }
+
+  /* -- the tray's copies.  A recording is a clip in the tray from the moment
+     it is cut; the captured frame goes there only when a deck or markdown
+     needs a file to name.  One nobody used -- removed, replaced, or left on a
+     sheet that was closed -- goes out of the tray again, as the cut editor's
+     own cancel does, and as the book reader's sheet does.  Two kinds stay
+     whatever happens to the sheet: a file that went onto a card (saved,
+     added, or copied as markdown: trayUsed), and one a press has carried out
+     and not yet had its answer for (trayOut, a count per name; a frame still
+     on its way to the tray counts its presses itself, `held`) -- closing the
+     sheet the moment after "add to deck" must not take out of the tray the
+     recording the deck is about to fetch from it. -- */
+  // `offered`: its line was put in the jolly fields once, and is not put
+  // back if the person takes it out again
+  var ankiClip = null;     // {clip: the tray's record, offered}
+  var ankiFrame = null;    // {data: the shot it is, clip, ready, held, offered}
+  var trayUsed = {}, trayOut = {};
+  function forgetTray(name) {
+    if (!name || trayUsed[name] || trayOut[name]) return;
+    fetch('/clips/api/' + encodeURIComponent(name), { method: 'DELETE' })
+      .catch(function () {});
+  }
+  // the frame `data` on its way to the tray, begun once
+  function frameFor(data) {
+    if (!data || !KIT) return null;
+    if (ankiFrame && ankiFrame.data === data) return ankiFrame;
+    dropFrame();
+    var f = { data: data, clip: null, held: 0 };
+    f.ready = KIT.uploadFrame(data, (A.fa.value.trim() || 'frame') + ' frame', L.code)
+      .then(function (rec) {
+        f.clip = rec;
+        // dropped while it went, and no press waits for it
+        if (ankiFrame !== f && !f.held) forgetTray(rec.name);
+        return rec;
+      }, function (e) {
+        if (ankiFrame === f) ankiFrame = null;
+        throw e;
+      });
+    ankiFrame = f;
+    return f;
+  }
+  function ensureFrame() {
+    var f = frameFor(ankiShot);
+    return f ? f.ready : Promise.resolve(null);
+  }
+  function dropFrame() {
+    var f = ankiFrame;
+    ankiFrame = null;
+    if (!f || !f.clip) return;
+    if (!f.held) forgetTray(f.clip.name);
+    jollyRemove('images/' + f.clip.name);
+  }
+  function setClip(clip) {
+    unarm();
+    dropClip();
+    ankiClip = { clip: clip, offered: false };
+    A.sndAudio.src = clip.url;
+    A.sndName.textContent = clip.name +
+      (typeof clip.duration === 'number' ? ' · ' + clip.duration.toFixed(2) + ' s' : '');
+    A.sndPrev.hidden = false;
+    if (ankiKind === 'jolly') offerClip();
+  }
+  // `closing`: the sheet goes, and its fields with it
+  function dropClip(closing) {
+    var c = ankiClip;
+    ankiClip = null;
+    try { A.sndAudio.pause(); } catch (e) {}
+    A.sndAudio.removeAttribute('src');
+    A.sndPrev.hidden = true;
+    A.sndName.textContent = '';
+    if (!c) return;
+    forgetTray(c.clip.name);
+    if (!closing) jollyRemove('audio/' + c.clip.name);
+  }
+  $('#asnddel').onclick = function () { dropClip(false); };
+  function pickedSide(name, fallback) {
+    var r = document.querySelector('#anki input[name=' + name + ']:checked');
+    return r ? (r.value === 'back' ? 'back' : 'front') : fallback;
+  }
+
+  function clearShot() {
+    ankiShot = null; A.prev.hidden = true; A.img.src = '';
+    dropFrame();
+  }
+  $('#ashotdel').onclick = clearShot;
+
+  /* -- WHERE IN THE FILM THE CARD'S WORD IS SAID.  A caption carries its
+     start and nothing else: it lasts until the next one starts (the last,
+     until the film ends), and nothing records where a chunk or a word falls
+     inside it.  So the cut editor opens on the word's share of the caption's
+     text -- the chunks before it, each with the separator the caption joins
+     them with, then the words of its chunk before it -- which a person then
+     moves by ear.  Code points, as the word line counts them. -- */
+  var ankiAt = null;       // {i: caption, j: chunk, k: word or null, line}
+  function cpLen(s) { return Array.from(String(s || '')).length; }
+  function wordSpan(ch, at) {
+    if (at.k == null || at.k < 0) return null;
+    var fa = ch.fa || '';
+    if (at.line) {
+      // the word line's own division, spaces and all, as it draws the words
+      var spans;
+      try { spans = ParsehWordline.align(fa, ParsehWordline.parse(at.line)); }
+      catch (e) { return null; }
+      var pos = 0;
+      for (var n = 0; n < spans.length; n++) {
+        var len = cpLen(spans[n][0]);
+        if (spans[n][2] === at.k) return [pos, pos + len];
+        pos += len;
+      }
+      return null;
+    }
+    if (!L.word_sep) return null;
+    var words = wordsOf(fa), from = 0;
+    if (at.k >= words.length) return null;
+    for (var q = 0; q < at.k; q++) from += cpLen(words[q]) + cpLen(L.word_sep);
+    return [from, from + cpLen(words[at.k])];
+  }
+  function cutPlan() {
+    var at = ankiAt, sg = at && segs[at.i];
+    if (!sg || !KIT) return null;
+    var next = segs[at.i + 1];
+    var dur = (player && player.getDuration) ? player.getDuration() : 0;
+    var t0 = +sg.start || 0;
+    var t1 = next ? +next.start : (dur > t0 ? dur : t0 + 4);
+    // the caption's text is its chunks joined -- and where a caption was
+    // written otherwise (a Japanese one with spaces its chunks do not have)
+    // the chunks are what the stretch is counted in, so they are the whole
+    var sep = L.word_sep || '', chunks = sg.chunks || [];
+    var joined = chunks.map(function (c) { return c.fa || ''; }).join(sep);
+    var units = chunks.length ? cpLen(joined) : cpLen(sg.text), from = 0, to = units;
+    var ch = at.j >= 0 ? chunks[at.j] : null;
+    if (ch) {
+      var pre = 0;
+      for (var m = 0; m < at.j; m++) pre += cpLen(chunks[m].fa) + cpLen(sep);
+      var w = wordSpan(ch, at);
+      from = pre + (w ? w[0] : 0);
+      to = pre + (w ? w[1] : cpLen(ch.fa));
+    }
+    return { context: [t0, t1], guess: KIT.guess([t0, t1], units, from, to) };
+  }
+  // THE CARD'S MOMENT -- its time, its source's link, a deck's link back,
+  // the frame a capture takes: where the film is when that is inside the
+  // caption the card was opened on (the word was just heard), and that
+  // caption's start otherwise, so a word picked out of another caption
+  // goes back to where it is said and not to wherever the film stands
+  function cardMoment(sg) {
+    var t0 = sg ? (+sg.start || 0) : 0;
+    if (!(player && ready && player.getCurrentTime)) return t0;
+    var now = player.getCurrentTime();
+    if (!sg) return now;
+    var next = segs[segs.indexOf(sg) + 1];
+    return (now >= t0 && (!next || now < +next.start)) ? now : t0;
+  }
+  // Why there is nothing to cut here, or '' when there is.  A film on this
+  // machine is cut by the server; a YouTube video's sound reaches nobody's
+  // script, and is cut from a recording of this tab as it plays the stretch
+  // (the kit records it; the share is the frame capture's, shareTab above),
+  // which Chrome and Edge allow
+  function noCut() {
+    if (!KIT) return KIT_GONE;
+    if (CFG.media) return '';
+    if (CFG.local) return 'the film of this video is not on this machine any more, so there is no sound to cut';
+    var why = KIT.tabProblem ? KIT.tabProblem() : 'the card kit cannot record a tab';
+    if (why) return 'a YouTube video’s sound is cut from a recording of this tab, and ' + why;
+    if (!(player && ready)) return 'the YouTube player has not loaded, so there is no sound to record';
+    return '';
+  }
+  function paintCut() {
+    var why = noCut();
+    A.snd.disabled = !!why;
+    A.snd.title = why || (CFG.media
+      ? 'cut the stretch of the film this card is about into a clip, and put it on the card'
+      : 'record this tab while the video plays the stretch this card is about, cut the clip out of it by ear, ' +
+        'and put it on the card');
+    // said under the button too: a phone shows no title
+    A.sndWhy.textContent = why;
+    A.sndWhy.hidden = !why;
+  }
+  A.snd.onclick = function () {
+    var plan = cutPlan();
+    if (!plan || noCut()) return;
+    var word = A.fa.value.trim(), seq = sheetSeq;
+    try { A.sndAudio.pause(); } catch (e) {}
+    // somebody at work in the cut editor is still making this card: the
+    // sheet does not close itself under it (closeSoon)
+    cutting++;
+    clearTimeout(closeTimer);
+    KIT.cut({
+      source: CFG.media
+        ? { kind: 'film', src: CFG.media, cutUrl: '/youtube/api/clip',
+            peaksUrl: '/youtube/api/peaks', video: CFG.id }
+        : { kind: 'tab', video: CFG.id, player: player, stream: shareTab },
+      context: plan.context, guess: plan.guess,
+      lang: L.code, hint: word, label: fmt(plan.context[0]), text: word
+    }).then(function (clip) {
+      cutting--;
+      if (!clip) return;
+      // a clip used for a sheet no longer open is on nobody's card
+      if (ankiOpen && seq === sheetSeq) setClip(clip); else forgetTray(clip.name);
+    }, function () { cutting--; });
+  };
+
+  // `reading`, for a word of the chunk's word line: the line's own reading
+  // of that word.  `at` says where the card's text is: the caption i, its
+  // chunk j and, for one word of the chunk, the word k (`line` when k counts
+  // the words of the chunk's word line) -- what the cut editor starts from
+  function openAnki(word, ch, sg, reading, at) {
+    // a sheet of its own: an answer still out for the last one is not this
+    // one's, and neither is the last one's pending close
+    sheetSeq++;
+    clearTimeout(closeTimer);
+    ankiTime = cardMoment(sg);
+    A.time.textContent = fmt(ankiTime);
+    if (player && ready && player.getPlayerState &&
+        player.getPlayerState() === 1) {
+      ankiWasPlaying = true; player.pauseVideo();
+    } else ankiWasPlaying = false;
+    closeCloud();
+    ankiAt = at || { i: segs.indexOf(sg), j: sg ? (sg.chunks || []).indexOf(ch) : -1, k: null, line: '' };
+    A.fa.value = word;
+    var ofLine = typeof reading === 'string';
+    // the reading is the whole chunk's (group ruby), so it fits the card
+    // only when the card is the whole chunk; for one word of it the field
+    // is left for the hand -- unless the word line gave the word its own,
+    // which is the kana where the language has one and the romanisation
+    // (pinyin) where it has not
+    A.kana.value = ofLine ? (L.reading ? reading : '')
+                          : (L.reading && word === ch.fa && ch.kana) ? ch.kana : '';
+    A.tr.value = ofLine && !L.reading ? reading : (ch.tr || '');
+    A.en.value = ch.en || '';
+    // a single word gets the whole phrase as context; a whole phrase
+    // gets its caption -- the sentence it lives in -- and so does a word
+    // of the line, which the whole phrase would only repeat
+    A.ctx.value = ((ofLine || word === ch.fa) && sg && sg.text) ? sg.text : ch.fa;
+    A.notes.value = (ch.voc || '') +
+      (ch.note ? (ch.voc ? '\n' : '') + ch.note : '');
+    // the registry's tag: farsi-youtube for Persian, exactly as before
+    A.tags.value = L.tag + '-youtube ' + CFG.id;
+    A.src.value = vidTitle() + ' — ' + fmt(ankiTime);
+    A.opp.value = ''; A.oppKana.value = ''; A.oppTr.value = '';
+    JOLLY_KEYS.forEach(function (k) { A.jolly[k].value = ''; A.jolly[k].rows = 2; });
+    jollyTouched = false; jollyFocus = null;
+    ankiKind = 'vocab';
+    // the recording and the frame of the last card are not this one's; one
+    // the last card went with stays in the tray (forgetTray)
+    dropClip(true);
+    setDir('both');
+    clearShot();
+    deckPicked = false;         // a new card starts from the deck used last
+    setTarget(localStorage.getItem('yt_card_target') || 'anki');
+    setKind('vocab');
+    paintCut();
+    A.box.querySelector('input[name=asndside][value=front]').checked = true;
+    A.back.hidden = false; A.box.hidden = false; ankiOpen = true;
+    A.fa.focus();
+  }
+  function closeAnki() {
+    ankiOpen = false; A.back.hidden = true; A.box.hidden = true;
+    clearTimeout(closeTimer);
+    // a clip nobody used, and a frame sent to the tray for a preview and
+    // never saved with a card, go out of the tray
+    dropClip(true);
+    dropFrame();
+    if (ankiWasPlaying && player && ready) player.playVideo();
+    ankiWasPlaying = false;
+  }
+  $('#acancel').onclick = closeAnki;
+  A.back.addEventListener('click', closeAnki);
+  document.addEventListener('keydown', function (e) {
+    if (!ankiOpen) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeAnki(); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault(); saveCard();
+    }
+  });
+
+  /* -- capturing a frame.  The iframe is cross-origin, so its pixels can
+     only come from a display capture -- but everything below exists to
+     hand back the VIDEO'S OWN frame, never a page screenshot:
+       . Chrome, "This Tab": Region Capture crops the stream to the video
+         element itself; older Chromium falls back to viewport arithmetic.
+       . Firefox -- and any window or screen share: the page flashes two
+         coloured dots on the video's corners, finds them in the captured
+         frame, and derives the exact pixel mapping.  Toolbars, zoom, DPR
+         and window position all cancel out of that equation.
+     Standards only; nothing depends on YouTube's internals staying still.
+     A PAUSED embed shows YouTube's controls, and they linger for a full
+     FIVE seconds once playback starts -- so the capture seeks ~5s before
+     the moment and rolls in muted: the overlay has just faded when the
+     wanted frame goes by, and the player freezes back on it. -- */
+  /* -- SHARING THIS TAB.  One share, asked for once, serves the frame
+     capture (its pictures) and the cut editor on a YouTube video (its sound,
+     which lib/cardkit.js records while the stretch plays): one question from
+     Chrome for both, however many frames and clips follow.  It is asked for
+     with its sound wherever the browser can record that (Chrome, Edge); a
+     share given without the sound still serves the pictures, and the sound
+     asks again, for a share that takes its place.  A share the person stops
+     (Chrome's "Stop sharing") is asked for anew next time.  `want.audio`:
+     the share must carry live sound. -- */
+  var tabShare = null;
+  function tabShared(sound) {
+    var s = tabShare;
+    var live = function (kind) {
+      return s.getTracks().some(function (t) {
+        return t.kind === kind && t.readyState === 'live';
+      });
+    };
+    return s && live('video') && (!sound || live('audio')) ? s : null;
+  }
+  function shareTab(want) {
+    var sound = !!(want && want.audio), have = tabShared(sound);
+    if (have) return Promise.resolve(have);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia)
+      return Promise.reject(new Error(
+        'capture needs a secure page — open the toolbox over its https address'));
+    var withSound = !!(KIT && KIT.canCaptureTab && KIT.canCaptureTab());
+    // A share still live but without its sound is let go before asking
+    // again: Chrome does not share this tab a second time while the first
+    // share's picture is cropped to the video, as the frame capture's is
+    // ("Could not start video source", however often it is asked).  Refused,
+    // the next frame asks too.
+    if (tabShare) {
+      tabShare.getTracks().forEach(function (t) { t.stop(); });
+      tabShare = null;
+    }
+    // preferCurrentTab and the rest are Chrome's; Firefox ignores unknown members
+    return navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: withSound ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
+      preferCurrentTab: true, selfBrowserSurface: 'include', systemAudio: 'exclude'
+    }).then(function (s) {
+      var old = tabShare;
+      tabShare = s;
+      if (old && old !== s) old.getTracks().forEach(function (t) { t.stop(); });
+      return s;
+    });
+  }
+  // the share as it stands, without asking: what the cut editor reads to know
+  // whether Chrome is about to ask
+  shareTab.live = function (want) { return tabShared(!!(want && want.audio)); };
+
+  function ensureCapture() {
+    if (capVideo && capFor && capFor === tabShared(false)) return Promise.resolve();
+    if (!tabShared(false)) A.hint.hidden = false;
+    return shareTab().then(function (s) {
+      var track = s.getVideoTracks()[0];
+      var st = track.getSettings ? track.getSettings() : {};
+      capFor = s;
+      capSurface = st.displaySurface || '';
+      capCropped = false;
+      // Region Capture (Chrome, own-tab shares): the track becomes the
+      // video element itself -- pixel-perfect, immune to everything
+      var crop = (capSurface === 'browser' && window.CropTarget &&
+                  CropTarget.fromElement && track.cropTo)
+        ? CropTarget.fromElement(vid).then(function (t) {
+            return track.cropTo(t).then(function () { capCropped = true; });
+          }).catch(function () {})
+        : Promise.resolve();
+      return crop.then(function () {
+        capVideo = document.createElement('video');
+        capVideo.muted = true; capVideo.playsInline = true;
+        // its pictures only: the share's sound is never played on this page.
+        // Not waited for: a share taken a while ago (for a recording) sends
+        // no picture of a page that has not changed since, and play() would
+        // wait for one -- the capture below changes the page (the sheet
+        // goes), and waits for the picture that brings (framed)
+        capVideo.srcObject = new MediaStream(s.getVideoTracks());
+        capVideo.play().catch(function () {});
+      });
+    });
+  }
+  function sleep(ms) {
+    return new Promise(function (r) { setTimeout(r, ms); });
+  }
+  // after rolling, hold until YouTube's overlay has faded -- that takes a
+  // full five seconds of playback -- AND the video has reached the wanted
+  // moment again (hard stop at ten)
+  function waitFrame(t0, rolled) {
+    if (!rolled) return sleep(300);
+    var begun = Date.now();
+    return new Promise(function (res) {
+      (function poll() {
+        var el = Date.now() - begun, cur = t0;
+        try { cur = player.getCurrentTime(); } catch (err) {}
+        if ((el >= 5000 && cur >= t0) || el >= 10000) return res();
+        setTimeout(poll, 120);
+      })();
+    }).then(function () {
+      var cur = t0;
+      try { cur = player.getCurrentTime(); } catch (err) {}
+      if (cur <= t0 + 0.6) return;
+      // the moment sits inside the video's first five seconds, so the
+      // fade-out wait overshot it.  Glide back while still playing -- a
+      // pause would resurface the controls; the region is buffered, so
+      // no spinner appears either
+      player.seekTo(Math.max(0, t0 - 0.2), true);
+      return sleep(450);
+    });
+  }
+  // Once the capture has a picture of the page as it is now (four seconds at
+  // most).  A share sends pictures when the page changes -- but one kept a
+  // while and given a new element can go on sending none however much the
+  // video plays (Chrome, driven: a share first used for a recording), until
+  // something asks it for a frame outright: a track processor reading one
+  // does (Chromium; elsewhere the page's changes are all there is)
+  function framed() {
+    var begun = Date.now();
+    askFrame();
+    return new Promise(function (res) {
+      (function look() {
+        var el = Date.now() - begun;
+        if ((capVideo && capVideo.videoWidth && el > 150) || el > 4000) return res();
+        setTimeout(look, 40);
+      })();
+    });
+  }
+  function askFrame() {
+    if (!window.MediaStreamTrackProcessor || !capFor) return;
+    var track = capFor.getVideoTracks()[0];
+    if (!track || track.readyState !== 'live') return;
+    var copy = track.clone(), done = false;
+    var stop = function () {
+      if (done) return;
+      done = true;
+      try { reader.cancel().catch(function () {}); } catch (e) {}
+      copy.stop();
+    };
+    try {
+      var reader = new MediaStreamTrackProcessor({ track: copy }).readable.getReader();
+      reader.read().then(function (r) { if (r.value) r.value.close(); stop(); }, stop);
+      setTimeout(stop, 3000);
+    } catch (e) { copy.stop(); }
+  }
+  function grabRaw() {
+    var vw = capVideo.videoWidth, vh = capVideo.videoHeight;
+    if (!vw) throw new Error('no frame arrived — try once more');
+    var c = document.createElement('canvas');
+    c.width = vw; c.height = vh;
+    c.getContext('2d').drawImage(capVideo, 0, 0);
+    return c;
+  }
+  function toJpeg(c) { return c.toDataURL('image/jpeg', 0.87); }
+  function cropJpeg(c, x, y, w, h) {
+    x = Math.max(0, Math.round(x)); y = Math.max(0, Math.round(y));
+    w = Math.round(Math.min(w, c.width - x));
+    h = Math.round(Math.min(h, c.height - y));
+    if (w < 8 || h < 8)
+      throw new Error('the video area fell outside the capture — retry');
+    var o = document.createElement('canvas');
+    o.width = w; o.height = h;
+    o.getContext('2d').drawImage(c, x, y, w, h, 0, 0, w, h);
+    return toJpeg(o);
+  }
+  /* the calibration dots: magenta on the video's top-left corner, cyan on
+     its bottom-right; their centres sit at known viewport coordinates */
+  var mkEls = null;
+  function showMarkers(r) {
+    hideMarkers();
+    function dot(color, x, y) {
+      var d = document.createElement('div');
+      d.style.cssText = 'position:fixed;width:26px;height:26px;z-index:200;' +
+        'pointer-events:none;background:' + color +
+        ';left:' + (x - 13) + 'px;top:' + (y - 13) + 'px';
+      document.body.appendChild(d);
+      return d;
+    }
+    var p = { x1: r.left + 13, y1: r.top + 13,
+              x2: r.right - 13, y2: r.bottom - 13 };
+    mkEls = [dot('#f0f', p.x1, p.y1), dot('#0ff', p.x2, p.y2)];
+    return p;
+  }
+  function hideMarkers() {
+    (mkEls || []).forEach(function (d) {
+      if (d.parentNode) d.parentNode.removeChild(d);
+    });
+    mkEls = null;
+  }
+  function locateMarkers(c, p) {
+    var d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    var m = { x: 0, y: 0, n: 0 }, k = { x: 0, y: 0, n: 0 };
+    for (var y = 0; y < c.height; y += 2) {
+      for (var x = 0; x < c.width; x += 2) {
+        var i = (y * c.width + x) * 4;
+        var R = d[i], G = d[i + 1], B = d[i + 2];
+        if (R > 180 && B > 180 && G < 100) { m.x += x; m.y += y; m.n++; }
+        else if (G > 180 && B > 180 && R < 100) { k.x += x; k.y += y; k.n++; }
+      }
+    }
+    if (m.n < 12 || k.n < 12)
+      throw new Error('could not see the player in the shared ' +
+        (capSurface || 'window') +
+        ' — keep this window visible on top, then try again');
+    var ax = m.x / m.n, ay = m.y / m.n, bx = k.x / k.n, by = k.y / k.n;
+    var sx = (bx - ax) / (p.x2 - p.x1), sy = (by - ay) / (p.y2 - p.y1);
+    if (!(sx > 0.05 && sy > 0.05))
+      throw new Error('calibration failed — try again');
+    return { sx: sx, sy: sy, ox: ax - p.x1 * sx, oy: ay - p.y1 * sy };
+  }
+  $('#ashot').onclick = function () {
+    A.stat.textContent = 'capturing…';
+    var t0 = ankiTime, rolled = false, wasMuted = true;
+    // Promise.resolve() first: ensureCapture must not be able to fail
+    // synchronously past the chain (that is how the button once managed
+    // to "do nothing" on an insecure origin)
+    Promise.resolve().then(ensureCapture).then(function () {
+      if (player && ready && player.getPlayerState() !== 1) {
+        rolled = true;
+        wasMuted = player.isMuted();
+        player.mute();
+        // roll INTO the moment from ~5s before it: YouTube keeps its
+        // overlay up for a full five seconds after playback starts, so
+        // it has just faded when the wanted frame goes by
+        player.seekTo(Math.max(0, t0 - 5.2), true);
+        player.playVideo();
+      }
+      // hide the dialog so it is not in its own screenshot
+      A.box.style.visibility = 'hidden';
+      A.back.style.visibility = 'hidden';
+      var r = vid.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight)
+        throw new Error('scroll the video into view first');
+      if (capCropped)                       // the track IS the video
+        return waitFrame(t0, rolled).then(framed).then(function () {
+          return toJpeg(grabRaw());
+        });
+      if (capSurface === 'browser')         // own tab, older Chromium
+        return waitFrame(t0, rolled).then(framed).then(function () {
+          var c = grabRaw();
+          var sx = c.width / window.innerWidth,
+              sy = c.height / window.innerHeight;
+          return cropJpeg(c, r.left * sx, r.top * sy,
+                          r.width * sx, r.height * sy);
+        });
+      // a window or a whole screen -- Firefox always lands here:
+      // calibrate off the corner dots, drop them, then shoot
+      var p = showMarkers(r);
+      return sleep(rolled ? 800 : 400).then(framed).then(function () {
+        var map = locateMarkers(grabRaw(), p);
+        hideMarkers();
+        return waitFrame(t0, rolled).then(function () {
+          return cropJpeg(grabRaw(),
+            r.left * map.sx + map.ox, r.top * map.sy + map.oy,
+            r.width * map.sx, r.height * map.sy);
+        });
+      });
+    }).then(function (data) {
+      ankiShot = data; A.img.src = data; A.prev.hidden = false;
+      A.hint.hidden = true; A.stat.textContent = '';
+      unarm();
+      // a jolly card names its picture in a field: the frame goes to the
+      // tray now, to have a name to write there
+      if (ankiKind === 'jolly') {
+        ensureFrame().then(function (rec) {
+          if (ankiKind === 'jolly') offerFrame(rec);
+        }, function (e) { A.stat.textContent = e.message; });
+      }
+    }).catch(function (e) {
+      if (window.console && console.warn) console.warn('capture:', e);
+      A.stat.textContent = 'capture failed — ' +
+        ((e && (e.message || e.name)) || e);
+      A.hint.hidden = false;
+    }).then(function () {
+      hideMarkers();
+      A.box.style.visibility = ''; A.back.style.visibility = '';
+      if (rolled) {
+        player.pauseVideo(); player.seekTo(t0, true);
+        if (!wasMuted) player.unMute();
+      }
+    });
+  };
+
+  // one gatherer for saving AND previewing, so they can never disagree
+  function collectCard() {
+    return {
+      card: {
+        video: CFG.id,
+        lang: L.code,
+        // the language the meaning and the notes are written in, which
+        // decides the lang and dir of the gloss side of the built card
+        // (youtube/lib/anki_export.py); absent means English there too
+        gloss: G.code,
+        time: Math.round(ankiTime * 10) / 10,
+        fa: A.fa.value.trim(), tr: A.tr.value.trim(),
+        kana: L.reading ? A.kana.value.trim() : '',
+        en: A.en.value.trim(), context: A.ctx.value.trim(),
+        opp: A.opp.value.trim(), opp_tr: A.oppTr.value.trim(),
+        opp_kana: L.reading ? A.oppKana.value.trim() : '',
+        notes: A.notes.value.trim(),
+        kind: ankiKind,
+        bidirectional: ankiDir !== 'forward',
+        reverse_only: ankiDir === 'reverse',
+        tags: A.tags.value.trim().split(/\s+/).filter(Boolean),
+        source: {
+          label: A.src.value.trim(),
+          // a film on this machine has no address anybody else could open,
+          // so the card carries the player's own, which this toolbox can
+          url: CFG.media
+            ? (location.origin + location.pathname + '#t=' + Math.floor(ankiTime))
+            : ('https://www.youtube.com/watch?v=' + CFG.id +
+               '&t=' + Math.floor(ankiTime) + 's')
+        }
+      },
+      shot: ankiShot ? {
+        side: (document.querySelector('input[name=aside]:checked') || {})
+                .value === 'front' ? 'front' : 'back',
+        data: ankiShot
+      } : null,
+      // the recording, by its name in the clip tray: the store copies it
+      // into the deck's media/ as it saves the card
+      clip: ankiClip ? { side: pickedSide('asndside', 'front'), name: ankiClip.clip.name } : null
+    };
+  }
+
+  /* -- an exercise deck's card and markdown's: one `:::exercise flashcard`
+     block, as the card kit writes it, from the same fields.  The frame is
+     sent to the tray first, to be named there; a deck adopts both files from
+     the tray as it takes the exercise, and so does a studio document the
+     markdown is pasted into. -- */
+  // the field a card cannot be without, or null: [element, what to say]
+  function cardGap() {
+    if (ankiKind === 'jolly') {
+      var j = jollyValues();
+      if (!j['front-primary'].trim() && !j['front-secondary'].trim())
+        return [A.jolly['front-primary'], 'the front is empty: write in one of its two fields'];
+      if (!j['back-primary'].trim() && !j['back-secondary'].trim())
+        return [A.jolly['back-primary'], 'the back is empty: write in one of its two fields'];
+      return null;
+    }
+    if (!A.fa.value.trim()) return [A.fa, 'the ' + L.name + ' side is empty'];
+    if (ankiKind === 'opposites' && !A.opp.value.trim())
+      return [A.opp, 'write the opposite in first — that is the answer side'];
+    return null;
+  }
+  // THE CARD AS IT STANDS AT THE PRESS.  Everything a deck's card or
+  // markdown is written from is read here, before anything is awaited, so
+  // closing the sheet -- or opening it again on another word -- while the
+  // frame goes to the tray or the deck is made changes nothing of what was
+  // pressed.  Throws what is missing.
+  function snapCard() {
+    if (!KIT) throw new Error(KIT_GONE);
+    if (ankiKind === 'jolly') {
+      // a picture and a recording are lines in its fields, where the person
+      // can see them, move them and take them out: one not put in yet goes
+      // in now (a frame still on its way to the tray, when it comes)
+      offerClip();
+      if (ankiFrame && ankiFrame.clip && ankiFrame.data === ankiShot) offerFrame(ankiFrame.clip);
+    }
+    var gap = cardGap();
+    if (gap) { gap[0].focus(); throw new Error(gap[1]); }
+    return {
+      kind: ankiKind, dir: ankiDir, card: collectCard().card, jolly: jollyValues(),
+      origin: cardOrigin(),
+      clip: ankiClip ? ankiClip.clip : null, clipSide: pickedSide('asndside', 'front'),
+      frame: frameFor(ankiShot), frameSide: pickedSide('aside', 'back')
+    };
+  }
+  // Promise of {md, frame: the frame's tray record or null}.  `here()`:
+  // whether the sheet the snapshot was taken on is still the one open
+  function snapMarkdown(snap, here) {
+    var f = snap.frame;
+    return (f ? f.ready : Promise.resolve(null)).then(function (frame) {
+      var c = snap.card, jolly = snap.kind === 'jolly';
+      var card = {
+        fa: c.fa, kana: c.kana, tr: c.tr, en: c.en, context: c.context,
+        opp: c.opp, opp_kana: c.opp_kana, opp_tr: c.opp_tr, notes: c.notes,
+        source: c.source, dir: snap.dir, latin: L.script === 'latin',
+        // the fields are a jolly card's whole: the kit would put a picture or
+        // a recording it is handed back on a side, line taken out or not
+        image: frame && !jolly ? { side: snap.frameSide, path: 'images/' + frame.name } : null,
+        audio: snap.clip && !jolly ? { side: snap.clipSide, path: 'audio/' + snap.clip.name } : null
+      };
+      if (jolly) {
+        if (frame && here() && ankiFrame === f && !f.offered) {
+          offerFrame(frame);
+          snap.jolly = jollyValues();
+        }
+        card.jolly = snap.jolly;
+      }
+      return { md: KIT.markdown(card, snap.kind), frame: frame };
+    });
+  }
+  // where a deck's exercise was made: this video, the moment and a link
+  // back to it in this player (decks._clean_origin)
+  function cardOrigin() {
+    return { video: CFG.id, time: Math.round(ankiTime * 10) / 10, label: fmt(ankiTime),
+             url: location.pathname + '#t=' + Math.floor(ankiTime), title: vidTitle() };
+  }
+  // A PRESS IS KEPT, WHATEVER HAPPENS TO THE SHEET WHILE ITS ANSWER IS OUT
+  // (the book reader's sheet does the same).  It carries its clip and its
+  // frame out of reach of the sheet's cleaning (trayOut, `held`), and what
+  // comes back is said on the sheet that asked -- or, when that sheet has
+  // been closed since or opened again for another word, in a toast over the
+  // page, the only place left to say it.
+  function press(clip, frame) {
+    var seq = sheetSeq, over = false;
+    var here = function () { return ankiOpen && seq === sheetSeq; };
+    if (clip) trayOut[clip.name] = (trayOut[clip.name] || 0) + 1;
+    if (frame) frame.held++;
+    busyFor = seq;
+    return {
+      here: here,
+      // progress, for the sheet that asked only
+      note: function (text) { if (here()) A.stat.textContent = text; },
+      // `link`: [its text, its href, what follows it] -- the link is said on
+      // the sheet only, after a dash
+      say: function (text, bad, link) {
+        if (!here()) {
+          if (window.Parseh && Parseh.toast)
+            Parseh.toast((text + (link && link[2] ? link[2] : '')).replace(/\n+/g, ' — '), !!bad);
+          return;
+        }
+        A.stat.textContent = text + (link ? ' — ' : '');
+        if (link) {
+          var a = document.createElement('a');
+          a.href = link[1]; a.target = '_blank'; a.textContent = link[0];
+          A.stat.appendChild(a);
+          if (link[2]) A.stat.appendChild(document.createTextNode(link[2]));
+        }
+      },
+      // The answer is in.  A file that went onto a card stays in the tray
+      // for good -- for markdown and a deck's card, the files it names (a
+      // jolly card's line may have been taken out); `md` null: the clip went
+      // as it is (Anki) -- and one that did not leaves it, unless an open
+      // sheet still holds it.
+      done: function (ok, md) {
+        if (over) return;
+        over = true;
+        if (busyFor === seq) busyFor = 0;
+        if (clip) {
+          var n = (trayOut[clip.name] || 1) - 1;
+          if (n > 0) trayOut[clip.name] = n; else delete trayOut[clip.name];
+          if (ok && (md == null || md.indexOf('audio/' + clip.name) >= 0)) trayUsed[clip.name] = true;
+          else if (!(here() && ankiClip && ankiClip.clip === clip)) forgetTray(clip.name);
+        }
+        if (frame) {
+          frame.held--;
+          var name = frame.clip && frame.clip.name;
+          if (name && ok && md != null && md.indexOf('images/' + name) >= 0) trayUsed[name] = true;
+          else if (name && ankiFrame !== frame && !frame.held) forgetTray(name);
+        }
+      },
+      // the sheet closes itself a moment after a save, so the answer can be
+      // read -- unless it is another sheet by then, or somebody is still at
+      // work on this one (the cut editor is open, or they have typed or
+      // clicked in it since)
+      closeSoon: function (ms) {
+        clearTimeout(closeTimer);
+        closeTimer = setTimeout(function () {
+          closeTimer = 0;
+          if (here() && !cutting) closeAnki();
+        }, ms);
+      }
+    };
+  }
+  function pressBusy() { return busyFor !== 0 && busyFor === sheetSeq; }
+  ['input', 'pointerdown'].forEach(function (t) {
+    A.box.addEventListener(t, function () { clearTimeout(closeTimer); });
+  });
+  // the card, said back: "a vocabulary card for “chilo”"
+  function cardSaid(snap) {
+    var kind = { vocab: 'a vocabulary card', opposites: 'an opposites card', jolly: 'a jolly card' }[snap.kind];
+    var word = snap.kind === 'jolly' ? '' : snap.card.fa;
+    return kind + (word ? ' for “' + word + '”' : '');
+  }
+  // A DUPLICATE IS ASKED ABOUT, NOT REFUSED (as the book reader's sheet asks
+  // it).  The deck says it has the card already; the button then reads "add
+  // it again", and pressing it adds a second one.  Any change to the card --
+  // a field, the deck, the type, the recording or the frame -- first asks
+  // again.
+  var dupArmed = false;
+  function unarm() {
+    if (!dupArmed) return;
+    dupArmed = false;
+    A.saveLab.textContent = SAVE_LABEL[ankiTarget];
+  }
+  A.box.addEventListener('input', unarm);
+  A.box.addEventListener('change', unarm);
+  ['#akvocab', '#akopp', '#akjolly', '#asnddel', '#ashotdel'].forEach(function (s) {
+    $(s).addEventListener('click', unarm);
+  });
+  function addToDeck() {
+    if (pressBusy()) return;
+    if (!KIT) { A.stat.textContent = KIT_GONE; return; }
+    var snap;
+    try { snap = snapCard(); } catch (e) { A.stat.textContent = e.message; return; }
+    var pick = A.deck.value, name = A.deckNew.value.trim();
+    if (!pick && !name) {
+      A.stat.textContent = 'name the new deck first';
+      A.deckNew.focus(); return;
+    }
+    var picked = pick ? (exDecks.filter(function (d) { return d.path === pick; })[0] || { path: pick, name: pick }) : null;
+    var force = dupArmed, card = cardSaid(snap);
+    var p = press(snap.clip, snap.frame);
+    p.note('adding…');
+    var md, frame, deck;
+    snapMarkdown(snap, p.here).then(function (r) {
+      md = r.md; frame = r.frame;
+      if (picked) return picked;
+      // "+ new deck…": made now, and picked, so a second try adds to it
+      // rather than making another
+      p.note('making the deck…');
+      return KIT.newDeck(name, L.code).then(function (d) {
+        localStorage.setItem('yt_exdeck', d.path);
+        deckPicked = false;
+        if (A.deckNew.value.trim() === name) A.deckNew.value = '';
+        if (newDeckNames.deck === name) newDeckNames.deck = '';
+        exDecks = exDecks.concat([d]);
+        if (p.here() && ankiTarget === 'deck') exDeckOptions(exDecks);
+        return d;
+      });
+    }).then(function (d) {
+      deck = d;
+      p.note('adding…');
+      return KIT.add(d.path, md, snap.origin, force);
+    }).then(function (res) {
+      if (!res.ok) {
+        p.done(false);
+        if (!p.here()) p.say(res.error + (res.conflict === 'duplicate' ? ' — nothing was added' : ''), true);
+        else if (res.conflict === 'duplicate' && !force) {
+          dupArmed = true;
+          A.saveLab.textContent = 'add it again';
+          A.stat.textContent = res.error + ' — press “add it again” to add a second one';
+        } else {
+          unarm();
+          A.stat.textContent = res.error;
+        }
+        return;
+      }
+      p.done(true, md);
+      localStorage.setItem('yt_exdeck', deck.path);
+      deckPicked = false;
+      // what went in: the card, and the files the deck took with it.  The
+      // sheet stays, with a link to the deck and the deck's warnings
+      var media = carried(md, 'its', snap.clip, frame), gone = leftOut(md, snap.clip, frame);
+      var warnings = res.warnings || [];
+      p.say('added ✓ — ' + card + (media.length ? ', with ' + media.join(' and ') : '') +
+            ', to “' + deck.name + '”' + (gone ? ' — ' + gone : ''), warnings.length > 0,
+            ['open the deck', '/exercises/deck/' + deck.path + '/', warnings.length ? '\n' + warnings.join('\n') : '']);
+      if (p.here()) {
+        unarm();
+        if (ankiTarget === 'deck') loadDecks(true);   // its count
+      }
+    }).catch(function (e) {
+      p.done(false);
+      p.say(e.message, true);
+    });
+  }
+  function copyMarkdown() {
+    if (pressBusy()) return;
+    if (!KIT) { A.stat.textContent = KIT_GONE; return; }
+    var snap;
+    try { snap = snapCard(); } catch (e) { A.stat.textContent = e.message; return; }
+    var card = cardSaid(snap);
+    var p = press(snap.clip, snap.frame);
+    p.note('writing…');
+    A.mdRow.hidden = true;
+    var md, frame;
+    snapMarkdown(snap, p.here).then(function (r) {
+      md = r.md; frame = r.frame;
+      return KIT.copy(md);
+    }).then(function (ok) {
+      // what the markdown names in the tray, which comes along when pasted
+      var media = carried(md, 'the', snap.clip, frame), gone = leftOut(md, snap.clip, frame);
+      if (ok) {
+        p.done(true, md);
+        p.say('copied ✓ — ' + card + '. Paste it into a studio document or a deck’s “Add exercise”' +
+          (media.length ? ': ' + media.join(' and ') + (media.length > 1 ? ' come' : ' comes') +
+                          ' along from the clip tray when it is pasted there' : '') + (gone ? ' — ' + gone : ''));
+        return;
+      }
+      if (!p.here()) {
+        p.done(false);
+        p.say('not copied — the browser would not put the card on the clipboard', true);
+        return;
+      }
+      // there to copy by hand, so its files are kept for it
+      p.done(true, md);
+      A.mdOut.value = md;
+      A.mdRow.hidden = false;
+      A.mdOut.focus(); A.mdOut.select();
+      A.stat.textContent = 'not copied — the browser would not put it on the clipboard: the markdown is below, to copy by hand' +
+                           (gone ? ' — ' + gone : '');
+    }).catch(function (e) {
+      p.done(false);
+      p.say(e.message, true);
+    });
+  }
+
+  function saveCard() {
+    if (ankiTarget === 'deck') return addToDeck();
+    if (ankiTarget === 'md') return copyMarkdown();
+    // deckLang is the language of the deck the user is LOOKING at; the card
+    // goes to the deck of its own language whatever that is, and the answer
+    // says so when the two differ
+    var deckName, deckLang = L.code;
+    if (A.deck.value === '') {
+      deckName = A.deckNew.value.trim();
+      if (!deckName) {
+        A.stat.textContent = 'name the new deck first';
+        A.deckNew.focus(); return;
+      }
+    } else {
+      var key = A.deck.value;
+      deckName = key;
+      decksCache.forEach(function (d) {
+        if (d.folder + '/' + d.slug === key) {
+          deckName = d.name; deckLang = d.lang;
+        }
+      });
+    }
+    if (!A.fa.value.trim()) {
+      A.stat.textContent = 'the ' + L.name + ' side is empty';
+      A.fa.focus(); return;
+    }
+    if (ankiKind === 'opposites' && !A.opp.value.trim()) {
+      A.stat.textContent = 'write the opposite in first — that is the answer side';
+      A.opp.focus(); return;
+    }
+    if (pressBusy()) return;
+    var c = collectCard();
+    var body = { deck: deckName, deck_lang: deckLang, card: c.card };
+    if (c.shot) body.shot = c.shot;
+    if (c.clip) body.clip = c.clip;
+    var p = press(c.clip ? ankiClip.clip : null, null);
+    p.note('saving…');
+    fetch('/anki/cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || 'save failed');
+      p.done(true, null);
+      localStorage.setItem('yt_deck', res.deck.folder + '/' + res.deck.slug);
+      deckPicked = false;
+      p.say('saved ✓ — “' + res.deck.name + '” (' +
+        res.deck.language + ') now has ' + res.deck.cards + ' card' +
+        (res.deck.cards === 1 ? '' : 's') +
+        (res.refiled ? ' — ' + res.refiled.note : ''));
+      p.closeSoon(res.refiled ? 2200 : 900);
+    }).catch(function (e) {
+      p.done(false);
+      p.say(e.message, true);
+    });
+  }
+  $('#asave').onclick = saveCard;
+
+  /* ---------- the video-info sheet ------------------------------------
+     Title, title_native, channel, level, blurb: video.json's own fields,
+     not a chunk's -- fixed here rather than by hand-editing the file when
+     api_add's YouTube lookup (oembed, or the LLM's answer) got the title
+     or the channel wrong, which is the concrete case this exists for.
+     Opened and saved the way the anki dashboard is (Esc and the backdrop
+     close it, Ctrl+Enter saves), against /youtube/api/editmeta.  A save
+     reloads the page rather than patching the DOM in place: the title and
+     the channel are shown in three places here (the tab title, the header,
+     the channel link's own href and label) and CFG.editable besides, and a
+     reload is one line that can never leave one of them behind. */
+  var VM = {
+    back: $('#vmback'), box: $('#vmbox'),
+    title: $('#vmtitle'), titleNative: $('#vmtitlenative'),
+    channel: $('#vmchannel'), level: $('#vmlevel'), blurb: $('#vmblurb'),
+    reorders: $('#vmreorders'), stat: $('#vmstat')
+  };
+  // "reorders" (kanbun) only means something where chunks have words
+  $('#vmreordersrow').hidden = !L.words;
+  var vmOpen = false, vmWasPlaying = false, vmWas = {};
+  function openVidMeta() {
+    var m = CFG.editable || {};
+    vmWas = { title: m.title || '', title_native: m.title_native || '',
+              channel: m.channel || '', level: m.level || '', blurb: m.blurb || '',
+              reorders: !!m.reorders };
+    VM.title.value = vmWas.title; VM.titleNative.value = vmWas.title_native;
+    VM.channel.value = vmWas.channel; VM.level.value = vmWas.level;
+    VM.blurb.value = vmWas.blurb; VM.reorders.checked = vmWas.reorders;
+    VM.stat.textContent = ''; VM.stat.classList.remove('bad');
+    if (player && ready && player.getPlayerState &&
+        player.getPlayerState() === 1) {
+      vmWasPlaying = true; player.pauseVideo();
+    } else vmWasPlaying = false;
+    VM.back.hidden = false; VM.box.hidden = false; vmOpen = true;
+    VM.title.focus();
+  }
+  function closeVidMeta() {
+    vmOpen = false; VM.back.hidden = true; VM.box.hidden = true;
+    if (vmWasPlaying && player && ready) player.playVideo();
+    vmWasPlaying = false;
+  }
+  /* THE TIMINGS: where each caption starts, moved over a picture of the
+     sound.  The add page's transcript editor does this BEFORE a video is
+     added and writes nothing to disk; this is the one door that does it
+     afterwards, and youtube/lib/captimes.py says at length why moving a
+     start is allowed where moving a caption's words is not.
+
+     A caption has a start and nothing else -- the one before it runs until
+     that start -- so there is one number per boundary and nothing to split,
+     which is what `kind: point` means to the timeline.
+
+     THE PICTURE OF THE SOUND, three ways.  A film on this machine has one
+     for nothing: the server reads it with ffmpeg, window by window, as it
+     does for a book (/youtube/api/peaks).  A YouTube video has no file
+     anybody here can read, so it has no waveform unless somebody asks for
+     one, and asking means recording the whole video as this tab plays it --
+     which is why it is offered and never assumed.  What is kept from that
+     recording is the SHAPE and not the sound: peaks every 50 ms, a few
+     hundred kilobytes for an hour, written beside the video as
+     waveform.json and read back by every later visit.  Nothing needs the
+     audio itself, because the player can play any second of the video on
+     its own. */
+  var capWave = null;          // {rate, peaks} for a YouTube video, if any
+  var capPlayTimer = 0, capPlayTo = null;
+  function capSay(text, bad) {
+    if (window.Parseh && Parseh.toast) Parseh.toast(text, !!bad);
+  }
+
+  function capStop() {
+    clearInterval(capPlayTimer);
+    capPlayTimer = 0; capPlayTo = null;
+    try { if (player && player.pauseVideo) player.pauseVideo(); } catch (e) {}
+  }
+  function capPlay(a, b) {
+    if (!player || !ready) return;
+    clearInterval(capPlayTimer);
+    capPlayTo = b;
+    try { player.seekTo(Math.max(0, a), true); player.playVideo(); } catch (e) { return; }
+    // the six methods are all there is: no event says "you have reached b",
+    // so the clock is read often enough that the overshoot is not heard
+    capPlayTimer = setInterval(function () {
+      if (capPlayTo == null) return;
+      var t = player.getCurrentTime ? player.getCurrentTime() : 0;
+      if (t >= capPlayTo - 0.02) capStop();
+    }, 25);
+  }
+  function capNow() {
+    if (!player || !ready || !player.getCurrentTime) return null;
+    var t = player.getCurrentTime();
+    return isFinite(t) ? t : null;
+  }
+  // a window of the waveform recorded from the tab, cut and thinned to the
+  // buckets the strip asked for -- the same answer shape the server gives
+  function capWaveWindow(a, b, buckets) {
+    if (!capWave || !capWave.peaks || !capWave.peaks.length) return null;
+    var rate = capWave.rate || 20, src = capWave.peaks;
+    var out = [], top = 0;
+    for (var i = 0; i < buckets; i++) {
+      var t0 = a + (b - a) * i / buckets, t1 = a + (b - a) * (i + 1) / buckets;
+      var k0 = Math.floor(t0 * rate), k1 = Math.max(k0 + 1, Math.ceil(t1 * rate));
+      var v = 0;
+      for (var k = k0; k < k1 && k < src.length; k++) if (src[k] > v) v = src[k];
+      out.push(v);
+      if (v > top) top = v;
+    }
+    // the server normalises each window to its own loudest; so does this
+    if (top > 0) for (var j = 0; j < out.length; j++) out[j] = Math.round(out[j] / top * 1000) / 1000;
+    return {ok: true, peaks: out, start: a, end: b};
+  }
+  function capPeaks(a, b, buckets) {
+    if (CFG.media)
+      return fetch('/youtube/api/peaks', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({video: CFG.id, start: a, end: b, buckets: buckets})})
+        .then(function (r) { return r.json(); })
+        .then(function (j) { return j && j.ok ? j : null; })
+        .catch(function () { return null; });
+    return Promise.resolve(capWaveWindow(a, b, buckets));
+  }
+
+  /* RECORDING THE SHAPE OF A YOUTUBE VIDEO'S SOUND.
+
+     What is kept is peaks and not audio: one number every 50 ms, which is
+     finer than the smallest step the editor takes (0.1 s) and is a few
+     hundred kilobytes for an hour where the sound itself would be hundreds
+     of megabytes -- too big for the upload ceiling, too big to hold in the
+     page, and a copy of somebody else's recording besides.  Nothing here
+     needs the audio: the player can play any second of the video itself.
+
+     EACH NUMBER IS FILED UNDER THE VIDEO'S OWN CLOCK, not under how long
+     the recording has been running.  That is the whole trick: if the video
+     stops to buffer, the clock stops with it, and what was heard goes on
+     being filed where it belongs instead of sliding everything after it.
+     The card kit's own recorder cannot do that -- it is cutting a clip, and
+     a clip has to be continuous -- which is why it throws a take away when
+     the clock and the wall disagree, and why this does not. */
+  var WAVE_RATE = 20;                  // numbers a second: one every 50 ms
+
+  function capRecordWave(onTick) {
+    if (!player || !ready) return Promise.reject(new Error('the player has not loaded'));
+    var why = KIT && KIT.tabProblem ? KIT.tabProblem() : '';
+    if (why) return Promise.reject(new Error(why));
+    var dur = 0;
+    try { dur = player.getDuration ? player.getDuration() : 0; } catch (e) {}
+    if (!(dur > 0)) return Promise.reject(new Error('the video has not said how long it is yet'));
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return Promise.reject(new Error('this browser has no Web Audio'));
+    return shareTab({audio: true}).then(function (st) {
+      if (!st.getAudioTracks().length)
+        throw new Error('the share came without its sound — share this tab again and ' +
+                        'leave “Also allow tab audio” turned on');
+      var ac = new AC();
+      var src = ac.createMediaStreamSource(st);
+      var an = ac.createAnalyser();
+      an.fftSize = 2048;
+      an.smoothingTimeConstant = 0;
+      src.connect(an);               // and to nothing else: it is not played again
+      var buf = new Float32Array(an.fftSize);
+      var peaks = [];
+      for (var i = 0, n = Math.ceil(dur * WAVE_RATE) + 1; i < n; i++) peaks.push(0);
+      var track = st.getAudioTracks()[0];
+      var was = 1;
+      try { was = player.getPlaybackRate ? player.getPlaybackRate() : 1; } catch (e) {}
+      try { if (player.setPlaybackRate) player.setPlaybackRate(1); } catch (e) {}
+      try { player.seekTo(0, true); player.playVideo(); } catch (e) {}
+      if (onTick) onTick(0, 'listening… the video plays once, the whole way through');
+      return new Promise(function (done, fail) {
+        var timer = 0, stalled = 0, last = -1;
+        function stop(err) {
+          clearInterval(timer);
+          try { player.pauseVideo(); } catch (e) {}
+          try { if (player.setPlaybackRate) player.setPlaybackRate(was); } catch (e) {}
+          try { ac.close(); } catch (e) {}
+          if (err) return fail(err);
+          var top = 0, k;
+          for (k = 0; k < peaks.length; k++) if (peaks[k] > top) top = peaks[k];
+          if (!top) return fail(new Error(
+            'nothing was heard — the tab was shared without its sound, or the video is muted'));
+          for (k = 0; k < peaks.length; k++) peaks[k] = Math.round(peaks[k] / top * 1000) / 1000;
+          done({rate: WAVE_RATE, peaks: peaks});
+        }
+        track.addEventListener('ended', function () { stop(new Error(
+          'the tab stopped being shared while the sound was being drawn')); }, {once: true});
+        timer = setInterval(function () {
+          an.getFloatTimeDomainData(buf);
+          var v = 0;
+          for (var j = 0; j < buf.length; j++) {
+            var a = buf[j] < 0 ? -buf[j] : buf[j];
+            if (a > v) v = a;
+          }
+          var t = 0;
+          try { t = player.getCurrentTime(); } catch (e) {}
+          if (!isFinite(t)) return;
+          var slot = Math.round(t * WAVE_RATE);
+          if (slot >= 0 && slot < peaks.length && v > peaks[slot]) peaks[slot] = v;
+          // a video that has stopped moving for a good while has ended, or
+          // has stalled past helping: either way there is no more to hear
+          if (Math.abs(t - last) < 0.01) stalled++; else stalled = 0;
+          last = t;
+          if (onTick && (slot % 20 === 0)) onTick(t / dur);
+          if (t >= dur - 0.3 || stalled > 400) stop(null);
+        }, 25);
+      });
+    }).then(function (w) {
+      if (onTick) onTick(1, 'keeping it…');
+      return fetch('/youtube/api/waveform', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({video: CFG.id, rate: w.rate, peaks: w.peaks})
+      }).then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (j) {
+          // kept or not, the page has the shape and can draw it now
+          capWave = {rate: w.rate, peaks: w.peaks};
+          if (!r.ok || !j || !j.ok)
+            capSay((j && j.error) || 'the waveform was drawn but could not be kept', true);
+          return w;
+        });
+      }).catch(function () {
+        capWave = {rate: w.rate, peaks: w.peaks};
+        return w;
+      });
+    });
+  }
+
+  function capWhyNoWave() {
+    if (CFG.media) return '';
+    if (capWave) return '';
+    if (!KIT) return KIT_GONE;
+    var why = KIT.tabProblem ? KIT.tabProblem() : 'the card kit cannot record a tab';
+    if (why) return 'a YouTube video’s sound reaches no script here, so its waveform is '
+      + 'a recording of this tab — and ' + why;
+    return '';
+  }
+
+  function openCapTimes() {
+    if (!window.ParsehTimeline) {
+      capSay('the timeline (lib/timeline.js) did not load: reload the page', true);
+      return;
+    }
+    if (!segs.length) { capSay('this video has no captions to time', true); return; }
+    if (!player || !ready) { capSay('the player has not loaded yet', true); return; }
+    // WAIT FOR WHAT IS ALREADY ON THE SHELF.  waveform.json is fetched when
+    // the page loads, and a hand quicker than that fetch would be offered
+    // "draw the sound" for a video that has been drawn already -- and an
+    // hour of recording is not a thing to offer twice by accident.
+    Promise.resolve(capWaveReady).catch(function () {}).then(reallyOpenCapTimes);
+  }
+  function reallyOpenCapTimes() {
+    if (!segs.length || !player || !ready) return;
+    var was = segs.map(function (sg) { return +sg.start || 0; });
+    var marks = segs.map(function (sg, i) {
+      return {key: String(i), label: fmt(sg.start),
+              text: sg.text || (sg.chunks || []).map(function (c) { return c.fa || ''; }).join(' '),
+              t0: +sg.start || 0};
+    });
+    var dur = 0;
+    try { dur = player.getDuration ? player.getDuration() : 0; } catch (e) {}
+    capStop();
+    ParsehTimeline.open({
+      title: 'the timings — ' + (CFG.title || CFG.id),
+      kind: 'point',
+      marks: marks,
+      duration: isFinite(dur) ? dur : 0,
+      dir: L.dir, lang: L.code,
+      peaks: capPeaks,
+      play: capPlay, stop: capStop, now: capNow,
+      // a film on this machine has its waveform for nothing, and one already
+      // recorded is on disk: the offer is for the case that has neither
+      wave: (CFG.media || capWave) ? null
+            : {why: capWhyNoWave(), run: capRecordWave},
+      save: function (changed) {
+        var moves = changed.map(function (c) {
+          var i = +c.key;
+          return {i: i, from: was[i], to: c.t0};
+        });
+        return fetch('/youtube/api/times', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({video: CFG.id, moves: moves})
+        }).then(function (r) {
+          return r.json().catch(function () { return null; }).then(function (j) {
+            if (!r.ok || !j || !j.ok)
+              throw new Error((j && j.error) || 'the timings could not be saved');
+            return j;
+          });
+        });
+      }
+    }).then(function (saved) {
+      capStop();
+      if (!saved || !saved.length) return;
+      // the file on disk has moved; so must the page, without a reload
+      saved.forEach(function (c) {
+        var i = +c.key;
+        if (segs[i]) segs[i].start = c.t0;
+      });
+      render(); loadNotes();
+      capSay(saved.length + (saved.length === 1 ? ' caption' : ' captions') + ' moved');
+    });
+  }
+
+  // a waveform recorded on an earlier visit, beside the video.  A film on
+  // this machine never needs one: the server reads the film itself.
+  var capWaveReady = null;
+  function loadCapWave() {
+    if (CFG.media || !CFG.ann) { capWaveReady = Promise.resolve(); paintCapTimes(); return; }
+    capWaveReady = fetch(String(CFG.ann).replace(/annotations\.json$/, 'waveform.json'),
+          {cache: 'no-store'})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (j && j.peaks && j.peaks.length) capWave = {rate: +j.rate || 20, peaks: j.peaks};
+        paintCapTimes();
+      })
+      .catch(function () { paintCapTimes(); });
+  }
+
+  function paintCapTimes() {
+    var b = $('#captimes');
+    if (!b) return;
+    var why = !segs.length ? 'this video has no captions to time'
+            : !window.ParsehTimeline ? 'the timeline (lib/timeline.js) did not load: reload the page'
+            : '';
+    b.disabled = !!why;
+    b.title = why || ('move where each caption starts, by ear, over a picture of the sound'
+      + (capWhyNoWave() ? ' (no waveform here: ' + capWhyNoWave() + ')' : ''));
+  }
+  $('#captimes').onclick = openCapTimes;
+
+  $('#vidinfo').onclick = openVidMeta;
+  $('#vmcancel').onclick = closeVidMeta;
+  VM.back.addEventListener('click', closeVidMeta);
+  document.addEventListener('keydown', function (e) {
+    if (!vmOpen) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeVidMeta(); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault(); saveVidMeta();
+    }
+  });
+  function saveVidMeta() {
+    var fields = {};
+    if (VM.title.value !== vmWas.title) fields.title = VM.title.value;
+    if (VM.titleNative.value !== vmWas.title_native) fields.title_native = VM.titleNative.value;
+    if (VM.channel.value !== vmWas.channel) fields.channel = VM.channel.value;
+    if (VM.level.value !== vmWas.level) fields.level = VM.level.value;
+    if (VM.blurb.value !== vmWas.blurb) fields.blurb = VM.blurb.value;
+    if (VM.reorders.checked !== vmWas.reorders) fields.reorders = VM.reorders.checked;
+    if (!Object.keys(fields).length) {
+      VM.stat.textContent = 'nothing to change'; VM.stat.classList.remove('bad');
+      return;
+    }
+    VM.stat.textContent = 'saving…'; VM.stat.classList.remove('bad');
+    fetch('/youtube/api/editmeta', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video: CFG.id, fields: fields }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) { VM.stat.textContent = j.error || 'the edit was refused';
+          VM.stat.classList.add('bad'); return; }
+        VM.stat.textContent = 'saved ✓';
+        setTimeout(function () { location.reload(); }, 500);
+      }).catch(function (e) {
+        VM.stat.textContent = 'the server did not answer (' + (e.message || e) +
+          ') — nothing was written';
+        VM.stat.classList.add('bad');
+      });
+  }
+  $('#vmsave').onclick = saveVidMeta;
+
+  function isNight() {
+    return window.Parseh ? Parseh.theme.isDark()
+      : document.documentElement.getAttribute('data-theme') === 'dark';
+  }
+  function showPreview(note) {
+    A.pvNote.textContent = note;
+    A.pvRow.hidden = false;
+    A.stat.textContent = '';
+    setTimeout(function () {
+      A.pvRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 60);
+  }
+  $('#apreview').onclick = function () {
+    if (ankiTarget !== 'anki') {
+      // the card as a deck draws it: the studio's renderer and its script,
+      // which the kit puts in the frame (and lets it run)
+      var t = ankiTarget, seq = sheetSeq, snap;
+      try { snap = snapCard(); } catch (e) { A.stat.textContent = e.message; return; }
+      A.stat.textContent = 'rendering…';
+      snapMarkdown(snap, function () { return ankiOpen && seq === sheetSeq; }).then(function (r) {
+        return KIT.preview(r.md, L.code, A.pvFrame);
+      }).then(function () {
+        if (ankiOpen && seq === sheetSeq && ankiTarget === t)
+          showPreview('drawn as a deck and a studio document draw it — click the card to turn it');
+      }).catch(function (e) { if (ankiOpen && seq === sheetSeq) A.stat.textContent = e.message; });
+      return;
+    }
+    var c = collectCard();
+    A.stat.textContent = 'rendering…';
+    fetch('/anki/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card: c.card, shot: c.shot, clip: c.clip, night: isNight() })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || 'preview failed');
+      // an Anki card runs no script of the page's: the frame's sandbox as it
+      // was before a deck's preview widened it
+      A.pvFrame.setAttribute('sandbox', 'allow-same-origin');
+      A.pvFrame.srcdoc = res.html;
+      showPreview('rendered with the very templates and styles the .apkg carries — ' +
+                  'the line is where Anki flips to the answer');
+    }).catch(function (e) { A.stat.textContent = e.message; });
+  };
+  $('#apvhide').onclick = function () { $('#apvrow').hidden = true; };
+
+  $('#abuild').onclick = function () {
+    // the value is "<folder>/<slug>", which is what the build URL names:
+    // two languages may hold a deck of the same name, and the one-level
+    // URL cannot tell them apart
+    var key = A.deck.value;
+    if (!key) {
+      A.stat.textContent = 'save a card first — the deck does not exist yet';
+      return;
+    }
+    // on the activity list while the deck is built and sent (lib/activity.js)
+    if (window.ParsehActivity) ParsehActivity.download('/anki/build/' + key + '.apkg',
+                                                       'Building the Anki deck…');
+    else location.href = '/anki/build/' + key + '.apkg';
+    A.stat.textContent = 'building — import the downloaded .apkg into Anki';
+  };
+
+  /* ---------------- boot ----------------
+     video.json first, and only for its "draft" flag, which render() needs
+     before it draws a phrase: it sits beside the annotations, so the page
+     already knows where it is.  A video.json that will not load is no
+     error worth a message -- the transcript is what the page is for -- so
+     that fetch answers with an empty record and the video reads as
+     finished, which is what every video written before drafts existed is. */
+  fetch(String(CFG.ann).replace(/annotations\.json$/, 'video.json'),
+        { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : {}; })
+    .catch(function () { return {}; })
+    .then(function (meta) {
+      draft = !!(meta && meta.draft);
+      reorders = !!(meta && meta.reorders);
+      $('#draft').hidden = !draft;
+      return fetch(CFG.ann, { cache: 'no-store' });
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    })
+    .then(function (data) { segs = data.segments || []; render(); loadNotes();
+                            paintCapTimes(); loadCapWave(); })
+    .catch(function (e) {
+      $('#segs').innerHTML = '<p class="hint">could not load ' + esc(CFG.ann) +
+        ' (' + esc(e.message) + ') — has the annotation step run yet?</p>';
+    });
+
+  /* ---------------- the film, wherever it is -------------------------
+     Everything above asks the player six things and no more:
+     getPlayerState, playVideo, pauseVideo, getCurrentTime, getDuration and
+     seekTo.  That is the whole of what the transcript needs to follow a
+     video, and it is small enough that a file on this machine can answer it
+     as well as YouTube can -- so a local film is not a second player but a
+     second thing behind the same six.
+
+     CFG.media is the film's own address under /youtube/videos/, served by
+     the static route with Range, which is what lets a <video> seek at all.
+     A video with no CFG.media is on YouTube and reaches it the way it always
+     did. */
+  /* A card made from a phrase carries the moment it was made at, as
+     `#t=<seconds>` on this page's own address -- so opening the card's
+     source lands where the phrase is spoken and not at the beginning.  It
+     is read once, when whichever player is behind the six says it is ready;
+     a YouTube video answers it too, and its cards always could have. */
+  function jumpToHash() {
+    var m = /^#t=(\d+(?:\.\d+)?)$/.exec(location.hash || '');
+    if (!m || !player || !ready) return;
+    var t = parseFloat(m[1]);
+    if (t > 0 && player.seekTo) player.seekTo(t, true);
+  }
+
+  if (CFG.media) {
+    var film = document.createElement('video');
+    film.id = 'film';
+    film.controls = true;
+    film.preload = 'metadata';
+    film.playsInline = true;
+    film.src = CFG.media;
+    var slot = $('#yt');
+    slot.parentNode.insertBefore(film, slot);
+    slot.remove();
+    player = {
+      // YT's states, of which the six callers read only 1 = playing
+      getPlayerState: function () { return (film.paused || film.ended) ? 2 : 1; },
+      playVideo: function () { var p = film.play(); if (p) p.catch(function () {}); },
+      pauseVideo: function () { film.pause(); },
+      getCurrentTime: function () { return film.currentTime || 0; },
+      getDuration: function () { return film.duration || 0; },
+      seekTo: function (t) { try { film.currentTime = Math.max(0, t); } catch (e) {} },
+      // THE OTHER THREE.  The transcript needs six; the Anki panel's frame
+      // capture needs these as well, and answering only six meant that
+      // button threw on every local film -- the count was made by reading
+      // the transcript's callers and not every caller there is.
+      isMuted: function () { return !!film.muted; },
+      mute: function () { film.muted = true; },
+      unMute: function () { film.muted = false; },
+      // the rate is the timings editor's: it puts the video back to 1 while
+      // it draws the sound.  A film here never asks it to -- the server
+      // reads the film with ffmpeg instead -- but the shim answers
+      // everything the page asks of a player, or it is not a player
+      getPlaybackRate: function () { return film.playbackRate || 1; },
+      setPlaybackRate: function (r) { try { film.playbackRate = r || 1; } catch (e) {} }
+    };
+    film.addEventListener('loadedmetadata', function () {
+      ready = true; $('#novid').hidden = true; measure(); jumpToHash();
+    });
+    // the download carries the film, so the button says so -- and how big
+    // it is, as the server sums what the bundle will carry (bundle.payload),
+    // and where the smaller one is, because a two-hour film is not a small zip
+    var dl = $('#dl');
+    if (dl) {
+      var n = CFG.bundle_bytes;
+      var big = !n ? '' : ' (about ' + (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB'
+        : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + ' MB'
+        : Math.max(1, Math.round(n / 1e3)) + ' kB') + ')';
+      dl.title = 'download this video as a bundle: the film itself and its ' +
+                 'glosses in one zip' + big + ', which another Parseh installs whole. ' +
+                 'Add ?media=text to the address for the words alone.';
+    }
+    // the same meaning as YT's state 1: the person pressed play, so the
+    // hover-pause has nothing of its own to resume
+    film.addEventListener('play', function () { wasPlaying = false; });
+    film.addEventListener('error', function () {
+      // SAY WHICH THING WENT WRONG.  A file that is gone and a file the
+      // browser cannot decode are different problems with different
+      // answers, and one message for both sends somebody looking for a
+      // file that is sitting exactly where they put it.
+      var code = (film.error && film.error.code) || 0;
+      var n = $('#novid');
+      n.innerHTML = (code === 4
+        ? 'this browser cannot play that file —<br>' +
+          'the transcript below still works'
+        : code === 3
+          ? 'the film is there but will not decode —<br>' +
+            'the transcript below still works'
+          : 'the film is not where this video says it is —<br>' +
+            'the transcript below still works');
+      n.hidden = false;
+    });
+  } else if (CFG.local) {
+    // A VIDEO THAT IS A FILE, WHOSE FILE IS NOT THERE.  Reaching for YouTube
+    // here would ask it for a video at an id it has never heard of, and the
+    // reader would be told, wrongly, that they need an internet connection.
+    $('#novid').innerHTML = 'the film that belongs to this video is not ' +
+      'here any more —<br>put it back beside the transcript, or add the ' +
+      'video again<br>— the transcript below still works';
+    $('#novid').hidden = false;
+  } else {
+    // The IFrame API calls a global when it is ready.  If it never loads
+    // (offline), say so in the frame; the transcript works regardless.
+    window.onYouTubeIframeAPIReady = function () {
+      player = new YT.Player('yt', {
+        videoId: CFG.id,
+        playerVars: { rel: 0, playsinline: 1 },
+        events: {
+          // the offline note may have been shown by the slow-API timeout;
+          // a player that reaches ready proves it wrong
+          onReady: function () {
+            ready = true; $('#novid').hidden = true; measure(); jumpToHash();
+            // a sheet opened before the player came can cut from it now
+            if (ankiOpen) paintCut();
+          },
+          onStateChange: function (e) {
+            if (e.data === 1) wasPlaying = false;  // user pressed play himself
+          }
+        }
+      });
+    };
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    tag.onerror = function () { $('#novid').hidden = false; };
+    document.head.appendChild(tag);
+    setTimeout(function () { if (!player) $('#novid').hidden = false; }, 6000);
+  }
+  setInterval(tick, 250);
+  measure();
+})();

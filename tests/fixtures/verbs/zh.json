@@ -1,0 +1,299 @@
+{
+ "code": "zh",
+ "_why": "Offline smoke cases for lib/verbs/zh.py, taken from dict/zh.db built 2026-09-10 (with entry.head). `forms` are the entry's own rows the recipe reads -- the headword row, the `canonical` split row and the `Simplified-Chinese` row -- in rowid order: inserted in that order into a scratch db they are the entry's own block, and the recipe gives `expect` from them with a hit that carries only headword and entry (head_sound falls back to entry.translit, which is the pinyin). Two cases (想到, 听懂) also read lib/lang/zh.verbs.json, the hand table, which the recipe reads from lib/lang/ as it does in the server. expect null = recipe returns None (no vb).",
+ "cases": [
+  {
+   "what": "a separable verb-object verb (vo): split 睡了觉, the 了 said with the half before it; the archaic 睡覺 shuìjué is another entry",
+   "entry": {
+    "headword": "睡覺",
+    "translit": "shuìjiào",
+    "ipa": "/ʂu̯eɪ̯⁵¹⁻⁵³ t͡ɕi̯ɑʊ̯⁵¹/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to sleep; to go to bed\nto sleep with each other; to have sexual intercourse",
+    "sense_tags": "intransitive,verb-object\neuphemistic,intransitive,verb-object",
+    "head": "{\"type\": \"vo\"}"
+   },
+   "forms": [
+    [
+     "睡覺",
+     "",
+     ""
+    ],
+    [
+     "睡⫽覺",
+     "canonical",
+     ""
+    ],
+    [
+     "睡觉",
+     "Simplified-Chinese",
+     ""
+    ]
+   ],
+   "word": "睡觉",
+   "text": "猫在他的脚边睡觉。",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{睡觉}{shuìjiào}{睡了觉}{shuìle jiào}{}{}{to sleep}",
+    "plain": "睡觉 shuìjiào · split 睡了觉 shuìle jiào · to sleep",
+    "line": "split 睡了觉 shuìle jiào",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "a verb with a complement (vc): can't 看不见, one word in pinyin with bu toneless",
+   "entry": {
+    "headword": "看見",
+    "translit": "kànjiàn",
+    "ipa": "/kʰän⁵¹⁻⁵³ t͡ɕi̯ɛn⁵¹/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to see; to sight",
+    "sense_tags": "transitive",
+    "head": "{\"type\": \"vc\"}"
+   },
+   "forms": [
+    [
+     "看見",
+     "",
+     ""
+    ],
+    [
+     "看⫽見",
+     "canonical",
+     ""
+    ],
+    [
+     "看见",
+     "Simplified-Chinese",
+     ""
+    ]
+   ],
+   "word": "看见",
+   "text": "我看见他从旅馆出来。",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{看见}{kànjiàn}{}{}{看不见}{kànbujiàn}{to see}",
+    "plain": "看见 kànjiàn · can't 看不见 kànbujiàn · to see",
+    "line": "can't 看不见 kànbujiàn",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "vo1 with a two-syllable object and a space in the pinyin: 开了玩笑 kāile wánxiào",
+   "entry": {
+    "headword": "開玩笑",
+    "translit": "kāi wánxiào",
+    "ipa": "/kʰaɪ̯⁵⁵ wän³⁵ ɕi̯ɑʊ̯⁵¹/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to joke; to kid; to make a joke; to joke around",
+    "sense_tags": "intransitive,verb-object",
+    "head": "{\"type\": \"vo\"}"
+   },
+   "forms": [
+    [
+     "開玩笑",
+     "",
+     ""
+    ],
+    [
+     "開⫽玩笑",
+     "canonical",
+     ""
+    ],
+    [
+     "开玩笑",
+     "Simplified-Chinese",
+     ""
+    ]
+   ],
+   "word": "开玩笑",
+   "text": "他在开玩笑",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{开玩笑}{kāi wánxiào}{开了玩笑}{kāile wánxiào}{}{}{to joke}",
+    "plain": "开玩笑 kāi wánxiào · split 开了玩笑 kāile wánxiào · to joke",
+    "line": "split 开了玩笑 kāile wánxiào",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "typed vo by Wiktionary (想⫽到), corrected to vc by lib/lang/zh.verbs.json: 想不到, never *想了到",
+   "entry": {
+    "headword": "想到",
+    "translit": "xiǎngdào",
+    "ipa": "/ɕi̯ɑŋ²¹⁴⁻²¹ tɑʊ̯⁵¹/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to think of; to call to mind; to anticipate; to occur (to somebody); to suspect",
+    "sense_tags": "transitive,verb-object",
+    "head": "{\"type\": \"vo\"}"
+   },
+   "forms": [
+    [
+     "想到",
+     "",
+     ""
+    ],
+    [
+     "想⫽到",
+     "canonical",
+     ""
+    ]
+   ],
+   "word": "想到",
+   "text": "我想到了一个办法",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{想到}{xiǎngdào}{}{}{想不到}{xiǎngbudào}{to think of}",
+    "plain": "想到 xiǎngdào · can't 想不到 xiǎngbudào · to think of",
+    "line": "can't 想不到 xiǎngbudào",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "no zh-verb type at all; a complement verb only through lib/lang/zh.verbs.json (听⫽懂)",
+   "entry": {
+    "headword": "聽懂",
+    "translit": "tīngdǒng",
+    "ipa": "/tʰiŋ⁵⁵ tʊŋ²¹⁴⁻²¹⁽⁴⁾/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to understand by listening",
+    "sense_tags": "",
+    "head": ""
+   },
+   "forms": [
+    [
+     "聽懂",
+     "",
+     ""
+    ],
+    [
+     "听懂",
+     "Simplified-Chinese",
+     ""
+    ]
+   ],
+   "word": "听懂",
+   "text": "他听懂了",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{听懂}{tīngdǒng}{}{}{听不懂}{tīngbudǒng}{to understand by listening}",
+    "plain": "听懂 tīngdǒng · can't 听不懂 tīngbudǒng · to understand by listening",
+    "line": "can't 听不懂 tīngbudǒng",
+    "complete": true,
+    "missing": []
+   },
+   "run": "build"
+  },
+  {
+   "what": "a plain verb with no type: every other Chinese verb stays \\dw -> None",
+   "entry": {
+    "headword": "知道",
+    "translit": "zhīdào",
+    "ipa": "/ʈ͡ʂɻ̩⁵⁵ tɑʊ̯⁵¹/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to know (something); to be aware of\nto understand",
+    "sense_tags": "\n",
+    "head": ""
+   },
+   "forms": [
+    [
+     "知道",
+     "",
+     ""
+    ]
+   ],
+   "word": "知道",
+   "text": "你知道吗",
+   "gloss": "en",
+   "expect": null,
+   "run": "build"
+  },
+  {
+   "what": "typed vo but every sense Cantonese/Min: the 了 split is Mandarin grammar -> None (the Mandarin 走路 is another entry)",
+   "entry": {
+    "headword": "走路",
+    "translit": "zǒulù",
+    "ipa": "/t͡soʊ̯²¹⁴⁻²¹ lu⁵¹/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "to flee; to run away",
+    "sense_tags": "Cantonese,Min,Southern,archaic,verb-object",
+    "head": "{\"type\": \"vo\"}"
+   },
+   "forms": [
+    [
+     "走路",
+     "",
+     ""
+    ],
+    [
+     "走⫽路",
+     "canonical",
+     ""
+    ]
+   ],
+   "word": "走路",
+   "text": "他走路了",
+   "gloss": "en",
+   "expect": null,
+   "run": "build"
+  },
+  {
+   "what": "an erhua entry whose only sense is a pointer that does not repeat the gloss: the meaning is missing",
+   "entry": {
+    "headword": "聊天兒",
+    "translit": "liáotiānr",
+    "ipa": "/li̯ɑʊ̯³⁵ tʰi̯ɑɻ⁵⁵/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "erhua form of 聊天 (liáotiān)",
+    "sense_tags": "Mandarin,verb-object",
+    "head": "{\"type\": \"vo\"}"
+   },
+   "forms": [
+    [
+     "聊天兒",
+     "",
+     ""
+    ],
+    [
+     "聊⫽天兒",
+     "canonical",
+     ""
+    ],
+    [
+     "聊天儿",
+     "Simplified-Chinese",
+     ""
+    ]
+   ],
+   "word": "聊天儿",
+   "text": "我们聊天儿吧",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{聊天儿}{liáotiānr}{聊了天儿}{liáole tiānr}{}{}{}",
+    "plain": "聊天儿 liáotiānr · split 聊了天儿 liáole tiānr",
+    "line": "split 聊了天儿 liáole tiānr",
+    "complete": false,
+    "missing": [
+     "meaning"
+    ]
+   },
+   "run": "build"
+  }
+ ]
+}

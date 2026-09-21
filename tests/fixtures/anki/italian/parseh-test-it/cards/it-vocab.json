@@ -1,0 +1,30 @@
+{
+ "id": "it-vocab",
+ "guid": "fx-it-vocab",
+ "kind": "vocab",
+ "lang": "it",
+ "created": "2026-09-03 10:00:00",
+ "video": "fixture-it",
+ "book": "",
+ "time": 0,
+ "context": "questa è la nostra casa",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "casa",
+ "kana": "",
+ "tr": "'ka.za",
+ "en": "house",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "italian-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

@@ -1,0 +1,129 @@
+% Hindi (हिन्दी) -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file here must define and
+% section 12 the ones it may, and the manual's "Adding a language" chapter
+% says in one line each what happens when one is missing.
+%
+% Scaffolded from lib/lang/_template.tex by lib/newlang.py.  Everything below
+% the switches came out of lib/languages.json, so it agrees with the registry
+% by construction; \FrankHowTo did not, and is the one thing you must write.
+% The model to read while writing it is lib/lang/fa.tex.
+
+% ---- the babel language and the switches ----------------------------------
+% \FrankLangName is what \foreignlanguage and \begin{otherlanguage} are given
+% everywhere in the core preamble: babel must know this name, or every passage
+% comes out in the roman with a "Unknown language" error.
+\newcommand{\FrankLangName}{hindi}
+\FrankRTLfalse           % chunk left, gloss right; \pw needs no bidi isolate
+\FrankHasBarefalse       % nothing comes off, so pass 3 would repeat pass 1
+\FrankHasAltfalse        % whether \FrankAltFont exists (the title, the chapter number)
+\FrankHasReadingfalse    % whether \chr's third argument is set as a reading
+\FrankHasVertfalse       % whether pass 4 is \FrankVertPass rather than the font pass
+
+% ---- fonts ------------------------------------------------------------------
+% No face is NAMED here: \FrankPickFont walks the registry's tex.main and then
+% tex.main_fallbacks and takes the first one installed, so the .tex and the
+% .json cannot drift apart (docs/languages.md section 12).  A bundled face --
+% one that travels in lib/fonts/ -- is found because build.sh puts that
+% directory on OSFONTDIR.
+\babelprovide[import=hi,onchar=ids fonts]{hindi}
+\FrankPickFont{\FrankMainFontName}{hi}{main}{main_fallbacks}
+\babelfont[hindi]{rm}[Script=Devanagari,Language=Hindi,Renderer=HarfBuzz]{\FrankMainFontName}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{infinitive}{sound}{stem}{sound}{perfective}{sound}{meaning}: these two are
+% the labels printed before the second and third forms.  The stem is the
+% infinitive less -nā; the perfective, masculine singular, is why the entry
+% exists -- करना किया, जाना गया, होना हुआ, देना दिया, लेना लिया -- and a regular one
+% is given too, because a reader who has met three irregulars does not yet
+% know which verbs are regular.  docs/lang/hi.md names the same three forms in
+% the same order, or the annotator fills slots the page labels differently.
+% What the three do not say is whether the verb's subject takes ने in the
+% perfective -- the one thing a reader needs to build a past sentence, and
+% the one the forms hide.  It goes in ONE parenthesis after the meaning:
+%   (+\pw{ने})     it takes ने: \vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\pw{ने})}
+%   (±\pw{ने})     it goes either way (समझना, बदलना)
+%   nothing       it never does (जाना, आना, हँसना)
+% The mark is decided from a small hand-kept table first (lib/lang/hi.verbs.json)
+% and from the dictionary's transitivity only after it: on 152 common verbs the
+% dictionary's code agreed with ने for 110, contradicted it for 9 and was
+% missing for 33 (करना, जाना and आना among them), which is too many to print
+% unread.  A conjunct's light verb keeps its mark with no meaning before it:
+% \vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{(+\pw{ने})}\bw{काम}{kām}{m. work}.
+% The pair below comes from the registry's "vb_labels" ("stem", "perf."), which is
+% where the reader takes it from as well, and the three forms in words are its
+% "vb_forms": change one and change the other, or the PDF and the reader of
+% one book label the same form differently.  lib/newlang.py --check compares them.
+\newcommand{\FrankVbPres}{stem}
+\newcommand{\FrankVbPast}{perf.}
+
+% ---- the two Lua filters ---------------------------------------------------
+% frank_strip(s): the bare form of a chunk -- what pass 3 shows.  Written from
+% the registry's `strip`; the identity when there is nothing to take off.
+% frank_latin(s): the label's digits as ASCII, because a PDF destination name
+% cannot carry the language's own figures.  Written from `digits`.
+% Both are called for every language, so both must exist even when they do
+% nothing.  No #, % or literal backslash in a \directlua body: TeX reads it
+% first (NOTES section 9 of the Persian book).
+\directlua{
+  function frank_strip(s) return s end
+  function frank_latin(s)
+    local t, n = {}, 0
+    for _, c in utf8.codes(s) do
+      if c >= 0x0966 and c <= 0x096F then c = c - 0x0966 + 0x30 end
+      n = n + 1 ; t[n] = utf8.char(c)
+    end
+    return table.concat(t)
+  end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex under its heading.  \pw is defined by the
+% core preamble, after this file is read; it is only expanded when the page is set.
+\newcommand{\FrankHowTo}{%
+Every passage comes twice.
+
+\smallskip
+\textbf{First} the whole sentence in Devanagari, and nothing else. Try to read
+it. Get as far as you can and do not worry about what you cannot get — the
+point is the attempt, made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, Hindi on one side and on
+the other three lines: how it sounds, then how to look each word up, then what
+it means. Now you find out how much you had right. There is no third pass:
+Devanagari writes its vowels, so the sentence you attempted is already the
+sentence as it is printed, with nothing held back.
+
+\smallskip
+The line of sound is a \emph{pronunciation} and not a spelling. Devanagari
+writes a vowel \textit{a} inside every consonant, and Hindi very often does
+not say it: \pw{कमल} is \textit{kamal} and not \textit{kamala},
+\pw{समझना} is \textit{samajhn\=a}. Trust the line over the letters — it is
+where the word's real shape is.
+
+\smallskip
+\textit{\=a \=\i{} \=u} are long, held about twice as long as the short ones,
+and the difference carries meaning. A dot under a letter means the tongue
+curls back to the roof of the mouth: \textit{\d{t} \d{d} \d{n} \d{r}} are the
+retroflex sounds, and the plain \textit{t d n} are made with the tongue on the
+teeth, further forward than the English ones. An \textit{h} after a consonant
+is a puff of breath and not a separate sound — \textit{kh gh ch jh th dh ph
+bh} are single letters. \textit{\'{s}} is \textit{sh}, \textit{c} is the
+\textit{ch} of \textit{church}, \textit{\.{n}} and \textit{\~{n}} the nasals
+of \textit{sing} and \textit{onion}, and \textit{\.{m}} says the vowel before
+it is spoken through the nose. \textit{q x \.{g} z f} appear in words that came
+from Persian and Arabic, and are printed only where the text itself marks them
+with a dot.
+
+\smallskip
+Verbs are given as infinitive, stem, perfective, meaning — the perfective is
+the one you cannot guess (\pw{करना} \textit{karn\=a}, \pw{किया}
+\textit{kiy\=a}; \pw{जाना} \textit{j\=an\=a}, \pw{गया} \textit{gay\=a}). A
+\textit{+}\pw{ने} in brackets after the meaning says that in the perfective the
+subject takes \pw{ने} and the verb agrees with the object instead
+(\pw{लड़के ने किताब पढ़ी}, the boy read the book: \pw{पढ़ी} is feminine, for the
+book); \textit{±}\pw{ने} that it goes either way; nothing, that it never does.
+Every noun carries \textit{m.} or \textit{f.}: the gender is invisible in the
+word and everything in the sentence agrees with it.
+}

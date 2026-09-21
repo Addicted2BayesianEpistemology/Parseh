@@ -1,0 +1,19 @@
+{
+  "_why": "What Wiktionary's zh-verb head line does not say about a Chinese verb, for lib/verbs/zh.py. A Chinese \\vb is offered for two kinds of verb only (docs/lang/zh.md): a separable verb-object verb, which gets its split with 了 between the halves (vo), and a verb with a resultative or directional complement, which gets its can't form with 不 between them (vc). The recipe reads the kind from the head line's `type` and the place it parts from the `canonical` row (睡⫽覺), and Wiktionary UNDER-MARKS: of the verbs a reader meets in the first chapter of anything, 散步 跑步 唱歌 请客 住院 carry no type, and neither do 听懂 看懂 回来 进来 下来 回去 学会 记住 -- only 118 entries in the whole dictionary are typed vc. It also mis-marks one common verb: 想到 is typed verb-object (想⫽到), which would print the split *想了到; it is a verb and its complement, and its potential 想不到 is on every other page. So each word below is written as the source writes a split, in simplified characters with ⫽ where it parts, under the kind it is; a word here is taken as this kind whatever its head line says, and must still be a verb entry of the dictionary, spelt so, with a Mandarin sense -- the pinyin, the characters and the meaning are still the dictionary's. Only words the dictionary HAS as verb entries are listed (吃完, 找到, 听到 are not in it as words at all, and a line for them would change nothing). The test for adding one: the split with 了 is a sentence people say (排了队, 散了步) for vo; the potential with 不 is (听不懂, 回不来) for vc.",
+  "vo": [
+    "散⫽步", "跑⫽步", "唱⫽歌", "请⫽客", "住⫽院", "出⫽院", "理⫽发",
+    "照⫽相", "排⫽队", "分⫽手", "打⫽针", "鼓⫽掌", "失⫽业", "叹⫽气",
+    "上⫽网", "开⫽学", "散⫽心", "拐⫽弯", "受⫽伤", "订⫽婚", "点⫽菜",
+    "买⫽单", "干⫽杯", "讲⫽价", "问⫽好", "过⫽节", "留⫽学", "花⫽钱",
+    "换⫽钱", "跑⫽腿", "住⫽口"
+  ],
+  "vc": [
+    "想⫽到", "驳⫽倒",
+    "听⫽懂", "看⫽懂", "见⫽到", "看⫽到", "拿⫽到", "学⫽会", "记⫽住",
+    "做⫽完", "用⫽完", "做⫽好", "关⫽上", "认⫽出",
+    "拿⫽出", "答⫽对", "停⫽下", "躺⫽下", "带⫽来", "带⫽走", "搬⫽走",
+    "走⫽进", "说⫽清楚", "弄⫽清楚", "站⫽起来",
+    "回⫽来", "进⫽来", "下⫽来", "上⫽来", "过⫽来",
+    "回⫽去", "上⫽去", "下⫽去", "过⫽去"
+  ]
+}

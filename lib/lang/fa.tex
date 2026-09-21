@@ -1,0 +1,135 @@
+% Persian -- what the reading editions' preamble leaves to the language.
+% Input by lib/frank-preamble.tex as \input{\FrankLib/lang/\BookLang.tex};
+% docs/languages.md section 6 lists the hooks every file in this directory
+% must define, and this one is the model the others were copied from.
+%
+% This file is where the Persian-only preamble went when languages arrived.
+% Nothing in it was new: the babel locale, the fonts, the harakat filter, the
+% digit map and the how-to-read text are the ones the first editions were
+% built with, and the Persian book rebuilt to the same PDF text (the
+% pdftotext before/after test that build.sh's history relies on).  The one
+% thing added since is two sentences on the how-to page, saying what the
+% three forms of a verb cannot: that داشتن's present takes no mi-, and why
+% a verb with a preverb is hyphenated.  The chapters print as they did.
+
+% ---- the babel language and the switches ----------------------------------
+\newcommand{\FrankLangName}{persian}
+\FrankRTLtrue            % chunk right, gloss left; \pw isolates with \babelsublr
+\FrankHasBaretrue        % pass 3 is the same text without the harakat
+\FrankHasAlttrue         % pass 4 is a FONT pass: the same text in nastaliq
+\FrankHasReadingfalse    % no kana-like reading line
+\FrankHasVertfalse
+
+% ---- fonts ------------------------------------------------------------------
+% The faces come from the registry's "tex" record (lib/languages.json), so no
+% font is named here: \FrankPickFont walks tex.main then tex.main_fallbacks and
+% takes the first face installed.  Vazirmatn and the nastaliq travel with the
+% toolbox (lib/fonts, on OSFONTDIR), so on this machine the pick is the same
+% as the names the preamble once carried literally.
+\babelprovide[import=fa,onchar=ids fonts]{persian}
+\FrankPickFont{\FrankMainFontName}{fa}{main}{main_fallbacks}
+\babelfont[persian]{rm}[Script=Arabic,Language=Parsi,Renderer=HarfBuzz]{\FrankMainFontName}
+% The alternate face: nastaliq, the hand Persian poetry is set in.  \nastaliqfont
+% is the historical name and stays usable; \FrankAltFont is what the core uses.
+\FrankPickFont{\FrankAltFontName}{fa}{alt}{alt_fallbacks}
+\newfontfamily\nastaliqfont{\FrankAltFontName}%
+  [Script=Arabic,Language=Urdu,Renderer=HarfBuzz]
+\newcommand{\FrankAltFont}{\nastaliqfont}
+
+% ---- the vocabulary line -----------------------------------------------------
+% \vb{infinitive}{sound}{present stem}{sound}{past stem}{sound}{meaning}: these
+% two are the labels printed before the second and third forms.  They are the
+% core preamble's own defaults -- Persian is what it was written for -- and are
+% spelt out here because the reader takes the same pair from the registry
+% (lib/languages.json, "vb_labels": ["pres.", "past"], beside "vb_forms",
+% which names the three forms in words for the chunk editor); the two must
+% agree, or the PDF and the reader of one book label the same stem
+% differently.  lib/newlang.py --check compares them.
+%
+% Every pair is filled in Persian: every verb has both stems, and the present
+% one is the one nobody can guess (دیدن, بین).  What the three forms cannot
+% say goes in ONE parenthesis after the meaning, and for Persian that is a
+% closed list of one: داشتن, whose present takes no mi- -- دارم, never
+% می‌دارم -- is \vb{داشتن}{dāštan}{دار}{dār}{داشت}{dāšt}{to have (pres.
+% without mi-)}.  بودن keeps باش as its stem and هست stays a \dw of its own
+% (check_batch refuses \vb{بودن}{...}{هست}).  A verb with a preverb is
+% hyphenated in all three sounds, bar-gaštan, bar-gard, bar-gašt, because
+% mi-, be- and na- go in after the preverb: bar-mi-gardam.  A compound is the
+% light verb's \vb with an empty meaning and a \bw for the word it carries.
+% The spoken present of a video (coll. می‌گم mi-gam for گفتن) is the video's
+% plain line only; a book gives the written stems and nothing else.
+\newcommand{\FrankVbPres}{pres.}
+\newcommand{\FrankVbPast}{past}
+
+% ---- the two Lua filters ---------------------------------------------------
+% frank_strip: pass 1 carries the short vowels, the way a children's edition
+% does.  Passes 3 and 4 must not, but the Persian is only written once -- so
+% the harakat (U+064B..U+0652, the registry's `strip`) are filtered out of the
+% copy that feeds them.
+% frank_latin: Persian digits are the label, Latin digits are the id, so a
+% destination name has to be transliterated (U+06F0..U+06F9 -> ASCII).
+% Both are called through \directlua, which is expandable and so survives an
+% \edef.  Keep the bodies free of #, % and a literal backslash (NOTES section 9).
+\directlua{
+  function frank_strip(s)
+    local t, n = {}, 0
+    for _, c in utf8.codes(s) do
+      if c < 0x064B or c > 0x0652 then n = n + 1 ; t[n] = utf8.char(c) end
+    end
+    return table.concat(t)
+  end
+  function frank_latin(s)
+    local t, n = {}, 0
+    for _, c in utf8.codes(s) do
+      if c >= 0x06F0 and c <= 0x06F9 then c = c - 0x06F0 + 0x30 end
+      n = n + 1 ; t[n] = utf8.char(c)
+    end
+    return table.concat(t)
+  end
+}
+
+% ---- the "How to read this" page -----------------------------------------------
+% Printed by lib/frank-frontmatter.tex under its heading.  \pw is defined by the
+% core preamble, after this file is read; it is only expanded when the page is set.
+\newcommand{\FrankHowTo}{%
+Every passage comes four times.
+
+\smallskip
+\textbf{First} the whole sentence in naskh, with the short vowels written in
+as in a children's edition, and nothing else. Try to read it. Get as far as
+you can and do not worry about what you cannot get — the point is the attempt,
+made before any help arrives.
+
+\smallskip
+\textbf{Second} the same sentence in small chunks, Persian on the right, and
+on the left three lines: how it sounds, then how to look each word up, then
+what it means. Now you find out how much you had right.
+
+\smallskip
+\textbf{Third} the same passage again in naskh, this time without the vowels,
+the way Persian is really written. You have read it twice, so it should carry
+you.
+
+\smallskip
+\textbf{Fourth} the same again in nastaliq, the hand Persian poetry is set in.
+You already know what it says, which is the only comfortable way to learn a
+new hand.
+
+\smallskip
+Verbs are given as infinitive, present stem, past stem, meaning — the present
+stem is the one you cannot guess. Where a verb is a compound made with
+\pw{کردن}, \pw{شدن}, \pw{داشتن} or \pw{بردن}, only the meaning of the word
+carried by it is given. What the three forms cannot tell you stands in
+brackets after the meaning: the present of \pw{داشتن} takes no \textit{mi-}
+(\pw{دارم} \textit{d\=aram}), and its entry says so. A verb that begins with
+a prefix is hyphenated after it, \textit{bar-gard}, because that is where
+\textit{mi-} goes in: \textit{bar-mi-gardam}.
+
+\smallskip
+\textit{-e} after a noun is the \textit{ez\=afe}, the vowel that links it to
+what follows; it is written here as a kasra but is invisible in ordinary
+Persian. \textit{\=a} is the long open vowel of \textit{f\=ar}, \textit{x} the
+\textit{ch} of \textit{loch}, \textit{\v{s}} is \textit{sh}, \textit{\v{c}} is
+\textit{ch}, \textit{\v{z}} the \textit{s} of \textit{measure}, \textit{'} a
+glottal catch.
+}

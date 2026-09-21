@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — Parseh studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D9%81%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{BASE}}/static/app.css">
+<link rel="stylesheet" href="{{BASE}}/static/langs.css">
+</head>
+<body data-page="doc" data-base="{{BASE}}" data-doc-id="{{DOC_ID}}" data-target="{{TARGET}}" data-decks-base="{{DECKS_BASE}}" data-notes-source="{{NOTES_SOURCE}}">
+<header class="topbar">
+  <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
+  <a class="btn ghost" href="{{BASE}}/">← Library</a>
+  <div class="doc-title" title="{{TITLE}}">{{TITLE}}</div>
+  <div class="topbar-actions">
+    <a class="btn" href="{{BASE}}/doc/{{DOC_ID}}/edit">Edit</a>
+    <button class="btn" id="btn-add-all" hidden>+ Add all exercises</button>
+    <button class="btn primary" id="btn-build">Build PDF</button>
+    <details class="dropdown" id="pdf-options">
+      <summary class="btn" title="How Build PDF sets this document: the print size, and black and white">PDF options ▾</summary>
+      <div class="menu pdf-options">
+        <fieldset>
+          <legend>Print size</legend>
+          <label><input type="radio" name="pdf-size" value="11" checked> Normal · 11 pt</label>
+          <label><input type="radio" name="pdf-size" value="14"> Large · 14 pt</label>
+          <label><input type="radio" name="pdf-size" value="17"> Extra large · 17 pt</label>
+          <label><input type="radio" name="pdf-size" value="20"> Maximum · 20 pt</label>
+          <p class="note">For readers with low vision. The exercises are set a step larger still, with more room to write.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Colour</legend>
+          <label><input type="checkbox" id="ck-pdf-mono"> Black and white — no colour, no grey (pictures keep their colours)</label>
+          <p class="note">For photocopies: tints and grey text come out as smudges on a copier.</p>
+        </fieldset>
+        <p class="note">Kept for this document; the next Build PDF uses them.</p>
+      </div>
+    </details>
+    <button class="btn" id="btn-pdf-toggle" disabled>View PDF</button>
+    <details class="dropdown">
+      <summary class="btn">Download ▾</summary>
+      <div class="menu">
+        <a href="{{BASE}}/download/{{DOC_ID}}/md">Markdown (.md)</a>
+        <a href="{{BASE}}/download/{{DOC_ID}}/zip" id="dl-zip"
+           title="The markdown and the pictures and recordings it shows, in one zip: the library's upload takes it back">Markdown + media (.zip)</a>
+        <a href="{{BASE}}/download/{{DOC_ID}}/tex" id="dl-tex">LaTeX (.tex)</a>
+        <a href="{{BASE}}/download/{{DOC_ID}}/pdf" id="dl-pdf">PDF</a>
+      </div>
+    </details>
+    <details class="dropdown">
+      <summary class="btn">⋯</summary>
+      <div class="menu">
+        <button id="btn-duplicate">Duplicate</button>
+        <button id="btn-delete" class="danger">Delete document</button>
+      </div>
+    </details>
+    <button class="btn danger ghost" id="btn-stop">Stop server</button>
+  </div>
+</header>
+
+<div class="metabar">
+  <div class="tags-edit" id="tags-edit">
+    <span class="tags-label">Tags</span>
+    <span id="tag-chips"></span>
+    <input id="tag-input" list="tag-options" placeholder="+ tag" autocomplete="off">
+    <datalist id="tag-options"></datalist>
+  </div>
+  <div class="buildinfo" id="buildinfo"></div>
+</div>
+
+<div class="toolbar" id="typobar">
+  <div class="navstack">
+    <button class="btn ghost" id="btn-toc" aria-expanded="false"
+            title="Show the table of contents (Esc closes it)">☰ Contents</button>
+    <button class="btn ghost" id="btn-glosses"
+            title="Every gloss in this document, as a table — and a flashcard drill">
+      ⇄ Glosses</button>
+    <button class="btn ghost" id="btn-backlinks" aria-expanded="false" aria-controls="linkspane"
+            title="The documents of this library that link to this one (Esc closes the list)">↩ Linked from ({{BACKLINKS_N}})</button>
+  </div>
+  <button class="btn ghost typo-toggle" id="btn-typo" type="button" aria-expanded="false"
+          title="Text size, column width, spacing, theme and print">Aa</button>
+  <div class="typo-group" title="Size of the target-language script relative to the Latin text — the same knob as --scale in the PDF build">
+    <label for="sl-fa"><span id="lbl-fa">{{TARGET_NAME}}</span> <output id="out-fa">1.52×</output></label>
+    <input type="range" id="sl-fa" min="0.8" max="2.6" step="0.02" value="1.52">
+  </div>
+  <div class="typo-group" title="Base size of the Latin text">
+    <label for="sl-base">Latin <output id="out-base">17px</output></label>
+    <input type="range" id="sl-base" min="13" max="23" step="0.5" value="17">
+  </div>
+  <div class="typo-group" title="Width of the text column — follows the Latin size proportionally; drag it yourself to set your own ratio (the Latin size never moves with it)">
+    <label for="sl-width">Width <output id="out-width">720px</output></label>
+    <input type="range" id="sl-width" min="420" max="1400" step="1" value="720">
+  </div>
+  <div class="typo-group" title="Line spacing">
+    <label for="sl-lead">Leading <output id="out-lead">1.45</output></label>
+    <input type="range" id="sl-lead" min="1.15" max="2" step="0.05" value="1.45">
+  </div>
+  <div class="typo-group" title="Size of the big lemma headers">
+    <label for="sl-voce">Lemma <output id="out-voce">3.4×</output></label>
+    <input type="range" id="sl-voce" min="2.2" max="4.6" step="0.1" value="3.4">
+  </div>
+  <label class="check" title="Justified text with hyphenation, like the PDF"><input type="checkbox" id="ck-justify" checked> justify</label>
+  <select id="sel-theme" title="Page theme">
+    <option value="paper">Paper</option>
+    <option value="sepia">Sepia</option>
+    <option value="dark">Dark</option>
+  </select>
+  <button class="btn ghost" id="btn-typo-reset" title="Back to the PDF defaults">Reset</button>
+  <button class="btn ghost" id="btn-print" title="Print the web rendering">Print</button>
+  <span class="typo-hint">click the target text to copy · hover it to colour · click an image, or ⚙ on a player, to lay it out</span>
+  <button class="btn ghost bars-toggle" id="btn-bars" type="button" aria-expanded="true"
+          title="Put the bars away and give the whole window to the text">⌃ bars</button>
+</div>
+
+<!-- The way back, when the bars are away: small, faint and out of the
+     reading column, until it is wanted.  It lives outside all three bars
+     because all three are what it brings back. -->
+<button class="btn bars-show" id="btn-bars-show" type="button" hidden
+        aria-expanded="false" title="Bring the bars back">⌄ bars</button>
+
+<div class="layout">
+  <div class="toc-backdrop" id="toc-backdrop" hidden></div>
+  <aside class="tocpane" id="tocpane" aria-hidden="true">
+    <div class="toc-head">
+      <span class="toc-title">Contents</span>
+      <button class="btn ghost toc-close" id="btn-toc-close" title="Close (Esc)">✕</button>
+    </div>
+    {{TOC}}
+  </aside>
+  <div class="toc-backdrop" id="links-backdrop" hidden></div>
+  <aside class="linkspane" id="linkspane" aria-hidden="true" aria-labelledby="links-title">
+    <div class="toc-head">
+      <span class="toc-title" id="links-title">Linked from</span>
+      <button class="btn ghost toc-close" id="btn-links-close" title="Close (Esc)">✕</button>
+    </div>
+    {{BACKLINKS}}
+  </aside>
+  <main class="readpane" id="readpane">
+    <article id="sheet" class="sheet" lang="{{LANG}}" data-lang="{{TARGET}}">
+{{ARTICLE}}
+    </article>
+    <iframe id="pdfframe" class="pdfframe" hidden title="PDF"></iframe>
+  </main>
+</div>
+
+<script id="doc-meta" type="application/json">{{META_JSON}}</script>
+<script id="doc-lang" type="application/json">{{LANG_JSON}}</script>
+<script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
+<script id="doc-glosses" type="application/json">{{GLOSSES_JSON}}</script>
+<div id="modal-root"></div>
+<button id="btn-top" class="btn ghost totop" type="button" hidden
+        title="Back to the top of the page">↑ Top</button>
+<div id="toast" class="toast" hidden></div>
+<div id="shutdown-overlay" class="shutdown-overlay" hidden>
+  <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
+  <code>./serve.sh</code> in the project directory.</p></div>
+</div>
+<link rel="stylesheet" href="{{BASE}}/static/mathjax.css">
+<script src="{{BASE}}/static/mathjax.js"></script>
+<!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
+<script src="/lib/activity.js" async></script>
+<script src="{{BASE}}/static/app.js"></script>
+</body>
+</html>

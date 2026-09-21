@@ -1,0 +1,30 @@
+{
+ "id": "en-vocab",
+ "guid": "fx-en-vocab",
+ "kind": "vocab",
+ "lang": "en",
+ "created": "2026-09-05 10:00:00",
+ "video": "fixture-en",
+ "book": "",
+ "time": 0,
+ "context": "a record of the meeting",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "record",
+ "kana": "",
+ "tr": "ˈrɛkərd",
+ "en": "an account of something, kept so it can be looked at later",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "english-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

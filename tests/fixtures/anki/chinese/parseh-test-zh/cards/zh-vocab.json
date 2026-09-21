@@ -1,0 +1,30 @@
+{
+ "id": "zh-vocab",
+ "guid": "fx-zh-vocab",
+ "kind": "vocab",
+ "lang": "zh",
+ "created": "2026-09-09 10:00:00",
+ "video": "fixture-zh",
+ "book": "",
+ "time": 0,
+ "context": "这是我的书",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "书",
+ "kana": "",
+ "tr": "shū",
+ "en": "book",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "chinese-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

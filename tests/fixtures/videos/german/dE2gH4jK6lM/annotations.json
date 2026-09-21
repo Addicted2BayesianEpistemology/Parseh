@@ -1,0 +1,110 @@
+{
+ "video": "dE2gH4jK6lM",
+ "language": "de",
+ "segments": [
+  {
+   "start": 0,
+   "text": "Welcome back to the channel, today we learn German at the bakery",
+   "chunks": [
+    {
+     "fa": "Welcome back to the channel, today we learn German at the bakery",
+     "plain": true
+    }
+   ]
+  },
+  {
+   "start": 6,
+   "chapter": "In der Bäckerei",
+   "text": "Guten Morgen, ich hätte gern drei Brötchen",
+   "chunks": [
+    {
+     "fa": "Guten Morgen,",
+     "voc": "der Morgen, - · morning — the greeting stands in the accusative, which is where the -n of guten comes from",
+     "en": "good morning,"
+    },
+    {
+     "fa": "ich hätte gern",
+     "tr": "iç 'häte gern",
+     "voc": "haben · pret. hatte · p.p. gehabt · to have (er hat) — hätte would have, the subjunctive; gern gladly, and hätte gern is how one asks for a thing in a shop",
+     "en": "I would like"
+    },
+    {
+     "fa": "drei Brötchen",
+     "tr": "drai 'brö:tçen",
+     "voc": "das Brötchen, - · bread roll (Brot bread + -chen, the diminutive, which makes it neuter; the plural is the same word)",
+     "en": "three bread rolls"
+    }
+   ]
+  },
+  {
+   "start": 11,
+   "text": "Möchten Sie auch ein Stück Apfelkuchen",
+   "chunks": [
+    {
+     "fa": "Möchten Sie auch",
+     "tr": "'möçten zi: aux",
+     "voc": "mögen · pret. mochte · p.p. gemocht · to like (ich mag) — möchten would like; Sie you, the polite form, capitalised wherever it stands",
+     "en": "would you also like"
+    },
+    {
+     "fa": "ein Stück Apfelkuchen",
+     "tr": "ain schtük 'apfelku:xen",
+     "voc": "das Stück, -e · piece; der Apfelkuchen, - · apple cake (Apfel apple + Kuchen cake)",
+     "en": "a piece of apple cake"
+    }
+   ]
+  },
+  {
+   "start": 16,
+   "text": "Ja gern, und ein großes Schwarzbrot",
+   "chunks": [
+    {
+     "fa": "Ja gern,",
+     "voc": "gern gladly",
+     "en": "yes please,"
+    },
+    {
+     "fa": "und ein großes Schwarzbrot",
+     "tr": "unt ain 'gro:ses 'schvartsbro:t",
+     "voc": "groß big — the ß is one s sound after a long vowel and is never written ss; großes carries an adjective ending, so the headword is the bare adjective; das Schwarzbrot, -e · rye bread (schwarz black + Brot bread)",
+     "en": "and a large rye loaf"
+    }
+   ]
+  },
+  {
+   "start": 21,
+   "text": "Das macht zusammen fünf Euro dreißig",
+   "chunks": [
+    {
+     "fa": "Das macht zusammen",
+     "tr": "das maxt tsu'zamen",
+     "voc": "machen · pret. machte · p.p. gemacht · to make, to come to — das macht that comes to; zusammen together, altogether",
+     "en": "that comes altogether to"
+    },
+    {
+     "fa": "fünf Euro dreißig",
+     "tr": "fünf 'oyro 'draisiç",
+     "voc": "dreißig thirty — the one number written -ßig, the others -zig",
+     "en": "five euros thirty"
+    }
+   ]
+  },
+  {
+   "start": 26,
+   "text": "Danke schön, und einen schönen Tag noch",
+   "chunks": [
+    {
+     "fa": "Danke schön,",
+     "voc": "danke thanks; schön beautiful · danke schön thank you very much",
+     "en": "thank you very much,"
+    },
+    {
+     "fa": "und einen schönen Tag noch",
+     "tr": "unt 'ainen 'schö:nen ta:k nox",
+     "voc": "der Tag, -e · day — a parting wish with the verb left out (ich wünsche Ihnen einen schönen Tag)",
+     "en": "and have a good day"
+    }
+   ]
+  }
+ ]
+}

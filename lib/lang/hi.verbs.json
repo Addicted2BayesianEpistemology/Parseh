@@ -1,0 +1,62 @@
+{
+  "_why": "What no Hindi dictionary row can say, for lib/verbs/hi.py. Hindi's \\vb prints three forms the conjugation table gives outright (infinitive, stem, perfective m. sg.) and ONE thing it does not: whether the subject takes ने in the perfective. That is `ne`, and it is most of this file. The rest is what the recipe needs to recognise, from the chunk, a verb that is not doing a verb's job -- the second half of a compound (लिया in रख लिया), the progressive (रहा in कर रहा था), the tense auxiliary (था in रहा था) -- and the light verb of a conjunct (करना in काम करना), whose meaning is in the word before it. Each list says why, in words the next editor reads; every word is a dictionary headword spelt as Wiktionary spells it.",
+
+  "ne": {
+    "_why": "Decided HERE FIRST, and from the dictionary's transitivity only for a verb not listed. ने is not transitivity: लाना and भूलना take an object and never ने, छींकना and खाँसना take none and do. Measured on the rebuilt dict/hi.db (built 2026-09-10) against 152 common verbs scored by hand from the standard grammars BEFORE its proposals were read: its transitivity -- the hi-verb head code, else the senses' own labels -- agreed with ने for 110, contradicted it for 9 (लिखना and सुनना coded intransitive; लाना and बनना transitive; होना either way) and said nothing at all for 33, करना जाना आना लेना खाना पीना among them. Reading its proposals for all 1 084 single-word verbs afterwards found 18 more it has wrong (चिल्लाना, बरसना and तड़पना coded transitive; फ़रमाना and कोसना intransitive) and 55 more a reader meets that it is silent on. So this is the verbs the dictionary is silent or wrong about, plus the ones docs/lang/hi.md names as its examples, listed so that the examples cannot drift. `takes` prints (+ने), `either` (±ने) -- a verb whose subject takes ने with an object and not without (उसने झूठ बोला, वह बोला) -- and `never` prints nothing, which is a statement and not an omission. A conjunct is looked for here by its whole headword first (दिखाई देना has a dative subject and no ने, though देना takes it) and then by its light verb. A verb in two lists is a mistake: the recipe reads `never`, then `either`, then `takes`, and the first that has it wins.",
+    "takes": [
+      "करना", "देना", "लेना", "कहना", "पढ़ना", "रखना", "उठाना", "दिखाना",
+      "छींकना", "खाँसना", "थूकना", "भौंकना", "लिखना", "सुनना", "खाना", "पीना",
+      "खोलना", "बताना", "मारना", "धोना", "पहचानना", "मानना", "गाना", "बाँधना",
+      "ढूँढना", "ढूँढ़ना", "खेलना", "खिलाना", "दबाना", "सहना", "फेंकना", "मिटाना",
+      "चूमना", "चूसना", "धमकाना", "नापना", "ठगना", "छीनना", "झाड़ना", "डराना",
+      "गुज़ारना", "कमाना", "खरोंचना", "मलना", "पोंछना", "कूटना", "अपनाना", "जगाना",
+      "सौंपना", "सराहना", "परोसना", "रंगना", "गाड़ना", "उजाड़ना", "लुटाना", "डपटना",
+      "दुलारना", "पिरोना", "फ़रमाना", "कोसना", "फुसलाना", "दहकाना", "घूरना", "पूजना",
+      "कुचलना", "जकड़ना", "बरतना", "जमाना", "आजमाना", "लिखवाना", "भिजवाना", "दिलवाना",
+      "पकड़वाना", "तैराना", "छाँटना", "बीनना", "भटकाना"
+    ],
+    "either": [
+      "समझना", "बदलना", "नहाना", "हारना", "बोलना", "झाँकना"
+    ],
+    "never": [
+      "जाना", "आना", "होना", "मिलना", "हँसना", "लाना", "भूलना", "सकना",
+      "दौड़ना", "जीना", "बचना", "तैरना", "बहना", "मिटना", "झगड़ना", "झूमना",
+      "गिड़गिड़ाना", "चीख़ना", "सुस्ताना", "पछताना", "झिझकना", "झल्लाना", "लुटना", "दहलना",
+      "बनना", "चिल्लाना", "बरसना", "तड़पना", "उमड़ना", "मंडराना", "पैठना", "टँगना",
+      "गूंजना", "घटना", "ऊँघना", "हिचकना", "जुटना", "लोटना", "चमचमाना", "खनकना",
+      "दिखाई देना", "सुनाई देना"
+    ]
+  },
+
+  "light": {
+    "_why": "The verbs that end a CONJUNCT -- noun or adjective + light verb, काम करना, याद आना, बंद करना -- whose meaning is the first word's. docs/lang/hi.md glosses one as the light verb's \\vb with no meaning of its own and a \\bw for the word it carries, so a light verb whose chunk puts a word before it that makes a verb headword with it is given exactly that. The list matters because the headword test alone is not enough: बाहर जाना, ऊपर जाना and चले जाना are headwords too, and in them जाना still means to go. 411 of Wiktionary's 541 multiword verb pages end in one of these after a word that is not a verb's stem, and those are the conjuncts; the rest are compounds (भूल जाना, छोड़ देना) and idioms.",
+    "verbs": [
+      "करना", "होना", "देना", "लेना", "आना", "लगना", "लगाना", "पड़ना",
+      "मारना", "रखना", "चलना", "खाना", "उठाना", "मानना", "मिलना"
+    ]
+  },
+
+  "vectors": {
+    "_why": "The verbs that, right after a verb's bare stem, add an aspect or a modality and are not an action: रख लिया (for oneself), कर दिया (for another), चला गया (completion), कर डाला, रो पड़ा, कर सका, कर चुका, कर पाया -- and the progressive, कर रहा है. docs/lang/hi.md: say what the second verb adds, never gloss its dictionary meaning; the mini-hi fixture writes `+ \\pw{लिया}: he did it for himself` after the main verb's \\vb and gives लेना none. So a hit for one of these in that position gets no \\vb. Only when the word the chunk has is NOT itself the bare stem: in बस आ गई the आ is the main verb even though बस could be बसना's stem, and a bare stem is what a main verb looks like before its vector.",
+    "verbs": [
+      "जाना", "लेना", "देना", "डालना", "पड़ना", "उठना", "बैठना", "रखना",
+      "छोड़ना", "मारना", "निकलना", "आना", "चलना", "सकना", "पाना", "चुकना",
+      "रहना"
+    ],
+    "after_oblique_infinitive": ["लगना", "देना", "पाना"],
+    "_after_oblique_infinitive": "The same, after an oblique infinitive in -ने: करने लगा (began to do), जाने दो (let go), जाने पाया (was let go). लगना there is to begin, not to be attached."
+  },
+
+  "auxiliary": {
+    "_why": "The forms of होना that, after a participle, are the tense and not the verb to be: गया था, कर रहा है, जाता होगा. The fixture glosses `\\pw{रहा था} was, the continuous` and gives होना no \\vb. After anything else they are the copula (वह डॉक्टर था, यह मेरी है) and get one. It costs where an adjective is also somebody's perfective -- सही (right) is सहना's feminine one -- and यह सही है then gets no \\vb for है: which is what the editor offers today.",
+    "forms": [
+      "है", "हैं", "हूँ", "हो", "था", "थे", "थी", "थीं",
+      "होगा", "होगी", "होंगे", "होंगी", "होता", "होती", "होते"
+    ]
+  },
+
+  "particles": {
+    "_why": "Looked past when the recipe looks at the word before a verb: कर नहीं सका, काम नहीं किया, आ ही गया. They sit between a verb and its vector, or a conjunct's noun and its light verb, without breaking either.",
+    "words": ["नहीं", "न", "मत", "ही", "भी", "तो"]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "_comment": "How a Chinese word on the page is turned into something the dictionary can be asked about, and what the dictionary's rows mean for it. Read by lib/lookup.py; optional, like every file of this name. Chinese needs no `fold` and no affixes: it does not inflect, and the cut into words is lookup's longest match against the dictionary itself. What it needs is three facts about Wiktionary's Chinese that its rows cannot say themselves.",
+
+  "fold": "",
+  "affixes": [],
+
+  "_own": "A SIMPLIFIED WORD IS THE WORD ITSELF, not a form of it. Wiktionary keys Chinese under the Traditional spelling and files the Simplified one as a row noted `Simplified-Chinese`, so 帮忙 reached 幫忙 'to help' as though it were an inflection -- and 幫倒忙 'to be more of a hindrance than a help', which carries 帮忙 in a row with no note at all, came first. A row with this note counts as the entry's own, as an empty note does.",
+  "own": ["Simplified-Chinese"],
+
+  "_spelled": "WHAT THE TEXT WROTE, where the entry is spelt another way. A hit reached through one of these rows carries `spelled`, the text's own spelling, and a vocabulary line writes spelled || headword -- so a book printed in Simplified characters is never handed a Traditional \\dw.",
+  "spelled": ["Simplified-Chinese", "another spelling"],
+
+  "_regional": "ANOTHER LECT'S SENSE IS A REGIONAL SENSE. Wiktionary's Chinese is one entry for every variety written in characters, and a sense said only in Cantonese or Hokkien carries its lect as a tag and none of the register tags lib/lookup.py demotes: 生日 'to have one's birthday' is `Cantonese,informal` and was printed as plain Mandarin. A sense with one of these tags, or a tag ending in one of `suffixes`, and none of `unless` (or a tag ending in one of `unless_suffixes`), ranks with the dialectal and regional ones. The list is lib/verbs/zh.py's _LECTS without Classical, which is a register of the written language and not another lect.",
+  "regional": {
+    "tags": ["Cantonese", "Hokkien", "Min", "Hakka", "Wu", "Teochew", "Xiang", "Gan", "Jin", "Pinghua",
+             "Huizhou", "Taishanese", "Hainanese", "Waxiang", "Xiamen", "Quanzhou", "Zhangzhou",
+             "Jinjiang", "Tong'an"],
+    "suffixes": ["-Hokkien", "-Min"],
+    "unless": ["Mandarin"],
+    "unless_suffixes": ["-Mandarin"]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "_why": "What no Turkish dictionary row can say, for lib/verbs/tr.py. `no_vb` is the -mek words that ARE verbs and still get no \\vb, because the three forms a Turkish \\vb prints do not exist for them: the copula imek is defective -- idi, imiş, ise, iken, and no aorist, no present in -iyor -- and a \\vb for it would print an infinitive nobody writes and call the two forms it has not got 'missing', which sends the annotator looking for them. Its forms are glossed as what they are (\\dw, or the segmentation of the word they are welded to). Each value says why, in words the next editor reads.",
+  "no_vb": {
+    "imek": "the copula: only idi, imiş, ise, iken -- no aorist and no present in -iyor to print"
+  }
+}

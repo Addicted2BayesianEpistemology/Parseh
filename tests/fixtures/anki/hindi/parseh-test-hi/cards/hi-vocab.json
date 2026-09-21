@@ -1,0 +1,30 @@
+{
+ "id": "hi-vocab",
+ "guid": "fx-hi-vocab",
+ "kind": "vocab",
+ "lang": "hi",
+ "created": "2026-09-06 10:00:00",
+ "video": "fixture-hi",
+ "book": "",
+ "time": 0,
+ "context": "यह मेरी किताब है",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "किताब",
+ "kana": "",
+ "tr": "kitāb",
+ "en": "book, f.",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "hindi-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

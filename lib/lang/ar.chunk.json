@@ -1,0 +1,30 @@
+{
+  "_comment": "How this language's phrases hold together, for lib/chunker.py. Optional, like every file of this name.",
+  "np_head": "initial",
+  "adposition": "before",
+  "_why": "Arabic puts the adjective after its noun (الكتاب الكبير) and its prepositions before the noun (في البيت); the idafa binds forward the way the Persian ezafe does.",
+  "bind_forward": [
+    "ِ$"
+  ],
+  "min": 2,
+  "max": 5,
+  "_question_words": "The words that open a question, for tidy.py alone: an automatic transcript that carries no punctuation gets a question mark where a sentence opens (or, in a verb-final language, ends) with one of these, and a full stop otherwise. A language whose transcript IS punctuated needs none of this -- the mark is already in the text -- so only the languages YouTube leaves bare list them.",
+  "question_words": [
+    "هل",
+    "ما",
+    "ماذا",
+    "من",
+    "أي",
+    "أين",
+    "متى",
+    "لماذا",
+    "كيف",
+    "كم",
+    "أليس"
+  ],
+  "_question_any": "...and of those, the ones that can ONLY ask: a question particle, which means a question wherever in the sentence it stands. The rest are read at the edges alone, because they mean other things in the middle of one.",
+  "question_any": [
+    "هل",
+    "أليس"
+  ]
+}

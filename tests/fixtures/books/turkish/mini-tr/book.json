@@ -1,0 +1,14 @@
+{
+  "slug": "mini-tr",
+  "language": "tr",
+  "title": "Yağmurlu bir kış",
+  "title_latin": "Yağmurlu bir kış",
+  "title_en": "A Rainy Winter",
+  "author": "bir öykü",
+  "author_latin": "a story",
+  "year": "",
+  "blurb": "A fixture for the tests: two short Turkish paragraphs, two sentences each, carrying the dotted and dotless i, a word beginning with ı, and the long suffixed words Turkish builds.",
+  "main": "main.tex",
+  "audio": null,
+  "transcript": null
+}

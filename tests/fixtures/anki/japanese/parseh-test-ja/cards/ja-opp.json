@@ -1,0 +1,30 @@
+{
+ "id": "ja-opp",
+ "guid": "fx-ja-opp",
+ "kind": "opposites",
+ "lang": "ja",
+ "created": "2026-09-03 10:00:00",
+ "video": "",
+ "book": "fixture-ja",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "大きい",
+ "kana": "おおきい",
+ "tr": "ōkii",
+ "en": "",
+ "opp": "小さい",
+ "opp_kana": "ちいさい",
+ "opp_tr": "chiisai",
+ "tags": [
+  "japanese-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

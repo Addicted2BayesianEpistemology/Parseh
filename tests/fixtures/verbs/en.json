@@ -1,0 +1,470 @@
+{
+ "code": "en",
+ "_forms": "each form row is [form, note, roman, ipa]: the English recipe reads form.ipa -- the pronunciation getdict stores on a row, which for English is the page that is only 'past of go' (went /wɛnt/) -- for every irregular past and p.p.; rows are the entry's own and its pointers, trimmed to those lib/verbs/en.py reads, in rowid order, the headword's own row (note '') first. Insert them into a dictionary that holds this entry and nothing else: the recipe looks at other entries (a phrasal verb of this verb, a homograph, the verb a word belongs to) and a case is written for there being none.",
+ "_source": "dict/en.db as lib/getdict.py builds it today from the kaikki.org English extract of 2026-09-06 (a filtered sample: every verb page, and the pages of every other part of speech for the words tested), before any lib/lang/en.ipa.json",
+ "cases": [
+  {
+   "why": "regular: the past and p.p. are help + -ed, and their sound is the plain form's plus t (docs/lang/en.md rule 5), not the -ed page's",
+   "entry": {
+    "headword": "help",
+    "translit": "",
+    "ipa": "/hɛlp/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "To provide assistance to (someone or something).\nTo assist (a person) in getting something, especially food or drink at table; used with to.\nTo contribute in some way to.\nTo provide assistance.\nTo avoid; to prevent; to refrain from; to restrain (oneself). Usually used in nonassertive contexts with can.\nTo do something on the behalf of someone.\nTo assist or sympathize with (the speaker); used to express displeasure, disappointment or exasperation.",
+    "sense_tags": "transitive\ntransitive\ntransitive\nintransitive\ntransitive\nHong-Kong,Singapore\nSingapore,Singlish,imperative",
+    "head": ""
+   },
+   "forms": [
+    [
+     "help",
+     "",
+     "",
+     ""
+    ],
+    [
+     "helped",
+     "past",
+     "",
+     ""
+    ],
+    [
+     "holp",
+     "archaic past",
+     "",
+     ""
+    ],
+    [
+     "helped",
+     "participle past",
+     "",
+     ""
+    ],
+    [
+     "holp",
+     "archaic participle past",
+     "",
+     ""
+    ],
+    [
+     "holpen",
+     "archaic participle past",
+     "",
+     ""
+    ],
+    [
+     "helped",
+     "participle, past",
+     "",
+     "/hɛlpt/"
+    ]
+   ],
+   "word": "helped",
+   "text": "He helped me.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{help}{hɛlp}{helped}{hɛlpt}{helped}{hɛlpt}{to provide assistance to (someone or something)}",
+    "plain": "help hɛlp · past helped hɛlpt · p.p. helped hɛlpt · to provide assistance to (someone or something)",
+    "line": "past helped hɛlpt · p.p. helped hɛlpt",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "regular after t: -ed is said ɪd, and the one-syllable wait becomes a two-syllable ˈweɪtɪd with its stress mark",
+   "entry": {
+    "headword": "wait",
+    "translit": "",
+    "ipa": "/weɪt/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "To delay movement or action until some event or time; to remain neglected or in readiness.\nTo wait tables; to serve customers in a restaurant or other eating establishment.\nTo delay movement or action until the arrival or occurrence of; to await. (Now generally superseded by “wait for”.)\nTo attend on; to accompany; especially, to attend with ceremony or respect.\nTo attend as a consequence; to follow upon; to accompany.\nTo defer or postpone (especially a meal).\nTo watch with malicious intent; to lie in wait\nTo remain faithful to one’s partner or betrothed during a prolonged period of absence.",
+    "sense_tags": "intransitive\nUS,intransitive,stative\narchaic,transitive\nobsolete,transitive\nobsolete\ncolloquial,obsolete\nobsolete\nintransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "wait",
+     "",
+     "",
+     ""
+    ],
+    [
+     "waiting",
+     "participle present",
+     "",
+     ""
+    ],
+    [
+     "waited",
+     "participle past",
+     "",
+     ""
+    ],
+    [
+     "waited",
+     "past",
+     "",
+     ""
+    ],
+    [
+     "waiting",
+     "gerund, participle, present",
+     "",
+     "/ˈweɪtɪŋ/"
+    ],
+    [
+     "waited",
+     "participle, past",
+     "",
+     "/ˈweɪt.ɪd/"
+    ]
+   ],
+   "word": "waiting",
+   "text": "They are waiting.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{wait}{weɪt}{waited}{ˈweɪtɪd}{waited}{ˈweɪtɪd}{to delay movement or action until some event or time}",
+    "plain": "wait weɪt · past waited ˈweɪtɪd · p.p. waited ˈweɪtɪd · to delay movement or action until some event or time",
+    "line": "past waited ˈweɪtɪd · p.p. waited ˈweɪtɪd",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "irregular, three parts spelt and said alike: the plain form's sound serves all three",
+   "entry": {
+    "headword": "put",
+    "translit": "",
+    "ipa": "/pʊt/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "To physically place (sth or sb swh).\nTo place in abstract; to attach or attribute; to assign.\nTo bring or set (into a certain relation, state or condition).\nTo express (something in a certain manner).\nTo set before one for judgment, acceptance, or rejection; to bring to the attention.\nTo set as a calculation or estimate.\nTo steer; to direct one's course; to go.\nTo sell (assets) under the terms of a put option.\nTo throw with a pushing motion, especially in reference to the sport of shot put. (Do not confuse with putt.)\nTo play a card or a hand in the game called “put”.\nTo lay down; to give up; to surrender.\nTo incite; to entice; to urge; to constrain; to oblige.",
+    "sense_tags": "\n\n\n\n\n\n\n\nespecially\n\nobsolete\nobsolete",
+    "head": ""
+   },
+   "forms": [
+    [
+     "put",
+     "",
+     "",
+     ""
+    ],
+    [
+     "put",
+     "past",
+     "",
+     ""
+    ],
+    [
+     "put",
+     "participle past",
+     "",
+     ""
+    ],
+    [
+     "putten",
+     "UK dialectal participle past",
+     "",
+     ""
+    ]
+   ],
+   "word": "put",
+   "text": "She put it there.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{put}{pʊt}{put}{pʊt}{put}{pʊt}{to physically place (sth or sb swh)}",
+    "plain": "put pʊt · past put pʊt · p.p. put pʊt · to physically place (sth or sb swh)",
+    "line": "past put pʊt · p.p. put pʊt",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "two pasts: the one the chunk has (dreamt, whose sound is its own page's /dɹɛmt/) over the first listed (dreamed)",
+   "entry": {
+    "headword": "dream",
+    "translit": "",
+    "ipa": "/ˈdɹiːm/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "To see imaginary events in one's mind while sleeping.\nTo hope, to wish.\nTo daydream.\nTo envision as an imaginary experience (usually when asleep).\nTo consider the possibility (of).",
+    "sense_tags": "intransitive\nintransitive\nintransitive\ntransitive\nintransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "dream",
+     "",
+     "",
+     ""
+    ],
+    [
+     "dreamed",
+     "participle past",
+     "",
+     ""
+    ],
+    [
+     "dreamed",
+     "past",
+     "",
+     ""
+    ],
+    [
+     "dreamt",
+     "participle past",
+     "",
+     ""
+    ],
+    [
+     "dreamt",
+     "past",
+     "",
+     ""
+    ],
+    [
+     "dreamt",
+     "participle, past",
+     "",
+     "/dɹɛmt/"
+    ],
+    [
+     "dreamed",
+     "participle, past",
+     "",
+     "/ˈdɹiːmd/"
+    ]
+   ],
+   "word": "dreamt",
+   "text": "I dreamt of you.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{dream}{drim}{dreamt}{drɛmt}{dreamt}{drɛmt}{to see imaginary events in one's mind while sleeping}",
+    "plain": "dream drim · past dreamt drɛmt · p.p. dreamt drɛmt · to see imaginary events in one's mind while sleeping",
+    "line": "past dreamt drɛmt · p.p. dreamt drɛmt",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "one of the four with a present nobody could build: (pres. says sɛz), from lib/lang/en.verbs.json; said's sound from its page",
+   "entry": {
+    "headword": "say",
+    "translit": "",
+    "ipa": "/seɪ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "To pronounce.\nTo recite.\nTo tell, either verbally or in writing.\nTo indicate in a written form.\nTo have a common expression; used in singular passive voice or plural active voice to indicate a rumor or well-known fact.\nSuppose, assume; used to mark an example, supposition or hypothesis.\nTo speak; to express an opinion; to make answer; to reply.\nTo bet as a wager on an outcome; by extension, used to express belief in an outcome by the speaker.",
+    "sense_tags": "transitive\ntransitive\ntransitive\ntransitive\nimpersonal,transitive\nimperative,informal,transitive\nintransitive\nespecially,informal,transitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "say",
+     "",
+     "",
+     ""
+    ],
+    [
+     "said",
+     "participle past",
+     "",
+     ""
+    ],
+    [
+     "said",
+     "past",
+     "",
+     ""
+    ],
+    [
+     "said",
+     "participle, past",
+     "",
+     "/sɛd/"
+    ]
+   ],
+   "word": "said",
+   "text": "He said nothing.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{say}{seɪ}{said}{sɛd}{said}{sɛd}{to pronounce (pres. \\pw{says} \\textit{sɛz})}",
+    "plain": "say seɪ · past said sɛd · p.p. said sɛd · to pronounce (pres. says sɛz)",
+    "line": "past said sɛd · p.p. said sɛd · pres. says sɛz",
+    "complete": true,
+    "missing": []
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "incomplete: the dictionary's go is /ɡəʊ/ and gone /ɡɒn/, RP both; the slots stay empty and are named, went /wɛnt/ is filled",
+   "entry": {
+    "headword": "go",
+    "translit": "",
+    "ipa": "/ɡəʊ/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "To move, either physically or in an abstract sense:\nTo move through space (especially to or through a place). (May be used of tangible things such as people or cars, or intangible things such as moods or information.)\nTo move or travel through time (either literally—in a fictional or hypothetical situation in which time travel is possible—or in one's mind or knowledge of the historical record). (See also go back.)\nTo navigate (to a file or folder on a computer, a site on the internet, a memory, etc.).\nTo move (a particular distance, or in a particular fashion).\nTo move or travel in order to do something, or to do something while moving.\nTo leave; to move away.\nTo follow or proceed according to (a course or path).\nTo travel or pass along.\nTo walk; to travel on one's feet.\nTo work or function (properly); to move or perform (as required).\nTo start; to begin (an action or process).",
+    "sense_tags": "intransitive\nintransitive\nintransitive\nintransitive\n\nintransitive\nintransitive\n\n\nintransitive,obsolete\nintransitive\nintransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "go",
+     "",
+     "",
+     ""
+    ],
+    [
+     "went",
+     "past",
+     "",
+     ""
+    ],
+    [
+     "yode",
+     "obsolete past",
+     "",
+     ""
+    ],
+    [
+     "goed",
+     "nonstandard past",
+     "",
+     ""
+    ],
+    [
+     "gone",
+     "participle past",
+     "",
+     ""
+    ],
+    [
+     "went",
+     "nonstandard participle past",
+     "",
+     ""
+    ],
+    [
+     "went",
+     "past",
+     "",
+     "/wɛnt/"
+    ],
+    [
+     "went",
+     "nonstandard, participle, past",
+     "",
+     "/wɛnt/"
+    ],
+    [
+     "gone",
+     "participle, past",
+     "",
+     "/ɡɒn/"
+    ]
+   ],
+   "word": "went",
+   "text": "We went home.",
+   "gloss": "en",
+   "expect": {
+    "tex": "\\vb{go}{}{went}{wɛnt}{gone}{}{to move, either physically or in an abstract sense}",
+    "plain": "go · past went wɛnt · p.p. gone · to move, either physically or in an abstract sense",
+    "line": "past went wɛnt · p.p. gone",
+    "complete": false,
+    "missing": [
+     "the sound of go (the dictionary's /ɡəʊ/ is not General American (əʊ))",
+     "the sound of gone (the dictionary's /ɡɒn/ is not General American (ɒ))"
+    ]
+   },
+   "run": "lookup"
+  },
+  {
+   "why": "a modal: no \\vb (docs/lang/en.md) -- the can with no past participle of its own; could is its past, couth an obsolete p.p.",
+   "entry": {
+    "headword": "can",
+    "translit": "",
+    "ipa": "/kæn/",
+    "reading": "",
+    "pos": "verb",
+    "sense": "To know how to.\nTo be able to.\nMay; to be permitted or enabled to.\nTo have the potential to; to be possible for (someone or something) to.\nUsed to form requests, typically polite.\nTo know.\nTo be (followed by a word like able, possible, allowed). third-person singular simple present indicative of can\nTo be able to or know how to (do something); an accompanying verb is not required if it is already inferable from context.\nTo be fine or acceptable; to be possible; (with liao or already) to be enough. Often used in conjunction with a variety of clause-final particles, e.g., lah, meh or one, to express different attitudes towards the subject matter.",
+    "sense_tags": "auxiliary,defective\nauxiliary,defective\nauxiliary,defective,informal,modal\nauxiliary,defective,modal\nauxiliary,defective,informal,modal\nobsolete,transitive\nIndia,nonstandard,proscribed\nManglish,Singlish,auxiliary,intransitive\nManglish,Singlish,intransitive",
+    "head": ""
+   },
+   "forms": [
+    [
+     "can",
+     "",
+     "",
+     ""
+    ],
+    [
+     "can",
+     "present singular third-person",
+     "",
+     ""
+    ],
+    [
+     "could",
+     "past",
+     "",
+     ""
+    ],
+    [
+     "couth",
+     "obsolete participle past",
+     "",
+     ""
+    ],
+    [
+     "could",
+     "past",
+     "",
+     "/kəd/"
+    ],
+    [
+     "could",
+     "participle, past",
+     "",
+     "/kəd/"
+    ]
+   ],
+   "word": "can",
+   "text": "I can swim.",
+   "gloss": "en",
+   "expect": null,
+   "run": "lookup"
+  },
+  {
+   "why": "not a verb: the noun hit is left to the \\dw",
+   "entry": {
+    "headword": "clock",
+    "translit": "",
+    "ipa": "/klɒk/",
+    "reading": "",
+    "pos": "noun",
+    "sense": "A chronometer, an instrument that measures time, particularly the time of day.\nA common noun relating to an instrument that measures or keeps track of time.\nThe odometer of a motor vehicle.\nAn electrical signal that synchronizes timing among digital circuits of semiconductor chips or modules.\nThe seed head of a dandelion.\nA time clock.\nA CPU clock cycle, or T-state.\nA luck-based patience or solitaire card game with the cards laid out to represent the face of a clock.\nA watch (timepiece).\nA face; the head.",
+    "sense_tags": "countable,uncountable\nattributive,countable,uncountable\nUK,countable,uncountable\ncountable,uncountable\ncountable,uncountable\ncountable,uncountable\ncountable,informal,uncountable\nuncountable\nUK,countable,obsolete,uncountable\ncountable,slang,uncountable",
+    "head": ""
+   },
+   "forms": [
+    [
+     "clock",
+     "",
+     "",
+     ""
+    ]
+   ],
+   "word": "clock",
+   "text": "the clock",
+   "gloss": "en",
+   "expect": null,
+   "run": "lookup"
+  }
+ ]
+}

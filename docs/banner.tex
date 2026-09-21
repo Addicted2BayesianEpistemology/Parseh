@@ -1,0 +1,118 @@
+%% The README banner -- the source the two SVGs are made from.
+%%
+%%     cd docs && ./banner.sh          writes banner-light.svg and banner-dark.svg
+%%
+%% Set by XeLaTeX in the toolbox's own faces and converted to PATHS by
+%% dvisvgm --no-fonts, so the finished SVG needs no font on the machine that
+%% reads it -- which is the whole point, since GitHub renders it for people
+%% who have neither nastaliq nor Devanagari installed.
+%%
+%% WHY THIS FILE EXISTS.  It did not, for a while: the SVGs were committed
+%% and whatever made them was not.  The cost showed up twice -- English was
+%% added to the toolbox and the banner still said seven languages, and then
+%% two more were added and it still said seven.  Nothing could have noticed,
+%% because the language row was a row of glyph outlines with no text in it.
+%% Adding a language is now one line: put its native name in \LangRow below,
+%% in the registry's own order (lib/languages.json), and a language that
+%% leaves is that line taken out again.
+%%
+%% The geometry is the first banner's, measured off it so the two are
+%% interchangeable: 300mm x 73mm, and the four baselines, sizes and colours
+%% below.  Change them if you want your own artwork; keep the pair, because
+%% GitHub picks the dark one on a dark theme and a single dark-on-transparent
+%% image would vanish there.
+\documentclass[11pt]{article}
+\usepackage[paperwidth=300mm,paperheight=73mm,margin=1in]{geometry}
+\usepackage{fontspec}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{calc}      % ($(a) + (x,y)$), which places every line below
+\pagestyle{empty}
+
+% ---- the two themes -------------------------------------------------------
+% Built twice, with \BannerDark defined the second time (banner.sh does it on
+% the command line).  The palette is the toolbox's: PANTONE 18-1750 Viva
+% Magenta and the inks lib/parseh.css states for the same two themes.
+\ifdefined\BannerDark
+  \definecolor{ink}{HTML}{E6DADE}
+  \definecolor{accent}{HTML}{EE8AA3}
+  \definecolor{body}{HTML}{AC9BA1}
+  \definecolor{rule}{HTML}{382C31}
+\else
+  \definecolor{ink}{HTML}{241E21}
+  \definecolor{accent}{HTML}{BE3455}
+  \definecolor{body}{HTML}{635358}
+  \definecolor{rule}{HTML}{E3D9DD}
+\fi
+
+% ---- the faces ------------------------------------------------------------
+% The four target-script faces are loaded BY PATH out of lib/fonts, not by
+% name.  XeTeX on Linux finds a face through fontconfig, which does not read
+% OSFONTDIR -- that variable is luaotfload's, and it is why build.sh can set
+% it for a book and this file cannot rely on it.  By path, the banner builds
+% from a fresh clone on a machine that has installed none of them, which is
+% the state most machines are in.
+%
+% TeX Gyre comes with TeX itself; the two Noto Serif CJK faces are the
+% system's, because a CJK font is tens of megabytes and the toolbox bundles
+% none (the same choice lib/languages.json's Japanese and Chinese rows
+% make).  A face that is missing does not fail here -- XeLaTeX substitutes
+% silently and the banner comes out in the wrong hand -- so banner.sh reads
+% the log and treats that as an error.
+\newcommand{\BundledFonts}{../lib/fonts/}
+\setmainfont{TeX Gyre Pagella}
+\newfontfamily\TitleFace{TeX Gyre Heros}[BoldFont={TeX Gyre Heros Bold}]
+\newfontfamily\NastaFace{NotoNastaliqUrdu-Regular.ttf}%
+  [Path=\BundledFonts,Script=Arabic,Language=Urdu,Renderer=HarfBuzz]
+\newfontfamily\FaFace{Vazirmatn-Regular.ttf}%
+  [Path=\BundledFonts,Script=Arabic,Language=Parsi,Renderer=HarfBuzz]
+\newfontfamily\ArFace{NotoNaskhArabic-Regular.ttf}%
+  [Path=\BundledFonts,Script=Arabic,Language=Arabic,Renderer=HarfBuzz]
+\newfontfamily\JaFace{Noto Serif CJK JP}[Script=CJK,Language=Japanese,Renderer=HarfBuzz]
+\newfontfamily\ZhFace{Noto Serif CJK SC}[Script=CJK,Language=Chinese Simplified,Renderer=HarfBuzz]
+\newfontfamily\DevaFace{NotoSerifDevanagari-Regular.ttf}%
+  [Path=\BundledFonts,Script=Devanagari,Renderer=HarfBuzz]
+
+% ---- what it says ---------------------------------------------------------
+\newcommand{\Sep}{\hspace{0.62em}\textbullet\hspace{0.62em}}
+
+% THE LANGUAGE ROW.  One entry per language the toolbox teaches, each in its
+% own face, in the registry's display order (lib/languages.json).  This is the
+% only line to touch when a language is added.
+\newcommand{\LangRow}{%
+  {\FaFace فارسی}\Sep
+  {\ArFace العربية}\Sep
+  italiano\Sep
+  {\JaFace 日本語}\Sep
+  français\Sep
+  Deutsch\Sep
+  Türkçe\Sep
+  English\Sep
+  {\DevaFace हिन्दी}\Sep
+  español\Sep
+  {\ZhFace 中文}%
+}
+
+\begin{document}
+\begin{tikzpicture}[remember picture, overlay]
+  % Absolute placement against the page's top-left corner, in big points, so
+  % the numbers below ARE the numbers you would measure off the finished SVG.
+  \coordinate (o) at (current page.north west);
+  % the name in nastaliq, in the accent
+  \node[anchor=base, text=accent, inner sep=0]
+    at ($(o) + (425.20bp, -53.60bp)$) {\NastaFace\fontsize{30}{30}\selectfont پارسه};
+  % the name
+  \node[anchor=base, text=ink, inner sep=0]
+    at ($(o) + (425.20bp, -118.90bp)$) {\TitleFace\bfseries\fontsize{54}{54}\selectfont Parseh};
+  % what it is
+  \node[anchor=base, text=body, inner sep=0]
+    at ($(o) + (425.20bp, -144.10bp)$)
+    {\itshape\fontsize{15.5}{15.5}\selectfont one toolbox for reading a language the Ilya Frank way};
+  % the rule
+  \draw[rule, line width=0.5pt]
+    ($(o) + (147.40bp, -173.91bp)$) -- ($(o) + (702.99bp, -173.91bp)$);
+  % the languages
+  \node[anchor=base, text=body, inner sep=0]
+    at ($(o) + (425.20bp, -200.50bp)$) {\fontsize{12}{12}\selectfont \LangRow};
+\end{tikzpicture}
+\end{document}

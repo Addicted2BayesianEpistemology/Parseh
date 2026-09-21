@@ -1,0 +1,178 @@
+# runtime
+serve.log
+.serve.pid
+.setup-done
+.tls/
+__pycache__/
+*.pyc
+.DS_Store
+# The environment ./install.sh (and the Windows setup) makes when the machine
+# has no conda of its own: micromamba and the ilya-frank packages, under the
+# checkout so that removing the folder removes all of it.  Hundreds of
+# megabytes, rebuilt from environment.yml, never committed.
+.runtime/
+# Claude Code's own scratch checkouts of this repository
+.claude/worktrees/
+# A bundle downloaded from the toolbox and dropped at the top of the checkout
+# -- a book, a video, a deck, somebody's test -- is content, not software.
+/*.zip
+# built by ./build.sh (and guide/build.sh); rebuild, do not commit.
+# A book lives at books/<language>/<slug>/; the one-level patterns stay for
+# a book from before languages, which lies directly under books/.
+books/*/*/main.pdf
+books/*/*/main.aux
+books/*/*/main.log
+books/*/*/main.toc
+books/*/*/main.out
+books/*/*/frankdraft.*
+books/*/*/reader/
+books/*/*/.build-key
+books/*/*/.reader-key
+books/*/main.pdf
+books/*/main.aux
+books/*/main.log
+books/*/main.toc
+books/*/main.out
+books/*/frankdraft.*
+books/*/reader/
+books/index.html
+# generated from lib/languages.json by make_index.py and at server start
+lib/langs.css
+books/*/.build-key
+books/*/.reader-key
+guide/*.pdf
+guide/*.aux
+guide/*.log
+guide/*.toc
+guide/*.out
+# The HTML guide's compiled pages, html-guide/site/, ARE tracked: GitHub
+# Pages publishes the committed pages (html-guide/README.md), so a compile
+# (the installers, ./install.sh --guide, the guide's front page) shows up
+# here as changes to commit with the Markdown they come from.  vendor/ is
+# the snapshot of the studio that `build.py --export` writes into a copy of the
+# guide; here the live sources are used, and a stray snapshot is never
+# committed.  .site-*/ and .old-site/ are a compile swapping itself in, and
+# _site/ what `build.py --pages _site` lays out to be published.
+html-guide/engine/vendor/
+html-guide/.site-*/
+html-guide/.old-site/
+_site/
+# a narration is hundreds of megabytes and yours: never committed
+books/*/*/audio/
+books/*/*/*.webm
+books/*/*/*.mp3
+books/*/*/*.m4a
+books/*/audio/
+books/*/*.webm
+books/*/*.mp3
+books/*/*.m4a
+audiobook/
+# personal stores: the Anki decks, their uploads and builds.
+# A deck lives at youtube/anki/<language>/<slug>/; the one-level pattern
+# covers both the language folders and a deck from before languages, which
+# lies directly under anki/, and the two-level one is spelt out so that a
+# pattern narrowed later cannot silently start committing someone's cards.
+# notetypes.json and seen.json are collection-level and just as personal.
+youtube/anki/*/
+youtube/anki/*/*/
+youtube/anki/*.json
+# the exercise decks, the same kind of thing: a deck lives at
+# exercises/<language>/<slug>/ with every answer ever given in its schedule
+# files -- personal study state.  Both levels spelt out for the same reason
+# as above (and the first also covers exercises/.trash/).  exercises/README.md
+# stays tracked; a deck travels by its export, not by git.
+exercises/*/
+exercises/*/*/
+# the clip tray (lib/clips.py): recordings cut from a narration or a film or
+# recorded from a YouTube video in the tab, and frames captured from a video,
+# waiting to go onto a card -- personal, and copied into whatever card or
+# document uses one.  clips/README.md stays tracked.
+clips/*
+!clips/README.md
+books/.trash/
+youtube/videos/.trash/
+youtube/videos/*/.trash/
+# A VIDEO'S OWN FILM.  A video that is a file on this machine keeps it as
+# media.<ext> beside the transcript, and it is content the way a book's
+# narration is content -- hundreds of megabytes of it, which is not what a
+# repository is for.  The glosses beside it ARE tracked, so a video's work
+# survives; the film travels by the download button instead, which packs it
+# (lib/bundle.py, `full`).  audio/ under books/ is ignored for the same
+# reason a few lines down.
+youtube/videos/*/*/media.*
+youtube/videos/*/media.*
+tests/fixtures/videos/*/*/media.*
+tests/fixtures/videos/*/media.*
+# what the studio builds and remembers, not what it holds: a document under
+# library/<language>/<id>/ is content, and content is left to git the way a
+# book and a video are -- the examples the first start copies in will show as
+# untracked, and nothing here hides them
+markdown/library/*/*/build/
+markdown/library/*/build/
+markdown/library/.seeded*
+markdown/library/_prompt.md
+markdown/app/static/fonts/
+markdown/exlex/assets/fonts/
+# a font on its way into assets/fonts: renamed into place, or removed
+markdown/exlex/assets/.font-*.part
+markdown/exlex/out-*/
+# the studio's xelatex probe: written and removed at every start
+markdown/exlex/.probe.*
+# the fixture editions and documents under tests/ build like the real ones
+tests/fixtures/books/*/*/main.pdf
+tests/fixtures/books/*/*/main.aux
+tests/fixtures/books/*/*/main.log
+tests/fixtures/books/*/*/main.toc
+tests/fixtures/books/*/*/main.out
+tests/fixtures/books/*/*/frankdraft.*
+tests/fixtures/books/*/*/reader/
+tests/fixtures/books/*/*/.build-key
+tests/fixtures/books/*/*/.reader-key
+tests/fixtures/videos/*/*/.trash/
+tests/fixtures/anki/build/
+
+# "old stuff/" is the owner's own shelf: earlier books, videos and notes kept
+# beside the toolbox to be read and to be tried against it when something
+# changes.  It is content, not software, and it is nobody else's -- so it never
+# goes to the remote.  The whole directory, so nothing inside it can be added
+# by a stray `git add -A` either.
+old stuff/
+# and under the name it has since been given, so a rename cannot quietly
+# take the protection off it
+Parseh-Personal/
+
+# "test for books/" is the owner's own bundles, kept beside the toolbox to
+# load back into it when something about that door changes.  They are content
+# -- one of them is a 219 MB narration -- and they are nobody else's, so like
+# "old stuff/" the whole directory never goes to the remote, and a stray
+# `git add -A` cannot take it.
+test for books/
+
+# The dictionaries lib/lookup.py reads and lib/getdict.py builds: 3-300 MB
+# each, somebody else's work under somebody else's licence, and the toolbox
+# ships the doors and none of the content.  A language without one simply has
+# no lookup; nothing breaks.
+dict/*.db
+dict/*.jsonl
+# and the half-built file a download writes beside the live one: getdict.py
+# and getcorpus.py build to `<name>.part` and rename over the target only when
+# the build is whole, so a `.part` is a build in flight or one that died --
+# never something to commit.
+dict/*.part
+
+# The parallel corpora lib/corpus.py reads and lib/getcorpus.py builds, from
+# Tatoeba's own exports: a few megabytes each, somebody else's sentences
+# under somebody else's licence.  A pair without one simply offers nothing.
+corpus/*.db
+corpus/*.db.part
+corpus/_dl/
+
+# The translation engine and its models (lib/getmt.py): 5 MB of WebAssembly
+# and about 20 MB per language pair, none of it ours.  The engine is
+# bergamot-translator under the MPL 2.0 and the models are Mozilla's; both
+# are downloaded on request and neither belongs in the repository.
+mt/
+
+# Optional, locally installed character component packs (licences stored in each pack).
+components/*.db
+components/.build-*/

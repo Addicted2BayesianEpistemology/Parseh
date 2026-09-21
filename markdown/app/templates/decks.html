@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — Parseh</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D8%AA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{STUDIO}}/static/app.css">
+<link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+</head>
+<body data-page="decks" data-base="{{BASE}}" data-studio="{{STUDIO}}">
+<header class="topbar">
+  <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
+  <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
+  <div class="topbar-actions">
+    <a class="btn ghost" href="{{STUDIO}}/" title="The studio, where documents and their exercises are written">Studio</a>
+    <button type="button" class="btn" id="btn-import" title="Add a deck exported from Parseh (a .zip)">Import deck…</button>
+    <input type="file" id="file-import" accept=".zip,application/zip" hidden>
+    <a class="btn" href="{{BASE}}/api/backup" title="Download every deck on the shelf as one zip — each with its own id, its settings, its pictures and recordings, and the scheduling">Backup</a>
+    <button type="button" class="btn" id="btn-restore" title="Put a backup zip back: every deck it holds, with its scheduling. A deck already here is kept, and replacing it is offered only then">Load from backup</button>
+    <input type="file" id="file-restore" accept=".zip,application/zip" hidden>
+    <button type="button" class="btn primary" id="btn-new-deck">+ New deck</button>
+    <button type="button" class="btn danger ghost" id="btn-stop">Stop server</button>
+  </div>
+</header>
+<main class="container dk-container">
+  <div class="dk-intro">
+    <h1 class="dk-title">Exercise decks</h1>
+    <p class="dk-lede">Studio exercises gathered into decks and studied like Anki cards: after
+    each one you say how hard it was, and it comes back when it is due — sooner when it was hard.</p>
+  </div>
+  {{LANG_CHIPS}}
+  <div id="deck-cards" class="cards dk-cards" data-lang-filter="[data-lang]"></div>
+  <div id="decks-empty" class="empty dk-empty" hidden>
+    <p>No exercise decks yet.</p>
+    <p>A deck fills in two ways: on a studio document, press <b>+ Deck</b> beside an
+    exercise to copy it into a deck; or open a deck and use <b>Add exercise…</b>, the
+    same form the studio editor uses.</p>
+    <p><button type="button" class="btn primary" data-x="new-deck">+ New deck</button></p>
+  </div>
+  <div id="decks-empty-lang" class="empty dk-empty" hidden>
+    <p>No <span class="lang-name"></span> decks here.</p>
+    <p>Pick another language chip above, or <b>all</b>.</p>
+  </div>
+</main>
+<script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
+<div id="modal-root"></div>
+<div id="toast" class="toast" hidden></div>
+<div id="shutdown-overlay" class="shutdown-overlay" hidden>
+  <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
+  <code>./serve.sh</code> in the project directory.</p></div>
+</div>
+<link rel="stylesheet" href="{{STUDIO}}/static/mathjax.css">
+<script src="{{STUDIO}}/static/mathjax.js"></script>
+<!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
+<script src="/lib/activity.js" async></script>
+<script src="{{STUDIO}}/static/app.js"></script>
+<script src="{{STUDIO}}/static/decks.js"></script>
+</body>
+</html>

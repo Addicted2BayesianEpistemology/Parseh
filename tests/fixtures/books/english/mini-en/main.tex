@@ -1,0 +1,13 @@
+%% mini-en -- a fixture edition for the tests, not a book of the library.
+%% Build by hand from this directory, as build.sh's run_latex does:
+%%   OSFONTDIR=<root>/lib/fonts:/usr/share/fonts lualatex -interaction=nonstopmode main.tex
+\newcommand{\BookLang}{en}
+\newcommand{\FrankLib}{../../../../../lib}
+\newcommand{\BookTitle}{The Clock and the Wind}
+\newcommand{\BookAuthor}{a fable}
+\newcommand{\BookTitleLatin}{THE CLOCK AND THE WIND}
+\newcommand{\BookAuthorLatin}{a fable}
+\input{\FrankLib/frank-preamble.tex}
+\input{\FrankLib/frank-frontmatter.tex}
+\input{ch1.tex}
+\end{document}

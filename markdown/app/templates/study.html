@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — Parseh exercises</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D8%AA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{STUDIO}}/static/app.css">
+<link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+</head>
+<body data-page="study" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
+<header class="topbar">
+  <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
+  <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
+  <div class="topbar-actions">
+    <a class="btn ghost dk-back" href="./">← Deck</a>
+    <button type="button" class="btn danger ghost" id="btn-stop">Stop server</button>
+  </div>
+</header>
+<main class="container dk-study-page">
+  <div class="dk-studyhead">
+    <h1 class="dk-title" id="study-name">{{TITLE}}</h1>
+    <div id="study-counts" class="dk-study-counts" aria-live="polite"></div>
+  </div>
+
+  <article id="study-stage" class="sheet dk-sheet" data-lang="{{TARGET}}">
+    <p class="pv-status">Loading the next exercise…</p>
+  </article>
+  <div id="study-result" class="dk-result" role="status" hidden></div>
+  <section id="study-solution" class="dk-solution" aria-labelledby="study-solution-head" hidden>
+    <h2 id="study-solution-head" class="dk-solution-head">Correct answer</h2>
+    <div class="sheet dk-sheet" data-lang="{{TARGET}}"></div>
+  </section>
+
+  <div id="study-actions" class="dk-study-actions">
+    <button type="button" class="btn primary big" id="btn-check" hidden>Check</button>
+    <button type="button" class="btn primary big" id="btn-show" hidden>Show answer</button>
+    <span class="dk-keys" aria-hidden="true">Enter checks · 1–4 rate</span>
+    <span class="dk-grow"></span>
+    <button type="button" class="btn" id="btn-edit-card" title="Correct this exercise; its scheduling stays">✎ Edit</button>
+    <button type="button" class="btn" id="btn-skip" title="Leave it for now, unscheduled; it comes back next session">Skip</button>
+  </div>
+
+  <div id="rating-bar" class="dk-rating" role="group" aria-label="How hard was it?" hidden>
+    <button type="button" class="btn dk-rate" data-rating="again" aria-label="Again (key 1)">
+      <span class="dk-key">1</span><span class="dk-word">Again</span><span class="dk-ivl"></span></button>
+    <button type="button" class="btn dk-rate" data-rating="hard" aria-label="Hard (key 2)">
+      <span class="dk-key">2</span><span class="dk-word">Hard</span><span class="dk-ivl"></span></button>
+    <button type="button" class="btn dk-rate" data-rating="good" aria-label="Good (key 3)">
+      <span class="dk-key">3</span><span class="dk-word">Good</span><span class="dk-ivl"></span></button>
+    <button type="button" class="btn dk-rate" data-rating="easy" aria-label="Easy (key 4)">
+      <span class="dk-key">4</span><span class="dk-word">Easy</span><span class="dk-ivl"></span></button>
+  </div>
+
+  <div id="study-done" class="dk-done" hidden>
+    <h2>Nothing more to study now</h2>
+    <p id="study-next-due" class="dk-when"></p>
+    <p class="dk-skipped" hidden></p>
+    <div class="dk-done-actions">
+      <button type="button" class="btn dk-unskip" hidden>Study the skipped ones</button>
+      <a class="btn primary" id="btn-back-deck" href="./">Back to the deck</a>
+    </div>
+  </div>
+</main>
+<script id="deck-json" type="application/json">{{DECK_JSON}}</script>
+<script id="doc-lang" type="application/json">{{LANG_JSON}}</script>
+<script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
+<div id="modal-root"></div>
+<div id="toast" class="toast" hidden></div>
+<div id="shutdown-overlay" class="shutdown-overlay" hidden>
+  <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
+  <code>./serve.sh</code> in the project directory.</p></div>
+</div>
+<link rel="stylesheet" href="{{STUDIO}}/static/mathjax.css">
+<script src="{{STUDIO}}/static/mathjax.js"></script>
+<!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
+<script src="/lib/activity.js" async></script>
+<script src="{{STUDIO}}/static/app.js"></script>
+<script src="{{STUDIO}}/static/decks.js"></script>
+</body>
+</html>

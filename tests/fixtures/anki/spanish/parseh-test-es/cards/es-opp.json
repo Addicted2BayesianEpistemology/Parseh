@@ -1,0 +1,30 @@
+{
+ "id": "es-opp",
+ "guid": "fx-es-opp",
+ "kind": "opposites",
+ "lang": "es",
+ "created": "2026-09-09 10:00:00",
+ "video": "",
+ "book": "fixture-es",
+ "time": 0,
+ "context": "",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "grande",
+ "kana": "",
+ "tr": "",
+ "en": "",
+ "opp": "pequeño",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "spanish-book"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

@@ -1,0 +1,30 @@
+{
+ "id": "es-vocab",
+ "guid": "fx-es-vocab",
+ "kind": "vocab",
+ "lang": "es",
+ "created": "2026-09-09 10:00:00",
+ "video": "fixture-es",
+ "book": "",
+ "time": 0,
+ "context": "La mano derecha",
+ "notes": "",
+ "bidirectional": true,
+ "reverse_only": false,
+ "img_front": null,
+ "img_back": null,
+ "fa": "mano",
+ "kana": "",
+ "tr": "",
+ "en": "hand, f. — feminine though it ends in -o",
+ "opp": "",
+ "opp_kana": "",
+ "opp_tr": "",
+ "tags": [
+  "spanish-youtube"
+ ],
+ "source": {
+  "label": "fixture",
+  "url": ""
+ }
+}

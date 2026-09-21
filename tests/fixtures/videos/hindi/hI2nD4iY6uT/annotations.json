@@ -1,0 +1,114 @@
+{
+ "video": "hI2nD4iY6uT",
+ "language": "hi",
+ "segments": [
+  {
+   "start": 0,
+   "plain": true,
+   "text": "Welcome back to the channel, today we learn Hindi at the tea stall"
+  },
+  {
+   "start": 6,
+   "chapter": "चाय की दुकान",
+   "text": "नमस्ते, एक चाय मिलेगी",
+   "chunks": [
+    {
+     "fa": "नमस्ते,",
+     "tr": "namaste",
+     "voc": "नमस्ते namaste hello (the same word for goodbye)",
+     "en": "hello,"
+    },
+    {
+     "fa": "एक चाय मिलेगी",
+     "tr": "ek cāy milegī",
+     "voc": "चाय cāy f. tea; मिलना milnā to be got · मिलेगी milegī will be got, f. agreeing with चाय",
+     "en": "could I get a tea"
+    }
+   ]
+  },
+  {
+   "start": 11,
+   "text": "हाँ जी, कितनी चीनी",
+   "chunks": [
+    {
+     "fa": "हाँ जी,",
+     "tr": "hāṁ jī",
+     "voc": "हाँ hāṁ yes; जी jī the particle of respect, added to anything",
+     "en": "yes sir,"
+    },
+    {
+     "fa": "कितनी चीनी",
+     "tr": "kitnī cīnī",
+     "voc": "कितना kitnā how much, f. कितनी; चीनी cīnī f. sugar (and: Chinese)",
+     "en": "how much sugar"
+    }
+   ]
+  },
+  {
+   "start": 15,
+   "text": "थोड़ी कम, और अदरक ज़्यादा",
+   "chunks": [
+    {
+     "fa": "थोड़ी कम,",
+     "tr": "thoṛī kam",
+     "voc": "थोड़ा thoṛā a little, f. थोड़ी agreeing with चीनी; कम kam less",
+     "en": "a little less,"
+    },
+    {
+     "fa": "और अदरक ज़्यादा",
+     "tr": "aur adrak zyādā",
+     "voc": "अदरक adrak ginger; ज़्यादा zyādā more — Pers., and invariable",
+     "en": "and more ginger"
+    }
+   ]
+  },
+  {
+   "start": 20,
+   "text": "ठीक है, दो मिनट लगेंगे",
+   "chunks": [
+    {
+     "fa": "ठीक है,",
+     "tr": "ṭhīk hai",
+     "voc": "ठीक ṭhīk right, fine",
+     "en": "all right,"
+    },
+    {
+     "fa": "दो मिनट लगेंगे",
+     "tr": "do minaṭ lageṅge",
+     "voc": "मिनट minaṭ m. minute — Eng.; लगना lagnā to be applied, to take (of time) · लगेंगे lageṅge they will take",
+     "en": "it will take two minutes"
+    }
+   ]
+  },
+  {
+   "start": 24,
+   "text": "कितने पैसे हुए",
+   "chunks": [
+    {
+     "fa": "कितने पैसे हुए",
+     "tr": "kitne paise hue",
+     "voc": "पैसा paisā m. money, a coin, pl. पैसे; होना honā to be · हुए hue came to be — the Hindi for what does it come to",
+     "en": "how much is it"
+    }
+   ]
+  },
+  {
+   "start": 28,
+   "text": "दस रुपये, धन्यवाद",
+   "chunks": [
+    {
+     "fa": "दस रुपये,",
+     "tr": "das rupaye",
+     "voc": "रुपया rupayā m. rupee, pl. रुपये",
+     "en": "ten rupees,"
+    },
+    {
+     "fa": "धन्यवाद",
+     "tr": "dhanyavād",
+     "voc": "धन्यवाद dhanyavād m. thank you — Skt., the formal word",
+     "en": "thank you"
+    }
+   ]
+  }
+ ]
+}
