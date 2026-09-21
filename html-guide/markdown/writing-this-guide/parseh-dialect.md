@@ -143,8 +143,8 @@ end of the page marks them all.
 ```parseh-example
 :::exercise fill-blanks
 prompt: Put the words where they belong.
-text: [من [[a]] را خواندم]{tl}
-- [a] کتاب
+text: من [[blank1]] را خواندم
+- [blank1] کتاب
 - [ ] خانه
 explanation-correct: کتاب — *the book*.
 :::
