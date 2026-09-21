@@ -20,6 +20,7 @@ Italian, Japanese, French, German, Turkish, English, Hindi, Spanish and
 Chinese.
 
 Currently released in alpha version, support for mobile version is still limited.
+Bugs are to be expected.
 
 **The guide — installing, using and extending Parseh, and the full reference
 of its Markdown dialect — is at
