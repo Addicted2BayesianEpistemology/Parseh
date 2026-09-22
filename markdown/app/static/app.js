@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /* exlex studio — client logic for library, reading view, editor, prompt. */
 "use strict";
 

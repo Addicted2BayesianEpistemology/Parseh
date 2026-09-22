@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Links between documents, by NAME (markdown/exlex/texgen.py for the
 grammar and the resolver, markdown/app/htmlgen.py and notes.py for the three
 ways a link is shown, markdown/app/store.py for the library it resolves in).

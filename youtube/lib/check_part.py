@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Check ONE annotation batch, before the whole video is finished.
 
     python3 lib/check_part.py videos/<folder>/<id> parts/03.json

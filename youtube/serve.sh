@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
 # The video player is served by the toolbox's one server, from the root:
 #
 #   cd .. && ./serve.sh        # then open  https://localhost:8765/youtube/

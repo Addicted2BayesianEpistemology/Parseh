@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """What every language's starter shows (markdown/exlex/starters/<code>.md).
 
     python3 -m unittest discover -s tests -p test_starters.py

@@ -16,7 +16,7 @@ __pycache__/
 # A bundle downloaded from the toolbox and dropped at the top of the checkout
 # -- a book, a video, a deck, somebody's test -- is content, not software.
 /*.zip
-# built by ./build.sh (and guide/build.sh); rebuild, do not commit.
+# built by ./build.sh; rebuild, do not commit.
 # A book lives at books/<language>/<slug>/; the one-level patterns stay for
 # a book from before languages, which lies directly under books/.
 books/*/*/main.pdf
@@ -40,11 +40,6 @@ books/index.html
 lib/langs.css
 books/*/.build-key
 books/*/.reader-key
-guide/*.pdf
-guide/*.aux
-guide/*.log
-guide/*.toc
-guide/*.out
 # The HTML guide's compiled pages, html-guide/site/, ARE tracked: GitHub
 # Pages publishes the committed pages (html-guide/README.md), so a compile
 # (the installers, ./install.sh --guide, the guide's front page) shows up

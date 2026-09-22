@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The page that sets up reading a book nobody has glossed, at /lookup/.
 
   THE DICTIONARIES.  One button per language: fetch it, watch it build, see

@@ -36,10 +36,9 @@ and the player, the studio and the exercise decks, the Anki, clip tray and
 dictionary pages, and these guide pages when Parseh serves them. Opened
 from the disk, or read on the web, the guide has no server to ask, and
 shows no list; served, it first asks whether the server is Parseh, and
-only then loads the list — with the way back to the hub and the live PDF
-manual. A compile of the guide started from its front page ([This guide
-and the PDF manual](this-guide.md)) is on the list like any other work,
-and the hub shows it too.
+only then loads the list — with the way back to the hub. A compile of the
+guide started from its front page ([This guide](this-guide.md)) is on the
+list like any other work, and the hub shows it too.
 
 ## The pill
 

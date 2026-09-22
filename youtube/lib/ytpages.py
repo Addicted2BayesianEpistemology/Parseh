@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The video player's pages and endpoints, as functions the Parseh server calls.
 
 This used to be youtube/serve.py, a server of its own on port 8770.  Since

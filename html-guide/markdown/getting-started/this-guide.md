@@ -1,8 +1,7 @@
 ---
-title: This guide and the PDF manual
-linkTitle: This guide
+title: This guide
 weight: 10
-description: Opening this guide from Parseh, from the disk or on the web, compiling it from its front page, finding your way in it, and the PDF manual.
+description: Opening this guide from Parseh, from the disk or on the web, compiling it from its front page, and finding your way in it.
 ---
 
 This guide is a set of web pages that need no server to be read. Parseh
@@ -102,11 +101,4 @@ once the guide is compiled.*
   Parseh the guide shares the toolbox's setting: change it here and the
   hub follows, and the other way round.
 
-## The PDF manual
-
-The toolbox also has a manual in one printable file, `HOW TO USE THIS
-TOOLBOX.pdf`, at the top of the Parseh folder. The **PDF manual** button at
-the top right of every page of this guide opens it — **PDF**, on a phone.
-Served by Parseh, that is the manual at `https://localhost:8765/guide.pdf`;
-from the disk or on the web, it is the copy the compile put beside these
-pages.
+There is no other manual: these pages are the whole of it.

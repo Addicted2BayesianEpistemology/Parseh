@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Sourced, never run: the environment serve.sh, build.sh and install.sh work in.
 #
 #   . lib/env.sh && parseh_env

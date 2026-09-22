@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Check one annotated paragraph before it goes anywhere near assemble.py.
 
     python3 check_batch.py <para.json> [--book <dir-or-slug>] [--ch N]

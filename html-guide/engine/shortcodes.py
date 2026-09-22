@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.shortcodes -- Hugo's built-in shortcodes, the ones a static page can
 honour.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Whether a language's words can be cut by machine here, and by what.
 
     segmenter.available("ja")   True when SudachiPy and its dictionary import

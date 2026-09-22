@@ -41,18 +41,22 @@ reach the server.
 
 ## Adding a recording
 
-**add a recording…** opens two pickers and a button:
+**add a recording…** opens the book as an outline and a button:
 
-1. **covers** — the first and the last subparagraph this recording reads,
-   by their labels (*1.1 · ch 1* … *2.2 · ch 1*). Leave both at **the whole
-   book** for a recording of all of it.
+1. **covers** — what this recording reads, picked in the outline ([Picking
+   a part of the book](contents.md#picking-a-part-of-the-book)):
+   a chapter is one click, a stretch of chapters a Shift-click more, and a
+   paragraph opens on its subparagraphs for a recording that starts or ends
+   inside one. Nothing picked is **the whole book**. The recordings already
+   there are marked (*n1*, *n2*) on the rows they cover, so a gap or an
+   overlap shows before it is made.
 2. **pick the audio file** — mp3, m4a, webm, ogg, opus, wav… The file is
    copied into the book's own `audio/` folder, with a progress bar while it
    goes up. A narration is yours, and large: it is never committed to git.
 
 What happens next depends on the first step:
 
-- **A stretch named.** The file joins the recordings already there, and —
+- **A stretch picked.** The file joins the recordings already there, and —
   since it has no transcript yet — is given a **first guess** at its times
   as it lands: the recording is shared out over the stretch it covers, each
   subparagraph a slice in proportion to how much text it has. It plays at
@@ -62,7 +66,7 @@ What happens next depends on the first step:
   one recording, you are asked first — *Replace n1?* — because the old file
   then stops being the narration. It stays in `audio/`, and the times in
   `timings.json` stay as they are, read from then on as times in the new
-  file. To keep both, cancel and name the stretch the new one covers.
+  file. To keep both, cancel and pick the stretch the new one covers.
 
 A toast says *clock-and-wind.mp3 is on the shelf* (and how many
 subparagraphs got a first guess).
@@ -73,7 +77,8 @@ Each row carries its **id** (`n1`, `n2`…, the name `book.json` and
 `timings.json` know it by), tags — **N timestamps** when it has a usable
 transcript, **no transcript**, **transcript unusable**, **file missing** —
 the file's name, and a line of facts: *covers the whole book · 156 kB · 4
-of 4 timed · 1 by hand*. Where a button cannot be used, a line under it
+of 4 timed · 1 by hand*, or *covers chapter 2 · The Wind · 38
+subparagraphs · …*. Where a button cannot be used, a line under it
 says why. The four buttons:
 
 | Button | What it does |
@@ -85,9 +90,10 @@ says why. The four buttons:
 
 A click on the row's name opens its drawer:
 
-- **covers** — the two pickers again, and **save what it covers**. The times
-  already measured are not touched: what changes is which subparagraphs
-  the next run may re-time.
+- **covers** — what it covers, in words, and **change…**, which opens the
+  outline on that stretch, with **save what it covers**. The times already
+  measured are not touched: what changes is which subparagraphs the next run
+  may re-time.
 - **transcript** — the one this recording has, and how many timestamps over
   how long; **pick a file**, or paste one into the box and press **save the
   pasted transcript**.

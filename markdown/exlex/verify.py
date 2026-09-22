@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """verify — prove that every target-language string in the .tex made it
 into the PDF, in the right order and with correct letter shaping.
 

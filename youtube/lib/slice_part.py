@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Print the captions one batch is responsible for.
 
     python3 lib/slice_part.py videos/<folder>/<id> <first> <count>

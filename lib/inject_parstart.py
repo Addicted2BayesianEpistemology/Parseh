@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """One-time, idempotent injection of \\parstart into the already-built .tex.
 
 Every batch built from now on gets its \\parstart from assemble.py, which has

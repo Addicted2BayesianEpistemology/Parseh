@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The one list of what Parseh needs, where it is looked for, and the protocol
 an installer reports in.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """English: what a \\vb says about a verb, from the dictionary's own rows.
 
     helped   \\vb{help}{hɛlp}{helped}{hɛlpt}{helped}{hɛlpt}{to provide ...}

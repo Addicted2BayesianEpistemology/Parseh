@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Audio files: what a recording is by its bytes, what it may be called, and
 the three things ffmpeg does with one when the machine has it.
 

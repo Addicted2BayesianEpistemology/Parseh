@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Spanish: the \\vb a verb hit offers, read off the rows Wiktionary wrote.
 
     \\vb{tener}{}{tengo}{}{tuvo}{}{to have (fut. \\pw{tendré})}

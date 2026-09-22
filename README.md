@@ -26,8 +26,7 @@ Bugs are to be expected.
 **The guide — installing, using and extending Parseh, and the full reference
 of its Markdown dialect — is at
 <https://addicted2bayesianepistemology.github.io/Parseh/>.** The same pages
-are in [`html-guide/`](html-guide/), and the printable manual is
-[`HOW TO USE THIS TOOLBOX.pdf`](HOW%20TO%20USE%20THIS%20TOOLBOX.pdf).
+are in [`html-guide/`](html-guide/), and Parseh serves them at `/guide/`.
 
 ## Quick start
 
@@ -42,7 +41,32 @@ page has the details.
 
 ## License
 
-The code is under the GNU General Public License v3.0 ([`LICENSE`](LICENSE)).
-The bundled fonts in `lib/fonts/` are under the SIL Open Font License, and
-MathJax (`lib/mathjax/`) under the Apache License 2.0. The repository ships
-the software and none of the content: what you read with it is yours.
+Parseh is free software under the GNU General Public License, version 3
+or (at your option) any later version — `GPL-3.0-or-later`
+([`LICENSE`](LICENSE)); every source file says so in its
+`SPDX-License-Identifier` line.
+
+What it carries of other people's work keeps their licences:
+
+- the fonts in `lib/fonts/` (Vazirmatn, Noto Naskh Arabic, Noto Nastaliq
+  Urdu, Noto Serif Devanagari): SIL Open Font License 1.1 — the licence and
+  their copyright notices in [`lib/fonts/OFL.txt`](lib/fonts/OFL.txt), every
+  file named in [`lib/fonts/README.md`](lib/fonts/README.md);
+- TeX Gyre Pagella and Heros, copied from TeX into the compiled guide
+  (`html-guide/site/_parseh/fonts/`): GUST Font License
+  ([`lib/fonts/GUST-FONT-LICENSE.txt`](lib/fonts/GUST-FONT-LICENSE.txt));
+- MathJax 3.2.2 (`lib/mathjax/`): Apache License 2.0 (its `LICENSE` beside it);
+- the Italian hyphenation patterns (`markdown/exlex/assets/hyph/hyph-it.tex`,
+  © Claudio Beccari, hyph-utf8): LaTeX Project Public License 1.3 or later,
+  or MIT — the file's header says so and carries the MIT text;
+- excerpts in the tests' data (`tests/fixtures/`): conjugation rows from
+  Wiktionary (CC BY-SA 4.0) and sentences from Tatoeba (CC BY 2.0 FR).
+  [`tests/fixtures/README.md`](tests/fixtures/README.md) says where every
+  test text comes from.
+
+The dictionaries, sentences, translation models and character data the
+reading help downloads on request are not in the repository; each keeps its
+own licence, which travels inside the file it becomes. The app's
+**Licences** page (the hub's foot, `/licences/`) lists all of it. The
+repository ships the software and none of the content: what you read with
+it is yours.

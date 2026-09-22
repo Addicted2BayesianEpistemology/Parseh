@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Turn the annotator's JSON into LaTeX, refusing anything that does not
 reproduce the source text exactly once the language's marks are taken back
 out (the harakat, for Persian and Arabic; nothing, for Japanese and Italian).

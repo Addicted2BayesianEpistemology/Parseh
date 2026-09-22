@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Chinese: a \\vb only for the two kinds of verb that come apart in a sentence.
 
     \\vb{睡觉}{shuìjiào}{睡了觉}{shuìle jiào}{}{}{to sleep}      separable (vo)

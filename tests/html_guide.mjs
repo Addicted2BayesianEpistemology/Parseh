@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 import { chromium } from 'npm:playwright-core@1.52.0';
 import jsQR from 'npm:jsqr@1.4.0';
 // Run: CHROME_BIN=/path/to/chrome PARSEH_PYTHON=/path/to/python3 deno run --allow-all tests/html_guide.mjs
@@ -68,14 +69,16 @@ const heroInk = () => {
   return [ink(document.querySelector('.g-hero-fa'), true), ink(document.querySelector('.g-hero h1'), false),
           document.fonts.check('46px "Noto Nastaliq Urdu"')];
 };
-// The bar's PDF manual button: shown, inside the window, and what a tap on
-// its middle reaches -- with every other button of the bar inside it too.
-const pdfButton = () => {
-  const a = document.querySelector('.g-top .g-pdf'), r = a.getBoundingClientRect();
+// The bar on a phone: every button of it inside the window, the theme
+// button what a tap on its middle reaches -- and no PDF manual, which is
+// gone (the guide is the manual).
+const barFits = () => {
+  const t = document.querySelector('.g-top .g-theme'), r = t.getBoundingClientRect();
   const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
   const inside = [...document.querySelectorAll('.g-top > a, .g-top > button')].filter(e => !e.hidden)
     .every(e => { const q = e.getBoundingClientRect(); return q.left >= 0 && q.right <= innerWidth; });
-  return [!!(hit && hit.closest('.g-pdf')) && inside, a.innerText, Math.round(r.left), Math.round(r.right)];
+  return [!!(hit && hit.closest('.g-theme')) && inside, !document.querySelector('.g-pdf, [data-guide-manual]'),
+          Math.round(r.left), Math.round(r.right)];
 };
 // The showcase's YouTube video, as drawn: off the disk a card in the
 // player's place (YouTube's player says only "Error 153" to a page that
@@ -130,7 +133,6 @@ async function guideTree(name) {
   const base = `${WORK}/${name}`;
   await Deno.mkdir(`${base}/markdown`, {recursive: true});
   for (const d of ['markdown/exlex', 'markdown/app', 'lib']) await Deno.symlink(`${root}/${d}`, `${base}/${d}`);
-  await Deno.copyFile(`${root}/HOW TO USE THIS TOOLBOX.pdf`, `${base}/HOW TO USE THIS TOOLBOX.pdf`);
   const r = await run(['cp', '-r', `${root}/html-guide`, `${base}/html-guide`]);
   if (r.code) throw Error(r.out);
   for (const d of ['site', 'engine/vendor']) await Deno.remove(`${base}/html-guide/${d}`, {recursive: true}).catch(() => {});
@@ -340,13 +342,13 @@ try {
   {
     const [glyph, head] = await pp.evaluate(heroInk);
     assert(glyph < head - 4, `and on a phone: ${Math.round(glyph)} / ${Math.round(head)}`);
-    const pdf = await pp.evaluate(pdfButton);
-    assert(pdf[0] && pdf[1] === 'PDF', 'the front page keeps its PDF button on a phone: ' + pdf);
+    const bar = await pp.evaluate(barFits);
+    assert(bar[0] && bar[1], 'the front page\'s bar fits a phone, and has no PDF button: ' + bar);
   }
   await pp.goto(FILE + '/site/showcase.html');
   {
-    const pdf = await pp.evaluate(pdfButton);
-    assert(pdf[0] && pdf[1] === 'PDF', 'and so does a compiled page, the one way to the manual from it: ' + pdf);
+    const bar = await pp.evaluate(barFits);
+    assert(bar[0] && bar[1], 'and so does a compiled page\'s: ' + bar);
   }
   const off = await pp.$eval('.g-side', s => s.getBoundingClientRect().right);
   assert(off <= 0, 'the sidebar waits off the screen: its right edge at ' + off);
@@ -519,21 +521,27 @@ serve.main()
 
   await sp.goto(B + '/guide/site/showcase.html');
   // (once the server has said it is Parseh)
-  const links = await until(() => sp.evaluate(() => {
-    const got = [document.querySelector('[data-guide-manual]').getAttribute('href'), !document.querySelector('.g-hub').hidden];
-    return got[0] === '/guide.pdf' && got;
-  }), 'the manual link turns to /guide.pdf', 5000).catch(() => [null, false]);
-  assert(links[0] === '/guide.pdf' && links[1], 'served, the manual link is /guide.pdf and the way back to Parseh shows');
+  const hubShown = await until(() => sp.$eval('.g-hub', a => !a.hidden), 'the way back to Parseh', 5000).catch(() => false);
+  assert(hubShown, 'served, the way back to Parseh shows');
   {
-    // on a phone, the bar holds the way back to Parseh and the PDF button too
+    // the PDF manual's old address, kept in somebody's bookmarks, goes on to
+    // the guide, which is the manual now
+    const r = await fetch(B + '/guide.pdf', {redirect: 'manual'});
+    await r.body?.cancel();
+    const to = r.headers.get('location') || '';
+    assert(r.status === 302 && new URL(to, B).pathname === '/guide/',
+           'the PDF manual\'s old address goes on to the guide: ' + r.status + ' ' + to);
+  }
+  {
+    // on a phone, the bar holds the way back to Parseh too
     const ph = await browser.newContext({viewport: {width: 390, height: 844}, hasTouch: true, isMobile: true});
     const php = await ph.newPage();
     await php.goto(B + '/guide/site/showcase.html');
     await until(() => php.$eval('.g-hub', a => !a.hidden), 'the hub button', 5000).catch(() => null);
-    const pdf = await php.evaluate(pdfButton);
+    const bar = await php.evaluate(barFits);
     const hub = await php.$eval('.g-hub', a => !a.hidden);
-    assert(hub && pdf[0] && await php.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-           'served, on a phone, the bar holds Parseh, PDF and ◐ inside the window: ' + pdf);
+    assert(hub && bar[0] && bar[1] && await php.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+           'served, on a phone, the bar holds Parseh and ◐ inside the window: ' + bar);
     await ph.close();
   }
   const added = await sp.evaluate(() => document.querySelector('.g-article').textContent.includes('A line added after the compile.'));
@@ -622,7 +630,7 @@ serve.main()
   await gp.click('#g-nav a:text("The showcase")');
   await gp.waitForURL(/\/Parseh\/site\/showcase\.html$/);
   const drawn = await gp.evaluate(() => [getComputedStyle(document.querySelector('.g-article .sheet')).boxShadow !== 'none',
-    document.querySelectorAll('.exercise').length, document.querySelector('[data-guide-manual]').getAttribute('href')]);
+    document.querySelectorAll('.exercise').length]);
   assert(drawn[0] && drawn[1] > 5, 'under /Parseh/ the page is styled and its exercises drawn: ' + drawn);
   {
     const v = await youtube(gp);
@@ -633,23 +641,20 @@ serve.main()
   assert(/\/Parseh\//.test(gp.url()), 'and the way back stays under /Parseh/: ' + gp.url());
   assert(bad.length === 0, 'no address the pages ask for is missing: ' + bad.join('; '));
   // the same site under /guide/, where a website would put it: the address
-  // alone once made the pages take this host for Parseh, and send the
-  // manual to a /guide.pdf it does not have
+  // alone once made the pages take this host for Parseh
   await Deno.symlink(`${GH}/Parseh`, `${GH}/guide`);
   const H = `http://127.0.0.1:${gport}/guide/`;
   const herr = [];
   gp.on('pageerror', e => herr.push(e.message));
-  for (const [url, want] of [[H, 'site/_parseh/manual.pdf'], [H + 'site/showcase.html', '_parseh/manual.pdf']]) {
+  for (const url of [H, H + 'site/showcase.html']) {
     const asked = gp.waitForResponse(r => r.url() === H + '__status', {timeout: 5000}).catch(() => null);
     await gp.goto(url);
     const answer = await asked;
     await sleep(150);
-    const got = await gp.evaluate(() => [[...document.querySelectorAll('[data-guide-manual]')].map(a => a.getAttribute('href')),
-      !document.querySelector('.g-hub').hidden, document.querySelector('[data-guide-compile]')?.hidden]);
-    const pdf = await fetch(new URL(want, url));
-    await pdf.body?.cancel();
-    assert(answer && answer.status() === 404 && got[0].length && got[0].every(h => h === want) && !got[1] && got[2] !== false && pdf.ok,
-           `under /guide/ on a host that is not Parseh, ${url.slice(H.length) || 'the front page'} keeps its own manual (${got[0]}, ${pdf.status}) and no way to a hub`);
+    const got = await gp.evaluate(() => [!document.querySelector('.g-hub').hidden,
+      document.querySelector('[data-guide-compile]')?.hidden]);
+    assert(answer && answer.status() === 404 && !got[0] && got[1] !== false,
+           `under /guide/ on a host that is not Parseh, ${url.slice(H.length) || 'the front page'} offers no way to a hub and no compile`);
   }
   assert(herr.length === 0, 'and no script error: ' + herr.join('; '));
   await gctx.close();

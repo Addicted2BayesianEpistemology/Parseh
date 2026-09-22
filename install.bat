@@ -1,4 +1,5 @@
 @echo off
+rem SPDX-License-Identifier: GPL-3.0-or-later
 rem Install Parseh on Windows -- double-click this file.
 rem
 rem It makes the environment Parseh rebuilds books and divides words in:

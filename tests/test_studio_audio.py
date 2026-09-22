@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A studio document's recordings: stored, listed and deleted, served a byte
 range at a time, carried out and back in zips and backups, brought in from
 the clip tray, and laid out by the same numbering as its pictures

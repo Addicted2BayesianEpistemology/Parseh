@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A book drafted from its text gets its words at birth (lib/draft.py).
 
     python3 -m unittest discover -s tests -p test_wordbook_draft.py

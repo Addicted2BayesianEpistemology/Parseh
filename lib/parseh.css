@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Parseh — the one palette and the shared chrome.
    Served at /lib/parseh.css and linked by every page of the toolbox except
    the studio's own sheet, whose app.css is where these colours come FROM
@@ -59,9 +60,10 @@
   --boxbg:#efe7d1;
 }
 
-/* The three faces that travel with the toolbox, in lib/fonts/: the Persian
-   naskh and nastaliq, and the Arabic naskh.  Japanese and Italian rely on
-   the device's fonts (lib/languages.json names the stacks).  Nothing else
+/* The faces that travel with the toolbox, in lib/fonts/ with their licences
+   (lib/fonts/README.md): Persian's naskh and nastaliq, Arabic's naskh and
+   Hindi's Devanagari.  Every other language relies on the device's fonts
+   (lib/languages.json names the stacks).  Nothing else
    in this file is per language: WHICH face an element gets comes from
    /lib/langs.css, generated from the registry, which sets --tl-font,
    --tl-alt, --tl-dir and --tl-alt-lh on every element with data-lang. */
@@ -294,6 +296,25 @@ a.door.wide .tags{margin:0}
 .hub .foot a{color:var(--dim)}
 .hub .addr{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:4px}
 .hub .addr code{color:var(--dim)}
+
+/* ---------------- the licences page (/licences/, lib/notices.py) ----------
+   An index page (body.index main) of prose and one card per work that is
+   not Parseh's own: its name, what it is, whose, under what.  One column,
+   so it reads the same on a phone; the mobile mode narrows it to the
+   mobile column (mobile.css). */
+.notices h2{font-size:18px;font-weight:600;margin:36px 0 10px}
+.notices p{line-height:1.6;margin:0 0 12px}
+.notices p.intro{color:var(--dim);font-size:14.5px}
+.notices code{font-family:ui-monospace,Menlo,monospace;font-size:.88em}
+.notices a{color:var(--accent)}
+.notices .work{background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  padding:12px 16px;margin:0 0 10px}
+.notices .work h3{font-size:15.5px;font-weight:600;margin:0 0 4px}
+.notices .work p{margin:0 0 4px;font-size:14px;line-height:1.5}
+.notices .work .what{color:var(--dim)}
+.notices .work .who{color:var(--ink)}
+.notices .work .lic{color:var(--ink);margin:0}
+.notices .work code{overflow-wrap:anywhere}
 
 /* ---------------- text & margins: the readers' panel ----------------
    Opened by the Aa button in a reader's header; Parseh.typo builds it. */

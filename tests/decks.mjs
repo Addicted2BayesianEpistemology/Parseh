@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the Exercises door: decks.html, deck.html, study.html
 // (static/decks.js and the dk- CSS) and a document page's "+ Deck", against
 // the REAL routes (deckroutes, decks.py, the studio) on a temporary library

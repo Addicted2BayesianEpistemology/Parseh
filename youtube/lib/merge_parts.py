@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Assemble videos/<folder>/<id>/annotations.json from its parts/ batches.
 
     python3 lib/merge_parts.py videos/<folder>/<id>

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Apply confirmed pointing fixes to the built .tex, safely.
 
     python3 apply_pointing.py <rulings.json> [--write] [--book <dir-or-slug>]

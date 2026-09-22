@@ -2,7 +2,7 @@
 title: What changed recently
 linkTitle: What’s new
 weight: 7
-description: The newest features — links by name, the enlarged flashcard, the RTL editor, large print and black and white, Working…, Mobile mode, this guide, the new starters — and where each is explained.
+description: The newest features — links by name, the enlarged flashcard, the RTL editor, large print and black and white, Working…, Mobile mode, this guide, picking a part of the book, the licences page, the new starters — and where each is explained.
 ---
 
 The features below arrived together, in September 2026. Each has a line
@@ -175,11 +175,12 @@ See [Browser and Mobile](../getting-started/mobile-mode.md).
 
 ## This guide
 
-The hub's **guide** button now opens these pages, at `/guide/`, rather
-than the PDF manual — which stays, one click away, as **PDF manual** at
-the top of every page. The pages have a list on the left, a search box
-that finds any word on any page, the three themes, and working examples
-of everything the studio's Markdown can hold.
+The hub's **guide** button now opens these pages, at `/guide/`. They are
+the whole manual: the PDF manual that came before them is gone, and its
+old address, `/guide.pdf`, opens these pages instead. The pages have a
+list on the left, a search box that finds any word on any page, the three
+themes, and working examples of everything the studio's Markdown can
+hold.
 
 - The installers compile the guide every time they run;
   `./install.sh --guide` compiles it alone.
@@ -195,6 +196,30 @@ of everything the studio's Markdown can hold.
 pages are written, and [Compiling and
 publishing](../writing-this-guide/compiling.md) how they are compiled and
 published.
+
+## Picking a part of the book
+
+The fold sheet, the sections sheet and a recording's **covers** used to
+offer every paragraph of the book — or every subparagraph — in long lists,
+twice over. They now show the book as an outline: its chapters, their
+sections, and their paragraphs by number and first words. A click takes a
+whole chapter, section or paragraph; **Shift**-click, or **stretch it to…**,
+takes everything in between; and the pick is said in words (*chapter 2 · The
+Wind · 14 paragraphs*). In the sections sheet you pick what you want to
+name: a chapter, a paragraph, or a section's heading to rename or remove it.
+
+What a recording covers is now written with its chapter (`2:1.1`), since
+every chapter has a `1.1`. A recording of chapter 2 used to answer for
+chapter 1's subparagraphs of the same numbers too. See [Picking a part of
+the book](../books/contents.md#picking-a-part-of-the-book).
+
+## Licences
+
+The foot of the hub, in both interfaces, now leads to **Licences**
+(`/licences/`): what Parseh is under — the GNU GPL, version 3 or any later
+version — with the licence's text, and, work by work, the fonts, MathJax
+and the data the reading help downloads, each under its own licence. See
+[Licences and credits](licences.md).
 
 ## New starter pages
 

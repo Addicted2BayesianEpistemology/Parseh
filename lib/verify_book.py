@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Prove every built paragraph still reproduces its source.
 
 assemble.py checks fidelity per batch, against the annotation JSON.  For the

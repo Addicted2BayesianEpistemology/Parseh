@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The server tests/studio_audio.mjs drives: the real studio routes on a
 TEMPORARY library, a TEMPORARY exercises/ store and a TEMPORARY clip tray,
 with real recordings (ffmpeg) in it.

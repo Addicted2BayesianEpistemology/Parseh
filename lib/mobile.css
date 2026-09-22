@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Parseh — the mobile interface's sheet.
    Served at /lib/mobile.css, after parseh.css, by the pages that have a
    mobile layout: the hub, the mobile book shelf (/m/books/, lib/mobile.py)
@@ -128,6 +129,15 @@ a.m-door.m-guide{min-height:72px;margin-top:22px;background:none;border-style:da
 @media (display-mode:standalone),(display-mode:fullscreen),(display-mode:minimal-ui){
   .m-appdoor{display:none!important}
 }
+/* the last line of the hub: what Parseh is under, and the way to the
+   licences page -- the one link on the hub that is not a door, still a
+   finger's height */
+.m-foot{margin:28px 0 0;text-align:center;color:var(--faint);font-size:13.5px}
+.m-foot a{color:var(--dim);display:inline-flex;align-items:center;min-height:48px;padding:0 6px}
+
+/* The licences page (/licences/, lib/notices.py) carries both layouts in
+   one column: in the mobile mode, the mobile column. */
+html[data-mode=mobile] main.notices{max-width:var(--m-col);padding:12px 16px 12vh}
 
 /* ---------------- a page of the mobile interface's own ----------------
    The book shelf, /m/books/ (lib/mobile.py): the book library as a phone

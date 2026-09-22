@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The mobile interface's books and exercises (docs/mobile.md), as the server
 and the shared files write them: the mobile book shelf (lib/mobile.py,
 /m/books/); the registry and the loader in lib/parseh.js that give every
@@ -255,6 +256,8 @@ class RegistryTests(unittest.TestCase):
             '/books/old-book/reader/index.html': '/books/old-book/reader/',
             # and so is every page of the decks
             '/exercises/': '/exercises/', '/exercises/deck/persian/words/study': '/exercises/deck/persian/words/study',
+            # and the licences
+            '/licences/': '/licences/',
             # a page with no mobile version keeps its address
             '/youtube/': '/youtube/', '/studio/': '/studio/', '/books/add/': '/books/add/',
             '/books/persian/mini-fa/': '/books/persian/mini-fa/',

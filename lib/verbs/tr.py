@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Turkish: the \\vb a dictionary hit for a verb offers.
 
     \\vb{gitmek}{}{gidiyor}{}{gider}{}{to go}

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The transcript, read and written back: what the add page's editor edits.
 
     python3 -m unittest discover -s tests -p test_transcript_edit.py

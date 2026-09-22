@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.inline -- Hugo's inline Markdown, laid over the studio's.
 
 The studio's inline() (markdown/app/htmlgen.py) knows its own dialect --

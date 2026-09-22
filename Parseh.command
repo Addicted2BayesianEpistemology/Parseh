@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Parseh on a Mac -- double-click this file in the Finder.
 #
 # The first time, it installs what Parseh needs (./install.sh: everything goes

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Read the reading edition's .tex files as data.
 
 Shared by timestamp.py (which writes % @t comments back) and tex2html.py
@@ -415,6 +416,10 @@ def parse_chapter(path, lang=None):
             (lab,), j = read_args(text, j, 1)
             lab = lab.strip()
             sub = Sub(lab, line_of(m.start()), lang)
+            # the chapter it is in, read when it is asked for: a file that
+            # only continues a chapter is given the chapter's number by
+            # parse_book, after this file is parsed (chapter_of)
+            sub.chapter = chapter
             no = sub.para_no
             if para is None or para.no != no:
                 para = Paragraph(no)
@@ -508,6 +513,53 @@ def parse_book(main="main.tex", lang=None):
 
 def all_chunks(chapters):
     return [c for ch in chapters for p in ch.paragraphs for s in p.subs for c in s.chunks]
+
+
+# --- naming a stretch of the book: what a recording covers -------------------
+def chapter_of(sub):
+    """The printed number of the chapter a subparagraph is in, in Latin digits
+    ("2"): what makes its label unique, since chapter 1 and chapter 2 both
+    have a 4.3."""
+    ch = getattr(sub, "chapter", None)
+    return latin_digits((ch.label if ch is not None else "") or "").strip()
+
+
+def qualified(sub):
+    """A subparagraph named so that no other one answers to it: its chapter
+    and its label, "2:4.3"."""
+    return "%s:%s" % (chapter_of(sub), sub.num)
+
+
+def region_bounds(pairs, first, last):
+    """Where a stretch named by its two ends starts and ends -> (i, j),
+    indices into `pairs`, the (chapter, label) of every subparagraph of the
+    book in reading order (chapter_of, Sub.num).
+
+    An end is a label with its chapter, "2:4.3", which names exactly one
+    subparagraph -- what the pickers write -- or a bare label, "4.3", which
+    names one only within its chapter and is read as it always was: the
+    first subparagraph wearing it for the start, the last for the end.
+    Either end empty means from the beginning / to the end, so a stretch
+    with neither is the whole book.  A ValueError says what is wrong, in a
+    sentence meant to be shown."""
+    def find(want, last_one):
+        ch, colon, lab = want.rpartition(":")
+        ch, lab = ch.strip(), lab.strip()
+        order = range(len(pairs) - 1, -1, -1) if last_one else range(len(pairs))
+        for k in order:
+            c, l = pairs[k]
+            if l == lab and (not colon or c == ch):
+                return k
+        where = ("chapter %s" % ch) if colon else "this book"
+        raise ValueError("there is no subparagraph %s in %s" % (lab, where))
+    first, last = (first or "").strip(), (last or "").strip()
+    if not pairs:
+        raise ValueError("this book has no subparagraphs")
+    i = find(first, False) if first else 0
+    j = find(last, True) if last else len(pairs) - 1
+    if j < i:
+        raise ValueError("that stretch ends (%s) before it begins (%s)" % (last, first))
+    return i, j
 
 
 if __name__ == "__main__":

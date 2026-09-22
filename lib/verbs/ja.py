@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Japanese: the \\vb of a verb -- dictionary form, -masu stem, -te form -- and its class.
 
     \\vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}

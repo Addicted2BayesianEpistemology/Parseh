@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Build one parallel corpus: sentences somebody has already translated.
 
     python3 lib/getcorpus.py                  what is installed

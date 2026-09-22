@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """exlex — markdown -> XeLaTeX -> verified PDF for linguistic documents
 that mix a prose language with a target language.  Which target languages
 there are is the registry's business alone (lib/languages.json); the

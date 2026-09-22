@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Sentences somebody has already translated, for the chunk nobody has glossed.
 
 THE DICTIONARY CANNOT CHOOSE.  It lists every sense a word can ever carry --

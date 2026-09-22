@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The studio's PDF has a face for the IPA its body face lacks
 (markdown/exlex/template.tex, "GLYPH FALLBACK").
 

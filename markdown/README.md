@@ -1459,10 +1459,29 @@ the fixtures to PDF with `--pdf` and holds each to its pinned count.
 
 ## Licences & provenance
 
-Code: MIT. Vazirmatn © Saber Rastikerdar, SIL OFL 1.1 (TTFs derived from
-the official v33.003 release `.woff2`). Noto Nastaliq Urdu and Noto Naskh
-Arabic © Google, SIL OFL 1.1. Japanese is set in the device's Noto Serif
-CJK JP / Noto Sans CJK JP (SIL OFL 1.1) or the system's mincho and gothic
-faces; none travels with the studio. `hyph-it.tex` © Claudio Beccari, LPPL (from the hyph-utf8
-project); `loadhyph-it.tex` here is a minimal local loader. TeX Gyre
-fonts: GUST Font License, from TeX Live.
+Code: the studio is part of Parseh, and under Parseh's licence, the GNU
+General Public License, version 3 or (at your option) any later version
+(`GPL-3.0-or-later`, the toolbox's [`LICENSE`](../LICENSE)); each source file
+says so in its `SPDX-License-Identifier` line. The app's *Licences* page
+(`/licences/`) lists everything below for a user.
+
+Fonts, each under its own licence (their texts and the copyright notices in
+[`lib/fonts/OFL.txt`](../lib/fonts/OFL.txt) and
+[`lib/fonts/GUST-FONT-LICENSE.txt`](../lib/fonts/GUST-FONT-LICENSE.txt),
+every file named in [`lib/fonts/README.md`](../lib/fonts/README.md)):
+Vazirmatn © the Vazirmatn Project Authors (Saber Rastikerdar), SIL OFL 1.1
+(TTFs derived from the official v33.003 release `.woff2`); Noto Nastaliq
+Urdu, Noto Naskh Arabic and Noto Serif Devanagari © Google, SIL OFL 1.1.
+Japanese and Chinese are set in the device's Noto Serif/Sans CJK (SIL OFL
+1.1) or the system's own faces; none travels with the studio. TeX Gyre
+Pagella and Heros, which set the studio's and the guide's pages: ©
+B. Jackowski, J. M. Nowacki and the TeX users groups, GUST Font License
+(LPPL 1.3c or later), copied from TeX Live — the studio copies them at
+start, and the guide's build into `html-guide/site/_parseh/fonts/`, with
+the licence beside them.
+
+`assets/hyph/hyph-it.tex` © 2008–2011 Claudio Beccari, from the hyph-utf8
+project, under the LaTeX Project Public License 1.3 or later or the MIT
+licence, at the user's choice (its header says so, and carries the MIT
+text); `loadhyph-it.tex` beside it is a minimal local loader, and Parseh's. MathJax (`../lib/mathjax/`) © The
+MathJax Consortium, Apache License 2.0 (its `LICENSE` beside it).

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the studio's exercises (app.js, app.css): answering and
 // checking, the editor's exercise form (pictures, recordings, jolly markdown,
 // `key: |` blocks read as mdparser reads them), the library's download menu,

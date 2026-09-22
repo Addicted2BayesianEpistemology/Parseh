@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """What serve.bat runs on Windows: a setup wizard the first time, then the server.
 
     python lib/launcher.py            first time: the wizard; then start, and open the browser

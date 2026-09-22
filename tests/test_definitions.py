@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """English explained in English: a dictionary that defines its words in their
 own language, and the whole of an entry for a reader who asks for it.
 

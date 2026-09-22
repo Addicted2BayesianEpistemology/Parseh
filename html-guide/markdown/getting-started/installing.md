@@ -130,7 +130,7 @@ installer again is always safe.
 The guide's step is the one that may fail without the installation failing:
 Parseh works without these pages, so a compile that goes wrong is said as
 a warning, and the guide's own front page offers to compile it again
-([This guide and the PDF manual](this-guide.md)).
+([This guide](this-guide.md)).
 
 Outside the Parseh folder the installer writes pkuseg's models, in
 `~/.pkuseg` (the environment variable `PKUSEG_HOME` moves them); when you

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 import { chromium } from 'npm:playwright-core@1.52.0';
 // Run: CHROME_BIN=/path/to/chrome PARSEH_PYTHON=/path/to/python3 deno run --allow-all tests/cardkit.mjs
 //      CARDKIT_SHOTS=<dir> also saves the cut editor at desktop and phone width

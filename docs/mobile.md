@@ -143,7 +143,9 @@ var MOBILE_PAGES = [
   // a book's reader is its own mobile version (the layer, below)
   { match: /^(\/books\/(?:[^\/]+\/){1,2}reader\/)(index\.html)?$/, to: '$1' },
   // the exercise decks: each page carries both layouts
-  { match: /^\/exercises\/(.*)$/, to: '/exercises/$1' }
+  { match: /^\/exercises\/(.*)$/, to: '/exercises/$1' },
+  // the licences: both layouts, in one column
+  { match: /^\/licences\/$/, to: '/licences/' }
 ];
 ```
 

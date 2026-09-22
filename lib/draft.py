@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Start a book or a video from nothing: the text, cut up, every gloss blank.
 
     import draft

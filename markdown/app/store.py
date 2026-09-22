@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """store — the document library on disk.
 
 Layout:  library/<folder>/<id>/source.md   the markdown source (authoritative)

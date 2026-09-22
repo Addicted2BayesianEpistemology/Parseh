@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Reverse-import a real .apkg back into the anki/ deck store.
 
     python3 lib/import_apkg.py "anki/Persian CI.apkg"

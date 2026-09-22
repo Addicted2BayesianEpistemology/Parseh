@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """srs — the exercise decks' scheduler: Anki's SM-2 (v2/v3) without a database.
 
 Pure and stdlib-only.  A card's schedule is a small dict (new_state());

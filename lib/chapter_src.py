@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Write the chapter source list that assemble.py checks a batch against.
 
     python3 lib/chapter_src.py [--book <dir-or-slug>] <chapter> [<chapter> ...]

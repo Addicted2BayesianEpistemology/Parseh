@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the mobile mode (docs/mobile.md), in two parts.
 //
 // api -- Parseh.mode itself (lib/parseh.js), on bare pages that load the
@@ -275,7 +276,7 @@ const shot = async (page, name) => {
 const settle = page => page.evaluate(() => document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
 const MOBILE_CLICKABLE = page => page.evaluate(() => ['a:/', 'button:browser', 'button:mobile', 'button:theme',
   ...[...document.querySelectorAll('.m-langs .chip')].map(c => 'button:' + c.getAttribute('data-pick')),
-  'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/', 'a:/m/install/']);
+  'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/', 'a:/m/install/', 'a:/licences/']);
 
 // the temporary toolbox: the tree hub_inbox.mjs boots, plus a note in every
 // language and the book library page
@@ -372,7 +373,7 @@ async function partHub() {
                                        && document.activeElement.closest('.m-bar') !== null),
              'the focus went with the click to the Mobile button now on the screen');
       eq(s.clickable, await MOBILE_CLICKABLE(page),
-         'all there is to tap: home, the switch, the theme, the chips, four doors, the guide and the app\'s');
+         'all there is to tap: home, the switch, the theme, the chips, four doors, the guide, the app\'s and the licences');
       for (const no of ['button:stop', 'a:/anki/sync/', 'a:/clips/', 'a:/lookup/'])
         assert(!s.clickable.includes(no), 'no ' + no + ' on the mobile hub');
       assert(!(await page.evaluate(() => [...document.querySelectorAll('.addr, .foot')].some(e => e.getClientRects().length))),

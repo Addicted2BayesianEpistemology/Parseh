@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """What Parseh needs, where it finds it, and how it installs it.
 
     python3 lib/runtime.py status            what this machine has, in words

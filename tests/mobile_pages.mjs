@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the mobile interface's books and exercises (docs/mobile.md),
 // against the REAL hub (serve.main, booted by tests/mobile_harness.py) over a
 // temporary toolbox: the fixture editions of English (narrated), Persian,
@@ -842,6 +843,9 @@ async function partDecks() {
 
     // ---- f) Browser
     await page.goto(B + `/exercises/deck/${EN.folder}/${EN.slug}/`);
+    // the list arrives after the page: its rows (and their actions, hidden in
+    // the mobile layout) must be there before asking whether they are drawn
+    await page.waitForFunction(() => document.querySelector('.dk-row-actions'));
     await tap(page, '.m-topbar [data-parseh-mode=browser]');
     eq(await page.evaluate(() => [document.documentElement.getAttribute('data-mode'), localStorage.getItem('parseh_mode'),
                                   document.cookie.includes('parseh_mode=browser')]),

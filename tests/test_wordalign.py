@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """lib/words.py gives each proposed word its stretch of the chunk's own reading.
 
     python3 -m unittest discover -s tests -p test_wordalign.py

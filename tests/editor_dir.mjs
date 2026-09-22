@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the direction of the studio editor's source (app.js
 // initEdit, "⇤ RTL editor"), against the REAL routes (markdown/app/server.py)
 // on a temporary library and exercises store (tests/decks_harness.py, studio

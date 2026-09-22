@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The video player no longer has a server of its own.
 
 It is one of the four doors of Parseh, served with everything else by

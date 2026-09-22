@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Moving a caption's start on a video that is already on the shelf.
 
 WHY THERE IS A DOOR HERE AT ALL.  subedit.js says, and says plainly, that

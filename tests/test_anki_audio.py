@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A recording on an Anki card, with no note-type change.
 
     python3 -m unittest discover -s tests -p test_anki_audio.py

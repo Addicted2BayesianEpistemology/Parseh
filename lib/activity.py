@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """What the server is working on right now, for every page to show.
 
     tok = activity.begin("upload", "Uploading momotaro-book.zip (219 MB)",

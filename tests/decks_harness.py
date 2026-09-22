@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The server tests/decks.mjs drives: the real routes on a TEMPORARY studio
 library and a TEMPORARY exercises/ store, seeded with a few decks.
 

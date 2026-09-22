@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /* Parseh — the transcript editor of the add-a-video page.
 
      ParsehSubedit.open(opts) -> Promise<string|null>   the transcript, edited

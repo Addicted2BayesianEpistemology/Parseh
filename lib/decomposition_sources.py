@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Import component structure only; no definitions, readings, paths or SVG reach the UI."""
 import json
 import re

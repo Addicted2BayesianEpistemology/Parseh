@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Does any of it actually reach a reader?  In a real browser.
 
     python3 tests/mtcheck.py              every pair installed under mt/

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Install optional, versioned component-only packs. Runtime needs no internet.
 
 python3 lib/getdecomposition.py kanjivg|makemeahanzi|cjkvi

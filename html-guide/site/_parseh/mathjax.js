@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /* Parseh — maths, drawn.  Served at /lib/mathjax.js (with /lib/mathjax.css);
    every page that can carry maths links it, and the 2 MB of MathJax beside
    it (lib/mathjax/tex-svg.js) is fetched only by a page that turns out to

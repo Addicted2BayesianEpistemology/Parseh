@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """lib/texwrite.py with a word line: a chunk given words, edited, taken off
 them, cut and joined, on scratch copies of the fixture editions.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Stage 1 — align the narration to the reading edition and record the times.
 
 Writes full-line `% @par` comments (one per subparagraph) into the ch*.tex files and a
@@ -161,27 +162,17 @@ def region_subs(allsubs, first, last):
     single-recording case, and every book written before this one.
 
     A label is unique only within its chapter (chapter 1 and chapter 2 both
-    have a 4.3), so the first match is taken for the start and the last for
-    the end: the widest reading of what somebody asked for, and the panel
-    offers chapter ends rather than making anyone type one.
+    have a 4.3), so the panel writes each end WITH its chapter, "2:4.3", which
+    names exactly one.  A bare label -- every narration written before that --
+    is read as it always was: the first match for the start and the last for
+    the end, the widest reading of what somebody asked for.  The reading is
+    texparse.region_bounds, the one the server and the reader use too.
     """
-    i, j = 0, len(allsubs) - 1
-    if first:
-        for k, x in enumerate(allsubs):
-            if x.num == first:
-                i = k
-                break
-        else:
-            sys.exit("no subparagraph %r in this book (a narration's from:)" % first)
-    if last:
-        for k in range(len(allsubs) - 1, -1, -1):
-            if allsubs[k].num == last:
-                j = k
-                break
-        else:
-            sys.exit("no subparagraph %r in this book (a narration's to:)" % last)
-    if j < i:
-        sys.exit("that narration ends (%s) before it begins (%s)" % (last, first))
+    try:
+        i, j = T.region_bounds([(T.chapter_of(x), x.num) for x in allsubs],
+                               first, last)
+    except ValueError as e:
+        sys.exit("%s (a narration's from %r, to %r)" % (e, first or "", last or ""))
     return allsubs[i:j + 1]
 
 FFMPEG = "/opt/homebrew/bin/ffmpeg"

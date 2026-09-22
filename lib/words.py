@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Cut a chunk's text into words, each with a proposed reading.
 
     words.propose("山へ柴刈りに、", "ja")  -> [("山", "やま"), ("へ", ""), ...]

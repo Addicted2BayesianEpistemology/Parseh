@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The word layer in the PDF and in the passes: the reading pass, \\chw and
 \\chrw, and the registry and the reader agreeing with them.
 

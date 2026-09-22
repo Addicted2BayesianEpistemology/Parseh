@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Arabic's \\vb: the perfect and its form, the imperfect, the masdar.
 
     \\vb{وَصَلَ}{waṣala (I)}{يَصِلُ}{yaṣilu}{صِلَة}{ṣila}{to arrive at (+ \\pw{إِلَى})}

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The server tests/doclinks.mjs drives: serve.py's handler (the studio at
 /studio, a book's notes at /books/<folder>/<slug>/notes) on a TEMPORARY
 studio library, a TEMPORARY exercises/ store and a TEMPORARY shelf holding

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 import { chromium } from 'npm:playwright-core@1.52.0';
 // Sections: a chapter's name and the places inside it, in the reader.
 //
@@ -206,9 +207,11 @@ try {
       inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth,
       hit: !!(mid && box.contains(mid)),
       backdrop: !document.getElementById('secback').hidden,
-      chapters: document.querySelectorAll('#secch option').length,
-      paras: document.querySelectorAll('#secpara option').length,
-      listed: (document.getElementById('seclist').textContent || '').includes('The Spillway'),
+      // the book as an outline (outlinePicker), read off the contents tree
+      chapters: document.querySelectorAll('#secpick li.ol-ch').length,
+      paras: secPicker.model.paras.length,
+      listed: [...document.querySelectorAll('#secpick li.ol-sec .olt')]
+        .some(t => t.textContent.includes('The Spillway')),
       doLabel: document.getElementById('secdo').textContent,
     };
   });
@@ -216,16 +219,39 @@ try {
          'the sections sheet is a sheet on screen, not a block at the foot of the body');
   assert(sheet.chapters === 1 && sheet.paras === 2,
          'it offers the chapters and the paragraphs the book actually has');
-  assert(sheet.listed, 'and lists the section that exists, to remove it');
+  assert(sheet.listed, 'and shows the section that exists, under its chapter');
 
-  // picking the paragraph that already opens one offers a rename, not a second
-  await page.selectOption('#secpara', '1:2');
+  // PICK WHAT YOU WANT TO NAME: a chapter offers its name, and nothing else
+  await page.click('#secpick li.ol-ch > .olr');
+  const onChapter = await page.evaluate(() => ({
+    rows: [!document.getElementById('secchrow').hidden, !document.getElementById('secrow').hidden],
+    name: document.getElementById('secchname').value,
+    said: document.querySelector('#secpick .olsay').textContent,
+  }));
+  assert(onChapter.rows[0] && !onChapter.rows[1] && onChapter.name === 'Water & Waste' &&
+         onChapter.said.startsWith('chapter 1'),
+         'picking the chapter offers its name to change: ' + JSON.stringify(onChapter));
+
+  // a section is picked by its heading, which picks the paragraph it opens
+  // at: rename it, or remove it -- not open a second one there
+  await page.click('#secpick li.ol-sec > .olr');
   const onExisting = await page.evaluate(() => ({
     label: document.getElementById('secdo').textContent,
     name: document.getElementById('secname').value,
+    remove: !document.getElementById('secdel').hidden,
+    said: document.querySelector('#secpick .olsay').textContent,
   }));
-  assert(/rename/.test(onExisting.label) && onExisting.name === 'The Spillway',
-         'picking a paragraph that already starts a section offers to rename it');
+  assert(/rename/.test(onExisting.label) && onExisting.name === 'The Spillway' &&
+         onExisting.remove && onExisting.said === 'chapter 1, ¶ 2',
+         'picking a section offers to rename it or remove it: ' + JSON.stringify(onExisting));
+  // and a paragraph that opens none offers to start one
+  await page.click('#secpick li.ol-ch > ul > li.ol-p > .olr');
+  const onPlain = await page.evaluate(() => ({
+    label: document.getElementById('secdo').textContent,
+    remove: !document.getElementById('secdel').hidden,
+  }));
+  assert(/start a section/.test(onPlain.label) && !onPlain.remove,
+         'a paragraph with no section offers to start one there');
 
   await page.keyboard.press('Escape');
   const shut = await page.evaluate(() => document.getElementById('secbox').hidden);

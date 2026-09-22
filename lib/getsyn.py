@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Fetch the synonym table the meaning-based aligner uses: `mt/synonyms.en.json`.
 
     python3 lib/getsyn.py              get it (or say it is already there)

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the studio's footnote clouds on a phone, against the REAL
 // routes on a temporary library (tests/studio_harness.py).  A note's cloud is
 // laid out only while it is shown: hidden but laid out, a cloud near the right

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """htmlgen — render the mdparser block model as LaTeX-styled HTML.
 
 This is the HTML twin of texgen.py: same block model in, same inline

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A book built from a page: the job, the route, the card and the reader's button.
 
     python3 -m unittest discover -s tests -p test_book_build.py

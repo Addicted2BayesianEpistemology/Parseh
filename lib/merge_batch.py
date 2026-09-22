@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Fold the per-paragraph annotations into one batch, applying confirmed fixes.
 
     python3 merge_batch.py <out.json> <fixes.json|-> <p11.json> <p12.json> ... [--book <dir-or-slug>]

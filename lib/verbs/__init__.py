@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The verb entry a dictionary hit can carry: `hit["vb"]`, a \\vb ready to use.
 
     import verbs

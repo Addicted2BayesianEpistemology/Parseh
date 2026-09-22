@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The exercise decks over HTTP (markdown/app/deckroutes.py), and where they
 are mounted beside the studio (markdown/app/server.py).
 

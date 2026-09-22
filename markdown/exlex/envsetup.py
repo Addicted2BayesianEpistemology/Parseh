@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """envsetup — make a bare container able to build exlex documents.
 
 Idempotent; every step checks before acting.  Three concerns:

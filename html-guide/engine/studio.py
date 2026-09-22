@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.studio -- where the studio's renderer comes from, and the one seam
 the guide opens in it.
 
@@ -36,7 +37,7 @@ import os
 import sys
 from pathlib import Path
 
-from .manifest import MODULE_FILES, RUNTIME_FILES, FONT_DIRS, MANUAL  # noqa: F401
+from .manifest import MODULE_FILES, RUNTIME_FILES, FONT_DIRS  # noqa: F401
 
 ENGINE = Path(__file__).resolve().parent
 GUIDE = ENGINE.parent

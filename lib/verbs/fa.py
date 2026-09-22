@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Persian: the \\vb a dictionary hit for a verb offers.
 
     \\vb{دیدن}{didan}{بین}{bin}{دید}{did}{to see}

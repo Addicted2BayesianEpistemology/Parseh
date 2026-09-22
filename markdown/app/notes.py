@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The notes that sit beside a book or a video, between two of its lines.
 
     from notes import library, index, create, DIR

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.highlight -- a small syntax highlighter, standard library only.
 
 A language is an ordered list of (token class, regex); the first rule that

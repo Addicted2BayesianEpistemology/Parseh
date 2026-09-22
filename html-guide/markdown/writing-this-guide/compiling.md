@@ -62,9 +62,6 @@ them is relative:
    the formulas.
 3. **On GitHub Pages**, below.
 
-The PDF manual stays where it was, at the **PDF manual** link at the top of
-every page (**PDF**, on a phone), and at `/guide.pdf` in Parseh.
-
 ## Publishing on GitHub Pages
 
 The compiled pages, `html-guide/site/`, are committed with the Markdown
@@ -108,7 +105,7 @@ python3 html-guide/build.py --export ../parseh-site
 copies the guide there — the engine, the assets, the pages, the front page
 — with a snapshot of exactly what it takes from Parseh (the studio's parser
 and renderer, the language registry, the exercises' script and stylesheet,
-MathJax, the fonts, the PDF manual) in `engine/vendor/`, and a workflow of
+MathJax, the fonts and their licences) in `engine/vendor/`, and a workflow of
 its own for GitHub Pages. The copy compiles on its own, with any Python 3,
 into the same pages. Run the export again to bring the snapshot up to date.
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The Parseh guide's engine: Hugo's Markdown and the Parseh studio's dialect,
 compiled into a static site.  html-guide/build.py is the command; README.md
 beside it says how to write a page.

@@ -35,7 +35,6 @@ on:
       - "lib/fonts/**"
       - "lib/mathjax/**"
       - "lib/mathjax.*"
-      - "HOW TO USE THIS TOOLBOX.pdf"
       - ".github/workflows/guide-pages.yml"
   workflow_dispatch:
 

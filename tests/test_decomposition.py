@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Offline component import/domain/API regression tests. python -m unittest discover -s tests -p test_decomposition.py"""
 import json
 import sqlite3

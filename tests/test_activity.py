@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """What the server is working on: the list every page shows.
 
     python3 -m unittest discover -s tests -p test_activity.py

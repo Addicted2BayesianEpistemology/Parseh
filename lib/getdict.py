@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Build the dictionary a language's lookup reads: dict/<code>.db.
 
     python3 lib/getdict.py                 what is installed, and what is not

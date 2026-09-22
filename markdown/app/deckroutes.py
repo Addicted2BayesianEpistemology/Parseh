@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """deckroutes — the exercise decks over HTTP, mounted at /exercises.
 
 The same routes answer in both servers: inside Parseh (../../serve.py hands

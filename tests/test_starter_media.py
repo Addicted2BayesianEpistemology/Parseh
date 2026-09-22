@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The pictures and the recording the starters show
 (markdown/exlex/starters/assets/; store.starter_media, adopt_starter_media;
 htmlgen's asset base; server.api_preview, serve_starter_media).

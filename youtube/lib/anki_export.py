@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Build an Anki .apkg from a deck directory under anki/.
 
     python3 lib/anki_export.py anki/<folder>/<deck-slug> [out.apkg]
@@ -313,10 +314,10 @@ def is_reverse_only(card):
 # underscore (Anki's convention for media that is not a note's own), so
 # the cards wear the reader's face on every device.  Only a language
 # whose registry entry lists a web file has one; the others rely on the
-# device's fonts, which every phone has for its own script.  The file is looked for beside this module first (the copy the
-# video player has always shipped), then in the toolbox's lib/fonts/.
-FONT_DIRS = (os.path.join(HERE, "fonts"), os.path.join(_ROOT_LIB, "fonts"))
-FONT = os.path.join(HERE, "fonts", "Vazirmatn.woff2")   # kept for old callers
+# device's fonts, which every phone has for its own script.  The file is the
+# toolbox's own, in lib/fonts/ (with its licence there); the copies the video
+# player used to keep beside this module are gone.
+FONT_DIRS = (os.path.join(_ROOT_LIB, "fonts"),)
 
 
 def font_file(L):

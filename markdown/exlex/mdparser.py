@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """mdparser — parse the exlex markdown dialect into a list of blocks.
 
 The dialect is deliberately small; README.md documents it in full under

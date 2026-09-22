@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A text added through the doors that wrote no words now gets them proposed.
 
     python3 -m unittest discover -s tests -p test_wordadd.py

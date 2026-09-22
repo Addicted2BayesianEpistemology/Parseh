@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A studio document in and out as files: the header an upload is asked for,
 the zip a document downloads as, and the zip the library takes back
 (markdown/app/store.py, markdown/app/server.py).

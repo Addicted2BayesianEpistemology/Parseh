@@ -172,7 +172,8 @@ On start it lists the books it found (and any narration a `book.json`
 names that is missing), the addresses it can be reached at, and the
 doors: `/books/`, `/youtube/`, `/studio/`, `/exercises/`, `/anki/sync/`.
 The rest of the addresses are `/lookup/` (the reading help), `/clips/`
-(the clip tray), `/guide/` (these pages) and `/guide.pdf` (the PDF manual).
+(the clip tray), `/guide/` (these pages) and `/licences/` (what Parseh, its
+fonts and the data it downloads are under).
 
 ### serve.bat and lib/launcher.py (Windows)
 
@@ -237,18 +238,6 @@ one book as a job the page follows; on Windows, which has no shell, the
 same steps run in Python (`lib/bookbuild.py`). `python3
 lib/make_index.py` writes the library page, `books/index.html`, alone.
 
-### guide/build.sh: the PDF manual
-
-```bash
-cd guide && ./build.sh
-```
-
-Runs LuaLaTeX over `guide/user-guide.tex` until its table of contents
-settles (at most five passes), refuses a log with an error in it, and
-copies the result to `HOW TO USE THIS TOOLBOX.pdf` at the top of the
-repository — the file the **PDF manual** link opens. That copy is tracked
-by git, so a rebuild shows as a change.
-
 ### html-guide/build.py: these pages
 
 ```bash
@@ -278,7 +267,7 @@ python3 html-guide/build.py --quiet
 | `--out DIR` | Compiles somewhere else. |
 | `--clean` | Removes `site/`. |
 | `--pages DIR` | Lays out `index.html`, `assets/` and the compiled `site/` in one folder — what the GitHub Pages workflow publishes, and what any static host can serve. |
-| `--export DIR` | Copies the guide into a project of its own, with a snapshot of the studio's renderer, the language registry, the fonts and the PDF manual in `engine/vendor/`. |
+| `--export DIR` | Copies the guide into a project of its own, with a snapshot of the studio's renderer, the language registry, and the fonts with their licences in `engine/vendor/`. |
 | `--quiet`, `-q` | Prints only the problems. |
 
 It needs any Python 3.8 or newer and nothing else. Each problem is

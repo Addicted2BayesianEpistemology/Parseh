@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The word line: where a chunk's text divides into words, and how each sounds.
 
     山(やま) へ 柴刈り(しばかり) に 、

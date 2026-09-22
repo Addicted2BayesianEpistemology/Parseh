@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.render -- one page of the guide, Markdown in, HTML out.
 
 The blocks come from engine/blocks.py.  What only Hugo has -- fenced code,

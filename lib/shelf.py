@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A whole shelf of books, or of videos, backed up and put back.
 
 WHY THIS IS A ZIP OF ZIPS and not a zip of the tree.  Every book and every

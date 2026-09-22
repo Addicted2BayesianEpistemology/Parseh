@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.export -- the guide, copied into a project of its own.
 
     build.py --export DIR
@@ -7,7 +8,7 @@ repository that holds nothing else.  This copies html-guide/ there -- the
 engine, the assets, the pages, the front page -- together with a SNAPSHOT
 of exactly what the engine takes from Parseh (engine/manifest.py: the
 studio's parser and renderer, the language registry, the exercises' script
-and stylesheet, MathJax, the fonts the sheet names, the PDF manual) under
+and stylesheet, MathJax, the fonts the sheet names and their licences) under
 engine/vendor/, laid out as it is in Parseh.  The copy then builds with any
 Python 3, on its own, into the same pages: engine/studio.py finds no Parseh
 around it and imports the snapshot instead.
@@ -20,7 +21,7 @@ import re
 import shutil
 from pathlib import Path
 
-from .manifest import MODULE_FILES, RUNTIME_FILES, MANUAL
+from .manifest import MODULE_FILES, RUNTIME_FILES
 from .site import NotOurs
 from .studio import GUIDE, ROOT, find_font
 
@@ -134,8 +135,6 @@ def export(dest, say=print):
         found = find_font(name)
         if found:
             shutil.copyfile(found, fonts / name)
-    if (ROOT / MANUAL).is_file():
-        shutil.copyfile(ROOT / MANUAL, vendor / MANUAL)
     (dest / ".gitignore").write_text(
         "# the compiled pages: build.py makes them, from markdown/\nsite/\n_site/\n"
         "__pycache__/\n", encoding="utf-8")

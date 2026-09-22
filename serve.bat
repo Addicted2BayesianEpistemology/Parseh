@@ -1,4 +1,5 @@
 @echo off
+rem SPDX-License-Identifier: GPL-3.0-or-later
 rem Parseh on Windows -- double-click this file.
 rem
 rem   serve.bat           the first time: a setup wizard (what ./install.sh is on

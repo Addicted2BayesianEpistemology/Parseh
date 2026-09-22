@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* The Parseh guide -- the chrome round every page: the bar, the sidebar, the
    search, the contents, the code blocks.  The page's text itself is drawn
    by the studio's own stylesheet (site/_parseh/studio.css, app.css confined
@@ -99,10 +100,10 @@ body.guide [hidden]{display:none!important}
 /* ---------------- the bar ---------------- */
 .g-top{position:sticky;top:0;z-index:40;height:var(--g-top);display:flex;align-items:center;gap:10px;
   padding:0 12px;background:var(--card);border-bottom:1px solid var(--rule)}
-.g-top button,.g-top .g-pdf,.g-top .g-hub{font:inherit;font-size:13px;padding:5px 10px;
+.g-top button,.g-top .g-hub{font:inherit;font-size:13px;padding:5px 10px;
   border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:6px;
   cursor:pointer;white-space:nowrap;text-decoration:none;line-height:1.3}
-.g-top button:hover,.g-top .g-pdf:hover,.g-top .g-hub:hover{border-color:var(--accentlt);color:var(--accent)}
+.g-top button:hover,.g-top .g-hub:hover{border-color:var(--accentlt);color:var(--accent)}
 .g-top .g-menu{font-size:16px;padding:3px 9px}
 .g-brand{display:inline-flex;align-items:center;gap:8px;text-decoration:none;
   color:var(--ink)!important;font-weight:600;font-size:15px;white-space:nowrap}
@@ -374,9 +375,6 @@ html[data-side=closed] .g-side{display:none}
 }
 @media (max-width:560px){
   .g-top{gap:6px;padding:0 8px}
-  /* the manual keeps its button on a phone, as "PDF": it is the one way to
-     it from a compiled page */
-  .g-top .g-pdf-more{display:none}
   .g-main{padding:0 8px 28px}
   .g-article .sheet{margin:.8rem auto 1.2rem}
   .g-sheet{margin:.8rem auto 1.2rem}

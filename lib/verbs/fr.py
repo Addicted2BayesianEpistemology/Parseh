@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """French: the \\vb a verb hit offers, read off the rows Wiktionary wrote.
 
     \\vb{aller}{alé}{vais}{vè}{allé}{alé}{to go (aux. être; fut. \\pw{irai} \\textit{iré})}

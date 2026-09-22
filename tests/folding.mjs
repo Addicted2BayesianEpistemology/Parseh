@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 import { chromium } from 'npm:playwright-core@1.52.0';
 // Run: CHROME_BIN=/path/to/chrome PARSEH_PYTHON=python3 deno run --allow-all tests/folding.mjs
 //
@@ -252,12 +253,24 @@ const afterScroll = await page.evaluate(() => {
 assert(afterScroll.inView,
        'the sheet is still on screen after scrolling the book (top=' + afterScroll.top + ')');
 await page.evaluate(() => scrollTo(0, 0));
-eq(await page.evaluate(() => $('#fdfrom').options.length), 2,
-   'both paragraphs of the book are offered');
-eq(await page.evaluate(() => $('#fdlist').querySelectorAll('button').length), 1,
-   'and the run already folded is listed, with its own unfold');
-await page.selectOption('#fdfrom', '1:2');
-await page.selectOption('#fdto', '1:2');
+// THE BOOK AS AN OUTLINE (outlinePicker): a chapter of one book is opened
+// by itself, since there is nothing to choose at that level, and each
+// paragraph is offered by its number and its opening words
+eq(await page.evaluate(() => [...document.querySelectorAll('#fdpick li.ol-p')]
+     .map(li => li.querySelector('.olk').textContent)), ['¶ 1', '¶ 2'],
+   'both paragraphs of the book are offered, in the outline');
+assert(await page.evaluate(() => document.querySelector('#fdpick li.ol-p .olt').textContent.length > 5),
+       'each with its opening words, to be known by');
+eq(await page.evaluate(() => [...document.querySelectorAll('#fdpick li.ol-p')]
+     .map(li => [...li.querySelectorAll('.oltag')].map(t => t.textContent).join())), ['folded', ''],
+   'the paragraph already folded says so on its row');
+eq(await page.evaluate(() => [...document.querySelectorAll('#fdlist .fdrun')].map(r =>
+     [r.querySelector('.fdsee').textContent, r.querySelectorAll('button').length])),
+   [['chapter 1, ¶ 1 · 1 paragraph', 2]],
+   'and the run already folded is listed in words, with its own unfold');
+await page.click('#fdpick li.ol-p:nth-child(2) > .olr');
+eq(await page.textContent('#fdpick .olsay'), 'chapter 1, ¶ 2 · 1 paragraph',
+   'a click on a paragraph picks it, and the line under the outline says so');
 await page.click('#fddo');
 await page.waitForFunction(() =>
   document.querySelectorAll('.foldbar').length === 2, null, {timeout: 5000});
@@ -267,7 +280,7 @@ eq(await page.evaluate(() => nextStop(0, 1)), -1,
    'with every paragraph folded there is nowhere left to stand');
 
 // and unfolding from the sheet's own list puts one back
-await page.click('#fdlist button');
+await page.click('#fdlist .fdrun button:not(.fdsee)');
 await page.waitForFunction(() =>
   document.querySelectorAll('.foldbar').length === 1, null, {timeout: 5000});
 eq(await page.evaluate(() =>
@@ -293,7 +306,7 @@ assert(await page.evaluate(() => !$('#fdbox').hidden),
        'and space did not close it or start the recording underneath');
 
 const wasAt = page.url();
-await page.focus('#fdfrom');
+await page.focus('#fdpick .olq');
 await page.keyboard.press('Enter');
 await sleep(200);
 eq(page.url(), wasAt, 'Enter does not submit the form and reload the book');

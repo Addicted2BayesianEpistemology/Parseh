@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Add a language to the toolbox: the registry entry and the files around it.
 
 A language is one row of lib/languages.json plus the two files that row
@@ -776,8 +777,8 @@ def show():
     print("      --force                        overwrite files that are already there")
     print("  Everything else is derived: the folder, the tag, the babel name, the passes,")
     print("  the labels, and the Anki model ids (the next free pair).\n")
-    print("  The whole process, end to end, is the manual's \"Adding a language\" chapter")
-    print("  (guide/user-guide.tex); the design is docs/languages.md.\n")
+    print("  The whole process, end to end, is the guide's page \"Adding a language\"")
+    print("  (/guide/ in Parseh); the design is docs/languages.md.\n")
     print("The languages there are (%d):\n" % len(langs))
     hdr = "  %-4s %-10s %-9s %-9s %-4s %-6s %-32s %s"
     print(hdr % ("code", "name", "folder", "script", "dir", "digits", "passes", "anki ids"))
@@ -1245,7 +1246,7 @@ def add(a):
         print("     video's verb line drops them.")
     print("\nThen:  python3 lib/newlang.py --check     (every language, its files and fonts)")
     print("       python3 tests/smoke.py             (the regression run)")
-    print("The whole process is the manual's \"Adding a language\" chapter.")
+    print("The whole process is the guide's page \"Adding a language\".")
     return 0
 
 

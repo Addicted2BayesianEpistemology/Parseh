@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.cssscope -- the studio's stylesheet, confined to the guide's article.
 
 A compiled page draws its text with the studio's own app.css: that is what

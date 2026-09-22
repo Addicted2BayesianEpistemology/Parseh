@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of links between documents by NAME, against the REAL routes
 // (serve.py's handler: the studio at /studio, a book's notes under its own
 // prefix) on a temporary library -- tests/doclinks_harness.py:

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /* The Frank-method video player.
  *
  * Renders videos/<folder>/<id>/annotations.json under the embedded YouTube

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """What a recording is, by its bytes, and what ffmpeg does with one
 (lib/audiofile.py).
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Where one chunk ends and the next begins, moved by hand.
 
     from chunkdiv import cuts, merge, split

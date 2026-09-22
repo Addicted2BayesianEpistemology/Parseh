@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The notes that come back with a book or a video are brought up to names.
 
     python3 -m unittest discover -s tests -p test_notes_came_back.py

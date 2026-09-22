@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The languages Parseh teaches -- one registry, read everywhere.
 
     from languages import get, LANGS, DEFAULT, by_folder, detect_from_path

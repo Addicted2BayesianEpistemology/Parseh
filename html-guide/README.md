@@ -5,8 +5,8 @@ read (a browser opens `index.html` straight from the disk), and they use a
 little JavaScript for what makes them pleasant — the list of pages, the
 search, the themes, the Copy buttons, the exercises. The hub's **guide**
 button opens them at `/guide/`, and the same pages can be published on
-GitHub Pages. The PDF manual, `HOW TO USE THIS TOOLBOX.pdf`, stays as it is,
-linked from every page as **PDF manual**.
+GitHub Pages. They are the whole manual: there is no PDF of it (the address
+the PDF manual had, `/guide.pdf`, opens them).
 
 The pages themselves are Markdown files under `markdown/`, compiled into
 `site/` by `build.py`. **The guide explains its own writing**: its section
@@ -52,11 +52,9 @@ Vimeo's player plays from the disk and is kept.
 A page knows it was served by Parseh only when the server says so
 (`GET /guide/__status`, which only Parseh answers, with `parseh: true`), not
 from its address: a website may publish the guide under `/guide/` too. Only
-then does the **PDF manual** link go to the live `/guide.pdf`, the bar show
-the way back to the hub, the page load Parseh's **Working…** list
-(`/lib/activity.js`, the pill every page of Parseh has), and the front page
-offer the compile; elsewhere the manual is the copy the compile put in
-`site/_parseh/manual.pdf`.
+then does the bar show the way back to the hub, the page load Parseh's
+**Working…** list (`/lib/activity.js`, the pill every page of Parseh has),
+and the front page offer the compile.
 
 ## Writing a page
 
@@ -270,7 +268,7 @@ python3 html-guide/build.py --export ../parseh-website
 copies the guide — engine, assets, pages, front page — with a snapshot of
 exactly what it takes from Parseh (`engine/manifest.py`: the studio's
 parser and renderer, the registry, `app.js`, `app.css`, MathJax, the fonts
-the sheet names, the PDF manual) into `engine/vendor/`, a `.gitignore` and a
+the sheet names and their licences) into `engine/vendor/`, a `.gitignore` and a
 Pages workflow of its own. There `engine/vendor/` is committed; the copy
 builds with plain Python into the same bytes the in-repo build makes. Export
 again to refresh the snapshot. (In Parseh, `engine/vendor/` is ignored and

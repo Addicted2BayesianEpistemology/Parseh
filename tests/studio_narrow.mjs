@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of how two studio pages look, measured where they are drawn,
 // against the REAL routes (markdown/app/server.py, htmlgen, deckroutes) on a
 // temporary library and a temporary exercises store (tests/decks_harness.py,

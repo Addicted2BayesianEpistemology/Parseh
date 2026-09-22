@@ -35,7 +35,6 @@ Parseh/
   lib/  markdown/app/  markdown/exlex/  youtube/lib/
                          the software
   html-guide/            this guide
-  guide/                 the PDF manual's source
   docs/                  notes on the design
   tests/                 the tests, and what they test with
   .runtime/              the environment the installer made
@@ -72,7 +71,6 @@ Parseh/
 | `serve.py` | the server itself |
 | `build.sh` | building the books: their PDFs, their readers, the library page |
 | `environment.yml` | what the environment holds |
-| `HOW TO USE THIS TOOLBOX.pdf` | the PDF manual |
 | `serve.log`, `.serve.pid` | the server's log and its process number, on Linux and macOS |
 | `.setup-done` | the Windows wizard has run through |
 
@@ -93,11 +91,12 @@ so that you know what to keep safe, and what a folder you see is for.
 The repository holds **the software, and not your content**. A fresh copy
 of Parseh has:
 
-- all the code, the fonts of Persian, Arabic and Hindi, the language
+- all the code, the fonts of Persian, Arabic and Hindi (with their
+  licences), the language
   registry, and the installers;
 - the studio's starting pages — what a new document opens with, one for
   each language — with their pictures and their recording;
-- this guide's pages, and the PDF manual;
+- this guide's pages;
 - the tests, with a small book and a short video in each language to test
   with.
 

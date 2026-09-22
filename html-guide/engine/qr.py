@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.qr -- a QR code as an SVG, standard library only (Hugo's `qr`).
 
     svg("https://example.org", level="medium") -> "<svg ...>...</svg>"

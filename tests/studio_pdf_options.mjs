@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of a document's PDF options, driven where they are used --
 // the reading page's topbar -- against the REAL routes (markdown/app/server.py)
 // on a temporary library (tests/decks_harness.py, studio mode), with a REAL

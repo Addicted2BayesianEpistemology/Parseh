@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Cut a sentence into the phrases a reader should meet it in.
 
     chunker.chunk(text, "fa")                 -> one chunk per sentence

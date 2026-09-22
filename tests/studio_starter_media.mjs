@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the pictures and the recording the starters show
 // (markdown/exlex/starters/assets/), against the REAL routes on a temporary
 // library (tests/studio_harness.py):

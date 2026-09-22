@@ -998,11 +998,10 @@ Then `python3 lib/newlang.py --check` (non-zero when anything is missing; it
 walks every language, not only the new one) and `python3 tests/smoke.py`.
 
 The process end to end, written for someone who has not read the code, is the
-manual's **"Adding a language"** chapter (`guide/user-guide.tex`): what each
-registry field decides, each preamble hook and what happens without it, who
-reads the conventions file, and a worked example both of a Latin-script
-language that needs nothing but the entry and the two files, and of one that
-needs a script, its own digits and a bundled font.
+guide's page **"Adding a language"**
+(`html-guide/markdown/lookup-and-languages/adding-a-language.md`): the one
+command and its flags, what is left to write by hand, the font, the check, and
+worked examples.
 
 ---
 

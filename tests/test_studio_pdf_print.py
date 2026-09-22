@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The studio's PDF at its print options, built and read back
 (markdown/exlex/texgen.py, "print options"; the exercises' layouts on paper).
 

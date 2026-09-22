@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A draft's reading starts from its words, the checkers do not count that
 reading as written, and every door an annotator uses starts the words from the
 machine's.  Also the hub's Books and Studio doors, which say only how many.

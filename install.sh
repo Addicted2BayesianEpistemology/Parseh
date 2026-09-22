@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Install Parseh on Linux or macOS, from the checkout.
 #
 #   ./install.sh              everything: the environment and its packages, the

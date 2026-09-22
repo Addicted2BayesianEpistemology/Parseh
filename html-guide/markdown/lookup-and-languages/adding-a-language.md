@@ -199,7 +199,13 @@ languages name the system's faces rather than carrying tens of megabytes.
 3. declare it once with `@font-face` in `lib/parseh.css` and once in the
    studio's `markdown/app/static/app.css`, beside the four already there;
 4. check its licence allows it: the four bundled faces are under the SIL
-   Open Font License.
+   Open Font License;
+5. record the licence, so that the font travels with it: a row in
+   `lib/fonts/README.md`, the font's copyright line in `lib/fonts/OFL.txt`
+   (or a licence file of its own beside the font, if it is not under the
+   OFL), and an entry in `FONTS` in `lib/notices.py`, which draws the
+   **Licences** page. `tests/test_licences.py` fails until all three name
+   it ([Licences and credits](../reference/licences.md)).
 
 The CSS stacks themselves need no editing: the per-language stylesheet
 every page links is generated from the registry when Parseh starts.
@@ -309,5 +315,4 @@ scaffold then leaves TODO blocks in the `.tex` to copy from `ja.tex` and
 > calls any row that uses one a **MISSING** fault (*the Anki id … is
 > already retired*).
 
-`docs/languages.md` is the design underneath all of this, and the PDF
-manual's chapter *Adding a language* walks through it at more length.
+`docs/languages.md` is the design underneath all of this.

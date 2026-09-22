@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Pull edits made INSIDE Anki back into the anki/ deck store.
 
     python3 lib/sync_apkg.py <deck exported from Anki>.apkg [--dry-run]

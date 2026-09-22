@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Fetch a translation model that runs in the reader's own browser.
 
     python3 lib/getmt.py                 what is installed
@@ -59,7 +60,8 @@ ENGINE_BASE = ("https://cdn.jsdelivr.net/npm/@browsermt/bergamot-translator@%s/w
                % ENGINE_VERSION)
 ENGINE_FILES = ("translator-worker.js", "bergamot-translator-worker.js",
                 "bergamot-translator-worker.wasm")
-ENGINE_SOURCE = "bergamot-translator %s (MPL 2.0)" % ENGINE_VERSION
+ENGINE_LICENCE = "MPL 2.0"
+ENGINE_SOURCE = "bergamot-translator %s (%s)" % (ENGINE_VERSION, ENGINE_LICENCE)
 
 # Where Firefox itself gets its models.  The records carry the pair, the file
 # type, a version and an attachment; the attachment's `location` hangs off the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 import { chromium } from 'npm:playwright-core@1.52.0';
 // Run: CHROME_BIN=/path/to/chrome deno run --allow-all tests/narration.mjs
 //
@@ -145,6 +146,12 @@ try {
          'both recordings reached the page, each with the stretch it covers');
   assert(built.subs.every(s => s[3] === 'n1' || s[3] === 'n2'),
          'every subparagraph says which recording its times are in');
+  // and each recording where it is, as the first and last subparagraph it
+  // covers: what the player goes by when a subparagraph carries no id
+  assert(JSON.stringify(built.narr.map(n => [n.lo, n.hi])) ===
+         JSON.stringify([[0, info.half - 1], [info.half, info.labels.length - 1]]),
+         'each recording carries the stretch it covers, worked out by the build: ' +
+         JSON.stringify(built.narr.map(n => [n.lo, n.hi])));
   const src0 = await page.locator('#audio').getAttribute('src');
   assert(/part1\.wav$/.test(src0), `the element starts on the first recording (${src0})`);
 
@@ -181,18 +188,20 @@ try {
       // how long the transcript runs
       {id: 'n1', audio: 'audio/part1.wav', transcript: 'audio/transcript-n1.srt',
        from: info.labels[0], to: info.labels[half - 1], exists: true, bytes: 96044,
-       subs: half, timed: half, manual: 0, has_transcript: true, segments: 3, span: 6},
+       subs: half, timed: half, manual: 0, has_transcript: true, segments: 3, span: 6,
+       lo: 0, hi: half - 1},
       {id: 'n2', audio: 'audio/part2.wav', transcript: 'audio/tr2.json',
        from: info.labels[half], to: info.labels[info.labels.length - 1],
        exists: true, bytes: 96044, subs: info.labels.length - half, timed: 2,
-       manual: 0, has_transcript: true, segments: 2, span: 6},
+       manual: 0, has_transcript: true, segments: 2, span: 6,
+       lo: half, hi: info.labels.length - 1},
       // a third, recorded but with no transcript yet: there is nothing to
       // align it against, and the row has to say so rather than offer it
       {id: 'n3', audio: 'audio/part3.wav', transcript: '', from: '', to: '',
        exists: true, bytes: 1024, subs: info.labels.length, timed: 0, manual: 0,
-       has_transcript: false, segments: 0},
+       has_transcript: false, segments: 0, lo: 0, hi: info.labels.length - 1},
     ],
-    labels: info.labels.map(l => ({label: l, chapter: '1'})),
+    labels: info.labels.map(l => ({label: l, chapter: '1', key: '1:' + l})),
     timings: {subs: 4, manual: 0, audio: 'audio/part1.wav'},
     candidates: [], built: true, subs: 4, timed: 4,
     audio_dir: 'books/english/mini-en/audio/',
@@ -214,18 +223,34 @@ try {
   // read by an action nobody meant
   await page.click('#naddbtn');
   await page.waitForSelector('#nadd:not([hidden])');
-  const opts = await page.locator('#nfrom option').count();
-  assert(opts === info.labels.length + 1,
-         `add a recording offers every subparagraph, plus the whole book (${opts})`);
+  // WHAT IT COVERS IS PICKED FROM THE BOOK AS AN OUTLINE (outlinePicker):
+  // nothing picked is the whole book, and a paragraph opens to show its
+  // subparagraphs
+  assert(await page.textContent('#naddpick .olsay') === 'the whole book',
+         'add a recording starts on the whole book, and says so');
+  for (const tw of await page.locator('#naddpick li.ol-p > .olr > .oltw').all()) await tw.click();
+  const subRows = await page.locator('#naddpick li.ol-s').count();
+  assert(subRows === info.labels.length,
+         `and offers every subparagraph, inside its paragraph (${subRows})`);
+  // the recordings already here are marked on the rows they cover -- n3,
+  // the whole book's, on none of them, since it is not a stretch
+  const tagged = await page.evaluate(() => [...document.querySelectorAll('#naddpick li.ol-p')]
+    .map(li => [...li.querySelectorAll(':scope > .olr .oltag')].map(t => t.textContent).join()));
+  assert(JSON.stringify(tagged) === JSON.stringify(['n1', 'n2']),
+         'each recording already here is marked on the paragraphs it covers: ' + JSON.stringify(tagged));
   await page.click('#naddbtn');
   // a row's drawer is built when it is opened, so it is opened to be asked --
   // and left as it was found, since the covers flow below opens it again
   const r1 = page.locator('#nlist .nitem').nth(1);
   await r1.locator('.ntog').click();
   await r1.locator('.ndraw:not([hidden])').waitFor();
-  const rowOpts = await r1.locator('[data-x="from"] option').count();
-  assert(rowOpts === info.labels.length + 1,
-         `and a row's own drawer offers them too (${rowOpts})`);
+  const covsay = await r1.locator('[data-x="covsay"]').textContent();
+  assert(covsay === 'chapter 1, ¶ 2 · 2 subparagraphs',
+         `a row's own drawer says what it covers, in words (${covsay})`);
+  await r1.locator('[data-x="covchg"]').click();
+  const opened = await r1.locator('.olsay').textContent();
+  assert(opened === covsay, `and its outline opens on that stretch (${opened})`);
+  await r1.locator('[data-x="covchg"]').click();
   await r1.locator('.ntog').click();
 
   console.log('d) the doors a row opens');
@@ -253,14 +278,20 @@ try {
   const row2 = page.locator('#nlist .nitem').nth(1);
   await row2.locator('.ntog').click();
   await row2.locator('.ndraw:not([hidden])').waitFor();
-  await row2.locator('[data-x="from"]').selectOption(info.labels[half]);
-  await row2.locator('[data-x="to"]').selectOption(info.labels[info.labels.length - 1]);
+  await row2.locator('[data-x="covchg"]').click();
+  // the second paragraph opened, its first subparagraph picked, and the pick
+  // stretched with Shift to the last one of the book
+  const p2 = row2.locator('.oltree li.ol-p').nth(1);
+  await p2.locator(':scope > .olr > .oltw').click();
+  await p2.locator('li.ol-s').first().locator(':scope > .olr').click();
+  await p2.locator('li.ol-s').last().locator(':scope > .olr').click({modifiers: ['Shift']});
   await row2.locator('[data-x="savecovers"]').click();
   await page.waitForFunction(() => true);
+  const last = info.labels[info.labels.length - 1];
   assert(posted.some(([d, b]) => d === 'region' && b.id === 'n2'
-                                 && b.from === info.labels[half]),
-         'saying what it covers sends that recording and the two ends',
-         );
+                                 && b.from === '1:' + info.labels[half] && b.to === '1:' + last),
+         'saying what it covers sends that recording and its two ends, each named with its ' +
+         'chapter: ' + JSON.stringify(posted.filter(([d]) => d === 'region')));
   // taking a recording off the book is destructive, so it is asked for by
   // name first -- the old bare click posted straight through
   await page.locator('#nlist .nitem').nth(1).locator('button', {hasText: 'remove'}).click();

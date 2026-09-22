@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Italian: what a \\vb says about a verb, from the dictionary's own rows.
 
     \\vb{venire}{}{vengo}{}{venuto}{}{to come (aux. \\pw{essere}; p.r. \\pw{venni})}

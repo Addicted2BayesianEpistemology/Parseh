@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The mobile mode's groundwork (docs/mobile.md): the hub carries both of its
 layouts and the switch between them, the browser layout keeps every door it
 had, and the mobile one has nothing on it that edits or administers.
@@ -137,9 +138,10 @@ class HubTests(unittest.TestCase):
             self.assertLess(m.start(), self.html.index('class="hub-mobile"'))
 
     def test_the_mobile_layout_has_nothing_that_edits_or_administers(self):
-        # (and installing the mobile interface as an app: lib/mobile.py)
+        # (and installing the mobile interface as an app: lib/mobile.py; and,
+        # last, the licences: lib/notices.py)
         self.assertEqual(self.hrefs('mobile'), ['/', '/books/', '/youtube/', '/studio/', '/exercises/', '/guide/',
-                                                '/m/install/'])
+                                                '/m/install/', '/licences/'])
         els = self.page.of('mobile')
         buttons = [a.get('data-parseh-mode') or ('theme' if 'data-parseh-theme' in a else a.get('data-pick'))
                    for t, a in els if t == 'button']
@@ -212,11 +214,14 @@ class SharedFilesTests(unittest.TestCase):
         # everything else in it is the mobile layout's own: nothing that a
         # browser page (the reader, the player, the studio) could pick up --
         # the reader's rules all hang off html.m-reader, which parseh.js puts
-        # on a reader, and say [data-mode=mobile] besides
+        # on a reader, and say [data-mode=mobile] besides; the one <main> of a
+        # page that carries both layouts in it (the hub, the licences) is
+        # narrowed to the mobile column only in the mobile mode
         for part in selectors(css):
             if part.startswith('@') or part == ':root':
                 continue
-            self.assertTrue(re.search(r'\bm-|\[data-layout=|main\.hub', part), part)
+            self.assertTrue(re.search(r'\bm-|\[data-layout=|main\.hub|'
+                                      r'^html\[data-mode=mobile\] main\.notices$', part), part)
             if 'm-reader' in part:
                 self.assertIn('html.m-reader[data-mode=mobile]', part)
 

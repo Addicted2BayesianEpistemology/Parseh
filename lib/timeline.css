@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Parseh — the timeline editor (lib/timeline.js), over the book reader and
    the video player alike.  Every rule is under .tl-root, so nothing here
    reaches either page, and the colours are the toolbox's own tokens from

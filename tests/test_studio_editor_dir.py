@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The way the editor writes a document's source by default: the prose
 language of its front matter (`lang:`), which the editor page and every
 preview carry as a record (markdown/app/server.py prose_record).  The

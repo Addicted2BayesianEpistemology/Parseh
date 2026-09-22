@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Recover clean, paragraph-structured text from a PDF's text layer.
 
     python3 lib/extract_pdf.py <pdf> [--lang fa] [--from N] [--to N] [--out clean.txt]

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The toolbox tests/mobile_pages.mjs drives: the REAL hub (serve.main) on a
 temporary tree, with books and exercise decks to read and study in the
 mobile interface (docs/mobile.md).

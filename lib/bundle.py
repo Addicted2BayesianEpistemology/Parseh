@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A book or a video as one file: take it away, edit it by hand, put it back.
 
     from bundle import pack_book, pack_video, inspect, install

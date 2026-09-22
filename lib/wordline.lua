@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
 -- The word line, read for the PDF: lib/wordline.py's grammar in Lua.
 --
 -- Loaded once by lib/frank-preamble.tex with dofile, so it is ordinary Lua:

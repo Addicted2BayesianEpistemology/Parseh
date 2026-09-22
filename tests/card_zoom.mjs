@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of ⤢ Enlarge (app.js openCardZoom): the enlarged flashcard is
 // the card on the page, only bigger.  Against the REAL routes
 // (markdown/app/server.py, htmlgen) on a temporary library and exercises

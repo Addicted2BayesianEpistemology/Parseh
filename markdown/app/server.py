@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """exlex studio — local web UI for the exlex toolchain.
 
     python3 app/server.py [--port 8766] [--open]     # on its own, plain http

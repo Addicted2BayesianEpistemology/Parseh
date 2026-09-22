@@ -23,7 +23,7 @@ From the left:
 | **پ Parseh** | this page |
 | *the hub* | where you are |
 | **Browser** **Mobile** | the two interfaces: which one Parseh is in, and the switch between them ([Browser and Mobile](mobile-mode.md)) |
-| **guide** | this guide ([This guide and the PDF manual](this-guide.md)) |
+| **guide** | this guide ([This guide](this-guide.md)) |
 | **◐** | the theme, below |
 | **⏻ stop** | stops the server, after asking ([Starting and stopping](starting-and-stopping.md#stopping-it)) |
 

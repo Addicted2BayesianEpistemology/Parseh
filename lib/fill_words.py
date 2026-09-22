@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Give every chunk of a Japanese or Chinese book or video the words it lacks.
 
     python3 lib/fill_words.py --video <id or directory> [--dry-run]

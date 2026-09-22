@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The exercise deck store (markdown/app/decks.py): decks and their
 exercises on disk, copying from a studio document, studying, export/import.
 

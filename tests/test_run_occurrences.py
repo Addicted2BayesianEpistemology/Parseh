@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The page's hover editors name what they edit by position, and the store
 finds it in the source by counting the same way
 (markdown/app/htmlgen.py, markdown/app/store.py, markdown/exlex/mdparser.py).

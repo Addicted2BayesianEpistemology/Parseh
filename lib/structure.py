@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 r"""A chapter's name, and the sections inside it -- written into the .tex.
 
 Two structural marks, both optional, both kept in the book's own files rather

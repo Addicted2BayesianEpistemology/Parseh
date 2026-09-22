@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A whole shelf of books, or of videos, backed up and put back.
 
     python3 -m unittest discover -s tests -p test_shelf.py

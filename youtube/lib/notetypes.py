@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The note types' own appearance, kept in step with the live collection.
 
 A note type carries more than its fields: it carries the CSS the cards

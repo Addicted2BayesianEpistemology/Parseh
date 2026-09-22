@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """A book built from a page -- its PDF and its reader -- as a job the page polls.
 
     bookbuild.start(book_dir, "pdf")    the PDF and the reader, as ./build.sh <folder>/<slug>

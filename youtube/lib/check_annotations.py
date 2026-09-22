@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Check one video's annotations, the way check_batch.py checks a book batch.
 
     python3 lib/check_annotations.py videos/<folder>/<id>

@@ -48,7 +48,6 @@ Parseh/
 | `clips/` | The clip tray: recordings and frames cut for cards, waiting to be used. |
 | `dict/` | The reading help's downloads, with `corpus/`, `mt/` and `components/` (below). |
 | `docs/` | The design notes: `languages.md`, `lang/<code>.md` (each language's conventions), `mobile.md`, `installer.md`, `studio-exercises.md`, the notes on character components, and the prompts. |
-| `guide/` | The PDF manual's source; its build is `HOW TO USE THIS TOOLBOX.pdf`, at the top. |
 | `html-guide/` | These pages: `markdown/` (their source), `build.py` and `engine/` (the compiler), `assets/` and `index.html` (the front page); `site/` is what a compile makes. |
 | `.github/` | Its `guide-pages.yml` workflow: the guide, compiled and published on GitHub Pages. |
 | `tests/` | The unit tests, `smoke.py`, the browser tests, and `fixtures/`: a small book, video and Anki deck in every language. |
@@ -252,6 +251,3 @@ Git ignores outright, so that a stray `git add` cannot take them:
 - a book or a video taken off the shelf (`.trash/`), the downloads of the
   reading help, the environment (`.runtime/`), the certificate (`.tls/`),
   `serve.log` and `.serve.pid`.
-
-The one built file that is tracked is the PDF manual, `HOW TO USE THIS
-TOOLBOX.pdf`, so that a fresh checkout has it.

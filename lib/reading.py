@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """What somebody has decided about a book's own text: reading.json.
 
 Two decisions live here, both the reader's rather than the annotator's, and

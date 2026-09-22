@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Moving a caption's start on a video already on the shelf.
 
     python3 -m unittest discover -s tests -p test_captimes.py

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """decks — the exercise decks: studio exercises studied like Anki cards.
 
 Stdlib plus the studio's own modules, and no HTTP (deckroutes.py is the web

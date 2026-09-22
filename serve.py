@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Parseh -- one server for the whole toolbox, over HTTPS.
 
     python3 serve.py                 every interface, https on port 8765
@@ -27,7 +28,10 @@ What is mounted where -- one address, one port, one process:
     /lib/langs.css    the per-language font tokens, generated from lib/languages.json
     /guide/           the guide: html-guide/'s front page and its compiled pages
                       (lib/guidebuild.py), compiled from the page's own button
-    /guide.pdf        the manual, as a PDF
+    /guide.pdf        where the PDF manual was: on to /guide/, which is the manual
+    /licences/        the licences: Parseh's (GPL-3.0-or-later, its text at
+                      /licences/LICENSE), and those of the fonts, MathJax and
+                      the data the reading help downloads (lib/notices.py)
     /__shutdown       POST: stop the server (every page has a button)
 
 HTTPS, with a certificate this program makes itself.  Browsers hand out
@@ -87,7 +91,6 @@ YT = os.path.join(ROOT, "youtube")
 YT_LIB = os.path.join(YT, "lib")
 STUDIO = os.path.join(ROOT, "markdown")
 STUDIO_APP = os.path.join(STUDIO, "app")
-GUIDE_PDF = os.path.join(ROOT, "HOW TO USE THIS TOOLBOX.pdf")
 TLS_DIR = os.path.join(ROOT, ".tls")
 DEFAULT_PORT = 8765
 
@@ -103,6 +106,7 @@ import lookuppage         # noqa: E402  the page that sets the dictionaries up
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
 import make_index           # noqa: E402  what a built reader says about itself
 import mobile               # noqa: E402  the mobile interface's own pages (/m/books/)
+import notices              # noqa: E402  the licences page: Parseh's, and its fonts' and data's
 import newbook              # noqa: E402  the "add a book" recipe page
 import anki_store           # noqa: E402  the shared card store
 import ytpages              # noqa: E402  the video player's pages + Anki endpoints
@@ -243,7 +247,7 @@ mimetypes.add_type("text/javascript", ".js")
 # sources, the tools, the card store, this program, the private key -- is
 # not on the web, whatever the URL.
 STATIC_PREFIXES = ("/lib/fonts/", "/lib/mathjax/", "/audiobook/", "/books/",
-                   "/youtube/lib/fonts/", "/youtube/videos/",
+                   "/youtube/videos/",
                    # the translation engine and its models: read by the
                    # reader's own worker, never written through the server
                    "/mt/")
@@ -757,7 +761,9 @@ def hub_page():
     Every browser warns once about the certificate: it is ours, accept it.<br>
     The &#9211; stop button at the top of a page stops the server. A book is built
     from its card on the library page, and a video added from the video index;
-    <a href="/guide/">the guide</a> has the rest.
+    <a href="/guide/">the guide</a> has the rest.<br>
+    %(name)s is free software, under the GNU GPL, version 3 or later; the fonts and
+    the data it uses keep their own licences: <a href="/licences/">licences</a>.
   </div>
   </div>
   <div class="hub-mobile" data-layout="mobile">
@@ -816,6 +822,7 @@ def hub_page():
       <img class="m-dicon" src="/lib/icons/parseh-192.png" width="44" height="44" alt="">
     </a>
     </div>
+    <p class="m-foot">Free software, GPL 3 or later &middot; <a href="/licences/">Licences</a></p>
   </div>
 </main>
 </body></html>
@@ -1430,7 +1437,9 @@ class Handler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         if not self._cc:
-            p = self.path.split("?", 1)[0]
+            # no path at all when the request line itself was refused (a
+            # TLS hello sent to --http, say): the 400 still goes out
+            p = (getattr(self, "path", None) or "").split("?", 1)[0]
             # MathJax is two megabytes and changes only when the checkout
             # does.  Everything else here is a page or a script somebody is
             # editing, and `no-store` is why a reload shows the edit -- but
@@ -1787,10 +1796,23 @@ class Handler(SimpleHTTPRequestHandler):
         if path.startswith("/guide/"):
             return self._guide(method, path[len("/guide/"):])
         if path == "/guide.pdf":
-            if not os.path.isfile(GUIDE_PDF):
-                return self._not_found("the PDF manual is not in this checkout; "
-                                       "the guide is at /guide/")
-            return self.send_file(GUIDE_PDF, inline_type="application/pdf")
+            # the PDF manual's old address, kept in somebody's bookmarks: the
+            # manual is the guide now, and there is no PDF of it
+            return self._redirect("/guide/")
+        # the licences (lib/notices.py): the page, and the GPL's own text from
+        # the file at the top of the checkout -- nothing else of the checkout
+        # is served by this, whatever follows /licences/
+        if path in ("/licences", "/licences/", "/licences/index.html",
+                    "/licenses", "/licenses/"):
+            if method != "GET":
+                return self._method_not_allowed()
+            if path != "/licences/":
+                return self._redirect("/licences/")
+            return self.send_html(notices.page())
+        if path == "/licences/LICENSE":
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_bytes(notices.licence_text(), "text/plain; charset=utf-8")
         if path in ("/lookup", "/lookup/"):
             if method != "GET":
                 return self._method_not_allowed()
@@ -2049,6 +2071,13 @@ class Handler(SimpleHTTPRequestHandler):
                 self.close_connection = True
             finally:
                 f.close()
+
+    def guess_type(self, path):
+        # A licence without an extension (lib/mathjax/LICENSE, which the
+        # licences page links to) is text to read, not a file to download.
+        if os.path.basename(path) in ("LICENSE", "COPYING"):
+            return "text/plain; charset=utf-8"
+        return super().guess_type(path)
 
     def list_directory(self, path):
         # there is no listing of anything: a directory without its page is
@@ -3934,6 +3963,13 @@ class Handler(SimpleHTTPRequestHandler):
                "empty upload" if n <= 0 else
                "name the file with its extension (mp3, m4a, webm, ogg, wav ...)"
                if kind == "audio" and ext not in AUDIO_EXTS else "")
+        # A STRETCH THE BOOK DOES NOT HAVE is refused before the file is
+        # read, not after a recording of an hour has arrived to be thrown away
+        if not why and kind == "audio":
+            first = (self.query.get("from") or [""])[0].strip()
+            last = (self.query.get("to") or [""])[0].strip()
+            if first or last:
+                why = self._region_error(b, first, last) or ""
         if why:
             self.close_connection = True          # the body stays unread
             return self.send_json({"ok": False, "error": why}, 400)
@@ -4111,12 +4147,13 @@ class Handler(SimpleHTTPRequestHandler):
                                "rebuilt": ok, "audio": rel,
                                "timed": st.get("timed", 0), "subs": st.get("subs", 0)})
 
-    def _sub_labels(self, b):
-        """Every subparagraph label in reading order, with its chapter.
-
-        What the panel offers when somebody says which stretch of the text a
-        recording covers: a list to pick two ends out of, rather than a box to
-        type "3.4" into and hope.
+    def _sub_labels(self, b, subkeys=False):
+        """Every subparagraph of the book in reading order: its label, the
+        printed number of its chapter in Latin digits, and the two together,
+        "2:4.3" -- the name no other subparagraph answers to (a label alone
+        is unique only within its chapter), which is what the reader's
+        outline writes when somebody says which stretch a recording covers.
+        With `subkeys`, also the key timings.json files its times under.
         """
         try:
             import texparse as T
@@ -4127,8 +4164,23 @@ class Handler(SimpleHTTPRequestHandler):
         for ch in chapters:
             for pp in ch.paragraphs:
                 for s in pp.subs:
-                    out.append({"label": s.num, "chapter": str(ch.label)})
+                    e = {"label": s.num, "chapter": T.chapter_of(s), "key": T.qualified(s)}
+                    if subkeys:
+                        e["subkey"] = tstamp.subkey(s)
+                    out.append(e)
         return out
+
+    def _region_error(self, b, first, last, labels=None):
+        """None when `first` and `last` name a stretch of this book -- either
+        end a label, "4.3", or a label with its chapter, "2:4.3" -- and
+        otherwise what is wrong with them, said so it can be shown."""
+        import texparse as T
+        labels = self._sub_labels(b) if labels is None else labels
+        try:
+            T.region_bounds([(e["chapter"], e["label"]) for e in labels], first, last)
+        except ValueError as e:
+            return str(e)
+        return None
 
     def _narration_spread(self):
         """A recording with no transcript, shared out over the text it covers.
@@ -4187,6 +4239,9 @@ class Handler(SimpleHTTPRequestHandler):
             if r["id"] == want:
                 rec["from"] = str(body.get("from") or "").strip()
                 rec["to"] = str(body.get("to") or "").strip()
+                bad = self._region_error(b, rec["from"], rec["to"])
+                if bad:
+                    return self.send_json({"ok": False, "error": bad}, 400)
                 if "transcript" in body:
                     rec["transcript"] = str(body.get("transcript") or "").strip()
             keep.append(rec)
@@ -4392,7 +4447,7 @@ class Handler(SimpleHTTPRequestHandler):
                 tr["span"] = round(segs[-1][1], 1) if segs else 0
             except Exception:
                 tr["segments"] = 0
-        labels = self._sub_labels(b)
+        labels = self._sub_labels(b, subkeys=True)
         def nrec(n):
             there = bool(n["audio"] and os.path.exists(n["audio"]))
             # has_transcript is written either way, never left absent: a panel
@@ -4426,12 +4481,28 @@ class Handler(SimpleHTTPRequestHandler):
         # other.  Falling back to the region is not a guess: it is what the
         # reader itself does to decide which file to play (narrFor), and the
         # ordered label list is already in hand for the pickers.
-        order = {e["label"]: i for i, e in enumerate(labels)}
-        spans = []
+        # WHERE EACH STRETCH IS, read the way the aligner reads it
+        # (texparse.region_bounds): an end named with its chapter, "2:4.3", is
+        # exactly one subparagraph, and a bare label the first or the last
+        # wearing it.  A stretch that names a label the book no longer has
+        # has no span, and its row says so rather than counting against
+        # somebody else's subparagraphs.
+        import texparse as T
+        pairs = [(e["chapter"], e["label"]) for e in labels]
+        spans, span_of = [], {}
         for n in b.narrations:
-            lo = order.get(n["from"], 0) if n["from"] else 0
-            hi = order.get(n["to"], len(order) - 1) if n["to"] else len(order) - 1
+            try:
+                lo, hi = T.region_bounds(pairs, n["from"], n["to"])
+            except ValueError:
+                continue
             spans.append((n["id"], lo, hi))
+            span_of[n["id"]] = (lo, hi)
+        # a timed subparagraph is found by the key its time is filed under,
+        # which is unique; the label it also carries is not
+        at_key = {e["subkey"]: i for i, e in enumerate(labels)}
+        at_label = {}
+        for i, e in enumerate(labels):
+            at_label.setdefault(e["label"], i)
         # HOW BIG EACH STRETCH IS, so a row can say "21 of 21 timed" rather
         # than a count with nothing to measure it against, and how many of its
         # times were stamped by ear -- which is what a reader wants to know
@@ -4440,10 +4511,10 @@ class Handler(SimpleHTTPRequestHandler):
         per, byregion, hand = {}, {}, {}
         try:
             with open(b.timings, encoding="utf-8") as f:
-                for rec in (json.load(f).get("subs") or {}).values():
+                for key, rec in (json.load(f).get("subs") or {}).items():
                     if not isinstance(rec, dict) or rec.get("t0") is None:
                         continue
-                    at = order.get(rec.get("label"))
+                    at = at_key.get(key, at_label.get(rec.get("label")))
                     # a label inside exactly one declared stretch, or nobody's
                     hit = [i for i, lo, hi in spans if at is not None and lo <= at <= hi]
                     nid = rec.get("n") or ""
@@ -4462,11 +4533,16 @@ class Handler(SimpleHTTPRequestHandler):
             r["timed"] = per.get(n["id"], 0) + byregion.get(n["id"], 0)
             r["subs"] = size.get(n["id"], 0)
             r["manual"] = hand.get(n["id"], 0)
+            # the subparagraphs it covers, first and last, as indices into
+            # `labels` (null when its ends name nothing in this book): what
+            # the reader's outline marks each chapter with
+            r["lo"], r["hi"] = span_of.get(n["id"], (None, None))
             narrs.append(r)
         self.send_json({
             "ok": True, "slug": b.slug, "title_latin": b.title_latin,
             "audio": audio, "transcript": tr,
-            "narrations": narrs, "labels": labels,
+            "narrations": narrs,
+            "labels": [{k: v for k, v in e.items() if k != "subkey"} for e in labels],
             # WHAT EACH OF THE THREE DOWNLOADS CARRIES, summed from what
             # lib/bundle.py will pack: the download sheet says how big each
             # is, and "all of it" is every recording under audio/ -- not the

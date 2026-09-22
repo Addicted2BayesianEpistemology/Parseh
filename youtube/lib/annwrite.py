@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Edit one chunk of a video's annotations.json, and leave the file a
 person can still edit by hand.
 

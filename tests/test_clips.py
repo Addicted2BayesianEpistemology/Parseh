@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The clip tray (lib/clips.py) and the hub's doors to it (serve.py).
 
     python3 -m unittest discover -s tests -p test_clips.py

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Video difficulty choices in both editor and stored metadata."""
 import json
 import sys

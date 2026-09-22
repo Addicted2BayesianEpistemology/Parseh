@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The book pipeline's readers and checkers, on chunks that carry words.
 
     python3 tests/test_wordbook_parsers.py

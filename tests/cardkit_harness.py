@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The toolbox tests/cardkit.mjs drives: the REAL hub (serve.main) on a
 temporary tree, with a narrated book and a film whose sound can be measured.
 

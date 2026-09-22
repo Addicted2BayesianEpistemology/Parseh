@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """How big a download will be, said before it is packed.
 
     python3 -m unittest discover -s tests -p test_bundle_size.py

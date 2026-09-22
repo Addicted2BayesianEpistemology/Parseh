@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Three places where the studio's Markdown dialect did not do what its
 README says (markdown/README.md), each pinned by what the page and the
 paper are given.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 import { chromium } from 'npm:playwright-core@1.52.0';
 // Run: CHROME_BIN=/path/to/chrome deno run --allow-all tests/book_words.mjs
 // The word layer in the book reader (lib/tex2html.py).  Copies of the

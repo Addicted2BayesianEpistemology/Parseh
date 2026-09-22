@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /* Parseh exercise decks — the pages of the Exercises door (/exercises):
    the decks (decks.html), one deck to browse and manage (deck.html), and
    studying it (study.html).

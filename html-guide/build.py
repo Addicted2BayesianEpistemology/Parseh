@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Compile the Parseh guide: markdown/ -> site/, static pages.
 
     python3 html-guide/build.py                 compile into html-guide/site/

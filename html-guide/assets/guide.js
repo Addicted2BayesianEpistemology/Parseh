@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /* The Parseh guide -- the little script every page of it loads in <head>.
 
    It works the same opened straight from the disk (file://), served by
    Parseh under /guide/, and published on GitHub Pages: nothing here fetches
    a file (a file:// page may not), every address is worked out relative to
    the page (data-guide-root on <html> says how far up html-guide/ is), and
-   what only the Parseh server can answer -- compiling the guide, the live
-   PDF manual, the way back to the hub -- is offered only once the server
-   has said it is Parseh (parseh() below).
+   what only the Parseh server can answer -- compiling the guide, the way
+   back to the hub -- is offered only once the server has said it is Parseh
+   (parseh() below).
 
    THE THEME IS THE TOOLBOX'S.  One choice for all of Parseh, `parseh_theme`
    in localStorage, the three palettes light, dark and sepia cycled by the ◐
@@ -81,7 +82,7 @@
 
   /* Was this page served by Parseh?  The address cannot say: Parseh puts
      the guide under /guide/, but so may any website that publishes it (a
-     static host has no /guide.pdf, no hub, no compile).  So the server is
+     static host has no hub and no compile).  So the server is
      asked, once: GET __status beside the front page, which only Parseh
      answers, with {parseh: true} and the state of the compiled site.  A page
      not under /guide/ over http (the disk, GitHub Pages at /<repository>/)
@@ -404,18 +405,11 @@
     heads.forEach(function (h) { if (h) io.observe(h); });
   }
 
-  // ------------------------------------------------------------ the manual, Parseh
-  /* The manual is the copy the compile put in site/_parseh/ (the front page
-     learns where from nav.js); served by Parseh it is the live one,
-     /guide.pdf, and the bar gains the way back to the hub. */
+  // ------------------------------------------------------------ Parseh
+  /* Served by Parseh, the bar gains the way back to the hub. */
   function bindLinks() {
-    var nav = window.GUIDE_NAV;
-    $$('[data-guide-manual]').forEach(function (a) {
-      if (nav && nav.manual && a.hasAttribute('data-guide-from-nav')) a.href = up() + nav.manual;
-    });
     parseh().then(function (st) {
       if (!st) return;
-      $$('[data-guide-manual]').forEach(function (a) { a.href = '/guide.pdf'; });
       $$('.g-hub').forEach(function (a) { a.hidden = false; });
       loadActivity();
     });

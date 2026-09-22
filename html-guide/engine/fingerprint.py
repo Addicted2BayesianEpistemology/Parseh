@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.fingerprint -- what a compile of the guide depends on, as one hash.
 
 The compiled site/ is up to date when it was built from exactly the sources

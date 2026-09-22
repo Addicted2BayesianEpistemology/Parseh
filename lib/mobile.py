@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The mobile interface's pages that the server writes (docs/mobile.md).
 
     mobile.books_page()     /m/books/, the book shelf as a phone reads it

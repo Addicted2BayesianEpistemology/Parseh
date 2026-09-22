@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The HTML guide's compiler (html-guide/build.py and html-guide/engine/).
 
     python3 -m unittest discover -s tests -p test_html_guide.py
@@ -666,10 +667,6 @@ class TheSite(Tree):
         self.assertIn('<link rel="stylesheet" href="../../../assets/guide.css">', page)
         self.assertIn('<link rel="stylesheet" href="../../_parseh/studio.css">', page)
         self.assertIn('<a class="g-link g-home" href="../../../index.html">Home</a>', page)
-        # the manual's button, which a phone shortens to "PDF" (the words
-        # after it are hidden there, not the button)
-        self.assertIn('<a class="g-pdf" data-guide-manual href="../../_parseh/manual.pdf" target="_blank" '
-                      'rel="noopener" title="The PDF manual">PDF<span class="g-pdf-more"> manual</span></a>', page)
         self.assertIn('aria-current="page">Leaf</a>', page)
         self.assertIn('<html lang="en" data-guide-root="../../../">', page)
         # no address the engine wrote starts with / or ends at a folder
@@ -678,6 +675,21 @@ class TheSite(Tree):
                 continue
             self.assertFalse(href.startswith("/"), href)
             self.assertFalse(href.endswith("/"), href)
+
+    def test_no_manual_and_the_fonts_licences(self):
+        page = self.page("sec/deep/leaf.html")
+        # there is no PDF manual: the guide is the manual, and no page has a
+        # button to one, nor the site a copy of one
+        self.assertNotIn("g-pdf", page)
+        self.assertNotIn("data-guide-manual", page)
+        self.assertFalse((self.site / "_parseh" / "manual.pdf").exists())
+        self.assertNotIn('"manual"', (self.site / "nav.js").read_text(encoding="utf-8"))
+        # the fonts travel with their licences (lib/fonts/): the OFL with the
+        # toolbox's faces' notices, TeX Gyre's GUST licence, and the README
+        # that says which font is under which
+        for name in ("OFL.txt", "GUST-FONT-LICENSE.txt", "README.md"):
+            self.assertEqual((self.site / "_parseh" / "fonts" / name).read_bytes(),
+                             (ROOT / "lib" / "fonts" / name).read_bytes(), name)
 
     def test_prev_next_follow_the_list(self):
         page = self.page("sec/index.html")
@@ -1082,7 +1094,6 @@ class Served(unittest.TestCase):
             (root / "markdown").mkdir()
             for d in ("markdown/exlex", "markdown/app", "lib"):
                 os.symlink(ROOT / d, root / d)
-            shutil.copyfile(ROOT / "HOW TO USE THIS TOOLBOX.pdf", root / "HOW TO USE THIS TOOLBOX.pdf")
             g = str(root / "html-guide")
             st = guidebuild.status(g)
             self.assertEqual((st["parseh"], st["built"], st["stale"]), (True, False, None))

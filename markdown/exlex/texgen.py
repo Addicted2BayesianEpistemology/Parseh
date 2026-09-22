@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """texgen — turn the mdparser block model into a complete .tex file.
 
 The heart is inline(): it finds maximal runs of the target language,

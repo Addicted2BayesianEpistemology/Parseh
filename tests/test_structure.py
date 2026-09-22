@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 r"""A chapter's name and the sections inside it: lib/structure.py and its door.
 
 The promise being tested is narrow and load-bearing: a structural mark is a

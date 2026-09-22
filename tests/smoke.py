@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The toolbox, end to end, for every language it teaches.
 
     python3 tests/smoke.py            everything that needs no TeX engine

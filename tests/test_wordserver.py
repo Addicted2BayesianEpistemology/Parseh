@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The word line at the server: a lookup divided by a chunk's own words, and
 the two routes that propose a line for a chunk that has none.
 

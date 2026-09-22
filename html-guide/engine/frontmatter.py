@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.frontmatter -- Hugo's three front matters, read without a library.
 
     ---            +++            {

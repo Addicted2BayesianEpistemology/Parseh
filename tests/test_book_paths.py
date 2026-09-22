@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """serve.book_dir: a book's URL path names a book on the shelf and nothing else.
 
     python3 -m unittest discover -s tests -p test_book_paths.py

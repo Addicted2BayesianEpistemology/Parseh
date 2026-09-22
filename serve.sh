@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Run Parseh -- the whole toolbox, one https server -- in the background.
 # Linux and macOS alike.  (On Windows, double-click serve.bat instead.)
 #

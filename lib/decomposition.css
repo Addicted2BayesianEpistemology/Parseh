@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Local character explorer: inherits the readers' light, dark and sepia palettes. */
 .cd-toggle.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
 .cd-modebar{position:fixed;z-index:130;bottom:20px;left:50%;transform:translateX(-50%);

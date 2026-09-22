@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Where a book lives and what it is called.
 
 One directory per book under books/<language folder>/, each with a book.json:
@@ -264,8 +265,11 @@ class Book:
 
         book.json's "narrations" is the many-recordings form: each record names
         its file, optionally its own transcript, and the stretch of text it
-        covers as two subparagraph labels -- "from": "1.1", "to": "3.4" -- with
-        either left out meaning "to the end of the book that way".  It is how a
+        covers as two subparagraphs, each named with its chapter -- "from":
+        "2:1.1", "to": "2:3.4", since a label alone repeats in every chapter --
+        with either left out meaning "to the end of the book that way".  A bare
+        label ("1.1"), as older books have it, still reads: the first wearing
+        it for a start, the last for an end (texparse.region_bounds).  It is how a
         narration is made a little at a time: record a few chapters, say which
         ones, align just those.
 

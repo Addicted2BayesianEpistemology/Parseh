@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Recordings in the studio dialect, and flashcards made of blocks
 (markdown/exlex/mdparser.py, markdown/app/htmlgen.py, markdown/exlex/texgen.py).
 

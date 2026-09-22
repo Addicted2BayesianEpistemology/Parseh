@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The "add a book" page: three ways in, and only one of them on screen.
 
 A book is not a paste-the-answer job.  It is days of work, paragraph by

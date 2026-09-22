@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the page's hover editors landing on the copy of a word
 // they were opened on, against the REAL routes on a temporary library
 // (tests/studio_harness.py).  The colour palette, the transliteration field

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Stage 2 — build the audio-synced reader from the same .tex files.
 
     python3 tex2html.py            -> reader/index.html
@@ -308,6 +309,7 @@ def build(chapters, lang=None, gloss=None):
     subs = []                                    # what actually gets played
     toc = []                                     # one entry per paragraph
     seen_ids = set()
+    toc_at = {}         # a paragraph's id -> its contents entry
     gi = 0
     si = 0
     paras = []          # [key, first sub, last sub] -- what a collapse folds
@@ -406,6 +408,10 @@ def build(chapters, lang=None, gloss=None):
                     "q": languages.fold(" ".join(["%s.%d" % (cnum, para.no),
                                                   label, inc, LANG.strip(inc)])),
                 })
+                toc_at[pid] = len(toc) - 1
+            # the contents entry this paragraph is under -- a piece continued
+            # in another file is under the entry of the piece that opened it
+            entry = toc_at.get(pid, -1)
             if pkey:
                 paras.append([pkey, si, si + max(0, len(para.subs) - 1)])
             # THE SECTION, SAID IN THE TEXT.  Smaller than the chapter's own
@@ -439,9 +445,13 @@ def build(chapters, lang=None, gloss=None):
                 # -- the chapter stays third, so everything already indexed
                 # off it (crossesBound, a chapter's own lazy fetch) is
                 # untouched.
+                # The fifth and sixth are what the outline a stretch of the
+                # book is picked from reads (outlinePicker): the contents
+                # entry of the paragraph this subparagraph is in, and its
+                # label.  Last, so nothing indexed off the first four moves.
                 subs.append([round(t0, 2) if t0 is not None else None,
                              round(t1, 2) if t1 is not None else None, ci,
-                             str(getattr(s, "nid", "") or "")])
+                             str(getattr(s, "nid", "") or ""), entry, s.num])
                 # The gap a note sits in.  One before every subparagraph
                 # and, after the loop, one after the last of the book -- so
                 # every seam between two lines is a place, named by the key
@@ -1431,6 +1441,8 @@ header #narr.cta{border-color:var(--accent);color:var(--accent)}
 #narrbox .nfield{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
 #narrbox .nfieldlab{color:var(--dim);font-size:12.5px}
 #narrbox .nsep{color:var(--faint)}
+#narrbox .npick{margin:2px 0 8px}
+#narrbox .npick[hidden]{display:none}
 #narrbox .nlist2{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
 /* the found-elsewhere rows, which have never had a rule of their own: a file
    somewhere on the disk, its size and where it was found, on one line that
@@ -1598,6 +1610,69 @@ header #narr.cta{border-color:var(--accent);color:var(--accent)}
    every sibling gives its status line a size, a colour and a .bad */
 #fdbox #fdstat{font-size:12.5px;color:var(--accent)}
 #fdbox #fdstat.bad{color:var(--danger)}
+#fdbox .fdrun{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#fdbox .fdrun .fdsee{border:0;background:none;padding:2px 0;color:var(--ink);
+  text-align:start;white-space:normal;text-decoration:underline dotted;
+  text-underline-offset:3px}
+#fdbox .fdrun .fdsee:hover{color:var(--accent)}
+
+/* ---- the outline a stretch of the book is picked from (outlinePicker) ----
+   The same control in the fold sheet, the sections sheet and the narration
+   panel: rows a finger can hit, the pick tinted, its ends labelled, and the
+   book's own words in the book's own face and direction.  Its buttons take
+   each sheet's button look and are only made smaller here -- which has to
+   say the sheet's id, since every sheet styles its buttons through it. */
+.olwrap{margin:2px 0 4px}
+.oltools{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.oltools .olq{flex:1;min-width:0;font:inherit;font-size:13px;background:var(--bg);
+  color:var(--ink);border:1px solid var(--rule);border-radius:6px;padding:5px 8px}
+#fdbox .olwrap button,#secbox .olwrap button,#narrbox .olwrap button{
+  font-size:12px;padding:3px 9px}
+.oltree{list-style:none;margin:0;padding:3px;max-height:min(44vh,360px);overflow:auto;
+  border:1px solid var(--rule);border-radius:8px;background:var(--bg);
+  overscroll-behavior:contain}
+.oltree ul{list-style:none;margin:0;padding:0}
+.oltree li{outline:none}
+.oltree li[aria-expanded="false"] > ul{display:none}
+.olr{display:flex;align-items:center;gap:8px;min-height:32px;border-radius:6px;
+  padding:2px 8px 2px calc(4px + (var(--lv,1) - 1) * 20px);cursor:pointer;
+  user-select:none;-webkit-user-select:none}
+.olr:hover{box-shadow:inset 0 0 0 1px var(--rule);background:var(--card)}
+.oltw{flex:0 0 22px;height:26px;display:inline-flex;align-items:center;
+  justify-content:center;border-radius:5px;color:var(--faint);font-size:11px}
+.oltw:hover{background:var(--hl);color:var(--accent)}
+li[aria-expanded] > .olr > .oltw::before{content:"\25B8";transition:transform .12s}
+li[aria-expanded="true"] > .olr > .oltw::before{transform:rotate(90deg)}
+.olk{flex:0 0 auto;color:var(--dim);font-size:12px;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+li.ol-ch > .olr > .olk{color:var(--ink);font-weight:600}
+li.ol-sec > .olr > .olk{color:var(--accent)}
+.olt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font-family:var(--tl-font,serif);font-size:15px;line-height:1.8;color:var(--ink)}
+li.ol-ch > .olr > .olt,li.ol-sec > .olr > .olt{font-size:14px}
+.olc{flex:0 0 auto;color:var(--faint);font-size:11.5px;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.olg{flex:0 0 auto;display:inline-flex;gap:4px}
+.oltag{font-size:10.5px;line-height:1.5;padding:0 6px;border-radius:9px;
+  border:1px solid var(--rule);color:var(--dim);white-space:nowrap}
+.oltag.olend{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.oltag.olfold{border-style:dashed}
+.oltag.olrec{font-family:ui-monospace,Menlo,monospace}
+li.in > .olr{background:var(--hl)}
+li.in > .olr:hover{background:var(--hl)}
+li.part > .olr{box-shadow:inset 3px 0 0 var(--accent)}
+li[aria-disabled="true"] > .olr{cursor:default}
+li[aria-disabled="true"] > .olr > .olk,li[aria-disabled="true"] > .olr > .olt{opacity:.5}
+li:focus-visible > .olr{outline:2px solid var(--accent);outline-offset:-2px}
+.oltree.stretching .olr{cursor:crosshair}
+.oltree.filtering li:not(.olpath):not(.olhit){display:none}
+.oltree.filtering li.olpath[aria-expanded] > ul{display:block}
+.olnone{color:var(--dim);font-size:12.5px;padding:6px 2px}
+.olnone[hidden]{display:none}
+.olbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.olsay{flex:1;min-width:180px;font-size:13.5px;color:var(--ink)}
+.olhint{color:var(--faint);font-size:11.5px;margin-top:4px;line-height:1.5}
+.olhint:empty{display:none}
 
 /* ---- the sections sheet: a chapter's name, and the sections inside it.
    #fdbox's rules, restated for this id rather than borrowed: .nrow and
@@ -1626,7 +1701,7 @@ header #narr.cta{border-color:var(--accent);color:var(--accent)}
 #secbox button:hover{border-color:var(--accent)}
 #secbox button.primary{background:var(--accent);color:var(--accent-fg);
   border-color:var(--accent)}
-#secbox #seclist{flex-direction:column;align-items:flex-start;gap:6px}
+#secbox #secpick{margin:0 0 6px}
 #secbox #secstat{font-size:12.5px;color:var(--accent)}
 #secbox #secstat.bad{color:var(--danger)}
 /* ---- the book-info sheet: title, author, year, blurb -- book.json's own
@@ -2107,30 +2182,21 @@ const ONEFILE = NARRN < 2;
    subparagraphs at all (nothing has been timed, so nothing has been
    attributed), and it still knows which file covers which labels: that is
    the half-finished state this whole feature is for, and it has to play. */
+/* WHERE IT IS is the stretch the build worked out for each recording, lo..hi
+   in subparagraphs (texparse.region_bounds): exact, where comparing labels
+   was not -- every chapter has a 1.1, and a recording of chapter 2 used to
+   answer for chapter 1's.  It needs nothing on the page, so a subparagraph in
+   a chapter not fetched yet is placed as surely as one on the screen. */
 function narrFor(i) {
   const id = SUBS[i] && SUBS[i][3];
   if (id && NARRBY[id]) return NARRBY[id];
   if (NARRN === 1) return NARR[0];
-  const el = subEl(i);
-  const label = el && el.dataset.key ? el.dataset.key.replace(/-[0-9a-f]{6,}$/, '') : '';
-  if (!label) return null;
   for (const n of NARR) {
     // a record with neither end named covers the whole book
     if (!n.from && !n.to) return n;
-    if (labelLE(n.from || '', label) && labelLE(label, n.to || '')) return n;
+    if (n.lo != null && i >= n.lo && i <= n.hi) return n;
   }
   return null;
-}
-// "3.4" before "12.1": the two halves are numbers, not text
-function labelLE(a, b) {
-  if (!a) return true;
-  if (!b) return true;
-  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
-  for (let k = 0; k < Math.max(pa.length, pb.length); k++) {
-    const x = pa[k] || 0, y = pb[k] || 0;
-    if (x !== y) return x < y;
-  }
-  return true;
 }
 // narrSrc and NOT srcOf: this page already has a srcOf(n), the chunk's source
 // row for the write sheet, declared further down.  Two function declarations
@@ -2259,27 +2325,520 @@ function foldBar(run) {
   bar.appendChild(b);
   return bar;
 }
-/* The sheet that folds and unfolds: the paragraphs of the book in two
-   pickers, and every run already folded with a button to open it again.  The
-   decision is the book's, so each press goes to the server, which writes
-   reading.json and rebuilds the reader; the page then folds what it has
-   without a reload, so the answer is immediate and the next open agrees. */
+/* ---------- the book as an outline, to pick a stretch of it from ----------
+   Three sheets name a part of the book: what a recording covers, what is
+   folded away, where a section opens.  Each used to do it with a list of
+   every paragraph -- or every subparagraph -- of the book, twice over,
+   labelled by number alone: hundreds of rows to scroll through in a
+   textbook, and nothing to know a paragraph by.  This is the one control the
+   three share instead: the book as it is built, chapters holding their
+   sections holding their paragraphs (and, for a recording, their
+   subparagraphs), each paragraph shown by its number AND its opening words,
+   in the book's own script.  It is read off the contents tree the build
+   wrote, and off SUBS for the subparagraphs, so it cannot disagree with the
+   contents panel about what the book holds.
+
+   A CLICK TAKES A WHOLE THING -- a chapter, a section, a paragraph -- because
+   most of what anybody names is exactly one of those: a recording is of a
+   chapter, what gets folded is a section, a section opens at a paragraph.
+   Clicking what is already picked opens it, to go finer.  A SHIFT-CLICK
+   STRETCHES the pick from the last thing clicked to this one, as every list
+   on a desktop does; "stretch it to…" does the same for a finger, or for
+   anybody who has never heard of shift-clicking: the next thing picked is
+   where it ends.  What is picked is tinted, its two ends say so, and the
+   line under the outline says it in words.  The keys are a tree's (the
+   WAI-ARIA pattern): the arrows walk it and open and close, Enter or Space
+   picks, with Shift they stretch; the box above finds a paragraph by its
+   number or its words.
+
+   `o`: depth ('para' | 'sub', what a pick is made of), point (one thing,
+   not a stretch), whole (nothing picked means the whole book, and says so),
+   can(row) (may it be picked), tags(row) -> [[text, class, title]],
+   redirect(row) (the row a click on this one picks), onChange(pick),
+   label, hint.  A pick is {lo, hi, row} in the units of `depth`: contents
+   entries, in reading order, or SUBS indices.                              */
+function olModel(depth) {
+  const paras = [], chapters = [];
+  const text = el => (el ? el.textContent.trim() : '');
+  let subsOf = null;
+  if (depth === 'sub') {
+    subsOf = [];
+    SUBS.forEach((s, i) => {
+      if (s[4] == null || s[4] < 0) return;
+      (subsOf[s[4]] = subsOf[s[4]] || []).push(i);
+    });
+  }
+  const span = node => {
+    const kids = node.kids.filter(x => x.lo != null);
+    node.lo = kids.length ? Math.min(...kids.map(x => x.lo)) : null;
+    node.hi = kids.length ? Math.max(...kids.map(x => x.hi)) : null;
+  };
+  const para = (a, up) => {
+    const k = paras.length, href = a.getAttribute('href') || '';
+    const p = {kind: 'p', k, up, pkey: a.dataset.p || '', ch: a.dataset.ch || '',
+               no: href.slice(href.lastIndexOf('-') + 1),
+               text: text(a.querySelector('.toci')), q: a.dataset.q || ''};
+    if (depth === 'sub') {
+      const got = (subsOf && subsOf[k]) || [];
+      p.kids = got.map(i => ({kind: 's', i, lo: i, hi: i, up: p, ch: p.ch,
+                              label: String(SUBS[i][5] || '')}));
+      span(p);
+    } else p.lo = p.hi = k;
+    paras.push(p);
+    return p;
+  };
+  for (const g of $$('#toclist .tocgrp')) {
+    const c = {kind: 'ch', ch: g.dataset.ch || '', kids: [],
+               name: text(g.querySelector(':scope > .tocch > .tocchn'))};
+    const body = g.querySelector(':scope > .tocbody');
+    for (const node of (body ? [...body.children] : [])) {
+      if (node.matches('.tocsgrp')) {
+        const s = {kind: 'sec', up: c, ch: c.ch, p: node.dataset.p || '', kids: [],
+                   name: text(node.querySelector(':scope > .tocsec > .tocsecn'))};
+        for (const a of node.querySelectorAll(':scope > .tocbody > a.toce'))
+          s.kids.push(para(a, s));
+        span(s);
+        c.kids.push(s);
+      } else if (node.matches('a.toce')) c.kids.push(para(node, c));
+    }
+    span(c);
+    chapters.push(c);
+  }
+  return {depth, chapters, paras};
+}
+// every paragraph under a row, or the row itself
+function olParas(row) {
+  if (row.kind === 'p') return [row];
+  if (row.kind === 's') return [row.up];
+  return row.kids.flatMap(olParas);
+}
+// the rows from the chapter down to the leaf `i`, outermost first
+function olChain(m, i) {
+  const out = [];
+  let rows = m.chapters;
+  for (;;) {
+    const r = rows.find(x => x.lo != null && x.lo <= i && i <= x.hi);
+    if (!r) return out;
+    out.push(r);
+    if (!r.kids || !r.kids.length) return out;
+    rows = r.kids;
+  }
+}
+const olIso = s => '⁨' + s + '⁩';     // a name in the book's script, isolated
+function olNamed(row) {
+  if (row.kind === 'ch') return 'chapter ' + row.ch + (row.name ? ' · ' + olIso(row.name) : '');
+  if (row.kind === 'sec') return 'the section ' + olIso(row.name) + ', in chapter ' + row.ch;
+  if (row.kind === 'p') return 'chapter ' + row.ch + ', ¶ ' + row.no;
+  return 'chapter ' + row.ch + ', ' + row.label;
+}
+/* A pick said in words: the one thing it is ("chapter 2 · Geppetto", "the
+   section …"), whole chapters ("chapters 2–4"), or its two ends; and how
+   much it is. */
+function olDescribe(m, pick) {
+  const a = olChain(m, pick.lo), b = olChain(m, pick.hi);
+  if (!a.length || !b.length) return '';
+  const unit = m.depth === 'sub' ? 'subparagraph' : 'paragraph';
+  const n = pick.hi - pick.lo + 1;
+  const much = n + ' ' + unit + (n === 1 ? '' : 's');
+  const exact = a.find(x => x.lo === pick.lo && x.hi === pick.hi);
+  if (exact) return olNamed(exact) + ' · ' + much;
+  const at = chain => { const x = chain[chain.length - 1];
+                        return x.kind === 's' ? x.label : '¶ ' + x.no; };
+  if (a[0] !== b[0] && a[0].lo === pick.lo && b[0].hi === pick.hi)
+    return 'chapters ' + a[0].ch + '–' + b[0].ch + ' · ' + much;
+  if (a[0] === b[0])
+    return 'chapter ' + a[0].ch + ', ' + at(a) + ' to ' + at(b) + ' · ' + much;
+  return 'chapter ' + a[0].ch + ', ' + at(a) + ' → chapter ' + b[0].ch + ', ' + at(b) +
+         ' · ' + much;
+}
+function outlinePicker(o) {
+  const wrap = document.createElement('div');
+  wrap.className = 'olwrap';
+  wrap.innerHTML =
+    '<div class="oltools">' +
+      '<input type="search" class="olq" autocomplete="off" spellcheck="false" ' +
+        'placeholder="find a paragraph by its number or its words" ' +
+        'aria-label="find a paragraph by its number or its words">' +
+      '<button type="button" class="olopen" title="open every chapter">open all</button>' +
+      '<button type="button" class="olshut" title="close every chapter">close all</button>' +
+    '</div>' +
+    '<ul class="oltree" role="tree"></ul>' +
+    '<div class="olnone" hidden>No paragraph has those words.</div>' +
+    '<div class="olbar">' +
+      '<span class="olsay" role="status" aria-live="polite"></span>' +
+      (o.whole ? '<button type="button" class="olwhole" title="a recording of all ' +
+                 'of it">the whole book</button>' : '') +
+      (o.point ? '' : '<button type="button" class="olstretch" aria-pressed="false" ' +
+                 'title="the next thing you pick is where it ends — Shift-click does ' +
+                 'the same">stretch it to…</button>') +
+    '</div>' +
+    '<div class="olhint"></div>';
+  const tree = wrap.querySelector('.oltree'), q = wrap.querySelector('.olq');
+  tree.setAttribute('aria-label', o.label || 'the book');
+  if (!o.point) tree.setAttribute('aria-multiselectable', 'true');
+  let m = null, pick = null, anchor = null, stretching = false;
+  let rowOf = new WeakMap(), liOf = new Map();
+  const count = row => {
+    if (row.kind === 's') return row.i != null && SUBS[row.i][0] != null ? fmt(SUBS[row.i][0]) : '';
+    if (row.kind === 'p') return '';
+    const n = olParas(row).length;
+    return n + (n === 1 ? ' paragraph' : ' paragraphs');
+  };
+  const bookText = (span, s) => {
+    span.lang = META.lang || '';
+    span.dir = META.dir || 'auto';
+    const b = document.createElement('bdi');
+    b.textContent = s || '';
+    span.appendChild(b);
+  };
+  function item(row, level) {
+    const el = document.createElement('li');
+    el.setAttribute('role', 'treeitem');
+    el.setAttribute('aria-level', String(level));
+    el.tabIndex = -1;
+    el.className = 'oli ol-' + row.kind;
+    if (row.kids && row.kids.length) el.setAttribute('aria-expanded', 'false');
+    // dim only a row nothing can be picked by: a section in the sections
+    // sheet picks the paragraph it opens at, so it is as live as that is
+    const via = o.redirect ? (o.redirect(row) || row) : row;
+    if (via.lo == null || (o.can && !o.can(via))) el.setAttribute('aria-disabled', 'true');
+    const r = document.createElement('div');
+    r.className = 'olr';
+    r.style.setProperty('--lv', String(level));
+    const tw = document.createElement('span');
+    tw.className = 'oltw';
+    tw.setAttribute('aria-hidden', 'true');
+    if (row.kids && row.kids.length) tw.title = 'open or close';
+    const k = document.createElement('span'), t = document.createElement('span');
+    const c = document.createElement('span'), g = document.createElement('span');
+    k.className = 'olk'; t.className = 'olt'; c.className = 'olc'; g.className = 'olg';
+    k.textContent = row.kind === 'ch' ? 'chapter ' + row.ch : row.kind === 'sec' ? '§'
+                  : row.kind === 'p' ? '¶ ' + row.no : row.label;
+    if (row.kind === 'ch' || row.kind === 'sec') bookText(t, row.name);
+    else if (row.kind === 'p') bookText(t, row.text);
+    c.textContent = count(row);
+    r.append(tw, k, t, c, g);
+    el.appendChild(r);
+    if (row.kids && row.kids.length) {
+      const ul = document.createElement('ul');
+      ul.setAttribute('role', 'group');
+      el.appendChild(ul);
+    }
+    rowOf.set(el, row);
+    liOf.set(row, el);
+    return el;
+  }
+  // a group's rows are made the first time it opens: a textbook of a
+  // thousand subparagraphs draws its chapters and nothing more to begin with
+  function kidsOf(el) {
+    const row = rowOf.get(el), ul = el.querySelector(':scope > ul');
+    if (ul && !ul.childElementCount && row.kids)
+      for (const x of row.kids) ul.appendChild(item(x, +el.getAttribute('aria-level') + 1));
+    return ul;
+  }
+  const isOpen = el => el.getAttribute('aria-expanded') === 'true';
+  function setOpen(el, on) {
+    if (!el || !el.hasAttribute('aria-expanded')) return;
+    if (on) kidsOf(el);
+    el.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (on) paint();
+  }
+  // the rows above `row` opened, so that it is drawn -> its element
+  function reveal(row) {
+    const up = [];
+    for (let x = row.up; x; x = x.up) up.unshift(x);
+    for (const x of up) setOpen(liOf.get(x), true);
+    return liOf.get(row);
+  }
+  function focusRow(el, scroll) {
+    if (!el) return;
+    for (const x of tree.querySelectorAll('li[tabindex="0"]')) x.tabIndex = -1;
+    el.tabIndex = 0;
+    el.focus({preventScroll: true});
+    if (scroll !== false) el.firstElementChild.scrollIntoView({block: 'nearest'});
+  }
+  function tagsOf(el, row, from, to) {
+    const g = el.querySelector(':scope > .olr > .olg');
+    const want = [];
+    if (from) want.push(['from', 'olend', 'what is picked starts here']);
+    if (to) want.push(['to', 'olend', 'what is picked ends here']);
+    if (o.tags) want.push(...(o.tags(row) || []));
+    const key = JSON.stringify(want);
+    if (g.dataset.k === key) return;
+    g.dataset.k = key;
+    g.textContent = '';
+    for (const [tx, cls, title] of want) {
+      const s = document.createElement('span');
+      s.className = 'oltag ' + (cls || '');
+      s.textContent = tx;
+      if (title) s.title = title;
+      g.appendChild(s);
+    }
+  }
+  function paint() {
+    for (const [row, el] of liOf) {
+      let inn = false, part = false, from = false, to = false;
+      if (pick && row.lo != null) {
+        if (o.point) {
+          inn = pick.row === row;
+          // the rows the pick is inside say so, so that a closed chapter or
+          // section still shows where the pick is
+          part = !inn && row.lo <= pick.lo && pick.hi <= row.hi;
+        } else {
+          inn = row.lo >= pick.lo && row.hi <= pick.hi;
+          part = !inn && row.lo <= pick.hi && row.hi >= pick.lo;
+          // an end is marked on the outermost row that makes it, and only on
+          // a pick that is more than that one row
+          const upIn = row.up && row.up.lo >= pick.lo && row.up.hi <= pick.hi;
+          const one = row.lo === pick.lo && row.hi === pick.hi;
+          from = inn && !upIn && !one && row.lo === pick.lo;
+          to = inn && !upIn && !one && row.hi === pick.hi;
+        }
+      }
+      el.classList.toggle('in', inn);
+      el.classList.toggle('part', part);
+      el.setAttribute('aria-selected', inn ? 'true' : 'false');
+      tagsOf(el, row, from, to);
+    }
+  }
+  function say() {
+    wrap.querySelector('.olsay').textContent = pick
+      ? (o.point ? olNamed(pick.row) : olDescribe(m, pick))
+      : (o.whole ? 'the whole book' : (o.none || 'nothing picked yet'));
+    const st = wrap.querySelector('.olstretch');
+    if (st) {
+      st.disabled = !pick;
+      st.setAttribute('aria-pressed', stretching ? 'true' : 'false');
+    }
+    const wb = wrap.querySelector('.olwhole');
+    if (wb) wb.disabled = !pick;
+    tree.classList.toggle('stretching', stretching);
+    wrap.querySelector('.olhint').textContent = stretching
+      ? 'Now pick where it ends: everything from what you picked to there is taken.'
+      : (o.hint || (o.point ? '' :
+         'Click a chapter, a section or a paragraph to take all of it — click it again to ' +
+         'go inside. Shift-click another, or “stretch it to…” and pick it, to take ' +
+         'everything in between.'));
+  }
+  function changed() { if (o.onChange) o.onChange(api.get()); }
+  function choose(el, extend) {
+    let row = rowOf.get(el);
+    if (!row) return;
+    if (o.redirect) row = o.redirect(row) || row;
+    if (row.lo == null || (o.can && !o.can(row))) return;
+    const target = liOf.get(row) || reveal(row);
+    // the pick clicked again, plainly: open it (or close it), to go finer
+    if (!extend && !stretching && pick && pick.lo === row.lo && pick.hi === row.hi &&
+        (!o.point || pick.row === row) && target.hasAttribute('aria-expanded')) {
+      setOpen(target, !isOpen(target));
+      focusRow(target);
+      return;
+    }
+    if (o.point) pick = {lo: row.lo, hi: row.hi, row};
+    else if ((extend || stretching) && anchor)
+      pick = {lo: Math.min(anchor.lo, row.lo), hi: Math.max(anchor.hi, row.hi)};
+    else { pick = {lo: row.lo, hi: row.hi}; anchor = row; }
+    stretching = false;
+    focusRow(target);
+    paint(); say(); changed();
+  }
+  tree.addEventListener('click', e => {
+    const el = e.target.closest('li[role="treeitem"]');
+    if (!el || !tree.contains(el)) return;
+    if (e.target.closest('.oltw') && el.hasAttribute('aria-expanded')) {
+      setOpen(el, !isOpen(el));
+      focusRow(el, false);
+      return;
+    }
+    choose(el, e.shiftKey);
+  });
+  // a double click would select the words under it, which nobody asked for
+  tree.addEventListener('mousedown', e => { if (e.detail > 1 || e.shiftKey) e.preventDefault(); });
+  const visible = () => [...tree.querySelectorAll('li[role="treeitem"]')]
+    .filter(el => el.offsetParent !== null);
+  tree.addEventListener('keydown', e => {
+    const el = document.activeElement && document.activeElement.closest &&
+               document.activeElement.closest('li[role="treeitem"]');
+    if (!el || !tree.contains(el)) return;
+    const vis = visible(), k = vis.indexOf(el);
+    const go = x => { e.preventDefault(); if (x) focusRow(x); };
+    const up = () => { const p = el.parentElement.closest('li[role="treeitem"]');
+                       return p && tree.contains(p) ? p : null; };
+    switch (e.key) {
+      case 'ArrowDown': go(vis[k + 1]); break;
+      case 'ArrowUp': go(vis[k - 1]); break;
+      case 'Home': go(vis[0]); break;
+      case 'End': go(vis[vis.length - 1]); break;
+      case 'ArrowRight':
+        e.preventDefault();
+        if (el.hasAttribute('aria-expanded') && !isOpen(el)) setOpen(el, true);
+        else if (isOpen(el)) { const f = kidsOf(el).querySelector('li'); if (f) focusRow(f); }
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (isOpen(el)) setOpen(el, false); else { const p = up(); if (p) focusRow(p); }
+        break;
+      case 'Enter': case ' ':
+        e.preventDefault();
+        choose(el, e.shiftKey);
+        break;
+      case 'Escape':
+        // a stretch half made is let go of first; the sheet closes after
+        if (stretching) { e.preventDefault(); e.stopPropagation(); stretching = false; say(); }
+        break;
+    }
+  });
+  function filter() {
+    const want = stripMarks(foldCase(q.value.trim()));
+    tree.classList.toggle('filtering', !!want);
+    for (const el of tree.querySelectorAll('.olhit, .olpath'))
+      el.classList.remove('olhit', 'olpath');
+    let any = !want;
+    if (want)
+      for (const p of m.paras) {
+        if (p.q.indexOf(want) < 0) continue;
+        any = true;
+        const el = reveal(p);
+        el.classList.add('olhit');
+        for (let x = p.up; x; x = x.up) liOf.get(x).classList.add('olpath');
+      }
+    wrap.querySelector('.olnone').hidden = any;
+    paint();
+  }
+  q.addEventListener('input', filter);
+  q.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && q.value) { e.preventDefault(); e.stopPropagation(); q.value = ''; filter(); }
+    else if (e.key === 'ArrowDown') {
+      const f = visible()[0];
+      if (f) { e.preventDefault(); focusRow(f); }
+    }
+  });
+  wrap.querySelector('.olopen').onclick = () => {
+    for (const c of m.chapters) setOpen(liOf.get(c), true);
+    for (const c of m.chapters) for (const s of c.kids) if (s.kind === 'sec') setOpen(liOf.get(s), true);
+  };
+  wrap.querySelector('.olshut').onclick = () => {
+    for (const el of tree.querySelectorAll('li[aria-expanded="true"]')) setOpen(el, false);
+  };
+  const st = wrap.querySelector('.olstretch');
+  if (st) st.onclick = () => {
+    if (!pick) return;
+    stretching = !stretching;
+    if (stretching && !anchor) anchor = {lo: pick.lo, hi: pick.hi};
+    say();
+    const f = tree.querySelector('li[tabindex="0"]');
+    if (stretching && f) f.focus({preventScroll: true});
+  };
+  const wb = wrap.querySelector('.olwhole');
+  if (wb) wb.onclick = () => { api.set(null); changed(); };
+  const api = {
+    el: wrap,
+    get model() { return m; },
+    // (re)read the book from the contents tree: on first use, and whenever
+    // what the book holds may have changed under the sheet
+    load() {
+      m = olModel(o.depth || 'para');
+      tree.textContent = '';
+      rowOf = new WeakMap(); liOf = new Map();
+      for (const c of m.chapters) tree.appendChild(item(c, 1));
+      // a book of one chapter has nothing to choose at that level
+      if (m.chapters.length === 1) setOpen(liOf.get(m.chapters[0]), true);
+      const first = tree.querySelector('li');
+      if (first) first.tabIndex = 0;
+      // a pick of one row names a row of the outline just thrown away
+      if (o.point) { pick = null; anchor = null; }
+      if (pick && (pick.hi >= (m.depth === 'sub' ? SUBS.length : m.paras.length))) pick = null;
+      q.value = '';
+      filter();
+      say();
+      return api;
+    },
+    get() { return pick ? {lo: pick.lo, hi: pick.hi, row: pick.row || null} : null; },
+    // pick lo..hi (a row, in point mode), open what shows it, and bring it
+    // into view -- null picks nothing, which for a recording is the whole book
+    set(lo, hi, row) {
+      stretching = false;
+      if (lo == null) { pick = null; anchor = null; paint(); say(); return api; }
+      if (o.point && row) { pick = {lo: row.lo, hi: row.hi, row}; anchor = row; }
+      else {
+        hi = hi == null ? lo : hi;
+        pick = {lo: Math.min(lo, hi), hi: Math.max(lo, hi)};
+        const chain = olChain(m, pick.lo);
+        anchor = chain.find(x => x.lo === pick.lo && x.hi === pick.hi) || chain[chain.length - 1] || null;
+      }
+      const show = o.point ? pick.row : (anchor && anchor.lo === pick.lo && anchor.hi === pick.hi
+                                        ? anchor : olChain(m, pick.lo).slice(-1)[0]);
+      const el = show ? reveal(show) : null;
+      if (!o.point && !(anchor && anchor.lo === pick.lo && anchor.hi === pick.hi)) {
+        const end = olChain(m, pick.hi).slice(-1)[0];
+        if (end) reveal(end);
+      }
+      if (el) focusRow(el, true);
+      paint(); say();
+      return api;
+    },
+    // what the pick is called in words, or '' with nothing picked
+    said() { return pick ? (o.point ? olNamed(pick.row) : olDescribe(m, pick)) : ''; },
+    paint() { paint(); return api; },
+    focus() { const f = tree.querySelector('li[tabindex="0"]') || tree.querySelector('li');
+              if (f) f.focus({preventScroll: true}); },
+  };
+  return api;
+}
+
+/* The sheet that folds and unfolds: the book as an outline to pick a run of
+   paragraphs from (outlinePicker), and every run already folded, said in
+   words, with a button to open it again.  The decision is the book's, so each
+   press goes to the server, which writes reading.json and rebuilds the
+   reader; the page then folds what it has without a reload, so the answer is
+   immediate and the next open agrees. */
 function fdLabel(k) {
   const b = String(k).split(':');
   return 'chapter ' + (b[0] || '?') + ', paragraph ' + (b[1] || '?');
 }
-function fdFill() {
-  const keys = Object.keys(PARAT).sort((a, b) => {
-    const x = pKey(a), y = pKey(b);
-    return x[0] - y[0] || x[1] - y[1];
+let fdPicker = null;
+function fdPick() {
+  if (fdPicker) return fdPicker;
+  fdPicker = outlinePicker({
+    depth: 'para', label: 'the paragraphs of the book',
+    // a paragraph in a .tex whose name carries no chapter number has no key:
+    // it cannot be named, so it cannot be folded
+    can: row => olParas(row).some(p => p.pkey),
+    // what is folded already, said on the row: a run folded again is merged
+    // with it, so this is information, not a refusal
+    tags: row => {
+      const ps = olParas(row).filter(p => p.pkey);
+      const n = ps.filter(p => foldedRun(p.pkey)).length;
+      if (!n) return [];
+      return [[row.kind === 'p' || n === ps.length ? 'folded' : n + ' folded', 'olfold',
+               'folded away in the book']];
+    },
+    onChange: fdState,
   });
-  const opts = keys.map(k => '<option value="' + nesc(k) + '">' + nesc(fdLabel(k))
-                             + '</option>').join('');
-  const from = $('#fdfrom'), to = $('#fdto');
-  if (from.dataset.filled !== String(keys.length)) {
-    from.innerHTML = opts; to.innerHTML = opts;
-    from.dataset.filled = to.dataset.filled = String(keys.length);
-  }
+  $('#fdpick').appendChild(fdPicker.el);
+  return fdPicker;
+}
+// the first and the last paragraph of a pick that have a name, as the door
+// wants them -- or null, with nothing that can be folded in it
+function fdKeys(p) {
+  if (!p || !fdPicker) return null;
+  const ps = fdPicker.model.paras.slice(p.lo, p.hi + 1).filter(x => x.pkey);
+  return ps.length ? {from: ps[0].pkey, to: ps[ps.length - 1].pkey} : null;
+}
+function fdState() {
+  $('#fddo').disabled = !fdKeys(fdPicker && fdPicker.get());
+}
+// a folded run, as the stretch of the outline it is (null when its ends
+// name paragraphs the book no longer has)
+function fdSpan(run) {
+  const ps = fdPick().model.paras;
+  const a = ps.findIndex(p => p.pkey === run[0]);
+  let b = -1;
+  for (let k = ps.length - 1; k >= 0; k--) if (ps[k].pkey === run[1]) { b = k; break; }
+  return a >= 0 && b >= a ? {lo: a, hi: b} : null;
+}
+function fdFill() {
+  const pk = fdPick();
   const box = $('#fdlist');
   box.innerHTML = '';
   if (!folded.length) {
@@ -2289,19 +2848,28 @@ function fdFill() {
     box.appendChild(s);
   }
   folded.forEach(run => {
-    const row = document.createElement('span');
-    row.className = 'nstate';
-    const n = runParas(run).length;
-    row.textContent = fdLabel(run[0]) + ' → ' + fdLabel(run[1])
-                    + ' · ' + n + (n === 1 ? ' paragraph' : ' paragraphs') + ' ';
+    const row = document.createElement('div');
+    row.className = 'fdrun nstate';
+    const sp = fdSpan(run), n = runParas(run).length;
+    // THE RUN IN WORDS, and a way to see it: it is picked in the outline, its
+    // chapter opened, so what "chapter 2, ¶ 3 to ¶ 7" is can be looked at
+    const see = document.createElement('button');
+    see.type = 'button';
+    see.className = 'fdsee';
+    see.textContent = sp ? olDescribe(pk.model, sp)
+      : fdLabel(run[0]) + ' → ' + fdLabel(run[1]) + ' · ' + n +
+        (n === 1 ? ' paragraph' : ' paragraphs');
+    see.title = 'show it in the outline';
+    see.onclick = () => { if (sp) { pk.set(sp.lo, sp.hi); fdState(); } };
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = 'unfold';
     b.title = 'show this run in the book again';
     b.onclick = () => fdSend({from: run[0], to: run[1], on: false});
-    row.appendChild(b);
+    row.append(see, b);
     box.appendChild(row);
   });
+  pk.paint();                      // the "folded" marks follow what is folded
   const total = folded.reduce((k, r) => k + runParas(r).length, 0);
   $('#fdsum').textContent = total
     ? total + (total === 1 ? ' paragraph is' : ' paragraphs are')
@@ -2362,8 +2930,14 @@ function fdOpen(on) {
     clearTimeout(waiting); waiting = null;
     $('#fdstat').textContent = '';
     $('#fdstat').classList.remove('bad');
+    // read the book afresh, and start on the paragraph being read: folding
+    // is most often decided about what is on the screen
+    const pk = fdPick().load();
+    const at = cur >= 0 && SUBS[cur] ? SUBS[cur][4] : -1;
+    if (at != null && at >= 0 && at < pk.model.paras.length) pk.set(at, at);
     fdFill();
-    $('#fdfrom').focus();
+    fdState();
+    pk.focus();
   } else {
     const wasPlaying = fdWasPlaying, wasWaiting = fdWasWaiting;
     fdWasPlaying = fdWasWaiting = false;
@@ -2414,7 +2988,10 @@ $('#fold').onclick = () => fdOpen($('#fdbox').hidden);
 $('#fdcancel').onclick = () => fdOpen(false);
 $('#fdclose').onclick = () => fdOpen(false);
 $('#fdback').onclick = () => fdOpen(false);
-$('#fddo').onclick = () => fdSend({from: $('#fdfrom').value, to: $('#fdto').value, on: true});
+$('#fddo').onclick = () => {
+  const k = fdKeys(fdPicker && fdPicker.get());
+  if (k) fdSend({from: k.from, to: k.to, on: true});
+};
 $('#fdbox').addEventListener('submit', e => e.preventDefault());
 addEventListener('keydown', e => {
   if (fdShown && e.key === 'Escape') { e.preventDefault(); fdOpen(false); } });
@@ -3420,79 +3997,69 @@ function secSum() {
     c + (c === 1 ? ' chapter' : ' chapters') + ', ' +
     (s ? s + (s === 1 ? ' section' : ' sections') : 'no sections') + ' in this book.';
 }
-function secChPick() {
-  const g = $('#toclist .tocgrp[data-ch="' + ($('#secch').value || '') + '"]');
-  const nm = g && g.querySelector(':scope > .tocch > .tocchn');
-  $('#secchname').value = nm ? nm.textContent.trim() : '';
+let secPicker = null;
+function secPick() {
+  if (secPicker) return secPicker;
+  secPicker = outlinePicker({
+    depth: 'para', point: true, label: 'the chapters and paragraphs of the book',
+    // a chapter is what is named; a paragraph is where a section opens (one
+    // with no key -- a .tex whose name carries no chapter number -- cannot be
+    // named, exactly as it cannot be folded)
+    can: row => row.kind === 'ch' || (row.kind === 'p' && !!row.pkey),
+    // a section already in the book is picked by its heading, and what that
+    // picks is the paragraph it opens at: the place its mark is written
+    redirect: row => row.kind === 'sec'
+      ? (row.kids.find(p => p.pkey === row.p) || row.kids[0] || row) : row,
+    hint: 'Pick a chapter to name it, or a paragraph to start a section there. A ' +
+          'section already in the book is picked by its heading, to rename or remove it.',
+    onChange: secShow,
+  });
+  $('#secpick').appendChild(secPicker.el);
+  return secPicker;
 }
-function secParaPick() {
-  const g = $('#toclist .tocsgrp[data-p="' + ($('#secpara').value || '') + '"]');
-  const nm = g && g.querySelector(':scope > .tocsec > .tocsecn');
-  $('#secname').value = nm ? nm.textContent.trim() : '';
-  // the button says which of the two things it will do
-  $('#secdo').textContent = g ? 'rename this section' : 'start a section here';
+// the section that opens at a paragraph of the outline, or null
+function secAt(p) {
+  return p && p.up && p.up.kind === 'sec' && p.up.p === p.pkey ? p.up : null;
 }
-function secFill() {
-  const ch = $('#secch'), pp = $('#secpara');
-  ch.innerHTML = ''; pp.innerHTML = '';
-  for (const g of $$('#toclist .tocgrp')) {
-    const nm = g.querySelector(':scope > .tocch > .tocchn');
-    const o = document.createElement('option');
-    o.value = g.dataset.ch;
-    o.textContent = 'chapter ' + g.dataset.ch +
-                    (nm ? ' — ' + nm.textContent.trim() : '');
-    ch.appendChild(o);
+function secPicked(kind) {
+  const got = secPicker && secPicker.get();
+  return got && got.row && got.row.kind === kind ? got.row : null;
+}
+// WHAT THE SHEET OFFERS FOLLOWS WHAT IS PICKED: a chapter's name for a
+// chapter, a section's for a paragraph -- and "rename" and "remove" where a
+// section already opens there, so the button always says what it will do
+function secShow() {
+  const ch = secPicked('ch'), para = secPicked('p');
+  $('#secchrow').hidden = !ch;
+  $('#secrow').hidden = !para;
+  if (ch) $('#secchname').value = ch.name || '';
+  if (para) {
+    const sec = secAt(para);
+    $('#secname').value = sec ? sec.name : '';
+    $('#secdo').textContent = sec ? 'rename this section' : 'start a section here';
+    $('#secdel').hidden = !sec;
   }
-  for (const a of $$('#toclist a.toce')) {
-    // a paragraph in a .tex whose name carries no chapter number has no key
-    // and cannot be named, exactly as it cannot be folded
-    if (!a.dataset.p) continue;
-    const i = a.querySelector('.toci');
-    const o = document.createElement('option');
-    o.value = a.dataset.p;
-    o.textContent = a.dataset.p + '  ' + ((i && i.textContent) || '').slice(0, 44);
-    pp.appendChild(o);
-  }
-  const list = $('#seclist');
-  list.innerHTML = '';
-  const secs = $$('#toclist .tocsgrp');
-  if (!secs.length) {
-    const s = document.createElement('span');
-    s.className = 'nstate';
-    s.textContent = 'this book has no sections yet';
-    list.appendChild(s);
-  }
-  for (const g of secs) {
-    const nm = g.querySelector(':scope > .tocsec > .tocsecn');
-    const row = document.createElement('span');
-    row.className = 'nstate';
-    row.textContent = (g.dataset.p || '') + '  ' +
-                      ((nm && nm.textContent.trim()) || '');
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.textContent = 'remove';
-    del.style.marginInlineStart = '8px';
-    del.onclick = () => secSend('__struct/section', {para: g.dataset.p, on: false},
-                                'the section was taken away');
-    row.appendChild(del);
-    list.appendChild(row);
-  }
-  secChPick(); secParaPick(); secSum();
 }
 function secOpen(on, from) {
   secShown = !!on;
   $('#secback').hidden = !on;
   $('#secbox').hidden = !on;
   if (!on) return;
-  secFill();
-  if (from && from.kind === 'chapter' && from.ch) {
-    $('#secch').value = from.ch; secChPick();
-  } else if (from && from.kind === 'section' && from.p) {
-    $('#secpara').value = from.p; secParaPick();
-  }
+  const pk = secPick().load();
+  secSum();
+  // what to start on: what the contents' pencil was pressed beside, or else
+  // the paragraph being read
+  const m = pk.model;
+  let row = null;
+  if (from && from.kind === 'chapter' && from.ch) row = m.chapters.find(c => c.ch === from.ch);
+  else if (from && from.kind === 'section' && from.p) row = m.paras.find(x => x.pkey === from.p);
+  else if (cur >= 0 && SUBS[cur] && SUBS[cur][4] >= 0) row = m.paras[SUBS[cur][4]];
+  if (row && row.lo != null && (row.kind === 'ch' || row.pkey)) pk.set(row.lo, row.hi, row);
+  secShow();
   $('#secstat').textContent = '';
   $('#secstat').classList.remove('bad');
   $('#secreload').hidden = true;
+  pk.focus();
 }
 async function secSend(url, body, said) {
   const stat = $('#secstat');
@@ -3522,15 +4089,25 @@ async function secSend(url, body, said) {
     stat.classList.add('bad');
   }
 }
-$('#secch').onchange = secChPick;
-$('#secpara').onchange = secParaPick;
-$('#secchdo').onclick = () => secSend('__struct/chapter',
-  {chapter: $('#secch').value, title: $('#secchname').value},
-  $('#secchname').value.trim() ? 'the chapter was named'
-                               : 'the chapter’s name was taken away');
-$('#secdo').onclick = () => secSend('__struct/section',
-  {para: $('#secpara').value, title: $('#secname').value, on: true},
-  'the section was written');
+$('#secchdo').onclick = () => {
+  const ch = secPicked('ch');
+  if (ch) secSend('__struct/chapter', {chapter: ch.ch, title: $('#secchname').value},
+                  $('#secchname').value.trim() ? 'the chapter was named'
+                                               : 'the chapter’s name was taken away');
+};
+$('#secdo').onclick = () => {
+  const p = secPicked('p');
+  if (p) secSend('__struct/section', {para: p.pkey, title: $('#secname').value, on: true},
+                 'the section was written');
+};
+$('#secdel').onclick = () => {
+  const p = secPicked('p');
+  if (p) secSend('__struct/section', {para: p.pkey, on: false}, 'the section was taken away');
+};
+// Enter in a name box presses its button: the form itself never submits
+for (const [box, btn] of [['#secchname', '#secchdo'], ['#secname', '#secdo']])
+  $(box).addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); $(btn).click(); } });
 $('#seccancel').onclick = () => secOpen(false);
 $('#secclose').onclick = () => secOpen(false);
 $('#secback').onclick = () => secOpen(false);
@@ -5797,10 +6374,6 @@ function nfile(f, missing) {
     ', which is not there</span>';
   return missing;
 }
-function narrWhere(n) {
-  return (n.from || n.to) ? ((n.from || 'the beginning') + ' → ' + (n.to || 'the end'))
-                          : 'the whole book';
-}
 /* The toast every Parseh page can raise (lib/parseh.css, z-index 400): it
    floats above this sheet, so an outcome is seen wherever the sheet is
    scrolled.  It is the TRANSIENT notice and never the only copy -- what a run
@@ -5944,7 +6517,8 @@ async function narrStatus() {
   NSTAT = j;
   NR.box.classList.remove('noserver');
   narrHead(j);
-  narrFill($('#nfrom'), $('#nto'), j.labels || []);
+  // the outlines mark each chapter with the recordings already over it
+  if (naddPicker) naddPicker.paint();
   narrRows(j);
 }
 function narrHead(j) {
@@ -6048,21 +6622,60 @@ function narrHead(j) {
       b.onclick = () => narrRestore(narrCands[+b.dataset.i]); });
   }
 }
-/* every subparagraph label, in reading order, as two pickers' options: 146
-   of them for a textbook, so the markup is built once and handed to both */
-let narrOpts = '', narrOptsFor = -1;
-function narrFill(from, to, labels) {
-  if (!from || !to) return;
-  if (narrOptsFor !== labels.length) {
-    narrOptsFor = labels.length;
-    narrOpts = ['<option value="">the whole book</option>'].concat(labels.map(l =>
-      '<option value="' + nesc(l.label) + '">' + nesc(l.label) +
-      (l.chapter ? ' · ch ' + nesc(l.chapter) : '') + '</option>')).join('');
+/* WHAT A RECORDING COVERS is picked from the book as an outline, down to
+   its subparagraphs (outlinePicker): a chapter in one click, where it used
+   to be two lists of every subparagraph label of the book -- 146 of them for
+   a textbook, and each the same "1.1" in every chapter.  Nothing picked is
+   the whole book.  An end is written WITH ITS CHAPTER, "2:1.1", which names
+   one subparagraph where the label alone named one per chapter
+   (texparse.region_bounds reads both).  Every other recording's stretch is
+   marked on the rows it covers, so a gap or an overlap shows before it is
+   made. */
+function narrPicker(self) {
+  return outlinePicker({
+    depth: 'sub', whole: true, label: 'what this recording covers',
+    hint: 'Nothing picked is the whole book. Click a chapter, a section or a paragraph ' +
+          'to take all of it — click it again to go inside, down to its subparagraphs. ' +
+          'Shift-click another, or “stretch it to…” and pick it, to take everything in ' +
+          'between.',
+    tags: row => {
+      if (row.kind === 's' || row.lo == null) return [];
+      return ((NSTAT && NSTAT.narrations) || [])
+        .filter(n => n.id !== self && (n.from || n.to) && n.lo != null &&
+                     row.lo <= n.hi && row.hi >= n.lo)
+        .map(n => [n.id, 'olrec', n.id + ' (' + (n.audio || '') + ') covers ' +
+                   (row.lo >= n.lo && row.hi <= n.hi ? 'all' : 'part') + ' of this']);
+    },
+  });
+}
+let naddPicker = null;
+function naddPick() {
+  if (!naddPicker) {
+    naddPicker = narrPicker('');
+    $('#naddpick').appendChild(naddPicker.el);
+    naddPicker.load();
   }
-  if (from.dataset.filled !== String(narrOptsFor)) {
-    from.innerHTML = narrOpts; to.innerHTML = narrOpts;
-    from.dataset.filled = to.dataset.filled = String(narrOptsFor);
+  return naddPicker;
+}
+// a subparagraph as the door is told it: its chapter and its label, "2:1.1"
+function narrQual(pk, i) {
+  const p = pk.model.paras[SUBS[i][4]];
+  return (p ? p.ch : '') + ':' + SUBS[i][5];
+}
+// the book as the outline reads it, once, for saying where a stretch is
+let narrOl = null;
+function narrWhere(n) {
+  if (!n.from && !n.to) return 'the whole book';
+  if (n.lo != null && n.hi != null) {
+    narrOl = narrOl || olModel('sub');
+    const said = olDescribe(narrOl, {lo: n.lo, hi: n.hi});
+    if (said) return said;
   }
+  // a stretch whose ends the book no longer has, said as it was written
+  const end = x => { const c = String(x).lastIndexOf(':');
+                     return c < 0 ? x : 'chapter ' + x.slice(0, c) + ', ' + x.slice(c + 1); };
+  return (n.from ? end(n.from) : 'the beginning') + ' → ' + (n.to ? end(n.to) : 'the end') +
+         (n.lo == null && 'lo' in n ? ' (not in this book any more)' : '');
 }
 
 /* ---------- one row per recording ---------------------------------------
@@ -6215,13 +6828,16 @@ function narrDraw(row, n, open) {
     d.dataset.built = '1';
     d.innerHTML =
       '<div class="nfield"><span class="nfieldlab">covers</span>' +
-        '<select data-x="from"></select><span class="nsep">&rarr;</span>' +
-        '<select data-x="to"></select>' +
+        '<span class="nstate" data-x="covsay"></span>' +
+        '<button type="button" class="small" data-x="covchg" aria-expanded="false">' +
+          'change&hellip;</button>' +
+      '</div>' +
+      '<div class="npick" data-x="covpick" hidden></div>' +
+      '<div class="nfield" data-x="covsave" hidden>' +
         '<button type="button" class="primary small" data-x="savecovers">save what it covers</button>' +
       '</div>' +
-      '<div class="anote">Two subparagraph labels. Both at <i>the whole book</i> means a ' +
-        'recording of all of it. The times already measured are not touched: what changes ' +
-        'is which subparagraphs the next run may re-time.</div>' +
+      '<div class="anote">The times already measured are not touched: what changes is ' +
+        'which subparagraphs the next run may re-time.</div>' +
       '<div class="nfield"><span class="nfieldlab">transcript</span>' +
         '<span class="nstate" data-x="trstate"></span>' +
         '<label class="nbtn small">pick a file<input type="file" data-x="trfile" ' +
@@ -6238,8 +6854,21 @@ function narrDraw(row, n, open) {
     const ta = d.querySelector('[data-x="trtext"]');
     ta.lang = META.lang || 'en';
     ta.dir = META.dir || 'ltr';
-    narrFill(d.querySelector('[data-x="from"]'), d.querySelector('[data-x="to"]'),
-             (NSTAT && NSTAT.labels) || []);
+    // what it covers, said; the outline to change it opens under the words
+    // (it is a long thing to show for a row that is only being looked at)
+    const pk = narrPicker(n.id);
+    d.querySelector('[data-x="covpick"]').appendChild(pk.el);
+    d._pick = pk;
+    d.querySelector('[data-x="covchg"]').onclick = ev => {
+      const box = d.querySelector('[data-x="covpick"]'), on = box.hidden;
+      box.hidden = !on;
+      d.querySelector('[data-x="covsave"]').hidden = !on;
+      ev.currentTarget.setAttribute('aria-expanded', String(on));
+      if (!on) return;
+      pk.load();
+      if ((n.from || n.to) && n.lo != null) pk.set(n.lo, n.hi); else pk.set(null);
+      pk.focus();
+    };
     d.querySelector('[data-x="savecovers"]').onclick = () => narrSaveCovers(row, n);
     d.querySelector('[data-x="trfile"]').onchange = ev => {
       const f = ev.target.files[0]; ev.target.value = '';
@@ -6253,8 +6882,7 @@ function narrDraw(row, n, open) {
     if (NBUSY) [...d.querySelectorAll('button,select,textarea')].forEach(
       x => { x.disabled = true; });
   }
-  d.querySelector('[data-x="from"]').value = n.from || '';
-  d.querySelector('[data-x="to"]').value = n.to || '';
+  d.querySelector('[data-x="covsay"]').textContent = narrWhere(n);
   const st = d.querySelector('[data-x="trstate"]');
   if (!n.has_transcript) st.textContent = 'none yet';
   else st.innerHTML = '<b>' + nesc(n.transcript || '') + '</b> · ' +
@@ -6479,13 +7107,13 @@ async function narrSaveTimes(changed) {
   return j;
 }
 async function narrSaveCovers(row, n) {
-  const d = row.querySelector('.ndraw');
-  const from = d.querySelector('[data-x="from"]').value;
-  const to = d.querySelector('[data-x="to"]').value;
+  const d = row.querySelector('.ndraw'), pk = d._pick, got = pk && pk.get();
+  const from = got ? narrQual(pk, got.lo) : '', to = got ? narrQual(pk, got.hi) : '';
   try {
     await narrRun(n, 'saving what it covers…',
                   () => narrPost('region', {id: n.id, from: from, to: to}));
-    ntoast(n.id + ' covers ' + narrWhere({from: from, to: to}));
+    ntoast(n.id + ' covers ' + narrWhere({from: from, to: to,
+                                          lo: got ? got.lo : null, hi: got ? got.hi : null}));
   } catch (_) { /* the row and the toast have it */ }
 }
 async function narrRemove(n) {
@@ -6560,7 +7188,8 @@ $('#npaudio').onchange = async ev => {
   // it beside the others instead of replacing the book's narration.  These
   // two selects belong to THIS upload and to nothing else -- a row says what
   // it covers in its own drawer.
-  const from = $('#nfrom').value || '', to = $('#nto').value || '';
+  const pk = naddPick(), got = pk.get();
+  const from = got ? narrQual(pk, got.lo) : '', to = got ? narrQual(pk, got.hi) : '';
   const ns = (NSTAT && NSTAT.narrations) || [];
   // AND WITH NEITHER END NAMED IT IS A REPLACEMENT.  serve.py takes the old
   // road there -- set_book_meta(audio=…) -- and the one recording this book
@@ -6635,7 +7264,12 @@ $('#naddbtn').onclick = e => {
   const on = $('#nadd').hidden;
   $('#nadd').hidden = !on;
   e.currentTarget.setAttribute('aria-expanded', String(on));
-  if (on) $('#nfrom').focus({preventScroll: true});
+  if (on) {
+    // read afresh, keeping what was picked before, and shown
+    const pk = naddPick().load(), got = pk.get();
+    pk.set(got ? got.lo : null, got ? got.hi : null);
+    pk.focus();
+  }
 };
 $('#nhowbtn').onclick = e => {
   const on = $('#nhow').hidden;
@@ -8709,11 +9343,9 @@ def chunk_editor(dir_attrs):
   <div class="nstate" id="fdsum">&hellip;</div>
   <div class="arow"><span class="alab">fold</span>
     <div class="actl">
+      <div id="fdpick"></div>
       <div class="nrow">
-        <select id="fdfrom" title="the first paragraph to fold away"></select>
-        <span class="nstate">&rarr;</span>
-        <select id="fdto" title="the last paragraph to fold away"></select>
-        <button type="button" id="fddo" class="primary">fold these away</button>
+        <button type="button" id="fddo" class="primary" disabled>fold these away</button>
       </div>
       <div class="anote">The text of a folded run is not shown, and reading walks past
         it: with a narration the playhead jumps from the subparagraph before the run to
@@ -8733,10 +9365,10 @@ def chunk_editor(dir_attrs):
   <div class="ahead">chapters and sections<span class="sp"></span>
     <button type="button" id="seccancel" title="close (Esc)">&#10005;</button></div>
   <div class="nstate" id="secsum">&hellip;</div>
-  <div class="arow"><span class="alab">chapter</span>
+  <div id="secpick"></div>
+  <div class="arow" id="secchrow" hidden><span class="alab">chapter</span>
     <div class="actl">
       <div class="nrow">
-        <select id="secch" title="which chapter"></select>
         <input id="secchname" type="text" placeholder="what this chapter is called">
         <button type="button" id="secchdo" class="primary">name it</button>
       </div>
@@ -8744,22 +9376,19 @@ def chunk_editor(dir_attrs):
         in the contents. Leave the box empty and press the button to take a name
         away: the chapter is then called by its number alone, as it was before.</div>
     </div></div>
-  <div class="arow"><span class="alab">section</span>
+  <div class="arow" id="secrow" hidden><span class="alab">section</span>
     <div class="actl">
       <div class="nrow">
-        <select id="secpara" title="the paragraph a section opens at"></select>
         <input id="secname" type="text" placeholder="what this section is called">
         <button type="button" id="secdo" class="primary">start a section here</button>
+        <button type="button" id="secdel" hidden>remove this section</button>
       </div>
       <div class="anote">A section marks a place between two paragraphs: the one you
         pick is where it starts. It has <b>no number of its own</b> and it changes
         no paragraph's number &mdash; it is a heading in the text and a row in the
-        contents, nothing more. Picking a paragraph that already starts one renames
-        it. The mark is written into the chapter's own file, so it travels with the
-        book when you download it.</div>
+        contents, nothing more. The mark is written into the chapter's own file, so
+        it travels with the book when you download it.</div>
     </div></div>
-  <div class="arow"><span class="alab">sections</span>
-    <div class="actl"><div id="seclist" class="nrow"></div></div></div>
   <div class="arow afoot"><span class="alab"></span>
     <div class="actl"><button type="button" id="secclose">close</button>
       <button type="button" id="secreload" hidden>reload the reader</button>
@@ -9063,16 +9692,13 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
       <button type="button" class="primary small" id="nreload">reload the reader</button>
     </div>
 
-    <!-- ADD A RECORDING.  The two selects belong to THIS file and to nothing
-         else: a row says what it covers in its own drawer, so these can
-         never be read by an action somebody did not mean. -->
+    <!-- ADD A RECORDING.  The outline belongs to THIS file and to nothing
+         else: a row says what it covers in its own drawer, so this can never
+         be read by an action somebody did not mean. -->
     <div class="nsec" id="nadd" hidden>
       <div class="nsechead">add a recording</div>
-      <div class="nfield"><span class="nfieldlab">covers</span>
-        <select id="nfrom" title="the first subparagraph this recording is of"></select>
-        <span class="nsep">&rarr;</span>
-        <select id="nto" title="the last subparagraph this recording is of"></select>
-      </div>
+      <div class="nfield"><span class="nfieldlab">covers</span></div>
+      <div class="npick" id="naddpick"></div>
       <div class="nfield">
         <label class="nbtn primary">pick the audio file<input id="npaudio" type="file"
             accept="audio/*,.webm,.m4a,.opus,.ogg" hidden></label>
@@ -9081,11 +9707,10 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
       <div class="anote">mp3, m4a, webm, ogg, wav&hellip; The file is copied into
         <code id="ndir">books/&lsaquo;book&rsaquo;/audio/</code> &mdash; a narration is
         yours, never committed &mdash; and the reader is rebuilt with it at once.
-        Name a stretch and the file joins the recordings already here, and is given a
-        first guess at its times as it lands. Leave both ends at <i>the whole book</i>
-        and it becomes the book's one recording &mdash; which, on a book that already
-        has one, means that one stops being the narration; you are asked first, by
-        name.</div>
+        Pick a stretch and the file joins the recordings already here, and is given a
+        first guess at its times as it lands. Leave it at <i>the whole book</i> and it
+        becomes the book's one recording &mdash; which, on a book that already has one,
+        means that one stops being the narration; you are asked first, by name.</div>
     </div>
 
     <!-- A NARRATION LEFT SOMEWHERE ELSE: by an earlier layout of the toolbox,
@@ -9297,6 +9922,21 @@ def main():
     set_lang(book.lang)
     set_gloss(book.gloss_lang)
     chapters = load_times(T.parse_book(book.main, LANG))
+    # WHERE EACH RECORDING IS, as the first and last subparagraph it covers --
+    # indices in the order SUBS has -- read the way the aligner and the server
+    # read a stretch (texparse.region_bounds).  The player finds the file a
+    # subparagraph is in by these; it used to compare bare labels, which
+    # every chapter repeats, so a recording of chapter 2 answered for chapter
+    # 1's subparagraphs of the same numbers.
+    pairs = [(T.chapter_of(x), x.num)
+             for ch in chapters for pp in ch.paragraphs for x in pp.subs]
+    for n in narr:
+        try:
+            n["lo"], n["hi"] = T.region_bounds(pairs, n["from"], n["to"])
+        except ValueError as e:
+            n["lo"] = n["hi"] = None
+            print("%s: recording %s covers nothing in this book: %s"
+                  % (book.slug, n["id"], e), file=sys.stderr)
     body, times, subs, toc, src, chaps = build(chapters, LANG, GLOSS)
     shell, chap_files = one_chapter_at_a_time(chaps, body)
     tocpanel = toc_html(toc)

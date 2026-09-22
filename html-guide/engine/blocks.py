@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """engine.blocks -- the page's blocks: Hugo's, and the Parseh dialect's.
 
 parse(lines, first_line) reads the body of a page (front matter already

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Shared CharacterComponentNode domain and local-only decomposition service.
 
 Nodes have character/operator/children/source and optional variantOf, partial,

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Hindi: the \\vb a dictionary hit for a verb offers.
 
     \\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\\pw{ने})}

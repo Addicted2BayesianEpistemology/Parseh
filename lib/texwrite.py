@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Change ONE chunk of a chapter .tex, and leave every other byte alone.
 
 A chapter file is written by hand.  Its comments, its blank lines, the place

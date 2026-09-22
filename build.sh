@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Build one book, or every book.
 #
 #   ./build.sh                 every book that changed: PDF + reader + index

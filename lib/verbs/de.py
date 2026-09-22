@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """German: the \\vb a dictionary hit for a verb offers.
 
     \\vb{geben}{}{gab}{}{gegeben}{}{to give (er gibt)}

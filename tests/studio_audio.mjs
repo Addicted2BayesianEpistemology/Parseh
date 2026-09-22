@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of recordings in a studio document, against the REAL routes
 // (markdown/app/server.py, store.py, htmlgen) on a temporary library and a
 // temporary clip tray, with real recordings written by ffmpeg:

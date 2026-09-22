@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The clip tray: the recordings cut out of a book's narration or a film, or
 recorded from a YouTube video playing in the tab, and the frames captured
 from a video, waiting to be put on a card.

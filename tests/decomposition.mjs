@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 // CHROME_BIN=/path/to/chrome PARSEH_PYTHON=python3 deno run --allow-all tests/decomposition.mjs
 import { chromium } from 'npm:playwright-core@1.52.0';
 const root = await Deno.realPath(new URL('..', import.meta.url));

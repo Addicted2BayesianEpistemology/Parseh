@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Where a sentence is cut into chunks: at its punctuation first, in every
 language, then at the edges of its phrases -- and never inside a word.
 
