@@ -210,7 +210,11 @@ name: a chapter, a paragraph, or a section's heading to rename or remove it.
 
 What a recording covers is now written with its chapter (`2:1.1`), since
 every chapter has a `1.1`. A recording of chapter 2 used to answer for
-chapter 1's subparagraphs of the same numbers too. See [Picking a part of
+chapter 1's subparagraphs of the same numbers too. A recording saved before,
+without the chapter, is read from its first label to the first matching
+label after it — so in a book whose chapters each number from 1, a
+recording of chapter 1 stays in chapter 1, where it used to run on into
+every later chapter. See [Picking a part of
 the book](../books/contents.md#picking-a-part-of-the-book).
 
 ## Licences

@@ -164,8 +164,10 @@ def region_subs(allsubs, first, last):
     A label is unique only within its chapter (chapter 1 and chapter 2 both
     have a 4.3), so the panel writes each end WITH its chapter, "2:4.3", which
     names exactly one.  A bare label -- every narration written before that --
-    is read as it always was: the first match for the start and the last for
-    the end, the widest reading of what somebody asked for.  The reading is
+    is the first match for the start and, for the end, the first match at or
+    after the start: the narrowest stretch.  (The last match, as it used to
+    be, stretched a recording of chapter 1 over every later chapter numbered
+    the same way, and estimated its times there.)  The reading is
     texparse.region_bounds, the one the server and the reader use too.
     """
     try:

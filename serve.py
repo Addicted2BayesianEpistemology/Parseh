@@ -4500,37 +4500,43 @@ class Handler(SimpleHTTPRequestHandler):
         # a timed subparagraph is found by the key its time is filed under,
         # which is unique; the label it also carries is not
         at_key = {e["subkey"]: i for i, e in enumerate(labels)}
-        at_label = {}
-        for i, e in enumerate(labels):
-            at_label.setdefault(e["label"], i)
         # HOW BIG EACH STRETCH IS, so a row can say "21 of 21 timed" rather
         # than a count with nothing to measure it against, and how many of its
         # times were stamped by ear -- which is what a reader wants to know
         # before letting an alignment start over on top of them.
         size = {i: (hi - lo + 1) for i, lo, hi in spans}
-        per, byregion, hand = {}, {}, {}
+        timed, hand = {}, {}
         try:
             with open(b.timings, encoding="utf-8") as f:
                 for key, rec in (json.load(f).get("subs") or {}).items():
                     if not isinstance(rec, dict) or rec.get("t0") is None:
                         continue
-                    at = at_key.get(key, at_label.get(rec.get("label")))
-                    # a label inside exactly one declared stretch, or nobody's
-                    hit = [i for i, lo, hi in spans if at is not None and lo <= at <= hi]
+                    # "N OF M TIMED" IS ABOUT THOSE M SUBPARAGRAPHS.  A time
+                    # counts for a recording only inside the stretch it
+                    # covers: by the id it carries, or -- carrying none -- by
+                    # being inside exactly one stretch.  Not a time filed
+                    # under a key the book no longer has (its text changed
+                    # since; the build writes nothing from it), and not one a
+                    # recording's id carries elsewhere -- an estimate once
+                    # spread over a stretch read too widely, which made nine
+                    # recordings of chapter 1 claim times in chapters 3 to 5.
+                    at = at_key.get(key)
+                    if at is None:
+                        continue
+                    hit = [i for i, lo, hi in spans if lo <= at <= hi]
                     nid = rec.get("n") or ""
-                    whose = nid or (hit[0] if len(hit) == 1 else "")
-                    if nid:
-                        per[nid] = per.get(nid, 0) + 1
-                    elif whose:
-                        byregion[whose] = byregion.get(whose, 0) + 1
-                    if whose and rec.get("src") == "manual":
-                        hand[whose] = hand.get(whose, 0) + 1
+                    whose = (nid if nid in hit else "") if nid else \
+                        (hit[0] if len(hit) == 1 else "")
+                    if whose:
+                        timed[whose] = timed.get(whose, 0) + 1
+                        if rec.get("src") == "manual":
+                            hand[whose] = hand.get(whose, 0) + 1
         except (OSError, ValueError):
             pass
         narrs = []
         for n in b.narrations:
             r = nrec(n)
-            r["timed"] = per.get(n["id"], 0) + byregion.get(n["id"], 0)
+            r["timed"] = timed.get(n["id"], 0)
             r["subs"] = size.get(n["id"], 0)
             r["manual"] = hand.get(n["id"], 0)
             # the subparagraphs it covers, first and last, as indices into

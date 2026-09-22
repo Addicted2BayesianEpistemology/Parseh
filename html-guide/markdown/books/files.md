@@ -40,7 +40,7 @@ The book's facts, one JSON object:
 | `title`, `title_latin`, `title_en`, `author`, `author_latin`, `year`, `blurb` | what **book info** edits |
 | `main` | the file that includes the chapters |
 | `audio`, `transcript` | the recording and its transcript, for a book with one; `null` for none |
-| `narrations` | a book recorded in parts: one record per recording — its id, file, transcript, and the first and last subparagraph it covers, each named with its chapter (`"from": "2:1.1"`, `"to": "2:5.3"`; a bare `"1.1"`, as older books have it, means the first `1.1` of the book for a start and the last for an end) |
+| `narrations` | a book recorded in parts: one record per recording — its id, file, transcript, and the first and last subparagraph it covers, each named with its chapter (`"from": "2:1.1"`, `"to": "2:5.3"`; a bare `"1.1"`, as older books have it, means the first `1.1` of the book for a start, and for an end the first at or after the start) |
 | `draft` | `true` while the book is being written ([Adding a book](doc:Adding a book)) |
 | `reorders` | `true` for a text read out of its written order (kanbun): **book info**'s **order** checkbox |
 

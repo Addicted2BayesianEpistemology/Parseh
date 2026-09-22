@@ -537,26 +537,35 @@ def region_bounds(pairs, first, last):
 
     An end is a label with its chapter, "2:4.3", which names exactly one
     subparagraph -- what the pickers write -- or a bare label, "4.3", which
-    names one only within its chapter and is read as it always was: the
-    first subparagraph wearing it for the start, the last for the end.
-    Either end empty means from the beginning / to the end, so a stretch
-    with neither is the whole book.  A ValueError says what is wrong, in a
-    sentence meant to be shown."""
-    def find(want, last_one):
+    names one only within its chapter: every narration written before the
+    chapter was named.  A bare start is the first subparagraph wearing the
+    label; a bare end is the first wearing it AT OR AFTER THE START -- the
+    narrowest stretch, because a recording is one stretch of the text and
+    that is what anybody picking "4.3" meant.  (It used to be the LAST in
+    the book: in a book of five chapters that each number from 1, nine
+    recordings of chapter 1 stored as "7.1"-"36.1" and the like ran on
+    into chapters 2 to 5, and an estimate of their times spread their
+    sound over text they never read.)  Either end empty means from the
+    beginning / to the end, so a stretch with neither is the whole book.  A
+    ValueError says what is wrong, in a sentence meant to be shown."""
+    def find(want, start=0):
         ch, colon, lab = want.rpartition(":")
         ch, lab = ch.strip(), lab.strip()
-        order = range(len(pairs) - 1, -1, -1) if last_one else range(len(pairs))
-        for k in order:
+        # an end named with its chapter is that one wherever it is; a bare
+        # one is looked for from the start of the stretch on
+        for k in range(0 if colon else start, len(pairs)):
             c, l = pairs[k]
             if l == lab and (not colon or c == ch):
                 return k
+        if not colon and start and any(l == lab for c, l in pairs):
+            raise ValueError("that stretch ends (%s) before it begins (%s)" % (want, first))
         where = ("chapter %s" % ch) if colon else "this book"
         raise ValueError("there is no subparagraph %s in %s" % (lab, where))
     first, last = (first or "").strip(), (last or "").strip()
     if not pairs:
         raise ValueError("this book has no subparagraphs")
-    i = find(first, False) if first else 0
-    j = find(last, True) if last else len(pairs) - 1
+    i = find(first) if first else 0
+    j = find(last, i) if last else len(pairs) - 1
     if j < i:
         raise ValueError("that stretch ends (%s) before it begins (%s)" % (last, first))
     return i, j

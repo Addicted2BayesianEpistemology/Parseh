@@ -7,7 +7,7 @@ A subparagraph's label is unique only within its chapter -- chapter 1 and
 chapter 2 both have a 1.1 -- so the reader's outline writes each end with its
 chapter, "2:1.1", and texparse.region_bounds reads both that and the bare
 label every narration was written with before (the first subparagraph wearing
-it for the start, the last for the end).  The aligner (timestamp.region_subs),
+it for the start; for the end, the first at or after the start).  The aligner (timestamp.region_subs),
 the server (its status and its two doors) and the build (NARR's lo/hi, which
 the player goes by) all read a stretch through it.  The book is
 tests/outline_harness.py's: three chapters, all with the labels 1.1 1.2 2.1
@@ -45,11 +45,27 @@ class Bounds(unittest.TestCase):
         self.assertEqual(T.region_bounds(PAIRS, "2:1.1", ""), (2, 3))
         self.assertEqual(T.region_bounds(PAIRS, "", "1:1.2"), (0, 1))
 
-    def test_a_bare_label_is_read_as_it_always_was(self):
-        # the first 1.1 for the start and the last 1.2 for the end: the widest
-        # reading, which is what every narration written before meant
-        self.assertEqual(T.region_bounds(PAIRS, "1.1", "1.2"), (0, 3))
+    def test_a_bare_label_is_the_narrowest_stretch(self):
+        # the first 1.1 for the start, and for the end the first 1.2 AT OR
+        # AFTER it: the stretch somebody picking "1.1" to "1.2" meant.  The
+        # last 1.2 of the book, as it used to be, made it chapters 1 and 2.
+        self.assertEqual(T.region_bounds(PAIRS, "1.1", "1.2"), (0, 1))
         self.assertEqual(T.region_bounds(PAIRS, "1.2", ""), (1, 3))
+        self.assertEqual(T.region_bounds(PAIRS, "", "1.2"), (0, 1))
+        with self.assertRaisesRegex(ValueError, r"ends \(1.1\) before it begins \(1.2\)"):
+            T.region_bounds(PAIRS[:2], "1.2", "1.1")
+
+    def test_recordings_of_chapter_1_stay_in_chapter_1(self):
+        # the book that found it: five chapters, each numbering its
+        # paragraphs from 1, and nine recordings of chapter 1 stored with bare
+        # labels.  Each is read inside chapter 1; none runs on into the rest.
+        chapters = {"1": 157, "2": 267, "3": 297, "4": 298, "5": 323}
+        pairs = [(c, "%d.%d" % (p, s)) for c, n in chapters.items()
+                 for p in range(1, n + 1) for s in (1, 2)]
+        for first, last in (("1.1", "6.2"), ("7.1", "36.1"), ("139.1", "141.2"),
+                            ("151.1", "157.2")):
+            i, j = T.region_bounds(pairs, first, last)
+            self.assertEqual((pairs[i], pairs[j]), (("1", first), ("1", last)), (first, last))
 
     def test_what_is_not_there_is_said(self):
         with self.assertRaisesRegex(ValueError, "no subparagraph 1.1 in chapter 3"):
@@ -139,8 +155,8 @@ class Book(unittest.TestCase):
         b = books.Book(str(self.d))
         serve.set_narrations(b, [
             {"id": "n1", "audio": "audio/a.wav", "transcript": "", "from": "2:1.1", "to": "2:4.2"},
-            # a bare label, as every narration was written before: the widest
-            # reading, from the book's first 1.1 to its last 2.2
+            # a bare label, as every narration was written before: the
+            # narrowest reading, chapter 1's 1.1 to chapter 1's 2.2
             {"id": "n2", "audio": "audio/b.wav", "transcript": "", "from": "1.1", "to": "2.2"},
             {"id": "n3", "audio": "audio/c.wav", "transcript": "", "from": "7:1.1", "to": ""}])
         r = subprocess.run([sys.executable, str(ROOT / "lib" / "tex2html.py"), "--book", str(self.d)],
@@ -151,7 +167,7 @@ class Book(unittest.TestCase):
         narr = json.loads(re.search(r"const NARR=(\[.*?\]);", html, re.S).group(1))
         subs = json.loads(re.search(r"const SUBS=(\[.*?\]);", html, re.S).group(1))
         self.assertEqual([(n["id"], n["lo"], n["hi"]) for n in narr],
-                         [("n1", 4, 11), ("n2", 0, 15), ("n3", None, None)])
+                         [("n1", 4, 11), ("n2", 0, 3), ("n3", None, None)])
         # the fifth and sixth: the contents entry of the paragraph, its label
         self.assertEqual([s[5] for s in subs[4:12]],
                          ["1.1", "1.2", "2.1", "2.2", "3.1", "3.2", "4.1", "4.2"])
@@ -159,6 +175,57 @@ class Book(unittest.TestCase):
         self.assertEqual(entries, [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7])
         toc = re.findall(r'<a class="toce" href="#([^"]+)"', html)
         self.assertEqual(len(toc), 8, "one contents entry per paragraph, the entries SUBS names")
+
+
+
+class Status(unittest.TestCase):
+    """__narration/status over real HTTP: where each recording is, and how much
+    of THAT stretch is timed."""
+
+    def test_a_recording_counts_the_times_inside_what_it_covers(self):
+        import http.client
+        import threading
+        from unittest import mock
+        import books
+        import outline_harness
+        import serve
+        import timestamp as ts
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td) / "books" / "english" / "outline-en"
+            d.parent.mkdir(parents=True)
+            outline_harness.make_book(d)
+            b = books.Book(str(d))
+            serve.set_narrations(b, [
+                {"id": "n1", "audio": "audio/a.wav", "transcript": "", "from": "1.1", "to": "2.2"},
+                {"id": "n2", "audio": "audio/b.wav", "transcript": "", "from": "2:1.1", "to": "2:2.2"}])
+            subs = [x for ch in T.parse_book(str(d / "main.tex"), "en") for x in ch.subs]
+            rec = lambda k, n, src="spread": {"t0": 1.0 + k, "t1": 2.0 + k, "conf": 1.0,  # noqa: E731
+                                             "src": src, "label": subs[k].num, "n": n}
+            times = {ts.subkey(subs[0]): rec(0, "n1"), ts.subkey(subs[1]): rec(1, "n1", "manual"),
+                     # n1's id on a subparagraph of chapter 3: outside what it
+                     # covers, the way the too-wide reading once spread one
+                     ts.subkey(subs[8]): rec(8, "n1"),
+                     # a key the book no longer has: its text changed since
+                     "9.9-000000000000": {"t0": 5, "t1": 6, "label": "9.9", "n": "n1"},
+                     # no id, inside n2's stretch alone: n2's
+                     ts.subkey(subs[5]): rec(5, ""), ts.subkey(subs[6]): rec(6, "n2", "manual")}
+            (d / "timings.json").write_text(json.dumps({"subs": times}), encoding="utf-8")
+            with mock.patch.object(serve.Handler, "log_request", lambda *a, **k: None), \
+                    mock.patch.object(serve, "ROOT", td), \
+                    mock.patch.object(serve._AtRoot, "directory", td):
+                srv = serve.Server(("127.0.0.1", 0), serve.Handler)
+                threading.Thread(target=srv.serve_forever, daemon=True).start()
+                try:
+                    c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=60)
+                    c.request("GET", "/books/english/outline-en/reader/__narration/status")
+                    j = json.loads(c.getresponse().read())
+                    c.close()
+                finally:
+                    srv.shutdown()
+                    srv.server_close()
+        self.assertEqual([(n["id"], n["lo"], n["hi"], n["timed"], n["subs"], n["manual"])
+                          for n in j["narrations"]],
+                         [("n1", 0, 3, 2, 4, 1), ("n2", 4, 7, 2, 4, 1)])
 
 
 if __name__ == "__main__":

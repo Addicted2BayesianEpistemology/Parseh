@@ -269,7 +269,8 @@ class Book:
         "2:1.1", "to": "2:3.4", since a label alone repeats in every chapter --
         with either left out meaning "to the end of the book that way".  A bare
         label ("1.1"), as older books have it, still reads: the first wearing
-        it for a start, the last for an end (texparse.region_bounds).  It is how a
+        it for a start, and for an end the first at or after the start
+        (texparse.region_bounds).  It is how a
         narration is made a little at a time: record a few chapters, say which
         ones, align just those.
 
