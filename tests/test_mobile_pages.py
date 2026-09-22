@@ -449,8 +449,8 @@ class DeckTests(unittest.TestCase):
                     '#btn-bulk-copy', '#btn-bulk-move', '#btn-bulk-add-tag', '#btn-bulk-remove-tag',
                     '#btn-bulk-new', '#btn-bulk-delete', '.dk-row-actions', '.dk-selection-hint'):
             self.assertIn(sel, hidden)
-        for kept in ('.dk-browse', '#btn-select-all', '#btn-select-shown', '#btn-select-tag',
-                     '#btn-deselect-all', '#browse-list'):
+        for kept in ('.dk-browse', '#btn-select-all', '#btn-select-shown', '#btn-deselect-shown',
+                     '#btn-select-tag', '#btn-deselect-all', '#browse-list'):
             self.assertNotIn(kept, hidden)
         self.assertIn('html[data-mode=mobile] .card.dk-card .dropdown{display:none!important}', css)
 

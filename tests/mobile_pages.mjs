@@ -698,7 +698,7 @@ async function partDecks() {
     eq(await page.locator('#btn-practise').textContent(), 'Cram all', 'the deck: Study now, and Cram all');
     allFit(await targets(page, '#btn-study, #btn-practise, #browse-filter, #browse-type, #browse-state, ' +
                                '#browse-tag, .dk-bulkbar .btn, .dk-row .dk-select'),
-           'Study now, Cram all, the filters, the four ways to pick, each exercise\'s box: 48px, on the screen');
+           'Study now, Cram all, the filters, the five ways to pick, each exercise\'s box: 48px, on the screen');
     assert(/5 exercises/.test(await page.locator('#deck-counts').textContent()), 'its counts');
     assert(await sideways(page) <= 0, 'the deck does not scroll sideways');
 

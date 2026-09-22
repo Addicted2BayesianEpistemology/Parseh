@@ -84,9 +84,12 @@
     </div>
     <div class="dk-bulkbar" role="group" aria-label="Selected exercises">
       <button type="button" class="btn small" id="btn-select-all">Select all</button>
-      <button type="button" class="btn small" id="btn-select-shown">Select shown</button>
-      <button type="button" class="btn small" id="btn-select-tag">Select by tag</button>
       <button type="button" class="btn small" id="btn-deselect-all">Deselect all</button>
+      <button type="button" class="btn small" id="btn-select-shown"
+              title="Add the exercises the filters show to the selection">Select shown</button>
+      <button type="button" class="btn small" id="btn-deselect-shown"
+              title="Take the exercises the filters show out of the selection; the ones they hide stay selected">Deselect shown</button>
+      <button type="button" class="btn small" id="btn-select-tag">Select by tag</button>
       <span id="browse-selected" aria-live="polite">0 selected</span>
       <button type="button" class="btn small" id="btn-bulk-copy" disabled>Copy to deck…</button>
       <button type="button" class="btn small" id="btn-bulk-move" disabled>Move to deck…</button>

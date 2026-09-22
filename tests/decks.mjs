@@ -2682,6 +2682,19 @@ async function endToEnd(browser) {
       await page.click('#btn-select-shown');
       assert(await page.locator('.dk-select:checked').count() === 2 && await page.locator('#browse-selected').textContent() === '2 selected',
              'Select shown selects only exercises matching the current filter');
+      // Deselect shown, its opposite: everything selected, then the shown
+      // flashcards let go -- and the rest, which the filter hides, kept
+      await page.selectOption('#browse-type', '');
+      await page.click('#btn-select-all');
+      const every = await page.locator('.dk-row').count();
+      await page.selectOption('#browse-type', 'flashcard');
+      await page.click('#btn-deselect-shown');
+      assert(await page.locator('.dk-select:checked').count() === 0
+             && await page.locator('#browse-selected').textContent() === `${every - 2} selected`,
+             'Deselect shown lets go of the exercises the filter shows, and only of them');
+      await page.selectOption('#browse-type', '');
+      assert(await page.locator('.dk-select:checked').count() === every - 2,
+             'what the filter hid is still selected once it is cleared');
       await page.selectOption('#browse-type', '');
       await page.click('#btn-deselect-all');
       await page.click('#btn-select-tag');

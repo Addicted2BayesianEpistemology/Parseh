@@ -18,14 +18,18 @@ the ones for tomorrow's test.
   is already selected **deselects** the range instead. The tip under the
   bar reminds you: *Shift-click a checkbox or exercise row to select or
   deselect a range.*
-- **Select all** selects every exercise of the deck, shown or not.
+- **Select all** selects every exercise of the deck, shown or not, and
+  **Deselect all** lets everything go.
 - **Select shown** adds only the rows the filters show — pick the tag
   `food` in the filters, then **Select shown**, and you have the food.
+- **Deselect shown** is its opposite: it lets go of the rows the filters
+  show, and whatever they hide stays selected. **Select all**, then the
+  type *Flashcard* in the filters and **Deselect shown**, and you have
+  every exercise but the flashcards.
 - **Select by tag** asks for a tag — every tag of the deck is offered — and
   **Select matching** makes the selection exactly the exercises with it
   (what was selected before is let go). A deck with no tags says *This deck
   has no exercise tags yet*.
-- **Deselect all** lets everything go.
 
 `3 selected`, beside these buttons, always says how many there are.
 

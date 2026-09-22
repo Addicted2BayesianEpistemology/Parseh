@@ -163,6 +163,9 @@ html[data-mode=mobile] .dk-browse-count{grid-column:1 / -1;margin:0;font-size:.9
 html[data-mode=mobile] .dk-bulkbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
   gap:8px;margin-top:10px}
 html[data-mode=mobile] .dk-bulkbar .btn{min-height:48px;justify-content:center;font-size:.98rem;margin:0}
+/* the picks in pairs, a row each -- all, shown -- and the one with no
+   opposite under them, across two columns */
+html[data-mode=mobile] .dk-bulkbar #btn-select-tag{grid-column:span 2}
 html[data-mode=mobile] #browse-selected{grid-column:1 / -1;margin:0;font-size:.95rem}
 @media (min-width:600px){
   html[data-mode=mobile] .dk-browsebar{grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr))}

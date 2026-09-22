@@ -156,7 +156,7 @@ A deck's page says what is in it and what is due, and has two buttons:
 Under them, **Cram a few**: the deck's exercises, to pick the ones to cram.
 Filter them by their text, their type, their state (new, learning, review,
 due now) or a tag, and pick with **Select all**, **Select shown** (the ones
-the filters leave), **Select by tag** or one by one, with the box beside
+the filters leave), **Deselect shown**, **Select by tag** or one by one, with the box beside
 each; a tap on the rest of an exercise shows it solved. While anything is
 picked, **Cram N exercises** waits at the foot of the screen: that is a cram
 of your own — a tag, the ones you keep getting wrong, the ones with a word

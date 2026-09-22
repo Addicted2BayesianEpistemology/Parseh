@@ -1186,6 +1186,13 @@ function initDeck() {
     visible.forEach(it => selected.add(it.id));
     renderList();
   });
+  // its opposite: the rows the filters show are let go, and whatever they
+  // hide stays selected -- so a selection is trimmed by filtering, the way
+  // Select shown builds one
+  $("#btn-deselect-shown").addEventListener("click", () => {
+    visible.forEach(it => selected.delete(it.id));
+    renderList();
+  });
   $("#btn-deselect-all").addEventListener("click", () => {
     selected.clear();
     renderList();
