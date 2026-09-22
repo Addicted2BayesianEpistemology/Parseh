@@ -120,6 +120,16 @@ picks it and puts it down. There are no arrows here, and the **✥
 dragging** switch never applies: a matching exercise can always be
 dragged.
 
+**In the mobile interface a box is filled the other way round: the box
+first, then the block.** Its empty box says *tap to choose*: tap it, and a
+cloud opens beside it with a copy of every block the row holds; tap one,
+and it goes into that box. Tap a filled box to put another block there —
+the one it held goes back to the row — or to **Empty this match**. A tap
+anywhere else, or Escape, puts the cloud away. The row stays where it is,
+to show what is left; its blocks are no longer picked up or dragged there.
+A fill-in's blanks work the same way
+([Placement](placement.md#moving-the-blocks)).
+
 **Check exercises** marks each box: ✓ where it holds the partner of its
 row, ✕ where it holds another block; a box left empty is framed red and
 still says *drop match here*. The exercise is right when every box is.

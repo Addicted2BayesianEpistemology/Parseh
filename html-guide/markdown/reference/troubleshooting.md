@@ -181,8 +181,14 @@ backup](../exercises/export-import-backup.md).
 | The **Working:** pill in the corner stays on *Preparing the download…* | The server is packing the zip — a book with its recordings, a whole shelf — before it can send it. The pill goes once the file has been sent; the file itself arrives in your browser's downloads, as always. |
 | The pill says **Working:** but nothing seems to happen on the page. | The work may have been started on another page or in another tab: the pill shows everything the server is doing. Click it for the list; **open the page** goes to the page each one was started from. |
 | Something was refused, and the pill said nothing. | On purpose: the pill says only what is running. A refusal is said by the page that asked, as a message or a dialog. |
-| In **Mobile** mode a door opens the ordinary page. | Only the hub has a mobile version so far; every other door opens its browser page until its own mobile page is written. |
+| In **Mobile** mode a door opens the ordinary page. | The hub, the books and the exercise decks have their mobile versions; the videos and the studio's notes open their browser pages until their own mobile pages are written. |
+| In **Mobile** mode a book's reader has no **book info**, **build**, **narration** or pencil, and an Alt-click makes no card. | On purpose: the mobile reader is for reading. Press **Browser** under **⋯** and they are all back, on the same page. |
+| The mobile shelf says a book is *not built yet*, and its card opens nothing. | Its reader has never been built. Build it from its card in the library, in the **Browser** interface. |
 | The hub has no Anki, clip tray, reading help or stop button any more. | The hub is in **Mobile** mode, which leaves out everything that edits or administers. Press **Browser** in its top bar. |
+| Studying in **Mobile** mode, there is no bar at the top and no **Deck** button. | On purpose: the exercise has the screen. **‹** beside the deck's name goes back to the deck. |
+| **As an app** says the phone does not trust Parseh's certificate yet, or the phone's menu only offers a shortcut that opens with an address bar. | The phone has to be told once to trust Parseh's certificate: step 1 on the **As an app** page — download it, install it in the phone's settings (on an iPhone, turn on full trust for it as well), then open Parseh again. |
+| The app says **Parseh cannot be reached**. | The phone cannot reach your computer: it is asleep or off, Parseh is not started on it, or the phone is away from its network (and from Tailscale, if that is how it reaches it). Start Parseh on the computer, then **Try again**. |
+| After an update, every browser warns about Parseh's certificate once more. | Parseh now makes its certificate under an authority of its own, which a phone can be told to trust; the first start after the update made the new one. Accept it once, as before — or, on a phone, trust it for good from **As an app**. |
 
 More in [The Working… indicator](../getting-started/working-indicator.md)
 and [Browser and Mobile](../getting-started/mobile-mode.md).

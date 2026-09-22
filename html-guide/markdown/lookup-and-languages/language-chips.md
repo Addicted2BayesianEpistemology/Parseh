@@ -16,7 +16,8 @@ and picking one chip picks that language everywhere.
   one line that scrolls sideways and always brings the picked chip into
   view; opened with a mouse, the line wraps instead, so nothing needs a
   swipe to reach.
-- **The book library** — `/books/`.
+- **The book library** — `/books/`, and the mobile interface's shelf,
+  whose chips sit in one line as the mobile hub's do.
 - **The videos** — `/youtube/`.
 - **The studio's library** — `/studio/`.
 - **The exercise decks** — `/exercises/`.

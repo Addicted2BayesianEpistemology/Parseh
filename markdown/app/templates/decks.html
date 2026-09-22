@@ -3,13 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{MODE_SCRIPT}}
+<!-- the mobile interface installed as an app (docs/mobile.md): the manifest, the bars' colour -->
+{{APP_HEAD}}
 <title>{{TITLE}} — Parseh</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D8%AA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="{{STUDIO}}/static/app.css">
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+<!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
+<link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
 </head>
 <body data-page="decks" data-base="{{BASE}}" data-studio="{{STUDIO}}">
-<header class="topbar">
+<header class="topbar" data-layout="browser">
   <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
   <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
   <div class="topbar-actions">
@@ -23,6 +28,13 @@
     <button type="button" class="btn danger ghost" id="btn-stop">Stop server</button>
   </div>
 </header>
+<header class="m-topbar" data-layout="mobile">
+  <a class="m-home" href="/" title="Parseh — the hub"><span class="glyph">پ</span><span class="word">Parseh</span></a>
+  <span class="m-where">Exercises</span>
+  <span class="m-sp"></span>
+  {{MODE_SWITCH}}
+  <button type="button" class="m-theme" data-parseh-theme title="theme">◐</button>
+</header>
 <main class="container dk-container">
   <div class="dk-intro">
     <h1 class="dk-title">Exercise decks</h1>
@@ -33,10 +45,12 @@
   <div id="deck-cards" class="cards dk-cards" data-lang-filter="[data-lang]"></div>
   <div id="decks-empty" class="empty dk-empty" hidden>
     <p>No exercise decks yet.</p>
-    <p>A deck fills in two ways: on a studio document, press <b>+ Deck</b> beside an
+    <p data-layout="browser">A deck fills in two ways: on a studio document, press <b>+ Deck</b> beside an
     exercise to copy it into a deck; or open a deck and use <b>Add exercise…</b>, the
     same form the studio editor uses.</p>
-    <p><button type="button" class="btn primary" data-x="new-deck">+ New deck</button></p>
+    <p data-layout="browser"><button type="button" class="btn primary" data-x="new-deck">+ New deck</button></p>
+    <p data-layout="mobile">A deck is made and filled in the browser interface &mdash; the switch
+    is at the top of this page &mdash; and studied here.</p>
   </div>
   <div id="decks-empty-lang" class="empty dk-empty" hidden>
     <p>No <span class="lang-name"></span> decks here.</p>

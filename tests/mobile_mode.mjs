@@ -27,7 +27,7 @@
 //      screen, the switch at the top saying so; the doors it shows are noted
 //   b) Mobile, clicked: the mobile layout is the one on the screen and the
 //      browser one is not; everything on it that can be tapped is the home
-//      link, the switch, the theme, the chips, four doors and the guide --
+//      link, the switch, the theme, the chips, four doors, the guide and the app's --
 //      no stop button, no Anki, no clip tray, no dictionaries, no address --
 //      each door at least 48px high, inside the screen and reached by a tap
 //      on it, with its counts; the page never scrolls sideways, the chips
@@ -37,13 +37,16 @@
 //      and after a tap on a chip at the row's edge; on a desktop the column
 //      is narrow and in the middle
 //   c) the choice is kept: in localStorage and in a cookie, which the server
-//      is sent; a reload is still mobile; so is the book library, where the
-//      page is the browser one as it is (no mobile version of it yet); and
-//      its home link comes back to the mobile hub; so is a second tab, which
+//      is sent; a reload is still mobile; the Books door lands on the mobile
+//      shelf, /m/books/, sending the cookie; the Videos door on the video
+//      index, the browser page as it is (no mobile version of it yet), whose
+//      home link comes back to the mobile hub; so is a second tab, which
 //      follows a switch made in the first
 //   d) a door goes through Parseh.mode.route: with nothing registered it
-//      lands on the browser page; with a mobile version registered it lands
-//      there, and so does a ctrl-click, in a new tab
+//      lands on the browser page, and the registry says where the library, a
+//      reader and the decks go (tests/mobile_pages.mjs drives those pages);
+//      with a mobile version registered it lands there, and so does a
+//      ctrl-click, in a new tab
 //   e) Browser, clicked: the browser hub is back, its visible doors the same
 //      set as in a), and drawn pixel for pixel as it was before the switch
 //   f) the bar that hides on a phone scroll still does, in both modes; and
@@ -272,7 +275,7 @@ const shot = async (page, name) => {
 const settle = page => page.evaluate(() => document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
 const MOBILE_CLICKABLE = page => page.evaluate(() => ['a:/', 'button:browser', 'button:mobile', 'button:theme',
   ...[...document.querySelectorAll('.m-langs .chip')].map(c => 'button:' + c.getAttribute('data-pick')),
-  'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/']);
+  'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/', 'a:/m/install/']);
 
 // the temporary toolbox: the tree hub_inbox.mjs boots, plus a note in every
 // language and the book library page
@@ -325,7 +328,11 @@ async function partHub() {
     for (const vp of [{width: 390, height: 844, touch: true}, {width: 1280, height: 800}]) {
       const tag = vp.width + 'x' + vp.height;
       console.log(`\n== ${tag}` + (vp.touch ? ', touch' : ', mouse'));
-      const ctx = await browser.newContext({viewport: {width: vp.width, height: vp.height},
+      // No service worker: in the mobile mode the pages register the app's
+      // (lib/sw.js), which then makes a controlled page's navigations -- and
+      // a request the worker makes is not the page's to read, cookie and all.
+      // The worker is tests/mobile_pages.mjs's; this reads what the pages send.
+      const ctx = await browser.newContext({viewport: {width: vp.width, height: vp.height}, serviceWorkers: 'block',
                                             ...(vp.touch ? {isMobile: true, hasTouch: true} : {})});
       const page = await ctx.newPage();
       if (vp.touch) await phone(page);
@@ -365,18 +372,19 @@ async function partHub() {
                                        && document.activeElement.closest('.m-bar') !== null),
              'the focus went with the click to the Mobile button now on the screen');
       eq(s.clickable, await MOBILE_CLICKABLE(page),
-         'all there is to tap: home, the switch, the theme, the chips, four doors and the guide');
+         'all there is to tap: home, the switch, the theme, the chips, four doors, the guide and the app\'s');
       for (const no of ['button:stop', 'a:/anki/sync/', 'a:/clips/', 'a:/lookup/'])
         assert(!s.clickable.includes(no), 'no ' + no + ' on the mobile hub');
       assert(!(await page.evaluate(() => [...document.querySelectorAll('.addr, .foot')].some(e => e.getClientRects().length))),
              'and no server address, no foot');
       assert(s.sideways <= 0, 'the page does not scroll sideways (' + s.sideways + ')');
       const ds = await doors(page);
-      eq(ds.map(d => d.href), ['/books/', '/youtube/', '/studio/', '/exercises/', '/guide/'], 'the doors, in order');
+      eq(ds.map(d => d.href), ['/books/', '/youtube/', '/studio/', '/exercises/', '/guide/', '/m/install/'],
+         'the doors, in order (the last installs the mobile interface as an app)');
       for (const d of ds) {
         assert(d.h >= 48 && d.l >= 0 && d.r <= vp.width && d.hit,
                `${d.href}: ${Math.round(d.h)}px high, inside the screen (${Math.round(d.l)}..${Math.round(d.r)}), reached by a tap`);
-        if (d.href !== '/guide/')
+        if (d.href !== '/guide/' && d.href !== '/m/install/')
           assert(d.tags.length && d.counted && d.tags.every(t => /^\d+ /.test(t)), `${d.href} says how many: ${d.tags.join(', ')}`);
       }
       const bar = await page.evaluate(() => [...document.querySelectorAll('.m-bar a, .m-bar button')].map(b => {
@@ -386,7 +394,9 @@ async function partHub() {
       assert(bar.every(([, h, inside]) => h >= 48 && inside), 'every control of the mobile bar is 48px high and on the screen ' + JSON.stringify(bar));
       if (vp.width >= 1000) {
         const col = await page.evaluate(() => { const r = document.querySelector('main.hub').getBoundingClientRect(); return [r.left, r.right, r.width]; });
-        assert(col[2] <= 520 && Math.abs(col[0] - (vp.width - col[1])) <= 1, 'on a desktop: a narrow column in the middle ' + JSON.stringify(col));
+        // from 600px the column widens and the doors go two to a row: a
+        // phone held sideways lacks height, not width (lib/mobile.css)
+        assert(col[2] <= 900 && Math.abs(col[0] - (vp.width - col[1])) <= 1, 'on a desktop: a column in the middle ' + JSON.stringify(col));
       }
       // the chips: for a finger, one row, which scrolls sideways when it has
       // more than fits; for a mouse, which cannot swipe it, rows that wrap
@@ -486,20 +496,27 @@ async function partHub() {
       assert(s.mode === 'mobile' && s.mobile.every(([d]) => d) && s.browser.every(([d]) => !d),
              'reloaded: still the mobile hub');
       eq(s.pressed.map(p => p.slice(0, 2)), [['browser', 'false'], ['mobile', 'true']], 'Mobile still pressed');
-      // a door with no mobile version: the browser page, as it is; the server is sent the cookie
+      // a door whose page has a mobile version at an address of its own: it
+      // goes there, and the server is sent the cookie
       let sent = null;
-      const onReq = async r => { if (new URL(r.url()).pathname === '/books/' && r.isNavigationRequest()) sent = (await r.allHeaders()).cookie || ''; };
+      const onReq = async r => { if (new URL(r.url()).pathname === '/m/books/' && r.isNavigationRequest()) sent = (await r.allHeaders()).cookie || ''; };
       page.on('request', onReq);
-      await Promise.all([page.waitForURL(B + '/books/'), page.locator('.hub-mobile a.m-door[href="/books/"]').click()]);
+      await Promise.all([page.waitForURL(B + '/m/books/'), page.locator('.hub-mobile a.m-door[href="/books/"]').click()]);
       page.off('request', onReq);
       await settle(page);
-      assert(/(^|;\s*)parseh_mode=mobile(;|$)/.test(sent || ''), 'the Books door opened /books/, and the server was sent parseh_mode=mobile: ' + sent);
+      assert(/(^|;\s*)parseh_mode=mobile(;|$)/.test(sent || ''), 'the Books door opened the mobile shelf, /m/books/, and the server was sent parseh_mode=mobile: ' + sent);
       s = await snapshot(page);
       assert(s.mode === 'mobile' && s.stored === 'mobile' && /parseh_mode=mobile/.test(s.cookie),
-             'the book library knows the mode (data-mode, localStorage, cookie)');
-      assert(s.clickable.includes('button:stop') && s.clickable.includes('a:add/'),
-             'and is its browser page as it is -- there is no mobile version of it yet');
-      await shot(page, `${tag}-books-fallback`);
+             'the shelf knows the mode (data-mode, localStorage, cookie)');
+      assert(!s.clickable.includes('button:stop'), 'and has no stop button');
+      await Promise.all([page.waitForURL(B + '/'), page.locator('.m-bar a.home').click()]);
+      // a door with no mobile version: the browser page, as it is
+      await Promise.all([page.waitForURL(B + '/youtube/'), page.locator('.hub-mobile a.m-door[href="/youtube/"]').click()]);
+      await settle(page);
+      s = await snapshot(page);
+      assert(s.mode === 'mobile' && s.clickable.includes('button:stop'),
+             'the Videos door opens the video index, its browser page as it is -- there is no mobile version of it yet');
+      await shot(page, `${tag}-videos-fallback`);
       await Promise.all([page.waitForURL(B + '/'), page.locator('.parseh-bar a.home').click()]);
       s = await snapshot(page);
       assert(s.mode === 'mobile' && s.mobile.every(([d]) => d), 'its home link: back on the mobile hub');
@@ -518,8 +535,13 @@ async function partHub() {
 
       // ---- d) a door goes where Parseh.mode.route says
       const register = () => page.evaluate(() => Parseh.mode.pages.unshift({match: /^\/youtube\/$/, to: '/clips/'}));
-      eq(await page.evaluate(() => [Parseh.mode.route('/youtube/'), Parseh.mode.route('/books/?x=1#y')]), ['/youtube/', '/books/?x=1#y'],
+      eq(await page.evaluate(() => [Parseh.mode.route('/youtube/'), Parseh.mode.route('/studio/?x=1#y')]), ['/youtube/', '/studio/?x=1#y'],
          'nothing registered: route() answers the browser address');
+      eq(await page.evaluate(() => [Parseh.mode.route('/books/?x=1#y'), Parseh.mode.route('/books/index.html'),
+                                    Parseh.mode.route('/books/persian/mini-fa/reader/index.html#par-1'),
+                                    Parseh.mode.route('/exercises/deck/persian/words/study')]),
+         ['/m/books/?x=1#y', '/m/books/', '/books/persian/mini-fa/reader/#par-1', '/exercises/deck/persian/words/study'],
+         'the registry: the library to the mobile shelf; a reader and the decks are their own mobile versions');
       await register();
       eq(await page.evaluate(() => [Parseh.mode.route('/youtube/?q=1#t'), Parseh.mode.route(location.origin + '/youtube/'),
                                     Parseh.mode.route('https://example.org/youtube/')]),

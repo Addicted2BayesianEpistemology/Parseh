@@ -3,19 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{MODE_SCRIPT}}
+<!-- the mobile interface installed as an app (docs/mobile.md): the manifest, the bars' colour -->
+{{APP_HEAD}}
 <title>{{TITLE}} — Parseh exercises</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D8%AA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="{{STUDIO}}/static/app.css">
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+<!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
+<link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
 </head>
 <body data-page="deck" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
-<header class="topbar">
+<header class="topbar" data-layout="browser">
   <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
   <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
   <div class="topbar-actions">
     <a class="btn ghost" href="{{BASE}}/">← All decks</a>
     <button type="button" class="btn danger ghost" id="btn-stop">Stop server</button>
   </div>
+</header>
+<header class="m-topbar" data-layout="mobile">
+  <a class="m-home" href="/" title="Parseh — the hub"><span class="glyph">پ</span><span class="word">Parseh</span></a>
+  <a class="m-up" href="{{BASE}}/" title="all the decks"><span aria-hidden="true">‹</span><span class="word"> Decks</span></a>
+  <span class="m-sp"></span>
+  {{MODE_SWITCH}}
+  <button type="button" class="m-theme" data-parseh-theme title="theme">◐</button>
 </header>
 <main class="container dk-container">
   <section class="dk-deckhead" aria-label="The deck">
@@ -28,6 +40,12 @@
     <div class="dk-counts" id="deck-counts" aria-live="polite"></div>
     <div class="dk-deckactions">
       <a class="btn primary" id="btn-study" href="{{BASE}}/">Study now</a>
+      <!-- the mobile layout's way to practise with nothing due: every
+           exercise of the deck, crammed (decks.js); the ones picked in the
+           list below are crammed by Cram, in both layouts -->
+      <button type="button" class="btn m-practise" id="btn-practise" data-layout="mobile"
+              title="Every exercise of the deck, in random order, until each is right; the scheduling does not change">Cram all</button>
+      <p class="m-deckwhy" id="deck-mobile-note" data-layout="mobile" hidden></p>
       <button type="button" class="btn" id="btn-add-exercise">Add exercise…</button>
       <details class="dropdown">
         <summary class="btn" title="Download the deck as a .zip another Parseh can import">Export ▾</summary>
@@ -42,6 +60,13 @@
   </section>
 
   <section class="dk-browse" aria-label="The exercises of the deck">
+    <!-- the mobile layout's list is for picking what to cram: nothing in it
+         edits (static/mobile.css hides the rest of the bulk bar and every
+         exercise's own buttons) -->
+    <h2 class="m-pickhead" data-layout="mobile">Cram a few</h2>
+    <p class="m-pickwhy" data-layout="mobile">Pick exercises &mdash; by hand, by tag, or all the ones
+    a filter shows &mdash; and cram them: in random order until each is right. The scheduling
+    does not change.</p>
     <div class="searchrow dk-browsebar">
       <input id="browse-filter" type="search" placeholder="Filter the exercises by their text…"
              autocomplete="off" spellcheck="false" aria-label="Filter the exercises by their text">
@@ -83,6 +108,9 @@
       <p data-x="empty-filter" hidden>No exercise matches these filters.</p>
     </div>
   </section>
+  <!-- the mobile layout's Cram, over the list while exercises are picked:
+       the list can be long, and the bulk bar's own is at its top -->
+  <button type="button" class="btn primary m-cramgo" id="m-cram" data-layout="mobile" hidden>Cram</button>
 </main>
 <script id="deck-json" type="application/json">{{DECK_JSON}}</script>
 <script id="doc-lang" type="application/json">{{LANG_JSON}}</script>

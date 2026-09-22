@@ -126,7 +126,15 @@ The Exercises pages are the same pages on a phone, laid out narrower: the
 cards stack in one column, and the buttons of the top bar are stacked in a
 column beside the **Parseh** and **Exercises** links, above the page's
 title. In the hub's **Mobile** mode the Exercises door is one of
-its four doors, with the same two counts.
+its four doors, with the same two counts, and every Exercises page has a
+mobile layout of its own: the decks with **Study** and **Open**, a deck with
+**Study now**, **Cram all** and its exercises to pick a cram of your own
+from — all, the ones a filter shows, by tag, one by one — and studying with
+no bar over the exercise, **Next** in the place **Check** was, and the
+ratings at the foot of the screen, or down its right edge held sideways —
+and nothing that makes, edits, tags, exports or imports.
+[Browser and Mobile](../getting-started/mobile-mode.md#the-exercise-decks)
+says more.
 
 {{< details summary="What “Stop server” asks" >}}
 *Stop the Parseh server?* — and, when something is still running (a deck

@@ -1,0 +1,338 @@
+/* Parseh — the mobile interface's layout of the studio's pages that have
+   one: the exercise decks, a deck, studying it and cramming it
+   (docs/mobile.md).  Each of those pages carries both layouts, and <html
+   data-mode> -- set in the page's head before anything is drawn
+   (deckroutes.MODE_SCRIPT), kept by decks.js -- says which is on the
+   screen.  lib/mobile.css is the same thing for the pages that load
+   lib/parseh.css; these load the studio's app.css instead, so the colours
+   here are the studio's own tokens (--chrome-*, --accent, --ink), and the
+   studio's three themes -- paper, dark, sepia -- carry over as they are.
+
+   WHAT THE MOBILE LAYOUT IS: the decks to study and studying them, for a
+   thumb.  One column, every target 48px at the least, the answer's buttons
+   where the thumb is -- at the foot of a phone held upright, down the right
+   of one held sideways.  And nothing that edits, imports, exports, backs up
+   or stops anything: every such control is the browser layout's alone, and
+   the server still answers it if it is asked (the mobile mode is not a
+   lock).  Picking exercises to cram is reading, not editing: the deck's
+   list is here for that, and for nothing else. */
+
+/* ---------------- which layout is on the screen ---------------- */
+html[data-mode=mobile] [data-layout=browser],
+html:not([data-mode=mobile]) [data-layout=mobile]{display:none!important}
+
+/* The column: a phone's width, or on anything from 600px -- a phone held
+   sideways, a tablet, a desktop -- a wider one, with two decks to a row
+   and the deck's buttons side by side, since what a sideways phone lacks
+   is height. */
+html[data-mode=mobile]{--m-col:560px}
+@media (min-width:600px){html[data-mode=mobile]{--m-col:880px}}
+
+/* ---------------- the bar ----------------
+   The way home, the way up (the decks, the deck), the switch and the
+   theme -- the hub's mobile bar, in the studio's colours.  Studying and
+   cramming have none: the exercise has the screen, and the way back is
+   the ‹ beside its deck's name. */
+.m-topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:8px;
+  padding:6px max(16px,calc((100% - var(--m-col)) / 2 + 16px));
+  background:var(--chrome-panel);border-bottom:1px solid var(--chrome-line);
+  -webkit-tap-highlight-color:transparent}
+.m-topbar :is(.m-up,.m-theme):active{border-color:var(--accent)}
+.m-topbar .m-home{display:inline-flex;align-items:center;gap:8px;min-height:48px;
+  text-decoration:none;color:var(--chrome-fg);font-weight:600;font-size:16px}
+.m-topbar .m-home .glyph{font-family:"Noto Nastaliq Urdu",var(--fa-font);background:var(--accent);
+  color:var(--accent-fg);width:28px;height:28px;border-radius:50%;font-size:16px;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;padding-bottom:6px}
+.m-topbar .m-where{color:var(--chrome-mut);font-size:15px}
+.m-topbar .m-up{display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  min-height:48px;min-width:48px;padding:0 12px;border:1px solid var(--chrome-line);border-radius:10px;
+  background:var(--chrome-panel);color:var(--chrome-fg);text-decoration:none;font-size:15px}
+.m-topbar .m-up span[aria-hidden]{font-size:20px;line-height:1}
+.m-topbar .m-sp{flex:1}
+.m-topbar .m-theme{min-height:48px;min-width:48px;border:1px solid var(--chrome-line);
+  border-radius:10px;background:var(--chrome-panel);color:var(--chrome-fg);font:inherit;
+  font-size:16px;cursor:pointer}
+.m-topbar :is(.m-home,.m-up,.m-theme):focus-visible,
+.m-topbar .parseh-mode button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* the switch: lib/parseh.css's two halves, the pressed one filled, read
+   off <html data-mode> so it is right from the first paint */
+.m-topbar .parseh-mode{display:inline-flex;border:1px solid var(--chrome-line);border-radius:10px;
+  background:var(--chrome-bg)}
+.m-topbar .parseh-mode button{font:inherit;font-size:14px;min-height:48px;padding:0 13px;margin:0;
+  border:0;border-radius:0;background:none;color:var(--chrome-mut);cursor:pointer;white-space:nowrap}
+.m-topbar .parseh-mode button:first-child{border-start-start-radius:9px;border-end-start-radius:9px}
+.m-topbar .parseh-mode button:last-child{border-start-end-radius:9px;border-end-end-radius:9px}
+.m-topbar .parseh-mode button+button{border-inline-start:1px solid var(--chrome-line)}
+html:not([data-mode=mobile]) .m-topbar .parseh-mode [data-parseh-mode=browser],
+html[data-mode=mobile] .m-topbar .parseh-mode [data-parseh-mode=mobile]{
+  background:var(--accent);color:var(--accent-fg);cursor:default}
+/* one line on every phone: under 400px "Exercises" goes (the heading says
+   it), under 360px the words beside the home glyph and the way up -- from
+   the eye only, a screen reader still hears them */
+@media (max-width:399px){.m-topbar .m-where{display:none}}
+@media (max-width:359px){
+  .m-topbar{gap:6px;padding-inline:10px}
+  .m-topbar .m-home{min-width:48px;justify-content:center}
+  .m-topbar :is(.m-home,.m-up) .word{position:absolute;width:1px;height:1px;overflow:hidden;
+    clip-path:inset(50%);white-space:nowrap}
+}
+/* The bar goes on the way down and comes back on the way up, as the other
+   mobile pages' bars do (decks.js): a sideways phone has the least height
+   of all. */
+.m-topbar{transition:transform .18s ease}
+html[data-mode=mobile] body.barhidden .m-topbar{transform:translateY(-100%)}
+html[data-mode=mobile] body:is([data-page=study],[data-page=cram]) .m-topbar{display:none}
+
+/* ---------------- the column ---------------- */
+html[data-mode=mobile] :is(.dk-container,.dk-study-page){max-width:var(--m-col);padding:12px 16px 12vh}
+html[data-mode=mobile] .dk-title{font-size:1.45rem;line-height:1.25}
+html[data-mode=mobile] .dk-lede{font-size:.95rem;line-height:1.45}
+
+/* ---------------- the decks ---------------- */
+/* the language chips in one row that scrolls sideways, as the mobile hub's:
+   and for a mouse, which cannot swipe, rows that wrap */
+html[data-mode=mobile] body[data-page=decks] .parseh-langs{flex-wrap:nowrap;overflow-x:auto;
+  overscroll-behavior-x:contain;margin:1rem -16px 0;padding:4px 16px;scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 16px,#000 calc(100% - 16px),transparent);
+  mask-image:linear-gradient(to right,transparent,#000 16px,#000 calc(100% - 16px),transparent)}
+html[data-mode=mobile] body[data-page=decks] .parseh-langs::-webkit-scrollbar{display:none}
+@media (hover:hover) and (pointer:fine){
+  html[data-mode=mobile] body[data-page=decks] .parseh-langs{flex-wrap:wrap;overflow-x:visible;
+    -webkit-mask-image:none;mask-image:none}
+}
+html[data-mode=mobile] body[data-page=decks] .parseh-langs .chip{flex:none;min-height:48px;
+  padding:0 16px;border-radius:24px;font-size:.95rem;display:inline-flex;align-items:center;gap:.45rem}
+html[data-mode=mobile] body[data-page=decks] .parseh-langs .chip .n{opacity:.85}
+/* a deck: one to a line (two, from 600px), what is due in it, and its two
+   doors -- study it, open it -- the whole width, a thumb's height.  No ⋯:
+   exporting and deleting a deck are the browser layout's. */
+html[data-mode=mobile] .dk-cards{grid-template-columns:minmax(0,1fr);gap:10px}
+@media (min-width:600px){html[data-mode=mobile] .dk-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+html[data-mode=mobile] .card.dk-card{padding:14px 16px;border-radius:14px}
+html[data-mode=mobile] .card.dk-card h3{font-size:1.15rem;margin:0 0 .3rem}
+/* its name is a link to it too: as tall as a finger, taking the room the
+   heading's own margin had */
+html[data-mode=mobile] .card.dk-card h3 a{display:flex;align-items:center;min-height:48px;margin:-6px 0}
+html[data-mode=mobile] .card.dk-card .dropdown{display:none!important}
+html[data-mode=mobile] .dk-card-study{font-size:.95rem}
+html[data-mode=mobile] .dk-card-actions{gap:8px}
+html[data-mode=mobile] .dk-card-actions .btn{flex:1 1 0;min-height:48px;justify-content:center;
+  font-size:1rem;padding:0 1rem}
+html[data-mode=mobile] .dk-empty{font-size:.98rem}
+
+/* ---------------- a deck ----------------
+   Its name, its language, what is in it and what is due; Study now, and
+   Cram all; then its exercises, to pick the ones to cram.  Everything that
+   manages the deck -- renaming, adding, exporting, the options, deleting --
+   is not here, nor anything in the list that changes an exercise. */
+html[data-mode=mobile] body[data-page=deck] :is(#btn-rename,#btn-add-exercise,
+  .dk-deckactions .dropdown,#btn-options,#btn-delete-deck){display:none!important}
+html[data-mode=mobile] .dk-counts{font-size:.98rem;line-height:1.6}
+html[data-mode=mobile] .dk-deckactions{flex-direction:column;align-items:stretch;gap:10px;margin-top:1.1rem}
+html[data-mode=mobile] .dk-deckactions .btn{min-height:52px;justify-content:center;font-size:1.05rem}
+html[data-mode=mobile] .dk-deckactions .m-deckwhy{margin:2px 0 0;color:var(--chrome-mut);
+  font-size:.95rem;line-height:1.45;text-align:center}
+@media (min-width:600px){
+  html[data-mode=mobile] .dk-deckactions{flex-direction:row;flex-wrap:wrap}
+  html[data-mode=mobile] .dk-deckactions .btn{flex:1 1 0}
+  html[data-mode=mobile] .dk-deckactions .m-deckwhy{flex:1 1 100%}
+}
+
+/* THE LIST, FOR PICKING WHAT TO CRAM.  The filters (the text, the type, the
+   state, the tag), the four ways to pick -- all, the ones shown, by tag,
+   none -- and the count; each exercise with a box a finger can hit, and a
+   tap on the rest of it shows the exercise solved, as a click does in the
+   browser layout.  Not here: the bulk bar's copy, move, tags, "set to new"
+   and delete, each exercise's edit, duplicate, copy, move and delete, the
+   hint about shift-clicks; and the bar's own Cram, which the floating one
+   below stands for.  A deck with nothing in it draws no list at all. */
+html[data-mode=mobile] body[data-page=deck] :is(#btn-bulk-copy,#btn-bulk-move,#btn-bulk-add-tag,
+  #btn-bulk-remove-tag,#btn-bulk-new,#btn-bulk-delete,#btn-cram,.dk-selection-hint,
+  .dk-row-actions){display:none!important}
+html[data-mode=mobile] .dk-browse.dk-none{display:none}
+html[data-mode=mobile] .m-pickhead{margin:1.8rem 0 .25rem;font-size:1.15rem;line-height:1.3}
+html[data-mode=mobile] .m-pickwhy{margin:0;color:var(--chrome-mut);font-size:.95rem;line-height:1.45}
+html[data-mode=mobile] .dk-browsebar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;margin-top:.9rem}
+/* 16px: a phone zooms the page into a field whose text is smaller */
+html[data-mode=mobile] .dk-browsebar #browse-filter{grid-column:1 / -1;width:100%;min-height:48px;
+  box-sizing:border-box;font-size:16px}
+html[data-mode=mobile] .dk-browsebar select{width:100%;min-width:0;min-height:48px;font-size:15px}
+html[data-mode=mobile] .dk-browse-count{grid-column:1 / -1;margin:0;font-size:.9rem}
+html[data-mode=mobile] .dk-bulkbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;margin-top:10px}
+html[data-mode=mobile] .dk-bulkbar .btn{min-height:48px;justify-content:center;font-size:.98rem;margin:0}
+html[data-mode=mobile] #browse-selected{grid-column:1 / -1;margin:0;font-size:.95rem}
+@media (min-width:600px){
+  html[data-mode=mobile] .dk-browsebar{grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr))}
+  html[data-mode=mobile] .dk-browsebar #browse-filter{grid-column:auto}
+  html[data-mode=mobile] .dk-bulkbar{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+html[data-mode=mobile] .dk-row{grid-template-columns:auto minmax(0,1fr);gap:.15rem .5rem;
+  padding:.5rem .75rem .6rem .3rem;border-radius:12px;-webkit-tap-highlight-color:transparent}
+html[data-mode=mobile] .dk-excerpt{font-size:1rem}
+html[data-mode=mobile] .dk-row-meta{font-size:.82rem;gap:.2rem .6rem}
+html[data-mode=mobile] .dk-row-meta a{display:inline-block;padding:4px 0}
+/* The box: a phone draws a checkbox a pointer's size, so it is drawn here,
+   24px inside a 48px target, filled and ticked in the accent when picked. */
+html[data-mode=mobile] .dk-row .dk-select{appearance:none;-webkit-appearance:none;width:48px;height:48px;
+  margin:-4px 0 0;display:grid;place-items:center;border-radius:10px;background:none;cursor:pointer}
+html[data-mode=mobile] .dk-row .dk-select::before,
+html[data-mode=mobile] .dk-row .dk-select::after{content:"";grid-area:1 / 1}
+html[data-mode=mobile] .dk-row .dk-select::before{width:24px;height:24px;box-sizing:border-box;
+  border:2px solid var(--chrome-mut);border-radius:6px;background:var(--chrome-panel)}
+html[data-mode=mobile] .dk-row .dk-select:checked::before{background:var(--accent);border-color:var(--accent)}
+html[data-mode=mobile] .dk-row .dk-select::after{width:13px;height:13px;background:var(--accent-fg);
+  clip-path:polygon(14% 44%,0 65%,50% 100%,100% 16%,80% 0%,43% 62%);transform:scale(0);
+  transition:transform .1s}
+html[data-mode=mobile] .dk-row .dk-select:checked::after{transform:scale(1)}
+html[data-mode=mobile] .dk-row .dk-select:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* the one dialog the mobile layout opens -- Select by tag, a list of the
+   deck's tags -- with a finger's controls: the list 16px (a phone zooms into
+   a smaller one), and its two buttons side by side, the whole width */
+html[data-mode=mobile] .modal.dk-modal .modal-field select{min-height:48px;font-size:16px}
+html[data-mode=mobile] .modal.dk-modal .row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+html[data-mode=mobile] .modal.dk-modal .row .btn{min-height:48px;justify-content:center;font-size:1rem}
+/* Cram, over the list while anything is picked: the list can be long, and
+   what is picked is crammed from wherever the thumb is (decks.js) */
+html[data-mode=mobile] .btn.m-cramgo{position:fixed;z-index:30;bottom:calc(12px + env(safe-area-inset-bottom));
+  left:max(16px,calc((100% - var(--m-col)) / 2 + 16px));
+  right:max(16px,calc((100% - var(--m-col)) / 2 + 16px));
+  min-height:56px;justify-content:center;font-size:1.05rem;border-radius:14px;
+  box-shadow:0 6px 20px rgba(0,0,0,.28)}
+
+/* ---------------- studying, and cramming ----------------
+   The exercise has the screen: no bar over it, the deck's name and what
+   is left in one line, with ‹ back to the deck at its start.  What to do
+   next is ONE box -- study.html's .dk-answerbar, cram.html's #cram-actions
+   -- and the button that answers is always in the same place in it: Check
+   or Show answer, and then Next where it was, so the exercises go by at a
+   tap in one spot.  Held upright, the box is a bar at the foot of the
+   screen: Skip and the answer, and with the answer back the four ratings
+   over them.  Held sideways (from 600px), it is a column down the right
+   edge -- where a thumb holding the phone rests -- and the exercise has the
+   whole height beside it.  No Edit (correcting an exercise is the browser
+   layout's), and no key hints: a phone has no keys to press. */
+html[data-mode=mobile] body[data-page=study] :is(#btn-edit-card,.dk-keys,.dk-grow){display:none!important}
+html[data-mode=mobile] body[data-page=cram] .dk-grow{display:none!important}
+html[data-mode=mobile] .dk-studyhead{justify-content:flex-start;align-items:center;gap:4px 10px;
+  margin:0 0 .6rem;flex-wrap:nowrap}
+html[data-mode=mobile] .dk-studyhead .m-back{display:inline-flex;align-items:center;justify-content:center;
+  flex:none;min-width:48px;min-height:48px;margin-inline-start:-10px;border-radius:10px;
+  font-size:30px;line-height:1;color:var(--chrome-fg);text-decoration:none;
+  -webkit-tap-highlight-color:transparent}
+html[data-mode=mobile] .dk-studyhead .m-back:active{background:var(--chrome-panel)}
+html[data-mode=mobile] .dk-studyhead .m-back:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+html[data-mode=mobile] .dk-studyhead .dk-title{flex:1 1 auto;min-width:0;margin:0;font-size:1.1rem;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html[data-mode=mobile] .dk-studyhead .dk-study-counts{flex:none;margin-inline-start:auto;font-size:.92rem}
+html[data-mode=mobile] .dk-result{font-size:1.1rem;scroll-margin:12px 0 170px}
+html[data-mode=mobile] .dk-done{padding:2rem 1rem}
+html[data-mode=mobile] .dk-done-actions{flex-direction:column;align-items:stretch}
+html[data-mode=mobile] .dk-done-actions .btn{min-height:52px;justify-content:center;font-size:1.02rem}
+html[data-mode=mobile] body[data-page=cram] .dk-cram-note{font-size:.92rem;color:var(--chrome-mut)}
+
+/* The box, as a bar at the foot of the screen: fixed there, not stuck, so
+   that it stands on the screen's edge however short the exercise, and grows
+   upwards -- the ratings coming in over Skip and the answer, which keep
+   their place.  The page leaves room under the exercise for it. */
+html[data-mode=mobile] :is(body[data-page=study],body[data-page=cram]) .dk-study-page{padding-bottom:190px}
+html[data-mode=mobile] :is(.dk-answerbar,#cram-actions){position:fixed;left:0;right:0;bottom:0;z-index:6;
+  display:grid;gap:8px;margin:0;
+  padding:10px max(16px,calc((100% - var(--m-col)) / 2 + 16px)) calc(10px + env(safe-area-inset-bottom));
+  background:var(--chrome-bg);border-top:1px solid var(--chrome-line)}
+html[data-mode=mobile] :is(.dk-answerbar,#cram-actions){grid-template-columns:repeat(4,minmax(0,1fr))}
+html[data-mode=mobile] .dk-answerbar:has(> #study-actions[hidden]){display:none}
+/* its two lines are no boxes of their own here: every button in them is
+   the box's, placed below */
+html[data-mode=mobile] .dk-answerbar > :is(#study-actions,#rating-bar){display:contents}
+html[data-mode=mobile] :is(.dk-answerbar,#cram-actions) .btn{min-height:52px;margin:0;
+  justify-content:center;font-size:1.02rem;-webkit-tap-highlight-color:transparent}
+/* before the answer: Skip, and Check or Show answer the rest of the line
+   (the ratings' rule apart: in one :is() with the ids it would weigh as
+   much as an id, and the sideways column's could not place them) */
+html[data-mode=mobile] .dk-answerbar :is(#btn-skip,#btn-check,#btn-show,#btn-next){grid-row:1}
+html[data-mode=mobile] .dk-answerbar .dk-rate{grid-row:1}
+html[data-mode=mobile] .dk-answerbar #btn-skip{grid-column:1;padding:0 .6rem}
+html[data-mode=mobile] .dk-answerbar :is(#btn-check,#btn-show,#btn-next){grid-column:2 / -1;min-height:56px}
+/* the answer back: the four ratings, and under them Skip and Next */
+html[data-mode=mobile] .dk-answerbar:has(> #rating-bar:not([hidden])) :is(#btn-skip,#btn-next){grid-row:2}
+html[data-mode=mobile] .btn.dk-rate{min-height:60px;padding:.35rem .15rem .4rem;font-size:1rem}
+html[data-mode=mobile] .dk-rate .dk-key{display:none}
+html[data-mode=mobile] .dk-rate .dk-ivl{font-size:.82rem}
+/* Next says what it does: the rating it gives and when the exercise comes
+   back -- in the danger colour when that is Again */
+html[data-mode=mobile] .btn.dk-next{flex-direction:column;gap:.05rem;line-height:1.2}
+html[data-mode=mobile] .btn.dk-next .dk-word{font-weight:600}
+html[data-mode=mobile] .btn.dk-next .dk-ivl{font-size:.8rem;font-variant-numeric:tabular-nums;opacity:.92}
+html[data-mode=mobile] .btn.dk-next.dk-wrong{background:var(--danger);border-color:var(--danger);color:#fff}
+/* cramming, as studying: Skip, and Check or Show answer the rest of the
+   line; then Next exercise the whole line (Skip has gone: it was answered),
+   or Wrong and Correct beside Skip -- and the turned card's Show answer,
+   greyed, is not kept on a phone */
+html[data-mode=mobile] #cram-actions :is(#cram-skip,#cram-check,#cram-show,#cram-wrong,#cram-correct,
+  #cram-next){grid-row:1}
+html[data-mode=mobile] #cram-actions #cram-skip{grid-column:1;padding:0 .6rem}
+html[data-mode=mobile] #cram-actions :is(#cram-check,#cram-show){grid-column:2 / -1;min-height:56px}
+html[data-mode=mobile] #cram-actions #cram-wrong{grid-column:2}
+html[data-mode=mobile] #cram-actions #cram-correct{grid-column:3 / -1}
+html[data-mode=mobile] #cram-actions #cram-next{grid-column:1 / -1;min-height:56px}
+html[data-mode=mobile] #cram-actions #cram-show:disabled{display:none}
+/* the end of a cram: its lists a finger's size, and what they cram the
+   whole width */
+html[data-mode=mobile] .dk-cram-list{margin-top:1.6rem}
+html[data-mode=mobile] .dk-cram-item{min-height:48px;justify-content:center;padding:.6rem .85rem;
+  border-radius:12px;-webkit-tap-highlight-color:transparent}
+html[data-mode=mobile] .dk-cram-item .dk-excerpt{font-size:1rem}
+html[data-mode=mobile] .dk-cram-meta{font-size:.84rem}
+html[data-mode=mobile] .dk-cram-list > .btn{width:100%;min-height:52px;justify-content:center;font-size:1.02rem}
+
+/* the box, as a column down the right of a phone held sideways */
+@media (orientation:landscape) and (min-width:600px){
+  html[data-mode=mobile]{--rail:196px}
+  html[data-mode=mobile] :is(body[data-page=study] .dk-study-page:has(#study-actions:not([hidden])),
+    body[data-page=cram] .dk-study-page:has(#cram-actions:not([hidden]))){
+    max-width:none;margin:0;padding-inline:16px calc(var(--rail) + 16px)}
+  html[data-mode=mobile] :is(.dk-answerbar,#cram-actions){top:0;bottom:0;right:0;left:auto;
+    width:var(--rail);box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;
+    padding:12px 12px calc(12px + env(safe-area-inset-bottom));grid-template-columns:repeat(2,minmax(0,1fr));
+    align-content:end;background:var(--chrome-panel);border-top:0;
+    border-inline-start:1px solid var(--chrome-line)}
+  html[data-mode=mobile] :is(body[data-page=study],body[data-page=cram]) .dk-study-page{padding-bottom:12vh}
+  /* studying: Skip at the top, out of the way; the ratings two by two; and
+     the answer -- Check, Show answer, Next -- at the foot, where the thumb is */
+  html[data-mode=mobile] .dk-answerbar{grid-template-rows:auto minmax(0,1fr) auto auto auto}
+  html[data-mode=mobile] .dk-answerbar #btn-skip,
+  html[data-mode=mobile] .dk-answerbar:has(> #rating-bar:not([hidden])) #btn-skip{grid-row:1;grid-column:1 / -1}
+  html[data-mode=mobile] .dk-answerbar :is([data-rating=again],[data-rating=hard]){grid-row:3}
+  html[data-mode=mobile] .dk-answerbar :is([data-rating=good],[data-rating=easy]){grid-row:4}
+  html[data-mode=mobile] .dk-answerbar :is(#btn-check,#btn-show,#btn-next),
+  html[data-mode=mobile] .dk-answerbar:has(> #rating-bar:not([hidden])) #btn-next{grid-row:5;grid-column:1 / -1;
+    min-height:64px}
+  html[data-mode=mobile] .btn.dk-rate{min-height:56px}
+  /* cramming: Skip at the top, the answer at the foot -- Wrong and Correct
+     side by side there */
+  html[data-mode=mobile] #cram-actions{grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-rows:auto minmax(0,1fr) auto}
+  html[data-mode=mobile] #cram-actions #cram-skip{grid-row:1;grid-column:1 / -1}
+  html[data-mode=mobile] #cram-actions :is(#cram-check,#cram-show,#cram-next){grid-row:3;grid-column:1 / -1;
+    min-height:64px}
+  html[data-mode=mobile] #cram-actions #cram-wrong{grid-row:3;grid-column:1}
+  html[data-mode=mobile] #cram-actions #cram-correct{grid-row:3;grid-column:2}
+  html[data-mode=mobile] #cram-actions .btn.big{min-height:64px}
+}
+
+/* the controls INSIDE an exercise, sized for a pointer on a desktop -- an
+   answer to pick, a block to place and the two arrows that move it, a blank
+   and a match's drop -- at a finger's size (the drag stays a mouse's: on a
+   touch screen the arrows and a tap to place are the way, app.js) */
+html[data-mode=mobile] .dk-sheet :is(.ex-option,.ex-item){min-height:48px;min-width:48px}
+html[data-mode=mobile] .dk-sheet .ex-option{display:inline-flex;align-items:center;justify-content:center}
+html[data-mode=mobile] .dk-sheet :is(.ex-blank,.ex-match-drop){min-height:48px}
+/* a blank's cloud of words (app.js): brought into view clear of the bar the
+   answer's buttons make at the foot of an upright screen */
+html[data-mode=mobile] .dk-sheet .ex-cloud{scroll-margin:16px 0 200px}
+@media (orientation:landscape) and (min-width:600px){
+  html[data-mode=mobile] .dk-sheet .ex-cloud{scroll-margin-bottom:16px}
+}
+html[data-mode=mobile] .dk-sheet .ex-move{min-width:48px;min-height:48px;font-size:1.05rem}

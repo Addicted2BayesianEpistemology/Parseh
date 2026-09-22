@@ -283,7 +283,9 @@ New, learning, review
 Browser | Mobile
 : The switch in the hub's top bar. **Browser** is every page as it has
   always been; **Mobile** is a streamlined set of pages for reading on a
-  phone, with no editing on them. So far the hub is the one mobile page.
+  phone, with no editing on them: so far the hub, the books (a shelf, and
+  every reader) and the exercise decks. It installs on a phone as an app
+  (**As an app**, on the mobile hub).
 
 Door
 : One of the ways in on the hub: Books, Videos, Studio, Exercises, and

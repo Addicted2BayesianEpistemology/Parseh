@@ -22,7 +22,7 @@ The cram page opens with a reminder of the rules: *Selected exercises appear
 in random order. Wrong answers return at the end of this practice session.
 Deck scheduling does not change.*
 
-![Cram mode: a flashcard turned over, with Wrong and Correct](shots/cram.png)
+![Cram mode: a flashcard turned over, with Wrong and Correct, and Skip at the right](shots/cram.png)
 
 ## Practising
 
@@ -37,20 +37,40 @@ random order, one at a time and unsolved, as on the study page:
   say how it went with **Wrong** or **Correct**, which moves on at once. The
   card plays its front's recording when it is shown and its back's when it
   is turned, as on the study page, and **⤢ Enlarge** works here too.
-- **An exercise that needs attention** has only **Next exercise**.
+- **An exercise that needs attention** has only **Next exercise**, and the
+  end counts it among the skipped.
+
+**Skip** leaves an exercise unanswered and moves on. It does not come back
+in this practice — nor does the turn a wrong answer earlier put back for it
+— and the end names it among the skipped. It is there until the exercise is
+answered: once **Check** has said Correct or Not quite, only **Next
+exercise** goes on; a flashcard turned but not yet marked can still be
+skipped.
 
 **A wrong answer comes back.** A scored exercise you got wrong, and a card
 you called **Wrong**, goes to the end of the queue, and `3 of 12` becomes
 `3 of 13`. It keeps coming back, each time at the end, until you get it
-right — which is the whole point of cramming.
+right — or skip it — which is the whole point of cramming.
 
 There is no rating here, and nothing is saved: not the answers, not the
 results. Cram as often as you like.
 
 ## The end
 
-*Practice complete*, and how many exercises you went through, the ones that
-came back included (`15 exercises reviewed` for twelve with three misses).
+*Practice complete*, and how it went: *12 exercises: 8 right the first
+time, 3 wrong at least once, 1 skipped.* Under it, what to look at again,
+each list only when it has something in it:
+
+- **Wrong at least once**: every exercise you got wrong, in the order they
+  came up, each saying how many times, and whether you then got it right or
+  skipped it.
+- **Skipped**: every exercise you skipped.
+
+Click one to see it solved, under it; click again to put it away. **Cram
+these again** under the first list, and **Cram these** under the second,
+start a practice of just those.
+
+![The end of a cram: how it went, the exercises wrong at least once — one opened, solved — and the skipped ones](shots/cram-end.png){width=75 align=center}
 
 - **Shuffle and repeat** starts again with the same exercises, in a new
   random order.

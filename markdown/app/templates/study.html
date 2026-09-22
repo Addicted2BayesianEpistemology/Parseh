@@ -3,13 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{MODE_SCRIPT}}
+<!-- the mobile interface installed as an app (docs/mobile.md): the manifest, the bars' colour -->
+{{APP_HEAD}}
 <title>{{TITLE}} — Parseh exercises</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D8%AA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="{{STUDIO}}/static/app.css">
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+<!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
+<link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
 </head>
 <body data-page="study" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
-<header class="topbar">
+<header class="topbar" data-layout="browser">
   <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
   <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
   <div class="topbar-actions">
@@ -17,8 +22,17 @@
     <button type="button" class="btn danger ghost" id="btn-stop">Stop server</button>
   </div>
 </header>
+<header class="m-topbar" data-layout="mobile">
+  <a class="m-home" href="/" title="Parseh — the hub"><span class="glyph">پ</span><span class="word">Parseh</span></a>
+  <a class="m-up dk-back" href="./" title="the deck"><span aria-hidden="true">‹</span><span class="word"> Deck</span></a>
+  <span class="m-sp"></span>
+  {{MODE_SWITCH}}
+  <button type="button" class="m-theme" data-parseh-theme title="theme">◐</button>
+</header>
 <main class="container dk-study-page">
   <div class="dk-studyhead">
+    <!-- the mobile layout has no bar over the exercise: the way back is here -->
+    <a class="m-back dk-back" href="./" data-layout="mobile" title="the deck" aria-label="back to the deck">‹</a>
     <h1 class="dk-title" id="study-name">{{TITLE}}</h1>
     <div id="study-counts" class="dk-study-counts" aria-live="polite"></div>
   </div>
@@ -32,6 +46,11 @@
     <div class="sheet dk-sheet" data-lang="{{TARGET}}"></div>
   </section>
 
+  <!-- what to do with the exercise: one box, so that the mobile layout can
+       lay all of it out as one bar at the foot of the screen, or as a
+       column at the right of a screen held sideways (static/mobile.css);
+       in the browser layout the box is nothing but the two lines in it -->
+  <div class="dk-answerbar">
   <div id="study-actions" class="dk-study-actions">
     <button type="button" class="btn primary big" id="btn-check" hidden>Check</button>
     <button type="button" class="btn primary big" id="btn-show" hidden>Show answer</button>
@@ -50,6 +69,13 @@
       <span class="dk-key">3</span><span class="dk-word">Good</span><span class="dk-ivl"></span></button>
     <button type="button" class="btn dk-rate" data-rating="easy" aria-label="Easy (key 4)">
       <span class="dk-key">4</span><span class="dk-word">Easy</span><span class="dk-ivl"></span></button>
+  </div>
+  <!-- the mobile layout's Next, where Check or Show answer was: the answer
+       back, it rates the exercise as the check says -- Good when it was
+       right or when a card was turned, Again when it was wrong -- and the
+       four ratings beside it are there for any other (decks.js) -->
+  <button type="button" class="btn primary big dk-next" id="btn-next" data-layout="mobile" hidden>
+    <span class="dk-word">Next</span><span class="dk-ivl"></span></button>
   </div>
 
   <div id="study-done" class="dk-done" hidden>

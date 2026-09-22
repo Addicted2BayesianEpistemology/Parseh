@@ -613,6 +613,48 @@ class SelectionTests(Base):
         self.assertFalse(src_schedule.exists())
         self.assertEqual([pictured["id"]], [it["id"] for it in decks.list_items(*source)])
 
+    def test_a_copy_or_a_move_never_overwrites_the_other_decks_files(self):
+        """The same names, other pictures and recordings: what comes in takes
+        a name of its own, every reference follows it -- a field, a link in a
+        jolly field -- and what the deck had is left as it was.  The same
+        bytes again are found under the name they took, not written twice."""
+        mp3, other = sound(self), sound(self, freq=660)
+        _, source = self.deck("Source")
+        _, target = self.deck("Target")
+        _, third = self.deck("Third")
+        decks.add_image(*source, "cat.png", PNG)
+        decks.add_audio(*source, "hello.mp3", mp3)
+        decks.add_image(*target, "cat.png", PNG2)
+        decks.add_audio(*target, "hello.mp3", other)
+        decks.add_image(*third, "cat.png", PNG2)
+        ex = decks.add_item(*source, ":::exercise flashcard\ncard-type: vocab\ntarget: [cat]{tl}\n"
+                            "meaning: animal\nfront-image: images/cat.png\nfront-audio: audio/hello.mp3\n"
+                            "back-secondary: as in [audio/hello.mp3](audio/hello.mp3)\n:::")
+        copied = decks.transfer_items(*source, [ex["id"]], *target)
+        self.assertEqual([], copied["warnings"])
+        md = decks.get_item(*target, copied["ids"][0])["markdown"]
+        self.assertIn("\nfront-image: images/cat-2.png\n", md)
+        self.assertIn("\nfront-audio: audio/hello-2.mp3\n", md)
+        self.assertIn("as in [audio/hello-2.mp3](audio/hello-2.mp3)\n", md)
+        self.assertEqual({"cat.png": PNG2, "cat-2.png": PNG}, self.deck_files(target, "images"))
+        self.assertEqual({"hello.mp3": other, "hello-2.mp3": mp3}, self.deck_files(target, "audio"))
+        # again: found under the names they took, nothing written twice
+        again = decks.transfer_items(*source, [ex["id"]], *target)
+        self.assertEqual(md, decks.get_item(*target, again["ids"][0])["markdown"])
+        self.assertEqual(["cat-2.png", "cat.png"], sorted(self.deck_files(target, "images")))
+        self.assertEqual(["hello-2.mp3", "hello.mp3"], sorted(self.deck_files(target, "audio")))
+        # a move: renamed where the name is taken, kept where it is free
+        moved = decks.transfer_items(*source, [ex["id"]], *third, move=True)
+        md = decks.get_item(*third, moved["ids"][0])["markdown"]
+        self.assertIn("\nfront-image: images/cat-2.png\n", md)
+        self.assertIn("\nfront-audio: audio/hello.mp3\n", md)
+        self.assertEqual({"cat.png": PNG2, "cat-2.png": PNG}, self.deck_files(third, "images"))
+        self.assertEqual({"hello.mp3": mp3}, self.deck_files(third, "audio"))
+        # and the source keeps its own files, the exercise gone from it
+        self.assertEqual({"cat.png": PNG}, self.deck_files(source, "images"))
+        self.assertEqual({"hello.mp3": mp3}, self.deck_files(source, "audio"))
+        self.assertEqual([], decks.list_items(*source))
+
     def test_cram_reads_all_selected_exercises_without_scheduling(self):
         _, fs = self.deck()
         flash = decks.add_item(*fs, FLASH)

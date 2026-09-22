@@ -1,12 +1,16 @@
 /* Parseh — the mobile interface's sheet.
    Served at /lib/mobile.css, after parseh.css, by the pages that have a
-   mobile layout; today that is the hub alone.  docs/mobile.md says what
-   the mobile mode is: pages made to be READ on a phone, with nothing on
-   them that edits.  It is not the phone adjustments parseh.css and the
-   readers already make under 560px -- those follow the width of the screen
-   in either mode, and nothing here restates or undoes them (the mobile
-   bar below is a .parseh-bar, so on a phone it hides on the way down and
-   comes back on the way up exactly as every other bar does).
+   mobile layout: the hub, the mobile book shelf (/m/books/, lib/mobile.py)
+   and every book's reader, into which lib/parseh.js loads it (its rules
+   here all hang off html.m-reader).  The exercise decks are the studio's
+   pages, and have a sheet of their own beside the studio's
+   (markdown/app/static/mobile.css).  docs/mobile.md says what the mobile
+   mode is: pages made to be READ on a phone, with nothing on them that
+   edits.  It is not the phone adjustments parseh.css and the readers
+   already make under 560px -- those follow the width of the screen in
+   either mode, and nothing here restates or undoes them (the mobile bar
+   below is a .parseh-bar, so on a phone it hides on the way down and comes
+   back on the way up exactly as every other bar does).
 
    Every colour is one of parseh.css's tokens, so the three palettes --
    light, dark and the sepia paper -- carry over with nothing written here
@@ -31,6 +35,13 @@ html[data-mode=mobile] main.hub{max-width:var(--m-col);margin:0 auto;
   padding:12px 16px 12vh}
 .parseh-bar.m-bar{gap:8px;padding-block:6px;
   padding-inline:max(16px,calc((100% - var(--m-col)) / 2 + 16px))}
+/* The bar goes on the way down and comes back on the way up at every width
+   in the mobile mode, not only under 560px as parseh.css has it for the
+   browser pages: a phone held sideways is 740px wide and 360px high, and a
+   bar that stayed would be a sixth of it (parseh.js, bars(), follows the
+   scroll in the mobile mode whatever the width). */
+html[data-mode=mobile] .parseh-bar.m-bar{position:sticky;top:0;z-index:50;transition:transform .18s ease}
+html[data-mode=mobile] body.barhidden .parseh-bar.m-bar{transform:translateY(-100%)}
 /* Large targets: a finger, not a pointer, is what reaches for these, so
    everything that can be tapped is at least 48px high. */
 .m-bar .home{min-height:48px;font-size:16px}
@@ -109,3 +120,288 @@ a.m-door:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .m-door .m-dfa{font-family:var(--tl-alt,'Noto Nastaliq Urdu',Vazirmatn,serif);font-size:26px;
   line-height:1.9;direction:var(--tl-dir,rtl);color:var(--accent)}
 a.m-door.m-guide{min-height:72px;margin-top:22px;background:none;border-style:dashed}
+/* the guide, and installing the mobile interface as an app: under the
+   doors, side by side from 600px; the app's door not drawn in the app */
+.m-more-doors{display:grid;gap:10px;margin-top:22px}
+.m-more-doors a.m-door.m-guide{margin-top:0}
+.m-door .m-dicon{width:44px;height:44px;display:block}
+@media (display-mode:standalone),(display-mode:fullscreen),(display-mode:minimal-ui){
+  .m-appdoor{display:none!important}
+}
+
+/* ---------------- a page of the mobile interface's own ----------------
+   The book shelf, /m/books/ (lib/mobile.py): the book library as a phone
+   reads it.  The same column as the hub's, the bar the hub's mobile bar
+   with where it is said in it; on a desktop, the same column in the middle
+   of the window. */
+.m-main{max-width:var(--m-col);margin:0 auto;padding:12px 16px 12vh}
+.m-bar .m-where{color:var(--dim);font-size:15px}
+/* the bar holds the way home, where this is, the switch and the theme on one
+   line down to 400px; under that "where" goes -- the heading under the bar
+   says it again */
+@media (max-width:399px){.m-bar .m-where{display:none}}
+.m-h1{font-size:24px;font-weight:600;line-height:1.3;margin:6px 0 2px}
+/* A page that is only a mobile version, opened in the browser mode (a link
+   kept from the phone, say): it says so, and where its browser page is.
+   Switching there goes to that page by itself (parseh.js). */
+.m-elsewhere{font-size:14px;color:var(--dim);background:var(--card);border:1px solid var(--rule);
+  border-inline-start:3px solid var(--accent);border-radius:8px;padding:10px 12px;margin:8px 0 14px}
+.m-elsewhere a{color:var(--accent)}
+html[data-mode=mobile] .m-elsewhere{display:none}
+/* the heading over one language's books, as the library's but the size a
+   phone reads at arm's length; --dim, not --faint, for the same reason the
+   chips' counts are (4.5:1 in the three palettes) */
+.m-lhead{display:flex;align-items:baseline;gap:10px;margin:22px 0 10px;
+  font-size:12.5px;font-weight:600;line-height:1.3;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim)}
+.m-lhead .native{font-family:var(--tl-font,inherit);text-transform:none;letter-spacing:0;
+  font-size:17px;font-weight:400}
+.m-lhead .n{letter-spacing:0;font-weight:400;font-variant-numeric:tabular-nums}
+/* A book: the whole card is the link to its reader, and at least 96px high
+   -- the same door as the hub's.  Its title in the display face and its
+   author in the reading face, each in the language's own direction (the
+   elements carry lang and dir); the Latin line, the blurb in three lines at
+   most, and the tags. */
+.m-book{display:block;position:relative;overflow:hidden;min-height:96px;
+  padding:14px 16px 14px;margin-bottom:10px;background:var(--card);border:1px solid var(--rule);
+  border-radius:14px;text-decoration:none;color:inherit;
+  -webkit-tap-highlight-color:transparent;transition:border-color .12s,transform .12s}
+a.m-book:hover{border-color:var(--accentlt)}
+a.m-book:active{border-color:var(--accent);transform:scale(.985)}
+a.m-book:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.m-book .m-btitle{font-family:var(--tl-alt,var(--tl-font,serif));font-size:25px;
+  line-height:max(1.45,calc(var(--tl-alt-lh,2.6) * .81));color:var(--ink)}
+.m-book .m-bby{font-family:var(--tl-font,serif);font-size:15.5px;color:var(--dim);margin-top:2px}
+.m-book .m-blat{font-size:15px;line-height:1.4;margin-top:6px;color:var(--ink)}
+.m-book .m-blat i{color:var(--dim)}
+.m-book .m-bblurb{font-size:14px;line-height:1.45;color:var(--dim);margin-top:6px;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden}
+.m-book .m-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.m-book .m-tags .tag{font-size:12.5px;padding:2px 10px}
+.m-book .m-tags .tag.no{color:var(--dim)}
+/* how far this phone has read (the reader's own reading place): a line
+   along the card's foot, as long as the part read */
+.m-book.m-read::after{content:"";position:absolute;inset-inline-start:0;bottom:0;height:3px;
+  width:var(--m-read,0);background:var(--accent)}
+/* a book never built: nothing to open, and a phone does not build one */
+.m-book.m-off{border-style:dashed;background:none}
+.m-book.m-off .m-btitle,.m-book.m-off .m-blat{color:var(--dim)}
+.m-book .m-bnote{font-size:13.5px;line-height:1.45;color:var(--dim);margin-top:8px}
+.m-empty{color:var(--dim);font-size:15px;line-height:1.5;border:1px dashed var(--rule);
+  border-radius:14px;padding:18px 16px;margin-top:10px}
+.m-empty p{margin:0 0 8px}
+.m-empty p:last-child{margin:0}
+
+/* ---------------- the mobile interface as an app ----------------
+   /m/install/ (lib/mobile.py): where this phone stands, said live at the
+   top; then the two steps, trusting the certificate and installing. */
+.m-appnow{margin:12px 0 4px;padding:12px 14px;border-radius:12px;font-size:15px;line-height:1.45;
+  background:var(--card);border:1px solid var(--rule);border-inline-start-width:4px}
+.m-appnow.ok{border-inline-start-color:var(--ok,#2e7d4f)}
+.m-appnow.no{border-inline-start-color:var(--danger,#9b3327)}
+.m-appnow.wait{border-inline-start-color:var(--rule)}
+.m-step{margin-top:22px}
+.m-step h2{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:18px;line-height:1.3}
+.m-step .m-n{display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;height:30px;
+  border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:15px}
+.m-step p{margin:0 0 10px;font-size:15px;line-height:1.5}
+.m-step .m-how{color:var(--ink)}
+.m-step .m-small{color:var(--dim);font-size:14px}
+.m-btn{display:flex;align-items:center;justify-content:center;min-height:52px;width:100%;box-sizing:border-box;
+  margin:4px 0 14px;padding:0 16px;border:0;border-radius:12px;background:var(--accent);
+  color:var(--accent-fg);font:inherit;font-size:16px;font-weight:600;text-decoration:none;cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+.m-btn:active{filter:brightness(.92)}
+.m-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.m-btn[hidden]{display:none}
+
+/* ---------------- a phone held sideways ----------------
+   The way a phone is held most, to read: 640 to 930px wide and 320 to 430px
+   high.  From 600px the column widens and the hub's doors and the shelf's
+   books go two to a row -- a language's heading still the whole width --
+   so that what the screen lacks in height it makes up in width; and where
+   the height is that of a phone on its side, the lines that only say what
+   the page is go, the heading and the bar saying it already.  A tablet and
+   a desktop in the mobile mode get the wider column too. */
+@media (min-width:600px){
+  :root{--m-col:880px}
+  .m-doors,.m-more-doors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .m-shelf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:10px}
+  .m-shelf .m-lhead{grid-column:1 / -1}
+}
+@media (orientation:landscape) and (max-height:500px){
+  .m-tagline{display:none}
+  .m-brand{margin-bottom:4px}
+  .m-brand .fa{font-size:26px;padding-bottom:8px}
+  .m-h1{margin-bottom:8px}
+  .m-lhead{margin-top:14px}
+}
+
+/* ---------------- a book's reader ----------------
+   Every reader is a page built for its book (lib/tex2html.py), and its
+   header is the browser's: three rows of everything -- the listening, the
+   passes, the book's own tools, the narration, the build.  lib/parseh.js
+   puts html.m-reader on it and this sheet in it, and in the mobile mode the
+   same header is laid out again for a thumb, out of reading alone.
+   NOTHING IS MOVED AND NOTHING IS COPIED: the rows stop being boxes of
+   their own (display:contents), so every control in them is an item of the
+   header, placed by `order`.  The controls that read are named below, and
+   every other one -- whatever writes, builds or administers, and whatever a
+   later reader adds that nobody has named here yet -- is not on a phone at
+   all.  The first line is the way out and the three things a reader reaches
+   for: play, the contents, the text size; ⋯, which lib/mobilereader.js
+   adds, opens the rest under it, a group to a line.  A
+   control the reader itself keeps hidden (no narration, no dictionary, the
+   gap while loop is off) stays hidden: nothing here ever says a control's
+   display, it only takes some away. */
+html.m-reader[data-mode=mobile] header{flex-direction:row;flex-wrap:wrap;align-items:center;
+  gap:6px;padding:6px 10px}
+html.m-reader[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
+html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#play,#toc,#typo,#theme,.pgrp,
+  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#listen,#listenfollow,
+  #listenscroll,#speed,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#bars,#draftmark,
+  #audio,[data-layout=mobile]){display:none!important}
+/* what stays is for a finger: 48px at the least, the text a size to read;
+   and no grey-blue flash over what was tapped, which a phone paints over
+   a control that has states of its own to show (⋯ open, a pass on) */
+html.m-reader[data-mode=mobile] header :is(button,select,a.home){min-height:48px;
+  font-size:15px;padding:6px 12px;border-radius:10px;-webkit-tap-highlight-color:transparent}
+html.m-reader[data-mode=mobile] header button{min-width:48px}
+/* ▶ carries its desktop width in its own style attribute, which outranks
+   every rule without !important */
+html.m-reader[data-mode=mobile] header #play{min-width:48px!important}
+html.m-reader[data-mode=mobile] header a.home{display:inline-flex;align-items:center;
+  justify-content:center;min-width:48px}
+/* the nastaliq پ hangs below its baseline: its room is under it */
+html.m-reader[data-mode=mobile] header a.home.glyph{font-size:19px;padding:0 12px 8px}
+/* the switch, drawn as its own two halves (parseh.css) and as tall as the rest */
+html.m-reader[data-mode=mobile] header .parseh-mode button{border-radius:0;min-width:0;
+  padding:0 16px;font-size:15px}
+html.m-reader[data-mode=mobile] header .parseh-mode button:first-child{
+  border-start-start-radius:9px;border-end-start-radius:9px}
+html.m-reader[data-mode=mobile] header .parseh-mode button:last-child{
+  border-start-end-radius:9px;border-end-end-radius:9px}
+html.m-reader[data-mode=mobile] header .parseh-mode{border-radius:10px}
+/* THE FIRST LINE: the hub, the shelf, the recording (↺ ▶ ↻ and where it
+   is), the contents, the text size, and ⋯ at its end.  The contents is its
+   glyph alone: the word stays in the button for a screen reader, drawn at
+   no size at all.  The theme is one tap further, under ⋯. */
+html.m-reader[data-mode=mobile] header a.home.glyph{order:1}
+html.m-reader[data-mode=mobile] header a.home:not(.glyph){order:2}
+html.m-reader[data-mode=mobile] header .m-skip[data-skip="-1"]{order:3}
+html.m-reader[data-mode=mobile] header #play{order:4}
+html.m-reader[data-mode=mobile] header .m-skip[data-skip="1"]{order:5}
+html.m-reader[data-mode=mobile] header #toc{order:6;font-size:0;padding:0}
+html.m-reader[data-mode=mobile] header #toc::before{content:"\2630";font-size:20px;line-height:1}
+html.m-reader[data-mode=mobile] header #typo{order:7}
+/* where the recording is, and how long it is: read, not tapped */
+html.m-reader[data-mode=mobile] header #pos{order:8;font-size:13px;color:var(--dim);
+  font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:14em;padding-inline:2px}
+html.m-reader[data-mode=mobile] header .m-rmore{order:9;margin-inline-start:auto;font-size:20px;
+  line-height:1;letter-spacing:.06em}
+html.m-reader[data-mode=mobile] header .m-skip{font-variant-numeric:tabular-nums;white-space:nowrap}
+html.m-reader[data-mode=mobile] header .m-rbreak{display:none}
+/* A PHONE HELD UPRIGHT has room for six targets of 48px on a line (a
+   320px one), and a narrated book has nine things for it.  So the
+   recording's four take a line of their own under the first -- ↺ ▶ ↻ and
+   where it is, together, where the thumb finds them -- and the first line
+   is the way out, the contents, the text size and ⋯.  From 600px -- a
+   phone held sideways, a tablet -- all of it is one line. */
+@media (max-width:599px){
+  html.m-reader[data-mode=mobile] body:not(.noaudio) header .m-rbreak{display:block;order:10;
+    flex:0 0 100%;height:0}
+  html.m-reader[data-mode=mobile] header .m-skip[data-skip="-1"]{order:11}
+  html.m-reader[data-mode=mobile] header #play{order:12}
+  html.m-reader[data-mode=mobile] header .m-skip[data-skip="1"]{order:13}
+  html.m-reader[data-mode=mobile] header #pos{order:14;margin-inline-start:4px}
+}
+@media (max-width:359px){
+  html.m-reader[data-mode=mobile] header{gap:4px;padding:6px 6px}
+}
+/* a book with no narration has no recording to move */
+html.m-reader[data-mode=mobile] body.noaudio :is(.m-skip,.m-rskip,.m-rbreak){display:none!important}
+html.m-reader[data-mode=mobile] header.m-more .m-rmore{background:var(--hl);border-color:var(--accent);
+  color:var(--accent)}
+/* the rest: a line saying what the group is, then the group */
+html.m-reader[data-mode=mobile] header .m-rlab{flex:1 0 100%;margin:8px 0 -2px;
+  font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+html.m-reader[data-mode=mobile] header .m-rlab[data-g=passes]{order:20}
+html.m-reader[data-mode=mobile] header .pgrp{order:21}
+html.m-reader[data-mode=mobile] header [data-toggle=nogloss]{order:22}
+html.m-reader[data-mode=mobile] header #hovermode{order:23}
+html.m-reader[data-mode=mobile] header .m-rlab[data-g=listening]{order:30}
+html.m-reader[data-mode=mobile] header #cont{order:31}
+html.m-reader[data-mode=mobile] header #loop{order:32}
+html.m-reader[data-mode=mobile] header #gapwrap{order:33}
+html.m-reader[data-mode=mobile] header #stopbnd{order:34}
+/* the speed, with the word the select does not say (mobilereader.js) */
+html.m-reader[data-mode=mobile] header .m-rnote{order:35;font-size:14px;color:var(--dim);
+  margin-inline-start:4px}
+html.m-reader[data-mode=mobile] header #speed{order:36}
+html.m-reader[data-mode=mobile] body.noaudio .m-rnote{display:none!important}
+/* how far ↺ and ↻ move: a field of figures, 16px so that a phone does not
+   zoom the page into it when it is tapped */
+html.m-reader[data-mode=mobile] header .m-rskip{order:37;display:inline-flex;align-items:center;gap:6px;
+  font-size:14px;color:var(--dim);margin-inline-start:4px}
+html.m-reader[data-mode=mobile] header .m-rskip input{width:4.2em;min-height:48px;box-sizing:border-box;
+  padding:0 6px;font:inherit;font-size:16px;text-align:center;color:var(--ink);background:var(--card);
+  border:1px solid var(--rule);border-radius:10px;font-variant-numeric:tabular-nums}
+html.m-reader[data-mode=mobile] header .m-rskip input:focus-visible{outline:2px solid var(--accent);
+  outline-offset:1px}
+html.m-reader[data-mode=mobile] header #listen{order:38}
+html.m-reader[data-mode=mobile] header #listenfollow{order:39}
+html.m-reader[data-mode=mobile] header #listenscroll{order:40}
+html.m-reader[data-mode=mobile] header #seekwrap{order:41;flex:1 1 100%}
+html.m-reader[data-mode=mobile] header #seekwrap input{width:100%!important;min-height:40px}
+html.m-reader[data-mode=mobile] header #warn{order:42;flex:1 1 100%;font-size:13px!important}
+html.m-reader[data-mode=mobile] header .m-rlab[data-g=looking]{order:50}
+html.m-reader[data-mode=mobile] header #dictmode{order:51}
+html.m-reader[data-mode=mobile] header #defmode{order:52}
+html.m-reader[data-mode=mobile] header #defmt{order:53}
+html.m-reader[data-mode=mobile] header .m-rlab[data-g=page]{order:60}
+html.m-reader[data-mode=mobile] header #theme{order:61}
+html.m-reader[data-mode=mobile] header #bars{order:62}
+html.m-reader[data-mode=mobile] header .parseh-mode{order:63}
+html.m-reader[data-mode=mobile] header #draftmark{order:64;font-size:13px}
+/* the narration's own player, where the reader shows it (a book with a
+   recording and no times yet): a line of its own under everything */
+html.m-reader[data-mode=mobile] header #audio{order:90;flex:1 1 100%;min-width:0;max-width:none;
+  height:40px;margin:2px 0}
+/* ⋯ closed: the first line alone (with the recording's line, upright) */
+html.m-reader[data-mode=mobile] header:not(.m-more) :is(.m-rlab,.m-rnote,.m-rskip,.pgrp,
+  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#speed,#listen,#listenfollow,
+  #listenscroll,#seekwrap,#warn,#dictmode,#defmode,#defmt,#theme,#bars,.parseh-mode,#draftmark){
+  display:none!important}
+/* Open, the controls may be more than a phone held sideways has height for:
+   they scroll inside the header, and the page under them stays put. */
+html.m-reader[data-mode=mobile] header.m-more{max-height:100vh;max-height:100dvh;overflow-y:auto;
+  overscroll-behavior:contain}
+/* The header goes on the way down and comes back on the way up at every
+   width in the mobile mode -- the reader's own sheet does it under 560px
+   only, and a phone held sideways is wider than that and has least height
+   of all (parseh.js, bars(), follows the scroll in the mobile mode). */
+html.m-reader[data-mode=mobile] header{transition:transform .18s ease}
+html.m-reader[data-mode=mobile] body.barhidden header{transform:translateY(-100%)}
+/* a group with nothing in it this book offers -- no narration, no
+   dictionary -- has no line (mobilereader.js marks it) */
+html.m-reader[data-mode=mobile] header .m-rlab.m-empty-g{display:none!important}
+/* the button that brings the header back when it has been put away: a
+   finger's size too */
+html.m-reader[data-mode=mobile] #barsback{min-height:44px;min-width:56px;font-size:14px;opacity:.75}
+
+/* THE PAGE'S WRITING DOORS, SHUT.  The pencil over a chunk and the gloss
+   cloud's edit and card buttons; the plus that writes a note into a seam,
+   and the note viewer's edit; a chapter's and a section's naming in the
+   contents; and the sheets they would open -- the card, the book's details,
+   the chunk, its division, the folding, the narration, the sections, the
+   download.  A sheet somebody left open in the browser mode is hidden, not
+   closed, so going back to the browser mode finds it as it was, unsaved
+   text and all.  The gestures and keys that open them are refused by
+   lib/mobilereader.js. */
+html.m-reader[data-mode=mobile] :is(#chpen,#anki,#ankiback,#bmbox,#bmback,#chbox,#chback,#dvbox,
+  #dvback,#fdbox,#fdback,#narrbox,#narrback,#naskbox,#naskback,#secbox,#secback,.dlback,.dlsheet,
+  #ntedit,#ntread,.gap .plus,.tocedit,#tocsecs,#cloud .mkcard,#cloud .mkedit){display:none!important}
+/* and the word under the pointer no longer lights up for a card while a
+   modifier is held: there is no card to make */
+html.m-reader[data-mode=mobile] body.altdown .wd:hover{background:none;box-shadow:none}

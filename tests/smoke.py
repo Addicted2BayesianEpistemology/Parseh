@@ -344,14 +344,14 @@ def test_dom():
                           for n in ("index.html", "doc.html", "edit.html", "prompt.html"))
     pairs.append(("studio pages (all templates)", open(os.path.join(STUDIO, "app", "static", "app.js"),
                                                        encoding="utf-8").read(), studio_html))
-    # the exercise decks' three pages share decks.js, as the studio's share app.js
-    deck_pages = [os.path.join(tpl, n) for n in ("decks.html", "deck.html", "study.html")]
+    # the exercise decks' four pages share decks.js, as the studio's share app.js
+    deck_pages = [os.path.join(tpl, n) for n in ("decks.html", "deck.html", "study.html", "cram.html")]
     decks_js = os.path.join(STUDIO, "app", "static", "decks.js")
     missing = [os.path.relpath(p, ROOT) for p in deck_pages + [decks_js] if not os.path.isfile(p)]
     if missing:
         bad("exercise deck pages: every id decks.js asks for exists", "missing " + ", ".join(missing))
     else:
-        pairs.append(("exercise deck pages (decks, deck, study)",
+        pairs.append(("exercise deck pages (decks, deck, study, cram)",
                       open(decks_js, encoding="utf-8").read(),
                       "".join(open(p, encoding="utf-8").read() for p in deck_pages)))
     pairs.append(("youtube add page", ytpages.ADD_PAGE_JS, ytpages.add_page()))

@@ -3,22 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{MODE_SCRIPT}}
+<!-- the mobile interface installed as an app (docs/mobile.md): the manifest, the bars' colour -->
+{{APP_HEAD}}
 <title>{{TITLE}} — Parseh exercises</title>
 <link rel="stylesheet" href="{{STUDIO}}/static/app.css">
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+<!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
+<link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
 </head>
 <body data-page="cram" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
-<header class="topbar">
+<header class="topbar" data-layout="browser">
   <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
   <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
   <div class="topbar-actions"><a class="btn ghost dk-back" href="./">← Deck</a></div>
 </header>
+<header class="m-topbar" data-layout="mobile">
+  <a class="m-home" href="/" title="Parseh — the hub"><span class="glyph">پ</span><span class="word">Parseh</span></a>
+  <a class="m-up dk-back" href="./" title="the deck"><span aria-hidden="true">‹</span><span class="word"> Deck</span></a>
+  <span class="m-sp"></span>
+  {{MODE_SWITCH}}
+  <button type="button" class="m-theme" data-parseh-theme title="theme">◐</button>
+</header>
 <main class="container dk-study-page">
   <div class="dk-studyhead">
+    <!-- the mobile layout has no bar over the exercise: the way back is here -->
+    <a class="m-back dk-back" href="./" data-layout="mobile" title="the deck" aria-label="back to the deck">‹</a>
     <h1 class="dk-title">{{TITLE}}</h1>
     <div id="cram-progress" class="dk-study-counts" aria-live="polite"></div>
   </div>
-  <p class="dk-cram-note">Selected exercises appear in random order. Wrong answers return at the end of this practice session. Deck scheduling does not change.</p>
+  <p class="dk-cram-note" data-layout="browser">Selected exercises appear in random order. Wrong answers return at the end of this practice session. Deck scheduling does not change.</p>
+  <p class="dk-cram-note" data-layout="mobile">The deck&rsquo;s exercises, in random order. A wrong answer comes back at the end; the scheduling does not change.</p>
   <article id="cram-stage" class="sheet dk-sheet" data-lang="{{TARGET}}">
     <p class="pv-status">Loading exercises…</p>
   </article>
@@ -33,11 +48,30 @@
     <button type="button" class="btn big" id="cram-wrong" hidden>Wrong</button>
     <button type="button" class="btn primary big" id="cram-correct" hidden>Correct</button>
     <button type="button" class="btn big" id="cram-next" hidden>Next exercise</button>
+    <span class="dk-grow"></span>
+    <button type="button" class="btn" id="cram-skip"
+            title="Leave it unanswered: it does not come back in this practice, and the end names it among the skipped">Skip</button>
   </div>
+  <!-- the end: how it went, and the exercises to look at again -- the ones
+       answered wrong at least once, the ones skipped -- each shown solved at
+       a click, and crammed again at one (decks.js, initCram) -->
   <div id="cram-done" class="dk-done" hidden>
     <h2>Practice complete</h2>
-    <button type="button" class="btn" id="cram-again">Shuffle and repeat</button>
-    <a class="btn primary dk-back" href="./">Back to the deck</a>
+    <p id="cram-tally" class="dk-cram-tally"></p>
+    <section id="cram-wrong-list" class="dk-cram-list" aria-labelledby="cram-wrong-head" hidden>
+      <h3 id="cram-wrong-head" class="dk-cram-head">Wrong at least once</h3>
+      <ul class="dk-cram-items"></ul>
+      <button type="button" class="btn" data-x="again">Cram these again</button>
+    </section>
+    <section id="cram-skipped-list" class="dk-cram-list" aria-labelledby="cram-skipped-head" hidden>
+      <h3 id="cram-skipped-head" class="dk-cram-head">Skipped</h3>
+      <ul class="dk-cram-items"></ul>
+      <button type="button" class="btn" data-x="again">Cram these</button>
+    </section>
+    <div class="dk-done-actions">
+      <button type="button" class="btn" id="cram-again">Shuffle and repeat</button>
+      <a class="btn primary dk-back" href="./">Back to the deck</a>
+    </div>
   </div>
 </main>
 <script id="deck-json" type="application/json">{{DECK_JSON}}</script>

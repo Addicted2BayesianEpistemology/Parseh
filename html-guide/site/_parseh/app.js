@@ -2617,9 +2617,146 @@ function bindExercises(container, opts = {}) {
       ? over : over.nextElementSibling;
   }
 
+  /* A BLANK OR A MATCH IN THE MOBILE INTERFACE: THE PLACE FIRST, THEN WHAT
+     GOES IN IT.  Everywhere else a word is taken from the bank and put where
+     it goes -- a fill-in's blank, the place beside a matching exercise's
+     term -- dragged, or tapped and then its place tapped, and on a phone
+     neither goes smoothly: a drag the page does not see as one, two taps a
+     screen apart.  So in the mobile interface (<html data-mode="mobile">,
+     asked at each tap: the mode can change under an open page) it is the
+     other way round.  A tap on a blank, or on a match's place, opens a
+     cloud beside it holding a copy of everything the bank holds now; a tap
+     on one puts it there -- the same move a drop makes (moveItem), so what
+     was there goes back to the bank, and checking is as it always was.  A
+     filled place's cloud can empty it.  The bank stays where it is, and says
+     what is left; it is no longer picked up or dragged.  A tap anywhere
+     else, or Escape, puts the cloud away.  The cloud hangs inside the
+     exercise, so the exercise redrawn or checked takes it with it.  (An
+     ordering exercise has no such places: its blocks move by their arrows.) */
+  const PLACES = ".ex-blank, .ex-match-drop";
+  const byCloud = ex => !!ex
+    && (ex.dataset.subtype === "fill-blanks" || ex.dataset.primitive === "matching")
+    && document.documentElement.getAttribute("data-mode") === "mobile";
+  let cloud = null, cloudFor = null;
+  function closeCloud(refocus) {
+    if (!cloud) return;
+    const blank = cloudFor;
+    cloud.remove();
+    cloud = cloudFor = null;
+    if (!blank || !blank.isConnected) return;
+    blank.classList.remove("choosing");
+    blank.setAttribute("aria-expanded", "false");
+    if (refocus) blank.focus({preventScroll: true});
+  }
+  function openCloud(blank) {
+    const ex = blank.closest(".exercise"), bank = bankFor(ex);
+    closeCloud();
+    if (!bank) return;
+    const match = blank.classList.contains("ex-match-drop");
+    cloud = document.createElement("div");
+    cloud.className = "ex-cloud";
+    cloud.setAttribute("role", "group");
+    cloud.setAttribute("aria-label", match ? "The answers for this match" : "The words for this blank");
+    const words = $$(".ex-item", bank);
+    for (const word of words) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ex-cloud-pick";
+      b.dataset.pick = word.dataset.item;
+      // the word as the bank shows it: its script, its direction, its reading
+      for (const node of word.childNodes) b.appendChild(node.cloneNode(true));
+      cloud.appendChild(b);
+    }
+    if ($(".ex-item", blank)) {
+      const clear = document.createElement("button");
+      clear.type = "button";
+      clear.className = "ex-cloud-clear";
+      clear.textContent = match ? "Empty this match" : "Empty this blank";
+      cloud.appendChild(clear);
+    } else if (!words.length) {
+      const none = document.createElement("p");
+      none.className = "ex-cloud-none";
+      none.textContent = match ? "Every answer is in place: tap a filled one to empty it."
+                               : "Every word is in a blank: tap a filled one to empty it.";
+      cloud.appendChild(none);
+    }
+    ex.appendChild(cloud);
+    cloudFor = blank;
+    blank.classList.add("choosing");
+    blank.setAttribute("aria-expanded", "true");
+    placeCloud(true);
+    const first = $("button", cloud);
+    if (first) first.focus({preventScroll: true});
+  }
+  /* UNDER THE SENTENCE, its tip pointing up at the blank: the words are
+     chosen for the sentence, and a cloud right under a blank on its first
+     line would cover the rest of it -- where under the sentence it covers
+     only the bank, which it copies.  A matching exercise's rows are its
+     sentence.  A long passage, or a long list of rows, whose end is far
+     below the place, has it right under the place instead; a screen with
+     more room above than below, over the place, the tip pointing down.
+     Never past the exercise's own edges. */
+  function placeCloud(show) {
+    if (!cloud || !cloudFor || !cloudFor.isConnected) return;
+    const ex = cloudFor.closest(".exercise");
+    const er = ex.getBoundingClientRect(), br = cloudFor.getBoundingClientRect();
+    const fill = cloudFor.closest(".ex-fill, .ex-pairs");
+    const fr = fill ? fill.getBoundingClientRect() : br;
+    const foot = fr.bottom - br.bottom <= Math.max(96, 3 * br.height) ? Math.max(fr.bottom, br.bottom) : br.bottom;
+    const cw = cloud.offsetWidth, ch = cloud.offsetHeight;
+    const middle = br.left + br.width / 2 - er.left;
+    const left = Math.max(8, Math.min(middle - cw / 2, er.width - cw - 8));
+    const room = innerHeight - foot;
+    const under = room >= ch + 16 || room >= br.top;
+    cloud.style.left = left + "px";
+    cloud.style.top = (under ? foot - er.top + 10 : br.top - er.top - ch - 10) + "px";
+    cloud.classList.toggle("over", !under);
+    // under a sentence the blank is lines above: a tip would point at
+    // whatever is between, and the blank's own border says which it is
+    cloud.classList.toggle("apart", under && foot > br.bottom + 4);
+    cloud.style.setProperty("--tip", Math.max(16, Math.min(middle - left, cw - 16)) + "px");
+    // a bar fixed over the page's foot has its room kept by the page's own
+    // sheet (scroll-margin); on a desktop nothing moves
+    if (show) cloud.scrollIntoView({block: "nearest"});
+  }
+  /* The taps the cloud answers; true when one was its. */
+  function cloudClick(e) {
+    const inCloud = cloud && cloud.contains(e.target);
+    if (inCloud) {
+      const b = e.target.closest("button");
+      if (!b) return true;
+      const blank = cloudFor, ex = blank.closest(".exercise"), bank = bankFor(ex);
+      if (b.classList.contains("ex-cloud-clear")) {
+        const placed = $(".ex-item", blank);
+        if (placed && bank) moveItem(placed, bank);
+      } else {
+        const word = bank && $$(".ex-item", bank).find(w => w.dataset.item === b.dataset.pick);
+        if (word) moveItem(word, blank);
+      }
+      closeCloud(true);
+      return true;
+    }
+    const ex = e.target.closest(".exercise");
+    if (!byCloud(ex)) return false;
+    const blank = e.target.closest(PLACES);
+    if (blank) {
+      if (cloudFor === blank) closeCloud(true);
+      else openCloud(blank);
+      return true;
+    }
+    // the bank's words are there to be read: the blanks take them
+    return !!e.target.closest(".ex-bank");
+  }
+  listen(document, "pointerdown", e => {
+    if (cloud && !cloud.contains(e.target) && !cloudFor.contains(e.target)) closeCloud();
+  }, {capture: true});
+  listen(window, "resize", () => placeCloud(false));
+  controller.signal.addEventListener("abort", () => closeCloud());
+
   let dragged = null, picked = null;
   listen(container, "dragstart", e => {
     const item = e.target.closest(".ex-item");
+    if (item && !preview && byCloud(item.closest(".exercise"))) { e.preventDefault(); return; }
     if (!item || preview || !mayDrag(item)) return;
     dragged = item; item.classList.add("dragging");
     e.dataTransfer.effectAllowed = "move";
@@ -2670,6 +2807,7 @@ function bindExercises(container, opts = {}) {
       return;
     }
     if (preview) return;
+    if (cloudClick(e)) return;
     const sw = e.target.closest(".ex-drag-switch");
     if (sw) { setDragOn(!dragIsOn()); applyDrag(); sw.focus(); return; }
     const arrow = e.target.closest(".ex-move");
@@ -2713,7 +2851,20 @@ function bindExercises(container, opts = {}) {
       if (!e.repeat) e.target.click();
       return;
     }
+    if (e.key === "Escape" && cloud) {
+      e.preventDefault();
+      closeCloud(true);
+      return;
+    }
     if (preview || !["Enter", " "].includes(e.key)) return;
+    // a place the mobile interface fills from its cloud: Enter or Space on it
+    // is the tap that opens it (a key on a word in the cloud is its button's)
+    const choose = e.target.matches && e.target.matches(PLACES) ? e.target : null;
+    if (choose && byCloud(choose.closest(".exercise"))) {
+      e.preventDefault();
+      if (!e.repeat) choose.click();
+      return;
+    }
     // a box with arrows is a div (it holds them), so the browser makes no
     // click of its own here: this is the click the <button> used to make
     const box = e.target.classList && e.target.classList.contains("ex-item")
@@ -2737,7 +2888,11 @@ function bindExercises(container, opts = {}) {
     // end of the line -- the very thing the arrows are there to avoid.
     if (e.target.closest(".ex-move")) return;
     touchItem = e.target.closest(".ex-item");
-    if (touchItem && !mayDrag(touchItem)) { touchItem = null; return; }
+    // nor is a word that the mobile interface places from a blank's cloud
+    if (touchItem && (!mayDrag(touchItem) || byCloud(touchItem.closest(".exercise")))) {
+      touchItem = null;
+      return;
+    }
     if (touchItem) touchItem.classList.add("picked");
   });
   listen(container, "pointerup", e => {

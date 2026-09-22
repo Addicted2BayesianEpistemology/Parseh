@@ -96,14 +96,57 @@ def notes_source_ok(prefix):
 
 # ---------------------------------------------------------------- templating
 
+# THE INTERFACE, BROWSER OR MOBILE (docs/mobile.md), on <html data-mode>
+# before anything is drawn -- the one thing these pages need of lib/parseh.js,
+# which they do not load.  Read as parseh.js reads it: the value stored under
+# `parseh_mode` first, the cookie of the same name when there is none,
+# browser when there is neither.  Every page of the decks carries both of its
+# layouts and static/mobile.css shows one; decks.js keeps the switch.
+MODE_SCRIPT = (
+    "<script>(function(){var m=null;"
+    "try{m=localStorage.getItem('parseh_mode')}catch(e){}"
+    "if(m!=='browser'&&m!=='mobile'){"
+    "var c=/(?:^|;\\s*)parseh_mode=(browser|mobile)(?:;|$)/.exec(document.cookie||'');"
+    "m=c?c[1]:'browser'}"
+    "document.documentElement.setAttribute('data-mode',m)})();</script>")
+
+# The switch between the two, for the mobile layout's bar: the hub's own two
+# buttons (lib/mobile.py's mode_switch writes the same markup, and
+# tests/test_mobile_mode.py holds the two together), wired here by decks.js.
+MODE_SWITCH = (
+    '<span class="parseh-mode" role="group" aria-label="interface">'
+    '<button type="button" data-parseh-mode="browser" aria-pressed="true" '
+    'title="the browser interface: every page, with everything that edits">'
+    'Browser</button>'
+    '<button type="button" data-parseh-mode="mobile" aria-pressed="false" '
+    'title="the mobile interface: pages made for a phone, to read and to study, '
+    'with nothing on them that edits">Mobile</button></span>')
+
+# The tags that make a page part of the mobile interface installed as an app
+# (docs/mobile.md): the manifest, the icons, the bars' colour.  The same tags
+# lib/mobile.py's app_head writes (tests/test_mobile_pages.py holds the two
+# together), for the pages here, which are the studio's and do not import it.
+APP_HEAD = (
+    '<link rel="manifest" href="/manifest.webmanifest">\n'
+    '<link rel="apple-touch-icon" href="/lib/icons/apple-touch-icon.png">\n'
+    '<meta name="theme-color" content="#f3eff1" media="(prefers-color-scheme: light)">\n'
+    '<meta name="theme-color" content="#171214" media="(prefers-color-scheme: dark)">\n'
+    '<meta name="mobile-web-app-capable" content="yes">\n'
+    '<meta name="apple-mobile-web-app-capable" content="yes">\n'
+    '<meta name="apple-mobile-web-app-title" content="Parseh">\n'
+    '<meta name="apple-mobile-web-app-status-bar-style" content="default">')
+
+
 def render_template(name, mapping):
-    """templates/<name> with {{BASE}}, {{STUDIO}} and the mapping filled in.
+    """templates/<name> with {{BASE}}, {{STUDIO}}, {{MODE_SCRIPT}},
+    {{MODE_SWITCH}}, {{APP_HEAD}} and the mapping filled in.
 
     One pass over the template, not one str.replace per key: a deck name
     that happens to contain "{{STUDIO}}" is the learner's text and stays as
     typed.  Values arrive escaped by the caller."""
     tpl = (TEMPLATES / name).read_text(encoding="utf-8")
-    values = {"BASE": BASE, "STUDIO": STUDIO}
+    values = {"BASE": BASE, "STUDIO": STUDIO, "MODE_SCRIPT": MODE_SCRIPT,
+              "MODE_SWITCH": MODE_SWITCH, "APP_HEAD": APP_HEAD}
     values.update(mapping)
     return _PLACEHOLDER_RE.sub(lambda m: values.get(m.group(1), m.group(0)), tpl)
 

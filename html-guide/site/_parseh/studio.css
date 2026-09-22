@@ -577,6 +577,35 @@ body[data-page="doc"] :is(.pz,.modal-overlay) .la-par:hover,body[data-page="edit
   background: color-mix(in srgb,var(--accent) 4%,var(--sheet-bg));}
 :is(.pz,.modal-overlay) .ex-blank:empty::after{content: attr(data-slot); margin: auto; color: var(--graytx); opacity: .45; font: .72em var(--sans);}
 :is(.pz,.modal-overlay) .ex-bank{min-height: 2.6em; padding: .45em; border-radius: 9px; background: color-mix(in srgb,var(--rulec) 35%,transparent);}
+:is(.pz,.modal-overlay) .ex-cloud{position: absolute; z-index: 30; left: 0; top: 0;
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px;
+  width: max-content; max-width: calc(100% - 16px); box-sizing: border-box;
+  padding: 10px; border: 1px solid var(--rulec); border-radius: 14px;
+  background: var(--sheet-bg); color: var(--ink); line-height: 1.35;
+  box-shadow: 0 10px 28px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.12);
+  animation: ex-cloud-in .12s ease-out;}
+@keyframes ex-cloud-in{from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; }}
+:is(.pz,.modal-overlay) .ex-cloud::before{content: ""; position: absolute; top: -7px; left: var(--tip, 50%);
+  width: 12px; height: 12px; margin-left: -6px; transform: rotate(45deg);
+  background: inherit; border-top: 1px solid var(--rulec); border-left: 1px solid var(--rulec);}
+:is(.pz,.modal-overlay) .ex-cloud.over::before{top: auto; bottom: -7px; border: 0;
+  border-right: 1px solid var(--rulec); border-bottom: 1px solid var(--rulec);}
+:is(.pz,.modal-overlay) .ex-cloud.apart::before{display: none;}
+:is(.pz,.modal-overlay) .ex-cloud-pick,:is(.pz,.modal-overlay) .ex-cloud-clear{display: inline-flex; align-items: center; justify-content: center;
+  min-width: 48px; min-height: 48px; box-sizing: border-box; padding: .35em .85em;
+  border: 1px solid var(--rulec); border-radius: 10px; background: var(--sheet-bg); color: var(--ink);
+  font: inherit; line-height: 1.35; cursor: pointer; unicode-bidi: isolate;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;}
+:is(.pz,.modal-overlay) .ex-cloud-pick:hover,:is(.pz,.modal-overlay) .ex-cloud-clear:hover{border-color: var(--accentlt);}
+:is(.pz,.modal-overlay) .ex-cloud-pick:active,:is(.pz,.modal-overlay) .ex-cloud-clear:active{border-color: var(--accent); background: color-mix(in srgb,var(--accent) 8%,var(--sheet-bg));}
+:is(.pz,.modal-overlay) .ex-cloud-pick:focus-visible,:is(.pz,.modal-overlay) .ex-cloud-clear:focus-visible{outline: 2px solid var(--accent); outline-offset: 2px;}
+:is(.pz,.modal-overlay) .ex-cloud-clear{flex: 1 1 100%; border-style: dashed; color: var(--graytx); font: .9em var(--sans);}
+:is(.pz,.modal-overlay) .ex-cloud-none{margin: 0; max-width: 20em; color: var(--graytx); font: .9em/1.4 var(--sans);}
+:is(.pz,.modal-overlay) :is(.ex-blank, .ex-match-drop).choosing{border-style: solid; border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 24%,transparent);}
+html[data-mode=mobile] :is(.pz,.modal-overlay) .exercise[data-subtype="fill-blanks"] .ex-blank,html[data-mode=mobile] :is(.pz,.modal-overlay) .exercise[data-primitive="matching"] .ex-match-drop{min-height: 48px; cursor: pointer;}
+html[data-mode=mobile] :is(.pz,.modal-overlay) .exercise:is([data-subtype="fill-blanks"],[data-primitive="matching"]) .ex-bank .ex-item{cursor: default;}
+html[data-mode=mobile] :is(.pz,.modal-overlay) .exercise[data-primitive="matching"] .ex-match-drop:empty::after{content: "tap to choose";}
 :is(.pz,.modal-overlay) .ex-sequence{display: flex; flex-direction: column; gap: .45em; min-height: 3em;}
 :is(.pz,.modal-overlay) .ex-sequence .ex-item{width: 100%;}
 :is(.pz,.modal-overlay) .ex-sequence-inline{flex-direction: row; flex-wrap: wrap; align-items: center;
@@ -1297,6 +1326,19 @@ body[data-page="doc"] :is(.pz,.modal-overlay) figure.img:hover img,body[data-pag
 :is(.pz,.modal-overlay) .dk-done p{margin: 0 0 .6rem; color: var(--chrome-mut);}
 :is(.pz,.modal-overlay) .dk-done .dk-when::first-letter{text-transform: uppercase;}
 :is(.pz,.modal-overlay) .dk-done-actions{display: flex; justify-content: center; gap: .5rem; margin-top: 1rem;}
+:is(.pz,.modal-overlay) .dk-done .dk-cram-tally{margin: 0 0 .4rem;}
+:is(.pz,.modal-overlay) .dk-cram-list{max-width: 640px; margin: 1.4rem auto 0; text-align: start;}
+:is(.pz,.modal-overlay) .dk-cram-head{margin: 0 0 .45rem; color: var(--chrome-mut);
+  font: 600 .78rem/1.3 var(--sans); letter-spacing: .04em; text-transform: uppercase;}
+:is(.pz,.modal-overlay) .dk-cram-items{list-style: none; margin: 0 0 .6rem; padding: 0; display: flex; flex-direction: column; gap: .4rem;}
+:is(.pz,.modal-overlay) .dk-cram-item{display: flex; flex-direction: column; align-items: flex-start; gap: .12rem; width: 100%;
+  padding: .55rem .8rem; border: 1px solid var(--chrome-line); border-radius: 10px;
+  background: var(--chrome-panel); color: var(--chrome-fg); font: inherit; text-align: start; cursor: pointer;}
+:is(.pz,.modal-overlay) .dk-cram-item:hover{border-color: var(--accentlt);}
+:is(.pz,.modal-overlay) .dk-cram-item[aria-expanded="true"]{border-color: var(--accent);}
+:is(.pz,.modal-overlay) .dk-cram-item:focus-visible{outline: 2px solid var(--accentlt); outline-offset: 2px;}
+:is(.pz,.modal-overlay) .dk-cram-meta{color: var(--chrome-mut); font-size: .76rem;}
+:is(.pz,.modal-overlay) .dk-cram-solved{margin-top: .4rem;}
 :is(.pz,.modal-overlay) .dk-modal{width: min(560px, 94vw);}
 :is(.pz,.modal-overlay) .dk-modal .modal-field > span{color: var(--chrome-fg); font-weight: 600;}
 :is(.pz,.modal-overlay) .dk-modal .modal-field small,:is(.pz,.modal-overlay) .dk-modal .dk-help{color: var(--chrome-mut); font-size: .74rem; line-height: 1.35;}

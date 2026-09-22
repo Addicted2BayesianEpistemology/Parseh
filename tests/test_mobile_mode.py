@@ -53,6 +53,30 @@ class Layouts(HTMLParser):
         return [(t, a) for w, t, a in self.els if w == where]
 
 
+def selectors(css):
+    """Every selector of a sheet, one to an item: the lists split at their
+    top-level commas only, since :is(), :not() and :has() hold lists of
+    their own."""
+    out = []
+    for sel in re.findall(r'([^{}]+)\{', re.sub(r'/\*.*?\*/', '', css, flags=re.S)):
+        # an at-rule's prelude -- a media query list has commas of its own
+        # -- is no selector, and is kept whole
+        if sel.strip().startswith('@'):
+            out.append(sel.strip())
+            continue
+        depth, part = 0, ''
+        for ch in sel:
+            depth += ch == '('
+            depth -= ch == ')'
+            if ch == ',' and depth == 0:
+                out.append(part.strip())
+                part = ''
+            else:
+                part += ch
+        out.append(part.strip())
+    return [p for p in out if p]
+
+
 def hub():
     import serve
     bks = [{'slug': 'a', 'title': 'a', 'latin': 'a', 'lang': 'ja', 'href': '/books/japanese/a/reader/',
@@ -113,7 +137,9 @@ class HubTests(unittest.TestCase):
             self.assertLess(m.start(), self.html.index('class="hub-mobile"'))
 
     def test_the_mobile_layout_has_nothing_that_edits_or_administers(self):
-        self.assertEqual(self.hrefs('mobile'), ['/', '/books/', '/youtube/', '/studio/', '/exercises/', '/guide/'])
+        # (and installing the mobile interface as an app: lib/mobile.py)
+        self.assertEqual(self.hrefs('mobile'), ['/', '/books/', '/youtube/', '/studio/', '/exercises/', '/guide/',
+                                                '/m/install/'])
         els = self.page.of('mobile')
         buttons = [a.get('data-parseh-mode') or ('theme' if 'data-parseh-theme' in a else a.get('data-pick'))
                    for t, a in els if t == 'button']
@@ -184,14 +210,15 @@ class SharedFilesTests(unittest.TestCase):
         self.assertIn('html[data-mode=mobile] [data-layout=browser],\n'
                       'html:not([data-mode=mobile]) [data-layout=mobile]{display:none!important}', css)
         # everything else in it is the mobile layout's own: nothing that a
-        # browser page (the reader, the player, the studio) could pick up
-        rules = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
-        for sel in re.findall(r'([^{}]+)\{', rules):
-            for part in sel.split(','):
-                part = part.strip()
-                if not part or part.startswith('@') or part == ':root':
-                    continue
-                self.assertTrue(re.search(r'\bm-|\[data-layout=|main\.hub', part), part)
+        # browser page (the reader, the player, the studio) could pick up --
+        # the reader's rules all hang off html.m-reader, which parseh.js puts
+        # on a reader, and say [data-mode=mobile] besides
+        for part in selectors(css):
+            if part.startswith('@') or part == ':root':
+                continue
+            self.assertTrue(re.search(r'\bm-|\[data-layout=|main\.hub', part), part)
+            if 'm-reader' in part:
+                self.assertIn('html.m-reader[data-mode=mobile]', part)
 
     def test_parseh_js_offers_the_mode(self):
         js = (ROOT / 'lib' / 'parseh.js').read_text(encoding='utf-8')

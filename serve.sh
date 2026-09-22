@@ -8,17 +8,20 @@
 #   ./serve.sh status       is it running, and where
 #   ./serve.sh log          follow the log
 #   ./serve.sh restart      stop, then start again
-#   ./serve.sh cert         make a fresh self-signed certificate (.tls/),
-#                           e.g. after the machine's addresses changed
+#   ./serve.sh cert         make the server's certificate afresh (.tls/),
+#                           e.g. after the machine's addresses changed; the
+#                           authority a phone was told to trust stays
 #
 # Everything -- the book reader, the video player, the studio, the exercise
 # decks, the Anki store -- is served by serve.py at ONE https address:
 #
 #   https://localhost:8765/          (and the Tailscale / LAN addresses it prints)
 #
-# The certificate is self-signed and made by serve.py itself on first start.
-# Every browser warns once about it; accept, and it never asks again.  It is
-# our own server on our own network, so that is the whole ceremony.
+# The certificate is made by serve.py itself on first start, signed by an
+# authority of this machine's own (docs/mobile.md, "Parseh as an app").
+# Every browser warns once about it; accept, and it never asks again -- or
+# tell a phone to trust the authority, from the mobile hub's "As an app",
+# and it never warns at all.  It is our own server on our own network.
 #
 # `python3 serve.py &` is not enough, and the way it fails is nasty: the job
 # keeps the terminal as its stdout and stderr.  Close that terminal, or let the

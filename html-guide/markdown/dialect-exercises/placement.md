@@ -33,6 +33,18 @@ A blank holds one block: a block dropped on a full blank sends the one
 that was there back to the row of spare blocks, and a block taken out of
 a blank goes back there too when you drop it, or tap it, on that row.
 
+**In the mobile interface a blank is filled the other way round: the
+blank first, then the word.** Tap a blank, and a cloud opens under the
+sentence with a copy of every block the row of spare blocks holds; tap
+one, and it goes into that blank. Tap a filled blank to put another block
+there — the one it held goes back to the row — or to **Empty this blank**.
+A tap anywhere else, or Escape, puts the cloud away. The row stays where it
+is, to show what is left; its blocks are no longer picked up or dragged
+there. A matching exercise's boxes work the same way
+([Matching](matching.md#on-the-page)). The browser interface keeps the
+three ways above
+([Browser and Mobile](../getting-started/mobile-mode.md#the-exercise-decks)).
+
 **Every block of an ordering exercise carries two arrows**, and each moves
 it one place: **↑** and **↓** in a list of sentences, **←** and **→** in a
 line of words — and the other way round where that line runs right to

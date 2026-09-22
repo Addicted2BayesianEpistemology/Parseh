@@ -148,8 +148,26 @@ always been. **Mobile** is a streamlined set of pages for reading on a
 phone, with no editing on them: a single column, big doors with their
 counts, the language chips in one row, and the guide — and nothing that
 edits or administers. The choice holds on every page and after a reload.
-The hub is the first mobile page; every other door opens its browser page
-until its own mobile one is written.
+The hub was the first mobile page; the books — a shelf, and every book's
+reader as a reader only, with **↺ ↻** to move the narration by ten seconds
+(or as many as you set) — and the exercise decks have followed: a cram of
+your own picked from a deck, by tag or one by one, and **Next** in the very
+place **Check** was. Every mobile page is made for a phone held sideways as
+well as upright. And the mobile interface installs **as an app**: an icon on
+the home screen, the whole screen for the page, no address bar
+([Parseh as an app](../getting-started/mobile-mode.md#parseh-as-an-app)).
+The videos and the studio's notes open their browser pages until their own
+mobile ones are written.
+
+On a phone, a fill-in's blank and a matching exercise's box are filled the
+other way round: tap the blank or the box, and a cloud offers the words of
+the bank below ([Placement](../dialect-exercises/placement.md#moving-the-blocks),
+[Matching](../dialect-exercises/matching.md#on-the-page)).
+
+Cram mode has **Skip** too, as studying has, and its end now says how it
+went and lists the exercises you got wrong at least once and the ones you
+skipped — each shown solved at a click, and crammed again at one
+([Cram mode](../exercises/cram.md#the-end)).
 
 ![The hub in Mobile mode on a phone, with the Working… panel over the doors while an upload runs](shots/mobile-hub-working.png){width=60 align=center}
 

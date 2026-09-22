@@ -341,6 +341,129 @@ function bindStop() {
   });
 }
 
+/* ---------------- the interface: browser or mobile ----------------
+   The toolbox's one switch (docs/mobile.md): `parseh_mode` in localStorage,
+   mirrored in a cookie of the same name, and put on <html data-mode> --
+   which the page's head has already done (deckroutes.MODE_SCRIPT), so the
+   layout drawn first is the right one.  Every page here carries both
+   layouts and static/mobile.css shows one of them: the mobile one reads and
+   studies, and has nothing that edits, builds, imports or stops anything.
+   These pages do not load lib/parseh.js, so the switch in the mobile bar is
+   kept here the way parseh.js keeps it on every other page: stored,
+   mirrored, drawn, and followed when another tab changes it. */
+const MODE_KEY = "parseh_mode";
+function modeNow() {
+  let m = null;
+  try { m = localStorage.getItem(MODE_KEY); } catch (e) { /* blocked */ }
+  if (m !== "browser" && m !== "mobile") {
+    const c = /(?:^|;\s*)parseh_mode=(browser|mobile)(?:;|$)/.exec(document.cookie || "");
+    m = c ? c[1] : "browser";
+  }
+  return m;
+}
+const isMobile = () => document.documentElement.getAttribute("data-mode") === "mobile";
+function modeApply() {
+  const m = modeNow();
+  document.documentElement.setAttribute("data-mode", m);
+  // the server's copy follows what this page found, as parseh.js has it
+  if (!new RegExp(`(?:^|;\\s*)${MODE_KEY}=${m}(?:;|$)`).test(document.cookie || ""))
+    document.cookie = `${MODE_KEY}=${m}; Path=/; SameSite=Lax; Max-Age=31536000`;
+  $$("[data-parseh-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.parsehMode === m)));
+  if (m === "mobile") appRegister();
+}
+/* The mobile interface installed as an app (docs/mobile.md): the service
+   worker a browser asks for before it installs a site (lib/sw.js), which
+   lib/parseh.js registers on the toolbox's own pages in the mobile mode --
+   these load it not, so it is registered here the same way.  Refused where
+   the phone does not trust the certificate; the install page says so. */
+function appRegister() {
+  if (!("serviceWorker" in navigator) || !window.isSecureContext) return;
+  navigator.serviceWorker.register("/sw.js").catch(() => { /* see above */ });
+}
+function modeSet(m) {
+  if (m !== "browser" && m !== "mobile") return;
+  try { localStorage.setItem(MODE_KEY, m); } catch (e) { /* the cookie still says it */ }
+  document.cookie = `${MODE_KEY}=${m}; Path=/; SameSite=Lax; Max-Age=31536000`;
+  modeApply();
+}
+/* The theme button of the mobile bar: the toolbox's ◐, cycling light, dark
+   and sepia under `parseh_theme` as it does on every other page.  The
+   studio's pages follow that preference until a theme is picked in the
+   studio's own panel, and then that pick wins (app.js, loadTypo) -- which
+   would leave this button pressing on nothing.  So pressing it lets such a
+   pick go: what the button says is what the whole toolbox is to look like,
+   and the studio follows it again from here on, as it did before the pick. */
+const THEMES = ["light", "dark", "sepia"];
+const THEME_GLYPH = {light: "○", dark: "●", sepia: "◐"};
+const shownTheme = () => { const t = loadTypo(null).theme; return t === "paper" ? "light" : t; };
+function paintTheme() {
+  const now = shownTheme(), next = THEMES[(THEMES.indexOf(now) + 1) % THEMES.length];
+  $$("[data-parseh-theme]").forEach(b => {
+    b.textContent = THEME_GLYPH[now] || "◐";
+    b.title = `theme: ${now} — click for ${next}`;
+  });
+}
+function cycleTheme() {
+  const next = THEMES[(THEMES.indexOf(shownTheme()) + 1) % THEMES.length];
+  try {
+    localStorage.setItem("parseh_theme", next);
+    const kept = JSON.parse(localStorage.getItem("exlex-typo:global") || "{}");
+    if (kept && typeof kept === "object" && "theme" in kept) {
+      delete kept.theme;
+      localStorage.setItem("exlex-typo:global", JSON.stringify(kept));
+    }
+  } catch (e) { /* private mode: this page still turns */ }
+  applyTypo(loadTypo(null));
+  paintTheme();
+}
+function bindMode() {
+  modeApply();
+  paintTheme();
+  document.addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest("[data-parseh-mode]");
+    if (b) modeSet(b.dataset.parsehMode);
+    else if (e.target.closest && e.target.closest("[data-parseh-theme]")) cycleTheme();
+  });
+  addEventListener("storage", e => {
+    if (e.key === MODE_KEY || e.key === null) modeApply();
+    if (e.key === "parseh_theme" || e.key === "exlex-typo:global" || e.key === null) {
+      applyTypo(loadTypo(null));
+      paintTheme();
+    }
+  });
+  // a page brought back from the back-forward cache ran none of its script
+  addEventListener("pageshow", e => { if (e.persisted) { modeApply(); paintTheme(); } });
+  bindBarFollow();
+}
+
+/* The mobile bar goes on the way down and comes back on the way up
+   (static/mobile.css).  app.js puts the bars away on a phone's width
+   (bindBarHide, under 560px, in both layouts); a phone held sideways is
+   wider than that, and has the least height of all, so in the mobile
+   layout this does the same from 560px up. */
+function bindBarFollow() {
+  const mq = window.matchMedia ? window.matchMedia("(max-width: 560px)") : null;
+  let lastY = Math.max(0, scrollY), ticking = false, off = false;
+  const set = v => {
+    if (v === off) return;
+    off = v;
+    document.body.classList.toggle("barhidden", v);
+  };
+  const read = () => {
+    ticking = false;
+    const y = Math.max(0, scrollY), d = y - lastY;
+    if (Math.abs(d) < 4) return;            // a finger resting is not a move
+    lastY = y;
+    if (mq && mq.matches) { off = document.body.classList.contains("barhidden"); return; }
+    set(isMobile() && y > 56 && d > 0);
+  };
+  addEventListener("scroll", () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(read);
+  }, {passive: true});
+}
+
 /* ---------------- the exercise form, pointed at a deck ---------------- */
 
 /* The deck renders the preview (the deck's language, its pictures, the
@@ -472,7 +595,8 @@ function initDecks() {
       <div class="dk-card-study"></div>
       <div class="dk-card-actions">
         <a class="btn primary small" data-x="study" href="${escAttr(studyPage(d))}">Study</a>
-        <a class="btn small" data-x="browse" href="${escAttr(deckPage(d))}">Browse</a>
+        <a class="btn small" data-x="browse" href="${escAttr(deckPage(d))}"><span
+          data-layout="browser">Browse</span><span data-layout="mobile">Open</span></a>
         <details class="dropdown">
           <summary class="btn small" title="Export or delete" aria-label="More for this deck">⋯</summary>
           <div class="menu">
@@ -487,7 +611,12 @@ function initDecks() {
     $(".dk-total", card).textContent = plural(total, "exercise");
     const study = $(".dk-card-study", card);
     if (!total) {
-      study.textContent = "Empty: add exercises from its page, or from a studio document.";
+      // said in each layout's terms: a phone has no page to add from
+      const here = el("span", "", "Empty: add exercises from its page, or from a studio document.");
+      const phone = el("span", "", "Empty: exercises are added in the browser interface.");
+      here.dataset.layout = "browser";
+      phone.dataset.layout = "mobile";
+      study.append(here, phone);
     } else {
       study.append(el("span", "dk-label", "To study"), studyCounts(d.study));
       if (!due) study.appendChild(el("span", "dk-next", nextDueText(d.next_due, rolloverOf(d))));
@@ -715,6 +844,21 @@ function initDeck() {
     const study = $("#btn-study");
     study.href = studyPage(deck);
     setLinkEnabled(study, due > 0, due ? `${plural(due, "exercise")} to study now` : "Nothing to study now");
+    // The mobile layout's own two: cramming every exercise at a tap (the
+    // list below crams the ones picked in it, in both layouts), once the
+    // list is here to take them from; and a line for a deck a phone can do
+    // nothing with -- empty -- or can only cram.
+    const practise = $("#btn-practise");
+    if (practise) practise.disabled = !items.length;
+    const note = $("#deck-mobile-note");
+    if (note) {
+      note.textContent = !c.total ? "This deck has no exercises yet: they are added in the browser interface."
+        : due ? "" : "Nothing is due now. Cramming leaves the scheduling as it is.";
+      note.hidden = !note.textContent;
+    }
+    // no list to pick from, said as soon as the note is (renderList says it
+    // again from the exercises themselves)
+    $(".dk-browse").classList.toggle("dk-none", !c.total);
     $("#btn-export-sched").href = exportUrl(deck, true);
     $("#btn-export-plain").href = exportUrl(deck, false);
   }
@@ -819,6 +963,12 @@ function initDeck() {
     });
     $("#btn-cram").disabled = n === 0;
     $("#btn-cram").textContent = n ? `Cram ${plural(n, "exercise")}` : "Cram exercises";
+    // the mobile layout's, over the list while anything is picked
+    const go = $("#m-cram");
+    if (go) {
+      go.hidden = n === 0;
+      go.textContent = `Cram ${plural(n, "exercise")}`;
+    }
   }
 
   function selectRange(id, checked) {
@@ -860,6 +1010,9 @@ function initDeck() {
     empty.hidden = shown.length > 0;
     $('[data-x="empty-deck"]', empty).hidden = items.length > 0;
     $('[data-x="empty-filter"]', empty).hidden = items.length === 0;
+    // a deck with nothing in it has nothing to pick: the mobile layout
+    // says so once, over Study now, and draws no list (static/mobile.css)
+    $(".dk-browse").classList.toggle("dk-none", items.length === 0);
     updateSelection();
   }
 
@@ -1157,14 +1310,16 @@ function initDeck() {
           action: "remove-tag", ids, tag: pick.value}})}]});
     if (done) { toast("Tag removed"); reload(); }
   });
-  $("#btn-cram").addEventListener("click", () => {
+  function cramSelected() {
     const ids = items.filter(it => selected.has(it.id)).map(it => it.id);
     if (!ids.length) return;
     let stored = false;
     try { sessionStorage.setItem(`parseh-cram:${deck.path}`, JSON.stringify(ids)); stored = true; }
     catch (e) { /* carry the selected ids in the URL instead */ }
     location.href = deckPage(deck) + "cram" + (stored ? "" : `?selected=${ids.join(",")}`);
-  });
+  }
+  $("#btn-cram").addEventListener("click", cramSelected);
+  $("#m-cram").addEventListener("click", cramSelected);
 
   /* ---- adding, the deck's own buttons ---- */
 
@@ -1266,6 +1421,18 @@ function initDeck() {
     if (gone) location.href = BASE + "/";
   });
 
+  // every exercise of the deck, to the cram page -- as "Cram exercises" sends
+  // the picked ones, and by the same two ways
+  // (the mobile layout's Cram all; what is picked in the list stays picked)
+  $("#btn-practise").addEventListener("click", () => {
+    const ids = items.map(it => it.id);
+    if (!ids.length) return;
+    let stored = false;
+    try { sessionStorage.setItem(`parseh-cram:${deck.path}`, JSON.stringify(ids)); stored = true; }
+    catch (e) { /* the address carries them instead */ }
+    location.href = deckPage(deck) + "cram" + (stored ? "" : `?selected=${ids.join(",")}`);
+  });
+
   renderHead();
   reload();
 }
@@ -1281,6 +1448,8 @@ function initStudy() {
   const result = $("#study-result"), bar = $("#rating-bar"), done = $("#study-done");
   const btnCheck = $("#btn-check"), btnShow = $("#btn-show");
   const btnEdit = $("#btn-edit-card"), btnSkip = $("#btn-skip");
+  // the mobile layout's Next (study.html): the rating the answer suggests
+  const btnNext = $("#btn-next");
   const solution = $("#study-solution"), solutionSheet = $(".dk-sheet", solution);
   const skipped = new Set();          // left for later, this visit only
   // the exercise on screen: {item, intervals, run, ex, kind, revealed, result}
@@ -1416,7 +1585,7 @@ function initStudy() {
       closeZoom();
       clearSolution();
       done.hidden = true;
-      bar.hidden = result.hidden = true;
+      bar.hidden = result.hidden = btnNext.hidden = true;
       stage.hidden = false;
       stage.replaceChildren(el("p", "pv-status err", "Could not read the next exercise: " + e.message));
       btnCheck.hidden = btnShow.hidden = btnEdit.hidden = btnSkip.hidden = true;
@@ -1432,6 +1601,8 @@ function initStudy() {
     result.hidden = true;
     result.textContent = "";
     bar.hidden = true;
+    btnNext.hidden = true;
+    btnNext.disabled = false;
     clearSolution();
     pointed = null;
     if (next.done || !next.item) {
@@ -1488,6 +1659,14 @@ function initStudy() {
 
   function showBar(focus) {
     bar.hidden = false;
+    // Next, in the mobile layout: the rating focused here, said with the
+    // interval it gives, in the place Check or Show answer had
+    const ivl = card ? card.intervals[focus] || "" : "";
+    btnNext.dataset.rating = focus;
+    $(".dk-ivl", btnNext).textContent = cap(focus) + (ivl ? " · " + ivl : "");
+    btnNext.setAttribute("aria-label", `Next: rated ${cap(focus)}${ivl ? ", back in " + ivl : ""}`);
+    btnNext.classList.toggle("dk-wrong", focus === "again");
+    btnNext.hidden = false;
     const b = $(`[data-rating="${focus}"]`, bar);
     // the card enlarged over the page keeps the focus while it is open
     if (b && !$(".ex-zoom-overlay")) b.focus({preventScroll: true});
@@ -1507,6 +1686,9 @@ function initStudy() {
     result.className = "dk-result " + (good ? "ok" : "err");
     result.hidden = false;
     showBar(good ? "good" : "again");
+    // the mobile layout's answer bar keeps no place in the page to scroll
+    // to: what the check said is brought into view instead
+    if (isMobile()) result.scrollIntoView({block: "nearest", behavior: "smooth"});
     if (!good && ["matching", "placement"].includes(card.ex.dataset.primitive)) showSolution(card);
   }
 
@@ -1555,7 +1737,7 @@ function initStudy() {
     const rated = card;
     hush();
     $$("button", bar).forEach(b => { b.disabled = true; });
-    btnSkip.disabled = btnEdit.disabled = true;
+    btnSkip.disabled = btnEdit.disabled = btnNext.disabled = true;
     try {
       let data;
       try {
@@ -1592,6 +1774,9 @@ function initStudy() {
     const b = e.target.closest("button[data-rating]");
     if (b) rate(b.dataset.rating);
   });
+  btnNext.addEventListener("click", () => {
+    if (btnNext.dataset.rating) rate(btnNext.dataset.rating);
+  });
   btnSkip.addEventListener("click", () => {
     if (!card || rating) return;
     skipped.add(card.item.id);
@@ -1599,7 +1784,7 @@ function initStudy() {
     // it is done with for this visit: a rating key pressed before the next
     // card arrives finds nothing to rate
     card = null;
-    bar.hidden = true;
+    bar.hidden = btnNext.hidden = true;
     clearSolution();
     load();
   });
@@ -1660,8 +1845,25 @@ function initCram() {
   const carried = new URLSearchParams(location.search).get("selected") || "";
   const back = deckPage(deck) + (carried ? `?selected=${carried}` : "");
   $$(".dk-back").forEach(a => { a.href = back; });
-  let cards = [], order = [], index = 0, current = null;
+  // pool: the exercises of this practice, each once; order: the turns, a
+  // wrong answer's exercise put at the end again
+  let pool = [], order = [], index = 0, current = null;
   let turnObserver = null, waitingAudio = null;
+  /* What this practice made of each exercise, by id, for the end to say:
+     how many times it was answered wrong, whether its first answer was
+     right, whether it was skipped -- and the order they first came up in,
+     which is the order the end lists them in. */
+  let tally = null;
+  const fresh = () => ({wrong: new Map(), right: new Set(), seen: new Set(), skipped: new Set(),
+                        shown: []});
+  function judged(card, good) {
+    const id = card.item.id;
+    if (!tally.seen.has(id)) {
+      tally.seen.add(id);
+      if (good) tally.right.add(id);
+    }
+    if (!good) tally.wrong.set(id, (tally.wrong.get(id) || 0) + 1);
+  }
   function stopMedia() {
     if (turnObserver) turnObserver.disconnect();
     turnObserver = null;
@@ -1688,8 +1890,13 @@ function initCram() {
       play();
     }, {once: true});
   }
-  function shuffle() {
-    order = [...cards];
+  /* A practice of these exercises, in random order, from the start: the
+     selection, and at the end "Shuffle and repeat" (the same ones) or
+     "Cram these again" (the wrong ones, or the skipped). */
+  function start(set) {
+    pool = set;
+    tally = fresh();
+    order = [...pool];
     for (let i = order.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [order[i], order[j]] = [order[j], order[i]];
@@ -1707,10 +1914,12 @@ function initCram() {
       current = null;
       stage.hidden = actions.hidden = true;
       done.hidden = false;
-      progress.textContent = `${plural(order.length, "exercise")} reviewed`;
+      progress.textContent = plural(pool.length, "exercise");
+      summarise();
       return;
     }
     const card = order[index];
+    if (!tally.shown.includes(card)) tally.shown.push(card);
     stage.hidden = actions.hidden = false;
     done.hidden = true;
     progress.textContent = `${index + 1} of ${order.length}`;
@@ -1738,8 +1947,87 @@ function initCram() {
     $("#cram-show").disabled = false;
     $("#cram-wrong").hidden = $("#cram-correct").hidden = true;
     $("#cram-next").hidden = kind !== "invalid";
+    // until it is answered; an exercise that cannot be shown has Next
+    $("#cram-skip").hidden = kind === "invalid";
+    // as studying does: a long exercise, or the end's lists, may have left
+    // the page scrolled past where the next one starts
+    if (stage.getBoundingClientRect().top < 0) stage.scrollIntoView({block: "start"});
     if (kind === "flashcard") playSide("front");
     $("#cram-next").textContent = index === order.length - 1 ? "Finish" : "Next exercise";
+  }
+
+  /* ---- the end: how it went, and what to look at again ---- */
+  const wrongList = $("#cram-wrong-list"), skippedList = $("#cram-skipped-list");
+  let listed = 0;                     // gives each solved sheet's ids their own prefix
+  const TIMES = ["", "once", "twice"];
+  function summarise() {
+    const inTurn = list => tally.shown.filter(card => list.has(card.item.id));
+    const wrong = inTurn(tally.wrong), skipped = inTurn(tally.skipped);
+    const right = pool.filter(card => tally.right.has(card.item.id)).length;
+    const parts = [];
+    if (right) parts.push(`${right} right the first time`);
+    if (wrong.length) parts.push(`${wrong.length} wrong at least once`);
+    if (skipped.length) parts.push(`${skipped.length} skipped`);
+    $("#cram-tally").textContent = wrong.length || skipped.length || right !== pool.length
+      ? `${plural(pool.length, "exercise")}: ${parts.join(", ")}.`
+      : pool.length === 1 ? "Right the first time." : `All ${pool.length} right the first time.`;
+    // a practice ends only once each exercise it put back has been answered
+    // right, or skipped: which of the two, the line says
+    fillList(wrongList, wrong, card => {
+      const n = tally.wrong.get(card.item.id);
+      return "wrong " + (TIMES[n] || `${n} times`) +
+        (tally.skipped.has(card.item.id) ? ", then skipped" : ", then right");
+    });
+    fillList(skippedList, skipped, () => "");
+  }
+  function fillList(section, cards, says) {
+    section.hidden = !cards.length;
+    $(".dk-cram-items", section).replaceChildren(...cards.map(card => {
+      const it = card.item;
+      const li = el("li", "dk-cram-entry");
+      const b = el("button", "dk-cram-item");
+      b.type = "button";
+      b.title = "Show it solved";
+      b.setAttribute("aria-expanded", "false");
+      const excerpt = el("span", "dk-excerpt", it.excerpt || "(no text)");
+      excerpt.dir = "auto";
+      b.append(el("span", "ex-kicker", it.label || it.subtype || "Exercise"), excerpt);
+      const meta = says(card);
+      if (meta) b.append(el("span", "dk-cram-meta", meta));
+      const box = el("div", "dk-cram-solved");
+      box.hidden = true;
+      b.addEventListener("click", () => toggleSolved(b, box, it));
+      li.append(b, box);
+      return li;
+    }));
+    $('[data-x="again"]', section).onclick = () => start(cards);
+  }
+  /* An exercise of the list, solved, under it -- as the deck's list shows
+     one (its preview) -- and put away again at the next click. */
+  async function toggleSolved(button, box, it) {
+    const open = box.hidden;
+    button.setAttribute("aria-expanded", String(open));
+    box.hidden = !open;
+    if (!open || box.firstChild) return;
+    box.replaceChildren(el("p", "pv-status", "Rendering…"));
+    let data;
+    try { data = await call(`${base}/items/${it.id}`); }
+    catch (e) {
+      box.replaceChildren(el("p", "pv-status err", "Could not show it: " + e.message));
+      return;
+    }
+    const sheet = el("div", "sheet dk-sheet");
+    sheet.dataset.lang = deck.lang;
+    sheet.innerHTML = data.html || "";
+    $$(".ex-edit, .ex-to-deck, .exercise-correction", sheet).forEach(x => x.remove());
+    // several of them on one page: their footnotes' ids each their own
+    const mark = `cram-done-${++listed}-`;
+    $$("[id]", sheet).forEach(x => { x.id = mark + x.id; });
+    $$("[aria-describedby]", sheet).forEach(x =>
+      x.setAttribute("aria-describedby", mark + x.getAttribute("aria-describedby")));
+    box.replaceChildren(sheet);
+    applyTypo(loadTypo(null));
+    bindExercises(sheet, {preview: true});
   }
   async function showSolution(checked) {
     let data;
@@ -1764,16 +2052,20 @@ function initCram() {
     if (!current || current.kind !== "scored" || current.checked) return;
     const good = current.run.judge(current.ex);
     current.checked = true;
+    judged(current.card, good);
     if (!good) order.push(current.card);
     const body = $(".ex-body", current.ex);
     if (body) body.inert = true;
-    $("#cram-check").hidden = true;
+    // answered: there is nothing to skip any more, only to go on
+    $("#cram-check").hidden = $("#cram-skip").hidden = true;
     result.textContent = good ? "Correct" : "Not quite";
     result.className = "dk-result " + (good ? "ok" : "err");
     result.hidden = false;
     progress.textContent = `${index + 1} of ${order.length}`;
     $("#cram-next").hidden = false;
     $("#cram-next").textContent = index === order.length - 1 ? "Finish" : "Next exercise";
+    // as studying does: the mobile layout's bar keeps no place in the page
+    if (isMobile()) result.scrollIntoView({block: "nearest", behavior: "smooth"});
     if (!good && ["matching", "placement"].includes(current.ex.dataset.primitive))
       showSolution(current);
   });
@@ -1786,30 +2078,50 @@ function initCram() {
     if (!current || current.kind !== "flashcard" || current.checked ||
         !$(".ex-flashcard.flipped", stage)) return;
     current.checked = true;
+    judged(current.card, good);
     if (!good) order.push(current.card);
     index++;
     show();
   }
   $("#cram-wrong").addEventListener("click", () => gradeFlash(false));
   $("#cram-correct").addEventListener("click", () => gradeFlash(true));
-  $("#cram-next").addEventListener("click", () => { index++; show(); });
-  $("#cram-again").addEventListener("click", shuffle);
+  /* Skip: the exercise is left unanswered and does not come back in this
+     practice -- nor does the turn a wrong answer earlier put back for it --
+     and the end names it among the skipped. */
+  $("#cram-skip").addEventListener("click", () => {
+    if (!current || current.checked) return;
+    const id = current.card.item.id;
+    tally.skipped.add(id);
+    order = order.filter((card, i) => i <= index || card.item.id !== id);
+    index++;
+    show();
+  });
+  $("#cram-next").addEventListener("click", () => {
+    // an exercise that could not be shown was not answered: it is said so
+    // at the end, with the skipped ones
+    if (current && current.kind === "invalid") tally.skipped.add(current.card.item.id);
+    index++;
+    show();
+  });
+  $("#cram-again").addEventListener("click", () => start(pool));
   let ids = [];
   try { ids = JSON.parse(sessionStorage.getItem(`parseh-cram:${deck.path}`) || "[]"); }
   catch (e) { /* unavailable or invalid selection */ }
   if ((!Array.isArray(ids) || !ids.length) && carried)
     ids = carried.split(",").filter(id => /^[0-9a-f]{12}$/.test(id));
   if (!Array.isArray(ids) || !ids.length) {
-    stage.replaceChildren(el("p", "pv-status", "Select exercises in Browse, then choose Cram exercises."));
+    stage.replaceChildren(el("p", "pv-status", isMobile()
+      ? "On the deck's page, choose Cram all, or pick exercises and cram them."
+      : "Select exercises in Browse, then choose Cram exercises."));
     return;
   }
   call(base + "/cram", {method: "POST", json: {ids}}).then(data => {
-    cards = data.cards || [];
+    const cards = data.cards || [];
     if (!cards.length) {
       stage.replaceChildren(el("p", "pv-status", "No selected exercises are available."));
       return;
     }
-    shuffle();
+    start(cards);
   }).catch(e => stage.replaceChildren(el("p", "pv-status err", e.message)));
 }
 
@@ -1817,6 +2129,7 @@ function initCram() {
 
 // the shared theme (and, on the deck pages, the target script's size)
 applyTypo(loadTypo(null));
+bindMode();
 bindStop();
 if (PAGE === "decks") initDecks();
 else if (PAGE === "deck") initDeck();

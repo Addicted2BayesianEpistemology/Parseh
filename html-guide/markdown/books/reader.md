@@ -214,9 +214,18 @@ On a phone (a screen 560 pixels wide or less) the header also slides out of
 the way by itself as soon as the page moves down, and comes back on the
 smallest move up — so no button is ever a chapter's scrolling away. While
 the bars are put away by hand, that sliding stands down, and **⌄ bars** is
-what brings them back. The reader has no separate version for the toolbox's
-**Mobile** mode: it is the same page in both modes, and adapts to the width
-of the screen.
+what brings them back.
+
+In the toolbox's **Mobile** mode the reader is still this same page, with
+its header laid out again for a thumb: **پ ▤ ☰ Aa ⋯**, and on a narrated
+book **↺ ▶ ↻** — the narration back ten seconds, play, on ten seconds, or
+as many as **skip by … seconds** under **⋯** says — on a line of their own
+upright and on the same line held sideways; the rest under **⋯**, a group
+to a line — and nothing on it that writes the book: no book info, no
+builds, no narration panel, no folding, no timings, no pencil, no cards.
+Every book's reader has it, however long ago it was built.
+[Browser and Mobile](../getting-started/mobile-mode.md#the-books) says what
+is where.
 
 ## Keys
 

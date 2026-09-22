@@ -34,10 +34,13 @@ HTTPS, with a certificate this program makes itself.  Browsers hand out
 screen capture (the frame button on a card) and the clipboard only on
 secure origins, and localhost is the only plain-http origin they trust --
 so a phone or a laptop reaching this over Tailscale needs TLS.  Nobody but
-us ever connects, so a self-signed certificate is exactly right: each
-browser warns ONCE about it, you accept, and that is the end of it.  The
-pair lives in .tls/ and is minted on first start with openssl (every
-address the machine has in its SAN); `--cert` mints a fresh one.
+us ever connects, so a certificate nobody else vouches for is exactly
+right: each browser warns ONCE about it, you accept, and that is the end of
+it.  It lives in .tls/ and is minted on first start with openssl (every
+address the machine has in its SAN), signed by an authority of the
+machine's own that a phone can be told to trust -- which is what installing
+the mobile interface as an app needs (make_cert); `--cert` mints a fresh
+server certificate under the same authority.
 
 A plain-http request that lands on the https port (an old bookmark) is
 answered with a redirect to the https address, not a handshake error.
@@ -99,6 +102,7 @@ import getmt              # noqa: E402  and the model that runs in the page
 import lookuppage         # noqa: E402  the page that sets the dictionaries up
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
 import make_index           # noqa: E402  what a built reader says about itself
+import mobile               # noqa: E402  the mobile interface's own pages (/m/books/)
 import newbook              # noqa: E402  the "add a book" recipe page
 import anki_store           # noqa: E402  the shared card store
 import ytpages              # noqa: E402  the video player's pages + Anki endpoints
@@ -247,8 +251,13 @@ STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js"
                 # what the server is working on, drawn on every page (loaded
                 # by parseh.js, and by its own tag on the studio's pages)
                 "/lib/activity.js",
-                # the mobile interface's sheet (docs/mobile.md)
-                "/lib/mobile.css",
+                # the mobile interface's sheet (docs/mobile.md), and the layer
+                # parseh.js loads into every book's reader for it
+                "/lib/mobile.css", "/lib/mobilereader.js",
+                # the mobile interface installed as an app: its icons
+                # (lib/icons/make.mjs drew them; /manifest.webmanifest names them)
+                "/lib/icons/parseh-192.png", "/lib/icons/parseh-512.png",
+                "/lib/icons/parseh-maskable-512.png", "/lib/icons/apple-touch-icon.png",
                 "/lib/decomposition.js", "/lib/decomposition.css", "/lib/wordline.js",
                 # the card kit: the cut editor and the card sheet's three
                 # destinations, shared by the reader and the player
@@ -610,16 +619,8 @@ def count_tag(counts, key, fmt, total, on=True):
 
 def mode_switch():
     """The switch between the browser and the mobile interface, for a page's
-    top bar: two buttons parseh.js wires (Parseh.mode), the one in force
-    filled in.  Which one that is, the page learns from <html data-mode>
-    before it paints; aria-pressed here is only where it starts."""
-    return ('<span class="parseh-mode" role="group" aria-label="interface">'
-            '<button type="button" data-parseh-mode="browser" aria-pressed="true" '
-            'title="the browser interface: every page, with everything that edits">'
-            'Browser</button>'
-            '<button type="button" data-parseh-mode="mobile" aria-pressed="false" '
-            'title="the mobile interface: pages made for a phone, to read and to study, '
-            'with nothing on them that edits">Mobile</button></span>')
+    top bar (lib/mobile.py writes it, for its own pages too)."""
+    return mobile.mode_switch()
 
 
 def hub_page():
@@ -670,6 +671,7 @@ def hub_page():
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>%(name)s</title>
+%(apphead)s
 <link rel="stylesheet" href="/lib/parseh.css">
 <link rel="stylesheet" href="/lib/langs.css">
 <link rel="stylesheet" href="/lib/mobile.css">
@@ -796,6 +798,7 @@ def hub_page():
         <div class="m-dfa" lang="fa" data-lang="fa">&#x62A;&#x645;&#x631;&#x6CC;&#x646;&#x200C;&#x647;&#x627;</div>
       </a>
     </nav>
+    <div class="m-more-doors">
     <a class="m-door m-guide" href="/guide/">
       <div class="m-dtext">
         <div class="m-dname">Guide</div>
@@ -803,10 +806,20 @@ def hub_page():
       </div>
       <div class="m-dfa" lang="fa" data-lang="fa">&#x631;&#x627;&#x647;&#x646;&#x645;&#x627;</div>
     </a>
+    <!-- installing the mobile interface as an app (lib/mobile.py,
+         install_page); not drawn inside the app itself (lib/mobile.css) -->
+    <a class="m-door m-guide m-appdoor" href="/m/install/">
+      <div class="m-dtext">
+        <div class="m-dname">As an app</div>
+        <div class="m-dwhat">On the home screen, on the whole screen</div>
+      </div>
+      <img class="m-dicon" src="/lib/icons/parseh-192.png" width="44" height="44" alt="">
+    </a>
+    </div>
   </div>
 </main>
 </body></html>
-""" % {"name": NAME, "row": row, "mrow": mrow, "modes": mode_switch(),
+""" % {"name": NAME, "row": row, "mrow": mrow, "modes": mode_switch(), "apphead": mobile.app_head(),
        # The four doors' counts are whole tags, each carrying what every
        # language has: pick a chip and they say that language's number.
        "nbooks": count_tag(counts, "books", lambda k: n(k, "book"), len(bks)),
@@ -1810,6 +1823,57 @@ class Handler(SimpleHTTPRequestHandler):
             return self._redirect(ytpages.BASE + path)
         if path == "/books":
             return self._redirect("/books/")
+        # the mobile interface's book shelf (docs/mobile.md): written from the
+        # shelf on every request, where the library page is a file on disk
+        if path in ("/m/books", "/m/books/", "/m/books/index.html"):
+            if method != "GET":
+                return self._method_not_allowed()
+            if path != "/m/books/":
+                return self._redirect("/m/books/")
+            return self.send_html(mobile.books_page())
+        # THE MOBILE INTERFACE AS AN APP (docs/mobile.md): its description,
+        # its service worker -- at the top of the site, so that its scope is
+        # all of it -- the page it keeps for when this server cannot be
+        # reached, and the page that installs it, with the certificate a
+        # phone is told to trust
+        if path == "/manifest.webmanifest":
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_bytes(json.dumps(mobile.manifest(), ensure_ascii=False).encode("utf-8"),
+                                   "application/manifest+json; charset=utf-8",
+                                   extra={"Cache-Control": "no-cache"})
+        if path == "/sw.js":
+            if method != "GET":
+                return self._method_not_allowed()
+            with open(os.path.join(LIB, "sw.js"), "rb") as f:
+                return self.send_bytes(f.read(), "text/javascript; charset=utf-8",
+                                       extra={"Cache-Control": "no-cache"})
+        if path in ("/m/offline", "/m/offline/"):
+            if method != "GET":
+                return self._method_not_allowed()
+            if path != "/m/offline/":
+                return self._redirect("/m/offline/")
+            return self.send_html(mobile.offline_page())
+        if path in ("/m/install", "/m/install/", "/m/install/index.html"):
+            if method != "GET":
+                return self._method_not_allowed()
+            if path != "/m/install/":
+                return self._redirect("/m/install/")
+            tls = "http" if self.server.ssl_ctx is None else \
+                "authority" if authority_der() else "own"
+            return self.send_html(mobile.install_page(tls))
+        if path == "/m/install/parseh-ca.crt":
+            if method != "GET":
+                return self._method_not_allowed()
+            der = authority_der() if self.server.ssl_ctx is not None else None
+            if der is None:
+                return self.send_json({"error": "this server has no authority of its own to hand over"}, 404)
+            # the authority's certificate and nothing else -- never a key.
+            # Its own type, which is what makes an iPhone offer to install it
+            # and an Android phone save it for Settings to install
+            return self.send_bytes(der, "application/x-x509-ca-cert", extra={
+                "Content-Disposition": 'inline; filename="Parseh-CA.crt"',
+                "Cache-Control": "no-cache"})
         if path in ("/books/add", "/books/add/"):
             if method != "GET":
                 return self._method_not_allowed()
@@ -4608,32 +4672,196 @@ def cert_names():
     return names, ips
 
 
-def make_cert(force=False):
-    """A self-signed certificate in .tls/, made once and reused."""
-    cert = os.path.join(TLS_DIR, "cert.pem")
-    key = os.path.join(TLS_DIR, "key.pem")
-    if os.path.isfile(cert) and os.path.isfile(key) and not force:
-        return cert, key
-    if not shutil.which("openssl"):
-        raise SystemExit(
-            "openssl is needed to make the certificate (apt install openssl),\n"
-            "or run with --http to serve without TLS")
-    os.makedirs(TLS_DIR, exist_ok=True)
-    names, ips = cert_names()
-    san = ",".join(["DNS:%s" % n for n in names] + ["IP:%s" % i for i in ips])
-    r = subprocess.run(
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-sha256",
-         "-days", "3650", "-nodes", "-keyout", key, "-out", cert,
-         "-subj", "/CN=%s/O=%s" % (names[1], NAME),
-         "-addext", "subjectAltName=" + san],
-        capture_output=True, text=True)
+# WHAT A PHONE CAN BE TOLD TO TRUST.  A browser tab accepts a certificate
+# nobody vouches for after one warning; an app does not -- a phone installs
+# the mobile interface as an app (docs/mobile.md, "Parseh as an app") only
+# from a server whose certificate it trusts.  So the certificate is two:
+#   ca.pem / ca-key.pem   an authority of this machine's own, made once and
+#                         kept.  It is what a phone is told to trust, once
+#                         (/m/install/ hands it over, lib/mobile.py).
+#   cert.pem / key.pem    the server's, signed by it for every name and
+#                         address the machine has, 825 days at a time (the
+#                         most an iPhone accepts), made again as it nears its
+#                         end or when --cert asks -- and trusted wherever the
+#                         authority is, with nothing installed again.
+# THE AUTHORITY CAN VOUCH FOR THIS MACHINE AND NOTHING ELSE.  An authority on
+# a phone vouches for every site it signs for, so this one is made unable to
+# sign for any site at all (nameConstraints): only localhost, this machine's
+# own name, a .local or tailnet (.ts.net) name, and the private and Tailscale
+# address ranges.  Were its key ever copied off this machine, it would still
+# be good for nothing on the internet.
+TLS_DAYS = 825
+TLS_RENEW = 30 * 86400              # made again when it has less left than this
+TLS_PERMITTED = {
+    "DNS": ["localhost", "local", "ts.net"],
+    # 127/8, the three private ranges, and Tailscale's 100.64/10
+    "IP": ["127.0.0.0/255.0.0.0", "10.0.0.0/255.0.0.0", "172.16.0.0/255.240.0.0",
+           "192.168.0.0/255.255.0.0", "100.64.0.0/255.192.0.0"],
+}
+
+
+def _ip_permitted(ip):
+    import ipaddress
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    for r in TLS_PERMITTED["IP"]:
+        net, mask = r.split("/")
+        if a in ipaddress.ip_network("%s/%s" % (net, mask)):
+            return True
+    return False
+
+
+def _openssl(args, what):
+    r = subprocess.run(["openssl"] + args, capture_output=True, text=True)
     if r.returncode:
-        raise SystemExit("openssl could not make the certificate:\n" + r.stderr)
+        raise SystemExit("openssl could not make %s:\n%s" % (what, r.stderr))
+    return r.stdout
+
+
+def _cfg(path, text):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    return path
+
+
+def _made_here(cert):
+    """Was this certificate made by make_cert before it had an authority --
+    self-signed, O=Parseh -- rather than put in .tls/ by hand?"""
+    try:
+        r = subprocess.run(["openssl", "x509", "-in", cert, "-noout", "-subject", "-issuer",
+                            "-nameopt", "RFC2253"], capture_output=True, text=True, timeout=10)
+    except Exception:
+        return False
+    said = dict(line.split("=", 1) for line in r.stdout.splitlines() if "=" in line)
+    subject, issuer = said.get("subject", "").strip(), said.get("issuer", "").strip()
+    return bool(subject) and subject == issuer and ("O=%s" % NAME) in subject.split(",")
+
+
+def _ends_soon(cert):
+    r = subprocess.run(["openssl", "x509", "-in", cert, "-noout", "-checkend", str(TLS_RENEW)],
+                       capture_output=True, text=True)
+    return r.returncode != 0
+
+
+def make_authority():
+    """The machine's own authority, ca.pem and ca-key.pem (see above)."""
+    host = socket.gethostname() or "this machine"
+    ca, ca_key = os.path.join(TLS_DIR, "ca.pem"), os.path.join(TLS_DIR, "ca-key.pem")
+    permitted = ["permitted;DNS.%d = %s" % (i, n) for i, n in enumerate(TLS_PERMITTED["DNS"] + [host])]
+    permitted += ["permitted;IP.%d = %s" % (i, r) for i, r in enumerate(TLS_PERMITTED["IP"])]
+    cfg = _cfg(os.path.join(TLS_DIR, "ca.cnf"), """[req]
+distinguished_name = dn
+prompt = no
+x509_extensions = ext
+[dn]
+CN = %s local authority (%s)
+O = %s
+[ext]
+basicConstraints = critical,CA:TRUE,pathlen:0
+keyUsage = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash
+nameConstraints = critical,@permitted
+[permitted]
+%s
+""" % (NAME, host, NAME, "\n".join(permitted)))
+    try:
+        _openssl(["req", "-x509", "-config", cfg, "-newkey", "rsa:2048", "-sha256", "-days", "3650",
+                  "-nodes", "-keyout", ca_key, "-out", ca], "the authority")
+    finally:
+        os.remove(cfg)
+    os.chmod(ca_key, 0o600)
+    print("a local authority for this machine written to %s/ca.pem: a phone told to trust it "
+          "can install the mobile interface as an app" % TLS_DIR)
+    return ca, ca_key
+
+
+def make_server_cert(ca, ca_key):
+    """cert.pem (the server's, then the authority's: the chain it sends) and
+    key.pem, for every name and address the machine has that the authority
+    may vouch for."""
+    names, ips = cert_names()
+    names = [n for n in names if n == names[1] or n == "localhost" or n.endswith((".local", ".ts.net"))]
+    ips = [i for i in ips if _ip_permitted(i)]
+    san = ",".join(["DNS:%s" % n for n in names] + ["IP:%s" % i for i in ips])
+    cert, key = os.path.join(TLS_DIR, "cert.pem"), os.path.join(TLS_DIR, "key.pem")
+    csr, leaf = os.path.join(TLS_DIR, "server.csr"), os.path.join(TLS_DIR, "server.pem")
+    cfg = _cfg(os.path.join(TLS_DIR, "server.cnf"), """[req]
+distinguished_name = dn
+prompt = no
+[dn]
+CN = %s
+O = %s
+[ext]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = %s
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+""" % (names[1] if len(names) > 1 else names[0], NAME, san))
+    try:
+        _openssl(["req", "-new", "-config", cfg, "-newkey", "rsa:2048", "-nodes",
+                  "-keyout", key, "-out", csr], "the certificate")
+        # a serial nobody else's is: 16 random bytes, the first bit clear
+        serial = "0x%032x" % (int.from_bytes(os.urandom(16), "big") >> 1)
+        _openssl(["x509", "-req", "-in", csr, "-CA", ca, "-CAkey", ca_key, "-set_serial", serial,
+                  "-days", str(TLS_DAYS), "-sha256", "-extfile", cfg, "-extensions", "ext",
+                  "-out", leaf], "the certificate")
+        with open(leaf, encoding="utf-8") as a, open(ca, encoding="utf-8") as b, \
+                open(cert, "w", encoding="utf-8") as out:
+            out.write(a.read() + b.read())
+    finally:
+        for p in (cfg, csr, leaf):
+            if os.path.exists(p):
+                os.remove(p)
     os.chmod(key, 0o600)
     with open(os.path.join(TLS_DIR, "names.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(names + ips) + "\n")
     print("certificate written to %s/ (valid for: %s)" % (TLS_DIR, san))
     return cert, key
+
+
+def make_cert(force=False):
+    """The certificate the server speaks TLS with, in .tls/, made once and
+    reused (see WHAT A PHONE CAN BE TOLD TO TRUST, above): the server's own,
+    made again when it nears its end or `force` asks, under an authority
+    made once.  A certificate made here before there was an authority (one
+    self-signed, O=Parseh) is replaced by the pair once -- each browser warns
+    about the new one once, as it did about the old.  One put in .tls/ by
+    hand -- Tailscale's, or Let's Encrypt's -- is used as it is and never
+    touched."""
+    cert = os.path.join(TLS_DIR, "cert.pem")
+    key = os.path.join(TLS_DIR, "key.pem")
+    ca, ca_key = os.path.join(TLS_DIR, "ca.pem"), os.path.join(TLS_DIR, "ca-key.pem")
+    have = os.path.isfile(cert) and os.path.isfile(key)
+    have_ca = os.path.isfile(ca) and os.path.isfile(ca_key)
+    if have and not force:
+        if not shutil.which("openssl"):
+            return cert, key
+        if not have_ca and not _made_here(cert):
+            return cert, key                    # somebody's own: used as it is
+        if have_ca and not _ends_soon(cert):
+            return cert, key
+    if not shutil.which("openssl"):
+        raise SystemExit(
+            "openssl is needed to make the certificate (apt install openssl),\n"
+            "or run with --http to serve without TLS")
+    os.makedirs(TLS_DIR, exist_ok=True)
+    if not have_ca:
+        ca, ca_key = make_authority()
+    return make_server_cert(ca, ca_key)
+
+
+def authority_der():
+    """The authority's certificate, DER-encoded, for a phone to install; None
+    when there is none (plain http, or a certificate put in .tls/ by hand)."""
+    try:
+        with open(os.path.join(TLS_DIR, "ca.pem"), encoding="ascii") as f:
+            return ssl.PEM_cert_to_DER_cert(f.read())
+    except (OSError, ValueError):
+        return None
 
 
 def addresses():

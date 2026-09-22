@@ -962,6 +962,61 @@ table.bt .fa { white-space: nowrap; }
 }
 .ex-blank:empty::after { content: attr(data-slot); margin: auto; color: var(--graytx); opacity: .45; font: .72em var(--sans); }
 .ex-bank { min-height: 2.6em; padding: .45em; border-radius: 9px; background: color-mix(in srgb,var(--rulec) 35%,transparent); }
+
+/* FILL IN THE BLANKS IN THE MOBILE INTERFACE: a tap on a blank opens this
+   cloud beside it, a copy of the words the bank holds, and a tap on one
+   puts it in the blank (app.js, bindExercises).  It exists only there, so
+   its targets are a finger's.  It hangs inside the exercise (which is
+   positioned), under the blank with its tip pointing up at it, or over it
+   (.over) with the tip pointing down -- --tip is where along its edge. */
+.ex-cloud {
+  position: absolute; z-index: 30; left: 0; top: 0;
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px;
+  width: max-content; max-width: calc(100% - 16px); box-sizing: border-box;
+  padding: 10px; border: 1px solid var(--rulec); border-radius: 14px;
+  background: var(--sheet-bg); color: var(--ink); line-height: 1.35;
+  box-shadow: 0 10px 28px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.12);
+  animation: ex-cloud-in .12s ease-out;
+}
+@keyframes ex-cloud-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ex-cloud::before {
+  content: ""; position: absolute; top: -7px; left: var(--tip, 50%);
+  width: 12px; height: 12px; margin-left: -6px; transform: rotate(45deg);
+  background: inherit; border-top: 1px solid var(--rulec); border-left: 1px solid var(--rulec);
+}
+.ex-cloud.over::before {
+  top: auto; bottom: -7px; border: 0;
+  border-right: 1px solid var(--rulec); border-bottom: 1px solid var(--rulec);
+}
+/* hung under the whole sentence, lines below its blank: no tip, the blank's
+   own border (.choosing) says which one it is */
+.ex-cloud.apart::before { display: none; }
+.ex-cloud-pick, .ex-cloud-clear {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 48px; min-height: 48px; box-sizing: border-box; padding: .35em .85em;
+  border: 1px solid var(--rulec); border-radius: 10px; background: var(--sheet-bg); color: var(--ink);
+  font: inherit; line-height: 1.35; cursor: pointer; unicode-bidi: isolate;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.ex-cloud-pick:hover, .ex-cloud-clear:hover { border-color: var(--accentlt); }
+.ex-cloud-pick:active, .ex-cloud-clear:active { border-color: var(--accent); background: color-mix(in srgb,var(--accent) 8%,var(--sheet-bg)); }
+.ex-cloud-pick:focus-visible, .ex-cloud-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ex-cloud-clear { flex: 1 1 100%; border-style: dashed; color: var(--graytx); font: .9em var(--sans); }
+.ex-cloud-none { margin: 0; max-width: 20em; color: var(--graytx); font: .9em/1.4 var(--sans); }
+/* the blank, or the match's place, whose cloud is open, drawn as chosen */
+:is(.ex-blank, .ex-match-drop).choosing {
+  border-style: solid; border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 24%,transparent);
+}
+/* and in the mobile interface a blank or a match's place is what is tapped,
+   and the bank is to be read: as tall as a finger, no grabbing hand over
+   the words, and an empty place asking for a tap, not a drop */
+html[data-mode=mobile] .exercise[data-subtype="fill-blanks"] .ex-blank,
+html[data-mode=mobile] .exercise[data-primitive="matching"] .ex-match-drop { min-height: 48px; cursor: pointer; }
+html[data-mode=mobile] .exercise:is([data-subtype="fill-blanks"],[data-primitive="matching"]) .ex-bank .ex-item {
+  cursor: default;
+}
+html[data-mode=mobile] .exercise[data-primitive="matching"] .ex-match-drop:empty::after { content: "tap to choose"; }
 .ex-sequence { display: flex; flex-direction: column; gap: .45em; min-height: 3em; }
 .ex-sequence .ex-item { width: 100%; }
 .ex-sequence-inline {
@@ -2181,6 +2236,26 @@ body[data-page="edit"] figure.img:hover img { outline: none; }
 /* "next exercise in 8m" is a sentence here */
 .dk-done .dk-when::first-letter { text-transform: uppercase; }
 .dk-done-actions { display: flex; justify-content: center; gap: .5rem; margin-top: 1rem; }
+/* the end of a cram: how it went, then the exercises answered wrong at
+   least once and the ones skipped -- each opens solved under it -- with a
+   button to cram just those */
+.dk-done .dk-cram-tally { margin: 0 0 .4rem; }
+.dk-cram-list { max-width: 640px; margin: 1.4rem auto 0; text-align: start; }
+.dk-cram-head {
+  margin: 0 0 .45rem; color: var(--chrome-mut);
+  font: 600 .78rem/1.3 var(--sans); letter-spacing: .04em; text-transform: uppercase;
+}
+.dk-cram-items { list-style: none; margin: 0 0 .6rem; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.dk-cram-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .12rem; width: 100%;
+  padding: .55rem .8rem; border: 1px solid var(--chrome-line); border-radius: 10px;
+  background: var(--chrome-panel); color: var(--chrome-fg); font: inherit; text-align: start; cursor: pointer;
+}
+.dk-cram-item:hover { border-color: var(--accentlt); }
+.dk-cram-item[aria-expanded="true"] { border-color: var(--accent); }
+.dk-cram-item:focus-visible { outline: 2px solid var(--accentlt); outline-offset: 2px; }
+.dk-cram-meta { color: var(--chrome-mut); font-size: .76rem; }
+.dk-cram-solved { margin-top: .4rem; }
 
 /* the dialogs */
 .dk-modal { width: min(560px, 94vw); }

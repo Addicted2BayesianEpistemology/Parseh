@@ -53,7 +53,7 @@ Parseh/
 | `.github/` | Its `guide-pages.yml` workflow: the guide, compiled and published on GitHub Pages. |
 | `tests/` | The unit tests, `smoke.py`, the browser tests, and `fixtures/`: a small book, video and Anki deck in every language. |
 | `.runtime/` | The environment, when the installer made it: `bin/micromamba`, `env/`, and micromamba's package cache, `mamba/`. |
-| `.tls/` | The certificate `serve.py` makes on its first start. |
+| `.tls/` | The certificates `serve.py` makes: its own authority (`ca.pem`, made once — the one a phone is told to trust, to install the mobile interface as an app) and the server's, signed by it and made again as it nears its end. |
 
 ### Inside lib/
 
@@ -64,6 +64,10 @@ Parseh/
 | `verbs/<code>.py` | How each language's verb entry (`\vb`) is read out of its dictionary. |
 | `parseh.js` | With `parseh.css`: the palette and the themes, the language chips, the clipboard, the Browser/Mobile mode. |
 | `mobile.css` | The mobile interface's sheet. |
+| `mobile.py` | The mobile interface's pages the server writes: the book shelf, `/m/books/`; installing it as an app, `/m/install/`; the page the app shows when the server cannot be reached; the app's manifest. |
+| `mobilereader.js` | A book's reader in the mobile interface: the layer `parseh.js` loads into every reader. |
+| `sw.js` | The app's service worker, served at `/sw.js`: it answers a page with *Parseh cannot be reached* when the server is away, and touches nothing else. |
+| `icons/` | The app's icons, and `make.mjs`, which drew them. |
 | `activity.js` | With `activity.py`: what the server is working on — the **Working…** pill and the hub's panel. |
 | `tex2html.py` | A book's reader, written from its chapters. |
 | `bundle.py` | A book or a video as one zip. |

@@ -176,3 +176,7 @@ mt/
 # Optional, locally installed character component packs (licences stored in each pack).
 components/*.db
 components/.build-*/
+
+# The working list of what is left to do, at the top of the checkout: notes
+# for whoever works on the toolbox, not part of it.
+/TO-DO.md

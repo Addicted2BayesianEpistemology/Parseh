@@ -570,6 +570,8 @@ async function suite(browser, mode) {
   const errors = [];
   let passed = 0;
   const assert = (v, m) => { if (!v) throw new Error(`FAIL (${mode}): ` + m); passed++; console.log('  ok', m); };
+  const eq = (got, want, m) => assert(JSON.stringify(got) === JSON.stringify(want),
+    m + (JSON.stringify(got) === JSON.stringify(want) ? '' : ': got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want)));
   function watch(page, name) {
     page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
     page.on('console', m => {
@@ -1842,6 +1844,8 @@ async function endToEnd(browser) {
   const url = p => `http://127.0.0.1:${port}${p}`;
   let passed = 0;
   const assert = (v, m) => { if (!v) throw new Error(`FAIL (${mode}): ` + m); passed++; console.log('  ok', m); };
+  const eq = (got, want, m) => assert(JSON.stringify(got) === JSON.stringify(want),
+    m + (JSON.stringify(got) === JSON.stringify(want) ? '' : ': got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want)));
   async function http(method, path, body) {
     const r = await fetch(url(path), {method, body: body === undefined ? undefined : JSON.stringify(body),
                                       headers: body === undefined ? {} : {'Content-Type': 'application/json'}});
@@ -2719,6 +2723,8 @@ async function endToEnd(browser) {
           assert(await page.locator('#cram-stage .ex-flashcard.flipped').count() === 1,
                  'cram reveals a flashcard answer');
           await page.waitForSelector('#cram-wrong:not([hidden])');
+          if (!wrongFlash)
+            assert(await page.locator('#cram-skip').isVisible(), 'a turned card not graded yet can still be skipped');
           if (!wrongFlash) {
             wrongFlash = front;
             await page.click('#cram-wrong');
@@ -2728,9 +2734,11 @@ async function endToEnd(browser) {
           }
         } else if (subtype === 'true-false') {
           await page.click(`#cram-stage .ex-option[data-correct="${n < 4 ? '0' : '1'}"]`);
+          assert(await page.locator('#cram-skip').isVisible(), 'an exercise not checked yet has Skip');
           await page.click('#cram-check');
           assert(await page.locator('#cram-result').textContent() === (n < 4 ? 'Not quite' : 'Correct'),
                  'cram checks a scored choice again after a wrong answer');
+          assert(!(await page.locator('#cram-skip').isVisible()), 'checked, it is answered: no Skip, only Next');
           await page.click('#cram-next');
         } else if (subtype === 'match-translations') {
           if (n >= 4) {
@@ -2761,6 +2769,57 @@ async function endToEnd(browser) {
              && seen.filter(x => x === 'true-false').length === 2
              && seen.filter(x => x === 'match-translations').length === 2,
              'cram ends after every wrong exercise has been answered correctly');
+      // ---- the end says how it went, and names what to look at again
+      eq(await page.locator('#cram-tally').textContent(), '4 exercises: 1 right the first time, 3 wrong at least once.',
+         'the end: how many right the first time, how many wrong at least once');
+      const listed = sel => page.evaluate(sel => [...document.querySelectorAll(sel + ' .dk-cram-item')]
+        .map(b => [b.querySelector('.ex-kicker').textContent, b.querySelector('.dk-cram-meta')?.textContent || '']), sel);
+      const wrongOnes = await listed('#cram-wrong-list');
+      eq(wrongOnes.map(w => w[1]), ['wrong once, then right', 'wrong once, then right', 'wrong once, then right'],
+         'the three answered wrong, each once and then right');
+      eq(wrongOnes.map(w => w[0]).sort(), ['Flashcard', 'Match translations', 'True or false'].sort(),
+         'they are the flashcard, the choice and the match');
+      assert(await page.locator('#cram-skipped-list').isHidden(), 'nothing skipped, no list of skipped ones');
+      await page.click('#cram-wrong-list .dk-cram-item >> nth=0');
+      await page.waitForSelector('#cram-wrong-list .dk-cram-solved:not([hidden]) .exercise');
+      eq(await page.locator('#cram-wrong-list .dk-cram-item >> nth=0').getAttribute('aria-expanded'), 'true',
+         'a click on one shows it solved under it');
+      // ---- the wrong ones again, one of them skipped
+      await page.click('#cram-wrong-list [data-x="again"]');
+      await page.waitForFunction(() => document.querySelector('#cram-progress').textContent === '1 of 3');
+      assert(await page.locator('#cram-done').isHidden(), 'Cram these again: a practice of the three');
+      const skippedKind = await page.locator('#cram-stage .exercise').getAttribute('data-subtype');
+      await page.click('#cram-skip');
+      for (let n = 0; n < 2; n++) {
+        const ex = page.locator('#cram-stage .exercise');
+        const subtype = await ex.getAttribute('data-subtype');
+        if (subtype === 'flashcard') {
+          await page.click('#cram-show');
+          await page.waitForSelector('#cram-correct:not([hidden])');
+          await page.click('#cram-correct');
+        } else {
+          if (subtype === 'true-false') await page.click('#cram-stage .ex-option[data-correct="1"]');
+          else {
+            const drops = page.locator('#cram-stage .ex-match-drop');
+            const wants = await drops.evaluateAll(ds => ds.map(d => d.dataset.answer));
+            for (let i = 0; i < wants.length; i++) {
+              await page.locator(`#cram-stage .ex-item[data-item="${wants[i]}"]`).click();
+              await drops.nth(i).click();
+            }
+          }
+          await page.click('#cram-check');
+          await page.click('#cram-next');
+        }
+      }
+      await page.waitForSelector('#cram-done:not([hidden])');
+      eq(await page.locator('#cram-tally').textContent(), '3 exercises: 2 right the first time, 1 skipped.',
+         'the end: two right, one skipped');
+      assert(await page.locator('#cram-wrong-list').isHidden(), 'nothing wrong this time, no list of wrong ones');
+      const skippedOnes = await listed('#cram-skipped-list');
+      eq(skippedOnes.length, 1, 'the skipped one, named');
+      eq(await page.locator('#cram-skipped-list .ex-kicker').first().textContent(),
+         {'flashcard': 'Flashcard', 'true-false': 'True or false', 'match-translations': 'Match translations'}[skippedKind],
+         'and it is the one skipped');
       assert((await http('GET', at)).data.items.every(i => i.schedule.state === 'new' && i.reps === 0),
              'cram does not change scheduling or review counts');
       await page.click('#cram-done .dk-back');
