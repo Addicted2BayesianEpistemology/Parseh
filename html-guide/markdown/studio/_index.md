@@ -33,7 +33,8 @@ work:
 - **The document page** (`/studio/doc/<id>`) is the document as a reader
   sees it, with its typography controls, its contents, its glosses as a
   table and as flashcards, the documents that link to it, its exercises,
-  and **Build PDF**.
+  **Build PDF**, and **Download ▾**, which also makes it
+  [a page for a website](web-page.md).
 - **The LLM prompt page** (`/studio/prompt`) is the text you give a
   language model so that its answer comes back already written in the
   dialect.

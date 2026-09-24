@@ -63,15 +63,11 @@ Colour
   four dots of its gloss cloud). In a book it shows on pass 1 only.
 
 Draft
-: A book or a video started empty, whose glosses are still being
-  written: `"draft": true` in its `book.json` or `video.json`. While it
-  is a draft, the checkers let a chunk nobody has glossed yet pass. A
-  chunk half written — a meaning with no transliteration beside it, in a
-  language that wants one — is where they differ: a book's checker still
-  refuses it, while a video's only warns (`missing 'tr' -- still a
-  draft`), since the player saves the meanings and the transliterations
-  one at a time. Once the flag comes off, both refuse it. (`./build.sh --draft` is
-  something else: a PDF of a few chapters, fast.)
+: A book or a video started from its text alone — **Make the draft** on
+  the add-a-book page, **Start it empty** on the add-a-video page: the text
+  cut into chunks, every gloss blank. Nothing marks it as a draft
+  afterwards; it is an ordinary book or video with unglossed chunks.
+  (`./build.sh --draft` is something else: a PDF of a few chapters, fast.)
 
 Fidelity
 : The rule that a book's chunks, joined, still say what its source
@@ -84,8 +80,16 @@ Fidelity
 Gloss
 : What a chunk carries besides its text: the transliteration, the
   vocabulary line (the words one by one, a verb with its principal parts)
-  and the meaning. In the studio, `word = *meaning*` is a gloss, and the
-  document's **⇄ Glosses** table collects them.
+  and the meaning. **delete gloss**, in the chunk sheet or the player's
+  ✎ form, takes all of it off at once. In the studio, `word = *meaning*`
+  is a gloss, and the document's **⇄ Glosses** table collects them.
+
+Half-glossed chunk
+: A chunk with some of its gloss written and something its language
+  requires still empty — a meaning with no transliteration beside it, in a
+  language that romanises every chunk. The chunk sheet and the ✎ form save
+  one on the way to a whole gloss; the checkers list it as an error until
+  it is finished, and an LLM's answer never writes one.
 
 Narration
 : A book read aloud. It is a list of **recordings**, each covering a
@@ -133,6 +137,13 @@ Transliteration
 : A chunk's sound in Latin letters, by each language's own scheme. For
   Japanese there is also the **reading**, in kana; for Chinese the pinyin
   is the transliteration.
+
+Unglossed chunk
+: A chunk with nothing written in its gloss (in Japanese and Chinese, a
+  reading still as it was proposed from the words does not count). Legal
+  in every book and every video, for as long as it stays so: the checkers
+  count such chunks in one note (*3 of 12 chunks have no gloss yet*), and
+  **gloss with an LLM** fills only these.
 
 Word line
 : For Japanese and Chinese, which write no spaces, the chunk divided into
@@ -297,7 +308,7 @@ Environment
   made it, or wherever your conda keeps it.
 
 Hub
-: The first page, `https://localhost:8765/`: the doors, the language
+: The first page, `https://localhost:7654/`: the doors, the language
   chips, the **guide** button.
 
 Language chips

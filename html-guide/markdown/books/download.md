@@ -1,6 +1,6 @@
 ---
 title: Taking a book away
-weight: 12
+weight: 13
 description: The reader's download — what a bundle carries, the three shapes of a narrated book and their sizes — and working on the files in a text editor.
 ---
 

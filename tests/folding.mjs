@@ -202,6 +202,56 @@ assert(!sprang, 'a run folded a second time comes back folded, not open');
 // put the book back as the rest of this file expects it
 await page.evaluate(() => { folded = [['1:1', '1:1']]; foldRanges(); applyFold(); });
 
+/* ---- A FOLDED RUN DOES NOT SWALLOW ITS NOTES (the owner's ask, 2026-09-23).
+   A note's mark lives in the seam above its paragraph, so folding the run took
+   the marks down with it and the page said nothing at all: a run of twelve
+   paragraphs could be hiding six notes invisibly.  The bar carries them now --
+   the first three, then "+N more" -- and the row goes when the run is opened,
+   because every one of those notes is standing in its own seam again. */
+const seam = await page.evaluate(() => {
+  const g = document.querySelector('.para[data-p="1:1"] .gap');
+  return g ? {at: g.dataset.at || '', after: g.dataset.after || ''} : null;
+});
+assert(seam, 'the folded paragraph has a seam a note can be anchored to');
+const NOTES = [1, 2, 3, 4, 5].map(i => ({
+  id: 'note-' + i, title: 'Note ' + i, excerpt: 'what note ' + i + ' says',
+  anchor: seam.at ? {kind: 'sub', side: 'before', at: seam.at}
+                  : {kind: 'sub', side: 'after', at: seam.after},
+}));
+// answered before the file routes, which would 404 it (Playwright tries the
+// handlers in reverse order of registration)
+await page.route('**/api/marks', route => route.fulfill({json: {ok: true, notes: NOTES}}));
+await page.evaluate(() => loadNotes());
+await page.waitForSelector('.foldbar .fnotes');
+const row = await page.evaluate(() => {
+  const r = document.querySelector('.foldbar .fnotes');
+  return {marks: [...r.querySelectorAll('.mark')].map(b => b.textContent),
+          more: (r.querySelector('.fmore') || {}).textContent,
+          // the hidden seam still holds its own marks, untouched: the row is
+          // fresh buttons, never the seam's moved or cloned
+          inSeam: document.querySelectorAll('.para[data-p="1:1"] .gap .mark').length};
+});
+eq(row.marks, ['Note 1', 'Note 2', 'Note 3'],
+   'the fold bar shows the notes it is hiding: the first three');
+eq(row.more, '+2 more', 'and says how many more there are');
+eq(row.inSeam, 5, 'while the marks in the hidden seam are left exactly where they are');
+await page.click('.foldbar .fmore');
+eq(await page.evaluate(() => [
+  [...document.querySelectorAll('.foldbar .fnotes .mark')].length,
+  !!document.querySelector('.foldbar .fmore')]), [5, false],
+  '"+2 more" shows the rest, where it stands');
+// opened, the notes are back in their seam and the row has nothing to say
+await page.click('.foldbar button');
+eq(await page.evaluate(() => {
+  const r = document.querySelector('.foldbar .fnotes');
+  return [!!r, r ? getComputedStyle(r).display : 'gone',
+          document.querySelector('.para[data-p="1:1"]').offsetParent !== null];
+}), [true, 'none', true],
+  'and when the run is opened the row goes: every note is in its own seam again');
+await page.click('.foldbar button');
+eq(await page.evaluate(() => getComputedStyle(document.querySelector('.foldbar .fnotes')).display),
+   'flex', 'folded away again, and the row is back');
+
 // ---- the sheet ------------------------------------------------------------
 await page.click('#fold');
 assert(await page.evaluate(() => !$('#fdbox').hidden), 'fold opens the sheet');

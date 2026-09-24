@@ -3,8 +3,11 @@
 """The mobile interface's pages that the server writes (docs/mobile.md).
 
     mobile.books_page()     /m/books/, the book shelf as a phone reads it
+    mobile.videos_page()    /m/videos/, the channels, as a phone reads them
+    mobile.channel_page(s)  /m/videos/<channel>/, one channel's videos
     mobile.install_page(t)  /m/install/, installing the mobile interface as an app
     mobile.offline_page()   /m/offline/, what the app shows when the server is away
+    mobile.kept_page()      /m/kept/, everything kept on this phone (§19.2)
     mobile.manifest()       /manifest.webmanifest, the app's description
     mobile.app_head()       the tags that make a page part of the app
     mobile.mode_switch()    the Browser | Mobile switch, for a page's bar
@@ -25,6 +28,14 @@ coming in or going out.  A book whose reader has never been built has
 nothing to open, and a phone cannot build it, so its card says so and is not
 a link.  Everything that CAN be tapped goes to a reader, where the mobile
 layer (lib/mobilereader.js) takes over.
+
+THE SHELVES ARE PART OF THE APP SHELL (the owner's 1 and 2, 2026-09-23;
+lib/offline.py, shell()).  Kept by the worker, they open with the computer
+away -- so what they show is as old as the last time it was reached.  The one
+block each page is built round therefore carries `data-shell-block`: when the
+worker has read the page again and found it changed, lib/keep.js puts the
+fresh block in place of the one the page opened with.  /m/kept/ carries no
+such mark: its list is the phone's own and the computer knows nothing of it.
 """
 import html
 import os
@@ -53,14 +64,62 @@ def esc(s):
 # (serve.py's authority, handed over by /m/install/).  The app is the MOBILE
 # INTERFACE: it opens on the mobile hub, with the mode set to mobile.
 ICONS = "/lib/icons/"
+# WHERE THE MANIFEST NAMES THE ICONS, which is not where the pages fetch
+# them.  Chrome does not build a phone's app itself: it sends the manifest
+# to a Google server, and THAT server fetches the icon addresses in it and
+# packs them into the app.  It is out on the internet; this Parseh is on a
+# home network or a tailnet, where nothing outside can reach it -- so an
+# icon named on this server is an icon that server cannot fetch, and the
+# build fails with no reason given: the install button vanishes and
+# chrome://webapks stays empty.  The icons are in the repository as well,
+# so the project's GitHub Pages serves the same four files at an address
+# anyone can reach, and the manifest names them there.  Nothing else moves:
+# the pages, the apple-touch icon and what is kept on the phone all stay on
+# this server.  Empty this to name them here again.
+PUBLIC_ICONS = "https://addicted2bayesianepistemology.github.io/Parseh/lib/icons/"
 # the light palette's ground (lib/parseh.css --bg), which the app's splash
 # screen and the pages start on; and the dark one's, for a phone set dark
 LIGHT_BG, DARK_BG = "#f3eff1", "#171214"
 ACCENT = "#be3455"
 
 
-def manifest():
-    """The app's description, as /manifest.webmanifest serves it."""
+def mints(user_agent):
+    """Does this browser build the app on a server of somebody else's?
+
+    ONLY CHROME ON ANDROID DOES.  It sends the manifest away to be packed
+    into a real Android app (a WebAPK), and the server that packs it fetches
+    the icon addresses itself, from out on the internet, where this Parseh
+    cannot be reached.  That is the whole reason PUBLIC_ICONS exists -- and
+    it is a reason that holds for that one browser and no other.  An iPhone
+    builds nothing: it fetches the icon ITSELF, from the phone, so an
+    address out on the internet is one more thing that can be out of reach
+    -- and when an iPhone can fetch no icon at all it draws its own tile,
+    the app's first letter on the theme colour, and keeps it until the icon
+    is taken off the home screen and put back.  That is what he saw: the
+    share sheet right (it reads the apple-touch tag, which is here) and Add
+    to Home Screen wrong (it reads the manifest, which was pointing out).
+
+    Chromium's other Android browsers -- Edge, Samsung Internet -- mint the
+    same way and carry `Chrome/` too; Firefox on Android does not, and adds
+    a plain shortcut with an icon it fetches itself.
+    """
+    ua = user_agent or ""
+    return "Android" in ua and "Chrome/" in ua
+
+
+def icon_src(name, public):
+    """Where the manifest sends a browser for one icon: the public copy for
+    the one browser that needs it, this server for everybody else."""
+    return ((PUBLIC_ICONS if public else "") or ICONS) + name
+
+
+def manifest(user_agent=None):
+    """The app's description, as /manifest.webmanifest serves it.
+
+    The icons it names depend on who is asking (`mints`): everything else in
+    it is the same for everyone.
+    """
+    public = mints(user_agent)
     return {
         "id": "/",
         "name": APP_NAME,
@@ -81,12 +140,57 @@ def manifest():
         "background_color": LIGHT_BG,
         "theme_color": ACCENT,
         "icons": [
-            {"src": ICONS + "parseh-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-            {"src": ICONS + "parseh-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-            {"src": ICONS + "parseh-maskable-512.png", "sizes": "512x512", "type": "image/png",
-             "purpose": "maskable"},
+            {"src": icon_src("parseh-192.png", public), "sizes": "192x192", "type": "image/png",
+             "purpose": "any"},
+            {"src": icon_src("parseh-512.png", public), "sizes": "512x512", "type": "image/png",
+             "purpose": "any"},
+            {"src": icon_src("parseh-maskable-512.png", public), "sizes": "512x512",
+             "type": "image/png", "purpose": "maskable"},
+            # AND THE ONE AN IPHONE TAKES, off this server.  Since iOS 16.4
+            # an iPhone reads the manifest's icons too, and picks the one
+            # whose size it wants: 180, which is this and none of the three
+            # above.  It is square and opaque where they are circles on
+            # nothing, and it is on this server, so a phone that is away
+            # still has it -- where an iPhone that can fetch no icon at all
+            # draws its own tile instead, the app's first letter in the
+            # theme colour, and keeps it until the icon is taken off the
+            # home screen and put back.
+            {"src": ICONS + "apple-touch-icon.png", "sizes": "180x180", "type": "image/png",
+             "purpose": "any"},
         ],
     }
+
+
+# THE PAGE ARRIVES ALREADY KNOWING (the owner's rule of 2026-09-23).
+#
+#   "If the page knows the machine is offline when you click a thing, the
+#    page you arrive at should already know it is offline and act
+#    accordingly.  A book, a notebook, a deck of exercises does not change
+#    from offline to online mid-use.  If I enter offline they must be the
+#    offline version, full stop; if I want the online version I leave and
+#    come back."
+#
+# lib/keep.js writes down what it found under `parseh_away`, with the terms
+# it is good for in the entry itself -- but keep.js is DEFERRED, and a page's
+# own scripts are not: a plain script at the foot of the body runs before a
+# deferred one in the head.  So every page used to take its first breath
+# believing the computer was there, whatever the page before it had learnt,
+# and the ones that ask something on sight asked it.  On this computer a
+# wrong guess is refused in microseconds; on a phone whose tunnel has gone
+# the socket answers NOTHING and the page hangs on it for ever.
+#
+# This is the first thing on every page of the app, before any script of its
+# own: the memory, read, and the mark set on <html> that everything else
+# already keys off.  Nothing fetches, nothing waits -- it is a localStorage
+# read and an attribute -- and lib/keep.js's own probe follows a moment later
+# and may still turn the mark ON.  It may not turn it off: that is the second
+# half of the rule, and it lives in lib/keep.js (`chipPaint`).
+AWAY_BOOT = (
+    '<script>/* the state the page before this one found: lib/keep.js, `noted` */\n'
+    'try{var a=JSON.parse(localStorage.getItem("parseh_away")||"null");\n'
+    'if(a&&a.away===true&&typeof a.at==="number"&&\n'
+    '   Date.now()/1000-a.at<=(typeof a.trusted==="number"?a.trusted:180))\n'
+    'document.documentElement.setAttribute("data-parseh-away","");}catch(e){}</script>')
 
 
 def app_head():
@@ -96,9 +200,12 @@ def app_head():
     screen).  Not a favicon: a page keeps its own.  Every page of the mobile
     interface carries them -- the hub, the shelf, the decks -- and
     lib/parseh.js adds them to a page that has none (every book's reader,
-    built without them)."""
-    return ('<link rel="manifest" href="/manifest.webmanifest">\n'
-            '<link rel="apple-touch-icon" href="%(i)sapple-touch-icon.png">\n'
+    built without them).
+
+    AND THE OFFLINE MARK, set before anything else runs (AWAY_BOOT)."""
+    return (AWAY_BOOT + '\n'
+            '<link rel="manifest" href="/manifest.webmanifest">\n'
+            '<link rel="apple-touch-icon" sizes="180x180" href="%(i)sapple-touch-icon.png">\n'
             '<meta name="theme-color" content="%(l)s" media="(prefers-color-scheme: light)">\n'
             '<meta name="theme-color" content="%(d)s" media="(prefers-color-scheme: dark)">\n'
             '<meta name="mobile-web-app-capable" content="yes">\n'
@@ -106,6 +213,75 @@ def app_head():
             '<meta name="apple-mobile-web-app-title" content="%(n)s">\n'
             '<meta name="apple-mobile-web-app-status-bar-style" content="default">'
             % {"i": ICONS, "l": LIGHT_BG, "d": DARK_BG, "n": APP_NAME})
+
+
+# A BOOK KEPT IN THE BACKGROUND WHILE NO PAGE WAS OPEN (the owner's decision
+# of 2026-09-23; lib/keep.js and lib/sw.js, `settle`).  Android's own download
+# can end with every page of Parseh closed, and a worker cannot write the
+# registry (`parseh_kept` is localStorage): it leaves the end in a note
+# instead, with the entry the press made, and the next page that opens writes
+# it down and says its line once.  These two pages draw from the registry
+# before any script of lib/keep.js could run -- and the offline page has none
+# at all, since it must stand alone -- so they do it themselves, first, with
+# this, and say so (`parsehMerging`) so that lib/keep.js leaves it to them.
+MERGE_JS = r"""
+window.parsehMerging = true;
+function parsehMerge(then) {
+  var JOBS = 'parseh-jobs', JOB = '/__keepjob/', lines = [], over = false;
+  // one line per keep for the life of the page, however many times it is
+  // asked (the worker may say one keep's end twice)
+  var said = parsehMerge.said || (parsehMerge.said = {});
+  function done() { if (over) return; over = true; try { then(lines); } catch (e) {} }
+  // the list is drawn whatever happens, and never waits on this for long
+  setTimeout(done, 3000);
+  if (!window.caches) { done(); return; }
+  caches.has(JOBS).then(function (y) {
+    if (!y) return null;
+    return caches.open(JOBS).then(function (c) {
+      return c.keys().then(function (ks) {
+        var paths = ks.map(function (k) { return new URL(k.url).pathname; });
+        var heads = paths.filter(function (p) {
+          return p.indexOf(JOB) === 0 && p.slice(JOB.length).indexOf('/') < 0;
+        });
+        return Promise.all(heads.map(function (p) {
+          return Promise.all([c.match(p), c.match(p + '/end')]).then(function (rs) {
+            if (!rs[0] || !rs[1]) return null;
+            return Promise.all([rs[0].json(), rs[1].json()]).then(function (j) {
+              var head = j[0], end = j[1], reg = {};
+              // past the deadline the list is drawn already: this end is left
+              // as it is, for the next look to write down and say
+              if (over) return null;
+              try { reg = JSON.parse(localStorage.getItem('parseh_kept') || '{}') || {}; } catch (e) {}
+              var was = reg[head.id];
+              if (!head.removed) {
+                // the entry made at the press, never over a newer one
+                if (end.entry && !(was && (was.at || 0) > (head.started || 0))) {
+                  var e = {}, k;
+                  for (k in end.entry)
+                    if (Object.prototype.hasOwnProperty.call(end.entry, k)) e[k] = end.entry[k];
+                  e.at = end.finished || Date.now() / 1000;
+                  reg[head.id] = e;
+                  try { localStorage.setItem('parseh_kept', JSON.stringify(reg)); } catch (x) {}
+                }
+                if (end.line && !said[head.token || p]) {
+                  said[head.token || p] = true;
+                  lines.push({line: end.line, bad: !!end.bad});
+                }
+              } else {
+                // removed: nothing to say, and nobody else is to say it either
+                said[head.token || p] = true;
+              }
+              return Promise.all(paths.filter(function (q) {
+                return q === p || q.indexOf(p + '/') === 0;
+              }).map(function (q) { return c.delete(q); }));
+            });
+          });
+        }));
+      });
+    });
+  }).then(done, done);
+}
+"""
 
 
 def offline_page():
@@ -132,6 +308,11 @@ h1{font-size:22px;line-height:1.3;margin:18px 0 8px}
 p{margin:0 0 12px;color:var(--dim)}
 button{font:inherit;font-size:17px;min-height:52px;width:100%%;margin-top:14px;border:0;
   border-radius:12px;background:var(--accent);color:var(--fg);cursor:pointer}
+h2{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:28px 0 8px}
+a.kept{display:flex;align-items:center;min-height:56px;padding:10px 14px;margin-bottom:8px;
+  background:var(--card);border-radius:12px;color:var(--ink);text-decoration:none;font-size:17px}
+#news p{margin:18px 0 0;padding:10px 14px;border:1px solid var(--accent);border-radius:12px;
+  color:var(--ink);background:var(--card)}
 </style>
 </head><body>
 <main>
@@ -142,9 +323,416 @@ button{font:inherit;font-size:17px;min-height:52px;width:100%%;margin-top:14px;b
   from Tailscale, if that is how it reaches it).</p>
   <p>Once the computer is on and %(app)s is started there, try again.</p>
   <button type="button" onclick="location.reload()">Try again</button>
+  <!-- WHAT IS KEPT ON THIS PHONE still works (TO-DO §19.5): this page is
+       kept by the worker and stands alone, so the list is written here from
+       the phone's own registry rather than asked of anybody. -->
+  <h2 id="kepth" hidden>Kept on this phone</h2>
+  <div id="kept"></div>
+  <div id="news" role="status"></div>
+  <script>
+  %(merge)s
+  /* what came in the background while no page was open is written down
+     first, so that the list below includes it (MERGE_JS), and its line is
+     said once at the foot */
+  parsehMerge(function (lines) {
+    var reg = {};
+    try { reg = JSON.parse(localStorage.getItem('parseh_kept') || '{}') || {}; } catch (e) {}
+    var ids = Object.keys(reg), box = document.getElementById('kept');
+    var news = document.getElementById('news');
+    lines.forEach(function (l) {
+      var p = document.createElement('p');
+      p.textContent = l.line;
+      news.appendChild(p);
+    });
+    if (!ids.length) return;
+    document.getElementById('kepth').hidden = false;
+    ids.sort(function (a, b) { return (reg[b].at || 0) - (reg[a].at || 0); });
+    ids.forEach(function (id) {
+      var a = document.createElement('a');
+      a.href = reg[id].page || id;
+      a.textContent = reg[id].title || id;
+      a.className = 'kept';
+      box.appendChild(a);
+    });
+  });
+  </script>
 </main>
 </body></html>
-""" % {"app": APP_NAME, "l": LIGHT_BG, "d": DARK_BG, "a": ACCENT}
+""" % {"app": APP_NAME, "l": LIGHT_BG, "d": DARK_BG, "a": ACCENT, "merge": MERGE_JS}
+
+
+# WHAT IS KEPT ON THIS PHONE (TO-DO §19.2).  The list itself is the phone's,
+# not the computer's -- what a phone has kept is known to that phone alone
+# (lib/keep.js keeps a registry beside the worker's caches) -- so this page is
+# a frame the phone fills in, and it works with the computer away as well as
+# with it here.  It says what each thing is, how big it was when it was kept,
+# when that was, whether its notes came with it, opens each, and gives back
+# the room by removing one; and it says how much room the phone has left
+# (navigator.storage.estimate).
+KEPT_JS = r"""<script>
+""" + MERGE_JS + r"""
+(function () {
+  var list = document.getElementById('m-keptlist'), none = document.getElementById('m-keptnone');
+  var JOBS = 'parseh-jobs', JOB = '/__keepjob/', BG = 'parseh-keep:';
+  function big(n) {
+    n = +n || 0;
+    return n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB'
+         : n >= 1e3 ? Math.round(n / 1e3) + ' kB' : n + ' bytes';
+  }
+  function when(at) {
+    var s = Math.max(0, Date.now() / 1000 - (at || 0));
+    return s < 3600 ? 'kept a moment ago' : s < 86400 ? 'kept ' + Math.round(s / 3600) + ' hours ago'
+         : 'kept ' + Math.round(s / 86400) + ' days ago';
+  }
+  function jobWrite(key, v) {
+    return caches.open(JOBS).then(function (c) {
+      return c.put(key, new Response(JSON.stringify(v), {headers: {'Content-Type': 'application/json'}}));
+    });
+  }
+  // every note of one thing marked `removed`, and its downloads stopped;
+  // resolves with their tokens.  Nothing at all where nothing was ever kept
+  // in the background -- the iPad -- and no cache is made for asking.
+  function stopAll(id) {
+    if (!window.caches) return Promise.resolve([]);
+    return caches.has(JOBS).then(function (y) {
+      if (!y) return [];
+      return caches.open(JOBS).then(function (c) {
+        return c.keys().then(function (ks) {
+          var heads = ks.map(function (k) { return new URL(k.url).pathname; })
+            .filter(function (p) { return p.indexOf(JOB) === 0 && p.slice(JOB.length).indexOf('/') < 0; });
+          return Promise.all(heads.map(function (p) {
+            return c.match(p).then(function (r) { return r ? r.json() : null; }).then(function (h) {
+              if (!h || h.id !== id) return null;
+              h.removed = true;
+              return jobWrite(p, h).then(function () { return h.token; });
+            });
+          }));
+        });
+      }).then(function (ts) {
+        ts = ts.filter(Boolean);
+        var sw = navigator.serviceWorker;
+        if (!ts.length || !sw || !sw.getRegistration) return ts;
+        return sw.getRegistration().then(function (r) {
+          if (!r || !r.backgroundFetch) return ts;
+          return r.backgroundFetch.getIds().then(function (ids) {
+            return Promise.all(ids.filter(function (n) {
+              return n.indexOf(BG) === 0 && ts.indexOf(n.slice(BG.length).split(':')[0]) >= 0;
+            }).map(function (n) {
+              return r.backgroundFetch.get(n).then(function (x) { return x ? x.abort() : false; })
+                .catch(function () { return false; });
+            }));
+          });
+        }).then(function () { return ts; }, function () { return ts; });
+      });
+    }).catch(function () { return []; });
+  }
+  // a keep's notes, gone once its thing has been dropped
+  function forget(token) {
+    caches.has(JOBS).then(function (y) {
+      if (!y) return null;
+      return caches.open(JOBS).then(function (c) {
+        return c.keys().then(function (ks) {
+          return Promise.all(ks.filter(function (k) {
+            var p = new URL(k.url).pathname;
+            return p === JOB + token || p.indexOf(JOB + token + '/') === 0;
+          }).map(function (k) { return c.delete(k); }));
+        });
+      });
+    }).catch(function () {});
+  }
+  /* WHAT IS STILL COMING IN THE BACKGROUND (the owner, 2026-09-23): a book
+     whose download Android is still bringing is listed here too, as "coming —
+     43%", with Stop in place of Remove.  Read from the browser's own list of
+     downloads and the note each press left (lib/keep.js), never made up: a
+     browser with no background downloads at all -- the iPad -- finds nothing
+     and draws exactly the list it always drew. */
+  var jobs = {};
+  function coming() {
+    jobs = {};
+    var sw = navigator.serviceWorker;
+    if (!window.caches || !sw || !sw.getRegistration) return Promise.resolve();
+    return caches.has(JOBS).then(function (y) {
+      if (!y) return null;
+      return sw.getRegistration().then(function (r) {
+        if (!r || !r.backgroundFetch) return null;
+        return Promise.all([caches.open(JOBS), r.backgroundFetch.getIds()]).then(function (a) {
+          var c = a[0], by = {};
+          (a[1] || []).forEach(function (name) {
+            if (name.indexOf(BG) !== 0) return;
+            var t = name.slice(BG.length).split(':')[0];
+            (by[t] = by[t] || []).push(name);
+          });
+          return Promise.all(Object.keys(by).map(function (t) {
+            return c.match(JOB + t).then(function (res) { return res ? res.json() : null; })
+              .then(function (head) {
+                if (head && !head.removed) jobs[head.id] = {head: head, names: by[t], bf: r.backgroundFetch};
+              });
+          }));
+        });
+      });
+    }).catch(function () {});
+  }
+  // how far a keep still coming has got, in the note's own weights -- a
+  // download of it that is over counting what its note says it brought, read
+  // BEFORE anything is shown, since the figure never goes back
+  function follow(job, tag) {
+    var want = job.head.want || {}, total = 0, seen = {};
+    var w = function (list) {
+      return (list || []).reduce(function (n, u) { return n + ((want[u] && want[u].bytes) || 0); }, 0);
+    };
+    Object.keys(job.head.parts || {}).forEach(function (p) { total += w(job.head.parts[p]); });
+    var live = {};
+    job.names.forEach(function (n) { live[n.split(':')[2]] = true; });
+    var over = Object.keys(job.head.parts || {}).filter(function (p) { return !live[p]; });
+    var top = 0;
+    function show() {
+      var got = 0;
+      for (var k in seen) if (Object.prototype.hasOwnProperty.call(seen, k)) got += seen[k];
+      top = Math.max(top, Math.min(99, total ? Math.floor(got * 100 / total) : 0));
+      tag.textContent = 'coming — ' + top + '%';
+    }
+    tag.textContent = 'coming';
+    caches.open(JOBS).then(function (c) {
+      return Promise.all(over.map(function (p) {
+        return c.match(JOB + job.head.token + '/' + p).then(function (r) { return r ? r.json() : null; })
+          .then(function (o) {
+            if (o && !o.settling) {
+              seen[p] = w(o.put || []);
+              total = Math.max(0, total - w(o.failed || []));
+            } else seen[p] = w(job.head.parts[p]);   // over, and being put away
+          });
+      }));
+    }).catch(function () {}).then(function () {
+      show();
+      job.names.forEach(function (n) {
+        job.bf.get(n).then(function (r) {
+          if (!r) return;
+          var part = n.split(':')[2];
+          var moved = function () { seen[part] = r.downloaded || 0; show(); };
+          r.addEventListener('progress', moved);
+          moved();
+        });
+      });
+    });
+  }
+  function draw(lines) {
+    var reg = {};
+    try { reg = JSON.parse(localStorage.getItem('parseh_kept') || '{}') || {}; } catch (e) {}
+    list.textContent = '';
+    none.hidden = true;
+    var ids = Object.keys(reg);
+    Object.keys(jobs).forEach(function (id) { if (!reg[id]) ids.push(id); });
+    if (!ids.length) none.hidden = false;
+    ids.sort(function (a, b) {
+      var x = reg[a] || (jobs[a] || {}).head || {}, y = reg[b] || (jobs[b] || {}).head || {};
+      return (y.at || y.started || 0) - (x.at || x.started || 0);
+    });
+    ids.forEach(function (id) { card(id, reg[id], jobs[id], reg); });
+    (lines || []).forEach(function (l) {
+      var p = document.createElement('p');
+      p.className = 'm-keptnews' + (l.bad ? ' kp-bad' : '');
+      p.setAttribute('role', 'status');
+      p.textContent = l.line;
+      list.parentNode.appendChild(p);
+    });
+    // the room is said where something is listed, as it always was
+    if (ids.length) room();
+  }
+  function card(id, r, job, reg) {
+    var card = document.createElement('div');
+    card.className = 'm-book m-kept';
+    var a = document.createElement('a');
+    a.className = 'm-keptopen';
+    a.href = (r && r.page) || (job && job.head.page) || id;
+    a.innerHTML = '<div class="m-btitle"></div><div class="m-tags"></div>';
+    a.querySelector('.m-btitle').textContent = (r && r.title) || (job && job.head.title) || id;
+    var tags = a.querySelector('.m-tags');
+    // WHETHER ITS NOTES CAME WITH IT (TO-DO §0, the notes kept with their
+    // book).  Both answers are worth a tag, because both are acted on in the
+    // same one press: the card opens the book, and Change what is kept is
+    // the tick.  But only where the answer is KNOWN -- lib/keep.js writes
+    // `notes` into the registry only for a thing that can have notes at all,
+    // so a deck, a document, and anything kept before any of this existed
+    // carry nothing here and get no tag.  A tag guessed for them would be a
+    // tag that lies, which is worse than a tag that is missing.
+    var mine = [];
+    if (r) {
+      mine = [[r.kind || 'kept', 'tag'], [big(r.bytes), 'tag on'], [when(r.at), 'tag']];
+      if (r.notes === true) mine.push(['with its notes', 'tag']);
+      else if (r.notes === false) mine.push(['without its notes', 'tag']);
+    } else mine = [['book', 'tag']];
+    mine.forEach(function (t) {
+      var s = document.createElement('span');
+      s.className = t[1];
+      s.textContent = t[0];
+      tags.appendChild(s);
+    });
+    if (job) {
+      // on its way, not missing: lib/keep.js leaves such a card as it is
+      card.setAttribute('data-kp-coming', '');
+      var c = document.createElement('span');
+      c.className = 'tag on m-coming';
+      tags.appendChild(c);
+      follow(job, c);
+    }
+    card.appendChild(a);
+    if (job) {
+      /* STOP, in place of Remove, while it is coming (the owner): it does
+         what Cancel on the notification does -- the whole keep stops, and
+         what had come stays -- and the line then says it was stopped on this
+         phone.  The worker says when it has been put away, and the list is
+         drawn again from what it wrote down. */
+      var stop = document.createElement('button');
+      stop.type = 'button';
+      stop.className = 'm-keptoff m-keptstop';
+      stop.textContent = 'Stop';
+      stop.addEventListener('click', function () {
+        stop.disabled = true;
+        // the note as it is NOW, not as it was drawn: a keep removed or ended
+        // meanwhile is not brought back by writing an old copy of it
+        caches.open(JOBS).then(function (c) { return c.match(JOB + job.head.token); })
+          .then(function (r) { return r ? r.json() : null; })
+          .then(function (h) {
+            if (!h || h.removed) { again(); return null; }
+            h.stopped = 'here';
+            return jobWrite(JOB + h.token, h).then(function () {
+              return Promise.all(job.names.map(function (n) {
+                return job.bf.get(n).then(function (x) { return x ? x.abort() : false; })
+                  .catch(function () { return false; });
+              }));
+            });
+          }).catch(function () { stop.disabled = false; });
+      });
+      card.appendChild(stop);
+      list.appendChild(card);
+      return;
+    }
+    var off = document.createElement('button');
+    off.type = 'button';
+    off.className = 'm-keptoff';
+    off.textContent = 'Remove from this phone';
+    off.addEventListener('click', function () {
+      // A DECK THAT IS OUT MAY NOT BE REMOVED (the owner's 8 and 9,
+      // 2026-09-23): what has been answered on this phone is nowhere else
+      // until it is given back, and the copy is what the study page reads.
+      // decks.js keeps the check-out under parseh_deck_out:<folder>/<slug>.
+      var out = /^\/exercises\/deck\/([a-z]+)\/([a-z0-9][a-z0-9-]*)\/$/.exec(id), held = null;
+      if (out) {
+        try { held = JSON.parse(localStorage.getItem('parseh_deck_out:' + out[1] + '/' + out[2]) || 'null'); }
+        catch (e) {}
+      }
+      if (held) {
+        var no = card.querySelector('.m-keptwhy') || document.createElement('p');
+        no.className = 'm-keptwhy';
+        no.textContent = 'This deck is out on this phone: what has been answered here is not on ' +
+                         'the computer yet. Give it back on its own page first.';
+        card.appendChild(no);
+        return;
+      }
+      off.disabled = true;
+      var w = navigator.serviceWorker && navigator.serviceWorker.controller;
+      var tokens = [];
+      // ONCE, and from the registry as it is when it runs: the list may have
+      // been drawn again meanwhile, from what a keep ending wrote down
+      var ended = false;
+      var done = function () {
+        if (ended) return;
+        ended = true;
+        var now = {};
+        try { now = JSON.parse(localStorage.getItem('parseh_kept') || '{}') || {}; } catch (e) {}
+        delete now[id];
+        try { localStorage.setItem('parseh_kept', JSON.stringify(now)); } catch (e) {}
+        tokens.forEach(forget);
+        if (card.isConnected) {
+          card.remove();
+          if (!Object.keys(now).length && !list.querySelector('.m-kept')) none.hidden = false;
+          room();
+        } else again();
+      };
+      /* WHAT IS STILL COMING OF IT IS STOPPED FIRST, and nothing of it is put
+         away (the owner): the notes say `removed` before the download is
+         stopped -- looked at now, when Remove is pressed, not when the list
+         was drawn, since a Save may have started one from another page. */
+      stopAll(id).then(function (t) {
+        tokens = t;
+        if (!w) { done(); return; }
+        var hear = function (e) {
+          if (!e.data || !e.data.dropped) return;
+          navigator.serviceWorker.removeEventListener('message', hear);
+          done();
+        };
+        navigator.serviceWorker.addEventListener('message', hear);
+        w.postMessage({drop: id});
+        setTimeout(done, 4000);
+      });
+    });
+    card.appendChild(off);
+    list.appendChild(card);
+  }
+  function room() {
+    var say = document.getElementById('m-room');
+    if (!navigator.storage || !navigator.storage.estimate) return;
+    navigator.storage.estimate().then(function (e) {
+      var used = e.usage || 0, all = e.quota || 0;
+      say.textContent = all ? 'This phone is holding ' + big(used) + ', and has about ' +
+                              big(Math.max(0, all - used)) + ' left for Parseh.'
+                            : 'This phone is holding ' + big(used) + '.';
+    });
+  }
+  // what came while no page was open is written down first, then drawn
+  function again() { parsehMerge(function (lines) { coming().then(function () { draw(lines); follow_(); }); }); }
+  // a keep drawn as coming that lib/keep.js on this page is not following yet
+  // -- one started after the page loaded -- is followed, so that its end,
+  // however it comes, draws the page again
+  function follow_() {
+    if (Object.keys(jobs).length && window.ParsehKeep && window.ParsehKeep.follow) window.ParsehKeep.follow();
+  }
+  again();
+  // and a keep that ends while this page is open is drawn again from what
+  // the worker wrote down
+  if (navigator.serviceWorker)
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      var d = e.data || {};
+      if (d.kept && d.token) again();
+    });
+  // and a keep cut short, which lib/keep.js writes down on this page too
+  document.addEventListener('parseh:kept-written', function (e) {
+    var more = (e.detail && e.detail.lines) || [];
+    parsehMerge(function (lines) { coming().then(function () { draw(more.concat(lines)); }); });
+  });
+})();
+</script>"""
+
+
+def kept_page():
+    """/m/kept/: everything kept on this phone, what each takes and the room
+    left, each openable and each removable (TO-DO §19.2)."""
+    return """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kept on this phone &mdash; %(app)s</title>
+%(head)s
+<link rel="stylesheet" href="/lib/parseh.css">
+<link rel="stylesheet" href="/lib/langs.css">
+<link rel="stylesheet" href="/lib/mobile.css">
+<script src="/lib/parseh.js"></script>
+</head><body class="m-page" data-mobile-page data-browser-page="/">
+%(bar)s
+<main class="m-main">
+  <h1 class="m-h1">Kept on this phone</h1>
+  <p class="m-tagline">These work with the computer asleep, off, or a train away. Everything
+  else needs it.</p>
+  <p id="m-room" class="m-small">&nbsp;</p>
+  <div class="m-shelf" id="m-keptlist"></div>
+  <div class="m-empty" id="m-keptnone" hidden>
+    <p>Nothing is kept on this phone yet.</p>
+    <p>Open a book or a video and press <b>Keep on this phone</b> under <b>&ctdot;</b>.</p>
+  </div>
+</main>
+%(js)s
+</body></html>
+""" % {"app": APP_NAME, "head": app_head(), "bar": bar("Kept here"), "js": KEPT_JS}
 
 
 def mode_switch():
@@ -189,8 +777,6 @@ def book_card(b):
     L = b.lang
     attrs = L.html_attrs()
     tags = []
-    if b.meta.get("draft"):
-        tags.append('<span class="tag on">draft</span>')
     if st.get("built"):
         n = len(st.get("chapters", []))
         tags.append('<span class="tag">%d chapter%s</span>' % (n, "" if n == 1 else "s"))
@@ -219,9 +805,36 @@ def book_card(b):
                 'the browser interface, from the book&rsquo;s card in the library.</div>\n'
                 '</div>' % (esc(L.code), inner))
     # data-subs: how many subparagraphs the reader has, which is what the
-    # reading place it keeps (a subparagraph's index) is counted against
-    return ('<a class="m-book" href="%s" data-lang="%s" data-subs="%d">\n%s\n</a>'
-            % (esc(reader_href(b)), esc(L.code), int(st.get("subs", 0) or 0), inner))
+    # reading place it keeps (a subparagraph's index) is counted against.
+    # data-place: how far the TOOLBOX says this book has been read (§4.9,
+    # lib/prefs.py) -- so a phone that has never opened it still shows the
+    # place made at the computer.  This browser's own, where it has one and
+    # it is further on, wins over it (READ_ON_JS).
+    href = reader_href(b)
+    kept = ""
+    rec = _place_for(href)
+    if rec:
+        kept = ' data-place="%d" data-place-by="%s"' % (int(rec.get("pct") or 0),
+                                                        esc(str(rec.get("by") or "")))
+    return ('<a class="m-book" href="%s" data-lang="%s" data-subs="%d"%s>\n%s\n</a>'
+            % (esc(href), esc(L.code), int(st.get("subs", 0) or 0), kept, inner))
+
+
+def _place_for(href):
+    """What the toolbox knows of where this book was last read, by whichever
+    device read it (lib/prefs.py).  The library links a reader by reader/ and
+    by reader/index.html: both addresses are asked, as the page's own script
+    asks localStorage for both."""
+    try:
+        import prefs
+        kept = prefs.places()
+    except Exception:
+        return None
+    for path in (href, href + "index.html"):
+        rec = kept.get(path)
+        if isinstance(rec, dict) and rec.get("pct"):
+            return rec
+    return None
 
 
 def lang_head(L, n):
@@ -232,17 +845,28 @@ def lang_head(L, n):
             % (esc(L.code), esc(L.name), L.html_attrs(), esc(L.native), n))
 
 
-# THE READING PLACE, where the phone has one.  The reader keeps it in this
-# browser's localStorage, under bk_pos: and its own address, as {i: the
-# subparagraph's index} (lib/tex2html.py, save()); the library links a reader
-# by reader/index.html and this page by reader/, so both addresses are asked.
-# A card whose book has been read on here says how far, and links the address
-# the place was kept under, so the reader opens at it.  Nothing is written.
+# THE READING PLACE.  Two of them may be known.  The toolbox keeps one per
+# book, whichever device read it (lib/prefs.py, §4.9), and the card above
+# arrives with it as data-place; this browser keeps its own, under bk_pos: and
+# the reader's address, as {i: the subparagraph's index} (lib/tex2html.py,
+# save()).  The library links a reader by reader/index.html and this page by
+# reader/, so both addresses are asked.  The further of the two is what the
+# card says, and the reader is linked at the address this browser's place was
+# kept under, so it opens there.  Nothing is written.
+#
+# It is drawn again whenever the shelf is: the page opens from the phone's
+# copy of itself and lib/keep.js swaps the block when the computer's answer
+# lands (parseh:shell-filled), and the cards that arrive then are the
+# computer's, which know nothing of what this browser has read.
 READ_ON_JS = r"""<script>
 (function () {
-  var cards = document.querySelectorAll('a.m-book[data-subs]');
+ function mark() {
+  var cards = document.querySelectorAll('a.m-book[data-subs]:not(.m-read)');
   for (var i = 0; i < cards.length; i++) {
     var a = cards[i], base = a.getAttribute('href'), subs = +a.getAttribute('data-subs') || 0;
+    // a card lib/keep.js has made untappable -- the book is not on this phone
+    // and the computer is away -- has no address to read a place against
+    if (!base) continue;
     var at = null, where = base;
     [base, base + 'index.html'].forEach(function (p) {
       if (at !== null) return;
@@ -251,17 +875,24 @@ READ_ON_JS = r"""<script>
         if (v && typeof v.i === 'number' && v.i > 0) { at = v.i; where = p; }
       } catch (e) {}
     });
-    if (at === null || !subs) continue;
-    var pct = Math.max(1, Math.min(100, Math.round((at + 1) * 100 / subs)));
+    var mine = (at !== null && subs) ? Math.max(1, Math.min(100, Math.round((at + 1) * 100 / subs))) : 0;
+    var theirs = +a.getAttribute('data-place') || 0;
+    var pct = Math.max(mine, theirs);
+    if (!pct) continue;
     var tag = document.createElement('span');
     tag.className = 'tag on m-readon';
     tag.textContent = 'read on · ' + pct + '%';
+    if (theirs > mine && a.getAttribute('data-place-by'))
+      tag.title = 'where it was last read, on ' + a.getAttribute('data-place-by');
     var tags = a.querySelector('.m-tags');
     if (tags) tags.insertBefore(tag, tags.firstChild);
     a.style.setProperty('--m-read', pct + '%');
     a.classList.add('m-read');
-    a.setAttribute('href', where);
+    if (mine) a.setAttribute('href', where);
   }
+ }
+ mark();
+ document.addEventListener('parseh:shell-filled', mark);
 })();
 </script>"""
 
@@ -372,12 +1003,299 @@ def install_page(tls):
     <p class="m-small">The app is this server: it opens wherever the computer running
     %(app)s can be reached &mdash; on its network, or anywhere over Tailscale &mdash; and
     says so when it cannot.</p>
+    <p class="m-small">Installing is the quick part: the icon is on the home screen the
+    moment it is pressed, and %(app)s then fetches the pages it needs to open with the
+    computer away &mdash; the hub, the shelves, their sheets and scripts. The line below
+    counts them as they come, so it is worth staying on this page until it says it is
+    ready.</p>
+    <p data-parseh-warm="stay" role="status" hidden></p>
   </section>
 </main>
 %(js)s
 </body></html>
 """ % {"app": APP_NAME, "head": app_head(), "bar": bar("As an app"), "cert": cert,
        "js": INSTALL_JS}
+
+
+# ---------------------------------------------------------------- videos
+# THE VIDEOS, as a phone reads them (TO-DO §4.2).  The browser index is one
+# card per channel and the videos a tap inside it; this shelf used to be a
+# flat list instead -- every video of every channel, under a heading per
+# channel -- and on a phone that is a page you scroll past rather than one
+# you choose from.  So it is the browser's shape now (the owner, 2026-09-23):
+# ONE CARD PER CHANNEL, saying its name, how many videos it holds and how
+# many of them are glossed to the end, and opening the channel page that has
+# always been there at /m/videos/<slug>/.  A channel with videos in two
+# languages is two cards, one under each language's heading, exactly as the
+# browser's index does it -- which is also what makes the chip row honest: a
+# card counts only the videos of the language it is filed under.
+#
+# Nothing here writes: no delete, no add, no bundle either way.  A video with
+# no annotations at all has nothing to read and says so on its own card,
+# inside the channel; every other card opens the player, where
+# lib/mobileplayer.js takes over.
+#
+# AND WITH THE COMPUTER AWAY (the owner's 1 and 2, 2026-09-23).  This shelf
+# is a shell page, kept by the worker, so it opens in airplane mode showing
+# the channels the computer had when it was last reached -- but a channel
+# PAGE is only on the phone if the app warmed it (lib/offline.py, shell()),
+# and one added since the last warming is on nobody's phone at all.  A card
+# whose page is not here must therefore look like one that cannot be opened,
+# the way a book whose reader was never built already does: CHANNELS_JS asks
+# the phone's own caches, address by address, and draws the rest as m-off.
+def _video_card(m):
+    import ytpages
+    vid = m["_dir"].rsplit("/", 1)[-1]
+    L = languages.get_or_default(m.get("_lang"))
+    attrs = L.html_attrs()
+    tags = []
+    if m.get("duration"):
+        tags.append('<span class="tag">%s</span>' % esc(m["duration"]))
+    if m.get("level"):
+        tags.append('<span class="tag">%s</span>' % esc(m["level"]))
+    if m["_segments"] and not m.get("_blank"):
+        tags.append('<span class="tag on">%d captions glossed</span>' % m["_segments"])
+    elif m.get("_blank"):
+        tags.append('<span class="tag on">%d of %d chunks glossed</span>'
+                    % (m["_glossable"] - m["_blank"], m["_glossable"]))
+    native = esc(ytpages.native_title(m) or m.get("title") or vid)
+    title = ('<div class="m-btitle"%s>%s</div>' % (attrs, native)) if native else ""
+    latin = esc(m.get("title") or vid)
+    inner = """  %s
+  <div class="m-bby">%s</div>
+  <div class="m-blat">%s</div>
+  <div class="m-tags">%s</div>""" % (title, esc(m.get("channel") or ""), latin, "".join(tags))
+    if not m["_segments"]:
+        return ('<div class="m-book m-off" data-lang="%s">\n%s\n'
+                '  <div class="m-bnote">Nothing has been glossed in this video yet: '
+                'that is done in the browser interface.</div>\n</div>'
+                % (esc(L.code), inner))
+    return ('<a class="m-book" href="/youtube/v/%s/" data-lang="%s">\n%s\n</a>'
+            % (esc(vid), esc(L.code), inner))
+
+
+def _channel_card(c):
+    """One channel on the mobile shelf: the whole card is the way into it.
+
+    The tags are the browser index's (youtube/lib/ytpages.py, channel_card),
+    in the mobile shelf's own clothes -- how many videos, how many are
+    glossed to the end, the levels they are marked with.  "Fully glossed" has
+    to mean no chunk left blank as well as every caption glossed, or a video
+    whose chunks are still being filled in would be counted here as finished
+    work.
+
+    One tag is this shelf's own: a channel where NOTHING has been glossed
+    opens on a page where every card says there is nothing to read, and it is
+    better said on the outside than found on the inside.
+
+    data-m-page is the address the card opens, said twice so that CHANNELS_JS
+    still knows it after taking the href away.
+
+    THE NAME IS WHATEVER YOUTUBE CALLS THE CHANNEL, and that is Persian for
+    one channel and Latin for the next -- "Daughter of Iran [Comprehensible
+    Input]" is his, under the Persian heading.  So it is given dir="auto" and
+    no lang: the browser reads the direction off the first real letter, and
+    the bracket of that name stays at the end of it.  Forcing the language's
+    direction on it instead threw the bracket to the wrong end of the line.
+
+    And it is set in the language's READING face, not its display one, which
+    is the same choice the browser index makes (lib/parseh.css, a.book.chan
+    .chname uses --tl-font).  A book's title on the shelf is target text and
+    earns the display face; a channel's name is the app's own chrome, and
+    Persian's display face is Nastaliq, which carries a line and a half of
+    leading with it and set two lines of a Latin channel name a thumb apart.
+    The card says so in its own tokens rather than asking for a rule of its
+    own: --tl-alt is what .m-btitle draws with, so on this card --tl-alt IS
+    --tl-font, and --tl-alt-lh (the leading Nastaliq needs) is nobody's here.
+    """
+    L = languages.get_or_default(c["lang"])
+    n = len(c["videos"])
+    glossed = sum(1 for m in c["videos"]
+                  if m["_segments"] and m["_glossed"] >= m["_segments"] and not m["_blank"])
+    readable = sum(1 for m in c["videos"] if m["_segments"])
+    levels = sorted({m.get("level") for m in c["videos"] if m.get("level")})
+    tags = ['<span class="tag on">%d video%s</span>' % (n, "" if n == 1 else "s")]
+    if glossed:
+        tags.append('<span class="tag">%d fully glossed</span>' % glossed)
+    for lvl in levels:
+        tags.append('<span class="tag">%s</span>' % esc(lvl))
+    if not readable:
+        tags.append('<span class="tag no">nothing glossed yet</span>')
+    href = "/m/videos/%s/" % c["slug"]
+    return ('<a class="m-book m-chancard" href="%s" data-m-page="%s" data-lang="%s"'
+            ' style="--tl-alt:var(--tl-font);--tl-alt-lh:1">\n'
+            '  <div class="m-btitle" dir="auto">%s</div>\n'
+            '  <div class="m-tags">%s</div>\n'
+            '</a>' % (esc(href), esc(href), esc(L.code), esc(c["name"]), "".join(tags)))
+
+
+# WHICH CHANNELS THIS PHONE CAN ACTUALLY OPEN, while the computer is away.
+# The shelf itself is kept with the app and opens whatever happens; a channel
+# page is only on the phone if the app warmed it, and a channel added since
+# the last warming is on nobody's.  Tapping such a card would go nowhere, so
+# it is drawn and cannot be tapped, with a line saying why -- the same face a
+# book whose reader was never built has always worn (m-book m-off).
+#
+# The phone's caches are asked directly: caches.match() searches every cache
+# of this origin, which is precisely the question "would this page open with
+# nothing behind it".  Nothing here decides whether the computer is away --
+# that is lib/keep.js's probe, which writes data-parseh-away on <html> -- and
+# nothing here is drawn until the caches have answered: until then a card
+# stays tappable, because the worse mistake is to refuse a page this phone
+# really holds.  A browser with no cache storage at all (a page over plain
+# http, the browser mode) has no offline story to be honest about and is left
+# alone.
+CHANNELS_JS = r"""<script>
+(function () {
+  // what the note may promise is only what the worker really does: nothing
+  // puts a page in a cache by being opened (lib/sw.js, answer(): a navigation
+  // nobody kept is fetched and not stashed), so this says where what IS kept
+  // can be found instead of promising that a tap would fetch it
+  var NOTE = "Not on this phone: this channel's list is the computer's, and opens again " +
+             'when it can be reached. What was kept from it is in the list the offline ' +
+             'chip above opens.';
+  function cards() {
+    return Array.prototype.slice.call(document.querySelectorAll('.m-chancard[data-m-page]'));
+  }
+  function away() { return document.documentElement.hasAttribute('data-parseh-away'); }
+  function off(card) {
+    if (card.classList.contains('m-chanoff')) return;
+    card.classList.add('m-chanoff', 'm-off');
+    var href = card.getAttribute('href');
+    if (href) { card.setAttribute('data-m-href', href); card.removeAttribute('href'); }
+    card.setAttribute('aria-disabled', 'true');
+    var note = document.createElement('div');
+    note.className = 'm-bnote m-channote';
+    note.textContent = NOTE;
+    card.appendChild(note);
+  }
+  function on(card) {
+    if (!card.classList.contains('m-chanoff')) return;
+    card.classList.remove('m-chanoff', 'm-off');
+    var href = card.getAttribute('data-m-href');
+    if (href) { card.setAttribute('href', href); card.removeAttribute('data-m-href'); }
+    card.removeAttribute('aria-disabled');
+    var note = card.querySelector('.m-channote');
+    if (note) note.remove();
+  }
+  function paint() {
+    var gone = away();
+    cards().forEach(function (card) {
+      if (gone && card.getAttribute('data-m-here') === '0') off(card); else on(card);
+    });
+  }
+  function look() {
+    var all = cards();
+    if (!all.length) return;
+    if (!window.caches) {
+      all.forEach(function (card) { card.setAttribute('data-m-here', '1'); });
+      paint();
+      return;
+    }
+    all.forEach(function (card) {
+      caches.match(card.getAttribute('data-m-page')).catch(function () { return true; })
+        .then(function (hit) { card.setAttribute('data-m-here', hit ? '1' : '0'); paint(); });
+    });
+  }
+  look();
+  // the block is the computer's, and lib/keep.js swaps a fresh one in when the
+  // worker finds this page has changed: the cards that arrive then are cards
+  // nobody has asked the caches about yet
+  document.addEventListener('parseh:shell-filled', look);
+  new MutationObserver(paint).observe(document.documentElement,
+    {attributes: true, attributeFilter: ['data-parseh-away']});
+  // a channel page reaches this phone only while the computer is there, so the
+  // walk is worth making again the moment the app has finished getting ready
+  if (navigator.serviceWorker)
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      if (e.data && e.data.warmed) look();
+    });
+})();
+</script>"""
+
+
+def _videos_frame(title, tagline, body, where, browser_page, chips="", elsewhere="", js=""):
+    return """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>%(title)s &mdash; %(app)s</title>
+%(head)s
+<link rel="stylesheet" href="/lib/parseh.css">
+<link rel="stylesheet" href="/lib/langs.css">
+<link rel="stylesheet" href="/lib/mobile.css">
+<script src="/lib/parseh.js"></script>
+</head><body class="m-page" data-mobile-page data-browser-page="%(browser)s">
+%(bar)s
+<main class="m-main">
+  <p class="m-elsewhere">%(elsewhere)s</p>
+  <h1 class="m-h1">%(title)s</h1>
+  <p class="m-tagline">%(tagline)s</p>
+%(chips)s
+<div class="m-shelf" data-shell-block>
+%(body)s</div>
+</main>
+%(js)s
+</body></html>
+""" % {"app": APP_NAME, "head": app_head(), "bar": bar(where), "title": esc(title),
+       "tagline": tagline, "chips": chips, "body": body, "browser": esc(browser_page),
+       "js": js,
+       "elsewhere": elsewhere or ('This page belongs to the mobile interface, and the browser '
+                                  'interface is on: switching to it goes to '
+                                  '<a href="/youtube/">the videos</a>.')}
+
+
+def videos_page():
+    """/m/videos/: the channels, grouped by language in the registry's order,
+    one card each -- the videos are a tap inside, on the channel's own page."""
+    import ytpages
+    chans = ytpages.list_channels()
+    counts, out = {}, []
+    for L in languages.LANGS.values():
+        mine = [c for c in chans if c["lang"] == L.code]
+        if not mine:
+            continue
+        # a language's heading counts its VIDEOS, as the browser index's does
+        # and as the chips do: the cards under it are channels, and "3
+        # channels" beside a chip reading 16 would be two numbers for the
+        # same thing
+        counts[L.code] = sum(len(c["videos"]) for c in mine)
+        out.append(lang_head(L, counts[L.code]))
+        out.extend(_channel_card(c) for c in mine)
+    chips = languages.chips_html(counts, cls="parseh-langs m-langs",
+                                 selector=".m-book[data-lang], .m-lhead")
+    if not chans:
+        out.append('<div class="m-empty"><p>No video is here yet.</p>'
+                   '<p>Videos are added in the browser interface &mdash; the switch is at '
+                   'the top of this page.</p></div>')
+    return _videos_frame("Videos", "A video with its transcript: every phrase glossed, "
+                         "the caption being said kept in view. Pick a channel, then a video.",
+                         "\n".join(out), "Videos", "/youtube/", chips, js=CHANNELS_JS)
+
+
+def channel_page(slug):
+    """/m/videos/<channel>/: one channel's videos, of every language it has."""
+    import ytpages
+    chans = [c for c in ytpages.list_channels() if c["slug"] == slug]
+    if not chans:
+        return None
+    name = chans[0]["name"]
+    out = []
+    for c in chans:
+        L = languages.get_or_default(c["lang"])
+        out.append(lang_head(L, len(c["videos"])))
+        out.extend(_video_card(m) for m in c["videos"])
+    # THE WAY BACK, said on the page.  The shelf is the channels now, so this
+    # is where every video is reached from and the way out of it should not be
+    # only the phone's own back gesture: the tagline carries the crumb the
+    # browser's channel page has always carried.
+    tagline = ('Every video of this channel. '
+               '<a href="/m/videos/">&lsaquo; all channels</a>')
+    return _videos_frame(name, tagline, "\n".join(out), name,
+                         "/youtube/c/%s/" % slug,
+                         elsewhere=('This page belongs to the mobile interface, and the browser '
+                                    'interface is on: switching to it goes to '
+                                    '<a href="/youtube/c/%s/">this channel</a>.' % esc(slug)))
 
 
 def books_page():
@@ -418,7 +1336,7 @@ def books_page():
   <p class="m-tagline">Reading editions: the text in chunks, each with its gloss, the
   narration in step.</p>
 %(chips)s
-<div class="m-shelf">
+<div class="m-shelf" data-shell-block>
 %(groups)s</div>%(empty)s
 </main>
 %(readon)s

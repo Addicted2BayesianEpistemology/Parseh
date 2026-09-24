@@ -6,8 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Edit: {{TITLE}} — Parseh studio</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D9%81%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="{{BASE}}/static/app.css">
-<link rel="stylesheet" href="{{BASE}}/static/langs.css">
+<!-- THE STUDIO'S OWN ADDRESS for the studio's own files (templates/doc.html
+     says why at length): a note beside a book is edited through these very
+     routes under the book's prefix, and the editor's sheet and scripts are
+     the same bytes for every book on the shelf.  {{BASE}} below stays what
+     it was — this mount's doors, this document's media. -->
+<link rel="stylesheet" href="{{STUDIO}}/static/app.css">
+<link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
 </head>
 <body data-page="edit" data-base="{{BASE}}" data-doc-id="{{DOC_ID}}" data-target="{{TARGET}}" data-decks-base="{{DECKS_BASE}}" data-notes-source="{{NOTES_SOURCE}}" data-names-mark="{{NAMES_MARK}}">
 <header class="topbar">
@@ -71,7 +76,9 @@
       <span id="pv-status" class="pv-status"></span>
     </div>
     <div class="preview-scroll">
-      <article id="sheet" class="sheet" lang="it" data-lang="{{TARGET}}"></article>
+      <!-- the prose language until the first preview answers with the
+           document's own (editor.js); English, as an omitted `lang:` is -->
+      <article id="sheet" class="sheet" lang="en" data-lang="{{TARGET}}"></article>
     </div>
   </div>
 </div>
@@ -84,10 +91,14 @@
   <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
   <code>./serve.sh</code> in the project directory.</p></div>
 </div>
-<link rel="stylesheet" href="{{BASE}}/static/mathjax.css">
-<script src="{{BASE}}/static/mathjax.js"></script>
+<link rel="stylesheet" href="{{STUDIO}}/static/mathjax.css">
+<script src="{{STUDIO}}/static/mathjax.js"></script>
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
-<script src="{{BASE}}/static/app.js"></script>
+<script src="{{STUDIO}}/static/app.js"></script>
+<!-- THE EDITOR (TO-DO §4.8): the exercise form, and the edit page itself,
+     which only this page carries.  After app.js: they read its top-level names. -->
+<script src="{{STUDIO}}/static/exform.js"></script>
+<script src="{{STUDIO}}/static/editor.js"></script>
 </body>
 </html>

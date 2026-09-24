@@ -29,10 +29,12 @@ Class map (styled in static/app.css):
   .desc/.lex   description lists (inline / label-on-own-line)
 """
 import contextlib
+import hashlib
 import html
 import re
 import sys
 import threading
+import unicodedata
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -50,9 +52,19 @@ from texgen import (FA_CHARS, FA_RE, RUN_RE, PE_WORD_LIMIT,  # noqa: E402,F401
                     parse_mark_fields, ThreadDict, image_indent, fmt_time,
                     _norm_colour, is_fa_only_paragraph, _is_pure_fa_paragraph,
                     set_target, cur_lang, run_re, has_script, is_latin_target,
-                    run_is_long, tl_re, UNGRAM_MARK_RE, audio_window,
+                    run_is_long, tl_re, UNGRAM_MARK_RE, UNGRAM_WORD,
+                    PROSE_WORD_RE, audio_window,
                     MATH_RE, NOT_A_RUN, is_target_line, prompt_lines)
 import languages  # noqa: E402
+
+# THE PROSE A DOCUMENT IS EXPLAINED IN, when its front matter does not say.
+# It used to be Italian, from the months when the studio had one author and
+# one prose language; everything else had already moved on -- the README
+# says an omitted `lang:` means English, the PDF sets English
+# (texgen.DEFAULT_HYPHEN) and the guide's own pages default to English --
+# so a document that said nothing was hyphenated as Italian by the browser
+# and read out in an Italian voice by a screen reader.
+DEFAULT_PROSE = "en"
 
 
 def _dir_lang():
@@ -416,7 +428,7 @@ def inline(text, force_breakable=False):
         store[idx] = "\x02" + store[idx]
         return m.group(1)
     text = re.sub(r"✗(\x00\d+\x00)", _ungram_run, text)
-    text = re.sub(r"✗([A-Za-zÀ-ÿ'’\-]+)",
+    text = re.sub(r"✗(%s)" % UNGRAM_WORD,
                   r'<span class="ungram-run"><span class="ungram-x">❌</span>'
                   r'\1</span>', text)
     text = text.replace("✗", '<span class="ungram-x">❌</span>')
@@ -917,6 +929,25 @@ def _ex_direction(fields):
     return ""
 
 
+def _ex_key(text):
+    """A BLOCK'S TEXT, AS ITS IDENTITY.  A block used to be known by the row
+    it was written on alone (`i0`, `p3`), and judging compared those rows --
+    so a sentence with two "the" to place, two blanks that take the same
+    word, or two words sharing one translation was marked WRONG for putting
+    the right word in the right place, because it was the other row's copy
+    of it.  This travels beside the row (`data-key`, `data-answer-key`) and
+    decides; the row stays as it was, for what is judged by rendered HTML
+    written before this existed.
+
+    A short digest rather than the text itself: it goes into an attribute
+    and, for a sequence, into a comma-separated list of them, and a text
+    with a quote or a comma in it would have to be spelt around twice.  The
+    text is normalised first (one space between words, NFC), so a block
+    rewrapped in the source keeps the identity it had."""
+    norm = unicodedata.normalize("NFC", re.sub(r"\s+", " ", str(text or "")).strip())
+    return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:10]
+
+
 def _ex_item(text, item_id, ctx, extra="", arrows=False):
     """One block the learner moves.
 
@@ -935,11 +966,11 @@ def _ex_item(text, item_id, ctx, extra="", arrows=False):
     and the other way round in a line that runs right to left."""
     if not arrows:
         return ('<button type="button" class="ex-item" draggable="true" '
-                'data-item="%s"%s><span>%s</span></button>'
-                % (esc(item_id), extra, _ex_inline(text, ctx)))
+                'data-item="%s" data-key="%s"%s><span>%s</span></button>'
+                % (esc(item_id), _ex_key(text), extra, _ex_inline(text, ctx)))
     return ('<div class="ex-item" role="button" tabindex="0" draggable="true" '
-            'data-item="%s"%s>%s<span>%s</span>%s</div>'
-            % (esc(item_id), extra, _ex_move("earlier"),
+            'data-item="%s" data-key="%s"%s>%s<span>%s</span>%s</div>'
+            % (esc(item_id), _ex_key(text), extra, _ex_move("earlier"),
                _ex_inline(text, ctx), _ex_move("later")))
 
 
@@ -1008,10 +1039,13 @@ def _render_exercise_placement(b, preview, ctx):
             if preview and idx >= 0:
                 with _row_at(idx):
                     inside = _ex_item(item["text"], "i%d" % idx, ctx)
-            sentence.append('<span class="ex-blank%s" role="button" tabindex="0" data-drop="slot" data-answer="i%d" '
+            # a slot no item answers (`idx` -1) gets no key: it must match
+            # nothing, and an empty text would match an empty block
+            answer_key = (' data-answer-key="%s"' % _ex_key(item["text"])) if idx >= 0 else ""
+            sentence.append('<span class="ex-blank%s" role="button" tabindex="0" data-drop="slot" data-answer="i%d"%s '
                             'data-slot="%s">%s</span>'
                             % (" answer-correct" if preview else "", idx,
-                               esc(slot), inside))
+                               answer_key, esc(slot), inside))
         bank = []
         for i, x in items:
             if not preview or i not in used:
@@ -1033,6 +1067,10 @@ def _render_exercise_placement(b, preview, ctx):
                      if str(ix[1]["mark"]).isdigit() else ix[0])
     shown = ordered if preview else items
     expected = ",".join("i%d" % i for i, _ in ordered)
+    # the same order spelt by what the blocks SAY, which is what judging
+    # goes by: two blocks reading alike are then interchangeable, as they
+    # are to the eye (_ex_key)
+    expected_keys = ",".join(_ex_key(x["text"]) for _i, x in ordered)
     sequence_class = ("ex-sequence ex-sequence-inline"
                       if b["subtype"] == "construct-sentence"
                       else "ex-sequence")
@@ -1046,9 +1084,10 @@ def _render_exercise_placement(b, preview, ctx):
     for i, x in shown:
         with _row_at(i):
             boxes.append(_ex_item(x["text"], "i%d" % i, ctx, arrows=not preview))
-    return ('<div class="%s"%s role="group" tabindex="0" data-drop="sequence" data-answer="%s">%s</div>'
+    return ('<div class="%s"%s role="group" tabindex="0" data-drop="sequence" '
+            'data-answer="%s" data-answer-keys="%s">%s</div>'
             % (sequence_class, ' dir="%s"' % answer_dir if answer_dir else "", expected,
-               "".join(boxes)))
+               expected_keys, "".join(boxes)))
 
 
 def _render_exercise_matching(b, preview, ctx):
@@ -1069,8 +1108,10 @@ def _render_exercise_matching(b, preview, ctx):
             else:
                 bank.append(_ex_item(second, "p%d" % i, ctx))
         left.append('<div class="ex-pair-row"><div class="ex-pair-left">%s</div>'
-                    '<div class="ex-match-drop%s" role="button" tabindex="0" data-drop="match" data-answer="p%d">%s</div></div>'
-                    % (shown, " answer-correct" if preview else "", i, inside))
+                    '<div class="ex-match-drop%s" role="button" tabindex="0" data-drop="match" '
+                    'data-answer="p%d" data-answer-key="%s">%s</div></div>'
+                    % (shown, " answer-correct" if preview else "", i,
+                       _ex_key(second), inside))
     return ('<div class="ex-pairs"%s>%s</div><div class="ex-bank" role="group" tabindex="0" data-bank="1">%s</div>'
             % ((' data-direction="%s"' % esc(direction)) if direction else "",
                "".join(left), "".join(bank)))
@@ -1672,7 +1713,7 @@ def stats(markdown, blocks, target=None):
         "sections": sum(1 for b in blocks if b["type"] == "section"),
         "tables": sum(1 for b in blocks if b["type"] == "table"),
         "fa_runs": len(target_runs(markdown)),
-        "words": len(re.findall(r"[A-Za-zÀ-ÿ]{2,}", latin)),
+        "words": len(PROSE_WORD_RE.findall(latin)),
         # counted from the source, not from render state: a save without a
         # render (e.g. tag edit, image layout) must not zero the count.
         "footnotes": _count_footnotes(markdown),
@@ -1911,10 +1952,19 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
     return {
         "html": article,
         "toc": _toc_html(ctx["toc"]),
+        # HOW MANY EXERCISES CAME OUT, counted while they were drawn.  A page
+        # that shows a document without the studio's script -- the bare note
+        # page (server.py, page_note) -- would show an exercise that cannot
+        # be answered, checked or copied, which is worse than not showing it:
+        # the reader would think the note was broken.  So the caller asks
+        # this and sends such a note to the full page instead.  It is read
+        # off the render and not off the markdown because only the render
+        # knows what a block actually became.
+        "exercises": ctx["exercise"],
         "title": fm.get("title", ""),
         "subtitle": fm.get("subtitle", ""),
         "note": fm.get("note", ""),
-        "lang": fm.get("lang", "it"),
+        "lang": fm.get("lang", DEFAULT_PROSE),
         "target": L.code,
         "target_error": fm.get("_target_error", ""),
         "lang_record": L.as_json(),

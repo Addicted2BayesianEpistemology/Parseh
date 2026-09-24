@@ -41,13 +41,14 @@ A few lines look different on purpose:
 - **A caption entirely in another language** — the English opening many
   lessons start with — is grey and italic and has no phrases: it is never
   glossed.
-- **A run nobody glossed** inside a caption — a stretch of English in a
-  Persian line, or a phrase of the language itself that was left without a
-  gloss — is plain text with no cloud. In a video still being written (a
-  [draft](video-info-and-drafts.md)), or once a dictionary, a corpus or a
-  translation model is set up for the language
-  ([Reading help](reading-help.md)), a blank phrase stays a phrase, so that
-  it can be written or looked up.
+- **A run drawn bare** inside a caption — a phrase marked plain, or a
+  stretch of English in a Persian line (a run with none of the language's
+  own script and nothing glossed on it) — is plain text with no cloud.
+  A phrase **of the language** that nobody has glossed yet is never bare:
+  it is a phrase like any other, hoverable, with a cloud that says
+  *nothing glossed yet* and a ✎, so that it can be written
+  ([Editing a phrase](editing-a-phrase.md)) or looked up
+  ([Reading help](reading-help.md)).
 
 ## Copying, and making cards
 
@@ -77,9 +78,9 @@ Every control, left to right:
 | **▤** | the channel's page: all its videos |
 | **⤓** | download the video as one zip another Parseh can install — its tooltip gives the size when the zip carries a film ([Taking videos away](downloads-and-backups.md)) |
 | the title | the title in the video's language, then in Latin letters, and the channel |
-| **draft** | shown only while the video is still being written ([drafts](video-info-and-drafts.md)) |
 | **video info** | the title, the channel, the level and the blurb, edited ([Video info](video-info-and-drafts.md)) |
 | **the timings** | moves where each caption starts ([The timings](the-timings.md)) |
+| **gloss with an LLM** | a panel that copies a prompt for a run of captions you pick, and fills in the answer where nobody has glossed ([Glossing captions with an LLM](glossing-with-an-llm.md)) |
 | `0:14 / 0:40` | where the video is, and how long it is |
 | **follow** | keeps the spoken line in view (on until you turn it off) |
 | **hover ⏸** | pauses the video while a cloud is open (off until you turn it on) |
@@ -176,10 +177,17 @@ moment they were made at.
 
 ## When the video cannot play
 
-- **A YouTube video with no internet**: the video's place says *the video
-  needs an internet connection — the transcript below still works*. It
-  does: the glosses, the clouds and everything you write are on this
-  machine.
+- **A YouTube video that will not start**: the video's place says what
+  actually happened — *YouTube's player could not be fetched*, or *was
+  fetched but never started* — with **Try again**, which retries without
+  reloading the page, and **Watch it on YouTube**. It no longer blames your
+  connection for something it has not tested: a slow tunnel is not a missing
+  internet, and the wait is given twenty seconds before anything is said. The
+  transcript works throughout: the glosses, the clouds and everything you
+  write are on this machine. **On a phone over Tailscale this is usually
+  DNS**, not a broken connection, and the box says where to read about it:
+  [a phone on Tailscale that cannot reach the
+  internet](../getting-started/other-devices.md#a-phone-on-tailscale-that-cannot-reach-the-internet).
 - **A film on this machine** needs no internet at all. If its file has gone
   missing the page says *the film that belongs to this video is not here any
   more*; if the browser cannot play or decode it, it says that instead

@@ -13,6 +13,12 @@
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
 <!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
 <link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
+<!-- "?": on a touch screen, every button's explanation is one tap away
+     (lib/explain.js, TO-DO §4.7); it draws nothing where a mouse hovers -->
+<script src="/lib/explain.js" defer></script>
+<!-- keeping this on the phone, and the chip that says the computer cannot be
+     reached (lib/keep.js, TO-DO §19.2, §19.5) -->
+<script src="/lib/keep.js" defer></script>
 </head>
 <body data-page="decks" data-base="{{BASE}}" data-studio="{{STUDIO}}">
 <header class="topbar" data-layout="browser">
@@ -57,6 +63,14 @@
     <p>No <span class="lang-name"></span> decks here.</p>
     <p>Pick another language chip above, or <b>all</b>.</p>
   </div>
+  <!-- GETTING READY (TO-DO §0, 2026-09-23), AT THE FOOT.  This page asks the
+       worker for the studio's own faces -- 1.83 MB, fetched the first time a
+       page that draws with them is opened -- and says so rather than doing it
+       behind somebody's back.  It sits at the END of the page because a line
+       that appears and goes at the top pushes everything below it down and
+       lets it spring back, under a thumb already reaching for a button (the
+       owner, on his phone). -->
+  <p data-parseh-warm role="status" hidden></p>
 </main>
 <script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
 <div id="modal-root"></div>
@@ -70,6 +84,8 @@
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
 <script src="{{STUDIO}}/static/app.js"></script>
+<!-- the exercise form (static/exform.js, TO-DO §4.8) -->
+<script src="{{STUDIO}}/static/exform.js"></script>
 <script src="{{STUDIO}}/static/decks.js"></script>
 </body>
 </html>

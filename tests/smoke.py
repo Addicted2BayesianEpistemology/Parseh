@@ -41,9 +41,12 @@ What it proves, in order:
             annotations no longer check
   draft     lib/draft.py makes an empty edition out of each fixture's own
             text and an empty annotation out of each fixture video's
-            transcript: the draft reproduces its source, passes check_batch
-            with a note instead of errors, and renders -- and a chunk half
-            written in it is refused, with the draft flag and without it
+            transcript, and marks neither of them as anything: the draft
+            reproduces its source, passes check_batch and check_annotations
+            with one count note instead of errors (a blank chunk is legal
+            everywhere), and renders -- and a chunk half written in it, its
+            meaning typed and its reading blanked, is refused; an old
+            "draft": true left in book.json or video.json changes nothing
   studio    every starter opens, marks its runs the way its script asks and
             numbers them as the store does; the prose table and the registry
             name one set of hyphenation patterns per language; every document
@@ -259,7 +262,10 @@ def test_theme():
         check(not bad, "%s: every dark rule excludes sepia too" % name, " | ".join(bad)[:300])
     # the studio's sheet has the same three, and follows the shared choice
     app_js = open(os.path.join(STUDIO, "app", "static", "app.js"), encoding="utf-8").read()
-    app_css = open(os.path.join(STUDIO, "app", "static", "app.css"), encoding="utf-8").read()
+    # the sheet and the chrome: /studio/static/app.css answers with both,
+    # and since the split (2026-09-23) the disk holds them apart
+    app_css = "".join(open(os.path.join(STUDIO, "app", "static", n), encoding="utf-8").read()
+                      for n in ("sheet.css", "app.css"))
     check('body[data-theme="sepia"]' in app_css, "the studio still has its sepia sheet")
     check('s === "sepia"' in app_js or 's === "dark" || s === "sepia"' in app_js,
           "the studio's sheet follows the shared theme into sepia")
@@ -514,8 +520,9 @@ def para_json_from_tex(book, n=0):
             d = {"fa": c.fa, "tr": c.tr, "voc": c.voc, "en": c.en}
             if getattr(c, "kana", ""):
                 d["kana"] = c.kana
-            # the word line too: a draft's reading counts as nobody's writing
-            # only beside the words it was read from
+            # the word line too: a reading proposed from the words (a drafted
+            # chunk's, in a language divided into words) makes a chunk no
+            # less blank only beside the words it was proposed from
             if getattr(c, "wordline", ""):
                 d["words"] = c.wordline
             chunks.append(d)
@@ -1555,13 +1562,27 @@ def test_draft():
     fixtures are not written yet is a skip, as everywhere else here.  What is
     proved is what makes the feature real: the draft passes its own checker,
     reproduces its source, and renders -- and a chunk half written in it
-    fails, flag or no flag.
+    fails.
+
+    Nothing marks a draft as one.  A chunk nobody has glossed yet is legal in
+    every book and every video, so the draft is an ordinary edition whose
+    chunks are all blank: book.json and video.json carry no "draft" key, each
+    checker passes it with ONE count note ("N of M chunks have no gloss
+    yet") and no error, and a "draft": true an older version left behind in
+    book.json or video.json is never read -- the checkers say exactly what
+    they say without it.  The half-written chunk is a real one: its meaning
+    typed and the reading the draft proposed from its words blanked, so it
+    lacks a field its language requires in every language that requires one
+    (a reading proposed from the words is no gloss while the chunk is blank,
+    and counts as the reading it is once anything else is written).
     """
     section("drafts")
     import books
     import draft
     import languages
     import words
+    import wordline
+    count_note = re.compile(r"note\s+(\d+) of (\d+) chunks have no gloss yet")
     fixtures = fixture_books()
     covered = {b.language for b in fixtures}
     for code in languages.CODES:
@@ -1591,8 +1612,9 @@ def test_draft():
             found = set(re.findall(r"^\\(chrw|chw|chr|chp|ch)\{", tex, re.M))
             check(named in found and found <= {plain, named},
                   "%s: the chapter is written with \\%s" % (tag, named))
-            check(json.loads(r["files"]["book.json"]).get("draft") is True,
-                  "%s: book.json says draft" % tag)
+            check("draft" not in json.loads(r["files"]["book.json"]) and "draft" not in r,
+                  "%s: book.json carries no draft flag, and the answer none" % tag,
+                  r["files"]["book.json"][:300])
             # it reproduces its source, it passes its own checker, it renders
             rc, out = run([sys.executable, os.path.join(LIB, "verify_book.py")],
                           cwd=d, env={"FRANK_BOOK": d})
@@ -1600,46 +1622,58 @@ def test_draft():
                   "%s: verify_book reproduces the source" % tag, out[-300:])
             pj = para_json_from_tex(books.Book(d), 0)
             pp = os.path.join(td, "p0.json")
-            json.dump(pj, open(pp, "w", encoding="utf-8"), ensure_ascii=False)
-            rc, out = run([sys.executable, os.path.join(LIB, "check_batch.py"), pp,
-                           "--book", d], cwd=d)
-            check(rc == 0 and "0 errors" in out and "note " in out,
-                  "%s: check_batch passes it with a note, not errors" % tag, out[-400:])
+            batch = lambda para: (json.dump(para, open(pp, "w", encoding="utf-8"),
+                                            ensure_ascii=False),
+                                  run([sys.executable, os.path.join(LIB, "check_batch.py"),
+                                       pp, "--book", d], cwd=d))[1]
+            chunks = [c for s in pj["ann"]["sentences"] for c in s["chunks"]]
+            rc, clean = batch(pj)
+            said = count_note.findall(clean)
+            check(rc == 0 and "\n0 errors" in clean
+                  and said == [(str(len(chunks)), str(len(chunks)))],
+                  "%s: check_batch passes it with no error and one count note, "
+                  "%d of %d chunks with no gloss yet" % (tag, len(chunks), len(chunks)),
+                  clean[-400:])
             rc, out = run([sys.executable, os.path.join(LIB, "tex2html.py"), "--book", d], cwd=d)
             check(rc == 0 and os.path.isfile(os.path.join(d, "reader", "index.html")),
                   "%s: tex2html builds a reader" % tag, out[-300:])
             # half written: a meaning with nothing beside it is the mistake the
-            # checker exists for, and the draft flag does not excuse it
+            # checker exists for.  The reading the draft proposed from the
+            # words (kana, or tr for Chinese) is blanked with it, so the chunk
+            # really lacks what its language requires -- left in place, that
+            # proposal would count as the reading it is once the meaning made
+            # the chunk a written one, and a Chinese chunk would be complete
             half = json.loads(json.dumps(pj))
-            half["ann"]["sentences"][0]["chunks"][0]["en"] = "a meaning, and nothing else"
-            json.dump(half, open(pp, "w", encoding="utf-8"), ensure_ascii=False)
-            rc, out = run([sys.executable, os.path.join(LIB, "check_batch.py"), pp,
-                           "--book", d], cwd=d)
+            first = half["ann"]["sentences"][0]["chunks"][0]
+            seeded, _proposal = wordline.seed(first, L)
+            first["en"] = "a meaning, and nothing else"
+            if seeded:
+                first[seeded] = ""
+            rc, out = batch(half)
             wanted = L.require_tr or L.reading
-            check((rc > 0) == wanted,
-                  "%s: a half-written chunk %s" % (tag, "is refused" if wanted else
-                                                   "needs only its meaning"), out[-400:])
-            # and without the flag the blank chunks are errors again, exactly
-            # as they were before a draft could say what it is
-            m = json.load(open(os.path.join(d, "book.json"), encoding="utf-8"))
-            m.pop("draft")
-            json.dump(m, open(os.path.join(d, "book.json"), "w", encoding="utf-8"),
-                      ensure_ascii=False)
-            json.dump(pj, open(pp, "w", encoding="utf-8"), ensure_ascii=False)
-            rc, out = run([sys.executable, os.path.join(LIB, "check_batch.py"), pp,
-                           "--book", d], cwd=d)
-            check(rc > 0 and "empty en" in out,
-                  "%s: without the flag an unwritten gloss is an error" % tag, out[-400:])
+            lacks = [e for e in ("empty tr", "no kana") if e in out]
+            rest = ([] if len(chunks) == 1 else
+                    [(str(len(chunks) - 1), str(len(chunks)))])
+            check((rc > 0) == wanted and bool(lacks) == wanted
+                  and count_note.findall(out) == rest,
+                  "%s: a half-written chunk %s" % (
+                      tag, "is refused (%s)" % ", ".join(lacks or ["?"]) if wanted
+                      else "needs only its meaning"), out[-400:])
+            # and a flag an older version wrote into book.json is never read:
+            # the blank chunks are counted exactly as they are without it
+            mp = os.path.join(d, "book.json")
+            m = json.load(open(mp, encoding="utf-8"))
+            m["draft"] = True
+            json.dump(m, open(mp, "w", encoding="utf-8"), ensure_ascii=False)
+            rc, out = batch(pj)
+            check(rc == 0 and out == clean,
+                  "%s: a leftover \"draft\": true changes nothing check_batch says"
+                  % tag, out[-400:])
 
-    # the video side: the draft reproduces the transcript it was made from
+    # the video side: the draft reproduces the transcript it was made from,
+    # and the checker passes it -- with no flag to lean on, in every language
     import check_annotations as CA
-    # the checker itself, once it has learned what a draft is -- said once
-    # rather than once a language, because it is one door however many
-    # languages come through it
-    checker_knows = "draft" in CA.check_segments.__code__.co_varnames
-    if not checker_knows:
-        skip("check_annotations does not take a draft yet: the video drafts "
-             "are checked for shape here but not run through it")
+    import annwrite
     fixture_videos = sorted(glob.glob(os.path.join(FIX, "videos", "*", "*", "video.json")))
     for vj in fixture_videos:
         src = os.path.dirname(vj)
@@ -1665,13 +1699,52 @@ def test_draft():
             check(all(CA.norm(L.word_sep.join(ch["fa"] for ch in s["chunks"]), L)
                       == CA.norm(s["text"], L) for s in segs if s.get("chunks")),
                   "%s: the chunks reproduce every caption" % tag)
-            check(json.loads(r["files"]["video.json"]).get("draft") is True,
-                  "%s: video.json says draft" % tag)
-            if checker_knows:
-                rc, out = run([sys.executable, os.path.join(YT_LIB, "check_annotations.py"),
-                               r["dir"]], cwd=YT)
-                check(rc == 0 and "0 error(s)" in out,
-                      "%s: check_annotations passes the draft" % tag, out[-400:])
+            check("draft" not in json.loads(r["files"]["video.json"]) and "draft" not in r,
+                  "%s: video.json carries no draft flag, and the answer none" % tag,
+                  r["files"]["video.json"][:300])
+            checker = lambda: run([sys.executable, os.path.join(YT_LIB, "check_annotations.py"),
+                                   r["dir"]], cwd=YT)
+            blank, glossable = CA.gloss_state(r["dir"])
+            rc, out = checker()
+            check(rc == 0 and "0 error(s)" in out and 0 < blank == glossable
+                  and "note: %d of %d chunks have no gloss yet" % (blank, glossable) in out,
+                  "%s: check_annotations passes the draft, its %d chunks counted in one "
+                  "note as having no gloss yet" % (tag, glossable), out[-400:])
+            # half written, as in the book: the player's editor saves the
+            # reading proposed from the words taken off a blank chunk (it is
+            # still blank), then a meaning typed into it (a box at a time is
+            # how a gloss is filled), and the checker lists what the chunk
+            # lacks -- an error wherever the language wants more than a meaning
+            si, k = next((i, k) for i, s in enumerate(segs)
+                         for k, ch in enumerate(s.get("chunks") or [])
+                         if CA.required(ch, L))
+            seeded, _proposal = wordline.seed(segs[si]["chunks"][k], L)
+            try:
+                for fields in ([{seeded: ""}] if seeded else []) + \
+                        [{"en": "a meaning, and nothing else"}]:
+                    annwrite.edit_chunk(r["dir"], si, k, fields)
+            except ValueError as e:
+                bad("%s: the player saves a meaning typed into a blank chunk" % tag,
+                    str(e)[:300])
+                continue
+            rc, half = checker()
+            wanted = L.require_tr or L.reading
+            rest = ("note: %d of %d chunks have no gloss yet" % (blank - 1, glossable)
+                    if blank > 1 else "")
+            check((rc > 0) == wanted and (": missing " in half) == wanted
+                  and rest in half,
+                  "%s: a half-written chunk %s" % (tag, "is refused" if wanted else
+                                                   "needs only its meaning"), half[-400:])
+            # and a flag an older version wrote into video.json is never read:
+            # it excuses neither the blank chunks nor the half-written one
+            mp = os.path.join(r["dir"], "video.json")
+            m = json.load(open(mp, encoding="utf-8"))
+            m["draft"] = True
+            json.dump(m, open(mp, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+            rc, out = checker()
+            check(out == half,
+                  "%s: a leftover \"draft\": true changes nothing check_annotations "
+                  "says" % tag, out[-400:])
 
 
 # ------------------------------------------------------------------ studio
@@ -1911,7 +1984,11 @@ def test_divide():
     Then the refusals, which are the other half of the feature: a chunk is
     divided at the places its language divides and nowhere else, and both
     writers say so in words rather than writing a file the checkers will
-    reject afterwards.
+    reject afterwards.  What neither refuses is the gloss a cut leaves: a
+    half left with no meaning is written, half glossed, for the chunk sheet
+    to finish, and a chunk nobody has glossed yet divides in any book and any
+    video into two blank halves -- in a language divided into words, each
+    proposed the reading of its own words.
     """
     section("divide")
     import chunkdiv
@@ -2100,10 +2177,6 @@ def test_divide():
                 ("a cut through the middle of a word",
                  lambda: X.split_chunk(p, 0, half(0, fa=cs[0]["fa"][:4]),
                                        half(1, fa=cs[0]["fa"][4:]))),
-                ("a half left with no meaning",
-                 lambda: X.split_chunk(
-                     p, 0, half(0, fa=chunkdiv.cuts(cs[0]["fa"], fa)[0]["a"]),
-                     half(0, fa=chunkdiv.cuts(cs[0]["fa"], fa)[0]["b"], en=""))),
                 ("joining past the last chunk",
                  lambda: X.merge_chunks(p, len(cs) - 1)),
             ]
@@ -2148,6 +2221,31 @@ def test_divide():
                 check("changes no letter" in str(e),
                       "texwrite refuses a join that rewrites the text",
                       str(e)[:200])
+
+    # ...and what it does NOT refuse: the gloss a cut leaves on either side.
+    # A cut moves a boundary and the gloss comes along as it was, so a half
+    # left with no meaning is written, half glossed -- check_batch lists it
+    # and the chunk sheet is where it is finished, not the cut
+    if bk is not None:
+        with tempfile.TemporaryDirectory() as td:
+            d = os.path.join(td, bk.slug)
+            shutil.copytree(bk.dir, d, ignore=shutil.ignore_patterns(
+                "reader", "*.pdf", "*.aux", "*.log", "*.toc", "*.out"))
+            p = os.path.join(d, "ch1.tex")
+            cs = X.read_chunks(p)
+            at = chunkdiv.cuts(cs[0]["fa"], fa)[0]
+            whole = {f: cs[0].get(f, "") for f in F}
+            try:
+                X.split_chunk(p, 0, dict(whole, fa=at["a"]),
+                              dict(whole, fa=at["b"], en=""))
+                got = X.read_chunks(p)[:2]
+                check([(g["fa"], bool(g["en"]), g["tr"]) for g in got]
+                      == [(at["a"], True, whole["tr"]), (at["b"], False, whole["tr"])],
+                      "texwrite writes a half left with no meaning: the gloss a cut "
+                      "leaves is not the cut's to refuse",
+                      repr([(g["fa"], g["en"]) for g in got]))
+            except X.Refused as e:
+                bad("texwrite writes a half left with no meaning", str(e)[:300])
 
     vfx = sorted(glob.glob(os.path.join(FIX, "videos", "*", "*", "video.json")))
     if not vfx:
@@ -2225,37 +2323,131 @@ def test_divide():
                                        "w", encoding="utf-8"),
                           ensure_ascii=False, indent=1)
 
-            # a draft is exactly when re-chunking is wanted, so an unwritten
-            # chunk must divide there -- and must not in a finished video
-            meta = json.load(io.open(os.path.join(d, "video.json"), encoding="utf-8"))
-            L = languages.get_or_default(meta.get("language"))
+    # A CHUNK NOBODY HAS GLOSSED YET DIVIDES IN ANY VIDEO.  Nothing is asked
+    # first -- there is no flag to ask -- and re-chunking is wanted most
+    # exactly while the gloss is still to come.  In every fixture video a
+    # glossed chunk has its gloss taken off through the door the player's
+    # "delete gloss" uses, is divided where the preview proposes, and leaves
+    # two blank halves the checker passes.
+    import check_annotations as CA
+    for fx in vfx:
+        src = os.path.dirname(fx)
+        with tempfile.TemporaryDirectory() as td:
+            d = os.path.join(td, os.path.basename(src))
+            shutil.copytree(src, d)
+            L = languages.get_or_default(
+                json.load(io.open(fx, encoding="utf-8")).get("language"))
+            tag = "%s [%s]" % (os.path.basename(src), L.code)
+            segs = A.read(d)["segments"]
             # a chunk that HAS somewhere to divide, wherever it is in the
             # video: the first one may well be a single word
-            text = next((c.get("fa") or "" for sg in ann["segments"]
-                         for c in (sg.get("chunks") or [])
-                         if chunkdiv.cuts(c.get("fa") or "", L)), "")
-            blank = {"fa": text, "tr": "", "voc": "", "en": ""}
-            places = chunkdiv.cuts(blank["fa"], L)
-            if not places:
-                skip("no chunk of this video divides: the draft rule is not tried")
-            else:
-                for flag, expect in ((True, True), (False, False)):
-                    ann["segments"][si]["chunks"] = [dict(blank)]
-                    json.dump(ann, io.open(os.path.join(d, "annotations.json"), "w",
-                                           encoding="utf-8"), ensure_ascii=False, indent=1)
-                    meta["draft"] = flag
-                    json.dump(meta, io.open(os.path.join(d, "video.json"), "w",
-                                            encoding="utf-8"), ensure_ascii=False, indent=2)
-                    a, b, _n = chunkdiv.split(blank, places[0]["at"], L, chunkdiv.PLAIN)
-                    try:
-                        A.split_chunk(d, si, 0, a, b)
-                        got = True
-                    except ValueError:
-                        got = False
-                    check(got == expect,
-                          "an unwritten chunk divides in a draft and not in a "
-                          "finished video (draft=%s: %s)"
-                          % (flag, "divided" if got else "refused"))
+            where = next(((i, k) for i, sg in enumerate(segs) if not sg.get("plain")
+                          for k, c in enumerate(sg.get("chunks") or [])
+                          if CA.required(c, L) and not CA.unwritten(c, L)
+                          and chunkdiv.cuts(c.get("fa") or "", L)), None)
+            if where is None:
+                skip("%s: no glossed chunk divides, so a blank one is not "
+                     "divided" % tag)
+                continue
+            i, k = where
+            try:
+                A.edit_chunk(d, i, k, dict({"tr": "", "voc": "", "en": ""},
+                                           **({"kana": ""} if L.reading else {})))
+                pv = A.divide_preview(d, i, k)
+                cut = pv["cuts"][len(pv["cuts"]) // 2]
+                sent = lambda side: {f: v for f, v in cut[side].items()
+                                     if f in A.EDITABLE}
+                A.split_chunk(d, i, k, sent("first"), sent("second"))
+                now = A.read(d)["segments"][i]["chunks"][k:k + 2]
+                errors = CA.check(d)[0]
+                check([c["fa"] for c in now] == [cut["a"], cut["b"]]
+                      and all(CA.unwritten(c, L) for c in now) and not errors,
+                      "%s: a chunk whose gloss was deleted divides into two blank "
+                      "halves, and the video still checks" % tag,
+                      repr((now, errors[:2])))
+            except ValueError as e:
+                bad("%s: a chunk whose gloss was deleted divides" % tag, str(e)[:300])
+
+    # ...and a blank chunk of a language divided into words carries the
+    # reading proposed from its word line, which a cut cannot divide by
+    # itself: each half is proposed the reading of its OWN words, so both
+    # halves are as blank as the chunk was -- in a drafted video and in a
+    # drafted book alike, not a first half holding the whole reading and
+    # counted as half glossed
+    import draft
+    import words
+    import wordline
+    for L in (languages.get(c) for c in languages.CODES):
+        if not L.words:
+            continue
+        if not words.available(L.code):
+            skip("no analyzer for %s here: a drafted chunk carries no proposed "
+                 "reading to divide" % L.name)
+            continue
+        vj = next((v for v in vfx if json.load(io.open(v, encoding="utf-8"))
+                   .get("language") == L.code), None)
+        bk_ = next((b for b in fixture_books() if b.lang.code == L.code), None)
+        with tempfile.TemporaryDirectory() as td:
+            doors = []
+            if vj is not None:
+                meta = json.load(io.open(vj, encoding="utf-8"))
+                r = draft.video_from_transcript(
+                    io.open(os.path.join(os.path.dirname(vj), "transcript.txt"),
+                            encoding="utf-8").read(), L, video_id=meta["id"],
+                    into=os.path.join(td, "videos"))
+                doors.append(("video", r["dir"]))
+            if bk_ is not None:
+                text = io.open(sorted(glob.glob(os.path.join(bk_.paras_dir, "*.txt")))[0],
+                               encoding="utf-8").read().strip()
+                r = draft.book_from_text(text, L, bk_.title, slug="split-" + L.code,
+                                         into=os.path.join(td, "books"))
+                doors.append(("book", os.path.join(r["dir"], "ch1.tex")))
+            for door, at in doors:
+                tag = "a drafted %s [%s]" % (door, L.code)
+                if door == "video":
+                    segs = A.read(at)["segments"]
+                    i, k = next((i, k) for i, sg in enumerate(segs)
+                                for k, c in enumerate(sg.get("chunks") or [])
+                                if c.get("words") and chunkdiv.cuts(c["fa"], L))
+                    chunk = segs[i]["chunks"][k]
+                    preview = lambda: A.divide_preview(at, i, k)
+                else:
+                    k = next(n for n, c in enumerate(X.read_chunks(at))
+                             if c["words"] and chunkdiv.cuts(c["fa"], L))
+                    chunk = X.read_chunks(at)[k]
+                    preview = lambda: X.divide_preview(at, k)
+                field, proposal = wordline.seed(chunk, L)
+                check(bool(field) and chunk[field] == proposal
+                      and CA.unwritten(chunk, L),
+                      "%s: the chunk carries the reading proposed from its words, "
+                      "and is blank" % tag, repr(chunk))
+                cuts = preview()["cuts"]
+                wrong = [(c["a"], h, c[h].get(field)) for c in cuts
+                         for h in ("first", "second")
+                         if not CA.unwritten(c[h], L)
+                         or (c[h].get(field) or "") != wordline.seed(c[h], L)[1]]
+                check(bool(cuts) and not wrong,
+                      "%s: every cut proposes two blank halves, each with the "
+                      "reading of its own words (%d cuts)" % (tag, len(cuts)),
+                      repr(wrong[:3]))
+                cut = cuts[len(cuts) // 2]
+                try:
+                    if door == "video":
+                        keep = lambda h: {f: v for f, v in cut[h].items()
+                                          if f in A.EDITABLE}
+                        A.split_chunk(at, i, k, keep("first"), keep("second"))
+                        now = A.read(at)["segments"][i]["chunks"][k:k + 2]
+                    else:
+                        keep = lambda h: {f: v for f, v in cut[h].items()
+                                          if f in X.FIELDS}
+                        X.split_chunk(at, k, keep("first"), keep("second"))
+                        now = X.read_chunks(at)[k:k + 2]
+                    check([c["fa"] for c in now] == [cut["a"], cut["b"]]
+                          and all(CA.unwritten(c, L) for c in now),
+                          "%s: divided, both halves are written blank" % tag,
+                          repr([(c["fa"], c.get(field)) for c in now]))
+                except ValueError as e:
+                    bad("%s: a blank chunk divides" % tag, str(e)[:300])
 
 
 def _norm_join(L, parts):
@@ -3170,10 +3362,13 @@ def test_corpus():
     check('if has_corpus:' in srv and 'if have' in srv,
           "and asks each of them separately, so a corpus answers where there "
           "is no dictionary")
-    yt = io.open(os.path.join(YT_LIB, "ytpages.py"), encoding="utf-8").read()
-    check("corpus.available" in yt and "getmt.available" in yt,
-          "a video keeps an unglossed phrase live for ANY of the three, not "
-          "for the dictionary alone -- it is drawn before the page can ask")
+    # an unglossed phrase of the target's text is live whatever is installed
+    # (the owner's decision of 2026-09-23): the player no longer waits on a
+    # dictionary, a corpus or a model to draw it as a phrase, so the page is
+    # not told whether any of them exists before the transcript is drawn
+    check("CFG.help" not in player and "YTFRANK.help" not in player,
+          "the player draws an unglossed phrase live whatever is installed -- "
+          "no flag from the server decides it")
     for name, src in (("the book reader", reader), ("the player", player)):
         check("DICT.ready || MT.ready" in src,
               "%s opens the panel for a model as well as a dictionary" % name)
@@ -3979,13 +4174,21 @@ def test_lookup():
                         cwd=os.path.join(ROOT, "lib"), timeout=60)
         check(code == 0, "lib/%s.py imports" % name, out.strip().split("\n")[-1])
 
-    # --- THE VIDEO DOOR MUST REACH AN UNGLOSSED PHRASE AT ALL.  A finished
-    # video (not a draft) used to render a targeted chunk nobody had written
-    # on as bare text: no hover, no cloud, no dictionary -- on precisely the
-    # chunks this whole feature exists to read, and a book has never done
-    # that.  The page cannot decide this for itself, because the `about`
-    # calls that discover the dictionary land after the transcript is drawn,
-    # so the server says so up front.
+    # --- THE PLAYER PAGE OF A VIDEO ON YOUTUBE, AS THE SERVER WRITES IT.
+    # This block used to hold the server's `help` flag to the truth (is a
+    # dictionary, a corpus or a model installed for the language?), because
+    # the player drew an unglossed chunk as bare text -- no hover, no cloud,
+    # no ✎, no dictionary -- unless that flag or the video's draft flag said
+    # something could help with it.  Neither decides anything now.  An
+    # unglossed chunk is legal in every video, and the player makes every
+    # unglossed chunk of target text a phrase whatever is or is not
+    # installed, as a book's reader always has; it reads no `help` and no
+    # draft flag at all.  Nor does the server write `help` into the page any
+    # more: it went from ytpages' player config together with the lookup,
+    # corpus and getmt imports that answered it, and tests/gloss_llm_video.mjs
+    # holds it absent from the page the browser is served.  Whether the
+    # phrase is drawn is the player's own render, which only a browser can
+    # drive.  What is left to ask here is where the film is.
     sys.path.insert(0, os.path.join(ROOT, "youtube", "lib"))
     import ytpages                                             # noqa: E402
     # a video with NO film of its own: what this asks about is the YouTube
@@ -4017,20 +4220,14 @@ def test_lookup():
     if src and "window.YTFRANK=" in src:
         cfg = json.loads(src.split("window.YTFRANK=", 1)[1]
                          .split("</script>", 1)[0].strip().rstrip(";"))
-        check("help" in cfg, "the player is told up front whether anything "
-                             "can help with an unglossed chunk", repr(list(cfg)))
-        want = bool(lk.available(cfg["lang"]["code"]))
-        check(cfg["help"] is want,
-              "and told the truth: a dictionary means an unglossed phrase "
-              "stays a phrase instead of going bare", repr(cfg["help"]))
-        # AND WHERE THE FILM IS, for a video that is one.  A video on YouTube
+        # WHERE THE FILM IS, for a video that is one.  A video on YouTube
         # says "" and the page then reaches YouTube the way it always did;
         # nothing in video.json declares either, the file being there is the
         # whole of the fact.
         check(cfg.get("media") == "",
               "a video on YouTube names no film of its own", repr(cfg.get("media")))
     else:
-        skip("no video installed: the player's help flag is not exercised")
+        skip("no video installed: the player page of a video on YouTube is not exercised")
 
     # --- EACH READER'S OWN SWITCH NAME.  The two readers are separate
     # scripts that do the same job with different variables: the book reader
@@ -5707,6 +5904,11 @@ def test_server():
                  # (neither creates exercises/ nor writes into it)
                  "/exercises/", "/exercises/api/decks",
                  "/anki/decks", "/anki/decks?lang=zz",
+                 # the way in, kept: the one list saying what the installed app
+                 # is made of (lib/offline.shell, read by lib/sw.js at install).
+                 # Walked here because an app whose own shell answers 404 stalls
+                 # on its splash and nothing else in this sweep would say so.
+                 "/__shell",
                  "/anki/sync/"] \
                 + ["/anki/decks?lang=%s" % c for c in languages.CODES] \
                 + ["/studio/doc/%s" % i for i in doc_ids] \
@@ -5750,6 +5952,15 @@ def test_server():
                           and b'data-layout="mobile"' in body and b"data-mobile-page" in body
                           and b'href="/lib/mobile.css"' in body,
                           "the hub has its mobile layout and the Browser | Mobile switch")
+                if p == "/__shell":
+                    j = json.loads(body.decode("utf-8"))
+                    check(j.get("ok") is True and j.get("pages") and j.get("files"),
+                          "/__shell says what the app is made of: %d pages, %d apis, %d files"
+                          % (len(j.get("pages") or []), len(j.get("apis") or []),
+                             len(j.get("files") or [])), json.dumps(j)[:200])
+                    check("/?mode=mobile" in (j.get("pages") or [])
+                          and "/" in (j.get("pages") or []),
+                          "the hub at both its addresses, the app's start address among them")
                 if p == "/exercises/api/decks":
                     j = json.loads(body.decode("utf-8"))
                     check(j.get("ok") is True and isinstance(j.get("decks"), list),

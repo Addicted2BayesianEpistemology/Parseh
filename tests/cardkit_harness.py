@@ -100,10 +100,18 @@ def build(tmp):
     (vdir / "video.json").write_text(json.dumps(
         {"id": VIDEO, "url": "", "title": "Street market", "title_native": "Street market",
          "channel": "", "language": "en", "gloss": "en", "duration": "0:07"}), encoding="utf-8")
+    # The middle caption is GLOSSED -- its chunks joined with a space give its
+    # text back, as check_annotations asks -- because a caption with no chunks
+    # draws no phrases, and a phrase is the only thing in a transcript that can
+    # be tapped for a gloss.  tests/mobile_pages.mjs needs one to drive the
+    # subtitles over a video on the whole screen; the other two are left plain,
+    # so both kinds of caption are drawn.
     (vdir / "annotations.json").write_text(json.dumps(
         {"video": VIDEO, "language": "en", "segments": [
             {"start": 0, "text": "Hello there."},
-            {"start": 2, "text": "The market opens early."},
+            {"start": 2, "text": "The market opens early.",
+             "chunks": [{"fa": "The market", "en": "the market"},
+                        {"fa": "opens early.", "en": "opens early"}]},
             {"start": 5, "text": "Bring a bag."}]}), encoding="utf-8")
     for d in ("library", "exercises", "anki"):
         (tmp / d).mkdir()
@@ -128,6 +136,23 @@ def serve_it(tmp, port, no_ffmpeg, tray):
     decks.set_dir(tmp / "exercises")
     if hasattr(decks, "set_clips_dir"):
         decks.set_clips_dir(tmp / tray)
+    # the reading place and the settings the toolbox keeps (lib/prefs.py):
+    # into the temporary tree, never into the real checkout's config/
+    import prefs
+    prefs.STORE = str(tmp / "config" / "prefs.json")
+    # and the door that says who may reach Parseh (lib/network.py): into
+    # the temporary tree too, so a suite can neither read the owner's own
+    # settings nor shut his Wi-Fi door by running
+    import network
+    network.STORE = str(tmp / "config" / "network.json")
+    # and the two memories of what a phone may keep (lib/offline.py): the
+    # checksums of files by absolute path, and where each kept thing lives.
+    # Left pointing at the checkout's config/, every suite booted through
+    # here (mobile_pages among them) wrote its temporary tree's paths into
+    # the owner's own digests.json and wheres.json
+    import offline
+    offline.DIGESTS = str(tmp / "config" / "digests.json")
+    offline.WHERES = str(tmp / "config" / "wheres.json")
     serve.ROOT = str(tmp / "root")
     serve._AtRoot.directory = str(tmp / "root")
     ytpages.VIDEOS = str(tmp / "root" / "youtube" / "videos")

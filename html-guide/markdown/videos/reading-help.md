@@ -6,8 +6,8 @@ description: The dictionary under a phrase nobody glossed, the definitions, the 
 ---
 
 A phrase somebody glossed has everything a reader needs in its cloud. This
-page is about the rest: the phrase **nobody has glossed yet** — a draft
-being written, a caption the model skipped — and the extra help Japanese
+page is about the rest: the phrase **nobody has glossed yet** — a video
+started empty, a caption the model skipped — and the extra help Japanese
 and Chinese get with their readings.
 
 ## What can help, and where it comes from

@@ -28,7 +28,7 @@ restarted.
 ## Where it is
 
 Open the hub and press **Videos**, or go straight to
-`https://localhost:8765/youtube/`. The hub's door counts the videos and
+`https://localhost:7654/youtube/`. The hub's door counts the videos and
 the channels, and the language chips at the top of the hub narrow the
 count to one language. In **Mobile** mode the door opens the same pages:
 the videos have no mobile version of their own yet.
@@ -42,6 +42,7 @@ the videos have no mobile version of their own yet.
    who writes the glosses — an LLM whose answer the page checks, or you,
    in the player.
 4. **Write it**: the ✎ in any gloss cloud opens the phrase's fields;
+   **gloss with an LLM** has a chatbot gloss a run of captions;
    **the timings** moves where a caption starts; a **+** between two lines
    holds a note of your own.
 5. **Take it away**: the ⤓ in the player's bar downloads the video as one
@@ -69,12 +70,15 @@ the videos have no mobile version of their own yet.
   the ✎ form, the sources beside it, and every refusal.
 - [Cutting and joining phrases](cutting-and-joining.md) — moving where a
   phrase ends.
+- [Glossing captions with an LLM](glossing-with-an-llm.md) — a run of
+  captions glossed by any chatbot, only where nobody has glossed, and
+  deleting a gloss to have it written again.
 - [Notes between the captions](notes-in-the-seam.md) — a studio document in
   the seam between two lines.
 - [The timings](the-timings.md) — moving where a caption starts, over a
   picture of the sound.
-- [Video info and drafts](video-info-and-drafts.md) — the title, the
-  channel and the level, and what the draft flag means.
+- [Video info](video-info-and-drafts.md) — the title, the channel and the
+  level, and a video whose phrases are still being glossed.
 - [Taking videos away and bringing them back](downloads-and-backups.md) —
   the ⤓ bundle and its size, bringing one back, the backup of the whole
   shelf.

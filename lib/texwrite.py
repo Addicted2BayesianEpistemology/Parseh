@@ -553,8 +553,7 @@ def _value(field, value, lang, where):
     _check_text(field, value, where)
     if field == "fa" and not value.strip():
         raise Refused("%s: a chunk with no text is not a chunk -- an empty fa is "
-                      "an error to check_batch.py in a draft edition as well"
-                      % where)
+                      "an error to check_batch.py, glossed or not" % where)
     if field == "tr" and lang.strip(value) != value:
         marks = "harakat" if lang.script == "arabic" else "marks"
         raise Refused("%s: %s leaked into tr -- the romanisation carries none"
@@ -562,30 +561,102 @@ def _value(field, value, lang, where):
     return value
 
 
-def _check_required(written, merged, lang, draft, where):
-    """The gloss fields check_batch.py insists on, refused before they are
-    written instead of reported after the chapter is built.  Only a field the
-    caller is actually emptying is complained about: a blank that was already
-    in the file is somebody else's edit and not this one's business.
+# the fields that make up a chunk's gloss: the word line is not one of them
+# (it is the text divided, and has its own rules), and neither is the colour
+GLOSS = ("tr", "voc", "en", "kana")
 
-    A draft edition -- book.json's "draft": true, which lib/draft.py writes
-    when it makes a book out of nothing but its text -- may hold a chunk with
-    no gloss at all, so emptying the last of them is allowed there.  The
-    moment anything is written beside it the language's requirements come
-    back, which is the rule check_batch reads and this one has to match, or
-    the reader would refuse what the checker allows."""
-    if draft and not any((merged.get(f) or "").strip()
-                         for f in ("tr", "voc", "en", "kana")):
+# what taking the whole gloss off is called, on the reader's chunk sheet and
+# in every refusal that points at it
+_DELETE = ("emptying every box of the gloss at once (\"delete gloss\") "
+           "takes the whole gloss off")
+
+
+def _unglossed(values, lang):
+    """True when not one part of this chunk's gloss is written: check_batch's
+    unwritten(), asked of a chunk as it will stand in the file.
+
+    The vocabulary counts, though no language requires it -- a field somebody
+    has typed into is a chunk somebody is working on.  The one exception is
+    the reading lib/draft.py gave the chunk from its word line (kana where
+    the language has a reading, tr where it has not: wordline.seed), while it
+    still says exactly that, because nobody wrote it.  Seed-aware for this
+    whole-chunk question only: once anything else is written, that reading
+    is the reading the chunk has, and counts as present."""
+    field, seeded = wordline.seed({"words": values.get("words") or ""}, lang)
+    return not any((values.get(f) or "").strip()
+                   and not (f == field and seeded
+                            and (values.get(f) or "").strip() == seeded)
+                   for f in GLOSS)
+
+
+def _unseeded(values, lang):
+    """(the chunk as chunkdiv should cut or join it, the field its reading was
+    taken out of -- None when nothing was).
+
+    An unglossed chunk of a language divided into words may carry the
+    reading lib/draft.py proposed from its word line (_unglossed).  That
+    reading is the line's, not anybody's writing, and chunkdiv cannot divide
+    it: a romanisation it cannot count the words of, or a kana that does not
+    open with the first half's own text, goes whole to the first half.  That
+    half then reads as written -- a chunk half glossed by a cut, which
+    check_batch calls an error -- and the second as blank.  So the reading
+    comes off before chunkdiv sees the chunk and is proposed again from each
+    new chunk's own line afterwards (_seeded): a blank chunk divides into two
+    blank halves, and two blank chunks join into one blank chunk."""
+    field, seeded = wordline.seed({"words": values.get("words") or ""}, lang)
+    if field and seeded and (values.get(field) or "").strip() \
+            and _unglossed(values, lang):
+        return {k: v for k, v in values.items() if k != field}, field
+    return values, None
+
+
+def _seeded(values, field, lang):
+    """`values` with the reading in `field` proposed from its own word line,
+    as lib/draft.py proposes one, or with none when the chunk has no line to
+    read (a join drops a line that only one side had) -- either way a chunk
+    _unglossed calls blank.  `values` unchanged when `field` is None."""
+    if field is None:
+        return values
+    out = {k: v for k, v in values.items() if k != field}
+    _field, reading = wordline.seed({"words": out.get("words") or ""}, lang)
+    if reading:
+        out[field] = reading
+    return out
+
+
+def _check_required(written, old, merged, lang, where):
+    """The gloss fields check_batch.py insists on, guarded where a hand can
+    take them away.
+
+    A chunk nobody has glossed yet is legal everywhere, and so is one being
+    filled in a box at a time: an edit that writes an en beside a blank tr is
+    saved, and check_batch lists what the chunk still lacks.  What is refused
+    is EMPTYING a field the language requires -- en always, tr where the
+    language romanises every chunk (require_tr), kana where it has a reading
+    -- that held something before this edit, because that turns a finished
+    gloss into a half-finished one.  Unless the edit leaves the whole chunk
+    unglossed (_unglossed, seed-aware as check_batch is): emptying every box
+    at once is how a gloss is deleted, and the chunk goes back to being one
+    nobody has started.  A field sent blank that was already blank changes
+    nothing and is never refused, and voc may always be emptied -- no
+    language requires it.
+
+    `written` is what the edit sets, `old` the chunk's fields before it and
+    `merged` after it, words included."""
+    if _unglossed(merged, lang):
         return
-    if "en" in written and not written["en"].strip():
-        raise Refused("%s: a glossed chunk needs its meaning -- check_batch.py "
-                      "calls an empty en an error" % where)
-    if "tr" in written and lang.require_tr and not written["tr"].strip():
-        raise Refused("%s: %s romanises every chunk, so tr cannot be emptied"
-                      % (where, lang.name))
-    if "kana" in written and not written["kana"].strip():
-        raise Refused("%s: %s needs the reading of every chunk, so kana cannot "
-                      "be emptied" % (where, lang.name))
+    required = [("en", "a glossed chunk needs its meaning -- check_batch.py "
+                       "calls an empty en an error")]
+    if lang.require_tr:
+        required.append(("tr", "%s romanises every chunk, so tr cannot be "
+                               "emptied on its own" % lang.name))
+    if lang.reading:
+        required.append(("kana", "%s needs the reading of every chunk, so kana "
+                                 "cannot be emptied on its own" % lang.name))
+    for f, why in required:
+        if f in written and not written[f].strip() \
+                and (old.get(f) or "").strip():
+            raise Refused("%s: %s; %s" % (where, why, _DELETE))
 
 
 # --- fidelity to source/paras/ ------------------------------------------
@@ -855,9 +926,18 @@ def edit_chunk(path, index, fields, lang=None):
     with no reading, words in a language with no word layer, anything
     check_batch.py would reject in a field, a character that is not text, a
     word line that does not rejoin the chunk's text as it stands after the
-    edit, and an fa that would stop the paragraph reproducing its source.  A
-    book.json with "draft": true relaxes exactly what it relaxes for
-    check_batch: a chunk nobody has started may have its gloss emptied again.
+    edit, an fa that would stop the paragraph reproducing its source, and
+    emptying a field the language requires (en; tr where it romanises; kana
+    where it has a reading) that holds something -- unless every box of the
+    gloss is emptied with it, which deletes the gloss and leaves the chunk
+    as one nobody has started (_check_required).  Filling the boxes one at
+    a time is never refused: a chunk with part of its gloss written is saved
+    as it is.  A \\chw or \\chrw whose gloss is emptied keeps its word line
+    and its macro.  A word line edited on a chunk nobody has glossed yet
+    takes its proposed reading with it: the reading lib/draft.py proposed
+    from the old line is proposed again from the new one (and goes when the
+    line is taken off), so the chunk stays blank -- unless the edit sends
+    that reading too, which is then the person's.
     """
     if not isinstance(fields, dict):
         raise Refused("fields must be a dict of any of %s" % ", ".join(FIELDS))
@@ -867,8 +947,6 @@ def edit_chunk(path, index, fields, lang=None):
                       % (", ".join(map(repr, unknown)), ", ".join(FIELDS)))
     book = _book_of(path)
     lang = _lang_of(path, lang, book)
-    # a book still being written may hold a chunk with no gloss at all
-    draft = bool(book.meta.get("draft")) if book is not None else False
     # a book read out of its written order (kanbun) is not warned that its
     # words and its readings disagree
     reorders = bool(book.meta.get("reorders")) if book is not None else False
@@ -922,8 +1000,30 @@ def edit_chunk(path, index, fields, lang=None):
             raise Refused("%s: \\%s has no %s slot; it takes %s%s"
                           % (where, call.name, f, ", ".join(slots), extra))
         new[f] = _value(f, fields[f], lang, where)
+    # A WORD LINE EDITED UNDER A PROPOSED READING.  A chunk nobody has
+    # glossed yet may carry the reading lib/draft.py proposed from its line
+    # (_unglossed: kana where the language has a reading, tr where it has
+    # not).  The reader's chunk sheet sends only "words" when the line alone
+    # is edited -- a boundary moved, a reading corrected -- and merged with
+    # the OLD reading, the chunk would hold a reading that is no longer what
+    # its NEW line proposes: written, then, though nobody wrote a gloss --
+    # check_batch's "empty en" ERROR on a chunk nobody glossed, "delete
+    # gloss" offered on it, and the region fill passing it over as glossed.
+    # So the reading is proposed again from the new line, as divide_preview,
+    # split_chunk and merge_chunks already propose it for each chunk they
+    # make (_unseeded, _seeded): the chunk stays blank, carrying its new
+    # line's reading, and a line taken off (words "") takes that proposal
+    # with it.  Only when the page did not send the reading itself -- a
+    # reading typed in the same edit is the person's -- and only on a chunk
+    # that was blank with its reading still the old line's proposal.
+    if "words" in new:
+        _bare, seed_field = _unseeded(old, lang)
+        if seed_field and seed_field not in new and seed_field in slots:
+            proposed = _seeded(dict(old, words=new["words"]), seed_field, lang)
+            new[seed_field] = _value(seed_field, proposed.get(seed_field, ""),
+                                     lang, where)
     merged = dict(old, **new)
-    _check_required(new, merged, lang, draft, where)
+    _check_required(new, old, merged, lang, where)
     # The arity is in the name: words given to a chunk without them make it
     # the macro with them, and words taken away make it the macro without.
     name = _form(call.name, bool(new["words"])) if "words" in new else call.name
@@ -1011,12 +1111,12 @@ def _alone(text, start, end, where):
     """Refuse when anything but whitespace shares the lines these calls are on.
 
     verify_book.py reads a chunk with a line-anchored regex (CHUNK_RE.match on
-    each line), so a call that does not open its own line is a call it cannot
-    see and a paragraph it cannot rebuild.  Dividing a chunk writes a line, and
-    joining two takes one away; both leave the lines around them exactly as
-    they were only if there was nothing else on them.  A chapter that already
-    puts two chunks on one line is left for a hand to sort out rather than
-    relaid out here.
+    each line, after its indent), so a call that does not open its own line
+    is a call it cannot see and a paragraph it cannot rebuild.  Dividing a
+    chunk writes a line, and joining two takes one away; both leave the lines
+    around them exactly as they were only if there was nothing else on them.
+    A chapter that already puts two chunks on one line is left for a hand to
+    sort out rather than relaid out here.
     """
     head = text[text.rfind("\n", 0, start) + 1:start]
     nl = text.find("\n", end)
@@ -1095,12 +1195,11 @@ def _proved(path, text, calls, out, index, gone, made, expect, where):
 
 
 def _open(path, index, lang, n_at_least=1):
-    """The file, its calls, the language, the draft and reorders flags and a
-    checked index.  The three operations begin the same way and this is that
+    """The file, its calls, the language, the reorders flag and a checked
+    index.  The three operations begin the same way and this is that
     beginning."""
     book = _book_of(path)
     lang = _lang_of(path, lang, book)
-    draft = bool(book.meta.get("draft")) if book is not None else False
     reorders = bool(book.meta.get("reorders")) if book is not None else False
     text = _read(path)
     calls = _scan(text, path)
@@ -1110,22 +1209,30 @@ def _open(path, index, lang, n_at_least=1):
                       % (index, os.path.basename(path),
                          "%d, numbered 0 to %d" % (len(calls), len(calls) - 1)
                          if calls else "no chunks at all"))
-    return text, calls, lang, draft, reorders
+    return text, calls, lang, reorders
 
 
-def _fields_for(name, values, lang, draft, reorders, where):
+def _fields_for(name, values, lang, reorders, where):
     """Every slot of one macro, checked as edit_chunk checks the ones it is
     given -- because a chunk that has just come into being has all of them
     written, and none of them was there before to fall back on.  `name` is
     _name_for's, so a word line is never handed to a macro with no slot for
-    it.  Returns the values and what wordline.check warns of them."""
+    it.  Returns the values and what wordline.check warns of them.
+
+    What each value may HOLD is checked; which of them are FILLED is not.
+    Cutting a chunk or joining two moves a boundary, and the gloss comes
+    along as it was: a half glossed chunk divides into halves that may be
+    blank, half glossed or complete, and none of that is the cut's to refuse
+    -- check_batch lists a half-glossed chunk, and the chunk sheet is where
+    it is finished.  A blank chunk is proposed as two blank halves, its
+    reading from the word line proposed again for each (divide_preview,
+    _unseeded); what is written is what the page sends back."""
     new = {}
     for f in SLOTS[name]:
         if f == "kana" and not lang.reading:
             raise Refused("%s: %s has no reading, so a chunk carries no kana"
                           % (where, lang.name))
         new[f] = _value(f, values.get(f) or "", lang, where)
-    _check_required(new, new, lang, draft, where)
     return new, _words_fit(new, lang, reorders, where)
 
 
@@ -1161,6 +1268,20 @@ def _mergeable(text, calls, index, path):
     return first, second, where
 
 
+def _join(first, second, lang):
+    """chunkdiv.merge of two chunks, (chunk, notes) -- with the proposed
+    reading of a pair nobody has glossed yet proposed again for the chunk
+    they become (_unseeded says why), so that two blank chunks join into one
+    blank chunk even where a line on one side only is dropped.  A pair with
+    anything written in either is joined as it stands."""
+    a, fa_ = _unseeded(first, lang)
+    b, fb_ = _unseeded(second, lang)
+    if (fa_ or fb_) and _unglossed(first, lang) and _unglossed(second, lang):
+        one, notes = chunkdiv.merge(a, b, lang, chunkdiv.TEX)
+        return _seeded(one, fa_ or fb_, lang), notes
+    return chunkdiv.merge(first, second, lang, chunkdiv.TEX)
+
+
 def divide_preview(path, index, lang=None):
     """What a page needs to offer both operations on one chunk, worked out
     here so that the rules live in one place and the page only draws them.
@@ -1172,7 +1293,7 @@ def divide_preview(path, index, lang=None):
     into, or None with `merge_error` saying why they cannot be joined.  A
     proposal and nothing more: what is written is what comes back POSTed.
     """
-    text, calls, lang, _draft, _reorders = _open(path, index, lang)
+    text, calls, lang, _reorders = _open(path, index, lang)
     call = calls[index]
     where = "%s:%d chunk %d" % (os.path.basename(path), call.line + 1, index)
     mine = _named(_values(text, call), where)
@@ -1181,16 +1302,19 @@ def divide_preview(path, index, lang=None):
            "merge": None, "merge_error": None,
            "voc_sep": chunkdiv.VOC_SEP[chunkdiv.TEX],
            "pieces": chunkdiv.pieces(mine.get("fa") or "", lang)}
+    # a blank chunk's proposed reading is proposed again for each half
+    bare, seeded = _unseeded(mine, lang)
     for c in chunkdiv.cuts(mine.get("fa") or "", lang):
         try:
-            a, b, notes = chunkdiv.split(mine, c["at"], lang, chunkdiv.TEX)
+            a, b, notes = chunkdiv.split(bare, c["at"], lang, chunkdiv.TEX)
         except wordline.WordsError as e:
             # a line written by hand that does not read cannot be divided:
             # the halves are proposed without one rather than not at all
-            a, b, notes = chunkdiv.split(dict(mine, words=""), c["at"], lang,
+            a, b, notes = chunkdiv.split(dict(bare, words=""), c["at"], lang,
                                          chunkdiv.TEX)
             notes.append("the word line does not read (%s), so neither half "
                          "has words until it is divided into words again" % e)
+        a, b = _seeded(a, seeded, lang), _seeded(b, seeded, lang)
         out["cuts"].append({"at": c["at"], "end": c["end"],
                             "a": c["a"], "b": c["b"],
                             "first": a, "second": b, "notes": notes,
@@ -1204,9 +1328,8 @@ def divide_preview(path, index, lang=None):
     out["next"] = _record(text, index + 1, calls[index + 1])
     try:
         first, second, w = _mergeable(text, calls, index, path)
-        one, notes = chunkdiv.merge(_named(_values(text, first), w),
-                                    _named(_values(text, second), w),
-                                    lang, chunkdiv.TEX)
+        one, notes = _join(_named(_values(text, first), w),
+                           _named(_values(text, second), w), lang)
         out["merge"] = {"fields": one, "notes": notes}
     except Refused as e:
         out["merge_error"] = str(e)
@@ -1230,25 +1353,27 @@ def merge_chunks(path, index, fields=None, lang=None):
     word separator, the romanisations and meanings with a space, the
     vocabulary with its own semicolon, two word lines with a space and one
     word line alone not at all -- and the notes it returns come back with the
-    result.  The merged chunk is written with words exactly when it has
-    them.  A merge cannot break the paragraph's fidelity to its source (the
+    result; two chunks nobody has glossed yet join into one, their proposed
+    reading proposed again from the joined line (_join).  The merged chunk
+    is written with words exactly when it has them.  A merge cannot break the paragraph's fidelity to its source (the
     join is the string it was), and the check is run anyway.
 
     Returns {path, index, macro, fidelity, parstart, notes, warnings, chunk,
     chunks}: `chunks` how many the file holds now, `notes` what could not
     simply be put end to end, `warnings` what wordline.check says of the
-    words.  Raises Refused for everything edit_chunk refuses, for two chunks
-    that are not a pair this may join, and for `fields` that say nothing of
-    words when both chunks have a line -- blank takes them off, silence is a
-    caller that has not heard of them.
+    words.  Raises Refused for everything edit_chunk refuses in a value, for
+    two chunks that are not a pair this may join, and for `fields` that say
+    nothing of words when both chunks have a line -- blank takes them off,
+    silence is a caller that has not heard of them.  Never for a gloss left
+    blank: the joined chunk may be unglossed, half glossed or complete
+    (_fields_for says why).
     """
-    text, calls, lang, draft, reorders = _open(path, index, lang, n_at_least=2)
+    text, calls, lang, reorders = _open(path, index, lang, n_at_least=2)
     first, second, where = _mergeable(text, calls, index, path)
 
     a_raw, b_raw = _values(text, first), _values(text, second)
     if fields is None:
-        merged, notes = chunkdiv.merge(_named(a_raw, where), _named(b_raw, where),
-                                       lang, chunkdiv.TEX)
+        merged, notes = _join(_named(a_raw, where), _named(b_raw, where), lang)
     else:
         if not isinstance(fields, dict):
             raise Refused("fields must be a dict of any of %s" % ", ".join(FIELDS))
@@ -1268,7 +1393,7 @@ def merge_chunks(path, index, fields=None, lang=None):
                           "blank to take them off" % where)
         merged, notes = dict(fields), []
     name = _name_for(first.name, merged, lang, where)
-    new, warnings = _fields_for(name, merged, lang, draft, reorders, where)
+    new, warnings = _fields_for(name, merged, lang, reorders, where)
     # A join changes no letter, as a cut does not: the text must be the two
     # texts run together with the language's separator.  Without this the
     # promise above holds only for a page that behaves, and a paragraph the
@@ -1317,7 +1442,7 @@ def split_chunk(path, index, first, second, lang=None):
     Returns {path, index, macro, fidelity, parstart, warnings, chunks, first,
     second}.
     """
-    text, calls, lang, draft, reorders = _open(path, index, lang)
+    text, calls, lang, reorders = _open(path, index, lang)
     call = calls[index]
     where = "%s:%d chunk %d" % (os.path.basename(path), call.line + 1, index)
     _no_percent(text, call.start, call.end, where)
@@ -1343,8 +1468,8 @@ def split_chunk(path, index, first, second, lang=None):
                       "take them off" % where)
     na = _name_for(call.name, first, lang, where + ", first half")
     nb = _name_for(call.name, second, lang, where + ", second half")
-    a, wa = _fields_for(na, first, lang, draft, reorders, where + ", first half")
-    b, wb = _fields_for(nb, second, lang, draft, reorders, where + ", second half")
+    a, wa = _fields_for(na, first, lang, reorders, where + ", first half")
+    b, wb = _fields_for(nb, second, lang, reorders, where + ", second half")
 
     # The two texts must be one of the places this chunk divides, character
     # for character.  Comparing what the checkers compare would be too weak

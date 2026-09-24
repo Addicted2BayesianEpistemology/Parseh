@@ -89,13 +89,17 @@ def source(rel):
 def find_font(name):
     """Where a font the studio's sheet names is on this machine, or None.
 
-    The target scripts' faces travel with the toolbox (lib/fonts).  The
-    sheet's Latin faces, TeX Gyre Pagella and Heros, are TeX's: the studio
-    copies them out of the TeX installation at start (server.py
-    ensure_web_fonts), and so does this, looking where TeX Live, a Linux
-    distribution's fonts-texgyre and the usual font folders keep them.  A
-    face not found is simply not copied: the sheet's stack falls back to
-    Palatino, Georgia and the like, and the page still reads."""
+    EVERY FACE THE SHEET NAMES NOW TRAVELS WITH THE TOOLBOX (lib/fonts),
+    TeX Gyre Pagella and Heros included.  They did not, and a compile on a
+    machine without TeX found none of them and copied none -- which, since
+    the compiled site is tracked, DELETED the seven
+    `site/_parseh/fonts/texgyre*.otf` an install was meant to leave alone.
+    The GUST licence they are under was already beside them in lib/fonts;
+    now so are the fonts.  The search below is kept for a checkout that has
+    not got them: TeX Live's own tree, a distribution's fonts-texgyre, and
+    the usual font folders.  A face found nowhere is simply not copied --
+    the sheet's stack falls back to Palatino, Georgia and the like, the page
+    still reads, and site.py keeps the copy the old site had."""
     for d in FONT_DIRS:
         p = ROOT / d / name
         if p.is_file():

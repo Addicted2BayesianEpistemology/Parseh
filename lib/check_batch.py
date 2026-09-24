@@ -37,25 +37,30 @@ morphology, the pointing sweep, the ezafe seams) and run only when the book
 is Persian.  Arabic gets nothing Persian: its vowelled text is checked only
 for the generic agreement that fa and tr both exist.
 
-A BOOK STILL BEING WRITTEN says so: book.json carries "draft": true, which
-lib/draft.py writes when it makes an edition out of nothing but its text --
-every chunk a whole sentence, every gloss blank.  Such a book would fail this
-checker on the day it was created, which would make the whole idea useless,
-so a chunk with NOTHING written in it (no tr, no voc, no en, no kana) is a
-NOTE there and not an error.  One field written makes it a chunk somebody is
-working on, and every field its language requires is demanded again: a
-translation with no transliteration beside it, in a language that wants one,
-is exactly the half-done work this file exists to catch, and it stays an
-error draft or no draft.  Without the flag nothing changes -- an unwritten
-gloss is an error, as it has always been.  A draft of a language divided into
-words gives each chunk its reading from its words (kana, or tr for Chinese:
-lib/draft.py), and that reading, unchanged, is not counted as written.
+A CHUNK NOBODY HAS GLOSSED YET IS LEGAL.  lib/draft.py makes an edition out
+of nothing but its text -- every chunk a whole sentence, every gloss blank --
+and the reader fills it in a chunk or a region at a time, so a book spends
+weeks with blank chunks in it, and a checker that failed it for them on the
+day it was created would make the whole idea useless.  A chunk with NOTHING
+written in it (no tr, no voc, no en, no kana) is therefore counted, in one
+note per paragraph, and asked nothing else: not its required fields, and not
+the warnings that would be certain in advance for it (a paragraph with no
+word line, and in Persian a verb with no \\vb, a word pointed otherwise
+elsewhere in the book, an ezafe at the seam after it).  One field written
+makes it a chunk somebody is working on, and every field its language
+requires is demanded: a translation with no transliteration beside it, in a
+language that wants one, is exactly the half-done work this file exists to
+catch, and it is an ERROR.  A language divided into words gives each drafted
+chunk its reading from its words (kana, or tr for Chinese: lib/draft.py), and
+that reading, unchanged, is not counted as written -- it does not make a
+blank chunk a started one; once the chunk is started it counts as the
+reading it is.
 
-In such a language the words are part of the annotation: a finished
-paragraph in which not one chunk has a word line is a WARNING, answered by
-running lib/fill_words.py --json on the paragraph and correcting what it
-proposes.  A single chunk without words stays legal -- the analyzer may have
-nothing to propose for it.
+In such a language the words are part of the annotation: a paragraph with
+some of its gloss written in which not one chunk has a word line is a
+WARNING, answered by running lib/fill_words.py --json on the paragraph and
+correcting what it proposes.  A single chunk without words stays legal --
+the analyzer may have nothing to propose for it.
 
 A note is neither an error nor a warning and counts towards neither: an error
 must be fixed, a warning is a judgement call, and a note is the checker
@@ -79,11 +84,11 @@ import languages                                                # noqa: E402
 # raises UnboundLocalError on the one path this import exists for, a paragraph
 # whose text does not match its source.
 import reading as readingjson                                   # noqa: E402
+from texparse import read_args                                  # noqa: E402
 import wordline                                                 # noqa: E402
 
 BOOK = None     # set in main(): the book's directory
 LANG = None     # set in main(): the book's Lang record
-DRAFT = False   # set in main(): book.json's "draft" -- the book is being written
 REORDERS = False  # set in main(): book.json's "reorders" -- read out of order
 
 FATHA, DAMMA, KASRA, SHADDA, SUKUN = "\u064e", "\u064f", "\u0650", "\u0651", "\u0652"
@@ -100,6 +105,11 @@ NEVER_GLOSS = set("""در از با به که این آن و را تا هم یا
 # the text is read here, so the pattern stops after it; the arguments that
 # follow may nest braces and are not for a regex.  The longer names first.
 CHUNK_RE = re.compile(r"\\ch(rw|w|r)?\{(.*?)\}\{(.*?)\}\{")
+# ...and what follows the text, in each of the four's order, for the one
+# question corpus() asks of those arguments: is anything written in them
+AFTER_FA = {"": ("tr", "voc", "en"), "r": ("kana", "tr", "voc", "en"),
+            "w": ("tr", "voc", "en", "words"),
+            "rw": ("kana", "tr", "voc", "en", "words")}
 
 errors, warns, notes = [], [], []
 def err(msg):  errors.append(msg)
@@ -121,7 +131,7 @@ def unwritten(c):
     on everything the language asks for is asked for.  The one exception is
     the reading a draft gave the chunk from its words (wordline.seed), while
     it still says exactly that: nobody wrote it.  A chunk that is unwritten
-    in this sense is the only kind a draft is forgiven."""
+    in this sense is counted and passed over; any other is checked in full."""
     field, seeded = wordline.seed(c, LANG)
     return not any((c.get(f, "") or "").strip()
                    and not (f == field and seeded and (c.get(f, "") or "").strip() == seeded)
@@ -166,13 +176,27 @@ def count_args(s, i):
 
 
 def corpus():
-    """How the already-built chapters point each word, and which stems they use."""
+    """How the already-built chapters point each word, and which stems they use.
+
+    A chunk nobody has glossed yet is left out of the pointing count: its
+    text is the source's as it stands, unpointed until somebody glosses it,
+    and counting it would set every pointed word of the finished chapters
+    against the bare spelling of the same word in the blank ones -- a
+    POINTING warning for nearly every word of a book with a chapter still to
+    be glossed.  (It has no \\vb either, so the stems are not touched.)"""
     words = collections.defaultdict(collections.Counter)
     verbs = collections.defaultdict(collections.Counter)
     for f in sorted(glob.glob(os.path.join(BOOK, "ch*.tex"))):
         body = io.open(f, encoding="utf-8").read()
-        for _r, _col, fa in CHUNK_RE.findall(body):
-            for w in LANG.split_words(fa):
+        for m in CHUNK_RE.finditer(body):
+            names = AFTER_FA[m.group(1) or ""]
+            try:
+                rest, _end = read_args(body, m.end() - 1, len(names))
+            except (AssertionError, IndexError, ValueError):
+                rest = None             # not read: counted, as it always was
+            if rest is not None and unwritten(dict(zip(names, rest))):
+                continue
+            for w in LANG.split_words(m.group(3)):
                 words[strip(w)][w] += 1
         for m in re.finditer(r"\\vb\{([^{}]*)\}\{([^{}]*)\}\{([^{}]*)\}\{([^{}]*)\}"
                              r"\{([^{}]*)\}\{([^{}]*)\}", body):
@@ -181,12 +205,9 @@ def corpus():
 
 
 def main(path, book=None, ch_opt=None):
-    global BOOK, LANG, DRAFT, REORDERS
+    global BOOK, LANG, REORDERS
     b = find_book(book or os.environ.get("FRANK_BOOK") or None)
     BOOK, LANG, REORDERS = b.dir, b.lang, b.reorders
-    # book.json's "draft": the edition is being written, so a chunk nobody has
-    # touched yet is a note rather than an error (see the header)
-    DRAFT = bool(b.meta.get("draft"))
     blob = json.load(io.open(path, encoding="utf-8"))
     idx  = blob["idx"]
     # Which chapter the paragraph belongs to: the JSON's own "ch" wins, then
@@ -251,8 +272,8 @@ def main(path, book=None, ch_opt=None):
         # The word line answers to wordline.check alone -- BADTEX above is a
         # gloss's rule, and the line has its own for what LaTeX may not see.
         # It is not a gloss, so unwritten() does not count it, and it is
-        # checked in a draft all the same: a line that cannot be set stops
-        # the PDF whether or not anybody has glossed the chunk yet.
+        # checked in a blank chunk all the same: a line that cannot be set
+        # stops the PDF whether or not anybody has glossed the chunk yet.
         if "words" in c:
             words = c["words"]
             if words is None or (isinstance(words, str) and not words.strip()):
@@ -267,17 +288,15 @@ def main(path, book=None, ch_opt=None):
                 for w in doubts:
                     warn("words of %r: %s" % (fa, w))
         # A chunk with not one of its gloss fields written is a chunk nobody
-        # has started, which is a different thing from one written wrong.  In
-        # a draft it is counted and passed over; anywhere else the errors
-        # below fire exactly as they always have.  One field written -- even
-        # the vocabulary, which no language requires -- means somebody is
-        # working on this chunk, and then everything its language asks for is
-        # asked for, because a translation with no transliteration beside it
-        # is the half-done work these three checks are here to find.
+        # has started, which is a different thing from one written wrong: it
+        # is counted and passed over (see the header).  One field written --
+        # even the vocabulary, which no language requires -- means somebody
+        # is working on this chunk, and then everything its language asks for
+        # is asked for, because a translation with no transliteration beside
+        # it is the half-done work these three checks are here to find.
         if unwritten(c):
             blank += 1
-            if DRAFT:
-                continue
+            continue
         if not (c.get("en", "") or "").strip():
             err("empty en for %r" % fa)
         # tr is required where the language says so (require_tr): a
@@ -293,10 +312,12 @@ def main(path, book=None, ch_opt=None):
                 % (fa, LANG.name))
 
     # In a language divided into words the words are part of the annotation,
-    # started from the machine's proposal and corrected: a finished paragraph
-    # in which not one chunk has a word line skipped that step.  One chunk
-    # without words is legal -- the analyzer may propose nothing for it.
-    if (LANG.words and not DRAFT and chunks
+    # started from the machine's proposal and corrected: a paragraph somebody
+    # has started glossing in which not one chunk has a word line skipped
+    # that step.  One nobody has started is not warned -- the warning would
+    # be certain in advance for every such paragraph.  One chunk without
+    # words is legal -- the analyzer may propose nothing for it.
+    if (LANG.words and blank < len(chunks)
             and not any("words" in c for c in chunks)
             and any((c.get("fa", "") or "").strip()
                     and (LANG.has_script(c["fa"]) if LANG.chars else True) for c in chunks)):
@@ -304,19 +325,8 @@ def main(path, book=None, ch_opt=None):
              "words: run lib/fill_words.py --json on this file for the machine's "
              "proposal, then correct every line" % LANG.name)
 
-    if DRAFT and blank:
-        note("%d of %d chunks have no gloss written yet.  book.json says "
-             "\"draft\": true, so that is a note here and not an error; a "
-             "chunk with SOME of its gloss written is checked in full."
-             % (blank, len(chunks)))
-    elif DRAFT:
-        note("book.json says \"draft\": true, and every chunk of this "
-             "paragraph is glossed -- when the last one is, take the flag out.")
-    elif blank:
-        note("%d of %d chunks have no gloss at all, and each is an error "
-             "above.  An edition being written says so with \"draft\": true "
-             "in book.json, and then an unwritten gloss is a note; without "
-             "the flag every chunk must be finished." % (blank, len(chunks)))
+    if blank:
+        note("%d of %d chunks have no gloss yet." % (blank, len(chunks)))
 
     if LANG.code != "fa":
         return report(idx, sents, chunks, src)
@@ -398,10 +408,11 @@ def main(path, book=None, ch_opt=None):
     # ---- 5. every verb gets a \vb -----------------------------------------
     VERBISH = re.compile(r"(^|\s)(ن?می‌?\S+|\S+(?:ید|اند|یم|ند)$)")
     for c in chunks:
-        # in a draft this would fire on every chunk, since none of them has a
-        # \vb yet: a warning that is certain in advance teaches its reader to
-        # skip warnings, which is the one thing this list cannot afford
-        if DRAFT and unwritten(c):
+        # a chunk nobody has glossed yet has no \vb by definition, so this
+        # would fire on every one of them: a warning that is certain in
+        # advance teaches its reader to skip warnings, which is the one thing
+        # this list cannot afford
+        if unwritten(c):
             continue
         bare = strip(c["fa"])
         looks = re.search(r"(?:^|\s)ن?می‌?[؀-ۿ]+", bare) or \
@@ -426,6 +437,12 @@ def main(path, book=None, ch_opt=None):
     BY_DESIGN = {"\u0648", "\u062f\u0631"}
     reported = set()
     for c in chunks:
+        # a chunk nobody has glossed yet is the source's text, unpointed: set
+        # against the book's pointed words it would compete on every one of
+        # them, a warning certain in advance (section 5 says why that is the
+        # one kind this list cannot carry)
+        if unwritten(c):
+            continue
         for w in c["fa"].split():
             b = strip(w)
             if b in BY_DESIGN or w in reported:
@@ -450,11 +467,18 @@ def main(path, book=None, ch_opt=None):
     risky = 0
     for n in range(len(chunks) - 1):
         cur, nxt = chunks[n], chunks[n + 1]
+        # the ezafe is read off the first chunk's final kasra and its tr, and
+        # a chunk nobody has glossed has neither yet: every seam after one
+        # would be flagged, certain in advance.  An empty text is an error in
+        # section 2 already, and has no last word to read.
+        if unwritten(cur) or not cur["fa"].split() or not nxt["fa"].split():
+            continue
         last  = cur["fa"].split()[-1]
         first = strip(nxt["fa"].split()[0])
         if last[-1] in "\u060c\u061b.!\u061f:\u2013\u00bb":
             continue                                   # punctuation closes the phrase
-        if last.endswith((KASRA, "\u06c0")) or cur["tr"].rstrip().endswith(("-e", "-ye")):
+        if last.endswith((KASRA, "\u06c0")) \
+                or (cur.get("tr", "") or "").rstrip().endswith(("-e", "-ye")):
             continue                                   # the ezafe is already there
         if strip(last) in PREP or first in PREP:
             continue                                   # a function word is no qualifier
@@ -479,9 +503,8 @@ def report(idx, sents, chunks, src):
         size = "%d source words" % len(src.split())
     else:
         size = "%d source characters" % len(re.sub(r"\s+", "", src))
-    print("paragraph %d (printed as %d): %d sentences, %d chunks, %s%s"
-          % (idx, idx + 1, len(sents), len(chunks), size,
-             "  [draft]" if DRAFT else ""))
+    print("paragraph %d (printed as %d): %d sentences, %d chunks, %s"
+          % (idx, idx + 1, len(sents), len(chunks), size))
     for e in errors:
         print("  ERROR %s" % e)
     for w in warns:

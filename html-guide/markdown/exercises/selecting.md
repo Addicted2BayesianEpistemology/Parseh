@@ -108,6 +108,12 @@ too.* — and **Delete selected** removes them and their histories for good.
 — practises the selection in [cram mode](cram.md): all of it, in random
 order, with no effect on the schedule.
 
+### Export to HTML
+
+**Export selected to HTML**, beside it, makes the selection one HTML page
+that crams it, to put on a website for students who have no Parseh: see
+[Cram mode](cram.md#as-a-page-for-a-website).
+
 ## Working by tag {#by-tag}
 
 Put together, the tag tools make a deck easy to slice. A deck filled from

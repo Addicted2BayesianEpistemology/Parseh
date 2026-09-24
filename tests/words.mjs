@@ -17,11 +17,17 @@ const browser = await chromium.launch({executablePath:Deno.env.get('CHROME_BIN')
 try {
 const page = await browser.newPage();
 const errors=[]; page.on('pageerror', e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});
-// parseh.js loads the activity list's script (lib/activity.js) beside itself;
-// this page has no server behind it, so that one is simply not found rather
-// than answered with the page, which would read as a script's syntax error
-await page.route('http://parseh.test/**/activity.js', route => route.fulfill({status:404, body:''}));
-await page.route(u => u.href.startsWith('http://parseh.test/') && !u.pathname.endsWith('/activity.js'),
+// parseh.js loads its own layers beside itself -- the activity list, the
+// preferences this machine keeps, keeping on this phone, the ? that explains
+// the buttons.  This page has no server behind it, so each is simply NOT
+// FOUND rather than answered with the page, which a browser reads as a
+// script full of syntax errors ("Unexpected token '<'").
+const LAYERS = ['activity.js', 'prefs.js', 'keep.js', 'explain.js',
+                'narrctl.js', 'wordtouch.js', 'mobileplayer.js'];
+const isLayer = p => LAYERS.some(n => p.endsWith('/' + n));
+await page.route(u => u.href.startsWith('http://parseh.test/') && isLayer(u.pathname),
+                 route => route.fulfill({status:404, body:''}));
+await page.route(u => u.href.startsWith('http://parseh.test/') && !isLayer(u.pathname),
                  route => route.fulfill({contentType:'text/html',
   body:'<!doctype html><html data-lang="ja"><body><div class="p1" id="text"></div><div class="p1" id="more"></div>'+
        '<div id="cloud"><div class="mkrow"></div></div><div id="cloud2"></div><div id="strips"></div></body></html>'}));

@@ -85,10 +85,10 @@ from now on, and **Start Parseh now?**
 ## Every time after that
 
 A double-click on serve.bat starts the server in its own window and opens
-the browser on `https://localhost:8765/`:
+the browser on `https://localhost:7654/`:
 
 ```text
-Parseh is up at https://localhost:8765/ -- this window is its log.  Close it, press Ctrl-C,
+Parseh is up at https://localhost:7654/ -- this window is its log.  Close it, press Ctrl-C,
 or use the stop button on any page to stop the server.
 ```
 
@@ -116,7 +116,8 @@ In a command prompt in the Parseh folder, serve.bat takes:
 
 ```text
 serve.bat               the wizard once; then start and open it
-serve.bat 9000          ... on another port (the default is 8765)
+serve.bat 9000          ... on another port for this start (Settings >
+                        Network keeps the port; 7654 on a fresh install)
 serve.bat setup         run the wizard again
 serve.bat stop          stop a running server
 serve.bat status        is it running, and where
@@ -125,9 +126,10 @@ serve.bat readers       every reader and the library page, rebuilt
 serve.bat --no-browser  start without opening a browser window
 ```
 
-A fresh certificate is what a computer whose addresses have changed needs:
+A fresh certificate is what a computer whose addresses have changed needs —
+though Parseh now notices that as it starts and makes one by itself:
 [From a phone or another computer](other-devices.md#the-certificate) says
-why.
+why, and what a phone has to trust.
 
 serve.bat only finds the Python; the rest is `lib\launcher.py`, which does
 on Windows what `./serve.sh` and `./install.sh` do elsewhere.

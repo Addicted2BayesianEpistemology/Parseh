@@ -292,7 +292,7 @@ def _refresh_from_source(meta, markdown):
     meta["title"] = fm.get("title", "") or meta.get("title") or UNTITLED
     meta["subtitle"] = fm.get("subtitle", "")
     meta["note"] = fm.get("note", "")
-    meta["lang"] = fm.get("lang", "it")
+    meta["lang"] = fm.get("lang", htmlgen.DEFAULT_PROSE)
     meta["target"] = fm["target"]           # a registry code, always
     meta["stats"] = htmlgen.stats(markdown, blocks, target=fm["target"])
     return meta
@@ -2877,8 +2877,29 @@ def doc_zip(doc_id, slug=None):
     return buf.getvalue()
 
 
-LIB_MAX_FILES = 20000
-LIB_MAX_BYTES = 2 * 1024 ** 3
+# WHAT PARSEH WRITES, PARSEH READS BACK.  The Backup button packs the whole
+# library with no ceiling of its own, while the restore refused more than
+# 20 000 files or 2 GB -- a library of a few hundred illustrated, narrated
+# documents passes both, and a backup that cannot be put back is not one.
+# These are now far beyond anything one person's library reaches; the
+# per-file defences (MD_MAX, a picture's, a recording's) are untouched,
+# since those are what stops a crafted zip.  A backup that passes
+# LIB_WARN_* says so while it is being written (server.api_export).
+LIB_MAX_FILES = 400000
+LIB_MAX_BYTES = 16 * 1024 ** 3
+LIB_WARN_FILES = 20000              # "this is getting large", not a refusal
+LIB_WARN_BYTES = 2 * 1024 ** 3
+
+
+def big_backup_note(what, files, nbytes):
+    """The sentence a backup says about itself once it is large enough to be
+    worth a word: the count and the size, in the words a person uses, so
+    that nobody has to guess at what "a big zip" means.  Both backups say it
+    the same way (decks.backup_zip says it about the exercise shelf)."""
+    mb = nbytes / float(1024 * 1024)
+    return ("%s is large: %s files, %s so far"
+            % (what, format(files, ","),
+               ("%.1f GB" % (mb / 1024)) if mb >= 1024 else ("%d MB" % round(mb))))
 
 
 def import_library(source, replace=False, renames=None):
@@ -3097,8 +3118,91 @@ def _zip_tags(zf, entries, by_lower, name):
     return [str(t) for t in got if str(t).strip()] if isinstance(got, list) else []
 
 
+def _zip_entries(zf):
+    """The entries of a zip worth looking at: files, none of them from
+    outside the zip's own tree, no Mac resource fork and nothing hidden --
+    the rule import_zip goes by, in one place because the unwrapping below
+    has to apply the very same one before it can say what a zip holds."""
+    out = []
+    for info in zf.infolist():
+        if info.is_dir():
+            continue
+        name = info.filename.replace("\\", "/")
+        parts = name.split("/")
+        if name.startswith("/") or ".." in parts or parts[0] == "__MACOSX" \
+                or any(p.startswith(".") for p in parts):
+            continue
+        out.append((name, info))
+    return out
+
+
+def _unwrap_zip_of_zips(data):
+    """A zip whose every entry is itself a zip -> (one flat zip of what they
+    hold, how many were opened).  Anything else -> (None, 0).
+
+    THE LIBRARY'S OWN "Markdown + media (.zip)" OF SEVERAL DOCUMENTS IS ONE
+    OF THESE, and it could not be loaded back.  Media has to stay beside the
+    markdown that names it -- several documents' images/ and audio/ would
+    otherwise land in one heap with every name free to collide -- so the
+    download writes each document's own zip inside one zip
+    (server.api_download).  The import read only `.md` entries and answered
+    "the zip holds no markdown (.md) file" about a file Parseh had just
+    written itself.
+
+    Each inner zip is opened under a folder named after it, which is exactly
+    the shape the import already reads: a document's folder, with its
+    images/ and its audio/ inside it.  Deterministic, down to the order and
+    the names, because the header dialog sends the same zip back with its
+    answers keyed by the names this gave them."""
+    try:
+        outer = zipfile.ZipFile(io.BytesIO(data or b""))
+    except (zipfile.BadZipFile, ValueError, OSError):
+        return None, 0
+    with outer:
+        entries = _zip_entries(outer)
+        if not entries or not all(n.lower().endswith(".zip") for n, _i in entries):
+            return None, 0
+        if len(entries) > ZIP_MAX_FILES:
+            raise StoreError("the zip holds more than %d files" % ZIP_MAX_FILES)
+        if sum(i.file_size for _n, i in entries) > ZIP_MAX_BYTES:
+            raise StoreError("the zip unpacks to more than %d MB" % (ZIP_MAX_BYTES // 2 ** 20))
+        buf, taken, opened, total = io.BytesIO(), set(), 0, 0
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as flat:
+            for name, info in entries:
+                stem = posixpath.basename(name)[:-len(".zip")]
+                stem = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-.") or "document"
+                folder, n = stem, 1
+                while folder.lower() in taken:
+                    n += 1
+                    folder = "%s-%d" % (stem, n)
+                taken.add(folder.lower())
+                try:
+                    inner = zipfile.ZipFile(io.BytesIO(outer.read(info)))
+                except (zipfile.BadZipFile, ValueError, OSError, KeyError, RuntimeError):
+                    raise StoreError("%s inside the zip is not a zip that can be read"
+                                     % posixpath.basename(name))
+                with inner:
+                    for held, held_info in _zip_entries(inner):
+                        total += held_info.file_size
+                        if total > ZIP_MAX_BYTES:
+                            raise StoreError("the zip unpacks to more than %d MB"
+                                             % (ZIP_MAX_BYTES // 2 ** 20))
+                        try:
+                            flat.writestr(folder + "/" + held, inner.read(held_info))
+                        except (zipfile.BadZipFile, ValueError, OSError, KeyError,
+                                RuntimeError) as e:
+                            raise StoreError("%s inside the zip could not be read (%s)"
+                                             % (posixpath.basename(name), e))
+                opened += 1
+        return buf.getvalue(), opened
+
+
 def import_zip(data, headers=None, renames=None):
     """Documents out of a zip -> {"docs": [meta, ...], "warnings": [...]}.
+
+    A ZIP OF ZIPS IS OPENED FIRST (_unwrap_zip_of_zips): that is the shape
+    the library's own download of several documents with their media has,
+    and the answer says how many were found in it.
 
     Every .md or .markdown file in it is a document, and the pictures it
     shows are read from beside it -- its folder's images/, or its folder --
@@ -3121,6 +3225,12 @@ def import_zip(data, headers=None, renames=None):
     another file's in the zip, raises NameConflict before anything is made,
     and `renames` is the dialog's answer (plan_names)."""
     headers = headers if isinstance(headers, dict) else {}
+    flat, opened = _unwrap_zip_of_zips(data)
+    if flat is not None:
+        out = import_zip(flat, headers, renames)
+        out["warnings"].insert(0, "the zip held %d document zip%s, and each was opened"
+                               % (opened, "" if opened == 1 else "s"))
+        return out
     try:
         zf = zipfile.ZipFile(io.BytesIO(data or b""))
     except (zipfile.BadZipFile, ValueError, OSError):

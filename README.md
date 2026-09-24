@@ -19,14 +19,12 @@ anything you read into Anki cards. Eleven languages: Persian, Arabic,
 Italian, Japanese, French, German, Turkish, English, Hindi, Spanish and
 Chinese.
 
-**Version a0.2.0** - 
-Currently released in alpha version, support for mobile version is still limited.
-Bugs are to be expected.
+**Version a0.3.0** — currently released in alpha version. Bugs are to be
+expected.
 
 **The guide — installing, using and extending Parseh, and the full reference
 of its Markdown dialect — is at
-<https://addicted2bayesianepistemology.github.io/Parseh/>.** The same pages
-are in [`html-guide/`](html-guide/), and Parseh serves them at `/guide/`.
+<https://addicted2bayesianepistemology.github.io/Parseh/>.**
 
 ## Quick start
 
@@ -34,10 +32,24 @@ are in [`html-guide/`](html-guide/), and Parseh serves them at `/guide/`.
 |---|---|---|
 | `./install.sh`, then `./serve.sh` | double-click **`Parseh.command`** | double-click **`install.bat`**, then **`serve.bat`** |
 
-Then open <https://localhost:8765/> and accept the browser's warning about
-the self-signed certificate, once. The guide's
-[Installing Parseh](https://addicted2bayesianepistemology.github.io/Parseh/html-guide/site/getting-started/installing.html)
-page has the details.
+Then open <https://localhost:7654/> and accept the browser's warning about
+the certificate, once — it is one Parseh makes for this computer alone.
+
+A fresh install answers **this computer** and any other on your **personal VPN**: Tailscale's range is
+trusted out of the box, and any other name or range you add. The local network access is also allowed — open it in **Settings → Network**, on the hub, and let
+each phone in once with the pairing code the page shows.
+
+Then read on the phone. The mobile interface installs **as an app**:
+
+| Android | iOS |
+|---|---|
+| **1.** Download the certificate from `/m/install/`, then *Settings* → search *CA certificate* → *Install anyway*, and pick `Parseh-CA.crt`. | **1.** Download the certificate, *Install* the profile in *Settings*, then *General* → *About* → *Certificate Trust Settings* and turn on full trust for *Parseh local authority*. |
+| **2.** Chrome offers **Install Parseh** on that page; or its **⋮** menu → *Install app*. | **2.** In Safari, the **Share** button → *Add to Home Screen*. |
+
+The guide has the details:
+[Installing Parseh](https://addicted2bayesianepistemology.github.io/Parseh/html-guide/site/getting-started/installing.html),
+[Reaching Parseh from other devices](https://addicted2bayesianepistemology.github.io/Parseh/html-guide/site/getting-started/other-devices.html)
+and [Browser and Mobile](https://addicted2bayesianepistemology.github.io/Parseh/html-guide/site/getting-started/mobile-mode.html).
 
 ## License
 
@@ -52,9 +64,10 @@ What it carries of other people's work keeps their licences:
   Urdu, Noto Serif Devanagari): SIL Open Font License 1.1 — the licence and
   their copyright notices in [`lib/fonts/OFL.txt`](lib/fonts/OFL.txt), every
   file named in [`lib/fonts/README.md`](lib/fonts/README.md);
-- TeX Gyre Pagella and Heros, copied from TeX into the compiled guide
-  (`html-guide/site/_parseh/fonts/`): GUST Font License
-  ([`lib/fonts/GUST-FONT-LICENSE.txt`](lib/fonts/GUST-FONT-LICENSE.txt));
+- TeX Gyre Pagella and Heros, which now travel with Parseh in `lib/fonts/`
+  (and in the compiled guide, `html-guide/site/_parseh/fonts/`): GUST Font
+  License ([`lib/fonts/GUST-FONT-LICENSE.txt`](lib/fonts/GUST-FONT-LICENSE.txt)),
+  every file named in [`lib/fonts/README.md`](lib/fonts/README.md);
 - MathJax 3.2.2 (`lib/mathjax/`): Apache License 2.0 (its `LICENSE` beside it);
 - the Italian hyphenation patterns (`markdown/exlex/assets/hyph/hyph-it.tex`,
   © Claudio Beccari, hyph-utf8): LaTeX Project Public License 1.3 or later,

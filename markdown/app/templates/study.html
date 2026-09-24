@@ -13,6 +13,12 @@
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
 <!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
 <link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
+<!-- "?": on a touch screen, every button's explanation is one tap away
+     (lib/explain.js, TO-DO §4.7); it draws nothing where a mouse hovers -->
+<script src="/lib/explain.js" defer></script>
+<!-- keeping this on the phone, and the chip that says the computer cannot be
+     reached (lib/keep.js, TO-DO §19.2, §19.5) -->
+<script src="/lib/keep.js" defer></script>
 </head>
 <body data-page="study" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
 <header class="topbar" data-layout="browser">
@@ -41,6 +47,12 @@
   <article id="study-stage" class="sheet dk-sheet" data-lang="{{TARGET}}">
     <p class="pv-status">Loading the next exercise…</p>
   </article>
+  <!-- STUDYING NEEDS THE COMPUTER (TO-DO §19.10): one scheduler, on the
+       computer, so nothing drifts -- which means a deck that was not taken
+       out cannot be studied away from it.  That used to be found out by
+       waiting for a door nobody was going to answer; it is said here
+       instead, with what can be done (decks.js needsTheComputer). -->
+  <div id="study-cannot" class="dk-done" hidden></div>
   <div id="study-result" class="dk-result" role="status" hidden></div>
   <section id="study-solution" class="dk-solution" aria-labelledby="study-solution-head" hidden>
     <h2 id="study-solution-head" class="dk-solution-head">Correct answer</h2>
@@ -61,6 +73,12 @@
     <button type="button" class="btn" id="btn-skip" title="Leave it for now, unscheduled; it comes back next session">Skip</button>
   </div>
 
+  <!-- THE SCROLL STRIP (docs/mobile.md, TO-DO §4.16): held sideways, these
+       buttons stand in a column down the right, and a long exercise had to be
+       scrolled by reaching back across the screen.  A finger dragged on the
+       empty stretch between the buttons scrolls the exercise instead -- the
+       buttons do not move, and a tap on one is still a tap (decks.js). -->
+  <div class="dk-strip" data-layout="mobile" aria-hidden="true"><span class="dk-grip"></span></div>
   <div id="rating-bar" class="dk-rating" role="group" aria-label="How hard was it?" hidden>
     <button type="button" class="btn dk-rate" data-rating="again" aria-label="Again (key 1)">
       <span class="dk-key">1</span><span class="dk-word">Again</span><span class="dk-ivl"></span></button>
@@ -103,6 +121,8 @@
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
 <script src="{{STUDIO}}/static/app.js"></script>
+<!-- the exercise form, for ✎ Edit (static/exform.js, TO-DO §4.8) -->
+<script src="{{STUDIO}}/static/exform.js"></script>
 <script src="{{STUDIO}}/static/decks.js"></script>
 </body>
 </html>

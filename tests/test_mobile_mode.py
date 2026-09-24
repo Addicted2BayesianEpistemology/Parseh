@@ -223,7 +223,18 @@ class SharedFilesTests(unittest.TestCase):
             self.assertTrue(re.search(r'\bm-|\[data-layout=|main\.hub|'
                                       r'^html\[data-mode=mobile\] main\.notices$', part), part)
             if 'm-reader' in part:
-                self.assertIn('html.m-reader[data-mode=mobile]', part)
+                # the dock at the foot of the screen is worn by a book's
+                # reader AND a video's page (TO-DO §4.2), so its rules name
+                # both layers -- still only in the mobile mode
+                self.assertTrue('html.m-reader[data-mode=mobile]' in part
+                                or 'html:is(.m-reader,.m-player)[data-mode=mobile]' in part, part)
+            if 'm-player' in part:
+                # a state of the player's own may sit between the layer and
+                # the mode (html.m-player.m-vfullon[data-mode=mobile]: the
+                # video given the whole screen), which is still scoped to
+                # both -- what this guard is for
+                self.assertTrue(part.startswith('html.m-player') and '[data-mode=mobile]' in part
+                                or 'html:is(.m-reader,.m-player)[data-mode=mobile]' in part, part)
 
     def test_parseh_js_offers_the_mode(self):
         js = (ROOT / 'lib' / 'parseh.js').read_text(encoding='utf-8')

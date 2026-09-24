@@ -16,6 +16,7 @@ own shelf can move it.  What the pages DO -- on a phone, in either mode, in
 the reader of each language -- is driven in a browser by
 tests/mobile_pages.mjs.
 """
+import hashlib
 import os
 import re
 import shutil
@@ -258,8 +259,16 @@ class RegistryTests(unittest.TestCase):
             '/exercises/': '/exercises/', '/exercises/deck/persian/words/study': '/exercises/deck/persian/words/study',
             # and the licences
             '/licences/': '/licences/',
+            # the videos: the index and a channel have pages of their own
+            # (lib/mobile.py), a video's page is its own mobile version
+            '/youtube/': '/m/videos/', '/youtube/index.html': '/m/videos/',
+            '/youtube/c/some-channel/': '/m/videos/some-channel/',
+            '/youtube/v/abc123/': '/youtube/v/abc123/',
+            '/youtube/v/abc123/index.html#t=12': '/youtube/v/abc123/#t=12',
+            # the studio's library and its documents carry both layouts
+            '/studio/': '/studio/', '/studio/doc/some-doc/': '/studio/doc/some-doc/',
             # a page with no mobile version keeps its address
-            '/youtube/': '/youtube/', '/studio/': '/studio/', '/books/add/': '/books/add/',
+            '/books/add/': '/books/add/',
             '/books/persian/mini-fa/': '/books/persian/mini-fa/',
         }
         for url, want in cases.items():
@@ -309,20 +318,34 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(js.count('if (!mobile()'), 2, 'each refusal asks the mode first')
         # nothing of the reader's own is moved or rewritten: the layer only
         # adds, into the header's first row, elements it made itself (the
-        # switch, and the field that says how far ↺ and ↻ move)
+        # groups' lines and the Browser | Mobile switch)
         receivers = re.findall(r'(\w+)\.(?:appendChild|insertBefore|replaceWith|replaceChildren|remove)\(', js)
-        self.assertEqual(set(receivers), {'row', 'sw', 'set'})
+        self.assertEqual(set(receivers), {'row', 'sw'})
         self.assertIn("var sw = el('span', 'parseh-mode');", js)
-        self.assertIn("var set = el('label', 'm-rskip');", js)
         self.assertNotIn('innerHTML', js)
 
     def test_the_recording_moves_by_the_seconds_asked_and_takes_the_reading_place_along(self):
-        js = (ROOT / 'lib' / 'mobilereader.js').read_text(encoding='utf-8')
+        # ↺ and ↻ belong to BOTH modes now (lib/narrctl.js, TO-DO §4.15):
+        # on a phone they float in the dock, on a computer they stand beside ▶
+        js = (ROOT / 'lib' / 'narrctl.js').read_text(encoding='utf-8')
         # one number for every book, kept beside the reader's own habits
-        self.assertIn("var SKIP_KEY = 'bk_skip', SKIP_DEF = 10, SKIP_MAX = 600;", js)
-        self.assertIn("if (!(v >= 1)) v = skipSecs();", js)
-        self.assertIn("v = Math.min(SKIP_MAX, v);", js)
-        skip = js[js.index('function skipBy(secs)'):]
+        self.assertIn("var RATE_KEY = 'bk_rate', SKIP_KEY = 'bk_skip', HINT_KEY = 'bk_skiphint';", js)
+        # ONE LIST FOR EVERYTHING PARSEH ITSELF PLAYS (the owner, 2026-09-23):
+        # a book's narration and a film on this machine offer the same speeds,
+        # 0.25 among them.  A video still hosted by YouTube cannot: its player
+        # takes only the rates it reports itself, so the chip asks the player
+        # first (`speeds`) and falls back to this list.
+        self.assertIn('var SPEEDS = [0.25, 0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];', js)
+        self.assertIn('var own = video().rates && video().rates();', js)
+        shim = (ROOT / 'youtube' / 'lib' / 'player.js').read_text(encoding='utf-8')
+        # a film of this machine says it has no list of its own, and so is
+        # given the toolbox's
+        self.assertIn('getAvailablePlaybackRates: function () { return null; }', shim)
+        # the owner asked for the two short ones (2026-09-23): a second and
+        # two are what a phrase is worth, where five overshoots into the
+        # line before
+        self.assertIn('var SECS = [1, 2, 5, 10, 15, 30, 60];', js)
+        skip = js[js.index('function skipBy(by)'):]
         skip = skip[:skip.index('\n  }\n') + 4]
         # listening has no reading place: only the fold ahead is worked out again
         self.assertIn('if (listening) {', skip)
@@ -342,10 +365,33 @@ class RegistryTests(unittest.TestCase):
                      'function subAtTime(t) {', 'function seekTo(t, done) {', 'function armListen() {',
                      'function hl(i, mayScroll) {', 'function save() {'):
             self.assertIn('\n' + decl, tex2html)
-        # a book with no narration has no ↺ and ↻, nor the field
-        css = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
-        self.assertIn('html.m-reader[data-mode=mobile] body.noaudio :is(.m-skip,.m-rskip,.m-rbreak)'
-                      '{display:none!important}', css)
+        # a book with no narration has nothing to move: no dock, no row
+        css = (ROOT / 'lib' / 'parseh.css').read_text(encoding='utf-8')
+        self.assertIn('body.noaudio :is(.nc-skip,.nc-chip,.nc-dock){display:none!important}', css)
+        mcss = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
+        self.assertIn('html.m-reader[data-mode=mobile] body.noaudio .m-rskip{display:none!important}', mcss)
+
+    def test_the_speed_never_changes_by_itself(self):
+        """The owner's bug of 2026-09-22: a recording loaded put the rate back
+        to 1× while the control still said 1.5×.  Both the reader built today
+        and the layer every older reader loads set defaultPlaybackRate with the
+        rate, and put the rate back after a load."""
+        js = (ROOT / 'lib' / 'narrctl.js').read_text(encoding='utf-8')
+        hold = js[js.index('  function hold() {'):js.index('  // somebody moved')]
+        self.assertIn('a.defaultPlaybackRate = want;', hold)
+        self.assertIn('a.playbackRate = want;', hold)
+        watch = js[js.index('  function watchRate() {'):js.index('  /* ---------------- how far')]
+        for event in ("'loadstart'", "'emptied'", "'loadedmetadata'", "'canplay'", "'play'", "'ratechange'"):
+            self.assertIn(event, watch)
+        # a rate changed at any other time is somebody meaning it: followed
+        self.assertIn('adopt(a.playbackRate);', watch)
+        # and the reader built today does the same on its own
+        tex2html = (ROOT / 'lib' / 'tex2html.py').read_text(encoding='utf-8')
+        self.assertIn('function setRate(v) {\n  A.playbackRate = v;\n  A.defaultPlaybackRate = v;\n}', tex2html)
+        self.assertIn("['loadedmetadata', 'canplay', 'play'].forEach(n => A.addEventListener(n, () => {", tex2html)
+        # the two speeds the owner asked for are in the menu itself
+        self.assertIn('<option>1.25</option><option>1.5</option><option>1.75</option><option>2</option>',
+                      tex2html)
 
     def test_the_header_stays_while_it_is_being_used(self):
         # the bars follow the scroll at every width in the mobile mode, and
@@ -359,7 +405,6 @@ class RegistryTests(unittest.TestCase):
         self.assertLess(bars.index('lastY = y;'), bars.index("hasAttribute('data-bars-held')"))
         layer = (ROOT / 'lib' / 'mobilereader.js').read_text(encoding='utf-8')
         self.assertIn("hold('more', on);", layer)
-        self.assertIn("holdForSkip(); skipBy(", layer)
 
     def test_the_reader_sheet_hides_every_writing_door(self):
         css = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
@@ -377,8 +422,13 @@ class RegistryTests(unittest.TestCase):
         for gone in ('#bookinfo', '#buildbook', '#buildhtml', '#narr', '#fold', '#editmode', '#stopsrv',
                      '.dl', '#lookupset', '#build'):
             self.assertNotIn(gone, kept)
-        for there in ('#play', '#toc', '#typo', '#theme', '.pgrp', '[data-toggle=nogloss]'):
+        for there in ('#toc', '#typo', '#theme', '.pgrp', '[data-toggle=nogloss]'):
             self.assertIn(there, kept)
+        # ▶ is not in the header at all any more: it plays from the dock at
+        # the foot of the screen (lib/narrctl.js), and the reader's own
+        # button stays on the page, unshown, as the one the dock presses
+        self.assertNotIn('#play', kept)
+        self.assertIn('html.m-reader[data-mode=mobile] header #play{display:none!important}', css)
 
 
 # ------------------------------------------------------------ the decks
@@ -504,6 +554,195 @@ class DeckTests(unittest.TestCase):
         self.assertIn('sessionStorage.setItem(`parseh-cram:${deck.path}`', js)
 
 
+# ------------------------------- what a phone is told a thing is made of
+# The record (lib/offline.py) is the whole of what a kept book, video or deck
+# IS on a phone: an address that is not in it is an address that answers
+# nothing in airplane mode, and a promise in it that the phone cannot test is
+# a box that ticks itself for ever.  Both halves went wrong at once on the
+# owner's phone (2026-09-23): "all books do not open while offline, loading
+# stops at ~half", and boxes ticked for things that were not there.
+#
+# DRIVEN OVER THE FIXTURE EDITIONS, whose readers are built and committed, and
+# over the bytes on the disk: where a digest is claimed it is hashed again
+# here rather than worked out the way lib/offline.py works it out.  What a
+# phone then DOES with all this -- opens the book, crams the deck, unticks a
+# copy that is no longer whole -- is driven in a browser by
+# tests/mobile_pages.mjs, with the computer stopped.
+def parser_wants(reader):
+    """Every address a built reader's PARSER fetches while it builds the page.
+
+    Not what the loaded DOM holds: a page that loaded perfectly well with the
+    computer there says nothing about which of its addresses a phone holds.
+    <script src> and a stylesheet <link> are the two that STOP the parser, and
+    stopping the parser is what left the owner with half a page.
+    """
+    html = Path(reader).read_text(encoding='utf-8')
+    out = []
+    for tag, rest in re.findall(r'<(script|link|img)\b([^>]*)>', html, re.I):
+        if tag.lower() == 'link' and 'stylesheet' not in rest:
+            continue
+        m = re.search(r'\b(?:src|href)="([^"]+)"', rest, re.I)
+        if not m or '://' in m.group(1):
+            continue
+        # the reader links the toolbox by climbing out of its own folder; what
+        # matters here is which file of lib/ it lands on
+        climbed = re.sub(r'^(?:\.\./)+', '/', m.group(1))
+        if climbed.startswith('/lib/') and climbed not in out:
+            out.append(climbed)
+    return out
+
+
+class WhatAReaderAsksForTests(unittest.TestCase):
+    """THE ONE ADDRESS THAT WAS MISSING (the owner's 7, 2026-09-23).
+
+    Every reader lib/tex2html.py builds loads /lib/mt.js as a parser-blocking
+    script in its head, and that address was in no list at all: offline the
+    request missed every cache, the parser stopped where it stood, and the
+    page never reached its body.  Five of his books, half-drawn.
+    """
+
+    def test_every_reader_asks_only_for_files_the_record_names(self):
+        import offline
+        readers = sorted(FIXTURES.glob('*/*/reader/index.html'))
+        self.assertGreaterEqual(len(readers), 5, 'the fixture editions with their readers built')
+        for reader in readers:
+            wants = parser_wants(reader)
+            self.assertTrue(wants, reader)
+            missing = [u for u in wants if u not in offline.SHARED]
+            self.assertEqual(missing, [], '%s: not in what every kept page gets' % reader)
+
+    def test_the_translation_helper_is_the_one_that_was_missing(self):
+        import offline
+        readers = sorted(FIXTURES.glob('*/*/reader/index.html'))
+        self.assertTrue(all('/lib/mt.js' in parser_wants(r) for r in readers),
+                        'every reader asks for it, in its head, before its body')
+        self.assertIn('/lib/mt.js', offline.SHARED)
+        # and the test above really would have caught it: take it out of the
+        # list and the reader asks for something nobody kept
+        without = tuple(u for u in offline.SHARED if u != '/lib/mt.js')
+        with patch.object(offline, 'SHARED', without):
+            missed = [u for u in parser_wants(readers[0]) if u not in offline.SHARED]
+        self.assertEqual(missed, ['/lib/mt.js'])
+
+
+class WhatTheRecordPromisesTests(unittest.TestCase):
+    """A TICK MUST BE TESTABLE (the owner's 3, 2026-09-23: "there should be a
+    check of this, it should actually look for the file and check that the
+    download was complete and correct").
+
+    So every entry says what the phone may test about it: the SHA-256 of the
+    bytes the server will send where the computer could afford to hash them, a
+    length alone where it could not, and `check: "here"` where the answer is
+    composed as it goes out and has neither.  The third is as load-bearing as
+    the other two: an entry with a size that is an estimate and no `check`
+    would be measured against that estimate and called broken for ever.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import offline
+        cls.offline = offline
+        cls.book_dir = FIXTURES / 'english' / 'mini-en'
+        cls.rec = offline.book(str(cls.book_dir), '/books/english/mini-en/')
+
+    def entries(self, rec):
+        return list(rec.get('small') or []) + list(rec.get('media') or [])
+
+    def test_a_digest_is_the_sha256_of_the_bytes_on_the_disk(self):
+        """Hashed again here, off the file the server streams, so that the
+        record agreeing with itself is not what passes."""
+        checked = 0
+        for x in self.entries(self.rec):
+            if not x.get('digest'):
+                continue
+            rel = x['url'][len('/books/english/mini-en/'):]
+            path = self.book_dir / rel
+            if not path.is_file():                  # the reader's own alias
+                continue
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), x['digest'], x['url'])
+            if x.get('bytes'):
+                self.assertEqual(x['bytes'], path.stat().st_size, x['url'])
+            checked += 1
+        self.assertGreaterEqual(checked, 1, 'at least one file was really hashed')
+
+    def test_the_digest_is_lowercase_hex_and_the_worker_will_take_it(self):
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn('/^[0-9a-f]{64}$/.test(digest)', sw, 'what the phone will accept')
+        for x in self.entries(self.rec):
+            if x.get('digest'):
+                self.assertRegex(x['digest'], r'^[0-9a-f]{64}$', x['url'])
+
+    def test_a_file_too_big_to_hash_on_a_phone_carries_none(self):
+        """WebCrypto has no streaming digest: hashing a 228 MB narration would
+        need the whole of it in memory at once.  Above DIGEST_MAX the length
+        is the check, and the record must not claim more than that."""
+        off = self.offline
+        self.assertEqual(off.DIGEST_MAX, 8 * 1024 * 1024)
+        with tempfile.TemporaryDirectory() as tmp:
+            big = Path(tmp) / 'narration.mp3'
+            big.write_bytes(b'\0' * (off.DIGEST_MAX + 1))
+            small = Path(tmp) / 'page.html'
+            small.write_bytes(b'<p>a page</p>')
+            heavy = off._entry('/x/narration.mp3', str(big), 'recording')
+            light = off._entry('/x/page.html', str(small))
+        self.assertNotIn('digest', heavy, 'nothing above the line is hashed')
+        self.assertEqual(heavy['bytes'], off.DIGEST_MAX + 1, 'and its length is what is promised')
+        self.assertEqual(light['digest'], hashlib.sha256(b'<p>a page</p>').hexdigest())
+
+    def test_an_answer_the_computer_makes_up_says_it_can_promise_nothing(self):
+        """A note's page, a deck's exercises with the scheduler's numbers
+        riding in them, a stylesheet written out of the language registry:
+        none of them has a length this file can predict, and a length nobody
+        can predict must not be offered as one to check against."""
+        import decks
+        import offline
+        with tempfile.TemporaryDirectory() as tmp:
+            decks.set_dir(Path(tmp))
+            made = decks.create_deck('Kept deck', 'en')
+            decks.add_item(made['folder'], made['slug'],
+                           ':::exercise flashcard\ncard-type: vocab\n'
+                           'target: [cat]{tl}\nmeaning: a cat\n:::')
+            rec = offline.deck(decks, made['folder'], made['slug'])
+        urls = {x['url']: x for x in rec['small']}
+        cram = '/exercises/api/decks/%s/%s/cram' % (made['folder'], made['slug'])
+        # THE EXERCISES TRAVEL WITH THE DECK (his decision B): one tick,
+        # nothing to choose, at an address a worker is allowed to keep
+        self.assertIn(cram, urls, 'the rendered exercises are in the deck\'s record')
+        self.assertEqual(rec['media'], [], 'and nothing heavy is left for him to pick')
+        for url in (cram, '/exercises/deck/%s/%s/cram' % (made['folder'], made['slug'])):
+            self.assertEqual(urls[url].get('check'), 'here', url)
+            self.assertNotIn('digest', urls[url], url)
+        # and where a real file is streamed verbatim, the promise is real
+        sheet = urls['/studio/static/sheet.css']
+        self.assertRegex(sheet['digest'], r'^[0-9a-f]{64}$')
+        self.assertGreater(sheet['bytes'], 0)
+
+    def test_the_worker_honours_the_three_promises(self):
+        """The record is only half of it: lib/sw.js must read `check`, the
+        digest and the length as three different things.  If `check` were
+        ignored, every composed answer would be judged not-whole and its row
+        would never tick -- which is worse than the fault being mended."""
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn("if (want.check === 'here') return true;", sw)
+        self.assertIn("self.crypto.subtle.digest('SHA-256', body)", sw)
+        self.assertIn("res.headers.get('content-length')", sw)
+        self.assertIn('reply({check: id, urls: urls});', sw)
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn("check: x.check || ''", keep, 'and lib/keep.js passes it through')
+
+    def test_the_digest_cache_is_never_written_inside_the_owners_content(self):
+        """It is machine-local derived data keyed by absolute path: it belongs
+        in config/, beside prefs.json, and nowhere near a book."""
+        self.assertEqual(Path(self.offline.DIGESTS).resolve().parent, (ROOT / 'config').resolve(),
+                         'one file for the whole machine, beside what else it knows about itself')
+        before = {p: p.stat().st_mtime for p in self.book_dir.rglob('*') if p.is_file()}
+        self.offline.book(str(self.book_dir), '/books/english/mini-en/')
+        after = {p: p.stat().st_mtime for p in self.book_dir.rglob('*') if p.is_file()}
+        self.assertEqual(before, after, 'asking what a book is made of writes nothing into it')
+        ignored = (ROOT / '.gitignore').read_text(encoding='utf-8')
+        self.assertIn('config/digests.json', ignored, 'and it is not the owner\'s to commit')
+
+
 # ------------------------------------------------------------ the app
 def png_size(path):
     data = Path(path).read_bytes()[:24]
@@ -527,18 +766,89 @@ class AppTests(unittest.TestCase):
         self.assertIn('standalone', m['display_override'])
         self.assertEqual(m['orientation'], 'any')
         got = {(i['sizes'], i['purpose']) for i in m['icons']}
-        self.assertEqual(got, {('192x192', 'any'), ('512x512', 'any'), ('512x512', 'maskable')})
+        self.assertEqual(got, {('192x192', 'any'), ('512x512', 'any'), ('512x512', 'maskable'),
+                               # the size an iPhone asks for (mobile.manifest)
+                               ('180x180', 'any')})
 
     def test_the_icons_are_there_at_the_sizes_named(self):
         import mobile
         import serve
         for i in mobile.manifest()['icons'] + [{'src': '/lib/icons/apple-touch-icon.png', 'sizes': '180x180'}]:
-            self.assertIn(i['src'], serve.STATIC_FILES)
-            self.assertTrue(serve.static_ok(i['src']))
-            w, h = png_size(ROOT / i['src'].lstrip('/'))
+            # three of them are named on the public copy (PUBLIC_ICONS), so
+            # that Chrome's builder out on the internet can fetch them; the
+            # file is the same one, and it is here
+            here = i['src']
+            if mobile.PUBLIC_ICONS and here.startswith(mobile.PUBLIC_ICONS):
+                here = mobile.ICONS + here[len(mobile.PUBLIC_ICONS):]
+            self.assertIn(here, serve.STATIC_FILES)
+            self.assertTrue(serve.static_ok(here))
+            w, h = png_size(ROOT / here.lstrip('/'))
             self.assertEqual('%dx%d' % (w, h), i['sizes'], i['src'])
         # the script that drew them is not on the web
         self.assertFalse(serve.static_ok('/lib/icons/make.mjs'))
+
+    def test_only_the_browser_that_builds_an_app_is_sent_outside(self):
+        """Chrome on Android hands the description to a server of Google's,
+        which fetches the icons itself from the internet: that one browser is
+        told the public copies.  Everybody else fetches them itself, and an
+        iPhone that cannot reach an icon draws its own letter on a tile and
+        keeps it -- which is what he saw once the manifest pointed out."""
+        import mobile
+        ANDROID = ('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) '
+                   'Chrome/126.0.0.0 Mobile Safari/537.36')
+        IPAD = ('Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) '
+                'Version/17.5 Safari/605.1.15')
+        FIREFOX = 'Mozilla/5.0 (Android 14; Mobile; rv:127.0) Gecko/127.0 Firefox/127.0'
+        DESKTOP = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                   'Chrome/126.0.0.0 Safari/537.36')
+        self.assertTrue(mobile.mints(ANDROID))
+        for ua in (IPAD, FIREFOX, DESKTOP, '', None):
+            self.assertFalse(mobile.mints(ua), ua)
+        out = [i['src'] for i in mobile.manifest(ANDROID)['icons']]
+        self.assertEqual(sum(1 for s in out if s.startswith(mobile.PUBLIC_ICONS)), 3, out)
+        # and the one an iPhone takes is on this server even there, so the
+        # install button still appears on a phone that cannot reach the public
+        # copies at all (Chromium wants one fetchable icon of 144px or more)
+        self.assertIn(mobile.ICONS + 'apple-touch-icon.png', out)
+        for ua in (IPAD, FIREFOX, DESKTOP, None):
+            got = [i['src'] for i in mobile.manifest(ua)['icons']]
+            self.assertTrue(all(s.startswith(mobile.ICONS) for s in got), (ua, got))
+        # everything else about the description is the same for everyone
+        a, b = mobile.manifest(ANDROID), mobile.manifest(IPAD)
+        del a['icons'], b['icons']
+        self.assertEqual(a, b)
+
+    def test_the_icons_named_outside_are_ones_the_project_publishes(self):
+        """PUBLIC_ICONS is the project's GitHub Pages, and that serves what
+        the repository holds.  An icon named there but never committed is a
+        404 to the server that builds the phone's app, and the app is not
+        built -- the fault this address was put here to mend.  The one an
+        iPhone takes is named on this server, so that a phone away from it
+        still has it."""
+        import mobile
+        if not mobile.PUBLIC_ICONS:
+            self.skipTest('the manifest names the icons on this server')
+        tracked = subprocess.run(['git', 'ls-files', 'lib/icons'], cwd=str(ROOT),
+                                 capture_output=True, text=True).stdout.split()
+        self.assertTrue(tracked, 'no file list: is this a checkout?')
+        # asked as the one browser that is sent outside asks (mobile.mints)
+        named = mobile.manifest('Mozilla/5.0 (Linux; Android 14) Chrome/126.0.0.0 Mobile')['icons']
+        outside = [i for i in named if i['src'].startswith(mobile.PUBLIC_ICONS)]
+        self.assertEqual(len(outside), 3)
+        for i in outside:
+            self.assertIn('lib/icons/' + i['src'][len(mobile.PUBLIC_ICONS):], tracked)
+        for i in named:
+            if i not in outside:
+                self.assertTrue(i['src'].startswith(mobile.ICONS), i['src'])
+
+    def test_an_iphone_finds_the_icon_at_the_top_of_the_site_too(self):
+        """Where a page carries no apple-touch-icon tag, Safari asks the top
+        of the site for the name itself.  It used to be a 404, and an iPhone
+        that can fetch no icon draws its own tile and keeps it."""
+        import mobile
+        src = (ROOT / 'serve.py').read_text(encoding='utf-8')
+        self.assertIn('"/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"', src)
+        self.assertIn('<link rel="apple-touch-icon" sizes="180x180"', mobile.app_head())
 
     def test_every_page_of_the_mobile_interface_carries_the_app_tags(self):
         import deckroutes
@@ -565,24 +875,429 @@ class AppTests(unittest.TestCase):
         self.assertIn('@media (display-mode:standalone),(display-mode:fullscreen),(display-mode:minimal-ui){\n'
                       '  .m-appdoor{display:none!important}', css)
 
-    def test_the_worker_answers_pages_only_and_only_when_the_server_is_away(self):
+    def test_the_worker_keeps_what_was_kept_and_answers_it_first(self):
+        """§19 reversed the worker's old rule (it kept nothing but the offline
+        page): what has been KEPT ON THIS PHONE is answered by the phone."""
         sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
-        self.assertIn("if (r.mode !== 'navigate' || r.method !== 'GET') return;", sw)
-        self.assertIn('e.respondWith(fetch(r).catch(() =>', sw)
+        # one cache per thing, and one for the shared files
+        self.assertIn("const KEPT = 'parseh-kept-';", sw)
+        self.assertIn("const SHARED = 'parseh-shared';", sw)
         self.assertIn("const OFFLINE = '/m/offline/';", sw)
-        self.assertEqual(sw.count('caches.open('), 1, 'the offline page is the one thing kept')
+        # the kept copy answers first, and the small parts are renewed behind it
+        self.assertIn('let hit = await caches.match(r, {ignoreVary: true', sw)
+        # AND A KEPT PAGE REACHED WITH A QUERY IS STILL THAT PAGE.  Cramming a
+        # picked handful opens <deck>/cram?selected=<ids>, where the ids are
+        # whatever was ticked -- an address no record can name, for a page
+        # that was kept.  Matched strictly it missed and fell to the offline
+        # page with the whole deck sitting on the phone.  Navigations only: a
+        # query at a DOOR means a different answer.
+        self.assertIn('if (!hit && nav && url.search)', sw)
+        self.assertIn('ignoreSearch: true', sw)
+        self.assertIn('renew(r);', sw)
+        # a range is cut here: the Cache API answers none, and a kept
+        # narration would otherwise play from 0:00 and refuse to be moved
+        self.assertIn("status: 206", sw)
+        self.assertIn("head.set('Content-Range'", sw)
+        # what only the computer can answer is refused at once, not hung on
+        self.assertIn('needsComputer(url.pathname)', sw)
+        self.assertIn('status: 503', sw)
+        # a navigation that fails still gets the offline page
+        self.assertIn('const nav = r.mode === \'navigate\';', sw)
+        # nothing that writes is touched at all
+        self.assertIn("if (r.method !== 'GET') return;", sw)
         # served from the top of the site, so that its scope is all of it
         serve_py = (ROOT / 'serve.py').read_text(encoding='utf-8')
         self.assertIn('if path == "/sw.js":', serve_py)
         self.assertIn('"text/javascript; charset=utf-8"', serve_py)
 
+    def test_every_navigation_has_a_deadline(self):
+        """The app used to stall on its own splash: with a network up and the
+        computer unreachable -- asleep, or a Tailscale peer down -- the socket
+        never settled, respondWith never resolved, and nothing was ever drawn
+        (the owner's 1 and 2, 2026-09-23).  A navigation now waits about two
+        and a half seconds and then falls where a refused one falls."""
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn('const DEADLINE = 2500;', sw)
+        self.assertIn('function reach(request, ms)', sw)
+        self.assertIn('Promise.race', sw)
+        # AND SO DOES EVERYTHING ELSE.  A subresource used to be handed a
+        # bare fetch with no ceiling, so one address a kept page asked for and
+        # nobody kept -- /lib/mt.js, a parser-blocking script every reader
+        # loads -- held every book open for ever in airplane mode, half drawn
+        # (the owner, 2026-09-23).  A page with a broken picture is a page; a
+        # page that never parses is nothing.
+        self.assertIn('return await reach(r, nav ? DEADLINE : PATIENT);', sw)
+        self.assertNotIn('fetch(r))', sw.split('async function answer')[1].split('self.addEventListener')[0],
+                         'nothing in answer() may fetch without a deadline')
+
+    def test_the_app_shell_is_kept_with_the_worker(self):
+        """The start address of the app -- /?mode=mobile, which the manifest
+        names -- was in no cache at all, so there was nothing for a deadline
+        to fall back to.  The way in is kept now, from one list the computer
+        gives (lib/offline.py, shell())."""
+        import mobile
+        import offline
+        rec = offline.shell()
+        self.assertTrue(rec['ok'])
+        # the hub at BOTH of its addresses: caches.match tells them apart, and
+        # the app starts at the one with the query on it
+        self.assertEqual(mobile.manifest()['start_url'], '/?mode=mobile')
+        self.assertIn('/?mode=mobile', rec['pages'])
+        self.assertIn('/', rec['pages'])
+        for page in ('/m/books/', '/m/videos/', '/m/kept/', '/m/offline/',
+                     '/exercises/', '/studio/'):
+            self.assertIn(page, rec['pages'])
+        # the two lists those library pages ask for rather than carry
+        self.assertIn('/exercises/api/decks', rec['apis'])
+        self.assertIn('/studio/api/docs', rec['apis'])
+        # and everything those pages load: the toolbox's shared files and the
+        # studio's own, or a page would open offline with no layout at all
+        for url in offline.SHARED:
+            if (ROOT / url.lstrip('/')).exists():
+                self.assertIn(url, rec['files'], url)
+        self.assertIn('/studio/static/decks.js', rec['files'])
+        self.assertIn('/studio/static/app.css', rec['files'])
+        self.assertIn('/manifest.webmanifest', rec['files'])
+        # a studio mounted elsewhere is followed, not hard-coded
+        other = offline.shell(studio_base='/s', decks_base='/x')
+        self.assertIn('/x/api/decks', other['apis'])
+        self.assertIn('/s/static/app.js', other['files'])
+        # the worker asks for it at one door and puts the hub under both of
+        # its addresses
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn("const SHELL_DOOR = '/__shell';", sw)
+        self.assertIn("const SHELL = 'parseh-shell-1';", sw)
+        self.assertIn("const q = url.indexOf('?');", sw)
+        self.assertIn('await cache.put(new Request(url.slice(0, q)), res.clone());', sw)
+
+    def test_the_worker_installs_one_page_and_nothing_else(self):
+        """And this is the whole of why the app stopped installing (TO-DO §0,
+        the third block of 2026-09-23).  The install event used to fetch the
+        way in -- fifty-nine addresses, three and a quarter megabytes, one
+        after another inside waitUntil -- and a worker that grinds through
+        three megabytes over a tunnel stays in the installing state, which is
+        a state Chrome will not install a site from: the owner accepted the
+        offer on his phone and got no icon.
+
+        So install is back to what it was before §19 was written: the two
+        small pages that must open with the computer away, and skipWaiting.
+        Nothing in the suite would have noticed the shell creeping back into
+        it, which is why this test is about what install does NOT do."""
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        install = sw.split("self.addEventListener('install'")[1].split('\n});')[0]
+        activate = sw.split("self.addEventListener('activate'")[1].split('\n});')[0]
+        # the two pages, named in one place, and nothing else fetched
+        self.assertIn("const OWN = [OFFLINE, '/m/kept/'];", sw)
+        self.assertIn('OWN.map(u =>', install)
+        # AND THEY HAVE A DEADLINE TOO.  `cache.add` is a fetch, and a fetch
+        # waits for a socket, not for a computer: on the very network this
+        # worker exists for -- wifi up, computer asleep -- two small pages
+        # could hold the install event open until Chrome's own watchdog, which
+        # is the same fault in miniature.  Each page is raced, and so is the
+        # event itself.
+        self.assertIn('reach(new Request(u', install)
+        self.assertIn('DEADLINE', install)
+        self.assertIn('Promise.race', install)
+        # first and not last, so that a disk which refuses those two pages
+        # cannot stop the worker activating either
+        self.assertLess(install.index('self.skipWaiting();'), install.index('e.waitUntil('))
+        # neither event waits on the shell: the old shellIn is gone outright,
+        # and neither of them may reach the computer for the list
+        self.assertNotIn('shellIn', sw)
+        for event, text in (('install', install), ('activate', activate)):
+            for word in ('warm', 'SHELL_DOOR', 'shellNow'):
+                self.assertNotIn(word, text, '%s must not touch the shell (%s)' % (event, word))
+        # activate keeps what it always did: the old caches dropped, the open
+        # pages claimed
+        self.assertIn('caches.delete(k)', activate)
+        self.assertIn('self.clients.claim()', activate)
+
+    def test_the_warming_is_asked_for_by_message_and_says_how_far_it_is(self):
+        """What install no longer does, a page asks for once it is open --
+        and the owner asked that it not be silent (his words, 2026-09-23:
+        "I want the warming not to be silent, the getting ready - 41 of 59 is
+        a good approach").
+
+        Two words and two messages, and no third one: `way-in` is the pages,
+        the lists and the files, `studio` is the faces; `warming` while the
+        list is being walked and `warmed` when this worker has stopped
+        walking it.  `done` counts addresses SETTLED, fetched or skipped, so
+        a warm phone runs to the end without a single fetch -- which is what
+        makes asking cheap enough for a page to ask every time it opens, and
+        what makes a warming cut off in the middle carry on where it
+        stopped."""
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        # the door the page knocks on, and the two words it may say
+        self.assertIn('if (msg.warm) e.waitUntil(warm(msg.warm));', sw)
+        self.assertIn("if (what !== 'way-in' && what !== 'studio') return Promise.resolve();", sw)
+        # one address at a time, and what the phone holds is passed over --
+        # the same question keep() asks, asked by the same helper
+        self.assertIn('async function warmList(what)', sw)
+        self.assertIn('for (const url of urls) {', sw)
+        # and it asks the app's own cache too, so the two pages the install
+        # event has just fetched are not fetched a second time
+        self.assertIn('if (!(await held(req, [cache, shared, app]))) {', sw)
+        # THE FACES GO WHERE THEY WILL OUTLIVE A RELEASE.  The way in is the
+        # app's and belongs in the shell; the studio's faces are what a kept
+        # note, a kept document and a studio page all draw with, so they go to
+        # the shared cache -- in the shell they were a trap, since `keep`
+        # skips what the shell holds and the next version bump took them away
+        # from the book that had leant on them.
+        self.assertIn("caches.open(what === 'studio' ? SHARED : SHELL)", sw)
+        self.assertIn('async function held(req, where)', sw)
+        # the two messages, to every window and not only to the page that
+        # asked: the line may be on a page that asked for nothing
+        self.assertIn('await tellClients({warming: {what: what, done: done, of: of}});', sw)
+        # A PASS THAT STOPPED IS NOT A PASS THAT FINISHED, and the message
+        # says which: a warm given up on because the computer went away used
+        # to be announced as done, and the install page then read "Ready: its
+        # pages are on this phone now" over a list hardly fetched.
+        self.assertIn('await tellClients({warmed: {what: what, of: of, done: done}});', sw)
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn('whole: whole', keep)
+        self.assertIn('Stopped at ', keep)
+        self.assertIn('warmAsked[p.what] = false', keep,
+                      'and a list cut off may be asked for again when the '
+                      'computer comes back, or the rest never arrives')
+        self.assertIn("self.clients.matchAll({type: 'window'})", sw)
+        # and the page's side: the ask, the two messages read, and the two
+        # places a studio page is recognised -- its own address, and a note
+        # opened by clicking its mark
+        self.assertIn('w.postMessage({warm: what});', keep)
+        self.assertIn('if (d.warming) warmSaw(d.warming, false);', keep)
+        self.assertIn('if (d.warmed) warmSaw(d.warmed, true);', keep)
+        self.assertIn("warm('way-in');", keep)
+        self.assertIn("if (STUDIO_PAGE.test(location.pathname)) warm('studio');", keep)
+        self.assertIn("e.target.closest('[data-note]')) warm('studio');", keep)
+        # never in the browser mode and never while the computer is away:
+        # this is the APP fetching its own pages, and a tab is not the app
+        self.assertIn('if (!what || warmAsked[what] || !mobile()) return;', keep)
+        self.assertIn('if (!probed || away || !warmWant.length) return;', keep)
+
+    def test_the_studios_faces_are_warmed_later_and_are_not_the_way_in(self):
+        """`later` is the owner's own split: everything in pages, apis and
+        files is how a person GETS somewhere, and without it a tap opens
+        nothing; the studio's thirteen faces are what a studio PAGE needs to
+        look like itself, and they were 1.83 of the 3.26 megabytes the door
+        named in one breath.  They are still kept, by the same worker into
+        the same cache -- afterwards, and only when a page that needs them
+        asks."""
+        import offline
+        rec = offline.shell()
+        faces = [x['url'] for x in offline.studio_faces()]
+        self.assertEqual(rec['later'], faces)
+        self.assertEqual(len(faces), 13, faces)
+        # OUT of the way in, and it is the studio's own folder that goes --
+        # the toolbox's own faces (/lib/fonts/) are part of the way in, since
+        # a shelf with no Persian face is not a shelf anybody can read
+        for url in faces:
+            self.assertNotIn(url, rec['files'], url)
+        self.assertFalse([u for u in rec['files'] if '/static/fonts/' in u])
+        self.assertTrue([u for u in rec['files'] if u.startswith('/lib/fonts/')])
+        # what the studio's pages LOAD stays in the way in, so that the
+        # worker still learns the studio's own prefix from `files` alone
+        self.assertIn('/studio/static/decks.js', rec['files'])
+        self.assertIn('/studio/static/app.css', rec['files'])
+        # a studio mounted elsewhere is followed here too
+        other = offline.shell(studio_base='/s')
+        self.assertTrue(all(u.startswith('/s/static/fonts/') for u in other['later']), other['later'])
+        # and the worker knows which list that word means
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn("if (what === 'studio') return (list.later || []).filter(Boolean);", sw)
+        # WHAT A PAGE IS MADE OF COMES BEFORE THE PAGE.  A warm stops wherever
+        # the computer goes away, and what it reached by then is what the
+        # phone opens with: cached pages-first, the commonest half-warm state
+        # was the hub present with its sheet and its script missing -- an app
+        # that opened on unstyled markup doing nothing, which reads as Parseh
+        # broken rather than Parseh away.
+        self.assertIn("return [].concat(list.files || [], list.apis || [], list.pages || [])", sw)
+
+    def test_the_getting_ready_line_is_drawn_where_a_page_leaves_a_slot(self):
+        """The owner's own decision: the warming is not silent.  Any page may
+        carry `[data-parseh-warm]`; while a warming runs it reads "Getting
+        ready — 41 of 59", and a page that asked for nothing shows nothing at
+        all.  The two places he is certain to be standing while the app gets
+        ready carry one: the hub the app opens on, and the install page that
+        asks him to stay until it is ready."""
+        import mobile
+        import test_mobile_mode
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn("var slots = document.querySelectorAll('[data-parseh-warm]');", keep)
+        self.assertIn("'Getting ready — ' + done + ' of ' + of", keep)
+        # hidden until something is really warming, and the numbers are the
+        # worker's own: two lists warming together are summed
+        self.assertIn('s.hidden = !any || (!running && !stay);', keep)
+        self.assertIn('done += warmRuns[k].done;', keep)
+        self.assertIn('of += warmRuns[k].of;', keep)
+        # the hub's line goes when there is nothing left to say -- it is
+        # opened a dozen times a day on a phone that has been ready for a
+        # week -- and the install page's stays, because it told somebody to
+        # wait for it
+        self.assertIn('<p data-parseh-warm role="status" hidden></p>', test_mobile_mode.hub()[0])
+        self.assertIn('<p data-parseh-warm="stay" role="status" hidden></p>', mobile.install_page('authority'))
+        self.assertIn("var stay = s.getAttribute('data-parseh-warm') === 'stay';", keep)
+        css = (ROOT / 'lib' / 'parseh.css').read_text(encoding='utf-8')
+        self.assertIn('[data-parseh-warm][hidden]{display:none}', css)
+
+    def test_a_shell_page_is_not_the_cannot_be_reached_page(self):
+        """The owner's choice, 2026-09-23: the usual page opens, with the
+        offline chip; /m/offline/ is left for a navigation that is neither
+        kept nor part of the way in.  And it must not go stale in silence --
+        the worker reads it again and the page swaps its list in place."""
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn("await tellClients({shellFresh: url});", sw)
+        # only when what came back really differs
+        self.assertIn('if (was !== now)', sw)
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn('if (d.shellFresh) fillIn(d.shellFresh);', keep)
+        self.assertIn("var BLOCKS = '[data-shell-block], .m-doors, .m-more-doors';", keep)
+        # the shelves say which block is the computer's; the phone's own list
+        # of what is kept says nothing, and is never swapped
+        import mobile
+        self.assertIn('<div class="m-shelf" data-shell-block>', shelf())
+        # the videos' frame is the same block, and /m/kept/ is the phone's own
+        src = (ROOT / 'lib' / 'mobile.py').read_text(encoding='utf-8')
+        self.assertEqual(src.count('<div class="m-shelf" data-shell-block>'), 2)
+        self.assertNotIn('data-shell-block', mobile.kept_page())
+        # and the reading place is drawn again on the block that arrives
+        self.assertIn("document.addEventListener('parseh:shell-filled', mark);", mobile.READ_ON_JS)
+
+    def test_what_is_not_on_this_phone_is_drawn_but_not_tappable(self):
+        """As a book whose reader was never built already looks on the shelf
+        (m-book m-off).  The phone knows what is kept from parseh_kept."""
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn("card.classList.add('m-off');", keep)
+        self.assertIn("a.removeAttribute('href');", keep)
+        self.assertIn("a.setAttribute('aria-disabled', 'true');", keep)
+        self.assertIn('Not on this phone', keep)
+        # and it is undone when the computer can be reached again
+        self.assertIn('function onPhone(card)', keep)
+
+    def test_counts_the_clock_makes_wrong_are_not_shown_while_away(self):
+        """What is due was worked out on the computer when the page was last
+        read from it; the list beside it is still true, so the lists stay and
+        the numbers go (the owner's 1, 2026-09-23)."""
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn('function showClock(hide)', keep)
+        self.assertIn("document.querySelectorAll('[data-clock-count]')", keep)
+        # the hub's counts say WHAT they count, so the one the clock moves is
+        # named rather than matched by the words in it (serve.py count_tag)
+        self.assertIn('[data-count-kind="due"]', keep)
+        serve_py = (ROOT / 'serve.py').read_text(encoding='utf-8')
+        self.assertIn('data-count-kind="%s"', serve_py)
+        decks = (ROOT / 'markdown' / 'app' / 'static' / 'decks.js').read_text(encoding='utf-8')
+        self.assertIn('label.dataset.clockCount = counts.dataset.clockCount = "";', decks)
+        self.assertIn('now.dataset.clockCount = "";', decks)
+
+    def test_a_kept_thing_shows_two_buttons(self):
+        """Change what is kept, and Remove from this phone: one control never
+        carries two meanings (the owner's 4, 2026-09-23).  The list of
+        recordings is the computer's, so offline the button says so."""
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn("(have ? 'Change what is kept' : 'Keep on this phone') +", keep)
+        self.assertIn("(away ? ' — needs the computer' : '')", keep)
+        self.assertIn("drop.textContent = 'Remove from this phone';", keep)
+        # Save fetches what is ticked and frees what is not, saying both --
+        # and, since the notes came (TO-DO §0, the second block), how many
+        # files the computer no longer has are being given back with them
+        self.assertIn("'Save fetches ' + big(s.fetches) + ', frees ' + big(s.frees) + '.'", keep)
+        self.assertIn('the computer no longer has', keep)
+        # and asks once before it frees anything already here
+        self.assertIn('window.confirm(', keep)
+        # Select all and Clear all are two controls, each saying which it is
+        self.assertIn("el('button', 'kp-small', 'Select all')", keep)
+        self.assertIn("el('button', 'kp-small', 'Clear all')", keep)
+        # a finger drawn across the boxes takes the run it crosses instead of
+        # scrolling the sheet
+        self.assertIn('function dragging(list)', keep)
+        self.assertIn("list.addEventListener('pointermove'", keep)
+        self.assertIn('list.setPointerCapture(e.pointerId)', keep)
+        css = (ROOT / 'lib' / 'parseh.css').read_text(encoding='utf-8')
+        self.assertIn('touch-action:none', css.split('.kp-row{')[1].split('}')[0])
+        # the worker can take named addresses out of one thing's cache
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn('async function free(job, reply)', sw)
+        self.assertIn('async function inside(id, reply)', sw)
+
+    def test_keep_has_a_slot_on_a_deck_and_on_a_document(self):
+        """§19.8, §19.9: it was dead on both pages.  Each names the row the
+        buttons go in, and the value is the class that page dresses its own
+        buttons in."""
+        tpl = ROOT / 'markdown' / 'app' / 'templates'
+        deck = (tpl / 'deck.html').read_text(encoding='utf-8')
+        doc = (tpl / 'doc.html').read_text(encoding='utf-8')
+        self.assertIn('<div class="dk-deckactions" data-keep-slot="btn">', deck)
+        self.assertIn('<div class="navstack" data-keep-slot="btn ghost">', doc)
+        for page in (deck, doc):
+            self.assertIn('<script src="/lib/keep.js" defer></script>', page)
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn("document.querySelector('[data-keep-slot]')", keep)
+        self.assertIn("row.getAttribute('data-keep-slot')", keep)
+        # and the doors those two pages ask are where keep.js looks for them
+        deckroutes = (ROOT / 'markdown' / 'app' / 'deckroutes.py').read_text(encoding='utf-8')
+        server = (ROOT / 'markdown' / 'app' / 'server.py').read_text(encoding='utf-8')
+        self.assertIn('/__offline$" % (F, S),        api_deck_offline)', deckroutes)
+        self.assertIn('/__offline$",         api_doc_offline)', server)
+
+    def test_keeping_a_deck_and_taking_it_out_are_two_things(self):
+        """Keeping is the copy; taking out is the right to study away, and it
+        asks for the copy first.  Giving the deck back leaves the copy alone
+        (the owner's 8 and 9, 2026-09-23)."""
+        decks = (ROOT / 'markdown' / 'app' / 'static' / 'decks.js').read_text(encoding='utf-8')
+        self.assertIn('if (!deckIsKept(deck)) {', decks)
+        self.assertIn('await keepDeckNow(deck);', decks)
+        # and it says which of the two it is doing while it does it
+        self.assertIn('"Keeping it on this phone first…"', decks)
+        # giving it back no longer throws the copy away
+        back = decks.split('async function giveDeckBack')[1].split('\n}')[0]
+        self.assertNotIn('drop:', back)
+        self.assertNotIn('delete reg[', back)
+        # and removing the copy while the deck is out is refused, with why
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertIn('function heldBack(at)', keep)
+        self.assertIn("'parseh_deck_out:'", keep)
+        import mobile
+        self.assertIn('parseh_deck_out:', mobile.KEPT_JS)
+
     def test_the_offline_page_stands_alone(self):
+        """It is kept by the worker and opens with nothing to ask anybody: no
+        stylesheet, no script from anywhere.  Its one inline script is the
+        list of what is kept, read from this phone's own registry (§19.5)."""
         import mobile
         html = mobile.offline_page()
         self.assertNotIn('<link', html)
-        self.assertNotIn('<script', html)
+        self.assertNotIn('<script src', html)
         self.assertIn('prefers-color-scheme:dark', html)
         self.assertIn('location.reload()', html)
+        self.assertIn("localStorage.getItem('parseh_kept')", html)
+
+    def test_what_a_thing_is_made_of_is_one_answer(self):
+        """§19.3: one answer per thing, said as addresses, with the sizes and
+        a version -- and the heavy parts apart from the small ones."""
+        import offline
+        self.assertIn('/lib/parseh.js', offline.SHARED)
+        self.assertIn('/lib/keep.js', offline.SHARED)
+        rec = offline.book(str(FIXTURES / 'english' / 'mini-en'), '/books/english/mini-en/')
+        if rec is None:          # the fixture is not built on this machine
+            return
+        self.assertEqual(rec['kind'], 'book')
+        self.assertTrue(rec['version'])
+        self.assertTrue(all('url' in x and 'bytes' in x for x in rec['small']))
+        # the reader is opened at its directory as well as at index.html
+        urls = [x['url'] for x in rec['small']]
+        if '/books/english/mini-en/reader/index.html' in urls:
+            self.assertIn('/books/english/mini-en/reader/', urls)
+        # THREE PARTS SINCE 2026-09-23, not two: the page and its text, the
+        # groups that are one tick apiece (the notes written beside this book)
+        # and the heavy things picked one by one.  Written as the sum of all
+        # three whether or not this fixture has a note beside it, so that the
+        # day somebody writes one here the arithmetic is still the code's and
+        # not this line's (tests/test_offline_notes.py drives the group
+        # itself).
+        totals = offline.totals(rec)
+        self.assertEqual(totals['bytes'], totals['small_bytes'] + totals['groups_bytes']
+                         + totals['media_bytes'])
 
     def test_the_install_page_says_what_the_server_speaks(self):
         import mobile

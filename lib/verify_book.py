@@ -102,6 +102,17 @@ def main(where=None):
             continue
         cur = None
         for line in io.open(f, encoding="utf-8"):
+            # A line is matched from its first non-blank character, not from
+            # column 0: texwrite and texparse (so the reader and the PDF) find
+            # a chunk wherever it stands on its line, and a chunk the reader's
+            # editor divides is written as two lines at the chunk's own
+            # indent -- so a chapter that indents its chunks inside frank was
+            # one whose paragraphs this saw as empty, and called mismatched,
+            # and one that indented its \parnum as well was one it saw no
+            # paragraph of at all, and passed.  A comment stays a comment: an
+            # indented % line still opens with the %, and matches neither
+            # pattern.
+            line = line.lstrip()
             m = PARNUM_RE.match(line)
             if m:
                 cur = (ch, int(languages.any_to_latin_digits(m.group(1))))

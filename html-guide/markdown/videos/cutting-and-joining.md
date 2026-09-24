@@ -21,8 +21,10 @@ three buttons, at the foot of the ✎ form:
 | **join previous** | joins the phrase before this one to it — shown from a caption's second phrase on |
 
 **join previous** is the same operation asked of the phrase before, and it
-is also how a run with nothing glossed on it — which has no cloud of its
-own to open — is reached: from either side.
+is also how a run drawn bare — a phrase marked plain, or a stretch of the
+video's own framing, neither of which has a cloud of its own to open — is
+reached: from either side. (A phrase of the language that nobody has glossed
+yet is not bare: it has its cloud and its ✎.)
 
 Each opens a sheet over the form, named after what it does — *cut segment
 3 chunk 0 in two*, *join segment 3 chunk 0 to the next* — and writes
@@ -67,7 +69,14 @@ sheet shows two columns, **first phrase** and **second phrase**, and
 | words (Japanese, Chinese) | divided where the text is |
 | colour | both halves keep it: it marked the phrase, and the phrase is still there in two pieces |
 
-Press **divide**.
+A phrase nobody has glossed divides into two phrases nobody has glossed. In
+Japanese and Chinese, where such a phrase carries the reading proposed from
+its words, each half is given the reading of its own words instead — the
+whole reading on the first half would make it look written.
+
+Press **divide**. A phrase that carries a note divides like any other: the
+note stays with the first half (*the note stayed with the first chunk*),
+and a join puts two notes end to end.
 
 ## Joining
 
@@ -93,24 +102,23 @@ again from the list the server sends back, and the sheet says so: *The
 phrase is two phrases now. Segment 3 has 3 of them, and the transcript has
 been drawn again from the file.* Its button becomes **close**.
 
-What is written is `annotations.json`. A video made by an LLM also keeps
-the answer it was built from under `parts/`, which is left untouched — so
-running `merge_parts.py` again by hand would put the old division back, as
-it would undo any edit made in the player
+What is written is `annotations.json`, and that is the whole of the
+video's annotation: the answer it was built from was folded in when it was
+added, and the batches went with it, so there is nothing left on the shelf
+that could put the old division back
 ([A video's files](the-files.md#parts)).
 
 ## What it refuses
 
 The division is put through `check_annotations.py` before it is written,
 like any edit, and refused if it brings in an error the file did not
-already have. In a [draft](video-info-and-drafts.md) a phrase nobody has
-started may divide into two nobody has started; outside one, each half must
-be as complete as its language requires.
+already have — but never for a box left empty. Each half may come out
+glossed, blank, or glossed in part: the second half of a glossed phrase
+usually has its meaning still to write, and is saved so, for you to fill in
+the ✎ form (the checker lists it until you do). A join is the same.
 
 | It says | Which means |
 |---|---|
-| *segment 3 (start 18) chunk 1: missing 'en'* | the second half was left without a meaning, and the video is not a draft |
-| *segment 3 (start 18) chunk 1: missing 'tr'* | the same for its transliteration, where the language wants one |
 | *the page is showing the first chunk as '…' and the file has '…' -- reload the reader before dividing: somebody has changed the book underneath it* | the page is out of date — the video was changed elsewhere since the player drew it. Every divide sends the text it is looking at, and the server compares before it writes. (The sentence is shared with the reading editions, hence *reader* and *book*: reload the player.) |
 | *segment 3 chunk 1: its words cannot be divided until the line is mended -- …* | Japanese, Chinese: the phrase's word line is broken; mend it in the ✎ form first |
 | *the server did not answer (…) — nothing was written* | the server is stopped or could not be reached |

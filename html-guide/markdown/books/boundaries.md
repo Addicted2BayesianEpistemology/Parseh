@@ -16,11 +16,14 @@ in the row **where it ends**:
 - **cut this chunk in two…**
 - **join it to the next…**
 - **join the previous to it…** — the same join, asked of the chunk before
-  (not offered on the very first chunk of the book). It is also how a chunk
-  with no gloss slots of its own is reached: from either side.
+  (not offered on the very first chunk of the book).
 
 Each opens a sheet of its own over the chunk sheet that shows what it
 proposes, field by field, and writes nothing until you press its button.
+
+A `\chp` — a chunk with no gloss slots at all — can be cut in two, and
+joined to another `\chp`; it cannot be joined to a chunk with gloss slots
+(the refusal is below).
 
 ## Cutting a chunk in two
 
@@ -61,6 +64,17 @@ sheet **proposes**, in boxes you type over:
 | the words | Japanese and Chinese: divided where the text is; a word cut through keeps its reading on the first half |
 | the colour | both halves keep it: it marked the phrase, and the phrase is still there in two pieces |
 
+A chunk nobody has glossed divides into two chunks nobody has glossed. In
+Japanese and Chinese, where such a chunk carries the reading proposed from
+its words, each half is given the reading of its own words instead — the
+whole reading on the first half would make it look written.
+
+**What the halves may be.** Glossed, blank, or glossed in part: a cut
+refuses nothing for a box left empty. The second half of a glossed chunk
+usually comes out with its meaning still to write — the proposal leaves it
+empty on purpose — and it is saved so; the checker lists it until it is
+written ([Writing a chunk](doc:Writing a chunk)). A join is the same.
+
 ## Joining two chunks
 
 The sheet shows the two texts side by side, and one column — **the one chunk
@@ -78,10 +92,9 @@ to be read apart.
 |---|---|
 | *they are in different subparagraphs* | a subparagraph is a unit of the text, not of the gloss: two chunks under different subparagraph labels are not a pair the page may join |
 | *there is something between them in the file* | a comment — a narration's `% @par` line, say — lies between the two chunks in the chapter file, and joining them would swallow it |
-| *one is \chr and the other \ch …* | a chunk with a reading, a plain one and a glossed one are not the same kind of thing |
+| *one is \chp and the other \ch …* (or `\chr` and `\ch`) | a chunk with a reading, one with no gloss slots (`\chp`) and an ordinary one are not the same kind of thing. A word line makes no difference: `\ch` joins `\chw`, and `\chr` joins `\chrw` |
 | *something else is on the line with this chunk* | the checker reads one chunk per line; a chapter that puts two on one line is left for a hand to lay out |
 | *these two texts are not this chunk divided in two* | a letter was changed in one of the halves |
-| *a glossed chunk needs its meaning* | the second half was left without one, and the edition is not a draft. In a draft, a chunk nobody has started may divide into two nobody has started. |
 | *the page is showing the first chunk as … and the file has …* | the page is out of date — something changed the book since it was drawn. Every cut and join sends the text it is looking at, and the server compares it with the file before it writes. Reload. |
 
 ## Afterwards

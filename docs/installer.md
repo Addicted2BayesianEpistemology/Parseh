@@ -99,7 +99,9 @@ The work is all in `runtime.py`, so what a window has to do is small:
 2. **Show the steps.** Five rows with their states, the `log` lines in a pane
    that can be opened, and a last screen decided by `done.ok`.
 3. **Start Parseh.** `serve.bat` on Windows, `./serve.sh` elsewhere, then open
-   `https://localhost:8765/`.
+   `https://localhost:7654/` — or whatever port `config/network.json` names,
+   which is the one thing an installer must read rather than write
+   (`docs/network.md`).
 
 The packagings that fit, none of them built yet: on Windows an Inno Setup or
 MSIX installer that copies the checkout and runs `install.bat` out of sight;

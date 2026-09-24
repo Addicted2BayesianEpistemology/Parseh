@@ -34,6 +34,36 @@ it into the editor, **read**, which turns it back, and **✕**; **Esc** or a
 click outside close it. When it closes, the marks are redrawn, so a new
 title shows at once.
 
+**It opens at once, even from another room.** What the window shows is the
+note on the studio's own sheet — the same face, the same colours, the same
+marks — and nothing else: no editor, no scripts, none of the studio's
+machinery. The reader also **fetches the notes within a screen of where you
+are** before you ask for one, so opening a mark is instant over a slow
+tunnel. Where the full page is wanted, **open in the studio** is in the
+window's head. A note that **holds an exercise** opens the full studio page
+straight away instead, so an exercise is never shown as something that
+cannot be answered.
+
+**A folded run keeps its notes.** Folding a run of paragraphs hides the
+seams, and with them their marks; so the fold bar carries **a row of the
+marks of every note inside the run** — the first three, then *+N more*,
+which shows the rest. Open the run and the row goes: the notes are back in
+their own seams.
+
+**They come with the book onto a phone.** *Keep on this phone* lists them as
+one line of its own — *its notes · 34 · about 280 kB* — ticked to begin with,
+and you can untick it like any other. Kept, the marks are in their seams and
+the notes open with the computer asleep, off or a train away, in the studio's
+own face and colours; a note that holds an **exercise** can be answered there
+exactly as it can at the desk. Their **pictures** come with them; their
+**recordings** are a line of their own further down the list, beside the
+book's narrations, so nothing heavy is ever kept by surprise. Write a new note
+at the desk and its mark appears on the phone the next time the two can reach
+each other, without keeping anything again — and the book says it is out of
+date, so the note itself is one tap away. A note you **delete** is given back
+the next time you press *Save* on that list, which says how many before it
+does it. All of it: [Browser and Mobile](../getting-started/mobile-mode.md).
+
 **Rest the pointer on a mark first**, and after a moment — a third of a
 second, so that sweeping across a seam on the way to a word does not light
 up every note it passes — a small card opens beside it: the note's title and

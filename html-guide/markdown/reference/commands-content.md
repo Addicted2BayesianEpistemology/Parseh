@@ -203,7 +203,10 @@ python3 lib/extract_pdf.py book.pdf --lang fa --out clean.txt
 `--book` takes a slug, `<language>/<slug>` or a directory; without it
 the tools use `$FRANK_BOOK`, then the book the current folder is in.
 `check_batch.py` exits with the number of errors; `assemble.py` ends its
-report with *ALL PARAGRAPHS CLEAN* or the number of problems.
+report with *ALL PARAGRAPHS CLEAN* or the number of problems. A chunk nobody
+has glossed is not an error to either checker — `check_batch.py` counts such
+chunks in one note per paragraph, and `check_annotations.py` in one per
+video (*N of M chunks have no gloss yet*) — while a chunk half glossed is.
 
 ### Narrations and word lines
 
@@ -255,9 +258,13 @@ python3 lib/check_annotations.py videos/<language>/<id>
 python3 lib/import_old_video.py "<old folder>" [--dry-run] [--replace]
 ```
 
-`merge_parts.py` rebuilds `annotations.json` from `parts/`: an edit made
-straight into `annotations.json` of a video that still has parts is lost
-the next time it runs.
+`merge_parts.py` assembles `annotations.json` from the batches **while a
+video is being added**, and the batches are dropped once it is on the shelf
+([parts/ is retired](../videos/the-files.md#parts)) — so there is nothing
+left for a later run to overwrite. Run by hand on a video old enough to
+still carry `parts/`, it now **refuses** rather than rebuilding over work
+done in the player: it says which captions differ, at which times and in
+which fields.
 
 ## Languages
 

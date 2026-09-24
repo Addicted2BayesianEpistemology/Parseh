@@ -4,13 +4,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{MODE_SCRIPT}}
+<!-- the mobile interface installed as an app (docs/mobile.md) -->
+{{APP_HEAD}}
 <title>{{TITLE}} — Parseh studio</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D9%81%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="{{BASE}}/static/app.css">
-<link rel="stylesheet" href="{{BASE}}/static/langs.css">
+<!-- THE STUDIO'S OWN ADDRESS FOR THE STUDIO'S OWN FILES, not this mount's.
+     A note beside a book is served by these very routes under the book's
+     prefix (/books/<slug>/notes/…), and this sheet, this script and the
+     faces they name are the same bytes whichever book asked for them.
+     Written under each book's prefix they were a separate download, a
+     separate entry in the browser's cache and a separate copy on a phone
+     for every book on the shelf; written under the studio's they are
+     fetched once for the whole shelf.  What is still {{BASE}} below is
+     what belongs to THIS mount: the doors the script knocks on, the
+     document's own media, the way back to its library. -->
+<link rel="stylesheet" href="{{STUDIO}}/static/app.css">
+<link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+<!-- the mobile interface's layout of this page (docs/mobile.md) -->
+<link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
+<script src="{{STUDIO}}/static/mode.js" defer></script>
+<!-- "?": on a touch screen, every button's explanation is one tap away
+     (lib/explain.js, TO-DO §4.7); it draws nothing where a mouse hovers -->
+<script src="/lib/explain.js" defer></script>
+<!-- keeping this on the phone, and the chip that says the computer cannot be
+     reached (lib/keep.js, TO-DO §19.2, §19.5) -->
+<script src="/lib/keep.js" defer></script>
 </head>
 <body data-page="doc" data-base="{{BASE}}" data-doc-id="{{DOC_ID}}" data-target="{{TARGET}}" data-decks-base="{{DECKS_BASE}}" data-notes-source="{{NOTES_SOURCE}}">
-<header class="topbar">
+<!-- THE MOBILE BAR (docs/mobile.md): the way back to the library, the
+     switch, and nothing that writes this document -->
+<header class="m-topbar" data-layout="mobile">
+  <a class="m-home" href="/" title="Parseh — the hub"><span class="glyph">پ</span><span class="word">Parseh</span></a>
+  <a class="m-up" href="{{BASE}}/" title="all the documents"><span aria-hidden="true">‹</span><span class="word"> Library</span></a>
+  <span class="m-sp"></span>
+  {{MODE_SWITCH}}
+  <button type="button" class="m-theme" data-parseh-theme title="theme: light / dark / sepia">◐</button>
+</header>
+<header class="topbar" data-layout="browser">
   <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
   <a class="btn ghost" href="{{BASE}}/">← Library</a>
   <div class="doc-title" title="{{TITLE}}">{{TITLE}}</div>
@@ -46,6 +77,9 @@
            title="The markdown and the pictures and recordings it shows, in one zip: the library's upload takes it back">Markdown + media (.zip)</a>
         <a href="{{BASE}}/download/{{DOC_ID}}/tex" id="dl-tex">LaTeX (.tex)</a>
         <a href="{{BASE}}/download/{{DOC_ID}}/pdf" id="dl-pdf">PDF</a>
+        <!-- ONE PAGE FOR A WEBSITE (TO-DO §8.38): webexport.document_html -->
+        <a href="{{BASE}}/download/{{DOC_ID}}/html" id="dl-html"
+           title="One page to put on a website, for students who have no Parseh: the document as it reads, its exercises working, its pictures and recordings inside it. It needs nothing else, keeps nothing, and holds none of the Markdown">HTML page, for a website (.html)</a>
       </div>
     </details>
     <details class="dropdown">
@@ -70,7 +104,13 @@
 </div>
 
 <div class="toolbar" id="typobar">
-  <div class="navstack">
+  <!-- data-keep-slot: where lib/keep.js puts Keep on this phone / Change what
+       is kept and Remove from this phone (TO-DO §0, the owner's 4 and 8).
+       Its value is the class this page dresses its own buttons in, so they
+       stand in the row looking like ☰ Contents and ⇄ Glosses beside them.
+       What is kept is the page as the computer rendered it (lib/offline.py,
+       document()): nothing on a phone could render it. -->
+  <div class="navstack" data-keep-slot="btn ghost">
     <button class="btn ghost" id="btn-toc" aria-expanded="false"
             title="Show the table of contents (Esc closes it)">☰ Contents</button>
     <button class="btn ghost" id="btn-glosses"
@@ -157,10 +197,16 @@
   <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
   <code>./serve.sh</code> in the project directory.</p></div>
 </div>
-<link rel="stylesheet" href="{{BASE}}/static/mathjax.css">
-<script src="{{BASE}}/static/mathjax.js"></script>
+<!-- THE STUDIO'S ADDRESS AGAIN, and here it decides whether two megabytes
+     are fetched once or once per book: lib/mathjax.js works out where the
+     heavy library is from its own src, so a loader linked under a book's
+     prefix would go on to ask that book for tex-svg.js.  The bare note
+     page (templates/note.html) writes the studio's prefix for both, so
+     the two pages that can carry a formula now name one file. -->
+<link rel="stylesheet" href="{{STUDIO}}/static/mathjax.css">
+<script src="{{STUDIO}}/static/mathjax.js"></script>
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
-<script src="{{BASE}}/static/app.js"></script>
+<script src="{{STUDIO}}/static/app.js"></script>
 </body>
 </html>

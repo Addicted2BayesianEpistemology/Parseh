@@ -17,9 +17,10 @@ It proves, mechanically, what a machine can prove:
     that still needs a reader)
   * the captions equal transcript.txt's, in order, down to their chapter
     headings and their plain marks
-  * every chunk carries what its language requires: the meaning, the
-    transliteration where the language wants one, the kana reading where
-    the language has one (lib/languages.json decides)
+  * every chunk glossed at all carries what its language requires: the
+    meaning, the transliteration where the language wants one, the kana
+    reading where the language has one (lib/languages.json decides); a
+    chunk with no gloss yet is only counted (below)
   * a chunk's word line ("words", for a language divided into words:
     lib/wordline.py) gives its text back word for word; that its readings
     say what the chunk's own reading says is only a warning, and is not
@@ -27,17 +28,25 @@ It proves, mechanically, what a machine can prove:
   * a chunk that carries a colour carries one of the four the books mark
     a chunk with -- red, blue, orange, green, and nothing else
 
-A VIDEO STILL BEING ANNOTATED says so: video.json carries "draft": true,
-which lib/draft.py writes when it makes an annotation out of nothing but the
-transcript (one chunk per sentence of each caption, every gloss blank).  Such
-a file would fail this checker on the day it was made, so a chunk with
-NOTHING written in it -- no tr, no voc, no en, no kana -- is then counted and
-passed over.  One field written makes it a chunk somebody is working on, and
-everything its language requires is required again: a meaning with no
+A CHUNK NOBODY HAS GLOSSED YET is legal, in every video and at every
+stage: NOTHING written in it -- no tr, no voc, no en, no kana (a reading
+still exactly as its word line proposed it was not written by anybody, and
+a kana in a language with no reading is no part of the gloss at all; see
+unwritten).  lib/draft.py makes a whole video of them out of nothing
+but the transcript, "delete gloss" in the player makes one, an LLM's
+answer may leave one.  Such a chunk is asked for nothing and counted, and
+the command line says so in one note, "N of M chunks have no gloss yet"
+(M: the chunks a gloss is asked of at all, gloss_count), in the words
+lib/check_batch.py says it of a book's paragraph.  One field written
+makes it a chunk somebody is working on, and everything its language
+requires is required: a meaning with no
 transliteration beside it, where the language wants one, is exactly the
-half-done work this file exists to catch, and it stays an error draft or no
-draft.  The flag is in video.json and not in annotations.json because
-merge_parts.py rewrites the annotations from the parts and would drop it.
+half-done work this file exists to catch, and it is an error here.  A
+caller for whom half-done is the middle of the work -- the player's
+editor, which fills a chunk a box at a time, and the bundle door, which
+takes a video back in the middle of its glossing -- hands those messages
+to a callback of its own (`half`, check_chunk) and says what they mean
+there; nothing else is softened for anybody.
 
 The language is video.json's "language" (a registry code; content written
 before languages were declared is Persian).  Nothing here names a script,
@@ -198,15 +207,31 @@ def unwritten(ch, lang=None):
     somebody has typed into is a chunk somebody is working on, and from
     then on everything the language asks for is asked for.  A value that
     is not text at all counts as written -- wrongly written -- so the
-    checks below still report it.  This is the only kind of chunk a draft
-    is forgiven.
+    checks below still report it.  This is the chunk check_chunk asks
+    nothing of: one nobody has glossed yet, legal everywhere.
 
     Given the video's language, the reading a draft gave the chunk from its
     words (wordline.seed) is not counted while it still says exactly that:
-    nobody wrote it.
+    nobody wrote it.  That is the whole-chunk question only: once anything
+    else is written, the seeded reading is a reading like any other, and
+    counts as there when the language's required fields are asked for.
+
+    Given the video's language, a "kana" is not counted either where that
+    language has no reading (Chinese, Persian, every Latin-script one): it
+    is no part of such a chunk's gloss -- required() never asks for it, the
+    player draws no row for it (its "delete gloss" empties a stray one) --
+    and a stray one, an LLM's answer being where it turns up (the add
+    page's prompt shows the key for every language), made the chunk count
+    as written while the page called it blank: its delete was refused by
+    annwrite._emptied, which asks this, with the words "empty every box of
+    the gloss", after exactly that button.  check_chunk warns of one
+    instead.  Without the language, every field counts, as it always did.
     """
-    field, seeded = wordline.seed(ch, lang_of(lang)) if lang is not None else (None, "")
+    L = lang_of(lang) if lang is not None else None
+    field, seeded = wordline.seed(ch, L) if L is not None else (None, "")
     for f in ("tr", "voc", "en", "kana"):
+        if f == "kana" and L is not None and not L.reading:
+            continue                # no part of this language's gloss (above)
         v = ch.get(f)
         if v is None:
             continue
@@ -215,6 +240,42 @@ def unwritten(ch, lang=None):
         if v.strip() and not (f == field and seeded and v.strip() == seeded):
             return False
     return True
+
+
+def required(ch, lang=None):
+    """The gloss fields this chunk must carry once any of its gloss is
+    written, in the order a chunk writes them: kana where the language has
+    a reading, tr where it wants one (require_tr), en always.  [] for a
+    chunk asked for none: one marked plain, one with no text, and -- for a
+    script language -- a run with none of the script in it, the video's own
+    framing, where glossing "welcome to" would be noise.
+
+    check_chunk asks this, and so does whatever has to tell a finished
+    gloss from a half-finished one before the checker is run (annwrite's
+    rule about emptying a box, the prompt's worked example)."""
+    L = lang_of(lang)
+    if not isinstance(ch, dict) or ch.get("plain"):
+        return []
+    fa = ch.get("fa")
+    if not isinstance(fa, str) or not fa.strip():
+        return []
+    if L.chars and not L.has_script(fa):
+        return []
+    need = ["en"]
+    if L.require_tr:
+        need.insert(0, "tr")
+    if L.reading:
+        need.insert(0, "kana")
+    return need
+
+
+def complete(ch, lang=None):
+    """True when the chunk carries every field its language requires, as
+    non-blank text -- a finished gloss (a seeded reading counts: the chunk
+    is written, since en is always among them).  A chunk asked for nothing
+    is complete as it stands."""
+    return all(isinstance(ch.get(f), str) and ch[f].strip()
+               for f in required(ch, lang))
 
 
 def norm(s, lang=None):
@@ -374,16 +435,17 @@ def transcript_text(captions):
     return "\n".join(out) + ("\n" if out else "")
 
 
-def check_chunk(ch, where, err, warn, lang=None, draft=False, reorders=False):
+def check_chunk(ch, where, err, warn, lang=None, reorders=False, half=None):
     """One chunk's own fields.
 
-    A chunk of the target language must carry its meaning (en), its
-    transliteration (tr) where the language wants one (require_tr), and
-    its reading (kana) where the language has one (reading).  For a script
-    language a chunk with no target script at all is a run of the video's
-    own framing -- glossing "welcome to" would be noise, so only the text
-    itself is required there.  For a Latin-script target every chunk is
-    target text unless it says otherwise.
+    A chunk of the target language that is glossed at all must carry its
+    meaning (en), its transliteration (tr) where the language wants one
+    (require_tr), and its reading (kana) where the language has one
+    (reading) -- `required`.  For a script language a chunk with no target
+    script at all is a run of the video's own framing -- glossing "welcome
+    to" would be noise, so only the text itself is required there.  For a
+    Latin-script target every chunk is target text unless it says
+    otherwise.
 
     `en` is required, never read: what a meaning must SAY is the business
     of whoever proofreads it, and it is said in the video's gloss
@@ -394,8 +456,9 @@ def check_chunk(ch, where, err, warn, lang=None, draft=False, reorders=False):
 
     A chunk marked "plain": true is target text deliberately left
     unglossed: for a script language it comes only from an import of the
-    older format (an annotator never writes it; a chunk that merely forgets
-    its gloss is still an error); for a Latin-script target it is how an
+    older format (an annotator never writes it; a chunk that merely has no
+    gloss is not plain but one nobody has glossed yet, a phrase the player
+    offers to be glossed); for a Latin-script target it is how an
     aside in another language is told from the target language around it,
     and the annotator IS allowed to write it.  Either way it is shown as
     text, never a target, and asked for nothing.
@@ -405,29 +468,41 @@ def check_chunk(ch, where, err, warn, lang=None, draft=False, reorders=False):
     glossed one, and the plain branch below returns before the
     unknown-field sweep at the end ever runs.
 
-    With `draft` a chunk nobody has written any part of the gloss of
-    (`unwritten`) is asked for nothing -- not the fields its language
-    requires, and not the chunk length either, since a draft's chunk is a
-    whole sentence and "%d words in one chunk" would then be certain in
-    advance of every chunk in the file.  A warning that cannot fail
-    teaches its reader to skip warnings.  The colour, the text and the
-    unknown-field sweep are checked in a draft exactly as anywhere else.
+    A chunk nobody has written any part of the gloss of (`unwritten`) is
+    asked for nothing -- not the fields its language requires, and not the
+    chunk length either, since a chunk cut by the machine is often a whole
+    sentence and "%d words in one chunk" would then be certain in advance
+    of every chunk of a video started empty.  A warning that cannot fail
+    teaches its reader to skip warnings.  The colour, the text, the types
+    and the unknown-field sweep are checked on it exactly as on any other.
 
     A chunk somebody has half written -- the meaning typed, the
-    transliteration not yet -- is SAID in a draft and not refused.  That is
-    what the middle of the work looks like, it is what the player's own
-    editor writes, and refusing it left a draft that could not come back
-    through the bundle door it had gone out of.  Without the flag it is an
-    error, as it always was.
+    transliteration not yet -- is an ERROR, "missing 'tr'", told to `half`
+    (err when there is none).  That is the half-done work this file is
+    for, and the default for every caller that takes a gloss from outside:
+    the command line, and the add page's LLM answer.  A caller for whom it
+    is the middle of the work passes its own: annwrite drops the messages
+    (the player's editor fills a chunk a box at a time, and guards the
+    emptying of a box itself), lib/bundle.py turns them into a note (a
+    video goes out and comes back in the middle of its glossing).
+
+    Every gloss field is text or is not written at all: a list, a number
+    or an object where tr, kana, voc, en or a note should be is an error
+    whatever else the chunk says -- the player would draw it as a word it
+    cannot be, and an LLM's answer is exactly where one turns up.  JSON's
+    null is taken as not written, as annwrite takes it from the player.
+    A kana in a language with no reading is a warning: it is ignored
+    everywhere (unwritten says why), and said so that it is not there
+    unseen.
 
     "words", the word line, is on the phrase too and is checked with the
-    colour, in a draft as well: present, it is text that gives `fa` back
+    colour, glossed or not: present, it is text that gives `fa` back
     (lib/wordline.py; a blank one is an error, since a chunk without words
     has no key), and a chunk marked plain has none.  The line is compared
     with the chunk's own reading -- kana where the language has one, tr
     where it has not -- only to warn, and not at all for `reorders`,
-    video.json's flag for a text read out of its written order.  A draft's
-    blank reading has nothing to compare, so nothing is said.
+    video.json's flag for a text read out of its written order.  A blank
+    reading has nothing to compare, so nothing is said.
     """
     L = lang_of(lang)
     fa = ch.get("fa")
@@ -445,6 +520,24 @@ def check_chunk(ch, where, err, warn, lang=None, draft=False, reorders=False):
     # the transcript (check_segments, departs).  True, or not written at all
     if "free" in ch and ch["free"] is not True:
         err("%s: 'free' is true or is not written at all" % where)
+    # text or nothing, before anything reads them as text (a plain chunk
+    # included: the player draws its note as well)
+    untyped = set()
+    for field in ("kana", "tr", "voc", "en", "note"):
+        v = ch.get(field)
+        if v is not None and not isinstance(v, str):
+            err("%s: %s must be text, not %s" % (where, field, type(v).__name__))
+            untyped.add(field)
+    # A READING IN A LANGUAGE THAT HAS NONE.  Nothing reads it: it is no
+    # field of the language's gloss (required), unwritten does not count it,
+    # the player draws no row for it.  Said, so that it is not there unseen,
+    # but only as a warning: the add page's LLM answer let such a key into
+    # files already on the shelf, with nothing wrong in the gloss beside it,
+    # and an error here would refuse those at the bundle door
+    kana = ch.get("kana")
+    if not L.reading and isinstance(kana, str) and kana.strip():
+        warn("%s: kana on a chunk of a language with no reading -- ignored"
+             % where)
     if "words" in ch:
         if ch.get("plain"):
             err("%s: a chunk marked plain carries no words" % where)
@@ -459,34 +552,24 @@ def check_chunk(ch, where, err, warn, lang=None, draft=False, reorders=False):
                 warn("%s: %s" % (where, n))
     if ch.get("plain"):
         return words
-    is_target = L.has_script(fa) if L.chars else True
-    if is_target and not (draft and unwritten(ch, L)):
-        need = ["en"]
-        if L.require_tr:
-            need.insert(0, "tr")
-        if L.reading:
-            need.insert(0, "kana")
+    need = required(ch, L)
+    # nothing written: a chunk nobody has glossed yet, legal and counted
+    # (gloss_state), and asked for nothing below
+    if need and not unwritten(ch, L):
         for field in need:
+            if field in untyped:
+                continue                  # said above, and not "missing"
             v = ch.get(field)
             if not isinstance(v, str) or not v.strip():
-                # A DRAFT IS UNFINISHED BY DEFINITION, and half-finished is
-                # what the middle of the work looks like: the meanings of a
-                # caption typed in one pass and the transliterations in the
-                # next.  The player's own editor writes exactly that -- it
-                # checks an edit WITHOUT this flag on purpose (annwrite says
-                # why), so typing a meaning into a blank chunk stands -- and
-                # a video it refused here could never come back through the
-                # bundle door it had just gone out of (lib/bundle.py raises
-                # on an error and only notes a warning).  So in a draft this
-                # is said and not refused; the moment "draft" comes off
-                # video.json it is an error again, which is what the flag is
-                # for.  Nothing else here softens: the text, the colour, the
-                # word line and the chunks reproducing their caption are
-                # checked in a draft exactly as anywhere else.
-                if draft:
-                    warn("%s: missing %r -- still a draft" % (where, field))
-                else:
-                    err("%s: missing %r" % (where, field))
+                # HALF WRITTEN: the meanings of a caption typed in one pass
+                # and the transliterations still to come.  An error to the
+                # checker and to every answer taken from outside; `half` is
+                # the caller that knows it is looking at the middle of the
+                # work (see the docstring).  Only this message goes there:
+                # the text, the colour, the types, the word line and the
+                # chunks reproducing their caption are the caller's errors
+                # whoever it is.
+                (half or err)("%s: missing %r" % (where, field))
         if L.chars and isinstance(ch.get("tr"), str) and L.has_script(ch["tr"]):
             warn("%s: %s script inside tr" % (where, L.name))
         if words > 7:
@@ -509,25 +592,29 @@ def departs(seg):
                for ch in (seg.get("chunks") or []))
 
 
-def check_segments(segs, captions, err, warn, lang=None, draft=False,
-                   reorders=False):
+def check_segments(segs, captions, err, warn, lang=None, reorders=False,
+                   half=None):
     """The annotations against the transcript.  Returns (chunks, words).
 
-    `draft` is video.json's flag, passed on to check_chunk, and so is
-    `reorders`, which only ever quiets a warning.  The return is
-    deliberately still the pair it always was: lib/bundle.py and
-    youtube/lib/annwrite.py both call this, and the second one calls it
-    twice round an edit and refuses whatever the edit INTRODUCED -- which
-    is why annwrite must go on calling it WITHOUT the flag.  Under the
-    strict rule a blank chunk's missing 'tr' is already there before the
-    edit, so typing the English into it introduces nothing and the edit
-    stands; tell annwrite about the draft and that same edit would be
-    refused, because the chunk would pass from forgiven to half-written.
+    `reorders` (which only ever quiets a warning) and `half` are passed on
+    to check_chunk: `half` hears the "missing 'tr'" of a chunk somebody has
+    half glossed, and is err when it is None.  The return is deliberately
+    still the pair it always was: lib/bundle.py and youtube/lib/annwrite.py
+    both call this, and the second one calls it twice round an edit and
+    refuses whatever the edit INTRODUCED.  It passes a `half` that drops
+    what it hears, because the player's editor is where a chunk is filled
+    one box at a time -- typing the English into a blank chunk leaves it
+    missing its 'tr', and that edit must stand -- and the one thing a hand
+    must not do there, emptying a box a finished gloss needs, it refuses
+    by its own rule (annwrite.edit_chunk).
     """
     L = lang_of(lang)
     nch = nw = 0
     prev = -1.0
     for i, sg in enumerate(segs):
+        if not isinstance(sg, dict):
+            err("segment %d: not an object" % i)
+            continue
         where = "segment %d (start %s)" % (i, sg.get("start"))
         start = sg.get("start")
         if not isinstance(start, (int, float)) or start < 0:
@@ -555,11 +642,15 @@ def check_segments(segs, captions, err, warn, lang=None, draft=False,
             if not isinstance(ch, dict):
                 err("%s chunk %d: not an object" % (where, j))
                 continue
-            nw += check_chunk(ch, "%s chunk %d" % (where, j), err, warn, L, draft,
-                              reorders)
+            nw += check_chunk(ch, "%s chunk %d" % (where, j), err, warn, L,
+                              reorders, half)
         nch += len(chunks)
+        # a text that is not text (a number, a list -- an LLM's answer can
+        # hold anything) was reported by check_chunk already; joined as
+        # nothing here, so the caption is still compared rather than the
+        # whole check dying on it
         joined = norm(L.word_sep.join(
-            (ch.get("fa") or "") if isinstance(ch, dict) else ""
+            ch["fa"] if isinstance(ch, dict) and isinstance(ch.get("fa"), str) else ""
             for ch in chunks), L)
         want = norm(text, L)
         if joined != want:
@@ -576,6 +667,8 @@ def check_segments(segs, captions, err, warn, lang=None, draft=False,
             err("transcript.txt has %d captions, annotations %d"
                 % (len(captions), len(segs)))
         for i, (cap, sg) in enumerate(zip(captions, segs)):
+            if not isinstance(sg, dict):
+                continue                # said above, once
             if isinstance(sg.get("start"), (int, float)) and \
                abs(sg["start"] - cap["start"]) > 0.51:
                 err("segment %d: start %s but transcript says %s"
@@ -603,12 +696,14 @@ def video_language(vdir, meta=None, ann=None, warn=None):
     else the default.  The folder the video sits in is expected to agree
     (videos/japanese/ holds "ja" videos); a disagreement is reported once,
     and the JSON wins, as docs/languages.md says."""
-    declared = lang_code((meta or {}).get("language"))
-    code = declared or lang_code((ann or {}).get("language")) or languages.DEFAULT
+    meta = meta if isinstance(meta, dict) else {}
+    ann = ann if isinstance(ann, dict) else {}
+    declared = lang_code(meta.get("language"))
+    code = declared or lang_code(ann.get("language")) or languages.DEFAULT
     L = languages.get_or_default(code)
     if declared and code.strip().lower() not in languages.LANGS and warn:
         warn("video.json: unknown language %r -- taken as %s"
-             % ((meta or {}).get("language"), L.name))
+             % (meta.get("language"), L.name))
     by_dir = languages.detect_from_path(vdir)
     if warn and by_dir and by_dir.code != L.code:
         warn("filed under videos/%s/ but video.json says language %s (videos/%s/)"
@@ -631,11 +726,15 @@ def video_gloss(meta=None, err=None):
     sentence (which lists what a gloss may be written in), and the return
     is English so that everything else in the file is still checked.
 
-    Only video.json is asked, never annotations.json: merge_parts.py
-    rewrites the annotations from the parts and would drop the field, which
-    is the reason "draft" lives in the metadata too.
+    Only video.json is asked, never annotations.json: the gloss language
+    is a property of the video, set in video.json when the video is added
+    (the add page and lib/draft.py write it there; a bundle brings its
+    own), and nothing writes it into annotations.json.  That file does
+    carry the video's id and its "language" -- merge_parts writes both,
+    and video_language above falls back on that "language" -- but it has
+    no "gloss" to fall back on.
     """
-    raw = (meta or {}).get("gloss")
+    raw = meta.get("gloss") if isinstance(meta, dict) else None
     try:
         return languages.gloss(lang_code(raw) or None)
     except KeyError as e:
@@ -652,43 +751,59 @@ def _read_json(vdir, name):
         return None
 
 
-def draft_state(vdir):
-    """(draft, blank, glossable) for a video directory: whether video.json
-    says "draft": true, how many chunks have no gloss written at all, and how
-    many were asked for one in the first place.
-
-    Its own small read of the two files, because check() returns the triple
-    lib/bundle.py unpacks and that shape is not worth changing for a line the
-    command line prints.  A page that wants to badge a draft asks this too.
+def gloss_count(segs, lang=None):
+    """(blank, glossable) for a list of segments: how many chunks have no
+    gloss written at all (unwritten), and how many were asked for one in
+    the first place.
 
     Only the chunks check_chunk would ask a gloss of are counted: a plain
     caption's, a chunk marked plain, and -- for a script language -- a chunk
     with none of the script in it are all legitimately blank in a finished
-    file, and counting them would make the note below say that a video which
-    reports no errors at all has unwritten chunks in it.
+    file, and counting them would make the note main() prints say that a
+    video which reports no errors at all has unwritten chunks in it.
     """
-    meta = _read_json(vdir, "video.json") or {}
-    ann = _read_json(vdir, "annotations.json") or {}
-    L = video_language(vdir, meta, ann)
+    L = lang_of(lang)
     blank = total = 0
-    for sg in ann.get("segments") or []:
+    # a "segments" that is not a list (a hand-edited file: a number, true)
+    # counts nothing: check() reports it as the error it is, and the shelf
+    # (ytpages' _load_video, through gloss_state) must not crash on it and
+    # take the whole video index down with it
+    for sg in segs if isinstance(segs, list) else []:
         if not isinstance(sg, dict) or sg.get("plain"):
             continue
-        for ch in sg.get("chunks") or []:
-            if not isinstance(ch, dict) or ch.get("plain"):
-                continue
-            fa = ch.get("fa")
-            if not isinstance(fa, str) or not fa.strip():
-                continue
-            if L.chars and not L.has_script(fa):
-                continue            # a run of the video's own framing
+        chunks = sg.get("chunks")
+        for ch in chunks if isinstance(chunks, list) else []:
+            if not required(ch, L):
+                continue            # plain, empty, or the video's own framing
             total += 1
             if unwritten(ch, L):
                 blank += 1
-    return bool(meta.get("draft")), blank, total
+    return blank, total
 
 
-def check(vdir):
+def gloss_state(vdir):
+    """(blank, glossable) for a video directory: gloss_count over its
+    annotations.json, in the language its video.json declares.
+
+    Its own small read of the two files, because check() returns the triple
+    lib/bundle.py unpacks and that shape is not worth changing for a line the
+    command line prints.  The shelf's cards ask it too, through ytpages'
+    _load_video ("28 of 40 chunks glossed").
+    """
+    meta = _read_json(vdir, "video.json") or {}
+    ann = _read_json(vdir, "annotations.json") or {}
+    if not isinstance(meta, dict):
+        meta = {}
+    if not isinstance(ann, dict):
+        ann = {}
+    return gloss_count(ann.get("segments"), video_language(vdir, meta, ann))
+
+
+def check(vdir, half=None):
+    """(errors, warnings, (captions, chunks, words)) for a video directory.
+
+    `half` is check_chunk's: None makes a half-glossed chunk an error, as
+    the command line has it; lib/bundle.py passes its own and notes them."""
     errors, warnings = [], []
     err, warn = errors.append, warnings.append
 
@@ -701,6 +816,13 @@ def check(vdir):
         err("%s: missing" % mpath)
     except ValueError as e:
         err("%s: not JSON (%s)" % (mpath, e))
+    # A file edited by hand can parse and still be the wrong shape -- a list,
+    # a number.  That is said as the error it is, and the rest of the video
+    # is checked as if the file were missing, rather than the checker (and
+    # the bundle door, which runs it on what an upload unpacked) dying on it
+    if meta is not None and not isinstance(meta, dict):
+        err("%s: not a JSON object" % mpath)
+        meta = None
     vid = os.path.basename(os.path.normpath(vdir))
     if meta:
         if not meta.get("id"):
@@ -708,7 +830,9 @@ def check(vdir):
         elif meta["id"] != vid:
             warn("video.json id %r differs from directory name %r"
                  % (meta["id"], vid))
-        if meta.get("id") and meta.get("url") and meta["id"] not in meta["url"]:
+        vid_id, url = meta.get("id"), meta.get("url")
+        if isinstance(vid_id, str) and isinstance(url, str) \
+                and vid_id and url and vid_id not in url:
             warn("video.json: url does not contain the id")
 
     apath = os.path.join(vdir, "annotations.json")
@@ -720,6 +844,9 @@ def check(vdir):
         err("%s: missing" % apath)
     except ValueError as e:
         err("%s: not JSON (%s)" % (apath, e))
+    if ann is not None and not isinstance(ann, dict):
+        err("%s: not a JSON object" % apath)
+        ann = None
     if ann is None:
         return errors, warnings, (0, 0, 0)
 
@@ -730,11 +857,8 @@ def check(vdir):
     if meta and ann.get("video") not in (None, meta.get("id")):
         warn("annotations.json \"video\" %r != video.json id" % ann.get("video"))
 
-    # video.json's "draft": the annotation is being written, so a chunk
-    # nobody has touched yet is counted and passed over (see the header)
-    draft = bool((meta or {}).get("draft"))
-    # and "reorders": a text read out of its written order, whose words are
-    # not held to the chunk's reading (lib/wordline.py)
+    # video.json's "reorders": a text read out of its written order, whose
+    # words are not held to the chunk's reading (lib/wordline.py)
     reorders = bool((meta or {}).get("reorders"))
     L = video_language(vdir, meta, ann, warn)
     # the gloss language is checked here and used nowhere below: no rule
@@ -748,7 +872,7 @@ def check(vdir):
     else:
         warn("no transcript.txt to check against")
 
-    nch, nw = check_segments(segs, captions, err, warn, L, draft, reorders)
+    nch, nw = check_segments(segs, captions, err, warn, L, reorders, half)
     return errors, warnings, (len(segs), nch, nw)
 
 
@@ -769,19 +893,11 @@ def main():
     if G.code != languages.DEFAULT_GLOSS:
         print("note: the meanings are written in %s (video.json's \"gloss\")"
               % G.name)
-    draft, blank, glossable = draft_state(vdir)
-    if draft:
-        print("note: video.json says \"draft\": true -- %s"
-              % ("%d of %d chunks wanting a gloss have none written yet, and "
-                 "a chunk half written is a warning above and not an error "
-                 "either: take the flag off video.json and every one of them "
-                 "is an error again"
-                 % (blank, glossable) if blank else
-                 "every chunk is glossed; the flag can go"))
-    elif blank:
-        print("note: %d of %d chunks wanting a gloss have none at all, and "
-              "each is an error above.  An annotation being written says so "
-              "with \"draft\": true in video.json."
+    # a chunk nobody has glossed yet is no fault, so it is counted and not
+    # listed: one line, the same in the middle of the work and at its end
+    blank, glossable = gloss_state(vdir)
+    if blank:
+        print("note: %d of %d chunks have no gloss yet"
               % (blank, glossable))
     print("%d captions, %d chunks, %d words -- %d error(s), %d warning(s)"
           % (ns, nc, nw, len(errors), len(warnings)))

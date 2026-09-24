@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<!-- A document of the Parseh studio, exported as one page (TO-DO §8.38).
+     Everything it needs is inside this file; it asks no server for anything
+     and keeps nothing: close it, and nothing anywhere has changed. -->
+<html lang="{{LANG}}" data-parseh-export="document">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+<meta name="referrer" content="no-referrer">
+<meta name="generator" content="Parseh">
+<title>{{TITLE}}</title>
+<style>{{CSS}}</style>
+</head>
+<body data-page="export" data-export="document" data-lang="{{TARGET}}">
+<header class="xp-bar">
+  <span class="xp-title">{{TITLE}}</span>
+  <details class="xp-aa">
+    <summary class="btn ghost" title="Text size and theme">Aa</summary>
+    <div class="xp-aa-menu">
+      <label for="xp-size">Text size <output id="xp-size-out">100%</output></label>
+      <input type="range" id="xp-size" min="13" max="26" step="0.5" value="17">
+      <label for="xp-theme">Theme</label>
+      <select id="xp-theme">
+        <option value="paper">Paper</option>
+        <option value="sepia">Sepia</option>
+        <option value="dark">Dark</option>
+      </select>
+      <p class="xp-note">Forgotten when this tab closes: this page keeps nothing.</p>
+    </div>
+  </details>
+</header>
+<main class="xp-main" id="xp-main">
+{{CONTENTS}}
+{{GLOSSES}}
+  <article id="sheet" class="sheet" lang="{{LANG}}" data-lang="{{TARGET}}">
+{{ARTICLE}}
+  </article>
+</main>
+{{FOOTER}}
+<noscript><p class="xp-note" style="text-align:center">The exercises and the recordings of this page need JavaScript.</p></noscript>
+<div id="toast" class="toast" hidden></div>
+<script id="doc-lang" type="application/json">{{LANG_JSON}}</script>
+<script id="parseh-media" type="application/json">{{MEDIA_JSON}}</script>
+{{MATH}}
+<script>{{SCRIPT}}</script>
+</body>
+</html>

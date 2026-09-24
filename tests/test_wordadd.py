@@ -305,14 +305,21 @@ class VideoDoor:
         return n
 
     def checks(self, vj):
-        """check_annotations passes the draft as written."""
+        """check_annotations passes the draft as written: every chunk blank,
+        which is legal in any video, and counted in its one note -- the
+        reading proposed from the words included, which is nobody's
+        writing.  Nothing in video.json says it is a draft."""
         with tempfile.TemporaryDirectory() as td:
             r = self.draft(vj, into=td)
+            self.assertNotIn('draft', json.loads(r['files']['video.json']))
             p = subprocess.run([sys.executable, str(ROOT / 'youtube/lib/check_annotations.py'),
                                 r['dir']], cwd=str(ROOT / 'youtube'),
                                capture_output=True, text=True)
             self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
             self.assertIn('0 error(s)', p.stdout + p.stderr)
+            blank = re.findall(r'^note: (\d+) of (\d+) chunks have no gloss yet$', p.stdout, re.M)
+            self.assertEqual(len(blank), 1, p.stdout)
+            self.assertEqual(blank[0][0], blank[0][1], p.stdout)
 
 
 class Video(VideoDoor, unittest.TestCase):

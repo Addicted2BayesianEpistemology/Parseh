@@ -164,13 +164,48 @@ cat_lib_lang() {                  # the per-language halves of the preamble
 # rewrites in a shape this does not strip would move the LaTeX key for nothing.
 strip_at() { grep -v -E '^%[[:space:]]*@(t|par)\b' || true; }
 
+# HASHING, ON A MAC AS ON LINUX.  sha1sum is GNU: a stock macOS ships shasum
+# (and nothing called sha1sum), so every key came out EMPTY there -- and two
+# empty keys are equal, which is the one thing a cache key must never be.
+# After the first build, "unchanged, keeping the PDF" was then the answer to
+# every edit, and the pages' build buttons served a stale PDF for ever.  The
+# tool is chosen once, here, and used through this one name.
+#
+# With neither on the machine, a key that is never twice the same turns the
+# cache OFF rather than freezing it: a rebuild that was not needed costs
+# time, a skip that was not earned costs the truth of the PDF -- the rule
+# this whole cache is written around.
+if command -v sha1sum >/dev/null 2>&1; then
+  sha1() { sha1sum | cut -d' ' -f1; }
+elif command -v shasum >/dev/null 2>&1; then
+  sha1() { shasum -a 1 | cut -d' ' -f1; }
+else
+  echo "note: no sha1sum and no shasum on this machine -- the build cache is off,"
+  echo "      so every book is rebuilt whether it changed or not"
+  # a key from /dev/urandom, not from a counter: every call is made in its
+  # own subshell ($(...)), where a shell variable could not be carried
+  # forward, and two calls that returned the same word would look like a
+  # book nothing had touched
+  sha1() {
+    cat >/dev/null
+    printf 'no-sha1-%s\n' "$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"
+  }
+fi
+
+# `find -printf` is GNU too.  Run from inside the directory, find names the
+# files as ./<path>, which is %P once the ./ is off -- the same list, in the
+# same order after sort, on either find.
+list_rel() {                      # list_rel <dir> -- every file under it, relative
+  ( cd "$1" 2>/dev/null && find . -type f | sed 's|^\./||' | sort ) || true
+}
+
 latex_key() {
   { cat_book_tex "$1" | strip_at
     cat "$ROOT/lib/frank-preamble.tex" "$ROOT/lib/frank-frontmatter.tex" \
         "$ROOT/lib/languages.json" "$1/book.json" 2>/dev/null || true
     cat_lib_lang
     cat_fonts
-  } | sha1sum | cut -d' ' -f1
+  } | sha1
 }
 # What the reader is built from: the same .tex WITH their timing comments, the
 # sidecar, and the whole generator surface -- tex2html.py imports texparse,
@@ -194,11 +229,11 @@ reader_key() {
     # A linked backup restores the metadata first; copying audio/ back later
     # must invalidate this key without hashing hundreds of MB of recordings.
     if [ -d "$1/audio" ]; then
-      find "$1/audio" -type f -printf '%P\n' | sort
+      list_rel "$1/audio"
     fi
     cat_lib_py
     cat_fonts
-  } | sha1sum | cut -d' ' -f1
+  } | sha1
 }
 
 # ---------------------------------------------------------------- the books
@@ -304,7 +339,7 @@ for d in books/*/*/ books/*/; do
       echo "== $slug"
       pdf_failed=""
       # pass 1, then a second only if it moved anything a second pass would fix
-      before="$(cat "$d/$base.aux" "$d/$base.toc" 2>/dev/null | sha1sum)"
+      before="$(cat "$d/$base.aux" "$d/$base.toc" 2>/dev/null | sha1)"
       run_latex "$d" "$main" "$base"
       # A build that was killed part-way leaves a half-written .aux/.out/.toc,
       # and the next run dies inside them -- "File ended while scanning use of
@@ -324,7 +359,7 @@ for d in books/*/*/ books/*/; do
       # reported the failure at the end; this now agrees with it.  The key is
       # still written only where lualatex ran and its output was judged sound.
       if check_log "$log" "$pdf" "$base"; then
-        after="$(cat "$d/$base.aux" "$d/$base.toc" 2>/dev/null | sha1sum)"
+        after="$(cat "$d/$base.aux" "$d/$base.toc" 2>/dev/null | sha1)"
         if [ "$before" != "$after" ]; then
           echo "   references moved, second pass"
           run_latex "$d" "$main" "$base"

@@ -8,8 +8,36 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 // decomposition mode over all of it.  The fixtures are
 // tests/fixtures/videos/{japanese,chinese,italian}, copied in memory with
 // lines added to some chunks; every request is intercepted and the server's
-// answers are written here.  A chunk without words is held byte for byte to
-// the player as it was before words: PLAYER_BASE, a commit (default 7a02e64).
+// answers are written here.
+//
+// A CHUNK WITHOUT WORDS IS HELD BYTE FOR BYTE TO A PLAYER THAT STAYS PUT:
+// tests/fixtures/player_base/, the player as it was committed at 0519a1f
+// (`git show 0519a1f:youtube/lib/<file>`, copied there once, by hand, and
+// never refreshed by a run).  The base was a git revision, and a revision is
+// the wrong thing to hold a player to twice over.  7a02e64, the player before
+// words, went in the squash, and a revision git cannot show stopped the suite
+// before its first check.  HEAD, which took its place, is the working tree
+// itself the moment the work is committed: in any clean checkout both builds
+// ran the same page, script and style over the same annotations, and every
+// comparison below compared a render with itself -- it guarded only what
+// happened to be uncommitted, and a regression committed while the suite was
+// red or skipped became the base.  A copy under tests/ changes only when
+// somebody changes it, in a commit that says so.  PLAYER_BASE, a git
+// revision, still overrides it (PLAYER_BASE=HEAD compares with the last
+// commit, to see what uncommitted work has changed).
+//
+// THE BASE IS THE PAGE AS A WHOLE, not its script alone: player.html,
+// player.js and style.css come from the same place together.  Its script
+// dropped into today's page met a page that had lost an element it still set
+// (the draft badge, #draft), threw in its boot, and drew no transcript at all
+// -- the same death as a revision git cannot show.  What the page loads from
+// /lib/ is today's, for both.
+//
+// The base already draws word lines (BASE_KNOWS_WORDS), so a worded chunk is
+// held to it byte for byte too; and because a base is only ever as right as
+// the day it was taken, every worded chunk is ALSO held directly to its own
+// line, whatever the base does: one .wd[data-w] per word of the line, in its
+// order, the text given back (drawnFromLines).
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const dec = new TextDecoder();
@@ -22,8 +50,20 @@ const REG = JSON.parse(await out(Deno.env.get('PARSEH_PYTHON') || 'python3', ['-
   'import json,sys; sys.path.insert(0,"lib"); import languages as L; ' +
   'print(json.dumps({"langs": {c: L.LANGS[c].as_json() for c in ("ja","zh","it")}, ' +
   '"gloss": L.gloss_or_default("en").as_json()}))']));
-const BASE_PLAYER = await out('git', ['show', (Deno.env.get('PLAYER_BASE') || '7a02e64') + ':youtube/lib/player.js']);
+const BASE_REV = Deno.env.get('PLAYER_BASE') || '';
+const BASE_DIR = 'tests/fixtures/player_base/';
+const BASE = {};
+for (const f of ['player.html', 'player.js', 'style.css'])
+  BASE['/youtube/lib/' + f] = BASE_REV ? await out('git', ['show', BASE_REV + ':youtube/lib/' + f])
+                                       : await Deno.readTextFile(BASE_DIR + f);
+console.log('the base: ' + (BASE_REV ? 'git revision ' + BASE_REV : BASE_DIR));
 const PAGE = await Deno.readTextFile('youtube/lib/player.html');
+// A base that already draws word lines (the vendored one does: the player
+// before words went with its commit) is not a player "before words", so a
+// worded chunk cannot be told apart from it -- there it is held to it byte
+// for byte instead, like every other chunk (sameAsBefore), and to its own
+// line directly (drawnFromLines).
+const BASE_KNOWS_WORDS = BASE['/youtube/lib/player.js'].includes('words-bad');
 
 const FIX = {
   ja: {id:'aB3dE5fG7hI', dir:'tests/fixtures/videos/japanese/aB3dE5fG7hI'},
@@ -103,7 +143,8 @@ async function open(lang, storage = {}, {build = 'mine', available = true} = {})
   page.on('pageerror', e => { errors.push(lang + ' ' + build + ': ' + e.message); console.log('PAGE ERROR', lang, build, e.message); });
   const cfg = {id:FIX[lang].id, ann:'/fixture/' + lang + '/annotations.json', lang:REG.langs[lang],
                gloss:REG.gloss, local:true, notes:'', editable:{}};
-  const html = PAGE.replace('__YTFRANK__', JSON.stringify(cfg)).replaceAll('__BASE__', '/youtube')
+  const html = (build === 'base' ? BASE['/youtube/lib/player.html'] : PAGE)
+    .replace('__YTFRANK__', JSON.stringify(cfg)).replaceAll('__BASE__', '/youtube')
     .replaceAll('__LANG__', lang).replaceAll('__LANG_DIR__', 'ltr');
   await page.route('**/*', async route => {
     const req = route.request(), url = new URL(req.url()), p = url.pathname;
@@ -114,7 +155,8 @@ async function open(lang, storage = {}, {build = 'mine', available = true} = {})
     if (p === cfg.ann) return json(ann);
     if (p === cfg.ann.replace('annotations.json', 'video.json'))
       return route.fulfill({body:await Deno.readTextFile(FIX[lang].dir + '/video.json'), contentType:'application/json'});
-    if (p === '/youtube/lib/player.js' && build === 'base') return route.fulfill({body:BASE_PLAYER, contentType:'text/javascript'});
+    if (build === 'base' && (p === '/youtube/lib/player.js' || p === '/youtube/lib/style.css'))
+      return route.fulfill({body:BASE[p], contentType:p.endsWith('.js') ? 'text/javascript' : 'text/css'});
     if (p === '/lib/wordline.js')
       return route.fulfill({body:(await Deno.readTextFile('lib/wordline.js')) + ALOUD, contentType:'text/javascript'});
     if (p === '/anki/decks') return json([]);
@@ -221,8 +263,41 @@ const card = (page, sel) => page.evaluate(sel => {
   return got;
 }, sel);
 
+// ---- a chunk WITH words is drawn from its own line ----
+// Held to the line itself, not to the base: whatever the base draws, a chunk
+// carrying a line that gives its text back is drawn one .wd per word of that
+// line, each a child of the phrase, named by the word as the line writes it
+// (data-w) and numbered in the line's order (data-k), the chunk's own text
+// given back between them -- and one whose line does not give it back is
+// drawn as a chunk without one, and says so (words-bad), with no word named.
+async function drawnFromLines(lang, mine) {
+  const got = await mine.page.evaluate(() => [...document.querySelectorAll('#segs .seg')].map(seg =>
+    [...seg.querySelectorAll('.fa > .w')].map(w => ({
+      j:+w.dataset.j, bad:w.classList.contains('words-bad'), named:w.querySelectorAll('[data-w]').length,
+      kids:[...w.children].map(el => [el.className, el.dataset.w ?? null, el.dataset.k ?? null]),
+      text:Parseh.baseText(w)}))));
+  let worded = 0, bad = 0;
+  mine.ann.segments.forEach((sg, s) => (sg.chunks || []).forEach((ch, j) => {
+    if (!('words' in ch)) return;
+    const w = got[s].find(x => x.j === j), at = `${lang}: caption ${s} phrase ${j}`;
+    ok(w, `${at}, with words, is drawn as a phrase`);
+    if (!gives(ch.words, ch.fa)) {
+      eq([w.bad, w.named, w.text], [true, 0, ch.fa], `${at}, a line that does not give its text back: the text, marked words-bad, no word named`);
+      bad++;
+      return;
+    }
+    eq([w.bad, w.kids], [false, ch.words.trim().split(/\s+/).map((t, k) => ['wd', t, String(k)])],
+       `${at} is drawn from its line: one .wd[data-w] per word, in the line's order`);
+    eq(w.text, ch.fa, `${at}: its words give its text back`);
+    worded++;
+  }));
+  ok(worded >= 3, `${lang}: enough chunks drawn from their lines (${worded})`);
+  return {worded, bad};
+}
+
 // ---- a chunk without words is the chunk it was ----
 async function sameAsBefore(lang, base, mine, clouds) {
+  await drawnFromLines(lang, mine);
   const was = await drawn(base.page), now = await drawn(mine.page);
   eq(now.length, was.length, lang + ': every caption drawn');
   let whole = 0, plain = 0;
@@ -233,6 +308,8 @@ async function sameAsBefore(lang, base, mine, clouds) {
     seg.els.forEach((el, k) => {
       const got = now[s].els[k], ch = el.j === null ? null : chunks[+el.j];
       if (!ch || !('words' in ch)) { eq(got.outer, el.outer, `${lang}: caption ${s} phrase ${el.j}, without words, byte for byte`); plain++; }
+      else if (BASE_KNOWS_WORDS)
+        eq(got.outer, el.outer, `${lang}: caption ${s} phrase ${el.j}, with words, drawn as the committed player draws it`);
       else if (!gives(ch.words, ch.fa))
         eq([got.cls, got.html], [el.cls + ' words-bad', el.html], `${lang}: caption ${s} phrase ${el.j}, a line that does not give its text back, drawn as before`);
       else ok(got.html !== el.html && /<span class="wd" data-w="/.test(got.html), `${lang}: caption ${s} phrase ${el.j} is drawn from its line`);

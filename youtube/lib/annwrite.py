@@ -27,9 +27,12 @@ Three rules, and the reasons they are rules:
   * VALIDATE FIRST.  The edit goes through check_annotations before
     anything is written, and is refused -- in the checker's own words --
     if it INTRODUCES an error the file does not already have.
-    Introduces, not has: a video being written from nothing is missing
-    half its glosses by definition, and an editor that refuses to work
-    until the video is finished cannot be how the video gets finished.
+    Introduces, not has: a video is glossed a box at a time, so in the
+    middle of the work it is half glossed by definition, and an editor
+    that refuses to work until the video is finished cannot be how the
+    video gets finished.  So a chunk left half glossed is not this door's error
+    (_errors); what it refuses instead is the one step backwards a hand
+    can take, emptying a box a finished gloss needs (_emptied).
 
   * WRITE ATOMICALLY.  A temp file beside it, then a rename, so that a
     crash or a full disk cannot leave a video holding half a JSON file --
@@ -59,7 +62,7 @@ import chunkdiv                                            # noqa: E402
 import wordline                                            # noqa: E402
 from check_annotations import (CHUNK_FIELDS, COLOURS,      # noqa: E402,F401
                                check_segments, departs, parse_transcript,
-                               video_language)
+                               required, unwritten, video_language)
 
 # The fields the player may set.  Not every field a chunk can carry:
 # "plain" and "note" belong to whoever authored the video, have no box in
@@ -280,7 +283,7 @@ def _set(ch, key, value):
     ch.update(items)
 
 
-def _errors(ann, L, draft=False, captions=None):
+def _errors(ann, L, captions=None):
     """Every error check_annotations finds in these segments, as a list.
 
     The whole file and not merely the segment being edited, so that each
@@ -295,10 +298,21 @@ def _errors(ann, L, draft=False, captions=None):
     caption is held to the transcript, and taking it off a caption whose
     text has departed must be refused, and refused in the checker's own
     words, or the file would go back under a rule it no longer keeps.
+
+    A chunk HALF GLOSSED -- the meaning typed, the transliteration not yet
+    -- is not an error here: the checker's `half` messages are dropped.
+    Every door that writes through this one leaves it so on purpose: the
+    ✎ form fills a chunk a box at a time, a cut hands the second half a
+    meaning nobody has typed yet, a hand editing the file does the same,
+    and a caption moved (captimes) changes no chunk at all.  A chunk
+    nobody has glossed yet is no error anywhere.  What a hand must not do
+    -- empty a box a finished gloss needs -- edit_chunk refuses by its own
+    rule (_emptied), and the checker still lists every half-glossed chunk
+    on the command line.
     """
     errors = []
     check_segments(ann["segments"], captions, errors.append, lambda w: None,
-                   L, draft)
+                   L, half=lambda m: None)
     return errors
 
 
@@ -307,6 +321,54 @@ def _transcript(video_dir, L):
     has none yet (a draft being written from nothing)."""
     tpath = os.path.join(video_dir, "transcript.txt")
     return parse_transcript(tpath, L) if os.path.exists(tpath) else None
+
+
+# The way out of the refusal below, said in the words the book reader's chunk
+# sheet uses for the same rule (lib/texwrite.py), since the two sheets carry
+# the same button.
+_DELETE = ("empty every box of the gloss (\"delete gloss\") to take the "
+           "whole gloss off")
+
+
+def _emptied(old, ch, L, where):
+    """Refuse an edit that EMPTIES a box a finished gloss needs.
+
+    A chunk nobody has glossed yet is legal everywhere, and so is one being
+    filled in a box at a time: an edit that writes an en beside a blank tr
+    is saved, and the checker lists what the chunk still lacks.  What is
+    refused is emptying a field the language requires (check_annotations.
+    required: en always, tr where the language romanises every chunk, kana
+    where it has a reading) that held something before this edit, because
+    that turns a finished gloss into a half-finished one -- UNLESS the
+    edit leaves the whole chunk unglossed (check_annotations.unwritten,
+    which does not count a reading still exactly as the word line proposed
+    it, nor a kana at all in a language with no reading): emptying every
+    box at once is how a gloss is deleted, and the chunk goes back to being
+    one nobody has started, its text, word line, colour, note and
+    transcript mark kept.  So in Chinese or Persian, emptying tr, voc and
+    en is a delete even where an LLM's answer left a stray kana beside
+    them -- the boxes the player shows are every box of the gloss there,
+    and the kana, which nothing reads, is left as it is (the checker warns
+    of it) unless the page sends it emptied too.  A field sent blank that was
+    already blank changes nothing and is never refused, and voc may always
+    be emptied -- no language requires it.
+
+    `old` is the chunk as it was, `ch` as the edit leaves it.  The book
+    reader's chunk sheet keeps the same rule (texwrite._check_required).
+    """
+    if unwritten(ch, L):
+        return
+    why = {"en": "a glossed phrase needs its meaning -- check_annotations.py "
+                 "calls an empty en an error",
+           "tr": "%s romanises every phrase, so tr cannot be emptied on its "
+                 "own" % L.name,
+           "kana": "%s needs the reading of every phrase, so kana cannot be "
+                   "emptied on its own" % L.name}
+    for f in required(ch, L):
+        was, now = old.get(f), ch.get(f)
+        if (isinstance(was, str) and was.strip()
+                and not (isinstance(now, str) and now.strip())):
+            raise ValueError("%s: %s; %s" % (where, why[f], _DELETE))
 
 
 def _introduced(before, after):
@@ -355,6 +417,19 @@ def edit_chunk(video_dir, seg, chunk, fields):
     edit that leaves the line behind is refused by check_chunk as well: send
     the two together.
 
+    The gloss is filled a box at a time -- an en typed beside a blank tr is
+    saved -- and taken off whole: sending tr, voc, en and kana all empty
+    ("delete gloss") leaves the chunk as one nobody has glossed yet, its
+    fa, word line, colour, note and transcript mark untouched.  What is
+    refused is emptying ONE box a finished gloss needs while the rest stays
+    (_emptied says why, and the refusal says how to delete instead).
+
+    A word line edited on a chunk nobody has glossed yet takes its proposed
+    reading with it: the reading lib/draft.py proposed from the old line is
+    proposed again from the new one (and goes when the line is taken off),
+    so the chunk stays blank -- unless the edit sends that reading too,
+    which is then the person's.
+
     A refused edit writes nothing at all: the file is byte for byte as it
     was, and the caller has the checker's message to show.
     """
@@ -387,8 +462,31 @@ def edit_chunk(video_dir, seg, chunk, fields):
     caps = _transcript(video_dir, L) if "free" in clean else None
     before = _errors(ann, L, captions=caps)
     was_free = departs(sg)
+    old = dict(ch)
+    # A WORD LINE EDITED UNDER A PROPOSED READING.  A chunk nobody has
+    # glossed yet may carry the reading lib/draft.py proposed from its line
+    # (kana where the language has a reading, tr where it has not; unwritten
+    # does not count it).  An edit that sends only "words" -- a boundary
+    # moved, a reading corrected in the line -- would leave that OLD reading
+    # beside the NEW line, where it is no longer the line's proposal: the
+    # chunk would read as written though nobody wrote a gloss ("missing 'en'"
+    # from the checker, "delete gloss" offered, the region fill passing it
+    # over).  So the reading is proposed again from the new line, as _split
+    # and _join already propose it for each chunk they make (_unseeded,
+    # _seeded), and a line taken off takes the proposal with it: the chunk
+    # stays blank.  Only when the edit does not send the reading itself (one
+    # typed in the same edit is the person's), and only on a chunk that was
+    # blank with its reading still the old line's proposal.  lib/texwrite.py
+    # does the same for the books.
+    if "words" in clean:
+        _bare, seed_field = _unseeded(old, L)
+        if seed_field and seed_field not in clean:
+            proposed = _seeded(dict(old, words=clean["words"]), seed_field, L)
+            clean[seed_field] = proposed.get(seed_field, "")
     for k, v in clean.items():
         _set(ch, k, v)
+    _emptied(old, ch, L, "segment %d (start %s) chunk %d"
+             % (seg, sg.get("start"), chunk))
     # a caption that departs from the transcript is its chunks' own: the
     # text follows them, and the checker no longer holds it to what YouTube
     # heard.  One that does not depart keeps transcript.txt's text, so an fa
@@ -445,10 +543,6 @@ def _keep_blanks(new, old):
     return new
 
 
-def _draft(meta):
-    return bool(meta.get("draft"))
-
-
 # the two keys that are flags and not text: `plain` says what KIND of chunk
 # this is, "free" what its caption's text is held against.  Neither is
 # something chunkdiv divides, and neither is text
@@ -476,17 +570,70 @@ def _typed(chunks, seg):
                                  % (seg, j, k, type(v).__name__))
 
 
+def _unseeded(ch, L):
+    """(the chunk as chunkdiv should cut or join it, the field its reading was
+    taken out of -- None when nothing was).
+
+    An unglossed chunk of a language divided into words may carry the
+    reading lib/draft.py proposed from its word line (check_annotations.
+    unwritten does not count it as anybody's writing).  chunkdiv cannot
+    divide that reading: a romanisation it cannot count the words of, or a
+    kana that does not open with the first half's own text, goes whole to
+    the first half -- which then reads as written, a chunk half glossed by a
+    cut, while the second reads as blank.  So the reading comes off before
+    chunkdiv sees the chunk and is proposed again from each new chunk's own
+    line afterwards (_seeded): a blank chunk divides into two blank halves,
+    and two blank chunks join into one blank chunk.  lib/texwrite.py does
+    the same for the books."""
+    field, seeded = wordline.seed(ch, L)
+    if field and seeded and isinstance(ch.get(field), str) \
+            and ch[field].strip() and unwritten(ch, L):
+        return {k: v for k, v in ch.items() if k != field}, field
+    return ch, None
+
+
+def _seeded(ch, field, L):
+    """`ch` with the reading in `field` proposed from its own word line, as
+    lib/draft.py proposes one, or with none when the chunk has no line to
+    read (a join drops a line only one side had) -- a chunk unwritten()
+    calls blank either way.  `ch` unchanged when `field` is None."""
+    if field is None:
+        return ch
+    out = {k: v for k, v in ch.items() if k != field}
+    _field, reading = wordline.seed(out, L)
+    if reading:
+        out[field] = reading
+    return _order(out)
+
+
 def _split(ch, at, L, seg, i):
     """chunkdiv.split, with a word line that cannot be read refused by the
     chunk's address.  chunkdiv reads the line to find where its words end, so
     an unreadable one stops the division; the grammar's own sentence says
     what is wrong but not where, which on a page of captions is the half the
-    reader needs.  The line is mended with an edit of "words" first."""
+    reader needs.  The line is mended with an edit of "words" first.  A
+    blank chunk's proposed reading is proposed again for each half
+    (_unseeded)."""
+    bare, field = _unseeded(ch, L)
     try:
-        return chunkdiv.split(ch, at, L, chunkdiv.PLAIN)
+        a, b, why = chunkdiv.split(bare, at, L, chunkdiv.PLAIN)
     except wordline.WordsError as e:
         raise ValueError("segment %d chunk %d: its words cannot be divided "
                          "until the line is mended -- %s" % (seg, i, e))
+    return _seeded(a, field, L), _seeded(b, field, L), why
+
+
+def _join(a, b, L):
+    """chunkdiv.merge of two chunks, (chunk, notes) -- with the proposed
+    reading of a pair nobody has glossed yet proposed again for the chunk
+    they become (_unseeded says why).  A pair with anything written in
+    either is joined as it stands."""
+    ba, fa_ = _unseeded(a, L)
+    bb, fb_ = _unseeded(b, L)
+    if (fa_ or fb_) and unwritten(a, L) and unwritten(b, L):
+        one, notes = chunkdiv.merge(ba, bb, L, chunkdiv.PLAIN)
+        return _seeded(one, fa_ or fb_, L), notes
+    return chunkdiv.merge(a, b, L, chunkdiv.PLAIN)
 
 
 def _asked(side, name):
@@ -553,19 +700,18 @@ def _divide(video_dir, seg, fn, what):
     without the captions (as it is for an edit) precisely because they cannot
     change.
 
-    The checker is called with video.json's draft flag on BOTH sides, which
-    an edit deliberately does not do (check_annotations.check_segments says
-    why).  The reason it must here is the opposite of the reason it must not
-    there: dividing an unwritten chunk makes two unwritten chunks, and under
-    the strict rule that is one more copy of every complaint the first one
-    already drew -- so a draft, which is the state re-chunking is most wanted
-    in, could never be re-chunked at all.  A half-written chunk is caught on
-    both sides either way.
+    What comes out may be glossed, unglossed or half glossed, whatever went
+    in: cutting a chunk nobody has glossed makes two of them, which is
+    legal everywhere, and cutting a finished one hands the second half a
+    meaning nobody has typed yet unless the sheet's boxes are filled -- the
+    middle of the work, which _errors does not count, so re-chunking is
+    never held up by a gloss that is still to come.  Everything else the
+    checker says is weighed here exactly as for an edit: the texts still
+    reproducing their caption, the word lines, the colours, the types.
     """
     ann = read(video_dir)
     meta = _meta(video_dir)
     L = video_language(video_dir, meta, ann)
-    draft = _draft(meta)
     segs = ann["segments"]
     sg = segs[_index(seg, len(segs), "segment")]
     if isinstance(sg, dict) and sg.get("plain"):
@@ -574,7 +720,7 @@ def _divide(video_dir, seg, fn, what):
     chunks = sg.get("chunks") if isinstance(sg, dict) else None
     if not isinstance(chunks, list) or not chunks:
         raise ValueError("segment %d carries no chunks" % seg)
-    before = _errors(ann, L, draft)
+    before = _errors(ann, L)
     made = fn(list(chunks), L)
     if not made:
         raise ValueError("a caption cannot be left with no chunks")
@@ -582,7 +728,7 @@ def _divide(video_dir, seg, fn, what):
     # blurred to compare, plain to report: the numbers are what makes a
     # renumbered old complaint look new, and they are also the only way
     # somebody reading the refusal finds the chunk it is about
-    after = _errors(ann, L, draft)
+    after = _errors(ann, L)
     left, new = list(_blur(before, seg)), []
     for real, blurred in zip(after, _blur(after, seg)):
         if blurred in left:
@@ -620,7 +766,7 @@ def merge_chunks(video_dir, seg, chunk, fields=None):
         if not isinstance(a, dict) or not isinstance(b, dict):
             raise ValueError("segment %d chunk %d is not an object" % (seg, i))
         _typed([a, b], seg)
-        one, why = chunkdiv.merge(a, b, L, chunkdiv.PLAIN)
+        one, why = _join(a, b, L)
         notes.extend(why)
         asked = _asked(fields, "joined") if fields is not None else None
         return chunks[:i] + [_settle(one, asked, a)] + chunks[i + 2:]
@@ -701,7 +847,7 @@ def divide_preview(video_dir, seg, chunk):
     ch = chunks[i]
     out = {"segment": seg, "index": i, "chunk": ch, "cuts": [], "next": None,
            "merge": None, "merge_error": None,
-           "voc_sep": chunkdiv.VOC_SEP[chunkdiv.PLAIN], "draft": _draft(meta),
+           "voc_sep": chunkdiv.VOC_SEP[chunkdiv.PLAIN],
            "pieces": chunkdiv.pieces(ch.get("fa") or "", L)}
     for c in chunkdiv.cuts(ch.get("fa") or "", L):
         a, b, notes = _split(ch, c["at"], L, seg, i)
@@ -718,7 +864,7 @@ def divide_preview(video_dir, seg, chunk):
             out["merge_error"] = "the chunk after this one is not an object"
         else:
             try:
-                one, notes = chunkdiv.merge(ch, nxt, L, chunkdiv.PLAIN)
+                one, notes = _join(ch, nxt, L)
                 out["merge"] = {"fields": _order(one), "notes": notes,
                                 "words": len(L.split_words(one.get("fa") or ""))}
             except ValueError as e:

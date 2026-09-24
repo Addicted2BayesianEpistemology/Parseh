@@ -580,6 +580,25 @@ def is_target_line(text):
         return True                          # every word of it is marked
     return is_fa_only_paragraph(bare)
 
+# A WORD, IN WHATEVER SCRIPT IT IS WRITTEN.  This was `[A-Za-zÀ-ÿ]`, which
+# stops at Latin-1: ✗ tinted `çok` but gave up at Turkish ş, ğ and ı, and
+# every Greek, Cyrillic, Devanagari and Arabic word lost the red after its
+# first letter -- while the library card's word count missed those words
+# altogether.  `[^\W\d_]` is every letter Unicode has.  The characters
+# beside it are the ones that belong INSIDE a word without being letters,
+# and would otherwise end it in the middle: the combining marks of the
+# scripts the registry carries (Arabic harakat, Devanagari matras, the
+# Latin, Greek and Cyrillic diacritics, the Japanese voicing marks) and the
+# zero-width non-joiner Persian writes between the parts of one word.
+WORD_MARKS = ("̀-ͯ҃-҉֑-ׇؐ-ؚ"
+              "ً-ٰٟۖ-ܑۭܰ-݊"
+              "ऀ-ःऺ-ॏ॑-ॗॢॣ"
+              "ัิ-ฺ็-๎‌‍゙゚")
+# what ✗ tints: one word, apostrophes and hyphens and all (`✗can't`, `✗ad-hoc`)
+UNGRAM_WORD = r"(?:[^\W\d_]|['’\-%s])+" % WORD_MARKS
+# what is counted as a word of the prose: two letters or more
+PROSE_WORD_RE = re.compile(r"(?:[^\W\d_]|[%s]){2,}" % WORD_MARKS)
+
 # `✗[…]{teal}`, `✗[…]{translit:…}`, `✗[…]{tl}`: a mark straight after ✗.
 # The ungrammatical red cannot be overridden, so the colour and the
 # annotations go; what the run becomes is per script (see inline()).
@@ -1397,7 +1416,7 @@ def inline(text, force_breakable=False):
         store[idx] = "\x02" + store[idx]
         return m.group(1)
     text = re.sub(r"✗(\x00\d+\x00)", _ungram_run, text)
-    text = re.sub(r"✗([A-Za-zÀ-ÿ'’\-]+)", r"\\ungram{\1}", text)
+    text = re.sub(r"✗(%s)" % UNGRAM_WORD, r"\\ungram{\1}", text)
     text = text.replace("✗", r"\ungramX{}")
     text = text.replace("✅", r"\okmark{}")
 

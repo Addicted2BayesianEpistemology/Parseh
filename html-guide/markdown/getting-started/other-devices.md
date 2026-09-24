@@ -2,7 +2,7 @@
 title: From a phone or another computer
 linkTitle: From a phone
 weight: 4
-description: The addresses Parseh can be reached at, why it speaks HTTPS, and the certificate every browser asks you about once.
+description: Who may reach Parseh and how to let a phone in, the addresses, the port, why it speaks HTTPS, and the certificate.
 ---
 
 Parseh runs on one computer, but it is a web server: a phone, a tablet or
@@ -10,21 +10,72 @@ a laptop that can reach that computer can use it too — read a book on the
 sofa while the narration plays, study a deck on the train. Nothing needs
 installing on the phone; a browser is all it takes.
 
+**But not every device may.** A fresh Parseh answers *this computer and a
+VPN*, and nothing else; the Wi-Fi door is shut until you open it, and a
+device on the Wi-Fi is then let in once, by hand. Everything on this page is
+set on one page of Parseh's own: **Settings → Network**, from the hub's
+**⚙ Settings** door.
+
+## Who may reach Parseh
+
+| The door | What it lets in | On a fresh install |
+|---|---|---|
+| **This computer** | the computer Parseh runs on, and only it | always open, and nothing is ever asked of it |
+| **A VPN** | your own devices on Tailscale, and anything else you name | **open** — and no code is asked for |
+| **The Wi-Fi** | every device on the same network as the computer | **shut** |
+
+With the two doors shut Parseh does not listen on the network at all: it is
+not that it turns devices away, it is that there is nothing there to knock
+at. That is what **this computer only** means here.
+
+**Changing a door takes effect at once.** Save, and Parseh moves to its new
+address by itself — no restart, no window to close — and the page you saved
+from follows it there.
+
+**Only the computer may change this.** A phone can open the page and read
+it, with every control greyed out and a line saying why; the doors are opened
+from the side they protect.
+
+## Letting a phone in
+
+With the Wi-Fi door open, a device on the Wi-Fi that opens Parseh gets one
+page: *this device has not been let in*, a box, and a button. On the
+computer, **Settings → Network** shows a short code —
+
+```text
+  KP4-R7M
+```
+
+— which is also printed in Parseh's window when it starts. Type it on the
+phone, press **Let this device in**, and Parseh opens. That phone is
+remembered for good; it is never asked again.
+
+- a code is good for **fifteen minutes**, and the page shows a fresh one
+  after that. **Make a fresh code** makes one on the spot, and the old one
+  stops working;
+- a code lets **one** device in;
+- eight wrong tries and Parseh throws the code away — ask for another;
+- a device on a VPN is never asked for one, and the computer itself never is.
+
+Every device that has been let in is listed on the page, named as it names
+itself ("Android phone · Chrome"), each with **Forget this device**; there is
+a **Forget every device** beside them.
+
 ## Which address
 
 When Parseh starts it prints every address it can be reached at, and the
 hub says the same at its foot, under **Reachable at**:
 
 ```text
-  https://100.101.102.103:8765/              (tailscale)
-  https://192.168.1.20:8765/                 (local network)
-  https://localhost:8765/                    (this machine)
+  https://100.101.102.103:7654/              (tailscale)
+  https://192.168.1.20:7654/                 (local network)
+  https://localhost:7654/                    (this machine)
 ```
 
 | Address | Who can use it |
 |---|---|
-| **tailscale** — one starting with `100.` | any of your own devices on your Tailscale network, wherever they are |
-| **local network** | a device on the same Wi-Fi or network as the computer |
+| **tailscale** — one starting with `100.` | any of your own devices on your Tailscale network, wherever they are — with the VPN door open |
+| **local network** | a device on the same Wi-Fi or network as the computer — with the Wi-Fi door open, and once that device has been let in |
 | **localhost** | only the computer Parseh runs on |
 
 The list is what Parseh can find by the computer's own name, and on some
@@ -44,10 +95,80 @@ On a phone, open the address in the browser and bookmark it. The hub's
 [mobile interface](mobile-mode.md), made for reading on a phone, is one
 tap away on its **Browser | Mobile** switch.
 
-The server listens on every network the computer is connected to, so any
-device that can reach the computer can reach Parseh. On Windows the
-firewall asks, the first time, whether Python may accept connections:
-allow it, or only the computer itself can reach Parseh.
+With a door open, Parseh listens on every network the computer is connected
+to and decides who may speak to it one connection at a time. On Windows the
+firewall asks, the first time, whether Python may accept connections: allow
+it, or only the computer itself can reach Parseh whatever the doors say.
+
+### A VPN that is not Tailscale
+
+Tailscale needs nothing at all. For any other private network — WireGuard, a
+company's, your router's — put its addresses in **Other networks that count
+as a VPN**, one per line:
+
+- an **address range**, as `10.8.0.0/24`: the range the VPN gives its
+  clients, not the range of your Wi-Fi;
+- or a **name**, as `laptop.example.ts.net`, which Parseh looks up again
+  every few minutes.
+
+A device at one of these is let in without a code, as a Tailscale device is.
+A name this computer cannot look up is refused as you type it, since Parseh
+could never tell whether a device is it.
+
+## A phone on Tailscale that cannot reach the internet
+
+Parseh works over Tailscale and so do its books, its decks and its notes —
+they all live on your own computer. **A YouTube video is the exception**: it
+comes from YouTube, and for that the phone needs the ordinary internet as
+well as the tailnet. A phone can be in a state where the tailnet works and
+the open internet does not, and then the player says so: *YouTube's player
+could not be fetched — Parseh itself is answering, so it is YouTube this
+phone cannot reach.*
+
+It is almost always **DNS**. Tailscale carries the names inside your tailnet
+(`MagicDNS`), and hands every other name to whatever resolver the phone would
+otherwise use — which, on Android, it often cannot reach from inside the
+tunnel, especially when the phone has **Private DNS** switched on. The
+computer does not show it because it resolves public names with its own
+network's servers, which it *can* reach.
+
+**How to tell**: open `https://www.youtube.com/iframe_api` in the phone's
+browser with Tailscale on. *ERR_NAME_NOT_RESOLVED* is this; a timeout is
+something else (a subnet route, or an exit node that is down).
+
+**Three ways to mend it, best first.**
+
+1. **Give the tailnet a resolver of its own.** In the Tailscale admin console
+   → **DNS** → *Global nameservers*, add one (`1.1.1.1`, `9.9.9.9`, whichever
+   you trust) and turn **Override local DNS** on. Every device then resolves
+   public names through something it can reach inside the tunnel. One change,
+   no device to touch, and **MagicDNS keeps working** — which matters if you
+   installed Parseh's app from a `.ts.net` address.
+2. **Turn Android's Private DNS off.** *Settings → Network & internet →
+   Private DNS → Off* (or *Automatic*). Then try the link again with
+   Tailscale on.
+3. **Turn Tailscale's own DNS off on the phone.** In the Tailscale app:
+   *Settings → Use Tailscale DNS* → off. It is the quickest, and it has a
+   price: the phone stops resolving `.ts.net` names, so **if you installed
+   Parseh's app from `https://<machine>.<tailnet>.ts.net:7654` the app will
+   no longer open**. Do this only if you reach Parseh by its `100.x.y.z`
+   address, which the certificate covers as well.
+
+None of this is Parseh's to set, and Parseh cannot see it: from inside the
+app, a phone that answers Parseh looks online in every way that matters
+until something asks the open internet for something.
+
+## The port
+
+Parseh answers on port **7654**, and **Settings → Network** moves it. Two
+things to know before you do:
+
+- **every address changes.** A bookmark on a phone stops working until it is
+  made again, and the mobile interface [installed as an
+  app](mobile-mode.md) has to be installed again from its new address;
+- Parseh **left 8765** because that is also the port Anki's AnkiConnect
+  add-on uses: with both running, one of them could not start. If something
+  else holds the port you pick, Parseh says so and nothing is changed.
 
 ## Why HTTPS
 
@@ -85,32 +206,32 @@ every address the computer has at that moment: `localhost`, its name, its
 local addresses, its Tailscale address and name. It keeps it in `.tls/` in
 the Parseh folder.
 
-It is **self-signed**: nobody but Parseh vouches for it, so **every browser
-warns you about it once**, on each device. The warning page always has a
-way through — in Chrome **Advanced**, then **Proceed** — and once you have
-accepted it that browser does not ask again. This is the whole ceremony:
-it is your own server on your own network, and nobody else is being asked
-to trust it.
+Nobody outside this computer vouches for it, so **every browser warns you
+about it once**, on each device. The warning page always has a way through —
+in Chrome **Advanced**, then **Proceed** — and once you have accepted it that
+browser does not ask again. This is the whole ceremony: it is your own server
+on your own network, and nobody else is being asked to trust it. A phone can
+skip the ceremony altogether by trusting Parseh's own authority once, from
+the mobile hub's [**As an app**](mobile-mode.md) page.
 
 **When the computer's addresses change** — another network, or Tailscale
-installed afterwards — the certificate does not name the new ones, and a
-browser reaching Parseh by one of them warns again. No page has a button
-for a fresh certificate; Parseh makes one as it starts whenever it finds
-none, so:
+installed afterwards — the certificate does not name the new ones. Parseh
+notices that as it starts and makes a fresh one by itself, for every name and
+address the computer has now. A phone that trusts the authority notices
+nothing at all; a browser that accepted the old certificate by hand asks once
+more.
 
-1. stop Parseh with **⏻ stop**;
-2. delete the folder `.tls` in the Parseh folder — on Linux and macOS a
-   name that begins with a dot is hidden, so first show hidden files in
-   the file manager (Ctrl+H in most Linux file managers, ⌘⇧. in the
-   Finder);
-3. start Parseh again, the way you always do: it makes a new certificate,
-   for every name and address the computer has now.
+### Use my own certificate
 
-Every browser then warns once more, about the new certificate.
+If you already have a certificate for this computer — from Tailscale, from
+Let's Encrypt, from a company's authority — **Settings → Network** takes the
+two files and Parseh serves with them instead. It reads them and **never
+writes to either**: renewing it stays yours to do. Leave both boxes empty to
+go back to Parseh's own.
 
 > **For the command line.** `./serve.sh cert`, then `./serve.sh restart`,
-> does the same on Linux and macOS. On Windows, `serve.bat cert` makes the
-> new certificate; then stop Parseh and start it again.
+> makes a fresh certificate on Linux and macOS. On Windows, `serve.bat cert`
+> makes it; then stop Parseh and start it again.
 
 ## Plain http
 
@@ -136,10 +257,14 @@ a computer serving without it.
 
 ## Keeping it to one computer
 
-> **For the command line.** `./serve.sh` always listens on every network.
-> To keep Parseh to the computer it runs on, start it in the foreground
-> with `python3 serve.py --local`; to listen on one address only — the
-> Tailscale one, say — use `python3 serve.py --host 100.101.102.103`.
+Shut both doors on **Settings → Network** and save. Parseh stops listening on
+the network there and then: it binds the computer itself and nothing else, so
+there is no address for a phone to fail at. Open a door again the same way.
+
+> **For the command line.** `python3 serve.py --local` does it for one run,
+> without touching what the page keeps; `python3 serve.py --host
+> 100.101.102.103` binds one address only. A run started with either stays on
+> it: saving the page then keeps the setting for next time and says so.
 
 ## Each device keeps its own settings
 

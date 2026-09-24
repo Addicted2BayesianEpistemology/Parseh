@@ -1,4 +1,26 @@
 # runtime
+# what this person has settled -- the reading place per book, the narration
+# settings and the theme (lib/prefs.py, TO-DO §4.9): this machine's, not the
+# software's, and not any book's either (it is not in bundle.SHAPE)
+config/prefs.json
+config/prefs.json.tmp
+# who may reach THIS computer's Parseh, on which port, with which certificate,
+# and the tokens of the devices let in (lib/network.py, TO-DO §1.1, §3.3): the
+# same kind of thing, and the tokens are as good as keys
+config/network.json
+config/network.json.tmp
+# what a file's bytes hash to, so that asking what a thing is made of does not
+# read the whole shelf twice (lib/offline.py): derived data keyed by absolute
+# path, true of this machine's disk alone and rebuilt whenever it is missing
+config/digests.json
+config/digests.json.tmp
+config/digests.json.*.tmp
+# and which chapters a recording covers, worked out of the book's own .tex
+# and remembered against its mtimes (lib/offline.py, _wheres): the same
+# kind of derived, machine-local thing
+config/wheres.json
+config/wheres.json.tmp
+config/wheres.json.*.tmp
 serve.log
 .serve.pid
 .setup-done

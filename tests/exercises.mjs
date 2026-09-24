@@ -75,13 +75,17 @@ const rendered = async preview => (await renderedDoc(preview)).html;
 const browser = await chromium.launch({executablePath:Deno.env.get('CHROME_BIN'),headless:true});
 const appScript = (await Deno.readTextFile(root+'/markdown/app/static/app.js'))
   .replace('__FOLD__', '(s => String(s).toLowerCase())');
-const appCss = await Deno.readTextFile(root+'/markdown/app/static/app.css');
+// the studio's sheet and its chrome: /static/app.css answers with both, and
+// since the split (2026-09-23) the disk holds them apart -- an exercise drawn
+// with the chrome alone has none of the rules that lay a document out
+const appCss = (await Deno.readTextFile(root+'/markdown/app/static/sheet.css'))
+  + '\n' + (await Deno.readTextFile(root+'/markdown/app/static/app.css'));
 const langsCss = await Deno.readTextFile(root+'/lib/langs.css');
 try {
   const page = await browser.newPage();
   const errors=[]; page.on('pageerror', e=>errors.push(e.message));
   await page.setContent(`<body data-page="noop"><article id="sheet" class="sheet" data-lang="ar">${await rendered()}</article><div id="modal-root"></div></body>`);
-  await page.addStyleTag({path:root+'/markdown/app/static/app.css'});
+  await page.addStyleTag({content:appCss});
   await page.addStyleTag({path:root+'/lib/langs.css'});
   await page.addScriptTag({content:appScript});
   const result = await page.evaluate(() => {
@@ -226,7 +230,7 @@ prompt: |
   const wrapSource = `---\ntitle: Wrap\ntarget: ar\n---\n\n:::exercise construct-sentence\ncontent-direction: ltr\nprompt: Build it.\n- [1] [الأول]{tl}\n- [2] [الثاني]{tl}\n- [3] [الثالث]{tl}\n- [4] [الرابع]{tl}\n:::`;
   const wrapPage = await browser.newPage();
   await wrapPage.setContent(`<article class="sheet" data-lang="ar">${(await renderedDoc(true, wrapSource)).html}</article>`);
-  await wrapPage.addStyleTag({path:root+'/markdown/app/static/app.css'});
+  await wrapPage.addStyleTag({content:appCss});
   const wrapped = await wrapPage.evaluate(() => {
     const seq = document.querySelector('.ex-sequence-inline');
     seq.style.width = '380px';
@@ -243,7 +247,7 @@ prompt: |
   const translitSource = `---\ntitle: Cards\ntarget: fa\n---\n\n:::exercise flashcard\ncard-type: vocab\ntarget: [کتاب]{tl}\nreading: reading\ntransliteration: ketāb\nmeaning: book\n:::\n\n:::exercise flashcard\ncard-type: opposites\ntarget: گرم\ntransliteration: garm\nopposite: سرد\nopposite-transliteration: sard\n:::\n\n:::exercise flashcard\ncard-type: vocab\ntarget: ماه\nmeaning: moon\n:::`;
   const translitPage = await browser.newPage();
   await translitPage.setContent(`<body data-page="noop"><article id="sheet" class="sheet" data-lang="fa">${(await renderedDoc(false, translitSource)).html}</article></body>`);
-  await translitPage.addStyleTag({path:root+'/markdown/app/static/app.css'});
+  await translitPage.addStyleTag({content:appCss});
   await translitPage.addScriptTag({content:appScript});
   const translitToggle = await translitPage.evaluate(() => {
     bindExercises(document.querySelector('#sheet'));
@@ -275,7 +279,7 @@ prompt: |
   const phoneBody = html => `<body data-page="noop"><article id="sheet" class="sheet" data-lang="ar">${html}</article><div id="modal-root"></div></body>`;
   const seqDoc = await rendered();
   await phone.setContent(phoneBody(seqDoc));
-  await phone.addStyleTag({path:root+'/markdown/app/static/app.css'});
+  await phone.addStyleTag({content:appCss});
   await phone.addScriptTag({content:appScript});
   console.log(await phone.evaluate(() => {
     const assert=(v,m)=>{if(!v)throw Error(m)};

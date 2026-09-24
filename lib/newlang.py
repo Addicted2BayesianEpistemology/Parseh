@@ -1192,9 +1192,11 @@ def add(a):
     print("     lib/lang/fa.tex is the voice.%s" % todo_note)
     print("  2. docs/lang/%s.md  -- the six sections.  They are read by the video prompt"
           % code)
-    print("     (youtube/docs/chat-prompt.md) and the new-book prompt")
-    print("     (docs/new-book-prompt.md), and by nobody else: they are instructions to")
-    print("     an annotator, so write them so.")
+    print("     (youtube/docs/chat-prompt.md), the new-book prompt")
+    print("     (docs/new-book-prompt.md) and the prompt that has an LLM gloss a stretch")
+    print("     of a book or a video (docs/region-prompt.md, through lib/glossregion.py),")
+    print("     each of which embeds them whole: they are instructions to an")
+    print("     annotator, so write them so.")
     print("     Its verb paragraph starts from the row: a \\vb gives %s, then"
           % ", ".join(entry["vb_forms"]))
     print("     the meaning, and prints %s / %s before the second and third (vb_forms,"

@@ -71,17 +71,25 @@
 //      without it; the hub, the shelf, a reader and the decks are installable
 //      as Chromium judges it (the one thing it has against them is the test's
 //      own incognito profile), the worker taking the pages over
-//   b) the install page says this phone trusts Parseh; the hub has its door
+//   a2) the app gets itself ready AFTER it is installed, and says so: the page
+//      asks for the way in by itself, the hub counts the addresses as they
+//      come ("Getting ready — 41 of 46") and says nothing once it is done --
+//      and the studio's faces are on no phone that has only installed the app;
+//      the line stands at the FOOT, so its coming and going moves no door
+//   a3) a note opened is what fetches them, all thirteen
+//   b) the install page says this phone trusts Parseh, and says when the
+//      waiting it asked for is over; the hub has its door
 //   c) the server stopped, a page opened says Parseh cannot be reached
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/mobile_pages.mjs
-//   MOBILE_PARTS=shelf,reader,decks,app runs some of it; SHOTS=<dir> saves pictures
+//   MOBILE_PARTS=shelf,reader,touch,prefs,video,studio,decks,offline,checkout,background,app runs some of it
+//   (MOBILE_KEEP_WAY=worker: keeping the iPad's way only; see WAY below)
 import { chromium } from 'npm:playwright-core@1.52.0';
 
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
 const SHOTS = Deno.env.get('SHOTS') || '';
-const PARTS = (Deno.env.get('MOBILE_PARTS') || 'shelf,reader,decks,app').split(',');
+const PARTS = (Deno.env.get('MOBILE_PARTS') || 'shelf,reader,touch,prefs,video,studio,decks,offline,checkout,background,app').split(',');
 const td = new TextDecoder();
 let passed = 0;
 const assert = (v, m) => { if (!v) throw Error('FAIL: ' + m); passed++; console.log('  ok', m); };
@@ -89,6 +97,21 @@ const eq = (got, want, m) => assert(JSON.stringify(got) === JSON.stringify(want)
   m + (JSON.stringify(got) === JSON.stringify(want) ? '' : ': got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want)));
 const near = (a, b, tol = 2) => Math.abs(a - b) <= tol;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* WHAT MUST BE AWAITED IN THE PAGE IS POLLED FROM HERE.  page.waitForFunction
+   takes whatever its predicate returns for the answer, and an async predicate
+   returns a Promise, which is truthy: it "passes" at once, whatever the page
+   holds (driven, playwright-core 1.52: resolved after 10 ms on `async () =>
+   false`).  So a wait on the caches -- which can only be asked with an await --
+   is a loop out here, and it fails when it runs out. */
+async function until(page, fn, arg, timeout = 60000, every = 250) {
+  for (const t = Date.now();;) {
+    const v = await page.evaluate(fn, arg);
+    if (v) return v;
+    if (Date.now() - t > timeout)
+      throw Error('FAIL: waited ' + timeout + 'ms in vain for ' + String(fn).replace(/\s+/g, ' ').slice(0, 140));
+    await sleep(every);
+  }
+}
 function freePort() {
   const l = Deno.listen({hostname: '127.0.0.1', port: 0});
   const p = l.addr.port;
@@ -104,8 +127,8 @@ if (!built.success) throw Error(td.decode(built.stderr) || td.decode(built.stdou
 const MADE = JSON.parse(td.decode(built.stdout).trim().split('\n').pop());
 const port = freePort();
 const log = [];
-const hub = new Deno.Command(PY, {args: ['tests/mobile_harness.py', 'serve', WORK, String(port)], cwd: root,
-                                  stdout: 'piped', stderr: 'piped'}).spawn();
+let hub = new Deno.Command(PY, {args: ['tests/mobile_harness.py', 'serve', WORK, String(port)], cwd: root,
+                                stdout: 'piped', stderr: 'piped'}).spawn();
 let hubUp = true;
 for (const s of [hub.stdout, hub.stderr])
   (async () => { for await (const c of s.pipeThrough(new TextDecoderStream())) log.push(c); })();
@@ -116,7 +139,70 @@ for (const t = Date.now();;) {
   await sleep(250);
 }
 
-const browser = await chromium.launch({executablePath: Deno.env.get('CHROME_BIN'), headless: true});
+/* TWO WAYS OF KEEPING, AND BOTH ARE DRIVEN ON EVERY RUN (the owner, 2026-09-23).
+   A book is kept by the browser's own download where the page's registration
+   has one (lib/keep.js, bgKeep; lib/sw.js, settle) -- which this Chromium
+   has, so a run as launched drives that way.  Everywhere else -- the iPad,
+   Firefox -- the worker keeps it as it always did, and that is the whole
+   feature there, so it is driven too: MOBILE_KEEP_WAY=worker launches this
+   same Chromium with the API taken out of the page AND the worker (a Blink
+   switch, so a worker the browser stops and starts cannot lose it), and the
+   keeps then go the iPad's way through the very same assertions.  The run as
+   launched starts that second run by itself at its end (below), one after
+   the other and never at once. */
+const WAY = Deno.env.get('MOBILE_KEEP_WAY') || 'background';
+const browser = await chromium.launch({executablePath: Deno.env.get('CHROME_BIN'), headless: true,
+  args: WAY === 'worker' ? ['--disable-blink-features=BackgroundFetch'] : []});
+console.log(WAY === 'worker' ? '\n(keeping the worker\'s way, as on the iPad: no background download)'
+                             : '\n(keeping a book by the browser\'s own download where it can)');
+/* WHICH WAY A KEEP WENT, seen from outside the page's own words: the browser's
+   record of its background downloads (CDP, BackgroundService), and the notes a
+   background keep leaves in `parseh-jobs` and clears when it ends.  A keep that
+   quietly fell back to the other way would otherwise pass every assertion. */
+async function watchWay(page) {
+  const seen = [];
+  try {
+    const cdp = await page.context().newCDPSession(page);
+    cdp.on('BackgroundService.backgroundServiceEventReceived',
+           e => seen.push((e.backgroundServiceEvent || {}).eventName || '?'));
+    await cdp.send('BackgroundService.startObserving', {service: 'backgroundFetch'});
+    await cdp.send('BackgroundService.setRecording', {shouldRecord: true, service: 'backgroundFetch'});
+  } catch (e) { seen.push('unobservable: ' + e.message); }
+  page.bgSeen = seen;
+  return seen;
+}
+async function keptWay(page, what, want = WAY) {
+  const look = () => page.evaluate(async () => {
+    const r = await navigator.serviceWorker.getRegistration();
+    const jobs = await caches.has('parseh-jobs');
+    return {bf: !!(r && 'backgroundFetch' in r), jobs,
+            left: jobs ? (await (await caches.open('parseh-jobs')).keys()).length : 0};
+  });
+  let saw = await look();
+  // the notes go once the keep has ended, and once more a moment later
+  // (lib/keep.js, jobDrop): a note really left behind is still there after that
+  for (const t = Date.now(); want === 'background' && saw.left > 0 && Date.now() - t < 6000; ) {
+    await sleep(250);
+    saw = await look();
+  }
+  // only what the browser recorded since the last keep asked about
+  const all = (page.bgSeen || []).filter(n => !/^unobservable/.test(n));
+  const events = all.slice(page.bgMark || 0);
+  page.bgMark = all.length;
+  const count = n => events.filter(e => e === n).length;
+  if (want === 'background')
+    eq([saw.bf, saw.jobs, saw.left, count('Background Fetch registered') > 0,
+        count('Background Fetch completed') === count('Background Fetch registered')],
+       [true, true, 0, true, true],
+       what + ' went by the browser\'s own download, and left no note behind: the browser ' +
+       'registered and completed ' + count('Background Fetch registered') + ' download(s)');
+  else if (WAY === 'worker')
+    eq([saw.bf, saw.jobs, events.length], [false, false, 0],
+       what + ' went by the worker, as on the iPad: this browser has no background download');
+  else
+    eq([saw.bf, events.length], [true, 0],
+       what + ' went by the worker although this browser has the background download: it is not a book');
+}
 const errors = [];
 const PHONE = {viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true};
 const NARROW = {viewport: {width: 360, height: 740}, isMobile: true, hasTouch: true};
@@ -137,6 +223,14 @@ async function newPage(opts, tag) {
   return page;
 }
 const tap = async (page, sel) => { const l = page.locator(sel).first(); if (page.touch) await l.tap(); else await l.click(); };
+// The toolbox keeps the reading place for every device (§4.9): a book opened
+// on a device that has not read it is ASKED whether to go to the place
+// another left.  A person answers before doing anything else, and so does a
+// test -- the line sits over the page until it is answered.
+async function answerPlace(page, how = '.pf-stay') {
+  await sleep(350);
+  if (await page.$('.pf-bar')) await tap(page, how);
+}
 const settle = page => page.evaluate(() => document.fonts.ready.then(() =>
   new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
 const shot = async (page, name) => {
@@ -166,6 +260,16 @@ async function tapMiddle(page, sel) {
   await page.locator(sel).first().evaluate(e => e.scrollIntoView({block: 'center'}));
   await sleep(250);
   await tap(page, sel);
+}
+// a tap on the mark of one named note, brought to the middle first.  By its
+// title and not by its place in the page: the marks of three notes stand in
+// three seams, and a test that tapped "the first one" would be proving
+// whatever the build happened to put at the top.
+async function tapMark(page, title) {
+  const mark = page.locator('.gap .mark').filter({hasText: title}).first();
+  await mark.evaluate(e => e.scrollIntoView({block: 'center'}));
+  await sleep(250);
+  if (page.touch) await mark.tap(); else await mark.click();
 }
 const rect = (page, sel) => page.evaluate(sel => {
   const e = document.querySelector(sel);
@@ -263,7 +367,10 @@ async function partShelf() {
     const got = await clickable(page, 'body');
     // the chips and the books in the registry's order (fa ar it ja fr de tr
     // en hi es zh), a language only where it has a book
-    const want = ['a:/', 'button:browser', 'button:mobile', 'button:theme', 'button:all',
+    // on a touch screen the bar wears a ? as well: what a button does, for a
+    // finger that cannot rest on it (lib/explain.js, §4.7)
+    const want = ['a:/', 'button:browser', 'button:mobile', 'button:theme',
+                  ...(tag === 'desktop' ? [] : ['button:px-ask']), 'button:all',
                   'button:fa', 'button:ar', 'button:it', 'button:ja', 'button:en', 'button:hi', 'button:zh',
                   'a:/books/persian/mini-fa/reader/', 'a:/books/arabic/mini-ar/reader/',
                   'a:/books/japanese/mini-ja/reader/', 'a:/books/english/mini-en/reader/',
@@ -364,13 +471,14 @@ const headerDrawn = page => page.evaluate(sel => [...document.querySelectorAll(s
 const WRITES = ['#bookinfo', '#buildbook', '#buildhtml', '#narr', '#fold', '#editmode', '#savetimes', '#droptimes',
                 '#stopsrv', 'header .dl', '#lookupset', '#build', '#pdfstale', '#chpen', '.gap .plus', '#editmsg'];
 
-// what the first line holds, and on a narrated book the recording's line
+// What the header holds: one line, whatever the book and whichever way the
+// phone is held.  The recording is not moved from here any more -- ↺, ⏯ and
+// ↻ float at the foot, in the dock (lib/narrctl.js), where a thumb has them
+// without reaching up into a header that hides on the way down.
 function firstLines(code, tag) {
-  const still = ['hub', 'shelf', 'toc', 'typo', 'm-rmore'];
-  if (code !== 'en') return [still];
-  // upright the recording is a line of its own; sideways all of it is one
-  return tag === 'landscape' ? [['hub', 'shelf', 'm-skip', 'play', 'm-skip', 'toc', 'typo', 'm-rmore']]
-                             : [still, ['m-skip', 'play', 'm-skip']];
+  // and the ? at its end, since a phone cannot rest on a button to read what
+  // it does (lib/explain.js, §4.7)
+  return [['hub', 'shelf', 'toc', 'typo', 'm-rmore', 'px-ask']];
 }
 
 async function partReader() {
@@ -387,6 +495,7 @@ async function partReader() {
                          tap(page, `a.m-book[data-lang=${code}]`)]);
       await page.waitForFunction(() => document.querySelector('.m-rmore'));
       await settle(page);
+      await answerPlace(page);
       await reveal(page);
       await shot(page, `reader-${code}-${tag}`);
       eq(await headerDrawn(page), want, `${code}: the header: ${lines.map(l => l.join(', ')).join(' / ')}`);
@@ -403,7 +512,9 @@ async function partReader() {
         eq(await page.evaluate(() => getComputedStyle(document.querySelector('main .p1')).direction), 'rtl',
            `${code}: the text reads right to left, under a header that reads left to right`);
       if (code !== 'en')
-        assert(!(await isDrawn(page, '.m-skip, .m-rskip')), `${code}: no narration, no ↺ ↻`);
+        assert(!(await isDrawn(page, '.nc-dock, .m-rskip')), `${code}: no narration, no dock and no ↺ ↻`);
+      else
+        assert(await isDrawn(page, '.nc-dock .nc-play'), `${code}: the dock floats at the foot`);
 
       // ---- b) ⋯
       await tap(page, '.m-rmore');
@@ -449,6 +560,10 @@ async function partReader() {
       if (code === 'en') await partSkip(page, tag);
 
       // ---- c) the contents, and the cloud
+      // the page settled first: the header slides on a scroll, and the
+      // recording's own scrolling (partSkip, just above) leaves it moving
+      await page.evaluate(() => scrollTo(0, 0));
+      await sleep(500);
       await reveal(page);
       await tap(page, '#toc');
       await page.waitForFunction(() => !document.querySelector('#tocwrap').hidden);
@@ -490,7 +605,9 @@ async function partReader() {
   const before = await headerDrawn(page);
   assert(before.includes('bookinfo') && before.includes('buildbook') && before.includes('narr'),
          'the browser mode: the header as the reader builds it ' + JSON.stringify(before));
-  assert(!(await isDrawn(page, '.m-rmore, .m-rlab, .m-skip, .m-rskip')), 'with nothing of the mobile layer drawn');
+  assert(!(await isDrawn(page, '.m-rmore, .m-rlab, .nc-dock, .m-rskip')), 'with nothing of the mobile layer drawn');
+  assert(await isDrawn(page, 'header .nc-skip[data-skip="-1"]') && await isDrawn(page, 'header .nc-chip'),
+         'and the recording moved from the header instead: ↺ ↻ beside ▶, the speed as a chip (§4.15)');
   const word = 'main .p1 .wd';
   const card = async () => {
     await page.locator(word).first().click({modifiers: ['Alt']});
@@ -518,12 +635,16 @@ async function partReader() {
   assert(await isDrawn(page, '.m-rmore'), 'a switch made in another tab: the reader follows, ⋯ there');
   assert(!(await card()), 'mobile: alt-click on the same word opens nothing');
   assert(!(await edit()), 'mobile: E over the same chunk opens nothing');
-  // ---- e) play
+  // ---- e) play, from the dock that the mobile mode floats at the foot
   await reveal(page);
-  await page.locator('#play').click();
+  await page.locator('.nc-dock .nc-play').click();
   await page.waitForFunction(() => !document.querySelector('#audio').paused, null, {timeout: 5000});
-  eq(await page.evaluate(() => document.querySelector('#play').textContent), '‖', 'play plays, and says so');
-  await page.locator('#play').click();
+  eq(await page.evaluate(() => [document.querySelector('.nc-play').textContent,
+                                document.querySelector('#play').textContent]),
+     ['‖', '‖'], 'the dock plays, and both it and the reader\'s own button say so ' +
+     '(‖ and ▶: no colour font can claim them, which is why the phone drew an orange emoji)');
+  await page.locator('.nc-dock .nc-play').click();
+  await page.waitForFunction(() => document.querySelector('#audio').paused);
   // ---- f) back to the browser mode
   await reveal(page);
   await page.locator('.m-rmore').click();
@@ -537,57 +658,146 @@ async function partReader() {
   await page.context().close();
 }
 
-// ---- g) ↺ and ↻, on the narrated book (its recording is 8 seconds long)
+// ---- g) THE DOCK, on the narrated book (its recording is 8 seconds long):
+// ↺ in one corner, ⏯ and ↻ with the speed in the other, holding a skip
+// button for the seconds, and all of it fading when nothing is touched
+// (lib/narrctl.js; TO-DO §4.17, the owner's choices of 2026-09-22)
 async function partSkip(page, tag) {
   const K = 'bk_skip';
+  await answerPlace(page);
   const state = () => page.evaluate(() => ({t: Math.round(document.getElementById('audio').currentTime * 100) / 100,
     paused: document.getElementById('audio').paused, cur,
     on: (document.querySelector('.on-air') || {dataset: {}}).dataset.s,
-    labels: [...document.querySelectorAll('.m-skip')].map(b => b.textContent + '|' + b.getAttribute('aria-label'))}));
+    labels: [...document.querySelectorAll('.nc-dock .nc-skip')].map(b => b.textContent + '|' + b.getAttribute('aria-label'))}));
+  // the dock: each button in its own corner, and bigger than the 48px a
+  // target must be, since these are pressed again and again without looking
+  eq(await page.evaluate(() => {
+    const d = document.querySelector('.nc-dock');
+    const box = s => { const e = d.querySelector(s); return e && e.getBoundingClientRect(); };
+    const l = box('.nc-skip[data-skip="-1"]'), p = box('.nc-play'), r = box('.nc-skip[data-skip="1"]');
+    return [l.left < 40, r.right > innerWidth - 40, p.right < r.left + 1,
+            Math.min(l.width, l.height, p.width, p.height, r.width, r.height) >= 56,
+            d.getBoundingClientRect().bottom <= innerHeight + 1,
+            !!d.querySelector('.nc-chip')];
+  }), [true, true, true, true, true, true],
+     'en: the dock: ↺ in the left corner, ⏯ ↻ in the right, 56px, above the foot, with the speed');
   eq((await state()).labels, ['↺ 10|back 10 seconds', '10 ↻|on 10 seconds'],
      'en: ↺ and ↻ say ten seconds, until told otherwise');
-  // two seconds a press, set in the field under ⋯ as a person sets it
+  // THE DOCK IS NOT MIRRORED BY A RIGHT-TO-LEFT BOOK (the owner, on a Persian
+  // book, 2026-09-23: "the triangle is on the left, forward is on the left and
+  // back on the right").  A page that reads right to left mirrors every row
+  // laid out inside it, and the dock was laid out inside one -- but time does
+  // not run backwards in Persian: ↺ is behind and ↻ is ahead wherever the
+  // words go, as they are on every player the owner has ever held.  So the
+  // dock says dir="ltr" for itself, and this drives it: the page is turned
+  // round under a dock that is already built, as a Persian book's page is.
+  eq(await page.evaluate(() => {
+    const h = document.documentElement, was = h.getAttribute('dir');
+    h.setAttribute('dir', 'rtl');
+    const d = document.querySelector('.nc-dock');
+    const box = s => d.querySelector(s).getBoundingClientRect();
+    const out = [getComputedStyle(d).direction, d.getAttribute('dir'),
+                 box('.nc-skip[data-skip="-1"]').left < box('.nc-play').left,
+                 box('.nc-play').left < box('.nc-skip[data-skip="1"]').left];
+    if (was === null) h.removeAttribute('dir'); else h.setAttribute('dir', was);
+    return out;
+  }), ['ltr', 'ltr', true, true],
+     'en: and a right-to-left page does not mirror it: ↺ stays behind, ↻ stays ahead');
+  // ⏯ is the reader's own ▶, which is no longer in the header
+  assert(!(await isDrawn(page, 'header #play')), 'en: ▶ has left the header');
+  await page.evaluate(() => { document.getElementById('audio').pause(); });
+  await tap(page, '.nc-dock .nc-play');
+  await page.waitForFunction(() => !document.getElementById('audio').paused);
+  eq(await page.evaluate(() => document.querySelector('.nc-play').textContent), '‖',
+     'en: a tap on ⏯ plays, and it says pause');
+  await tap(page, '.nc-dock .nc-play');
+  await page.waitForFunction(() => document.getElementById('audio').paused);
+  eq(await page.evaluate(() => document.querySelector('.nc-play').textContent), '▶', 'en: and a tap pauses');
+  // the first tap says, once, what a hold does
+  await page.evaluate(() => { localStorage.removeItem('bk_skiphint');
+                              document.getElementById('audio').currentTime = 0; });
+  await tap(page, '.nc-dock .nc-skip[data-skip="1"]');
+  eq(await page.evaluate(() => [(document.getElementById('parseh-toast') || {}).textContent,
+                                localStorage.getItem('bk_skiphint')]),
+     ['hold ↺ or ↻ to choose the seconds', '1'], 'en: the first tap says the hold, once');
+  // held: the row of seconds, and five of them is what a person picks from
+  const held = async (sel) => {
+    const b = await page.locator(sel).boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await sleep(700);
+    const rows = await page.evaluate(() => [...document.querySelectorAll('.nc-popb')].map(x => x.textContent));
+    await page.mouse.up();
+    return rows;
+  };
+  eq(await held('.nc-dock .nc-skip[data-skip="1"]'), ['1s', '2s', '5s', '10s', '15s', '30s', '60s'],
+     'en: holding ↻ opens the seconds to choose from');
+  // BY NAME AND NOT BY POSITION: the row now begins at one second (the owner
+  // asked for 1s and 2s, 2026-09-23), so the first button is no longer 5s and
+  // a test that counted would have been testing the wrong number for ever.
+  await page.click('.nc-pop button:text-is("5s")');
+  eq([await page.evaluate(k => localStorage.getItem(k), K), (await state()).labels],
+     ['5', ['↺ 5|back 5 seconds', '5 ↻|on 5 seconds']], 'en: 5s chosen: kept, and said on both');
+  // the same row under ⋯, since a hold cannot be seen
+  await reveal(page);
   await tap(page, '.m-rmore');
-  const field = page.locator('#m-skipby');
-  await field.scrollIntoViewIfNeeded();
-  await field.fill('2');
-  await field.press('Enter');
+  eq(await page.evaluate(() => {
+    const r = document.querySelector('.m-rskip');
+    return [r.getClientRects().length > 0, [...r.querySelectorAll('button')].map(x => x.textContent),
+            (r.querySelector('button.on') || {}).textContent];
+  }), [true, ['1s', '2s', '5s', '10s', '15s', '30s', '60s'], '5s'], 'en: ⋯ shows the same row, with 5s marked');
   await page.evaluate(() => document.querySelector('header').scrollTop = 0);
   await tap(page, '.m-rmore');
-  eq([await page.evaluate(k => localStorage.getItem(k), K), (await state()).labels],
-     ['2', ['↺ 2|back 2 seconds', '2 ↻|on 2 seconds']], 'en: the field set to 2: kept, and said on both');
+  // the move itself: the recording, and the reading place with it
   await page.waitForFunction(() => document.getElementById('audio').readyState >= 1);
-  const s0 = await state();
-  eq([s0.t, s0.cur], [0, -1], 'en: at the start, nothing read yet');
-  await tap(page, '.m-skip[data-skip="1"]');
+  await page.evaluate(() => { const a = document.getElementById('audio'); a.pause(); a.currentTime = 0; });
+  await sleep(150);
+  await tap(page, '.nc-dock .nc-skip[data-skip="1"]');
   await sleep(400);
   const s1 = await state();
-  // the first subparagraph is 0.8 to 3.9 seconds: two seconds in is in it
-  eq([s1.t, s1.paused, s1.cur, s1.on], [2, true, 0, '0'],
-     'en: ↻ paused: two seconds on, and the reading place is the subparagraph that is said there');
-  eq(await page.evaluate(() => document.body.hasAttribute('data-bars-held')), true,
-     'en: the header held where it is while that settles');
-  await tap(page, '.m-skip[data-skip="-1"]');
+  const said = await page.evaluate(() => subAtTime(5));
+  eq([s1.t, s1.paused, s1.cur, s1.on], [5, true, said, String(said)],
+     'en: ↻ paused: five seconds on, and the reading place is the subparagraph said there');
+  await tap(page, '.nc-dock .nc-skip[data-skip="-1"]');
   await sleep(400);
   eq((await state()).t, 0, 'en: ↺: back to the start');
-  // nonsense in the field keeps the number it had; too much is the most
-  await tap(page, '.m-rmore');
-  for (const [typed, kept] of [['', '2'], ['0', '2'], ['99999', '600'], ['3', '3']]) {
-    await field.fill(typed);
-    await field.press('Enter');
-    eq([await field.inputValue(), await page.evaluate(k => localStorage.getItem(k), K)], [kept, kept],
-       `en: "${typed}" typed: ${kept}`);
-  }
-  await page.evaluate(() => document.querySelector('header').scrollTop = 0);
-  await tap(page, '.m-rmore');
-  // every book, and the next time: the number is the browser's
-  await page.reload();
-  await page.waitForFunction(() => document.querySelector('.m-skip'));
-  await reveal(page);
-  eq((await state()).labels, ['↺ 3|back 3 seconds', '3 ↻|on 3 seconds'], 'en: opened again, still 3');
+  // the speed: the chip says it, a tap opens the row, and the sound obeys
+  eq(await page.evaluate(() => document.querySelector('.nc-dock .nc-chip').textContent), '1×',
+     'en: the speed chip says 1×');
+  await tap(page, '.nc-dock .nc-chip');
+  eq(await page.evaluate(() => [...document.querySelectorAll('.nc-popb')].map(x => x.textContent)),
+     ['0.25×', '0.5×', '0.6×', '0.75×', '0.9×', '1×', '1.1×', '1.25×', '1.5×', '1.75×', '2×'],
+     'en: a tap opens the speeds — one list for everything Parseh itself plays, 0.25 among them');
+  await page.click('.nc-pop button:nth-child(9)');
+  eq(await page.evaluate(() => [document.querySelector('.nc-dock .nc-chip').textContent,
+                                document.getElementById('audio').playbackRate,
+                                document.getElementById('audio').defaultPlaybackRate,
+                                localStorage.getItem('bk_rate')]),
+     ['1.5×', 1.5, 1.5, '1.5'], 'en: 1.5× chosen: the chip, the sound and what is kept agree');
+  // AND IT STAYS THERE when the recording is loaded again -- the owner's bug
+  await page.evaluate(() => { const a = document.getElementById('audio'); a.load(); });
+  await sleep(500);
+  eq(await page.evaluate(() => [document.getElementById('audio').playbackRate,
+                                document.querySelector('.nc-dock .nc-chip').textContent]),
+     [1.5, '1.5×'], 'en: the recording loaded again does NOT put the speed back to 1×');
+  await page.click('.nc-dock .nc-chip');
+  await page.click('.nc-pop button:nth-child(5)');
+  // faint when nothing is touched, whole again at a touch -- and the page
+  // scrolling itself, as it does while a narration plays, is not a touch
+  const faint = () => page.evaluate(() => document.querySelector('.nc-dock').classList.contains('nc-idle'));
+  await page.evaluate(() => document.getElementById('audio').pause());
+  await page.touchscreen.tap(30, 200).catch(() => page.mouse.click(30, 200));
+  await sleep(200);
+  const f0 = await faint();
+  await sleep(4600);
+  const f1 = await faint();
+  await page.touchscreen.tap(30, 200).catch(() => page.mouse.click(30, 200));
+  await sleep(200);
+  eq([f0, f1, await faint()], [false, true, false],
+     'en: the dock fades when nothing is touched, and is whole again at a touch');
   if (tag === 'landscape') {
     // sideways: the header goes on the way down, comes back on the way up,
-    // and stays while ⋯ is open
+    // and stays while ⋯ is open -- and the dock is there throughout
     const hidden = () => page.evaluate(() => document.body.classList.contains('barhidden'));
     await page.evaluate(() => scrollTo(0, 0));
     await sleep(300);
@@ -595,10 +805,12 @@ async function partSkip(page, tag) {
     await page.waitForFunction(() => document.body.classList.contains('barhidden'));
     await sleep(300);
     assert((await rect(page, 'header')).b <= 1, 'en, sideways: scrolled down, the header is away');
+    assert(await isDrawn(page, '.nc-dock .nc-play'), 'en, sideways: and the dock is still there');
     await page.evaluate(() => scrollBy(0, -20));
     await page.waitForFunction(() => !document.body.classList.contains('barhidden'));
     await sleep(300);
     assert(near((await rect(page, 'header')).t, 0), 'en, sideways: a move up brings it back');
+    await reveal(page);
     await tap(page, '.m-rmore');
     await page.evaluate(() => scrollBy(0, 200));
     await sleep(400);
@@ -607,12 +819,1766 @@ async function partSkip(page, tag) {
     await page.evaluate(() => scrollTo(0, 0));
     await sleep(300);
   }
-  // the place and the number, as they were: the next pages start clean
-  await page.evaluate(k => { localStorage.removeItem(k);
+  // The place, the number and the speed as they were, so the next viewport
+  // starts clean -- ON THE TOOLBOX TOO, since it keeps them for every device
+  // now (§4.9): a phone that cleared only its own would be handed the last
+  // device's ten seconds back at its first load.
+  await page.evaluate(k => { localStorage.removeItem(k); localStorage.removeItem('bk_rate');
+    localStorage.removeItem('parseh_at');
     Object.keys(localStorage).filter(x => x.startsWith('bk_pos:')).forEach(x => localStorage.removeItem(x)); }, K);
+  await fetch(B + '/__prefs', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({by: 'the test', settings: {bk_skip: {v: '10', at: Date.now() / 1000},
+                                                     bk_rate: {v: '1', at: Date.now() / 1000}}})})
+    .then(r => r.body?.cancel());
   await page.reload();
   await page.waitForFunction(() => document.querySelector('.m-rmore'));
   await reveal(page);
+}
+
+
+// ======== a finger: what a modifier-click and a tooltip used to keep ========
+// §4.6 a held finger opens the copy and the card a mouse holds a key for;
+// §4.7 "?" says what a button does, where no mouse can rest on it.  A TABLET
+// IN THE BROWSER MODE is the case that suffered most: touch, and every
+// control of the full interface.
+const TABLET = {viewport: {width: 820, height: 1180}, hasTouch: true};
+async function hold(page, sel, ms = 700) {
+  const b = await page.locator(sel).first().boundingBox();
+  const x = Math.round(b.x + b.width / 2), y = Math.round(b.y + b.height / 2);
+  const pt = [{x, y, radiusX: 4, radiusY: 4, force: 1, id: 1}];
+  await page.touch.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: pt});
+  await sleep(ms);
+  await page.touch.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
+  await sleep(150);
+}
+const wtRows = page => page.evaluate(() => [...document.querySelectorAll('.wt-menu button')].map(b => b.textContent));
+
+async function partTouch() {
+  console.log('\n== a finger on a word, and the ? that explains (§4.6, §4.7)');
+  // ---- a) a tablet, the browser mode: copy and card, from a held finger
+  let page = await newPage(TABLET, 'tablet');
+  await page.goto(B + MADE.readers.en);
+  await setMode(page, 'browser');
+  await page.reload();
+  await page.waitForFunction(() => !!window.ParsehWordTouch);
+  await hold(page, 'main .p1 .wd');
+  const rows = await wtRows(page);
+  eq(rows.length, 3, 'a tablet, browser mode: a held finger opens three lines ' + JSON.stringify(rows));
+  assert(/^Card for /.test(rows[0]), 'the first makes a card of that word: ' + rows[0]);
+  assert(/^Copy /.test(rows[1]) && rows[2] === 'Copy the sentence',
+         'then the chunk and the sentence: ' + JSON.stringify(rows.slice(1)));
+  await page.click('.wt-menu button:nth-child(1)');
+  await page.waitForFunction(() => !document.getElementById('anki').hidden);
+  assert((await page.inputValue('#afa')).length > 0,
+         'the card line opens the page\'s OWN card sheet, with that very word on it');
+  await page.click('#acancel');
+  // the copies go through the page's own shift-click, toast and all
+  await page.evaluate(() => { window.__copied = null;
+    const was = Parseh.copy; Parseh.copy = t => { window.__copied = t; return was.call(Parseh, t); }; });
+  await hold(page, 'main .p1 .wd');
+  await page.click('.wt-menu button:nth-child(2)');
+  const chunk = await page.evaluate(() => window.__copied);
+  assert(!!chunk, 'Copy “…” copies the chunk: ' + JSON.stringify(chunk));
+  await hold(page, 'main .p1 .wd');
+  await page.click('.wt-menu button:nth-child(3)');
+  const sentence = await page.evaluate(() => window.__copied);
+  assert(!!sentence && sentence.length >= chunk.length,
+         'Copy the sentence copies the whole of it: ' + JSON.stringify(sentence));
+  // a tap is untouched: it still plays, and opens no menu
+  await tap(page, 'main .p1 .wd');
+  await sleep(300);
+  eq(await page.evaluate(() => [cur >= 0, !!document.querySelector('.wt-menu')]), [true, false],
+     'a plain tap still plays the subparagraph, and opens no menu');
+  await page.context().close();
+
+  // ---- b) the mobile mode: the copies stay, the card does not (§18)
+  page = await newPage(PHONE, 'phone touch');
+  await page.goto(B + MADE.readers.en);
+  await setMode(page, 'mobile');
+  await page.reload();
+  await page.waitForFunction(() => !!window.ParsehWordTouch);
+  await hold(page, 'main .p1 .wd');
+  const m = await wtRows(page);
+  eq(m.length, 2, 'the mobile mode: two lines ' + JSON.stringify(m));
+  assert(m.every(x => /^Copy/.test(x)), 'both are copies: nothing there makes a card');
+
+  // ---- c) "?" -- every title one tap away
+  eq(await page.evaluate(() => window.matchMedia('(hover: none)').matches), true,
+     'the phone says it cannot hover');
+  await page.waitForSelector('.px-ask');
+  await reveal(page);
+  await tap(page, '.px-ask');
+  await page.waitForSelector('.px-tip');
+  assert(/Tap anything/.test(await page.textContent('.px-tip')), 'pressed, ? says what it is for');
+  await tap(page, '#toc');
+  await sleep(250);
+  eq(await page.evaluate(() => [document.querySelector('.px-tip').textContent.includes('jump to a paragraph'),
+                                !document.getElementById('tocwrap').hidden]),
+     [true, false], 'a tap on ☰ SAYS what it does, and does not open the contents');
+  await tap(page, '.px-ask');
+  eq(await page.evaluate(() => [!!document.querySelector('.px-tip'),
+                                document.querySelector('.px-ask').getAttribute('aria-pressed')]),
+     [false, 'false'], 'pressed again, the bubble goes and the page is itself');
+  await tap(page, '#toc');
+  await sleep(300);
+  eq(await page.evaluate(() => !document.getElementById('tocwrap').hidden), true,
+     'and ☰ opens the contents again');
+  await page.context().close();
+
+  // ---- d) a mouse keeps its tooltips: no ? at all
+  page = await newPage(DESK, 'desk touch');
+  await page.goto(B + MADE.readers.en);
+  await page.waitForFunction(() => !!window.ParsehExplain);
+  await sleep(300);
+  eq(await page.evaluate(() => !!document.querySelector('.px-ask')), false,
+     'where a mouse can hover, no ? is drawn');
+  await page.context().close();
+
+  // ---- e) the studio's pages carry the tag themselves (they load no parseh.js)
+  page = await newPage(PHONE, 'decks touch');
+  await page.goto(B + '/exercises/');
+  await setMode(page, 'mobile');
+  await page.reload();
+  await page.waitForFunction(() => !!window.ParsehExplain, null, {timeout: 20000});
+  await page.waitForSelector('.px-ask', {timeout: 20000});
+  assert(await page.locator('.px-ask').isVisible(), 'the decks have a ? of their own');
+  await page.context().close();
+}
+
+
+// ======== the place and the settings the toolbox keeps (§4.9) ========
+// A phone goes on where the computer stopped: the reading place per book, the
+// narration's settings and the theme are the toolbox's (lib/prefs.py,
+// lib/prefs.js).  What is SHOWN -- the passes, the text size -- is not.
+const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 ' +
+                '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
+async function partPrefs() {
+  console.log('\n== the reading place and the settings, kept by the toolbox');
+  const kept = async () => (await (await fetch(B + '/__prefs')).json());
+  // the toolbox is told a moment after a change (lib/prefs.js waits 900ms):
+  // asked for until it knows, rather than slept at
+  const until = async (fn, ms = 8000) => {
+    for (const t = Date.now(); Date.now() - t < ms;) {
+      const v = await fn();
+      if (v !== null && v !== undefined && v !== false) return v;
+      await sleep(200);
+    }
+    return null;
+  };
+  const READER = B + MADE.readers.en;
+  const path = new URL(READER).pathname;
+  // the reader's own part read this book before us, and the toolbox keeps
+  // that place now: forgotten, so this part starts where a new book does
+  await fetch(B + '/__prefs', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({forget: path})}).then(r => r.body?.cancel());
+
+  // ---- a) the computer reads, and sets a speed and a theme
+  let page = await newPage(DESK, 'prefs desk');
+  await page.goto(READER);
+  await page.waitForFunction(() => !!window.ParsehPrefs);
+  eq(await page.evaluate(() => !!document.querySelector('.pf-bar')), false,
+     'the first device to open a book is asked nothing');
+  // a click on a subparagraph is the reading place, as it always was; the
+  // narration is stopped where it is, so the place stays where the click put it
+  await page.locator('main .sub').nth(2).click();
+  await page.evaluate(() => { cont = false; loop = false; document.getElementById('audio').pause(); });
+  await sleep(300);
+  const at = await page.evaluate(() => cur);
+  assert(at > 0, 'the computer reads on to subparagraph ' + at);
+  let rec = await until(async () => {
+    const r = (await kept()).places[path];
+    return r && r.i === at ? r : null;
+  });
+  assert(rec, 'the toolbox was told where the book was left');
+  eq([rec.i, !!rec.label, !!rec.by, rec.pct > 0], [at, true, true, true],
+     'the place it keeps: which subparagraph, said in words, by which device, how far in');
+  await page.click('.nc-chip');
+  await page.click('.nc-pop button:nth-child(9)');
+  await page.evaluate(() => Parseh.theme.set('dark'));
+  const set = await until(async () => {
+    const j = await kept();
+    return (j.settings.bk_rate || {}).v === '1.5' && j.settings.parseh_theme ? j.settings : null;
+  });
+  assert(set, 'the toolbox was told the speed and the theme');
+  eq([set.bk_rate.v, set.parseh_theme.v, !!set.bk_rate.at], ['1.5', 'dark', true],
+     'the speed and the theme, each with the moment it was set');
+  // what is SHOWN is not the toolbox's: the text size stays on the device
+  await page.evaluate(() => { localStorage.setItem('parseh_typo', '{"size":22}'); });
+  await sleep(1200);
+  eq(Object.keys((await kept()).settings).filter(k => /typo|p1|nogloss/.test(k)), [],
+     'the text size and the passes stay with the device that shows them');
+  await page.context().close();
+
+  // ---- b) the phone opens the same book: the settings arrive, the place is ASKED
+  page = await newPage({...PHONE, userAgent: ANDROID}, 'prefs phone');
+  await page.goto(READER);
+  await setMode(page, 'mobile');
+  await page.reload();
+  await page.waitForFunction(() => localStorage.getItem('bk_rate') === '1.5', null, {timeout: 10000});
+  eq(await page.evaluate(() => [document.documentElement.getAttribute('data-theme'),
+                                document.getElementById('audio').playbackRate]),
+     ['dark', 1.5], 'the phone wears the speed and the theme the computer set');
+  await page.waitForSelector('.pf-bar', {timeout: 10000});
+  const said = await page.textContent('.pf-bar');
+  assert(/you were at/.test(said) && /computer|Mac|Windows|Linux/.test(said),
+         'and is asked about the place, saying whose it is and when: ' + JSON.stringify(said.slice(0, 80)));
+  eq(await page.evaluate(() => cur), -1, 'nothing has moved while the question stands');
+  await tap(page, '.pf-go');
+  await sleep(400);
+  eq(await page.evaluate(() => [cur, !!document.querySelector('.pf-bar')]), [at, false],
+     '"Go there" takes it to that very subparagraph, and the question goes');
+  // the phone reads on, and says so in its own name
+  await page.evaluate(() => scrollTo(0, 0));
+  await sleep(250);
+  await page.locator('main .sub').nth(3).click();
+  await page.evaluate(() => { cont = false; loop = false; document.getElementById('audio').pause(); });
+  await sleep(300);
+  const on = await page.evaluate(() => cur);
+  assert(on !== at, 'the phone reads on to another subparagraph (' + on + ')');
+  rec = await until(async () => {
+    const r = (await kept()).places[path];
+    return r && r.i === on ? r : null;
+  });
+  assert(rec, 'the phone hands its place back');
+  assert(/Android phone/.test(rec.by), 'in a name it works out for itself: ' + JSON.stringify(rec.by));
+  await page.context().close();
+
+  // ---- c) the shelf shows it, on a phone that has never opened the book
+  page = await newPage({...PHONE, userAgent: ANDROID}, 'prefs shelf');
+  await page.goto(B + '/');
+  await setMode(page, 'mobile');
+  await page.goto(B + '/m/books/');
+  await page.waitForSelector('a.m-book[data-lang=en]');
+  const tag = await page.evaluate(() => {
+    const a = document.querySelector('a.m-book[data-lang=en]');
+    const t = a.querySelector('.m-readon');
+    return [a.getAttribute('data-place'), t ? t.textContent : null, t ? t.title : null];
+  });
+  assert(+tag[0] > 0 && /read on · \d+%/.test(tag[1] || ''),
+         'the shelf says how far the book has been read, from the toolbox: ' + JSON.stringify(tag.slice(0, 2)));
+  assert(/Android phone/.test(tag[2] || ''), 'and whose place it is: ' + JSON.stringify(tag[2]));
+  await page.context().close();
+
+  // ---- d) a device with no toolbox to ask is not stuck
+  page = await newPage(DESK, 'prefs alone');
+  await page.goto(READER);
+  await page.waitForFunction(() => !!window.ParsehPrefs);
+  await page.evaluate(() => { window.fetch = () => Promise.reject(new Error('no toolbox')); });
+  await page.locator('main .sub').nth(1).click();
+  await page.evaluate(() => document.getElementById('audio').pause());
+  await sleep(1200);
+  eq(await page.evaluate(() => { const v = JSON.parse(localStorage.getItem('bk_pos:' + location.pathname));
+                                 return !!v && typeof v.i === 'number'; }), true,
+     'with the toolbox unreachable the page still keeps its own place, and says nothing about it');
+  await page.context().close();
+}
+
+
+// ======== the videos, on a phone (§4.2) ========
+// The shelf of channels, a channel's own page with its videos, and the
+// player itself with the mobile layer over it: the dock drives the video, the
+// phone turned puts the video at the left and the transcript at the right
+// with a draggable divider, and ⛶ gives the video the whole screen with the
+// line being said over it.
+//
+// THE SHELF IS THE CHANNELS (the owner, 2026-09-23, decision C): one card per
+// channel and the videos a tap inside, exactly as the browser's index does
+// it.  It was a flat list before -- every video of every channel under a
+// heading apiece -- which on a phone is a page you scroll past rather than
+// one you choose from.  What that shelf looks like with the computer away is
+// driven under "kept on this phone", where the computer is really stopped.
+async function partVideo() {
+  console.log('\n== the videos, on a phone');
+  const V = MADE.video;
+  const ctx = await browser.newContext(PHONE);
+  const page = await ctx.newPage();
+  page.on('pageerror', e => { errors.push('video: ' + e.message); console.log('PAGE ERROR video', e.message); });
+  page.touch = await ctx.newCDPSession(page);
+  await page.touch.send('Emulation.setTouchEmulationEnabled', {enabled: true, maxTouchPoints: 1});
+  await page.goto(B + '/');
+  await setMode(page, 'mobile');
+
+  // ---- a) the shelf: CHANNELS, and the videos a tap inside (decision C)
+  await page.goto(B + '/m/videos/');
+  await page.waitForSelector('a.m-book');
+  const shelfIs = await page.evaluate(() => ({
+    cards: [...document.querySelectorAll('a.m-book')].map(a => a.getAttribute('href')),
+    chans: document.querySelectorAll('a.m-book.m-chancard').length,
+    players: [...document.querySelectorAll('a.m-book')]
+      .filter(a => /^\/youtube\/v\//.test(a.getAttribute('href'))).length,
+    del: !!document.querySelector('.card-del'),
+    stands: document.body.getAttribute('data-browser-page'),
+    tags: [...document.querySelectorAll('.m-chancard .m-tags .tag')].map(t => t.textContent)}));
+  eq([shelfIs.chans, shelfIs.players, shelfIs.del, shelfIs.stands],
+     [1, 0, false, '/youtube/'],
+     'the videos shelf is the channels — one card per channel and not one that opens a ' +
+     'player, nothing that deletes, and the browser page it stands for: ' +
+     JSON.stringify(shelfIs.cards));
+  assert(shelfIs.tags.some(t => /^1 video$/.test(t)),
+         'and a card says how many videos are inside it: ' + JSON.stringify(shelfIs.tags));
+  allFit(await targets(page, '.m-shelf a, .m-bar a[href], .m-bar button'),
+         'its cards and its bar: 48px, on the screen, reached by a tap');
+  assert(await sideways(page) <= 0, 'and it does not scroll sideways');
+  // THE VIDEOS ARE ONE TAP INSIDE.  The card is the whole way in, and the
+  // channel's own page is where the player is reached from -- so the tap is
+  // made here rather than the address being read off the card and jumped to.
+  await Promise.all([page.waitForURL(/\/m\/videos\/[^/]+\/$/), tap(page, 'a.m-chancard')]);
+  await page.waitForSelector('a.m-book');
+  const inside = await page.evaluate(() => {
+    const back = document.querySelector('.m-tagline a[href]');
+    return {title: document.title,
+            videos: [...document.querySelectorAll('a.m-book')].map(a => a.getAttribute('href')),
+            back: back ? back.getAttribute('href') : ''};
+  });
+  assert(inside.videos.length >= 1 && inside.videos.every(h => /^\/youtube\/v\//.test(h)),
+         'a channel opens on its videos, each one opening the player: ' +
+         JSON.stringify(inside.videos));
+  eq(inside.back, '/m/videos/', 'with the way back to all the channels said on the page');
+  allFit(await targets(page, '.m-shelf a, .m-bar a[href], .m-bar button'),
+         'the channel page: 48px, on the screen, reached by a tap');
+
+  // ---- b) the player, with the mobile layer
+  await Promise.all([page.waitForURL(new RegExp(`/youtube/v/${V}/$`)), tap(page, 'a.m-book')]);
+  await page.waitForFunction(() => !!window.ParsehMobilePlayer && !!window.ParsehNarr);
+  await page.waitForFunction(() => document.querySelectorAll('#segs .seg').length > 0);
+  await settle(page);
+  await shot(page, 'video-phone');
+  eq(await page.evaluate(() => [document.documentElement.classList.contains('m-player'),
+                                document.body.hasAttribute('data-mobile-page'),
+                                !!document.querySelector('.m-rmore'), !!document.querySelector('.nc-dock')]),
+     [true, true, true, true], 'the player wears the mobile layer, with ⋯ and the dock at the foot');
+  for (const no of ['#dl', '#vidinfo', '#captimes', '#lookupset', '#sbs', '#stop', 'main > .hint'])
+    assert(!(await isDrawn(page, no)), 'the player: no ' + no);
+  allFit(await targets(page, 'header a[href], header button'), 'its header: 48px, on the screen');
+  // ⋯ opens the rest, a group to a line
+  await tap(page, '.m-rmore');
+  await settle(page);
+  eq(await page.evaluate(() => [...document.querySelectorAll('.m-rlab')]
+       .filter(e => e.getClientRects().length).map(e => e.getAttribute('data-g'))),
+     ['following', 'looking', 'page'], '⋯ opens the groups this page has');
+  await tap(page, '.m-rmore');
+
+  // ---- c) the dock drives the video
+  await page.waitForFunction(() => window.ParsehPlayer && ParsehPlayer.ready(), null, {timeout: 20000});
+  await tap(page, '.nc-dock .nc-play');
+  await page.waitForFunction(() => !ParsehPlayer.paused(), null, {timeout: 8000});
+  eq(await page.evaluate(() => document.querySelector('.nc-play').textContent), '‖',
+     'a tap on ⏯ plays the video, and it says pause');
+  await tap(page, '.nc-dock .nc-play');
+  await page.waitForFunction(() => ParsehPlayer.paused());
+  await page.evaluate(() => ParsehPlayer.seek(0));
+  await sleep(200);
+  await tap(page, '.nc-dock .nc-skip[data-skip="1"]');
+  await sleep(400);
+  const at = await page.evaluate(() => ParsehPlayer.time());
+  assert(at >= 4.5, `↻ moves the video on by the seconds it says (${at.toFixed(2)}s)`);
+  await tap(page, '.nc-dock .nc-chip');
+  await page.waitForSelector('.nc-pop');
+  const speeds = await page.evaluate(() => [...document.querySelectorAll('.nc-popb')].map(b => b.textContent));
+  assert(speeds.includes('1.5×'), 'the chip offers the speeds this player will play at: ' + JSON.stringify(speeds));
+  await page.click('.nc-pop button:nth-child(' + (speeds.indexOf('1.5×') + 1) + ')');
+  await sleep(300);
+  eq(await page.evaluate(() => [ParsehPlayer.rate(), document.querySelector('.nc-chip').textContent]),
+     [1.5, '1.5×'], 'and sets the video to it');
+  eq(await page.evaluate(() => { const b = document.querySelector('.m-vfull'); return !!b && !b.hidden; }),
+     false, 'upright there is no full-screen button: a video on the whole screen leaves nothing to read');
+
+  // ---- d) held sideways: the video at the left, the transcript at the right
+  await page.setViewportSize(LAND.viewport);
+  await sleep(700);
+  await settle(page);
+  await shot(page, 'video-landscape');
+  eq(await page.evaluate(() => {
+    const wrap = document.getElementById('playerwrap').getBoundingClientRect();
+    const segs = document.getElementById('segs').getBoundingClientRect();
+    const full = document.querySelector('.m-vfull');
+    return [document.body.classList.contains('sbs'), wrap.left < 5, segs.left >= wrap.right - 1,
+            !!full && !full.hidden];
+  }), [true, true, true, true],
+     'held sideways: the video at the left, the transcript at the right, and ⛶ appears');
+  // the divider between them takes a finger
+  const was = await page.evaluate(() => document.getElementById('playerwrap').getBoundingClientRect().width);
+  const g = await page.locator('#grip').boundingBox();
+  const pt = (x, y) => [{x, y, radiusX: 4, radiusY: 4, force: 1, id: 1}];
+  const gx = Math.round(g.x + g.width / 2), gy = Math.round(g.y + g.height / 2);
+  await page.touch.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: pt(gx, gy)});
+  for (let k = 1; k <= 5; k++) {
+    await page.touch.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: pt(gx + k * 20, gy)});
+    await sleep(20);
+  }
+  await page.touch.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
+  await sleep(300);
+  const now = await page.evaluate(() => document.getElementById('playerwrap').getBoundingClientRect().width);
+  assert(now > was + 20, `the divider between them is dragged by a finger (${Math.round(was)} → ${Math.round(now)}px)`);
+
+  // ---- e) THE WHOLE SCREEN (the owner's 5 of 2026-09-23).  ⛶ takes the
+  // page, not the video's box: an embedded YouTube frame given the screen
+  // takes the top layer with it and nothing of Parseh's can be drawn over it
+  // -- which is why the subtitles were never seen and it would not let go.
+  // The contract is html.m-vfullon: Parseh's own layout over the page,
+  // whether or not the phone grants the browser's full screen.
+  // stand on a caption that HAS phrases to gloss: a caption the video merely
+  // frames (.plain, the video's own English) is shown as it stands and never
+  // glossed, so a subtitle copied from one has nothing to tap
+  assert(await page.evaluate(() => {
+    const seg = [...document.querySelectorAll('#segs .seg')].find(s => s.querySelector('.fa .w'));
+    if (!seg) return false;
+    seg.querySelector('.lab').click();     // plays from this caption's start
+    return true;
+  }), 'the fixture video has a caption with phrases to gloss');
+  await sleep(600);
+  await page.evaluate(() => ParsehPlayer.pause());
+  await tap(page, '.m-vfull');
+  await sleep(700);
+  eq(await page.evaluate(() => [document.documentElement.classList.contains('m-vfullon'),
+                                !!document.querySelector('.m-subs .m-subline'),
+                                document.getElementById('cloud').parentNode.tagName,
+                                !!document.querySelector('#playerwrap .m-vout')]),
+     [true, true, 'BODY', true],
+     '⛶: the video is laid over the whole page, the line being said lies on it, the gloss cloud ' +
+     'stays where it belongs (nothing outside a full-screen element is drawn, which is why it ' +
+     'must not be moved into the video\'s box), and there is a way out drawn on the screen');
+  eq(await page.evaluate(() => {
+    const clean = e => (e ? e.textContent : '').replace(/\s+/g, ' ').trim();
+    const air = clean(document.querySelector('#segs .seg.on-air'));
+    return [!!air, air === clean(document.querySelector('.m-subs .m-subline'))];
+  }), [true, true], 'and it is the very line the transcript is following, as it stands');
+  // the subtitle is a COPY, and a copy carries no listeners: the tap must
+  // still open the gloss cloud, which is the one thing the whole screen is for
+  await page.waitForSelector('.m-subs .m-subline .w');
+  await tap(page, '.m-subs .m-subline .w');
+  await sleep(400);
+  eq(await page.evaluate(() => {
+    const cloud = document.getElementById('cloud'), r = cloud.getBoundingClientRect();
+    const w = document.querySelector('.m-subs .m-subline .w.hot');
+    return [!!w, !cloud.hidden, r.width > 0 && r.height > 0];
+  }), [true, true, true],
+     'and a tap on a word of the subtitle opens its gloss, against the subtitle itself — the ' +
+     'copy says which caption and which phrase it is, and the player hangs the cloud on the copy');
+  // the back gesture is one of the three ways out: the entry pushed on the way in
+  await page.goBack();
+  await sleep(500);
+  eq(await page.evaluate(() => [document.documentElement.classList.contains('m-vfullon'),
+                                !!document.querySelector('.m-subs'),
+                                document.getElementById('cloud').parentNode.tagName]),
+     [false, false, 'BODY'], 'the phone\'s back gesture leaves it, and everything goes home');
+  // and the corner ⛶ itself, which is what a finger finds first
+  await tap(page, '.m-vfull');
+  await sleep(600);
+  assert(await page.evaluate(() => document.documentElement.classList.contains('m-vfullon')),
+         'in again');
+  await tap(page, '#playerwrap .m-vout');
+  await sleep(500);
+  eq(await page.evaluate(() => document.documentElement.classList.contains('m-vfullon')), false,
+     'and the corner ⛶ leaves it too');
+  // the third way: the black beside the picture, which is the box itself (the
+  // video swallows the taps that land on the video)
+  await tap(page, '.m-vfull');
+  await sleep(600);
+  eq(await page.evaluate(() => {
+    document.getElementById('playerwrap').click();
+    return document.documentElement.classList.contains('m-vfullon');
+  }), false, 'and a tap on the black beside the picture leaves it too — three ways out, so nobody is trapped');
+  // YouTube's own ⛶ is not offered on a phone: there is one whole screen,
+  // Parseh's, and it carries the subtitles
+  eq(await page.evaluate(() => (window.YTFRANK && window.ParsehPlayer &&
+                                ParsehPlayer.kind() === 'film') ? 'film' : 'youtube'), 'film',
+     'the fixture is a film of this machine, so YouTube\'s own button is not in play here');
+
+  // ---- e2) the speed chip says the speed that was CHOSEN, at once (the
+  // owner's 6: on a video it lagged one change behind, because it painted
+  // what the player reported before the player had taken the new rate)
+  // the book's own speed, as this phone left it: a video must not touch it
+  const bookRate = await page.evaluate(() => localStorage.getItem('bk_rate'));
+  await tap(page, '.nc-dock .nc-chip');
+  await page.waitForSelector('.nc-pop');
+  const want = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('.nc-popb')].find(x => x.textContent === '1.25×');
+    if (!b) return null;
+    b.click();
+    return document.querySelector('.nc-chip').textContent;   // read with no wait at all
+  });
+  eq(want, '1.25×', 'the chip says the speed the finger chose, without waiting for the player');
+  await sleep(600);
+  eq(await page.evaluate(() => [ParsehPlayer.rate(), document.querySelector('.nc-chip').textContent]),
+     [1.25, '1.25×'], 'and the player has it a moment later, with the chip unchanged');
+  eq(await page.evaluate(() => localStorage.getItem('vd_rate')), '1.25',
+     'a video remembers a speed of its own, vd_rate');
+  eq(await page.evaluate(() => localStorage.getItem('bk_rate')), bookRate,
+     `and leaves the book's alone (${JSON.stringify(bookRate)}): watching and listening are ` +
+     'different habits, and the owner asked for them to be kept apart');
+  // and it is still that speed when the video is opened again -- the player
+  // is put back to it the moment it says it is ready, which is the whole of
+  // what "remembers" means
+  await page.reload();
+  await page.waitForFunction(() => window.ParsehPlayer && ParsehPlayer.ready());
+  await sleep(700);
+  eq(await page.evaluate(() => [ParsehPlayer.rate(), document.querySelector('.nc-chip').textContent]),
+     [1.25, '1.25×'], 'opened again, the video plays at the speed it was left at, and says so');
+
+  // ---- f) the browser mode is untouched
+  await page.setViewportSize(DESK.viewport);
+  await setMode(page, 'browser');
+  await page.reload();
+  await page.waitForFunction(() => document.querySelectorAll('#segs .seg').length > 0);
+  eq(await page.evaluate(() => [!!document.querySelector('.m-rmore'),
+                                !!document.querySelector('.nc-dock'),
+                                document.getElementById('dl').offsetParent !== null]),
+     [false, false, true], 'in the browser mode the player is the page it always was');
+  await ctx.close();
+}
+
+
+// ======== the studio's library and a document, on a phone (§4.3) ========
+// Both pages carry the two layouts, as the deck pages do.  What is drawn is
+// READING: the library to find a document in, and the document to read --
+// with its exercises, which can be answered, since answering writes nothing.
+// Everything that writes, builds, downloads or administers is not there (the
+// owner's choice: no View PDF and no Print either).
+const LESSON = `---
+title: A phone lesson
+lang: en
+---
+
+# A phone lesson
+
+Some plain text to read on a phone.
+
+:::exercise single-choice
+prompt: Which article goes before [apple]{tl}?
+- [ ] [a]{tl}
+- [x] [an]{tl}
+explanation-correct: [an]{tl} comes before a vowel sound.
+:::
+`;
+async function partStudio() {
+  console.log('\n== the studio: the library and a document, on a phone');
+  const made = await (await fetch(B + '/studio/api/docs', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({markdown: LESSON})})).json();
+  const id = made.meta && made.meta.id;
+  assert(!!id, 'a document to read: ' + JSON.stringify(id));
+  const page = await newPage(PHONE, 'studio');
+  await page.goto(B + '/studio/');
+  await setMode(page, 'mobile');
+  await page.reload();
+  await page.waitForSelector('.m-topbar');
+  eq(await page.evaluate(() => [document.documentElement.getAttribute('data-mode'),
+                                getComputedStyle(document.querySelector('header.topbar')).display,
+                                document.querySelector('.m-topbar').offsetParent !== null,
+                                !!document.querySelector('.m-topbar [data-parseh-mode]')]),
+     ['mobile', 'none', true, true],
+     'the library: the mobile bar is drawn, the browser one is display:none, and the switch is in it');
+  for (const no of ['.topbar-actions', '#btn-stop', '#download-shown', '#btn-restore', '#btn-paste-answer'])
+    assert(!(await isDrawn(page, no)), 'the library: no ' + no);
+  await page.waitForFunction(() => document.querySelectorAll('#cards .card').length > 0, null, {timeout: 20000});
+  eq(await page.evaluate(() => {
+    const c = document.querySelector('#cards .card'), del = c.querySelector('.card-del');
+    return [c.getBoundingClientRect().height >= 88, !del || getComputedStyle(del).display === 'none'];
+  }), [true, true], 'its cards are a finger\'s size, and nothing on them deletes a document');
+  allFit(await targets(page, '.m-topbar a[href], .m-topbar button'), 'its bar: 48px, on the screen');
+  assert(await sideways(page) <= 0, 'and it does not scroll sideways');
+
+  // ---- the document
+  await page.goto(B + '/studio/doc/' + id);
+  await page.waitForSelector('article.sheet');
+  await settle(page);
+  await shot(page, 'studio-doc-phone');
+  eq(await page.evaluate(() => [document.querySelector('.m-topbar').offsetParent !== null,
+                                getComputedStyle(document.querySelector('header.topbar')).display]),
+     [true, 'none'], 'a document: the mobile bar, and the browser header gone');
+  for (const no of ['.topbar-actions', '.metabar', '#btn-build', '#btn-pdf-toggle', '#btn-add-all',
+                    '#btn-stop', '.ex-to-deck'])
+    assert(!(await isDrawn(page, no)), 'the document: no ' + no);
+  assert(/phone lesson/i.test(await page.textContent('article.sheet')), 'its text is there to read');
+  assert(await isDrawn(page, '#btn-toc') && await isDrawn(page, '#btn-typo'),
+         'and what reads it stays: the contents, and the size of the text');
+  // the exercise inside it is answered with a finger
+  const ex = await page.evaluate(async () => {
+    const opt = [...document.querySelectorAll('article.sheet .ex-option')]
+      .find(o => /^\s*an\s*$/.test(o.textContent));
+    if (!opt) return 'no option';
+    const tall = opt.getBoundingClientRect().height;
+    opt.click();
+    await new Promise(r => setTimeout(r, 400));
+    return [tall >= 48, opt.classList.contains('selected')];
+  });
+  eq(ex, [true, true], 'its exercise is a finger\'s size and answers a tap (answering writes nothing)');
+  await page.context().close();
+}
+
+
+
+// ======== a deck taken out, studied away, and given back (§19.9, §19.10) ====
+// The owner chose CHECK-OUT for studying offline: the phone takes the deck,
+// the computer may only cram it until it comes back, and every answer made
+// away is replayed on the computer through its own scheduler.  Driven with
+// the computer really stopped, since a browser's offline switch does not
+// reach a worker's own fetches.
+//
+// AND A SECOND DECK THAT IS ONLY KEPT, never taken out (the owner's 8,
+// 2026-09-23), because the two are different promises: a kept deck must CRAM
+// away from the computer -- which it could not, the cram page asking for its
+// exercises with a POST that no cache may hold -- and must say at once that
+// STUDYING it needs the computer, rather than sitting on "Loading exercises…"
+// until somebody closes it.
+async function partCheckout() {
+  console.log('\n== a deck taken out on a phone, studied with the computer away');
+  const EN = MADE.decks.en;
+  const deckApi = `${B}/exercises/api/decks/${EN.folder}/${EN.slug}`;
+  const deckPage = `${B}/exercises/deck/${EN.folder}/${EN.slug}/`;
+  const all = (await (await fetch(deckApi)).json()).items.map(it => it.id);
+  await fetch(deckApi + '/items/bulk', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: 'set-new', ids: all})}).then(r => r.body?.cancel());
+
+  // ---- a) what a deck is made of (§19.9)
+  const made = await (await fetch(deckApi + '/__offline')).json();
+  eq([made.ok, made.kind, made.small.length >= 4], [true, 'deck', true],
+     'the computer says what the deck is made of: its pages, its exercises and the studio\'s own files');
+  assert(made.small.some(x => /static\/decks\.js$/.test(x.url)),
+         'including the scripts its pages load, or the page would open offline with none');
+
+  // ---- b) the phone takes it out
+  const page = await newPage({...PHONE, userAgent: ANDROID}, 'checkout');
+  await watchWay(page);
+  await page.goto(deckPage);
+  await setMode(page, 'mobile');
+  await page.reload();
+  if (!(await page.evaluate(() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)))) {
+    await page.waitForFunction(() => navigator.serviceWorker.ready, null, {timeout: 20000}).catch(() => {});
+    await page.reload();
+    await page.waitForFunction(() => navigator.serviceWorker.controller, null, {timeout: 20000});
+  }
+  await page.waitForSelector('#btn-takeout:not([hidden])', {timeout: 20000});
+  await tap(page, '#btn-takeout');
+  // taking it out KEEPS it first (the owner's 8), and the page then re-reads
+  // the deck: a door answered from the copy taken a second earlier would show
+  // a deck that is not out (lib/sw.js, `isDoor`)
+  await page.waitForSelector('#btn-giveback:not([hidden])', {timeout: 90000});
+  const rec = await (await fetch(deckApi)).json();
+  eq([rec.checkout.out, /Android phone/.test(rec.checkout.device)], [true, true],
+     'taken out: the computer knows which device has it (' + rec.checkout.device + ')');
+  // KEEPING AND TAKING OUT ARE TWO THINGS (the owner's 8, 2026-09-23), and
+  // taking out asks for the copy first: there is no studying away without it
+  const isKept = () => page.evaluate(() => {
+    try { return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname]; }
+    catch (e) { return false; }
+  });
+  eq(await isKept(), true, 'and it kept the deck on this phone as part of the same press');
+  await keptWay(page, 'taking a deck out', 'worker');
+
+  // ---- b2) A SECOND DECK, KEPT AND NOT TAKEN OUT (the owner's 8,
+  // 2026-09-23: "offline exercises get stuck to 'loading exercises…' and
+  // never load the exercise, which should be instant instead since they
+  // should have been kept").  Keeping is not taking out, and he never asked
+  // for the two to be one thing: a deck he has only KEPT must cram away from
+  // the computer -- that is what he said keeping a deck was for -- and must
+  // say plainly that STUDYING it needs the computer.  Both are driven below,
+  // with the hub really stopped.
+  const FA = MADE.decks.fa;
+  const faPage = `${B}/exercises/deck/${FA.folder}/${FA.slug}/`;
+  const faApi = `/exercises/api/decks/${FA.folder}/${FA.slug}`;
+  const faIds = ((await (await fetch(B + faApi)).json()).items || []).map(it => it.id);
+  const faRec = await (await fetch(B + faApi + '/__offline')).json();
+  assert((faRec.small || []).some(x => x.url === faApi + '/cram'),
+         'a deck is made of its exercises too, at an address a worker can keep — a GET, ' +
+         'because the standard lets no cache hold a POST: ' + JSON.stringify(
+           (faRec.small || []).map(x => x.url).filter(u => /\/cram$/.test(u))));
+  eq((faRec.media || []).length, 0,
+     'and there is nothing left for him to pick: the exercises, with their pictures and ' +
+     'their recordings, travel with the deck under its one tick');
+  await page.goto(faPage);
+  await page.waitForSelector('.kp-keep', {timeout: 30000});
+  eq(await page.textContent('.kp-keep'), 'Keep on this phone', 'the second deck is not kept yet');
+  await tap(page, '.kp-keep');
+  await page.waitForSelector('.kp-sheet');
+  await page.locator('.kp-go').click();
+  await page.waitForFunction(() => {
+    try { return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname]; }
+    catch (e) { return false; }
+  }, null, {timeout: 120000});
+  eq([await page.textContent('.kp-keep'),
+      await page.evaluate(() => !document.querySelector('#btn-takeout').hidden)],
+     ['Change what is kept', true],
+     'it is kept, and Take it out is still there to press: keeping a deck is not taking it out');
+  await keptWay(page, 'a deck kept from its sheet', 'worker');
+
+  /* ---- b2) A COMPUTER THAT ANSWERS NOTHING, which is the only kind a phone
+     ever meets (the owner's 2 of 2026-09-23).  Every other offline test in
+     this file STOPS the server, and a stopped server REFUSES the socket at
+     once -- that is what his computer sees, and it is not what his phone
+     sees.  A phone whose tunnel has gone is answered with silence: the
+     connection is made and nothing ever comes back.  A SUSPENDED server is
+     exactly that, and it is the difference that hid this fault for so long:
+     cramming asks the computer with a POST first, lib/sw.js answers GETs
+     only (`r.method !== 'GET'`), and nothing else in the stack held a
+     deadline -- so on the desk the refusal was instant and the page fell to
+     its copy, while on his phone and his iPad the same page sat on "Loading
+     exercises…" for ever.  Both halves of the mend are driven here: the page
+     believes what the page before it found (lib/keep.js writes the memory
+     with its own terms in it now, so a plain script that runs before the
+     deferred keep.js can still read it), and an ask that has a copy to fall
+     back on is not waited out. */
+  Deno.kill(hub.pid, 'SIGSTOP');
+  try {
+    await page.evaluate(([key, ids]) => {
+      try { sessionStorage.setItem(key, JSON.stringify(ids)); } catch (e) { /* said below */ }
+    }, [`parseh-cram:${FA.folder}/${FA.slug}`, faIds.slice(0, 2)]);
+    const began = Date.now();
+    await page.goto(faPage + 'cram', {timeout: 60000});
+    let drew = true;
+    await page.waitForFunction(() => {
+      const s = (document.querySelector('#cram-stage') || {}).textContent || '';
+      const c = document.querySelector('#cram-cannot');
+      return (c && !c.hidden) || (s.trim() && !/Loading exercises/.test(s));
+    }, null, {timeout: 30000}).catch(() => { drew = false; });
+    const took = Date.now() - began;
+    const stage = ((await page.locator('#cram-stage').textContent().catch(() => '')) || '')
+      .replace(/\s+/g, ' ').trim();
+    assert(drew && !/Loading exercises/.test(stage) && took < 15000,
+           'a computer that answers nothing is not waited out: a kept deck crams anyway, in ' +
+           `${took}ms — ${JSON.stringify(stage.slice(0, 50))}`);
+  } finally {
+    Deno.kill(hub.pid, 'SIGCONT');
+  }
+
+  await page.goto(deckPage);
+  await page.waitForSelector('#btn-giveback:not([hidden])', {timeout: 30000});
+
+  // ---- c) while it is out: cram here, nothing else
+  const studyTry = await fetch(deckApi + '/review', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({item: all[0], rating: 'good'})});
+  const saidStudy = await studyTry.json();
+  eq([studyTry.status, saidStudy.conflict || ''], [409, 'checked-out'],
+     'the computer refuses to study it, saying where it is');
+  const editTry = await fetch(deckApi + '/items', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({markdown: ':::exercise flashcard\\ncard-type: vocab\\ntarget: [x]{tl}\\nmeaning: y\\n:::'})});
+  await editTry.body?.cancel();
+  eq(editTry.status, 409, 'and refuses to edit it');
+  const cram = await fetch(deckApi + '/cram', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ids: all.slice(0, 2)})});
+  const crammed = await cram.json();
+  eq([cram.status, (crammed.cards || []).length > 0], [200, true],
+     'but cramming it here is untouched: cram never schedules');
+
+  // ---- d) the computer is stopped, and the phone studies
+  hub.kill('SIGTERM');
+  await hub.status;
+  hubUp = false;
+  for (let i = 0; i < 40; i++) {
+    try { const r = await fetch(B + '/', {cache: 'no-store'}); await r.body?.cancel(); await sleep(250); }
+    catch (_) { break; }
+  }
+  await page.goto(deckPage + 'study');
+  await page.waitForFunction(() => !document.querySelector('#btn-show').hidden ||
+                                   !document.querySelector('#btn-check').hidden, null, {timeout: 30000});
+  assert((await page.locator('#study-stage').textContent()).trim().length > 0,
+         'with the computer stopped, studying opens from the pack the phone was handed');
+  for (let i = 0; i < 2; i++) {
+    const primary = await page.evaluate(() => !document.querySelector('#btn-show').hidden ? '#btn-show'
+                                            : !document.querySelector('#btn-check').hidden ? '#btn-check' : null);
+    if (!primary) break;
+    await tap(page, primary);
+    await page.waitForSelector('#rating-bar:not([hidden])', {timeout: 10000});
+    await tap(page, '#rating-bar [data-rating=good]');
+    await sleep(500);
+  }
+  const queued = await page.evaluate(() => {
+    const k = Object.keys(localStorage).find(x => x.startsWith('parseh_deck_answers:'));
+    return k ? JSON.parse(localStorage.getItem(k)).length : 0;
+  });
+  assert(queued >= 2, `what was answered away is kept on the phone (${queued}) until the computer is there`);
+
+  // ---- d2) AND THE DECK THAT WAS ONLY KEPT CRAMS (the owner's 8).  Its
+  // exercises come from the copy of the GET door that was kept with it.  The
+  // page's own first ask is a POST carrying the picked ids, and a service
+  // worker may not cache a POST at all -- whatever had been kept, that ask
+  // could never be answered here, which is why "Loading exercises…" was all
+  // this page ever said on a train.
+  //
+  // Reached as the deck page reaches it: the picks in sessionStorage and the
+  // BARE address, which is the one the record names and the one the phone
+  // holds (a cram page is not a different page for a different selection).
+  await page.evaluate(([key, ids]) => {
+    try { sessionStorage.setItem(key, JSON.stringify(ids)); } catch (e) { /* said below */ }
+  }, [`parseh-cram:${FA.folder}/${FA.slug}`, faIds]);
+  await page.goto(faPage + 'cram', {timeout: 30000});
+  await page.waitForFunction(() => /of 2/.test((document.querySelector('#cram-progress') || {})
+                                               .textContent || ''), null, {timeout: 30000});
+  eq(await page.locator('#cram-progress').textContent(), '1 of 2',
+     'with the computer stopped, a deck that was kept CRAMS: its exercises are on this phone');
+  const oneCard = (await page.locator('#cram-stage').textContent()).replace(/\s+/g, ' ').trim();
+  assert(oneCard.length > 0 && !/Loading/.test(oneCard),
+         'the exercise itself is drawn, not a spinner: ' + JSON.stringify(oneCard.slice(0, 60)));
+  assert(!(await isDrawn(page, '#cram-cannot')), 'and nothing says it cannot be shown');
+  // answered, and the next one comes: a practice, not one card in a frame
+  await page.waitForSelector('#cram-show:not([hidden])', {timeout: 20000});
+  await tap(page, '#cram-show');
+  await page.waitForSelector('#cram-correct:not([hidden])', {timeout: 20000});
+  await tap(page, '#cram-correct');
+  await page.waitForFunction(() => /^2 of 2/.test((document.querySelector('#cram-progress') || {})
+                                                  .textContent || ''), null, {timeout: 20000});
+  const twoCard = (await page.locator('#cram-stage').textContent()).replace(/\s+/g, ' ').trim();
+  assert(twoCard.length > 0 && twoCard !== oneCard,
+         'answered, and the next one comes: ' + JSON.stringify(twoCard.slice(0, 60)));
+
+  // ---- d3) STUDYING IT SAYS SO AT ONCE, AND THE WAY OUT IT OFFERS WORKS
+  // (§19.10, his 8).  Parseh keeps one scheduler and it is on the computer,
+  // so a deck that was not taken out cannot be studied away from it -- and
+  // nothing kept could ever have made it possible.  What the page used to do
+  // was find that out the slow way: an ask to a door nobody was going to
+  // answer, the worker's whole patience spent on it, and a fetch's complaint
+  // about a server at the end.  It knows before it asks now, because the page
+  // before it found out (his 5), so this is on the clock as well as read.
+  const began = Date.now();
+  await page.goto(faPage + 'study', {timeout: 30000});
+  await page.waitForSelector('#study-cannot:not([hidden])', {timeout: 20000});
+  const waited = Date.now() - began;
+  const saidNo = (await page.locator('#study-cannot').textContent()).replace(/\s+/g, ' ').trim();
+  assert(/Studying needs the computer/.test(saidNo) && /not out/.test(saidNo),
+         'a kept deck that was never taken out says so when Study is pressed: ' +
+         JSON.stringify(saidNo.slice(0, 90)));
+  assert(/Cram this deck/.test(saidNo), 'with what can be done instead, as a press');
+  assert(waited < 15000, 'and says it at once rather than hanging on it (' + waited + 'ms)');
+  // AND THE PRESS IS PRESSED, because an offer that opens "Parseh cannot be
+  // reached" is worse than no offer: this one goes to <deck>/cram?all=1, a
+  // NAVIGATION WITH A QUERY, and what the phone holds is the bare address.
+  // Nothing here knows how that is made to work -- the worker matching a kept
+  // navigation without its query, or the record naming this address too -- and
+  // nothing here should: what the owner does is press the button he is given.
+  const offered = await page.locator('#study-cannot a.btn').first().getAttribute('href');
+  await Promise.all([page.waitForURL(/\/cram\b/, {timeout: 30000}),
+                     tap(page, '#study-cannot a.btn')]);
+  await page.waitForFunction(() => /of \d+/.test((document.querySelector('#cram-progress') || {})
+                                                 .textContent || '') ||
+                                   /cannot be reached/.test(document.title),
+                             null, {timeout: 40000});
+  const offerWorks = await page.evaluate(() => ({
+    offline: /cannot be reached/.test(document.title),
+    progress: (document.querySelector('#cram-progress') || {}).textContent || '',
+    stage: ((document.querySelector('#cram-stage') || {}).textContent || '')
+      .replace(/\s+/g, ' ').trim().slice(0, 60)}));
+  assert(!offerWorks.offline && /of 2/.test(offerWorks.progress),
+         'Cram this deck, pressed with the computer stopped, really crams (' + offered + '): ' +
+         JSON.stringify(offerWorks));
+
+  // ---- e) the computer comes back: the answers go home by themselves
+  hub = new Deno.Command(PY, {args: ['tests/mobile_harness.py', 'serve', WORK, String(port)], cwd: root,
+                              stdout: 'piped', stderr: 'piped'}).spawn();
+  hubUp = true;
+  for (const st of [hub.stdout, hub.stderr])
+    (async () => { for await (const c of st.pipeThrough(new TextDecoderStream())) log.push(c); })();
+  for (const t = Date.now();;) {
+    try { const r = await fetch(B + '/'); await r.body?.cancel(); if (r.ok) break; } catch (_) {}
+    if (Date.now() - t > 60000) throw Error('the hub did not start again');
+    await sleep(250);
+  }
+  await page.goto(deckPage);
+  await page.waitForFunction(() => document.querySelectorAll('.dk-row').length > 0, null, {timeout: 30000});
+  await sleep(2500);
+  const after = await (await fetch(deckApi)).json();
+  const scheduled = after.items.filter(it => ((it.schedule || {}).state || 'new') !== 'new').length;
+  assert(scheduled >= 2, `the computer has what was answered away: ${scheduled} exercises have left "new"`);
+  eq(await page.evaluate(() => {
+    const k = Object.keys(localStorage).find(x => x.startsWith('parseh_deck_answers:'));
+    return k ? JSON.parse(localStorage.getItem(k)).length : 0;
+  }), 0, 'and the phone holds none of them any more');
+
+  // ---- f) given back
+  await tap(page, '#btn-giveback');
+  await page.waitForSelector('#btn-takeout:not([hidden])', {timeout: 30000});
+  eq((await (await fetch(deckApi)).json()).checkout.out, false, 'given back');
+  // and the copy stays: coming home from a journey must not cost the whole
+  // deck again the next time (the owner's 9).  Remove from this phone is what
+  // takes it off, and it says so.
+  eq(await isKept(), true, 'the kept copy is left alone: giving it back is not taking it off');
+  const again = await fetch(deckApi + '/review', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({item: all[0], rating: 'good'})});
+  await again.body?.cancel();
+  eq(again.status, 200, 'and the computer studies it again');
+
+  // ---- g) taken back from a phone that will not come home: refused, and listed
+  await fetch(deckApi + '/checkout', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({device: 'A lost phone', id: 'dev-lost'})}).then(r => r.body?.cancel());
+  await fetch(deckApi + '/takeback', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({})}).then(r => r.body?.cancel());
+  const late = await (await fetch(deckApi + '/answers', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: 'dev-lost', answers: [{item: all[0], rating: 'easy',
+                                                     at: new Date().toISOString()}]})})).json();
+  eq([late.applied, late.refused.length, late.taken_back === true], [0, 1, true],
+     'after Take it back that phone\'s answers are refused — and not in silence:');
+  const listed = (await (await fetch(deckApi)).json()).checkout.refused;
+  assert(listed.length >= 1 && /taken back/.test(listed[0].why || ''),
+         'the deck keeps what could not be applied, with why: ' + JSON.stringify((listed[0] || {}).why));
+  await fetch(deckApi + '/refused', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({})}).then(r => r.body?.cancel());
+  await page.context().close();
+}
+
+// ---- notes written into a book's seams, through the book's own doors.
+// POST <mount>/api/marks makes a note in the gap the page names and PUT
+// <mount>/api/docs/<id> is the editor's own Save (serve.py `_notes`,
+// markdown/app/server.py `api_save`) -- the two doors the + in a seam and the
+// editor press, so what is kept below is a note somebody could have written.
+// The anchors are read off the seams the reader really drew: a note anchored
+// at a line the book has not got hangs adrift at the end, and a mark at the
+// end of a book would not prove that a mark stands in a seam.
+async function writeNotes(page, mount, target, notes) {
+  const seams = await page.evaluate(() => [...document.querySelectorAll('.gap')]
+    .map(g => g.dataset.after).filter(Boolean));
+  if (!seams.length) throw Error('the reader drew no seam a note could go in');
+  const ids = [];
+  for (let i = 0; i < notes.length; i++) {
+    // round the seams again where there are fewer of them than notes: two
+    // notes in one seam are two marks in it, which is a thing a book does
+    const made = await (await fetch(mount + '/api/marks', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({side: 'after', kind: 'sub', at: seams[i % seams.length],
+                            target})})).json();
+    const id = (made.note || {}).id;
+    if (!id) throw Error('the seam would not take a note: ' + JSON.stringify(made));
+    // its own front matter back, with the title changed and the rest left
+    // alone: the anchor the door wrote is the note's place in the book, and
+    // a save that replaced the front matter would set it adrift
+    const got = await (await fetch(mount + '/api/docs/' + id)).json();
+    const head = String(got.markdown || '').split('\n---\n')[0]
+      .replace(/^title:.*$/m, 'title: ' + notes[i].title);
+    const saved = await fetch(mount + '/api/docs/' + id, {method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({markdown: head + '\n---\n\n' + notes[i].body + '\n'})});
+    if (!saved.ok) throw Error('the note would not save: ' + saved.status + ' ' + await saved.text());
+    await saved.body?.cancel();
+    ids.push(id);
+  }
+  return ids;
+}
+// What the notes say, chosen so that each one proves a different sentence of
+// the owner's: a note read on a train, an exercise answered on one, and a
+// formula that must bring MathJax with it or show as its own source.
+const NOTE_SAID = 'The idiom in this line is the one from chapter two.';
+const NOTES_TO_WRITE = [
+  {title: 'On the idiom', body: NOTE_SAID},
+  {title: 'Drill on the idiom', body: ':::exercise fill-blanks\nprompt: Complete it.\n' +
+    'text: The knight rode home through the [[one]].\n- [one] night\n- [ ] day\n:::'},
+  {title: 'The counting of it', body: 'The metre comes to [a^2+b^2]{math} feet.'},
+];
+
+// ======== kept on this phone, and the computer away (§19) ========
+// Keep a narrated book, stop the computer, and READ it: the page, its text,
+// its recording -- with a range asked of it, which is what makes ↺ and ↻ work
+// on a train -- the chip that says the computer cannot be reached, what has
+// no answer offline saying so at once, and the list of what is kept.
+//
+// AND ITS NOTES, which are the whole of the owner's second block of
+// 2026-09-23: a kept book used to keep its text and its recordings and leave
+// every note he had written on the computer, so every seam on a train opened
+// on nothing.  Two books are kept here for that -- the English one WITH its
+// notes ticked and the Persian one with them UNTICKED -- because a tick that
+// cannot be taken off is not a tick, and the honest answer where they were
+// not kept is as much a promise as the note where they were.
+//
+// AND FOUR THINGS FROM HIS THIRD BLOCK, all of them found in airplane mode on
+// his own phone and none of them findable by reading the source:
+//   a4) every address the built reader asks for is in the record.  One was
+//       not -- /lib/mt.js, a parser-blocking script in the reader's head --
+//       and the page stopped on it and never reached its text: "all books do
+//       not open while offline, loading stops at ~half".
+//   b0) what a recording's row says (the chapter and the section first, the
+//       paragraph addresses under them) and the shape of it (four fifths of
+//       the width, against the left, 48px still, and the drag still selects).
+//   b1a) a tick that is a lie: the kept recording is damaged in the cache,
+//       byte for byte the same size, and the sheet must untick it and say so.
+//   b5) the state is carried from page to page and corrected by the probe.
+// It runs LAST but one: it stops the server itself and starts it again for
+// the app part after it.
+async function partOffline() {
+  console.log('\n== kept on this phone, with the computer away');
+  const READER = B + MADE.readers.en;
+  const NOTES = B + MADE.readers.en.replace(/reader\/$/, 'notes');
+  const FA_READER = B + MADE.readers.fa;
+  const FA_NOTES = B + MADE.readers.fa.replace(/reader\/$/, 'notes');
+  // ---- a) what the computer says the book is made of (§19.3)
+  const made = await (await fetch(READER + '__offline')).json();
+  eq([made.ok, made.kind, made.small.length > 0, !!made.version, made.shared.length > 5],
+     [true, 'book', true, true, true],
+     'the computer says what the book is made of: its pages, its version, and the shared files');
+  assert(made.media.length >= 1 && made.media[0].bytes > 1000,
+         'and its recordings, each with its size: ' + JSON.stringify(made.media.map(m => m.bytes)));
+  assert((made.small_bytes || 0) > 0 && (made.bytes || 0) >= made.small_bytes,
+         'with what it costs, said in two halves');
+  eq([made.notes ? 1 : 0, made.bytes === made.small_bytes + made.media_bytes],
+     [0, true],
+     'a book nobody has written a note beside is exactly what it was: no group, and the sum still adds up');
+
+  // ---- a2) THE WAY IN, as the computer gives it (lib/offline.py, shell()).
+  // Without this the app had nothing to open from: its start address was in
+  // no cache at all.
+  const shellDoor = await fetch(B + '/__shell');
+  const shell = shellDoor.ok ? await shellDoor.json() : null;
+  eq([shellDoor.status, !!(shell && shell.ok)], [200, true],
+     'the computer says what the way in is made of, at /__shell');
+  assert(shell && ['/', '/?mode=mobile', '/m/books/', '/m/videos/', '/exercises/', '/studio/']
+           .every(p => shell.pages.includes(p)),
+         'the hub at both its addresses, the shelves and the two libraries: ' +
+         JSON.stringify((shell || {}).pages));
+  assert(shell && shell.files.some(u => /\/lib\/parseh\.css$/.test(u)) &&
+         shell.files.some(u => /static\/decks\.js$/.test(u)),
+         'with the sheets and the scripts those pages load, the studio\'s among them');
+  // AND WHAT IS NOT THE WAY IN (TO-DO §0, the third block of 2026-09-23).
+  // The three lists above are how a person GETS somewhere; the studio's
+  // thirteen faces are what a studio PAGE needs to look like itself, and they
+  // were 1.83 of the 3.26 megabytes this door named in one breath -- fetched,
+  // all of them, inside the worker's install event, which is why the app
+  // would no longer install at all.  They are named apart now and warmed when
+  // a page that needs them asks.
+  assert(shell && (shell.later || []).length > 0 &&
+         shell.later.every(u => /\/static\/fonts\//.test(u)),
+         'the studio\'s faces are named apart, to be warmed later: ' +
+         JSON.stringify((shell || {}).later || []));
+  assert(shell && !shell.files.some(u => /\/static\/fonts\//.test(u)),
+         'and not one of them is in the way in, which is what an install now fetches');
+
+  const ctx = await browser.newContext(PHONE);
+  const page = await ctx.newPage();
+  page.on('pageerror', e => { errors.push('offline: ' + e.message); console.log('PAGE ERROR offline', e.message); });
+  await watchWay(page);
+  page.touch = await ctx.newCDPSession(page);
+  await page.touch.send('Emulation.setTouchEmulationEnabled', {enabled: true, maxTouchPoints: 1});
+  await page.goto(READER);
+  await setMode(page, 'mobile');
+  await page.reload();
+  await page.waitForFunction(() => !!window.ParsehKeep, null, {timeout: 20000});
+  if (!(await page.evaluate(() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)))) {
+    await page.waitForFunction(() => navigator.serviceWorker.ready, null, {timeout: 20000}).catch(() => {});
+    await page.reload();
+    await page.waitForFunction(() => navigator.serviceWorker.controller, null, {timeout: 20000});
+  }
+  await answerPlace(page);
+
+  // ---- a3) THREE NOTES WRITTEN BESIDE THIS BOOK, and what the door then
+  // says about them (the owner's second block of 2026-09-23).  Written now
+  // rather than built into the fixture because the question is what happens
+  // to a note when the book it sits in is KEPT, and every other part of this
+  // suite reads the same book.
+  const noteIds = await writeNotes(page, NOTES, 'en', NOTES_TO_WRITE);
+  await page.reload();
+  await page.waitForFunction(() => document.querySelectorAll('.gap .mark').length >= 3,
+                             null, {timeout: 30000});
+  await answerPlace(page);
+  eq(await page.evaluate(() => [...document.querySelectorAll('.gap .mark')]
+       .map(b => b.textContent).sort()),
+     NOTES_TO_WRITE.map(n => n.title).sort(),
+     'three notes written into the book\'s seams, each with its mark in one');
+  const withNotes = await (await fetch(READER + '__offline')).json();
+  // THE NOTES ARE THEIR OWN HALF OF THE RECORD (lib/offline.py's header):
+  // every entry stands for one address, and the grouping into one tick is the
+  // sheet's, where the owner sees it (lib/keep.js).
+  const group = withNotes.notes || {};
+  group.urls = (group.small || []).map(x => x.url);
+  eq([withNotes.notes ? 1 : 0, group.kind, group.title, group.count, group.about],
+     [1, 'notes', 'its notes', 3, true],
+     'the notes are ONE tick of their own, beside the recordings, and what it costs is "about"');
+  assert(group.urls && group.urls.includes(NOTES.slice(B.length) + '/api/marks'),
+         'the seams\' list travels with them, or nothing on the phone could find a note: ' +
+         JSON.stringify(group.urls));
+  const plain = NOTES.slice(B.length) + '/note/' + noteIds[0];
+  const drill = NOTES.slice(B.length) + '/doc/' + noteIds[1];
+  assert(group.urls.includes(plain), 'a note is kept as its bare page: ' + plain);
+  assert(group.urls.includes(drill),
+         'and one that holds an exercise as the studio\'s whole page, so it can be answered ' +
+         'on a train exactly as at the desk: ' + drill);
+  // WHAT THE STUDIO LENDS THE PHONE lives inside the notes' own half, where
+  // the sheet fetches it only when the row is ticked: in the record's own
+  // `shared` it would be four megabytes fetched on a first keep by somebody
+  // who asked for the text of a book and was told it cost a few hundred kB.
+  const lent = (group.shared || []).map(x => x.url);
+  assert(!(withNotes.shared || []).some(u => /\/studio\/static\/fonts\//.test(u.url)),
+         'and not in what every page of the app needs, which any first keep fetches');
+  assert(lent.includes('/studio/static/sheet.css') &&
+         lent.filter(u => /\/studio\/static\/fonts\//.test(u)).length > 1 &&
+         lent.some(u => /\/studio\/static\/mathjax\/tex-svg\.js$/.test(u)),
+         'what a note opens on -- the studio\'s sheet, its faces, and MathJax where a note ' +
+         'has a formula -- is named at the STUDIO\'s own address, once for the phone');
+  assert(!lent.some(u => u.startsWith(MADE.readers.en.replace(/reader\/$/, ''))),
+         'and none of it under this one book, or ten books would keep ten copies: ' +
+         JSON.stringify(lent.filter(u => !u.startsWith('/lib/'))));
+  eq(withNotes.bytes === withNotes.small_bytes + withNotes.groups_bytes + withNotes.media_bytes,
+     true, 'what the book costs is said in three parts now, and they add up');
+  // THE NOTES CARRY A VERSION OF THEIR OWN, beside the thing's: folded into
+  // one, a note written at the desk would tell somebody who kept this book
+  // WITHOUT its notes that what he has is out of date, and the press he was
+  // offered would fetch him nothing (lib/keep.js, look()).
+  assert(group.version && group.version !== withNotes.version,
+         'the notes have a version of their own: ' + group.version);
+
+  // ---- a4) EVERY ADDRESS THE BUILT READER ASKS FOR IS IN THE RECORD (the
+  // owner's 7, 2026-09-23: "all books do not open while offline, loading
+  // stops at ~half").  One address was missing from every list -- /lib/mt.js,
+  // which lib/tex2html.py writes into the reader's head as a PARSER-BLOCKING
+  // script -- so with the computer away the parser stopped on it and the page
+  // never reached its body: half a reader, in all five of his books.
+  //
+  // It is asked of the HTML THE PARSER SEES, fetched from the computer as the
+  // browser fetches it, because that is the only place the fault could be
+  // seen: the DOM of a page that loaded perfectly well with the computer
+  // there says nothing about which of its addresses a phone holds.  Only what
+  // the reader asks of the toolbox and of its own folder is weighed -- the
+  // manifest and its icons are the app's badge, asked for at install and
+  // never on a page's way to its text, and the writing doors (__download,
+  // __narration) are not drawn on a phone at all.
+  const askedFor = await (async () => {
+    const html = await (await fetch(READER)).text();
+    const out = new Map();
+    // the tags the parser itself fetches from, and only those: a <link> that
+    // is not a stylesheet is a hint, and an <a href> is somewhere to go
+    for (const m of html.matchAll(/<(script|link|img|source|audio|video)\b([^>]*)>/gi)) {
+      const tag = m[1].toLowerCase(), rest = m[2];
+      if (tag === 'link' && !/stylesheet/i.test(rest)) continue;
+      const a = /\b(?:src|href)="([^"]+)"/i.exec(rest);
+      if (!a) continue;
+      let u;
+      try { u = new URL(a[1], READER); } catch (_) { continue; }
+      if (u.origin !== B) continue;
+      if (!/^\/lib\//.test(u.pathname) && !u.pathname.startsWith(MADE.readers.en.replace(/reader\/$/, '')))
+        continue;
+      if (!out.has(u.pathname)) out.set(u.pathname, tag);
+    }
+    return [...out];
+  })();
+  const inRecord = new Set([...withNotes.small, ...withNotes.shared, ...withNotes.media]
+    .map(x => x.url));
+  const missing = askedFor.filter(([u]) => !inRecord.has(u));
+  assert(askedFor.length >= 8, 'the built reader asks the toolbox for ' + askedFor.length +
+         ' addresses of its own: ' + JSON.stringify(askedFor.map(([u]) => u)));
+  eq(missing, [], 'and the computer names every one of them — nothing the parser stops on is ' +
+     'left out of the record');
+  assert(inRecord.has('/lib/mt.js'),
+         'the translation helper among them, which is the one that was missing');
+
+  // ---- b) Keep on this phone, with the recording picked (§19.1, §19.2)
+  await reveal(page);
+  await tap(page, '.m-rmore');
+  await page.waitForSelector('.kp-keep');
+  // TWO BUTTONS SHARE THE LINE NOW (the owner's 4, 2026-09-23), so `.kp-btn`
+  // is the WRAPPER and `.kp-keep` is the button it holds: reading the
+  // wrapper's text would read both of them at once, and tapping the wrapper
+  // would tap neither.
+  eq(await page.textContent('.kp-keep'), 'Keep on this phone', 'the button under ⋯ says what it does');
+  assert(!(await isDrawn(page, '.kp-drop')),
+         'and with nothing kept there is nothing to remove: the first button has the line');
+  await tap(page, '.kp-keep');
+  await page.waitForSelector('.kp-sheet');
+  const sheet = await page.evaluate(() => ({
+    what: document.querySelector('.kp-what').textContent,
+    rows: [...document.querySelectorAll('.kp-row')].length,
+    sum: document.querySelector('.kp-sum').textContent}));
+  assert(/take/.test(sheet.what) && sheet.rows >= 1 && /In all/.test(sheet.sum),
+         'the sheet says what the text costs and lists the recordings to pick, one by one');
+  // THE NOTES ARE A ROW ON THAT SAME LIST (his first decision): one tick for
+  // all three, saying how many and ABOUT how much, and ticked to begin with
+  // -- a seam that opens on nothing is the fault the row exists to mend.
+  const notesRow = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.kp-row')]
+      .find(r => /^its notes/.test((r.querySelector('.kp-name') || {}).textContent || ''));
+    if (!row) return null;
+    return {name: row.querySelector('.kp-name').textContent,
+            size: (row.querySelector('.kp-size') || {}).textContent || '',
+            on: row.querySelector('input').checked};
+  });
+  assert(notesRow && /^its notes · 3$/.test(notesRow.name) && /^about /.test(notesRow.size) &&
+         notesRow.on === true,
+         'the notes are one row of their own, ticked, saying how many and about how much: ' +
+         JSON.stringify(notesRow));
+
+  // ---- b0) WHAT A RECORDING'S ROW SAYS, AND THE SHAPE OF IT (the owner's 2,
+  // 2026-09-23).  Two things he asked for in one sentence, and both are
+  // measured where they are drawn rather than read out of a stylesheet:
+  //   "indicate also chapters and section range that each narration covers in
+  //    the rectangles instead of only the range of paragraphs" -- a row said
+  //    "n2 · 7.1 – 36.1", which is exact and no use at all to somebody
+  //    choosing two of fifty recordings for a train;
+  //   "reduce the size of the rectangles by 20% and align them left, so that
+  //    part of the page is free to move the thumb and scroll without issues"
+  //    -- a row takes the drag away from the browser (touch-action:none, so
+  //    that a finger drawn down the boxes ticks them), and with rows the
+  //    whole width of the sheet there was nowhere left to put a thumb.
+  // It is the WIDTH that shrinks: every row keeps its 48px.
+  const narr = await page.evaluate(() => {
+    const row = document.querySelector('.kp-row'), list = row.parentElement;
+    const r = row.getBoundingClientRect(), L = list.getBoundingClientRect();
+    const mid = r.top + r.height / 2;
+    const beside = document.elementFromPoint(Math.min(innerWidth - 2, r.right + 8), mid);
+    return {top: (row.querySelector('.kp-top') || {}).textContent || '',
+            sub: (row.querySelector('.kp-sub') || {}).textContent || '',
+            share: r.width / L.width, indent: Math.round(r.left - L.left),
+            high: Math.round(r.height), strip: Math.round(L.right - r.right),
+            onARow: !!(beside && beside.closest && beside.closest('.kp-row')),
+            drags: getComputedStyle(row).touchAction};
+  });
+  assert(/^chapter\b/.test(narr.top) && !/\d+\.\d+/.test(narr.top),
+         'the chapter comes first, in the reader\'s own wording, and the paragraph addresses ' +
+         'are no longer what the row leads with: ' + JSON.stringify(narr.top));
+  assert(/n1/.test(narr.sub) && /1\.1/.test(narr.sub),
+         'and they are still there, under it, for whoever knows the book by them: ' +
+         JSON.stringify(narr.sub));
+  assert(near(narr.share, 0.8, 0.02) && narr.indent === 0 && narr.strip > 20,
+         'the row is four fifths of the list, against its left edge, with a clear strip down ' +
+         'the right: ' + JSON.stringify({share: +narr.share.toFixed(3), indent: narr.indent,
+                                         strip: narr.strip}));
+  assert(narr.high >= 48 && narr.drags === 'none',
+         'still 48px high, and still the row that takes the drag: ' + narr.high + 'px, ' +
+         narr.drags);
+  assert(narr.onARow === false,
+         'and what a thumb lands on in that strip is not a row, so the sheet scrolls there');
+  // AND THE DRAG STILL SELECTS.  Narrower rows must not be harder to stroke:
+  // a finger put down on the first box and drawn to the last takes every row
+  // it crosses (lib/keep.js, dragging).  Driven with real pointer events at
+  // the rows' own coordinates, because what the code reads is
+  // elementFromPoint and not the element the event was aimed at.
+  const stroked = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.kp-row')];
+    const boxes = rows.map(r => r.querySelector('input'));
+    boxes.forEach(b => { b.checked = false; });
+    const at = r => { const b = r.getBoundingClientRect(); return [b.left + 30, b.top + b.height / 2]; };
+    const fire = (el, name, [x, y]) => el.dispatchEvent(new PointerEvent(name,
+      {bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', clientX: x, clientY: y}));
+    fire(boxes[0], 'pointerdown', at(rows[0]));
+    for (const r of rows) fire(rows[0], 'pointermove', at(r));
+    fire(rows[0], 'pointerup', at(rows[rows.length - 1]));
+    const took = boxes.map(b => b.checked);
+    // and the sheet is left as the test below expects to find it: the first
+    // recording and the notes, which is what the owner would have ticked
+    const want = rows.map((r, i) => i === 0 ||
+      /^its notes/.test((r.querySelector('.kp-name') || {}).textContent || ''));
+    boxes.forEach((b, i) => {
+      if (b.checked === want[i]) return;
+      b.checked = want[i];
+      b.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+    return {rows: rows.length, took: took};
+  });
+  assert(stroked.rows >= 2 && stroked.took.every(Boolean),
+         'a finger drawn down the boxes takes every row it crosses: ' +
+         JSON.stringify(stroked));
+  await page.locator('.kp-row input').first().check();
+  await page.locator('.kp-go').click();
+  await page.waitForFunction(() => {
+    try { return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname]; }
+    catch (e) { return false; }
+  }, null, {timeout: 120000});
+  await keptWay(page, 'the first book');
+  // KEPT, IT IS TWO BUTTONS (the owner's 4, 2026-09-23): one changes what is
+  // kept, one takes it off -- neither of them carrying the other's meaning
+  eq([await page.textContent('.kp-keep'), await page.textContent('.kp-drop'),
+      await isDrawn(page, '.kp-drop')],
+     ['Change what is kept', 'Remove from this phone', true],
+     'kept: Change what is kept, and Remove from this phone beside it');
+  // AND THEY DIVIDE THAT LINE IN TWO, HALF EACH, which is what he asked for:
+  // "they should divide the space that currently is allocated to change what
+  // is kept in two, one half for change the other for remove".  Remove used
+  // to hang on a line of its own underneath -- directly under the thumb that
+  // had just reached for Change -- and a button that throws away three
+  // hundred megabytes should not be where the other one was a moment ago.
+  const pair = await page.evaluate(() => {
+    const row = document.querySelector('.kp-pair');
+    const a = row.querySelector('.kp-keep').getBoundingClientRect();
+    const b = row.querySelector('.kp-drop').getBoundingClientRect();
+    return {line: Math.round(row.getBoundingClientRect().width),
+            one: Math.round(a.width), two: Math.round(b.width),
+            apart: Math.round(b.left - a.right), sameLine: Math.abs(a.top - b.top) <= 1,
+            high: Math.round(Math.min(a.height, b.height))};
+  });
+  assert(pair.sameLine && near(pair.one, pair.two, 2) &&
+         near(pair.one + pair.two + pair.apart, pair.line, 2) && pair.high >= 48,
+         'on one line, half each, and each still 48px: ' + JSON.stringify(pair));
+
+  // ---- b1) Change what is kept: the recording is ticked, and unticking it
+  // asks once and gives the room back.
+  //
+  // AND THE BOXES ARE TICKED FROM WHAT IS REALLY ON THE PHONE (the owner's 3,
+  // 2026-09-23: "the boxes should by default show the things that are
+  // actually kept in memory, and there should be a check of this, it should
+  // actually look for the file and check that the download was complete and
+  // correct").  So the sheet waits here for the worker's answer rather than
+  // reading the boxes the moment they are drawn: what they say before the
+  // check has spoken is the old guess, and it is the check this proves.
+  const looked = () => page.waitForFunction(() => {
+    const c = document.querySelector('.kp-check');
+    return !!c && !/Looking at/.test(c.textContent);
+  }, null, {timeout: 60000});
+  await tap(page, '.kp-keep');
+  await page.waitForSelector('.kp-sheet');
+  await looked();
+  // two of them now: the recording that was picked, and the notes that came
+  // with the book
+  eq(await page.evaluate(() => [document.querySelector('.kp-h').textContent,
+                                [...document.querySelectorAll('.kp-row input')].filter(b => b.checked).length,
+                                document.querySelector('.kp-check').textContent,
+                                document.querySelectorAll('.kp-row.kp-torn').length]),
+     ['Change what is kept', 2,
+      'Looked at file by file: what is ticked is whole on this phone.', 0],
+     'the list opens again with what is on this phone already ticked — and it looked, ' +
+     'file by file, before it said so');
+  // Clear all, the second of the two controls: nothing would be fetched and
+  // the recording that is here would be given back
+  await page.evaluate(() => document.querySelectorAll('.kp-pickall button')[1].click());
+  assert(/Save fetches .*, frees /.test(await page.textContent('.kp-sum')),
+         'and the line says both numbers: ' + (await page.textContent('.kp-sum')));
+  await page.locator('.kp-no').click();
+
+  // ---- b1a) A TICK THAT IS A LIE, FOUND AND MENDED (his 3, driven).  A box
+  // used to be ticked because the address was a KEY IN A CACHE, which a 503
+  // kept by mistake satisfies, and a page sent where a recording was asked
+  // for, and a fetch a tunnel cut in half.  So the copy of the recording on
+  // this phone is broken here on purpose -- the SAME NUMBER OF BYTES and not
+  // the same bytes, with the computer's own headers kept, so that nothing but
+  // the digest can tell it from the real one -- and the sheet is opened
+  // again.  It must not be ticked, and it must say why.
+  const tornUrl = withNotes.media[0].url;
+  const broke = await page.evaluate(async (url) => {
+    for (const name of await caches.keys()) {
+      const c = await caches.open(name);
+      const was = await c.match(url, {ignoreVary: true});
+      if (!was) continue;
+      const body = new Uint8Array(await was.arrayBuffer());
+      const at = Math.floor(body.length / 2), before = body[at];
+      body[at] = before ^ 0xff;
+      await c.put(url, new Response(body, {status: 200, statusText: 'OK',
+                                           headers: new Headers(was.headers)}));
+      return {cache: name, bytes: body.length, at: at, was: before,
+              said: was.headers.get('content-length')};
+    }
+    return null;
+  }, tornUrl);
+  assert(broke && broke.bytes > 1000,
+         'the recording kept on this phone is damaged, byte for byte the same size: ' +
+         JSON.stringify(broke));
+  await tap(page, '.kp-keep');
+  await page.waitForSelector('.kp-sheet');
+  await looked();
+  const torn = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.kp-row')];
+    const bad = rows.find(r => r.classList.contains('kp-torn'));
+    const line = document.querySelector('.kp-check');
+    return {which: rows.indexOf(bad), on: bad ? bad.querySelector('input').checked : null,
+            why: bad ? ((bad.querySelector('.kp-whytorn') || {}).textContent || '') : '',
+            line: line.textContent, warned: line.classList.contains('kp-bad'),
+            others: rows.filter(r => !r.classList.contains('kp-torn') &&
+                                     r.querySelector('input').checked).length};
+  });
+  assert(torn.which === 0 && torn.on === false,
+         'the box is NOT ticked for a copy that is not whole: ' + JSON.stringify(torn));
+  assert(/no longer whole/.test(torn.why) && torn.warned &&
+         /One file kept here is no longer whole/.test(torn.line) && /unticked/.test(torn.line),
+         'and the sheet says why, in the row and over the list: ' +
+         JSON.stringify({why: torn.why, line: torn.line}));
+  eq(torn.others, 1,
+     'while what IS whole keeps its tick — the notes are not unticked because a recording ' +
+     'came back torn');
+  // TICKED AGAIN, SAVE FETCHES IT AGAIN.  Everything in that list is either
+  // missing or a broken copy under the address it is meant to mend, so the
+  // press asks the worker for it WHOLE (lib/keep.js, change(): renew) rather
+  // than passing over "what is already there" and reporting success.
+  await page.locator('.kp-row input').first().check();
+  await page.locator('.kp-go').click();
+  await until(page, async (d) => {
+    const r = await caches.match(d.url, {ignoreVary: true});
+    if (!r) return false;
+    const b = new Uint8Array(await r.arrayBuffer());
+    return b.length === d.bytes && b[d.at] === d.was;
+  }, {url: tornUrl, bytes: broke.bytes, at: broke.at, was: broke.was}, 120000);
+  assert(true, 'ticking it again fetches it again: the bytes on this phone are the computer\'s');
+  // the button says "keeping…" while it runs and will not open a sheet then
+  await page.waitForFunction(() => {
+    const b = document.querySelector('.kp-keep');
+    return !!b && !b.disabled;
+  }, null, {timeout: 60000});
+  await keptWay(page, 'Save, bringing a torn recording again');
+  await tap(page, '.kp-keep');
+  await page.waitForSelector('.kp-sheet');
+  await looked();
+  eq(await page.evaluate(() => [document.querySelector('.kp-check').textContent,
+                                document.querySelectorAll('.kp-row.kp-torn').length,
+                                [...document.querySelectorAll('.kp-row input')].filter(b => b.checked).length]),
+     ['Looked at file by file: what is ticked is whole on this phone.', 0, 2],
+     'and looking again finds it whole');
+  await page.locator('.kp-no').click();
+
+  // ---- b1b) A SECOND BOOK KEPT WITH ITS NOTES UNTICKED.  The tick is only a
+  // tick if it can be taken off, and what a phone does with a note it was
+  // never given is as much a promise as what it does with one it has: the
+  // Persian book goes onto the phone without its note, and below, with the
+  // computer stopped, it must say so rather than show an empty frame.
+  await page.goto(FA_READER);
+  await page.waitForFunction(() => !!window.ParsehKeep, null, {timeout: 20000});
+  await answerPlace(page);
+  const faNote = (await writeNotes(page, FA_NOTES, 'fa',
+                                   [{title: 'On this line', body: NOTE_SAID}]))[0];
+  await page.reload();
+  await page.waitForFunction(() => document.querySelectorAll('.gap .mark').length >= 1,
+                             null, {timeout: 30000});
+  await answerPlace(page);
+  await reveal(page);
+  await tap(page, '.m-rmore');
+  await page.waitForSelector('.kp-btn');
+  await tap(page, '.kp-btn');
+  await page.waitForSelector('.kp-sheet');
+  const unticked = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.kp-row')]
+      .find(r => /^its notes/.test((r.querySelector('.kp-name') || {}).textContent || ''));
+    if (!row) return null;
+    row.querySelector('input').click();
+    return {on: row.querySelector('input').checked,
+            sum: (document.querySelector('.kp-sum') || {}).textContent || ''};
+  });
+  assert(unticked && unticked.on === false,
+         'the notes row can be unticked, and the sum says what is left: ' + JSON.stringify(unticked));
+  await page.locator('.kp-go').click();
+  await page.waitForFunction(() => {
+    try { return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname]; }
+    catch (e) { return false; }
+  }, null, {timeout: 120000});
+  // the slot holds BOTH buttons now, half each (the owner's 4 of the fourth
+  // block): what says it is kept is the pair, not one caption
+  eq(await page.textContent('.kp-keep'), 'Change what is kept',
+     'the second book is kept, without its notes');
+  await keptWay(page, 'the second book');
+  eq(await page.textContent('.kp-drop'), 'Remove from this phone',
+     'and the way to remove it stands beside it');
+  await page.goto(READER);
+  await answerPlace(page);
+
+  // ---- b2) a video and a document can be kept too (§19.7, §19.8)
+  const vid = await (await fetch(`${B}/youtube/v/${MADE.video}/__offline`)).json();
+  eq([vid.ok, vid.kind, vid.small.length > 0], [true, 'video', true],
+     'a video says what it is made of: its page, its transcript and its glosses');
+  assert((vid.media || []).some(m => /\.(mp4|webm|mkv|mov)$/i.test(m.url)),
+         'with the film on this machine among the heavy things to pick');
+  // AND ITS NOTES, the same row under its own mount: the owner asked for
+  // books and videos together, and the two readers' note code is a mirror.
+  const vNotes = `${B}/youtube/v/${MADE.video}/notes`;
+  const vMade = await (await fetch(vNotes + '/api/marks', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({side: 'before', kind: 'cap', at: '0', target: 'fa'})})).json();
+  assert((vMade.note || {}).id, 'a note written into a caption\'s seam: ' + JSON.stringify(vMade));
+  const vid2 = await (await fetch(`${B}/youtube/v/${MADE.video}/__offline`)).json();
+  const vGroup = vid2.notes || {};
+  vGroup.urls = (vGroup.small || []).map(x => x.url);
+  eq([vid2.notes ? 1 : 0, vGroup.kind, vGroup.url, vGroup.count],
+     [1, 'notes', `/youtube/v/${MADE.video}/notes`, 1],
+     'a video\'s notes are the same one tick, under the video\'s own mount');
+  assert((vGroup.urls || []).includes(`/youtube/v/${MADE.video}/notes/api/marks`) &&
+         (vGroup.urls || []).includes(`/youtube/v/${MADE.video}/notes/note/${vMade.note.id}`),
+         'with its marks and its bare page: ' + JSON.stringify(vGroup.urls));
+  const doc = await (await fetch(B + '/studio/api/docs', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({markdown: '---\ntitle: A kept page\nlang: en\n---\n\n# A kept page\n\nText.\n'})})).json();
+  const docId = doc.meta && doc.meta.id;
+  const docOff = await (await fetch(B + '/studio/doc/' + docId + '/__offline')).json();
+  eq([docOff.ok, docOff.kind, docOff.small.some(x => /static\/app\.js$/.test(x.url))],
+     [true, 'document', true],
+     'and a document says the page the computer rendered, with the studio\'s own scripts');
+
+  // ---- b3) what is kept goes out of date when the computer changes it
+  const readerFile = `${WORK}/root${MADE.readers.en}index.html`;
+  const was = await Deno.readTextFile(readerFile);
+  await Deno.writeTextFile(readerFile, was + '\n<!-- changed on the computer -->\n');
+  const now = await (await fetch(B + MADE.readers.en + '__offline')).json();
+  assert(now.version !== withNotes.version,
+         'a book changed on the computer has another version (' + withNotes.version +
+         ' → ' + now.version + ')');
+  await Deno.writeTextFile(readerFile, was);
+
+  // ---- b4) THE APP GETS ITSELF READY BEFORE THE COMPUTER GOES (TO-DO §0,
+  // the third block of 2026-09-23).  The way in used to be fetched inside the
+  // worker's install event; it is warmed afterwards now, by a page that is
+  // open and asks for it.  So everything below -- the hub and the shelf
+  // opening with the computer stopped -- waits on the WARMING and not on a
+  // stopwatch: the worker's own "that list is done" is what is waited for.
+  // The ask here is the page's own ask made once more, and that is exactly
+  // what makes it safe to make: the worker passes over every address this
+  // phone holds already, so a second ask of a warm phone fetches nothing at
+  // all and still says when it has settled the list.
+  const ready = await page.evaluate(() => new Promise((ok, no) => {
+    const sw = navigator.serviceWorker;
+    const heard = e => {
+      const d = e.data || {};
+      if (!d.warmed || d.warmed.what !== 'way-in') return;
+      sw.removeEventListener('message', heard);
+      ok(d.warmed);
+    };
+    sw.addEventListener('message', heard);
+    sw.controller.postMessage({warm: 'way-in'});
+    setTimeout(() => no(new Error('the way in was never warmed')), 180000);
+  }));
+  assert(ready.of > 10, 'the way in is warmed while the computer is there, and says when it is done: ' +
+         ready.of + ' addresses');
+  eq(await page.evaluate(() => Promise.all(['/?mode=mobile', '/', '/m/books/', '/m/kept/']
+       .map(u => caches.match(u).then(r => !!r)))),
+     [true, true, true, true],
+     'so the app\'s start address, the hub at its other address and the shelves are on ' +
+     'the phone before the computer goes');
+
+  // ---- b5) A PAGE OPENS IN THE STATE THE LAST ONE WAS IN, AND CORRECTS
+  // ITSELF (the owner's 5, 2026-09-23: "when changing pages the app rechecks
+  // if it's offline and assumes being online even if the page before showed
+  // being offline; good on the check, but assume that the status is the same
+  // of the page previous... and yes do the check and if the situation
+  // changes, correct, of course").  Walking from an offline hub into the
+  // shelf used to give three seconds of a page pretending all was well: cards
+  // that could be tapped and went nowhere, no chip, the counts the clock had
+  // made wrong still on the screen.
+  //
+  // BOTH HALVES ARE DRIVEN, and the window between them is made visible by
+  // HOLDING THE PROBE'S OWN ASK BACK two seconds -- less than the three it
+  // gives up after, so the computer's real answer is what arrives.  What the
+  // page shows in the meantime is the memory, and what it shows afterwards is
+  // the truth: the memory here says AWAY while the computer is really there,
+  // so nothing but the carrying could put the chip up and nothing but the
+  // probe could take it down again.  In its own context, so that the held-back
+  // fetch belongs to this test and to nothing after it.
+  const carrier = await browser.newContext(PHONE);
+  await carrier.addInitScript(() => {
+    try {
+      localStorage.setItem('parseh_mode', 'mobile');
+      // what the last page found: away, a moment ago, so it is still trusted
+      localStorage.setItem('parseh_away',
+                           JSON.stringify({at: Date.now() / 1000, away: true}));
+    } catch (e) { /* no storage: the assertions below will say so */ }
+    const real = window.fetch;
+    window.fetch = function (input, init) {
+      const u = String((input && input.url) || input || '');
+      if (!/\/__activity/.test(u)) return real.call(this, input, init);
+      return new Promise(ok => setTimeout(() => ok(real.call(window, input, init)), 2000));
+    };
+    window.__away = [];
+    (function look() {
+      const t = Math.round(performance.now());
+      window.__away.push([t, !!(document.documentElement &&
+                                document.documentElement.hasAttribute('data-parseh-away'))]);
+      if (t < 5000) setTimeout(look, 50);
+    })();
+  });
+  const carried = await carrier.newPage();
+  await carried.goto(B + '/m/books/', {timeout: 30000});
+  await carried.waitForFunction(() => window.__away && window.__away.length &&
+                                window.__away[window.__away.length - 1][0] >= 4000,
+                                null, {timeout: 30000});
+  const seen = await carried.evaluate(() => window.__away);
+  // the first moment the page said "away", and it can only be the memory:
+  // the one ask that could have said so is still two seconds out
+  const first = seen.find(([, on]) => on) || [];
+  const held = seen.filter(([t, ]) => t >= first[0] && t < 1800);
+  const after = seen.filter(([t]) => t > 3000);
+  assert(first.length && first[0] < 1500 && held.length > 3 && held.every(([, on]) => on),
+         'the shelf opens offline because the page before it was, ' + first[0] +
+         'ms in and with nothing yet asked of the computer');
+  assert(after.length > 3 && after.every(([, on]) => !on),
+         'and the probe corrects it the moment the computer answers: ' +
+         JSON.stringify(after.slice(-4)));
+  eq(await carried.evaluate(() => {
+    const r = JSON.parse(localStorage.getItem('parseh_away') || 'null');
+    return r ? r.away : null;
+  }), false, 'and what is written down for the next page is what the probe found, not the memory');
+  await carrier.close();
+
+  // ---- c) THE COMPUTER GOES AWAY.  Stopped, not "offline" in the browser:
+  // a browser's offline switch does not reach a worker's own fetches.
+  hub.kill('SIGTERM');
+  await hub.status;
+  hubUp = false;
+  for (let i = 0; i < 40; i++) {
+    try { const r = await fetch(B + '/', {cache: 'no-store'}); await r.body?.cancel(); await sleep(250); }
+    catch (_) { break; }
+  }
+  await page.reload();
+  await page.waitForFunction(() => typeof SUBS !== 'undefined', null, {timeout: 30000});
+  assert(await page.evaluate(() => document.querySelectorAll('.sub').length > 0),
+         'with the computer stopped the kept reader still opens, and its text is there');
+
+  // ---- c1) THE NOTES ARE THERE, which is the whole of what the owner asked
+  // for: a mark in the seam, and the note behind it.  The marks come from the
+  // seams' list kept with the book (a door: the computer first, this copy
+  // behind it), and the note itself from its own bare page.
+  await page.waitForFunction(() => document.querySelectorAll('.gap .mark').length >= 3,
+                             null, {timeout: 30000});
+  const marks = await page.evaluate(() =>
+    [...document.querySelectorAll('.gap .mark')].map(b => b.textContent));
+  assert(marks.includes('On the idiom'),
+         'the marks are drawn in their seams with the computer away: ' + JSON.stringify(marks));
+  await tapMark(page, 'On the idiom');
+  await page.waitForSelector('#ntbox:not([hidden])', {timeout: 30000});
+  const said = await page.evaluate(async () => {
+    // asked for again every time round: opening a note puts a FRESH iframe in
+    // place of the old one (ntFrame), so one taken hold of early is a
+    // detached element that will never fill
+    for (let i = 0; i < 80; i++) {
+      const d = (document.getElementById('ntframe') || {}).contentDocument;
+      const t = d && d.body ? (d.body.textContent || '').trim() : '';
+      if (t) return {text: t.slice(0, 300), page: (d.body.dataset || {}).page || ''};
+      await new Promise(r => setTimeout(r, 250));
+    }
+    return {text: '', page: ''};
+  });
+  assert(/the one from chapter two/.test(said.text) && said.page === 'note',
+         'and tapping one opens the note itself — its own words, on the studio\'s bare page, ' +
+         'with the computer stopped: ' + JSON.stringify(said));
+  await page.keyboard.press('Escape');
+  // AND THE ONE THAT HOLDS AN EXERCISE OPENS ANSWERABLE (his third decision):
+  // what was kept for it is the studio's whole page, scripts and all, so it
+  // is the page it is at the desk and not a box nobody can answer.
+  await tapMark(page, 'Drill on the idiom');
+  const drilled = await page.evaluate(async () => {
+    for (let i = 0; i < 80; i++) {
+      const d = (document.getElementById('ntframe') || {}).contentDocument;
+      const t = d && d.body ? (d.body.textContent || '').trim() : '';
+      if (/Complete it/.test(t))
+        // `found` is what was matched; `text` is only the excerpt a failure
+        // prints, and asserting on the excerpt failed the test for a page
+        // that was entirely right -- the exercise sits below 300 characters
+        // of the studio's own chrome.
+        return {found: true, text: t.slice(0, 300), page: (d.body.dataset || {}).page || '',
+                fields: d.querySelectorAll('input, button, select').length};
+      await new Promise(r => setTimeout(r, 250));
+    }
+    const d = (document.getElementById('ntframe') || {}).contentDocument;
+    return {why: 'the exercise never came up', text: d && d.body
+              ? (d.body.textContent || '').trim().slice(0, 200) : ''};
+  });
+  assert(drilled.found && drilled.page === 'doc' && drilled.fields > 0,
+         'a note holding an exercise opens its full studio page, answerable, away from the ' +
+         'computer exactly as at the desk: ' + JSON.stringify(drilled));
+  await page.keyboard.press('Escape');
+  const ranged = await page.evaluate(async () => {
+    const a = document.getElementById('audio');
+    const r = await fetch(a.src, {headers: {Range: 'bytes=100-199'}});
+    return [r.status, r.headers.get('content-range'), (await r.arrayBuffer()).byteLength];
+  });
+  eq([ranged[0], ranged[2]], [206, 100],
+     'a range asked of the kept recording is answered 206, cut to size (' + ranged[1] + ') — seeking works');
+  eq(await page.evaluate(async () => {
+    const r = await fetch('/__activity');
+    return [r.status, (await r.json()).offline === true];
+  }), [503, true], 'and what only the computer can answer says so at once, instead of hanging');
+  await page.waitForSelector('.kp-off', {timeout: 30000});
+  assert(await page.evaluate(() => document.querySelector('.kp-off').getAttribute('href') === '/m/kept/'),
+         'the page wears the offline chip, which opens the list of what is kept');
+
+  // ---- c1b) AND WHERE THE NOTES WERE UNTICKED, THE PHONE SAYS SO.  The
+  // second book is kept and opens; its note is not, and nothing pretends
+  // otherwise -- no mark in the seam, because the seams' list is the
+  // computer's and was not kept with it, and the note's own page answers
+  // with "Parseh cannot be reached" rather than an empty frame.
+  await page.goto(FA_READER, {timeout: 30000});
+  await page.waitForFunction(() => typeof SUBS !== 'undefined', null, {timeout: 30000});
+  await answerPlace(page);
+  assert(await page.evaluate(() => document.querySelectorAll('.sub').length > 0),
+         'the second book opens with the computer stopped too');
+  await sleep(1500);            // whatever the marks were going to be, by now
+  const empty = await page.evaluate(async () => {
+    const marks = document.querySelectorAll('.gap .mark').length;
+    const r = await fetch('../notes/api/marks').catch(e => ({status: 0, why: e.message}));
+    let said = null;
+    try { said = await r.json(); } catch (e) { /* not JSON: the status says it */ }
+    return [marks, r.status, !!(said && said.offline)];
+  });
+  eq(empty, [0, 503, true],
+     'its notes were not kept: no mark is drawn, and the seams\' list says at once that it ' +
+     'needs the computer instead of hanging');
+  const shown = await page.evaluate(async (id) => {
+    const f = document.createElement('iframe');
+    f.src = '../notes/note/' + id;
+    f.style.cssText = 'position:fixed;left:-9999px;width:300px;height:300px';
+    document.body.appendChild(f);
+    await new Promise(r => { f.onload = r; setTimeout(r, 20000); });
+    const d = f.contentDocument;
+    return d && d.body ? (d.body.textContent || '').trim().slice(0, 200) : '';
+  }, faNote);
+  assert(/cannot be reached/i.test(shown),
+         'and opening the note that was not kept says the computer is needed, instead of ' +
+         'showing a blank frame: ' + JSON.stringify(shown));
+
+  await page.goto(B + '/m/kept/');
+  await page.waitForSelector('.m-kept', {timeout: 20000});
+  const kept = await page.evaluate(() => [...document.querySelectorAll('.m-kept .m-btitle')].map(e => e.textContent));
+  // the two books kept above: the English one with its notes, the Persian one
+  // without them
+  eq(kept.length, 2, 'the kept page opens with the computer away, and lists them: ' + JSON.stringify(kept));
+  assert(await isDrawn(page, '.m-keptoff'), 'with a way to give the room back');
+
+  // ---- c2) THE APP ITSELF OPENS (the owner's 1 and 2, 2026-09-23).  It used
+  // to stall on its own splash: /?mode=mobile was in no cache and the fetch
+  // had no deadline.  The way in is kept now, and these are NOT the "Parseh
+  // cannot be reached" page -- the usual pages open, with the offline chip.
+  await page.goto(B + '/?mode=mobile', {timeout: 30000});
+  await page.waitForSelector('.hub-mobile .m-doors', {timeout: 30000});
+  eq(await page.evaluate(() => /cannot be reached/.test(document.title)), false,
+     'the app opens on its own hub with the computer stopped, not on the offline page');
+  // what the clock has made wrong is not shown; the doors themselves stay
+  await page.waitForFunction(() => document.documentElement.hasAttribute('data-parseh-away'),
+                             null, {timeout: 30000});
+  eq(await page.evaluate(() => [...document.querySelectorAll('.hub-mobile .m-tags .tag')]
+       .filter(t => /^\s*\d+\s+due\s*$/.test(t.textContent) && t.style.display !== 'none').length),
+     0, 'and what is due -- the one count the clock moves -- is not shown while it is away');
+  assert(await isDrawn(page, '.kp-off'), 'the hub wears the offline chip');
+
+  // the shelf too, with the kept book tappable and the rest drawn and not
+  await page.goto(B + '/m/books/', {timeout: 30000});
+  await page.waitForSelector('.m-shelf[data-shell-block] .m-book', {timeout: 30000});
+  await page.waitForFunction(() => document.querySelectorAll('.m-book.kp-away').length > 0 ||
+                                   !document.documentElement.hasAttribute('data-parseh-away'),
+                             null, {timeout: 30000});
+  const shelf = await page.evaluate(() => {
+    const on = [...document.querySelectorAll('a.m-book[href]')].map(a => a.getAttribute('href'));
+    const off = [...document.querySelectorAll('.m-book.kp-away')]
+      .map(c => (c.querySelector('.kp-note') || {}).textContent || '');
+    return [on, off];
+  });
+  assert(shelf[0].length >= 1 && shelf[0].every(h => /reader\/$/.test(h) || /reader\//.test(h)),
+         'the book kept on this phone is still a link: ' + JSON.stringify(shelf[0]));
+  assert(shelf[1].length >= 1 && /Not on this phone/.test(shelf[1][0]),
+         'and a book that is not on this phone is drawn and cannot be tapped, saying so');
+
+  // ---- c3) THE VIDEOS SHELF, AWAY: CHANNELS, AND THE ONES THIS PHONE
+  // CANNOT OPEN LOOK LIKE IT (decision C, 2026-09-23).  The shelf itself is
+  // kept with the app and opens whatever happens, so it shows the channels
+  // the computer had when it was last reached -- but a CHANNEL's page is on
+  // this phone only if the app warmed it, and nothing warms one: tapping such
+  // a card would go nowhere, which is worse than a card that says so.
+  await page.goto(B + '/m/videos/', {timeout: 30000});
+  await page.waitForSelector('.m-shelf[data-shell-block] .m-chancard', {timeout: 30000});
+  await page.waitForFunction(() => document.documentElement.hasAttribute('data-parseh-away') &&
+    [...document.querySelectorAll('.m-chancard')].every(c => c.hasAttribute('data-m-here')),
+                             null, {timeout: 30000});
+  const chans = await page.evaluate(() => ({
+    title: /cannot be reached/.test(document.title),
+    cards: document.querySelectorAll('.m-chancard').length,
+    players: document.querySelectorAll('a.m-book[href^="/youtube/v/"]').length,
+    off: [...document.querySelectorAll('.m-chancard.m-chanoff')].map(c => ({
+      href: c.getAttribute('href'), kept: c.getAttribute('data-m-here'),
+      says: (c.querySelector('.m-channote') || {}).textContent || ''}))}));
+  eq([chans.title, chans.cards, chans.players], [false, 1, 0],
+     'the videos shelf opens with the computer stopped, still the channels and still no ' +
+     'card that opens a player');
+  assert(chans.off.length === 1 && chans.off[0].href === null && chans.off[0].kept === '0' &&
+         /Not on this phone/.test(chans.off[0].says),
+         'and a channel whose list is not on this phone is drawn, cannot be tapped, and says ' +
+         'so: ' + JSON.stringify(chans.off));
+  await page.context().close();
+
+  // ---- d) the computer comes back, for whatever runs after this
+  hub = new Deno.Command(PY, {args: ['tests/mobile_harness.py', 'serve', WORK, String(port)], cwd: root,
+                              stdout: 'piped', stderr: 'piped'}).spawn();
+  hubUp = true;
+  for (const s of [hub.stdout, hub.stderr])
+    (async () => { for await (const c of s.pipeThrough(new TextDecoderStream())) log.push(c); })();
+  for (const t = Date.now();;) {
+    try { const r = await fetch(B + '/'); await r.body?.cancel(); if (r.ok) break; } catch (_) {}
+    if (Date.now() - t > 60000) throw Error('the hub did not start again');
+    await sleep(250);
+  }
+  assert(true, 'the computer started again, for what comes after');
 }
 
 // ======== decks ========
@@ -638,9 +2604,14 @@ async function partDecks() {
     const got = await clickable(page, 'body');
     const deckLinks = ['english/everyday-english', 'italian/nothing-yet', 'persian/persian-words']
       .flatMap(p => [`a:/exercises/deck/${p}/`, `a:/exercises/deck/${p}/study`, `a:/exercises/deck/${p}/`]);
+    // on a touch screen the bar wears a ? as well: what a button does, for a
+    // finger that cannot rest on it (lib/explain.js, §4.7)
+    const ask = tag === 'desktop' ? [] : ['button:px-ask'];
     eq(got.filter(x => !/^a:\/exercises\/deck\//.test(x)),
-       ['a:/', 'button:browser', 'button:mobile', 'button:theme', 'button:all', 'button:fa', 'button:it', 'button:en'],
-       'the bar and the chips: home, the switch, the theme, one chip a language');
+       ['a:/', 'button:browser', 'button:mobile', 'button:theme', ...ask,
+        'button:all', 'button:fa', 'button:it', 'button:en'],
+       'the bar and the chips: home, the switch, the theme' + (ask.length ? ', the ?' : '') +
+       ', one chip a language');
     eq(got.filter(x => /^a:\/exercises\/deck\//.test(x)).sort(), deckLinks.sort(),
        'and each deck its name, Study and Open');
     eq(await page.evaluate(() => {
@@ -757,6 +2728,54 @@ async function partDecks() {
       allFit(await targets(page, '.dk-studyhead .m-back'), 'studying: ‹ back to the deck, 48px');
       eq(await page.evaluate(() => new URL(document.querySelector('.dk-studyhead .m-back').href).pathname),
          `/exercises/deck/${EN.folder}/${EN.slug}/`, 'and it goes to the deck');
+      if (rail && page.touch) {
+        // ---- THE SCROLL STRIP (§4.16).  A finger's device only: a desktop
+        // has a wheel, and the column is no use to it.  The empty stretch of the column
+        // between the buttons scrolls the exercise, so a long one need not be
+        // reached for across the screen.  A screen too short for the exercise
+        // is exactly what it is for, so the viewport is made one.
+        await page.setViewportSize({width: 844, height: 300});
+        await sleep(400);
+        await page.evaluate(() => window.ParsehStrip && ParsehStrip.look());
+        const strip = await rect(page, '.dk-strip');
+        const skipWas = await rect(page, '#btn-skip');
+        eq(await page.evaluate(() => [document.querySelector('.dk-strip').classList.contains('dk-can-scroll'),
+                                      getComputedStyle(document.querySelector('.dk-strip')).touchAction]),
+           [true, 'none'], 'the strip says it can be dragged, and takes the drag itself');
+        assert(strip.l >= (await rect(page, '#study-stage')).r - 1,
+               'it is in the column, not over the exercise ' + JSON.stringify(strip));
+        // a finger dragged up the strip: the page follows it
+        const y0 = Math.round(strip.t + strip.h / 2), x = Math.round(strip.l + strip.w / 2);
+        const pt = v => [{x, y: v, radiusX: 4, radiusY: 4, force: 1, id: 1}];
+        await page.touch.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: pt(y0 + 60)});
+        for (let k = 1; k <= 6; k++) {
+          await page.touch.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: pt(y0 + 60 - k * 18)});
+          await sleep(16);
+        }
+        await page.touch.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
+        await sleep(400);
+        const moved = await page.evaluate(() => scrollY);
+        assert(moved > 40, 'a finger dragged up the strip scrolls the exercise (' + moved + 'px)');
+        const skipNow = await rect(page, '#btn-skip');
+        assert(near(skipNow.t, skipWas.t) && near(skipNow.l, skipWas.l),
+               'and the buttons do not move with it');
+        eq(await page.evaluate(() => {
+          const b = document.querySelector('#btn-skip'), r = b.getBoundingClientRect();
+          const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return b.contains(el);
+        }), true, 'a tap on Skip still reaches Skip: nothing of the strip is over it');
+        // dragged back down, it goes back; and a short exercise says nothing
+        await page.touch.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: pt(y0 - 60)});
+        for (let k = 1; k <= 6; k++) {
+          await page.touch.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: pt(y0 - 60 + k * 18)});
+          await sleep(16);
+        }
+        await page.touch.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
+        await sleep(500);
+        assert(await page.evaluate(() => scrollY) < moved, 'dragged the other way, it goes back');
+        await page.setViewportSize(LAND.viewport);
+        await sleep(400);
+      }
       const done = new Set();
       for (let round = 0; round < 5; round++) {
         const card = await page.evaluate(() => ({
@@ -1041,10 +3060,584 @@ async function cramAnswerBar(page, tag, rail) {
 }
 
 // ======== app ========
+// ======== a book kept in the background: Android's own download ========
+/* The owner's decision of 2026-09-23 (TO-DO §0; lib/keep.js, bgKeep; lib/sw.js,
+   settle): what only the background way has, driven -- the computer really
+   stopped (SIGSTOP: a phone meets silence, not refusal), the worker really
+   stopped (CDP), a Cancel made as the notification makes it (the download's
+   own abort, which fires the same event), and every line read off the page in
+   the words he chose.  Run only where this Chromium HAS the background
+   download; on the worker's way there is none of this to drive.  What no
+   headless browser can show -- Android's own notification and its buttons, a
+   locked phone, his tunnel -- is his phone's to try (TO-DO §19.11). */
+async function partBackground() {
+  if (WAY !== 'background') return;
+  console.log('\n== a book kept in the background: Android\'s own download');
+  const EN = B + MADE.readers.en, FA = B + MADE.readers.fa;
+  const HERE = MADE.readers.en;                  // what it is kept under: its reader's address
+  const BOOK = MADE.readers.en.replace(/reader\/$/, '');
+  const AUDIO = WORK + '/root' + BOOK + 'audio/';
+  const LEAVE = ' — you can leave this page';
+  const REFUSED = 'Chrome will not download for Parseh in the background — turn on Automatic ' +
+                  'downloads for this site in Chrome’s Site settings.';
+  /* A RECORDING BIG ENOUGH TO BE CAUGHT HALFWAY.  The fixture's are seconds of
+     tone, gone in a blink on this machine, and a keep can only be cancelled,
+     stopped or reloaded in its middle if it HAS a middle.  Under the 256 MiB a
+     single answer may weigh in an incognito profile's background download. */
+  const BIG = 'big.wav', BIG_BYTES = 200 * 1000 * 1000, BIG_URL = BOOK + 'audio/big.wav';
+  { const f = await Deno.open(AUDIO + BIG, {write: true, create: true, truncate: true});
+    await f.truncate(BIG_BYTES); f.close(); }
+  // and what the computer says of the book now, with it among the recordings
+  const made = await (await fetch(EN + '__offline')).json();
+  const TITLE = made.title, FA_TITLE = (await (await fetch(FA + '__offline')).json()).title;
+  const stopHub = () => Deno.kill(hub.pid, 'SIGSTOP');
+  const goHub = () => Deno.kill(hub.pid, 'SIGCONT');
+  async function phone(ctx) {
+    ctx = ctx || await browser.newContext(PHONE);
+    const page = await ctx.newPage();
+    page.on('pageerror', e => { errors.push('background: ' + e.message); console.log('PAGE ERROR background', e.message); });
+    page.touch = await ctx.newCDPSession(page);
+    await page.touch.send('Emulation.setTouchEmulationEnabled', {enabled: true, maxTouchPoints: 1});
+    await watchWay(page);
+    return page;
+  }
+  async function open(page, url) {
+    await page.goto(url);
+    await setMode(page, 'mobile');
+    await page.reload();
+    await page.waitForFunction(() => !!window.ParsehKeep, null, {timeout: 20000});
+    if (!(await page.evaluate(() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)))) {
+      await page.waitForFunction(() => navigator.serviceWorker.ready, null, {timeout: 20000}).catch(() => {});
+      await page.reload();
+      await page.waitForFunction(() => navigator.serviceWorker.controller, null, {timeout: 20000});
+    }
+    await answerPlace(page);
+  }
+  async function sheet(page) {
+    await reveal(page);
+    if ((await page.getAttribute('.m-rmore', 'aria-expanded')) !== 'true') await tap(page, '.m-rmore');
+    await page.waitForFunction(() => { const b = document.querySelector('.kp-keep'); return !!b && !b.disabled; },
+                               null, {timeout: 30000});
+    await tap(page, '.kp-keep');
+    await page.waitForSelector('.kp-sheet');
+  }
+  // exactly these recordings ticked, by file name; the notes' row as it is
+  const pick = (page, names) => page.evaluate(names => {
+    for (const b of document.querySelectorAll('.kp-row input')) {
+      if (!b.value) continue;
+      if (b.checked !== names.some(n => b.value.endsWith('/' + n))) b.click();
+    }
+  }, names);
+  // Keep it (or Save); and if the room is asked about, what it says
+  async function press(page, anyway = true) {
+    await page.locator('.kp-go').click();
+    await page.waitForFunction(() => !document.querySelector('.kp-sheet') || !!document.querySelector('.kp-room'),
+                               null, {timeout: 15000});
+    const room = await page.$('.kp-room') ? await page.textContent('.kp-room') : '';
+    if (room && anyway) await page.locator('.kp-go').click();
+    return room;
+  }
+  const button = page => page.evaluate(() => (document.querySelector('.kp-keep') || {}).textContent || '');
+  const entry = (page, id = HERE) => page.evaluate(id => {
+    try { return JSON.parse(localStorage.getItem('parseh_kept') || '{}')[id] || null; } catch (e) { return null; }
+  }, id);
+  const downloads = page => page.evaluate(async () => {
+    const r = await navigator.serviceWorker.getRegistration();
+    const out = [];
+    for (const id of await r.backgroundFetch.getIds()) {
+      const g = await r.backgroundFetch.get(id);
+      if (g) out.push({id, part: id.split(':')[2], downloaded: g.downloaded, total: g.downloadTotal});
+    }
+    return out;
+  });
+  // what the notification's Cancel does: the download's own abort
+  const cancel = (page, part) => page.evaluate(async part => {
+    const r = await navigator.serviceWorker.getRegistration();
+    for (const id of await r.backgroundFetch.getIds())
+      if (id.split(':')[2] === part) { const g = await r.backgroundFetch.get(id); if (g) return g.abort(); }
+    return false;
+  }, part);
+  const inCache = (page, name, url) => page.evaluate(async ([name, url]) => {
+    if (!(await caches.has(name))) return -1;
+    const r = await (await caches.open(name)).match(url, {ignoreVary: true});
+    return r ? (await r.blob()).size : -1;
+  }, [name, url]);
+  const toasted = (page, line, timeout = 90000) => page.waitForFunction(
+    t => ((document.getElementById('parseh-toast') || {}).textContent || '') === t, line, {timeout});
+  /* HELD IN ITS MIDDLE.  The computer is stopped, then let go for a few
+     milliseconds at a time, until some of `part` has come and not all of it;
+     it is left STOPPED -- its socket open and saying nothing, as a phone's
+     computer does when it sleeps. */
+  async function midway(page, part, open_ = 12, shut = 80) {
+    stopHub();
+    let last = null;
+    for (const t = Date.now(); Date.now() - t < 120000;) {
+      last = await downloads(page);
+      const d = last.find(x => x.part === part);
+      if (d && d.downloaded > 0 && (!d.total || d.downloaded < d.total)) return d.downloaded;
+      goHub(); await sleep(open_); stopHub(); await sleep(shut);
+    }
+    goHub();
+    throw Error('FAIL: the ' + part + ' download could not be caught halfway: ' + JSON.stringify(last));
+  }
+  async function hubAgain() {
+    hub = new Deno.Command(PY, {args: ['tests/mobile_harness.py', 'serve', WORK, String(port)], cwd: root,
+                                stdout: 'piped', stderr: 'piped'}).spawn();
+    hubUp = true;
+    for (const st of [hub.stdout, hub.stderr])
+      (async () => { for await (const c of st.pipeThrough(new TextDecoderStream())) log.push(c); })();
+    for (const t = Date.now();;) {
+      try { const r = await fetch(B + '/'); await r.body?.cancel(); if (r.ok) break; } catch (_) {}
+      if (Date.now() - t > 60000) throw Error('the hub did not start again');
+      await sleep(250);
+    }
+  }
+
+  // MOBILE_BG_ONLY=a,j runs those scenarios alone (they are lettered below)
+  const ONLY = (Deno.env.get('MOBILE_BG_ONLY') || '').split(',').filter(Boolean);
+  const only = k => !ONLY.length || ONLY.includes(k);
+  try {
+    // ---- a) THE PAGE CLOSED, THE WORKER STOPPED, AND IT STILL ARRIVES -- the
+    // whole point of the background way -- written down by the next page
+    // that opens, which says its line once, at its foot
+    if (only('a')) {
+      const page = await phone();
+      const ctx = page.context();
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, ['part1.mp3']);
+      // TWO TAPS AT ONCE, as a thumb makes them: the phone is asked about its
+      // room between them, and a second keep of the same book used to start
+      await page.evaluate(() => { const g = document.querySelector('.kp-go'); g.click(); g.click(); });
+      await page.waitForFunction(() => !document.querySelector('.kp-sheet'), null, {timeout: 15000});
+      // the browser waits a few seconds before a first download's first ask
+      await page.waitForFunction(w => (document.querySelector('.kp-keep') || {}).textContent.endsWith(w),
+                                 LEAVE, {timeout: 5000});
+      assert(/^Keeping… \d+% — you can leave this page$/.test(await button(page)),
+             'the button says the keep is going and that the page may be left: ' +
+             JSON.stringify(await button(page)));
+      stopHub();
+      const two = await downloads(page);
+      eq([two.map(d => d.part).sort(), new Set(two.map(d => d.id.split(':')[1])).size], [['rec', 'text'], 1],
+         'two downloads, the text and then the recording, both handed to the browser -- and ' +
+         'one keep only, for two taps');
+      await page.close();
+      const blank = await ctx.newPage();
+      const cdp = await ctx.newCDPSession(blank);
+      await cdp.send('ServiceWorker.enable');
+      await cdp.send('ServiceWorker.stopAllWorkers');
+      goHub();
+      await blank.goto(B + '/manifest.webmanifest');
+      await until(blank, async () => {
+        if (!(await caches.has('parseh-jobs'))) return false;
+        return (await (await caches.open('parseh-jobs')).keys()).some(k => /\/end$/.test(new URL(k.url).pathname));
+      }, null, 120000, 500);
+      eq(await blank.evaluate(() => localStorage.getItem('parseh_kept')), null,
+         'it came with no page open and the worker stopped: put away by a worker woken for it, ' +
+         'and not yet written down, since no page has opened');
+      const shared = (made.shared || []).map(x => x.url).find(u => /^\/lib\//.test(u));
+      eq([await inCache(blank, 'parseh-shared', shared) > 0, await inCache(blank, 'parseh-kept-' + HERE, shared),
+          await inCache(blank, 'parseh-kept-' + HERE, HERE) > 0],
+         [true, -1, true],
+         'and each file went where it belongs: the toolbox\'s own in the shared cache (' + shared +
+         '), the book\'s in its own');
+      await setMode(blank, 'mobile');
+      await blank.goto(B + '/');
+      await blank.waitForSelector('.kp-news .kp-newsline', {timeout: 20000});
+      eq(await blank.textContent('.kp-news .kp-newsline'), TITLE + ' is on this phone now',
+         'the next page opened says it, at its foot');
+      const e = await entry(blank);
+      eq([!!e, e && e.version === made.version, e && e.media.includes(BOOK + 'audio/part1.mp3'),
+          await blank.evaluate(async () => (await (await caches.open('parseh-jobs')).keys()).length)],
+         [true, true, true, 0],
+         'and writes it down as the press would have: its version, its recording; no note left behind');
+      await blank.reload();
+      await sleep(2500);
+      eq(await blank.$('.kp-news'), null, 'once: the page opened after it says nothing');
+      await open(blank, EN);
+      assert((await button(blank)).startsWith('Change what is kept'), 'the book\'s own page: it is kept');
+      await ctx.close();
+    }
+
+    // ---- b) CANCEL BEFORE ANYTHING HAD COME: the whole keep stops -- both
+    // downloads -- and nothing is written down (the owner's two answers)
+    if (only('b')) {
+      const page = await phone();
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, ['part1.mp3']);
+      await press(page);
+      stopHub();
+      for (const t = Date.now(); ; await sleep(100)) {
+        const d = await downloads(page);
+        if (d.map(x => x.part).sort().join() === 'rec,text') break;
+        if (Date.now() - t > 20000) { goHub(); throw Error('FAIL: the two downloads were never handed over: ' + JSON.stringify(d)); }
+      }
+      assert(await cancel(page, 'text'), 'the text\'s download was there to cancel, as on its notification');
+      goHub();
+      await toasted(page, TITLE + ': stopped from the notification — nothing of it had come yet');
+      assert(true, 'Cancel on the text\'s notification before a byte had come: "' + TITLE +
+             ': stopped from the notification — nothing of it had come yet"');
+      await page.waitForFunction(() => !(document.querySelector('.kp-keep') || {}).disabled);
+      eq([(await button(page)).startsWith('Keep on this phone'), await entry(page), (await downloads(page)).length,
+          await page.evaluate(id => caches.has('parseh-kept-' + id), HERE)],
+         [true, null, 0, false],
+         'both downloads stopped, nothing written down, no empty cache left, and the button offers to keep it');
+      await page.context().close();
+    }
+
+    // ---- c) CANCEL AFTER THE TEXT HAD COME: what arrived is kept
+    if (only('c')) {
+      const page = await phone();
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, [BIG]);
+      await press(page);
+      const had = await midway(page, 'rec');
+      await cancel(page, 'rec');
+      goHub();
+      await toasted(page, TITLE + ': stopped from the notification — what had come is on this phone');
+      assert(true, 'Cancel on the recordings\' notification with ' + had + ' bytes of it come: "' + TITLE +
+             ': stopped from the notification — what had come is on this phone"');
+      const e = await entry(page);
+      eq([!!e, await inCache(page, 'parseh-kept-' + HERE, HERE) > 0, await inCache(page, 'parseh-kept-' + HERE, BIG_URL)],
+         [true, true, -1],
+         'the text is kept and written down; the recording that had not finished is not on the phone');
+      await page.waitForFunction(() => !(document.querySelector('.kp-keep') || {}).disabled);
+      await sheet(page);
+      eq(await page.evaluate(u => { const b = [...document.querySelectorAll('.kp-row input')].find(x => x.value === u);
+                                    return b ? b.checked : null; }, BIG_URL),
+         false, 'and Change what is kept shows that recording unticked, to fetch when he likes');
+      await page.locator('.kp-no').click();
+      await page.context().close();
+    }
+
+    // ---- d) A FILE THE COMPUTER NO LONGER HAS, said as that
+    if (only('d')) {
+      const page = await phone();
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, ['slow.wav']);
+      await Deno.rename(AUDIO + 'slow.wav', AUDIO + 'slow.wav.away');
+      try {
+        await press(page);
+        await toasted(page, TITLE + ': 1 of its files is no longer on the computer');
+      } finally {
+        await Deno.rename(AUDIO + 'slow.wav.away', AUDIO + 'slow.wav');
+      }
+      assert(true, 'a recording taken off the computer after the list was made: "' + TITLE +
+             ': 1 of its files is no longer on the computer"');
+      await page.waitForFunction(() => !(document.querySelector('.kp-keep') || {}).disabled);
+      eq([!!(await entry(page)), (await button(page)).startsWith('Change what is kept')], [true, true],
+         'and the rest is kept, as he chose: what arrived stays');
+      await page.context().close();
+    }
+
+    // ---- e) NO ROOM ON THE PHONE, said in its own words: the room made
+    // really short (CDP's quota for the site, which the browser enforces on
+    // the download and on the cache alike), and a recording twice too big
+    if (only('e')) {
+      const page = await phone();
+      await open(page, EN);
+      const usage = await page.evaluate(async () => (await navigator.storage.estimate()).usage || 0);
+      await page.touch.send('Storage.overrideQuotaForOrigin', {origin: B, quotaSize: usage + 100 * 1000 * 1000});
+      await sheet(page);
+      await pick(page, [BIG]);
+      await press(page);
+      await toasted(page, TITLE + ': no room on this phone for 1 of its files');
+      assert(true, 'a recording the phone has no room for: "' + TITLE + ': no room on this phone for 1 of its files"');
+      await page.waitForFunction(() => !(document.querySelector('.kp-keep') || {}).disabled);
+      eq([!!(await entry(page)), await inCache(page, 'parseh-kept-' + HERE, HERE) > 0,
+          await inCache(page, 'parseh-kept-' + HERE, BIG_URL)], [true, true, -1],
+         'the text is kept; the recording that had no room is not');
+      await page.touch.send('Storage.overrideQuotaForOrigin', {origin: B});
+      await page.context().close();
+    }
+    /* ---- e2) AND THE SHEET ASKS BEFORE IT STARTS.  The warning reads the
+       browser's own report of the room (navigator.storage.estimate), and no
+       switch this suite has makes that report small -- CDP's quota is enforced
+       but not reported.  So here, and only here, the REPORT is made small, in
+       this one context, before its pages load; everything after it is the
+       page's own path, and the keep then really runs to the end. */
+    if (only('e2')) {
+      const ctx = await browser.newContext(PHONE);
+      await ctx.addInitScript(() => {
+        if (navigator.storage)
+          navigator.storage.estimate = () => Promise.resolve({usage: 0, quota: 300 * 1000 * 1000});
+      });
+      const page = await phone(ctx);
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, [BIG]);
+      const room = await press(page, false);
+      assert(/^Needs about [\d.]+ MB free while it arrives; this phone has 300 MB$/.test(room),
+             'with the browser reporting 300 MB, the sheet says so before anything is fetched: "' + room + '"');
+      eq(await page.textContent('.kp-go'), 'Keep it anyway', 'and the press then reads Keep it anyway');
+      await page.locator('.kp-go').click();
+      await toasted(page, TITLE + ' is on this phone now', 180000);
+      assert(true, 'pressed anyway, it goes ahead and arrives');
+      await ctx.close();
+    }
+
+    // ---- f) A SECOND BOOK WHILE THE FIRST IS COMING: it waits and says so;
+    // and the first, with the computer gone quiet, says it is waiting for it
+    if (only('f')) {
+      const ctx = await browser.newContext(PHONE);
+      const a = await phone(ctx), b = await phone(ctx);
+      await open(a, EN);
+      await open(b, FA);
+      await sheet(a);
+      await pick(a, [BIG]);
+      await sheet(b);
+      await press(a);
+      await midway(a, 'rec');
+      await press(b);
+      await b.waitForFunction(w => (document.querySelector('.kp-keep') || {}).textContent === w,
+                              'Waiting for ' + TITLE + LEAVE, {timeout: 20000});
+      assert(true, 'the second book waits behind the first and says so: "Waiting for ' + TITLE + LEAVE + '"');
+      await a.waitForFunction(() => /^Keeping… \d+% — waiting for the computer$/
+                                .test((document.querySelector('.kp-keep') || {}).textContent),
+                              null, {timeout: 40000});
+      assert(true, 'and the first, with the computer silent, says what it is waiting for: ' +
+             JSON.stringify(await button(a)));
+      goHub();
+      await a.waitForFunction(u => { try { return (JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname] || {}).media.includes(u); } catch (e) { return false; } },
+                              BIG_URL, {timeout: 120000});
+      await b.waitForFunction(() => { try { return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname]; } catch (e) { return false; } },
+                              null, {timeout: 120000});
+      eq(await inCache(a, 'parseh-kept-' + HERE, BIG_URL), BIG_BYTES,
+         'the computer answering again, the first carries on where it was and arrives whole');
+      assert(!!(await entry(b, MADE.readers.fa)), 'and the second, which waited, is kept after it (' + FA_TITLE + ')');
+      await ctx.close();
+    }
+
+    // ---- g) A PAGE RELOADED WHILE ITS BOOK IS COMING takes the keep up where
+    // it is -- here a Save on a kept book, reloaded with the computer silent
+    if (only('g')) {
+      const page = await phone();
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, []);
+      await press(page);
+      await page.waitForFunction(() => { try { return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname]; } catch (e) { return false; } },
+                                 null, {timeout: 120000});
+      await page.waitForFunction(() => !(document.querySelector('.kp-keep') || {}).disabled);
+      await sheet(page);
+      await pick(page, [BIG]);
+      await press(page);
+      await midway(page, 'rec');
+      await page.reload();
+      await page.waitForFunction(() => /^Keeping… \d+% — waiting for the computer$/
+                                   .test((document.querySelector('.kp-keep') || {}).textContent),
+                                 null, {timeout: 40000});
+      assert(true, 'reloaded from the phone\'s copy with the computer silent, the page takes the keep up: ' +
+             JSON.stringify(await button(page)));
+      goHub();
+      await page.waitForSelector('.kp-news .kp-newsline', {timeout: 120000});
+      eq(await page.textContent('.kp-news .kp-newsline'), TITLE + ' is on this phone now',
+         'and when it arrives, that page writes it down and says so');
+      eq([(await entry(page)).media.includes(BIG_URL), await inCache(page, 'parseh-kept-' + HERE, BIG_URL)],
+         [true, BIG_BYTES], 'the recording is written down, and on the phone whole');
+      await page.context().close();
+    }
+
+    // ---- h) KEPT ON THIS PHONE, WHILE IT IS COMING: "coming — N%", and Stop
+    if (only('h')) {
+      const ctx = await browser.newContext(PHONE);
+      const page = await phone(ctx);
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, [BIG]);
+      await press(page);
+      await midway(page, 'rec');
+      await page.close();
+      const list = await phone(ctx);
+      await list.goto(B + '/m/kept/');
+      await list.waitForFunction(() => /^coming — \d+%$/.test((document.querySelector('.m-coming') || {}).textContent || ''),
+                                 null, {timeout: 30000});
+      const row = await list.evaluate(() => {
+        const c = document.querySelector('.m-coming').closest('.m-kept');
+        return {coming: document.querySelector('.m-coming').textContent,
+                stop: !!c.querySelector('.m-keptstop'),
+                remove: [...c.querySelectorAll('.m-keptoff')].filter(b => !b.classList.contains('m-keptstop')).length};
+      });
+      assert(/^coming — \d+%$/.test(row.coming) && row.stop && row.remove === 0,
+             'Kept on this phone lists the book still coming, with Stop in place of Remove: ' + JSON.stringify(row));
+      await tap(list, '.m-keptstop');
+      goHub();
+      await list.waitForSelector('.m-keptnews', {timeout: 60000});
+      eq(await list.textContent('.m-keptnews'), TITLE + ': stopped on this phone — what had come is on this phone',
+         'Stop does what Cancel does, and says it was stopped here');
+      eq([await list.$('.m-coming'), !!(await list.$('.m-keptoff:not(.m-keptstop)')),
+          await inCache(list, 'parseh-kept-' + HERE, BIG_URL)],
+         [null, true, -1],
+         'and the list is drawn again: the book kept, with Remove; the recording not on the phone');
+      await ctx.close();
+    }
+
+    // ---- i) CHROME REFUSES: said plainly, and nothing is fetched
+    if (only('i')) {
+      const page = await phone();
+      const info = await page.touch.send('Target.getTargetInfo');
+      const bcdp = await browser.newBrowserCDPSession();
+      await bcdp.send('Browser.setPermission', {permission: {name: 'background-fetch'}, setting: 'denied',
+                                                origin: B, browserContextId: info.targetInfo.browserContextId});
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, ['part1.mp3']);
+      await press(page);
+      await toasted(page, REFUSED, 20000);
+      assert(true, 'the browser refuses the background download: "' + REFUSED + '"');
+      await page.waitForFunction(() => !(document.querySelector('.kp-keep') || {}).disabled);
+      eq([await entry(page), (await downloads(page)).length, (await button(page)).startsWith('Keep on this phone')],
+         [null, 0, true], 'and nothing is fetched or written down');
+      await page.context().close();
+    }
+
+    // ---- i2) A SAVE THE BROWSER REFUSES FREES NOTHING: whether it will go is
+    // asked before what he unticked is given back
+    if (only('i2')) {
+      const page = await phone();
+      await open(page, EN);
+      await sheet(page);
+      await pick(page, ['part1.mp3']);
+      await press(page);
+      await page.waitForFunction(() => { try { return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname]; } catch (e) { return false; } },
+                                 null, {timeout: 120000});
+      await page.waitForFunction(() => !(document.querySelector('.kp-keep') || {}).disabled);
+      const P1 = BOOK + 'audio/part1.mp3';
+      const had = await inCache(page, 'parseh-kept-' + HERE, P1);
+      const info = await page.touch.send('Target.getTargetInfo');
+      const bcdp = await browser.newBrowserCDPSession();
+      await bcdp.send('Browser.setPermission', {permission: {name: 'background-fetch'}, setting: 'denied',
+                                                origin: B, browserContextId: info.targetInfo.browserContextId});
+      await sheet(page);
+      await pick(page, ['slow.wav']);                  // part1 unticked, slow.wav ticked
+      page.once('dialog', d => d.accept());            // "Give back … ?" -- yes
+      await press(page);
+      await toasted(page, REFUSED, 20000);
+      eq([had > 0, await inCache(page, 'parseh-kept-' + HERE, P1) === had,
+          (await entry(page)).media.includes(P1)], [true, true, true],
+         'refused, the Save gave nothing back: the unticked recording is still on the phone and written down');
+      await page.context().close();
+    }
+
+    // ---- k) TWO TABS, ONE BOOK: a sheet opened before the other tab pressed
+    // takes that keep up, and says it was already coming (the owner, 2026-09-24)
+    if (only('k')) {
+      const ctx = await browser.newContext(PHONE);
+      const a = await phone(ctx), b = await phone(ctx);
+      await open(a, EN);
+      await open(b, EN);
+      await sheet(b);                                   // opened first, left open
+      await pick(b, ['slow.wav']);
+      await sheet(a);
+      await pick(a, ['part1.mp3']);
+      await press(a);
+      stopHub();
+      try {
+        for (const t = Date.now(); ; await sleep(100)) {
+          if ((await downloads(a)).length) break;
+          if (Date.now() - t > 20000) throw Error('FAIL: the first tab\'s keep never started');
+        }
+        await press(b);
+      } finally { goHub(); }
+      await toasted(b, TITLE + ' was already coming onto this phone — change what is kept once it is in', 120000);
+      assert(true, 'the second tab took up the keep already coming and said so: "' + TITLE +
+             ' was already coming onto this phone — change what is kept once it is in"');
+      const e = await entry(b);
+      eq([e && e.media.includes(BOOK + 'audio/part1.mp3'), e && e.media.includes(BOOK + 'audio/slow.wav'),
+          await inCache(b, 'parseh-kept-' + HERE, BOOK + 'audio/slow.wav')], [true, false, -1],
+         'and what is written down is what that keep brought, not the second tab\'s own pick');
+      await ctx.close();
+    }
+
+    // ---- j) THE PHONE'S OWN PROFILE: the computer killed and started again in
+    // the middle, and the download carries on and arrives whole.  An
+    // incognito profile -- every other test here -- never resumes a download;
+    // a phone's does, and this is the one place the suite can show it.
+    if (only('j')) {
+      const dir = await Deno.makeTempDir({prefix: 'parseh-bg-profile-'});
+      const ctx = await chromium.launchPersistentContext(dir, {executablePath: Deno.env.get('CHROME_BIN'),
+                                                               headless: true, ...PHONE});
+      try {
+        const page = await phone(ctx);
+        await open(page, EN);
+        // the text first, as a person keeps it.  A computer's Chrome, freshly
+        // started, holds its first background download until its first page
+        // goes idle or a minute has passed (Chromium's startup hold, desktop
+        // only; driven: ~60 s), so this first keep may take that long, and the
+        // page waits it out -- a download not started yet is never called a
+        // refusal (the owner, 2026-09-23)
+        await sheet(page);
+        await pick(page, []);
+        await press(page);
+        await page.waitForFunction(() => { try { return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname]; } catch (e) { return false; } },
+                                   null, {timeout: 180000});
+        await page.waitForFunction(() => !(document.querySelector('.kp-keep') || {}).disabled);
+        await sheet(page);
+        await pick(page, [BIG]);
+        await press(page);
+        // a phone's own profile says how far it has got twice a second, so the
+        // computer is let go for moments short enough to be seen halfway
+        const had = await midway(page, 'rec', 2, 300);
+        goHub();
+        hub.kill('SIGKILL');
+        await hub.status;
+        hubUp = false;
+        await sleep(10000);
+        await hubAgain();
+        await page.waitForFunction(u => { try { return (JSON.parse(localStorage.getItem('parseh_kept') || '{}')[location.pathname] || {}).media.includes(u); } catch (e) { return false; } },
+                                   BIG_URL, {timeout: 300000, polling: 1000});
+        eq(await inCache(page, 'parseh-kept-' + HERE, BIG_URL), BIG_BYTES,
+           'the computer killed with ' + had + ' bytes come, and started again ten seconds later: ' +
+           'the phone\'s own profile carries on and the recording arrives whole');
+      } finally {
+        await ctx.close();
+        await Deno.remove(dir, {recursive: true}).catch(() => {});
+      }
+    }
+  } finally {
+    try { goHub(); } catch (_) { /* not stopped */ }
+    await Deno.remove(AUDIO + BIG).catch(() => {});
+  }
+}
+
 async function partApp() {
   console.log('\n== the mobile interface as an app');
   const page = await newPage(PHONE, 'app');
   const cdp = await page.context().newCDPSession(page);
+  // WHAT THE PAGE SAYS WHILE THE APP GETS READY, written down from the first
+  // paint onwards.  The line is meant to be SEEN, and a test that went to
+  // look for it whenever it got round to looking would be timing the network
+  // rather than reading the page: every word the slot ever shows is kept, so
+  // a warming that is over in half a second is still read.  The worker's own
+  // "that list is done" is kept beside it, which is what everything below
+  // waits on instead of a sleep.
+  await page.addInitScript(() => {
+    window.__warmLines = [];
+    window.__warmDone = {};
+    const look = () => {
+      const s = document.querySelector('[data-parseh-warm]');
+      if (!s) return;
+      const said = s.hidden ? '' : (s.textContent || '');
+      const lines = window.__warmLines;
+      if (said !== lines[lines.length - 1]) lines.push(said);
+    };
+    const watch = () => {
+      if (!document.documentElement) { setTimeout(watch, 0); return; }
+      new MutationObserver(look).observe(document.documentElement,
+        {subtree: true, childList: true, characterData: true, attributes: true});
+      look();
+    };
+    watch();
+    addEventListener('DOMContentLoaded', look);
+    if (navigator.serviceWorker)
+      navigator.serviceWorker.addEventListener('message', e => {
+        const d = e.data || {};
+        if (d.warmed && d.warmed.what) window.__warmDone[d.warmed.what] = d.warmed;
+      });
+  });
   // ---- a) the app's own address
   await page.goto(B + '/?mode=mobile#top');
   eq(await page.evaluate(() => [document.documentElement.dataset.mode, localStorage.getItem('parseh_mode'),
@@ -1055,6 +3648,74 @@ async function partApp() {
   eq(await page.evaluate(() => !!navigator.serviceWorker.controller), true, 'the worker takes the pages over');
   const man = await cdp.send('Page.getAppManifest');
   eq([new URL(man.url).pathname, man.errors], ['/manifest.webmanifest', []], 'the manifest, read without an error');
+
+  // ---- a2) THE APP GETS ITSELF READY AFTERWARDS, AND SAYS SO (TO-DO §0,
+  // the third block of 2026-09-23, and the owner's own words: "I want the
+  // warming not to be silent").  The worker's install event no longer fetches
+  // the way in -- fifty-nine addresses and three and a quarter megabytes,
+  // which left it installing for minutes over a tunnel and which is a state
+  // Chrome will not install a site from.  The page asks for it once it is up,
+  // and the hub -- the one place a person is certain to be standing while it
+  // happens -- counts them.  NOTHING HERE ASKS THE WORKER FOR ANYTHING: this
+  // is the app's own doing, watched.
+  const shell = await (await fetch(B + '/__shell')).json();
+  const wayIn = shell.pages.length + shell.apis.length + shell.files.length;
+  await page.waitForFunction(() => window.__warmDone['way-in'], null, {timeout: 180000});
+  const warmed = await page.evaluate(() => ({done: window.__warmDone['way-in'],
+                                             lines: window.__warmLines.slice()}));
+  eq(warmed.done.of, wayIn,
+     `the app asks for the way in by itself and settles all ${wayIn} of its addresses`);
+  const counting = warmed.lines.filter(t => /^Getting ready — \d+ of \d+$/.test(t));
+  assert(counting.length > 0 && counting.every(t => t.endsWith(' of ' + wayIn)),
+         'and it is not silent about it: the page counts them as they come — ' +
+         JSON.stringify([counting[0], counting[counting.length - 1]]));
+  // and then says nothing at all: the hub is opened a dozen times a day on a
+  // phone that has been ready for a week
+  await page.waitForFunction(() => {
+    const s = document.querySelector('[data-parseh-warm]');
+    return s && s.hidden;
+  }, null, {timeout: 30000});
+  const lines = await page.evaluate(() => window.__warmLines.slice());
+  eq(lines[lines.length - 1], '', 'and says nothing once the app is ready: the hub\'s line goes');
+
+  // AND WHERE IT SAYS IT (the owner's 1, 2026-09-23: "the getting ready text
+  // appears above and hence even when things are already downloaded for a
+  // moment moves all the buttons and then vanishes; move the getting ready
+  // text at the end of the page so that this doesn't happen anymore").  It is
+  // at the FOOT now, under the last door, so it can come and go without
+  // moving anything a thumb is already reaching for.  Shown by hand here --
+  // the same two lines warmPaint writes -- because the warming above is long
+  // over, and a phone that has everything already is exactly the case he was
+  // complaining about.
+  const moved = await page.evaluate(() => {
+    const doors = [...document.querySelectorAll('.hub-mobile .m-door')];
+    const was = doors.map(d => Math.round(d.getBoundingClientRect().top));
+    const s = document.querySelector('[data-parseh-warm]');
+    s.textContent = 'Getting ready — 3 of 46';
+    s.hidden = false;
+    const now = doors.map(d => Math.round(d.getBoundingClientRect().top));
+    const below = Math.round(s.getBoundingClientRect().top -
+                             doors[doors.length - 1].getBoundingClientRect().bottom);
+    const drawn = s.getClientRects().length > 0;
+    s.hidden = true;
+    s.textContent = '';
+    return {doors: doors.length, was: was, now: now, below: below, drawn: drawn};
+  });
+  assert(moved.doors > 2 && moved.drawn &&
+         JSON.stringify(moved.was) === JSON.stringify(moved.now),
+         'the line appearing moves not one door: ' +
+         JSON.stringify({was: moved.was.slice(0, 3), now: moved.now.slice(0, 3)}));
+  assert(moved.below >= 0,
+         'because it stands at the foot, under the last door (' + moved.below + 'px below it)');
+
+  // AND NOT ONE FACE OF THE STUDIO'S (his decision 3).  A phone that has only
+  // installed the app has the way in and nothing else: the thirteen faces are
+  // 1.83 MB that only a studio page needs, and they wait to be asked for.
+  const cold = await page.evaluate(us => Promise.all(us.map(u => caches.match(u).then(r => !!r))),
+                                   shell.later);
+  eq(cold.filter(Boolean).length, 0,
+     `and the studio's ${shell.later.length} faces are on no phone that has only installed the app`);
+
   for (const [where, url] of [['the hub', '/'], ['the shelf', '/m/books/'], ['a reader', MADE.readers.fa],
                               ['the decks', '/exercises/']]) {
     await page.goto(B + url);
@@ -1067,6 +3728,39 @@ async function partApp() {
   }
   eq(await page.evaluate(() => [...document.querySelectorAll('link[rel=manifest]')].length), 1,
      'the decks name the manifest once');
+
+  // ---- a3) AND THE FACES COME WHEN A NOTE IS OPENED, which is the other
+  // half of the promise: they are not fetched by an app that has only been
+  // installed, and they ARE fetched the moment something wants them.  Opened
+  // as a person opens one -- a tap on the mark in the seam, which is what
+  // lib/keep.js listens for -- and not by asking the worker here.
+  const NOTES = B + MADE.readers.en.replace(/reader\/$/, 'notes');
+  await page.goto(B + MADE.readers.en);
+  await answerPlace(page);
+  if (!(await page.evaluate(() => document.querySelectorAll('.gap .mark').length))) {
+    // the offline part writes three notes into this book before this one
+    // runs; asked for alone (MOBILE_PARTS=app), this writes its own, so that
+    // neither part waits on the other
+    await writeNotes(page, NOTES, 'en', [NOTES_TO_WRITE[0]]);
+    await page.reload();
+    await answerPlace(page);
+  }
+  await page.waitForFunction(() => document.querySelectorAll('.gap .mark').length >= 1,
+                             null, {timeout: 30000});
+  const asked = page.waitForFunction(() => window.__warmDone.studio, null, {timeout: 180000});
+  await page.locator('.gap .mark').first().evaluate(e => e.scrollIntoView({block: 'center'}));
+  await sleep(250);
+  await tap(page, '.gap .mark');
+  await asked;
+  const faces = await page.evaluate(() => window.__warmDone.studio);
+  eq(faces.of, shell.later.length,
+     `a note opened asks for the studio's faces, all ${shell.later.length} of them`);
+  const held = await page.evaluate(us => Promise.all(us.map(u => caches.match(u).then(r => !!r))),
+                                   shell.later);
+  eq(held.filter(Boolean).length, shell.later.length,
+     'and the phone has every one of them — fetched after the app was installed, not during it');
+  await page.keyboard.press('Escape');
+
   // ---- b) the install page, and the hub's door to it
   await page.goto(B + '/');
   assert(await isDrawn(page, '.hub-mobile a.m-appdoor[href="/m/install/"]'), 'the hub has the door to installing it');
@@ -1075,19 +3769,41 @@ async function partApp() {
   assert(/This phone trusts Parseh/.test(await page.locator('#m-appnow').textContent()),
          'the install page: this phone trusts Parseh (here, the computer itself)');
   assert(!(await isDrawn(page, 'a[href$="parseh-ca.crt"]')), 'and no certificate to hand over over plain http');
+  // AND THE PAGE THAT ASKS HIM TO STAY SAYS WHEN THE WAITING IS OVER.  Its
+  // slot says `stay`, so the line does not go out at the very moment it is
+  // ready -- everywhere else it does, but here it would be answering the
+  // waiting with nothing.
+  await page.waitForFunction(() => {
+    const s = document.querySelector('[data-parseh-warm]');
+    return s && !s.hidden && /^Ready:/.test(s.textContent || '');
+  }, null, {timeout: 180000});
+  assert(true, 'the install page, which asks him to stay until the app is ready, says when it is');
   await shot(page, 'install');
   // ---- c) the server away
   hub.kill('SIGTERM');
   await hub.status;
   hubUp = false;
   await page.goto(B + '/m/books/').catch(() => {});
-  await sleep(300);
-  // with nothing to answer for the server, the browser's own error page
-  // would be here, and nothing of the page's to read
+  await sleep(600);
+  // THE USUAL PAGE, NOT AN APOLOGY (the owner's 2, 2026-09-23).  The shelf is
+  // part of the way in and is installed with the app, so with the computer
+  // stopped it opens from the phone's own copy -- where, before, the app put
+  // up "Parseh cannot be reached" and a reader with a book kept on the phone
+  // could not get at it.  What the browser would have shown here without a
+  // worker is its own error page, which is why this is asked at all.
   const said = await page.evaluate(() => [location.pathname, document.querySelector('h1') &&
     document.querySelector('h1').textContent]).catch(() => [page.url(), 'the browser\'s own error page']);
-  eq(said, ['/m/books/', 'Parseh cannot be reached'],
-     'the server stopped: the page says Parseh cannot be reached, at its own address');
+  eq(said, ['/m/books/', 'Books'],
+     'the server stopped: the shelf opens from the phone, at its own address');
+  // and a page that is neither kept nor part of the way in is what /m/offline/
+  // is left for
+  await page.goto(B + '/books/persian/mini-fa/reader/').catch(() => {});
+  await sleep(600);
+  eq(await page.evaluate(() => document.querySelector('h1') &&
+                               document.querySelector('h1').textContent)
+       .catch(() => 'the browser\'s own error page'),
+     'Parseh cannot be reached',
+     'while a book that was never kept says so, in Parseh\'s own words');
   await shot(page, 'offline');
   await page.context().close();
 }
@@ -1095,8 +3811,15 @@ async function partApp() {
 try {
   if (PARTS.includes('shelf')) await partShelf();
   if (PARTS.includes('reader')) await partReader();
+  if (PARTS.includes('touch')) await partTouch();
+  if (PARTS.includes('prefs')) await partPrefs();
+  if (PARTS.includes('video')) await partVideo();
+  if (PARTS.includes('studio')) await partStudio();
   if (PARTS.includes('decks')) await partDecks();
   // last: it stops the server
+  if (PARTS.includes('offline')) await partOffline();
+  if (PARTS.includes('checkout')) await partCheckout();
+  if (PARTS.includes('background')) await partBackground();
   if (PARTS.includes('app')) await partApp();
 } finally {
   await browser.close();
@@ -1105,3 +3828,18 @@ try {
 }
 if (errors.length) { console.log('\npage errors:\n  ' + errors.join('\n  ')); Deno.exit(1); }
 console.log(`\n${passed} passed`);
+
+// AND THE OTHER WAY, AS ON THE IPAD: the keeping parts again, in a browser with
+// no background download at all.  Its own run -- a fresh toolbox and a fresh
+// hub, because these parts read first-time server state -- started only after
+// this one has closed its browser and stopped its hub, so the two never run at
+// once.  Asked for by hand (MOBILE_KEEP_WAY set), a run is one way only.
+const AGAIN = PARTS.filter(p => p === 'offline' || p === 'checkout');
+if (!Deno.env.get('MOBILE_KEEP_WAY') && AGAIN.length) {
+  console.log('\n== the same keeping, the iPad\'s way: ' + AGAIN.join(','));
+  const env = {MOBILE_KEEP_WAY: 'worker', MOBILE_PARTS: AGAIN.join(',')};
+  const child = await new Deno.Command(Deno.execPath(), {
+    args: ['run', '--allow-all', import.meta.url], cwd: root, env,
+    stdout: 'inherit', stderr: 'inherit'}).output();
+  if (!child.success) Deno.exit(1);
+}

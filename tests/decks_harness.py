@@ -38,8 +38,20 @@ else:
 import decks   # noqa: E402  (the modules the studio imported)
 import store   # noqa: E402
 
+# the door that says who may reach Parseh (lib/network.py): pointed at the
+# temporary tree below, so a suite can neither read the owner's own settings
+# nor shut his Wi-Fi door by running.  Imported in BOTH modes: the studio
+# alone does not read it, but the assignment below runs either way.
+import network    # noqa: E402
+
 tmp = Path(tempfile.mkdtemp(prefix="parseh-decks-test-"))
 store.LIB = tmp / "library"
+network.STORE = str(tmp / "config" / "network.json")
+import offline  # the phone-keeping memories (lib/offline.py) too
+offline.DIGESTS = str(tmp / "config" / "digests.json")
+offline.WHERES = str(tmp / "config" / "wheres.json")
+import prefs    # and the owner's preferences (lib/prefs.py): a page a suite
+prefs.STORE = str(tmp / "config" / "prefs.json")   # drives may save one
 store.LIB.mkdir()
 decks.set_dir(tmp / "exercises")
 # the clip tray too: an exercise naming a clip looks there, never in clips/

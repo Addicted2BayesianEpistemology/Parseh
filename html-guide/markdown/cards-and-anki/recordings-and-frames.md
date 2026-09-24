@@ -64,9 +64,17 @@ and **remove**. On a jolly card the frame goes into a box instead, as a
 line `![](images/…)`, like a recording
 ([Jolly cards](where-the-card-goes.md#jolly-cards)).
 
-**How it is taken.** The picture of a YouTube video (or of a film) cannot
-be read by the page directly, so the capture asks the browser to share
-what is on the screen, once:
+**How it is taken**, and it depends on which kind of video it is.
+
+**A film on this machine** is a `<video>` element of this very page, served
+from the same address as the page, so the picture is read **straight off the
+film onto a canvas**: no sharing question, nothing to allow, no browser
+window to keep in view — and it works on a phone exactly as on the computer.
+
+**A YouTube video** is a frame the page may not read into a picture (the
+browser forbids it: the frame belongs to another site), so the capture asks
+the browser to share what is on the screen, once. **No phone browser shares
+a tab**, so a YouTube video's frame is a computer's affair:
 
 - **Chrome and Edge** ask to share **this tab**, with its sound, so that
   the same share also serves a YouTube video's recording
@@ -77,8 +85,8 @@ what is on the screen, once:
   the video's corners for an instant while the capture finds the exact
   area of the video in what was shared.
 
-The sheet hides itself while it takes the picture, so as not to be in its
-own frame. A paused video shows YouTube's controls over it, and they
+The sheet hides itself while it takes the picture from a share, so as not to
+be in its own frame. A paused video shows YouTube's controls over it, and they
 linger for five seconds once it plays, so a paused video is rolled in,
 muted, from about five seconds before the card's moment — the controls
 have faded when the wanted frame goes by — and then frozen back on that
@@ -89,11 +97,14 @@ fails, says the same in short. Sharing stays on while the page is open, so
 later captures are instant. The capture needs a secure page: the
 toolbox's `https://` address is one, wherever you open it from — a phone
 or a laptop on your network as well as the machine itself — and so is
-`localhost` on the machine itself.
+`localhost` on the machine itself. A secure page is enough for a film's
+frame anywhere; it is not enough for a YouTube video's on a phone, which
+wants a browser that shares a tab, and no phone's does.
 
 | It says | What to do |
 |---|---|
 | capture failed — capture needs a secure page — open the toolbox over its https address | the page was opened over plain `http://`: use the toolbox's `https://` address |
+| a YouTube video’s frame is taken from a share of this tab, and this browser shares no tab — no phone browser does. Capture this video’s frame on the computer | you are on a phone, on a YouTube video. A **film** on this machine has its frame taken anywhere, this phone included; a YouTube video's has to be taken on the computer |
 | capture failed — scroll the video into view first | the video is scrolled out of the window |
 | capture failed — could not see the player in the shared window — keep this window visible on top, then try again | the shared window or screen (Firefox always shares one) did not show the corner dots: the browser window was covered, minimised or elsewhere. *monitor* in place of *window* means a whole screen was shared |
 | capture failed — calibration failed — try again | the corner dots were found, but not where they should be: keep the player unzoomed and in view, and try again |

@@ -5,9 +5,10 @@ same for every video in every language; what a language decides for
 itself — its transliteration scheme, what its vowelled and bare forms
 are, what never to gloss, whether it has a reading — is in that
 language's own conventions file, `docs/lang/<code>.md` at the root of the
-toolbox (`fa.md` for Persian, and `ar.md`, `it.md`, `ja.md`, `fr.md`,
-`de.md`, `tr.md`), which the prompt includes after this one. The per-video
-word lists live beside this file.
+toolbox (`fa.md` for Persian, and `ar.md`, `hi.md`, `ja.md`, `zh.md`,
+`it.md`, `fr.md`, `de.md`, `tr.md`, `en.md`, `es.md` — one for every
+language in `lib/languages.json`), which the prompt includes after this
+one. The per-video word lists live beside this file.
 
 *The Persian transliteration scheme and the Persian examples that used to
 stand here are now `docs/lang/fa.md`.*
@@ -81,20 +82,24 @@ That is normal in these videos and is not a fault.
   the target language there; not written for the other languages.
 - **`tr`** — transliteration of what is actually said, colloquial forms
   as heard, in the language's scheme (its conventions file gives it,
-  and how to hyphenate transparent morphology). Required where the
-  language's file says so (Persian, Arabic, Japanese); optional for a
-  Latin-script language (Italian, French, German, Turkish), where it is a
-  pronunciation hint — for the odd word in Italian, for most of them in
-  French. The language's file says which.
+  and how to hyphenate transparent morphology). Required on every chunk
+  of the target language for Persian, Arabic, Japanese, Hindi and Chinese
+  (for Chinese it is the pinyin); optional for Italian, French, German,
+  Turkish, English and Spanish, where it is a pronunciation hint — for
+  the odd word in Italian, for most of them in French. The language's
+  file says which.
 - **`voc`** — the vocabulary line, in the voice of the books' gloss
   blocks: headword + transliteration + meaning; verbs with their stems
   or forms as the language's file shows; colloquial ↔ written pairs
   spelled out; loanwords flagged. Target-script text inside `voc` is
   fine — the player isolates it. **Optional.**
-- **`en`** — the short English meaning of the chunk as spoken,
-  lower-case, like the books' third line ("there are wounds", "in
-  solitude"). Keep the reading order of the caption: if a caption's
-  sense runs across the next one, end with `…` and pick it up.
+- **`en`** — the short meaning of the chunk as spoken, written in the
+  video's gloss language (`video.json`'s `"gloss"`; English when it says
+  none — the prompt names it), lower-case, like the books' third line
+  ("there are wounds", "in solitude"). The key is named `en` after the
+  first gloss language, whatever the gloss is written in. Keep the reading
+  order of the caption: if a caption's sense runs across the next one, end
+  with `…` and pick it up.
 - **`note`** — optional, sparingly: ASR slips, garbled words, culture
   notes, sounds (`[laughter]`). The caption stays wrong in `fa`; the
   note is where the truth goes.
@@ -111,26 +116,35 @@ Use the per-video word list beside this file for the words that recur:
 gloss them the first time **in the whole video** (batch 1 usually), and
 after that only when the form itself is new (a new tense, a new clitic).
 
-## Plain captions, and English inside a caption
+## Plain captions, and another language inside a caption
 
-For a language written in its own script (Persian, Arabic, Japanese) a
-caption with **not one character of that script** — the English framing
-these teaching videos open with — is *plain*: the pipeline fills it in
-from the transcript and it is not in your batch at all. A run with no
+For a language written in its own script (Persian, Arabic, Hindi,
+Japanese, Chinese) a caption with **not one character of that script** —
+the framing these teaching videos open with, usually in English — is
+*plain*: the pipeline fills it in from the transcript and it is not in
+your batch at all. A run with no
 target script *inside* a caption (`welcome to a new session of`) is one
 chunk with **only `fa`** — no `tr`, no `en`. The player shows it as plain
 text and never offers it as a card.
 
-For a Latin-script language (Italian, French, German, Turkish) nothing can
-be told from English by its letters, so **every caption wants glossing**,
-and an English aside — a whole caption of it, or a run inside one — is a
-chunk carrying
+For a Latin-script language (Italian, French, German, Turkish, English,
+Spanish) the software cannot tell an aside in another language from the
+target by its letters, so **every caption wants glossing**, and such an
+aside — a
+whole caption of it, or a run inside one — is a chunk carrying
 `"plain": true` beside its `fa`, and nothing else. Only there may an
 annotator write `plain`; for a script language it exists solely for
-imports from the older format, and a chunk that merely forgets its gloss
-is an error.
+imports from the older format. A chunk left with no gloss is not plain:
+it is a chunk still to be glossed, and the software counts it as one —
+so gloss every chunk that is not plain.
 
 ## The output
+
+*This is the shape of a batch file, `parts/NN.json`, for a video written
+by hand from `youtube/PROMPT.md`. The add page's prompt asks for a shape
+of its own — one JSON object holding `video` and `captions`, each caption
+with its `i` — and shows it after these conventions: answering that
+prompt, follow that one.*
 
 A part file is a JSON **array**, one entry per caption, in order:
 

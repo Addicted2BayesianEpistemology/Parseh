@@ -6,9 +6,10 @@ language has one), the transliteration, the vocabulary and the meaning —
 the way an Ilya Frank reading edition glosses a text, phrase by phrase.
 You will receive the video's captions below, numbered and with their
 start times. You answer with **one JSON document and nothing else**: the
-page that reads your answer extracts the first ```` ```json ```` block of
-your message (several blocks, across several messages, are merged — see
-the end).
+page that reads your answer reads every ```` ```json ```` block in what is
+pasted into it, in order, and merges them (several blocks, across several
+messages — see the end); a caption given again in a later block replaces
+the earlier one.
 
 ## The conventions — binding
 
@@ -34,8 +35,9 @@ A numbered list, one caption per line:
 appear for context and must **not** be annotated:
 
 - `(plain — not annotated) <start>s  <text>`: a caption with no
-  {{LANGUAGE}} script at all, the video's own English framing (this line
-  exists only for a language written in its own script). Read it, it
+  {{LANGUAGE}} script at all, the video's own framing in another language,
+  usually English (this line exists only for a language written in its own
+  script). Read it, it
   tells you what is going on; do not put it in your answer.
 - `— chapter: <title> —`: a chapter marker; a heading, not speech.
 
@@ -48,7 +50,7 @@ Every `[i]` line must appear in your answer exactly once, in order.
   "video": {
     "title_native": "a short display title in {{LANGUAGE}}, for the index card",
     "level": "beginner | lower-intermediate | intermediate | upper-intermediate | advanced",
-    "blurb": "one English sentence on what the video is",
+    "blurb": "one {{GLOSS_LANGUAGE}} sentence on what the video is",
     "title": "the real YouTube title, only if you know it",
     "channel": "the channel's name, only if you know it"
   },
@@ -73,8 +75,8 @@ Every `[i]` line must appear in your answer exactly once, in order.
   rarely after; `note` only when something needs saying (an ASR slip,
   what was really said, a cultural point).
 {{KANA_LINE}}{{WORDS_LINE}}- For a language written in its own script, a chunk of pure Latin
-  script carries only `fa`; for a Latin-script language an English aside
-  is a chunk with `fa` and `"plain": true`. Write `kana` only when the
+  script carries only `fa`; for a Latin-script language an aside in another
+  language is a chunk with `fa` and `"plain": true`. Write `kana` only when the
   language has a reading.
 - Leave out `title` and `channel` rather than guess them.
 

@@ -4,13 +4,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{MODE_SCRIPT}}
+<!-- the mobile interface installed as an app (docs/mobile.md) -->
+{{APP_HEAD}}
 <title>Library — Parseh studio</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D9%81%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="{{BASE}}/static/app.css">
 <link rel="stylesheet" href="{{BASE}}/static/langs.css">
+<!-- the mobile interface's layout of this page (docs/mobile.md): which of the
+     two is drawn, <html data-mode> says -->
+<link rel="stylesheet" href="{{BASE}}/static/mobile.css">
+<script src="{{BASE}}/static/mode.js" defer></script>
+<!-- "?": on a touch screen, every button's explanation is one tap away
+     (lib/explain.js, TO-DO §4.7); it draws nothing where a mouse hovers -->
+<script src="/lib/explain.js" defer></script>
+<!-- keeping this on the phone, and the chip that says the computer cannot be
+     reached (lib/keep.js, TO-DO §19.2, §19.5) -->
+<script src="/lib/keep.js" defer></script>
 </head>
 <body data-page="index" data-base="{{BASE}}">
-<header class="topbar">
+<!-- THE MOBILE BAR (docs/mobile.md): the way out, the switch, and nothing
+     else -- what writes the library is not on a phone at all -->
+<header class="m-topbar" data-layout="mobile">
+  <a class="m-home" href="/" title="Parseh — the hub"><span class="glyph">پ</span><span class="word">Parseh</span></a>
+  <span class="m-sp"></span>
+  {{MODE_SWITCH}}
+  <button type="button" class="m-theme" data-parseh-theme title="theme: light / dark / sepia">◐</button>
+</header>
+<header class="topbar" data-layout="browser">
   <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
   <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ف</span> Studio</a>
   <div class="topbar-actions">
@@ -68,6 +89,14 @@
     <p>Pick another language chip above, or <b>all</b>.</p>
   </div>
   <footer id="statusline" class="statusline"></footer>
+  <!-- GETTING READY (TO-DO §0, 2026-09-23), AT THE FOOT.  This page asks the
+       worker for the studio's own faces -- 1.83 MB, fetched the first time a
+       page that draws with them is opened -- and says so rather than doing it
+       behind somebody's back.  It sits at the END of the page because a line
+       that appears and goes at the top pushes everything below it down and
+       lets it spring back, under a thumb already reaching for a button (the
+       owner, on his phone). -->
+  <p data-parseh-warm role="status" hidden></p>
 </main>
 <script id="langs-json" type="application/json">{{LANGS_JSON}}</script>
 <div id="modal-root"></div>

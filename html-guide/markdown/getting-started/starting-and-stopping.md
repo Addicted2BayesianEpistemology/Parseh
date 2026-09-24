@@ -5,9 +5,11 @@ description: Starting the server on Linux, macOS and Windows, what it prints, th
 ---
 
 Parseh is one small web server — `serve.py` — that serves every page of the
-toolbox at one address, `https://localhost:8765/`. While it runs, every
-browser that can reach it can use Parseh; when it stops, the pages stop
-answering until you start it again.
+toolbox at one address, `https://localhost:7654/`. While it runs, every
+device you have let in can use Parseh; when it stops, the pages stop
+answering until you start it again. Which devices those are — and which port
+— is [**Settings → Network**](other-devices.md), and a change there takes
+effect without a restart.
 
 ## Starting it
 
@@ -17,7 +19,7 @@ answering until you start it again.
 | macOS | double-click **Parseh.command** (or `./serve.sh` in Terminal) |
 | Windows | double-click **serve.bat** |
 
-Then open `https://localhost:8765/` in a browser. The Mac's
+Then open `https://localhost:7654/` in a browser. The Mac's
 **Parseh.command** and Windows' **serve.bat** open it for you. The first
 time, the browser warns about the certificate: Parseh made it for itself,
 so accept it — [From a phone or another computer](other-devices.md) says
@@ -33,15 +35,18 @@ shelf, like this one:
 ```text
 books:
   english/my-first-book                English  (no narration)
-Parseh: serving /home/me/Parseh on 0.0.0.0:8765 (https)
+Parseh: serving /home/me/Parseh on 0.0.0.0:7654 (https)
 
-  https://100.101.102.103:8765/              (tailscale)
-  https://192.168.1.20:8765/                 (local network)
-  https://localhost:8765/                    (this machine)
+  https://100.101.102.103:7654/              (tailscale)
+  https://192.168.1.20:7654/                 (local network)
+  https://localhost:7654/                    (this machine)
 
-  /books/  /youtube/  /studio/  /exercises/  /anki/sync/
+  /books/  /youtube/  /studio/  /exercises/  /anki/sync/  /settings/
 
-self-signed certificate: each browser warns once -- accept it.
+reachable from: this computer and a VPN
+
+the certificate is Parseh's own: each browser warns once -- accept it,
+or tell a phone to trust the authority once, from /m/install/.
 Ctrl-C, or any of the page's stop buttons, to stop.
 
 running in the background: pid 4821,  log /home/me/Parseh/serve.log
@@ -58,7 +63,7 @@ folder, which each start begins afresh. When it is already running,
 `./serve.sh` says so and leaves it alone:
 
 ```text
-already running: pid 4821 on port 8765
+already running: pid 4821 on port 7654
 use  ./serve.sh restart  to replace it, or  ./serve.sh stop
 ```
 
@@ -126,7 +131,7 @@ to stop the server from the hub, or use any other page.
 On Linux and macOS, `./serve.sh` does more than start the server:
 
 ```bash
-./serve.sh            # start it, in the background, on port 8765
+./serve.sh            # start it, in the background, on port 7654
 ./serve.sh 9000       # ... on another port
 ./serve.sh status     # is it running, and on which port
 ./serve.sh log        # follow the log; Ctrl-C stops following

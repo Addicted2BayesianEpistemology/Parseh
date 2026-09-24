@@ -38,13 +38,15 @@ bar — [The reader](doc:The reader) says what that is good for.
 
 ## Picking a part of the book
 
-Three sheets name a part of the book: what is folded away, where a section
-opens, and what a recording covers ([Adding a narration](doc:Adding a narration)).
-All three show the book the same way, as an outline. Its rows are the
+Four sheets name a part of the book: what is folded away, where a section
+opens, what a recording covers ([Adding a narration](doc:Adding a narration)),
+and the stretch an LLM is to gloss
+([Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM)).
+All four show the book the same way, as an outline. Its rows are the
 chapters, each with its name and how many paragraphs it has. A chapter opens
 (**▸**) on its sections and its paragraphs, each paragraph by its number and
-its first words, in the book's own script. For a recording, a paragraph opens
-on its subparagraphs too.
+its first words, in the book's own script. For a recording and for an LLM's
+stretch, a paragraph opens on its subparagraphs too.
 
 - **A click takes a whole thing**: a chapter, a section or a paragraph.
   Click what is picked again to open it and go finer.

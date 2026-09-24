@@ -120,9 +120,14 @@ of the typography bar says the first of it: *click the target text to copy
   **Upload .md / .zip** takes it back, pictures and all.
 - **LaTeX (.tex)** — the `.tex` the last PDF was built from.
 - **PDF** — the last PDF built.
+- **HTML page, for a website (.html)** — the document as one file that
+  works anywhere, for students who have no Parseh: its exercises working,
+  its pictures and recordings inside it, and none of its Markdown. See
+  [A page for a website](web-page.md).
 
-The last two are greyed out until a PDF has been built. For many documents
-at once, the library has **Download N shown**.
+**LaTeX** and **PDF** are greyed out until a PDF has been built; the HTML
+page needs no build. For many documents at once, the library has
+**Download N shown**.
 
 ## Duplicate and Delete
 

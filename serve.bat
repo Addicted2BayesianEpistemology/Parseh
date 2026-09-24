@@ -4,8 +4,9 @@ rem Parseh on Windows -- double-click this file.
 rem
 rem   serve.bat           the first time: a setup wizard (what ./install.sh is on
 rem                       Linux and macOS); then it starts the server and opens
-rem                       https://localhost:8765/ in the browser
-rem   serve.bat 9000      ... on another port
+rem                       Parseh in the browser (https://localhost:7654/ on a
+rem                       fresh install; the port is on Settings > Network)
+rem   serve.bat 9000      ... on another port, this once
 rem   serve.bat setup     run the wizard again
 rem   serve.bat stop      stop a running server (the stop button on any page does too)
 rem   serve.bat status    is it running, and where

@@ -13,6 +13,12 @@
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
 <!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
 <link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
+<!-- "?": on a touch screen, every button's explanation is one tap away
+     (lib/explain.js, TO-DO §4.7); it draws nothing where a mouse hovers -->
+<script src="/lib/explain.js" defer></script>
+<!-- keeping this on the phone, and the chip that says the computer cannot be
+     reached (lib/keep.js, TO-DO §19.2, §19.5) -->
+<script src="/lib/keep.js" defer></script>
 </head>
 <body data-page="deck" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
 <header class="topbar" data-layout="browser">
@@ -39,7 +45,16 @@
       <span class="badge dk-lang" lang="{{TARGET}}" data-lang="{{TARGET}}">{{TARGET_NAME}}</span>
     </div>
     <div class="dk-counts" id="deck-counts" aria-live="polite"></div>
-    <div class="dk-deckactions">
+    <!-- while the deck is out on a phone, the computer says so here, with the
+         way to take it back (decks.js paints it from the deck's record) -->
+    <div class="dk-checkout" id="deck-checkout" role="status" hidden></div>
+    <!-- data-keep-slot: where lib/keep.js puts Keep on this phone / Change
+         what is kept and Remove from this phone (TO-DO §0, the owner's 4 and
+         8).  Its value is the class this page dresses its own buttons in, so
+         they stand in the row looking like the buttons beside them.  Keeping
+         the deck is the COPY; Take it out, below, is the right to study it
+         away, and asks for the copy first. -->
+    <div class="dk-deckactions" data-keep-slot="btn">
       <a class="btn primary" id="btn-study" href="{{BASE}}/">Study now</a>
       <!-- the mobile layout's way to practise with nothing due: every
            exercise of the deck, crammed (decks.js); the ones picked in the
@@ -47,6 +62,15 @@
       <button type="button" class="btn m-practise" id="btn-practise" data-layout="mobile"
               title="Every exercise of the deck, in random order, until each is right; the scheduling does not change">Cram all</button>
       <p class="m-deckwhy" id="deck-mobile-note" data-layout="mobile" hidden></p>
+      <!-- TAKING THE DECK OUT (docs/mobile.md, TO-DO §19.10): on a phone, so
+           that it can be studied with the computer asleep or a train away.
+           While it is out the computer may cram this deck and nothing else,
+           and every answer made away is replayed there when the phone can
+           reach it again (decks.js). -->
+      <button type="button" class="btn m-takeout" id="btn-takeout" data-layout="mobile" hidden
+              title="Take this deck onto this phone, to study it with the computer away">Take it out</button>
+      <button type="button" class="btn m-giveback" id="btn-giveback" data-layout="mobile" hidden
+              title="Send back what was answered here and leave the deck to the computer again">Give it back</button>
       <button type="button" class="btn" id="btn-add-exercise">Add exercise…</button>
       <details class="dropdown">
         <summary class="btn" title="Download the deck as a .zip another Parseh can import">Export ▾</summary>
@@ -98,6 +122,11 @@
       <button type="button" class="btn small" id="btn-bulk-new" disabled>Set to new</button>
       <button type="button" class="btn small danger ghost" id="btn-bulk-delete" disabled>Delete</button>
       <button type="button" class="btn small" id="btn-cram" disabled>Cram exercises</button>
+      <!-- ONE PAGE FOR A WEBSITE (TO-DO §9.7): the picked exercises, crammed
+           the way the cram page does, in a file that needs nothing else --
+           the browser layout's alone (decks.js, exportSelected) -->
+      <button type="button" class="btn small" id="btn-export-html" data-layout="browser" disabled
+              title="The selected exercises as one HTML page that crams them, to put on a website for students who have no Parseh: everything it needs is inside it, and it schedules nothing and keeps nothing">Export selected to HTML</button>
     </div>
     <p class="dk-selection-hint">Tip: Shift-click a checkbox or exercise row to select or deselect a range.</p>
     <div id="browse-list" class="dk-list"></div>
@@ -130,6 +159,9 @@
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
 <script src="{{STUDIO}}/static/app.js"></script>
+<!-- the exercise form, for adding one to this deck or correcting one
+     (static/exform.js, TO-DO §4.8) -->
+<script src="{{STUDIO}}/static/exform.js"></script>
 <script src="{{STUDIO}}/static/decks.js"></script>
 </body>
 </html>

@@ -128,7 +128,10 @@ def export(dest, say=print):
             shutil.copyfile(src, vendor / rel)
     # the fonts the sheet names, wherever this machine has them (TeX's
     # Pagella and Heros included: the copy may be built where there is no TeX)
-    css = (ROOT / "markdown/app/static/app.css").read_text(encoding="utf-8")
+    # sheet.css holds the @font-face block since the split (2026-09-23);
+    # app.css is read too, so a face named by the chrome is not missed
+    css = ((ROOT / "markdown/app/static/sheet.css").read_text(encoding="utf-8")
+           + (ROOT / "markdown/app/static/app.css").read_text(encoding="utf-8"))
     fonts = vendor / "lib" / "fonts"
     fonts.mkdir(parents=True, exist_ok=True)
     for name in sorted(set(re.findall(r"url\((?:['\"])?fonts/([^)'\"]+)", css))):

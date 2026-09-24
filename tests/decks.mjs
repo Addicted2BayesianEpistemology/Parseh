@@ -2628,6 +2628,40 @@ async function endToEnd(browser) {
       const flashA = (await http('POST', at + '/items', {markdown: ':::exercise flashcard\nfront: apple\nback: fruit\n:::'})).data.item;
       const flashB = (await http('POST', at + '/items', {markdown: ':::exercise flashcard\nfront: moon\nback: satellite\n:::'})).data.item;
       const scored = (await http('POST', at + '/items', {markdown: ':::exercise true-false\n- sky is blue => true\n:::'})).data.item;
+      /* THE CRAM DOOR A PHONE CAN KEEP (the owner's 8, 2026-09-23: "offline
+         exercises get stuck to 'loading exercises…' and never load").  This
+         page asks for its exercises with a POST carrying the picked ids, and
+         the Cache API refuses a request whose method is anything but GET --
+         so from the day it started asking that way, a deck kept on a phone
+         could never show one exercise away from the computer, however
+         faithfully its pages and its scripts had been kept.  Beside the POST
+         there is a GET at the same address now, answering the WHOLE deck with
+         nothing in the address to vary, which is exactly what makes it
+         keepable: lib/offline.py names it in the deck's record, and
+         static/decks.js asks for it when the POST goes unanswered. */
+      const post = (await http('POST', at + '/cram', {ids: [flashA.id, flashB.id]}));
+      const whole = await http('GET', at + '/cram');
+      const picked = await http('GET', at + '/cram?ids=' + flashA.id);
+      const junk = await http('GET', at + '/cram?ids=nothing-like-an-id');
+      eq([post.status, whole.status, picked.status, junk.status], [200, 200, 200, 200],
+         'the cram address answers a GET as well as a POST');
+      eq((whole.data.cards || []).map(c => c.item.id).sort(),
+         ((await http('GET', at)).data.items || []).map(i => i.id).sort(),
+         'the GET asked bare is the whole deck — one address, the same every time, which is ' +
+         'the only shape a cache can hold');
+      const sameCard = id => JSON.stringify((post.data.cards || []).find(c => c.item.id === id)) ===
+                             JSON.stringify((whole.data.cards || []).find(c => c.item.id === id));
+      assert(sameCard(flashA.id) && sameCard(flashB.id),
+             'and a card out of it is the very card the POST answers with, summary and rendered ' +
+             'html alike: the page cannot tell which door answered it');
+      eq((picked.data.cards || []).map(c => c.item.id), [flashA.id],
+         'asked with a selection it answers that selection');
+      eq((junk.data.cards || []).length, (whole.data.cards || []).length,
+         'and a selection naming nothing falls back to the whole deck rather than refusing — a ' +
+         'page asking this way has already lost its first choice');
+      eq((await http('GET', '/exercises/api/decks/english/no-such-deck/cram')).status, 404,
+         'a deck that is not there is still not there');
+
       await page.goto(url(`/exercises/deck/${source.path}/`));
       await page.waitForSelector('.dk-row');
       assert((await page.locator('.dk-selection-hint').textContent()).includes('Shift-click'),

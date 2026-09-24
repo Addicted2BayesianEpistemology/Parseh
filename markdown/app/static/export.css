@@ -1,0 +1,88 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* THE HTML EXPORT'S OWN FEW RULES (markdown/app/webexport.py, TO-DO §8.38
+   and §9.7).  No page of the studio links this file: the export puts it
+   into the one file it writes, after the studio's sheet and chrome, whose
+   tokens (--chrome-*, --accent, the themes on body[data-theme]) these use,
+   so the page is the studio's sheet in a much smaller frame. */
+
+/* the bar: the title, and the Aa menu -- nothing else, since nothing on
+   this page writes */
+.xp-bar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: .6rem;
+  padding: .45rem .9rem;
+  background: var(--chrome-panel);
+  border-bottom: 1px solid var(--chrome-line);
+}
+.xp-title {
+  font-family: var(--serif); font-weight: 700; font-size: 1.05rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1 1 auto; min-width: 0;
+}
+.xp-aa { position: relative; flex: 0 0 auto; }
+.xp-aa > summary { list-style: none; cursor: pointer; }
+.xp-aa > summary::-webkit-details-marker { display: none; }
+.xp-aa-menu {
+  position: absolute; right: 0; top: calc(100% + .35rem); z-index: 50;
+  width: min(18rem, 86vw);
+  display: grid; gap: .45rem; padding: .7rem .8rem;
+  background: var(--chrome-panel); border: 1px solid var(--chrome-line);
+  border-radius: 9px; box-shadow: 0 6px 22px rgba(0, 0, 0, .14);
+  font-size: .88rem;
+}
+.xp-aa-menu label { display: flex; justify-content: space-between; gap: .5rem; color: var(--chrome-fg); }
+.xp-aa-menu output { color: var(--chrome-mut); }
+.xp-aa-menu input[type=range] { width: 100%; }
+.xp-aa-menu select {
+  padding: .3rem .4rem; border-radius: 6px; border: 1px solid var(--chrome-line);
+  background: var(--chrome-panel); color: var(--chrome-fg); font: inherit;
+}
+.xp-note { margin: .2rem 0 0; color: var(--chrome-mut); font-size: .76rem; line-height: 1.35; }
+
+/* a document: its contents and its glosses, each a panel that opens and
+   shuts over the sheet */
+.xp-main { padding: 1rem 1rem 3rem; }
+.xp-panel {
+  max-width: var(--xp-width, 720px); margin: 0 auto .8rem;
+  background: var(--chrome-panel); border: 1px solid var(--chrome-line);
+  border-radius: 9px; padding: .45rem .8rem;
+}
+.xp-panel > summary { cursor: pointer; color: var(--chrome-fg); font-weight: 600; }
+.xp-panel[open] > summary { margin-bottom: .5rem; }
+.xp-count { color: var(--chrome-mut); font-weight: 400; font-size: .85rem; margin-left: .3rem; }
+.xp-contents .toc-list { display: flex; flex-direction: column; gap: .15rem; }
+.xp-contents .toc-list a { text-decoration: none; }
+.xp-contents .toc-sub { padding-left: 1.2rem; font-size: .92em; }
+.xp-glosses .gl-body { max-height: 60vh; overflow: auto; }
+.xp-gl-filter { width: 100%; margin-bottom: .5rem; }
+.xp-main > .sheet { margin: 0 auto; }
+
+/* a link to another document of the library: its words, nothing more */
+.doclink-plain { color: inherit; }
+
+/* opened from the disk, under a YouTube video: why it will not play here,
+   and the way to it on YouTube (export.js, xpVideoNotes) */
+.xp-video-note {
+  margin: .45em 0 0; font-size: .78em; line-height: 1.45; color: var(--graytx);
+}
+.xp-video-note a { color: inherit; text-underline-offset: 2px; }
+
+/* a deck: the cram page's column, less the way back to a deck that is not
+   here */
+.xp-cram { max-width: 820px; margin: 0 auto; padding: 1rem; }
+
+/* the foot: where the page came from -- Parseh, its GitHub page, its guide */
+.xp-foot {
+  max-width: var(--xp-width, 720px); margin: 0 auto; padding: .8rem 1rem 1.6rem;
+  border-top: 1px solid var(--chrome-line);
+  color: var(--chrome-mut); font: .8rem/1.45 var(--sans); text-align: center;
+}
+.xp-foot p { margin: 0; }
+.xp-foot a { color: inherit; text-underline-offset: 2px; }
+.xp-foot a:hover, .xp-foot a:focus-visible { color: var(--accent); }
+
+@media print {
+  .xp-bar, .xp-panel, .xp-cram .dk-study-actions, .xp-video-note { display: none !important; }
+  /* on paper a link is its address */
+  .xp-foot a::after { content: " (" attr(href) ")"; }
+}

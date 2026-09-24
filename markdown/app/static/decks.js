@@ -48,18 +48,156 @@ async function call(path, opts = {}) {
     init.headers = Object.assign({"Content-Type": "application/json"}, init.headers);
     delete init.json;
   }
+  /* AN ASK MAY BE GIVEN A PATIENCE, AND ONE THAT HAS A COPY TO FALL BACK ON
+     IS GIVEN A SHORT ONE.  `fetch` gives up when the socket does, and a
+     socket towards a computer that cannot be reached over a tunnel settles
+     NEITHER WAY -- it is not refused, it is swallowed.  On this computer the
+     same absence is a refusal in microseconds, which is why every page here
+     behaved on the desk and none of them on his phone.  lib/sw.js cannot
+     help: it answers GETs only (`r.method !== 'GET'`), so a POST leaves the
+     page with no deadline anywhere in the stack.  Where the caller knows
+     something else can answer, it says how long this ask is worth. */
+  const patience = init.patience;
+  delete init.patience;
+  /* AND A PAGE THAT KNOWS THE COMPUTER IS AWAY DOES NOT ASK IT TO WRITE
+     (the owner's rule of 2026-09-23).  The mark is on <html> before any
+     script of this page runs -- lib/mobile.py's AWAY_BOOT reads what the
+     page before wrote down -- and a page that opened away stays away while
+     it is open (lib/keep.js).  So this is the page acting on what was
+     already known instead of finding out again, slowly, into a socket that
+     will never answer.  A GET still goes: the worker may hold a copy of it,
+     and answering from what is kept is the whole point of keeping. */
+  /* `evenAway`: WHAT WAS ANSWERED AWAY GOING HOME IS NOT A PERSON ASKING AN
+     OFFLINE PAGE TO WRITE.  The rule above is about a thumb pressing a
+     button on a page that already knows the computer is not there.  The
+     queue of answers made on a train is the opposite: it is the page
+     reconciling by itself, the moment anything opens, and refusing it
+     because the page is still marked away would strand a journey's work on
+     the phone until every page had been closed and opened again. */
+  const evenAway = init.evenAway;
+  delete init.evenAway;
+  if (!evenAway && (init.method || "GET").toUpperCase() !== "GET" &&
+      document.documentElement.hasAttribute("data-parseh-away")) {
+    const shut = new Error("Parseh's computer cannot be reached, and this needs it");
+    shut.away = true;
+    throw shut;
+  }
   let r;
-  try { r = await fetch(BASE + path, init); }
-  catch (e) { throw new Error("the server does not answer — is Parseh still running?"); }
+  try {
+    const go = fetch(BASE + path, init);
+    // a named patience where the caller has something else to answer with;
+    // otherwise watched beside the one cheap question "is anybody there?",
+    // so an honestly slow answer is waited for and an absent one is not
+    // (static/app.js, `watched`)
+    r = patience > 0
+      ? await Promise.race([go, new Promise((_, no) => setTimeout(
+          () => no(new Error("nobody answered within the deadline")), patience))])
+      : typeof watched === "function" ? await watched(go) : await go;
+  }
+  catch (e) {
+    /* WHY an ask failed decides what the page says next, and a phone in a
+       tunnel is not a broken Parseh.  The pages that can go on without the
+       computer -- cramming a deck that is kept here -- look at this flag to
+       tell "nobody answered" from "the deck said no". */
+    const gone = new Error("the server does not answer — is Parseh still running?");
+    gone.away = true;
+    throw gone;
+  }
   let data = {};
   try { data = await r.json(); } catch (e) { /* not JSON: an error page */ }
   if (!r.ok || data.ok === false) {
     const err = new Error(data.error || (r.status + " " + r.statusText));
     err.status = r.status;
     err.conflict = data.conflict || "";
+    // the worker's own refusal for a door it has no copy of: 503, and it
+    // says so in the body (lib/sw.js, refused)
+    err.away = data.offline === true || r.status === 503;
     throw err;
   }
   return data;
+}
+
+/* IS THE COMPUTER THERE?  lib/keep.js asks that one question on every page
+   of the app and writes the answer twice: on the document, as
+   `data-parseh-away`, and in localStorage under parseh_away, so that a page
+   opens in the state the page before it was in instead of guessing "online"
+   and being wrong for the first three seconds (the owner's 5, 2026-09-23).
+   Both are read here, the document first because it is this page's own
+   answer and the remembered one is the page before's.
+
+   A remembered state is only worth having while it is fresh: past a few
+   minutes the phone may well have walked out of the tunnel, and guessing
+   "away" then would send a page to a copy when the computer is right there.
+
+   HOW LONG "FRESH" IS BELONGS TO lib/keep.js AND IS ASKED OF IT.  That file
+   is the one that writes the memory down, and it decides how old a memory it
+   will still act on itself (`TRUSTED`); a second number kept here was a
+   second opinion about the same memory, and the two had already parted --
+   five minutes on this side, three on that.  The gap was not harmless: for
+   the two minutes between them lib/keep.js had already thrown the memory
+   away and was drawing the page as though all were well, while this file was
+   still reading the same entry and sending the learner to a copy.  So the
+   number is fetched from `window.ParsehKeep`, and a memory this page cannot
+   date against that one is not used at all -- with no lib/keep.js on the
+   page there is no probe writing the entry either, so what is in there is
+   some earlier page's and asking the computer is the honest thing to do.
+
+   This is what lets a deck page decide whether to ask the computer AT ALL.
+   Cramming a kept deck must not wait out a door nobody is going to answer. */
+const AWAY_KEY = "parseh_away";
+/* HOW LONG THE MEMORY IS WORTH ACTING ON, ASKED OF WHOEVER WROTE IT -- and
+   asked of the ENTRY first, because this page cannot count on lib/keep.js
+   having run.  It is deferred and this file is not (a plain script at the
+   foot of the body runs before a deferred one in the head), so at the moment
+   a page's own code runs `window.ParsehKeep` is reliably ABSENT.  Reading the
+   number only from there meant the memory was thrown away exactly when it
+   mattered most -- on the first breath of a page, before anything had looked
+   -- and every page decided the computer was there and asked it.  The entry
+   now carries its own terms (lib/keep.js, `noted`), so there is still no
+   second opinion about the same memory, and no dependence on load order. */
+function awayFresh(seen) {
+  if (seen && typeof seen.trusted === "number" && seen.trusted > 0) return seen.trusted;
+  const keep = window.ParsehKeep;
+  const n = keep && typeof keep.trusted === "number" ? keep.trusted : 0;
+  return n > 0 ? n : 0;                 // seconds; 0 means "do not trust it"
+}
+function computerAway() {
+  if (document.documentElement.hasAttribute("data-parseh-away")) return true;
+  // the browser's own answer is only ever trusted when it says no network:
+  // a phone on wifi with the computer asleep calls itself online
+  if (navigator.onLine === false) return true;
+  const seen = readJsonKey(AWAY_KEY, null);
+  const fresh = awayFresh(seen);
+  if (!fresh) return false;
+  if (!seen || typeof seen.at !== "number") return false;
+  // seconds or milliseconds, whichever lib/keep.js wrote
+  const at = seen.at > 1e11 ? seen.at / 1000 : seen.at;
+  return Date.now() / 1000 - at <= fresh && !!seen.away;
+}
+
+/* NEVER A SPINNER THAT NEVER STOPS (the owner's 8, 2026-09-23).  When a page
+   of exercises cannot show one, it says in a line what is wrong, in the
+   lines under it what would mend it, and gives the ways on at the foot.
+
+   It borrows the panel the end of a session is drawn in (.dk-done), because
+   this IS an end of a session -- one that ends before it began -- and
+   because the mobile layout already gives that panel's buttons their 52px
+   (static/mobile.css).  Its box stands beside the stage in the page
+   (cram.html, study.html) rather than inside it: an exercise's sheet is no
+   place for a panel, and the stage has to be able to come back. */
+function sayInstead(stage, box, head, lines, ways) {
+  const parts = [el("h2", "", head)];
+  (lines || []).forEach(line => parts.push(el("p", "", line)));
+  const row = el("div", "dk-done-actions");
+  (ways || []).forEach(([label, href, primary]) => {
+    const a = el("a", "btn" + (primary ? " primary" : ""), label);
+    a.href = href;
+    row.appendChild(a);
+  });
+  if (row.firstChild) parts.push(row);
+  box.replaceChildren(...parts);
+  box.hidden = false;
+  if (stage) stage.hidden = true;
 }
 
 const seg = s => encodeURIComponent(String(s || ""));
@@ -619,8 +757,20 @@ function initDecks() {
       phone.dataset.layout = "mobile";
       study.append(here, phone);
     } else {
-      study.append(el("span", "dk-label", "To study"), studyCounts(d.study));
-      if (!due) study.appendChild(el("span", "dk-next", nextDueText(d.next_due, rolloverOf(d))));
+      // WHAT THE CLOCK MAKES WRONG IS NOT SHOWN WHILE THE COMPUTER IS AWAY
+      // (the owner's 1, 2026-09-23).  What is due here was worked out on the
+      // computer the last time this page was read from it; a day later it is
+      // a number nobody should act on, while the deck beside it is still
+      // perfectly true.  data-clock-count marks it, and lib/keep.js takes it
+      // off the page for as long as the computer cannot be reached.
+      const label = el("span", "dk-label", "To study"), counts = studyCounts(d.study);
+      label.dataset.clockCount = counts.dataset.clockCount = "";
+      study.append(label, counts);
+      if (!due) {
+        const next = el("span", "dk-next", nextDueText(d.next_due, rolloverOf(d)));
+        next.dataset.clockCount = "";
+        study.appendChild(next);
+      }
     }
     setLinkEnabled($('[data-x="study"]', card), due > 0,
                    due ? `Study ${plural(due, "exercise")} now` : "Nothing to study now");
@@ -838,6 +988,10 @@ function initDeck() {
       `${c.review || 0} in review`));
     if (c.total) {
       const now = el("span", "dk-now");
+      // what is due is the clock's, and the clock has moved since the
+      // computer said this: taken off the page while it cannot be reached
+      // (the owner's 1, 2026-09-23; lib/keep.js, showClock)
+      now.dataset.clockCount = "";
       now.append(el("span", "dk-label", "To study now"), studyCounts(deck.study));
       if (!due) now.appendChild(el("span", "dk-next", nextDueText(deck.next_due, rolloverOf(deck))));
       box.appendChild(now);
@@ -857,6 +1011,7 @@ function initDeck() {
         : due ? "" : "Nothing is due now. Cramming leaves the scheduling as it is.";
       note.hidden = !note.textContent;
     }
+    paintCheckout();
     // no list to pick from, said as soon as the note is (renderList says it
     // again from the exercises themselves)
     $(".dk-browse").classList.toggle("dk-none", !c.total);
@@ -864,9 +1019,76 @@ function initDeck() {
     $("#btn-export-plain").href = exportUrl(deck, false);
   }
 
+  /* WHO HAS THIS DECK (§19.10).  On the computer: a line saying it is out,
+     with the way to take it back, and what could not be applied after a
+     take-back; Study is shut while it is out, cramming is not.  On the phone:
+     Take it out / Give it back. */
+  let checkout = null;
+  function paintCheckout() {
+    const box = $("#deck-checkout");
+    const out = deckOut(deck);
+    const mine = !!(out && checkout && checkout.out && checkout.id === out.id);
+    const takeout = $("#btn-takeout"), giveback = $("#btn-giveback");
+    if (takeout) {
+      takeout.hidden = !isMobile() || !!(checkout && checkout.out);
+      takeout.disabled = false;
+    }
+    if (giveback) {
+      giveback.hidden = !isMobile() || !mine;
+      giveback.disabled = false;
+    }
+    if (!box) return;
+    box.replaceChildren();
+    const refused = (checkout && checkout.refused) || [];
+    if (!(checkout && checkout.out) && !refused.length) { box.hidden = true; return; }
+    box.hidden = false;
+    if (checkout && checkout.out) {
+      box.appendChild(el("span", "dk-outsay",
+        mine ? `This deck is out on this device since ${(checkout.since || "").slice(0, 16).replace("T", " ")}. ` +
+               "The computer will not study or edit it until it comes back."
+             : `This deck is on ${checkout.device || "a phone"} since ` +
+               `${(checkout.since || "").slice(0, 16).replace("T", " ")}. It can be crammed here; ` +
+               "studying and editing wait for it."));
+      if (!isMobile()) {
+        const back = el("button", "btn danger ghost", "Take it back");
+        back.type = "button";
+        back.title = "For a phone that will not come back. After this, what that phone answered " +
+                     "is refused and listed here rather than applied.";
+        back.addEventListener("click", async () => {
+          if (!confirm("Take this deck back from " + (checkout.device || "that phone") + "?\n\n" +
+                       "What it has answered since, and has not sent yet, cannot be applied " +
+                       "afterwards — it will be listed here instead.")) return;
+          back.disabled = true;
+          try { await call(base + "/takeback", {method: "POST", json: {}}); await reload(); }
+          catch (e) { toast("It could not be taken back: " + e.message, true); back.disabled = false; }
+        });
+        box.appendChild(back);
+      }
+    }
+    if (refused.length) {
+      const list = el("div", "dk-refused");
+      list.appendChild(el("span", "dk-label",
+        `${plural(refused.length, "answer")} could not be applied`));
+      refused.slice(-8).forEach(r => {
+        list.appendChild(el("div", "dk-refuse",
+          `${(r.at || "").slice(0, 16).replace("T", " ")} · ${r.rating || "?"} · ${r.why || ""}`));
+      });
+      const clear = el("button", "btn ghost small", "I have seen these");
+      clear.type = "button";
+      clear.addEventListener("click", async () => {
+        clear.disabled = true;
+        try { await call(base + "/refused", {method: "POST", json: {}}); await reload(); }
+        catch (e) { clear.disabled = false; }
+      });
+      list.appendChild(clear);
+      box.appendChild(list);
+    }
+  }
+
   async function load() {
     const data = await call(base);
     deck = data.deck;
+    checkout = data.checkout || null;
     items = data.items || [];
     const live = new Set(items.map(it => it.id));
     for (const id of selected) if (!live.has(id)) selected.delete(id);
@@ -876,6 +1098,43 @@ function initDeck() {
     renderList();
   }
   const reload = () => load().catch(e => toast("Could not read the deck: " + e.message, true));
+
+  // taking the deck out, and giving it back (§19.10)
+  const takeoutBtn = $("#btn-takeout"), givebackBtn = $("#btn-giveback");
+  if (takeoutBtn) takeoutBtn.addEventListener("click", async () => {
+    takeoutBtn.disabled = true;
+    takeoutBtn.textContent = "Taking it…";
+    try {
+      // taking it out keeps it first where it is not kept, and says which of
+      // the two it is doing while it does it (the owner's 8, 2026-09-23)
+      await takeDeckOut(deck, what => {
+        takeoutBtn.textContent = "Keeping it…";
+        toast(what);
+      });
+      toast("This deck is on this device now: study it with the computer away, and give it " +
+            "back when you are done");
+      await reload();
+    } catch (e) {
+      toast(e.message || "it could not be taken out", true);
+    } finally {
+      takeoutBtn.textContent = "Take it out";
+      takeoutBtn.disabled = false;
+    }
+  });
+  if (givebackBtn) givebackBtn.addEventListener("click", async () => {
+    givebackBtn.disabled = true;
+    givebackBtn.textContent = "Sending…";
+    try {
+      await giveDeckBack(deck);
+      toast("Given back: the computer has what was answered here");
+      await reload();
+    } catch (e) {
+      toast(e.message || "it could not be given back", true);
+    } finally {
+      givebackBtn.textContent = "Give it back";
+      givebackBtn.disabled = false;
+    }
+  });
 
   /* ---- the browse list ---- */
 
@@ -964,6 +1223,9 @@ function initDeck() {
     });
     $("#btn-cram").disabled = n === 0;
     $("#btn-cram").textContent = n ? `Cram ${plural(n, "exercise")}` : "Cram exercises";
+    // beside it, the same selection as one page for a website (§9.7)
+    const xp = $("#btn-export-html");
+    if (xp && !xp.dataset.busy) xp.disabled = n === 0;
     // the mobile layout's, over the list while anything is picked
     const go = $("#m-cram");
     if (go) {
@@ -1329,6 +1591,55 @@ function initDeck() {
   $("#btn-cram").addEventListener("click", cramSelected);
   $("#m-cram").addEventListener("click", cramSelected);
 
+  /* EXPORT SELECTED TO HTML (TO-DO §9.7): the picked exercises as ONE page
+     that crams them, for a website -- asked of the deck with the ids, as the
+     cram page asks, and saved as the file the answer names.  Nothing about
+     the deck changes; webexport.py says what the page holds and what it
+     never does (the exercises' Markdown among it). */
+  function savedName(r, fallback) {
+    const cd = r.headers.get("Content-Disposition") || "";
+    const star = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+    if (star) { try { return decodeURIComponent(star[1]); } catch (e) { /* the plain one */ } }
+    const plain = /filename="([^"]+)"/i.exec(cd);
+    return plain ? plain[1] : fallback;
+  }
+  async function exportSelected() {
+    const ids = items.filter(it => selected.has(it.id)).map(it => it.id);
+    const button = $("#btn-export-html");
+    if (!ids.length || !button || button.dataset.busy) return;
+    const label = button.textContent;
+    button.dataset.busy = "1";
+    button.disabled = true;
+    button.textContent = "Exporting…";
+    try {
+      const r = await fetch(BASE + base + "/export-html", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ids})});
+      if (!r.ok) {
+        let said = r.statusText;
+        try { said = (await r.json()).error || said; } catch (e) { /* not JSON */ }
+        throw new Error(said);
+      }
+      const name = savedName(r, (deck.slug || "exercises") + ".html");
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+      toast(`${plural(ids.length, "exercise")} exported: ${name}`);
+    } catch (e) {
+      toast("Could not export: " + e.message, true);
+    } finally {
+      delete button.dataset.busy;
+      button.textContent = label;
+      button.disabled = selected.size === 0;
+    }
+  }
+  const exportButton = $("#btn-export-html");
+  if (exportButton) exportButton.addEventListener("click", exportSelected);
+
   /* ---- adding, the deck's own buttons ---- */
 
   async function addExercise(markdown) {
@@ -1459,6 +1770,8 @@ function initStudy() {
   // the mobile layout's Next (study.html): the rating the answer suggests
   const btnNext = $("#btn-next");
   const solution = $("#study-solution"), solutionSheet = $(".dk-sheet", solution);
+  // where "studying needs the computer" is said, in the stage's place
+  const cannot = $("#study-cannot");
   const skipped = new Set();          // left for later, this visit only
   // the exercise on screen: {item, intervals, run, ex, kind, revealed, result}
   let card = null;
@@ -1579,24 +1892,104 @@ function initStudy() {
     return s === "learning" || s === "relearning" ? "learning" : s === "review" ? "review" : "new";
   };
 
+  /* THIS DECK MAY BE OUT ON THIS DEVICE (§19.10): then the cards come from
+     what the computer handed over, not from the computer -- which may be
+     asleep -- and every answer is kept here until it can be sent. */
+  const out = () => deckOut(deck);
+  function fromPack() {
+    const card = packNext(deck, skipped);
+    if (!card) return {done: true, item: null, html: null, intervals: null,
+                       counts: packCounts(deck, skipped), next_due: null};
+    return {done: false, item: card.item, html: card.html, intervals: card.intervals,
+            counts: packCounts(deck, skipped), next_due: null};
+  }
+
+  /* Nothing on the stage but a sentence: the page put back to the state it
+     is in between exercises, so that a rating bar or a Check left over from
+     the card before cannot be pressed at what is no longer there. */
+  function clearStage() {
+    card = null;
+    hush();
+    closeZoom();
+    clearSolution();
+    done.hidden = true;
+    if (cannot) cannot.hidden = true;
+    bar.hidden = result.hidden = btnNext.hidden = true;
+    stage.hidden = false;
+    btnCheck.hidden = btnShow.hidden = btnEdit.hidden = btnSkip.hidden = true;
+  }
+
+  /* A DECK THAT WAS NOT TAKEN OUT CANNOT BE STUDIED AWAY FROM THE COMPUTER,
+     AND THIS SAYS SO AT ONCE (§19.10, the owner's 8, 2026-09-23).
+
+     Parseh schedules in one place on purpose: the computer chooses the next
+     card and works out what each rating would cost, and no scheduler was
+     ever written for the phone, because two of them drift apart and the
+     learner pays for it.  So there is nothing here that could answer this
+     page -- and nothing kept could have been.
+
+     What it used to do was find that out the slow way: the ask went to a
+     door nobody was going to answer, the worker waited out its patience, and
+     the page ended on a fetch's complaint about a server.  What can be done
+     instead is said here, in the place the waiting used to be: cram the deck
+     now, and take it out next time the computer is there.
+
+     AND THE WAY OUT HAS TO BE AN ADDRESS THE PHONE ACTUALLY HAS, which is
+     the whole point of offering it here: this panel is only ever drawn with
+     the computer out of reach.  It used to read `cram?all=1`, and what
+     lib/offline.py keeps when a deck is kept is the BARE cram address -- it
+     cannot keep anything else, since an address carrying a selection would
+     be a different address for every selection and none of them the one that
+     was kept.  The worker matches a page by its path AND its query
+     (lib/sw.js, `ignoreSearch: false`), so the one link Parseh offered a
+     learner stranded away from his computer missed the copy sitting on his
+     phone by five characters and landed him on /m/offline/.
+
+     So the whole deck is asked for in the FRAGMENT instead.  A fragment is
+     never part of a request -- the browser does not send it and the Cache
+     API leaves it out when it matches -- so `cram#all` is, to the worker and
+     to the network alike, the very address that was kept, while the cram
+     page can still read it off `location`.  The old query is still understood
+     there, for a link somebody has kept or bookmarked. */
+  function needsTheComputer() {
+    clearStage();
+    $("#study-counts").replaceChildren();
+    actions.hidden = true;
+    sayInstead(stage, cannot, "Studying needs the computer, and this deck is not out.",
+      ["Parseh keeps one scheduler, on the computer, so that nothing drifts: a phone can only " +
+       "study a deck the computer has handed over.",
+       "Cramming asks nothing of it — every exercise, in random order, until each one is right, " +
+       "with the scheduling left exactly as it is.",
+       "And next time the computer is there, Take it out on the deck's page hands over the queue: " +
+       "studying then works away from it until you give it back."],
+      [["Cram this deck", deckPage(deck) + "cram#all", true],
+       ["Back to the deck", deckPage(deck)]]);
+  }
+
   async function load() {
     clearTimeout(pollTimer);
     const seq = ++loadSeq;
     const q = skipped.size ? "?skip=" + [...skipped].map(encodeURIComponent).join(",") : "";
+    if (out()) {
+      if (seq === loadSeq) show(fromPack());
+      // whenever the computer can be reached, what was answered goes home
+      sendAnswers(deck).catch(() => {});
+      return;
+    }
+    // the deck is not out, and the computer is known to be away: there is
+    // no point asking, and every second spent asking is a second the
+    // learner spends watching a spinner that cannot end well
+    if (computerAway()) { if (seq === loadSeq) needsTheComputer(); return; }
     try {
       const next = await call(base + "/next" + q);
       if (seq === loadSeq) show(next);
     } catch (e) {
       if (seq !== loadSeq) return;
-      card = null;
-      hush();
-      closeZoom();
-      clearSolution();
-      done.hidden = true;
-      bar.hidden = result.hidden = btnNext.hidden = true;
-      stage.hidden = false;
+      // it went away between the probe and the ask, or while this page was
+      // open: the same thing is true, and the same thing is said
+      if (e.away) { needsTheComputer(); return; }
+      clearStage();
       stage.replaceChildren(el("p", "pv-status err", "Could not read the next exercise: " + e.message));
-      btnCheck.hidden = btnShow.hidden = btnEdit.hidden = btnSkip.hidden = true;
     }
   }
 
@@ -1605,6 +1998,9 @@ function initStudy() {
   function show(next) {
     hush();
     closeZoom();
+    // the deck may have come out since (Take it out, then straight here):
+    // whatever was said in the stage's place is no longer true
+    if (cannot) cannot.hidden = true;
     $("#study-counts").replaceChildren(studyCounts(next.counts, next.item ? queueOf(next.item) : ""));
     result.hidden = true;
     result.textContent = "";
@@ -1749,6 +2145,19 @@ function initStudy() {
     try {
       let data;
       try {
+        if (out()) {
+          // kept here, in the order it was answered; the computer replays it
+          // through its own scheduler when it hears from this device
+          const queue = answerQueue(deck);
+          queue.push({item: rated.item.id, rating: r,
+                      result: rated.kind === "scored" ? rated.result : null,
+                      at: new Date().toISOString()});
+          writeJsonKey(ANS_KEY(deck), queue);
+          sendAnswers(deck).catch(() => {});
+          loadSeq++;
+          show(fromPack());
+          return;
+        }
         data = await call(base + "/review", {method: "POST", json: {
           item: rated.item.id, rating: r, result: rated.kind === "scored" ? rated.result : null,
           // the state the labels were worked out for: an exercise answered
@@ -1850,7 +2259,18 @@ function initCram() {
   const done = $("#cram-done"), progress = $("#cram-progress");
   const result = $("#cram-result"), solution = $("#cram-solution");
   const solutionSheet = $(".dk-sheet", solution);
-  const carried = new URLSearchParams(location.search).get("selected") || "";
+  // where "these exercises are not on this phone" is said, in the stage's place
+  const cannot = $("#cram-cannot");
+  const asked = new URLSearchParams(location.search);
+  const carried = asked.get("selected") || "";
+  // THE WHOLE DECK, without a selection carried from anywhere -- what Study
+  // offers when the deck is not out and the computer is away.  It is asked
+  // for in the fragment, because "#all" leaves the address itself exactly
+  // the one lib/offline.py kept and the worker can answer with the computer
+  // gone, which is the only state this link is ever offered in (see
+  // needsTheComputer).  "?all=1" is read too: it is what the link used to
+  // say, and a bookmark from then must not come up empty.
+  const wantAll = asked.get("all") === "1" || location.hash === "#all";
   const back = deckPage(deck) + (carried ? `?selected=${carried}` : "");
   $$(".dk-back").forEach(a => { a.href = back; });
   // pool: the exercises of this practice, each once; order: the turns, a
@@ -2112,25 +2532,422 @@ function initCram() {
     show();
   });
   $("#cram-again").addEventListener("click", () => start(pool));
+
+  /* ---- WHERE THE EXERCISES COME FROM (the owner's 8, 2026-09-23) ----
+
+     The exercises are rendered by the computer -- there is nothing on a
+     phone that could render one -- and until today the ask that did it was a
+     POST carrying the picked ids.  A service worker cannot cache a POST at
+     all, whatever is kept: so a phone away from the computer had nothing to
+     answer this page with, and it sat on "Loading exercises…" until it was
+     closed.  Keeping a deck could never have made cramming work, however
+     faithfully everything else was kept.
+
+     Beside the POST there is now a GET at the same address which renders the
+     WHOLE deck -- every exercise, nothing chosen, nothing in the address to
+     vary -- and that is precisely what makes it keepable.  Keeping a deck
+     keeps it, with the pictures and the recordings those exercises ask for
+     (deckroutes api_cram_all, lib/offline.py deck()).
+
+     Which of the two is asked: with the computer there, the POST, because it
+     alone knows about an exercise added a minute ago and it renders only
+     what was picked.  With the computer away -- or when the POST goes
+     unanswered -- the GET, whose copy is on this phone; the picks are then
+     taken out of the whole deck here.  "Cram all" of the whole deck asks the
+     GET either way: it is the same question. */
   let ids = [];
   try { ids = JSON.parse(sessionStorage.getItem(`parseh-cram:${deck.path}`) || "[]"); }
   catch (e) { /* unavailable or invalid selection */ }
   if ((!Array.isArray(ids) || !ids.length) && carried)
     ids = carried.split(",").filter(id => /^[0-9a-f]{12}$/.test(id));
-  if (!Array.isArray(ids) || !ids.length) {
+  if (!wantAll && (!Array.isArray(ids) || !ids.length)) {
     stage.replaceChildren(el("p", "pv-status", isMobile()
       ? "On the deck's page, choose Cram all, or pick exercises and cram them."
       : "Select exercises in Browse, then choose Cram exercises."));
     return;
   }
-  call(base + "/cram", {method: "POST", json: {ids}}).then(data => {
-    const cards = data.cards || [];
-    if (!cards.length) {
+
+  // the picked exercises out of the whole deck's cards, in the order they
+  // were picked, and which of the picks that copy does not hold
+  function pickOut(cards) {
+    const byId = new Map((cards || []).filter(c => c && c.item).map(c => [c.item.id, c]));
+    if (wantAll) return {cards: (cards || []).filter(c => c && c.item), missing: []};
+    return {cards: ids.map(id => byId.get(id)).filter(Boolean),
+            missing: ids.filter(id => !byId.has(id))};
+  }
+
+  /* IS THE WHOLE DECK'S ANSWER ALREADY ON THIS PHONE?  Asked of the caches
+     themselves, not of a record: it decides how long the ask below is worth
+     waiting for, and the honest answer to that is what is actually here. */
+  async function copyHere() {
+    try {
+      if (!window.caches) return false;
+      return !!(await caches.match(BASE + base + "/cram", {ignoreVary: true}));
+    } catch (e) { return false; }
+  }
+
+  async function exercises() {
+    if (!wantAll && !computerAway()) {
+      // with the whole deck on this phone there is no reason to wait out a
+      // computer that is not answering: the copy is as good for cramming,
+      // and the picks are taken out of it here
+      const spare = await copyHere();
+      try {
+        const data = await call(base + "/cram", {method: "POST", json: {ids},
+                                                 patience: spare ? 2500 : 0});
+        return {cards: data.cards || [], missing: [], from: "computer"};
+      } catch (e) {
+        // only the computer being out of reach is worth asking the copy
+        // for: a deck that refused this ask would refuse the other one too
+        if (!e.away) throw e;
+      }
+    }
+    const data = await call(base + "/cram");
+    return Object.assign(pickOut(data.cards),
+                         {from: "phone", held: (data.cards || []).length});
+  }
+
+  /* Nothing to show, and why -- with the way to mend it, which for a deck
+     that was never kept is one press on the computer. */
+  function nothingToCram(from, missing, held) {
+    if (from === "computer") {
       stage.replaceChildren(el("p", "pv-status", "No selected exercises are available."));
       return;
     }
+    // the copy answered and holds nothing: an empty deck, not a short one
+    if (!held) {
+      sayInstead(stage, cannot, "This deck has no exercises.",
+        ["Exercises are added on the computer, in the browser interface."],
+        [["Back to the deck", back, true]]);
+      return;
+    }
+    sayInstead(stage, cannot,
+      missing.length === 1 ? "That exercise is not on this phone."
+                           : "These exercises are not on this phone.",
+      ["Parseh's computer cannot be reached, and what is kept here does not hold them.",
+       "Open this deck with the computer there and press Keep on this phone: that puts every " +
+       "exercise, with its pictures and its recordings, here — and cramming then works anywhere."],
+      [["Back to the deck", back, true]]);
+  }
+
+  exercises().then(({cards, missing, from, held}) => {
+    if (!cards.length) { nothingToCram(from, missing, held); return; }
+    // some of them here and some not: cram what there is, and say what is
+    // short rather than quietly showing fewer exercises than were picked
+    if (missing.length)
+      toast(`${plural(missing.length, "exercise")} of the selection ${missing.length === 1 ? "is" : "are"} ` +
+            "not on this phone: the rest are here", true);
     start(cards);
-  }).catch(e => stage.replaceChildren(el("p", "pv-status err", e.message)));
+  }).catch(e => {
+    if (!e.away) { stage.replaceChildren(el("p", "pv-status err", e.message)); return; }
+    sayInstead(stage, cannot, "This deck is not kept on this phone.",
+      ["Parseh's computer cannot be reached, and cramming needs the exercises themselves, " +
+       "which only the computer can render.",
+       "Open this deck with the computer there and press Keep on this phone: every exercise, " +
+       "its pictures and its recordings come here, and cramming works away from it afterwards."],
+      [["Back to the deck", back, true]]);
+  });
+}
+
+
+
+/* ================= A DECK TAKEN OUT (TO-DO §19.10) =================
+   Studying writes, and a phone away from the computer cannot write there.  So
+   a phone that wants to study on a train TAKES THE DECK OUT: the computer
+   hands over the whole queue -- every card that is due, in its order,
+   rendered, with the four interval labels IT worked out -- and will not study
+   or edit that deck until it comes back.  Cramming on the computer is
+   untouched: cram never schedules.
+
+   The phone shows the cards it was handed, records what was answered, and
+   sends the answers whenever the computer can be reached; the computer
+   replays them through its own scheduler, in the order they were given.  That
+   is why there is no scheduler here: one scheduler, no drift.
+
+   The deck stays the phone's until "Give it back", so it can be studied day
+   after day without taking it out again (the owner's choice, 2026-09-22). */
+const OUT_KEY = d => "parseh_deck_out:" + d.folder + "/" + d.slug;
+const ANS_KEY = d => "parseh_deck_answers:" + d.folder + "/" + d.slug;
+const DEV_KEY = "parseh_device";
+
+function deviceId() {
+  let id = null;
+  try { id = localStorage.getItem(DEV_KEY); } catch (e) {}
+  if (!id) {
+    id = "d" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    try { localStorage.setItem(DEV_KEY, id); } catch (e) {}
+  }
+  return id;
+}
+// the phone names itself, as lib/prefs.js does for the reading place: nothing
+// to type, and nothing that leaves this machine
+function deviceName() {
+  const ua = navigator.userAgent || "";
+  const what = /Android/i.test(ua) ? (/Mobile/.test(ua) ? "Android phone" : "Android tablet")
+             : /iPhone/i.test(ua) ? "iPhone" : /iPad/i.test(ua) ? "iPad"
+             : /Windows/i.test(ua) ? "Windows computer"
+             : /Macintosh|Mac OS/i.test(ua) ? "Mac"
+             : /CrOS/i.test(ua) ? "Chromebook"
+             : /Linux/i.test(ua) ? "Linux computer" : "this device";
+  const who = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera"
+            : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome"
+            : /Safari\//.test(ua) ? "Safari" : "";
+  return who ? what + " · " + who : what;
+}
+function readJsonKey(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) || "null") || fallback; }
+  catch (e) { return fallback; }
+}
+function writeJsonKey(key, value) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) { /* private browsing: the deck simply is not out */ }
+}
+// what this phone holds of this deck, or null
+const deckOut = deck => readJsonKey(OUT_KEY(deck), null);
+const answerQueue = deck => readJsonKey(ANS_KEY(deck), []) || [];
+
+/* keeping the deck's own pages and media, so it opens with the computer away
+   (lib/keep.js does the same for a book; here the worker is asked straight) */
+function keepDeck(deck, urls, version) {
+  const w = navigator.serviceWorker && navigator.serviceWorker.controller;
+  if (!w) return Promise.resolve(false);
+  return new Promise(done => {
+    // THIS deck's answer, and no other's: a book kept in the background ends
+    // with a {kept} sent to every page (lib/sw.js, settle), and taken for this
+    // deck's it would check the deck out with its copy only half made
+    const hear = e => {
+      if (!e.data || !e.data.kept || e.data.kept !== deckPage(deck)) return;
+      navigator.serviceWorker.removeEventListener("message", hear);
+      done(true);
+    };
+    navigator.serviceWorker.addEventListener("message", hear);
+    w.postMessage({keep: {id: deckPage(deck), urls, version}});
+    setTimeout(() => done(false), 10 * 60 * 1000);
+  });
+}
+/* The registry lib/keep.js keeps beside the worker's caches: the same shape,
+   so that the deck page's Change what is kept and Remove from this phone see
+   a deck kept from here exactly as they see a book kept from there.
+
+   NO `notes` FIELD, and that is the whole of what it says.  A book and a
+   video have a notes mount beside them, and lib/keep.js writes `notes: true`
+   or `notes: false` for one so that Keep it again knows whether to fetch
+   them and /m/kept/ can say whether they came (TO-DO §0, the notes kept with
+   their book).  A deck has no such mount and never will: written false here
+   it would draw a "without its notes" tag on the kept page offering a thing
+   that does not exist, so the field is left out, which is how both readers
+   of the registry say "this cannot have any". */
+function rememberKept(deck, rec, files) {
+  const reg = readJsonKey("parseh_kept", {}) || {};
+  reg[deckPage(deck)] = {title: deck.name || deck.slug, page: deckPage(deck), kind: "deck",
+                         version: rec.version || "", bytes: rec.bytes || 0,
+                         at: Date.now() / 1000,
+                         files: files || (rec.small || []).length,
+                         media: (rec.media || []).map(m => m.url)};
+  writeJsonKey("parseh_kept", reg);
+}
+const deckIsKept = deck => !!(readJsonKey("parseh_kept", {}) || {})[deckPage(deck)];
+
+/* KEEPING A DECK AND TAKING IT OUT ARE TWO THINGS (the owner's 8 and 9,
+   2026-09-23).  Keeping is the COPY -- the deck's pages, its exercises and
+   their media on this phone -- which makes it open and be crammed with the
+   computer away.  TAKING IT OUT is the RIGHT TO STUDY it away: the computer
+   hands over the queue and will not study or edit the deck itself until it
+   comes back.  The second is no use without the first, so taking a deck out
+   keeps it as part of the same press, saying so while it does it.
+
+   And giving it back leaves the copy alone.  It used to delete it, which
+   meant that coming home from a journey cost the whole deck again the next
+   time; the copy is a good thing to have whether the deck is out or not, and
+   Remove from this phone is what takes it off (lib/keep.js). */
+async function keepDeckNow(deck) {
+  const made = await call(deckApi(deck) + "/__offline");
+  const urls = (made.small || []).map(x => x.url)
+    .concat((made.shared || []).map(x => x.url))
+    .concat((made.media || []).map(x => x.url));
+  await keepDeck(deck, urls, made.version);
+  rememberKept(deck, made, urls.length);
+  return made;
+}
+
+async function takeDeckOut(deck, saying) {
+  if (!deckIsKept(deck)) {
+    if (saying) saying("Keeping it on this phone first…");
+    await keepDeckNow(deck);
+  }
+  const rec = await call(deckApi(deck) + "/checkout", {method: "POST",
+    json: {device: deviceName(), id: deviceId()}});
+  writeJsonKey(OUT_KEY(deck), {id: deviceId(), device: deviceName(), since: rec.checkout.since,
+                               cards: (rec.pack || {}).cards || [], counts: (rec.pack || {}).counts || {},
+                               at: Date.now() / 1000});
+  return rec;
+}
+
+async function sendAnswers(deck) {
+  const queue = answerQueue(deck);
+  if (!queue.length) return {applied: 0};
+  // `evenAway`: this is the phone reconciling by itself, not a thumb asking
+  // an offline page to write -- a journey's answers must not be stranded
+  // until every page has been closed and opened again (see `call`)
+  const out = await call(deckApi(deck) + "/answers", {method: "POST", evenAway: true,
+    json: {id: deviceId(), answers: queue}});
+  writeJsonKey(ANS_KEY(deck), []);
+  if (out.taken_back) {
+    writeJsonKey(OUT_KEY(deck), null);
+    toast("This deck was taken back on the computer: what was answered here could not be " +
+          "applied, and the computer lists it", true);
+  } else if ((out.refused || []).length) {
+    toast(out.refused.length + " of the answers could not be applied — the computer lists them", true);
+  }
+  return out;
+}
+
+async function giveDeckBack(deck) {
+  try { await sendAnswers(deck); } catch (e) { /* said below */ }
+  await call(deckApi(deck) + "/return", {method: "POST", json: {id: deviceId()}});
+  writeJsonKey(OUT_KEY(deck), null);
+  // the kept copy stays: giving the deck back is not taking it off the phone
+  // (the owner's 9, 2026-09-23).  Remove from this phone does that, and says
+  // so; and it refuses while the deck is out (lib/keep.js, heldBack).
+}
+
+/* studying from what the computer handed over: the next card of the pack that
+   has not been answered (or skipped), and "again" brings a card back at the
+   end, as cramming does */
+function packNext(deck, skipped) {
+  const out = deckOut(deck);
+  if (!out) return null;
+  const answered = new Map();
+  answerQueue(deck).forEach(a => answered.set(a.item, (answered.get(a.item) || 0) + 1));
+  const again = new Set(answerQueue(deck).filter(a => a.rating === "again").map(a => a.item));
+  const cards = out.cards || [];
+  for (const c of cards) {
+    const id = c.item.id;
+    if (skipped.has(id)) continue;
+    if (!answered.has(id)) return c;
+  }
+  // the ones answered "again" come round again, once each
+  for (const c of cards) {
+    const id = c.item.id;
+    if (skipped.has(id) || !again.has(id)) continue;
+    const times = answerQueue(deck).filter(a => a.item === id);
+    if (times.length && times[times.length - 1].rating === "again") return c;
+  }
+  return null;
+}
+function packCounts(deck, skipped) {
+  const out = deckOut(deck) || {};
+  const answered = new Set(answerQueue(deck).map(a => a.item));
+  const left = (out.cards || []).filter(c => !answered.has(c.item.id) && !skipped.has(c.item.id));
+  const counts = Object.assign({}, out.counts || {});
+  ["new", "learning", "review"].forEach(k => { if (typeof counts[k] !== "number") counts[k] = 0; });
+  const seen = left.length;
+  return Object.assign({}, counts, {left: seen});
+}
+
+/* WHAT WAS ANSWERED AWAY GOES HOME BY ITSELF (§19.10).  A phone may answer
+   on a train and put the deck away; the next time any deck page is opened --
+   or the browser says it is online again -- whatever is still queued is sent.
+   Nothing waits for the learner to remember. */
+function flushAnswersSoon() {
+  const decksOut = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith("parseh_deck_answers:")) continue;
+      const path = k.slice("parseh_deck_answers:".length);
+      const [folder, slug] = path.split("/");
+      if (!folder || !slug) continue;
+      const queue = readJsonKey(k, []);
+      if ((queue || []).length) decksOut.push({folder, slug, path});
+    }
+  } catch (e) { return; }
+  decksOut.forEach(d => { sendAnswers(d).catch(() => {}); });
+}
+
+/* ---------------- the scroll strip (TO-DO §4.16) ----------------
+   Held sideways, studying and cramming put their buttons in a column down
+   the right of the screen (static/mobile.css), with Skip at its top and the
+   answer's button at its foot -- where the thumb is.  That left a long
+   exercise to be scrolled by reaching back across the screen for the text.
+
+   So the EMPTY stretch of that column, between the buttons, scrolls the
+   exercise: a finger dragged up or down there moves the page, one pixel of
+   page to one pixel of finger, and leaves it flying on when the finger is
+   lifted -- slowing down as a phone's own scrolling does, and stopping dead
+   at the top and the bottom.  The buttons do not move, and a tap on one is
+   still a tap: nothing here touches them, since the strip is its own box
+   between them, and it alone says touch-action:none.
+
+   The grip in its middle is there only while there is something to scroll. */
+function bindScrollStrip() {
+  const strips = Array.from(document.querySelectorAll(".dk-strip"));
+  if (!strips.length) return;
+  const scroller = document.scrollingElement || document.documentElement;
+  const room = () => Math.max(0, scroller.scrollHeight - window.innerHeight);
+  // the grip says whether there is anything to scroll -- asked again
+  // whenever an exercise is drawn, the screen turns, or the page is resized
+  const look = () => {
+    const can = room() > 8 && getComputedStyle(strips[0]).display !== "none";
+    strips.forEach(s => s.classList.toggle("dk-can-scroll", can));
+  };
+  let at = 0, last = 0, when = 0, v = 0, flying = 0, strip = null;
+  const stop = () => { if (flying) cancelAnimationFrame(flying); flying = 0; };
+  const move = by => {
+    const was = window.scrollY;
+    window.scrollTo(0, Math.max(0, Math.min(room(), was + by)));
+    return window.scrollY !== was;          // false at either end
+  };
+  const fly = () => {
+    // a phone's own deceleration, near enough: a fifteenth off each frame,
+    // and done when it is slower than a pixel every two frames
+    v *= 0.94;
+    if (Math.abs(v) < 0.4 || !move(-v)) { stop(); if (strip) strip.classList.remove("dk-dragging"); return; }
+    flying = requestAnimationFrame(fly);
+  };
+  strips.forEach(s => {
+    s.addEventListener("touchstart", e => {
+      if (e.touches.length !== 1) return;
+      stop();
+      strip = s;
+      at = last = e.touches[0].clientY;
+      when = e.timeStamp || Date.now();
+      v = 0;
+      s.classList.add("dk-dragging");
+    }, {passive: true});
+    s.addEventListener("touchmove", e => {
+      if (strip !== s || e.touches.length !== 1) return;
+      const y = e.touches[0].clientY, t = e.timeStamp || Date.now();
+      const dy = y - last, dt = Math.max(1, t - when);
+      // the finger goes down, the page goes up: the text follows the finger,
+      // as it does when the exercise itself is dragged
+      move(-dy);
+      v = dy / dt * 16;                     // pixels a frame, for the fling
+      last = y;
+      when = t;
+      e.preventDefault();                   // the column itself never moves
+    }, {passive: false});
+    const let_go = () => {
+      if (strip !== s) return;
+      strip = null;
+      if (Math.abs(v) > 1.2) { flying = requestAnimationFrame(fly); return; }
+      s.classList.remove("dk-dragging");
+    };
+    s.addEventListener("touchend", let_go, {passive: true});
+    s.addEventListener("touchcancel", let_go, {passive: true});
+  });
+  window.addEventListener("resize", look);
+  window.addEventListener("orientationchange", look);
+  if (window.MutationObserver) {
+    const watch = new MutationObserver(() => look());
+    const stage = $("#study-stage") || $("#cram-stage");
+    if (stage) watch.observe(stage, {childList: true, subtree: true});
+  }
+  look();
+  setTimeout(look, 300);
+  window.ParsehStrip = {look: look};
 }
 
 /* ---------------- boot ---------------- */
@@ -2143,4 +2960,12 @@ if (PAGE === "decks") initDecks();
 else if (PAGE === "deck") initDeck();
 else if (PAGE === "study") initStudy();
 else initCram();
+// the empty stretch of the sideways column scrolls the exercise (§4.16)
+if (PAGE === "study" || PAGE === "cram") bindScrollStrip();
+// and whatever was answered while the computer was away goes home (§19.10)
+flushAnswersSoon();
+addEventListener("online", flushAnswersSoon);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") flushAnswersSoon();
+});
 })();

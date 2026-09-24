@@ -1,115 +1,20 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* exlex studio — chrome UI + LaTeX-styled reading sheet.
-   The sheet reproduces template.tex: TeX Gyre Pagella body, TeX Gyre
-   Heros headings, the target language's face scaled independently via
-   --fa-scale (the web twin of fontspec's Scale), same colours.
+/* exlex studio — the chrome around the reading sheet: the topbar and its
+   buttons, the library, the drawers, the editor, the modals, the decks.
 
-   No font stack per language lives here: the tokens --tl-font, --tl-alt,
-   --tl-dir and --tl-alt-lh come from static/langs.css, generated from
-   lib/languages.json and linked after this file by every template.  An
-   element that carries data-lang="<code>" (the sheet, a library card, a
-   modal) gets them; --fa-font (the name every rule below uses, from the
-   Persian-only days) is set from --tl-font wherever that attribute is. */
+   THE SHEET ITSELF IS static/sheet.css -- the faces, the palette and the
+   reading view.  It is a file of its own so that the bare note page can link
+   it alone (server.py, page_note): a note is a rendered document and nothing
+   else, and it has no use for any of the chrome below.
 
-/* ---------- fonts (provisioned by server.py into static/fonts) ----- */
-@font-face { font-family: "TeX Gyre Pagella"; font-weight: 400; font-style: normal;
-  src: url(fonts/texgyrepagella-regular.otf) format("opentype"); }
-@font-face { font-family: "TeX Gyre Pagella"; font-weight: 700; font-style: normal;
-  src: url(fonts/texgyrepagella-bold.otf) format("opentype"); }
-@font-face { font-family: "TeX Gyre Pagella"; font-weight: 400; font-style: italic;
-  src: url(fonts/texgyrepagella-italic.otf) format("opentype"); }
-@font-face { font-family: "TeX Gyre Pagella"; font-weight: 700; font-style: italic;
-  src: url(fonts/texgyrepagella-bolditalic.otf) format("opentype"); }
-@font-face { font-family: "TeX Gyre Heros"; font-weight: 400; font-style: normal;
-  src: url(fonts/texgyreheros-regular.otf) format("opentype"); }
-@font-face { font-family: "TeX Gyre Heros"; font-weight: 700; font-style: normal;
-  src: url(fonts/texgyreheros-bold.otf) format("opentype"); }
-@font-face { font-family: "TeX Gyre Heros"; font-weight: 400; font-style: italic;
-  src: url(fonts/texgyreheros-italic.otf) format("opentype"); }
-@font-face { font-family: "Vazirmatn"; font-weight: 400;
-  src: url(fonts/Vazirmatn-Regular.ttf) format("truetype"); }
-@font-face { font-family: "Vazirmatn"; font-weight: 700;
-  src: url(fonts/Vazirmatn-Bold.ttf) format("truetype"); }
-@font-face { font-family: "Noto Nastaliq Urdu"; font-weight: 400;
-  font-display: swap;
-  src: url(fonts/NotoNastaliqUrdu.woff2) format("woff2"),
-       url(fonts/NotoNastaliqUrdu.ttf) format("truetype"); }
-@font-face { font-family: "Noto Naskh Arabic"; font-weight: 400;
-  font-display: swap;
-  src: url(fonts/NotoNaskhArabic.woff2) format("woff2"); }
-@font-face { font-family: "Noto Serif Devanagari"; font-weight: 400;
-  font-display: swap;
-  src: url(fonts/NotoSerifDevanagari.woff2) format("woff2"); }
+   AND YET /static/app.css STILL ANSWERS WITH BOTH.  The server puts sheet.css
+   in front of this file when it serves that address (server.py,
+   serve_app_css), rather than this file naming it with an @import, so that
+   every page and every cache that ever asked for app.css goes on getting the
+   whole sheet under the one name it already knows -- a deck page, a document
+   kept on a phone, the guide's own examples.  Nothing had to be re-linked,
+   and nothing kept offline went blank. */
 
-/* ---------- palette ------------------------------------------------ */
-/* The toolbox palette (PANTONE 18-1750 Viva Magenta) under the studio's
-   own token names; lib/parseh.css states the same colours for the rest of
-   Parseh.  Keep the two in step -- a reader and a studio sheet sit side by
-   side on screen and any drift between them shows. */
-:root {
-  --accent:   #be3455;  /* Viva Magenta */
-  --accentlt: #ce5b78;  /* its lighter partner: links, hovers, subheadings */
-  --accent-fg:#ffffff;  /* text laid ON the accent -- NOT plain white: the
-                           dark theme's accent is a pale pink, so anything
-                           sitting on it has to flip to near-black there */
-  --rulec:    #e3d9dd;  /* borders and rules */
-  --graytx:   #635358;  /* secondary text, glosses */
-  --boxbg:    #faf4f6;  /* tinted box */
-  --ink:      #241e21;  /* the sheet's text */
-  --sheet-bg: #ffffff;
-  --chrome-bg:    #f3eff1;
-  --chrome-panel: #ffffff;
-  --chrome-fg:    #2f272b;  /* the chrome's text: a touch softer than --ink,
-                               so the sheet stays the blackest thing on screen */
-  --chrome-mut:   #635358;
-  --chrome-line:  #e3d9dd;
-  /* A deeper, browner red than the old alarm red: beside a magenta accent
-     an ordinary red reads as another shade of the same thing, and a delete
-     button has to say STOP at a glance. */
-  --danger:   #9b3327;
-  --danger-fg:#ffffff;  /* text laid ON danger; flips with it in the dark theme */
-  --ok:       #2e7d4f;
-  --warn:     #a8760a;
-  --serif: "TeX Gyre Pagella", "Palatino Linotype", Palatino, Georgia, serif;
-  --sans:  "TeX Gyre Heros", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  /* the default face is Persian's (the toolbox's first language); the
-     stack itself is langs.css's */
-  --fa-font: var(--tl-font-fa, serif);
-}
-/* the target language's face follows the data-lang attribute */
-[data-lang] { --fa-font: var(--tl-font); }
-.sheet[data-lang] { --fa-font: var(--tl-font); }
-/* Sepia is a paper theme, not a palette: it restates only the warm paper
-   and ink, and deliberately does NOT set --accent, so the magenta carries
-   through onto the cream exactly as it does onto white. */
-body[data-theme="sepia"] {
-  --sheet-bg:#f8f2e2; --ink:#3c3425; --boxbg:#efe7d1; --rulec:#d8cdb2;
-  --graytx:#6f6653;
-  --chrome-bg:#ece5d4; --chrome-panel:#f8f3e6; --chrome-fg:#3c3425;
-  --chrome-line:#d8cfba; --chrome-mut:#7a7057;
-}
-/* Dark: the same hue lifted, not inverted.  The accent becomes a pale
-   pink because a 5.5:1 magenta on near-black would be far too dark to
-   read, and --accent-fg follows it down to the background colour. */
-body[data-theme="dark"] {
-  --sheet-bg:#211a1d; --ink:#e6dade; --boxbg:#2a2024; --rulec:#382c31;
-  --graytx:#ac9ba1; --accent:#ee8aa3; --accentlt:#d97c93; --accent-fg:#171214;
-  --danger:#e79b84; --danger-fg:#171214; --ok:#6fbf8b; --warn:#dda653;
-  --chrome-bg:#171214; --chrome-panel:#211a1d; --chrome-fg:#dbcdd2;
-  --chrome-line:#382c31; --chrome-mut:#ac9ba1;
-}
-
-* { box-sizing: border-box; }
-html { height: 100%; }
-body {
-  margin: 0; min-height: 100%;
-  background: var(--chrome-bg); color: var(--chrome-fg);
-  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-}
-a { color: var(--accentlt); }
-button { font: inherit; }
-.hidden { display: none !important; }
-[hidden] { display: none !important; }
 
 /* ---------- chrome: topbar, buttons -------------------------------- */
 .topbar {
@@ -290,6 +195,22 @@ select {
   padding: .1rem .35rem; opacity: 0;
 }
 .card:hover .card-del { opacity: .7; }
+/* no mouse, no hover: on a tablet these could not be reached at all (§4.7) */
+@media (hover:none){ .card .card-del { opacity: .7; } }
+
+/* ---------------- a deck that is out on a phone (TO-DO §19.10) ----------
+   On the computer: a line saying where the deck is, the way to take it back,
+   and what could not be applied after a take-back -- nothing is dropped in
+   silence.  On the phone the two buttons live in the deck's own actions. */
+.dk-checkout{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 4px;
+  padding:10px 12px;border:1px solid var(--accent);border-radius:10px;
+  background:var(--boxbg);font-size:.95rem;line-height:1.45}
+.dk-checkout .dk-outsay{flex:1;min-width:14rem}
+.dk-refused{flex:1 0 100%;display:flex;flex-direction:column;gap:4px;margin-top:6px;
+  padding-top:8px;border-top:1px dashed var(--rulec)}
+.dk-refused .dk-label{font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--graytx)}
+.dk-refuse{font-size:.88rem;color:var(--graytx)}
 .card .card-del:hover { background: var(--danger); color: var(--danger-fg); opacity: 1; }
 
 .empty { text-align: center; color: var(--chrome-mut); padding: 4rem 0; font-size: 1rem; }
@@ -476,1191 +397,6 @@ body.links-open .linkspane { transform: none; visibility: visible; }
   display: block; width: min(960px, 100%); margin: 1.2rem auto 2rem;
   height: calc(100vh - 8.5rem); border: 1px solid var(--chrome-line);
   border-radius: 4px; background: #525659;
-}
-
-/* ---------- THE SHEET: LaTeX-styled reading view ------------------- */
-.sheet {
-  --fa-scale: 1.52; --voce-scale: 3.4;
-  font-family: var(--serif);
-  font-size: var(--base-size, 17px);
-  line-height: var(--leading, 1.45);
-  color: var(--ink);
-  background: var(--sheet-bg);
-  /* in px, not em: the column width is independent of the text size, so
-     the two sliders never fight each other */
-  max-width: var(--sheet-width, 720px);
-  margin: 1.6rem auto 4rem;
-  padding: clamp(1.6rem, 4vw, 3.4rem) clamp(1.3rem, 5vw, 4rem);
-  border-radius: 3px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.14), 0 10px 34px rgba(0,0,0,.10);
-  overflow-wrap: break-word;
-}
-.sheet p { margin: 0 0 .85em; }
-.sheet.justify p, .sheet.justify dd, .sheet.justify li {
-  text-align: justify;
-  hyphens: auto; -webkit-hyphens: auto;
-}
-
-/* Persian runs — the web twin of \pe/\pel/\peb.  Sized relative to the
-   surrounding text by --fa-scale, exactly like fontspec's Scale. */
-.sheet .fa {
-  font-family: var(--fa-font);
-  font-size: calc(var(--fa-scale) * 1em);
-  line-height: 1.12;
-  white-space: nowrap;            /* \pe: an unbreakable box */
-  unicode-bidi: isolate;
-  cursor: copy;
-}
-.sheet .fa-l { white-space: normal; }   /* \pel: breakable */
-.sheet .fa-b { font-weight: 700; }      /* \peb */
-.sheet .fa:hover { background: color-mix(in srgb, var(--accentlt) 14%, transparent); border-radius: 3px; }
-
-.fa-display { padding-left: 1.5em; margin: 1.05em 0; }
-.fa-display .fa { font-size: calc(var(--fa-scale) * 1.2em); } /* {\large\pel{…}} */
-
-/* Prose in the target language: a block paragraph — punctuation, digits,
-   emoji and embedded Latin words all kept in reading order by the
-   browser's bidi.  Auto for Latin-free paragraphs; explicit via
-   [testo]{tl}.  The direction is the element's own dir attribute (from
-   the language record), never a bare direction here. */
-.sheet .fa-par {
-  font-family: var(--fa-font);
-  font-size: calc(var(--fa-scale) * 1em);
-  line-height: 1.75;
-  margin: .9em 0;
-}
-.sheet .fa-par[dir="rtl"] { text-align: right; }
-.sheet .fa-par[dir="ltr"] { text-align: left; }
-/* never justify-stretch a target-language block */
-.sheet.justify .fa-par[dir="rtl"] { text-align: right; }
-.sheet.justify .fa-par[dir="ltr"] { text-align: left; }
-.sheet .fa-rich { unicode-bidi: isolate; }
-
-/* A vertical block (Japanese tategaki): columns top-to-bottom progressing
-   right-to-left, the block as high as --tl-vh (from the height=
-   attribute), as wide as its columns and scrolling sideways when they
-   exceed the sheet.  direction:ltr keeps the scrollbar sane -- the
-   writing mode alone decides where the first column sits. */
-.sheet .tl-vertical {
-  writing-mode: vertical-rl; text-orientation: mixed;
-  height: var(--tl-vh, 22em); max-width: 100%;
-  overflow-x: auto; overflow-y: hidden;
-  direction: ltr; text-align: left;
-  margin: 1em auto; line-height: 1.9;
-}
-.sheet.justify .tl-vertical { text-align: left; }
-
-/* optional RTL-block styling: {fa font=nastaliq} / {fa bg=…} */
-:root {
-  --rtlbg-quote:#EEF3F6; --rtlbg-sand:#F5EDDC; --rtlbg-rose:#F7E8E8;
-  --rtlbg-sage:#EAF2E6;  --rtlbg-lilac:#EFEAF6;
-}
-body[data-theme="dark"] {
-  --rtlbg-quote:#2A3640; --rtlbg-sand:#3B3425; --rtlbg-rose:#3D2B2E;
-  --rtlbg-sage:#2C372B;  --rtlbg-lilac:#332C3F;
-}
-/* the alternate face ({tl font=nastaliq} / {tl font=gothic}); .fa-nasta is
-   the first version's name and is still written beside .fa-alt.  The
-   leading comes from the registry (nastaliq wants a lot): its value is
-   what the overlay's big typing box uses, and the sheet sets the face a
-   step tighter -- 2.4 against 2.6 for nastaliq, the first version's two
-   values.  A face that asks for none keeps the block's own. */
-.sheet .fa-alt, .sheet .fa-nasta {
-  font-family: var(--tl-alt, var(--fa-font));
-  line-height: max(calc(var(--tl-alt-lh, 1) - .2), 1.75);
-}
-.rtl-bg-quote { background: var(--rtlbg-quote); }
-.rtl-bg-sand  { background: var(--rtlbg-sand); }
-.rtl-bg-rose  { background: var(--rtlbg-rose); }
-.rtl-bg-sage  { background: var(--rtlbg-sage); }
-.rtl-bg-lilac { background: var(--rtlbg-lilac); }
-.fa-par[class*="rtl-bg-"] { padding: .55em .85em; border-radius: 6px; }
-.fa-rich[class*="rtl-bg-"] { padding: .08em .35em; border-radius: 4px;
-  box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-
-/* Latin blocks — the mirror of {fa}: [testo]{la align=… bg=… width=… offset=…} */
-.sheet .la-par { margin: .9em 0; max-width: 125%; }
-.sheet .la-par.align-center { text-align: center; }
-.sheet .la-par.align-right { text-align: right; }
-.sheet.justify .la-par.align-left { text-align: justify;
-  hyphens: auto; -webkit-hyphens: auto; }
-.la-par[class*="rtl-bg-"] { padding: .55em .85em; border-radius: 6px; }
-body[data-page="doc"] .la-par,
-body[data-page="edit"] .la-par { cursor: pointer; }
-body[data-page="doc"] .la-par:hover,
-body[data-page="edit"] .la-par:hover {
-  outline: 2px solid color-mix(in srgb, var(--accentlt) 45%, transparent);
-  outline-offset: 3px; border-radius: 4px;
-}
-.la-par.img-editing {
-  outline: 2px solid var(--accent) !important; outline-offset: 3px;
-}
-.imgpanel .bgsel select {
-  flex: 1; padding: .2rem .3rem; border-radius: 5px;
-  border: 1px solid var(--chrome-line); background: var(--chrome-bg);
-  color: var(--chrome-fg); font-size: .76rem;
-}
-
-.sheet .eq { color: var(--graytx); }
-.sheet .arrow { font-family: var(--serif); }
-.sheet code {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: .88em; background: color-mix(in srgb, var(--graytx) 10%, transparent);
-  padding: .05em .25em; border-radius: 3px;
-}
-
-/* title block */
-.titleblock { text-align: center; margin-bottom: 2.2em; }
-.titleblock h1 {
-  font-family: var(--sans); font-weight: 700; color: var(--accent);
-  font-size: 2.1em; margin: 0 0 .25em; line-height: 1.2;
-}
-.titleblock .subtitle {
-  font-family: var(--sans); color: var(--accentlt);
-  font-size: 1.12em; margin: 0 0 .9em;
-}
-.titleblock .titlerule {
-  width: 55%; height: 1px; background: var(--rulec); margin: 0 auto .8em;
-}
-.titleblock .tnote { font-size: .82em; color: var(--graytx); margin: 0; }
-
-/* sections */
-.sheet h2.section {
-  font-family: var(--sans); font-weight: 700; color: var(--accent);
-  font-size: 1.42em; line-height: 1.25;
-  margin: 1.7em 0 .55em;
-}
-.sheet h2.section .secnum { margin-right: .15em; }
-.sheet h3.subsection {
-  font-family: var(--sans); font-weight: 700; color: var(--accentlt);
-  font-size: 1.16em; margin: 1.4em 0 .45em;
-}
-
-/* lemma header — the \voce macro */
-.voce { margin: 2.1em 0 1.1em; }
-.voce-head {
-  display: flex; justify-content: space-between; align-items: flex-end;
-  gap: 1em; padding: .45em 0 .55em;
-  border-top: 2px solid var(--rulec);
-  border-bottom: 1px solid var(--rulec);
-}
-.voce-fa {
-  font-family: var(--fa-font);
-  font-size: calc(var(--voce-scale) * 1em);
-  line-height: 1.08; flex: 1 1 58%;
-  cursor: copy;
-}
-.voce-side { text-align: right; flex: 0 1 40%; }
-/* the reading line of a lemma (kana), above the transliteration */
-.voce-kana { font-family: var(--fa-font); font-size: 1.05em; color: var(--graytx); line-height: 1.4; }
-.voce-translit { font-style: italic; color: var(--accent); font-size: 1.14em; }
-.voce-etym { font-size: .8em; color: var(--graytx); margin-top: .25em; line-height: 1.4; }
-
-/* highlight box (the \colorbox{boxbg} minipage) */
-.box {
-  background: var(--boxbg); width: 94%; margin: 1.3em auto;
-  padding: .9em 1.15em; border-radius: 3px; text-align: left;
-}
-.box p:last-child { margin-bottom: 0; }
-
-/* lists — enumitem-tight */
-.sheet ul, .sheet ol { margin: .5em 0 .9em; padding-left: 1.5em; }
-.sheet li { margin: .22em 0; }
-.sheet ul ul { margin: .15em 0 .15em; }
-
-/* description lists */
-dl.desc, dl.lex { margin: .6em 0 1em; }
-dl.desc .di { margin: .4em 0; }
-dl.desc dt { display: inline; font-weight: 700; }
-dl.desc dt::after { content: " "; }
-dl.desc dd { display: inline; margin: 0; }
-dl.lex .di { margin: .75em 0; }
-dl.lex dt { display: block; font-weight: 700; }
-dl.lex dd { display: block; margin: .15em 0 0 1.5em; }
-
-/* booktabs tables */
-.tablewrap { overflow-x: auto; margin: 1.25em 0; }
-table.bt {
-  margin: 0 auto; border-collapse: collapse;
-  border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
-  line-height: 1.45;
-}
-table.bt thead th {
-  border-bottom: 1px solid var(--ink); font-weight: 700;
-  padding: .5em .55em .4em;
-}
-table.bt td { padding: .42em .55em; }
-table.bt .a-l { text-align: left; }
-table.bt .a-c { text-align: center; }
-table.bt .a-r { text-align: right; }
-table.bt.t-sm { font-size: .9em; }
-table.bt.t-fn { font-size: .8em; }
-table.bt .fa { white-space: nowrap; }
-
-/* ---------- footnotes: reference + hover cloud --------------------- */
-.fn { position: relative; }
-.sheet .fnref {
-  font-size: .68em; line-height: 0; vertical-align: super;
-  color: var(--accent); font-weight: 700; cursor: help;
-  padding: 0 .1em; font-feature-settings: "onum" 0;
-}
-.sheet .fnref:hover, .sheet .fnref:focus { text-decoration: underline; }
-/* A note's cloud takes no room until it is shown (display, not
-   visibility): hidden but laid out, a cloud near the right edge of a phone
-   widened the page past the screen, and the whole page could be pushed
-   sideways.  Shown, it is moved along its line (--fn-shift, app.js) so it
-   stays inside the window, its tail kept on its mark. */
-.fncloud {
-  position: absolute; z-index: 60; left: 50%; bottom: calc(100% + .55em);
-  transform: translateX(calc(-50% + var(--fn-shift, 0px)));
-  width: max-content; max-width: min(30em, 82vw);
-  background: var(--sheet-bg); color: var(--ink);
-  border: 1px solid var(--rulec); border-radius: 8px;
-  box-shadow: 0 8px 30px rgba(0,0,0,.22);
-  padding: .6em .8em; font-size: .82em; line-height: 1.5;
-  text-align: left; text-indent: 0; font-style: normal; font-weight: 400;
-  display: none; animation: fncloud-in .13s;
-  pointer-events: none;
-}
-@keyframes fncloud-in { from { opacity: 0; } to { opacity: 1; } }
-.fncloud::after {              /* the little tail of the speech cloud */
-  content: ""; position: absolute; top: 100%; left: 50%;
-  margin-left: calc(-6px - var(--fn-shift, 0px)); border: 6px solid transparent;
-  border-top-color: var(--rulec);
-}
-.fn:hover .fncloud, .fnref:focus + .fncloud { display: block; }
-.fncloud .fa { font-size: calc(var(--fa-scale) * .95em); }
-.fncloud p { margin: 0; }
-/* flipped below the line when there is no room above */
-.fn.fn-below .fncloud { bottom: auto; top: calc(100% + .55em); }
-.fn.fn-below .fncloud::after {
-  top: auto; bottom: 100%; border-top-color: transparent;
-  border-bottom-color: var(--rulec);
-}
-
-.footnotes {
-  margin-top: 2.4em; padding-top: .8em; border-top: 1px solid var(--rulec);
-  font-size: .82em; color: var(--ink);
-}
-.footnotes h4 {
-  margin: 0 0 .4em; font-family: var(--sans); font-size: 1em;
-  color: var(--graytx); font-weight: 700;
-}
-.footnotes ol { margin: 0; padding-left: 1.6em; }
-.footnotes li { margin: .3em 0; line-height: 1.5; }
-
-/* ---------- links -------------------------------------------------- */
-.sheet a.lnk {
-  color: var(--accent); text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
-}
-.sheet a.lnk:hover {
-  border-bottom-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-.sheet a.lnk::after {          /* tiny outbound marker */
-  content: "↗"; font-size: .72em; vertical-align: super;
-  opacity: .5; margin-left: .1em;
-}
-
-/* A link to another document in the library.  Marked with an inbound
-   arrow rather than the outbound one: it stays inside the studio. */
-.sheet a.doclink {
-  color: var(--accent); text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
-}
-.sheet a.doclink:hover {
-  border-bottom-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-.sheet a.doclink::after {
-  content: "→"; font-size: .78em; vertical-align: baseline;
-  opacity: .55; margin-left: .15em;
-}
-/* the target has been deleted: shown, but plainly broken */
-.sheet .doclink-dead {
-  color: var(--danger); cursor: help;
-  border-bottom: 1px dashed color-mix(in srgb, var(--danger) 55%, transparent);
-}
-.sheet .doclink-dead::after {
-  content: "⚠"; font-size: .74em; vertical-align: super;
-  opacity: .7; margin-left: .15em;
-}
-
-/* ---------- interactive exercises --------------------------------- */
-.sheet .exercise {
-  position: relative; margin: 1.25em 0; padding: 1em 1.05em;
-  border: 1px solid var(--rulec); border-radius: 12px;
-  background: color-mix(in srgb, var(--boxbg) 62%, var(--sheet-bg));
-  transition: border-color .15s, background .15s;
-}
-.sheet .exercise.correct {
-  border-color: color-mix(in srgb, var(--ok) 65%, var(--rulec));
-  background: color-mix(in srgb, var(--ok) 8%, var(--sheet-bg));
-}
-.sheet .exercise.incorrect {
-  border-color: color-mix(in srgb, var(--danger) 65%, var(--rulec));
-  background: color-mix(in srgb, var(--danger) 7%, var(--sheet-bg));
-}
-.ex-head { display: flex; align-items: center; gap: .5em; margin-bottom: .5em; }
-.ex-kicker {
-  font: 700 .68em/1.2 var(--sans); text-transform: uppercase; letter-spacing: .09em;
-  color: var(--accent);
-}
-.ex-edit {
-  margin-left: auto; padding: .18em .5em; border: 1px solid var(--rulec);
-  border-radius: 5px; background: var(--sheet-bg); color: var(--graytx);
-  font: .72em/1.2 var(--sans); cursor: pointer;
-}
-.ex-edit:hover { color: var(--accent); border-color: var(--accent); }
-/* the reading view's copy-into-a-deck button: the ✎ Edit button's twin */
-.ex-to-deck {
-  margin-left: auto; padding: .18em .5em; border: 1px solid var(--rulec);
-  border-radius: 5px; background: var(--sheet-bg); color: var(--graytx);
-  font: .72em/1.2 var(--sans); cursor: pointer;
-}
-.ex-to-deck:hover { color: var(--accent); border-color: var(--accent); }
-/* ⤢ Enlarge on a flashcard: the twin of both, and first of them in the head */
-.ex-card-zoom {
-  margin-left: auto; padding: .18em .5em; border: 1px solid var(--rulec);
-  border-radius: 5px; background: var(--sheet-bg); color: var(--graytx);
-  font: .72em/1.2 var(--sans); cursor: pointer;
-}
-.ex-card-zoom:hover { color: var(--accent); border-color: var(--accent); }
-.ex-card-zoom ~ .ex-edit, .ex-card-zoom ~ .ex-to-deck { margin-left: 0; }
-.ex-translit-switch {
-  margin-left: auto; padding: .18em .5em; border: 1px solid var(--rulec);
-  border-radius: 5px; background: var(--sheet-bg); color: var(--graytx);
-  font: .72em/1.2 var(--sans); cursor: pointer;
-}
-.ex-translit-switch:hover, .ex-translit-switch[aria-pressed="true"] {
-  color: var(--accent); border-color: var(--accentlt);
-}
-.ex-translit-switch ~ .ex-card-zoom, .ex-translit-switch ~ .ex-edit,
-.ex-translit-switch ~ .ex-to-deck { margin-left: 0; }
-/* whether a sequence may be dragged: the same small button again, and the
-   same rule -- the first of the head's buttons is the one pushed right */
-.ex-drag-switch {
-  margin-left: auto; padding: .18em .5em; border: 1px solid var(--rulec);
-  border-radius: 5px; background: var(--sheet-bg); color: var(--graytx);
-  font: .72em/1.2 var(--sans); cursor: pointer;
-}
-.ex-drag-switch:hover { color: var(--accent); border-color: var(--accent); }
-.ex-drag-switch[aria-pressed="true"] { color: var(--accent); border-color: var(--accentlt); }
-.ex-drag-switch ~ .ex-edit, .ex-drag-switch ~ .ex-to-deck,
-.ex-drag-switch ~ .ex-card-zoom { margin-left: 0; }
-/* nothing to grab when only the arrows move a block */
-.exercise.no-drag .ex-sequence > .ex-item,
-.exercise.no-drag .ex-sequence-inline > .ex-item { cursor: default; }
-.ex-to-deck-modal { width: min(520px, 94vw); }
-.ex-to-deck-modal .modal-field select, .ex-all-modal .modal-field select,
-.header-modal .modal-field select {
-  border: 1px solid var(--chrome-line); border-radius: 8px;
-  background: var(--chrome-bg); color: var(--chrome-fg);
-  padding: .4rem .6rem; font-size: .9rem;
-}
-/* "+ Add all exercises": the deck, then the page's exercises, each ticked */
-.ex-all-modal { width: min(640px, 94vw); }
-.ex-all-head {
-  display: flex; align-items: center; gap: .4rem;
-  font-size: .82rem; color: var(--chrome-mut);
-}
-.ex-all-head [data-x="count"] { margin-right: auto; font-variant-numeric: tabular-nums; }
-.ex-all-list {
-  display: flex; flex-direction: column; overflow-y: auto; min-height: 3rem; max-height: 42vh;
-  border: 1px solid var(--chrome-line); border-radius: 8px; background: var(--chrome-bg);
-}
-.ex-all-item {
-  display: grid; grid-template-columns: auto 1.6em auto minmax(0, 1fr); align-items: baseline;
-  gap: .55rem; padding: .4rem .65rem; border-top: 1px solid var(--chrome-line);
-  font-size: .86rem; color: var(--chrome-fg); cursor: pointer;
-}
-.ex-all-item:first-child { border-top: none; }
-.ex-all-item[hidden] { display: none; }
-.ex-all-gloss-toggle { margin: .45rem 0; }
-.ex-all-item:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.ex-all-item input, .ex-all-again input { margin: 0; accent-color: var(--accent); align-self: center; }
-.ex-all-num { color: var(--chrome-mut); font-variant-numeric: tabular-nums; text-align: right; }
-.ex-all-kind {
-  font: 700 .64rem/1.2 var(--sans); text-transform: uppercase; letter-spacing: .08em;
-  color: var(--accent); white-space: nowrap;
-}
-.ex-all-text {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  unicode-bidi: isolate; text-align: start;
-}
-.ex-all-again { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: var(--chrome-mut); }
-.ex-all-progress { margin-right: auto; font-size: .82rem; color: var(--chrome-mut); }
-.ex-prompt { margin: .25em 0 .8em; font-weight: 700; }
-.ex-prompt .ex-no-bold { font-weight: 400; }
-.ex-body { display: flex; flex-direction: column; gap: .75em; }
-.ex-body[dir] { unicode-bidi: isolate; }
-.ex-options, .ex-bank {
-  display: flex; flex-wrap: wrap; align-items: stretch; gap: .5em;
-}
-.ex-choice-group + .ex-choice-group { margin-top: .85em; }
-.ex-question { margin-bottom: .45em; }
-.ex-option, .ex-item {
-  border: 1px solid var(--rulec); border-radius: 8px;
-  background: var(--sheet-bg); color: var(--ink); padding: .48em .7em;
-  font: inherit; line-height: 1.35; cursor: pointer; text-align: start;
-  unicode-bidi: isolate; touch-action: manipulation;
-}
-.ex-field-line, .ex-target-block { display: block; width: 100%; }
-.ex-target-block { text-align: start; unicode-bidi: isolate; }
-.ex-inline-image {
-  display: inline-block; max-width: min(100%, 10em); max-height: 8em;
-  width: auto; height: auto; object-fit: contain; vertical-align: middle;
-  border-radius: 6px;
-}
-.ex-inline-image-placeholder { color: var(--graytx); font: .72em var(--sans); }
-.ex-option:hover, .ex-item:hover { border-color: var(--accentlt); }
-.ex-option.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.ex-option.selected::before { content: "●"; color: var(--accent); margin-inline-end: .4em; }
-[data-choice="multiple"] .ex-option.selected::before { content: "✓"; }
-.ex-item { cursor: grab; user-select: none; }
-
-/* A BOX THAT IS PUT IN ORDER CARRIES ITS OWN TWO ARROWS.  Dragging is what a
-   mouse does best and a touch screen worst, so the arrows are the way through
-   on a phone, and from the keyboard.  Which way each one points is the
-   sequence's business and not the box's: up and down in a list, left and
-   right in a line of chunks -- and the other way round where that line runs
-   right to left, so that the arrow points where the box will really go. */
-.ex-sequence > .ex-item, .ex-sequence-inline > .ex-item {
-  display: inline-flex; align-items: center; gap: .4em;
-}
-/* in a list the words take the room between the two arrows; a chunk in a
-   line keeps to its own width */
-.ex-sequence > .ex-item > span { flex: 1 1 auto; }
-.ex-move {
-  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-  min-width: 2.2em; min-height: 2.2em; padding: 0;
-  border: 1px solid var(--rulec); border-radius: 6px;
-  background: var(--sheet-bg); color: var(--ink);
-  font: .85em/1 var(--sans); cursor: pointer; touch-action: manipulation;
-}
-.ex-move:hover:not(:disabled) { border-color: var(--accentlt); }
-.ex-move:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ex-move:disabled { opacity: .3; cursor: default; }
-.ex-sequence > .ex-item > .ex-move[data-move="earlier"]::before { content: "↑"; }
-.ex-sequence > .ex-item > .ex-move[data-move="later"]::before { content: "↓"; }
-.ex-sequence-inline > .ex-item > .ex-move[data-move="earlier"]::before { content: "←"; }
-.ex-sequence-inline > .ex-item > .ex-move[data-move="later"]::before { content: "→"; }
-.ex-sequence-inline:dir(rtl) > .ex-item > .ex-move[data-move="earlier"]::before { content: "→"; }
-.ex-sequence-inline:dir(rtl) > .ex-item > .ex-move[data-move="later"]::before { content: "←"; }
-.ex-item.dragging { opacity: .45; }
-.ex-item.picked { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 24%,transparent); }
-.ex-fill { line-height: 2.65; }
-/* a sentence written in the target language is laid out in the target's
-   direction (htmlgen: is_target_line), so its blanks fall where they are
-   read; isolated, as every other direction-carrying box here is */
-.ex-fill[dir] { unicode-bidi: isolate; text-align: start; }
-.ex-blank, .ex-match-drop {
-  display: inline-flex; vertical-align: middle; align-items: center;
-  min-width: 6em; min-height: 2.25em; margin: 0 .15em; padding: .18em;
-  border: 1px dashed var(--accentlt); border-radius: 8px;
-  background: color-mix(in srgb,var(--accent) 4%,var(--sheet-bg));
-}
-.ex-blank:empty::after { content: attr(data-slot); margin: auto; color: var(--graytx); opacity: .45; font: .72em var(--sans); }
-.ex-bank { min-height: 2.6em; padding: .45em; border-radius: 9px; background: color-mix(in srgb,var(--rulec) 35%,transparent); }
-
-/* FILL IN THE BLANKS IN THE MOBILE INTERFACE: a tap on a blank opens this
-   cloud beside it, a copy of the words the bank holds, and a tap on one
-   puts it in the blank (app.js, bindExercises).  It exists only there, so
-   its targets are a finger's.  It hangs inside the exercise (which is
-   positioned), under the blank with its tip pointing up at it, or over it
-   (.over) with the tip pointing down -- --tip is where along its edge. */
-.ex-cloud {
-  position: absolute; z-index: 30; left: 0; top: 0;
-  display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px;
-  width: max-content; max-width: calc(100% - 16px); box-sizing: border-box;
-  padding: 10px; border: 1px solid var(--rulec); border-radius: 14px;
-  background: var(--sheet-bg); color: var(--ink); line-height: 1.35;
-  box-shadow: 0 10px 28px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.12);
-  animation: ex-cloud-in .12s ease-out;
-}
-@keyframes ex-cloud-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.ex-cloud::before {
-  content: ""; position: absolute; top: -7px; left: var(--tip, 50%);
-  width: 12px; height: 12px; margin-left: -6px; transform: rotate(45deg);
-  background: inherit; border-top: 1px solid var(--rulec); border-left: 1px solid var(--rulec);
-}
-.ex-cloud.over::before {
-  top: auto; bottom: -7px; border: 0;
-  border-right: 1px solid var(--rulec); border-bottom: 1px solid var(--rulec);
-}
-/* hung under the whole sentence, lines below its blank: no tip, the blank's
-   own border (.choosing) says which one it is */
-.ex-cloud.apart::before { display: none; }
-.ex-cloud-pick, .ex-cloud-clear {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 48px; min-height: 48px; box-sizing: border-box; padding: .35em .85em;
-  border: 1px solid var(--rulec); border-radius: 10px; background: var(--sheet-bg); color: var(--ink);
-  font: inherit; line-height: 1.35; cursor: pointer; unicode-bidi: isolate;
-  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-}
-.ex-cloud-pick:hover, .ex-cloud-clear:hover { border-color: var(--accentlt); }
-.ex-cloud-pick:active, .ex-cloud-clear:active { border-color: var(--accent); background: color-mix(in srgb,var(--accent) 8%,var(--sheet-bg)); }
-.ex-cloud-pick:focus-visible, .ex-cloud-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ex-cloud-clear { flex: 1 1 100%; border-style: dashed; color: var(--graytx); font: .9em var(--sans); }
-.ex-cloud-none { margin: 0; max-width: 20em; color: var(--graytx); font: .9em/1.4 var(--sans); }
-/* the blank, or the match's place, whose cloud is open, drawn as chosen */
-:is(.ex-blank, .ex-match-drop).choosing {
-  border-style: solid; border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 24%,transparent);
-}
-/* and in the mobile interface a blank or a match's place is what is tapped,
-   and the bank is to be read: as tall as a finger, no grabbing hand over
-   the words, and an empty place asking for a tap, not a drop */
-html[data-mode=mobile] .exercise[data-subtype="fill-blanks"] .ex-blank,
-html[data-mode=mobile] .exercise[data-primitive="matching"] .ex-match-drop { min-height: 48px; cursor: pointer; }
-html[data-mode=mobile] .exercise:is([data-subtype="fill-blanks"],[data-primitive="matching"]) .ex-bank .ex-item {
-  cursor: default;
-}
-html[data-mode=mobile] .exercise[data-primitive="matching"] .ex-match-drop:empty::after { content: "tap to choose"; }
-.ex-sequence { display: flex; flex-direction: column; gap: .45em; min-height: 3em; }
-.ex-sequence .ex-item { width: 100%; }
-.ex-sequence-inline {
-  flex-direction: row; flex-wrap: wrap; align-items: center;
-  align-content: flex-start;
-}
-.ex-sequence-inline .ex-item {
-  width: auto; max-width: 100%; flex: 0 1 auto; white-space: normal;
-}
-.ex-pairs { display: flex; flex-direction: column; gap: .5em; }
-.ex-pair-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(8em,1fr); gap: .7em; align-items: center; }
-.ex-pair-left { padding: .45em .2em; unicode-bidi: isolate; }
-.ex-match-drop { margin: 0; min-width: 0; }
-.ex-match-drop:empty::after { content: "drop match here"; margin: auto; color: var(--graytx); opacity: .48; font: .7em var(--sans); }
-.ex-segments .ex-options { gap: .15em; }
-.ex-segments .ex-option { border-radius: 4px; }
-.answer-correct { border-color: var(--ok) !important; background: color-mix(in srgb,var(--ok) 12%,var(--sheet-bg)) !important; }
-.answer-correct::after { content: " ✓"; color: var(--ok); font-weight: 700; }
-.answer-wrong { border-color: var(--danger) !important; background: color-mix(in srgb,var(--danger) 10%,var(--sheet-bg)) !important; }
-.answer-wrong::after { content: " ✕"; color: var(--danger); font-weight: 700; }
-.answer-missed { border-color: var(--warn) !important; border-style: dashed !important; }
-.answer-missed::after { content: " • correct answer"; color: var(--warn); font: .7em var(--sans); }
-/* The picture an exercise carries: with its question, and the one the
-   author kept for the answer, which app.js shows when the exercise has been
-   answered (right or wrong), above the explanations. */
-.ex-image { margin: .7em 0; }
-.ex-image img {
-  display: block; max-width: 100%; max-height: 22em;
-  border-radius: 8px; border: 1px solid var(--rule);
-}
-/* the width is written on the picture itself, so its side is the margin
-   beside it: the same left, centre and right a figure line has */
-.ex-image.align-center img { margin-inline: auto; }
-.ex-image.align-right img { margin-inline: auto 0; }
-.ex-image-placeholder {
-  display: inline-block; font-family: ui-monospace, Menlo, monospace;
-  font-size: .82em; color: var(--graytx);
-  border: 1px dashed var(--rule); border-radius: 6px; padding: .2em .5em;
-}
-
-/* an exercise's recordings, laid out as its pictures are: the width is
-   written on the player itself, so its side is the margin beside it */
-.ex-audio { margin: .7em 0; }
-.ex-audio audio { display: block; max-width: 100%; }
-.ex-audio.align-center audio { margin-inline: auto; }
-.ex-audio.align-right audio { margin-inline: auto 0; }
-.ex-audio-placeholder {
-  display: inline-block; font-family: ui-monospace, Menlo, monospace;
-  font-size: .82em; color: var(--graytx);
-  border: 1px dashed var(--rule); border-radius: 6px; padding: .2em .5em;
-}
-
-.ex-explanation {
-  margin-top: .85em; padding: .65em .75em; border-left: 3px solid var(--accent);
-  background: color-mix(in srgb,var(--accent) 6%,transparent); color: var(--ink);
-}
-.ex-explanation.success { border-color: var(--ok); background: color-mix(in srgb,var(--ok) 8%,transparent); }
-.ex-explanation.error { border-color: var(--danger); background: color-mix(in srgb,var(--danger) 7%,transparent); }
-.ex-invalid { color: var(--danger); }
-.ex-invalid ul { margin-bottom: 0; }
-.exercise-correction {
-  display: flex; align-items: center; justify-content: center; gap: 1em;
-  margin: 2.2em 0 1em; padding-top: 1.1em; border-top: 1px solid var(--rulec);
-}
-.ex-score { font: 700 .95em var(--sans); color: var(--danger); }
-.ex-score.perfect { color: var(--ok); }
-.ex-flashcard {
-  position: relative; width: min(100%, 34em); min-height: 12em; margin: .2em auto;
-  display: flex; align-items: center; justify-content: center; padding: 1.2em;
-  border: 1px solid var(--rulec); border-radius: 14px; background: var(--sheet-bg);
-  color: var(--ink); font: inherit; cursor: pointer; text-align: center;
-  box-shadow: 0 5px 18px color-mix(in srgb,var(--ink) 8%,transparent);
-}
-.ex-flashcard:hover { border-color: var(--accentlt); }
-body.ex-hide-transliteration .ex-card-transliteration { display: none !important; }
-/* the card is no <button> (a side may hold a table, a link, a player): it
-   takes the focus itself, and shows it */
-.ex-flashcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.ex-flashcard :is(audio, video, iframe, input, select, textarea) { cursor: auto; }
-.ex-card-front, .ex-card-back { display: flex; flex-direction: column; gap: .35em; align-items: center; }
-/* Where both sides show at once (the editor's preview, a deck row's), a card
-   with a field of blocks sets them apart and puts the back under the front
-   when they do not fit side by side.  Only that card: one without blocks --
-   every card written before fields held blocks -- keeps its sides touching
-   on one line, exactly as it always looked. */
-.ex-flashcard:has(.ex-card-blocks) { flex-wrap: wrap; gap: .6em 2em; }
-.ex-flashcard:has(.ex-card-blocks) > :is(.ex-card-front, .ex-card-back) { min-width: 0; max-width: 100%; }
-.ex-card-field { unicode-bidi: isolate; }
-.ex-card-field.primary { font-weight: 700; }
-/* A side with a field of blocks takes the card's width, and the blocks lay
-   out as they do on the page -- a table, a list, a box, a figure -- from the
-   start of the line, at the weight and size of the page's text: the size a
-   primary or secondary one-line field has by default (120%, 88%) is not
-   theirs, and only a -size written for the field changes it. */
-.ex-card-front:has(> .ex-card-blocks), .ex-card-back:has(> .ex-card-blocks) {
-  flex: 1 1 16em; align-self: stretch; justify-content: center;
-}
-.ex-card-field.ex-card-blocks {
-  align-self: stretch; min-width: 0; max-width: 100%; overflow-x: auto;
-  text-align: start; font-weight: 400;
-}
-.ex-card-blocks.primary[style*="font-size:120%;"],
-.ex-card-blocks.secondary[style*="font-size:88%;"] { font-size: 100% !important; }
-/* A field that is one paragraph of the page's own kind: the page gives it
-   its direction, its face, its tint, its tategaki and (a Latin block) its
-   width and side; the card gives it its size and its place, as it gives
-   every other field of one line. */
-.ex-card-field > :is(p, .fa-par, .fa-display, .la-par):only-child { margin: 0; }
-.ex-card-field:not(.ex-card-blocks) :is(.fa-par, .fa-display) {
-  font-size: inherit; line-height: inherit; text-align: inherit;
-}
-.ex-card-field:not(.ex-card-blocks) .fa-display { padding-left: 0; }
-.ex-card-field:not(.ex-card-blocks) .fa-display .fa { font-size: inherit; }
-.ex-card-blocks > :first-child { margin-top: 0; }
-.ex-card-blocks > :last-child { margin-bottom: 0; }
-.ex-flashcard figure.img { max-width: 100%; margin-top: .5em; margin-bottom: .5em; }
-body[data-page="doc"] .ex-flashcard figure.img:hover img,
-body[data-page="edit"] .ex-flashcard figure.img:hover img { outline: none; }
-.ex-card-image { max-width: min(100%,18em); max-height: 8em; object-fit: contain; border-radius: 8px; }
-.ex-card-image-placeholder, .ex-card-audio-placeholder { color: var(--graytx); font: .72em var(--sans); }
-/* a card's recording: its 🔊, which plays it and never turns the card */
-.ex-card-audio { display: inline-flex; align-items: center; }
-.ex-card-play {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 2.2em; min-height: 2.2em; padding: .25em .5em;
-  border: 1px solid var(--rulec); border-radius: 999px;
-  background: var(--sheet-bg); color: var(--ink); font: 1em/1 var(--sans);
-  cursor: pointer; touch-action: manipulation;
-}
-.ex-card-play:hover { border-color: var(--accentlt); }
-.ex-card-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ex-card-play.playing {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--sheet-bg));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
-}
-.ex-flashcard > small { position: absolute; inset-inline-end: .7em; bottom: .55em; color: var(--graytx); font: .65em var(--sans); }
-/* The card large, over the page (⤢ Enlarge): nearly the whole window, and in
-   it the card exactly as it is on the page -- the stage is a sheet with the
-   page's typography, .ex-zoom-scale carries the exercise's direction and
-   text size, the card keeps the page card's width -- magnified whole by the
-   transform app.js (openCardZoom) puts on .ex-zoom-scale, from its top left
-   corner, while .ex-zoom-card takes the magnified size.  Nothing here
-   restyles the card itself: whatever it looks like on the page, it looks
-   like here.  Above any other dialog, since a card in the editor's preview
-   opens it over the form. */
-.modal-overlay.ex-zoom-overlay { z-index: 110; padding: 2vh 2vw; }
-.modal.ex-zoom-modal {
-  width: 96vw; height: 94vh; max-height: none; padding: .7rem .9rem 1rem; gap: .6rem;
-}
-.ex-zoom-modal:focus { outline: none; }
-.ex-zoom-head { display: flex; align-items: center; gap: .8rem; }
-.ex-zoom-hint { margin-left: auto; color: var(--chrome-mut); font-size: .78rem; }
-/* The room the card is fitted to is measured before the card is in it, so
-   a scrollbar a tall card brings must not take any of it away afterwards:
-   its gutter is kept from the start, on both sides to keep the card centred. */
-.sheet.ex-zoom-stage {
-  flex: 1 1 auto; min-height: 0; display: flex; max-width: none; width: 100%;
-  margin: 0; padding: .35rem; background: transparent; box-shadow: none;
-  border-radius: 0; overflow: auto; scrollbar-gutter: stable both-edges;
-}
-/* in the middle of the window while it fits; a card taller than the window
-   scrolls from its top (an auto margin gives way where there is no room) */
-.ex-zoom-card { flex: none; margin: auto; position: relative; }
-.ex-zoom-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.ex-zoom-scale > .ex-flashcard { margin: 0; }
-/* A footnote's cloud on the enlarged card.  Out of the layout until it is
-   shown: hidden, it still took room beside the card, as wide as a cloud
-   may be, and made the window scroll sideways.  Drawn at the size it has
-   on the page, whatever the card under it is magnified by (--zoom,
-   app.js): a note over the card, which magnified with it grew wider than
-   the window, and on a phone taller than the room above or below its
-   line.  Where it would still stick out of the window at a side, app.js
-   moves it along its line (--fn-shift), its tail kept on its mark. */
-.ex-zoom-stage .fncloud {
-  display: none; font-size: calc(.82em / var(--zoom, 1));
-  max-width: min(30em, calc(82vw / var(--zoom, 1)));
-  transform: translateX(calc(-50% + var(--fn-shift, 0px)));
-}
-.ex-zoom-stage .fn:hover .fncloud, .ex-zoom-stage .fnref:focus + .fncloud { display: block; }
-.ex-zoom-stage .fncloud::after {
-  border-width: calc(6px / var(--zoom, 1));
-  margin-left: calc(-6px / var(--zoom, 1) - var(--fn-shift, 0px));
-}
-/* On a phone the card on the page is already nearly as wide as the screen,
-   and the width of the window is what the card, laid out narrower to be
-   magnified more (app.js), is magnified to: the window gives it every pixel
-   across that it can. */
-@media (max-width: 620px) {
-  .modal-overlay.ex-zoom-overlay { padding: 0; }
-  .modal.ex-zoom-modal { width: 100vw; height: 100%; border-radius: 0; padding: .5rem .4rem .4rem; }
-  .sheet.ex-zoom-stage { padding: .15rem; }
-}
-
-/* the header an uploaded file lacks, asked for (library page) */
-.header-modal { width: min(560px, 94vw); }
-.header-preview {
-  margin: 0; padding: .55rem .7rem; border: 1px dashed var(--chrome-line); border-radius: 8px;
-  background: var(--chrome-bg); color: var(--chrome-mut);
-  font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere;
-}
-
-/* authoring picker */
-.ex-picker { width: min(760px, 96vw); }
-.ex-type-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .45rem; overflow-y: auto; }
-.ex-type {
-  text-align: left; padding: .65rem .75rem; border-radius: 8px; cursor: pointer;
-  border: 1px solid var(--chrome-line); color: var(--chrome-fg); background: var(--chrome-bg);
-}
-.ex-type strong, .ex-type small { display: block; }
-.ex-type small { margin-top: .2rem; color: var(--chrome-mut); line-height: 1.35; }
-.ex-type:hover { color: var(--accent); border-color: var(--accent); }
-.ex-form-modal { width: min(860px, 96vw); padding: 0; gap: 0; overflow: hidden; }
-.ex-form-head {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
-  padding: 1rem 1.2rem .85rem; border-bottom: 1px solid var(--chrome-line);
-}
-.ex-form-head > div { min-width: 0; }
-.ex-form-head p { margin-top: .25rem; }
-.ex-form-body { min-height: 0; overflow-y: auto; padding: .9rem 1.2rem 1.2rem; }
-.ex-form-section {
-  display: flex; flex-direction: column; gap: .65rem; padding: .85rem 0;
-  border-bottom: 1px solid var(--chrome-line);
-}
-.ex-form-section:first-child { padding-top: 0; }
-.ex-form-section:last-child { border-bottom: 0; padding-bottom: 0; }
-.ex-form-section h4:not(:where(.sheet h4)) { margin: 0; color: var(--accent); font-size: .9rem; }
-.ex-form-actions { padding: .8rem 1.2rem; border-top: 1px solid var(--chrome-line); background: var(--chrome-bg); }
-.ex-author-field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; color: var(--chrome-mut); font-size: .8rem; }
-.ex-author-field > span { font-weight: 650; color: var(--chrome-fg); }
-.ex-author-field.ex-dir-field { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .25rem .5rem; }
-.ex-author-field.ex-dir-field > span { grid-column: 1; }
-.ex-author-field.ex-dir-field > .ex-text-direction { grid-column: 2; grid-row: 1; }
-.ex-author-field.ex-dir-field > :not(span):not(.ex-text-direction) { grid-column: 1 / -1; }
-.ex-text-direction {
-  justify-self: end; width: auto; padding: .18rem .45rem;
-  border: 1px solid var(--chrome-line); border-radius: 5px;
-  background: var(--chrome-bg); color: var(--chrome-mut);
-  font: 700 .73rem/1.2 var(--sans); cursor: pointer;
-}
-.ex-text-direction:hover, .ex-text-direction:focus-visible { color: var(--accent); border-color: var(--accent); }
-.ex-picker > .ex-text-direction { align-self: flex-end; }
-.modal.ex-form-modal .ex-author-field textarea,
-.modal.ex-form-modal .ex-author-field input,
-.modal.ex-form-modal .ex-author-field select {
-  width: 100%; border: 1px solid var(--chrome-line); border-radius: 8px;
-  background: var(--chrome-bg); color: var(--chrome-fg); padding: .48rem .6rem;
-  font: .9rem/1.42 var(--sans); resize: vertical;
-}
-.modal.ex-form-modal .ex-author-field textarea {
-  min-height: 4.3rem; font: .9rem/1.42 var(--sans); padding: .48rem .6rem;
-}
-.ex-author-field small { line-height: 1.35; }
-/* a jolly field is markdown, written as in the editor, several lines of it */
-.modal.ex-form-modal .ex-author-field textarea.ex-jolly-text {
-  min-height: 6.4rem; font: .84rem/1.5 ui-monospace, "SF Mono", Menlo, monospace; tab-size: 2;
-}
-.modal.ex-form-modal .ex-author-field :is(textarea, input[type="text"]):dir(rtl),
-.ex-picker textarea.ex-paste:dir(rtl) {
-  font-family: var(--fa-font); text-align: right; line-height: 1.65;
-}
-.ex-insert-row { display: flex; flex-wrap: wrap; gap: .35rem; }
-.ex-audio-play { min-width: 2.2rem; }
-.ex-audio-play.playing { color: var(--accent); border-color: var(--accent); }
-/* a picture path with its "Upload…" button beside it (a deck's form) */
-.ex-upload-row { display: flex; align-items: center; gap: .4rem; min-width: 0; }
-.modal.ex-form-modal .ex-upload-row input { flex: 1 1 auto; min-width: 0; }
-.ex-upload-row .btn { flex: none; }
-.ex-form-list { display: flex; flex-direction: column; gap: .6rem; }
-.ex-form-row { padding: .7rem; border: 1px solid var(--chrome-line); border-radius: 9px; background: var(--chrome-bg); }
-.ex-form-row.compact { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: .5rem; }
-.ex-row-head { display: flex; align-items: center; gap: .3rem; margin-bottom: .45rem; }
-.ex-row-head strong, .ex-correct-toggle { margin-right: auto; color: var(--chrome-fg); font-size: .8rem; }
-.ex-correct-toggle { cursor: pointer; }
-.ex-field-cols { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; }
-.ex-add-row { justify-content: flex-start; margin: 0; }
-.ex-field-style { margin-top: .15rem; }
-.ex-field-style summary { cursor: pointer; color: var(--accent); font-size: .76rem; }
-.ex-field-style .ex-field-cols { margin-top: .5rem; }
-.ex-form-preview-status { min-height: 1.15em; }
-.sheet.ex-form-preview {
-  width: 100%; max-width: none; margin: 0; padding: .75rem;
-  border: 1px solid var(--chrome-line); border-radius: 9px;
-  box-shadow: none; background: var(--sheet-bg); color: var(--ink);
-}
-.sheet.ex-form-preview .exercise { margin: 0; }
-.sheet.ex-form-preview .ex-edit, .sheet.ex-form-preview .ex-to-deck { display: none; }
-.ex-prompt-modal { width: min(650px, 96vw); }
-.ex-decks {
-  display: flex; flex-direction: column; gap: .35rem; max-height: 42vh;
-  overflow-y: auto; padding: .5rem; border: 1px solid var(--chrome-line);
-  border-radius: 8px; background: var(--chrome-bg);
-}
-.ex-deck { display: flex; align-items: center; gap: .55rem; padding: .28rem; cursor: pointer; }
-.ex-deck:hover { color: var(--accent); }
-.ex-copy-status { margin-right: auto; }
-
-@media (max-width: 620px) {
-  .ex-pair-row { grid-template-columns: 1fr; gap: .2em; }
-  .ex-type-grid { grid-template-columns: 1fr; }
-  .ex-field-cols { grid-template-columns: 1fr; }
-  .ex-form-head, .ex-form-body, .ex-form-actions { padding-inline: .8rem; }
-  .ex-form-row.compact { grid-template-columns: 1fr; }
-  .sheet .exercise { padding: .8em; }
-}
-
-/* ---------- colour marks on Persian runs --------------------------- */
-:root {
-  --fac-crimson: #8E2B34; --fac-indigo: #2F3E8F; --fac-teal: #13605C;
-  --fac-violet:  #5C2E7E; --fac-amber:  #8A5A0B;
-  --fac-ungram:  #C9463C;   /* reserved for ✗ forms — not in the palette */
-}
-body[data-theme="dark"] {      /* lifted for contrast on a dark sheet */
-  --fac-crimson: #E4808A; --fac-indigo: #93A6EE; --fac-teal: #5FC0B8;
-  --fac-violet:  #C193E4; --fac-amber:  #DDA653;
-  --fac-ungram:  #F0928A;
-}
-
-/* ungrammatical forms: ❌ + the form tinted a light red of its own */
-.ungram-run { color: var(--fac-ungram); }
-.ungram-run .fa { cursor: default; }
-.ungram-run .fa:hover { background: none; }
-.ungram-x { font-size: .8em; margin-right: .12em; }
-.fac-crimson { color: var(--fac-crimson); }
-.fac-indigo  { color: var(--fac-indigo); }
-.fac-teal    { color: var(--fac-teal); }
-.fac-violet  { color: var(--fac-violet); }
-.fac-amber   { color: var(--fac-amber); }
-
-/* the hover palette */
-.fapal {
-  position: absolute; z-index: 70; display: flex; align-items: center;
-  gap: .3rem; padding: .3rem .4rem;
-  background: var(--chrome-panel); border: 1px solid var(--chrome-line);
-  border-radius: 99px; box-shadow: 0 6px 24px rgba(0,0,0,.24);
-}
-.fapal button {
-  width: 1.15rem; height: 1.15rem; border-radius: 50%; cursor: pointer;
-  border: 2px solid transparent; padding: 0; font-size: .7rem;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.fapal button:hover { transform: scale(1.18); }
-.fapal button.on { border-color: var(--chrome-fg); }
-.fapal input[type="color"] {
-  width: 1.15rem; height: 1.15rem; border-radius: 50%;
-  border: 2px solid transparent; padding: 0; background: none;
-  cursor: pointer;
-}
-.fapal input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-.fapal input[type="color"]::-webkit-color-swatch {
-  border: 1px dashed var(--chrome-mut); border-radius: 50%;
-}
-.fapal input[type="color"].on { border-color: var(--chrome-fg); }
-.fapal input[type="color"]:hover { transform: scale(1.18); }
-.fapal .none {
-  background: var(--chrome-bg); color: var(--chrome-mut);
-  border: 1px solid var(--chrome-line);
-}
-.fapal .lbl {
-  font-size: .68rem; color: var(--chrome-mut); padding: 0 .15rem 0 .3rem;
-  white-space: nowrap;
-}
-
-/* transliteration, at the head of the cloud: a label you click to edit,
-   or a + when the run has none yet.  These are not swatches, so they opt
-   out of the round fixed-size button rules above. */
-.fapal .tr-edit { display: inline-flex; align-items: center; }
-.fapal .tr-val, .fapal .tr-add {
-  width: auto; height: auto; border-radius: 6px; padding: .1rem .35rem;
-  font-size: .72rem; font-style: italic; line-height: 1.3;
-  background: var(--chrome-bg); color: var(--accent);
-  border: 1px solid var(--chrome-line); white-space: nowrap;
-}
-.fapal .tr-add { font-style: normal; font-weight: 700; padding: .1rem .4rem; }
-.fapal .tr-val:hover, .fapal .tr-add:hover {
-  transform: none; border-color: var(--accentlt); background: var(--chrome-panel);
-}
-.fapal .tr-val:disabled {
-  color: var(--chrome-mut); border-color: transparent;
-  background: none; cursor: default;
-}
-.fapal .tr-val:disabled:hover { border-color: transparent; background: none; }
-.fapal .tr-in {
-  width: 8.5rem; padding: .1rem .35rem; border-radius: 6px;
-  border: 1px solid var(--accentlt); background: var(--chrome-bg);
-  color: var(--chrome-fg); font-size: .72rem; font-style: italic;
-}
-.fapal .tr-in:focus { outline: none; border-color: var(--accent); }
-/* the reading (kana) field beside the transliteration, for the languages
-   that have one: same controls, the value in the target face */
-.fapal .kana-edit .tr-val, .fapal .kana-edit .tr-in {
-  font-style: normal; font-family: var(--fa-font); font-size: .8rem;
-}
-.fapal .kana-edit .tr-in { width: 7rem; }
-
-/* ---------- images ------------------------------------------------- */
-figure.img {
-  margin: 1.2em 0;               /* width + margin-left set inline from */
-  max-width: 125%;               /* the markdown attribute block        */
-}
-figure.img img {
-  display: block; width: 100%; height: auto;
-  border-radius: 2px;
-}
-body[data-page="doc"] figure.img,
-body[data-page="edit"] figure.img { cursor: pointer; }
-body[data-page="doc"] figure.img:hover img,
-body[data-page="edit"] figure.img:hover img {
-  outline: 2px solid color-mix(in srgb, var(--accentlt) 55%, transparent);
-  outline-offset: 2px;
-}
-figure.img.img-editing img { outline: 2px solid var(--accent); outline-offset: 2px; }
-figure.img figcaption {
-  font-size: .78em; color: var(--graytx); margin-top: .45em; line-height: 1.45;
-}
-.img-placeholder, .img-missing {
-  border: 1px dashed var(--rulec); border-radius: 6px;
-  padding: 1.2em; text-align: center; color: var(--graytx); font-size: .85em;
-}
-.img-missing { color: var(--danger); }
-
-/* YouTube embeds: same figure mechanics as images */
-figure.video { position: relative; }
-.video-box {
-  aspect-ratio: 16 / 9; width: 100%;
-  background: #171214; border-radius: 4px; overflow: hidden;
-}
-.video-box iframe { width: 100%; height: 100%; border: 0; display: block; }
-.video-edit {
-  position: absolute; top: .45rem; right: .45rem; z-index: 5;
-  border: 0; border-radius: 6px; cursor: pointer;
-  background: rgba(23,18,20,.72); color: #fff;
-  font-size: .68rem; padding: .22rem .5rem; opacity: 0;
-  transition: opacity .12s;
-}
-figure.video:hover .video-edit { opacity: 1; }
-.video-edit:hover { background: var(--accent); color: var(--accent-fg); }
-body[data-page="doc"] figure.video,
-body[data-page="edit"] figure.video { cursor: default; }
-body[data-page="doc"] figure.video:hover img,
-body[data-page="edit"] figure.video:hover img { outline: none; }
-/* Recordings: the same figure mechanics, the player as wide as its figure.
-   The ⚙ handle hangs under the player's right end -- over the player it
-   would cover the player's own menu. */
-figure.audio { position: relative; }
-figure.audio audio { display: block; width: 100%; min-width: 0; max-width: 100%; }
-.audio-edit {
-  position: absolute; top: 100%; right: 0; z-index: 5; margin-top: -.15rem;
-  border: 0; border-radius: 6px; cursor: pointer;
-  background: rgba(23,18,20,.72); color: #fff;
-  font-size: .68rem; padding: .22rem .5rem; opacity: 0;
-  transition: opacity .12s;
-}
-figure.audio:hover .audio-edit, figure.audio.img-editing .audio-edit,
-.audio-edit:focus-visible { opacity: 1; }
-.audio-edit:hover { background: var(--accent); color: var(--accent-fg); }
-body[data-page="doc"] figure.audio,
-body[data-page="edit"] figure.audio { cursor: default; }
-body[data-page="doc"] figure.audio figcaption,
-body[data-page="edit"] figure.audio figcaption { cursor: pointer; }
-figure.audio.img-editing audio { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
-/* On a phone's column a player a few centimetres wide keeps its ▶ and loses
-   its timeline (and its ⋮ menu): there a recording is never narrower than a
-   player that has both, or than its whole column, and it keeps its side
-   without the offset, which would push the wider player over the edge. */
-@media (max-width: 620px) {
-  figure.audio { min-width: min(100%, 18rem); }
-  figure.audio[data-align="left"] { margin-left: 0 !important; }
-  figure.audio[data-align="center"] { margin-left: auto !important; margin-right: auto; }
-  figure.audio[data-align="right"] { margin-left: auto !important; margin-right: 0; }
-}
-/* no hover on a touch screen: in the editor, where laying out is the work,
-   the handles are shown (a reader's page stays clear of them) */
-@media (hover: none) {
-  body[data-page="edit"] .video-edit, body[data-page="edit"] .audio-edit { opacity: 1; }
-}
-.imgpanel .times { display: flex; gap: .4rem; align-items: center; }
-.imgpanel .times input {
-  width: 4.2rem; padding: .18rem .35rem; border-radius: 5px;
-  border: 1px solid var(--chrome-line); background: var(--chrome-bg);
-  color: var(--chrome-fg); font-size: .74rem; text-align: center;
-}
-
-/* the click-to-layout panel */
-.imgpanel {
-  position: absolute; z-index: 75; width: 250px;
-  background: var(--chrome-panel); border: 1px solid var(--chrome-line);
-  border-radius: 10px; box-shadow: 0 10px 34px rgba(0,0,0,.26);
-  padding: .65rem .8rem; font-size: .78rem; color: var(--chrome-fg);
-}
-.imgpanel .row2 { display: flex; align-items: center; gap: .5rem; margin: .35rem 0; }
-.imgpanel label { color: var(--chrome-mut); width: 3.2rem; flex: none; }
-.imgpanel output { width: 3rem; text-align: right; font-variant-numeric: tabular-nums; }
-.imgpanel input[type="range"] { flex: 1; }
-.imgpanel .aligns { display: flex; gap: .25rem; flex: 1; }
-.imgpanel .aligns button {
-  flex: 1; padding: .25rem 0; border: 1px solid var(--chrome-line);
-  background: var(--chrome-bg); color: var(--chrome-fg);
-  border-radius: 6px; cursor: pointer; font-size: .78rem;
-}
-.imgpanel .aligns button.on {
-  background: var(--accent); border-color: var(--accent); color: var(--accent-fg);
-}
-.imgpanel .panel-head {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: .3rem; font-weight: 600;
-}
-.imgpanel .panel-head button {
-  border: 0; background: none; cursor: pointer; color: var(--chrome-mut);
-  font-size: .9rem; padding: .1rem .3rem; border-radius: 4px;
-}
-.imgpanel .panel-head button:hover { color: var(--danger); }
-.imgpanel .hint2 { color: var(--chrome-mut); font-size: .7rem; margin-top: .3rem; }
-
-/* image manager (editor) */
-.imggrid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: .6rem; max-height: 46vh; overflow-y: auto; padding: .2rem;
-}
-.imggrid .imgcell {
-  position: relative; border: 1px solid var(--chrome-line); border-radius: 8px;
-  overflow: hidden; cursor: pointer; background: var(--chrome-bg);
-}
-.imggrid .imgcell img { display: block; width: 100%; height: 84px; object-fit: cover; }
-.imggrid .imgcell .nm {
-  font-size: .68rem; padding: .2rem .35rem; color: var(--chrome-mut);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.imggrid .imgcell:hover { border-color: var(--accentlt); }
-.imggrid .imgcell .del {
-  position: absolute; top: .25rem; right: .25rem; border: 0; border-radius: 4px;
-  background: rgba(23,18,20,.55); color: #fff; cursor: pointer;
-  font-size: .7rem; padding: .1rem .3rem; opacity: 0;
-}
-.imggrid .imgcell:hover .del { opacity: 1; }
-.imggrid .imgcell .del:hover { background: var(--danger); color: var(--danger-fg); }
-.imggrid .imgcell .ref {
-  position: absolute; top: .25rem; left: .25rem; font-size: .62rem;
-  background: rgba(23,18,20,.55); color: #fff; border-radius: 4px; padding: .05rem .3rem;
-}
-.editor-pane.dragover { outline: 2px dashed var(--accentlt); outline-offset: -6px; }
-
-/* recordings manager (editor): the document's recordings, then the clips
-   waiting in the tray */
-.audio-modal { width: min(620px, 96vw); }
-.audio-modal:focus { outline: none; }
-.audio-modal h4 { margin: .15rem 0 .3rem; color: var(--accent); font-size: .9rem; }
-.audio-modal .audclips { display: flex; flex-direction: column; gap: .4rem; min-height: 0; }
-.audlist {
-  display: flex; flex-direction: column; min-height: 2.6rem; max-height: 32vh; overflow-y: auto;
-  border: 1px solid var(--chrome-line); border-radius: 8px; background: var(--chrome-bg);
-}
-.audlist .hint { margin: .7rem; }
-.audrow {
-  display: flex; align-items: center; gap: .55rem; padding: .38rem .6rem;
-  border-top: 1px solid var(--chrome-line); font-size: .84rem; color: var(--chrome-fg);
-}
-.audrow:first-child { border-top: 0; }
-.audrow[role="button"] { cursor: pointer; }
-.audrow[role="button"]:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.audrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.audplay {
-  flex: none; width: 1.9rem; height: 1.9rem; border-radius: 50%;
-  border: 1px solid var(--chrome-line); background: var(--chrome-panel); color: var(--chrome-fg);
-  font-size: .7rem; cursor: pointer;
-}
-.audplay:hover, .audplay.playing { border-color: var(--accent); color: var(--accent); }
-.audname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.audrow.clip .audname { display: flex; flex-direction: column; white-space: normal; }
-.audtext { unicode-bidi: plaintext; text-align: start; overflow-wrap: anywhere; }
-.audname small { color: var(--chrome-mut); font-size: .72rem; overflow-wrap: anywhere; }
-.audsize { flex: none; color: var(--chrome-mut); font-size: .74rem; font-variant-numeric: tabular-nums; }
-.audrow .ref {
-  flex: none; padding: .05rem .35rem; border-radius: 4px; font-size: .66rem;
-  background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok);
-}
-.audrow .del {
-  flex: none; border: 0; border-radius: 4px; padding: .1rem .35rem;
-  background: none; color: var(--chrome-mut); cursor: pointer;
-}
-.audrow .del:hover { background: var(--danger); color: var(--danger-fg); }
-.audrow .btn { flex: none; }
-
-/* the target-text overlay editor: the box takes the document's direction
-   (its dir attribute) and face */
-.rtl-modal .rtlbox {
-  font-family: var(--fa-font);
-  font-size: 1.35rem; line-height: 2;
-  min-height: 200px;
-}
-.rtl-modal .rtlbox[dir="rtl"] { text-align: right; }
-.rtl-modal .rtlbox.alt { font-family: var(--tl-alt, var(--fa-font)); line-height: max(var(--tl-alt-lh, 1), 2); }
-.rtl-modal .rtl-opts { justify-content: flex-start; gap: 1.2rem; flex-wrap: wrap; }
-.rtl-modal .rtl-opts label {
-  display: inline-flex; align-items: center; gap: .4rem;
-  font-size: .82rem; color: var(--chrome-mut);
-}
-.rtl-modal .rtl-opts input[type="number"] {
-  width: 4.2rem; padding: .2rem .35rem; border-radius: 5px;
-  border: 1px solid var(--chrome-line); background: var(--chrome-bg);
-  color: var(--chrome-fg); font-size: .8rem;
-}
-/* THE MATHS SHEET.  The notation above, the picture below it, so the eye
-   goes straight down from what was typed to what it became -- side by side
-   would make both halves narrow, and a formula is wide. */
-.math-modal .mathbox {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 1rem; line-height: 1.6; min-height: 110px;
-}
-.math-modal .math-opts { justify-content: flex-start; gap: 1.2rem; flex-wrap: wrap; }
-.math-modal .math-opts label {
-  display: inline-flex; align-items: center; gap: .4rem;
-  font-size: .82rem; color: var(--chrome-mut);
-}
-.math-modal .math-stage-wrap { margin-top: .6rem; }
-.math-modal .math-status { display: block; min-height: 1.1em; margin-bottom: .3rem; }
-/* the picture sits on the sheet's own ground, because that is where it will
-   sit in the document: a formula that looks right on grey and wrong on the
-   page has been previewed against the wrong thing */
-.math-modal .math-stage {
-  margin: 0; max-width: none; box-shadow: none;
-  min-height: 72px; padding: .8rem 1rem;
-  display: flex; align-items: center; justify-content: center;
-  overflow-x: auto;
-}
-.math-modal .math-stage:empty::after {
-  content: ""; display: block;
-}
-
-.rtl-edit-btn {
-  position: absolute; z-index: 72; display: none;
-  border: 1px solid var(--chrome-line); border-radius: 6px;
-  background: var(--chrome-panel); color: var(--chrome-fg);
-  font-size: .72rem; padding: .18rem .5rem; cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0,0,0,.2);
-}
-.rtl-edit-btn:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-
-/* colophon */
-.colophon {
-  margin-top: 3em; padding-top: .7em;
-  border-top: 1px solid var(--rulec);
-  font-size: .72em; color: var(--graytx); line-height: 1.5;
 }
 
 /* ---------- editor split ------------------------------------------- */
@@ -2281,3 +1017,191 @@ body[data-page="edit"] figure.img:hover img { outline: none; }
   .dk-rating { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dk-options { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ================= KEPT ON THIS PHONE, on the studio's pages =============
+   lib/keep.js draws the same two buttons and the same sheet on a document and
+   on a deck as it does in a book's reader, but the studio's pages do not load
+   lib/parseh.css -- so its rules are repeated here, in the studio's own
+   tokens.  Keep the two in step: the source of truth is lib/parseh.css.
+
+   ================== THE TWO FILES MOVE TOGETHER, ALWAYS ==================
+   A CHANGE TO THE `.kp-*` RULES IN lib/parseh.css IS HALF A CHANGE UNTIL IT
+   IS MADE HERE TOO, and the half that is missing is invisible at the desk:
+   the studio's pages are where nobody looks after touching a reader's
+   stylesheet, so the pair went on being drawn as one button, and the sheet's
+   rows went on filling their width, for as long as it took the owner to open
+   a deck on his phone and say so.  There is no import that could have spared
+   us this -- /static/app.css is served as one answer so that everything ever
+   kept under that name goes on working (server.py, serve_app_css), and
+   lib/parseh.css belongs to the readers, which the studio does not load.
+   So it is two files and a promise, and the promise is to be written at BOTH
+   ends: lib/parseh.css's own `.kp-*` heading names this block back, so that
+   whichever of the two is opened first says that the other one exists.
+
+   Every rule below is a mirror.  Where lib/parseh.css names a reader's token
+   the studio's stands in its place -- --rule → --rulec, --card →
+   --chrome-panel, --ink → --chrome-fg, --dim → --chrome-mut, --bg →
+   --chrome-bg -- and nothing else is allowed to differ.  A rule that ought
+   to read differently here belongs under a heading of its own, not in the
+   mirror, where the next person to compare the two will read it as drift. */
+/* ---------------- kept on this phone ----------------
+   lib/keep.js: the two buttons under ⋯ -- Keep on this phone, which becomes
+   Change what is kept, and Remove from this phone beside it -- the sheet that
+   asks which recordings to keep, the line that says what is kept is older
+   than the computer's, and the chip that says the computer cannot be reached
+   at all (TO-DO §19, and §0 for 2026-09-23). */
+.kp-keep,.kp-drop{font:inherit;font-size:15px;min-height:48px;padding:6px 12px;
+  border:1px solid var(--rulec);border-radius:10px;background:var(--chrome-panel);color:var(--chrome-fg);
+  cursor:pointer}
+/* THE KEPT TINT, WHICH THE STUDIO HAS NO TOKEN FOR.  lib/parseh.css says
+   `background:var(--hl)` here and --hl is a READER's token -- the line being
+   spoken, a colour the chrome never had -- so that word, copied across as it
+   stood, named nothing on a studio page and a kept deck's button lost its
+   tint in all three themes.  The mix is what --hl IS where it is defined
+   ("the accent at 15% over the cream"), said in tokens the studio does own,
+   so it comes out right in light, in sepia and in dark rather than in one. */
+.kp-keep.kp-have{border-color:var(--accent);color:var(--accent);
+  background:color-mix(in srgb, var(--accent) 15%, var(--chrome-panel))}
+.kp-keep[disabled],.kp-drop[disabled]{opacity:.6;cursor:progress}
+/* the computer is away and the list of recordings is the computer's: the
+   button is not a button just now, and its label says why */
+.kp-keep[disabled]{cursor:not-allowed}
+.kp-drop{color:var(--chrome-mut)}
+.kp-drop[hidden]{display:none}
+/* THE TWO OF THEM ON ONE LINE, HALF EACH (the owner's 4, 2026-09-23).
+   `.kp-btn` is the WRAPPER round the pair and is no longer either button --
+   it wears that name because every sheet that placed the one button placed
+   it by that class, so the pair has to answer to it to stand where the
+   button stood (lib/keep.js, build).  On a studio page the wrapper sits in
+   the deck's row of actions or the document's toolbar, and the two real
+   buttons wear that page's own dress as well (`data-keep-slot`), which is
+   why what `.kp-btn` used to DRAW has to be undrawn here: a border and a
+   panel around a pair of buttons that already have their own is a box
+   nobody asked for, and it is what these pages were still showing. */
+.kp-btn{display:flex;width:100%;gap:8px;align-items:stretch;
+  min-height:0;padding:0;border:0;border-radius:0;background:none;cursor:auto}
+.kp-btn > .kp-keep,.kp-btn > .kp-drop{flex:1 1 0;min-width:0;
+  white-space:normal;line-height:1.25}
+/* what the buttons say when the page has no toast of its own (the studio's):
+   a line of its own under the pair, never squeezed in beside it */
+.kp-said{flex:1 0 100%;margin:6px 0 0;font-size:13.5px;line-height:1.4;color:var(--chrome-mut)}
+.kp-said.kp-bad{color:var(--warn)}
+/* THE SHEET IS WRITTEN IN ENGLISH WHEREVER IT IS OPENED.  A studio document
+   may be Persian or Arabic and its page right to left, and this sheet is
+   opened from inside it: left is where the owner asked for the rows and the
+   free strip is the other side of that (his 2, 2026-09-23), and neither can
+   be true in one document and mirrored in the next. */
+.kp-back{position:fixed;inset:0;z-index:440;display:flex;align-items:flex-end;
+  justify-content:center;background:rgba(0,0,0,.4);direction:ltr}
+.kp-sheet{width:min(560px,100%);max-height:86vh;overflow-y:auto;padding:18px 18px
+  calc(18px + env(safe-area-inset-bottom));background:var(--chrome-panel);
+  border-radius:16px 16px 0 0;color:var(--chrome-fg)}
+.kp-h{margin:0 0 6px;font-size:19px}
+.kp-what,.kp-lead{margin:0 0 10px;color:var(--chrome-mut);font-size:14.5px;line-height:1.5}
+.kp-pickall{display:flex;gap:8px;margin-bottom:8px}
+.kp-small{font:inherit;font-size:13.5px;min-height:40px;padding:4px 12px;border-radius:9px;
+  border:1px solid var(--rulec);background:var(--chrome-bg);color:var(--chrome-fg);cursor:pointer}
+/* THE ROWS ARE NARROWER THAN THE SHEET AND SIT AGAINST ITS LEFT EDGE (the
+   owner's 2, 2026-09-23: "reduce the size of the rectangles by 20% and align
+   them left, so that part of the page is free to move the thumb and scroll
+   without issues").  A finger drawn across a row ticks it rather than
+   scrolling -- which is the point of the rows and is why they say
+   touch-action:none -- so a deck of ninety-eight exercises had become a list
+   nobody could scroll past: wherever the thumb landed it was on a row.  The
+   strip left clear down the right is what it lands on now, and that strip
+   scrolls, because nothing there takes the drag away from the browser.
+   IT IS THE WIDTH THAT SHRINKS AND NOTHING ELSE.  Every row keeps its 48px,
+   which is the one rule the mobile interface does not trade: a target a thumb
+   can hit does not get smaller because there are more of them. */
+.kp-list{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:10px}
+/* touch-action:none ON THE ROWS ALONE (TO-DO §0): a finger drawn down the
+   boxes ticks or clears every one it crosses (lib/keep.js, dragging), so the
+   browser must hand that drag over instead of scrolling the sheet with it.
+   Everywhere else in the sheet -- the heading, the lines, the buttons, and
+   the strip beside the rows -- the sheet still scrolls as it always did. */
+.kp-row{display:flex;align-items:center;gap:10px;width:80%;min-height:48px;padding:6px 10px;
+  border:1px solid var(--rulec);border-radius:10px;font-size:14.5px;
+  touch-action:none;-webkit-user-select:none;user-select:none}
+.kp-row input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+/* WHAT A ROW SAYS, IN TWO LINES (his 2 again: "indicate also chapters and
+   section range that each narration covers in the rectangles instead of only
+   the range of paragraphs").  The chapter and the section on top, in the
+   document's own wording; the paragraph addresses under them, small and dim,
+   for whoever knows his text by those.  The top line is the one that is cut
+   short when there is no room: it is the one somebody is reading. */
+.kp-name{display:flex;flex-direction:column;justify-content:center;gap:1px;
+  flex:1;min-width:0}
+.kp-top{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-sub{font-size:12.5px;line-height:1.3;color:var(--chrome-mut);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-size{flex:none;color:var(--chrome-mut);font-variant-numeric:tabular-nums}
+/* WHAT WAS KEPT AND IS NO LONGER WHOLE (the owner's 3, 2026-09-23).  The
+   worker has looked at the file itself -- its digest, or its length where it
+   is too big to hash on a phone (lib/sw.js, check()) -- and this is what it
+   found broken.  Its box is empty, because it is not really kept; and it says
+   so in its own row, rather than losing its tick overnight and leaving him to
+   wonder which of them he had unticked himself. */
+.kp-row.kp-torn{border-color:var(--warn)}
+.kp-whytorn{color:var(--warn)}
+/* the line that says the check is running, and then what it found */
+.kp-check{margin:0 0 10px;font-size:13.5px;line-height:1.45;color:var(--chrome-mut)}
+.kp-check.kp-bad{color:var(--warn)}
+/* The one line under the notes' rows (TO-DO §0, the notes kept with their
+   book).  What a note opens ON -- the studio's sheet, its thirteen faces,
+   MathJax where there is a formula -- is four megabytes kept ONCE for the
+   phone, so it is neither a row of its own (there is nothing to choose) nor
+   part of the notes' own size (it is not paid twice).  It is a line, and it
+   goes when the notes are unticked. */
+.kp-aside{margin:-4px 0 10px;font-size:13px;line-height:1.45;color:var(--chrome-mut)}
+.kp-aside[hidden]{display:none}
+.kp-sum{margin:0 0 12px;font-size:15px;font-weight:600}
+.kp-btns{display:flex;gap:10px;justify-content:flex-end}
+.kp-go,.kp-no{font:inherit;font-size:15px;min-height:48px;padding:8px 18px;border-radius:10px;
+  border:1px solid var(--rulec);background:var(--chrome-bg);color:var(--chrome-fg);cursor:pointer}
+.kp-go{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+.kp-bar{position:fixed;z-index:415;left:50%;transform:translateX(-50%);
+  bottom:calc(12px + env(safe-area-inset-bottom));display:flex;align-items:center;flex-wrap:wrap;
+  gap:10px;max-width:min(560px,94vw);padding:12px 14px;background:var(--chrome-panel);
+  border:1px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);
+  font-size:14.5px;line-height:1.4}
+.kp-off{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:20px;
+  background:var(--warn);color:#fff;font-size:13px;text-decoration:none;white-space:nowrap}
+.kp-off:hover{opacity:.9}
+/* A CARD WHOSE THING IS NOT ON THIS PHONE (TO-DO §0).  Offline a shelf still
+   shows everything the computer had when it was last reached; what is not
+   kept is drawn and cannot be tapped, which is the look a book whose reader
+   was never built already has (lib/mobile.css, .m-book.m-off).  This is for
+   the cards that are not a book's: a deck's, a document's. */
+.kp-away{opacity:.72}
+.kp-note{margin-top:6px;font-size:13.5px;line-height:1.45;color:var(--chrome-mut)}
+/* ---------------- the app getting itself ready ----------------
+   lib/keep.js asks the worker to warm the way in once a page is up, and any
+   page may carry an element with [data-parseh-warm] to say how it is going.
+   TWO OF THE PAGES THAT CARRY ONE ARE THE STUDIO'S OWN -- the library
+   (templates/index.html) and the deck shelf (templates/decks.html) -- and
+   until now the mirror stopped short of this block, so on both of them the
+   line came out as a bare unstyled paragraph while every other page in
+   Parseh drew it as a panel.
+   It is a LINE, not a bar: the app saying it is not quite ready yet, in the
+   same quiet as everything else here.  Tabular figures so that the count does
+   not shuffle the words sideways as it climbs through fifty-nine. */
+[data-parseh-warm]{margin:12px 0 4px;padding:10px 14px;border-radius:12px;
+  border:1px solid var(--rulec);background:var(--chrome-panel);color:var(--chrome-mut);
+  font-size:14.5px;line-height:1.45;font-variant-numeric:tabular-nums}
+[data-parseh-warm][hidden]{display:none}
+/* and when everything this page asked for has settled it says so and STAYS
+   saying it: /m/install/ tells somebody to wait until it is ready, and a line
+   that disappeared at that moment would have told him nothing */
+[data-parseh-warm].kp-ready{border-color:var(--accent);color:var(--chrome-fg)}
+/* the phone's own page of what is kept */
+.m-kept{display:flex;flex-direction:column;gap:8px}
+.m-keptopen{display:block;text-decoration:none;color:inherit}
+.m-keptoff{font:inherit;font-size:14px;min-height:48px;border:1px solid var(--rulec);
+  border-radius:10px;background:var(--chrome-bg);color:var(--chrome-mut);cursor:pointer}
+.m-keptoff:hover{border-color:var(--danger);color:var(--danger)}
+/* why one of them would not go: a deck that is still out on this phone */
+.m-keptwhy{margin:0;font-size:13.5px;line-height:1.45;color:var(--warn)}
+
+/* a failed build's log, shown under the buildinfo line (2.5) */
+.buildinfo .fails pre{margin:0;white-space:pre-wrap;
+  font-family:ui-monospace,Menlo,monospace;font-size:.78rem}

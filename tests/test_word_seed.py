@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """A draft's reading starts from its words, the checkers do not count that
-reading as written, and every door an annotator uses starts the words from the
-machine's.  Also the hub's Books and Studio doors, which say only how many.
+reading as written while nothing else in the chunk is (a blank chunk is legal
+in any book or video, and counted in one note), and every door an annotator
+uses starts the words from the machine's.  Also the hub's Books and Studio
+doors, which say only how many.
 
     python3 -m unittest discover -s tests -p test_word_seed.py
 
@@ -159,13 +161,17 @@ class CheckerTests(unittest.TestCase):
                 with patch.object(draft.words, 'line', stand_in):
                     r = draft.book_from_text(text, code, 'title', slug='t', into=td)
                 book = books.Book(r['dir'])
+                # nothing marks it as a draft: a blank chunk is legal in any book
+                self.assertNotIn('draft', book.meta)
                 para = para_json(book)
                 chunks = [c for s in para['ann']['sentences'] for c in s['chunks']]
                 self.assertTrue(all(c.get('words') for c in chunks))
                 rc, out = run_check_batch(para, r['dir'], td)
                 self.assertEqual(rc, 0, out)
                 self.assertIn('0 errors', out)
-                self.assertIn('note', out)
+                # every chunk counted in the one note, the seeded reading included
+                self.assertEqual(re.findall(r'note\s+(\d+) of (\d+) chunks have no gloss yet', out),
+                                 [(str(len(chunks)), str(len(chunks)))], out)
                 self.assertNotIn('no chunk of this paragraph has words', out)
                 field = 'kana' if book.lang.reading else 'tr'
                 chunks[0][field] = chunks[0][field] + ('あ' if book.lang.reading else ' a')
@@ -199,11 +205,15 @@ class CheckerTests(unittest.TestCase):
                 self.assertTrue(chunks)
                 for c in chunks:
                     self.assertEqual(c[field], wordline.reading_from(c['words'], languages.get(code)))
+                self.assertNotIn('draft', json.loads(r['files']['video.json']),
+                                 'nothing marks it as a draft: a blank chunk is legal in any video')
                 p = subprocess.run([sys.executable, str(ROOT / 'youtube/lib/check_annotations.py'), r['dir']],
                                    cwd=str(ROOT / 'youtube'), capture_output=True, text=True)
                 self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-                draft_flag, blank, total = CA.draft_state(r['dir'])
-                self.assertEqual((draft_flag, blank), (True, total), 'every chunk still unwritten')
+                blank, total = CA.gloss_state(r['dir'])
+                self.assertEqual(blank, total, 'every chunk still unwritten')
+                self.assertGreater(total, 0)
+                self.assertIn('note: %d of %d chunks have no gloss yet' % (blank, total), p.stdout)
 
 
 class FillJsonTests(unittest.TestCase):

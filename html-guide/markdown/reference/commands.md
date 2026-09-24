@@ -83,7 +83,7 @@ are those of `lib/runtime.py install`, below; the one worth knowing is
 
 `Parseh.command`, double-clicked in the Finder, runs `./install.sh` the
 first time (when it finds no environment), then `./serve.sh`, and opens
-the browser on `https://localhost:8765/`.
+the browser on `https://localhost:7654/`.
 
 ### lib/runtime.py
 
@@ -130,9 +130,10 @@ A conda user can still make the environment the usual way —
 ### serve.sh (Linux and macOS)
 
 ```bash
-# start it in the background and print the addresses (https, port 8765)
+# start it in the background and print the addresses (https, the port
+# Settings > Network keeps -- 7654 on a fresh install)
 ./serve.sh
-# ... on another port
+# ... on another port, this once (the page moves it for good)
 ./serve.sh 9000
 # is it running, and where
 ./serve.sh status
@@ -142,7 +143,7 @@ A conda user can still make the environment the usual way —
 ./serve.sh stop
 # stop, then start again
 ./serve.sh restart
-# a fresh self-signed certificate in .tls/
+# a fresh certificate in .tls/, under Parseh's own authority
 ./serve.sh cert
 ```
 
@@ -154,11 +155,14 @@ only forwards to this one, for old habits.
 ### serve.py (any system, in the foreground)
 
 ```bash
-# every interface, https on port 8765; Ctrl-C stops it
+# the doors Settings > Network has open, https on the port it keeps;
+# Ctrl-C stops it
 python3 serve.py
 # another port (or --port 9000)
 python3 serve.py 9000
-# bind 127.0.0.1 only: this machine and nothing else
+# bind 127.0.0.1 only for this run: this machine and nothing else.
+# (Shutting both doors on Settings > Network does the same for good,
+#  and at once.)
 python3 serve.py --local
 # bind one address only (your Tailscale one, say)
 python3 serve.py --host 100.x.y.z
@@ -170,7 +174,8 @@ python3 serve.py --cert
 
 On start it lists the books it found (and any narration a `book.json`
 names that is missing), the addresses it can be reached at, and the
-doors: `/books/`, `/youtube/`, `/studio/`, `/exercises/`, `/anki/sync/`.
+doors: `/books/`, `/youtube/`, `/studio/`, `/exercises/`, `/anki/sync/`,
+`/settings/` — and, under them, who may reach it.
 The rest of the addresses are `/lookup/` (the reading help), `/clips/`
 (the clip tray), `/guide/` (these pages) and `/licences/` (what Parseh, its
 fonts and the data it downloads are under).

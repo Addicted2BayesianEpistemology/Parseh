@@ -4,7 +4,7 @@ weight: 5
 description: Parseh's first page — its top bar, the language chips, the doors and what their counts say, and the three themes of the ◐ button.
 ---
 
-The hub is the page at the root of Parseh's address, `https://localhost:8765/`,
+The hub is the page at the root of Parseh's address, `https://localhost:7654/`,
 and the one the home link in the top-left corner of Parseh's pages leads
 back to — a **پ**, the first letter of the toolbox's Persian name, on most
 of them. It shows what there is and lets you pick where to go.
@@ -65,13 +65,14 @@ Persian above it — the toolbox's own language, whatever you are learning:
 | **Studio** | the studio's library of documents, `/studio/` | how many documents |
 | **Exercises** | the exercise decks, `/exercises/` | how many decks, and how many exercises are due today |
 
-and three wide ones under them, for the work around the four:
+and four wide ones under them, for the work around the four:
 
 | Door | Leads to | What it says |
 |---|---|---|
 | **⇆ Anki** | the card store and its sync with Anki, `/anki/sync/` | how many cards and decks the store holds — one store for every language |
 | **✂ The clip tray** | the recordings and pictures cut for cards, `/clips/` | how many clips wait there, or *the tray is empty* |
 | **🔍 Reading what nobody has glossed** | the dictionaries and the rest, `/lookup/` | how many languages have a dictionary, and which, or *no dictionary yet* |
+| **⚙ Settings** | what this Parseh is set to, `/settings/` | who may reach it — this computer, a VPN, the Wi-Fi ([From a phone or another computer](other-devices.md)) |
 
 A door that says 0, or *no dictionary yet*, is doing its job: it tells you
 there is something there you have not started using.
@@ -81,7 +82,8 @@ there is something there you have not started using.
 At the bottom of the hub:
 
 - **Reachable at**, and every address the server can be reached at — the
-  ones to type on a phone ([From a phone or another computer](other-devices.md));
+  ones to type on a phone — followed by who may reach it and a link that
+  changes that ([From a phone or another computer](other-devices.md));
 - a reminder that every browser warns once about the certificate, which is
   Parseh's own;
 - that the **⏻ stop** button stops the server, that a book is built from

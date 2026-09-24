@@ -1,0 +1,885 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* The video player: the palette, the fonts and the index cards come from
+   /lib/parseh.css (the toolbox's one stylesheet, the studio's colours);
+   this file is the player itself and the Anki wizard.  The gloss block is
+   set exactly like a .row .gl in the book reader (italic transliteration
+   in ink, vocabulary and meaning in dim).
+
+   The language: <html> carries data-lang="<code>", and /lib/langs.css
+   (generated from lib/languages.json) turns that into --tl-font, --tl-alt
+   and --tl-alt-lh.  So no font is named per language here; every element
+   that holds target text uses the tokens, and its DIRECTION comes from
+   its own dir attribute (player.js sets it from the record) -- never from
+   a bare direction:rtl, which would be Persian written into a stylesheet
+   every language shares. */
+
+/* ---------------- header, as in the reader ---------------- */
+header{position:fixed;top:0;left:0;right:0;z-index:50;
+  background:var(--card);border-bottom:1px solid var(--rule);
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px}
+header a.home{color:var(--dim);text-decoration:none;font-size:15px;
+  padding:4px 8px;border:1px solid var(--rule);border-radius:6px;line-height:1.3}
+header a.home:hover{color:var(--accent);border-color:var(--accent)}
+/* the hub glyph is the toolbox's brand, a Persian letter whatever the page
+   speaks: the registry's Persian alternate face, by its token */
+header a.home.glyph{font-family:var(--tl-alt-fa,serif);
+  color:var(--accent);padding:2px 9px 6px}
+header .ttl{display:flex;align-items:baseline;gap:8px;min-width:0}
+/* the native title, in the language's alternate face (nastaliq for
+   Persian, gothic for Japanese; the main face where there is none) */
+header .ttl .fa-ttl{font-family:var(--tl-alt,var(--tl-font,serif));
+  font-size:17px;line-height:1.9;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+header .ttl .fa-ttl:empty{display:none}
+/* The latin title is what gives way when the header runs out of room: it
+   is also the browser tab's text and its own tooltip, so an ellipsis here
+   costs nothing, where a header wrapping to a second row costs every line
+   of the transcript the height of one. */
+header .ttl .lat{color:var(--dim);font-size:12.5px;white-space:nowrap;
+  min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* a video still being written says so: the chip is why an unglossed phrase
+   is hoverable here and why the checker is forgiving one */
+header .badge{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--warn);border:1px solid var(--warn);border-radius:20px;
+  padding:1px 8px;white-space:nowrap}
+header .sp{flex:1}
+header button{font:inherit;font-size:13px;padding:5px 9px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);
+  border-radius:6px;cursor:pointer;white-space:nowrap}
+header button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#pos{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12px}
+
+/* numbers must not fall into a script's locl (Persian digits) -- same rule
+   as the reader */
+#pos,.lab{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  font-feature-settings:'locl' 0;font-variant-numeric:tabular-nums}
+
+body{padding-top:var(--headh,52px)}
+/* On a phone the header slides away as the page moves down and comes back on
+   the smallest move up -- lib/parseh.js (bars()) toggles body.barhidden. A
+   TRANSFORM ONLY, so --headh keeps saying how tall the header is and neither
+   the body's padding nor .seg's scroll-margin moves under it; the video, which
+   is pinned to the header's bottom edge, comes up to the top with it, or it
+   would hang below a bar that is no longer there. Wide screens see none of it. */
+@media (max-width:560px){
+  header{transition:transform .18s ease}
+  #playerwrap{transition:top .18s ease}
+  body.barhidden header{transform:translateY(-100%)}
+  body.barhidden #playerwrap{top:0}
+}
+
+/* ---------------- the video, pinned under the header ---------------- */
+#playerwrap{position:sticky;top:var(--headh,52px);z-index:40;
+  background:var(--bg);padding:8px 14px 10px;
+  border-bottom:1px solid var(--rule);
+  box-shadow:0 6px 14px -12px rgba(0,0,0,.45)}
+body.nopin #playerwrap{position:static;box-shadow:none}
+/* The two colours in this box are the letterbox, not the chrome: a video
+   is matted against black in every theme, and the offline note is written
+   on that black -- a --dim or --faint would vanish into it under the light
+   theme.  So they are named here on purpose and take no palette token. */
+#vid{position:relative;max-width:760px;margin:0 auto;aspect-ratio:16/9;
+  background:#000;border-radius:10px;overflow:hidden;
+  border:1px solid var(--rule)}
+#vid iframe,#vid video{position:absolute;inset:0;width:100%;height:100%;border:0}
+#novid{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;color:#bbb;font-size:14px;text-align:center;
+  padding:12px;pointer-events:none}
+/* an ID rule beats the UA's [hidden]{display:none}, so say it again --
+   without this the offline note sits over the video permanently */
+#novid[hidden]{display:none}
+/* pinned, the video may take too much of a short screen: shrink it --
+   until the reader picks a size of his own with the grip (body.sized) */
+body:not(.nopin) #vid{max-height:38vh}
+body:not(.nopin) #vid iframe,body:not(.nopin) #vid video{max-height:38vh}
+body.sized #vid,body.sized:not(.nopin) #vid{max-height:none}
+body.sized #vid iframe,body.sized #vid video,body.sized:not(.nopin) #vid iframe,body.sized:not(.nopin) #vid video{max-height:none}
+
+/* the resize grip: a small pill under the video; drag it vertically,
+   double-click it to go back to the default size */
+#grip{width:72px;height:13px;margin:6px auto 0;border-radius:7px;
+  border:1px solid var(--rule);background:var(--card);
+  cursor:ns-resize;touch-action:none;user-select:none;
+  display:flex;align-items:center;justify-content:center}
+#grip::before{content:"";width:26px;height:2px;border-radius:1px;
+  background:var(--faint)}
+#grip:hover{border-color:var(--accent)}
+#grip:hover::before{background:var(--accent)}
+/* while dragging, the iframe must not swallow the pointer */
+body.resizing #vid iframe,body.resizing #vid video{pointer-events:none}
+
+/* ---------------- the transcript ---------------- */
+/* the Aa panel in the header sets --yt-fa (the target text), --yt-gl (the
+   gloss cloud), --yt-width (the column) and --yt-lead (a line-height
+   multiplier) on <html>; the fallbacks are the page as it always was */
+main{max-width:var(--yt-width,760px);margin:0 auto;padding:14px 14px 60vh}
+.hint{color:var(--faint);font-size:12.5px;margin:2px 0 18px}
+.seg{padding:6px 8px 8px;border-radius:6px;margin-bottom:4px;
+  scroll-margin-top:calc(var(--headh,52px) + var(--vidh,0px) + 14px)}
+.seg .lab{float:left;direction:ltr;unicode-bidi:isolate;
+  font-size:12px;color:var(--faint);background:none;border:none;
+  cursor:pointer;padding:6px 4px 2px}
+.seg .lab:hover{color:var(--accent)}
+/* the transcript line: the language's face, and its direction from the
+   dir attribute player.js sets (text-align:start follows it) */
+.seg .fa{font-family:var(--tl-font,serif);font-size:var(--yt-fa,20px);
+  line-height:calc(2.05 * var(--yt-lead,1));
+  text-align:start;color:var(--ink);cursor:pointer;
+  transition:color .15s}
+/* While the video is synced, the line being spoken is in full ink, its
+   neighbours -- the context a sentence carries over into -- in dim, and
+   the rest in faint.  Hovering lifts any line back to dim; everything
+   stays hoverable for its glosses.  Unsynced (video not started), the
+   whole transcript reads in ink, like a page. */
+body.synced .seg .fa{color:var(--faint)}
+body.synced .seg:hover .fa{color:var(--dim)}
+body.synced .seg.near .fa{color:var(--dim)}
+.seg.on-air{background:var(--hl);box-shadow:0 0 0 4px var(--hl)}
+body.synced .seg.on-air .fa,.seg.on-air .fa{color:var(--ink)}
+.seg::after{content:"";display:block;clear:both}
+
+/* a hoverable phrase: a quiet dotted underline as the affordance,
+   the card colour lifting it when the pointer is on it */
+.w{border-radius:4px;cursor:default;
+  text-decoration:underline dotted var(--faint) 1px;
+  text-decoration-skip-ink:none;text-underline-offset:7px}
+.w:hover,.w.hot{background:var(--card);
+  box-shadow:0 0 0 3px var(--card),0 2px 8px rgba(0,0,0,.14);
+  text-decoration-color:var(--accent)}
+/* THE READING ALONE (#aloud, a language divided into words): each phrase as
+   it is said, in place of its text and at its size.  Pinyin is words in
+   Latin letters, so its letters take no character spacing and two phrases
+   side by side are parted, where a caption of characters parts nothing. */
+html[data-lang="zh"] body.aloud .seg .fa{letter-spacing:0}
+html[data-lang="zh"] body.aloud .seg .fa>*+.w{margin-inline-start:.3em}
+
+/* ---------------- the gloss cloud ---------------- */
+/* set like the reader's .row .gl: 12.5px dim, italic ink transliteration,
+   the reading (kana) above it, target-script words inside the gloss in the
+   language's face via bdi.v */
+#cloud{position:fixed;z-index:80;max-width:min(380px,92vw);
+  background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  box-shadow:0 8px 28px rgba(0,0,0,.22);padding:9px 12px 8px;
+  direction:ltr;text-align:left;
+  font-size:var(--yt-gl,12.5px);color:var(--dim);line-height:1.45}
+#cloud .kana{font-family:var(--tl-font,serif);color:var(--ink);
+  font-size:calc(var(--yt-gl,12.5px) + 1.5px);line-height:1.5}
+/* the phrase's text, over its reading, while the transcript shows the
+   reading alone (#aloud) */
+#cloud .ctext{font-family:var(--tl-font,serif);color:var(--ink);
+  font-size:calc(var(--yt-gl,12.5px) + 3px);line-height:1.5}
+#cloud .tr{font-style:italic;color:var(--ink);font-size:calc(var(--yt-gl,12.5px) + .5px)}
+#cloud .voc{margin:3px 0 0;padding-top:3px;border-top:1px solid var(--rule)}
+#cloud .en{color:var(--dim);margin-top:3px}
+#cloud .note{color:var(--faint);font-size:11.5px;margin-top:4px;
+  font-style:italic}
+#cloud bdi.v{font-family:var(--tl-font,serif);font-size:calc(var(--yt-gl,12.5px) + 1px);font-style:normal}
+#cloud .arrow{position:absolute;width:10px;height:10px;
+  background:var(--card);border:1px solid var(--rule);
+  border-top:none;border-left:none;transform:rotate(45deg);
+  bottom:-6px;left:calc(50% - 5px)}
+#cloud.below .arrow{transform:rotate(225deg);bottom:auto;top:-6px}
+
+/* a draft's chunk before anybody has written on it */
+#cloud .unwritten{color:var(--faint);font-style:italic}
+/* THE DICTIONARY, AND THE MODEL, AND WHY NEITHER LOOKS LIKE A GLOSS.
+   A written gloss is somebody's judgement about this word in this phrase.  A
+   dictionary lists every sense the word can ever carry and cannot say which
+   is meant.  So it is drawn as a quotation from elsewhere -- ruled off,
+   indented, in the borrowed tint, labelled, with the source under it -- and
+   never in the type the glosses are set in.  The same panel, the same rule,
+   as the book reader's (lib/tex2html.py). */
+#cloud .dict{margin:6px -12px 0;padding:8px 12px 2px;
+  border-top:1px solid var(--rule);background:var(--hl);
+  border-inline-start:3px solid var(--faint)}
+/* THREE BLOCKS, RULED APART.  The dictionary (.ddict), the model's reading
+   (.dmt) and the sentences somebody translated (.dpairs) are three different
+   kinds of evidence, and they were told apart by a 1px dotted --rule line --
+   the very line that also sat over each block's own source, so a block's
+   foot and the next block's head were one and the same stroke.  Measured on
+   the panel's tint, --rule is 1.08:1 in light, dark and sepia alike: the
+   three read as one list.  Now a solid 2px --faint rule and a gap stand
+   between two blocks (2.3-2.4:1 on the tint, all three themes), the heads
+   are --dim at weight 600 (4.1-5.7:1, where --faint was 2.3), and a source
+   line keeps no rule at all -- it ends its block rather than dividing it.
+   Existing tokens only, so every theme follows without a rule of its own. */
+#cloud .dict .dhead{font-size:11px;font-weight:600;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+#cloud .dict>.ddict,#cloud .dict>.dmt,#cloud .dict>.dpairs{margin:0;
+  padding:0 0 6px}
+#cloud .dict>*+.dmt,#cloud .dict>*+.dpairs{margin-top:6px;padding-top:10px;
+  border-top:2px solid var(--faint)}
+#cloud .dict .dw{margin:0 0 5px}
+#cloud .dict .dwd{font-family:var(--tl-font,serif);direction:var(--tl-dir,ltr);
+  font-size:calc(var(--yt-gl,12.5px) + 2px);color:var(--ink);unicode-bidi:isolate}
+/* the reading a word of the chunk's word line carries, beside the word */
+#cloud .dict .dwd .dread{font-size:calc(var(--yt-gl,12.5px) + .5px);color:var(--dim)}
+#cloud .dict .dhit{margin:1px 0 0 10px}
+#cloud .dict .dhead2{color:var(--ink)}
+#cloud .dict .dpos{color:var(--faint);font-style:italic}
+#cloud .dict .dnote{color:var(--faint)}
+#cloud .dict .dsense{margin-inline-start:10px}
+/* the definitions of a dictionary that defines its words in their own
+   language: a sense's labels as the source prints them, the machine's
+   reading of it in the gloss language under it, and the button that shows
+   the rest of the entry -- the book reader's rules */
+#cloud .dict .ddef .dlabel{color:var(--faint);font-style:italic}
+#cloud .dict .ddef .dtr{color:var(--dim);margin-inline-start:10px}
+#cloud .dict .ddef .dtr.dwaiting{color:var(--faint)}
+#cloud .dict .ddefmore{font:inherit;font-size:11.5px;color:var(--accent);background:none;
+  border:none;padding:0;margin:1px 0 2px 10px;cursor:pointer}
+#cloud .dict .ddefmore:hover{text-decoration:underline}
+#defmode:disabled,#defmt:disabled{opacity:.5;cursor:default}
+#cloud .dict .dnone{color:var(--faint);font-style:italic;margin-inline-start:10px}
+/* a verb's other forms, from its language's recipe: under the headword and
+   before the senses, where a printed dictionary puts its principal parts */
+#cloud .dict .dvb{margin-inline-start:10px;color:var(--ink);
+  font-size:calc(var(--yt-gl,12.5px) - .5px)}
+/* The sources column of the editor, beside the fields (see "writing a
+   phrase" below for the columns themselves).  It scrolls on its own and
+   has the column's whole height, so it has no height of its own to keep. */
+#cloud .eside{border:1px solid var(--rule);border-radius:8px;
+  background:var(--bg);padding:8px 10px;margin:0;overflow-y:auto}
+#cloud .eside .enote{color:var(--faint);font-size:11px;line-height:1.5;
+  margin-bottom:8px}
+/* the same three sources the panel shows, ruled apart the same way: a
+   --faint rule over every head but the first */
+#cloud .eside h4{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--dim);margin:12px 0 4px;padding-top:9px;
+  border-top:2px solid var(--faint);font-weight:600}
+#cloud .eside h4:first-child{margin-top:0;padding-top:0;border-top:none}
+/* a verb row: the forms the vocabulary button will put, read before it is
+   pressed -- and, where the recipe could not fill one, what is left to do:
+   a line each, hung under its label, because the items carry their own ':'
+   and ';' ("bw for فکر fekr after it: to think") and only a line parts them */
+#cloud .eside .svb{color:var(--dim);font-size:11.5px}
+#cloud .eside .svbmiss{color:var(--warn);font-style:italic;
+  display:grid;grid-template-columns:auto 1fr;column-gap:.3em}
+/* a hint the recipe could give and not decide -- Arabic's other masdars,
+   the right one depending on the sense -- under the forms and a step
+   quieter than they are, in the sidebar's own note colour and never the
+   warning's: nothing is missing, there is a choice to make */
+#cloud .eside .svbnote{color:var(--faint);font-size:11px}
+#cloud .eside .srow{padding:3px 0;border-top:1px solid var(--rule);font-size:12px}
+#cloud .eside .srow:first-of-type{border-top:none}
+#cloud .eside .stxt{color:var(--ink)}
+#cloud .eside .ssub{color:var(--dim);font-size:11.5px}
+#cloud .eside .shere{color:var(--accent);font-weight:600}
+#cloud .eside .snone{color:var(--faint);font-style:italic;font-size:11.5px}
+#cloud .eside .sput{margin-top:2px;display:flex;gap:4px;flex-wrap:wrap}
+#cloud .eside .sput button{font:inherit;font-size:10.5px;color:var(--dim);
+  background:var(--hl);border:1px solid var(--rule);border-radius:4px;
+  padding:1px 6px;cursor:pointer}
+#cloud .eside .sput button:hover{color:var(--accent);border-color:var(--accent)}
+/* a verb the dictionary could not complete puts a line somebody still has to
+   finish, and its button is dashed to say so before it is pressed, as the
+   book's \vb button is (lib/tex2html.py #chside .sgap).  The real فکر می‌کنم
+   reaches کردن with "bw for فکر fekr after it: to think" left to write, and
+   the two editors drew that one verb dashed in the book and solid here. */
+#cloud .eside .sput button.sgap{border-style:dashed}
+/* the switch that reads English's senses in the gloss language, over the
+   dictionary's rows, and what it reads under each of them -- the book's */
+#cloud .eside .sdefbar{display:flex;justify-content:flex-end;margin:-3px 0 3px}
+#cloud .eside .sdefmt{font:inherit;font-size:10.5px;color:var(--dim);background:var(--bg);
+  border:1px solid var(--rule);border-radius:5px;padding:1px 7px;cursor:pointer}
+#cloud .eside .sdefmt.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+#cloud .eside .sdef{margin-top:3px;padding-inline-start:7px;border-inline-start:2px solid var(--rule)}
+#cloud .eside .sdef .dtr{color:var(--ink);font-size:11.5px}
+#cloud .eside .sdef .dtr.dwaiting{color:var(--faint)}
+#cloud .eside .sllmctl{display:grid;gap:5px}
+#cloud .eside .sllmctl textarea{box-sizing:border-box;width:100%;min-height:60px;
+  resize:vertical;font:inherit;font-size:12px;line-height:1.45;color:var(--ink);
+  background:var(--hl);border:1px solid var(--rule);border-radius:5px;padding:5px 7px}
+#cloud .eside .sllmactions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+#cloud .eside .sllmactions button{font:inherit;font-size:10.5px;color:var(--dim);
+  background:var(--hl);border:1px solid var(--rule);border-radius:4px;
+  padding:2px 7px;cursor:pointer}
+#cloud .eside .sllmactions button:first-child{color:var(--accent);border-color:var(--accent)}
+#cloud .eside .sllmactions button:hover{filter:brightness(1.08)}
+#cloud .eside .sllmactions button:disabled{opacity:.55;cursor:wait}
+#cloud .eside .sllmstat{font-size:11px;color:var(--faint)}
+#cloud .eside .sllmstat.bad{color:var(--danger)}
+#cloud .eside .sllmout{margin-top:6px}
+#cloud .esrc{font:inherit;font-size:11px;color:var(--dim);background:var(--bg);
+  border:1px solid var(--rule);border-radius:5px;padding:1px 7px;cursor:pointer}
+#cloud .esrc.on{color:var(--accent);border-color:var(--accent)}
+#cloud .dict .mtout{color:var(--ink)}
+#cloud .dict .mtout .mthere{color:var(--accent);font-weight:600}
+#cloud .dict .mtout .mthere.mtmaybe{font-weight:400;text-decoration:underline;
+  text-decoration-style:dotted;color:var(--ink)}
+#cloud .dict .dpair{margin:0 0 6px}
+#cloud .dict .psrc{font-family:var(--tl-font,serif);direction:var(--tl-dir,ltr);
+  color:var(--ink);unicode-bidi:isolate}
+#cloud .dict .pdst{color:var(--dim)}
+#cloud .dict .pwhy{color:var(--faint);font-size:10.5px;font-style:italic}
+#cloud .dict .dsrc{font-size:10.5px;color:var(--faint);font-style:italic;
+  margin-top:5px}
+#cloud .dict button{font:inherit;font-size:11.5px;color:var(--dim);
+  background:var(--bg);border:1px solid var(--rule);border-radius:5px;
+  padding:3px 8px;cursor:pointer;margin-inline-end:6px}
+#cloud .dict button:hover{color:var(--accent);
+  border-color:var(--accent)}
+#cloud .dict .dmore{display:block;margin:7px auto 0;padding-inline:10px}
+#cloud .dict .dmore:disabled{cursor:wait;opacity:.65}
+/* A dictionary entry for a common word runs long, and two panels in one
+   cloud can outgrow the screen -- at which point the buttons under them are
+   unreachable.  The panels scroll; the cloud itself must not, because its
+   arrow is positioned against it and would scroll away from the chunk. */
+/* The way to the page that sets both of these up.  Beside the two switches
+   and not behind them: somebody who has neither is exactly the person who
+   needs to find it. */
+header #lookupset{font:inherit;font-size:12.5px;color:var(--dim);
+  text-decoration:none;border:1px dashed var(--rule);border-radius:7px;
+  padding:4px 9px;white-space:nowrap}
+header #lookupset:hover{color:var(--accent);border-color:var(--accent)}
+#cloud .dict{max-height:44vh;overflow-y:auto}
+#cloud .dwait{color:var(--faint);font-style:italic}
+
+/* the "+ anki card" row at the foot of a gloss cloud */
+#cloud .mkrow{margin-top:6px;padding-top:6px;border-top:1px solid var(--rule);
+  display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#cloud .mkrow button{font:inherit;font-size:11.5px;color:var(--dim);
+  background:var(--bg);border:1px solid var(--rule);border-radius:5px;
+  padding:3px 8px;cursor:pointer}
+#cloud .mkrow button:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ---------------- the reader's own mark: the four colours ----------------
+   The same four names as the books (\Cred and friends in the .tex, hl-red
+   and friends in the reader's CSS) and THE SAME VALUES, light theme and
+   dark: a word marked red in a reading edition and the same word marked
+   red in a video have to be one red, or the mark stops meaning one thing.
+   The four hexes are written out here as they are in lib/tex2html.py --
+   parseh.css has no token for them, because they are not chrome but ink,
+   and the dark values are lifted a little, the print hexes going muddy on
+   a dark ground.  Change one and change it in both files. */
+:root{--hl-red:#8e1b1b;--hl-blue:#1f4e79;--hl-orange:#bf5b04;--hl-green:#22643a}
+@media (prefers-color-scheme:dark){
+  html:not([data-theme=light]):not([data-theme=sepia]){
+    --hl-red:#e0736b;--hl-blue:#6fa8dc;--hl-orange:#e8974a;--hl-green:#6fbf8b}
+}
+html[data-theme=dark]{
+  --hl-red:#e0736b;--hl-blue:#6fa8dc;--hl-orange:#e8974a;--hl-green:#6fbf8b}
+/* The mark is on the phrase itself, so it beats the line's own colour --
+   which is set on the line and merely inherited -- and stays lit while the
+   rest of the transcript greys behind the caption in play: a mark that
+   dimmed with its context would not be a mark.  The same four classes
+   colour the swatches that set them, which is why they are not scoped to
+   the transcript. */
+.hl-red{color:var(--hl-red)}
+.hl-blue{color:var(--hl-blue)}
+.hl-orange{color:var(--hl-orange)}
+.hl-green{color:var(--hl-green)}
+
+/* the colour row at the foot of the cloud, in both its states: five
+   buttons, the first of them "no colour" */
+#cloud .colrow{display:flex;gap:6px;align-items:center;
+  margin-top:7px;padding-top:7px;border-top:1px solid var(--rule)}
+#cloud .clab{color:var(--faint);font-size:11px;margin-right:2px}
+#cloud .sw{width:18px;height:18px;padding:0;border-radius:50%;cursor:pointer;
+  border:1px solid var(--rule);background:currentColor;font:inherit;
+  font-size:10px;line-height:1}
+#cloud .sw.no{background:var(--bg);color:var(--faint)}
+#cloud .sw:hover{border-color:var(--accent)}
+/* the mark this phrase wears: an accent ring, held off the swatch by a gap
+   of the cloud's own ground, so it reads on any of the five */
+#cloud .sw.on{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--accent)}
+
+/* what the server answered: "saved ✓", or the checker's refusal, which is
+   several lines long and says which rule stopped the edit -- so it keeps
+   its own newlines and scrolls rather than being cut off */
+#cloud .cstat{margin-top:6px;font-size:11.5px;line-height:1.45;
+  color:var(--accent);white-space:pre-wrap;max-height:11em;overflow-y:auto}
+#cloud .cstat.bad{color:var(--danger)}
+#cloud .cstat:empty{display:none}
+
+/* ---------------- writing a phrase ----------------
+   The ✎ in the cloud swaps the gloss for the chunk's own fields.  The
+   cloud stops being a hover then -- it stays until ✕ or Esc -- so it may
+   be a little wider, and tall enough to scroll on a short window.
+
+   It is a column: the head, then the body, then the save row, the colours
+   and the checker's answer.  Only the body gives way when the window is
+   short, and inside it each part scrolls on its own -- so save is on screen
+   however long the dictionary runs, which it was not when the whole cloud
+   scrolled as one.
+
+   ⊕ SOURCES OPENS A COLUMN TO THE LEFT OF THE FIELDS, AND THE WINDOW GROWS
+   to hold it (.sideon), instead of the sources landing on top of the fields
+   inside the same 460px.  The field column keeps exactly the width it had
+   (the fields-only cloud's, less its padding and border: 460 - 24 - 2), and
+   player.js keeps its right edge where it was, so the fields neither move
+   nor re-wrap and the sources take everything to their left -- 468px of a
+   1280px window, beside 434 of fields.  With the sources open the window is
+   given a height of its own: they arrive a round trip after it opens, and a
+   window that grew as they came in would move the field somebody had
+   started typing into.  The fields' width here and in player.js (editW) is
+   one number; so is the stacking width (STACK). */
+#cloud.editing{width:min(460px,94vw);max-width:none;max-height:82vh;
+  display:flex;flex-direction:column;overflow:hidden}
+#cloud.editing>*{flex:0 0 auto}
+#cloud.editing>.ebody{flex:1 1 auto;min-height:0}
+#cloud .ebody{display:flex;gap:12px}
+#cloud .emain{flex:1 1 auto;min-width:0;overflow-y:auto}
+#cloud .eside{flex:1 1 0;min-width:0}
+@media(min-width:721px){
+  #cloud.editing.sideon{width:min(940px,96vw);height:min(82vh,620px)}
+  #cloud.editing.sideon .emain{flex:0 0 calc(min(460px,94vw) - 26px)}
+}
+/* A narrow window has no left to open into: the fields keep the top, where
+   the eye already is, and the sources are a strip of fixed height under
+   them -- fixed for the same reason the wide window's height is.  36vh is
+   the most it takes; player.js shortens it at placing time by whatever the
+   fields would otherwise have to scroll for. */
+@media(max-width:720px){
+  #cloud.editing.sideon{width:min(940px,96vw)}
+  #cloud .ebody{flex-direction:column}
+  #cloud .eside{order:2;flex:0 0 36vh}
+}
+/* the arrow is drawn on the cloud's bottom edge; once the cloud scrolls it
+   would ride away with the content, so the editing cloud points with the
+   lit phrase instead */
+#cloud.editing .arrow{display:none}
+#cloud .ehead{display:flex;align-items:center;gap:8px;color:var(--faint);
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  margin-bottom:8px}
+/* the coordinates as the checker writes them, so a refusal about "segment
+   4 chunk 1" is recognisably about the phrase on screen */
+#cloud .ewhere{letter-spacing:0;text-transform:none;color:var(--dim);
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;
+  font-feature-settings:'locl' 0}
+#cloud .ehead .sp{flex:1}
+#cloud .ehead .ecancel{font:inherit;font-size:12px;line-height:1;
+  color:var(--dim);background:transparent;border:1px solid var(--rule);
+  border-radius:5px;padding:2px 6px;cursor:pointer}
+#cloud .ehead .ecancel:hover{color:var(--accent);border-color:var(--accent)}
+#cloud .erow{display:block;margin:7px 0}
+#cloud .elab{display:block;color:var(--faint);font-size:11px;margin-bottom:2px}
+/* the mark that frees a phrase from the pasted transcript: a box in the flow
+   of the fields, and under it the note that says what ticking it costs (the
+   reading editions put the same pair in the chunk sheet) */
+#cloud .echk{display:block;font-size:12px;line-height:1.5;color:var(--ink);
+  cursor:pointer}
+#cloud .echk input{margin:0 .45em 0 0;vertical-align:baseline}
+#cloud .echk code{font-size:11px}
+#cloud .efnote{color:var(--faint);font-size:11px;line-height:1.5;
+  margin-top:3px}
+#cloud .efnote code{font-size:10.5px}
+#cloud .ef{display:block;width:100%;font:inherit;font-size:13px;
+  background:var(--bg);color:var(--ink);border:1px solid var(--rule);
+  border-radius:6px;padding:5px 8px;resize:vertical;line-height:1.5}
+#cloud .ef:focus{border-color:var(--accent);outline:none}
+/* the fields that hold target text, in its face; their direction is the
+   dir attribute the script sets, and only for a right-to-left language */
+#cloud .ef.tl{font-family:var(--tl-font,serif);font-size:17px;line-height:1.9}
+/* the save wears the accent, and has to name the row to get it: the row's
+   own "#cloud .mkrow button" carries a type selector and outweighs a bare
+   class -- the same trap the anki dashboard's buttons fell into */
+#cloud .mkrow button.esave{color:var(--accent-fg);background:var(--accent);
+  border-color:var(--accent)}
+#cloud .mkrow button.esave:hover{color:var(--accent-fg);
+  border-color:var(--accent);filter:brightness(1.08)}
+#cloud .esave .kbd{opacity:.7;font-size:10.5px}
+
+/* while a modifier key is held, the word under the cursor shows it is
+   the card-sized unit (alt-click / ctrl-click opens the dashboard) */
+body.altdown .wd:hover{background:var(--hl);border-radius:3px;
+  box-shadow:0 0 0 2px var(--hl);cursor:copy}
+
+/* ---------------- the anki dashboard ---------------- */
+#ankiback{position:fixed;inset:0;z-index:88;background:rgba(0,0,0,.32)}
+#ankiback[hidden]{display:none}
+#anki{position:fixed;z-index:89;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:min(620px,94vw);
+  max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.35);padding:14px 18px 12px;
+  font-size:13.5px;color:var(--ink)}
+#anki[hidden]{display:none}
+.ahead{display:flex;align-items:center;gap:10px;color:var(--dim);
+  font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+  margin-bottom:12px}
+.ahead #atime{color:var(--accent);
+  font-family:ui-monospace,Menlo,monospace;font-feature-settings:'locl' 0;
+  letter-spacing:0}
+.ahead .sp{flex:1}
+.arow{display:flex;gap:10px;margin:7px 0;align-items:flex-start}
+.alab{flex:0 0 62px;text-align:right;color:var(--faint);font-size:11.5px;
+  padding-top:8px;letter-spacing:.04em}
+.actl{flex:1;min-width:0}
+#anki input:not([type=checkbox]):not([type=radio]),
+#anki textarea,#anki select{width:100%;font:inherit;font-size:13.5px;
+  background:var(--bg);color:var(--ink);border:1px solid var(--rule);
+  border-radius:6px;padding:6px 9px}
+#anki textarea{resize:vertical;line-height:1.5}
+/* the fields that hold target text, in its face; their direction is the
+   dir attribute the script sets (only for an RTL language) */
+#anki #afa,#anki #actx,#anki #aopp{font-family:var(--tl-font,serif);font-size:19px;
+  line-height:1.9}
+#anki #akana,#anki #aoppkana{font-family:var(--tl-font,serif);font-size:16px}
+#anki #aoppkana{margin-top:6px}
+#anki #adecknew{margin-top:6px}
+#anki button{font:inherit;font-size:13px;padding:5px 10px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);
+  border-radius:6px;cursor:pointer}
+#anki button:hover{border-color:var(--accent)}
+.achk{display:flex;gap:8px;align-items:center;color:var(--dim);
+  padding-top:5px;cursor:pointer}
+#ashotprev{margin-top:8px}
+#ashotimg{display:block;max-width:250px;max-height:150px;
+  border:1px solid var(--rule);border-radius:8px;margin-bottom:6px}
+.ashotside{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  color:var(--dim)}
+.ashotside label{display:flex;gap:5px;align-items:center;cursor:pointer}
+.anote{color:var(--faint);font-size:11.5px;margin-top:6px;line-height:1.5}
+.afoot{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule)}
+.afoot .actl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* These three wear the accent, and they have to say #anki to get it: the
+   sheet's own #anki button rule (an id plus an element) outweighs a bare
+   #asave or a .on class, so without the prefix the palette's accent never
+   landed and the save button, the picked card type and the picked direction
+   all read as the plain buttons beside them. */
+#anki #asave{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#anki #asave:hover{filter:brightness(1.08)}
+#asave .kbd{opacity:.7;font-size:11px}
+#astat{color:var(--accent);font-size:12.5px}
+#apvframe{width:100%;height:430px;border:1px solid var(--rule);
+  border-radius:10px;background:var(--bg)}
+#apvrow[hidden]{display:none}
+#apvrow .anote button{font-size:11px;padding:1px 7px;margin-left:6px}
+
+/* ---- the video-info sheet: title, channel, level, blurb -- video.json's
+   own fields, not a chunk's.  Built on .ahead/.arow/.alab/.actl/.afoot, the
+   same generic classes #anki's markup defines above, so only the sheet's
+   own position and its inputs' width need restating here. */
+#vmback{position:fixed;inset:0;z-index:88;background:rgba(0,0,0,.32)}
+#vmback[hidden]{display:none}
+#vmbox{position:fixed;z-index:89;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:min(480px,94vw);
+  max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.35);padding:14px 18px 12px;
+  font-size:13.5px;color:var(--ink)}
+#vmbox[hidden]{display:none}
+#vmbox input,#vmbox textarea,#vmbox select{width:100%;font:inherit;font-size:13.5px;
+  background:var(--bg);color:var(--ink);border:1px solid var(--rule);
+  border-radius:6px;padding:6px 9px}
+#vmbox textarea{resize:vertical;line-height:1.5}
+#vmtitlenative{font-family:var(--tl-font,serif);font-size:16px}
+#vmbox button{font:inherit;font-size:13px;padding:5px 10px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);
+  border-radius:6px;cursor:pointer}
+#vmbox button:hover{border-color:var(--accent)}
+#vmbox #vmsave{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#vmbox #vmsave:hover{filter:brightness(1.08)}
+#vmstat{font-size:12.5px;color:var(--accent)}
+#vmstat.bad{color:var(--danger)}
+
+/* ---------------- the index pages ----------------
+   Cards, tags and the footer are parseh.css's; the player's body has a
+   padding for its fixed header, which an index page does not want. */
+body.index{padding-top:0}
+/* the language headings (.lang-head) and the chip row (.parseh-langs) the
+   index renders are parseh.css's too, shared with the books' library page */
+
+@media(max-width:560px){
+  main{padding:12px 10px 60vh}
+  .seg .fa{font-size:calc(var(--yt-fa,20px) - 1px)}
+  header .ttl .lat{display:none}
+  #playerwrap{padding:6px 8px 8px}
+}
+
+/* a YouTube chapter marker, pasted into the transcript above its caption */
+.chap{margin:22px 0 8px;padding:0 8px 5px;border-bottom:1px solid var(--rule);
+  color:var(--accent);font-size:12.5px;letter-spacing:.06em;
+  font-family:var(--tl-font,serif),-apple-system,'Segoe UI',Roboto,sans-serif}
+.chap:first-child{margin-top:4px}
+
+/* a caption that is not in the target language -- the English framing these
+   teaching videos open with.  Present and seekable, quieter than the
+   target text, and never dressed up as something to hover. */
+.seg.plain .en-line{font-size:calc(var(--yt-fa,20px) * .775);
+  line-height:calc(1.6 * var(--yt-lead,1));color:var(--dim);
+  direction:ltr;text-align:left;font-style:italic}
+body.synced .seg.plain .en-line{color:var(--faint)}
+body.synced .seg.plain.near .en-line,
+body.synced .seg.plain:hover .en-line{color:var(--dim)}
+.seg.plain.on-air .en-line,body.synced .seg.plain.on-air .en-line{
+  color:var(--ink);font-style:normal}
+/* an English run inside a caption of the target script (or an aside marked
+   plain in a Latin-script video): shown, not glossed */
+.fa .bare{color:var(--dim);font-size:calc(var(--yt-fa,20px) * .8);font-style:italic;
+  font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+  unicode-bidi:isolate}
+/* target text left unglossed (an import's "plain" chunk, told by the
+   language's character class): the caption's own face */
+.fa .bare.tl{color:inherit;font-size:inherit;font-style:normal;
+  font-family:var(--tl-font,serif)}
+
+/* the card-type toggle in the anki dashboard */
+.akind{display:flex;gap:6px;flex-wrap:wrap}
+.akind button{flex:0 0 auto}
+#anki .akind button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#anki #aopptr{margin-top:6px}
+
+/* where the card goes -- Anki, an exercise deck, markdown -- the same
+   toggle as the type's, and said once at the very top of the sheet */
+.atarget{display:flex;gap:6px;flex-wrap:wrap}
+.atarget button{flex:0 0 auto}
+#anki .atarget button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#atnote{margin-top:5px}
+/* a jolly card's fields hold studio markdown around target text: the
+   target's face, a size between the word's and the prose's */
+#anki #ajollyrow textarea{font-family:var(--tl-font,serif);font-size:15.5px;line-height:1.6}
+/* the recording: the clip as the tray keeps it, playable, and its side */
+#asndprev{margin-top:8px}
+#asndaudio{display:block;width:100%;max-width:380px;height:36px;margin-bottom:6px}
+#asndname{font:11.5px/1.4 ui-monospace,Menlo,monospace;font-feature-settings:'locl' 0;
+  color:var(--dim);overflow-wrap:anywhere}
+#anki #asnd:disabled{opacity:.55;cursor:not-allowed;border-color:var(--rule)}
+.ajollyinto{color:var(--faint);font-size:12px}
+#anki #amdout{font:12px/1.5 ui-monospace,Menlo,monospace;font-feature-settings:'locl' 0}
+#astat a{color:inherit}
+
+/* ---------------- the Anki sync wizard ---------------- */
+body.wizard main{max-width:820px;margin:0 auto}
+body.wizard footer{max-width:820px;margin:34px auto 0;padding:0 20px 12vh}
+.step{border:1px solid var(--rule);border-radius:12px;background:var(--card);
+  margin-bottom:14px;overflow:hidden;transition:opacity .15s}
+.step.locked{opacity:.42}
+.step.locked .sbody{display:none}
+.step .shead{display:flex;align-items:center;gap:12px;padding:15px 18px}
+.step .num{flex:0 0 26px;height:26px;border-radius:50%;border:1px solid var(--rule);
+  color:var(--dim);font-size:13px;display:flex;align-items:center;
+  justify-content:center;font-variant-numeric:tabular-nums}
+.step.ok .num{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.step.ok .num::after{content:"\2713";font-size:14px}
+.step.ok .num{font-size:0}
+.step h2{font:400 16px/1.3 inherit;margin:0;color:var(--ink)}
+.step .sbody{padding:0 18px 18px;border-top:1px solid var(--rule);padding-top:14px}
+.step p{font-size:14px;line-height:1.65;color:var(--dim);margin:0 0 10px}
+.step b{color:var(--ink);font-weight:600}
+ul.tips{margin:0 0 10px;padding-left:18px}
+ul.tips li{font-size:13.5px;line-height:1.75;color:var(--dim)}
+.muted{color:var(--faint);font-size:13px}
+.done-note{margin-top:14px;padding-top:12px;border-top:1px solid var(--rule);
+  color:var(--accent);font-size:13.5px}
+.wbtn{font:inherit;font-size:14px;color:var(--accent-fg);background:var(--accent);
+  border:1px solid var(--accent);border-radius:8px;padding:9px 16px;
+  cursor:pointer;transition:filter .12s}
+.wbtn:hover{filter:brightness(1.12)}
+.wbtn:disabled{opacity:.5;cursor:default}
+.wbtn.small{font-size:13px;padding:6px 12px}
+.wbtn.quiet{background:transparent;color:var(--dim);border-color:var(--rule)}
+/* the one button that is not the accent: "go" is a completion, so it wears
+   --ok.  It used to name a green of its own, which meant the light theme's
+   dark green stayed put under the dark theme -- where .wbtn's --accent-fg
+   label turns near-black and disappeared into it. */
+.wbtn.go{background:var(--ok);border-color:var(--ok)}
+#drop{border:1.5px dashed var(--rule);border-radius:12px;padding:30px 18px;
+  text-align:center;cursor:pointer;transition:border-color .12s,background .12s}
+#drop:hover,#drop.over,#drop:focus{border-color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 6%,transparent);outline:none}
+.dz-icon{font-size:26px;color:var(--faint);line-height:1}
+.dz-main{font-size:15px;color:var(--ink);margin-top:8px}
+.dz-sub{font-size:13px;color:var(--faint);margin-top:3px}
+.note{font-size:13.5px;line-height:1.6;color:var(--dim);border:1px solid var(--rule);
+  border-left-width:3px;border-radius:7px;padding:10px 12px;margin-top:12px}
+/* the rail down a note's start edge says which kind of news it is; good,
+   warn and bad are status, and status has tokens that follow the theme --
+   naming greens and ambers here froze one theme's into both */
+.note.good{border-left-color:var(--ok)}
+.note.warn{border-left-color:var(--warn)}
+.note.bad{border-left-color:var(--danger);color:var(--danger)}
+.note.busy{border-left-color:var(--accent);opacity:.75}
+.pick{display:block;width:100%;text-align:left;font:inherit;font-size:13px;
+  color:var(--ink);background:transparent;border:1px solid var(--rule);
+  border-radius:7px;padding:8px 11px;margin-bottom:6px;cursor:pointer}
+.pick:hover{border-color:var(--accent)}
+.pick span{display:block;color:var(--faint);font-size:11.5px;margin-top:2px}
+.deck{border:1px solid var(--rule);border-radius:10px;padding:14px;margin-top:12px}
+.dname{font-size:15px;color:var(--ink);display:flex;justify-content:space-between;
+  align-items:baseline;gap:10px;flex-wrap:wrap}
+.dname .slug{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
+  color:var(--faint)}
+.counts{font-size:12px;color:var(--faint);margin-top:4px;
+  font-variant-numeric:tabular-nums}
+.grp{margin-top:12px;padding-left:11px;border-left:2px solid var(--rule)}
+/* the same three states down a deck group's rail; .bad in particular must
+   be --danger, whose deeper brown-red is chosen to stay apart from the
+   magenta accent a few pixels away */
+.grp.good{border-left-color:var(--ok)}
+.grp.warn{border-left-color:var(--warn)}
+.grp.bad{border-left-color:var(--danger)}
+.glab{font-size:13.5px;color:var(--ink)}
+.glab b{font-variant-numeric:tabular-nums;color:var(--dim);font-weight:400}
+.gwhy{font-size:12.5px;line-height:1.6;color:var(--dim);margin-top:3px}
+.files{margin-top:6px;display:flex;gap:5px;flex-wrap:wrap}
+.files code{font-family:ui-monospace,Menlo,monospace;font-size:11px;
+  color:var(--dim);background:var(--bg);border:1px solid var(--rule);
+  border-radius:5px;padding:1px 6px;max-width:100%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.files .more{font-size:11.5px;color:var(--faint);align-self:center}
+a.dl{display:block;text-decoration:none;border:1px solid var(--accent);
+  border-radius:9px;padding:13px 15px;margin-bottom:9px;color:var(--accent);
+  transition:background .12s}
+a.dl:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+a.dl b{display:block;font-size:14.5px;font-weight:600}
+a.dl span{display:block;font-size:12.5px;color:var(--dim);margin-top:2px}
+@media(max-width:560px){
+  body.wizard main{padding:6vh 12px 8vh}
+  .step .sbody{padding-left:14px;padding-right:14px}
+}
+#async{font-size:12px;color:var(--dim);text-decoration:none;border-bottom:1px dotted var(--rule);padding-bottom:1px;margin-left:2px}
+#async:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.adir{display:flex;gap:6px;flex-wrap:wrap}
+#anki .dbtn,.dbtn{font:inherit;font-size:12.5px;color:var(--dim);background:transparent;
+  border:1px solid var(--rule);border-radius:16px;padding:4px 11px;cursor:pointer}
+#anki .dbtn:hover,.dbtn:hover{border-color:var(--accent);color:var(--accent)}
+#anki .dbtn.on,.dbtn.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+
+/* ---------------- side by side: video left, transcript right ----------------
+   Opt-in, from the ◫ side button.  Only inside this media query: two columns
+   need room, so a narrow window keeps the stacked layout whatever the setting
+   says -- and player.js's sideOn() tests the same breakpoint, so the script
+   and the stylesheet never disagree about which layout is in force. */
+@media (min-width: 860px) {
+  body.sbs #playerwrap{position:fixed;top:var(--headh,52px);left:0;bottom:0;
+    width:var(--sidew,42%);z-index:40;
+    display:flex;align-items:center;justify-content:center;
+    padding:14px 18px;background:var(--bg);
+    border-bottom:none;border-right:1px solid var(--rule);box-shadow:none}
+  /* the video fills its column, still 16:9, and never taller than the
+     window leaves room for */
+  body.sbs #vid,body.sbs.nopin #vid{width:100%;max-width:none;
+    max-height:calc(100vh - var(--headh,52px) - 44px);margin:0}
+body.sbs #vid iframe,body.sbs #vid video,body.sbs.nopin #vid iframe,body.sbs.nopin #vid video{max-height:none}
+  body.sbs.sized #vid{width:100%}          /* a stacked width means nothing here */
+
+  /* the grip becomes the divider between the columns: same pill, turned */
+  body.sbs #grip{position:absolute;top:0;right:-6px;bottom:0;
+    width:12px;height:auto;margin:0;border:none;border-radius:0;
+    background:transparent;cursor:ew-resize}
+  body.sbs #grip::before{position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%);width:2px;height:38px;border-radius:1px}
+  body.sbs #grip:hover{border:none;background:transparent}
+
+  /* the transcript takes the rest, its own column still measured for reading */
+  body.sbs main{margin-left:var(--sidew,42%);max-width:none;
+    padding:14px 26px 60vh}
+  body.sbs main .hint,body.sbs #segs{max-width:var(--yt-width,760px);
+    margin-left:auto;margin-right:auto}
+
+  /* beside the text the video is always in view, so pinning decides nothing */
+  body.sbs #pin{opacity:.38;pointer-events:none}
+}
+
+/* --- where a chunk ends: the divide sheet -------------------------------
+   The cloud is a gloss and is small; moving a boundary is reading, and gets
+   a sheet of its own, above the cloud and above the card sheet's backdrop. */
+#dvback{position:fixed;inset:0;z-index:92;background:rgba(0,0,0,.35)}
+#dvback[hidden]{display:none}
+#dvbox{position:fixed;z-index:93;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:min(760px,95vw);
+  max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.35);padding:14px 18px 12px;
+  font-size:13.5px;color:var(--ink);margin:0}
+#dvbox[hidden]{display:none}
+#dvbox input,#dvbox textarea{width:100%;font:inherit;font-size:13px;
+  background:var(--bg);color:var(--ink);border:1px solid var(--rule);
+  border-radius:6px;padding:5px 8px}
+#dvbox textarea{resize:vertical;line-height:1.5}
+#dvbox button{font:inherit;font-size:13px;padding:5px 10px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);
+  border-radius:6px;cursor:pointer}
+#dvbox button:hover{border-color:var(--accent)}
+#dvbox #dvdo{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#dvbox #dvdo:hover{filter:brightness(1.08)}
+#dvbox #dvdo[disabled]{opacity:.45;cursor:default;filter:none}
+#dvwhere .dvtext{font-family:var(--tl-font,serif);font-size:21px;line-height:2.4;
+  padding:8px 10px;border:1px solid var(--rule);border-radius:8px;
+  background:var(--bg);margin:8px 0}
+#dvwhere .dvcut{font-size:12px;line-height:1;padding:2px 5px;margin:0 2px;
+  vertical-align:middle;color:var(--faint)}
+#dvwhere .dvcut.on{background:var(--accent);border-color:var(--accent);
+  color:var(--accent-fg)}
+#dvpair{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px}
+#dvpair .dvcol{flex:1 1 300px;min-width:0;border:1px solid var(--rule);
+  border-radius:8px;padding:8px 10px;background:var(--bg)}
+#dvpair .dvcol > h4{margin:0 0 6px;font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--faint);font-weight:600}
+#dvpair .dvfa{font-family:var(--tl-font,serif);font-size:19px;line-height:1.9;
+  padding:4px 0 8px;border-bottom:1px solid var(--rule);margin-bottom:8px;
+  word-break:break-word}
+#dvpair label{display:block;font-size:11px;color:var(--faint);margin:6px 0 2px}
+#dvpair .dvvoc{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+  direction:ltr;text-align:left}
+#dvbox .dvchips{display:flex;flex-direction:column;gap:3px;margin:4px 0 2px}
+#dvbox .dvchip{display:flex;gap:6px;align-items:flex-start;font-size:11.5px;
+  color:var(--dim);line-height:1.45}
+#dvbox .dvchip button{font-size:11px;padding:1px 6px;flex:0 0 auto}
+#dvbox .dvchip .dvtxt{font-family:ui-monospace,Menlo,monospace;direction:ltr;
+  text-align:left;word-break:break-word}
+#dvnotes{margin-top:10px;color:var(--faint);font-size:11.5px;line-height:1.6}
+#dvnotes p{margin:3px 0}
+#dvnotes p::before{content:'\2022\00a0'}
+#dvstat{font-size:12px;color:var(--dim);white-space:pre-wrap}
+#dvstat.bad{color:var(--danger)}
+/* the three doors in the cloud's editor */
+.mkrow .edv{font-size:11.5px;padding:3px 8px}
+
+/* --- the seam between two captions, and the notes that sit in it ---------
+   A transcript is a text and its gloss and has nowhere to say the other
+   thing.  A note is that: a markdown file in the seam, kept in the video's
+   own folder under markdown/, written with the studio's editor and read in a
+   frame over the page -- never inline, because the transcript is the point. */
+.gap{display:flex;align-items:center;gap:6px;min-height:14px;
+  margin:-6px 0 2px 0;padding-left:58px;flex-wrap:wrap}
+.gap.last{margin:10px 0 40px}
+.gap .plus{opacity:.5;transition:opacity .12s;font-size:12px;line-height:1;
+  padding:1px 7px;border:1px dashed var(--rule);border-radius:10px;
+  background:none;color:var(--faint);cursor:pointer}
+.gap:hover .plus,.gap .plus:focus{opacity:1}
+.gap .plus:hover{border-style:solid;border-color:var(--accent);color:var(--accent)}
+.gap .mark{font-size:11.5px;line-height:1.3;padding:2px 9px;cursor:pointer;
+  border:1px solid var(--rule);border-radius:10px;background:var(--card);
+  color:var(--dim);max-width:min(52ch,80%);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.gap .mark:hover{border-color:var(--accent);color:var(--accent)}
+.gap .mark::before{content:'\270e\00a0';color:var(--accent)}
+.gap .mark.adrift{border-style:dashed}
+#ntback{position:fixed;inset:0;z-index:94;background:rgba(0,0,0,.45)}
+#ntback[hidden]{display:none}
+#ntbox{position:fixed;z-index:95;inset:4vh 4vw;display:flex;
+  flex-direction:column;background:var(--card);border:1px solid var(--rule);
+  border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);overflow:hidden}
+#ntbox[hidden]{display:none}
+#ntbox .ahead{flex:0 0 auto;padding:10px 14px;border-bottom:1px solid var(--rule);
+  display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint);
+  letter-spacing:.06em;text-transform:uppercase}
+#ntbox #nttitle{color:var(--accent);letter-spacing:0;text-transform:none;
+  font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ntbox button{font:inherit;font-size:13px;padding:4px 10px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);
+  border-radius:6px;cursor:pointer;letter-spacing:0;text-transform:none}
+#ntbox button:hover{border-color:var(--accent)}
+#ntbox #ntedit{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#ntframe{flex:1 1 auto;width:100%;border:0;background:var(--bg)}
+/* A note before it is opened: a card of plain text over the seam, made by
+   player.js on a hover and gone when the pointer goes.  Dressed like the
+   gloss cloud, one step above it (82 to its 80) and below every sheet and
+   its backdrop (88 and up) and the note's own frame (95).  pointer-events
+   none: it is something to read, never something to catch the click the
+   mark under it is waiting for.  Each paragraph of the excerpt takes the
+   direction of its own first letter (plaintext), since a note beside a
+   Persian video is as likely to open in Persian as in English. */
+#ntpeek{position:fixed;z-index:82;max-width:min(360px,90vw);max-height:40vh;
+  overflow:hidden;pointer-events:none;background:var(--card);
+  border:1px solid var(--rule);border-radius:10px;
+  box-shadow:0 8px 28px rgba(0,0,0,.22);padding:8px 12px 7px;
+  direction:ltr;text-align:left;font-size:12.5px;line-height:1.5;color:var(--dim)}
+#ntpeek .pkt{color:var(--accent);font-weight:600;margin-bottom:3px;
+  unicode-bidi:plaintext;text-align:start;overflow-wrap:anywhere}
+#ntpeek .pkx{color:var(--ink);white-space:pre-line;unicode-bidi:plaintext;
+  text-align:start;overflow-wrap:anywhere}
+#ntpeek .pkf{color:var(--faint);font-size:11px;font-style:italic;margin-top:5px}

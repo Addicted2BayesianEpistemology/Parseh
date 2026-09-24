@@ -154,15 +154,35 @@ html[data-mode=mobile] .parseh-mode [data-parseh-mode=mobile]{
    mobile layout's own bar, which mobile.css fits.  (A browser too old for
    :has() shows the two rows.) */
 @media (max-width:560px){
-  .parseh-bar:not(.m-bar):has(> .parseh-mode){gap:8px}
+  .parseh-bar:not(.m-bar):has(> .parseh-mode){gap:6px}
   .parseh-bar:not(.m-bar):has(> .parseh-mode) .where{display:none}
   .parseh-bar:not(.m-bar):has(> .parseh-mode) .parseh-mode button{padding:4px 8px}
   .parseh-bar:not(.m-bar):has(> .parseh-mode) .stop .word{position:absolute;
     width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  /* and the ? at the size of the buttons it stands beside (lib/explain.js,
+     §4.13).  It is drawn 48px square, which is the rule for a MOBILE page,
+     where every target is a thumb's; here it sits in the browser layout's
+     bar among controls of 28 and 32px, and 48 is what pushed this bar back
+     to two rows on a phone.  The mobile layout's own ? is untouched. */
+  html:not([data-mode=mobile]) .parseh-bar:not(.m-bar) .px-ask{
+    min-width:36px;min-height:36px;padding:4px 6px;font-size:14px}
 }
 @media (max-width:420px){
   .parseh-bar:not(.m-bar):has(> .parseh-mode) .home .word{position:absolute;
     width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+/* AND THE ? WANTS ITS OWN ROOM (lib/explain.js, §4.13, drawn wherever there
+   is no hover to rest on).  It arrived after the widths above were fitted,
+   and on a narrow phone it was the one control too many: the bar wrapped to
+   two rows again, which is the very thing those rules exist to prevent.  The
+   gap and the switch give the width back rather than anything being dropped
+   -- what a bar says is what it is for. */
+@media (max-width:360px){
+  /* the bar's own side padding too: at this width the page's edge is the
+     only place left to find room, and 8px still keeps the home glyph off
+     the screen's edge */
+  .parseh-bar:not(.m-bar):has(> .parseh-mode){gap:4px;padding-inline:8px}
+  .parseh-bar:not(.m-bar):has(> .parseh-mode) .parseh-mode button{padding:4px 6px;font-size:13px}
 }
 
 /* ---------------- index pages: a heading and a stack of cards ------- */
@@ -225,6 +245,13 @@ a.book:hover .card-build,a.book .card-build:focus,a.book.pending .card-build{opa
 a.book .card-build:hover{border-color:var(--accent);color:var(--accent)}
 a.book .card-build[disabled]{opacity:.5;cursor:progress}
 a.book.pending{cursor:pointer}
+/* A SCREEN WITH NO MOUSE has no hover to bring them out, and on a tablet in
+   the browser mode neither could be reached at all (TO-DO §4.7): there they
+   are simply always drawn.  In the mobile mode the sheet takes both away
+   altogether -- nothing there builds or deletes (docs/mobile.md). */
+@media (hover:none){
+  a.book .card-del,a.book .card-build{opacity:1}
+}
 /* The title in the display face (--tl-alt: nastaliq for Persian, gothic
    for Japanese, the main face where a language has no second one), the
    author line in the reading face; both take their direction from the
@@ -439,3 +466,232 @@ html[data-lang="zh"] :is(.p1,.seg .fa) .wd[data-w] rt{
 .ws-note .ws-empty{color:var(--faint)}
 mark.pair-match{background:transparent;color:var(--accent);font-weight:600}
 .parseh-typo{max-height:calc(100vh - 90px);overflow-y:auto}
+
+/* ---------------- the narration's controls ----------------
+   lib/narrctl.js puts these on every reader, in either mode: ↺ and ↻ (the
+   recording back and on by so many seconds), the speed as a chip saying
+   1.5×, and the row of choices either of them opens.  The dock a phone
+   floats them in is lib/mobile.css's; what is here is what both modes wear.
+   A book with no narration says body.noaudio, and then there is nothing to
+   move and nothing to say it at. */
+.nc-skip{font:inherit;font-size:13px;line-height:1;padding:6px 9px;
+  border:1px solid var(--rule);border-radius:8px;background:var(--card);
+  color:var(--dim);cursor:pointer;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nc-skip:hover{border-color:var(--accentlt);color:var(--accent)}
+.nc-chip{font:inherit;font-size:13px;line-height:1;padding:6px 10px;
+  border:1px solid var(--rule);border-radius:20px;background:var(--card);
+  color:var(--dim);cursor:pointer;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nc-chip:hover,.nc-chip[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}
+/* the menu the chip stands in for: kept on the page, since it is what the
+   reader's own script listens to and saves */
+select.nc-was{display:none!important}
+body.noaudio :is(.nc-skip,.nc-chip,.nc-dock){display:none!important}
+/* The row of choices, over whatever opened it.  Ten speeds are wider than a
+   phone, so the row wraps rather than running off the screen, where the last
+   of them could not be reached at all. */
+.nc-pop{position:fixed;z-index:425;display:flex;flex-wrap:wrap;justify-content:center;
+  gap:4px;padding:5px;max-width:calc(100vw - 16px);
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.nc-popb{font:inherit;font-size:14px;line-height:1;padding:10px 10px;min-width:44px;
+  border:1px solid transparent;border-radius:8px;background:transparent;color:var(--ink);
+  cursor:pointer;font-variant-numeric:tabular-nums}
+.nc-popb:hover{background:var(--hl);color:var(--accent)}
+.nc-popb.on{border-color:var(--accent);color:var(--accent);background:var(--hl)}
+.nc-popb:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* ---------------- kept on this phone ----------------
+   lib/keep.js: the two buttons under ⋯ -- Keep on this phone, which becomes
+   Change what is kept, and Remove from this phone beside it -- the sheet that
+   asks which recordings to keep, the line that says what is kept is older
+   than the computer's, and the chip that says the computer cannot be reached
+   at all (TO-DO §19, and §0 for 2026-09-23). */
+.kp-keep,.kp-drop{font:inherit;font-size:15px;min-height:48px;padding:6px 12px;
+  border:1px solid var(--rule);border-radius:10px;background:var(--card);color:var(--ink);
+  cursor:pointer}
+.kp-keep.kp-have{border-color:var(--accent);color:var(--accent);background:var(--hl)}
+.kp-keep[disabled],.kp-drop[disabled]{opacity:.6;cursor:progress}
+/* the computer is away and the list of recordings is the computer's: the
+   button is not a button just now, and its label says why */
+.kp-keep[disabled]{cursor:not-allowed}
+.kp-drop{color:var(--dim)}
+.kp-drop[hidden]{display:none}
+/* THE TWO OF THEM ON ONE LINE, HALF EACH (the owner's 4, 2026-09-23: "they
+   should divide the space that currently is allocated to Change what is kept
+   in two, one half for change the other for remove").  `.kp-btn` is now this
+   WRAPPER and no longer either button: it wears that name because every sheet
+   that places the one button places it by it -- lib/mobile.css gives
+   `.kp-btn` its order in the reader's header and the player's, its own full
+   line, and hides it while ⋯ is shut -- so the pair has to answer to it to
+   stand where the button stood.  What `.kp-btn` used to DRAW is undrawn here:
+   this is a row, not a button.  With nothing kept the second button is
+   hidden and the first has the line to itself. */
+.kp-btn{display:flex;width:100%;gap:8px;align-items:stretch;
+  min-height:0;padding:0;border:0;border-radius:0;background:none;cursor:auto}
+.kp-btn > .kp-keep,.kp-btn > .kp-drop{flex:1 1 0;min-width:0;
+  white-space:normal;line-height:1.25}
+/* what the buttons say when the page has no toast of its own (the studio's):
+   a line of its own under the pair, never squeezed in beside it */
+.kp-said{flex:1 0 100%;margin:6px 0 0;font-size:13.5px;line-height:1.4;color:var(--dim)}
+.kp-said.kp-bad{color:var(--warn)}
+/* THE SHEET IS WRITTEN IN ENGLISH, IN EVERY BOOK.  Its own direction is said
+   here because it is opened from inside a Persian or an Arabic reader, whose
+   page is right to left: left is where the owner asked for the rows and the
+   free strip is the other side of that (his 2, 2026-09-23), and neither can
+   be true in one book and mirrored in the next. */
+.kp-back{position:fixed;inset:0;z-index:440;display:flex;align-items:flex-end;
+  justify-content:center;background:rgba(0,0,0,.4);direction:ltr}
+.kp-sheet{width:min(560px,100%);max-height:86vh;overflow-y:auto;padding:18px 18px
+  calc(18px + env(safe-area-inset-bottom));background:var(--card);
+  border-radius:16px 16px 0 0;color:var(--ink)}
+.kp-h{margin:0 0 6px;font-size:19px}
+.kp-what,.kp-lead{margin:0 0 10px;color:var(--dim);font-size:14.5px;line-height:1.5}
+.kp-pickall{display:flex;gap:8px;margin-bottom:8px}
+.kp-small{font:inherit;font-size:13.5px;min-height:40px;padding:4px 12px;border-radius:9px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);cursor:pointer}
+/* THE ROWS ARE NARROWER THAN THE SHEET AND SIT AGAINST ITS LEFT EDGE (the
+   owner's 2, 2026-09-23: "reduce the size of the rectangles by 20% and align
+   them left, so that part of the page is free to move the thumb and scroll
+   without issues").  A finger drawn across a row ticks it rather than
+   scrolling -- which is the point of the rows and is why they say
+   touch-action:none -- so a book with fifty narrations had become a list
+   nobody could scroll past: wherever the thumb landed it was on a row.  The
+   strip left clear down the right is what it lands on now, and that strip
+   scrolls, because nothing there takes the drag away from the browser.
+   IT IS THE WIDTH THAT SHRINKS AND NOTHING ELSE.  Every row keeps its 48px,
+   which is the one rule the mobile interface does not trade: a target a thumb
+   can hit does not get smaller because there are more of them. */
+.kp-list{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:10px}
+/* touch-action:none ON THE ROWS ALONE (TO-DO §0): a finger drawn down the
+   boxes ticks or clears every one it crosses (lib/keep.js, dragging), so the
+   browser must hand that drag over instead of scrolling the sheet with it.
+   Everywhere else in the sheet -- the heading, the lines, the buttons, and
+   the strip beside the rows -- the sheet still scrolls as it always did. */
+.kp-row{display:flex;align-items:center;gap:10px;width:80%;min-height:48px;padding:6px 10px;
+  border:1px solid var(--rule);border-radius:10px;font-size:14.5px;
+  touch-action:none;-webkit-user-select:none;user-select:none}
+.kp-row input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+/* WHAT A ROW SAYS, IN TWO LINES (his 2 again: "indicate also chapters and
+   section range that each narration covers in the rectangles instead of only
+   the range of paragraphs").  The chapter and the section on top, in the
+   reader's own wording; the paragraph addresses under them, small and dim,
+   for whoever knows his book by those.  The top line is the one that is cut
+   short when there is no room: it is the one somebody is reading. */
+.kp-name{display:flex;flex-direction:column;justify-content:center;gap:1px;
+  flex:1;min-width:0}
+.kp-top{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-sub{font-size:12.5px;line-height:1.3;color:var(--dim);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-size{flex:none;color:var(--dim);font-variant-numeric:tabular-nums}
+/* WHAT WAS KEPT AND IS NO LONGER WHOLE (the owner's 3, 2026-09-23).  The
+   worker has looked at the file itself -- its digest, or its length where it
+   is too big to hash on a phone (lib/sw.js, check()) -- and this is what it
+   found broken.  Its box is empty, because it is not really kept; and it says
+   so in its own row, rather than losing its tick overnight and leaving him to
+   wonder which of them he had unticked himself. */
+.kp-row.kp-torn{border-color:var(--warn)}
+.kp-whytorn{color:var(--warn)}
+/* the line that says the check is running, and then what it found */
+.kp-check{margin:0 0 10px;font-size:13.5px;line-height:1.45;color:var(--dim)}
+.kp-check.kp-bad{color:var(--warn)}
+/* The one line under the notes' rows (TO-DO §0, the notes kept with their
+   book).  What a note opens ON -- the studio's sheet, its thirteen faces,
+   MathJax where there is a formula -- is four megabytes kept ONCE for the
+   phone, so it is neither a row of its own (there is nothing to choose) nor
+   part of the notes' own size (it is not paid twice).  It is a line, and it
+   goes when the notes are unticked. */
+.kp-aside{margin:-4px 0 10px;font-size:13px;line-height:1.45;color:var(--dim)}
+.kp-aside[hidden]{display:none}
+.kp-sum{margin:0 0 12px;font-size:15px;font-weight:600}
+.kp-btns{display:flex;gap:10px;justify-content:flex-end}
+.kp-go,.kp-no{font:inherit;font-size:15px;min-height:48px;padding:8px 18px;border-radius:10px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);cursor:pointer}
+.kp-go{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+.kp-bar{position:fixed;z-index:415;left:50%;transform:translateX(-50%);
+  bottom:calc(12px + env(safe-area-inset-bottom));display:flex;align-items:center;flex-wrap:wrap;
+  gap:10px;max-width:min(560px,94vw);padding:12px 14px;background:var(--card);
+  border:1px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);
+  font-size:14.5px;line-height:1.4}
+/* A BOOK THAT CAME WHILE NO PAGE WAS OPEN (lib/keep.js, `foot`): its line,
+   said once where the out-of-date bar stands, one line to a book, until OK. */
+.kp-news .kp-newsline{flex:1 1 100%}
+.kp-news .kp-newsline.kp-bad{color:var(--warn)}
+.kp-news .kp-no{margin-left:auto}
+.kp-off{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:20px;
+  background:var(--warn);color:#fff;font-size:13px;text-decoration:none;white-space:nowrap}
+.kp-off:hover{opacity:.9}
+/* A CARD WHOSE THING IS NOT ON THIS PHONE (TO-DO §0).  Offline a shelf still
+   shows everything the computer had when it was last reached; what is not
+   kept is drawn and cannot be tapped, which is the look a book whose reader
+   was never built already has (lib/mobile.css, .m-book.m-off).  This is for
+   the cards that are not a book's: a deck's, a document's. */
+.kp-away{opacity:.72}
+.kp-note{margin-top:6px;font-size:13.5px;line-height:1.45;color:var(--dim)}
+/* ---------------- the app getting itself ready ----------------
+   lib/keep.js asks the worker to warm the way in once a page is up (the
+   install event keeps one page and no more now, TO-DO §0), and any page may
+   carry an element with [data-parseh-warm] to say how it is going.  The
+   attribute is the hook, so a page adds the slot and nothing else -- no class
+   to remember, and the same look wherever it is put.
+   It is a LINE, not a bar: the app saying it is not quite ready yet, in the
+   same quiet as everything else here.  Tabular figures so that the count does
+   not shuffle the words sideways as it climbs through fifty-nine. */
+[data-parseh-warm]{margin:12px 0 4px;padding:10px 14px;border-radius:12px;
+  border:1px solid var(--rule);background:var(--card);color:var(--dim);
+  font-size:14.5px;line-height:1.45;font-variant-numeric:tabular-nums}
+[data-parseh-warm][hidden]{display:none}
+/* and when everything this page asked for has settled it says so and STAYS
+   saying it: /m/install/ tells somebody to wait until it is ready, and a line
+   that disappeared at that moment would have told him nothing */
+[data-parseh-warm].kp-ready{border-color:var(--accent);color:var(--ink)}
+/* the phone's own page of what is kept */
+.m-kept{display:flex;flex-direction:column;gap:8px}
+.m-keptopen{display:block;text-decoration:none;color:inherit}
+.m-keptoff{font:inherit;font-size:14px;min-height:48px;border:1px solid var(--rule);
+  border-radius:10px;background:var(--bg);color:var(--dim);cursor:pointer}
+.m-keptoff:hover{border-color:var(--danger);color:var(--danger)}
+/* why one of them would not go: a deck that is still out on this phone */
+.m-keptwhy{margin:0;font-size:13.5px;line-height:1.45;color:var(--warn)}
+
+/* ---------------- where the other device stopped ----------------
+   lib/prefs.js: a book opens where THIS device left it, and says, in a line
+   over the text, that the toolbox knows of a later place elsewhere (§4.9).
+   Nothing is moved until it is answered. */
+.pf-bar{position:fixed;z-index:415;left:50%;transform:translateX(-50%);
+  bottom:calc(12px + env(safe-area-inset-bottom));display:flex;align-items:center;
+  flex-wrap:wrap;gap:10px;max-width:min(560px,94vw);padding:12px 14px;
+  background:var(--card);border:1px solid var(--accent);border-radius:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.2);font-size:14.5px;line-height:1.4;color:var(--ink)}
+.pf-bar button{font:inherit;font-size:14px;min-height:44px;padding:6px 14px;
+  border:1px solid var(--rule);border-radius:9px;background:var(--bg);color:var(--ink);cursor:pointer}
+.pf-bar .pf-go{border-color:var(--accent);color:var(--accent);background:var(--hl)}
+.pf-bar button:hover{border-color:var(--accentlt);color:var(--accent)}
+/* on a phone the dock is in that corner: the line sits above it */
+html.m-reader[data-mode=mobile] .pf-bar{bottom:calc(84px + env(safe-area-inset-bottom))}
+/* AND IT GIVES WAY TO A SHEET OPENED OVER THE PAGE.  The card panel, a
+   note, the card kit's cut editor and the timings all stand at the foot of
+   the window, where this line is: while one of them is open the line sat on
+   its buttons -- Save under a sentence about where you had got to -- and
+   the press went to the sentence.  The question is not lost; the sheet is
+   closed sooner or later, and the line is there again.  (lib/prefs.js waits
+   the same way before it asks at all.) */
+body:has(#ankiback:not([hidden])) .pf-bar,
+body:has(#ntback:not([hidden])) .pf-bar,
+body:has(.pc-root) .pf-bar,
+body:has(.tl-root) .pf-bar{display:none}
+
+/* ---------------- a finger on a word ----------------
+   lib/wordtouch.js: what a shift-click (copy) and an alt-click (a card)
+   do for a mouse, a held finger does through this menu -- in the reader
+   and in a video's transcript alike (TO-DO §4.6). */
+.wt-menu{position:fixed;z-index:420;display:flex;flex-direction:column;min-width:180px;
+  max-width:min(320px,90vw);padding:5px;background:var(--card);
+  border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.wt-menu button{font:inherit;font-size:15px;line-height:1.3;text-align:start;
+  min-height:48px;padding:8px 12px;border:0;border-radius:8px;background:transparent;
+  color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wt-menu button:hover,.wt-menu button:focus-visible{background:var(--hl);color:var(--accent);outline:none}
+
+/* on a screen a finger works, every choice is a finger's size -- a phone in
+   the mobile mode, and a tablet in the browser mode alike */
+@media (hover:none){.nc-popb{min-width:52px;min-height:52px;font-size:15px}
+  .nc-skip{font-size:14px;padding:9px 11px}.nc-chip{font-size:14px;padding:9px 12px}}

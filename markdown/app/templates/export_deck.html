@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!-- Exercises of a Parseh deck, exported as one page that crams them
+     (TO-DO §9.7).  Everything it needs is inside this file; it schedules
+     nothing, asks no server for anything and keeps nothing: close it, and
+     nothing anywhere has changed. -->
+<html lang="en" data-parseh-export="deck">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+<meta name="referrer" content="no-referrer">
+<meta name="generator" content="Parseh">
+<title>{{TITLE}}</title>
+<style>{{CSS}}</style>
+</head>
+<body data-page="export" data-export="deck" data-lang="{{TARGET}}">
+<header class="xp-bar">
+  <span class="xp-title">{{TITLE}}</span>
+  <details class="xp-aa">
+    <summary class="btn ghost" title="Text size and theme">Aa</summary>
+    <div class="xp-aa-menu">
+      <label for="xp-size">Text size <output id="xp-size-out">100%</output></label>
+      <input type="range" id="xp-size" min="13" max="26" step="0.5" value="17">
+      <label for="xp-theme">Theme</label>
+      <select id="xp-theme">
+        <option value="paper">Paper</option>
+        <option value="sepia">Sepia</option>
+        <option value="dark">Dark</option>
+      </select>
+      <p class="xp-note">Forgotten when this tab closes: this page keeps nothing.</p>
+    </div>
+  </details>
+</header>
+<main class="xp-cram dk-study-page">
+  <div class="dk-studyhead">
+    <h1 class="dk-title">{{TITLE}}</h1>
+    <div id="cram-progress" class="dk-study-counts" aria-live="polite"></div>
+  </div>
+  <p class="dk-cram-note">The exercises come in random order. A wrong answer comes back at the end. Nothing you do here is saved or sent anywhere.</p>
+  <article id="cram-stage" class="sheet dk-sheet" data-lang="{{TARGET}}">
+    <p class="pv-status">These exercises need JavaScript.</p>
+  </article>
+  <div id="cram-result" class="dk-result" role="status" hidden></div>
+  <section id="cram-solution" class="dk-solution" aria-labelledby="cram-solution-head" hidden>
+    <h2 id="cram-solution-head" class="dk-solution-head">Correct answer</h2>
+    <div class="sheet dk-sheet" data-lang="{{TARGET}}"></div>
+  </section>
+  <div id="cram-actions" class="dk-study-actions" hidden>
+    <button type="button" class="btn primary big" id="cram-check" hidden>Check</button>
+    <button type="button" class="btn primary big" id="cram-show">Show answer</button>
+    <button type="button" class="btn big" id="cram-wrong" hidden>Wrong</button>
+    <button type="button" class="btn primary big" id="cram-correct" hidden>Correct</button>
+    <button type="button" class="btn big" id="cram-next" hidden>Next exercise</button>
+    <span class="dk-grow"></span>
+    <button type="button" class="btn" id="cram-skip"
+            title="Leave it unanswered: it does not come back in this practice, and the end names it among the skipped">Skip</button>
+  </div>
+  <div id="cram-done" class="dk-done" hidden>
+    <h2>Practice complete</h2>
+    <p id="cram-tally" class="dk-cram-tally"></p>
+    <section id="cram-wrong-list" class="dk-cram-list" aria-labelledby="cram-wrong-head" hidden>
+      <h3 id="cram-wrong-head" class="dk-cram-head">Wrong at least once</h3>
+      <ul class="dk-cram-items"></ul>
+      <button type="button" class="btn" data-x="again">Cram these again</button>
+    </section>
+    <section id="cram-skipped-list" class="dk-cram-list" aria-labelledby="cram-skipped-head" hidden>
+      <h3 id="cram-skipped-head" class="dk-cram-head">Skipped</h3>
+      <ul class="dk-cram-items"></ul>
+      <button type="button" class="btn" data-x="again">Cram these</button>
+    </section>
+    <div class="dk-done-actions">
+      <button type="button" class="btn primary" id="cram-again">Shuffle and repeat</button>
+    </div>
+  </div>
+</main>
+{{FOOTER}}
+<div id="toast" class="toast" hidden></div>
+<script id="doc-lang" type="application/json">{{LANG_JSON}}</script>
+<script id="parseh-cards" type="application/json">{{CARDS_JSON}}</script>
+<script id="parseh-media" type="application/json">{{MEDIA_JSON}}</script>
+{{MATH}}
+<script>{{SCRIPT}}</script>
+</body>
+</html>

@@ -162,8 +162,10 @@ language may have, read only where they exist: `lib/lang/<code>.lookup.json`
 
 `docs/lang/<code>.md` starts from `docs/lang/_template.md` with the
 language's name, labels and verb forms filled in. It is **instructions to an
-annotator** — and the annotator is usually a model: the video prompt and the
-new-book prompt paste it in whole when that language is chosen. Keep all six
+annotator** — and the annotator is usually a model: the video prompt, the
+new-book prompt and the prompt that has an LLM gloss a stretch of a book or
+a video (**gloss with an LLM**) paste it in whole when that language is
+chosen. Keep all six
 sections, even one that only says the language has no such thing:
 
 1. **The text field** — what `fa` must reproduce, verbatim, and what it

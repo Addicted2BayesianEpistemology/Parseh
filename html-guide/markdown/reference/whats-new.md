@@ -2,7 +2,7 @@
 title: What changed recently
 linkTitle: What’s new
 weight: 7
-description: The newest features — links by name, the enlarged flashcard, the RTL editor, large print and black and white, Working…, Mobile mode, this guide, picking a part of the book, the licences page, the new starters — and where each is explained.
+description: The newest features — a book that comes onto the phone by itself, links by name, the enlarged flashcard, the RTL editor, large print and black and white, Working…, Mobile mode, notes that open at once and travel with the book, a frame off a film, this guide, picking a part of the book, the licences page, the new starters, glossing a stretch with an LLM, deleting a gloss, blank glosses legal everywhere, a page for a website — and where each is explained.
 ---
 
 The features below arrived together, in September 2026. Each has a line
@@ -10,6 +10,28 @@ or two here on what it does and a link to the page that explains it in
 full. After updating, run the installer once more
 ([After updating Parseh](daily-loops.md#after-updating-parseh)): it
 compiles this guide and rebuilds the readers.
+
+## A book that comes onto the phone by itself
+
+On Android, in Chrome, **Keep on this phone** no longer needs you to stay on
+the page. A book now comes by **the phone's own download** — its text first,
+then its recordings — with Android's notification saying how far it has got,
+and the button says *Keeping… 43% — you can leave this page*: go to another
+page, close Parseh, lock the phone. **Cancel** on the notification stops the
+whole keep and leaves what had come; a second book waits for the first and
+says so; a book that needs, for a moment, more room than the phone has free
+says so before it starts, with **Keep it anyway** and **Not now**. If it
+finishes while Parseh is closed, the notification says so, a tap on it opens
+the book, and the next page you open says it once at its foot. *Kept on this
+phone* lists a book still coming as *coming — 43%*, with **Stop**. And a keep
+that stops part-way keeps what had come and says why, each reason in its own
+words: stopped, a file the computer no longer has, or no room.
+
+**The button no longer goes back to *Keep on this phone* in the middle of a
+keep**, on any phone: it says *Keeping…* until the keep is over. On the iPad,
+and in a browser without that download of its own, keeping is as it was: stay
+on the page until it says the book is on this phone
+([Browser and Mobile](../getting-started/mobile-mode.md#the-books)).
 
 ## Links between documents, by name
 
@@ -156,8 +178,92 @@ place **Check** was. Every mobile page is made for a phone held sideways as
 well as upright. And the mobile interface installs **as an app**: an icon on
 the home screen, the whole screen for the page, no address bar
 ([Parseh as an app](../getting-started/mobile-mode.md#parseh-as-an-app)).
-The videos and the studio's notes open their browser pages until their own
-mobile ones are written.
+**The videos and the studio's pages have followed**: a shelf of **channels**,
+with a channel's videos one tap inside it — the browser's own shape, instead
+of one long list of every video of every channel — the player itself with its
+transcript and glosses (the video at the left and the transcript at the right
+when the phone is turned, with a divider you drag, and a full-screen button
+that lays the line being said over the video — tap a phrase in it and its
+gloss opens), and the studio's library and documents, to read, with their
+exercises still answerable.
+
+**The narration is moved from the foot of the screen.** ↺, ⏯ and ↻ float in
+the corners a thumb reaches, with the speed beside them; they fade when you
+stop touching the screen. Hold ↺ or ↻ to choose how far they carry (1 · 2 ·
+5 · 10 · 15 · 30 · 60 seconds — one and two for going back over the phrase
+you have just heard, in a video as in a book), and tap the speed to choose
+how fast the narration plays. The computer's reader has ↺ ↻ now too, with **Shift+←** and
+**Shift+→** — and **the speed no longer falls back to 1× by itself** when the
+recording changes. The controls **keep their order in a book that reads right
+to left**: time does not run backwards in Persian, so ↺ stays behind and ↻
+stays ahead, wherever the words go. ⏯ shows **‖** and **▶** — the marks the
+rest of Parseh uses, and not the one an Android phone drew as an orange
+emoji. **A video keeps its own speed** now, apart
+from a book's — watching and listening are different habits — and the speed
+you tap is the speed shown **at once**, instead of a change late.
+
+**The whole screen, on a video, is Parseh's own.** ⛶ used to hand the screen
+to YouTube's frame, which took it whole: no subtitles could be drawn over it
+and the way out was a bar that would not answer. Now the **page** goes full
+screen and Parseh lays the video out on it — the picture on black, the line
+being said at its foot, the controls where your thumb left them — and there
+are **three ways out**, so nobody is shut in: the ⛶ in the corner, your
+phone's back gesture, and a tap on the black beside the picture. A tap on a
+word of the subtitle opens its gloss **over the subtitle**, where your finger
+is. Where a phone refuses the whole screen, you get the same layout with the
+browser's own bars, and it says so rather than doing nothing.
+
+**A finger reaches what a key reached**: hold a finger on a word for *Card for
+“word”*, *Copy the chunk*, *Copy the sentence*. And a **?** in the bar, on a
+phone or a tablet, says what any button does when you tap it — the
+explanations that only a mouse could read before.
+
+**Parseh keeps your place.** The reading place of each book, the narration's
+speed, the gap, the seconds and the theme are the computer's now, so a phone
+goes on where the desk stopped — and it never moves you without asking.
+
+**And it works with the computer away.** Keep a book, a video, a deck or a
+document **on this phone**, and it opens, reads and plays with the computer
+asleep, off, or a train away — the narration seeks as it always did.
+*Kept on this phone* lists what you keep and gives the room back. Studying a
+deck away is a **check-out**: take the deck out, study it on the train, and
+every answer is sent home and scheduled as soon as the computer is there
+([the mobile pages](../getting-started/mobile-mode.md)).
+
+**Keeping was mended where it had never really worked.** A kept book would
+open half-drawn in airplane mode and stop: one script every reader loads was
+in no list, and the page never reached its text. A kept deck never showed an
+exercise, because its exercises were asked for in a way no phone is allowed
+to keep — now they come **with the deck**, with their pictures and their
+recordings, one tick and nothing to choose, so *Cram all* works on a train.
+A fully narrated book offered you no recording to keep at all where its
+narration was written the older way, or was a `.webm`. And a kept book played
+to the times it was built with rather than the ones you had corrected.
+
+**A tick now means the file is really there.** *Change what is kept* looks at
+**every file on the phone** before it draws a tick — the computer sends a
+checksum with each one — and says so: *Looked at file by file: what is ticked
+is whole on this phone.* A download cut off by a tunnel, or a refusal the
+phone kept by mistake, is **unticked** and says *kept, but no longer whole —
+tick it to fetch it again*. Beside it, *Change what is kept* and *Remove from
+this phone* now share one line, half each. The recordings in that list say
+**which chapters and sections** they cover, not only their paragraph numbers,
+and the lines are narrower and against the left so there is room to scroll
+with a thumb.
+
+**And Parseh remembers that the computer was away.** Open a page after one
+that said *offline* and it starts offline too, instead of pretending for a
+few seconds that all is well. It still asks every time and puts itself right
+at once if the computer is there.
+
+**And the app says when it is ready.** Installing it puts the icon on the
+home screen at once; Parseh then fetches the pages it needs to open with the
+computer away, and says how far it has got — **Getting ready — 12 of 46** —
+on the install page, which says **Ready** when they are all there, and on the
+mobile hub, which says nothing once there is nothing left to fetch. On the
+hub that line stands **at the foot, under the doors**, so it never pushes
+them down and lets them spring back under your thumb
+([Parseh as an app](../getting-started/mobile-mode.md#parseh-as-an-app)).
 
 On a phone, a fill-in's blank and a matching exercise's box are filled the
 other way round: tap the blank or the box, and a cloud offers the words of
@@ -172,6 +278,61 @@ skipped — each shown solved at a click, and crammed again at one
 ![The hub in Mobile mode on a phone, with the Working… panel over the doors while an upload runs](shots/mobile-hub-working.png){width=60 align=center}
 
 See [Browser and Mobile](../getting-started/mobile-mode.md).
+
+## Notes open at once, keep a folded run, and travel with the book
+
+A note used to open the studio's whole document page inside the reader —
+editor, scripts and all, about a megabyte of them, every time, and again for
+every book. Now it opens as **the note and nothing else**: the studio's own
+sheet, with its face, its colours and its marks, and no machinery behind it.
+The reader and the player also **fetch the notes within a screen of where you
+are**, so a mark opens the moment you press it, even from another room over a
+slow connection. **Open in the studio** is in the window's head when the full
+page is wanted, and a note that **holds an exercise** opens that full page
+straight away, so nothing unanswerable is ever shown.
+
+**A folded run no longer swallows its notes.** Folding a run of paragraphs
+hid the seams and the marks in them. The fold bar now carries **a row of the
+marks of every note inside the run** — the first three, then *+N more* — and
+the row goes away when you open the run.
+
+**And your notes go onto the phone with the book.** Keeping a book or a video
+used to keep the text and the recordings and leave every note you had written
+behind, so on a train each seam opened on nothing. *Keep on this phone* now
+has **one line for all of them** — *its notes · 34 · about 280 kB* — ticked
+unless you untick it: the marks are in their seams, the notes open looking
+exactly as they look at the desk, and one that holds an **exercise** can be
+answered away from the computer. The pictures in your notes come with them;
+their recordings are a line of their own beside the narrations, so nothing
+heavy is kept by surprise. Write a note at the desk afterwards and its mark is
+there the next time the phone can reach the computer; delete one and the phone
+gives the room back the next time you save that list, saying how many first
+([Notes in the seams](../books/notes.md),
+[Browser and Mobile](../getting-started/mobile-mode.md)).
+
+## A frame off a film, and a video that will not play
+
+**A film on this machine gives its frame straight away.** The picture is read
+off the film itself, so there is no question about sharing the screen, nothing
+to allow and no window to keep in view — and it works on a phone as on the
+computer. A **YouTube** video's frame is still taken from a share of this tab,
+which is a computer's affair: no phone browser shares a tab, and on a phone
+the button now says exactly that instead of failing for a reason that was
+never the real one
+([Recordings and frames](../cards-and-anki/recordings-and-frames.md)).
+
+**A video YouTube will not play says why.** A video that is gone, private, or
+whose owner does not allow it to be played outside YouTube used to leave an
+empty black box; now it says which of those it is, and what you can do.
+
+**And it no longer says that on a phone that is online.** The player used to
+put up *the video needs an internet connection* after six seconds, whatever
+had really happened — and on a phone it happened often, because the app had
+started fetching its own pages the instant any page loaded and was taking the
+bandwidth YouTube's player needed. The fetching waits for the page now, and
+keeps out of its way; the player waits for the video's own answer, gives it a
+real chance, and then says what actually went wrong, with **Try again** and a
+way out to YouTube.
 
 ## This guide
 
@@ -236,3 +397,70 @@ with correct examples in that language. It ships with two pictures and a
 short chime, which become the document's own when it is saved; delete what
 you do not need. See [The library page](../studio/library.md) and [The
 Markdown dialect](../dialect/_index.md).
+
+## Glossing a stretch with an LLM
+
+A book's reader has **gloss with an LLM** in its header (and **gloss around
+here with an LLM…** in the chunk sheet), and a video's player the same in
+its bar. Pick a stretch — subparagraphs in the book's outline, or a first
+and a last caption clicked in the transcript — and **copy the prompt**: it
+carries the stretch as it stands, the chunks nobody has glossed marked to
+do, the glossed ones as context, and the language's own conventions. Paste
+the chatbot's reply back and press **fill from the answer**: the chunks are
+written one by one, through the same door as a hand edit, and the report
+says what was **filled**, **completed** and **replaced**, and what was
+**kept**, **dropped** or left **unanswered**.
+
+What is already glossed is never changed by an answer, whatever it says:
+Parseh works that out itself, from the files as they are when you paste.
+Two checkboxes widen it — **re-gloss what is already glossed** (which asks
+you to press twice before it replaces anything) and **also fill the empty
+boxes of partly glossed chunks** (which asks for every empty box of a chunk
+that has a gloss, a vocabulary line left empty on purpose included) — and
+an answer never writes half a gloss.
+See [Glossing a stretch with an LLM](../books/glossing-with-an-llm.md) and
+[Glossing captions with an LLM](../videos/glossing-with-an-llm.md).
+
+## Deleting a gloss
+
+**delete gloss**, in the chunk sheet and in the player's ✎ form, takes a
+chunk's whole gloss off in one click — the text, the colour and the word
+line stay — and **undo delete** puts it back, for as long as the page is
+open. A deleted gloss counts as no gloss, so the next LLM prompt asks for
+it: delete, copy, paste is how one chunk is glossed again. See
+[Deleting a gloss](../books/writing.md#deleting-a-gloss) and, in the player,
+[Deleting a gloss](../videos/editing-a-phrase.md#deleting-a-gloss).
+
+## A blank gloss is legal everywhere
+
+A chunk nobody has glossed used to be legal only in a book or a video
+marked a draft, by a line in its `book.json` or `video.json` that had to be
+taken out by hand at the end. There is no such mark any more: a blank chunk
+is legal in every book and every video, for good. The checkers count blank
+chunks in one note (*3 of 12 chunks have no gloss yet*) and list a chunk
+half glossed as an error. The chunk sheet and the ✎ form save a gloss one
+box at a time, and refuse only to empty, on its own, a box the language
+requires — emptying every box is **delete gloss**. A cut or a join may leave
+halves blank or half glossed, and a video bundle brought back with a half
+glossed phrase is taken in, with a note. The **draft** tags on the cards and
+the **draft** marks in the reader and the player are gone; a `"draft": true`
+still in an older file is simply not read. See [Glosses still to
+write](../books/adding.md#glosses-still-to-write) and [A video still being
+glossed](../videos/video-info-and-drafts.md#drafts).
+
+## A page for a website
+
+A document, or a deck's chosen exercises, can now be **one HTML file** to
+put on a website for students who have no Parseh, or to send: **Download ▾
+→ HTML page, for a website (.html)** on a document's page, and **Export
+selected to HTML** beside **Cram exercises** on a deck's page. The file
+works with no server behind it, even opened from the disk. A document's
+exercises can be answered and checked; a deck's page crams its exercises
+as the cram page does. Pictures and recordings travel inside the file, a
+clip cut down to its stretch where ffmpeg is installed, and a video stays
+YouTube's player (which plays only on a website: opened from the disk, a
+line under it says so and opens it on YouTube). **Aa** sets the size of the text and the theme. The page
+holds none of the Markdown and nothing that edits, keeps nothing and sends
+nothing, and its foot says it was exported from Parseh, with links to
+Parseh on GitHub and to this guide. See [A page for a
+website](../studio/web-page.md) and [Cram mode](../exercises/cram.md#as-a-page-for-a-website).

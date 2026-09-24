@@ -41,8 +41,8 @@ and is normally served with the book reader, the video player and the
 exercise decks by `../serve.py`:
 
 ```bash
-cd .. && ./serve.sh                   # the studio → https://localhost:8765/studio/
-                                      # its exercise decks → https://localhost:8765/exercises/
+cd .. && ./serve.sh                   # the studio → https://localhost:7654/studio/
+                                      # its exercise decks → https://localhost:7654/exercises/
 ```
 
 On its own, for hacking on it:

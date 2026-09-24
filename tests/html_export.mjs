@@ -1,0 +1,593 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Browser test of the HTML export (TO-DO §8.38 and §9.7; markdown/app/
+// webexport.py): a document's Download ▾ → "HTML page, for a website
+// (.html)" and a deck's "Export selected to HTML", each clicked on its real
+// page (tests/decks_harness.py: the studio's own server, then Parseh's), and
+// the two files they give opened FROM DISK, as a student without Parseh
+// opens them, with every request the browser makes recorded:
+//   * nothing is asked of any server: the one request that leaves a file is
+//     the YouTube player the document embeds (answered here by a stand-in),
+//     which -- served from a website -- is told the site and no more, as
+//     YouTube demands; a link followed says nothing of where it was
+//   * the exercises answer and mark; the pictures and the maths are drawn;
+//     the recordings play, and a clip is cut to its stretch (ffmpeg here)
+//   * the Aa menu sizes the text and changes the theme, and a reload forgets
+//     both: nothing is written -- local and session storage, cookies,
+//     IndexedDB and the cache stay empty, whatever the page is asked to do
+//   * nothing of the studio's editing, nor of the Markdown, is on the page
+//   * the deck's page crams the picked exercises (and only those) to the end:
+//     a wrong one comes back, the tally and the lists, "Cram these again";
+//     and the deck itself is as it was, nothing scheduled
+//   * the foot says the page was exported from Parseh and links Parseh's
+//     GitHub page and its guide, each opening in a tab of its own while the
+//     page keeps its answers
+//   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/html_export.mjs
+//   EXPORT_MODES=studio (or parseh) runs only that one; SHOTS=<dir> also
+//   saves screenshots of the two files
+import {chromium} from 'npm:playwright-core@1.52.0';
+import {Buffer} from 'node:buffer';
+
+const root = await Deno.realPath(new URL('..', import.meta.url));
+const python = Deno.env.get('PARSEH_PYTHON') || 'python3';
+const modes = (Deno.env.get('EXPORT_MODES') || 'studio,parseh').split(',');
+const SHOTS = Deno.env.get('SHOTS') || '';
+// where the foot of every exported page points: the owner's own addresses
+const GITHUB = 'https://github.com/Addicted2BayesianEpistemology/Parseh';
+const GUIDE = 'https://addicted2bayesianepistemology.github.io/Parseh/';
+const FOOT = 'This page was exported from Parseh. Parseh on GitHub · Parseh’s guide';
+const YOUTUBE = 'https://www.youtube-nocookie.com/';
+// the starter's film on YouTube itself, from where its window begins
+const WATCH = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ&t=10s';
+// the Italian starter: an exercise of every kind, pictures, a recording and
+// a clip of it, a formula, a video, footnotes, sections, glosses
+const STARTER = await Deno.readTextFile(`${root}/markdown/exlex/starters/it.md`);
+const ASSETS = `${root}/markdown/exlex/starters/assets`;
+const BLOCKS = STARTER.match(/^:::exercise[^\n]*\n[\s\S]*?^:::[ \t]*$/gm);
+
+async function startHarness(mode) {
+  const proc = new Deno.Command(python, {args: [root + '/tests/decks_harness.py', mode], cwd: root,
+                                         stdout: 'piped', stderr: 'inherit'}).spawn();
+  const reader = proc.stdout.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = '', info = null;
+  while (!info) {
+    const {value, done} = await reader.read();
+    if (done) throw Error(`harness (${mode}) exited before READY:\n` + buf);
+    buf += value;
+    const m = buf.match(/READY (\{.*\})\n/);
+    if (m) info = JSON.parse(m[1]);
+  }
+  (async () => { for (;;) { const r = await reader.read(); if (r.done) break; } })();
+  return {proc, info};
+}
+
+/* A file opened from disk -- or, with `site`, off a website that serves it
+   -- in a context of its own that records every request and answers the
+   only addresses the page may send the browser to (YouTube's player, and
+   the two links of its foot) with a stand-in, so that nothing here needs
+   the network and anything else fails.  `heard` is what each stand-in was
+   asked, with the Referer it was asked with. */
+async function openFile(browser, file, options = {}, site = null) {
+  const ctx = await browser.newContext(options);
+  const requests = [], errors = [], heard = [];
+  ctx.on('request', r => { const u = r.url(); if (!/^(data|blob):/.test(u)) requests.push(u); });
+  await ctx.route(/^https?:/, async route => {
+    const u = route.request().url();
+    if (site && u.startsWith(site)) return route.continue();
+    if (u.startsWith(YOUTUBE) || [GITHUB, GUIDE, WATCH].includes(u)) {
+      heard.push({url: u, referer: (await route.request().allHeaders())['referer'] || null});
+      return route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><title>elsewhere</title>'});
+    }
+    return route.abort();
+  });
+  const page = await ctx.newPage();
+  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  // which recordings played, from the page's first moment
+  await page.addInitScript(() => {
+    window.__played = [];
+    document.addEventListener('play', e => window.__played.push(
+      {src: e.target.currentSrc || e.target.src, cut: e.target.dataset.cut === '1'}), true);
+  });
+  const url = site ? site + file.replace(/^.*\//, '') : 'file://' + file;
+  await page.goto(url);
+  return {ctx, page, url, requests, errors, heard};
+}
+
+/* The folder of `file`, served as a plain static website would serve it. */
+function website(file) {
+  const dir = file.replace(/\/[^/]*$/, '');
+  const server = Deno.serve({hostname: '127.0.0.1', port: 0, onListen() {}}, async req => {
+    const name = decodeURIComponent(new URL(req.url).pathname.slice(1));
+    try {
+      return new Response(await Deno.readFile(`${dir}/${name}`), {headers: {'Content-Type': 'text/html; charset=utf-8'}});
+    } catch (_) {
+      return new Response('not here', {status: 404});
+    }
+  });
+  return {server, site: `http://127.0.0.1:${server.addr.port}/`};
+}
+
+/* Waits until `fn(arg)` is true in the page.  Not page.waitForFunction: the
+   file's own Content-Security-Policy refuses the eval that polls with (no
+   'unsafe-eval'), as it should -- page.evaluate reaches the page from the
+   browser's side, which a page's rules do not govern. */
+async function until(page, fn, arg = null, timeout = 8000) {
+  const end = Date.now() + timeout;
+  while (!(await page.evaluate(fn, arg))) {
+    if (Date.now() > end) throw Error('timed out waiting for ' + String(fn).slice(0, 140));
+    await page.waitForTimeout(50);
+  }
+}
+
+// what the page could have kept, anywhere the browser keeps things
+const kept = page => page.evaluate(async () => {
+  let dbs = -1, cached = 0;
+  try { dbs = (await indexedDB.databases()).length; } catch (_) { dbs = 0; }
+  try { cached = self.caches ? (await caches.keys()).length : 0; } catch (_) { cached = 0; }
+  return {local: localStorage.length, session: sessionStorage.length, cookie: document.cookie,
+          indexedDB: dbs, caches: cached};
+});
+const NOTHING = {local: 0, session: 0, cookie: '', indexedDB: 0, caches: 0};
+
+/* The options of every choice exercise in `scope` that its answer holds,
+   clicked as a student clicks them (the answers are in the page, the
+   owner's choice): all of them, or -- `wrong` -- one that is not. */
+async function answerChoice(ex, wrong = false) {
+  const options = ex.locator(`.ex-option[data-correct="${wrong ? 0 : 1}"]`);
+  const n = wrong ? 1 : await options.count();
+  for (let i = 0; i < n; i++) await options.nth(i).click();
+}
+
+async function suite(browser, mode, tmp) {
+  const {proc, info} = await startHarness(mode);
+  const S = info.studio;                 // "" or "/studio"
+  const url = p => `http://127.0.0.1:${info.port}${p}`;
+  let passed = 0;
+  const assert = (v, m) => { if (!v) throw new Error(`FAIL (${mode}): ` + m); passed++; console.log('  ok', m); };
+  const eq = (got, want, m) => assert(JSON.stringify(got) === JSON.stringify(want),
+    m + (JSON.stringify(got) === JSON.stringify(want) ? '' : ': got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want)));
+  const studioErrors = [];
+  const watch = (page, name) => {
+    page.on('pageerror', e => studioErrors.push(`${name}: ${e.message}`));
+    page.on('console', m => {
+      if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) studioErrors.push(`${name} console: ${m.text()}`);
+    });
+  };
+  const ctx = await browser.newContext();
+  const request = ctx.request;
+  try {
+    /* ---------------- the document: Download ▾ on its page ---------------- */
+    console.log(`the document's page (${mode}: studio at "${S || '/'}")`);
+    const made = await request.post(url(`${S}/api/docs`), {data: {markdown: STARTER}});
+    eq(made.status(), 201, 'the starter is made a document (its pictures and recording adopted)');
+    const doc = (await made.json()).meta;
+    const page = await ctx.newPage();
+    watch(page, 'doc');
+    await page.goto(url(`${S}/doc/${doc.id}`));
+    await page.click('details.dropdown > summary:text-is("Download ▾")');
+    const entries = await page.locator('details.dropdown[open] .menu a').evaluateAll(as => as.map(a => a.id || a.textContent.trim()));
+    eq(entries.slice(entries.indexOf('dl-pdf'), entries.indexOf('dl-pdf') + 2), ['dl-pdf', 'dl-html'],
+       'Download ▾ offers the page right under the PDF');
+    eq((await page.locator('#dl-html').textContent()).trim(), 'HTML page, for a website (.html)', 'and says what it is');
+    // the document as the studio holds it: its Markdown, its pictures, its recordings
+    const held = async () => Promise.all(['download/%s/md', 'api/docs/%s/images', 'api/docs/%s/audio']
+      .map(async p => (await request.get(url(`${S}/${p.replace('%s', doc.id)}`))).text()));
+    const before = await held();
+    const [download] = await Promise.all([page.waitForEvent('download'), page.click('#dl-html')]);
+    const docName = download.suggestedFilename();
+    eq(docName, doc.id.replace(/-[0-9a-f]{6}$/, '') + '.html', 'the file is named after the document');
+    const docPath = `${tmp}/${mode}-${docName}`;
+    await download.saveAs(docPath);
+    eq(await held(), before, 'the document is as it was');
+
+    /* ---------------- the deck: Export selected to HTML ---------------- */
+    console.log(`the deck's page (${mode})`);
+    const deck = (await (await request.post(url('/exercises/api/decks'), {data: {name: 'Esercizi di prova', lang: 'it'}})).json()).deck;
+    const api = `/exercises/api/decks/${deck.path}`;
+    for (const [kind, name, type] of [['images', 'starter-apple.svg', 'image/svg+xml'], ['images', 'starter-house.svg', 'image/svg+xml'],
+                                      ['audio', 'starter-chime.mp3', 'audio/mpeg']]) {
+      const r = await request.post(url(`${api}/${kind}?name=${name}`),
+                                   {data: Buffer.from(await Deno.readFile(`${ASSETS}/${kind}/${name}`)), headers: {'Content-Type': type}});
+      assert(r.ok(), `${name} uploaded to the deck`);
+    }
+    for (const markdown of BLOCKS) {
+      const r = await request.post(url(`${api}/items`), {data: {markdown}});
+      if (!r.ok()) throw Error(`FAIL (${mode}): an exercise of the starter was refused: ${await r.text()}`);
+    }
+    const listed = (await (await request.get(url(api))).json()).items;
+    eq(listed.length, BLOCKS.length, `the deck holds the starter's ${BLOCKS.length} exercises`);
+    const deckPage = await ctx.newPage();
+    watch(deckPage, 'deck');
+    await deckPage.goto(url(`/exercises/deck/${deck.path}/`));
+    await deckPage.waitForSelector('.dk-row');
+    const exportButton = deckPage.locator('#btn-export-html');
+    assert(await exportButton.isVisible() && await exportButton.isDisabled(), '“Export selected to HTML” is there, and idle while nothing is selected');
+    eq(await exportButton.evaluate(b => b.previousElementSibling && b.previousElementSibling.id), 'btn-cram', 'right beside Cram exercises');
+    // everything, by a click and a Shift-click, then two left out again
+    await deckPage.locator('.dk-row .dk-select').first().check();
+    await deckPage.locator('.dk-row .dk-select').last().click({modifiers: ['Shift']});
+    const left = [listed[1], listed[4]];
+    for (const it of left) await deckPage.locator(`.dk-row[data-id="${it.id}"] .dk-select`).uncheck();
+    const picked = listed.length - left.length;
+    eq(await deckPage.locator('#browse-selected').textContent(), `${picked} selected`, `${picked} selected`);
+    assert(await exportButton.isEnabled(), 'the button wakes with a selection');
+    const deckBefore = await (await request.get(url(api))).text();
+    const [deckDownload] = await Promise.all([deckPage.waitForEvent('download'), exportButton.click()]);
+    const deckName = deckDownload.suggestedFilename();
+    eq(deckName, `${deck.slug}.html`, 'the file is named after the deck');
+    await deckPage.waitForFunction(t => document.querySelector('#toast').textContent === t,
+                                   `${picked} exercises exported: ${deck.slug}.html`, {timeout: 8000})
+      .catch(async () => { throw Error(`FAIL (${mode}): the toast says “${await deckPage.locator('#toast').textContent()}”`); });
+    assert(true, 'the toast says how many went, and where');
+    assert(await exportButton.isEnabled() && (await exportButton.textContent()).trim() === 'Export selected to HTML',
+           'and the button is itself again');
+    const deckPath = `${tmp}/${mode}-${deckName}`;
+    await deckDownload.saveAs(deckPath);
+    eq(await (await request.get(url(api))).text(), deckBefore, 'the deck is as it was: nothing touched, nothing scheduled');
+
+    // the phone's layout of the same page has no such button
+    const phone = await browser.newContext();
+    try {
+      await phone.addInitScript(() => { try { localStorage.setItem('parseh_mode', 'mobile'); } catch (_) { /* none */ } });
+      const pp = await phone.newPage();
+      await pp.goto(url(`/exercises/deck/${deck.path}/`));
+      await pp.waitForFunction(() => document.documentElement.dataset.mode === 'mobile');
+      assert(!(await pp.locator('#btn-export-html').isVisible()), 'the mobile layout has no export (browser only)');
+    } finally {
+      await phone.close();
+    }
+    assert(studioErrors.length === 0, 'no errors on the studio pages' + (studioErrors.length ? ':\n    ' + studioErrors.join('\n    ') : ''));
+
+    /* ---------------- the document's file, from disk ---------------- */
+    console.log(`the document's file, from disk (${mode})`);
+    await documentFile(browser, docPath, {assert, eq, mode});
+
+    /* ---------------- the deck's file, from disk ---------------- */
+    console.log(`the deck's file, from disk (${mode})`);
+    await deckFile(browser, deckPath, {assert, eq, mode, picked, left});
+  } finally {
+    await ctx.close();
+    try { proc.kill('SIGTERM'); } catch (_) { /* already gone */ }
+    await proc.status;
+  }
+  console.log(`${mode}: ${passed} checks passed\n`);
+  return passed;
+}
+
+/* The foot, on either file: what it says, where it points, and that
+   following a link leaves the page -- and every answer on it -- alone.
+   `state()` is what the page must still show after. */
+async function footChecks(t, f, state) {
+  const {assert, eq} = t, {ctx, page} = f;
+  const foot = page.locator('footer.xp-foot');
+  eq(await foot.count(), 1, 'one foot');
+  await foot.scrollIntoViewIfNeeded();
+  assert(await foot.isVisible(), 'the foot is shown, below the page');
+  eq((await foot.innerText()).trim(), FOOT, 'it says the page was exported from Parseh');
+  eq(await foot.locator('a').evaluateAll(as => as.map(a => [a.href, a.target, a.rel, a.textContent])),
+     [[GITHUB, '_blank', 'noopener noreferrer', 'Parseh on GitHub'], [GUIDE, '_blank', 'noopener noreferrer', 'Parseh’s guide']],
+     'and links Parseh’s GitHub page and its guide, each into a tab of its own');
+  const before = await state(), at = page.url();
+  for (const [i, where] of [[0, GITHUB], [1, GUIDE]]) {
+    const [tab] = await Promise.all([ctx.waitForEvent('page'), foot.locator('a').nth(i).click()]);
+    await tab.waitForLoadState();
+    eq(tab.url(), where, `the link opens ${where} in a new tab`);
+    assert(await tab.evaluate(() => window.opener === null), 'which cannot reach back into the page');
+    await tab.close();
+  }
+  eq(page.url(), at, 'the page stays where it was');
+  eq(await state(), before, 'and keeps everything answered on it');
+}
+
+async function documentFile(browser, file, t) {
+  const {assert, eq, mode} = t;
+  const f = await openFile(browser, file);
+  const {page, requests, errors} = f;
+  try {
+    await until(page, () => document.querySelectorAll('#sheet .exercise').length > 0);
+    eq(await page.locator('#sheet .exercise').count(), BLOCKS.length, `all ${BLOCKS.length} exercises are on the page`);
+    eq(await page.locator('#sheet [contenteditable], #sheet textarea, .ex-edit, .ex-to-deck, .video-edit, .audio-edit').count(), 0,
+       'nothing on it edits');
+    eq(await page.locator('[data-tl-src], [data-src-line], [data-occ], [data-editor-preview]').count(), 0,
+       'and nothing on it leads back to the Markdown');
+
+    // what travels inside it: pictures, recordings, the maths
+    const images = await page.evaluate(() => Promise.all([...document.images].map(i =>
+      i.decode().then(() => [i.src.slice(0, 5), i.naturalWidth > 0], () => [i.src.slice(0, 5), false]))));
+    assert(images.length > 0 && images.every(([src, ok]) => src === 'data:' && ok), `its ${images.length} pictures are inside it, and drawn`);
+    await until(page, () => [...document.querySelectorAll('#sheet .math')].every(m => m.querySelector('svg')),
+                               null, 30000);
+    assert(await page.locator('#sheet .math').count() > 0, 'the formulas are drawn, by the MathJax inside it');
+    const audios = await page.evaluate(async () => {
+      const all = [...document.querySelectorAll('#sheet figure.audio audio')].filter(a => !a.closest('.exercise'));
+      await Promise.all(all.map(a => a.readyState >= 1 ? 0 : new Promise(r => a.addEventListener('loadedmetadata', r, {once: true}))));
+      return all.map(a => ({blob: a.src.startsWith('blob:'), cut: a.dataset.cut === '1', frag: a.dataset.frag || '',
+                            duration: a.duration, box: !!a.closest('figure').dataset.start}));
+    });
+    eq(audios.length, 2, 'the recording and its clip');
+    assert(audios.every(a => a.blob), 'both played from inside the file');
+    assert(Math.abs(audios[0].duration - 1.5) < 0.1 && !audios[0].cut, `the recording whole (${audios[0].duration.toFixed(2)} s)`);
+    // (the prose's two: an exercise's recordings are the exercises' own)
+    const clip = page.locator('#sheet figure.audio:not(.exercise *) audio').nth(1);
+    if (audios[1].cut) {
+      assert(Math.abs(audios[1].duration - 0.4) < 0.15 && !audios[1].box,
+             `the clip cut to its stretch by ffmpeg (${audios[1].duration.toFixed(2)} s of 1.5)`);
+    } else {
+      eq(audios[1].frag, '#t=0,0.4', 'no ffmpeg here: the clip plays its window of the whole');
+    }
+    // played the way a student plays it: the player's own ▶
+    const box = await clip.boundingBox();
+    await clip.click({position: {x: 18, y: box.height / 2}});
+    await until(page, () => window.__played.length > 0, null, 8000);
+    await until(page, () => { const a = [...document.querySelectorAll('#sheet figure.audio audio')].filter(x => !x.closest('.exercise'))[1]; return a.paused && a.currentTime > 0; },
+                               null, 8000);
+    const heard = await clip.evaluate(a => a.currentTime);
+    assert(heard > 0.2 && heard < 0.6, `▶ plays the clip, and it stops at its end (${heard.toFixed(2)} s)`);
+
+    // the exercises: every choice exercise answered right but one, then checked
+    const choice = page.locator('#sheet .exercise[data-primitive="choice"]');
+    const nChoice = await choice.count();
+    const wrongAt = await page.evaluate(() => [...document.querySelectorAll('#sheet .exercise[data-primitive="choice"]')]
+      .findIndex(e => e.dataset.subtype === 'single-choice'));
+    for (let i = 0; i < nChoice; i++) await answerChoice(choice.nth(i), i === wrongAt);
+    await page.click('.ex-correct-all');
+    const marks = await page.evaluate(() => [...document.querySelectorAll('#sheet .exercise')].map(e =>
+      [e.dataset.primitive, e.dataset.subtype, e.classList.contains('correct') ? 'right' : e.classList.contains('incorrect') ? 'wrong' : '-']));
+    const choiceMarks = marks.filter(m => m[0] === 'choice').map(m => m[2]);
+    eq(choiceMarks, choiceMarks.map((_, i) => i === wrongAt ? 'wrong' : 'right'),
+       `Check exercises marks the ${nChoice - 1} right answers right and the wrong one wrong`);
+    eq(marks.filter(m => ['fill-blanks', 'match-translations'].includes(m[1])).map(m => m[2]), ['wrong', 'wrong'],
+       'and an exercise nobody answered wrong');
+    const score = await page.locator('.ex-score').textContent();
+    const scored = await page.locator('#sheet .exercise[data-scored="1"]').count();
+    eq(score, `${marks.filter(m => m[2] === 'right').length} / ${scored} correct`, `the score: “${score}”`);
+    assert(await page.locator('#sheet .exercise[data-primitive="choice"]').nth(wrongAt).locator('.ex-option.answer-wrong').count() === 1,
+           'the wrong option is shown wrong');
+    // the transliterations switch works, and writes nowhere
+    await page.locator('.ex-translit-switch').first().click();
+    assert(await page.evaluate(() => document.body.classList.contains('ex-hide-transliteration')), 'Hide transliterations hides them');
+    // a flashcard, turned as a student turns it, and the 🔊 on its back
+    const playedBefore = await page.evaluate(() => window.__played.length);
+    const card = page.locator('#sheet .ex-flashcard', {has: page.locator('.ex-card-play')}).first();
+    await card.locator('.ex-card-hint').click();
+    assert(await card.evaluate(c => c.classList.contains('flipped')), 'a flashcard turns');
+    await card.locator('.ex-card-play').click();
+    await until(page, n => window.__played.length > n, playedBefore, 8000);
+    assert(await page.evaluate(() => window.__played.every(p => p.src.startsWith('blob:'))), 'a flashcard’s recording plays from inside the file too');
+
+    // ⤢ Enlarge: the card large, and Esc puts it away
+    await page.locator('#sheet .ex-card-zoom').first().click();
+    assert(await page.locator('.ex-zoom-overlay').isVisible(), '⤢ Enlarge opens a flashcard large');
+    await page.keyboard.press('Escape');
+    eq(await page.locator('.ex-zoom-overlay').count(), 0, 'and Esc puts it away');
+    // a footnote, its cloud on a hover
+    const note = page.locator('#sheet p .fn').first();
+    await note.hover();
+    assert(await note.locator('.fncloud').isVisible(), 'a footnote shows its cloud on a hover');
+    await page.mouse.move(0, 0);
+
+    // the contents and the glosses
+    await page.click('.xp-contents > summary');
+    await page.locator('.xp-contents a', {hasText: 'Exercises'}).first().click();
+    const hash = await page.evaluate(() => location.hash);
+    assert(hash && await page.evaluate(h => !!document.getElementById(decodeURIComponent(h.slice(1))), hash),
+           `the contents jump within the page (${hash})`);
+    await page.click('.xp-glosses > summary');
+    const rows = await page.locator('.xp-glosses tbody tr').count();
+    await page.fill('.xp-gl-filter', 'mela');
+    const shown = await page.locator('.xp-glosses tbody tr:not([hidden])').count();
+    assert(rows > 1 && shown >= 1 && shown < rows, `the glosses filter (${shown} of ${rows} for “mela”)`);
+    await page.click('.xp-glosses > summary');
+
+    // the Aa menu: the text's size, and the theme
+    const sizeOf = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#sheet p')).fontSize));
+    const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const size0 = await sizeOf(), paper = await bg();
+    await page.click('.xp-aa > summary');
+    assert(await page.locator('.xp-aa-menu').isVisible(), 'Aa opens its menu');
+    await page.locator('#xp-size').focus();
+    for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowRight');
+    eq(await page.locator('#xp-size-out').textContent(), '129%', 'the slider says the new size');
+    const size1 = await sizeOf();
+    assert(Math.abs(size1 / size0 - 22 / 17) < 0.02, `and the text is that much bigger (${size0}px → ${size1}px)`);
+    await page.selectOption('#xp-theme', 'sepia');
+    const sepia = await bg();
+    eq(await page.evaluate(() => document.body.dataset.theme), 'sepia', 'Sepia');
+    await page.selectOption('#xp-theme', 'dark');
+    const dark = await bg();
+    eq(await page.evaluate(() => document.body.dataset.theme), 'dark', 'Dark');
+    assert(new Set([paper, sepia, dark]).size === 3, `three papers (${paper}, ${sepia}, ${dark})`);
+    await page.keyboard.press('Escape');
+    assert(!(await page.locator('.xp-aa').evaluate(d => d.open)), 'Escape shuts the menu');
+    if (SHOTS) await page.screenshot({path: `${SHOTS}/${mode}-document-dark.png`});
+
+    // opened from the disk, YouTube will not play its player (it names no
+    // site): a line under the video says so, and opens it on YouTube
+    const line = page.locator('#sheet figure.video .xp-video-note');
+    eq(await line.count(), 1, 'from the disk, a line under the video');
+    eq(await line.innerText(), 'YouTube plays this video only when the page is on a website — watch it on YouTube',
+       'says it plays only on a website');
+    eq(await line.locator('a').evaluate(a => [a.href, a.target, a.rel]), [WATCH, '_blank', 'noopener noreferrer'],
+       'and links the video on YouTube, from where its window begins');
+    const [film] = await Promise.all([f.ctx.waitForEvent('page'), line.locator('a').click()]);
+    await film.waitForLoadState();
+    eq(film.url(), WATCH, 'which opens in a tab of its own');
+    await film.close();
+
+    // the foot, with the answers in place
+    await footChecks(t, f, () => page.evaluate(() => [
+      document.querySelector('.ex-score').textContent,
+      [...document.querySelectorAll('#sheet .exercise')].map(e => e.className).join(' | '),
+      [...document.querySelectorAll('#sheet .ex-option.selected')].length, document.body.dataset.theme]));
+
+    // on paper: the sheet and its foot, whose links print their addresses
+    await page.emulateMedia({media: 'print'});
+    eq(await page.evaluate(() => ['.xp-bar', '.xp-contents', '.xp-glosses'].map(s => getComputedStyle(document.querySelector(s)).display)),
+       ['none', 'none', 'none'], 'printed, the bar and the panels are left off');
+    eq(await page.evaluate(() => [...document.querySelectorAll('.xp-foot a')].map(a => getComputedStyle(a, '::after').content)),
+       [`" (${GITHUB})"`, `" (${GUIDE})"`], 'and the links of the foot print with their addresses');
+    await page.emulateMedia({media: 'screen'});
+
+    // nothing asked of any server but YouTube's player; nothing kept
+    await page.locator('iframe').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    eq(await page.locator(`iframe[src^="${YOUTUBE}embed/"]`).count(), 1, 'the video is YouTube’s own player, as the owner chose');
+    const away = requests.filter(u => u.split('#')[0] !== f.url && !u.startsWith(YOUTUBE) && ![GITHUB, GUIDE, WATCH].includes(u));
+    eq(away, [], 'nothing requested but the file itself and the YouTube player');
+    eq(await kept(page), NOTHING, 'nothing written anywhere: storage, cookies, IndexedDB, the cache');
+    // and a reload is a fresh page: the choices and the answers gone
+    await page.reload();
+    await until(page, () => document.querySelectorAll('#sheet .exercise').length > 0);
+    eq(await page.evaluate(() => [document.body.dataset.theme || 'paper', document.querySelector('#xp-size').value,
+                                  document.querySelector('#xp-size-out').textContent,
+                                  document.querySelectorAll('#sheet .exercise.correct, #sheet .exercise.incorrect').length,
+                                  document.body.classList.contains('ex-hide-transliteration')]),
+       ['paper', '17', '100%', 0, false], 'a reload forgets the size, the theme, the answers and the switch');
+    assert(errors.length === 0, 'no page errors, no console errors (none refused by its own rules)' +
+           (errors.length ? ':\n    ' + errors.join('\n    ') : ''));
+  } finally {
+    await f.ctx.close();
+  }
+  // a reader whose system is dark gets it dark
+  const d = await openFile(browser, file, {colorScheme: 'dark'});
+  try {
+    await until(d.page, () => document.querySelectorAll('#sheet .exercise').length > 0);
+    eq(await d.page.evaluate(() => [document.body.dataset.theme, document.querySelector('#xp-theme').value]), ['dark', 'dark'],
+       'on a dark system the page is dark, and Aa says so');
+  } finally {
+    await d.ctx.close();
+  }
+  // on a website: YouTube plays nothing for a player that does not say
+  // where it is embedded ("Video player configuration error"), so the player
+  // alone is told the site -- its address, and nothing of the page's path --
+  // while a link followed says nothing of where it was followed from
+  const {server, site} = website(file);
+  const w = await openFile(browser, file, {}, site);
+  try {
+    await until(w.page, () => document.querySelectorAll('#sheet .exercise').length > 0);
+    await w.page.locator('iframe').scrollIntoViewIfNeeded();
+    for (let i = 0; i < 160 && !w.heard.some(h => h.url.startsWith(YOUTUBE)); i++) await w.page.waitForTimeout(50);
+    eq(w.heard.filter(h => h.url.startsWith(YOUTUBE)).map(h => h.referer), [site],
+       `served from a website, the YouTube player is told the site (${site}) and no more`);
+    eq(await w.page.locator('.xp-video-note').count(), 0, 'and there the player plays: no line under it');
+    const [tab] = await Promise.all([w.ctx.waitForEvent('page'), w.page.locator('footer.xp-foot a').first().click()]);
+    await tab.waitForLoadState();
+    eq(w.heard.filter(h => h.url === GITHUB).map(h => h.referer), [null], 'a link of its foot, followed, does not say where from');
+    eq(w.requests.filter(u => u !== w.url && !u.startsWith(YOUTUBE) && u !== GITHUB), [], 'and the page asks the site for nothing but itself');
+    assert(w.errors.length === 0, 'no errors on the website either' + (w.errors.length ? ':\n    ' + w.errors.join('\n    ') : ''));
+  } finally {
+    await w.ctx.close();
+    await server.shutdown();
+  }
+}
+
+async function deckFile(browser, file, t) {
+  const {assert, eq, mode, picked, left} = t;
+  const f = await openFile(browser, file);
+  const {page, requests, errors} = f;
+  try {
+    await page.waitForSelector('#cram-stage .exercise');
+    const cards = await page.evaluate(() => JSON.parse(document.querySelector('#parseh-cards').textContent));
+    eq(cards.length, picked, `the ${picked} picked exercises, and only those`);
+    const excerpts = new Set(cards.map(c => c.item.excerpt));
+    assert(left.every(it => !excerpts.has(it.excerpt)), 'the two left out are not in it');
+    eq(await page.locator('#cram-progress').textContent(), `1 of ${picked}`, `“1 of ${picked}”`);
+    eq(await page.locator('.dk-cram-note').textContent(),
+       'The exercises come in random order. A wrong answer comes back at the end. Nothing you do here is saved or sent anywhere.',
+       'the page says what it does');
+
+    // the whole cram: a choice exercise answered right, any other checked as
+    // it stands (wrong, as a rule: it comes back) and skipped when it does;
+    // the first flashcard graded Wrong, the rest Correct
+    const times = new Map(), first = new Map(), wrongOnce = new Set(), skipped = new Set();
+    let flashes = 0, solutions = 0, pictures = 0, steps = 0;
+    for (; steps < 120; steps++) {
+      const st = await page.evaluate(() => {
+        const q = s => document.querySelector(s), vis = s => !!q(s) && !q(s).hidden;
+        const ex = q('#cram-stage .exercise');
+        const txt = s => (((ex && ex.querySelector(s)) || {}).textContent || '').trim();
+        return {done: vis('#cram-done'), progress: q('#cram-progress').textContent,
+                key: ex ? [ex.dataset.subtype, txt('.ex-kicker'), txt('.ex-prompt'), txt('.ex-card-front')].join('|') : '',
+                primitive: ex ? ex.dataset.primitive : '', check: vis('#cram-check'), show: vis('#cram-show'), next: vis('#cram-next')};
+      });
+      if (st.done) break;
+      const drawn = await page.evaluate(() => Promise.all([...document.querySelectorAll('#cram-stage img')].map(i =>
+        i.decode().then(() => i.src.startsWith('data:') && i.naturalWidth > 0, () => false))));
+      if (drawn.includes(false)) throw Error(`FAIL (${mode}): a picture not drawn in “${st.key}”`);
+      pictures += drawn.length;
+      const n = (times.get(st.key) || 0) + 1;
+      times.set(st.key, n);
+      if (st.check) {
+        if (n > 1) { skipped.add(st.key); await page.click('#cram-skip'); continue; }
+        if (st.primitive === 'choice') await answerChoice(page.locator('#cram-stage .exercise'));
+        await page.click('#cram-check');
+        const said = await page.locator('#cram-result').textContent();
+        if (st.primitive === 'choice' && said !== 'Correct') throw Error(`FAIL (${mode}): “${st.key}” answered right, marked “${said}”`);
+        first.set(st.key, said === 'Correct');
+        if (said !== 'Correct') {
+          wrongOnce.add(st.key);
+          if (['matching', 'placement'].includes(st.primitive) && await page.locator('#cram-solution:not([hidden]) .exercise').count()) solutions++;
+        }
+        await page.click('#cram-next');
+      } else if (st.show) {
+        await page.click('#cram-show');
+        await page.waitForSelector('#cram-stage .ex-flashcard.flipped');
+        const wrong = n === 1 && flashes++ === 0;
+        await page.click(wrong ? '#cram-wrong' : '#cram-correct');
+        if (n === 1) first.set(st.key, !wrong);
+        if (wrong) wrongOnce.add(st.key);
+      } else if (st.next) {
+        skipped.add(st.key);
+        await page.click('#cram-next');
+      } else {
+        throw Error(`FAIL (${mode}): no way on from “${st.key}”`);
+      }
+    }
+    eq(times.size, picked, `every picked exercise came up (${picked}), in ${steps} steps`);
+    assert(wrongOnce.size > 1 && [...wrongOnce].every(k => times.get(k) === 2), 'every wrong one came back, once');
+    assert(solutions > 0, 'a wrong matching or placement exercise shows its correct answer');
+    assert(pictures > 0, `the pictures are inside it, and drawn (${pictures} seen)`);
+    const played = await page.evaluate(() => window.__played);
+    assert(played.length > 0 && played.every(p => p.src.startsWith('blob:')), `the flashcards' recordings play, from inside the file (${played.length})`);
+    const right = [...first.values()].filter(Boolean).length;
+    const parts = [];
+    if (right) parts.push(`${right} right the first time`);
+    if (wrongOnce.size) parts.push(`${wrongOnce.size} wrong at least once`);
+    if (skipped.size) parts.push(`${skipped.size} skipped`);
+    eq(await page.locator('#cram-tally').textContent(), `${picked} exercises: ${parts.join(', ')}.`, 'Practice complete, and the tally');
+    eq(await page.locator('#cram-wrong-list li').count(), wrongOnce.size, 'the wrong ones listed');
+    eq(await page.locator('#cram-skipped-list li').count(), skipped.size, 'the skipped ones listed');
+    await page.locator('#cram-wrong-list .dk-cram-item').first().click();
+    assert(await page.locator('#cram-wrong-list .dk-cram-solved:not([hidden]) .exercise').count() === 1, 'one of them opens solved');
+    if (SHOTS) await page.screenshot({path: `${SHOTS}/${mode}-deck-done.png`, fullPage: true});
+
+    // the foot, with the end of the cram in place
+    await footChecks(t, f, () => page.evaluate(() => [document.querySelector('#cram-tally').textContent,
+                                                      document.querySelectorAll('.dk-cram-solved:not([hidden])').length]));
+
+    // Cram these again: the wrong ones alone, and Shuffle and repeat after
+    await page.locator('#cram-wrong-list [data-x="again"]').click();
+    eq(await page.locator('#cram-progress').textContent(), `1 of ${wrongOnce.size}`, `“Cram these again” crams the ${wrongOnce.size} wrong ones`);
+    for (let i = 0; i < 60 && !(await page.locator('#cram-done').isVisible()); i++)
+      await page.click(await page.locator('#cram-skip').isVisible() ? '#cram-skip' : '#cram-next');
+    await page.click('#cram-again');
+    eq(await page.locator('#cram-progress').textContent(), `1 of ${wrongOnce.size}`, '“Shuffle and repeat” crams them again');
+
+    eq(requests.filter(u => u.split('#')[0] !== f.url && u !== GITHUB && u !== GUIDE), [], 'nothing requested but the file itself');
+    eq(await kept(page), NOTHING, 'nothing written anywhere: storage, cookies, IndexedDB, the cache');
+    assert(errors.length === 0, 'no page errors, no console errors' + (errors.length ? ':\n    ' + errors.join('\n    ') : ''));
+  } finally {
+    await f.ctx.close();
+  }
+}
+
+const tmp = await Deno.makeTempDir({prefix: 'parseh-html-export-'});
+const browser = await chromium.launch({executablePath: Deno.env.get('CHROME_BIN'), headless: true});
+try {
+  let total = 0;
+  for (const mode of modes) total += await suite(browser, mode, tmp);
+  console.log(`HTML export passed (${modes.join(' + ')}: ${total} checks)`);
+} finally {
+  await browser.close();
+  await Deno.remove(tmp, {recursive: true}).catch(() => {});
+}

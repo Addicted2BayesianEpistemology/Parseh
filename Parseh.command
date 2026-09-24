@@ -25,4 +25,14 @@ if [ -z "$PARSEH_PREFIX" ]; then
   fi
 fi
 ./serve.sh || { echo "Press Return to close."; read -r _; exit 1; }
-open "https://localhost:8765/"
+# The port Parseh is on is the one its Settings > Network page keeps, which a
+# change there moves at once -- so it is read rather than written down here.
+PORT=$("$PARSEH_PY" -c 'import json
+try:
+    with open("config/network.json", encoding="utf-8") as f:
+        p = int(json.load(f).get("port") or 0)
+except Exception:
+    p = 0
+print(p if 1024 <= p <= 65535 else 7654)' 2>/dev/null) || PORT=7654
+[ -n "$PORT" ] || PORT=7654
+open "https://localhost:$PORT/"

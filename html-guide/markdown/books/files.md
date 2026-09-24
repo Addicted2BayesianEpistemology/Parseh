@@ -1,8 +1,8 @@
 ---
 title: What a book is made of
 linkTitle: The files of a book
-weight: 14
-description: book.json, a chapter .tex argument by argument, the chunk macros and the vocabulary line, the source paragraphs, reading.json and the draft flag — for reading or writing the files directly.
+weight: 15
+description: book.json, a chapter .tex argument by argument, the chunk macros and the vocabulary line, the source paragraphs, reading.json and a chunk with no gloss yet — for reading or writing the files directly.
 ---
 
 Everything the pages do, they do to a handful of plain files. You never
@@ -41,7 +41,6 @@ The book's facts, one JSON object:
 | `main` | the file that includes the chapters |
 | `audio`, `transcript` | the recording and its transcript, for a book with one; `null` for none |
 | `narrations` | a book recorded in parts: one record per recording — its id, file, transcript, and the first and last subparagraph it covers, each named with its chapter (`"from": "2:1.1"`, `"to": "2:5.3"`; a bare `"1.1"`, as older books have it, means the first `1.1` of the book for a start, and for an end the first at or after the start) |
-| `draft` | `true` while the book is being written ([Adding a book](doc:Adding a book)) |
 | `reorders` | `true` for a text read out of its written order (kanbun): **book info**'s **order** checkbox |
 
 ## A chapter, argument by argument
@@ -100,7 +99,7 @@ build stops with an error naming neither the chapter nor the chunk.
 | `\chr{col}{text}{kana}{tr}{voc}{meaning}` | 6 | a chunk with a reading: Japanese |
 | `\chw{col}{text}{tr}{voc}{meaning}{words}` | 6 | the ordinary chunk with its word line: Chinese |
 | `\chrw{col}{text}{kana}{tr}{voc}{meaning}{words}` | 7 | the Japanese chunk with its word line |
-| `\chp{col}{text}` | 2 | a chunk that needs no gloss |
+| `\chp{col}{text}` | 2 | a chunk with no gloss slots at all — below |
 
 **The number of groups is in the name** and is never guessed: the reader and
 the PDF cut a call into the same pieces, so one group too few or too many
@@ -109,6 +108,12 @@ breaks both. The **first** group is the colour — `\Cred`, `\Cblue`,
 group every check against the source reads. The **word line** is the words
 parted by spaces, each followed by its reading in brackets:
 `山(やま) へ 柴刈り(しばかり) に 、`.
+
+`\chp` is not how a chunk nobody has glossed yet is written: that is an
+ordinary chunk with its gloss slots empty (below). A `\chp` is a run the
+edition means never to gloss, and no page writes one — it is written in the
+chapter file itself, by hand or by whoever wrote the chapter. It can be cut
+in two and joined to another `\chp`, but not to a chunk with gloss slots.
 
 **The vocabulary line** is LaTeX, and only this much of it: entries divided
 by `;`, the four gloss macros — `\dw{word}{sound} meaning`, `\pw{word}`,
@@ -168,11 +173,22 @@ reader, kept beside the book, carried in its download:
 A paragraph is named *chapter:paragraph*, by the chapter file's number and
 the paragraph's place in it.
 
-## The draft flag
+## A chunk with no gloss yet
 
-`"draft": true` in `book.json` relaxes one rule: a chunk with nothing written
-in it at all is passed over instead of being an error. One field written
-makes it a chunk somebody is working on, and every field its language
-requires is required again. The library card and the reader show **draft**
-while it is there. When the last gloss is written, delete the line, and
-press **rebuild the reader** ([Adding a book](doc:Adding a book)).
+A chunk nobody has glossed is the ordinary macro with its gloss slots
+empty — `\ch{}{the text}{}{}{}` — and a Japanese or Chinese one keeps its
+word line (`\chrw`, `\chw`), its reading still the one proposed from its
+words. It is legal in every book, at every stage: the checker counts such
+chunks, once per paragraph (*3 of 12 chunks have no gloss yet*), and asks
+nothing else of them. A chunk **half** glossed — some of its gloss written,
+something its language requires still empty — is an error to the checker,
+though the chunk sheet saves one on the way to a whole gloss
+([Writing a chunk](doc:Writing a chunk)).
+
+**delete gloss** in the chunk sheet writes the same macro, the text, colour
+and word line kept and every gloss slot emptied — in Japanese and Chinese
+the reading too, so the proposal is not put back: a deleted
+`\chrw{}{山へ…}{}{}{}{}{山(やま) へ …}` has an empty reading slot where a
+drafted one has `{やまへ…}`. It is still a chunk with no gloss, counted and
+asked nothing like any other. An older book's `book.json` may still say
+`"draft": true`; nothing reads it.

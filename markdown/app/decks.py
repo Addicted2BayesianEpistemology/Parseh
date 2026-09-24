@@ -63,9 +63,22 @@ ITEM_RE = re.compile(r"^[0-9a-f]{12}$")
 
 MAX_MARKDOWN = 64 * 1024            # one exercise, and its footnotes
 MAX_NAME = 200
-MAX_ENTRIES = 20000                 # import limits
+
+# WHAT PARSEH WRITES, PARSEH READS BACK.  These are the import's ceilings,
+# and they used to be 20 000 entries and 512 MB while the Backup button had
+# no ceiling at all: a shelf of some ten thousand studied exercises -- with
+# their pictures, their recordings and a schedule file each -- made a backup
+# this refused, and the one thing a backup must never be is unreadable.  They
+# are now far above anything a shelf of one person's making reaches, and the
+# per-entry defences below (MAX_JSON, a picture's, a recording's) are
+# untouched: they are what stops a crafted zip, and no honest entry comes
+# near them.  A backup that passes BACKUP_WARN_* says so as it is written
+# (backup_zip), long before either of these is in sight.
+MAX_ENTRIES = 400000                # import limits
 MAX_JSON = 1024 * 1024
-MAX_TOTAL = 512 * 1024 * 1024
+MAX_TOTAL = 16 * 1024 * 1024 * 1024
+BACKUP_WARN_ENTRIES = 20000         # "this is getting large", not a refusal
+BACKUP_WARN_BYTES = 512 * 1024 * 1024
 
 # the same control characters store strips on every ingest: \x00 and \x01
 # are htmlgen's internal sentinels and would break the renderer
@@ -1579,7 +1592,7 @@ def next_card(folder, slug, now=None, skip=None):
     return out
 
 
-def review(folder, slug, item_id, rating, result=None, now=None, reps=None):
+def review(folder, slug, item_id, rating, result=None, now=None, reps=None, by=None):
     """Schedule an answer: `rating` one of srs.RATINGS, `result` whether a
     scored exercise was right (None for a flashcard).
 
@@ -1589,6 +1602,11 @@ def review(folder, slug, item_id, rating, result=None, now=None, reps=None):
     scheduled a second time, a review card's interval would be multiplied
     again, far past the label the learner pressed."""
     now = _clock(now)
+    # A DECK THAT IS OUT IS NOT STUDIED HERE (§19.10): the phone holding it is
+    # the only place it is answered, and `by` is that phone replaying what it
+    # answered while it was away.
+    if by is None:
+        studying_here(folder, slug)
     if not isinstance(rating, str) or rating not in srs.RATINGS:
         raise DeckError("rating must be one of %s" % ", ".join(srs.RATINGS))
     if result is not None and not isinstance(result, bool):
@@ -1610,6 +1628,190 @@ def review(folder, slug, item_id, rating, result=None, now=None, reps=None):
         sched = {"state": state, "history": history}
         _write_json(d / "schedule" / (item["id"] + ".json"), sched)
         return _item_summary(item, sched, _deck_language(d).code)
+
+
+# ---------------------------------------------------------------- checked out
+# STUDYING OFFLINE IS A CHECK-OUT (TO-DO §19.10, the owner's choice of
+# 2026-09-22).  A phone that wants to study a deck on a train TAKES IT OUT:
+# the deck goes with it, and the computer will not study or edit that deck
+# until it comes back.  Nothing is merged and nothing can be lost to a
+# conflict, because while it is out there is only one place it is answered.
+#
+#   * the phone sends every answer as soon as it can reach the computer, but
+#     KEEPS THE DECK until "Give it back" -- so it can be studied day after
+#     day away from the desk without checking it out again;
+#   * the computer may still CRAM it: cramming never schedules (§18);
+#   * "Take it back" is for a phone that will not come back (lost, broken,
+#     left behind).  After it, that phone's answers are REFUSED and LISTED
+#     rather than applied -- the owner chose that: once taken back, the
+#     computer is the only truth, and nothing is applied behind the learner's
+#     back.  Nothing is dropped in silence either: what was refused is kept
+#     here and shown on the deck's page.
+#
+# WHY THERE IS NO JAVASCRIPT SCHEDULER.  The alternative that queued answers
+# without ownership (§19.10 b) needed a port of srs.py on the phone, held
+# equal to the Python by shared cases.  A check-out does not: the phone is
+# handed the whole queue RENDERED, with the four interval labels the computer
+# worked out (srs.preview, through /next), and every answer is replayed here,
+# in the order it was given, through the very scheduler the computer always
+# used.  One scheduler, no drift.
+CHECKOUT = "checkout.json"
+
+
+def _checkout_path(d):
+    return d / CHECKOUT
+
+
+def checkout_of(folder, slug):
+    """Who has this deck out, or None.  Also the answers refused since (a
+    phone that came back after "Take it back")."""
+    d = deck_dir(folder, slug)
+    _need_deck(d)
+    rec = _read_json(_checkout_path(d))
+    if not isinstance(rec, dict):
+        return None
+    out = {"device": str(rec.get("device") or ""), "id": str(rec.get("id") or ""),
+           "since": str(rec.get("since") or ""), "out": bool(rec.get("out")),
+           "refused": rec.get("refused") if isinstance(rec.get("refused"), list) else []}
+    return out
+
+
+def _write_checkout(d, rec):
+    if rec is None:
+        try:
+            _checkout_path(d).unlink()
+        except OSError:
+            pass
+        return None
+    _write_json(_checkout_path(d), rec)
+    return rec
+
+
+def checkout(folder, slug, device, device_id, now=None):
+    """The phone takes the deck out.  Already out to ANOTHER device: refused,
+    saying which -- two phones studying one deck is the conflict this whole
+    arrangement exists to avoid."""
+    device = _clean_name(str(device or "a phone"))[:60]
+    device_id = str(device_id or "").strip()[:64]
+    if not device_id:
+        raise DeckError("a device that takes a deck out has to say which it is")
+    d = deck_dir(folder, slug)
+    with _lock(d):
+        _need_deck(d)
+        rec = _read_json(_checkout_path(d)) or {}
+        if rec.get("out") and str(rec.get("id")) != device_id:
+            raise Conflict("this deck is already out on %s — take it back there, or on the "
+                           "computer, before taking it here" % (rec.get("device") or "another device"),
+                           "checked-out")
+        rec.update(out=True, device=device, id=device_id, since=_stamp(_clock(now)))
+        rec.setdefault("refused", [])
+        _write_checkout(d, rec)
+        return checkout_of(folder, slug)
+
+
+def give_back(folder, slug, device_id):
+    """The phone hands the deck back.  A phone that is not the one holding it
+    is told so rather than freeing somebody else's deck."""
+    d = deck_dir(folder, slug)
+    with _lock(d):
+        _need_deck(d)
+        rec = _read_json(_checkout_path(d)) or {}
+        if not rec.get("out"):
+            return None
+        if str(rec.get("id")) != str(device_id or ""):
+            raise Conflict("this deck is out on %s, not on this device"
+                           % (rec.get("device") or "another device"), "checked-out")
+        rec["out"] = False
+        rec["returned"] = _stamp(_clock())
+        _write_checkout(d, rec)
+        return checkout_of(folder, slug)
+
+
+def take_back(folder, slug, now=None):
+    """The computer takes the deck back from a phone that will not come back.
+    That phone's later answers are refused; the deck is the computer's."""
+    d = deck_dir(folder, slug)
+    with _lock(d):
+        _need_deck(d)
+        rec = _read_json(_checkout_path(d)) or {}
+        if not rec.get("out"):
+            return None
+        rec["out"] = False
+        rec["taken_back"] = _stamp(_clock(now))
+        # the device that had it: its answers are refused from now on
+        rec["refuse_id"] = str(rec.get("id") or "")
+        _write_checkout(d, rec)
+        return checkout_of(folder, slug)
+
+
+def studying_here(folder, slug):
+    """Raises when this computer may not study or edit the deck: it is out."""
+    rec = checkout_of(folder, slug)
+    if rec and rec.get("out"):
+        raise Conflict("this deck is on %s since %s — it can be crammed here, and studied "
+                       "again when it comes back (or when you take it back)"
+                       % (rec.get("device") or "a phone", (rec.get("since") or "")[:16]),
+                       "checked-out")
+
+
+def answers_from(folder, slug, device_id, answers):
+    """Replay what a phone answered while the deck was out -- in the order it
+    was answered, through the computer's own scheduler.
+
+    -> {"applied": n, "refused": [{"item", "rating", "at", "why"}]}.  A phone
+    whose deck was TAKEN BACK is refused whole, and what it sent is kept on
+    the deck so the learner sees what was lost (nothing in silence)."""
+    d = deck_dir(folder, slug)
+    _need_deck(d)
+    rec = _read_json(_checkout_path(d)) or {}
+    device_id = str(device_id or "")
+    if not isinstance(answers, list):
+        raise DeckError("answers must be a list")
+    rows = []
+    for a in answers:
+        if not isinstance(a, dict):
+            continue
+        rows.append({"item": str(a.get("item") or ""), "rating": str(a.get("rating") or ""),
+                     "result": a.get("result") if isinstance(a.get("result"), bool) else None,
+                     "at": str(a.get("at") or "")})
+    taken = rec.get("taken_back") and str(rec.get("refuse_id") or "") == device_id
+    if taken:
+        keep = (rec.get("refused") or []) + [dict(r, why="the deck was taken back on this "
+                                                  "computer before these arrived") for r in rows]
+        rec["refused"] = keep[-200:]
+        with _lock(d):
+            _write_checkout(d, rec)
+        return {"applied": 0, "refused": [dict(r, why="taken back") for r in rows],
+                "taken_back": True}
+    if not rec.get("out") or str(rec.get("id")) != device_id:
+        raise Conflict("this deck is not out on this device", "checked-out")
+    # in the order they were given: a card answered twice offline must be
+    # scheduled twice, in that order, or the second would multiply the first
+    rows.sort(key=lambda r: r["at"] or "")
+    applied, refused = 0, []
+    for r in rows:
+        when = _moment(r["at"]) if r["at"] else None
+        try:
+            review(folder, slug, r["item"], r["rating"], r["result"], now=when, by=device_id)
+            applied += 1
+        except DeckError as e:
+            refused.append(dict(r, why=str(e)))
+    if refused:
+        rec["refused"] = ((rec.get("refused") or []) + refused)[-200:]
+        with _lock(d):
+            _write_checkout(d, rec)
+    return {"applied": applied, "refused": refused}
+
+
+def forget_refused(folder, slug):
+    """The learner has read what could not be applied: the list goes."""
+    d = deck_dir(folder, slug)
+    with _lock(d):
+        _need_deck(d)
+        rec = _read_json(_checkout_path(d)) or {}
+        rec["refused"] = []
+        _write_checkout(d, rec)
+        return checkout_of(folder, slug)
 
 
 def hub_stats(now=None):
@@ -2017,8 +2219,17 @@ def import_zip(source, scheduling=True, mode="new"):
             "skipped": skipped, "scheduling": use_sched}
 
 
-def backup_zip():
+def backup_zip(warn=None):
     """Every deck on the shelf as one zip -> (bytes, filename).
+
+    `warn(sentence)`, when given, is called AS THE ZIP IS WRITTEN, once the
+    backup passes BACKUP_WARN_ENTRIES files or BACKUP_WARN_BYTES, and again
+    as it grows: a backup is a plain download started from a link, and the
+    only place the person is looking while it packs is the Working… list,
+    so that is where it says how large it is becoming (deckroutes.api_backup
+    puts the sentence there).  Nothing is refused: the import's ceilings are
+    far above this, and the warning is there so that a shelf growing towards
+    them is noticed years before it reaches them.
 
     NOT export_zip OF EACH DECK, and the two differences are the whole
     reason this exists.  An export is made to be GIVEN to somebody: it
@@ -2042,6 +2253,7 @@ def backup_zip():
     """
     buf = io.BytesIO()
     shelf, now = [], _clock()
+    files = raw = told = 0
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for folder, slug, d, meta in _shelf_decks():
             shelf.append({"folder": folder, "slug": slug,
@@ -2056,7 +2268,16 @@ def backup_zip():
                 # a recording is already compressed; deflating it again buys
                 # nothing and costs the whole file's worth of work
                 how = zipfile.ZIP_STORED if rel.startswith("audio/") else zipfile.ZIP_DEFLATED
-                zf.writestr(name, path.read_bytes(), how)
+                data = path.read_bytes()
+                zf.writestr(name, data, how)
+                files, raw = files + 1, raw + len(data)
+                # said once on crossing, then as it keeps growing: the
+                # figures are what is worth watching, not the crossing
+                if warn and (files > BACKUP_WARN_ENTRIES or raw > BACKUP_WARN_BYTES) \
+                        and (not told or files - told >= 500):
+                    told = files
+                    warn(store.big_backup_note(
+                        "The backup of the exercise shelf", files, raw))
         zf.writestr(SHELF_MANIFEST, _json_bytes({
             "format": SHELF_FORMAT, "software": "Parseh",
             "exported": _stamp(now), "decks": shelf}))

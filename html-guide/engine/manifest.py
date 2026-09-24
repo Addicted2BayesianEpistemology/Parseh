@@ -16,6 +16,7 @@ MODULE_FILES = ("lib/languages.py", "lib/languages.json",
 FONT_LICENCES = ("OFL.txt", "GUST-FONT-LICENSE.txt", "README.md")
 # what a compiled page loads at run time, copied into site/_parseh/
 RUNTIME_FILES = ("markdown/app/static/app.js", "markdown/app/static/app.css",
+                 "markdown/app/static/sheet.css",
                  "lib/mathjax.js", "lib/mathjax.css",
                  "lib/mathjax/tex-svg.js", "lib/mathjax/LICENSE",
                  "lib/mathjax/README.md") + tuple("lib/fonts/" + n for n in FONT_LICENCES)

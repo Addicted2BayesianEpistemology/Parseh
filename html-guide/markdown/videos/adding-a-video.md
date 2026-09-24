@@ -129,7 +129,7 @@ picked and puts a self-contained prompt on the clipboard. It holds:
   transliteration scheme, what never to gloss, how to cut it into phrases);
 - which language the meanings must be written in, on a line of its own
   under *This video* — with *not in English* after it when that language
-  is any other;
+  is any other — and the card's blurb asked for in the same language;
 - a worked example — four captions of a finished video already in the
   player and the answer they were given: of the same language when there is
   one, otherwise of the Persian reference video, introduced as such. With
@@ -168,8 +168,11 @@ What **Prepare** refuses, in its own words:
 
 Paste the model's whole reply into the answer box — or several replies, one
 under the other. The page reads the ```` ```json ```` blocks in it and
-merges them in order; with no block it tries the whole text as JSON. Then
-press **Check & add the video**.
+merges them in order, and a caption given again in a later block replaces
+the earlier one: that is how a correction lands. A fence with no `json` on
+it that holds words rather than JSON is prose, and is passed over; with no
+block at all the page tries the whole text as JSON. Then press **Check &
+add the video**.
 
 The answer is checked with the pipeline's own tools, **before anything is
 written**:
@@ -178,8 +181,11 @@ written**:
   its number or by its start time;
 - the phrases of each caption, joined back, reproduce the caption **letter
   for letter** — the one test that stops a model rewriting the video;
-- every phrase has the fields its language requires (the meaning; the
-  transliteration where the language wants one; the kana for Japanese);
+- every phrase the model glossed is glossed whole, with the fields its
+  language requires (the meaning; the transliteration where the language
+  wants one; the kana for Japanese) — half a gloss is refused. A phrase the
+  model left with **nothing** written in it is legal: it goes in blank, the
+  answer's notes count it, and you gloss it in the player;
 - Japanese and Chinese words, where given, join back into their phrase —
   and a phrase the model left without words is given the machine's
   division, to correct later in the player.
@@ -187,14 +193,18 @@ written**:
 Then the page writes the video into a hidden staging folder, runs
 `merge_parts.py` and `check_annotations.py` on it exactly as the pipeline
 does, and only if both pass moves it into `youtube/videos/<language>/<id>/`.
-A failure leaves the videos exactly as they were.
+A failure leaves the videos exactly as they were. The batches the answer
+was cut into are dropped in the staging folder once both tools have passed
+on what they built: the video reaches the shelf with `annotations.json` and
+nothing beside it to rebuild from ([A video's files](the-files.md#parts)).
 
-**When it is added** the page says so — *Added. 38 captions glossed in 2
-part files, 40 captions in all.* — says how many phrases had their words
-proposed by the machine, and links **Open the video →**. **What the
-pipeline said** holds the two tools' own output, and a line of **notes**
-lists anything worth a second look (a plain caption the model annotated
-anyway, which is ignored; the checker's warnings).
+**When it is added** the page says so — *Added. 38 captions glossed, 40
+captions in all.* — says how many phrases were left without a gloss, to
+fill in the player, and how many had their words proposed by the machine,
+and links **Open the video →**. **What the pipeline said** holds the two
+tools' own output, and a line of **notes** lists anything worth a second
+look (a plain caption the model annotated anyway, which is ignored; a
+correction taken from a later block; the checker's warnings).
 
 **When it is refused** nothing is written, the reason is said at the top,
 and **To fix, then paste again:** lists every caption that needs it:
@@ -202,14 +212,18 @@ and **To fix, then paste again:** lists every caption that needs it:
 ```text
 2 caption(s) missing from the answer: [14] 62s, [15] 66s
 caption [3] (start 12) appears twice in the answer
-segment 7 (start 30) chunk 1: missing 'tr'
-segment 9 (start 41): chunks do not reproduce the text
+caption [7] (start 30) chunk 1: missing 'tr'
+caption [9] (start 41): chunks do not reproduce the text
 ```
 
-Paste those lines to the model as they are: it answers with the corrected
-captions only, and that block goes under the first answer in the box.
-Everything is re-derived at each press, so an answer from an earlier session
-works as well as one from a minute ago.
+Every line names a caption the way the prompt did — its number in square
+brackets and its start — so the model can find it. Paste those lines to the
+model as they are: it answers with the corrected captions only, and that
+block goes under the first answer in the box, where a caption given again
+replaces the first one (the page says so in a note). A caption twice in the
+**same** block is still refused. Everything is re-derived at each press, so
+an answer from an earlier session works as well as one from a minute
+ago.
 
 **A video already in the player** is refused with the folder it is in and a
 checkbox beside the button: **replace the existing
@@ -246,10 +260,11 @@ Either way you can re-cut any phrase in the player
 
 **Start it empty** writes `video.json`, `transcript.txt` and
 `annotations.json`, with every transliteration, vocabulary line and meaning
-blank, says *Drafted.* with the counts, and opens the player on it. The
-video is marked a **draft**: the checker asks nothing of a phrase nobody has
-started, and only *says* where one is half written. See
-[Video info and drafts](video-info-and-drafts.md).
+blank, says *Drafted.* with the counts, and opens the player on it. A
+blank phrase is legal in any video, for as long as it stays blank: the
+checker counts such phrases and asks nothing else of them. Gloss them in the
+player, a phrase at a time or a run at a time by an LLM — see [A video still
+being glossed](video-info-and-drafts.md#drafts).
 
 On this road nothing is fetched from YouTube: the title is the one you type
 in the details, or the video's id, and the channel **Unknown channel** unless

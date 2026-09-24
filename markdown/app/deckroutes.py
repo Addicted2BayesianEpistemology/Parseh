@@ -27,10 +27,13 @@ import traceback
 from pathlib import Path
 
 import htmlgen          # first: it puts exlex/ (mdparser, texgen) and lib/ on sys.path
+import activity         # the Working… list, which a long download reports on
 import audiofile
 import decks
+import offline               # what a deck is made of, for a phone to keep (§19.3)
 import languages
 import store
+import webexport        # a deck's picked exercises as one HTML page (§9.7)
 
 HERE = Path(__file__).resolve().parent
 TEMPLATES = HERE / "templates"
@@ -127,9 +130,19 @@ MODE_SWITCH = (
 # (docs/mobile.md): the manifest, the icons, the bars' colour.  The same tags
 # lib/mobile.py's app_head writes (tests/test_mobile_pages.py holds the two
 # together), for the pages here, which are the studio's and do not import it.
+# The offline mark, set before any script of this page's own runs: the same
+# text lib/mobile.py keeps as AWAY_BOOT, and the reason for it is written
+# over it there.  A deck page, a study page and a cram page all read
+# `data-parseh-away` (static/decks.js, computerAway) and all of them are
+# reached by a thumb from a page that had already looked.
 APP_HEAD = (
+    '<script>/* the state the page before this one found: lib/keep.js, `noted` */\n'
+    'try{var a=JSON.parse(localStorage.getItem("parseh_away")||"null");\n'
+    'if(a&&a.away===true&&typeof a.at==="number"&&\n'
+    '   Date.now()/1000-a.at<=(typeof a.trusted==="number"?a.trusted:180))\n'
+    'document.documentElement.setAttribute("data-parseh-away","");}catch(e){}</script>\n'
     '<link rel="manifest" href="/manifest.webmanifest">\n'
-    '<link rel="apple-touch-icon" href="/lib/icons/apple-touch-icon.png">\n'
+    '<link rel="apple-touch-icon" sizes="180x180" href="/lib/icons/apple-touch-icon.png">\n'
     '<meta name="theme-color" content="#f3eff1" media="(prefers-color-scheme: light)">\n'
     '<meta name="theme-color" content="#171214" media="(prefers-color-scheme: dark)">\n'
     '<meta name="mobile-web-app-capable" content="yes">\n'
@@ -307,16 +320,93 @@ def api_decks_create(h):
 
 def api_deck_get(h, folder, slug):
     deck = decks.get_deck(folder, slug)
-    h.send_json({"ok": True, "deck": deck, "items": decks.list_items(folder, slug)})
+    h.send_json({"ok": True, "deck": deck, "items": decks.list_items(folder, slug),
+                 "checkout": decks.checkout_of(folder, slug)})
+
+
+# ------------------------------------------------------- checked out (§19.10)
+# A phone that studies on a train TAKES THE DECK OUT: while it is out the
+# computer may cram it and nothing else, and every answer made away is
+# replayed here through the computer's own scheduler when the phone can reach
+# it again.  The owner chose this over merging two schedules (TO-DO §19.10).
+def _here(folder, slug):
+    """Refuses while the deck is out: studying and editing wait for it."""
+    decks.studying_here(folder, slug)
+
+
+def api_checkout(h, folder, slug):
+    body = _obj(h)
+    rec = decks.checkout(folder, slug, body.get("device"), body.get("id"))
+    h.send_json({"ok": True, "checkout": rec,
+                 "pack": _study_pack(folder, slug)})
+
+
+def api_give_back(h, folder, slug):
+    body = _obj(h)
+    rec = decks.give_back(folder, slug, body.get("id"))
+    h.send_json({"ok": True, "checkout": rec})
+
+
+def api_take_back(h, folder, slug):
+    rec = decks.take_back(folder, slug)
+    h.send_json({"ok": True, "checkout": rec})
+
+
+def api_answers(h, folder, slug):
+    """What a phone answered while the deck was out, replayed in order."""
+    body = _obj(h)
+    out = decks.answers_from(folder, slug, body.get("id"), body.get("answers"))
+    h.send_json(dict(out, ok=True, checkout=decks.checkout_of(folder, slug)))
+
+
+def api_forget_refused(h, folder, slug):
+    h.send_json({"ok": True, "checkout": decks.forget_refused(folder, slug)})
+
+
+def _study_pack(folder, slug, cap=200):
+    """EVERYTHING THE PHONE NEEDS TO STUDY THIS DECK AWAY FROM THE COMPUTER:
+    the cards that are due, in the order the computer would give them,
+    rendered as the learner sees them, each with the four interval labels the
+    computer worked out (srs.preview, through next_card).
+
+    That is why there is no scheduler on the phone: it shows what the computer
+    said, records what was answered, and the computer schedules it for real
+    when the answers come home (decks.answers_from)."""
+    cards, skip = [], []
+    for _ in range(cap):
+        card = decks.next_card(folder, slug, skip=skip)
+        item = card.get("item")
+        if not item:
+            break
+        cards.append({"item": item, "intervals": card.get("intervals"),
+                      "html": _render(folder, slug, item, preview=False)})
+        skip.append(item["id"])
+    return {"cards": cards, "counts": decks.next_card(folder, slug)["counts"]}
+
+
+def api_deck_offline(h, folder, slug):
+    """What this deck is made of, for a phone to keep (§19.3, §19.9): its
+    pages, its exercises and their media -- and, when it is out, the pack
+    above, so cramming AND studying work with the computer away."""
+    rec = offline.deck(decks, folder, slug, BASE, STUDIO)
+    if rec is None:
+        raise decks.NotFound("deck not found")
+    rec["ok"] = True
+    rec["shared"] = offline.shared()
+    rec.update(offline.totals(rec))
+    rec["checkout"] = decks.checkout_of(folder, slug)
+    h.send_json(rec)
 
 
 def api_deck_update(h, folder, slug):
+    _here(folder, slug)
     body = _obj(h)
     deck = decks.update_deck(folder, slug, name=body.get("name"), settings=body.get("settings"))
     h.send_json({"ok": True, "deck": deck})
 
 
 def api_deck_delete(h, folder, slug):
+    _here(folder, slug)
     decks.delete_deck(folder, slug)
     h.send_json({"ok": True})
 
@@ -327,6 +417,7 @@ def api_item_add(h, folder, slug):
     """One exercise into the deck: the deck page's form, and the card
     sheets of the book reader and the video player, which say where the
     card was made (`origin`: decks._clean_origin keeps what it can link)."""
+    _here(folder, slug)
     body = _obj(h)
     item = decks.add_item(folder, slug, body.get("markdown"), origin=body.get("origin"),
                           force=body.get("force") is True, tags=body.get("tags"))
@@ -342,12 +433,14 @@ def api_item_get(h, folder, slug, item_id):
 
 
 def api_item_update(h, folder, slug, item_id):
+    _here(folder, slug)
     body = _obj(h)
     item = decks.update_item(folder, slug, item_id, body.get("markdown"))
     h.send_json({"ok": True, "item": item, "warnings": item.get("warnings") or []})
 
 
 def api_item_delete(h, folder, slug, item_id):
+    _here(folder, slug)
     decks.delete_item(folder, slug, item_id)
     h.send_json({"ok": True})
 
@@ -357,6 +450,7 @@ def api_item_duplicate(h, folder, slug, item_id):
 
 
 def api_items_bulk(h, folder, slug):
+    _here(folder, slug)
     body = _obj(h)
     action = body.get("action")
     ids = body.get("ids")
@@ -373,11 +467,47 @@ def api_items_bulk(h, folder, slug):
         h.send_json({"ok": True, "count": count})
 
 
-def api_cram(h, folder, slug):
-    items = decks.cram_items(folder, slug, _obj(h).get("ids"))
+def _cram_answer(h, items, folder, slug):
     h.send_json({"ok": True, "cards": [
         {"item": item, "html": _render(folder, slug, item, preview=False)}
         for item in items]})
+
+
+def api_cram(h, folder, slug):
+    items = decks.cram_items(folder, slug, _obj(h).get("ids"))
+    _cram_answer(h, items, folder, slug)
+
+
+def api_cram_get(h, folder, slug):
+    """The same exercises as the POST above, asked for with a GET.
+
+    A SERVICE WORKER CANNOT KEEP A POST.  Not "does not": the Cache API
+    refuses a request whose method is anything but GET, so from the day the
+    cram page started asking for its exercises with a POST, a deck kept on a
+    phone could never show a single one of them away from the computer --
+    however faithfully its pages, its sheets and its scripts had been kept.
+    That is the "loading exercises…" the owner sat in front of in airplane
+    mode, and no amount of keeping could have cured it.
+
+    So there is a door of the same answer that CAN be kept.  With no `ids` it
+    is the WHOLE deck, which is the form lib/offline.py names in the deck's
+    record and the form the worker holds (the owner's decision B: the
+    exercises travel with the deck, always, one tick, nothing to choose).
+    With `ids=a,b,c` it is that selection, so the page may ask this way
+    whenever the POST cannot be made at all; a selection that names nothing
+    this deck has falls back to the whole deck rather than refusing, because
+    a page asking this way has already lost its first choice and an error
+    here would leave it with nothing to show.
+
+    `list_items` and `cram_items` answer with the very same summaries
+    (decks._item_summary is behind both), so the two doors differ in how they
+    are asked and in nothing else.
+    """
+    raw = _q1(h, "ids", "")
+    ids = _skip_ids([raw]) if raw.strip() else None
+    items = (decks.cram_items(folder, slug, ids) if ids
+             else decks.list_items(folder, slug))
+    _cram_answer(h, items, folder, slug)
 
 
 def api_copy(h, folder, slug):
@@ -512,6 +642,45 @@ def api_export(h, folder, slug):
                  {"Content-Disposition": 'attachment; filename="%s"' % name})
 
 
+def api_export_html(h, folder, slug):
+    """The exercises picked in Browse, as ONE HTML page that crams them
+    (TO-DO §9.7): for a website, for students who have no Parseh.  The body
+    is {ids}, as the cram page is asked; the answer is the file itself.
+
+    Nothing is scheduled and the deck is not written to, so a deck that is
+    out on a phone exports as readily as one that is here.  What goes into
+    the page, and what never does (the exercises' Markdown among it), is
+    webexport's to say."""
+    body = _obj(h)
+    items = decks.cram_items(folder, slug, body.get("ids"))
+    if not items:
+        raise decks.DeckError("none of those exercises is in this deck")
+    deck = decks.get_deck(folder, slug)
+    code = _lang_of(folder)
+
+    def media(path):
+        kind, _, name = (path or "").partition("/")
+        try:
+            if kind == "images":
+                return decks.image_file(folder, slug, name)
+            if kind == "audio":
+                return decks.audio_file(folder, slug, name)
+        except (decks.NotFound, decks.DeckError, OSError):
+            return None
+        return None
+
+    def render(item, asset_base, preview):
+        return decks.render_item({"lang": code}, item, asset_base, preview=preview, docs=None)
+
+    try:
+        name, data = webexport.deck_html(deck, items, media, render)
+    except webexport.ExportError as e:
+        raise decks.DeckError(str(e))
+    h.send_bytes(data, "text/html; charset=utf-8", 200,
+                 {"Content-Disposition": webexport.disposition(name),
+                  "Cache-Control": "no-store"})
+
+
 def api_image_upload(h, folder, slug):
     """A picture for the deck's flashcards, as the raw body; ?name=cat.png.
 
@@ -561,8 +730,15 @@ def api_import(h):
 def api_backup(h):
     """Every deck on the shelf as one zip -- the studio's Backup, for the
     exercises.  A plain GET, so the button is a link and the browser saves
-    it the way it saves any download."""
-    data, name = decks.backup_zip()
+    it the way it saves any download.
+
+    Which is also why a large shelf reports itself on the Working… list and
+    nowhere else: a link hands the answer to the browser, so there is no
+    page left to write on, and the list is what every page shows while a
+    download is being packed.  The entry is relabelled as the zip grows."""
+    act = getattr(h, "_act", None)    # this request's Working… entry, in Parseh
+    data, name = decks.backup_zip(
+        warn=(lambda note: activity.relabel(act, note)) if act else None)
     h.send_bytes(data, "application/zip", 200,
                  {"Content-Disposition": 'attachment; filename="%s"' % name})
 
@@ -609,6 +785,12 @@ ROUTES = [
     ("GET",    r"^/api/decks/%s/%s$" % (F, S),                 api_deck_get),
     ("PATCH",  r"^/api/decks/%s/%s$" % (F, S),                 api_deck_update),
     ("DELETE", r"^/api/decks/%s/%s$" % (F, S),                 api_deck_delete),
+    ("GET",    r"^/api/decks/%s/%s/__offline$" % (F, S),        api_deck_offline),
+    ("POST",   r"^/api/decks/%s/%s/checkout$" % (F, S),         api_checkout),
+    ("POST",   r"^/api/decks/%s/%s/return$" % (F, S),           api_give_back),
+    ("POST",   r"^/api/decks/%s/%s/takeback$" % (F, S),         api_take_back),
+    ("POST",   r"^/api/decks/%s/%s/answers$" % (F, S),          api_answers),
+    ("POST",   r"^/api/decks/%s/%s/refused$" % (F, S),          api_forget_refused),
     ("POST",   r"^/api/decks/%s/%s/items$" % (F, S),           api_item_add),
     ("GET",    r"^/api/decks/%s/%s/items/%s$" % (F, S, I),     api_item_get),
     ("PUT",    r"^/api/decks/%s/%s/items/%s$" % (F, S, I),     api_item_update),
@@ -622,8 +804,13 @@ ROUTES = [
     ("POST",   r"^/api/decks/%s/%s/preview$" % (F, S),         api_preview),
     ("GET",    r"^/api/decks/%s/%s/next$" % (F, S),            api_next),
     ("POST",   r"^/api/decks/%s/%s/cram$" % (F, S),            api_cram),
+    # the same answer at a keepable address (api_cram_get): a phone away from
+    # the computer has nothing that can ask with a POST
+    ("GET",    r"^/api/decks/%s/%s/cram$" % (F, S),            api_cram_get),
     ("POST",   r"^/api/decks/%s/%s/review$" % (F, S),          api_review),
     ("GET",    r"^/api/decks/%s/%s/export$" % (F, S),          api_export),
+    # the picked exercises as one HTML page that crams them (§9.7)
+    ("POST",   r"^/api/decks/%s/%s/export-html$" % (F, S),     api_export_html),
     ("POST",   r"^/api/import$",                              api_import),
     ("GET",    r"^/api/backup$",                              api_backup),
     ("POST",   r"^/api/restore$",                             api_restore),

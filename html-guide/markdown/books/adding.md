@@ -1,7 +1,7 @@
 ---
 title: Adding a book
 weight: 2
-description: Three ways to begin a book — by hand, onto a book already here, or with an LLM outside — and what a draft is.
+description: Three ways to begin a book — by hand, onto a book already here, or with an LLM outside — and a book whose glosses are still to write.
 ---
 
 A reading edition is not one answer from a model. It is made paragraph by
@@ -133,9 +133,9 @@ exists and added to its end.
    the reader) and **build the PDF now**.
 
 Nothing written before is touched or re-cut: the old chapters are read only
-to be numbered on from. The reader is rebuilt at once. The book's draft flag
-is left as it was: a draft stays a draft, and a finished book stays a
-finished one, its new chunks blank for you to fill.
+to be numbered on from. The reader is rebuilt at once. The new chunks
+arrive blank, for you to fill, in a book finished or not: a blank gloss is
+legal anywhere (below).
 
 ## Let an LLM do it outside
 
@@ -187,27 +187,37 @@ reader, and checks it once more. The book then appears on the library page.
 The prompt lives in `docs/new-book-prompt.md`; the page only fills in its
 blanks, so an edit to that file changes what the page gives.
 
-## A draft
+## Glosses still to write
 
-A book made by hand, or started empty, is marked a **draft**: its
-`book.json` says `"draft": true`. The library card and the reader (beside the
-build stamp) both show **draft**, and the chunk sheet says so when it opens.
+A book made by hand starts with every gloss blank, and may stay partly
+blank for as long as the work takes: **a chunk nobody has glossed is legal
+in every book**. Nothing marks the book as unfinished, and nothing needs
+taking off when it is done — the glosses are simply written, a few at a
+time or many at once:
 
-A draft relaxes exactly one thing. A chunk with **nothing** written in it —
-no transliteration, no vocabulary, no meaning, no reading — is passed over
-instead of being an error. The moment you write one of its fields, it is a
-chunk somebody is working on, and everything its language requires is
-required again: a meaning with no transliteration beside it, in a language
-that romanises every chunk, is exactly the half-done work the checks exist
-to catch.
+- a chunk at a time, in the reader's chunk sheet
+  ([Writing a chunk](doc:Writing a chunk)), filling one box at a time if
+  you like: a meaning typed before its transliteration is saved;
+- a stretch at a time, by an LLM, from the reader's **gloss with an LLM**
+  ([Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM)),
+  which fills only the chunks nobody has glossed.
 
-When the last gloss is written, take the flag out: open the book's
-`book.json` in a text editor and delete the line `"draft": true,`. Then press
-**rebuild the reader** in the reader, and the draft marks go.
+What the book's checker makes of it: a chunk with **nothing** written in it
+is counted, once per paragraph — *3 of 12 chunks have no gloss yet* — and
+asked for nothing else. A chunk **half** glossed — a meaning with no
+transliteration beside it, in a language that romanises every chunk — is
+an error, because that is exactly the half-done work the checks exist to
+catch: the chunk sheet lets you save it on your way, and the checker keeps
+the list of what is still to finish. A book made by an older Parseh, whose
+`book.json` still says `"draft": true`, is read as if it did not: the line
+does nothing, and may stay or go.
 
-> **What a draft looks like.** The text is given; the translation, the
-> transliteration, the reading and the vocabulary are not, and nothing
-> invents them. A blank line ends a paragraph, a sentence becomes a
+> **What a drafted book looks like.** The text is given; the translation,
+> the transliteration and the vocabulary are not, and nothing invents them.
+> In Japanese and Chinese each chunk's reading starts as its words' readings
+> run together — a proposal from the word line, which counts as nobody's
+> writing until something else in the chunk is written. A blank line ends a
+> paragraph, a sentence becomes a
 > subparagraph, and a chunk is a whole sentence (or a sense group, if you
 > asked for them). A sentence boundary the splitter got wrong — after *Mr.*,
 > say — still reproduces the text exactly, so nothing breaks. The page joins

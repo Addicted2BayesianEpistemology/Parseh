@@ -1,7 +1,7 @@
 ---
 title: "The timings: moving a caption's start"
 linkTitle: The timings
-weight: 10
+weight: 11
 description: The one door that moves where a caption starts after a video is added — the sheet, its keys, the picture of the sound, and why it moves nothing else.
 ---
 
@@ -26,15 +26,20 @@ together or not at all:
 
 - `annotations.json`, what the player draws;
 - `transcript.txt`, what the annotations are checked against;
-- the batches under `parts/`, which an LLM's answer was saved as.
+- the [notes](notes-in-the-seam.md) anchored to the caption, under
+  `markdown/`;
+- the batches under `parts/`, on a video added before `parts/` was
+  [retired](the-files.md#parts).
 
 It runs the checker before and after, and refuses whatever its own move
 would break, in the checker's words.
 
-> **Notes do not move with it.** A [note](notes-in-the-seam.md) names its
-> caption by that caption's start. Move the caption, and a note anchored to
-> it keeps the old number and is shown adrift at the end of the transcript,
-> until you open it and write the new start in its `anchor:` line.
+> **The notes move with it.** A [note](notes-in-the-seam.md) names its
+> caption by that caption's start, so a start that moved without it left
+> the note pointing at nothing — it kept the old number and was shown
+> adrift at the end of the transcript. The move carries them now: the
+> `anchor:` line of every note anchored to a caption that moved is written
+> with its new start, in the same breath as the two files.
 
 ## The sheet
 

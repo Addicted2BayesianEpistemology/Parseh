@@ -41,7 +41,6 @@ A channel card says:
 | Tag | Means |
 |---|---|
 | **3 videos** | how many videos of this language the channel has |
-| **1 in draft** | how many of them are still being written ([drafts](video-info-and-drafts.md)) — counted here because the index shows channels, and a draft would otherwise be invisible until you opened the channel |
 | **2 fully glossed** | how many have phrases under every caption and no phrase left blank — so a video that opens with a caption in another language, which carries no phrases, is not counted |
 | **beginner**, **intermediate**… | the levels its videos are marked with |
 
@@ -63,11 +62,10 @@ channels** goes back. Each video card shows:
 
 | Tag | Means |
 |---|---|
-| **draft** | the video is still being written: a phrase with nothing on it is expected, not a fault |
 | **beginner** … **advanced** | its level, when it has one |
 | **0:35** | about how long it is (the last caption's time) |
 | **no annotations yet** | the directory has a `video.json` but no captions; the card is drawn quieter |
-| **12 of 40 chunks glossed** | phrases, not captions, when some are still blank — a draft has a phrase under every caption and nothing written in them, so counting captions would call it finished |
+| **12 of 40 chunks glossed** | phrases, not captions, when some are still blank — a video [started empty](adding-a-video.md#start-it-empty) has a phrase under every caption and nothing written in them, so counting captions would call it finished ([A video still being glossed](video-info-and-drafts.md#drafts)) |
 | **5 of 6 captions glossed** | how many captions carry phrases; a caption entirely in another language (the English opening of many lessons) never does |
 | **6 captions glossed** | every caption carries phrases |
 | **2026-09-05** | the day it was added |

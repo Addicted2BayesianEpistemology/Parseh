@@ -1,7 +1,7 @@
 ---
 title: Writing a chunk
 weight: 8
-description: The pencil and the chunk sheet — the text, the reading, the transliteration, the vocabulary line, the meaning, the four colours, the words strip — and what a save does and refuses.
+description: The pencil and the chunk sheet — the text, the reading, the transliteration, the vocabulary line, the meaning, the four colours, the words strip — deleting a gloss, and what a save does and refuses.
 ---
 
 Writing is always on in the reader: there is no editing mode to enter. A
@@ -42,17 +42,45 @@ and **✕**.
 | ***the gloss language*** (**english**…) | what the chunk means. Plain text, typed in the gloss language's direction. It is called **meaning** in a book glossed in the language it teaches, where two rows both called *english* would say of neither which is which. |
 | **the source** | the checkbox **this paragraph need not reproduce `source/paras/`** (below) |
 | **where it ends** | **cut this chunk in two…**, **join it to the next…**, **join the previous to it…** — [Cutting and joining chunks](doc:Cutting and joining chunks) |
+| **an LLM** | **gloss around here with an LLM…** — the sheet that has an LLM gloss a stretch, opened on this chunk's subparagraph: [Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM) |
 
-A chunk marked as needing no gloss (a `\chp`: a colour and its text,
-nothing else) opens with only those two rows, and says so. In a draft, a
-line at the top says so too: a chunk nobody has glossed may keep its empty
-fields, and the moment one of them is filled the language's rules come
-back ([Adding a book](doc:Adding a book)).
+A chunk nobody has glossed yet opens like any other, its gloss boxes
+empty for you to fill — one at a time, if you like: a meaning saved before
+its transliteration is saved as it is. A `\chp` — a chunk with no gloss
+slots at all, a colour and its text, written that way in the chapter file
+([What a book is made of](doc:What a book is made of)) — opens with only
+those two rows, and says so.
 
 **save chunk** (**Ctrl+↵**) sends only the fields you changed. **revert**
-puts the boxes back to what the file holds. **Esc**, **✕** or a click outside
-close the sheet without saving; the narration, paused while it is open,
-plays on.
+puts the boxes back to what the file holds. **delete gloss**, beside them,
+takes the whole gloss off (below). **Esc**, **✕** or a click outside close
+the sheet without saving; the narration, paused while it is open, plays on.
+
+### Deleting a gloss {#deleting-a-gloss}
+
+**delete gloss** empties the chunk's transliteration, vocabulary and
+meaning — and its reading, in Japanese — and saves at once. It asks
+nothing first, because it can be undone. The text, the colour and the word
+line stay; what is left is a chunk with no gloss, the same macro with its
+gloss slots empty. In Japanese and Chinese that is one step emptier than a
+chunk nobody has touched: a drafted chunk holds the reading proposed from
+its words (the kana, or the pinyin), and delete empties the reading rather
+than put that proposal back. The sheet says *gloss deleted*, and an
+**undo delete** button appears: it writes the deleted gloss back, down the
+same route as a save.
+
+The page keeps the deleted gloss until it is reloaded, not longer: close
+the sheet, open the same chunk again later, and **undo delete** is still
+there; reload the reader, and it is gone. The button is not offered on a
+`\chp`, which has no gloss, and is greyed out on a chunk that has none as
+saved — a reading that still says exactly what its words propose is none.
+
+It is how a gloss is written again from nothing — by you, or by an LLM: a
+deleted gloss counts as no gloss, so the next prompt of **gloss around here
+with an LLM…** asks for this chunk, and the answer may fill it
+([Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM)).
+It is also the one way to empty a box the language requires: on its own,
+that is refused (below).
 
 ### The vocabulary line
 
@@ -139,7 +167,7 @@ sentence you are shown names the rule. Each begins with where the chunk is
 | *voc may not use \foo — the gloss macros are \bw, \dw, \emph, \nobreak, \pw, \textit, \vb* | the vocabulary line is LaTeX, but only that much of it |
 | *\vb needs 7 arguments and has 5* | a macro is short of braces; the buttons insert them for you |
 | *voc leaves 1 brace open* | a brace is not closed — which would swallow the arguments after it |
-| *a glossed chunk needs its meaning — check_batch.py calls an empty en an error* | you emptied a field the language requires. The same goes for the transliteration where the language romanises every chunk (Persian, Arabic, Japanese, Hindi, Chinese) and for the kana of a Japanese chunk. A draft is the one exception, and only for a chunk nobody has written any part of. |
+| *a glossed chunk needs its meaning — check_batch.py calls an empty en an error; emptying every box of the gloss at once ("delete gloss") takes the whole gloss off* | you emptied, on its own, a field the language requires, which would leave a finished gloss half finished. The same goes for the transliteration where the language romanises every chunk (*Persian romanises every chunk, so tr cannot be emptied on its own*: Persian, Arabic, Japanese, Hindi, Chinese) and for the kana of a Japanese chunk. Emptying **every** box at once is allowed — that is **delete gloss** — and the vocabulary line may always be emptied. A box still empty beside the ones you fill is never a reason to refuse, and one sent blank that was blank already changes nothing. |
 | *harakat leaked into tr — the romanisation carries none* | a vowel mark came into the transliteration with a paste |
 | *this text would stop paragraph 1 reproducing source/paras/ch1_p00.txt, which verify_book.py checks, at char 4 of 109* | the one worth understanding (below). The message quotes both texts either side of the first difference. |
 | *the server did not answer — an edit needs this page served by python3 serve.py; nothing was written* | the reader was opened off the disk, or Parseh is not running |

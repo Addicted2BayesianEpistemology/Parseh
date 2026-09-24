@@ -23,12 +23,12 @@ the Anki deck store under `anki/` that the book reader writes into too.
 
 ```
 cd ..                   # the project root
-./serve.sh              # everything, in the background, https on port 8765
+./serve.sh              # everything, in the background, https on port 7654
 ./serve.sh status       # is it running
 ./serve.sh stop         # stop it
 ```
 
-Then open <https://localhost:8765/youtube/> (the browser warns once about the
+Then open <https://localhost:7654/youtube/> (the browser warns once about the
 self-signed certificate; accept it). Serving needs only stdlib Python; the
 script activates the `ilya-frank` conda environment when it exists, as every
 script in this project does. A YouTube video streams from YouTube in the
@@ -83,7 +83,7 @@ not carry the folder — the id is unique on its own.
 
 ## Add a video
 
-**From the page** — <https://localhost:8765/youtube/add/>, the *Add a video*
+**From the page** — <https://localhost:7654/youtube/add/>, the *Add a video*
 card on the videos page. No Claude Code, no access to the project:
 
 1. On YouTube: *…more → Show transcript*, copy the whole panel, timestamps
@@ -120,8 +120,8 @@ card on the videos page. No Claude Code, no access to the project:
    its annotations were checked against — but *the timings*, in the player's
    header beside *video info*, moves a caption's **start** and nothing else.
    It is the door `youtube/lib/captimes.py` opens, and it is narrow on
-   purpose: a start moved in `annotations.json`, `transcript.txt`, the
-   batches under `parts/` and any note anchored to that caption, all
+   purpose: a start moved in `annotations.json`, `transcript.txt` and any
+   note anchored to that caption (under `markdown/`), all
    together, leaves every rule `check_annotations` enforces exactly as true
    as it was — the count is the same, the two files still agree to within
    nothing, and no word was touched. It runs the checker before and after
@@ -222,7 +222,8 @@ card on the videos page. No Claude Code, no access to the project:
    page checks it with the pipeline's own tools, parsing the transcript
    with the language you picked, writes `videos/<language>/<id>/`
    (`transcript.txt`, `video.json` with `language` and `title_native`,
-   `parts/*.json`), runs `merge_parts.py` and `check_annotations.py`, and
+   `parts/*.json`), runs `merge_parts.py` and `check_annotations.py`, drops
+   the batches, and
    links the player page. A failing answer writes nothing and lists the
    captions to fix.
 
@@ -245,8 +246,10 @@ form: `python3 lib/import_old_video.py "<that directory>"` rebuilds the
 transcript, converts the script into parts, and runs the same merge and
 check. A `\chp` of Persian the old edition never glossed becomes a chunk
 marked `"plain": true` — shown as text, never a target; the checker asks
-nothing of it, and nothing else may leave a chunk of the target script
-unglossed (the one exception is a Latin-script target, below).
+nothing of it. Only an import writes that mark on a chunk of the target
+script (the one exception is a Latin-script target, below, whose annotator
+marks an aside so). A chunk with no gloss is another thing: not plain, just
+still to be glossed (*Glossed, blank, or half way*, below).
 
 **By hand, in Claude Code** — for a long video that wants a glossary of its
 own:
@@ -316,17 +319,23 @@ uses no model at all: the transcript as it stands, every caption cut into
 sentences, one chunk per sentence, every `tr`, `voc` and `en` blank. Where a
 sentence breaks into phrases is the editorial heart of the method, so nothing
 guesses at it — you split a chunk yourself, which is an addition to a blank
-page rather than an argument with a guess. `video.json` gets `"draft": true`,
-and `check_annotations.py` then asks nothing of a chunk with *nothing* written
-in it, and only **says** where one is half written — the meaning typed, the
-transliteration still to come — rather than refusing it. That is what the
-middle of the work looks like, and it is what the player's own editor writes:
-`annwrite` checks an edit *without* the draft flag on purpose, so typing a
-meaning into a blank chunk stands, and a video refused for it could never come
-back through the bundle door it had just gone out of. Take the flag out when
-the last chunk is glossed and every gap is an error again — which is the whole
-of what the flag means. `../lib/draft.py` is the same thing
-on the command line.
+page rather than an argument with a guess. `../lib/draft.py` is the same
+thing on the command line.
+
+**Glossed, blank, or half way.** A chunk with *nothing* written in it is
+legal in every video, at every stage: `check_annotations.py` asks nothing of
+it and counts it in one note (*N of M chunks have no gloss yet*). A chunk
+**half** written — the meaning typed, the transliteration still to come — is
+what the middle of the work looks like, and the player's editor saves it so,
+a box at a time; the checker lists it as an error until it is finished, the
+⤓ bundle door only notes it (a video goes out and comes back in the middle
+of its glossing), and an LLM's answer never writes one: the add page refuses
+an answer that leaves a chunk half written, and the region fill (an LLM
+glossing a run of captions of a video already in the player) drops that
+chunk and says so. What the editor refuses is the step backwards: emptying
+one box a finished gloss needs while the rest stays. Emptying every box —
+**delete gloss** — takes the whole gloss off and leaves the chunk blank, its
+text, word line, colour and note kept.
 
 **Glossing in the player.** The gloss cloud carries four colour dots and a ✎.
 The dots mark the phrase in the reading editions' own four colours — red,
@@ -360,7 +369,8 @@ compared — the reading editions' own rule, per paragraph (`lib/reading.py`).
 markdown file under the video's own `markdown/` directory, written with the
 studio's editor and read in a frame over the page — never inline, because the
 transcript is the point. A note is anchored to a caption's start, so it
-survives a re-merge and a re-chunk; one whose caption is gone shows at the
+survives a re-chunk, and *the timings* rewrites that anchor when the start
+moves (`captimes.py`); one whose caption is gone shows at the
 end, marked adrift. Notes travel in the ⤓ bundle. Nothing about them is in
 any prompt: they are for people.
 
@@ -373,10 +383,13 @@ Everything else — the transliteration, the vocabulary entry by entry, the
 meaning — is *proposed* in boxes you type over, and the vocabulary entries
 cross between the halves with an arrow. `../lib/chunkdiv.py` holds the rules
 and the book reader draws the same sheet from them. Nothing is written until
-the button, and an unwritten phrase divides only in a draft.
+the button. A phrase divides and joins glossed or not: two blank halves, or a
+half whose meaning is still to type, are the middle of the work like any
+other.
 
 **Out and back.** The ⤓ in the player's header downloads `video.json`,
-`annotations.json`, `transcript.txt`, `parts/**` and — where one was
+`annotations.json`, `transcript.txt`, the notes under `markdown/**` (and
+`parts/**`, on a video old enough to still have them) and — where one was
 recorded — `waveform.json` as one zip with a `parseh-bundle.json` manifest; the panel at the foot of the video index takes
 such a zip back, refusing anything it cannot vouch for (a path that escapes,
 an unknown language, annotations that do not pass the checker) and offering a
@@ -391,15 +404,19 @@ once. `../lib/bundle.py` is the same thing on the command line.
 > none, and installing it leaves the one already here alone — the same rule
 > the film has, for the same reason.
 
-> **`merge_parts.py` rebuilds `annotations.json` from `parts/`**, so a colour
-> or a gloss written straight into the annotations of a video that still has
-> parts is lost the next time it runs. Edit the parts and re-merge, or edit
-> the annotations and stop merging. A video drafted empty has no `parts/`.
+> **`parts/` is retired** (2026-09-23). The batches are folded into
+> `annotations.json` once, while the video is being added, and dropped there
+> and then: a video on the shelf has no `parts/`, and `annotations.json` is
+> its only annotation — the player writes it and nothing rebuilds it. A
+> video added before that date still carries its batches; `merge_parts.py`
+> now refuses to rebuild over an `annotations.json` newer than they are, and
+> says which captions and which fields that would have thrown away. Delete
+> the folder and it will never come up again.
 
 ## Anki cards
 
 The decks are **shared with the book reader**: a card made on a page of
-بوف کور (port 8765) and a card made from a video land in the same store
+بوف کور (port 7654) and a card made from a video land in the same store
 under `anki/`, list in the same deck picker, and build into the same
 .apkg — the endpoints and the card schema live in `lib/anki_store.py`,
 which both servers import.  In the book reader the same gestures apply:
@@ -530,9 +547,13 @@ Add cards all week, build, re-import, keep reviewing.
 
 The same https address works from anywhere in the tailnet: `../serve.sh`
 prints the `100.x.y.z` form. Parseh is https everywhere, with a certificate
-it makes itself, so the frame-capture button and the clipboard — which
-browsers grant only to *secure contexts* — work from a phone or a laptop
-just as they do on the machine. Each browser warns once about the
+it makes itself, so the clipboard — which browsers grant only to *secure
+contexts* — works from a phone or a laptop just as it does on the machine.
+**A frame** depends on which kind of video it is: a film of this machine is
+read straight off the film onto a canvas, so its frame is captured anywhere,
+a phone included; a **YouTube** video's frame is taken from a share of this
+tab, and no phone browser shares a tab, so that one is a computer's affair.
+Each browser warns once about the
 certificate; accept it. `../serve.sh cert` makes a fresh one if the
 machine's addresses change.
 
@@ -555,7 +576,7 @@ youtube/
 │   ├── slice_part.py       # the captions one batch is responsible for
 │   ├── check_part.py       # one batch, checked on its own
 │   ├── check_annotations.py# the whole video: fidelity + schema, exit 0 = good
-│   ├── merge_parts.py      # parts/*.json + transcript.txt -> annotations.json
+│   ├── merge_parts.py      # parts/*.json + transcript.txt -> annotations.json, once, as a video is added
 │   ├── annwrite.py         # ONE chunk of annotations.json, edited from the player
 │   ├── anki_export.py      # deck directory -> importable .apkg
 │   ├── anki_store.py       # the deck store, shared with the book reader
@@ -564,8 +585,7 @@ youtube/
 └── videos/<language>/<id>/ # <language> is the registry's folder: persian, arabic, italian, japanese, french, german, turkish, english
     ├── transcript.txt      # the pasted transcript, verbatim; source of truth
     ├── video.json          # title, title_native, channel, language, gloss, level, blurb
-    ├── parts/*.json        # annotation batches (20–30 captions each)
-    └── annotations.json    # what the player serves; built by merge_parts.py
+    └── annotations.json    # what the player serves and writes; built once, as the video is added
 ```
 
 The language registry and the per-language conventions live one level up:
@@ -592,13 +612,13 @@ conventions so a long video does not read as if several hands wrote it
 Two things the pipeline handles for you. A caption **entirely in another
 language** — the framing these teaching videos often open with, usually
 English but whatever the speaker turns to — is never annotated: for a
-language written in its own script (Persian, Arabic, Japanese) it is
-recognised by having no character of that script, filled in from the
-transcript and shown as it stands, quieter than the target text and not
-hoverable. For a Latin-script target (Italian, French, German, Turkish,
-English) no caption can be told plain automatically, so the annotator marks
-such an aside as a chunk with `"plain": true` — the only place where an
-annotator may write that key. A **chapter marker** pasted into the
+language written in its own script (Persian, Arabic, Hindi, Japanese,
+Chinese) it is recognised by having no character of that script, filled in
+from the transcript and shown as it stands, quieter than the target text and
+not hoverable. For a Latin-script target (Italian, French, German, Turkish,
+English, Spanish) no caption can be told plain automatically, so the
+annotator marks such an aside as a chunk with `"plain": true` — the only
+place where an annotator may write that key. A **chapter marker** pasted into the
 transcript (`Capitolo 3: …`, `فصل ۳: …`, `第3章：…` — a bare number is
 speech; the marker needs a separator and a title after it)
 becomes a heading above the caption it belongs to; the words that make a

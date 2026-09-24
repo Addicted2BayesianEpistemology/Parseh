@@ -23,12 +23,20 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 import serve                                       # noqa: E402
 Handler, studio = serve.Handler, serve.studio
+# the door that says who may reach Parseh (lib/network.py): pointed at the
+# temporary tree, so a suite can neither read the owner's own settings nor
+# shut his Wi-Fi door by running
+import network                                  # noqa: E402
 import decks   # noqa: E402  (the modules the studio imported)
 import notes   # noqa: E402
 import store   # noqa: E402
 
 tmp = Path(tempfile.mkdtemp(prefix="parseh-doclinks-test-"))
 store.LIB = tmp / "library"
+network.STORE = str(tmp / "config" / "network.json")
+import offline  # the phone-keeping memories (lib/offline.py) too
+offline.DIGESTS = str(tmp / "config" / "digests.json")
+offline.WHERES = str(tmp / "config" / "wheres.json")
 store.LIB.mkdir()
 decks.set_dir(tmp / "exercises")
 decks.set_clips_dir(tmp / "clips")

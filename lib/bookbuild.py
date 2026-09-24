@@ -142,6 +142,74 @@ def _first_error(log_text):
     return []
 
 
+def _log_matches(log_text, pattern, most, before=0, after=0):
+    """The lines a pattern hits, with their neighbours and their numbers --
+    `grep -n -m<most> -B<before> -A<after>`, which is what build.sh prints,
+    so a failure reads the same on Windows as it does through the shell."""
+    lines = log_text.splitlines()
+    out, seen, hits = [], set(), 0
+    for i, line in enumerate(lines):
+        if hits >= most or not re.search(pattern, line):
+            continue
+        hits += 1
+        for n in range(max(0, i - before), min(len(lines), i + after + 1)):
+            if n not in seen:
+                seen.add(n)
+                out.append("%d:%s" % (n + 1, lines[n]))
+    return out
+
+
+# A PDF IS NOT PROOF OF SUCCESS AND NEITHER IS A SILENT LOG.  This is
+# build.sh's check_log, line for line, for the machines that have no sh --
+# Windows above all, where this is the only build there is.  The Python side
+# used to check two of its five things, "Output written on" and a `!` line,
+# and so reported success for the two failures that cost the most:
+#
+#   * a Lua error inside \directlua, which does NOT start with a ! -- the
+#     one that dropped 145 pages of Persian out of a book and reported 0
+#     errors, and the whole reason build.sh's check is as long as it is;
+#   * lualatex never running at all, or dying before it wrote anything: the
+#     log and the PDF of the PREVIOUS run are still lying there, and a
+#     missing log then read as an empty one, which says nothing about a PDF
+#     that is quietly a week old.
+#
+# The log is deleted before each run (below), so its absence is a failure
+# and not a mystery.
+def _check_log(log, pdf, base, say):
+    """True when this run really did produce this PDF."""
+    try:
+        with open(log, encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        say("   NO LOG at %s -- lualatex did not run" % log)
+        return False
+    if "no output PDF file produced" in text or not os.path.isfile(pdf):
+        say("   PDF FAILED -- first error from %s:" % log)
+        for line in _first_error(text):
+            say("     " + line)
+        return False
+    if not re.search(r"Output written on .*%s\.pdf" % re.escape(base), text):
+        say('   %s has no "Output written on" -- the run did not finish;' % log)
+        say("   the PDF beside it is from an earlier build and is NOT current")
+        return False
+    if re.search(r"^!", text, re.M):
+        say("   LaTeX ERRORS in %s (a PDF was still produced, so check it):" % log)
+        for line in _log_matches(text, r"^!", 3, after=3):
+            say("     " + line)
+        return False
+    lua = r"^\[\\directlua\]|attempt to (get|call|index|perform|concatenate)"
+    if re.search(lua, text, re.M):
+        n = len(re.findall(r"^\[\\directlua\]", text, re.M))
+        say("   LUA ERRORS in %s (%d of them) -- \\directlua abandoned its chunk,"
+            % (log, n))
+        say("   so whatever it was printing is MISSING from the PDF:")
+        for line in _log_matches(text, r"^\[\\directlua\]|attempt to ", 2,
+                                 before=1, after=4):
+            say("     " + line)
+        return False
+    return True
+
+
 def build(book_dir, html_only=False, say=print, index=True):
     """What ./build.sh does for one book, in Python, for a machine with no sh
     -> True when everything asked for was built.  No cache: a rebuild it could
@@ -165,6 +233,7 @@ def build(book_dir, html_only=False, say=print, index=True):
         else:
             base = os.path.splitext(os.path.basename(b.main))[0]
             log = os.path.join(book_dir, base + ".log")
+            pdf = os.path.join(book_dir, base + ".pdf")
             fonts = [os.path.join(LIB, "fonts")] + ([os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")]
                                                    if runtime.WIN else [])
             env = dict(os.environ, OSFONTDIR=os.pathsep.join(fonts))
@@ -181,11 +250,7 @@ def build(book_dir, html_only=False, say=print, index=True):
                         text = f.read()
                 except OSError:
                     text = ""
-                if not re.search(r"Output written on .*%s\.pdf" % re.escape(base), text) \
-                        or re.search(r"^!", text, re.M):
-                    say("   PDF FAILED -- the first error in %s:" % log)
-                    for line in _first_error(text):
-                        say("     " + line)
+                if not _check_log(log, pdf, base, say):
                     ok = False
                     break
             else:

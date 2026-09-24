@@ -38,6 +38,11 @@ NOT_OURS_FILES = {
     # copied into every document the studio writes, which is its writer's:
     # a GPL line there would land in somebody's own .tex
     "markdown/exlex/template.tex",
+    # the same for a page for a website (markdown/app/webexport.py): the
+    # skeleton of the one file a document or a deck is exported as, which
+    # is its writer's page on the writer's website
+    "markdown/app/templates/export_doc.html",
+    "markdown/app/templates/export_deck.html",
 }
 
 
@@ -76,7 +81,8 @@ class Spdx(unittest.TestCase):
 
     def test_somebody_else_s_work_does_not_say_it_is_parseh_s(self):
         for rel in ("lib/mathjax/tex-svg.js", "markdown/exlex/assets/hyph/hyph-it.tex",
-                    "markdown/exlex/template.tex"):
+                    "markdown/exlex/template.tex", "markdown/app/templates/export_doc.html",
+                    "markdown/app/templates/export_deck.html"):
             self.assertNotIn("GPL-3.0-or-later", (ROOT / rel).read_text(encoding="utf-8"), rel)
 
     def test_a_shebang_stays_first(self):
@@ -102,10 +108,27 @@ class Fonts(unittest.TestCase):
 
     def test_every_font_is_named_everywhere_it_must_be(self):
         import notices
-        named = sorted(f for fam in notices.FONTS for f in fam[3])
-        self.assertEqual(named, self.fonts_on_disk(), "lib/notices.py FONTS and lib/fonts/")
+        # two families of faces, under two licences: the Noto/Vazirmatn ones
+        # under the OFL, which carries a copyright line per font, and the TeX
+        # Gyre ones under the GUST licence, which carries one text for the
+        # whole family (TO-DO §2.23 put them in lib/fonts/ so that a machine
+        # without TeX keeps them)
+        named = sorted(f for fam in notices.FONTS + notices.GUST_FONTS for f in fam[3])
+        self.assertEqual(named, self.fonts_on_disk(),
+                         "lib/notices.py FONTS + GUST_FONTS and lib/fonts/")
         readme = (FONTS / "README.md").read_text(encoding="utf-8")
         ofl = (FONTS / "OFL.txt").read_text(encoding="utf-8")
+        gust = (FONTS / "GUST-FONT-LICENSE.txt").read_text(encoding="utf-8")
+        page = notices.page()
+        for family, version, notice, files, home in notices.GUST_FONTS:
+            for f in files:
+                self.assertIn("`%s`" % f, readme, "lib/fonts/README.md names " + f)
+                self.assertIn(f, page, "the licences page names " + f)
+            self.assertIn(family, readme)
+            self.assertIn(version, readme, family)
+            self.assertTrue(home.startswith("https://"), home)
+        self.assertIn("LaTeX Project Public License", gust,
+                      "GUST-FONT-LICENSE.txt is the licence those faces are under")
         for family, version, notice, files, home in notices.FONTS:
             for f in files:
                 self.assertIn("`%s`" % f, readme, "lib/fonts/README.md names " + f)

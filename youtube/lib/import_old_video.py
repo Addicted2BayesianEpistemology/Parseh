@@ -9,8 +9,8 @@ segments.json ([{n, t0, t1, sec, lang, text}]), the section names in
 sections.json, and the annotation as a script.tex in the books' own
 \\ch{fa}{tr}{voc}{en} form (four arguments -- no colour slot yet) with
 \\chp{text} for anything not glossed.  The current player wants
-transcript.txt (the pasted YouTube transcript), video.json, parts/*.json
-and annotations.json under videos/<language folder>/<id>/, and it checks
+transcript.txt (the pasted YouTube transcript), video.json and
+annotations.json under videos/<language folder>/<id>/, and it checks
 every caption against the transcript.  The old editions were all Persian;
 an old video.json may still say "language", and the folder follows it.
 
@@ -18,7 +18,9 @@ So this rebuilds a transcript from the segments -- a timestamp line and a
 text line per segment, a "Chapter N: title" line where a section begins --
 turns each script block into the chunks of its caption, and writes the parts
 the way the pipeline expects, before running merge_parts.py and
-check_annotations.py on the result exactly as a fresh video would get.
+check_annotations.py on the result exactly as a fresh video would get -- and
+then drops the parts, as the add page does: they are how the annotation is
+assembled while the video is being brought in, not a thing the video keeps.
 
 The vocabulary lines are read with the same parser the book reader uses
 (texparse.parse_voc, flattened by texparse.voc_text), told the video's
@@ -34,6 +36,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -265,7 +268,11 @@ def write(meta, transcript, parts, replace=False):
     if os.path.isdir(vdir_old):
         if not replace:
             return None
-        import shutil, time
+        import time
+        # shutil is imported at the top now: a second, function-local import
+        # of it here would make the name local to the whole of write(), and
+        # the rmtree at the end would then be reached unbound whenever this
+        # branch was not taken
         # the trash name is made unique, as ytpages.trash_video does: moving
         # onto a name that exists (two replaces within one second) would put
         # the tree inside the earlier entry instead of beside it
@@ -297,6 +304,14 @@ def write(meta, transcript, parts, replace=False):
         if r.returncode:
             print((r.stdout or "") + (r.stderr or ""))
             return False
+    # The batches were the shape merge_parts reads, and it has read them; both
+    # tools have passed on what they built.  They go now, for the reason
+    # ytpages.api_add drops its own: a video on the shelf that still carries
+    # the answer it was made from carries a second annotation, older than the
+    # one the player writes, and a merge run again would quietly win.  They
+    # are kept until here, and not a step sooner, so that a check that turns
+    # the video away leaves something to mend.
+    shutil.rmtree(os.path.join(vdir, "parts"), ignore_errors=True)
     return vdir
 
 

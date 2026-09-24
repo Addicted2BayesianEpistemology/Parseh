@@ -97,14 +97,19 @@ async function partApi() {
   const html = (body, mobile) => '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
     '<script src="/lib/parseh.js"></script></head><body' + (mobile ? ' data-mobile-page' : '') + '>' +
     '<script>window.early = document.documentElement.getAttribute("data-mode");</script>' + body + '</body></html>';
+  // THE LINKS THIS PART DRIVES POINT AT A PAGE WITH NO MOBILE VERSION OF
+  // ITS OWN -- the dictionary setup, which docs/mobile.md keeps in the
+  // browser -- so that what is tested is the registry and not the
+  // toolbox's own list.  /youtube/ used to stand here, and stopped being
+  // an example of an unregistered page the day the videos shelf was built.
   const LINKS = '<span class="parseh-mode"><button type="button" data-parseh-mode="browser" aria-pressed="true">' +
     'Browser</button><button type="button" data-parseh-mode="mobile" aria-pressed="false">Mobile</button></span>' +
-    '<a id="plain" href="/youtube/">videos</a> <a id="query" href="/youtube/?q=1#t">q</a> ' +
-    '<a id="menu" href="/youtube/">menu</a> <a id="dl" href="/youtube/" download>dl</a> ' +
-    '<a id="no" href="/youtube/" data-no-route>no</a> <a id="frag" href="#top">frag</a> ' +
-    '<a id="ext" href="https://example.org/youtube/">ext</a>';
+    '<a id="plain" href="/lookup/">the dictionary</a> <a id="query" href="/lookup/?q=1#t">q</a> ' +
+    '<a id="menu" href="/lookup/">menu</a> <a id="dl" href="/lookup/" download>dl</a> ' +
+    '<a id="no" href="/lookup/" data-no-route>no</a> <a id="frag" href="#top">frag</a> ' +
+    '<a id="ext" href="https://example.org/lookup/">ext</a>';
   const PAGES = {'/': html(LINKS, true), '/plain/': html(LINKS, false),
-                 '/youtube/': html('the browser page', false), '/m/v/': html('the mobile page', true)};
+                 '/lookup/': html('the browser page', false), '/m/v/': html('the mobile page', true)};
   const ctx = await browser.newContext();
   await ctx.route(O + '/**', r => {
     const u = new URL(r.request().url());
@@ -163,29 +168,29 @@ async function partApi() {
     document.removeEventListener(type, stop);
     return [a.getAttribute('href'), a.getAttribute('data-parseh-href')];
   }, [id, type]);
-  const register = p => p.evaluate(() => Parseh.mode.pages.push({match: /^\/youtube\/$/, to: '/m/v/'}));
+  const register = p => p.evaluate(() => Parseh.mode.pages.push({match: /^\/lookup\/$/, to: '/m/v/'}));
   await page.evaluate(() => Parseh.mode.set('mobile'));
-  eq(await after(page, 'plain', 'click'), ['/youtube/', null], 'nothing registered: a link keeps its address');
+  eq(await after(page, 'plain', 'click'), ['/lookup/', null], 'nothing registered: a link keeps its address');
   await register(page);
-  eq(await page.evaluate(() => [Parseh.mode.route('/youtube/'), Parseh.mode.route('/youtube/?q=1#t'), Parseh.mode.route('/'),
-                                Parseh.mode.route('/studio/'), Parseh.mode.route('https://example.org/youtube/')]),
-     ['/m/v/', '/m/v/?q=1#t', '/', '/studio/', 'https://example.org/youtube/'],
+  eq(await page.evaluate(() => [Parseh.mode.route('/lookup/'), Parseh.mode.route('/lookup/?q=1#t'), Parseh.mode.route('/'),
+                                Parseh.mode.route('/studio/'), Parseh.mode.route('https://example.org/lookup/')]),
+     ['/m/v/', '/m/v/?q=1#t', '/', '/studio/', 'https://example.org/lookup/'],
      'registered: route() answers the mobile address, the rest their own');
-  eq(await after(page, 'plain', 'click'), ['/m/v/', '/youtube/'], 'a click: the href is the mobile address, its own kept beside it');
-  eq(await after(page, 'query', 'auxclick'), ['/m/v/?q=1#t', '/youtube/?q=1#t'], 'a middle click too, the query and the fragment kept');
-  eq(await after(page, 'menu', 'contextmenu'), ['/m/v/', '/youtube/'], 'and a context menu (a long press)');
+  eq(await after(page, 'plain', 'click'), ['/m/v/', '/lookup/'], 'a click: the href is the mobile address, its own kept beside it');
+  eq(await after(page, 'query', 'auxclick'), ['/m/v/?q=1#t', '/lookup/?q=1#t'], 'a middle click too, the query and the fragment kept');
+  eq(await after(page, 'menu', 'contextmenu'), ['/m/v/', '/lookup/'], 'and a context menu (a long press)');
   for (const id of ['dl', 'no', 'frag', 'ext'])
     eq((await after(page, id, 'click'))[1], null, `#${id}: never routed`);
   await page.evaluate(() => Parseh.mode.set('browser'));
   eq(await page.evaluate(() => [...document.querySelectorAll('a')].map(a => a.getAttribute('href'))
                                   .concat(document.querySelectorAll('[data-parseh-href]').length)),
-     ['/youtube/', '/youtube/?q=1#t', '/youtube/', '/youtube/', '/youtube/', '#top', 'https://example.org/youtube/', 0],
+     ['/lookup/', '/lookup/?q=1#t', '/lookup/', '/lookup/', '/lookup/', '#top', 'https://example.org/lookup/', 0],
      'back to browser: every link has its own address again');
-  eq(await after(page, 'plain', 'click'), ['/youtube/', null], 'and in the browser mode nothing is routed');
+  eq(await after(page, 'plain', 'click'), ['/lookup/', null], 'and in the browser mode nothing is routed');
   await page.goto(O + '/plain/');
   await page.evaluate(() => Parseh.mode.set('mobile'));
   await register(page);
-  eq([await after(page, 'plain', 'click'), await page.evaluate(() => Parseh.mode.route('/youtube/'))], [['/youtube/', null], '/m/v/'],
+  eq([await after(page, 'plain', 'click'), await page.evaluate(() => Parseh.mode.route('/lookup/'))], [['/lookup/', null], '/m/v/'],
      'a page that is not a mobile page routes none of its links (route() still answers)');
   await page.goto(O + '/');
   await register(page);
@@ -215,7 +220,11 @@ function snapshot(page) {
     const layout = which => [...document.querySelectorAll(`[data-layout=${which}]`)];
     const what = el => {
       const s = el.getAttribute('href') || el.getAttribute('data-parseh-mode') || el.getAttribute('data-pick') ||
-        (el.hasAttribute('data-parseh-theme') ? 'theme' : el.hasAttribute('data-parseh-stop') ? 'stop' : '');
+        (el.hasAttribute('data-parseh-theme') ? 'theme' : el.hasAttribute('data-parseh-stop') ? 'stop'
+         // the ? a finger gets in place of a hover (lib/explain.js, §4.13): it
+         // carries none of the attributes above, and an unnamed entry in this
+         // list says nothing to whoever reads a failure
+         : el.classList.contains('px-ask') ? 'explain' : '');
       return el.tagName.toLowerCase() + ':' + s;
     };
     return {
@@ -275,6 +284,9 @@ const shot = async (page, name) => {
 };
 const settle = page => page.evaluate(() => document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
 const MOBILE_CLICKABLE = page => page.evaluate(() => ['a:/', 'button:browser', 'button:mobile', 'button:theme',
+  // the ? that says what a button does, drawn wherever there is no hover to
+  // rest (lib/explain.js); on a phone it is part of every bar
+  ...([...document.querySelectorAll('.px-ask')].filter(e => e.getClientRects().length).length ? ['button:explain'] : []),
   ...[...document.querySelectorAll('.m-langs .chip')].map(c => 'button:' + c.getAttribute('data-pick')),
   'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/', 'a:/m/install/', 'a:/licences/']);
 
@@ -511,14 +523,16 @@ async function partHub() {
              'the shelf knows the mode (data-mode, localStorage, cookie)');
       assert(!s.clickable.includes('button:stop'), 'and has no stop button');
       await Promise.all([page.waitForURL(B + '/'), page.locator('.m-bar a.home').click()]);
-      // a door with no mobile version: the browser page, as it is
-      await Promise.all([page.waitForURL(B + '/youtube/'), page.locator('.hub-mobile a.m-door[href="/youtube/"]').click()]);
+      // THE VIDEOS HAVE A SHELF OF THEIR OWN NOW (§4): the door carries
+      // /youtube/, and the registry sends the tap to /m/videos/ -- where,
+      // like every mobile page, there is nothing that administers the server
+      await Promise.all([page.waitForURL(B + '/m/videos/'), page.locator('.hub-mobile a.m-door[href="/youtube/"]').click()]);
       await settle(page);
       s = await snapshot(page);
-      assert(s.mode === 'mobile' && s.clickable.includes('button:stop'),
-             'the Videos door opens the video index, its browser page as it is -- there is no mobile version of it yet');
-      await shot(page, `${tag}-videos-fallback`);
-      await Promise.all([page.waitForURL(B + '/'), page.locator('.parseh-bar a.home').click()]);
+      assert(s.mode === 'mobile' && !s.clickable.includes('button:stop'),
+             'the Videos door opens the videos shelf, /m/videos/, with no stop button on it');
+      await shot(page, `${tag}-videos-shelf`);
+      await Promise.all([page.waitForURL(B + '/'), page.locator('.m-bar a.home').click()]);
       s = await snapshot(page);
       assert(s.mode === 'mobile' && s.mobile.every(([d]) => d), 'its home link: back on the mobile hub');
       // another tab follows a switch made in this one
@@ -536,8 +550,13 @@ async function partHub() {
 
       // ---- d) a door goes where Parseh.mode.route says
       const register = () => page.evaluate(() => Parseh.mode.pages.unshift({match: /^\/youtube\/$/, to: '/clips/'}));
-      eq(await page.evaluate(() => [Parseh.mode.route('/youtube/'), Parseh.mode.route('/studio/?x=1#y')]), ['/youtube/', '/studio/?x=1#y'],
+      // an address the registry knows nothing of -- the dictionary setup, which
+      // docs/mobile.md keeps in the browser.  /youtube/ stood here until the
+      // videos shelf was built, and has answered /m/videos/ ever since.
+      eq(await page.evaluate(() => [Parseh.mode.route('/lookup/'), Parseh.mode.route('/studio/?x=1#y')]), ['/lookup/', '/studio/?x=1#y'],
          'nothing registered: route() answers the browser address');
+      eq(await page.evaluate(() => Parseh.mode.route('/youtube/')), '/m/videos/',
+         'while the videos, which have a shelf of their own, answer it');
       eq(await page.evaluate(() => [Parseh.mode.route('/books/?x=1#y'), Parseh.mode.route('/books/index.html'),
                                     Parseh.mode.route('/books/persian/mini-fa/reader/index.html#par-1'),
                                     Parseh.mode.route('/exercises/deck/persian/words/study')]),

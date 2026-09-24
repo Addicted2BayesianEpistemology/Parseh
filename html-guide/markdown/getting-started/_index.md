@@ -44,7 +44,7 @@ example book, and nothing else of anybody's.
    on Windows, **serve.bat** — whose first run is a
    [setup wizard](windows-wizard.md). See
    [Starting and stopping](starting-and-stopping.md).
-3. **Open it** at `https://localhost:8765/`. Your browser warns you once
+3. **Open it** at `https://localhost:7654/`. Your browser warns you once
    about the certificate, which Parseh made for itself: accept it, and it
    never asks again. From a phone, use one of the other addresses Parseh
    prints — [From a phone or another computer](other-devices.md).

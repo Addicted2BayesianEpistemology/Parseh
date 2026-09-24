@@ -48,16 +48,27 @@ html[data-mode=mobile] body.barhidden .parseh-bar.m-bar{transform:translateY(-10
 .m-bar .home{min-height:48px;font-size:16px}
 .m-bar button{min-height:48px;min-width:48px;font-size:15px}
 .m-bar .parseh-mode button{min-width:0;padding:0 13px;font-size:14px}
-/* The home link with its name, the switch and the theme fit one line from
-   360px up; on the narrowest phones (320px, or a bigger one set to a larger
-   display size) the theme went to a second row.  There the home link is its
-   glyph alone, still 48px wide, and the name (a .word span) is hidden from
-   the eye only -- a screen reader still hears it, and the brand under the
-   bar says it. */
-@media (max-width:359px){
+/* The home link with its name, the switch, the theme and -- on a touch
+   screen -- the ? (lib/explain.js, §4.7) have to fit one line.  They do not
+   on a phone: there the home link is its glyph alone, still 48px wide, and
+   the name (a .word span) is hidden from the eye only -- a screen reader
+   still hears it, and the brand under the bar says it.  From 430px up (a
+   phone held sideways, a tablet, a desktop) the name comes back. */
+@media (max-width:429px){
   .m-bar .home{min-width:48px;justify-content:center}
   .m-bar .home .word{position:absolute;width:1px;height:1px;overflow:hidden;
     clip-path:inset(50%);white-space:nowrap}
+}
+/* THE NARROWEST PHONES THERE STILL ARE (320px: an iPhone SE lying in a case,
+   a split screen).  Home, Browser | Mobile, the theme and the ? want more
+   than that between them once the switch is drawn at its comfortable size,
+   and the bar wrapped to two rows -- which takes a second row of the screen
+   away from the reading on every page of the app.  The gap and the switch
+   give the width back; every target stays at its 48px, which is the one
+   thing that may not be traded. */
+@media (max-width:349px){
+  .parseh-bar.m-bar{gap:4px}
+  .m-bar .parseh-mode button{padding:0 7px;font-size:13px}
 }
 
 /* ---------------- the hub ---------------- */
@@ -167,6 +178,12 @@ html[data-mode=mobile] .m-elsewhere{display:none}
 .m-lhead .native{font-family:var(--tl-font,inherit);text-transform:none;letter-spacing:0;
   font-size:17px;font-weight:400}
 .m-lhead .n{letter-spacing:0;font-weight:400;font-variant-numeric:tabular-nums}
+/* a channel's name over its videos is a link to the channel's own page
+   (/m/videos/<slug>/, TO-DO §4.2), and so a finger's target like any other */
+.m-lhead .m-chan{display:inline-flex;align-items:center;min-height:48px;
+  padding-inline-end:4px;color:inherit;text-decoration:none}
+.m-lhead .m-chan:hover .name{color:var(--accent)}
+.m-lhead .m-chan:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
 /* A book: the whole card is the link to its reader, and at least 96px high
    -- the same door as the hub's.  Its title in the display face and its
    author in the reading face, each in the language's own direction (the
@@ -267,9 +284,9 @@ a.m-book:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 html.m-reader[data-mode=mobile] header{flex-direction:row;flex-wrap:wrap;align-items:center;
   gap:6px;padding:6px 10px}
 html.m-reader[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
-html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#play,#toc,#typo,#theme,.pgrp,
+html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#toc,#typo,#theme,.pgrp,.px-ask,.kp-btn,.kp-off,
   [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#listen,#listenfollow,
-  #listenscroll,#speed,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#bars,#draftmark,
+  #listenscroll,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#bars,
   #audio,[data-layout=mobile]){display:none!important}
 /* what stays is for a finger: 48px at the least, the text a size to read;
    and no grey-blue flash over what was tapped, which a phone paints over
@@ -277,9 +294,12 @@ html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#play,#toc,#typo,#t
 html.m-reader[data-mode=mobile] header :is(button,select,a.home){min-height:48px;
   font-size:15px;padding:6px 12px;border-radius:10px;-webkit-tap-highlight-color:transparent}
 html.m-reader[data-mode=mobile] header button{min-width:48px}
-/* ▶ carries its desktop width in its own style attribute, which outranks
-   every rule without !important */
-html.m-reader[data-mode=mobile] header #play{min-width:48px!important}
+/* ▶ IS NOT IN THE HEADER ON A PHONE.  Play, ↺ and ↻ float at the foot of
+   the screen instead, in the corners a thumb owns (lib/narrctl.js, the dock
+   below); the reader's own ▶ stays on the page, unshown, because it is the
+   button the dock presses -- everything play does (continuous, the loop, the
+   fold ahead, the reading place) is the reader's own. */
+html.m-reader[data-mode=mobile] header #play{display:none!important}
 html.m-reader[data-mode=mobile] header a.home{display:inline-flex;align-items:center;
   justify-content:center;min-width:48px}
 /* the nastaliq پ hangs below its baseline: its room is under it */
@@ -292,45 +312,37 @@ html.m-reader[data-mode=mobile] header .parseh-mode button:first-child{
 html.m-reader[data-mode=mobile] header .parseh-mode button:last-child{
   border-start-end-radius:9px;border-end-end-radius:9px}
 html.m-reader[data-mode=mobile] header .parseh-mode{border-radius:10px}
-/* THE FIRST LINE: the hub, the shelf, the recording (↺ ▶ ↻ and where it
-   is), the contents, the text size, and ⋯ at its end.  The contents is its
-   glyph alone: the word stays in the button for a screen reader, drawn at
-   no size at all.  The theme is one tap further, under ⋯. */
+/* THE FIRST LINE: the hub, the shelf, the contents, the text size, where
+   the recording is, and ⋯ at its end -- six targets, which a phone 320px
+   wide has room for on one line.  The recording is not moved from here any
+   more: the dock at the foot does that.  The contents is its glyph alone:
+   the word stays in the button for a screen reader, drawn at no size at
+   all.  The theme is one tap further, under ⋯. */
 html.m-reader[data-mode=mobile] header a.home.glyph{order:1}
 html.m-reader[data-mode=mobile] header a.home:not(.glyph){order:2}
-html.m-reader[data-mode=mobile] header .m-skip[data-skip="-1"]{order:3}
-html.m-reader[data-mode=mobile] header #play{order:4}
-html.m-reader[data-mode=mobile] header .m-skip[data-skip="1"]{order:5}
 html.m-reader[data-mode=mobile] header #toc{order:6;font-size:0;padding:0}
 html.m-reader[data-mode=mobile] header #toc::before{content:"\2630";font-size:20px;line-height:1}
 html.m-reader[data-mode=mobile] header #typo{order:7}
-/* where the recording is, and how long it is: read, not tapped */
-html.m-reader[data-mode=mobile] header #pos{order:8;font-size:13px;color:var(--dim);
+/* Where the recording is, and how long it is: read, not tapped -- and so it
+   goes with the rest of the listening, under ⋯.  The first line is five
+   targets and nothing else, which a phone 320px wide holds on one line; the
+   reading place itself is shown by the mark moving through the text. */
+html.m-reader[data-mode=mobile] header #pos{order:35;font-size:14px;color:var(--dim);
   font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:14em;padding-inline:2px}
 html.m-reader[data-mode=mobile] header .m-rmore{order:9;margin-inline-start:auto;font-size:20px;
   line-height:1;letter-spacing:.06em}
-html.m-reader[data-mode=mobile] header .m-skip{font-variant-numeric:tabular-nums;white-space:nowrap}
-html.m-reader[data-mode=mobile] header .m-rbreak{display:none}
-/* A PHONE HELD UPRIGHT has room for six targets of 48px on a line (a
-   320px one), and a narrated book has nine things for it.  So the
-   recording's four take a line of their own under the first -- ↺ ▶ ↻ and
-   where it is, together, where the thumb finds them -- and the first line
-   is the way out, the contents, the text size and ⋯.  From 600px -- a
-   phone held sideways, a tablet -- all of it is one line. */
-@media (max-width:599px){
-  html.m-reader[data-mode=mobile] body:not(.noaudio) header .m-rbreak{display:block;order:10;
-    flex:0 0 100%;height:0}
-  html.m-reader[data-mode=mobile] header .m-skip[data-skip="-1"]{order:11}
-  html.m-reader[data-mode=mobile] header #play{order:12}
-  html.m-reader[data-mode=mobile] header .m-skip[data-skip="1"]{order:13}
-  html.m-reader[data-mode=mobile] header #pos{order:14;margin-inline-start:4px}
-}
+/* "?" -- what a button does, for a screen with no mouse to rest on it
+   (lib/explain.js): beside ⋯, at the end of the first line */
+html.m-reader[data-mode=mobile] header .px-ask{order:10}
+/* the chip that says the computer cannot be reached (lib/keep.js, §19.5):
+   on the first line, where it is seen at once and not only under ⋯ */
+html.m-reader[data-mode=mobile] header .kp-off{order:11}
 @media (max-width:359px){
   html.m-reader[data-mode=mobile] header{gap:4px;padding:6px 6px}
 }
 /* a book with no narration has no recording to move */
-html.m-reader[data-mode=mobile] body.noaudio :is(.m-skip,.m-rskip,.m-rbreak){display:none!important}
+html.m-reader[data-mode=mobile] body.noaudio .m-rskip{display:none!important}
 html.m-reader[data-mode=mobile] header.m-more .m-rmore{background:var(--hl);border-color:var(--accent);
   color:var(--accent)}
 /* the rest: a line saying what the group is, then the group */
@@ -345,20 +357,17 @@ html.m-reader[data-mode=mobile] header #cont{order:31}
 html.m-reader[data-mode=mobile] header #loop{order:32}
 html.m-reader[data-mode=mobile] header #gapwrap{order:33}
 html.m-reader[data-mode=mobile] header #stopbnd{order:34}
-/* the speed, with the word the select does not say (mobilereader.js) */
-html.m-reader[data-mode=mobile] header .m-rnote{order:35;font-size:14px;color:var(--dim);
-  margin-inline-start:4px}
-html.m-reader[data-mode=mobile] header #speed{order:36}
-html.m-reader[data-mode=mobile] body.noaudio .m-rnote{display:none!important}
-/* how far ↺ and ↻ move: a field of figures, 16px so that a phone does not
-   zoom the page into it when it is tapped */
-html.m-reader[data-mode=mobile] header .m-rskip{order:37;display:inline-flex;align-items:center;gap:6px;
-  font-size:14px;color:var(--dim);margin-inline-start:4px}
-html.m-reader[data-mode=mobile] header .m-rskip input{width:4.2em;min-height:48px;box-sizing:border-box;
-  padding:0 6px;font:inherit;font-size:16px;text-align:center;color:var(--ink);background:var(--card);
-  border:1px solid var(--rule);border-radius:10px;font-variant-numeric:tabular-nums}
-html.m-reader[data-mode=mobile] header .m-rskip input:focus-visible{outline:2px solid var(--accent);
-  outline-offset:1px}
+/* HOW FAR ↺ AND ↻ MOVE, in the open.  Holding either button opens the same
+   row over the dock, but a hold cannot be seen, so the group says it too
+   (lib/narrctl.js builds both; the speed is the dock's chip and is not
+   repeated here). */
+html.m-reader[data-mode=mobile] header .m-rskip{order:37;display:flex;align-items:center;
+  flex-wrap:wrap;gap:6px;flex:1 0 100%;font-size:14px;color:var(--dim)}
+html.m-reader[data-mode=mobile] header .m-rskiplab{margin-inline-end:2px}
+html.m-reader[data-mode=mobile] header .m-rskip button{min-width:48px;min-height:48px;
+  font-variant-numeric:tabular-nums}
+html.m-reader[data-mode=mobile] header .m-rskip button.on{border-color:var(--accent);
+  color:var(--accent);background:var(--hl)}
 html.m-reader[data-mode=mobile] header #listen{order:38}
 html.m-reader[data-mode=mobile] header #listenfollow{order:39}
 html.m-reader[data-mode=mobile] header #listenscroll{order:40}
@@ -373,15 +382,17 @@ html.m-reader[data-mode=mobile] header .m-rlab[data-g=page]{order:60}
 html.m-reader[data-mode=mobile] header #theme{order:61}
 html.m-reader[data-mode=mobile] header #bars{order:62}
 html.m-reader[data-mode=mobile] header .parseh-mode{order:63}
-html.m-reader[data-mode=mobile] header #draftmark{order:64;font-size:13px}
+/* Keep on this phone (lib/keep.js, §19.2): with the rest of "This page",
+   under ⋯ -- keeping a book is a decision, not a thing to press by accident */
+html.m-reader[data-mode=mobile] header .kp-btn{order:65;flex:1 0 100%}
 /* the narration's own player, where the reader shows it (a book with a
    recording and no times yet): a line of its own under everything */
 html.m-reader[data-mode=mobile] header #audio{order:90;flex:1 1 100%;min-width:0;max-width:none;
   height:40px;margin:2px 0}
 /* ⋯ closed: the first line alone (with the recording's line, upright) */
-html.m-reader[data-mode=mobile] header:not(.m-more) :is(.m-rlab,.m-rnote,.m-rskip,.pgrp,
-  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#speed,#listen,#listenfollow,
-  #listenscroll,#seekwrap,#warn,#dictmode,#defmode,#defmt,#theme,#bars,.parseh-mode,#draftmark){
+html.m-reader[data-mode=mobile] header:not(.m-more) :is(.m-rlab,.m-rskip,.kp-btn,.pgrp,
+  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#listen,#listenfollow,
+  #listenscroll,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#theme,#bars,.parseh-mode){
   display:none!important}
 /* Open, the controls may be more than a phone held sideways has height for:
    they scroll inside the header, and the page under them stays put. */
@@ -400,18 +411,238 @@ html.m-reader[data-mode=mobile] header .m-rlab.m-empty-g{display:none!important}
    finger's size too */
 html.m-reader[data-mode=mobile] #barsback{min-height:44px;min-width:56px;font-size:14px;opacity:.75}
 
+/* ---------------- THE DOCK: the recording, under the thumb ----------------
+   The header hides on the way down a page, and a reader moving about in a
+   narration was reaching up for buttons that were not there.  So on a phone
+   ↺, ⏯ and ↻ leave the header and float at the foot of the screen, in the
+   two corners a thumb reaches without the hand shifting its grip: ↺ in the
+   left corner, ⏯ and ↻ in the right with the speed chip above them (the
+   owner's choice, 2026-09-22).  lib/narrctl.js builds them.
+
+   They are over the text, so they must not shout: a few seconds in which
+   nothing is touched and they fade to a whisper; the first touch anywhere --
+   a tap, a scroll, a key -- brings them back whole.  The page keeps a foot's
+   room under its last line so nothing is read through them, and they sit
+   above a phone's own bottom bar (the safe area).
+
+   AND THE DOCK IS NEVER MIRRORED.  It hangs off <body>, and a Persian,
+   Arabic or Hebrew book's <body> runs right to left: the whole dock came out
+   backwards -- ↺ in the right corner, ⏯ and ↻ in the left, and "↺ 10" and
+   "10 ↻" reordered inside their own buttons, so back pointed forward (the
+   owner, on a real phone, 2026-09-23).  These are the toolbox's controls and
+   not the book's text, so like the reader's own header they are a
+   left-to-right island: direction:ltr here, dir="ltr" on the element itself
+   (lib/narrctl.js, which builds it), and every rule below written from left
+   and right rather than from start and end. */
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-dock{position:fixed;z-index:60;left:0;right:0;
+  bottom:calc(10px + env(safe-area-inset-bottom));display:flex;align-items:flex-end;
+  justify-content:space-between;padding:0 12px;pointer-events:none;direction:ltr;
+  transition:opacity .35s ease}
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-dock > *{pointer-events:auto}
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-dock.nc-idle{opacity:.33}
+/* Under whatever opens over the page -- a gloss cloud (80), a note, a sheet
+   -- and gone altogether while ⋯ is open, since the header then holds every
+   control the page has and the dock would float over them. */
+html:is(.m-reader,.m-player)[data-mode=mobile] header.m-more ~ .nc-dock{display:none!important}
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-side{display:flex;flex-direction:column;
+  align-items:flex-end;gap:8px;direction:ltr}
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-pair{display:flex;align-items:center;gap:8px;
+  direction:ltr}
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-top{display:flex;justify-content:flex-end;
+  direction:ltr}
+/* "↺ 10" and "10 ↻": an arrow is a neutral character, so in a right-to-left
+   paragraph it changes sides with the number beside it.  The button's own
+   text is its own island too, and says the same thing in every book. */
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-dock :is(.nc-skip,.nc-play,.nc-chip){
+  direction:ltr;unicode-bidi:isolate}
+/* 56px, not the 48 a target must be at least: these are pressed again and
+   again, held, and often without looking */
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-dock :is(.nc-skip,.nc-play){min-width:56px;
+  min-height:56px;font-size:16px;border-radius:16px;background:var(--card);
+  border:1px solid var(--rule);color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.14);
+  -webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;
+  justify-content:center}
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-dock .nc-play{font-size:19px;color:var(--accent);
+  border-color:var(--accentlt)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .nc-dock .nc-chip{min-height:36px;font-size:14px;
+  box-shadow:0 2px 10px rgba(0,0,0,.14)}
+/* the last line of a book is not read through the dock */
+html.m-reader[data-mode=mobile] body:not(.noaudio){
+  padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+
 /* THE PAGE'S WRITING DOORS, SHUT.  The pencil over a chunk and the gloss
    cloud's edit and card buttons; the plus that writes a note into a seam,
    and the note viewer's edit; a chapter's and a section's naming in the
    contents; and the sheets they would open -- the card, the book's details,
    the chunk, its division, the folding, the narration, the sections, the
-   download.  A sheet somebody left open in the browser mode is hidden, not
+   download, the glossing of a stretch with an LLM.  A sheet somebody left open in the browser mode is hidden, not
    closed, so going back to the browser mode finds it as it was, unsaved
    text and all.  The gestures and keys that open them are refused by
    lib/mobilereader.js. */
 html.m-reader[data-mode=mobile] :is(#chpen,#anki,#ankiback,#bmbox,#bmback,#chbox,#chback,#dvbox,
-  #dvback,#fdbox,#fdback,#narrbox,#narrback,#naskbox,#naskback,#secbox,#secback,.dlback,.dlsheet,
+  #dvback,#fdbox,#fdback,#rgbox,#rgback,#narrbox,#narrback,#naskbox,#naskback,#secbox,#secback,.dlback,.dlsheet,
   #ntedit,#ntread,.gap .plus,.tocedit,#tocsecs,#cloud .mkcard,#cloud .mkedit){display:none!important}
 /* and the word under the pointer no longer lights up for a card while a
    modifier is held: there is no card to make */
 html.m-reader[data-mode=mobile] body.altdown .wd:hover{background:none;box-shadow:none}
+
+
+/* ================= A VIDEO'S PAGE, ON A PHONE (TO-DO §4.2) =================
+   html.m-player, put on by lib/parseh.js, which loads lib/mobileplayer.js
+   beside this sheet.  The page is the same page -- the video, the transcript,
+   the glosses, the cloud -- laid out for a thumb: one line of header, with
+   everything else under ⋯, and nothing on it that writes the video or
+   administers it.  The recording's controls are the dock above, which drives
+   the video through the player's own handle (lib/narrctl.js). */
+html.m-player[data-mode=mobile] header{flex-direction:row;flex-wrap:wrap;align-items:center;
+  gap:6px;padding:6px 10px}
+html.m-player[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
+/* what stays; everything else -- the details, the timings, the download, the
+   dictionary setup, side-by-side (the phone's own orientation decides it),
+   stop, and whatever a later player adds that nobody here has named -- is not
+   on a phone at all */
+html.m-player[data-mode=mobile] header > :not(a.home,.ttl,#follow,#hoverpause,#aloud,#pin,
+  #dictmode,#defmode,#defmt,#theme,#typo,.px-ask,.kp-btn,.kp-off,[data-layout=mobile]){display:none!important}
+html.m-player[data-mode=mobile] header #dl{display:none!important}
+html.m-player[data-mode=mobile] header :is(button,select,a.home){min-height:48px;
+  font-size:15px;padding:6px 12px;border-radius:10px;-webkit-tap-highlight-color:transparent}
+html.m-player[data-mode=mobile] header button{min-width:48px}
+html.m-player[data-mode=mobile] header a.home{display:inline-flex;align-items:center;
+  justify-content:center;min-width:48px}
+html.m-player[data-mode=mobile] header a.home.glyph{font-size:19px;padding:0 12px 8px}
+/* the first line: the hub, the channel, what this video is, ⛶ and ⋯ */
+html.m-player[data-mode=mobile] header a.home.glyph{order:1}
+html.m-player[data-mode=mobile] header a.home:not(.glyph){order:2}
+html.m-player[data-mode=mobile] header .ttl{order:3;flex:1 1 40%;min-width:0;font-size:14px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.m-player[data-mode=mobile] header .ttl .lat{display:none}
+html.m-player[data-mode=mobile] header .m-vfull{order:4}
+html.m-player[data-mode=mobile] header .px-ask{order:5}
+html.m-player[data-mode=mobile] header .kp-off{order:7}
+html.m-player[data-mode=mobile] header .m-rmore{order:6;margin-inline-start:auto;font-size:20px;
+  line-height:1;letter-spacing:.06em}
+html.m-player[data-mode=mobile] header.m-more .m-rmore{background:var(--hl);
+  border-color:var(--accent);color:var(--accent)}
+/* the rest, under ⋯: a line saying what the group is, then the group */
+html.m-player[data-mode=mobile] header .m-rlab{flex:1 0 100%;margin:8px 0 -2px;
+  font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+html.m-player[data-mode=mobile] header .m-rlab[data-g=following]{order:20}
+html.m-player[data-mode=mobile] header #follow{order:21}
+html.m-player[data-mode=mobile] header #hoverpause{order:22}
+html.m-player[data-mode=mobile] header #aloud{order:23}
+html.m-player[data-mode=mobile] header #pin{order:24}
+html.m-player[data-mode=mobile] header .m-rlab[data-g=looking]{order:30}
+html.m-player[data-mode=mobile] header #dictmode{order:31}
+html.m-player[data-mode=mobile] header #defmode{order:32}
+html.m-player[data-mode=mobile] header #defmt{order:33}
+html.m-player[data-mode=mobile] header .m-rlab[data-g=page]{order:40}
+html.m-player[data-mode=mobile] header #theme{order:41}
+html.m-player[data-mode=mobile] header #typo{order:42}
+html.m-player[data-mode=mobile] header .parseh-mode{order:43}
+html.m-player[data-mode=mobile] header .kp-btn{order:44;flex:1 0 100%}
+html.m-player[data-mode=mobile] header .parseh-mode button{border-radius:0;min-width:0;
+  padding:0 16px;font-size:15px}
+html.m-player[data-mode=mobile] header .parseh-mode button:first-child{
+  border-start-start-radius:9px;border-end-start-radius:9px}
+html.m-player[data-mode=mobile] header .parseh-mode button:last-child{
+  border-start-end-radius:9px;border-end-end-radius:9px}
+html.m-player[data-mode=mobile] header:not(.m-more) :is(.m-rlab,#follow,#hoverpause,#aloud,
+  #pin,#dictmode,#defmode,#defmt,#theme,#typo,.parseh-mode,.kp-btn){display:none!important}
+html.m-player[data-mode=mobile] header.m-more{max-height:100vh;max-height:100dvh;
+  overflow-y:auto;overscroll-behavior:contain}
+/* the page's long explanation of the mouse's gestures is not for a phone:
+   the held finger's menu says what a finger can do (lib/wordtouch.js) */
+html.m-player[data-mode=mobile] main > .hint{display:none!important}
+html.m-player[data-mode=mobile] main{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+/* the transcript at a size to read, its captions a finger's targets */
+html.m-player[data-mode=mobile] #segs .seg{padding:10px 8px}
+/* NOTHING THAT WRITES THE VIDEO, and no sheet of one: the card, the chunk's
+   own fields, the division of a chunk, the note's editor, the timings */
+html.m-player[data-mode=mobile] :is(#anki,#ankiback,#dvbox,#dvback,#ntedit,#ntread,
+  #vmbox,#vmback,#cloud .mkcard,#cloud .mkedit,#cloud .colors,#subedit){display:none!important}
+
+/* HELD SIDEWAYS: the video at the left, the transcript at the right, with the
+   divider between them draggable (the player's own #grip, which listens to
+   pointer events and so takes a finger).  The player's own side-by-side rules
+   live behind (min-width:860px) -- a phone's long side is under that -- so
+   the layout is restated here for the phone, and player.js's sideOn() agrees
+   with this query. */
+@media (orientation:landscape) and (min-width:600px){
+  html.m-player[data-mode=mobile] body.sbs #playerwrap{position:fixed;top:var(--headh,52px);
+    left:0;bottom:0;width:var(--sidew,46%);z-index:40;display:flex;align-items:center;
+    justify-content:center;padding:8px 10px;background:var(--bg);
+    border-bottom:none;border-right:1px solid var(--rule);box-shadow:none}
+  html.m-player[data-mode=mobile] body.sbs #vid{width:100%;max-width:none;
+    max-height:calc(100vh - var(--headh,52px) - 24px);margin:0}
+  html.m-player[data-mode=mobile] body.sbs #vid :is(iframe,video){max-height:none}
+  html.m-player[data-mode=mobile] body.sbs #grip{position:absolute;top:0;right:-10px;bottom:0;
+    width:24px;height:auto;margin:0;border:none;border-radius:0;background:transparent;
+    touch-action:none;cursor:ew-resize}
+  html.m-player[data-mode=mobile] body.sbs main{margin-left:var(--sidew,46%);max-width:none;
+    padding:10px 14px calc(84px + env(safe-area-inset-bottom))}
+  html.m-player[data-mode=mobile] body.sbs main #segs{max-width:none}
+}
+/* THE WHOLE SCREEN, sideways: the video fills it and the line being said lies
+   over its foot, as tappable as it is in the transcript (a tap opens the
+   gloss cloud).
+
+   THE LAYOUT IS PARSEH'S OWN, and it is the same picture whether the browser
+   gave the whole screen or refused it.  ⛶ asks for the PAGE -- not this box,
+   which holds YouTube's cross-origin iframe and on Android would take the top
+   layer and draw nothing of ours over it (lib/mobileplayer.js says why at
+   length) -- and html.m-vfullon pins the box over the page either way, the
+   mark going on <html> beside the layer's others because it is the PAGE the
+   overlay takes over.  The layers, from the page up: the header (50), this
+   box (55), the dock (60),
+   the gloss cloud (80, the player's own sheet).  So the video covers the
+   page, the dock stays under the thumb, and a gloss opens over both. */
+html.m-player.m-vfullon[data-mode=mobile]{overflow:hidden}
+/* `body` stands in every one of these: the side-by-side rules above name it
+   too, and without it they would be the more specific and hold the video in
+   its left-hand column while the whole screen was meant to be the video */
+html.m-player.m-vfullon[data-mode=mobile] body #playerwrap{position:fixed;inset:0;
+  width:auto;height:auto;z-index:55;margin:0;padding:0;background:#000;
+  border:none;box-shadow:none;display:flex;align-items:center;justify-content:center}
+/* the picture as large as the screen holds it, matted on black and keeping
+   its shape: whichever of the two edges runs out first is the one it takes */
+html.m-player.m-vfullon[data-mode=mobile] body #vid{width:min(100%,calc(100vh * 16 / 9));
+  width:min(100%,calc(100dvh * 16 / 9));max-width:none;height:auto;max-height:100vh;
+  max-height:100dvh;margin:0;border:none;border-radius:0}
+html.m-player.m-vfullon[data-mode=mobile] body #vid :is(iframe,video){max-height:none}
+html.m-player.m-vfullon[data-mode=mobile] body #grip{display:none}
+/* the way out, in the corner the dock does not own; it fades with the dock
+   and is whole again at the first touch (lib/narrctl.js keeps the clock) */
+html.m-player[data-mode=mobile] .m-vout{position:absolute;z-index:6;
+  top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right));
+  min-width:48px;min-height:48px;font-size:19px;line-height:1;border-radius:12px;
+  background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.4);color:#fff;
+  -webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;
+  justify-content:center;transition:opacity .35s ease}
+html.m-player[data-mode=mobile] .m-vout.nc-idle{opacity:.33}
+/* The dock keeps its two corners at this same foot -- ↺ on the left, ⏯ and ↻
+   on the right -- and it must stay reachable with the video on the whole
+   screen, so the line keeps to the middle and clear of both columns: 56px of
+   button, the pair of them on the right, and the dock's own padding. */
+html.m-player[data-mode=mobile] .m-subs{position:absolute;left:0;right:0;
+  bottom:calc(12px + env(safe-area-inset-bottom));z-index:5;display:flex;justify-content:center;
+  padding:0 152px;pointer-events:none}
+html.m-player[data-mode=mobile] .m-subs .m-subline{pointer-events:auto;max-width:min(900px,94vw);
+  padding:10px 14px;border-radius:12px;background:rgba(0,0,0,.62);color:#fff;
+  font-size:19px;line-height:1.5;text-align:center;backdrop-filter:blur(2px);
+  box-shadow:none;margin:0}
+/* THE COPY IS STILL THE CAPTION BEING SAID, .on-air and all, and in the
+   transcript that means a pale highlight with the words in full ink.  Over
+   the picture it would mean a pale block with dark words on a dark pill --
+   unreadable, and the plainest reason the subtitles were never seen working.
+   Here the line is white on black, whatever the theme and however the
+   transcript dresses the same element. */
+html.m-player[data-mode=mobile] .m-subs .m-subline :is(.fa,.w,.wd,.bare,.tl){color:#fff}
+html.m-player[data-mode=mobile] .m-subs .m-subline .fa{text-align:center}
+/* and a phrase answering a tap lifts against the black, not against --card */
+html.m-player[data-mode=mobile] .m-subs .m-subline .w:is(:hover,.hot){
+  background:rgba(255,255,255,.16);box-shadow:0 0 0 3px rgba(255,255,255,.16)}
+/* the caption's own time button is not a subtitle: the line is */
+html.m-player[data-mode=mobile] .m-subs .m-subline :is(.lab,.note,.seg-note){display:none}
+html.m-player[data-mode=mobile] .m-vfull{font-size:19px;line-height:1}
+html.m-player[data-mode=mobile] .m-vfull[aria-pressed=true]{background:var(--hl);
+  border-color:var(--accent);color:var(--accent)}

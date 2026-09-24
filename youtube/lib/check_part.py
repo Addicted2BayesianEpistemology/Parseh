@@ -17,9 +17,11 @@ checks a single part against transcript.txt, on its own:
   * FIDELITY: each segment's chunks, joined with the language's word
     separator (a space; nothing for Japanese), give the caption back word
     for word (the language's marks -- harakat -- stripped from both sides)
-  * every chunk carries the fields its language requires (the meaning,
-    the transliteration where the language wants one, the kana where it
-    has a reading -- check_annotations.check_chunk, from the registry)
+  * every chunk glossed at all carries the fields its language requires
+    (the meaning, the transliteration where the language wants one, the
+    kana where it has a reading -- check_annotations.check_chunk, from the
+    registry); a chunk left with no gloss at all is not an error, only
+    counted in a note, as check_annotations.py counts it
   * a chunk's word line, where it carries one, gives its text back
     (check_chunk again, told video.json's "reorders")
 
@@ -30,7 +32,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from check_annotations import check_chunk, lang_of, norm, parse_transcript
+from check_annotations import (check_chunk, gloss_count, lang_of, norm,
+                               parse_transcript)
 
 
 def align(starts, want):
@@ -173,6 +176,13 @@ def main():
         print("warning: %s" % w)
     for e in errors:
         print("ERROR: %s" % e)
+    # a chunk left with no gloss is no fault, but a batch is written to be
+    # glossed, and one that forgot a chunk should hear about it here, while
+    # its captions are still in mind
+    blank, glossable = gloss_count(batch if isinstance(batch, list) else [], lang)
+    if blank:
+        print("note: %d of %d chunks have no gloss yet"
+              % (blank, glossable))
     where = ("captions %d..%d" % (base, base + len(batch) - 1)
              if base is not None else "unplaced")
     print("%s: %d captions (%s), %d chunks, %d words -- %d error(s), "

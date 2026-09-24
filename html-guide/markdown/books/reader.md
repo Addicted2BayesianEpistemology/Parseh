@@ -32,7 +32,6 @@ reading-help switches only where something is installed for the language.
 | **reading help** | opens `/lookup/`, where dictionaries, corpora and models are installed |
 | the time | in a book with a recording: where it is, `0:42 / 12:05`, and which recording when there are several |
 | the build stamp | which build of the reader this is, and when it was made (`04ad5c 14:23`) |
-| **draft** | the book is a draft ([Adding a book](doc:Adding a book)) |
 | **PDF behind the text — build it** | appears after an edit: the reader shows it, the PDF does not yet. Click it to build the PDF. |
 
 **The second row** — the book's own tools:
@@ -47,6 +46,7 @@ reading-help switches only where something is installed for the language.
 | **Aa** | text size and margins (below) |
 | **narration** — **add a narration** in a book with none | the recordings of the book: [Adding a narration](doc:Adding a narration) |
 | **fold** | folds a run of paragraphs away: [Contents, sections and folding](doc:Contents, sections and folding) |
+| **gloss with an LLM** | copies a prompt that has an LLM gloss a stretch of the book, and fills in its answer — where nobody has glossed, unless you tick a box to widen it: [Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM) |
 | **edit times**, **save times (N)**, **discard edits** | fixing the timings by hand: [Fixing the timings](doc:Fixing the timings). Only in a book with a recording. |
 | **download** | the book as one zip: [Taking a book away](doc:Taking a book away) |
 | **stop server** | stops Parseh. It turns into **really stop?** for four seconds, and a second click stops it — after naming anything still running (a build, an upload) that stopping would cut off. Your place and your speed are saved first. |

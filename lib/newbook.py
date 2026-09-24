@@ -9,9 +9,11 @@ that one alone:
 
   1. by hand, here.  A chapter is pasted and POSTed to /books/__empty,
      which drafts the whole book with the text divided and every gloss
-     blank, marks it a draft, and the reader (which has its own editor)
-     is where it is filled in.  It needs the book's facts and a chapter,
-     and none of the four fields the outside folder needs.
+     blank -- a chunk nobody has glossed yet is legal everywhere, so the
+     book reads and builds from the first minute -- and the reader (which
+     has its own editor, a chunk by hand or a region at a time with an
+     LLM) is where it is filled in.  It needs the book's facts and a
+     chapter, and none of the four fields the outside folder needs.
 
   2. onto a book already here.  POST <book>/__append, addressed by the
      book's own path so no slug ever travels in a body.  Its body is
@@ -256,7 +258,7 @@ cd "$SOFT"
 ./build.sh {{SLUG}}         # the PDF and the reader (minutes); ./build.sh --html for the reader alone
 python3 lib/verify_book.py --help >/dev/null 2>&1 || true
 FRANK_BOOK=books/{{LANG_FOLDER}}/{{SLUG}} python3 lib/verify_book.py
-echo "done: open https://localhost:8765/books/  (or ./serve.sh restart if it is not running)"
+echo "done: open https://localhost:7654/books/  (or ./serve.sh restart if it is not running)"
 '''
 
 BOOK_JSON = '''{
@@ -585,8 +587,10 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   <div class="hbox" id="how-new" hidden>
     <p><b>What it writes:</b> <code>book.json</code>, <code>main.tex</code>, the chapter&rsquo;s
       <code>.tex</code>, and the source files the fidelity checks read.</p>
-    <p><b>It is marked a draft</b> while you work, so the checker forgives a chunk nobody has
-      glossed yet and still catches a half-written one.</p>
+    <p><b>Every gloss starts blank</b>, and that is legal: a chunk nobody has glossed yet
+      reads, builds and passes the checker as it is (a half-written one is still caught). You
+      fill them in in the reader &mdash; a chunk at a time by hand, or a region at a time with
+      an LLM.</p>
     <p><b>For Japanese and Chinese</b> the word line is proposed by the toolbox and left for
       you to correct; every other line is blank.</p>
     <p><b>Sense groups</b> cuts at the edges of phrases &mdash; a preposition with its noun, a
@@ -659,8 +663,9 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     <p><b>More of the last chapter</b> rewrites that chapter&rsquo;s file: its
       <code>\chapend</code> moves to the end of the new text, and
       <code>source/src_chN.json</code> is merged.</p>
-    <p><b>It is marked a draft</b> while you work, so the checker forgives a chunk nobody has
-      glossed yet and still catches a half-written one.</p>
+    <p><b>The new chunks arrive with every gloss blank</b>, as a new book&rsquo;s do, and
+      that is legal. You fill them in in the reader &mdash; a chunk at a time by hand, or a
+      region at a time with an LLM.</p>
   </div>
   </div>
 </section>
@@ -943,7 +948,16 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     $('addlang').textContent = name;
   }
   function render() {
-    // only way 3 reads any of this.  It used to rebuild four artefacts and a
+    // THE NOTE UNDER THE SLUG IS NOT WAY 3'S ALONE: "Write it here, by hand"
+    // names a slug in the same identity block, and its door creates the very
+    // directory the note names.  It sat below the gate, so on that way it was
+    // brought up to date only when the language changed: typing a title, or
+    // emptying the slug of a restored draft, left it naming the previous
+    // book's directory, and "a book is already at … choose another slug"
+    // never came while the slug that would be refused was typed.  Here,
+    // before the gate, it follows every field on every way that shows it.
+    slugPreview();
+    // only way 3 reads the rest.  It used to rebuild four artefacts and a
     // ~19 KB prompt on every keystroke of fourteen fields, in ways where
     // nothing it produces is ever looked at.
     if (PATH !== 'llm') return;
@@ -1075,7 +1089,6 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     $('plen').textContent = prompt.length + ' characters';
     $('setup').textContent = fill(D.setup, m);
     $('ret').textContent = fill(D.ret, m);
-    slugPreview();
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
     return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
@@ -1107,6 +1120,9 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     if (p === 'new') $('facts-new').appendChild(IDENT);
     if (p === 'llm') $('facts-llm').insertBefore(IDENT, $('facts-llm').firstChild);
     if (p === 'llm') render();                   // the one gated call: way 3 must not open on empty <pre>s
+    // (render() brings the slug note up to date on way 3; on the others it is
+    // done here, the warning under it being worded for the way chosen)
+    else slugPreview();
     ticks();
     save();
     if (push) {

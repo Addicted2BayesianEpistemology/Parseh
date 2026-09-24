@@ -27,9 +27,11 @@ Note that the `.tex` currently covers only chapter 1 and the first 40 paragraphs
 Each paragraph is a `frank` environment preceded by `\parnum{۱.۱}`. Inside it, chunks are:
 
 ```
-\ch{persian, vocalised}{transliteration}{vocabulary}{english}
-\chp{persian}                              % a chunk needing no gloss
+\ch{colour}{persian, vocalised}{transliteration}{vocabulary}{english}
+\chp{colour}{persian}                      % a chunk needing no gloss
 ```
+
+The first argument of both is the chunk's colour — `\Cred`, `\Cblue`, `\Corange`, `\Cgreen`, or empty — the reader's own mark, and nothing you need to read; the Persian is always the **second** argument (5 arguments for `\ch`, 2 for `\chp`).
 
 The vocabulary field admits only these macros — `\dw`, `\vb`, `\bw`, `\pw`, `\textit`, `\emph`, `\nobreak` (the allowlist is in `assemble.py`). That is the entire surface your parser has to handle. Their signatures are in `lib/frank-preamble.tex`; read it rather than guessing — `\vb`, for one, prints its second and third form only when that form is not empty, and `lib/texparse.py` already reads every one of them exactly as the PDF prints it.
 
@@ -47,7 +49,7 @@ Write `timestamp.py`, which aligns audio to text and edits the `ch*.tex` files i
 % @par 1.1 118.42 141.07
 \begin{frank}
 % @t 118.42 121.06 0.97
-\ch{دَر زِندِگی}{dar zendegi}{...}{in life}
+\ch{}{دَر زِندِگی}{dar zendegi}{...}{in life}
 ```
 
 Use a **full-line** comment, never a trailing one. A `%` at the end of a line of LaTeX swallows the following newline and the inter-token space with it; a line that *begins* with `%` is consumed whole and can have no effect on output whatsoever. This distinction is the entire reason the PDF stays safe.

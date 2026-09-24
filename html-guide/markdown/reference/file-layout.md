@@ -96,7 +96,7 @@ are short ones to look at.
 
 | Path | What it is |
 |---|---|
-| `book.json` | The title and author (and their transliterations), the language and the gloss language, the draft flag, the narration's recordings and what each covers. |
+| `book.json` | The title and author (and their transliterations), the language and the gloss language, the narration's recordings and what each covers. |
 | `main.tex` | The edition's own title page, and the chapters it inputs. |
 | `ch1.tex`, `ch2.tex` … | The chapters, written by hand: every chunk one `\ch` call (or `\chr`, `\chw`, `\chp`…). |
 | `NOTES.md` | Notes on the edition, when it has them. |
@@ -129,10 +129,10 @@ own, or for a film on this machine the one the add page gave it.
 
 | Path | What it is |
 |---|---|
-| `video.json` | The title and its native form, the channel, the language and the gloss language, the level, the blurb, the draft flag. |
+| `video.json` | The title and its native form, the channel, the language and the gloss language, the level, the blurb. |
 | `transcript.txt` | The transcript as it was pasted: the text every caption is checked against. |
 | `annotations.json` | Every caption's chunks and glosses: what the player shows. |
-| `parts/NN.json` | The batches an LLM annotated, when it was made that way; `merge_parts.py` assembles the file above from them. |
+| `parts/NN.json` | The batches an LLM annotated. They exist only **while the video is being added** — `merge_parts.py` assembles the file above from them and they are dropped before the video reaches the shelf. A video added before 23 September 2026 may still carry them; nothing reads them ([parts/ is retired](../videos/the-files.md#parts)). |
 | `waveform.json` | The picture of the sound, once one has been recorded. |
 | `media.<ext>` | The film itself, for a video that is a file on this machine. |
 | `markdown/` | The notes written into the video's seams (below). |

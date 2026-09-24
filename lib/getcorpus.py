@@ -117,10 +117,29 @@ def _links(path):
     return out
 
 
+def _known(code, what):
+    """The registry's language, or a refusal naming what it does not know.
+
+    NOT get_or_default.  That one answers Persian for anything it does not
+    recognise, which is right for a book written before languages were
+    declared and wrong here: `getcorpus.py it pt` means Italian glossed in
+    Portuguese, and it quietly downloaded Persian instead, built
+    `corpus/it-fa.db`, and reported it built -- a file whose name is a claim
+    about what is in it.  Refused here, where the build begins, so that the
+    button on the reading-help page is answered the same as the command
+    line."""
+    L = languages.LANGS.get((code or "").strip().lower())
+    if L is None:
+        raise SystemExit("getcorpus: %r is not a language Parseh knows (%s): "
+                         "the %s was not understood, and nothing was built"
+                         % (code, ", ".join(languages.CODES), what))
+    return L
+
+
 def build(code, gloss="en", keep=False, say=print):
     """Download and build corpus/<code>-<gloss>.db.  Returns the pair count."""
-    L = languages.get_or_default(code)
-    G = languages.get_or_default(gloss)
+    L = _known(code, "language")
+    G = _known(gloss, "gloss language")
     if not L.iso3 or not G.iso3:
         raise SystemExit("getcorpus: %s or %s has no `iso3` in the registry"
                          % (L.code, G.code))
@@ -270,6 +289,9 @@ def main():
     p.add_argument("--keep", action="store_true",
                    help="keep the downloaded exports")
     a = p.parse_args()
+    # the gloss is checked before anything is downloaded, and before --all
+    # starts on eleven languages with a gloss that was never understood
+    _known(a.gloss, "gloss language")
     if a.all:
         for L in languages.LANGS.values():
             if L.code == a.gloss:
@@ -283,9 +305,7 @@ def main():
     if not a.code:
         status()
         return 0
-    if a.code not in languages.LANGS:
-        raise SystemExit("getcorpus: %r is not a language in the registry; "
-                         "run with no arguments to see them" % a.code)
+    _known(a.code, "language")
     build(a.code, a.gloss, keep=a.keep)
     return 0
 

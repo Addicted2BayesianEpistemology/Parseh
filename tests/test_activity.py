@@ -23,6 +23,7 @@ Three layers, each with its own reason to break:
 """
 import http.client
 import json
+import re
 import os
 import shutil
 import sys
@@ -567,12 +568,37 @@ class Pages(unittest.TestCase):
         self.assertIn("'activity.js'", js)
         self.assertIn("document.currentScript", js)
 
+    # THE TWO PAGES THAT CARRY NO POLL, and why each is allowed to.
+    # 404.html is answered where there is nothing to work on.  note.html is
+    # the bare note page (2026-09-23): a note opens inside a reader, a dozen
+    # times in a session, and what made that slow was every script a document
+    # page carries -- so it carries NONE, and the reader underneath it is
+    # already polling the list on its own behalf.  export_doc.html and
+    # export_deck.html are no pages of the studio's at all: they are the
+    # skeletons of the one file a page for a website is (webexport.py),
+    # opened with no server behind it and forbidden to ask one for anything.
+    NO_POLL = ("404.html", "note.html", "export_doc.html", "export_deck.html")
+
     def test_every_studio_template_but_the_404_carries_it(self):
         for t in sorted((ROOT / "markdown" / "app" / "templates").glob("*.html")):
             html = t.read_text(encoding="utf-8")
-            if t.name == "404.html":
+            if t.name in self.NO_POLL:
                 continue
             self.assertIn('<script src="/lib/activity.js" async></script>', html, t.name)
+
+    def test_a_page_for_a_website_loads_no_script_at_all(self):
+        """Its exemption is a promise too: everything it runs is inside it."""
+        for name in ("export_doc.html", "export_deck.html"):
+            html = (ROOT / "markdown" / "app" / "templates" / name).read_text(encoding="utf-8")
+            self.assertEqual(re.findall(r'<script[^>]*\ssrc="([^"]+)"', html), [], name)
+            self.assertNotIn("activity.js", html, name)
+
+    def test_the_bare_note_page_carries_no_script_of_the_studios_at_all(self):
+        """The exemption above is a promise, not a hole: what makes it safe to
+        leave the poll out is that the page loads nothing."""
+        html = (ROOT / "markdown" / "app" / "templates" / "note.html").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r'<script[^>]*\ssrc="([^"]+)"', html), [],
+                         "the bare note page loads no script")
 
     def test_the_client_hooks_the_same_downloads_the_server_lists(self):
         """A link activity.js follows by its token must be one long_work

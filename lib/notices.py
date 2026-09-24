@@ -55,6 +55,24 @@ FONTS = (
      ("Vazirmatn-Regular.ttf", "Vazirmatn-Bold.ttf", "Vazirmatn.woff2"),
      "https://github.com/rastikerdar/vazirmatn"),
 )
+# THE FACES THE STUDIO AND THE GUIDE ARE SET IN, which now travel with Parseh
+# rather than being copied out of a TeX installation (TO-DO §2.23: on a
+# machine without TeX the compile used to drop them, and the seven tracked
+# files vanished from the compiled guide).  They are under the GUST Font
+# License, whose text is lib/fonts/GUST-FONT-LICENSE.txt -- one text for the
+# whole family rather than a copyright line per font, which is why they are a
+# tuple of their own and not part of FONTS above.
+GUST_FONTS = (
+    ("TeX Gyre Pagella", "2.501",
+     "\u00a9 B. Jackowski, J. M. Nowacki and the TeX users groups (GUST)",
+     ("texgyrepagella-regular.otf", "texgyrepagella-bold.otf",
+      "texgyrepagella-italic.otf", "texgyrepagella-bolditalic.otf"),
+     "https://www.gust.org.pl/projects/e-foundry/tex-gyre"),
+    ("TeX Gyre Heros", "2.004",
+     "\u00a9 B. Jackowski, J. M. Nowacki and the TeX users groups (GUST)",
+     ("texgyreheros-regular.otf", "texgyreheros-bold.otf", "texgyreheros-italic.otf"),
+     "https://www.gust.org.pl/projects/e-foundry/tex-gyre"),
+)
 # the licence files that travel beside the fonts, served from the same folder
 FONT_LICENCE_FILES = ("OFL.txt", "GUST-FONT-LICENSE.txt")
 
@@ -113,9 +131,13 @@ def carried():
                                                                "OFL-1.1")))
     out.append(work(
         "TeX Gyre Pagella and TeX Gyre Heros",
-        "The fonts the studio&rsquo;s and the guide&rsquo;s pages are set in. They come from "
-        "the TeX installation: the studio copies them when it starts, and the guide&rsquo;s "
-        "build into its site, with their licence beside them.",
+        "The fonts the studio&rsquo;s and the guide&rsquo;s pages are set in, in "
+        "<code>lib/fonts/</code>: %s. They travel with Parseh, so a machine with no TeX "
+        "installation still has them; the studio copies them into its own static folder "
+        "when it starts, and the guide&rsquo;s build into its site, with their licence "
+        "beside them. From <a href=\"https://www.gust.org.pl/projects/e-foundry/tex-gyre\" "
+        "rel=\"noopener\" target=\"_blank\">gust.org.pl</a>."
+        % ", ".join("<code>%s</code>" % esc(f) for fam in GUST_FONTS for f in fam[3]),
         "&copy; B. Jackowski, J. M. Nowacki and the TeX users groups (GUST)",
         "GUST Font License &mdash; the LaTeX Project Public License 1.3c or later, with a "
         "request to rename a modified font; " + licence_link("its text", "GUST")))

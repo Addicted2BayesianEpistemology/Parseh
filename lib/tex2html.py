@@ -19,7 +19,11 @@ source of that field cannot be read back out of the DOM, and an author handed
 the rendering to edit is being handed something that is not in the file.  The
 edit itself is the server's -- POST <reader>/__edit/chunk, which validates,
 rewrites the one macro call and rebuilds this page -- and the answer, whether
-it applied or refused, is shown in the words it arrived in.
+it applied or refused, is shown in the words it arrived in.  A stretch of the
+book glossed by an LLM goes through the same door, chunk by chunk: the page
+asks <reader>/__region/prompt for the prompt to copy and hands the pasted
+answer to <reader>/__region/apply, and lib/glossregion.py decides there, from
+the files, what may be written.
 
 The book's language (books.Book.lang, from book.json; Persian when undeclared)
 decides everything that is not layout: the lang/dir attributes, which passes
@@ -202,6 +206,34 @@ def worded(s, line):
         out.append('<span class="wd" data-w="%s" data-k="%d">%s</span>'
                    % (esc(keys[k]), k, inner))
     return "".join(out)
+
+
+def seeded(c):
+    """The reading a draft proposed for this chunk from its word line, when
+    that proposal is all the chunk's gloss holds; "" for every other chunk.
+
+    lib/draft.py gives a chunk of a language divided into words its reading
+    from its word line -- the kana run together, or the words' pinyin where
+    the language has no other reading (wordline.seed) -- and while it still
+    says exactly that, nobody has written it: the checkers and the edit door
+    count such a chunk as one nobody has glossed yet (check_batch.unwritten,
+    texwrite._unglossed).  The page has to say the same, or "delete gloss"
+    is offered on a chunk with no gloss and throws the proposal away.  So the
+    row of such a chunk carries it (data-seed), worked out here by the one
+    wordline.seed rather than by a copy of it in the page, and a rebuilt
+    reader's rows bring it up to date after every write.
+
+    Only where nothing else is written: once anything is, the reading counts
+    as the chunk's own, and the attribute would be bytes for nothing."""
+    if not c.glossed:
+        return ""
+    field, seed = wordline.seed({"words": c.wordline or ""}, LANG)
+    if not field or not seed:
+        return ""
+    have = {"kana": c.kana, "tr": c.tr, "voc": c.voc, "en": c.en}
+    if (have[field] or "").strip() != seed:
+        return ""
+    return "" if any((v or "").strip() for f, v in have.items() if f != field) else seed
 
 
 def render_voc(voc):
@@ -535,9 +567,13 @@ def build(chapters, lang=None, gloss=None):
                                  ('<div class="voc">%s</div>' % render_voc(c.voc))
                                  if c.voc.strip() else "",
                                  esc(c.en)))
-                    parts.append('<div class="row" data-c="%d">'
+                    # a reading nobody wrote, on the row of a chunk that
+                    # holds nothing else (seeded(): the chunk sheet reads it)
+                    seed = seeded(c)
+                    parts.append('<div class="row" data-c="%d"%s>'
                                  '<div class="fa"%s>%s</div>%s</div>'
-                                 % (n, attrs,
+                                 % (n, ' data-seed="%s"' % esc(seed) if seed else "",
+                                    attrs,
                                     words(c.fa) if drawn[k] is None else drawn[k], gl))
                 parts.append('</div>')
 
@@ -863,9 +899,25 @@ section.chapter[data-part]{min-height:70vh}
 .para.folded{display:none}
 .para.folded.opened{display:block;opacity:.8}
 .foldbar{margin:12px 0;text-align:center}
-.foldbar button{font:inherit;font-size:12px;color:var(--dim);background:var(--card);
+/* the direct child is the bar's own button; the row of note marks under it
+   is a row of pills and wants the seam's look, not this one */
+.foldbar > button{font:inherit;font-size:12px;color:var(--dim);background:var(--card);
   border:1px dashed var(--rule);border-radius:999px;padding:4px 14px;cursor:pointer}
-.foldbar button:hover{color:var(--accent);border-color:var(--accentlt)}
+.foldbar > button:hover{color:var(--accent);border-color:var(--accentlt)}
+/* WHAT THE FOLD WOULD OTHERWISE SWALLOW.  A note lives in the seam above a
+   line, a seam is drawn inside the paragraph it belongs to, and a folded
+   paragraph is display:none -- so folding a run took its notes off the page
+   with it, and nothing said so.  The bar carries them instead: the marks of
+   every note inside the run, the first three and then the rest behind
+   "+N more".  The row goes when the run is opened, because the notes are
+   standing in their own seams again by then. */
+.foldbar .fnotes{margin-top:7px;display:flex;flex-wrap:wrap;gap:6px;
+  justify-content:center;align-items:center}
+.foldbar.open .fnotes{display:none}
+.foldbar .fmore{font:inherit;font-size:11.5px;line-height:1.3;padding:2px 9px;
+  border:1px dashed var(--rule);border-radius:10px;background:none;
+  color:var(--faint);cursor:pointer}
+.foldbar .fmore:hover{color:var(--accent);border-color:var(--accent)}
 .sub{margin:0 0 22px}
 /* the label sits where the text starts: at the right of an RTL book, the
    left of an LTR one -- inline-start, never a bare right */
@@ -1626,8 +1678,8 @@ header #narr.cta{border-color:var(--accent);color:var(--accent)}
 .oltools{display:flex;gap:6px;align-items:center;margin-bottom:6px}
 .oltools .olq{flex:1;min-width:0;font:inherit;font-size:13px;background:var(--bg);
   color:var(--ink);border:1px solid var(--rule);border-radius:6px;padding:5px 8px}
-#fdbox .olwrap button,#secbox .olwrap button,#narrbox .olwrap button{
-  font-size:12px;padding:3px 9px}
+#fdbox .olwrap button,#secbox .olwrap button,#narrbox .olwrap button,
+#rgbox .olwrap button{font-size:12px;padding:3px 9px}
 .oltree{list-style:none;margin:0;padding:3px;max-height:min(44vh,360px);overflow:auto;
   border:1px solid var(--rule);border-radius:8px;background:var(--bg);
   overscroll-behavior:contain}
@@ -1704,6 +1756,64 @@ li:focus-visible > .olr{outline:2px solid var(--accent);outline-offset:-2px}
 #secbox #secpick{margin:0 0 6px}
 #secbox #secstat{font-size:12.5px;color:var(--accent)}
 #secbox #secstat.bad{color:var(--danger)}
+/* ---- the region sheet: a stretch of the book glossed by an LLM.  The fold
+   sheet's box and backdrop, restated for this id for the reason the sections
+   sheet gives above, and wider: the answer box and the report under it want
+   the room.  Every colour is one of the theme's variables, so the sheet is
+   the same sheet in the light theme, the dark one and sepia. */
+#rgback{position:fixed;inset:0;z-index:88;background:rgba(0,0,0,.32)}
+#rgback[hidden]{display:none}
+#rgbox{position:fixed;z-index:89;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:min(640px,94vw);
+  max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.35);padding:14px 18px 12px;
+  font-size:13.5px;color:var(--ink);margin:0;line-height:1.45}
+#rgbox[hidden]{display:none}
+/* "the LLM's answer" is a label to read, not a word to glance at */
+#rgbox .alab{flex:0 0 80px}
+#rgbox .nrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#rgbox .nstate{color:var(--dim);font-size:12.5px}
+#rgbox button{font:inherit;font-size:13px;padding:5px 10px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);
+  border-radius:6px;cursor:pointer;white-space:nowrap}
+#rgbox button:hover{border-color:var(--accent)}
+#rgbox button.primary{background:var(--accent);color:var(--accent-fg);
+  border-color:var(--accent)}
+#rgbox button.primary:hover{filter:brightness(1.08)}
+#rgbox button:disabled{opacity:.45;cursor:not-allowed;filter:none}
+#rgbox button:not(.primary):disabled:hover{border-color:var(--rule)}
+/* ARMED: the second press replaces glosses somebody wrote, so it wears the
+   colour the header's "really stop?" and every other destructive second
+   press here wears -- and its words say how many */
+#rgbox #rgfill.armed{background:var(--danger);border-color:var(--danger);
+  color:var(--danger-fg);white-space:normal}
+#rgbox .achk{color:var(--ink);align-items:flex-start}
+#rgbox .achk input{margin-top:3px}
+#rgbox .achk + .anote{margin:0 0 4px 26px}
+#rgbox textarea{width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px;
+  line-height:1.5;background:var(--bg);color:var(--ink);border:1px solid var(--rule);
+  border-radius:6px;padding:6px 9px;resize:vertical;direction:ltr;text-align:left}
+#rgbox #rgans{min-height:8em}
+#rgbox #rgsum{margin-top:6px;white-space:pre-line;color:var(--ink)}
+#rgbox #rgsum:empty{display:none}
+#rgbox #rgsum.bad{color:var(--danger)}
+#rgbox #rgsum .rgnote{display:block;color:var(--dim);font-size:12px}
+#rgoutrow[hidden],#rgreprow[hidden]{display:none}
+#rgoutrow{margin-top:6px}
+/* the report: the three counts, then a list for each thing that did not go
+   in as asked, each folded to its heading once it is long */
+#rgbox #rgreport{font-size:12.5px;line-height:1.5;color:var(--ink)}
+#rgbox #rgreport .rgsaid{white-space:pre-line}
+#rgbox #rgreport .rgsaid.bad{color:var(--danger)}
+#rgbox #rgreport b{color:var(--accent)}
+#rgbox #rgreport details{margin-top:6px;border-top:1px solid var(--rule);padding-top:4px}
+#rgbox #rgreport summary{cursor:pointer;color:var(--dim)}
+#rgbox #rgreport summary:hover{color:var(--accent)}
+#rgbox #rgreport ul{margin:4px 0 0;padding-inline-start:18px;max-height:200px;
+  overflow:auto;overscroll-behavior:contain}
+#rgbox #rgreport li{margin:2px 0;overflow-wrap:anywhere}
+#rgbox #rgreport .why{color:var(--dim)}
 /* ---- the book-info sheet: title, author, year, blurb -- book.json's own
    fields, not a chunk's.  Built on .ahead/.arow/.alab/.actl/.afoot, the same
    generic classes #anki's markup defines, so only the sheet's own position
@@ -1824,6 +1934,16 @@ li:focus-visible > .olr{outline:2px solid var(--accent);outline-offset:-2px}
    in the anki sheet, so the accent has to be asked for by the same name */
 #chbox #chsave{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
 #chbox #chsave:hover{filter:brightness(1.08)}
+/* delete gloss takes away what somebody wrote -- in one press, since undo is
+   beside it -- so it says so in the danger colour, and fills with it only
+   under the pointer.  Disabled on a chunk with nothing to delete. */
+#chbox #chdel{color:var(--danger);
+  border-color:color-mix(in srgb,var(--danger) 40%,transparent)}
+#chbox #chdel:hover{background:var(--danger);color:var(--danger-fg);
+  border-color:var(--danger)}
+#chbox #chdel:disabled{opacity:.45;cursor:not-allowed;background:var(--bg);
+  color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent)}
+#chbox #chdel[hidden],#chbox #chundo[hidden]{display:none}
 /* and the chosen colour, for the same reason: #chbox button beat the bare
    .dbtn.on, so all five chips computed one background in every theme and
    nothing on the sheet said which colour the chunk has, or that clicking one
@@ -1846,13 +1966,16 @@ li:focus-visible > .olr{outline:2px solid var(--accent);outline-offset:-2px}
   background:none;color:var(--faint);cursor:pointer}
 .gap:hover .plus,.gap .plus:focus{opacity:1}
 .gap .plus:hover{border-style:solid;border-color:var(--accent);color:var(--accent)}
-.gap .mark{font-size:11.5px;line-height:1.3;padding:2px 9px;cursor:pointer;
+/* the same pill in the seam and on a fold bar: one note looks like one note
+   wherever the page has had to put it */
+.gap .mark,.fnotes .mark{font:inherit;font-size:11.5px;line-height:1.3;
+  padding:2px 9px;cursor:pointer;
   border:1px solid var(--rule);border-radius:10px;background:var(--card);
   color:var(--dim);max-width:min(52ch,80%);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.gap .mark:hover{border-color:var(--accent);color:var(--accent)}
-.gap .mark::before{content:'\270e\00a0';color:var(--accent)}
-.gap .mark.adrift{border-style:dashed}
+.gap .mark:hover,.fnotes .mark:hover{border-color:var(--accent);color:var(--accent)}
+.gap .mark::before,.fnotes .mark::before{content:'\270e\00a0';color:var(--accent)}
+.gap .mark.adrift,.fnotes .mark.adrift{border-style:dashed}
 /* A LOOK AT A NOTE BEFORE IT IS OPENED.  The mark is a pill cut to one line
    with an ellipsis, and opening it covers the whole page with the studio: a
    reader wondering what a note says had to leave the text to find out.  The
@@ -1967,9 +2090,9 @@ li:focus-visible > .olr{outline:2px solid var(--accent);outline-offset:-2px}
   font-size:calc(var(--rd-gl,12.5px) + 1px);font-style:normal}
 #chnow i{color:var(--ink)}
 #chnow .none{color:var(--faint);font-style:italic}
-#chdraft[hidden],#chkanarow[hidden],#chtrrow[hidden],#chvocrow[hidden],
+#chkanarow[hidden],#chtrrow[hidden],#chvocrow[hidden],
 #chenrow[hidden],#chplain[hidden],#chwordsrow[hidden],#chfreerow[hidden]{display:none}
-#chdraft,#chplain{color:var(--dim);font-size:12px;margin-bottom:8px}
+#chplain{color:var(--dim);font-size:12px;margin-bottom:8px}
 /* A refusal is a sentence written to be read, and the fidelity one quotes the
    text either side of the character that broke it, on its own lines: keep the
    newlines rather than reflowing them into porridge, and set the whole answer
@@ -1985,8 +2108,6 @@ li:focus-visible > .olr{outline:2px solid var(--accent);outline-offset:-2px}
    made the PDF older than the text, what to run to catch it up */
 #pdfstale{font-size:11px;color:var(--danger);cursor:help}
 #pdfstale[hidden]{display:none}
-#draftmark{font-size:11px;color:var(--warn);cursor:help}
-#draftmark[hidden]{display:none}
 
 /* ---- the contents panel -------------------------------------------------
    A sheet hanging from the bottom of the header rather than a dropdown: 109
@@ -2114,8 +2235,9 @@ a.dlopt code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
   a.dlopt{padding:13px 12px}
   /* "transliteration" beside a box on a 390px screen leaves the box a
      thumbnail: the labels go above what they name */
-  #chbox .arow,#fdbox .arow{flex-direction:column;gap:2px;align-items:stretch}
-  #chbox .alab,#fdbox .alab{flex:0 0 auto;text-align:left;padding-top:0}
+  #chbox .arow,#fdbox .arow,#rgbox .arow{flex-direction:column;gap:2px;align-items:stretch}
+  #chbox .alab,#fdbox .alab,#rgbox .alab{flex:0 0 auto;text-align:left;padding-top:0}
+  #rgbox{padding:12px 12px 10px}
   /* 18px of side padding leaves a 390px screen very little to read a file
      name in, and the sticky foot needs room under it for a thumb */
   #narrbox{padding:12px 12px 0}
@@ -2295,7 +2417,8 @@ function openRun(run, on) {
   const bar = document.querySelector('.foldbar[data-run="' + id + '"]');
   if (bar) {
     bar.classList.toggle('open', on);
-    const b = bar.querySelector('button');
+    // the bar's OWN button: the row of note marks under it is buttons too
+    const b = bar.querySelector(':scope > button');
     if (b) b.textContent = on ? 'fold them away again' : (bar.dataset.said || '');
   }
   document.querySelectorAll('.para[data-p]').forEach(el => {
@@ -2324,6 +2447,80 @@ function foldBar(run) {
   b.onclick = () => openRun(run, !bar.classList.contains('open'));
   bar.appendChild(b);
   return bar;
+}
+/* ---------- the notes a fold would otherwise swallow ---------------------
+   A note is drawn in the seam above a line, and a seam is drawn INSIDE the
+   paragraph it belongs to, so a folded paragraph took its notes down with
+   it: a run of twelve paragraphs could be hiding six notes and the page
+   said nothing at all.  The bar says it now -- the marks of every note
+   inside the run, under the button, the first three and then "+N more",
+   which opens the rest where it stands.  The row goes when the run is
+   opened (the sheet's `.foldbar.open .fnotes`), because every one of those
+   notes is then standing in its own seam again, where it belongs.
+
+   FOUND BY WALKING THE PAGE, not by comparing keys.  Each mark already
+   carries the note it was made for; what this asks is which marks are
+   inside the paragraphs this bar has hidden, so what the bar shows is
+   exactly what was hidden -- including a note whose anchor points at a seam
+   the reader has no paragraph for, which is nobody's and stays adrift at
+   the end of the book as it always did.
+
+   A FRESH BUTTON PER MARK, never the hidden one moved or cloned: the one in
+   the seam has to stay where it is for the moment the run is opened, and a
+   clone would arrive without its click, its preview card and its place in
+   the queue of notes to fetch ahead.  */
+const FOLD_MARKS = 3;
+// A bar's row of marks, let go.  They are watched for the read-ahead like
+// any other mark, and an observer still holding a button that has left the
+// page holds the note behind it too.  Called wherever a bar or a row is
+// thrown away -- here, and in applyFold.
+function dropFoldNotes(bar) {
+  const row = bar.querySelector('.fnotes');
+  if (row && nearNote)
+    row.querySelectorAll('.mark').forEach(b => nearNote.unobserve(b));
+  return row;
+}
+function foldNoteRow(bar) {
+  const had = dropFoldNotes(bar);
+  if (had) had.remove();
+  const id = bar.dataset.run;
+  const hidden = [];
+  document.querySelectorAll('.para.folded[data-p]').forEach(el => {
+    const r = foldedRun(el.dataset.p);
+    if (!r || r[0] + '|' + r[1] !== id) return;
+    el.querySelectorAll('.gap .mark').forEach(b => {
+      if (b.noteRecord) hidden.push(b.noteRecord);
+    });
+  });
+  if (!hidden.length) return;
+  const row = document.createElement('div');
+  row.className = 'fnotes';
+  const put = n => row.appendChild(noteButton(n, false));
+  hidden.slice(0, FOLD_MARKS).forEach(put);
+  if (hidden.length > FOLD_MARKS) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'fmore';
+    const rest = hidden.length - FOLD_MARKS;
+    more.textContent = '+' + rest + ' more';
+    more.title = rest === 1 ? 'one more note inside these paragraphs'
+                            : rest + ' more notes inside these paragraphs';
+    // in place, and not into a sheet: the reader is looking at this bar
+    more.onclick = e => {
+      e.stopPropagation();
+      more.remove();
+      hidden.slice(FOLD_MARKS).forEach(put);
+    };
+    row.appendChild(more);
+  }
+  bar.appendChild(row);
+}
+// Every bar, every time -- after the marks are drawn and after the bars are.
+// The whole document, never the scope applyFold was given: a run may begin
+// in one chapter and end in another, and the chapter that arrives second
+// fills a bar that is standing in the first.
+function paintFoldNotes() {
+  $$('.foldbar[data-run]').forEach(foldNoteRow);
 }
 /* ---------- the book as an outline, to pick a stretch of it from ----------
    Three sheets name a part of the book: what a recording covers, what is
@@ -3004,7 +3201,7 @@ function applyFold(scope) {
   for (const k of [...openKeys]) if (!foldedRun(k)) openKeys.delete(k);
   // rebuilt from nothing each time: a chapter that has just arrived, or a run
   // that has just changed, must not leave yesterday's bar behind
-  root.querySelectorAll('.foldbar').forEach(b => b.remove());
+  root.querySelectorAll('.foldbar').forEach(b => { dropFoldNotes(b); b.remove(); });
   const drawn = new Set();
   root.querySelectorAll('.para[data-p]').forEach(el => {
     const run = foldedRun(el.dataset.p);
@@ -3024,11 +3221,14 @@ function applyFold(scope) {
     const bar = foldBar(run);
     if (open) {
       bar.classList.add('open');
-      const b = bar.querySelector('button');
+      const b = bar.querySelector(':scope > button');
       if (b) b.textContent = 'fold them away again';
     }
     el.parentNode.insertBefore(bar, el);
   });
+  // the bars have just been rebuilt, so what each of them is hiding has to
+  // be said again on it
+  paintFoldNotes();
 }
 let loadedSrc = A.getAttribute('src') || '';
 function useFile(i) {
@@ -3111,12 +3311,6 @@ const chapFetches = new Map();            // file -> the fetch in flight
 const chapOfSub = i => (SUBS[i] && SUBS[i][2]) || 0;
 const chapOfChunk = n => (TIMES[n] && TIMES[n][3]) || 0;
 const lazyChapters = () => !!$('section.chapter[data-part]');
-// which file a chapter's markup is in -- still known after it has arrived,
-// because repainting one edited chunk re-reads exactly that file
-function chapFile(ci) {
-  const s = $('section.chapter[data-ch="' + ci + '"]');
-  return (s && (s.dataset.part || s.dataset.from)) || 'index.html';
-}
 async function fillChapter(sec) {
   const part = sec && sec.dataset.part;
   if (!part) return false;
@@ -3134,7 +3328,11 @@ async function fillChapter(sec) {
                              .querySelector('section.chapter');
   if (!got) return false;
   sec.innerHTML = got.innerHTML;
-  sec.dataset.from = part;                     // for repaintChunk
+  // which file this section's markup came from, still known after it has
+  // arrived: repainting an edited chunk re-reads exactly that file
+  // (repaintChunks) -- asked of the section, not of the chapter's number,
+  // which two sections share when a chapter runs across two .tex files
+  sec.dataset.from = part;
   delete sec.dataset.part;
   if (READINGS) { splitReadings(sec.querySelectorAll('.p1 ruby')); READINGS.apply(); }
   applyTimings(sec);
@@ -3381,7 +3579,7 @@ A.addEventListener('timeupdate', () => {
   }
   if (previewing) { previewing = false; return; }
   if (loop) {
-    waiting = setTimeout(() => { if (!ankiOpen && !chOpen && !fdShown) playSub(cur, false); }, gap * 1000);
+    waiting = setTimeout(() => { if (!ankiOpen && !chOpen && !fdShown && !rgShown) playSub(cur, false); }, gap * 1000);
   } else if (cont) {
     const n = nextWithAudio(cur + 1, 1);
     // A CHANGE OF CHAPTER OR OF SECTION, where that has been asked for.  The
@@ -3394,7 +3592,7 @@ A.addEventListener('timeupdate', () => {
       hl(n, true);            // the new place is shown, so the wait is visible
       return;
     }
-    if (n >= 0) waiting = setTimeout(() => { if (!ankiOpen && !chOpen && !fdShown) playSub(n, true); }, 120);
+    if (n >= 0) waiting = setTimeout(() => { if (!ankiOpen && !chOpen && !fdShown && !rgShown) playSub(n, true); }, 120);
   }
 });
 function fmt(s) { s = Math.max(0, s | 0);
@@ -3513,10 +3711,27 @@ A.addEventListener('seeked', () => { if (listening) showSeek(); });
 $('#gap').onchange = e => { gap = +e.target.value; localStorage.setItem('bk_gap', e.target.value); };
 const g0 = localStorage.getItem('bk_gap');
 if (g0 !== null) { $('#gap').value = g0; gap = +g0; }
-$('#speed').onchange = e => { A.playbackRate = +e.target.value;
+/* THE SPEED, WHICH MUST NOT CHANGE BY ITSELF.  Loading a recording -- which
+   this reader does whenever the narration moves into a part kept in another
+   file -- runs the media load algorithm, and that puts playbackRate back to
+   defaultPlaybackRate.  Left at 1, the sound went back to 1× while this
+   menu still said 1.5× (the owner's report, 2026-09-22).  So the chosen rate
+   is set on BOTH, and put back after every load.  lib/narrctl.js does the
+   same from outside, for every reader built before today, and draws the
+   chip that stands in for this menu. */
+function setRate(v) {
+  A.playbackRate = v;
+  A.defaultPlaybackRate = v;
+}
+$('#speed').onchange = e => { setRate(+e.target.value);
   localStorage.setItem('bk_rate', e.target.value); };
 const r0 = localStorage.getItem('bk_rate');
-if (r0) { $('#speed').value = r0; A.playbackRate = +r0; }
+if (r0) { $('#speed').value = r0; setRate(+r0); }
+else setRate(+$('#speed').value || 1);
+['loadedmetadata', 'canplay', 'play'].forEach(n => A.addEventListener(n, () => {
+  const want = +$('#speed').value || 1;
+  if (Math.abs(A.playbackRate - want) > 0.001) setRate(want);
+}));
 
 function toggle(btn, cls) { document.body.classList.toggle(cls);
   btn.classList.toggle('on', !document.body.classList.contains(cls));
@@ -3570,7 +3785,7 @@ if (READINGS) { splitReadings(document.querySelectorAll('.p1 ruby')); READINGS.a
 
 addEventListener('keydown', e => {
   // the anki dashboard has textareas; a space in one must not toggle play
-  if (ankiOpen || narrOpen || chOpen || fdShown || secShown ||
+  if (ankiOpen || narrOpen || chOpen || fdShown || secShown || rgShown ||
       /^(SELECT|INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
   if (e.key === ' ') { e.preventDefault(); togglePlay(); }
   else if (e.key === 'ArrowRight') { e.preventDefault();
@@ -3931,7 +4146,7 @@ $('#toclist').addEventListener('click', e => {
 addEventListener('keydown', e => {
   // a sheet over the page is above the contents, and so is the download,
   // which hangs from the same edge of the header and would be buried by it
-  if (ankiOpen || chOpen || dlOpen || fdShown || secShown) return;
+  if (ankiOpen || chOpen || dlOpen || fdShown || secShown || rgShown) return;
   if (e.defaultPrevented) return;  // e.g. the Escape that just closed it
   if (tocWrap.hidden) {
     if ((e.key === 'c' || e.key === 'C') && !e.metaKey && !e.ctrlKey && !e.altKey &&
@@ -4118,9 +4333,6 @@ addEventListener('keydown', e => {
 
 /* ---------- the header states which build it is, and how tall it is ------- */
 $('#build').textContent = META.build + ' ' + META.built;
-// a draft says so beside the stamp: its checker forgives a chunk nobody has
-// glossed yet, and a page showing one should not read as a finished edition
-$('#draftmark').hidden = !META.draft;
 function fitHeader() {
   const h = document.querySelector('header').offsetHeight;
   document.body.style.paddingTop = (h + 6) + 'px';
@@ -4505,10 +4717,21 @@ function deftTrim() {
   while (DEFT.size > DEFT_KEEP) DEFT.delete(DEFT.keys().next().value);
 }
 
+// EVERY LOOKUP GOES THROUGH THE ONE ASK THAT CANNOT HANG (lib/parseh.js,
+// `ask`).  A bare fetch towards a computer on the far side of a tunnel that
+// has gone is not refused, it is swallowed: this page showed "looking it
+// up\u2026" in the cloud for ever, and one opened away never grew its
+// dictionary button at all.  The ask is not timed -- it is watched beside
+// the one cheap question "is anybody there?", so an honestly slow answer is
+// still waited for.  Where lib/parseh.js is not on the page (a reader opened
+// straight off the disk) it is a plain fetch, exactly as it was.
+function pAsk(u, i) {
+  return (window.Parseh && Parseh.ask) ? Parseh.ask(u, i) : fetch(u, i);
+}
 // Ask once, on load, whether it is installed; a button nobody can use is a
 // button that should not be there.  The question is quiet: a toolbox with
 // no dictionary is exactly the toolbox as it was.
-fetch('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
+pAsk('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
                    body: JSON.stringify({about: 1})})
   .then(r => r.json()).then(j => {
     // THE SWITCH IS FOR ALL OF THEM, not for the dictionary alone.  The
@@ -4735,7 +4958,7 @@ function pairsInto(box, j) {
     more.type = 'button'; more.className = 'dmore'; more.textContent = 'Load more';
     more.addEventListener('click', () => {
       more.disabled = true; more.textContent = 'Loading…';
-      fetch('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      pAsk('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(withLine({text: j.text || '', sentence: j.sentence || '',
                                        corpus_only: true, corpus_offset: pairs.length,
                                        corpus_limit: 5}, j.line))})
@@ -4875,7 +5098,7 @@ function dictInto(box, n, text) {
   w.className = 'dwait'; w.textContent = 'looking it up…';
   box.appendChild(w);
   const sentence = (chunkCtx(n) || {}).sentence || '';
-  fetch('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
+  pAsk('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
                      body: JSON.stringify(withSenses(withLine({text: text, sentence: sentence}, line)))})
     .then(r => r.json()).then(j => {
       if (!j || !j.ok) throw new Error('refused');
@@ -5068,7 +5291,7 @@ function prePump() {
   const batch = preSentences();
   if (batch) {
     PRE.busy = true;
-    batch.then(() => { PRE.busy = false; });
+    batch.then(() => { PRE.busy = false; }, () => { PRE.busy = false; });
     return;
   }
   if (!PRE.queue.length) PRE.queue = preTargets();
@@ -5076,11 +5299,11 @@ function prePump() {
   if (!t) {
     // every lookup ahead is in: what their definitions say, in one call
     const defs = preDefinitions();
-    if (defs) { PRE.busy = true; defs.then(() => { PRE.busy = false; }); }
+    if (defs) { PRE.busy = true; defs.then(() => { PRE.busy = false; }, () => { PRE.busy = false; }); }
     return;
   }
   PRE.busy = true;
-  preOne(t).then(() => { PRE.busy = false; });
+  preOne(t).then(() => { PRE.busy = false; }, () => { PRE.busy = false; });
 }
 function preStart() {
   if (PRE.timer) return;
@@ -7477,6 +7700,9 @@ function paraOfChunk(n) {
 // while a sheet is over the page -- the same courtesy ankiOpen and narrOpen get
 let chOpen = false;
 let chN = -1, chWas = null, chCol = '', chGlossed = true, chWasPlaying = false;
+// the subparagraph (SUBS index) the open chunk is in: where the region sheet
+// starts when it is opened from this one
+let chSub = -1;
 
 function srcOf(n) {
   const s = SRC[n] || ['', '', '', '', '', '', ''];
@@ -7516,7 +7742,8 @@ function chSaid(main, fid, bad, warns) {
 function openChunk(n, fromEl) {
   const row = rowOf(n);
   // \chp -- a colour and its text and no gloss at all -- is told apart by the
-  // row the build wrote: an unglossed chunk has no .gl beside its text.  The
+  // row the build wrote: a plain chunk has no .gl beside its text.  (A \ch
+  // nobody has glossed yet has one, empty, and every slot to write in.)  The
   // sheet must not offer a slot the macro has not got, or the save is refused
   // for a field the author was invited to fill.
   chGlossed = !!(row && row.querySelector('.gl'));
@@ -7524,6 +7751,7 @@ function openChunk(n, fromEl) {
               || (row ? row.closest('.sub') : null);
   const lab = sub ? sub.querySelector('.lab').textContent.trim() : '';
   chN = n;
+  chSub = sub && sub.dataset.s != null ? +sub.dataset.s : -1;
   chWas = srcOf(n);
   setCol(chWas.col);
   CH.fa.value = chWas.fa; CH.kana.value = chWas.kana; CH.tr.value = chWas.tr;
@@ -7539,7 +7767,6 @@ function openChunk(n, fromEl) {
     stripMake(chGlossed ? chWas.words : null);
     askPropose();
   }
-  $('#chdraft').hidden = !META.draft;
   // the paragraph's own decision, shown on the chunk being written: a chunk
   // whose paragraph the page cannot name (one built before data-p) is offered
   // nothing rather than a box that would go nowhere
@@ -7550,6 +7777,7 @@ function openChunk(n, fromEl) {
   CH.ref.textContent = (lab ? lab + ' · ' : '') + 'chunk ' + n;
   paintVoc(n);
   chSaid('', '', false);
+  chDelState();
   chWasPlaying = !A.paused;
   if (!A.paused) A.pause();
   // the loop/continuous timer may already be armed; left alone it starts the
@@ -7770,48 +7998,151 @@ function buildThisReader() {
   });
 }
 $('#buildhtml').onclick = () => buildThisReader();
-// The endpoint rebuilt reader/index.html before it answered, so the file on
-// disk already shows the edit and this page does not.  Take the chunk out of
-// that file rather than re-rendering it here: every pass, the colour class and
-// the rendered vocabulary arrive together, from the one renderer.
-async function repaintChunk(n) {
-  try {
-    // the file this chunk's markup was built into -- the page itself for a
-    // book of one chapter, and otherwise the chapter's own, which is a
-    // fraction of it to fetch and to parse
-    const r = await fetch(chapFile(chapOfChunk(n)), {cache: 'no-store'});
-    if (!r.ok) return false;
-    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-    const fresh = doc.querySelectorAll('[data-c="' + n + '"]');
-    const live = document.querySelectorAll('[data-c="' + n + '"]');
-    if (!fresh.length || fresh.length !== live.length) return false;
-    // the lang with them: a pinyin reading pass says it is Latin letters on a
-    // chunk its words draw, so a chunk given words gains it and one whose
-    // words are taken off loses it
-    live.forEach((el, i) => { el.className = fresh[i].className;
-                              el.innerHTML = fresh[i].innerHTML;
-                              const lang = fresh[i].getAttribute('lang');
-                              if (lang === null) el.removeAttribute('lang');
-                              else el.setAttribute('lang', lang); });
-    // and what the page did to the chunk when it loaded, done again: without
-    // it a saved Japanese chunk wore one ruby over the whole of it until the
-    // next reload, and a worded one showed the readings of words it knows
-    if (READINGS) {
-      live.forEach(el => { if (el.closest('.p1')) splitReadings(el.querySelectorAll('ruby')); });
-      READINGS.apply();
+/* THE CHUNK AS THE FILE NOW HOLDS IT, SHOWN.  Every door in this page that
+   writes chunks ends in the same two steps -- save, delete gloss, undo delete,
+   and the region sheet's fill, which writes many at once -- so the four
+   cannot come to disagree about what the page shows afterwards:
+
+     chTake         the record the server read back off the .tex (the one
+                    __edit/chunk answers with, and the region fill answers
+                    with for each chunk it wrote) goes into SRC, which every
+                    sheet is filled from; and, when the chunk sheet is open on
+                    that chunk, into its "as saved" copy, its colour and word
+                    strip -- or, for a write that was about the gloss alone,
+                    into the gloss boxes, leaving what is being typed in the
+                    others where it is;
+     repaintChunks  the chunks themselves, every pass of them, out of the
+                    reader the server has just rebuilt.
+
+   The endpoint rebuilt reader/index.html before it answered, so the file on
+   disk already shows the edit and this page does not.  Take the chunk out of
+   that file rather than re-rendering it here: every pass, the colour class and
+   the rendered vocabulary arrive together, from the one renderer -- and the
+   gloss cloud is read off the row each time it opens, so it follows. */
+function chTake(n, c, gloss) {
+  const w = {col: c.col || '', fa: c.fa || '', kana: c.kana || '', tr: c.tr || '',
+             voc: c.voc || '', en: c.en || '', words: c.words || ''};
+  SRC[n] = [w.col, w.fa, w.kana, w.tr, w.voc, w.en, w.words];
+  if (!chOpen || chN !== n) return w;
+  chWas = w;
+  if (gloss) {
+    CH.kana.value = w.kana; CH.tr.value = w.tr; CH.voc.value = w.voc; CH.en.value = w.en;
+    // the strip keeps its line, and is checked again against the reading box
+    // as it now stands
+    if (chStrip) stripMake(chStrip.value());
+  } else {
+    setCol(w.col);
+    if (chStrip) stripMake(w.words);
+  }
+  chDelState();
+  return w;
+}
+// One chunk out of a parsed reader file into the page -> true; false when the
+// file and the page disagree about it; null when it is not on the page at all
+// -- a chapter not fetched yet, which will come from the rebuilt file when it
+// is wanted, so there is nothing to paint.
+function paintFrom(doc, n) {
+  const live = document.querySelectorAll('[data-c="' + n + '"]');
+  if (!live.length) return null;
+  const fresh = doc.querySelectorAll('[data-c="' + n + '"]');
+  if (fresh.length !== live.length) return false;
+  // the lang with them: a pinyin reading pass says it is Latin letters on a
+  // chunk its words draw, so a chunk given words gains it and one whose
+  // words are taken off loses it
+  // -- and the row's data-seed, the reading nobody wrote (tex2html.seeded),
+  // which a write can give or take away and which "delete gloss" asks of it
+  live.forEach((el, i) => { el.className = fresh[i].className;
+                            el.innerHTML = fresh[i].innerHTML;
+                            for (const a of ['lang', 'data-seed']) {
+                              const v = fresh[i].getAttribute(a);
+                              if (v === null) el.removeAttribute(a);
+                              else el.setAttribute(a, v);
+                            } });
+  if (READINGS)
+    live.forEach(el => { if (el.closest('.p1')) splitReadings(el.querySelectorAll('ruby')); });
+  return true;
+}
+// -> the chunks of `ns` that are on the page and could not be shown there (a
+// reload shows them)
+async function repaintChunks(ns) {
+  // each file fetched and parsed once, however many of its chunks changed:
+  // the region sheet writes whole sentences at a time
+  const byFile = new Map();
+  for (const n of ns) {
+    // the file this chunk's markup was built into: the one the SECTION it
+    // stands in came from -- the page itself for the first chapter (and for
+    // a book of one), else the chapter file fetched into it, which is a
+    // fraction of the page to fetch and to parse.  Asked of the section and
+    // not of the chapter's number: a chapter written across two .tex files
+    // is two sections wearing one number, each built into a file of its
+    // own, and the number found only the first.  A chunk not on the page is
+    // in a chapter not fetched yet -- it will come from the rebuilt file
+    // when it is wanted, so there is nothing to paint.
+    const live = document.querySelector('section.chapter [data-c="' + n + '"]');
+    if (!live) continue;
+    const f = live.closest('section.chapter').dataset.from || 'index.html';
+    if (!byFile.has(f)) byFile.set(f, []);
+    byFile.get(f).push(n);
+  }
+  const missed = [];
+  let any = false;
+  for (const [file, list] of byFile) {
+    let doc = null;
+    try {
+      const r = await fetch(file, {cache: 'no-store'});
+      if (r.ok) doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    } catch (_) { doc = null; }
+    for (const n of list) {
+      const got = doc ? paintFrom(doc, n) : false;
+      if (got === false) missed.push(n);
+      else if (got) any = true;
     }
-    return true;
-  } catch (_) { return false; }
+  }
+  // and what the page did to the chunks when it loaded, done again: without
+  // it a saved Japanese chunk wore one ruby over the whole of it until the
+  // next reload, and a worded one showed the readings of words it knows
+  if (READINGS && any) READINGS.apply();
+  return missed;
+}
+async function repaintChunk(n) { return !(await repaintChunks([n])).length; }
+// One chunk's fields through __edit/chunk -> the server's answer, or, when
+// nothing answered at all, {ok: false} with the sentence that says so.
+// Relative, like __save/ and __narration/: the reader is served from
+// /books/<folder>/<slug>/reader/, and the path is how the server knows which
+// book the edit belongs to.
+async function chPost(n, fields) {
+  try {
+    const r = await fetch('__edit/chunk', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({index: n, fields})});
+    return await r.json();
+  } catch (err) {
+    // Nothing answered at all -- this page opened off the disk, or a serve.py
+    // still running the code it was started with.  Nothing was written, and
+    // saying which is the difference between a retry and a restart.
+    return {ok: false, error: 'the server did not answer (' + (err.message || err) +
+            ') — an edit needs this page served by python3 serve.py; nothing was written'};
+  }
+}
+// what a write says after its own words: the PDF now behind the text (the
+// header says that), a reader that would not rebuild, or a chunk the page
+// could not show
+function chAfter(j, shown) {
+  if (j.pdf_stale) pdfStale();
+  if (j.reader && !j.reader.ok)
+    return '\nthe .tex is written, but the reader would not rebuild: ' +
+           (j.reader.error || 'no reason given');
+  return shown ? '' : ' — reload to see it on the page';
 }
 
 async function saveChunk() {
   if (chN < 0) return;
-  const fields = chunkEdits();
+  const n = chN, fields = chunkEdits();
   // THE PARAGRAPH'S DECISION GOES FIRST, and separately: it is not a field of
   // the chunk (texwrite refuses a field it does not know, and an edit that
   // changes nothing else never reaches the file at all), and the edit below
   // may be the very one this mark permits.
-  const pk = paraOfChunk(chN);
+  const pk = paraOfChunk(n);
   const wantFree = !!(CH.free && CH.free.checked);
   const freeMoved = !!pk && wantFree !== FREESET.has(pk);
   if (!Object.keys(fields).length && !freeMoved) {
@@ -7839,51 +8170,117 @@ async function saveChunk() {
       return;
     }
   }
-  let j;
-  try {
-    // relative, like __save/ and __narration/: the reader is served from
-    // /books/<folder>/<slug>/reader/, and the path is how the server knows
-    // which book the edit belongs to
-    const r = await fetch('__edit/chunk', {method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({index: chN, fields})});
-    j = await r.json();
-  } catch (err) {
-    // Nothing answered at all -- this page opened off the disk, or a serve.py
-    // still running the code it was started with.  Nothing was written, and
-    // saying which is the difference between a retry and a restart.
-    chSaid('the server did not answer (' + (err.message || err) + ') — an edit ' +
-           'needs this page served by python3 serve.py; nothing was written', '', true);
-    return;
-  }
+  const j = await chPost(n, fields);
   // A refusal is a sentence written to be read: the rule it broke, and for a
   // fidelity refusal the character and the two texts either side of it.  Show
   // it whole -- shortened to "failed" it says nothing anybody can act on.
   if (!j.ok) { chSaid(j.error || 'the edit was refused', '', true); return; }
-  // the chunk read back off the file it was just written into, so the boxes
+  // the chunk read back off the file it was just written into, so the sheet
   // and SRC hold what is there rather than what was typed
-  const c = j.chunk || {}, changed = j.changed || [];
-  chWas = {col: c.col || '', fa: c.fa || '', kana: c.kana || '',
-           tr: c.tr || '', voc: c.voc || '', en: c.en || '', words: c.words || ''};
-  SRC[chN] = [chWas.col, chWas.fa, chWas.kana, chWas.tr, chWas.voc, chWas.en, chWas.words];
-  setCol(chWas.col);
-  if (chStrip) stripMake(chWas.words);
-  const shown = changed.length ? await repaintChunk(chN) : true;
-  paintVoc(chN);
-  if (j.pdf_stale) pdfStale();
-  let msg = changed.length
+  const changed = j.changed || [];
+  chTake(n, j.chunk || {}, false);
+  const shown = changed.length ? await repaintChunk(n) : true;
+  if (chOpen && chN === n) { paintVoc(n); chDelState(); }
+  const msg = (changed.length
     ? 'saved ' + changed.join(', ') + ' into ' + (j.file || 'the chapter')
-    : 'nothing changed — the file already said that';
-  if (j.reader && !j.reader.ok)
-    msg += '\nthe .tex is written, but the reader would not rebuild: ' +
-           (j.reader.error || 'no reason given');
-  else if (!shown)
-    msg += ' — reload to see it on the page';
+    : 'nothing changed — the file already said that') + chAfter(j, shown);
   chSaid(msg, j.fidelity, false, j.warnings);
+}
+
+/* DELETE A GLOSS, AND TAKE THE DELETE BACK.  One press empties the chunk's
+   transliteration, vocabulary and meaning, and its reading where it has one,
+   through the door a save goes through: texwrite lets every box of a gloss be
+   emptied at once -- it refuses emptying ONE box a language requires, which
+   would leave half a gloss -- and what is left is a chunk nobody has glossed
+   yet, which the checkers count and do not complain of.  The text, the colour
+   and the word line stay, and so does the macro: a \chw keeps its words, and
+   a \chp has no gloss to delete and is not offered the button.
+
+   NO QUESTION FIRST, BECAUSE THERE IS AN ANSWER AFTER.  The gloss as it was
+   is kept in this page, and "undo delete" writes it back through the same
+   door, where filling boxes is never refused.  In a Map and not in storage,
+   until the page is reloaded: an undo that outlived the page would be offered
+   against a file that may have been rewritten since.  Keyed by the chunk's
+   number AND its text, because dividing renumbers every chunk after it, and a
+   number alone could put one chunk's gloss back onto another.  Reopening the
+   sheet on the chunk later offers it again; the region sheet's fill does not
+   touch it (an LLM's gloss can be undone into the one that was deleted).
+
+   A GLOSS IS WHAT SOMEBODY WROTE.  In a language divided into words a draft
+   gives each chunk its reading from its word line, and while it still says
+   exactly that nobody wrote it: the checkers and the edit door count the
+   chunk as unglossed, and so does this button -- greyed out, rather than
+   offering to delete a proposal that the region prompt would otherwise
+   send.  The build marks the row of such a chunk with that reading
+   (data-seed, tex2html.seeded, from lib/wordline.py's own seed), and a write
+   brings the mark up to date with the rest of the row (paintFrom).  Asked
+   of the whole chunk only: beside anything else written, the reading is the
+   chunk's own, and a delete takes it off with the rest. */
+const chUndo = new Map();
+const GLOSS_FIELDS = ['kana', 'tr', 'voc', 'en'];
+const undoKey = (n, fa) => n + '\u0001' + fa;
+// the field a word line's reading goes in: kana, or tr where that is the
+// only reading the language has (wordline.seed)
+const SEED_FIELD = LANG.words ? (LANG.reading ? 'kana' : 'tr') : '';
+function hasGloss(w, n) {
+  if (!w) return false;
+  const row = SEED_FIELD ? rowOf(n) : null;
+  const seed = (row && row.dataset.seed) || '';
+  return GLOSS_FIELDS.some(f => {
+    const v = (w[f] || '').trim();
+    return v !== '' && !(f === SEED_FIELD && seed && v === seed);
+  });
+}
+// the two buttons follow the chunk AS SAVED, not the boxes: delete for a
+// chunk with a gloss to delete, undo whenever this page holds a gloss deleted
+// from this very chunk.  Asked again once a write has repainted the row,
+// whose data-seed is part of the answer.
+function chDelState() {
+  const del = $('#chdel'), undo = $('#chundo');
+  del.hidden = !chGlossed;
+  del.disabled = !hasGloss(chWas, chN);
+  undo.hidden = !chGlossed || !chWas || !chUndo.has(undoKey(chN, chWas.fa));
+}
+async function deleteGloss() {
+  if (chN < 0 || !chGlossed || !hasGloss(chWas, chN)) return;
+  const n = chN, was = chWas;
+  // the reading only where the chunk holds one: a macro without the slot is
+  // refused a kana, even an empty one
+  const fields = {tr: '', voc: '', en: ''};
+  if (LANG.reading && was.kana.trim()) fields.kana = '';
+  chSaid('deleting the gloss…', '', false);
+  const j = await chPost(n, fields);
+  if (!j.ok) { chSaid(j.error || 'the delete was refused', '', true); return; }
+  const now = chTake(n, j.chunk || {}, true);
+  chUndo.set(undoKey(n, now.fa), {kana: was.kana, tr: was.tr, voc: was.voc, en: was.en});
+  if (chOpen && chN === n) chDelState();
+  const shown = (j.changed || []).length ? await repaintChunk(n) : true;
+  if (chOpen && chN === n) { paintVoc(n); chDelState(); }
+  chSaid('gloss deleted' + chAfter(j, shown), '', false, j.warnings);
+}
+async function undoDelete() {
+  if (chN < 0 || !chWas) return;
+  const n = chN, key = undoKey(n, chWas.fa), old = chUndo.get(key);
+  if (!old) return;
+  // every box as it was -- a box that was empty then and is empty now is
+  // left out, since a chunk without a reading slot is refused even an empty kana
+  const fields = {tr: old.tr, voc: old.voc, en: old.en};
+  if (LANG.reading && (old.kana.trim() || chWas.kana.trim())) fields.kana = old.kana;
+  chSaid('writing the gloss back…', '', false);
+  const j = await chPost(n, fields);
+  if (!j.ok) { chSaid(j.error || 'the gloss could not be written back', '', true); return; }
+  chUndo.delete(key);
+  chTake(n, j.chunk || {}, true);
+  if (chOpen && chN === n) chDelState();
+  const shown = (j.changed || []).length ? await repaintChunk(n) : true;
+  if (chOpen && chN === n) { paintVoc(n); chDelState(); }
+  chSaid('the deleted gloss is written back' + chAfter(j, shown), '', false, j.warnings);
 }
 
 $('#chcancel').onclick = closeChunk;
 $('#chsave').onclick = saveChunk;
+$('#chdel').onclick = deleteGloss;
+$('#chundo').onclick = undoDelete;
 $('#chrevert').onclick = () => {
   if (!chWas) return;
   setCol(chWas.col);
@@ -7895,8 +8292,376 @@ $('#chrevert').onclick = () => {
   if (CH.free) CH.free.checked = !!pk && FREESET.has(pk);
   chSaid('back to what the file holds', '', false);
 };
+// The region sheet, opened on this chunk's sentence.  The chunk sheet makes
+// way for it -- two sheets over one page is one too many -- and hands it the
+// recording it paused, so it is closing the region sheet that puts it back
+// on.  Edits not saved yet are not thrown away by the way: they are said --
+// AND THE PARAGRAPH'S "need not reproduce source/paras/" BOX IS ONE OF THEM.
+// chunkEdits() reads the chunk's own boxes only; saveChunk counts that box
+// moved as an edit of its own (freeMoved), and openChunk sets it back from
+// FREESET, so a tick not saved was lost here without a word.  Weighed the
+// way saveChunk weighs it.
+$('#chrgn').onclick = () => {
+  const pk = paraOfChunk(chN);
+  const freeMoved = !!pk && !!(CH.free && CH.free.checked) !== FREESET.has(pk);
+  if (Object.keys(chunkEdits()).length) {
+    chSaid('these boxes hold changes not saved yet — save them, or revert them, first',
+           '', true);
+    return;
+  }
+  if (freeMoved) {
+    chSaid('the “need not reproduce source/paras/” box is changed and not saved yet — ' +
+           'save it, or revert it, first', '', true);
+    return;
+  }
+  const at = chSub, playing = chWasPlaying;
+  chWasPlaying = false;
+  closeChunk();
+  rgOpen(true, at >= 0 ? at : null, playing);
+};
 $$('#chcol .dbtn').forEach(b => { b.onclick = () => setCol(b.dataset.col); });
 $$('#chins .dbtn').forEach(b => { b.onclick = () => insertVoc(b.dataset.ins); });
+
+/* ---------- a stretch of the book glossed by an LLM -----------------------
+   The chunk sheet writes one chunk by hand; this sheet writes many from a
+   chatbot's answer.  Three steps, each a button of its own: PICK a stretch
+   -- the outline every stretch of this book is picked from, at the depth of a
+   sentence (a subparagraph, one \parnum): click, shift-click, or "stretch it
+   to…"; COPY THE PROMPT, which the server writes -- the chunks of those
+   sentences as they stand in the .tex, each marked to be glossed or sent as
+   it is -- and the page puts on the clipboard; and, once the chatbot has
+   answered, FILL FROM THE ANSWER.
+
+   THE PAGE DECIDES NOTHING ABOUT WHAT MAY BE WRITTEN.  lib/glossregion.py
+   works that out when the answer lands, from the chapter files as they are
+   then: a chunk somebody has glossed is kept unless re-gloss is ticked; a
+   chunk whose text is not what the page shows, or that the answer divides
+   differently, or that it would leave half glossed, is dropped and listed; a
+   paragraph folded away is never written; and every chunk that does go in
+   goes in through texwrite.edit_chunk, the chunk sheet's own door.  What the
+   page does is send the stretch and the two boxes as they stand when fill is
+   pressed, show the server's words whole, and paint what was written where it
+   is -- with no reload, which would lose the answer box and every "undo
+   delete" this page is holding.
+
+   The stretch goes to the server as the book-wide chunk numbers the chunk
+   sheet uses (data-c): the first chunk of the first sentence picked and the
+   last of the last, read off the .sub elements -- which is why a chapter
+   still in its own file is fetched first.  The server widens a pick to whole
+   sentences in any case, and says in words what it took.                  */
+let rgShown = false, rgWasPlaying = false, rgWasWaiting = false;
+let rgPicker = null;
+function rgPick() {
+  if (rgPicker) return rgPicker;
+  rgPicker = outlinePicker({
+    depth: 'sub', label: 'the sentences of the book',
+    // a folded paragraph may be picked across, and says what becomes of it
+    tags: row => {
+      const ps = olParas(row).filter(p => p.pkey);
+      const n = ps.filter(p => foldedRun(p.pkey)).length;
+      if (!n) return [];
+      return [[row.kind === 'p' || row.kind === 's' || n === ps.length ? 'folded' : n + ' folded',
+               'olfold', 'folded away in the book: left out of the prompt and of the fill']];
+    },
+    onChange: rgState,
+  });
+  $('#rgpick').appendChild(rgPicker.el);
+  return rgPicker;
+}
+const rgFlags = () => ({regloss: $('#rgregloss').checked, perfield: $('#rgperfield').checked});
+const rgN = (k, one, many) => k + ' ' + (k === 1 ? one : many);
+// A prompt the clipboard would not take, kept for the next press of "copy
+// the prompt": a browser that refuses a copy made after a round trip to the
+// server allows one made inside the press itself, before anything is
+// awaited -- Safari refuses the first press every time, so on an iPad this
+// is the ordinary way a prompt reaches the clipboard.  Only for the same
+// stretch and the same two boxes, and only while nothing can have changed
+// what it was made from: the sheet closing lets it go (nothing else in this
+// page that writes a chunk -- the chunk sheet with its save, delete, undo and
+// divide -- can open under it), and so does a fill that wrote something.  Held any longer, a gloss deleted since would
+// go out as context with its old words -- and an answer that echoes them
+// back would write the deleted gloss in again.
+let rgHeld = null;
+const rgKey = p => JSON.stringify([p.lo, p.hi, rgFlags()]);
+function rgDrop() {
+  if (!rgHeld) return;
+  rgHeld = null;
+  $('#rgout').value = '';
+  $('#rgoutrow').hidden = true;
+  rgSum('', false);                 // the line said it was in the box below
+}
+function rgState() {
+  const p = rgPicker && rgPicker.get();
+  $('#rgcopy').disabled = !p;
+  $('#rgfill').disabled = !p;
+  // a confirmation is for what was counted, and that has just changed
+  rgDisarm();
+  if (rgHeld && (!p || rgHeld.key !== rgKey(p))) rgDrop();
+}
+// the stretch picked, as the chunk numbers the server takes -> {first, last},
+// or null when it holds none
+async function rgRange() {
+  const p = rgPicker && rgPicker.get();
+  if (!p) return null;
+  for (const ci of new Set([chapOfSub(p.lo), chapOfSub(p.hi)])) await needChapters(ci);
+  const a = document.querySelector('.sub[data-s="' + p.lo + '"]');
+  const b = document.querySelector('.sub[data-s="' + p.hi + '"]');
+  if (!a || !b) return null;
+  const first = +a.dataset.from, last = +b.dataset.to;
+  return Number.isInteger(first) && Number.isInteger(last) && first >= 0 && last >= first
+    ? {first, last} : null;
+}
+// relative, like __edit/chunk: the path says which book
+async function rgPost(what, body) {
+  try {
+    const r = await fetch('__region/' + what, {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    return await r.json();
+  } catch (err) {
+    return {ok: false, error: 'the server did not answer (' + (err.message || err) +
+            ') — this needs the page served by python3 serve.py; nothing was ' +
+            (what === 'apply' ? 'written' : 'copied')};
+  }
+}
+// one entry of kept, dropped, unanswered or notes, in words
+function rgLine(e) {
+  if (typeof e === 'string') return e;
+  const why = e.why || e.note || '';
+  return (e.where || '') + (why ? ' — ' + why : '');
+}
+// the line under "copy the prompt", and the server's notes under it
+function rgSum(text, bad, notes) {
+  const el = $('#rgsum');
+  el.textContent = text;
+  el.classList.toggle('bad', !!bad);
+  for (const n of notes || []) {
+    const s = document.createElement('span');
+    s.className = 'rgnote';
+    s.textContent = rgLine(n);
+    el.appendChild(s);
+  }
+}
+// what the prompt holds, in the server's words and counts
+function rgSummary(j, copied) {
+  const parts = [j.region || ''];
+  let much = rgN(j.chunks || 0, 'chunk', 'chunks') + ', ' + (j.fill || 0) + ' to gloss';
+  if (j.glossed) much += ', ' + j.glossed + ' glossed sent as context';
+  parts.push(much);
+  // the region's words say how many folded paragraphs were left out; said
+  // here only if they did not
+  if (j.folded && !/folded/.test(j.region || ''))
+    parts.push(rgN(j.folded, 'folded paragraph', 'folded paragraphs') + ' left out');
+  // with nothing to gloss nothing is copied, and the server's note says why
+  const said = !j.fill ? 'nothing was copied'
+    : copied ? 'the prompt is on the clipboard: paste it into a chatbot, and its answer '
+               + 'into the box below'
+    : 'not copied — the browser would not put it on the clipboard: it is below, to copy by hand';
+  rgSum(parts.filter(Boolean).join(' · ') + '\n' + said, !!j.fill && !copied, j.notes);
+}
+async function rgCopy() {
+  const p = rgPicker && rgPicker.get();
+  if (!p) return;
+  const key = rgKey(p), flags = rgFlags();
+  if (rgHeld && rgHeld.key === key) {
+    const held = rgHeld, ok = await Parseh.copy(held.prompt, true);
+    if (ok) { rgHeld = null; $('#rgoutrow').hidden = true; }
+    rgSummary(held.j, ok);
+    return;
+  }
+  const btn = $('#rgcopy');
+  btn.disabled = true;
+  rgSum('writing the prompt…', false);
+  const range = await rgRange();
+  const j = range ? await rgPost('prompt', Object.assign(range, flags))
+                  : {ok: false, error: 'what is picked holds no chunk to send'};
+  btn.disabled = !(rgPicker && rgPicker.get());
+  // a refusal is the server's sentence, shown as it came
+  if (!j.ok) { rgSum(j.error || 'the prompt was refused', true); return; }
+  const ok = j.fill ? await Parseh.copy(j.prompt, true) : false;
+  rgHeld = j.fill && !ok ? {key, prompt: j.prompt, j} : null;
+  $('#rgout').value = rgHeld ? j.prompt : '';
+  $('#rgoutrow').hidden = !rgHeld;
+  rgSummary(j, ok);
+  if (rgHeld) { $('#rgout').focus(); $('#rgout').select(); }
+}
+/* THE CONFIRMATION, for a re-gloss that would replace what somebody wrote.
+   The server counts first and writes nothing; the button then says how many
+   and waits four seconds for a second press, as "discard edits" and "stop
+   server" do.  Anything that changes what was counted -- the answer, the
+   pick, either box -- takes the arm off. */
+let rgArmed = false, rgArmTimer = null;
+function rgDisarm() {
+  clearTimeout(rgArmTimer); rgArmTimer = null;
+  rgArmed = false;
+  const b = $('#rgfill');
+  b.textContent = 'fill from the answer';
+  b.classList.remove('armed');
+}
+function rgArm(n) {
+  const b = $('#rgfill');
+  rgArmed = true;
+  b.textContent = 'replace ' + (n === 1 ? '1 gloss' : n + ' glosses') + ' — press again';
+  b.classList.add('armed');
+  clearTimeout(rgArmTimer);
+  rgArmTimer = setTimeout(rgDisarm, 4000);
+}
+// the report area: a sentence, and under it a list for each kind of chunk
+// that did not go in as asked
+function rgSay(text, bad) {
+  const box = $('#rgreport');
+  box.textContent = '';
+  const s = document.createElement('div');
+  s.className = 'rgsaid' + (bad ? ' bad' : '');
+  s.textContent = text;
+  box.appendChild(s);
+  $('#rgreprow').hidden = false;
+  return box;
+}
+function rgList(box, list, head) {
+  if (!list || !list.length) return;
+  const d = document.createElement('details');
+  d.open = list.length <= 6;
+  const s = document.createElement('summary');
+  s.textContent = head + ' (' + list.length + ')';
+  d.appendChild(s);
+  const ul = document.createElement('ul');
+  for (const e of list) {
+    const li = document.createElement('li');
+    if (typeof e === 'string') li.textContent = e;
+    else {
+      // the address in the book's own digits and the text in its own
+      // script, isolated so a right-to-left chunk cannot reorder the line
+      const w = document.createElement('bdi');
+      w.textContent = e.where || '';
+      const why = document.createElement('span');
+      why.className = 'why';
+      why.textContent = (e.why || e.note) ? ' — ' + (e.why || e.note) : '';
+      li.append(w, why);
+    }
+    ul.appendChild(li);
+  }
+  d.appendChild(ul);
+  box.appendChild(d);
+}
+function rgReport(j, missed) {
+  let text = j.region ? j.region + '\n' : '';
+  if (j.confirm_needed) {
+    text += rgN(j.replace || 0, 'existing gloss', 'existing glosses') + ' will be replaced' +
+      (j.fill ? ', and ' + rgN(j.fill, 'blank chunk', 'blank chunks') + ' filled' : '') +
+      ' — press the button again to write them; nothing has been written yet';
+  } else {
+    text += 'filled ' + (j.filled || 0) + ' · completed ' + (j.completed || 0) +
+            ' · replaced ' + (j.replaced || 0);
+    if (!j.wrote) text += ' — nothing was written';
+    if (j.reader && !j.reader.ok)
+      text += '\nthe .tex files are written, but the reader would not rebuild: ' +
+              (j.reader.error || 'no reason given');
+    else if (missed.length)
+      text += '\n' + rgN(missed.length, 'chunk', 'chunks') + ' could not be shown here — '
+              + 'reload to see ' + (missed.length === 1 ? 'it' : 'them');
+  }
+  const box = rgSay(text, false);
+  // KEPT IS NOT "ALREADY GLOSSED".  The server lists here every chunk whose
+  // answer tried to change something an answer may not: a gloss already
+  // there, and also the word line, the colour, a note, a plain chunk
+  // (glossregion._decided) -- which a chunk it has just FILLED can be listed
+  // for, when the answer tidied its word line too.  Headed "already glossed",
+  // the report said "filled 3" and called one of the three untouched; each
+  // row's own why says which case it is.
+  rgList(box, j.kept, 'kept — what the answer tried to change and may not (a gloss already ' +
+         'there, a word line, a colour, a note, the free mark, a plain chunk), left as it is');
+  rgList(box, j.dropped, 'dropped — not written');
+  rgList(box, j.unanswered, 'unanswered — the prompt asked for them, and the answer gave nothing');
+  rgList(box, j.notes, 'notes');
+}
+async function rgFill() {
+  const confirm = rgArmed;
+  rgDisarm();
+  // the two boxes as they are NOW decide, and the stretch picked now
+  const flags = rgFlags(), answer = $('#rgans').value;
+  if (!answer.trim()) {
+    rgSay('paste the LLM’s answer into the box first', true);
+    $('#rgans').focus();
+    return;
+  }
+  const btn = $('#rgfill');
+  btn.disabled = true;
+  rgSay(confirm ? 'replacing…' : 'reading the answer…', false);
+  const range = await rgRange();
+  const j = range ? await rgPost('apply', Object.assign(range, flags, {answer, confirm}))
+                  : {ok: false, error: 'what is picked holds no chunk to fill'};
+  btn.disabled = !(rgPicker && rgPicker.get());
+  if (!j.ok) { rgSay(j.error || 'the answer was refused', true); return; }
+  if (j.confirm_needed) {
+    rgReport(j, []);
+    rgArm(j.replace || 0);
+    btn.focus();
+    return;
+  }
+  // a prompt still held was made before these chunks were written
+  if (j.wrote) rgDrop();
+  // what was written, taken into the page and painted where it stands
+  const recs = j.chunks || {};
+  const ns = Object.keys(recs).map(Number).filter(n => Number.isInteger(n) && n >= 0);
+  ns.forEach(n => chTake(n, recs[n], true));
+  const missed = ns.length ? await repaintChunks(ns) : [];
+  if (j.pdf_stale) pdfStale();
+  rgReport(j, missed);
+}
+/* Open and close the way the fold sheet does: the cloud goes, the recording
+   stops and is put back on when the sheet closes, the player's keys stand
+   down while it is up, Escape closes it, and the form never submits. */
+function rgOpen(on, at, playing) {
+  // a prompt held for a second press is for this opening of the sheet only:
+  // with it closed, a chunk may be saved, deleted or undone (rgHeld)
+  rgDrop();
+  rgShown = !!on;
+  $('#rgback').hidden = !on;
+  $('#rgbox').hidden = !on;
+  if (on) {
+    closeCloud();
+    rgWasPlaying = playing !== undefined ? !!playing : !A.paused;
+    rgWasWaiting = waiting != null;
+    if (!A.paused) A.pause();
+    clearTimeout(waiting); waiting = null;
+    const pk = rgPick();
+    const had = pk.get();
+    pk.load();
+    // where it starts: the chunk's own sentence when the chunk sheet opened
+    // it; else what was picked when it last closed -- a prompt for it may be
+    // out with a chatbot -- and else the sentence being read
+    if (at != null && at >= 0 && at < SUBS.length) pk.set(at, at);
+    else if (had) pk.set(had.lo, had.hi);
+    else if (cur >= 0 && cur < SUBS.length) pk.set(cur, cur);
+    rgState();
+    pk.focus();
+  } else {
+    rgDisarm();
+    const wasPlaying = rgWasPlaying, wasWaiting = rgWasWaiting;
+    rgWasPlaying = rgWasWaiting = false;
+    if (wasPlaying) A.play().catch(() => {});
+    else if (wasWaiting && cur >= 0) playSub(cur, false);
+  }
+}
+$('#rgn').onclick = () => rgOpen($('#rgbox').hidden);
+$('#rgcancel').onclick = () => rgOpen(false);
+$('#rgclose').onclick = () => rgOpen(false);
+$('#rgback').onclick = () => rgOpen(false);
+$('#rgcopy').onclick = () => rgCopy();
+$('#rgfill').onclick = () => rgFill();
+$('#rgregloss').addEventListener('change', rgState);
+$('#rgperfield').addEventListener('change', rgState);
+$('#rgans').addEventListener('input', rgDisarm);
+// Ctrl+Enter in the answer box fills, as it saves in the chunk sheet
+$('#rgans').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    if (!$('#rgfill').disabled) rgFill();
+  }
+});
+$('#rgbox').addEventListener('submit', e => e.preventDefault());
+addEventListener('keydown', e => {
+  if (rgShown && e.key === 'Escape') { e.preventDefault(); rgOpen(false); } });
 
 /* ---------- the sources sidebar -------------------------------------------
    THE SAME THREE THINGS THE READER'S PANEL SHOWS, where the gloss is
@@ -8357,7 +9122,7 @@ function sideLLM(box, n, text, ctx, evidence, live) {
 
   let allPairs = null;
   function corpusPage(offset) {
-    return fetch('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    return pAsk('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(withLine({text: text, sentence: sentence, corpus_only: true,
                                      corpus_offset: offset, corpus_limit: 50}, lineOf(n)))})
       .then(r => r.json()).then(j => {
@@ -8460,7 +9225,7 @@ function sideFill(n) {
   // which marks the chunk's share of the sentence by what it says the
   // chunk's words mean
   const line = lineOf(n), lineWords = linePairs(line);
-  const look = fetch('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
+  const look = pAsk('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                   body: JSON.stringify(withLine({text: text, sentence: ctx.sentence}, line))})
     .then(r => r.json());
   look.then(j => {
@@ -8730,9 +9495,10 @@ let dvIndex = -1;
 async function dvStart(mode, index) {
   if (chN < 0) return;
   // a merge is always "this one and the one after it", so joining BACKWARDS
-  // is the same operation asked about the chunk before -- which is also how
-  // a chunk with nothing glossed on it, and so no sheet of its own, is
-  // reached: from the phrase on either side of it
+  // ("join the previous to it") is the same operation asked about the chunk
+  // before.  Every chunk of the book has the pencil and this sheet, \chp and
+  // a chunk nobody has glossed yet included, so the index is only ever this
+  // chunk or the one before it
   dvIndex = (index === undefined || index === null) ? chN : index;
   if (dvIndex < 0) return;
   dvMode = mode; dvData = null; dvEntries = null;
@@ -8832,9 +9598,17 @@ addEventListener('keydown', e => {
    put an essay between two subparagraphs would not be a reading edition any
    more.  What is shown is that there is one -- a small mark in the seam --
    and clicking it opens the note over the whole page, rendered by the
-   studio's own document page in a frame.  Rendered by it, not like it: the
+   studio's own renderer in a frame.  Rendered by it, not like it: the
    marks, the glossary, the colours and the typography are the studio's
    because it IS the studio, mounted over this book's markdown/ directory.
+
+   WHAT IT OPENS IS THE BARE PAGE (markdown/app/templates/note.html): the
+   rendered note on the studio's sheet, with no editor and none of the
+   studio's scripts.  The document page it used to open was about 1.3 MB
+   fetched afresh on every click, for a page that is read a dozen times in a
+   session and written on almost never; "open in the studio", in the bare
+   page's own header, is one click from the whole of it, and a note that
+   holds an exercise is sent there by the server without being asked.
 
    The seams are written into the page at build time (one `.gap` before every
    subparagraph, one after the last); what is IN them is asked for at runtime,
@@ -8850,43 +9624,152 @@ const NT = {back: $('#ntback'), box: $('#ntbox'), title: $('#nttitle'),
             close: $('#ntclose')};
 let ntOpen = false, ntId = '', noteList = [];
 
-function ntFrame(url) {
+/* ---------- the notes within a screen, fetched before they are wanted -----
+   The same bargain the chapters already make (fillChapter's observer): a
+   note whose mark comes near the window is read now, so that the click that
+   opens it costs nothing.  It is held as text and put into the frame with
+   srcdoc, rather than left to the browser's cache, because the studio
+   answers `no-cache` for everything it renders -- a page somebody may be
+   editing must never come back stale -- and a revalidation over a tunnel is
+   the very wait this is here to remove.
+
+   CAPPED, because a textbook has hundreds of notes and a reader walking it
+   would otherwise carry every one of them for the rest of the session; the
+   oldest goes when the cap is reached, and it is only ever a copy of
+   something the server still has.
+
+   NEVER WHILE A NOTE IS OPEN.  The note being read is what the connection
+   is for; anything that came near meanwhile waits and goes when it closes.
+
+   A NOTE THAT HOLDS AN EXERCISE is not held at all.  The server answers the
+   bare address for one with a redirect to the studio's full page (an
+   exercise with no script is a box that cannot be answered), and `redirected`
+   is how that is known here: the id is remembered, and from then on it is
+   opened as the full page directly, without the extra hop.
+
+   AND AWAY FROM THE COMPUTER THERE IS NO REDIRECT TO SEE.  A kept book keeps
+   its notes, and for a note that holds an exercise what was kept IS the
+   studio's full page -- so it can be answered on a train, exactly as it is at
+   the desk (TO-DO §0, "the notes, kept with their book or video").  The
+   worker hands that page straight back at the bare address, without a hop,
+   and `redirected` is false: a test that believed it would put a document
+   page, scripts and all, into the frame through srcdoc, where a bare note
+   was expected.  So the page is asked what it is as well.  The studio writes
+   that on its own <body> -- `data-page="doc"` on the document page,
+   `data-page="note"` on the bare one -- which is an honest answer whoever
+   gave it, and one the renderer can never forge: everything a note's own
+   text contributes to this html went through htmlgen's escaping. */
+const NOTE_HOLD = 12;
+// the studio's document page saying so itself (templates/doc.html)
+const NOTE_FULL_MARK = '<body data-page="doc"';
+const noteHeld = new Map();     // id -> the bare page's html
+const noteFull = new Set();     // ids the server sends to the studio instead
+const noteWaiting = new Set();  // came near while a note was open
+const noteFetching = new Set();
+
+async function holdNote(id) {
+  if (!id || noteHeld.has(id) || noteFull.has(id) || noteFetching.has(id)) return;
+  if (ntOpen) { noteWaiting.add(id); return; }
+  noteFetching.add(id);
+  try {
+    const r = await fetch(NOTES + '/note/' + encodeURIComponent(id));
+    if (!r.ok) return;
+    const html = await r.text();
+    // the computer's redirect, or the kept page saying what it is: either
+    // way this note is answered by the studio's whole document page, and
+    // the frame is sent to that address rather than fed these bytes
+    if (r.redirected || html.includes(NOTE_FULL_MARK)) { noteFull.add(id); return; }
+    noteHeld.set(id, html);
+    // a Map keeps its keys in the order they were put in, so the first is
+    // the one held longest
+    while (noteHeld.size > NOTE_HOLD)
+      noteHeld.delete(noteHeld.keys().next().value);
+  } catch (_) {
+    // off the disk, or a server that does not know the bare address: the
+    // mark still opens the note, it simply opens it when it is clicked
+  } finally {
+    noteFetching.delete(id);
+  }
+}
+// Rebuilt with the marks: paintNotes throws every button away and makes new
+// ones, and an observer still watching the old ones would hold them alive.
+const nearNote = window.IntersectionObserver
+  ? new IntersectionObserver(es => es.forEach(e => {
+      if (!e.isIntersecting) return;
+      nearNote.unobserve(e.target);
+      holdNote(e.target.dataset.note);
+    }), {rootMargin: '600px 0px'})
+  : null;
+
+function ntFrame(url, html) {
   // A FRESH element, not a new src.  Setting src on a live iframe navigates
   // it, and an iframe's navigations go on the joint session history: reading
   // three notes would take three presses of Back to leave the page you were
   // reading.  A newly inserted frame's first load replaces instead.
   const old = NT.frame;
   const f = document.createElement('iframe');
-  f.id = 'ntframe'; f.title = old.title; f.src = url;
+  f.id = 'ntframe'; f.title = old.title;
+  // srcdoc for one already in hand: the same bytes the address would have
+  // answered, drawn without going back for them.  Every address the note
+  // page writes is absolute (the studio's own prefix), so nothing in it
+  // depends on where the frame thinks it is.
+  if (html != null) f.srcdoc = html; else f.src = url;
   old.replaceWith(f);
   NT.frame = f;
 }
-function ntShow(id, title, editing) {
+// '' the bare page, 'edit' the studio's editor, 'full' its document page
+function noteUrl(id, how) {
+  const at = NOTES + '/' + (how ? 'doc' : 'note') + '/' + encodeURIComponent(id);
+  return how === 'edit' ? at + '/edit' : at;
+}
+function ntShow(id, title, how) {
   peekHide();
+  // one already known to need the studio's page goes straight there, rather
+  // than to a bare address that would only redirect
+  if (!how && noteFull.has(id)) how = 'full';
   ntId = id; ntOpen = true;
   NT.title.textContent = title || 'note';
-  ntFrame(NOTES + '/doc/' + encodeURIComponent(id) + (editing ? '/edit' : ''));
-  NT.edit.hidden = !!editing; NT.read.hidden = !editing;
+  const held = how ? null : noteHeld.get(id);
+  if (held) ntFrame(null, held); else ntFrame(noteUrl(id, how));
+  NT.edit.hidden = how === 'edit'; NT.read.hidden = how !== 'edit';
+  NTOLD.hidden = !notesAway;    // what is in the frame is as of when it was kept
   NT.back.hidden = false; NT.box.hidden = false;
 }
 function ntShut() {
   if (!ntOpen) return;
   ntOpen = false; NT.box.hidden = true; NT.back.hidden = true;
   ntFrame('about:blank');
+  // The one that was open is the one that may have just been written: the
+  // editor is reached through this very frame, so the copy in hand is the
+  // only one that can have gone stale, and it is dropped rather than shown
+  // again.  Whether it now holds an exercise is a fresh question too.
+  noteHeld.delete(ntId); noteFull.delete(ntId);
+  const waited = [...noteWaiting];
+  noteWaiting.clear();
+  waited.forEach(holdNote);       // what came near while it was open
   loadNotes();          // the title may have changed, or the note may be gone
 }
 // A key pressed inside the frame belongs to the frame's document, and this
-// page cannot hear it.  The studio posts up instead (its app.js does so only
-// when it is framed), so the button's "close (Esc)" is true wherever the
-// pointer happens to be.
+// page cannot hear it.  The note posts up instead (both the bare page and
+// the studio's own do so only when they are framed), so the button's
+// "close (Esc)" is true wherever the pointer happens to be.
+//
+// `open-note-full` is the bare page's own header asking for the whole of the
+// studio.  It is done from out here, and not by the link navigating itself,
+// because a navigation inside the frame lands on the joint session history:
+// a note opened in full would cost a press of Back before the book moved.
 addEventListener('message', e => {
   if (e.origin !== location.origin) return;
-  if (e.data && e.data.parseh === 'close-note') ntShut();
+  const d = e.data;
+  if (!d || !d.parseh) return;
+  if (d.parseh === 'close-note') ntShut();
+  else if (d.parseh === 'open-note-full' && ntOpen)
+    ntShow(ntId, NT.title.textContent, 'full');
 });
 NT.close.onclick = ntShut;
 NT.back.addEventListener('click', ntShut);
-NT.edit.onclick = () => ntShow(ntId, NT.title.textContent, true);
-NT.read.onclick = () => ntShow(ntId, NT.title.textContent, false);
+NT.edit.onclick = () => ntShow(ntId, NT.title.textContent, 'edit');
+NT.read.onclick = () => ntShow(ntId, NT.title.textContent, '');
 // registered in the capture phase and stopped immediately, so the sheets
 // underneath -- the divide sheet, the chunk sheet, the card dashboard -- do
 // not all close behind the note that was on top of them
@@ -9021,15 +9904,27 @@ function noteButton(n, adrift) {
   b.type = 'button';
   b.className = 'mark' + (adrift ? ' adrift' : '');
   b.textContent = n.title || 'note';
+  // The note this mark stands for, kept ON the mark.  A fold bar has to say
+  // which notes it is hiding, and the only honest answer to that is the
+  // marks that are inside the paragraphs it hid (foldNoteRow): the page is
+  // asked, not the anchors compared a second time.
+  b.noteRecord = n;
+  b.dataset.note = n.id;
   const why = adrift
     ? 'this note names a place that is no longer in the book — open it to see '
       + 'what it says, and change its anchor line'
-    : '';
+    : (notesAway ? NT_KEPT : '');
   // with a pointer the card says it, and a native tooltip would sit on top
   // of the card saying less; without one the title is all there is
+  // Without a hover the title is all there is, and lib/explain.js puts it
+  // under "?" on a touch screen: what the mark DOES comes first and the
+  // kept copy is said after it, rather than in place of it.
   if (HOVER_OK) peekWire(b, n, why);
-  else b.title = why || 'read this note';
-  b.onclick = e => { e.stopPropagation(); peekHide(); ntShow(n.id, n.title); };
+  else b.title = (adrift ? why : 'read this note')
+               + (notesAway ? ' — ' + NT_KEPT : '');
+  b.onclick = e => { e.stopPropagation(); peekHide(); ntShow(n.id, n.title, ''); };
+  // read ahead when it comes near the window, so the click costs nothing
+  if (nearNote) nearNote.observe(b);
   return b;
 }
 async function newNote(gap) {
@@ -9047,10 +9942,13 @@ async function newNote(gap) {
   } catch (err) { return; }
   if (!j.ok || !j.note) return;
   await loadNotes();
-  ntShow(j.note.id, j.note.title, true);      // straight into the editor
+  ntShow(j.note.id, j.note.title, 'edit');    // straight into the editor
 }
 function paintNotes() {
   peekHide();           // the marks it was showing for are about to be replaced
+  // every mark is about to be thrown away, and an observer still watching
+  // the old ones would keep them (and their notes) alive for the session
+  if (nearNote) nearNote.disconnect();
   $$('.gap').forEach(g => {
     g.textContent = '';
     const plus = document.createElement('button');
@@ -9070,19 +9968,75 @@ function paintNotes() {
     if (g) g.appendChild(noteButton(n, false));
     else if (last && !waiting) last.appendChild(noteButton(n, true));
   });
+  // the marks are the fold bars' source: what each bar is hiding has just
+  // changed under it
+  paintFoldNotes();
 }
 async function loadNotes() {
   try {
     const r = await fetch(NOTES + '/api/marks');
     const j = await r.json();
-    noteList = (j && j.ok && j.notes) ? j.notes : [];
+    // ONLY AN ANSWER THE COMPUTER REALLY GAVE MAY REPLACE THE MARKS.  The
+    // seams' list is a door (lib/sw.js, isDoor): the computer is asked first
+    // and the copy kept with the book answers when it does not, so a kept
+    // note stays reachable -- there would be no mark to click on otherwise.
+    // What tells the two apart is `ok`: the studio answers this address with
+    // {ok:true, notes:[...]} and nothing else, whether that answer comes
+    // down the wire now or out of the cache where the wire last put it, so
+    // an `ok` answer is the computer's own and an empty `notes` in it is the
+    // truth -- the seams empty.  A REFUSAL IS NOT AN ANSWER ABOUT THE MARKS.
+    // Away from the computer the worker writes {ok:false, offline:true} with
+    // a 503 of its own for a book kept without its notes, and in the moment
+    // before the kept copy lands; it is well-formed JSON and it knows
+    // nothing, and letting it empty the seams would take away the very notes
+    // the book was kept for.  So the marks in hand stay.
+    if (j && j.ok && j.notes) noteList = j.notes;
   } catch (_) {
-    // opened off the disk, or a server that does not know about notes: the
-    // seams stay empty and the book reads exactly as it always did
-    noteList = [];
+    // Off the disk, a server that does not know about notes, or the
+    // computer gone mid-session with nothing kept: a request that never
+    // arrived knows no more than a refusal does, and the marks already in
+    // hand are kept rather than swept away -- they were true when they were
+    // read, and a book whose notes vanish as the train enters a tunnel is
+    // the failure this whole section is here to prevent.  With none in hand
+    // the seams simply stay empty, as they always did.
   }
   paintNotes();
 }
+/* ---------- the marks, and the computer being away ------------------------
+   What is kept was kept at a moment, and the marks are as of that moment: a
+   note written at the desk this morning is not in a list read last night.
+   Said quietly, and only while the computer cannot be reached -- lib/keep.js
+   asks that question for the whole toolbox and puts the answer on <html>, so
+   nothing here pings anything -- and said in the two places it is actually
+   wanted: on the frame the note is read in, which is where a reader wonders
+   whether what is in front of them is current, and in the card a mark shows
+   before it is opened.  The moment the computer answers again it goes, and
+   the marks are repainted with the wording it changed. */
+let notesAway = document.documentElement.hasAttribute('data-parseh-away');
+const NT_KEPT = 'the computer cannot be reached — the notes and their marks '
+              + 'are as they were when this book was kept on this phone';
+// Made here and not written into the page, exactly as the peek card is: a
+// book built before this line existed has no #ntold in its markup, and the
+// page test reads a built reader.
+const NTOLD = document.createElement('span');
+NTOLD.id = 'ntold';
+NTOLD.hidden = true;
+NTOLD.textContent = 'as kept';
+NTOLD.title = NT_KEPT;
+NTOLD.style.cssText = 'color:var(--faint);letter-spacing:0;text-transform:none;'
+                    + 'font-size:11.5px;font-style:italic;white-space:nowrap';
+if (NT.title && NT.title.parentNode) NT.title.after(NTOLD);
+// The attribute is put on by another script, twenty seconds after the page
+// opened at the earliest, and taken off again when the computer comes back;
+// watching it is how this page hears both without asking anybody.
+new MutationObserver(() => {
+  const away = document.documentElement.hasAttribute('data-parseh-away');
+  if (away === notesAway) return;
+  notesAway = away;
+  NTOLD.hidden = !away;
+  paintNotes();                 // the marks' explanations have just changed
+}).observe(document.documentElement,
+           {attributes: true, attributeFilter: ['data-parseh-away']});
 loadNotes();
 // and what is folded away, folded: the runs the build handed the page, once
 // the whole of the first chapter is standing
@@ -9231,6 +10185,14 @@ def chunk_editor(dir_attrs):
     vb_forms falls back to the two labels the gloss itself prints.  The three
     are joined with a middle dot because an item may hold a comma of its
     own (Arabic's first is "perfect, 3rd m. sg., ...").
+
+    Beside save and revert, "delete gloss" empties every box of the gloss in
+    one press and "undo delete" writes it back (the page keeps it until it
+    is reloaded); a chunk left like that is one nobody has glossed yet, legal
+    everywhere.  The "an LLM" row opens the region sheet (#rgbox, after the
+    fold sheet here, from the header's "gloss with an LLM" too) on this
+    chunk's sentence: a prompt for a chatbot copied, its answer pasted back
+    and written chunk by chunk through the same door, by lib/glossregion.py.
     """
     pres, past = LANG.vb_labels
     forms = [str(f) for f in (getattr(LANG, "vb_forms", None) or []) if f][:3]
@@ -9255,11 +10217,8 @@ def chunk_editor(dir_attrs):
     <div id="chsrcbody">looking&hellip;</div>
   </aside>
   <div class="chmain">
-  <div id="chdraft" hidden>This edition is a <b>draft</b>: a chunk nobody has
-    glossed yet may keep its empty fields, and the moment one of them is filled
-    the language's rules come back.</div>
-  <div id="chplain" hidden>An unglossed chunk (<code>\\chp</code>): it carries a
-    colour and its text, and has no other slot to write in.</div>
+  <div id="chplain" hidden>A plain chunk (<code>\\chp</code>): it carries a
+    colour and its text, and has no slot for a gloss.</div>
   <div class="arow"><span class="alab">colour</span>
     <div class="actl">
       <div class="adir" id="chcol">
@@ -9327,10 +10286,20 @@ def chunk_editor(dir_attrs):
         most of all. These move the boundary and change no letter: both show what
         they propose, field by field, before anything is written.</div>
     </div></div>
+  <div class="arow" id="chrgnrow"><span class="alab">an LLM</span>
+    <div class="actl">
+      <button type="button" id="chrgn">gloss around here with an LLM&hellip;</button>
+      <div class="anote">The sheet that copies a prompt for a chatbot and fills the
+        chunks in from its answer, opened on this chunk's sentence &mdash; stretch it
+        there to take more. What somebody has glossed already is left as it is
+        unless you say otherwise in it.</div>
+    </div></div>
   <div class="arow afoot"><span class="alab"></span>
     <div class="actl">
       <button type="button" id="chsave">save chunk <span class="kbd">Ctrl+&#8629;</span></button>
       <button type="button" id="chrevert" title="put the boxes back to what the .tex holds">revert</button>
+      <button type="button" id="chdel" title="empty this chunk's transliteration, vocabulary and meaning (and its reading) &mdash; the text, the colour and the word line stay; undo delete puts the gloss back">delete gloss</button>
+      <button type="button" id="chundo" hidden title="write the deleted gloss back">undo delete</button>
       <span id="chstat"></span>
     </div></div>
   </div>
@@ -9359,6 +10328,64 @@ def chunk_editor(dir_attrs):
   <div class="arow afoot"><span class="alab"></span>
     <div class="actl"><button type="button" id="fdclose">close</button>
       <span id="fdstat"></span></div></div>
+</form>
+<div id="rgback" hidden></div>
+<form id="rgbox" lang="en" dir="ltr" hidden autocomplete="off">
+  <div class="ahead">gloss a stretch with an LLM<span class="sp"></span>
+    <button type="button" id="rgcancel" title="close (Esc)">&#10005;</button></div>
+  <div class="nstate">Pick a stretch of the book, copy the prompt into a chatbot, and
+    paste its answer back here: the chunks it glosses are written into the book the
+    way the chunk sheet writes one.</div>
+  <div class="arow"><span class="alab">stretch</span>
+    <div class="actl">
+      <div id="rgpick"></div>
+      <div class="anote">Whole sentences are sent, each divided into its chunks as it is
+        now: the answer fills them and may not cut or join them. A paragraph folded
+        away is left out of the prompt and of the fill. What is filled is the stretch
+        picked <b>when you press fill</b>: a sentence of the answer outside it is left
+        out, and listed.</div>
+    </div></div>
+  <div class="arow"><span class="alab">what</span>
+    <div class="actl">
+      <label class="achk"><input type="checkbox" id="rgregloss">
+        re-gloss what is already glossed</label>
+      <div class="anote">its glosses are not sent, and the answer replaces them</div>
+      <label class="achk"><input type="checkbox" id="rgperfield">
+        also fill the empty boxes of partly glossed chunks</label>
+      <div class="anote">otherwise a chunk with any gloss is left exactly as it is</div>
+      <div class="anote">What these say when you press <b>fill from the answer</b> is
+        what decides, and it is decided from the files as they are then: a gloss
+        written since the prompt was copied is kept like any other.</div>
+    </div></div>
+  <div class="arow"><span class="alab">prompt</span>
+    <div class="actl">
+      <div class="nrow">
+        <button type="button" id="rgcopy" class="primary" disabled>copy the prompt</button>
+      </div>
+      <div id="rgsum" class="nstate" role="status" aria-live="polite"></div>
+      <div id="rgoutrow" hidden>
+        <textarea id="rgout" rows="5" readonly spellcheck="false"
+          aria-label="the prompt, to copy by hand"></textarea>
+        <div class="anote">the clipboard could not be reached: select this and copy
+          it &mdash; or press <b>copy the prompt</b> again</div>
+      </div>
+    </div></div>
+  <div class="arow"><label class="alab" for="rgans">the LLM's answer</label>
+    <div class="actl">
+      <textarea id="rgans" rows="7" spellcheck="false"
+        placeholder="paste the chatbot's whole reply here &mdash; if it answered in several messages, paste them all, one under the other"></textarea>
+      <div class="nrow">
+        <button type="button" id="rgfill" class="primary" disabled>fill from the answer</button>
+      </div>
+      <div class="anote">Only whole glosses are written: a chunk the answer leaves
+        half glossed, whose text does not match the page, or that it divides
+        differently is left out and listed. Every chunk written can be corrected,
+        or its gloss deleted, in its own sheet afterwards.</div>
+    </div></div>
+  <div class="arow" id="rgreprow" hidden><span class="alab">result</span>
+    <div class="actl"><div id="rgreport" role="status" aria-live="polite"></div></div></div>
+  <div class="arow afoot"><span class="alab"></span>
+    <div class="actl"><button type="button" id="rgclose">close</button></div></div>
 </form>
 <div id="secback" hidden></div>
 <form id="secbox" lang="en" dir="ltr" hidden autocomplete="off">
@@ -9411,7 +10438,7 @@ def chunk_editor(dir_attrs):
 <div id="ntbox" hidden>
   <div class="ahead"><span id="nttitle">note</span><span class="sp"></span>
     <button type="button" id="ntedit" title="write this note">edit</button>
-    <button type="button" id="ntread" hidden title="read it as it renders">read</button>
+    <button type="button" id="ntread" hidden title="back to the note as it reads">read</button>
     <button type="button" id="ntclose" title="close (Esc)">&#10005;</button></div>
   <iframe id="ntframe" title="a note beside this book"></iframe>
 </div>""" % {"lname": esc(LANG.name.lower()), "dir": dir_attrs,
@@ -9481,9 +10508,9 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
       <option value="5">5s</option>
     </select></span>
   <select id="speed" title="speed">
-    <option>0.5</option><option>0.6</option><option>0.75</option>
+    <option>0.25</option><option>0.5</option><option>0.6</option><option>0.75</option>
     <option>0.9</option><option selected>1</option><option>1.1</option>
-    <option>1.25</option><option>1.5</option>
+    <option>1.25</option><option>1.5</option><option>1.75</option><option>2</option>
   </select>
 %s
   <button data-toggle="nogloss" title="glosses (G)">gloss</button>
@@ -9498,7 +10525,6 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
     pick the file<input id="pick" type="file" accept="audio/*" hidden></label></span>
   <span id="pos">0:00 / 0:00</span>
   <span id="build" style="font-size:11px;color:var(--faint)" title="build id"></span>
-  <span id="draftmark" hidden title="book.json says this edition is a draft: its checker forgives a chunk nobody has glossed yet, and still catches a half-written one">draft</span>
   <span id="pdfstale" hidden></span>
   </div><div class="hrow">
   <button id="toc" title="jump to a paragraph (C)" aria-expanded="false">contents</button>
@@ -9509,6 +10535,7 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
   <button id="typo" title="text size and margins">Aa</button>
   <button id="narr" title="the recordings of this book: add one, align one, or take one off">narration</button>
   <button id="fold" title="fold a run of paragraphs away: the text is not shown, and the narration skips it">fold</button>
+  <button id="rgn" title="copy a prompt that has an LLM gloss a stretch of the book, and fill in its answer">gloss with an LLM</button>
   <button id="editmode" title="edit the subparagraph timings">edit times</button>
   <button id="savetimes" style="display:none">save times</button>
   <button id="droptimes" style="display:none" title="throw away every unsaved timing edit">discard edits</button>
@@ -9959,10 +10986,6 @@ def main():
             # bytes, and the header keeps its single link.
             "narration": bool(book.has_audio or book.meta.get("audio")
                               or os.path.exists(book.timings)),
-            # book.json's "draft": true, which lib/draft.py writes for a book
-            # made out of nothing but its text and check_batch.py reads to
-            # forgive a chunk nobody has glossed yet
-            "draft": bool(book.meta.get("draft")),
             # book.json's "reorders": true, a text read out of its written
             # order (kanbun), whose words the word strip does not compare
             # with a chunk's reading

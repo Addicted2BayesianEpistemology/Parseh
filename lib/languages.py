@@ -371,7 +371,7 @@ class Gloss:
 
     @property
     def taught(self):
-        """True when the gloss language is also one of the eight: an English
+        """True when the gloss language is also one of the eleven: an English
         edition glossed in Persian has a registry record to draw a font from,
         a Spanish one has not (the roman sets it, as it sets every gloss)."""
         return self.lang is not None
@@ -390,7 +390,7 @@ class Gloss:
 
 
 def _glosses():
-    """Every code a gloss may be written in: the registry's eight, each named
+    """Every code a gloss may be written in: the registry's eleven, each named
     by the registry, then the prose-only ones.  Registry first, so a prose
     row written for a code the registry teaches would be passed over rather
     than allowed to rename it -- there is one name for Italian on screen and

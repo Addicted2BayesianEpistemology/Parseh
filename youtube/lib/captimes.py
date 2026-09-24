@@ -19,16 +19,18 @@ The check is kept, not unmade, and this file keeps it the way annwrite does:
 it runs the checker before and after and refuses any error the edit itself
 brought in (`_introduced`).
 
-THE THREE FILES, AND THE NOTES.  A start is written in three places and read
-from a fourth:
+THE FILES, AND THE NOTES.  A start is written in two files and read from two
+more:
   * annotations.json -- what the player draws
   * transcript.txt   -- what the annotations were checked against
-  * parts/NN.json    -- the batches, matched against the transcript by
-                        EXACT equality when merge_parts rebuilds the
-                        annotations, so a start left behind here turns the
-                        next rebuild into an error
-  * notes/           -- a note anchored `after cap 126` names a caption by
-                        its start; left behind, the note comes adrift
+  * markdown/        -- the notes written into the seams of this video.  A
+                        note anchored `after cap 126` names a caption by its
+                        start; left behind, the note comes adrift
+  * parts/NN.json    -- the batches, on a video added before parts/ was
+                        retired (2026-09-23).  Nothing rebuilds the
+                        annotations from them any more, but a tree that
+                        still carries them is kept honest rather than left
+                        half-moved
 Moving one and not the others is the whole of the danger, so they move
 together here or not at all.
 """
@@ -41,6 +43,16 @@ from check_annotations import (parse_transcript_text, transcript_text,
                                video_language)
 
 NEAR = 0.051            # the checker's own tolerance between the two files
+
+# Where a note lives: `<the video>/markdown/`, a library root of the studio's
+# own.  The studio owns that name -- it is `DIR` in markdown/app/notes.py --
+# and it is written out again here instead of imported because importing
+# notes.py would pull the whole studio (the store, the parser, the generator)
+# into a tool that moves a number; lib/bundle.py keeps the same copy for the
+# same reason, under the same name.  It said "notes" here until 2026-09-23,
+# which is a folder the studio has never written, so every note stayed behind
+# when its caption moved.
+NOTES_DIR = "markdown"
 
 
 def _num(x):
@@ -57,7 +69,7 @@ def _num(x):
 
 
 def _notes_dir(video_dir):
-    return os.path.join(video_dir, "notes")
+    return os.path.join(video_dir, NOTES_DIR)
 
 
 def _read_parts(video_dir):
@@ -192,8 +204,10 @@ def _move_notes(video_dir, olds):
 # "segment 1 (start 3): no chunks" -- so a message about a segment this edit
 # moved is not the same string before and after even when it is the very same
 # complaint.  Comparing blind to that number is what makes "an error this edit
-# brought in" mean what it says: a video with an unglossed segment (every
-# draft has them) could otherwise never have a caption moved at all.
+# brought in" mean what it says: a video with any old complaint about a
+# caption -- one with no chunks under it, a word line that no longer gives
+# its text back, a colour nobody can paint -- could otherwise never have that
+# caption moved at all.
 _START_IN = re.compile(r"\(start\s+[-\d.]+\)")
 
 
@@ -243,7 +257,6 @@ def move(video_dir, moves):
 
     meta = annwrite._meta(video_dir)
     L = video_language(video_dir, meta, ann)
-    draft = annwrite._draft(meta)
 
     tpath = os.path.join(video_dir, "transcript.txt")
     caps = None
@@ -256,7 +269,7 @@ def move(video_dir, moves):
                 "mend that before moving any of them"
                 % (len(caps), len(segs)))
 
-    before = annwrite._errors(ann, L, draft, caps)
+    before = annwrite._errors(ann, L, caps)
 
     # ---- all of it in memory, before a byte is written ----
     for i, to in want.items():
@@ -264,7 +277,7 @@ def move(video_dir, moves):
         if caps is not None:
             caps[i]["start"] = to
 
-    after = annwrite._errors(ann, L, draft, caps)
+    after = annwrite._errors(ann, L, caps)
     brought = _brought_in(before, after)
     if brought:
         raise ValueError("that would break the video: " + "; ".join(brought[:3]))

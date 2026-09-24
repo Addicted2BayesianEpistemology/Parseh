@@ -1,7 +1,7 @@
 ---
-title: Video info and drafts
-weight: 11
-description: The video info sheet — title, channel, level, blurb, the kanbun checkbox — and what the draft flag means for a video being written.
+title: Video info
+weight: 12
+description: The video info sheet — title, channel, level, blurb, the kanbun checkbox — and a video whose phrases are still being glossed.
 ---
 
 ## Video info {#video-info}
@@ -44,56 +44,41 @@ everywhere. Tick **read out of its written order (kanbun)**: it writes
 compared with the words. Untick it and the key is taken out again. The
 reading editions' **book info** sheet has the same checkbox for a book.
 
-## Drafts {#drafts}
+## A video still being glossed {#drafts}
 
-A video [started empty](adding-a-video.md#start-it-empty) is a **draft**:
-its `video.json` says `"draft": true`. It means *this is being written*,
-and it shows:
+Nothing marks a video as unfinished. A video [started
+empty](adding-a-video.md#start-it-empty) is an ordinary video whose phrases
+have nothing written in them yet, and **a phrase nobody has glossed is
+legal in every video, for as long as it stays so**. There is no flag to set
+and none to take off when the last one is written — a `"draft": true` an
+older Parseh left in a `video.json` is never read, and may stay or go.
 
-- a **draft** badge beside the title in the player's bar (its tooltip: a
-  phrase nobody has glossed yet is still yours to fill in, and the checker
-  forgives it);
-- a **draft** tag on the video's card, and *1 in draft* on its channel's
-  card;
-- phrases counted as phrases — *12 of 40 chunks glossed* — rather than
-  captions, since a draft has a phrase under every caption and nothing
-  written in them.
+Where it shows:
 
-In the player every phrase of a draft is a phrase — hoverable, with a cloud
-that says *nothing glossed yet* and a ✎ — even with nothing written on it,
-because that blank phrase is exactly what you opened the page to fill in.
+- on the video's card, phrases are counted rather than captions while any
+  is blank — *12 of 40 chunks glossed* — since a video started empty has a
+  phrase under every caption and nothing written in them
+  ([The video index and channels](finding-a-video.md));
+- in the player every blank phrase of the language is a phrase like any
+  other — hoverable, with a cloud that says *nothing glossed yet* and a
+  **✎** — because it is exactly what you opened the page to fill in
+  ([The video player](the-player.md)).
 
-### What the flag relaxes
+It is glossed a phrase at a time in the ✎ form
+([Editing a phrase](editing-a-phrase.md)), where a meaning may be saved
+before its transliteration, or a run at a time by an LLM
+([Glossing captions with an LLM](glossing-with-an-llm.md)), which fills only
+the phrases nobody has glossed.
 
-Exactly one thing, in the checker:
-
-- a phrase with **nothing** written in it — no transliteration, no
-  vocabulary, no meaning, no kana — is passed over instead of being an
-  error;
-- a phrase **half** written — the meaning typed, the transliteration still
-  to come — is **said** (*missing 'tr' -- still a draft*) rather than
-  refused. That is what the middle of the work looks like: the meanings of
-  a caption typed in one pass, the transliterations in the next.
-
-Nothing else softens: the text, the colours, the words and the phrases
-reproducing their caption are checked in a draft exactly as anywhere else.
-
-The player's own editor does not lean on the flag: a save is refused only
-for an error it **brings in**, so typing the meaning into a blank phrase is
-always accepted, draft or not. The flag is what lets such a half-written
-video pass the checker as a whole — which it must, for instance, to come
-back through the [bundle door](downloads-and-backups.md) it went out of.
-
-### Finishing a draft
-
-Take the flag out when the last phrase is glossed: every gap is then an
-error again, which is the whole of what the flag means. There is no button
-for it — **video info** does not show the flag. Open the video's
-`video.json` (`youtube/videos/<language>/<id>/video.json`) in a text editor
-and delete the line `"draft": true,`. Nothing else changes, and the badge
-and the tag go at the next reload.
+**What the checker makes of it.** A phrase with **nothing** written in it —
+no transliteration, no vocabulary, no meaning, no kana — is counted, once
+for the whole video (*note: 12 of 40 chunks have no gloss yet*), and asked
+for nothing else. A phrase **half** written — the meaning typed, the
+transliteration still to come — is an error to the checker, which is how
+the half-done work is found; the ✎ form saves it on the way, and a
+[bundle](downloads-and-backups.md) that carries one is still taken back in,
+with a note saying how many.
 
 > **For the command line.** `python3 youtube/lib/check_annotations.py
-> youtube/videos/<language>/<id>` says what is still missing before you take
-> the flag out: with it, the half-written phrases are warnings; without it,
-> they are the errors a finished video may not have.
+> youtube/videos/<language>/<id>` lists every phrase still half written,
+> and counts the blank ones.

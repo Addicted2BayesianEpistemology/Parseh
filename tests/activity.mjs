@@ -117,6 +117,18 @@ for st in {store, serve.studio.store}:
     st.set_clips_dir(tmp / 'tray')
 decks.set_dir(tmp / 'exercises')
 decks.set_clips_dir(tmp / 'tray')
+# WHAT THIS MACHINE KEEPS, into the temporary tree (lib/prefs.py, and
+# lib/network.py since the network settings): a suite must never read the
+# owner's own reading places, theme or network doors -- nor write them, which
+# is what happened here: a suite turned the theme to dark in the real
+# config/prefs.json and every page of the next suite opened dark.
+import prefs
+import network
+prefs.STORE = str(tmp / 'config' / 'prefs.json')
+network.STORE = str(tmp / 'config' / 'network.json')
+import offline  # the phone-keeping memories (lib/offline.py) too
+offline.DIGESTS = str(tmp / 'config' / 'digests.json')
+offline.WHERES = str(tmp / 'config' / 'wheres.json')
 serve.ROOT = str(tmp / 'root')
 serve._AtRoot.directory = str(tmp / 'root')
 ytpages.VIDEOS = str(tmp / 'root' / 'youtube' / 'videos')
@@ -360,7 +372,11 @@ try {
 
     // d) a note over the reader, and a recording uploaded from inside it
     await reader.bringToFront();
-    await reader.evaluate(id => ntShow(id, 'On the clock', true), NOTE);
+    // the EDITOR, which is what this part uploads a recording from: ntShow's
+    // third argument is a mode now ('' the bare page, 'edit' the editor,
+    // 'full' the studio's whole page), where it used to be "open it in the
+    // editor" as a boolean (lib/tex2html.py, the fast notes of 2026-09-23)
+    await reader.evaluate(id => ntShow(id, 'On the clock', 'edit'), NOTE);
     const frame = await (await reader.waitForSelector('#ntframe')).contentFrame();
     await frame.waitForSelector('#audio-upload', {state: 'attached', timeout: 10000});
     await frame.waitForFunction(() => !!window.ParsehActivity, null, {timeout: 10000});

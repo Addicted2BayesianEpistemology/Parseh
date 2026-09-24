@@ -34,7 +34,11 @@ html[data-mode=mobile]{--m-col:560px}
    theme -- the hub's mobile bar, in the studio's colours.  Studying and
    cramming have none: the exercise has the screen, and the way back is
    the ‹ beside its deck's name. */
-.m-topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:8px;
+/* flex-wrap: the bar carries one thing more than it used to -- the ? that
+   says what a button does on a screen with no mouse (lib/explain.js, §4.7) --
+   and a narrow phone must put it on a second line rather than let the bar
+   push the page wider than the screen */
+.m-topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   padding:6px max(16px,calc((100% - var(--m-col)) / 2 + 16px));
   background:var(--chrome-panel);border-bottom:1px solid var(--chrome-line);
   -webkit-tap-highlight-color:transparent}
@@ -291,6 +295,19 @@ html[data-mode=mobile] .dk-cram-item .dk-excerpt{font-size:1rem}
 html[data-mode=mobile] .dk-cram-meta{font-size:.84rem}
 html[data-mode=mobile] .dk-cram-list > .btn{width:100%;min-height:52px;justify-content:center;font-size:1.02rem}
 
+/* taking the deck out, and giving it back (TO-DO §19.10): the phone's own two
+   buttons, beside Study now and Cram all */
+html[data-mode=mobile] :is(.m-takeout,.m-giveback){min-height:52px;font-size:1rem;
+  justify-content:center}
+html[data-mode=mobile] .m-giveback{border-color:var(--accent);color:var(--accent)}
+/* the line that says where the deck is: a phone reads it too */
+html[data-mode=mobile] .dk-checkout{font-size:.95rem}
+
+/* Upright, the buttons are a bar at the foot and the page is scrolled where
+   it is read: there is no empty column between them, and so no scroll strip
+   (it comes back in the sideways block below, TO-DO §4.16). */
+html[data-mode=mobile] .dk-strip{display:none}
+
 /* the box, as a column down the right of a phone held sideways */
 @media (orientation:landscape) and (min-width:600px){
   html[data-mode=mobile]{--rail:196px}
@@ -324,6 +341,20 @@ html[data-mode=mobile] .dk-cram-list > .btn{width:100%;min-height:52px;justify-c
   html[data-mode=mobile] #cram-actions #cram-wrong{grid-row:3;grid-column:1}
   html[data-mode=mobile] #cram-actions #cram-correct{grid-row:3;grid-column:2}
   html[data-mode=mobile] #cram-actions .btn.big{min-height:64px}
+  /* THE SCROLL STRIP: the empty stretch of the column, between the buttons
+     (TO-DO §4.16).  A finger dragged here scrolls the exercise, so a long one
+     need not be reached for across the screen; the buttons do not move, and a
+     tap on one is still a tap.  touch-action:none on the strip ALONE, so the
+     browser hands us the drag rather than scrolling the column -- and only
+     here, never over a button.  decks.js gives .dk-can-scroll while there is
+     something to scroll: with a short exercise the strip says nothing. */
+  html[data-mode=mobile] .dk-strip{grid-row:2;grid-column:1 / -1;align-self:stretch;
+    min-height:64px;touch-action:none;-webkit-tap-highlight-color:transparent;
+    display:flex;align-items:center;justify-content:center}
+  html[data-mode=mobile] .dk-strip .dk-grip{display:none;width:4px;height:44px;border-radius:2px;
+    background:var(--chrome-line)}
+  html[data-mode=mobile] .dk-strip.dk-can-scroll .dk-grip{display:block}
+  html[data-mode=mobile] .dk-strip.dk-dragging .dk-grip{background:var(--accent)}
 }
 
 /* the controls INSIDE an exercise, sized for a pointer on a desktop -- an
@@ -340,3 +371,44 @@ html[data-mode=mobile] .dk-sheet .ex-cloud{scroll-margin:16px 0 200px}
   html[data-mode=mobile] .dk-sheet .ex-cloud{scroll-margin-bottom:16px}
 }
 html[data-mode=mobile] .dk-sheet .ex-move{min-width:48px;min-height:48px;font-size:1.05rem}
+
+
+/* ================= THE LIBRARY AND A DOCUMENT, ON A PHONE =================
+   (docs/mobile.md, TO-DO §4.3.)  Both pages carry the two layouts, as the
+   deck pages do: the browser's header says data-layout="browser" and the
+   phone's bar data-layout="mobile", and <html data-mode> decides.  What is
+   here is READING: the library to find a document in, and the document to
+   read -- with its exercises, which can be answered, since answering writes
+   nothing.  Everything that writes, builds, downloads or administers is not
+   on a phone at all (the owner's choice, 2026-09-22: no View PDF and no
+   Print either). */
+html[data-mode=mobile] :is(body[data-page=index],body[data-page=doc]){
+  background:var(--chrome-bg)}
+/* the library: the search, the chips, the tags and the cards -- and nothing
+   that uploads, downloads, backs up, creates or deletes */
+html[data-mode=mobile] body[data-page=index] :is(.topbar-actions,#btn-stop,#download-shown,
+  #download-form,#download-sink,.card-del,.card-build,.dropdown,#btn-restore,
+  #btn-paste-answer,#file-upload,#backup-file,.select-all,.card-check){display:none!important}
+html[data-mode=mobile] body[data-page=index] main.container{max-width:var(--m-col);margin:0 auto;
+  padding:12px 16px 14vh}
+html[data-mode=mobile] body[data-page=index] .searchrow{flex-wrap:wrap;gap:8px}
+html[data-mode=mobile] body[data-page=index] #search{flex:1 1 100%;min-height:48px;font-size:16px}
+html[data-mode=mobile] body[data-page=index] :is(#sort,.btn){min-height:48px;font-size:15px}
+html[data-mode=mobile] body[data-page=index] .cards{display:flex;flex-direction:column;gap:10px}
+html[data-mode=mobile] body[data-page=index] .card{width:auto;min-height:88px;padding:14px 16px}
+html[data-mode=mobile] body[data-page=index] .tagbar .tag{min-height:40px;font-size:14px}
+/* a document: the text, its contents, its glosses, what links to it, and the
+   size of the text -- nothing that edits it or builds anything from it */
+html[data-mode=mobile] body[data-page=doc] :is(.topbar-actions,.metabar,#btn-stop,
+  #btn-build,#pdf-options,#btn-pdf-toggle,#btn-add-all,#btn-duplicate,#btn-delete,
+  .ex-to-deck,.audio-edit,.gloss-edit,#btn-print,.dropdown){display:none!important}
+html[data-mode=mobile] body[data-page=doc] .toolbar{position:sticky;top:0;z-index:30;
+  flex-wrap:wrap;gap:8px;padding:6px 12px;background:var(--chrome-panel);
+  border-bottom:1px solid var(--chrome-line)}
+html[data-mode=mobile] body[data-page=doc] .toolbar .btn{min-height:48px;font-size:15px}
+html[data-mode=mobile] body[data-page=doc] .navstack{display:flex;gap:8px;flex-wrap:wrap}
+html[data-mode=mobile] body[data-page=doc] article.sheet{padding:14px 16px 16vh;max-width:none}
+/* the exercises inside a document are answered with a finger */
+html[data-mode=mobile] body[data-page=doc] :is(.ex-option,.ex-item,.ex-blank,.ex-match-drop){
+  min-height:48px}
+html[data-mode=mobile] body[data-page=doc] .ex-move{min-width:48px;min-height:48px}

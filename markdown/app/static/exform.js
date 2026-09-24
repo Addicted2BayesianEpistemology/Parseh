@@ -1,0 +1,1359 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+/* The studio's EXERCISE FORM: the sheet that writes one (TO-DO §4.8).
+
+   Lifted out of app.js, which every page of the studio used to carry whole,
+   although only the pages that WRITE an exercise need this: the edit page,
+   and the deck pages (decks.js opens it to add an exercise to a deck or to
+   correct one).  What an exercise IS on the page -- how it is drawn, how it
+   is answered -- stays in app.js, since a document being read, a deck, and
+   studying and cramming all show one.
+
+   A classic script, loaded after app.js, reading its top-level names in one
+   shared global scope.  Nothing here is new: the lines are the lines that
+   were in app.js, moved.
+*/
+/* ---------------- the exercise form ------------------------------- */
+
+const defaultPrompts = {
+  "fill-blanks": "Drag the blocks into the blanks.",
+  "order-sentences": "Put the sentences in the correct order.",
+  "match-translations": "Match each item with its translation.",
+  "match-opposites": "Match each item with its opposite.",
+  "match-definitions": "Match each word with its definition.",
+  "yes-no": "Answer each question Yes or No.",
+  "true-false": "Decide whether each statement is True or False.",
+  "single-choice": "Choose the correct answer.",
+  "construct-sentence": "Build the complete sentence.",
+  "incorrect-part": "Select the segment containing the error.",
+  "choose-all": "Choose every correct answer.",
+  "odd-one-out": "Choose the item that does not belong.",
+};
+
+function splitExercisePair(text) {
+  for (let i = 0; i < text.length - 1; i++) {
+    if (text[i] === "=" && text[i + 1] === ">" && (i === 0 || text[i - 1] !== "\\"))
+      return [text.slice(0, i).trim().replaceAll("\\=>", "=>"),
+              text.slice(i + 2).trim().replaceAll("\\=>", "=>")];
+  }
+  return [text.trim(), ""];
+}
+
+/* The text under a `key: |` field, as mdparser.parse_exercise keeps it for
+   a card's blocks: Python's textwrap.dedent of the lines (a line of blanks
+   is empty; the longest indentation every other line starts with goes),
+   the blank lines at either end dropped.  The same text both sides, or a
+   list nested by its indentation or a table would come back changed from
+   the form. */
+function dedentBlock(lines, keepEdges) {
+  const text = lines.map(l => /^[ \t]+$/.test(l) ? "" : l);
+  let margin = null;
+  for (const l of text) {
+    if (!l) continue;
+    const indent = l.match(/^[ \t]*/)[0];
+    if (margin === null) margin = indent;
+    else {
+      let k = 0;
+      while (k < margin.length && k < indent.length && margin[k] === indent[k]) k++;
+      margin = margin.slice(0, k);
+    }
+  }
+  const out = text.map(l => margin && l.startsWith(margin) ? l.slice(margin.length) : l);
+  // a field going on over the lines under it keeps the blank line that
+  // parts two paragraphs, wherever it stands (Python's textwrap.dedent)
+  if (!keepEdges) {
+    while (out.length && !out[0].trim()) out.shift();
+    while (out.length && !out[out.length - 1].trim()) out.pop();
+  }
+  return out.join("\n");
+}
+
+/* the four fields of a jolly card, which hold blocks of the page's markdown
+   (mdparser.JOLLY_FIELDS) */
+const JOLLY_KEYS = ["front-primary", "front-secondary", "back-primary", "back-secondary"];
+
+function parseExerciseSource(source) {
+  const lines = String(source || "").replaceAll("\r\n", "\n").split("\n");
+  // a deck item may come with blank lines around it; the editor's slice
+  // always starts on the opening line
+  while (lines.length > 1 && !lines[0].trim()) lines.shift();
+  const opening = (lines[0] || "").trim().match(/^:::exercise(?:\s+([a-z][a-z0-9-]*))?/i);
+  const model = {subtype: opening && opening[1] ? opening[1].toLowerCase() : "",
+                 fields: {}, rows: []};
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const raw = lines[i], s = raw.trim();
+    if (s === ":::") break;
+    if (!s || s.startsWith("<!--")) continue;
+    const fm = s.match(/^([a-z][a-z0-9-]*):\s*(.*)$/i);
+    if (fm && !s.startsWith("-")) {
+      const key = fm[1].toLowerCase();
+      // mdparser.parse_exercise: `type:` names the subtype when the
+      // opening line does not
+      if (key === "type" && !model.subtype) {
+        model.subtype = fm[2].trim().toLowerCase();
+        continue;
+      }
+      if (fm[2].trim() === "|") {
+        const value = [];
+        while (i + 1 < lines.length && lines[i + 1].trim() !== ":::"
+               && (!lines[i + 1].trim() || /^[ \t]/.test(lines[i + 1])))
+          value.push(lines[++i]);
+        model.fields[key] = dedentBlock(value);
+      } else if (JOLLY_KEYS.includes(key)) {
+        // a jolly field simply goes on: the lines under it, until another
+        // field or a row, are its own, written `key: |` or not (mdparser
+        // parse_exercise, carry_on)
+        const value = [fm[2].trim()];
+        while (i + 1 < lines.length) {
+          const next = lines[i + 1], t = next.trim();
+          if (t === ":::" || /^-/.test(t) || (/^[a-z][a-z0-9-]*:\s/i.test(t) && !/^[ \t]/.test(next))) break;
+          value.push(lines[++i]);
+        }
+        while (value.length > 1 && !value[value.length - 1].trim()) value.pop();
+        model.fields[key] = value.length > 1
+          ? [value[0]].concat(dedentBlock(value.slice(1), true).split("\n")).join("\n")
+          : value[0];
+      } else model.fields[key] = fm[2].trim();
+      continue;
+    }
+    if (s.startsWith("-")) rows.push(s);
+  }
+  // The row reader follows the subtype, as in mdparser: a matching or
+  // yes/no row is ALWAYS `left => right`, so `- [سلام]{tl} => hello` is a
+  // pair whose left side happens to open with a bracket, not a mark.
+  const def = EXERCISE_DEFINITIONS.find(d => d.subtype === model.subtype);
+  const pairs = def ? ["matching", "boolean"].includes(def.editor) : null;
+  for (const s of rows) {
+    const marked = pairs ? null : s.match(/^-\s*\[([^\]]*)\]\s*(.*)$/);
+    if (marked) model.rows.push({mark: marked[1].trim(), text: marked[2].trim()});
+    else {
+      const pair = splitExercisePair(s.replace(/^-\s*/, ""));
+      model.rows.push({left: pair[0], right: pair[1]});
+    }
+  }
+  if (model.fields.explanation && !model.fields["explanation-correct"])
+    model.fields["explanation-correct"] = model.fields.explanation;
+  model.cardType = (model.fields["card-type"] || "vocab").toLowerCase();
+  return model;
+}
+
+function newExerciseModel(def) {
+  const model = {subtype: def.subtype, cardType: def.cardType || "", fields: {}, rows: []};
+  if (def.subtype !== "flashcard") model.fields.prompt = defaultPrompts[def.subtype] || "";
+  if (def.editor === "fill") {
+    model.parts = [{kind: "text", text: ""}, {kind: "blank", answer: ""},
+                   {kind: "text", text: ""}];
+    model.distractors = [];
+  } else if (def.editor === "matching") {
+    model.rows = [{left: "", right: ""}, {left: "", right: ""}];
+    if (def.subtype === "match-translations") model.fields.direction = "target-to-translation";
+    if (def.subtype === "match-definitions") model.fields.direction = "word-to-definition";
+  } else if (def.editor === "boolean") {
+    model.rows = [{left: "", right: def.subtype === "yes-no" ? "yes" : "true"}];
+  } else if (def.editor === "choice") {
+    model.rows = [{text: "", correct: true}, {text: "", correct: false}];
+  } else if (def.editor === "order") {
+    model.rows = [{text: ""}, {text: ""}, {text: ""}];
+  } else if (def.editor === "flashcard") {
+    model.fields["card-type"] = def.cardType;
+    model.fields.direction = "forward";
+    if (def.cardType === "jolly") {
+      for (const key of ["front-primary", "front-secondary", "back-primary", "back-secondary"])
+        model.fields[key] = "";
+    }
+  }
+  return model;
+}
+
+function definitionFor(model) {
+  return EXERCISE_DEFINITIONS.find(d => d.subtype === model.subtype &&
+    (model.subtype !== "flashcard" || d.cardType === model.cardType));
+}
+
+/* `[من بابک [[slot]]]{tl}` -> `[من بابک]{tl} [[slot]]`: the visual editor's
+   half of texgen.spread_slots, which the renderers apply when the document
+   is parsed.  A mark's content holds no brackets, so a sentence written as
+   one mark with blanks in it is spread over the pieces round each blank --
+   here too, or the editor would show the mark's own brackets as text to be
+   typed over, and `[[[slot]]` would come apart at the wrong bracket. */
+const SLOT_RE = /\[\[([^\[\]]+)\]\]/;
+const SLOT_SPLIT_RE = /(\[\[[^\[\]]+\]\])/;
+
+function spreadSlots(text) {
+  const L = lang(), markers = ["tl", L.code].concat(L.code === "fa" ? ["rtl"] : []);
+  const rx = new RegExp("\\[((?:[^\\[\\]]|\\[\\[[^\\[\\]]+\\]\\])+)\\]\\{\\s*(" +
+                        markers.join("|") + ")\\b([^{}]*)\\}", "g");
+  return String(text || "").replace(rx, (whole, content, marker, attrs) => {
+    if (!SLOT_RE.test(content)) return whole;
+    return content.split(SLOT_SPLIT_RE).filter(Boolean).map(piece => {
+      if (new RegExp("^" + SLOT_SPLIT_RE.source + "$").test(piece)) return piece;
+      const core = piece.trim();
+      if (!core) return piece;
+      const lead = piece.slice(0, piece.length - piece.trimStart().length);
+      const trail = piece.slice(piece.trimEnd().length);
+      return `${lead}[${core}]{${marker}${attrs}}${trail}`;
+    }).join("");
+  });
+}
+
+function prepareExerciseModel(model) {
+  const def = definitionFor(model);
+  if (!def) throw new Error("This exercise type is not supported by the visual editor");
+  if (def.editor === "choice")
+    model.rows = model.rows.map(r => ({text: r.text || "", correct: /^(x|yes|true|correct)$/i.test(r.mark || "")}));
+  if (def.editor === "order")
+    model.rows = model.rows.slice().sort((a, b) => (+a.mark || 0) - (+b.mark || 0)).map(r => ({text: r.text || ""}));
+  if (def.editor === "fill") {
+    const answers = new Map(model.rows.filter(r => r.mark).map(r => [r.mark, r.text]));
+    const text = spreadSlots(model.fields.text || "");
+    model.parts = text.split(SLOT_SPLIT_RE).filter(Boolean).map(part => {
+      const m = part.match(new RegExp("^" + SLOT_RE.source + "$"));
+      return m ? {kind: "blank", answer: answers.get(m[1]) || ""} : {kind: "text", text: part};
+    });
+    if (!model.parts.length) model.parts = [{kind: "text", text: ""}, {kind: "blank", answer: ""}];
+    model.distractors = model.rows.filter(r => !r.mark).map(r => r.text || "");
+  }
+  return {model, def};
+}
+
+function sourceField(lines, key, value) {
+  value = String(value || "");
+  if (!value.trim()) return;
+  if (value.includes("\n") || value.trim() === "|") {
+    // the block as written: its first line's indentation is part of it (a
+    // nested list may open it), so only the blank lines around it go
+    const block = value.split("\n");
+    while (!block[0].trim()) block.shift();
+    while (!block[block.length - 1].trim()) block.pop();
+    lines.push(key + ": |");
+    block.forEach(x => lines.push(x.trim() ? "  " + x : ""));
+  } else lines.push(key + ": " + value.trim());
+}
+
+/* A flashcard field that names a file: `-image` a picture, `-audio` a
+   recording; null for a field of text. */
+function mediaKind(key) {
+  // image, image-answer, front-image, back-image -- and the recordings by
+  // the same rule, audio and audio-answer among them
+  return /(^|-)image(-answer)?$/.test(key) ? "image"
+       : /(^|-)audio(-answer)?$/.test(key) ? "audio" : null;
+}
+
+/* The pictures every exercise but a flashcard may carry: one with the
+   question, one shown once it has been answered (mdparser
+   EXERCISE_IMAGE_FIELDS).  Each takes the layout a figure line takes --
+   `images/map.png {width=50 align=center}` -- with a figure's defaults. */
+const EXERCISE_IMAGES = [
+  ["image", "Picture with the question"],
+  ["image-answer", "Picture shown after the answer"],
+];
+const EXERCISE_IMAGE_VALUE_RE = /^(images\/[A-Za-z0-9][A-Za-z0-9._\-]*)\s*(?:\{([^{}]*)\})?$/;
+const EXERCISE_IMAGE_WIDTH = 60, EXERCISE_IMAGE_ALIGN = "left";
+function splitExerciseImage(value) {
+  const text = String(value || "").trim();
+  const m = EXERCISE_IMAGE_VALUE_RE.exec(text);
+  const out = {path: m ? m[1] : text, width: EXERCISE_IMAGE_WIDTH, align: EXERCISE_IMAGE_ALIGN};
+  for (const hit of ((m && m[2]) || "").matchAll(/([a-z]+)\s*=\s*(-?[\w.]+)/g)) {
+    const [, key, value] = hit;
+    if (key === "width") {
+      const n = Math.round(+value);
+      if (Number.isFinite(n)) out.width = Math.max(5, Math.min(100, n));
+    } else if (key === "align" && ["left", "center", "right"].includes(value)) out.align = value;
+  }
+  return out;
+}
+function joinExerciseImage(parts) {
+  const path = String(parts.path || "").trim();
+  if (!path) return "";
+  const n = Math.round(+parts.width), attrs = [];
+  if (Number.isFinite(n) && n !== EXERCISE_IMAGE_WIDTH)
+    attrs.push("width=" + Math.max(5, Math.min(100, n)));
+  if (parts.align && parts.align !== EXERCISE_IMAGE_ALIGN) attrs.push("align=" + parts.align);
+  return attrs.length ? `${path} {${attrs.join(" ")}}` : path;
+}
+
+/* The recordings every exercise but a flashcard may carry, the pictures'
+   twins: one with the question, one played once it has been answered
+   (mdparser EXERCISE_AUDIO_FIELDS).  Written exactly as a picture is, which
+   is this dialect's rule for recordings everywhere -- the same width and
+   side, and the clip a recording line takes:
+   `audio/word.mp3 {width=40 start=1:05.2 end=1:09}`.  The times are kept as
+   the author wrote them, clock or seconds; the parser reads both. */
+const EXERCISE_AUDIOS = [
+  ["audio", "Recording with the question"],
+  ["audio-answer", "Recording played after the answer"],
+];
+const EXERCISE_AUDIO_VALUE_RE = /^(audio\/[A-Za-z0-9][A-Za-z0-9._\-]*)\s*(?:\{([^{}]*)\})?$/;
+function splitExerciseAudio(value) {
+  const text = String(value || "").trim();
+  const m = EXERCISE_AUDIO_VALUE_RE.exec(text);
+  const out = {path: m ? m[1] : text, width: EXERCISE_IMAGE_WIDTH,
+               align: EXERCISE_IMAGE_ALIGN, start: "", end: ""};
+  for (const hit of ((m && m[2]) || "").matchAll(/([a-z]+)\s*=\s*(-?[\w.:]+)/g)) {
+    const [, key, value] = hit;
+    if (key === "width") {
+      const n = Math.round(+value);
+      if (Number.isFinite(n)) out.width = Math.max(5, Math.min(100, n));
+    } else if (key === "align" && ["left", "center", "right"].includes(value)) out.align = value;
+    else if (key === "start" || key === "end") out[key] = value;
+  }
+  return out;
+}
+function joinExerciseAudio(parts) {
+  const path = String(parts.path || "").trim();
+  if (!path) return "";
+  const n = Math.round(+parts.width), attrs = [];
+  if (Number.isFinite(n) && n !== EXERCISE_IMAGE_WIDTH)
+    attrs.push("width=" + Math.max(5, Math.min(100, n)));
+  if (parts.align && parts.align !== EXERCISE_IMAGE_ALIGN) attrs.push("align=" + parts.align);
+  for (const key of ["start", "end"]) {
+    const v = String(parts[key] || "").trim();
+    if (v) attrs.push(`${key}=${v}`);
+  }
+  return attrs.length ? `${path} {${attrs.join(" ")}}` : path;
+}
+
+function exerciseSource(model, def) {
+  const f = model.fields, lines = [":::exercise " + model.subtype];
+  sourceField(lines, "prompt", f.prompt);
+  if (model.subtype !== "flashcard") sourceField(lines, "content-direction", f["content-direction"]);
+  if (model.subtype === "construct-sentence") sourceField(lines, "answer-direction", f["answer-direction"]);
+  const rowText = value => String(value || "").replace(/\r?\n/g, " ⏎ ").trim();
+  const pairText = value => rowText(value).replace(/(^|[^\\])=>/g, "$1\\=>");
+  if (def.editor === "fill") {
+    let slot = 0, sentence = "";
+    const answers = [];
+    model.parts.forEach(part => {
+      if (part.kind === "blank") {
+        const name = "blank" + (++slot);
+        sentence += "[[" + name + "]]";
+        answers.push([name, part.answer]);
+      } else sentence += part.text || "";
+    });
+    sourceField(lines, "text", sentence);
+    answers.forEach(([name, answer]) => lines.push(`- [${name}] ${rowText(answer)}`));
+    model.distractors.forEach(answer => lines.push(`- [ ] ${rowText(answer)}`));
+  } else if (def.editor === "matching") {
+    sourceField(lines, "direction", f.direction);
+    model.rows.forEach(r => lines.push(`- ${pairText(r.left)} => ${pairText(r.right)}`));
+  } else if (def.editor === "boolean") {
+    model.rows.forEach(r => lines.push(`- ${pairText(r.left)} => ${r.right}`));
+  } else if (def.editor === "choice") {
+    model.rows.forEach(r => lines.push(`- [${r.correct ? "x" : " "}] ${rowText(r.text)}`));
+  } else if (def.editor === "order") {
+    model.rows.forEach((r, i) => lines.push(`- [${i + 1}] ${rowText(r.text)}`));
+  } else {
+    sourceField(lines, "card-type", model.cardType);
+    const keys = flashcardFields(model.cardType).map(x => x[0]);
+    keys.forEach(key => sourceField(lines, key, f[key]));
+    for (const key of keys.filter(k => !mediaKind(k))) {
+      if (!String(f[key] || "").trim()) continue;
+      const base = flashDefaults(key);
+      if (f[key + "-size"] && String(f[key + "-size"]) !== String(base.size))
+        sourceField(lines, key + "-size", f[key + "-size"]);
+      if (f[key + "-shade"] && f[key + "-shade"] !== base.shade)
+        sourceField(lines, key + "-shade", f[key + "-shade"]);
+    }
+    sourceField(lines, "direction", f.direction);
+    // not in the form, but kept: a card sheet writes it, and a card opened
+    // here and saved again still says it
+    if (model.cardType !== "jolly") sourceField(lines, "bidirectional", f.bidirectional);
+  }
+  if (model.subtype !== "flashcard") {
+    for (const [key] of EXERCISE_IMAGES) sourceField(lines, key, f[key]);
+    for (const [key] of EXERCISE_AUDIOS) sourceField(lines, key, f[key]);
+    sourceField(lines, "explanation-correct", f["explanation-correct"]);
+    sourceField(lines, "explanation-incorrect", f["explanation-incorrect"]);
+  }
+  lines.push(":::");
+  return lines.join("\n");
+}
+
+function flashcardFields(kind) {
+  if (kind === "jolly") return [
+    ["front-primary", "Front — primary text"], ["front-secondary", "Front — secondary text"],
+    ["back-primary", "Back — primary text"], ["back-secondary", "Back — secondary text"],
+  ];
+  if (kind === "opposites") return [
+    ["target", "Word or expression"], ["reading", "Reading"], ["transliteration", "Transliteration"],
+    ["opposite", "Opposite"], ["opposite-reading", "Opposite reading"],
+    ["opposite-transliteration", "Opposite transliteration"], ["notes", "Notes"],
+    ["source", "Source"], ["front-image", "Front image path"], ["back-image", "Back image path"],
+    ["front-audio", "Front recording path"], ["back-audio", "Back recording path"],
+  ];
+  return [
+    ["target", "Word or expression"], ["reading", "Reading"], ["transliteration", "Transliteration"],
+    ["meaning", "Meaning"], ["context", "Example or context"], ["notes", "Notes"], ["source", "Source"],
+    ["front", "Custom front (replaces the word fields)"], ["back", "Custom back (replaces the meaning fields)"],
+    ["front-image", "Front image path"], ["back-image", "Back image path"],
+    ["front-audio", "Front recording path"], ["back-audio", "Back recording path"],
+  ];
+}
+
+function flashDefaults(key) {
+  const secondary = ["front-secondary", "back-secondary", "reading", "transliteration", "context", "notes",
+    "source", "opposite-reading", "opposite-transliteration"].includes(key);
+  return {size: secondary ? 88 : 120, shade: secondary ? "subdued" : "primary"};
+}
+
+function validateExercise(model, def) {
+  const filled = value => !!String(value || "").trim();
+  if (def.editor === "fill") {
+    const blanks = model.parts.filter(x => x.kind === "blank");
+    if (!blanks.length) throw new Error("Add at least one blank");
+    if (blanks.some(x => !filled(x.answer))) throw new Error("Every blank needs its correct movable block");
+    if (model.distractors.some(x => !filled(x))) throw new Error("Complete or delete every distractor");
+  } else if (["matching", "boolean"].includes(def.editor)) {
+    if (!model.rows.length || model.rows.some(r => !filled(r.left) || !filled(r.right)))
+      throw new Error("Complete both fields in every row");
+  } else if (["choice", "order"].includes(def.editor)) {
+    if (!model.rows.length || model.rows.some(r => !filled(r.text))) throw new Error("Complete every item");
+    if (def.editor === "choice") {
+      const correct = model.rows.filter(r => r.correct).length;
+      if (model.subtype === "choose-all" ? correct < 1 : correct !== 1)
+        throw new Error(model.subtype === "choose-all" ? "Mark at least one correct answer" : "Mark exactly one correct answer");
+    }
+  } else if (model.cardType === "jolly") {
+    // one field a side is a card; the secondary ones are there when wanted
+    if (!filled(model.fields["front-primary"]) && !filled(model.fields["front-secondary"]))
+      throw new Error("Fill in at least one field on the front");
+    if (!filled(model.fields["back-primary"]) && !filled(model.fields["back-secondary"]))
+      throw new Error("Fill in at least one field on the back");
+  } else if (model.cardType === "opposites") {
+    if (!filled(model.fields.target) || !filled(model.fields.opposite))
+      throw new Error("Enter the word and its opposite");
+  } else if (!filled(model.fields.target) && !filled(model.fields.front)) {
+    throw new Error("Enter the word or a custom front");
+  }
+  if (def.editor !== "flashcard") {
+    // what mdparser says of a picture path, said before the exercise is saved
+    for (const [key] of EXERCISE_IMAGES) {
+      const value = String(model.fields[key] || "").trim();
+      if (value && !EXERCISE_IMAGE_VALUE_RE.test(value))
+        throw new Error(`${key} must name a file under images/ (e.g. images/map.png)`);
+    }
+    // and of a recording path, the same words for the same mistake
+    for (const [key] of EXERCISE_AUDIOS) {
+      const value = String(model.fields[key] || "").trim();
+      if (value && !(EXERCISE_AUDIO_VALUE_RE.test(value)
+                     && AUDIO_PATH_RE.test(EXERCISE_AUDIO_VALUE_RE.exec(value)[1])))
+        throw new Error(`${key} must name a file under audio/ (e.g. audio/word.mp3)`);
+    }
+  }
+  if (def.editor === "flashcard") {
+    // what mdparser says of a recording path, said before the card is saved
+    for (const [key] of flashcardFields(model.cardType).filter(([k]) => mediaKind(k) === "audio")) {
+      const path = String(model.fields[key] || "").trim();
+      if (path && !AUDIO_PATH_RE.test(path))
+        throw new Error(`${key} must name a file under audio/ (e.g. audio/word.mp3)`);
+    }
+    for (const [key] of flashcardFields(model.cardType).filter(([k]) => !mediaKind(k))) {
+      if (!filled(model.fields[key])) continue;
+      const size = +(model.fields[key + "-size"] || flashDefaults(key).size);
+      const shade = model.fields[key + "-shade"] || flashDefaults(key).shade;
+      if (!Number.isFinite(size) || size < 50 || size > 250)
+        throw new Error("Text sizes must be between 50% and 250%");
+      if (!new Set(["primary", "subdued", "muted", "accent"]).has(shade) && !/^#[0-9a-f]{6}$/i.test(shade))
+        throw new Error("Choose one of the available color treatments");
+    }
+  }
+}
+
+/* What the form shows as its preview when the caller brings none: the
+   editor's own renderer, with the document's images and links. */
+/* THE PROSE THE OPEN DOCUMENT IS WRITTEN IN.  The preview below renders
+   from a front matter this file writes, and it never carried a `lang:` at
+   all: the exercise was previewed in whatever a document that declares
+   nothing gets, never in the prose of the document it is being written
+   into, so the two hyphenated differently and a screen reader read them out
+   in two different languages.  The sheet of the page carries the answer --
+   the server writes it on a document page, and the editor writes it back
+   after every preview -- and a page with no sheet (a deck) falls back to
+   what an undeclared document gets. */
+function openProseLang() {
+  const sheet = document.getElementById("sheet");
+  const code = (sheet && sheet.lang) || "";
+  return /^[A-Za-z]{2,3}(-[A-Za-z0-9]+)*$/.test(code) ? code : "en";
+}
+
+async function defaultExercisePreview(markdown) {
+  const target = String(lang().code || "fa").replace(/[^a-z0-9-]/gi, "") || "fa";
+  const prose = openProseLang();
+  const data = await api("/api/preview", {method: "POST",
+    json: {markdown: `---\ntitle: Exercise preview\ntarget: ${target}\nlang: ${prose}\n---\n\n${markdown}`,
+           doc_id: DOC_ID}});
+  if (!data.ok) throw new Error(data.error);
+  return {html: data.doc.html, lang: data.doc.lang, target: data.doc.target};
+}
+
+/* The visual exercise form, for the editor and for the exercise decks.
+   `onSave(markdown)` receives the one `:::exercise` block; it may be async,
+   and when it throws the message is shown and the form stays open.
+   `preview(markdown)` resolves to rendered document html (a string, or
+   {html, lang, target}); the form keeps the first exercise of it.
+   `title` and `saveLabel` override the headings an editor caller gets.
+   `uploadImage(file)`, when given, resolves to the stored picture's path
+   ("images/<name>"), and `uploadAudio(file)` to a recording's
+   ("audio/<name>") -- or either to {path, url}: each picture or recording
+   field of a flashcard then gets an "Upload…" button that fills it in, and
+   a jolly card's fields "Image…" and "Recording…" buttons that put the
+   line in at the cursor.  Without them the fields are paths. */
+function openExerciseForm({model, def, mode = "add", onSave, preview, title, saveLabel,
+                           uploadImage: upload, uploadAudio}) {
+  const adding = mode !== "edit";
+  const renderPreview = preview || defaultExercisePreview;
+  const root = $("#modal-root"); root.innerHTML = "";
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.dataset.lang = lang().code;
+  ov.innerHTML = `<div class="modal ex-form-modal" role="dialog" aria-modal="true">
+    <div class="ex-form-head"><div><h3></h3><p></p></div><button type="button" class="btn ghost" data-x="cancel" title="Close">✕</button></div>
+    <div class="ex-form-body"></div>
+    <div class="row ex-form-actions">
+    <button class="btn ghost" data-x="math" title="Write a formula with its picture beside it and put it in the field you were last in — the same sheet the document editor uses. In an exercise a formula may sit in the prompt, in the sentence, in an answer or on a card; it may not sit inside a blank.">∑ Maths…</button>
+    <span class="ex-form-spacer"></span>
+    <button class="btn" data-x="cancel">Cancel</button>
+    <button class="btn primary" data-x="save"></button></div></div>`;
+  $("h3", ov).textContent = title || (adding ? "Add " + def.label : "Edit " + def.label);
+  $(".ex-form-head p", ov).textContent = def.description;
+  $('[data-x="save"]', ov).textContent = saveLabel || (adding ? "Insert exercise" : "Save exercise");
+  const body = $(".ex-form-body", ov);
+  let scheduleExercisePreview = () => {};
+  let stopPlayer = () => {};
+
+  const section = title => {
+    const s = document.createElement("section"); s.className = "ex-form-section";
+    const h = document.createElement("h4"); h.textContent = title; s.appendChild(h); body.appendChild(s); return s;
+  };
+  const field = (box, label, value, change, options = {}) => {
+    const lab = document.createElement("label"); lab.className = "ex-author-field";
+    const name = document.createElement("span"); name.textContent = label; lab.appendChild(name);
+    const input = document.createElement(options.single ? "input" : "textarea");
+    if (options.single) input.type = options.type || "text";
+    input.value = value || ""; input.spellcheck = options.spellcheck !== false;
+    if (options.placeholder) input.placeholder = options.placeholder;
+    input.addEventListener("input", () => {
+      change(input.value);
+      scheduleExercisePreview();
+    });
+    if (input.tagName === "TEXTAREA" || input.type === "text") {
+      lab.classList.add("ex-dir-field");
+      lab.appendChild(exerciseTextDirectionButton(input));
+    }
+    lab.appendChild(input);
+    if (options.help) { const help = document.createElement("small"); help.textContent = options.help; lab.appendChild(help); }
+    box.appendChild(lab); return input;
+  };
+  const select = (box, label, value, choices, change) => {
+    const lab = document.createElement("label"); lab.className = "ex-author-field";
+    const name = document.createElement("span"); name.textContent = label; lab.appendChild(name);
+    const input = document.createElement("select");
+    choices.forEach(([v, text]) => { const o = document.createElement("option"); o.value = v; o.textContent = text; input.appendChild(o); });
+    input.value = value || choices[0][0]; input.addEventListener("change", () => {
+      change(input.value);
+      scheduleExercisePreview();
+    });
+    lab.appendChild(input); box.appendChild(lab); return input;
+  };
+  const miniButton = (text, title, fn) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn small ghost";
+    b.textContent = text; b.title = title; b.addEventListener("click", () => {
+      fn();
+      scheduleExercisePreview();
+    }); return b;
+  };
+  const removeMoveButtons = (bar, rows, i, rerender) => {
+    bar.append(miniButton("↑", "Move earlier", () => { if (i) [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; rerender(); }),
+               miniButton("↓", "Move later", () => { if (i < rows.length - 1) [rows[i + 1], rows[i]] = [rows[i], rows[i + 1]]; rerender(); }),
+               miniButton("Delete", "Delete this item", () => { rows.splice(i, 1); rerender(); }));
+  };
+
+  // A field that names a file -- a card's picture or recording, an
+  // exercise's own picture -- with the file picker behind its Upload…
+  const uploaders = {image: upload, audio: uploadAudio};
+  const MEDIA = {
+    image: {accept: IMAGE_ACCEPT, placeholder: "images/example.png", what: "picture"},
+    audio: {accept: AUDIO_ACCEPT, placeholder: "audio/example.mp3", what: "recording"},
+  };
+  const urls = {};                   // what an upload said a path is served at
+  const uploadButton = (kind, label, title, cls, done) => {
+    const pick = document.createElement("input");
+    pick.type = "file"; pick.accept = MEDIA[kind].accept; pick.hidden = true;
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "btn small ghost " + cls;
+    button.textContent = label; button.title = title;
+    button.addEventListener("click", () => pick.click());
+    pick.addEventListener("change", async () => {
+      const file = pick.files && pick.files[0];
+      if (!file || button.disabled) return;
+      button.disabled = true; button.textContent = "Uploading…";
+      try {
+        const got = await uploaders[kind](file);
+        const path = typeof got === "string" ? got : got && got.path;
+        if (!path) throw new Error("the upload named no file");
+        if (got && got.url) urls[path] = got.url;
+        if (previewClosed) return;
+        done(path);
+      } catch (e) {
+        toast(`Could not upload the ${MEDIA[kind].what}: ` + e.message, true);
+      } finally {
+        button.disabled = false; button.textContent = label; pick.value = "";
+      }
+    });
+    return [button, pick];
+  };
+  // a path field with its Upload… beside it, when the caller can store one
+  const mediaField = (box, key, label, kind, help, part) => {
+    const change = part ? part.change : (v => model.fields[key] = v);
+    const input = field(box, label, part ? part.value : model.fields[key], change,
+      {single: true, spellcheck: false, placeholder: MEDIA[kind].placeholder, help});
+    if (typeof uploaders[kind] !== "function") return input;
+    const row = document.createElement("div"); row.className = "ex-upload-row";
+    input.replaceWith(row); row.append(input);
+    row.append(...uploadButton(kind, "Upload…", `Upload a ${MEDIA[kind].what} for this exercise`,
+      "ex-upload", path => {
+        input.value = path;
+        if (part) part.uploaded(path); else model.fields[key] = path;
+        scheduleExercisePreview();
+      }));
+    return input;
+  };
+
+  if (model.subtype !== "flashcard") {
+    const common = section("Instructions");
+    field(common, "Prompt shown to the learner", model.fields.prompt,
+          v => model.fields.prompt = v, {placeholder: defaultPrompts[model.subtype]});
+    select(common, "Writing direction of the activity", model.fields["content-direction"] || "",
+      [["", "Automatic"], ["target", `Use ${lang().name} direction`], ["rtl", "Right to left"], ["ltr", "Left to right"]],
+      v => model.fields["content-direction"] = v);
+  }
+
+  if (def.editor === "fill") {
+    const area = section("Sentence and blanks");
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const buttons = document.createElement("div"); buttons.className = "row ex-add-row"; area.appendChild(buttons);
+    const render = () => {
+      list.innerHTML = "";
+      model.parts.forEach((part, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const title = document.createElement("strong"); title.textContent = part.kind === "blank" ? `Blank ${model.parts.slice(0, i + 1).filter(x => x.kind === "blank").length}` : "Sentence text";
+        bar.appendChild(title); removeMoveButtons(bar, model.parts, i, render); row.appendChild(bar);
+        field(row, part.kind === "blank" ? "Correct movable word or chunk" : "Text that stays visible",
+              part.kind === "blank" ? part.answer : part.text,
+              v => part.kind === "blank" ? part.answer = v : part.text = v,
+              {placeholder: part.kind === "blank" ? "Correct answer" : "Include spaces and punctuation exactly as they should appear"});
+        list.appendChild(row);
+      });
+    };
+    buttons.append(miniButton("+ Add sentence text", "Add visible sentence text", () => { model.parts.push({kind: "text", text: ""}); render(); }),
+                   miniButton("+ Add blank", "Add a blank with its correct block", () => { model.parts.push({kind: "blank", answer: ""}); render(); }));
+    render();
+    const dist = section("Extra movable blocks (optional distractors)");
+    const dlist = document.createElement("div"); dlist.className = "ex-form-list"; dist.appendChild(dlist);
+    const renderDist = () => {
+      dlist.innerHTML = "";
+      model.distractors.forEach((value, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row compact";
+        field(row, `Distractor ${i + 1}`, value, v => model.distractors[i] = v);
+        row.appendChild(miniButton("Delete", "Delete this distractor", () => { model.distractors.splice(i, 1); renderDist(); }));
+        dlist.appendChild(row);
+      });
+    };
+    const add = miniButton("+ Add distractor", "Add an incorrect movable block", () => { model.distractors.push(""); renderDist(); });
+    dist.appendChild(add); renderDist();
+  } else if (def.editor === "order") {
+    const area = section(model.subtype === "construct-sentence" ? "Words or chunks in the correct order" : "Sentences in the correct order");
+    if (model.subtype === "construct-sentence")
+      select(area, "Direction of the answer (including wrapped lines)", model.fields["answer-direction"] || "",
+        [["", `Automatic (${lang().dir === "rtl" ? "right to left" : "left to right"})`],
+         ["rtl", "Right to left"], ["ltr", "Left to right"]],
+        v => model.fields["answer-direction"] = v);
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const render = () => {
+      list.innerHTML = "";
+      model.rows.forEach((item, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const title = document.createElement("strong"); title.textContent = `Correct position ${i + 1}`; bar.appendChild(title);
+        removeMoveButtons(bar, model.rows, i, render); row.appendChild(bar);
+        field(row, model.subtype === "construct-sentence" ? "Word or chunk" : "Sentence", item.text, v => item.text = v);
+        list.appendChild(row);
+      });
+    };
+    area.appendChild(miniButton(model.subtype === "construct-sentence" ? "+ Add word or chunk" : "+ Add sentence", "Add another item", () => { model.rows.push({text: ""}); render(); }));
+    if (model.subtype === "construct-sentence")
+      area.appendChild(miniButton("Reverse order", "Reverse the correct order of all words or chunks", () => { model.rows.reverse(); render(); }));
+    render();
+  } else if (def.editor === "matching") {
+    const area = section("Pairs");
+    if (model.subtype === "match-translations")
+      select(area, "What the learner sees on the left", model.fields.direction || "target-to-translation",
+        [["target-to-translation", "Word or sentence"], ["translation-to-target", "Translation"]], v => model.fields.direction = v);
+    if (model.subtype === "match-definitions")
+      select(area, "What the learner sees on the left", model.fields.direction || "word-to-definition",
+        [["word-to-definition", "Word"], ["definition-to-word", "Definition"]], v => model.fields.direction = v);
+    const labels = model.subtype === "match-translations" ? ["Word, phrase, or sentence", "Translation"]
+      : model.subtype === "match-opposites" ? ["Word or expression", "Its opposite"] : ["Word", "Its definition"];
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const render = () => {
+      list.innerHTML = "";
+      model.rows.forEach((item, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const title = document.createElement("strong"); title.textContent = `Pair ${i + 1}`; bar.appendChild(title);
+        removeMoveButtons(bar, model.rows, i, render); row.appendChild(bar);
+        const cols = document.createElement("div"); cols.className = "ex-field-cols"; row.appendChild(cols);
+        field(cols, labels[0], item.left, v => item.left = v); field(cols, labels[1], item.right, v => item.right = v);
+        list.appendChild(row);
+      });
+    };
+    area.appendChild(miniButton("+ Add pair", "Add another matching pair", () => { model.rows.push({left: "", right: ""}); render(); }));
+    render();
+  } else if (def.editor === "boolean") {
+    const area = section(model.subtype === "yes-no" ? "Questions and answers" : "Statements and answers");
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const answers = model.subtype === "yes-no" ? [["yes", "Yes"], ["no", "No"]] : [["true", "True"], ["false", "False"]];
+    const render = () => {
+      list.innerHTML = "";
+      model.rows.forEach((item, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const title = document.createElement("strong"); title.textContent = `${model.subtype === "yes-no" ? "Question" : "Statement"} ${i + 1}`; bar.appendChild(title);
+        removeMoveButtons(bar, model.rows, i, render); row.appendChild(bar);
+        field(row, model.subtype === "yes-no" ? "Question" : "Statement", item.left, v => item.left = v);
+        select(row, "Correct answer", item.right, answers, v => item.right = v); list.appendChild(row);
+      });
+    };
+    area.appendChild(miniButton(model.subtype === "yes-no" ? "+ Add question" : "+ Add statement", "Add another item", () => { model.rows.push({left: "", right: answers[0][0]}); render(); }));
+    render();
+  } else if (def.editor === "choice") {
+    const area = section(model.subtype === "incorrect-part" ? "Sentence segments" : "Answer choices");
+    const list = document.createElement("div"); list.className = "ex-form-list"; area.appendChild(list);
+    const multiple = model.subtype === "choose-all";
+    const render = () => {
+      list.innerHTML = "";
+      model.rows.forEach((item, i) => {
+        const row = document.createElement("div"); row.className = "ex-form-row";
+        const bar = document.createElement("div"); bar.className = "ex-row-head";
+        const check = document.createElement("label"); check.className = "ex-correct-toggle";
+        const input = document.createElement("input"); input.type = multiple ? "checkbox" : "radio"; input.name = "exercise-correct";
+        input.checked = !!item.correct; input.addEventListener("change", () => {
+          if (!multiple) model.rows.forEach(x => x.correct = false);
+          item.correct = input.checked; render(); scheduleExercisePreview();
+        });
+        check.append(input, document.createTextNode(model.subtype === "incorrect-part" ? " This is the incorrect segment" : " Correct answer"));
+        bar.appendChild(check); removeMoveButtons(bar, model.rows, i, render); row.appendChild(bar);
+        field(row, model.subtype === "incorrect-part" ? `Sentence segment ${i + 1}` : `Choice ${i + 1}`,
+              item.text, v => item.text = v); list.appendChild(row);
+      });
+    };
+    area.appendChild(miniButton(model.subtype === "incorrect-part" ? "+ Add segment" : "+ Add choice", "Add another option", () => { model.rows.push({text: "", correct: false}); render(); }));
+    render();
+  } else {
+    const card = section("Card content");
+    const textKeys = flashcardFields(model.cardType);
+    const jolly = model.cardType === "jolly";
+    // A recording field's ▶: the file its path names, from the upload that
+    // stored it or from the card the preview drew (whose players have the
+    // address of the deck or the document the form belongs to).
+    const player = new Audio();
+    player.preload = "auto";
+    const audioUrl = path => {
+      if (urls[path]) return urls[path];
+      const drawn = $$("audio", previewStage).find(a =>
+        (a.getAttribute("src") || "").replace(/#.*$/, "").endsWith("/" + path));
+      return drawn ? drawn.getAttribute("src").replace(/#.*$/, "") : "";
+    };
+    let playing = null;
+    const playButton = input => {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "btn small ghost ex-audio-play";
+      button.textContent = "▶"; button.title = "Play the recording";
+      button.setAttribute("aria-label", "Play the recording");
+      button.addEventListener("click", () => {
+        if (playing === button && !player.paused) { player.pause(); return; }
+        const path = input.value.trim(), url = path && audioUrl(path);
+        if (!url) {
+          toast(path ? `Nothing to play: the preview shows no ${path}` : "No recording named yet", true);
+          return;
+        }
+        if (player.getAttribute("src") !== url) player.src = url;
+        playing = button;
+        player.currentTime = 0;
+        player.play().catch(e => { if (e.name !== "AbortError") toast("Could not play the recording: " + e.message, true); });
+      });
+      return button;
+    };
+    const showPlaying = () => $$(".ex-audio-play", card).forEach(b => {
+      const on = b === playing && !player.paused;
+      b.textContent = on ? "❚❚" : "▶";
+      b.classList.toggle("playing", on);
+    });
+    for (const type of ["play", "pause", "ended", "emptied"]) player.addEventListener(type, showPlaying);
+    stopPlayer = () => { player.pause(); player.removeAttribute("src"); player.load(); };
+
+    textKeys.forEach(([key, label]) => {
+      const kind = mediaKind(key);
+      const input = field(card, label, model.fields[key], v => model.fields[key] = v,
+        {single: !!kind, spellcheck: !kind, placeholder: kind ? MEDIA[kind].placeholder : "",
+         help: jolly ? "Any studio markdown: paragraphs, lists, tables, > boxes, images, recordings" : ""});
+      const lab = input.parentElement;
+      if (kind === "image" || kind === "audio") {
+        const canUpload = typeof uploaders[kind] === "function";
+        if (canUpload || kind === "audio") {
+          const row = document.createElement("div"); row.className = "ex-upload-row";
+          input.replaceWith(row);
+          row.append(input);
+          if (canUpload) row.append(...uploadButton(kind, "Upload…",
+            `Upload a ${MEDIA[kind].what} for this side of the card`, "ex-upload", path => {
+              input.value = path; model.fields[key] = path;
+              scheduleExercisePreview();
+            }));
+          if (kind === "audio") row.append(playButton(input));
+        }
+        return;
+      }
+      if (jolly) {
+        // the jolly field is markdown of any kind: written on several lines,
+        // and a picture or a recording put in on a line of its own
+        input.classList.add("ex-jolly-text");
+        input.rows = 4;
+        const put = path => {
+          const at = input.selectionStart ?? input.value.length;
+          const to = input.selectionEnd ?? at;
+          const before = input.value.slice(0, at), after = input.value.slice(to);
+          const line = `![](${path})`;
+          const pre = before && !before.endsWith("\n") ? "\n" : "";
+          const post = after && !after.startsWith("\n") ? "\n" : "";
+          input.value = before + pre + line + post + after;
+          const end = (before + pre + line).length;
+          input.focus();
+          input.setSelectionRange(end, end);
+          input.dispatchEvent(new Event("input"));
+        };
+        const inserts = document.createElement("div"); inserts.className = "ex-insert-row";
+        for (const kind2 of ["image", "audio"]) {
+          if (typeof uploaders[kind2] !== "function") continue;
+          inserts.append(...uploadButton(kind2, kind2 === "image" ? "Image…" : "Recording…",
+            kind2 === "image" ? "Upload a picture and put it in this field, on a line of its own, at the cursor"
+                              : "Upload a recording and put it in this field, on a line of its own, at the cursor",
+            kind2 === "image" ? "ex-insert-image" : "ex-insert-audio", put));
+        }
+        if (inserts.children.length) input.after(inserts);
+      }
+      {
+        const style = document.createElement("details"); style.className = "ex-field-style";
+        const summary = document.createElement("summary"); summary.textContent = "Text appearance"; style.appendChild(summary);
+        const cols = document.createElement("div"); cols.className = "ex-field-cols"; style.appendChild(cols);
+        const defaults = flashDefaults(key);
+        const sizeInput = field(cols, "Text size (%)", model.fields[key + "-size"] || defaults.size,
+          v => model.fields[key + "-size"] = v, {single: true, type: "number", spellcheck: false,
+          help: "50–250%; 100% is the surrounding text size"});
+        sizeInput.min = "50"; sizeInput.max = "250";
+        const shade = model.fields[key + "-shade"] || defaults.shade;
+        const isCustom = /^#[0-9a-f]{6}$/i.test(shade);
+        const shadeSelect = select(cols, "Color treatment", isCustom ? "custom" : shade,
+          [["primary", "Primary text"], ["subdued", "Subdued"], ["muted", "Muted"],
+           ["accent", "Accent color"], ["custom", "Custom color"]], value => {
+            colorInput.parentElement.hidden = value !== "custom";
+            model.fields[key + "-shade"] = value === "custom" ? colorInput.value : value;
+          });
+        const colorInput = field(cols, "Custom color", isCustom ? shade : "#4466aa",
+          v => model.fields[key + "-shade"] = v, {single: true, type: "color", spellcheck: false});
+        colorInput.parentElement.hidden = shadeSelect.value !== "custom";
+        lab.appendChild(style);
+      }
+    });
+    select(card, "Which side appears first", model.fields.direction || "forward",
+      [["forward", "Front"], ["reverse", "Back"]], v => model.fields.direction = v);
+  }
+
+  if (model.subtype !== "flashcard") {
+    const pics = section("Pictures (optional)");
+    // the path, and under it the width and the side the picture sits on,
+    // which are written into the same field the way a figure line writes them
+    const pictureField = (key, label, help) => {
+      const parts = splitExerciseImage(model.fields[key]);
+      const write = () => { model.fields[key] = joinExerciseImage(parts); };
+      const input = mediaField(pics, key, label, "image", help,
+        {value: parts.path,
+         change: v => { parts.path = v.trim(); write(); },
+         uploaded: path => { parts.path = path; write(); }});
+      const style = document.createElement("details");
+      style.className = "ex-field-style";
+      const summary = document.createElement("summary");
+      summary.textContent = "Size and position"; style.appendChild(summary);
+      const cols = document.createElement("div"); cols.className = "ex-field-cols";
+      style.appendChild(cols);
+      const width = field(cols, "Width (% of the column)", parts.width,
+        v => { parts.width = v; write(); },
+        {single: true, type: "number", spellcheck: false,
+         help: "5–100; 60 is what a picture takes when nothing is said"});
+      width.min = "5"; width.max = "100";
+      select(cols, "Where it sits", parts.align,
+        [["left", "Left"], ["center", "Centre"], ["right", "Right"]],
+        v => { parts.align = v; write(); });
+      // under the path and its Upload…, not inside the row they share
+      (input.closest(".ex-author-field") || input.parentElement).appendChild(style);
+    };
+    pictureField("image", EXERCISE_IMAGES[0][1], "Shown between the prompt and the activity");
+    pictureField("image-answer", EXERCISE_IMAGES[1][1],
+                 "Shown once the exercise has been answered, right or wrong, above the explanations");
+
+    // and the recordings, which are the same two fields over again: the same
+    // width and side, and the clip a recording line takes.  The preview
+    // below plays them, so there is no ▶ here to duplicate it.
+    const recs = section("Recordings (optional)");
+    const recordingField = (key, label, help) => {
+      const parts = splitExerciseAudio(model.fields[key]);
+      const write = () => { model.fields[key] = joinExerciseAudio(parts); };
+      const input = mediaField(recs, key, label, "audio", help,
+        {value: parts.path,
+         change: v => { parts.path = v.trim(); write(); },
+         uploaded: path => { parts.path = path; write(); }});
+      const style = document.createElement("details");
+      style.className = "ex-field-style";
+      const summary = document.createElement("summary");
+      summary.textContent = "Size, position and clip"; style.appendChild(summary);
+      const cols = document.createElement("div"); cols.className = "ex-field-cols";
+      style.appendChild(cols);
+      const width = field(cols, "Width (% of the column)", parts.width,
+        v => { parts.width = v; write(); },
+        {single: true, type: "number", spellcheck: false,
+         help: "5–100; 60 is what a player takes when nothing is said"});
+      width.min = "5"; width.max = "100";
+      select(cols, "Where it sits", parts.align,
+        [["left", "Left"], ["center", "Centre"], ["right", "Right"]],
+        v => { parts.align = v; write(); });
+      field(cols, "Play from", parts.start, v => { parts.start = v.trim(); write(); },
+            {single: true, spellcheck: false, placeholder: "1:05.2",
+             help: "Left empty, from the beginning"});
+      field(cols, "Play to", parts.end, v => { parts.end = v.trim(); write(); },
+            {single: true, spellcheck: false, placeholder: "1:09",
+             help: "Left empty, to the end"});
+      (input.closest(".ex-author-field") || input.parentElement).appendChild(style);
+    };
+    recordingField("audio", EXERCISE_AUDIOS[0][1], "Played between the prompt and the activity");
+    recordingField("audio-answer", EXERCISE_AUDIOS[1][1],
+                   "Shown once the exercise has been answered, right or wrong, above the explanations");
+  }
+
+  if (model.subtype !== "flashcard") {
+    const why = section("Explanation after checking (optional)");
+    field(why, "Shown when the answer is correct", model.fields["explanation-correct"],
+      v => model.fields["explanation-correct"] = v,
+      {help: "If the next field is empty, this becomes one neutral explanation shown after either result."});
+    field(why, "Shown when the answer is incorrect", model.fields["explanation-incorrect"],
+      v => model.fields["explanation-incorrect"] = v,
+      {help: "Once this is filled, the two explanations are selected according to the learner's result."});
+  }
+
+  const previewSection = section("Preview");
+  const previewStatus = document.createElement("small");
+  previewStatus.className = "pv-status ex-form-preview-status";
+  previewStatus.textContent = "Rendering preview…";
+  const previewStage = document.createElement("div");
+  previewStage.className = "sheet ex-form-preview";
+  previewStage.dataset.lang = lang().code;
+  previewSection.append(previewStatus, previewStage);
+  let previewTimer = 0, previewRequest = 0, previewClosed = false;
+  const renderExercisePreview = async () => {
+    const request = ++previewRequest;
+    previewStatus.textContent = "Rendering preview…";
+    previewStatus.classList.remove("err");
+    const target = String(lang().code || "fa").replace(/[^a-z0-9-]/gi, "") || "fa";
+    try {
+      const out = await renderPreview(exerciseSource(model, def));
+      if (previewClosed || request !== previewRequest) return;
+      const doc = typeof out === "string" ? {html: out} : (out || {});
+      previewStage.innerHTML = doc.html || "";
+      previewStage.lang = doc.lang || openProseLang();
+      previewStage.dataset.lang = doc.target || target;
+      const exercise = $(".exercise", previewStage);
+      if (exercise) previewStage.replaceChildren(exercise);
+      $$(".ex-edit,.ex-to-deck", previewStage).forEach(x => x.remove());
+      bindExercises(previewStage, {preview: true});
+      previewStatus.textContent = "Correct answer shown as it will appear in the editor preview.";
+    } catch (e) {
+      if (previewClosed || request !== previewRequest) return;
+      previewStage.innerHTML = "";
+      previewStatus.textContent = "Preview unavailable: " + e.message;
+      previewStatus.classList.add("err");
+    }
+  };
+  scheduleExercisePreview = () => {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(renderExercisePreview, 180);
+  };
+
+  const close = () => {
+    previewClosed = true;
+    stopPlayer();
+    clearTimeout(previewTimer);
+    previewRequest++;
+    if (ov.parentNode) root.removeChild(ov);
+  };
+  $$('[data-x="cancel"]', ov).forEach(x => x.addEventListener("click", close));
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); close(); } });
+  const saveButton = $('[data-x="save"]', ov);
+  let saving = false;
+  saveButton.addEventListener("click", async () => {
+    if (saving) return;                  // a deck save is a round trip
+    saving = true;
+    saveButton.disabled = true;
+    try {
+      validateExercise(model, def);
+      await onSave(exerciseSource(model, def));
+      close();
+    } catch (e) { toast(e.message, true); }
+    finally { saving = false; saveButton.disabled = false; }
+  });
+  /* A FORMULA GOES INTO THE FIELD THE HAND WAS LAST IN.  The form is a
+     dozen boxes and a formula belongs in one of them; pressing the button
+     takes the focus off whichever it was, so the form remembers it as the
+     focus moves rather than asking afterwards.  Writing goes through the
+     box's own `input` event, which is what makes the form's preview
+     redraw -- the same seam the jolly field's `put` uses. */
+  let lastField = null;
+  ov.addEventListener("focusin", e => {
+    const t = e.target;
+    if (t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type === "text")))
+      lastField = t;
+  });
+  const mathBtn = $('[data-x="math"]', ov);
+  if (mathBtn) mathBtn.addEventListener("click", () => {
+    const into = lastField || $("textarea,input", body);
+    if (!into) { toast("Put the cursor in a field first.", true); return; }
+    if (typeof openMathOverlay !== "function") {
+      toast("The maths sheet is only in the document editor.", true);
+      return;
+    }
+    const a = into.selectionStart, b = into.selectionEnd;
+    const picked = (a == null || a === b) ? "" : String(into.value).slice(a, b).trim();
+    openMathOverlay({
+      tex: picked,
+      // a field of an exercise is a line of prose: a formula in it sits in
+      // that line, and a fence would be a block inside a field that has no
+      // room for one
+      display: false,
+      blockAllowed: false,
+      title: "Mathematics in this field",
+      onSave: tex => {
+        const mark = "[" + tex + "]{math}";
+        const at = (a == null ? String(into.value).length : a);
+        const to = (b == null ? at : b);
+        into.value = String(into.value).slice(0, at) + mark + String(into.value).slice(to);
+        into.selectionStart = into.selectionEnd = at + mark.length;
+        into.focus();
+        into.dispatchEvent(new Event("input", {bubbles: true}));
+      },
+    });
+  });
+
+  root.appendChild(ov);
+  scheduleExercisePreview();
+  $("textarea,input", body)?.focus();
+}
+
+/* THE MATHS SHEET: the notation on the left, the picture under it, and
+   the choice of whether it sits in the line or on its own.
+
+   The preview is drawn HERE and not asked of the server, which is the one
+   way this differs from the exercise form's stage.  A formula is drawn by
+   MathJax in this very page, so a round trip would add a tenth of a
+   second to every keystroke and tell us less: MathJax does not throw on a
+   mistake, it draws it and marks it, and ParsehMath.svg hands back that
+   mark as a sentence -- "Missing close brace" -- which is the thing an
+   author can act on and the thing a server preview would have swallowed.
+
+   Escape closes it.  openTlOverlay, which this is otherwise modelled on,
+   has no Escape handler; every other dialog in the studio does, and a box
+   you cannot leave by the key everything else leaves by is a small
+   cruelty. */
+function openMathOverlay(opts) {
+  opts = opts || {};
+  const root = $("#modal-root");
+  // IT OPENS OVER WHATEVER IS ALREADY THERE, and does not clear the root
+  // as the other sheets do: as often as not it is opened FROM the exercise
+  // form, and clearing would take that form -- and the half-written
+  // exercise in it -- away with it.  Only a maths sheet left over from
+  // before is removed, so pressing the button twice leaves one.
+  $$(".math-overlay", root).forEach(n => n.remove());
+  const was = document.activeElement;
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay math-overlay";
+  ov.innerHTML = `<div class="modal math-modal" role="dialog" aria-modal="true"
+      aria-label="Mathematics">
+    <h3></h3>
+    <p>LaTeX notation — the same you would write on paper. Neither
+    <code>$</code> nor <code>\[</code> is a marker here: the block is
+    <code>[ … ]{math}</code> in a line, or a <code>:::math</code> fence on
+    its own.</p>
+    <textarea class="mathbox" rows="5" spellcheck="false" dir="ltr"
+      placeholder="\frac{-b \pm \sqrt{b^2-4ac}}{2a}"></textarea>
+    <div class="row math-opts">
+      <label><input type="radio" name="mathwhere" value="inline"> in the line</label>
+      <label><input type="radio" name="mathwhere" value="block"> on its own</label>
+    </div>
+    <div class="math-stage-wrap">
+      <small class="pv-status math-status"></small>
+      <div class="sheet math-stage"></div>
+    </div>
+    <div class="row">
+      <button class="btn" data-x="cancel">Cancel</button>
+      <button class="btn primary" data-x="ok"></button>
+    </div></div>`;
+  const box = $(".math-modal", ov);
+  const ta = $(".mathbox", ov);
+  const stage = $(".math-stage", ov);
+  const status = $(".math-status", ov);
+  const ok = $('[data-x="ok"]', ov);
+  $("h3", ov).textContent = opts.title || "Mathematics";
+  ok.textContent = opts.okLabel || "Insert";
+  ta.value = opts.tex || "";
+  const radios = $$('input[name="mathwhere"]', ov);
+  radios.forEach(r => { r.checked = (r.value === (opts.display ? "block" : "inline")); });
+  // a field of an exercise has no room for a block, so the choice is not
+  // offered there rather than offered and then refused
+  if (opts.blockAllowed === false) {
+    $(".math-opts", ov).hidden = true;
+    radios.forEach(r => { r.checked = (r.value === "inline"); });
+  }
+  const isBlock = () => $$('input[name="mathwhere"]', ov).some(r => r.checked && r.value === "block");
+
+  let closed = false, drawing = 0;
+  const draw = async () => {
+    const mine = ++drawing;
+    const tex = ta.value.trim();
+    if (!tex) {
+      stage.innerHTML = "";
+      status.textContent = "Nothing to draw yet.";
+      status.classList.remove("err");
+      ok.disabled = true;
+      return;
+    }
+    if (!window.ParsehMath) {
+      status.textContent = "The maths renderer did not load.";
+      status.classList.add("err");
+      ok.disabled = false;         // the notation is still worth keeping
+      return;
+    }
+    try {
+      const out = await ParsehMath.svg(tex, isBlock());
+      if (closed || mine !== drawing) return;
+      if (out.error) {
+        // what MathJax itself calls the mistake, in its own words
+        status.textContent = out.error;
+        status.classList.add("err");
+        stage.innerHTML = "";
+      } else {
+        status.textContent = "";
+        status.classList.remove("err");
+        stage.innerHTML = '<div class="math ' + (isBlock() ? "mathblock" : "")
+          + '" data-drawn="yes">' + out.svg + "</div>";
+      }
+    } catch (e) {
+      if (closed || mine !== drawing) return;
+      status.textContent = (e && e.message) || "That could not be drawn.";
+      status.classList.add("err");
+      stage.innerHTML = "";
+    }
+    ok.disabled = false;
+  };
+  const later = debounce(draw, 150);
+  ta.addEventListener("input", later);
+  radios.forEach(r => r.addEventListener("change", draw));
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    if (ov.parentNode) root.removeChild(ov);
+    // WHERE THE CARET GOES BACK TO.  Into the box it came from when it
+    // came from one -- a field of the exercise form, say, where the
+    // formula is being written into that field and the hand is still
+    // there -- and otherwise into the document, because this is an
+    // editor and a caret parked on a toolbar button types nothing.
+    const box = was && (was.tagName === "TEXTAREA" || was.tagName === "INPUT");
+    const back = box ? was : (opts.backTo || null);
+    if (back && back.focus) { try { back.focus(); } catch (e) { /* gone */ } }
+  };
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.addEventListener("keydown", e => {
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    // the box is for a formula, so Enter is a newline in it; the sheet is
+    // sent with the modifier every other box here is sent with
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ok.click(); }
+  });
+  $('[data-x="cancel"]', ov).addEventListener("click", close);
+
+  let busy = false;
+  ok.addEventListener("click", async () => {
+    if (busy) return;
+    const tex = ta.value.trim();
+    if (!tex) { close(); return; }
+    busy = true; ok.disabled = true;
+    try {
+      await opts.onSave(tex, isBlock(), close);
+    } catch (e) {
+      toast((e && e.message) || "That could not be inserted.", true);
+      busy = false; ok.disabled = false;
+      return;
+    }
+    close();
+  });
+
+  root.appendChild(ov);
+  box.focus ? ta.focus() : null;
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  draw();
+}
+
+/* how a formula is written into the document, in either shape */
+function mathMarkup(tex, block) {
+  return block ? ":::math\n" + tex + "\n:::" : "[" + tex + "]{math}";
+}
+
+
+/* An existing `:::exercise` block, reopened in the form -- or, with
+   `opts.mode` "add", a pasted one opened as a new exercise.  A shape the
+   form cannot show (an unknown type, a card type it has no fields for) is
+   said in a toast rather than thrown: the caller is usually a click
+   handler. */
+function openExerciseMarkdown(markdown, opts = {}) {
+  let prepared;
+  try {
+    prepared = prepareExerciseModel(parseExerciseSource(markdown));
+  } catch (e) {
+    toast(e.message, true);
+    return false;
+  }
+  openExerciseForm(Object.assign({}, opts,
+    {model: prepared.model, def: prepared.def, mode: opts.mode === "add" ? "add" : "edit"}));
+  return true;
+}
+
+/* The one `:::exercise` block of a text pasted into the picker -- a card
+   sheet's "copy markdown", a block copied out of a document -- from its
+   opening line to its closing `:::`; what is around it is left out.  An
+   Error says why there is none to open. */
+function pastedExercise(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+  const starts = [];
+  lines.forEach((line, i) => { if (/^\s*:::exercise(?:\s|$)/.test(line)) starts.push(i); });
+  if (!starts.length)
+    throw new Error("There is no :::exercise block to open: paste one whole, from its :::exercise line to its closing :::");
+  if (starts.length > 1)
+    throw new Error(`That is ${starts.length} exercises: paste one at a time`);
+  const end = lines.findIndex((line, i) => i > starts[0] && line.trim() === ":::");
+  if (end < 0) throw new Error("The exercise has no closing ::: line: paste it whole");
+  return lines.slice(starts[0], end + 1).join("\n");
+}
+
+/* The type grid, then the form for a new exercise of the chosen type --
+   or "Paste markdown…": an exercise copied as markdown (a book's or a
+   video's card sheet gives one) pasted in and opened in the form as a new
+   exercise, to look over before it goes where `onSave` puts it.  Ctrl+V on
+   the grid does the same at once.  `onPaste(text)`, when given, is told
+   what was pasted before the form opens (the editor brings the clips it
+   names in from the clip tray, so the form's preview plays them). */
+function openExercisePicker(opts = {}) {
+  const root = $("#modal-root"); root.innerHTML = "";
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.dataset.lang = lang().code;
+  // two steps in one dialog, each a set of its children (a wrapper would
+  // take the grid out of the dialog's column, which is what scrolls it)
+  ov.innerHTML = `<div class="modal ex-picker" role="dialog" aria-modal="true" aria-label="Add an exercise" tabindex="-1">
+    <h3 data-step="types">Add an exercise</h3>
+    <p data-step="types">Choose the activity the learner will see. You can edit every field in the next step.
+      Paste markdown… opens an exercise copied as markdown instead.</p>
+    <div class="ex-type-grid" data-step="types"></div>
+    <div class="row" data-step="types"><button class="btn" data-x="paste" title="Paste one :::exercise block copied as markdown (a card sheet's “copy markdown” gives one) and open it in the form">Paste markdown…</button>
+      <button class="btn" data-x="cancel">Cancel</button></div>
+    <h3 data-step="paste" hidden>Paste an exercise</h3>
+    <p data-step="paste" hidden>One :::exercise block, as “copy markdown” on a book's or a video's card sheet gives it.
+      It opens in the form, to look over before it goes in; the recordings and pictures it names come along from the
+      clip tray.</p>
+    <textarea class="ex-paste" data-step="paste" hidden spellcheck="false" aria-label="The exercise's markdown"
+      placeholder=":::exercise flashcard&#10;card-type: jolly&#10;front-primary: …&#10;back-primary: …&#10;:::"></textarea>
+    <div class="row" data-step="paste" hidden><button class="btn" data-x="back">Back</button>
+      <button class="btn" data-x="cancel">Cancel</button>
+      <button class="btn primary" data-x="open">Open in the form</button></div></div>`;
+  const grid = $(".ex-type-grid", ov), area = $(".ex-paste", ov);
+  const pasteDirection = exerciseTextDirectionButton(area);
+  pasteDirection.dataset.step = "paste";
+  pasteDirection.hidden = true;
+  area.before(pasteDirection);
+  let step = "types";
+  const toStep = name => {
+    step = name;
+    $$("[data-step]", ov).forEach(x => { x.hidden = x.dataset.step !== name; });
+  };
+  EXERCISE_DEFINITIONS.forEach(def => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "ex-type";
+    const strong = document.createElement("strong"); strong.textContent = def.label;
+    const small = document.createElement("small"); small.textContent = def.description;
+    b.append(strong, small);
+    b.addEventListener("click", () => {
+      close();
+      const model = newExerciseModel(def);
+      openExerciseForm(Object.assign({}, opts, {model, def, mode: "add"}));
+    });
+    grid.appendChild(b);
+  });
+  const onKeyPaste = e => {
+    if (!ov.isConnected) { document.removeEventListener("paste", onKeyPaste); return; }
+    // Ctrl+V anywhere on the grid; in the paste step the box takes it
+    if (step !== "types") return;
+    const text = e.clipboardData && e.clipboardData.getData("text/plain");
+    if (!text || !/:::exercise/.test(text)) return;
+    e.preventDefault();
+    showPaste(text);
+    openPasted();
+  };
+  const close = () => {
+    document.removeEventListener("paste", onKeyPaste);
+    if (ov.parentNode) root.removeChild(ov);
+  };
+  const showPaste = text => {
+    toStep("paste");
+    if (text !== undefined) area.value = text;
+    area.focus();
+  };
+  let opening = false;
+  async function openPasted() {
+    if (opening) return;
+    let block;
+    try { block = pastedExercise(area.value); } catch (e) { toast(e.message, true); area.focus(); return; }
+    opening = true;
+    try {
+      if (opts.onPaste) {
+        try { await opts.onPaste(block); }
+        catch (e) { toast("Could not bring the clips in: " + e.message, true); }
+      }
+      if (!ov.isConnected) return;               // closed meanwhile
+      // the form takes the dialog's place; one it cannot show leaves the text here
+      if (openExerciseMarkdown(block, Object.assign({}, opts, {mode: "add"})))
+        document.removeEventListener("paste", onKeyPaste);
+      else area.focus();
+    } finally { opening = false; }
+  }
+  $('[data-x="paste"]', ov).addEventListener("click", () => showPaste());
+  $('[data-x="back"]', ov).addEventListener("click", () => {
+    toStep("types");
+    $('[data-x="paste"]', ov).focus();
+  });
+  $('[data-x="open"]', ov).addEventListener("click", openPasted);
+  area.addEventListener("keydown", e => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); openPasted(); }
+  });
+  $$('[data-x="cancel"]', ov).forEach(b => b.addEventListener("click", close));
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); close(); } });
+  document.addEventListener("paste", onKeyPaste);
+  root.appendChild(ov);
+  $(".ex-picker", ov).focus({preventScroll: true});
+}
+

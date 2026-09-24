@@ -55,9 +55,6 @@ for _p in (LIB, TOOLBOX_LIB):
 import bundle       # noqa: E402  which file of a video's own is its film
 import chunker      # noqa: E402  the two ways a draft may be cut
 import languages    # noqa: E402  the registry: folders, names, scripts, chips
-import corpus       # noqa: E402  and whether a parallel corpus exists
-import getmt        # noqa: E402  and whether a translation model does
-import lookup       # noqa: E402  only to ask whether a dictionary exists
 import words        # noqa: E402  a word line proposed where an answer left one out
 import wordline     # noqa: E402  and proved against the checker before it is given
 import make_index   # noqa: E402  the bundle panel both index pages share
@@ -120,7 +117,7 @@ def _load_video(folder, name, path):
     registry code), "_gloss" (the code its meanings are written in), the
     caption counts.  None when there is no usable video.json."""
     meta = read_json(os.path.join(path, "video.json"))
-    if meta is None or "id" not in meta:
+    if not isinstance(meta, dict) or "id" not in meta:
         return None
     # the JSON's language wins for rendering, the folder for the URL; the
     # two are expected to agree, and a disagreement is said once.  The
@@ -155,15 +152,14 @@ def _load_video(folder, name, path):
     meta["_segments"] = len(segs)
     # a caption with chunks is one somebody glossed; the rest are the
     # video's own English, filled in from the transcript
-    meta["_glossed"] = sum(1 for s in segs if s.get("chunks"))
-    # Which counts a DRAFT as finished work: a drafted video has a chunk under
-    # every caption and not a word written in one of them.  So the cards ask
-    # the checker instead of deciding for themselves -- draft_state hands back
-    # whether video.json says "draft", how many chunks are still blank, and
-    # how many were ever asked for a gloss (a plain caption's, a chunk marked
-    # plain and a run of the video's own English are legitimately blank and
-    # are not counted).
-    meta["_draft"], meta["_blank"], meta["_glossable"] = CA.draft_state(path)
+    meta["_glossed"] = sum(1 for s in segs if isinstance(s, dict) and s.get("chunks"))
+    # Which counts a video STARTED EMPTY as finished work: it has a chunk
+    # under every caption and not a word written in one of them.  So the
+    # cards ask the checker instead of deciding for themselves -- gloss_state
+    # hands back how many chunks are still blank and how many were ever
+    # asked for a gloss (a plain caption's, a chunk marked plain and a run of
+    # the video's own English are legitimately blank and are not counted).
+    meta["_blank"], meta["_glossable"] = CA.gloss_state(path)
     return meta
 
 
@@ -363,11 +359,6 @@ def video_card(m):
     L = languages.get_or_default(m.get("_lang"))
     pending = m["_segments"] == 0
     tags = []
-    # a video.json still saying "draft" is one somebody is in the middle of
-    # glossing: it leads, because it is why the blank chunks are blank and
-    # why check_annotations forgives them
-    if m.get("_draft"):
-        tags.append('<span class="tag on">draft</span>')
     if m.get("level"):
         tags.append('<span class="tag">%s</span>' % esc(m["level"]))
     if m.get("duration"):
@@ -416,18 +407,13 @@ def video_card(m):
 
 def channel_card(c):
     n = len(c["videos"])
-    # "fully glossed" has to mean no chunk left blank, or a draft -- which has
-    # a chunk under every caption and nothing written in one -- would be
-    # counted here as finished work, in the same breath as "in draft"
+    # "fully glossed" has to mean no chunk left blank, or a video started
+    # empty -- which has a chunk under every caption and nothing written in
+    # one -- would be counted here as finished work
     glossed_videos = sum(1 for m in c["videos"] if m["_segments"] and
                         m["_glossed"] >= m["_segments"] and not m["_blank"])
     levels = sorted({m["level"] for m in c["videos"] if m.get("level")})
-    drafts = sum(1 for m in c["videos"] if m.get("_draft"))
     tags = ['<span class="tag on">%d video%s</span>' % (n, "" if n == 1 else "s")]
-    # the index shows channels, not videos, so a draft would be invisible
-    # here until you opened the channel: it is counted instead
-    if drafts:
-        tags.append('<span class="tag on">%d in draft</span>' % drafts)
     if glossed_videos:
         tags.append('<span class="tag">%d fully glossed</span>' % glossed_videos)
     for lvl in levels:
@@ -572,23 +558,6 @@ def player_page(vid):
            # film on this machine, the film, which may be gigabytes and
            # which a browser will start downloading without a word
            "bundle_bytes": bundle_bytes(_path),
-           # CAN ANYTHING HELP WITH A CHUNK NOBODY HAS GLOSSED?  Decided here
-           # rather than in the page, because the `about` call that sets
-           # DICT.ready lands after the transcript has been drawn -- and a
-           # chunk drawn as bare text stays bare.  Without this a finished
-           # video's unglossed phrase was not a phrase at all: no hover, no
-           # cloud, no dictionary, on precisely the chunks this whole feature
-           # was built to read.  A book has never done that; its rows are
-           # rows whatever is written on them.
-           #
-           # ANY OF THE THREE COUNTS, not the dictionary alone.  The corpus is
-           # a separate download and so is the model, and a video whose
-           # language has a corpus and no dictionary was going bare on
-           # exactly the phrases the corpus could have spoken for.  The model
-           # lives under mt/ and the server can see it there.
-           "help": bool(lookup.available(L.code)
-                        or corpus.available(L.code, G.code)
-                        or getmt.available(L.code, G.code)),
            # A TEXT READ OUT OF ITS WRITTEN ORDER (kanbun): video.json's
            # "reorders", the checker's flag, which says the words' readings
            # in a row are not the chunk's reading and are not to be held to it
@@ -687,7 +656,20 @@ def _json_in(h, cap=12 * 1024 * 1024):
     raw = h._raw or b""
     if not 0 < len(raw) <= cap:
         raise ValueError("bad size (%d bytes)" % len(raw))
-    return json.loads(raw.decode("utf-8"))
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except RecursionError:
+        raise ValueError("the request nests too deep to be read")
+    # A lone surrogate in any text of the body -- a JSON escape a browser
+    # sends for a broken paste -- is no character: every file here is
+    # written in UTF-8, so it would fail at the first write, after the
+    # staging directory was made, as a 500.  Refused before anything is
+    # written, as serve.Handler._json_body refuses it for every other route.
+    import glossregion      # lib/, on sys.path since the top of this file
+    if glossregion.broken(data):
+        raise ValueError("the request carries a broken character (an unpaired "
+                         "surrogate) -- copy the text again")
+    return data
 
 
 def anki_preview(h):
@@ -807,7 +789,8 @@ def stats():
 # then takes the LLM's JSON answer, checks it with the very tools the
 # pipeline uses, and writes videos/<folder>/<id>/ -- transcript.txt
 # verbatim, video.json, parts/*.json -- before running merge_parts and
-# check_annotations on the result exactly as PROMPT.md prescribes.  The
+# check_annotations on the result exactly as PROMPT.md prescribes, and then
+# dropping the batches, which have no second job to do (see api_add).  The
 # language comes from the page's select (the shared preference is its
 # default); it decides which captions are plain, what the prompt says, and
 # which folder the video is filed under.
@@ -1156,9 +1139,10 @@ def _example_video(L):
         if folder != L.folder:
             continue
         meta = _load_video(folder, name, path)
-        # not a draft and nothing left blank: the example is quoted into the
-        # prompt as what an answer looks like, and a half-written video would
-        # teach the LLM to leave fields empty
+        # nothing left blank: the example is quoted into the prompt as what
+        # an answer looks like, and a video with chunks nobody has glossed
+        # would teach the LLM to leave them so (a chunk half glossed is kept
+        # out caption by caption, in _example)
         if meta and meta["_glossed"] and not meta["_blank"]:
             if L.code == languages.DEFAULT and name != EXAMPLE_VIDEO:
                 continue                 # Persian keeps its chosen example
@@ -1183,11 +1167,17 @@ def _example(lang=None):
     ann = read_json(os.path.join(path, "annotations.json")) or {}
     segs = ann.get("segments") or []
     chosen = EXAMPLE_STARTS if meta["id"] == EXAMPLE_VIDEO else None
+    EL = languages.get_or_default(meta.get("_lang"))
     lines, out, i = [], [], 0
     for sg in segs:
         if sg.get("plain"):
             continue
-        if sg.get("chunks") and (sg.get("start") in chosen if chosen else len(out) < 4):
+        # only a caption every chunk of which is glossed in full: the player
+        # saves a chunk a box at a time, and one still missing its tr would
+        # teach the LLM the very answer the page then refuses
+        whole = isinstance(sg.get("chunks"), list) and all(
+            isinstance(ch, dict) and CA.complete(ch, EL) for ch in sg["chunks"])
+        if whole and sg.get("chunks") and (sg.get("start") in chosen if chosen else len(out) < 4):
             lines.append("[%d] %ss  %s" % (i, secs_str(sg["start"]), sg["text"]))
             # the machine's division under it, as the real list has one
             w = proposed_words(sg["text"], languages.get_or_default(meta.get("_lang")))
@@ -1203,7 +1193,6 @@ def _example(lang=None):
                         "level": meta.get("level", "beginner"),
                         "blurb": meta.get("blurb", "")},
               "captions": out}
-    EL = languages.get_or_default(meta.get("_lang"))
     intro = ""
     if not same:
         intro = ("There is no %s video in the player yet, so the example below is "
@@ -1354,61 +1343,80 @@ def full_prompt(vid, meta, captions, glossary=None, lang=None, gloss=None):
 
 
 def _json_blocks(text):
-    """Every JSON document in the pasted answer: the ```json fences first,
-    else the whole text, else the outermost {...}."""
-    text = (text or "").strip()
-    blocks = re.findall(r"```(?:json)?\s*\n(.*?)```", text, re.S)
-    docs = []
-    for b in blocks:
-        b = b.strip()
-        if b:
-            try:
-                docs.append(json.loads(b))
-            except ValueError as e:
-                raise ValueError("a ```json block is not valid JSON: %s" % e)
-    if docs:
-        return docs
-    if not text:
-        raise ValueError("the answer is empty")
-    try:
-        return [json.loads(text)]
-    except ValueError:
-        pass
-    a, b = text.find("{"), text.rfind("}")
-    if a < 0 or b <= a:
-        raise ValueError("no JSON found in the answer")
-    try:
-        return [json.loads(text[a:b + 1])]
-    except ValueError as e:
-        raise ValueError("the JSON in the answer does not parse: %s" % e)
+    """Every JSON document in the pasted answer, in the order they stand.
+
+    One rule for every door that takes an LLM's answer, and it lives in
+    lib/glossregion.py (json_blocks), which the region fill of a video or a
+    book already on the shelf reads its answers with: a ```json fence must
+    hold JSON, and one that does not parse is an error; a fence with no
+    label (or another) that does not parse is a model's prose -- a quoted
+    sentence, its working shown -- and is passed over instead of refusing
+    the whole answer; with no fence that counts, the whole text, else its
+    outermost {...}.  Imported here and not at the top: glossregion is
+    shared with the books and the player's own doors, and is needed by
+    nothing else in this file -- the shelf and the player's page must not
+    fail to load over it, nor the two modules over importing each other.
+
+    That rule includes a fence glued to the one before it: this page's
+    repair loop asks for the LLM's corrected captions to be pasted UNDER its
+    first answer, with the cursor where that answer ended, right after its
+    closing ```, so the second block's ```json can land on the same line --
+    glossregion reads it as the block it is (its _GLUED).  An answer that is
+    not text at all (a request sent by hand) is an empty one, refused in
+    words, never a crash."""
+    import glossregion      # lib/, on sys.path since the top of this file
+    return glossregion.json_blocks(text)
 
 
 def _merge_answer(docs):
-    """One video object and one caption list out of one or several blocks."""
-    video, caps = {}, []
-    for d in docs:
+    """One video object and one caption list out of one or several blocks.
+
+    Returns (video, caps, blocks): `blocks` stands beside `caps` and says
+    which block each caption came from (0 for the first), because a caption
+    given again in a LATER block is the model's correction of it -- the page
+    asks for exactly that: the lines that were refused, pasted back to the
+    LLM, and its answer pasted under the first one -- while the same caption
+    twice inside one block is a model that lost its place (_align_answer)."""
+    video, caps, blocks = {}, [], []
+    for n, d in enumerate(docs):
         if not isinstance(d, dict):
             raise ValueError("a JSON block is not an object")
         if isinstance(d.get("video"), dict) and not video:
             video = d["video"]
         for c in d.get("captions") or d.get("segments") or []:
             caps.append(c)
+            blocks.append(n)
         if not d.get("captions") and not d.get("segments") and "chunks" in d:
             caps.append(d)              # a lone caption object
-    return video, caps
+            blocks.append(n)
+    return video, caps, blocks
 
 
-def _align_answer(caps, captions):
+def _align_answer(caps, captions, blocks=None):
     """The answer's captions matched to the transcript's, in transcript order.
 
     Returns (parts, problems, missing): parts is what merge_parts wants --
     one {start, chunks} per caption that wants glossing -- and problems
     names every caption the answer missed, doubled or invented.
+
+    `blocks` is _merge_answer's: the block each caption came from (None is
+    one block for all).  A caption a LATER block gives again REPLACES the
+    one before it, and is said in a note: that is the repair the page asks
+    for -- the refused lines go back to the LLM, and the captions it
+    corrects are pasted under its first answer.  The same caption twice in
+    ONE block is still a problem, since nothing says which of the two the
+    model meant.  A later block answering by start alone takes a caption
+    nobody has answered yet before one it would be correcting, so a
+    continuation whose first caption shares its start with the last one
+    answered (two captions in the same displayed second) is not read as a
+    correction of it.
     """
     want = [c for c in captions if not c["plain"]]
     plain_starts = {c["start"] for c in captions if c["plain"]}
-    by_i, problems, extra = {}, [], 0
-    for c in caps:
+    if blocks is None or len(blocks) != len(caps):
+        blocks = [0] * len(caps)
+    by_i, from_block, problems, extra, fixed = {}, {}, [], 0, []
+    for c, n in zip(caps, blocks):
         if not isinstance(c, dict):
             problems.append("an entry in captions is not an object")
             continue
@@ -1421,21 +1429,28 @@ def _align_answer(caps, captions):
                     and not any(near(w["start"], st) for w in want)):
                 extra += 1               # a plain caption, annotated anyway
                 continue
-            cands = [k for k, w in enumerate(want)
-                     if near(w["start"], st) and k not in by_i]
+            # free first, then one an earlier block answered (a correction);
+            # never one this block has already answered
+            cands = sorted((k in by_i, k) for k, w in enumerate(want)
+                           if near(w["start"], st) and from_block.get(k) != n)
             if not cands:
                 problems.append("an entry with start %s matches no caption "
                                 "that wants glossing" % st)
                 continue
-            key = cands[0]
+            key = cands[0][1]
         else:
             problems.append("an entry has neither a usable \"i\" nor a \"start\"")
             continue
         if key in by_i:
-            problems.append("caption [%d] (start %s) appears twice in the answer"
-                            % (key, want[key]["start"]))
-            continue
+            if from_block[key] == n:
+                problems.append("caption [%d] (start %s) appears twice in the answer"
+                                "%s" % (key, secs_str(want[key]["start"]),
+                                        " (in the same block)" if len(set(blocks)) > 1
+                                        else ""))
+                continue
+            fixed.append(key)            # a later block's correction
         by_i[key] = c
+        from_block[key] = n
     missing = [k for k in range(len(want)) if k not in by_i]
     if missing:
         show = ", ".join("[%d] %ss" % (k, secs_str(want[k]["start"])) for k in missing[:12])
@@ -1443,6 +1458,12 @@ def _align_answer(caps, captions):
                         % (len(missing), show, " …" if len(missing) > 12 else ""))
     parts = [{"start": want[k]["start"], "chunks": by_i[k].get("chunks")}
              for k in range(len(want)) if k in by_i]
+    if fixed:
+        fixed = sorted(set(fixed))
+        show = ", ".join("[%d] %ss" % (k, secs_str(want[k]["start"])) for k in fixed[:12])
+        problems.append("note: %d caption(s) given again in a later block -- the "
+                        "later one was taken: %s%s"
+                        % (len(fixed), show, " …" if len(fixed) > 12 else ""))
     if extra:
         problems.append("note: %d plain caption(s) were annotated and ignored" % extra)
     return parts, problems, missing
@@ -1506,6 +1527,39 @@ def _answer_words(parts, L):
         chunks[j] = got
         proposed += 1
     return problems, proposed
+
+
+# The checker's own name for a caption, "segment 7 (start 12)", counts EVERY
+# caption, the plain ones included, because that is what annotations.json
+# holds; the prompt counts only the captions that want glossing, as "[5]".
+# The lines a refused answer is sent back with are pasted to the LLM, which
+# has only the prompt's numbers.  Only the name a message OPENS with: the
+# rest may quote a caption's own words, which may say "segment" too.
+_SEGMENT_IN = re.compile(r"^segment (\d+)(?: \(start ([^)]*)\))?")
+
+
+def _as_prompt_numbers(msg, captions):
+    """A checker message about the staged answer, with the "segment N" it
+    opens with said the way the prompt said it: "caption [i] (start S)",
+    the start kept so a person can find it as well.  A plain caption has
+    no [i] and is named by its start; a number the transcript does not
+    have is left as the checker wrote it."""
+    idx, i = {}, 0
+    for n, c in enumerate(captions):
+        if not c["plain"]:
+            idx[n] = i
+            i += 1
+
+    def name(m):
+        n = int(m.group(1))
+        if n >= len(captions):
+            return m.group(0)
+        start = m.group(2) if m.group(2) is not None \
+            else secs_str(captions[n]["start"])
+        if n in idx:
+            return "caption [%d] (start %s)" % (idx[n], start)
+        return "the plain caption at %ss" % start
+    return _SEGMENT_IN.sub(name, msg, count=1)
 
 
 def _segments(parts, captions):
@@ -1855,12 +1909,12 @@ def api_add(h):
                             "character of %s script) -- nothing to annotate; is the "
                             "language right?" % L.name}, 400)
     try:
-        video, caps = _merge_answer(_json_blocks(data.get("answer")))
+        video, caps, blocks = _merge_answer(_json_blocks(data.get("answer")))
     except ValueError as e:
         return h.send_json({"ok": False, "error": str(e)}, 400)
     if not caps:
         return h.send_json({"ok": False, "error": "the answer holds no captions"}, 400)
-    parts, problems, missing = _align_answer(caps, captions)
+    parts, problems, missing = _align_answer(caps, captions, blocks)
     hard = [p for p in problems if not p.startswith("note:")]
     if hard:
         return h.send_json({"ok": False, "error": "the answer does not cover the "
@@ -1873,14 +1927,27 @@ def api_add(h):
         return h.send_json({"ok": False, "error": "%d word line(s) in the answer are "
                             "not text -- nothing written" % len(bad),
                             "problems": problems + bad}, 400)
-    # the same checks check_annotations.py will run, before anything is written
+    # the same checks check_annotations.py will run, before anything is
+    # written, and as strictly: a chunk the answer half glossed is an error
+    # here (the default `half`), since nothing an LLM hands back is the
+    # middle of anybody's work.  A chunk it left with no gloss at all is
+    # legal, as it is everywhere, and is counted below.  What the checker
+    # says is turned into the prompt's own numbering before the page shows
+    # it, because those lines go back to the LLM as they are
     errors, warnings = [], []
     segs = _segments(parts, captions)
     CA.check_segments(segs, captions, errors.append, warnings.append, L)
+    errors = [_as_prompt_numbers(e, captions) for e in errors]
+    warnings = [_as_prompt_numbers(w, captions) for w in warnings]
     if errors:
         return h.send_json({"ok": False, "error": "%d error(s) in the annotation -- "
                             "nothing written" % len(errors),
                             "problems": problems + errors, "warnings": warnings}, 400)
+    blank, _glossable = CA.gloss_count(segs, L)
+    if blank:
+        problems.append("note: %d chunk%s left without a gloss -- gloss %s "
+                        "in the player" % (blank, "" if blank == 1 else "s",
+                                           "it" if blank == 1 else "them"))
 
     ov = data.get("overrides") if isinstance(data.get("overrides"), dict) else {}
     ov = {k: str(v).strip() for k, v in ov.items() if isinstance(v, (str, int, float))}
@@ -1950,6 +2017,16 @@ def api_add(h):
     # folder appears beside it.  The staging directory is a dot-directory
     # under videos/, which video_dirs never lists; its leaf is the id,
     # which check_annotations compares with video.json.
+    #
+    # THE BATCHES NEVER LEAVE THE STAGING DIRECTORY.  parts/ is cut here so
+    # that merge_parts can fold it into annotations.json and the checker can
+    # hold that against the transcript -- and then it is dropped, before the
+    # video moves onto the shelf.  A video used to carry its batches for
+    # ever, and they said what the answer had said and nothing of what was
+    # done in the player afterwards; anybody who merged again -- the guide
+    # told them how -- got the answer back and lost every gloss, colour and
+    # correction made since, with no word said.  One source of truth for a
+    # video's annotation, and it is annotations.json.
     os.makedirs(VIDEOS, exist_ok=True)
     stage = tempfile.mkdtemp(prefix=".staging-", dir=VIDEOS)
     sdir = os.path.join(stage, vid)
@@ -1973,6 +2050,9 @@ def api_add(h):
         if rc1 == 0:
             rc2, out2 = _run([os.path.join("lib", "check_annotations.py"), srel])
         if rc1 == 0 and rc2 == 0:
+            # the batches have done their one job, and both tools have
+            # passed on what they built: nothing reads them again
+            shutil.rmtree(os.path.join(sdir, "parts"), ignore_errors=True)
             # the film goes in while the tree is still staged, so that the
             # move into videos/ carries the whole video at once
             if film:
@@ -1995,8 +2075,11 @@ def api_add(h):
                         "lang": L.code, "gloss": G.code, "dir": rel,
                         "href": "%s/v/%s/" % (BASE, vid),
                         "captions": len(captions), "glossed": len(parts),
-                        "proposed": proposed,
-                        "parts": (len(parts) + PART_SIZE - 1) // PART_SIZE,
+                        "proposed": proposed, "blank": blank,
+                        # how many batches the answer was cut into is not
+                        # said any more: the batches are gone by now, and a
+                        # number counting a folder nobody will find only
+                        # sends people looking for it
                         "merge": out1.strip(), "check": out2.strip(),
                         "problems": problems, "warnings": warnings, "video": meta})
 
@@ -2047,8 +2130,9 @@ ADD_PAGE_HEAD = r'''
   <div class="sbody">
 
   <!-- BOTH source fields stay in the document whichever is chosen, and only
-       one is ever shown.  They are read unconditionally by the draft, by
-       save() and by named(); removing one would take the script down, and
+       one is ever shown.  They are read whichever is chosen -- restored from
+       the saved form, written by save(), and who() focuses the empty one by
+       its id; removing one would take the script down, and
        leaving a hidden one's VALUE in the body is what used to send both and
        earn the server's "this names both" refusal, naming a field no longer
        on screen.  The body is built from the chosen source alone. -->
@@ -2156,7 +2240,9 @@ ADD_PAGE_HEAD = r'''
   <div class="shead"><span class="num">4</span><h2>The answer</h2></div>
   <div class="sbody">
   <span class="fieldnote">Paste the LLM&rsquo;s whole reply &mdash; or several replies, one
-    after another. Only the <code>```json</code> blocks are read.</span>
+    after another. Its <code>```</code> blocks are read in order, and a caption a later block
+    gives again replaces the earlier one; a block that is not JSON is taken for the
+    LLM&rsquo;s prose and passed over, unless it says <code>```json</code>.</span>
   <textarea id="answer" rows="10" spellcheck="false" placeholder='```json&#10;{"video": {...}, "captions": [ ... ]}&#10;```'></textarea>
   <div class="row">
     <button type="button" class="wbtn go" id="add">Check &amp; add the video</button>
@@ -2170,6 +2256,16 @@ ADD_PAGE_HEAD = r'''
       dot-directory, <code>merge_parts.py</code> and <code>check_annotations.py</code> run on
       it, and only then does it move into <code>videos/</code> &mdash; a failure leaves
       <code>videos/</code> untouched.</p>
+    <p><b>The answer is folded in once.</b> It is cut into batches to be merged and
+      checked, and the batches are dropped in the staging directory: the video goes on
+      the shelf with <code>annotations.json</code> and nothing beside it to rebuild from.
+      Everything you do in the player afterwards is written there. Adding the same video
+      again with <i>replace</i> ticked writes a new one from the new answer: the old one,
+      with everything done to it in the player, is moved to <code>videos/.trash/</code>,
+      not merged.</p>
+    <p><b>A chunk the answer leaves with no gloss</b> goes in blank, counted in a note, for
+      you to gloss in the player; one it glosses only in part is refused, like any other
+      error.</p>
     <p><b>An answer from an earlier session still works:</b> this step re-derives everything,
       so the prompt need not have been prepared just now.</p>
   </div>
@@ -2198,10 +2294,11 @@ ADD_PAGE_HEAD = r'''
     <p><b>No prompt and no LLM:</b> the transcript is taken as it stands, every
       <code>tr</code>, <code>voc</code> and <code>en</code> left blank for you to fill in the
       player.</p>
-    <p><b>It is marked a draft</b> while you work, so the checker asks nothing of a chunk
-      nobody has glossed yet and only <i>says</i> where one is half written &mdash; the
-      meaning typed, the transliteration still to come. Take <code>"draft"</code> off
-      <code>video.json</code> when it is finished and every gap is an error again.</p>
+    <p><b>A chunk nobody has glossed yet is never a fault:</b> the checker counts the
+      blank ones and asks nothing of them. The player saves a chunk a box at a time &mdash;
+      the meaning typed, the transliteration still to come &mdash; and the checker lists
+      such a half-glossed chunk until it is finished. Emptying every box of a chunk
+      (&ldquo;delete gloss&rdquo;) makes it blank again.</p>
     <p><b>Started empty, a video cannot be re-started</b> &mdash; move or delete the old one
       first. Only the LLM way can replace.</p>
   </div>
@@ -2677,8 +2774,11 @@ ADD_PAGE_JS = r'''
         res.hidden = false;
         var h = '';
         if (j.ok) {
-          h += '<div class="note good"><b>Added.</b> ' + j.glossed + ' captions glossed in ' +
-            j.parts + ' part file' + (j.parts === 1 ? '' : 's') + ', ' + j.captions + ' captions in all. ' +
+          h += '<div class="note good"><b>Added.</b> ' + j.glossed + ' captions glossed, ' +
+            j.captions + ' captions in all. ' +
+            // the chunks the answer left blank: legal, and theirs to fill
+            (j.blank ? j.blank + ' chunk' + (j.blank === 1 ? ' was' : 's were') +
+              ' left without a gloss, to fill in the player. ' : '') +
             // the word lines the answer left out, which the server proposed
             (j.proposed ? j.proposed + ' chunk' + (j.proposed === 1 ? '' : 's') +
               ' had the words proposed by machine, to correct in the player. ' : '') +
@@ -2698,7 +2798,8 @@ ADD_PAGE_JS = r'''
         if (probs.length) h += '<div class="note bad"><b>To fix, then paste again:</b><pre>' +
           esc(probs.join('\n')) + '</pre>' +
           '<span class="fieldnote">Paste these lines to the LLM as they are: it answers with the corrected captions only, ' +
-          'and that block goes under the first answer in the box above.</span></div>';
+          'and that block goes under the first answer in the box above &mdash; a caption given again there replaces ' +
+          'the first one.</span></div>';
         if (j.merge || j.check) h += '<details' + (j.ok ? '' : ' open') + '><summary>What the pipeline said</summary><pre>' +
           esc((j.merge || '') + '\n' + (j.check || '')) + '</pre></details>';
         var notes = (j.problems || []).filter(function (p) { return /^note:/.test(p); }).concat(j.warnings || []);
@@ -2734,7 +2835,8 @@ ADD_PAGE_JS = r'''
 ADD_FOOT = ('The same loop, by hand: <code>youtube/PROMPT.md</code>. What the page writes '
             'is exactly what that prompt asks for &mdash; <code>transcript.txt</code>, '
             '<code>video.json</code>, <code>parts/*.json</code> &mdash; and it runs '
-            '<code>merge_parts.py</code> and <code>check_annotations.py</code> on them.')
+            '<code>merge_parts.py</code> and <code>check_annotations.py</code> on them, '
+            'then drops the batches: a video on the shelf has no <code>parts/</code>.')
 
 
 def add_page():

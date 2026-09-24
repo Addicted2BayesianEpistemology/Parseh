@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+  THE BARE NOTE PAGE: a note, rendered, on the studio's own sheet, and
+  nothing else (server.py, page_note).
+
+  A note is read from inside a reader or a video player, in a frame over the
+  page, and it is read OFTEN -- a seam every few lines, a click each time.
+  Until now every one of those clicks fetched the studio's whole document
+  page: app.css and app.js, the exercise forms, the mode switch, the keeping
+  and explaining scripts, the activity poll.  About 1.3 MB, none of it
+  cached, for a page whose only job is to show a paragraph of prose.
+
+  So this page links ONE stylesheet -- static/sheet.css, the sheet split out
+  of app.css, which both pages share so neither can drift from the other --
+  and the language tokens it needs, and it runs no script of the studio's at
+  all.  What little is inline below is here BECAUSE it is inline: it costs no
+  request, and without it the page would not be the studio's page.
+
+  It is still the studio's page, which is the promise the guide makes about
+  notes: the same marks, the same colours, the same typography, rendered by
+  the same renderer that renders a document.  What it has not got is the
+  editor -- and "open in the studio", in the header, is one click away from
+  the whole of it, on the two occasions when that click would lead
+  somewhere: not on a phone, which is offered no editor anywhere in the
+  toolbox, and not with the computer away, where the full page is not what
+  was kept (the script at the foot of this page).
+
+  A NOTE THAT HOLDS AN EXERCISE NEVER GETS HERE.  An exercise without the
+  studio's script is a box that cannot be answered, checked or copied, and
+  showing one would look like a broken note; page_note counts them off the
+  render and sends such a note to the full page instead.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — note</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ccircle%20cx='50'%20cy='50'%20r='48'%20fill='%23be3455'/%3E%3Ctext%20x='50'%20y='70'%20font-size='52'%20text-anchor='middle'%20fill='white'%3E%D9%81%3C/text%3E%3C/svg%3E">
+<!-- THE STUDIO'S OWN ADDRESS for both, not this mount's.  A note lives under
+     its book's prefix (/books/<slug>/notes/…), and a sheet linked from there
+     would be a second copy of the same bytes for every book on the shelf.
+     Linked from the studio itself, two books' notes share one cached file. -->
+<link rel="stylesheet" href="{{STUDIO}}/static/sheet.css">
+<link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+{{MATH_HEAD}}
+<style>
+/* The header, and only the header.  Everything below it is the sheet's, and
+   the sheet's rules are in the file above; these few live here rather than
+   in a second stylesheet because a second stylesheet is a second request on
+   a page whose whole point is that it opens at once. */
+.nhead {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .45rem .9rem;
+  background: var(--chrome-panel); color: var(--chrome-fg);
+  border-bottom: 1px solid var(--chrome-line);
+  font-size: .82rem;
+}
+.nhead .ntitle {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600;
+}
+.nhead .nsp { margin-left: auto; }
+.nfull {
+  color: var(--chrome-fg); text-decoration: none; white-space: nowrap;
+  border: 1px solid var(--chrome-line); border-radius: 6px;
+  padding: .18rem .55rem; background: transparent;
+}
+.nfull:hover { color: var(--accent); border-color: var(--accent); }
+/* printed, the header is chrome and the sheet is the page */
+@media print {
+  .nhead { display: none; }
+  body { background: #fff; }
+  .sheet { box-shadow: none; margin: 0 auto; max-width: none; border-radius: 0; }
+  .sheet .fa:hover { background: none; }
+}
+</style>
+<script>
+/* THE READER'S OWN TYPOGRAPHY, before anything is painted.  Theme, text
+   size, column width, leading and justification are one preference for the
+   whole studio (app.js, loadTypo/applyTypo, localStorage), and a note that
+   opened white under a reader working in the dark -- or at somebody else's
+   text size -- would not be the studio's page, only a page that looks like
+   it.  Read here, applied here, never written: this page sets nothing, it
+   only obeys what the full page was told.
+
+   The target-script scale is the one value that cannot simply be copied: it
+   is kept per script, so a Persian 1.6 must not reach a Japanese note.  The
+   server writes this language's default into FA_SCALE and a stored value is
+   honoured only when it was set for the same script -- the very rule
+   loadTypo uses. */
+(function () {
+  var T = {theme: null, base: 17, lead: 1.45, voce: 3.4, width: 720,
+           justify: true, fa: {{FA_SCALE}}};
+  var chosen = false, follows = null;
+  try {
+    ['exlex-typo:global', 'exlex-typo:{{DOC_ID}}'].forEach(function (k) {
+      var s = JSON.parse(localStorage.getItem(k) || '{}');
+      if ('theme' in s) { chosen = true; T.theme = s.theme; }
+      ['base', 'lead', 'voce', 'width', 'justify'].forEach(function (f) {
+        if (f in s) T[f] = s[f];
+      });
+      if (s.fa > 0 && s.faScript === '{{SCRIPT}}') T.fa = s.fa;
+    });
+    if (!chosen) {
+      follows = localStorage.getItem('parseh_theme') || 'auto';
+      T.theme = follows === 'light' ? 'paper'
+              : (follows === 'dark' || follows === 'sepia') ? follows
+              : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'paper');
+    }
+  } catch (e) { /* private mode, or a phone with site data blocked */ }
+  document.addEventListener('DOMContentLoaded', function () {
+    if (T.theme && T.theme !== 'paper') document.body.dataset.theme = T.theme;
+    var s = document.getElementById('sheet');
+    if (!s) return;
+    s.style.setProperty('--fa-scale', T.fa);
+    s.style.setProperty('--base-size', T.base + 'px');
+    s.style.setProperty('--leading', T.lead);
+    s.style.setProperty('--voce-scale', T.voce);
+    s.style.setProperty('--sheet-width', T.width + 'px');
+    s.classList.toggle('justify', !!T.justify);
+  });
+})();
+</script>
+</head>
+<body data-page="note" data-base="{{BASE}}" data-doc-id="{{DOC_ID}}" data-target="{{TARGET}}">
+<header class="nhead">
+  <span class="ntitle" title="{{TITLE}}">{{TITLE}}</span>
+  <span class="nsp"></span>
+  <!-- ONE BUTTON, SAYING WHAT IT IS.  Not "edit" and not "more": what it
+       opens is the studio's whole document page for this note, with the
+       editor, the PDF options, the glosses and the rest of it. -->
+  <a class="nfull" id="nfull" href="{{STUDIO_DOC}}"
+     title="Open this note on the studio's own document page — the editor, the glosses, the downloads">open in the studio</a>
+</header>
+<article id="sheet" class="sheet" lang="{{LANG}}" data-lang="{{TARGET}}">
+{{ARTICLE}}
+</article>
+<script>
+/* THE TWO THINGS A FRAMED PAGE CANNOT DO FOR ITSELF.
+
+   Escape belongs to the document the pointer is in, and that is this one;
+   the reader and the player listen for `close-note` and shut the frame,
+   exactly as the studio's own page posts it when it is framed.
+
+   "Open in the studio" must not navigate THIS frame: an iframe's
+   navigations land on the joint session history, so a note opened in full
+   would cost a press of Back before the page underneath moved at all.  The
+   host swaps the frame instead.  Out of a frame -- a bookmarked note, a
+   note opened in its own tab -- the link is an ordinary link and does the
+   ordinary thing, which is why it is written as one. */
+(function () {
+  var framed = window.parent && window.parent !== window;
+  var id = document.body.dataset.docId || '';
+  /* WHERE THE EDITOR IS NOT OFFERED, because it could not be taken up.
+
+     On a phone the reader and the player shut every door that writes
+     (lib/mobile.css hides #ntedit, #ntread and the seam's plus), and this
+     frame is the one place left where a phone would still be handed an
+     editor -- the studio's document page, at a width it was never laid out
+     for.  And with the computer away the link is worse than useless: the
+     full page is not what was kept, so following it lands on "Parseh
+     cannot be reached", from inside a note that was reading perfectly
+     well.  A note that holds an exercise is a different thing and is not
+     affected: it IS the full page, and it was kept as one.
+
+     Both facts are read off the host page, which is same-origin and knows
+     them already (lib/keep.js puts data-parseh-away on <html>, the mode
+     script puts data-mode there); a note opened on its own -- a bookmark, a
+     tab of its own -- has no host to ask, so it reads the mode the way
+     every page of the toolbox reads it and takes the browser's word about
+     the network. */
+  var host = null;
+  try { host = framed ? window.parent.document.documentElement : null; }
+  catch (e) { host = null; }
+  var mode = host && host.getAttribute('data-mode');
+  if (mode !== 'browser' && mode !== 'mobile') {
+    try { mode = localStorage.getItem('parseh_mode'); } catch (e) { mode = null; }
+    if (mode !== 'browser' && mode !== 'mobile') {
+      var c = /(?:^|;\s*)parseh_mode=(browser|mobile)(?:;|$)/.exec(document.cookie || '');
+      mode = c ? c[1] : 'browser';
+    }
+  }
+  /* The host's answer OR the browser's: lib/keep.js asks the computer every
+     twenty seconds, so a note opened in the first of those seconds would
+     find the attribute not yet on -- and a phone that knows perfectly well
+     it has no network is not worth doubting.  Going offline while the note
+     is open takes the link away then and there, since the frame is not
+     reloaded for it. */
+  var studio = document.getElementById('nfull');
+  function shut() {
+    var away = (host && host.hasAttribute('data-parseh-away')) || !navigator.onLine;
+    if (studio && (mode === 'mobile' || away)) studio.hidden = true;
+  }
+  shut();
+  window.addEventListener('offline', shut);
+  if (!framed) return;
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    parent.postMessage({parseh: 'close-note'}, location.origin);
+  });
+  var full = studio;
+  if (full) full.addEventListener('click', function (e) {
+    e.preventDefault();
+    parent.postMessage({parseh: 'open-note-full', id: id}, location.origin);
+  });
+})();
+</script>
+{{MATH_FOOT}}
+</body>
+</html>

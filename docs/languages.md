@@ -371,10 +371,14 @@ writes `title_native`. `gloss` is the language of the `en` field of every
 chunk in `annotations.json` (§1) — the video above is Japanese glossed in
 Italian — and absent it is `en`, which is what the Persian videos and every
 other video written before the field existed say by saying nothing. It lives
-in `video.json` and not in `annotations.json` for the reason the draft flag
-does: `merge_parts.py` rewrites the annotations from the parts and would drop
-it. `book.json` and `video.json` may also carry `"draft": true` while the
-thing is being written (§12).
+in `video.json` and not in `annotations.json` because it is true of the whole
+video, not of one caption. (It was also, when this was written, the only way
+to keep it: `merge_parts.py` rebuilt the annotations from the parts. The
+batches are folded in once while the video is being added, and dropped, so
+nothing rebuilds them now.) Neither file marks a book or a video as still
+being written: a chunk with no gloss is legal in every one (§12), and a
+`"draft": true` an older version left in `book.json` or `video.json` is never
+read.
 
 ### The reader's mark: `col`
 
@@ -925,8 +929,13 @@ registry's order (`newlang.py` writes that paragraph from `vb_forms` and
 `\dw` instead (§3). `docs/lang/fa.md` is the Persian scheme lifted out of
 `youtube/docs/conventions.md` and `NOTES.md` §4; every other language's is
 written new, from `docs/lang/_template.md`. The generic parts (chunk size,
-the fields, the repetition rule) stay in `youtube/docs/conventions.md` and
-`docs/new-book-prompt.md` and are the same for every language.
+the fields, the repetition rule) stay in the prompts and are the same for
+every language: `youtube/docs/conventions.md` (with `chat-prompt.md`, the add
+page's video prompt), `docs/new-book-prompt.md` (the outside LLM's new book),
+and `docs/region-prompt.md` (a stretch of a book or a video glossed by an
+LLM, filled in by `lib/glossregion.py`). Each of the three embeds
+`docs/lang/<code>.md` whole, read afresh for every prompt, so a language's
+conventions reach every LLM that glosses in it.
 
 ---
 
@@ -2892,10 +2901,13 @@ the same thing.
     afterwards; `annwrite` runs `check_annotations.check_segments` twice round
     an edit and refuses whatever the edit *introduces* — introduces, not has,
     because a video being written from nothing is missing half its glosses by
-    definition. That is also why `annwrite` calls it **without** the draft flag
-    (§ the draft flag below): under the strict rule a blank chunk's missing
-    `tr` is already there before the edit, so typing the English into it
-    introduces nothing.
+    definition — and it passes the checker's half-glossed messages to nobody
+    (`half=`), so filling a blank chunk one box at a time is never refused for
+    the boxes still empty (§ a blank gloss, below). What a hand edit may not
+    do is *empty* a box the language requires while the rest of the gloss
+    stays: `annwrite._emptied` and `texwrite._check_required` refuse that,
+    unless the edit empties every box at once — the "delete gloss" the reader
+    and the player offer.
   - **Nothing is escaped.** `fa`, `kana`, `tr` and `en` are set by LaTeX as
     literal text, and `\ { } $ % & # _ ^ ~` in them is *refused* rather than
     escaped: `check_batch` rejects those escaped exactly as raw, `\{` would
@@ -3008,20 +3020,33 @@ the same thing.
     Three cuts, and only two of them are made: into paragraphs (mechanical),
     into sentences (mechanical, at the script's terminators — a fact about
     scripts, so the class is written once and not per language), and into
-    **chunks**, which is the editorial heart of the method and is left undone.
-    So a draft is one chunk per sentence: an addition to a blank page, never an
-    argument with a guess. The two mechanical cuts are safe to get wrong in a
-    way the third is not, since the fidelity checks join the chunks back
-    together.
-  - **The draft flag** is `"draft": true` in `book.json` / `video.json`, and it
-    relaxes exactly one thing in `check_batch.py` and in
-    `check_annotations.py`: a chunk with *nothing* written in it (no `tr`, no
-    `voc`, no `en`, no `kana`) is a note rather than an error. One field
-    written and everything the language requires is required again — a meaning
-    with no transliteration beside it, where the language wants one, is
-    precisely the half-done work those checkers exist to catch. It lives in the
-    metadata and not in the annotations because `merge_parts.py` rewrites the
-    annotations from the parts and would drop it.
+    **chunks**, which is the editorial heart of the method and is left undone
+    unless sense groups are asked for (`how="phrase"`, a first pass to
+    correct). So a draft is one chunk per sentence by default: an addition to
+    a blank page, never an argument with a guess. The two mechanical cuts are
+    safe to get wrong in a way the third is not, since the fidelity checks
+    join the chunks back together.
+  - **A blank gloss is legal everywhere.** There is no flag: nothing writes
+    `"draft": true` and nothing reads one an older version left behind. A
+    chunk is *unglossed* when none of `tr`, `voc`, `en`, `kana` holds text,
+    a reading still exactly as `wordline.seed` proposed it from the word line
+    not counting (`check_batch.unwritten`, `check_annotations.unwritten`,
+    `texwrite._unglossed`); it is *complete* when it is written and carries
+    `en`, `tr` where the language `require_tr`s, `kana` where it has a
+    reading — and there a seeded reading counts as present. `check_batch.py`
+    and `check_annotations.py` count unglossed chunks in one note (*N of M
+    chunks have no gloss yet*: per paragraph, per video) and ask nothing else
+    of them — no required field, no length warning, no "no words" or missing
+    `\vb` warning — and call a half-glossed chunk (written, not complete) an
+    error: that is the half-done work the checkers exist to catch. Hand edits
+    may fill one box at a time and may not empty a required box on its own
+    (above); a cut or a join may leave either half blank or half glossed, and
+    a blank Japanese or Chinese chunk divides into two blank halves, each
+    with the reading of its own words. `lib/bundle.py` takes back a video
+    with half-glossed chunks and says so in a note. Only an LLM's answer is
+    held to the whole gloss — the add page refuses a half-glossed chunk, and
+    `lib/glossregion.py` drops one — because nobody is looking at the chunk
+    while it lands.
   - **What the server adds** is only the mapping: a book edit rebuilds
     `reader/index.html` (a `tex2html.py` subprocess, so a book that makes it
     raise fails one request and not the server) and answers `pdf_stale`,

@@ -5,11 +5,14 @@
     python3 -m unittest discover -s tests -p test_wordvideo.py
 
 The fixture videos carry no words, and stay that way for tests/smoke.py's
-round trips; every test here works on a temporary copy of the Japanese or
+round trips; the tests of words work on a temporary copy of the Japanese or
 the Chinese one with each chunk given its word line (JA and ZH below, whose
-readings say what the chunk's own kana or tr says).  Standard library only,
+readings say what the chunk's own kana or tr says).  OneChunk asks the
+checker about one chunk at a time -- a gloss field that is not text, in every
+fixture video's language, and at the bundle door too.  Standard library only,
 and system python3 is enough: nothing here asks an analyzer for a line.
 """
+import glob
 import io
 import json
 import os
@@ -25,12 +28,14 @@ for _p in (os.path.join(ROOT, "lib"), YT_LIB):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import annwrite as A             # noqa: E402
+import bundle                    # noqa: E402
 import check_annotations as CA   # noqa: E402
 import chunkdiv                  # noqa: E402
 import languages                 # noqa: E402
 import wordline                  # noqa: E402
 
 FIX = os.path.join(ROOT, "tests", "fixtures", "videos")
+EVERY = sorted(glob.glob(os.path.join(FIX, "*", "*", "video.json")))
 
 # every chunk's text -> its word line
 JA = {
@@ -204,41 +209,52 @@ class Checks:
         self.change(0, words=KeyError)
         self.assertEqual(self.check()[0], [])
 
-    def test_a_draft_is_held_to_its_words(self):
-        self.meta(draft=True)
+    def test_a_blank_chunk_is_held_to_its_words(self):
+        """A chunk nobody has glossed yet is legal in every video -- nothing
+        marks one video as allowed to have them -- and its word line is
+        checked all the same: the line is the text divided, not a gloss."""
         self.change(0, kana="", tr="", voc="", en="")
         errors, warnings = self.check()
-        self.assertEqual(errors, [], "an unwritten chunk with words is a "
-                                     "draft's chunk")
+        self.assertEqual(errors, [], "an unwritten chunk with words is legal")
         self.assertEqual(warnings, [], "a blank reading has nothing to compare")
-        self.assertEqual(CA.draft_state(self.d)[1], 1,
+        self.assertEqual(CA.gloss_state(self.d)[0], 1,
                          "and its words do not make it a written one")
+        # a "draft": true an older version left in video.json is never read
+        self.meta(draft=True)
+        self.assertEqual(self.check(), ([], []))
+        self.assertEqual(CA.gloss_state(self.d)[0], 1)
         self.change(0, words=self.stale(self.chunks()[0]["words"]))
         errors, _w = self.check()
         self.assertEqual(len(errors), 1, errors)
         self.assertIn(self.where + "0: the words do not reproduce", errors[0])
 
-    def test_a_draft_half_written_is_said_and_not_refused(self):
+    def test_a_half_written_chunk_is_saved_and_the_checker_lists_it(self):
         """THE ROUND TRIP HAS TO CLOSE.  The player's own editor writes a
-        meaning into a blank chunk of a draft and leaves the transliteration
-        for the next pass -- annwrite checks an edit without the draft flag
-        on purpose, so that edit stands -- and a video refused for it here
-        could never come back through the bundle door it had gone out of."""
-        self.meta(draft=True)
+        meaning into a blank chunk and leaves the transliteration for the
+        next pass -- a gloss is filled a box at a time, so annwrite saves
+        that edit -- and the checker lists what the chunk still lacks as the
+        errors they are.  The bundle door asks the same checker with its
+        own `half`, which takes those messages and nothing else, so a video
+        in the middle of its glossing comes back through the door it went
+        out of (lib/bundle.py notes them)."""
         self.change(0, kana="", tr="", voc="", en="")
         self.assertEqual(self.check(), ([], []), "a blank chunk is asked for nothing")
         # ...now somebody types the meaning, and nothing else
         A.edit_chunk(self.d, self.si, 0, {"en": "a meaning, and nothing else"})
+        self.assertEqual(self.chunks()[0]["en"], "a meaning, and nothing else",
+                         "the player saves half a gloss")
         errors, warnings = self.check()
-        self.assertEqual(errors, [], "half written is not a refusal in a draft")
-        said = [w for w in warnings if "still a draft" in w]
-        self.assertTrue(said, warnings)
-        self.assertTrue(all(w.startswith(self.where + "0: missing ") for w in said), said)
-        # and the flag is what holds it up: without it, every one is an error
-        self.meta(draft=False)
-        errors, _w = self.check()
-        self.assertTrue(any("missing" in e for e in errors), errors)
-        self.assertTrue(all("still a draft" not in e for e in errors), errors)
+        want = [self.where + "0: missing %r" % f for f in CA.required(
+            self.chunks()[0], self.L) if f != "en"]
+        self.assertTrue(want)
+        self.assertEqual(errors, want, "half written is an error to the checker")
+        # ...handed to `half` instead when the caller says so
+        halves = []
+        self.assertEqual(CA.check(self.d, half=halves.append)[:2], ([], warnings))
+        self.assertEqual(halves, want)
+        # and a leftover flag excuses nothing
+        self.meta(draft=True)
+        self.assertEqual(self.check(), (errors, warnings))
 
     def test_a_reading_that_disagrees_warns_and_reorders_quiets_it(self):
         ch = self.chunks()[1]
@@ -407,8 +423,9 @@ class Writes:
         self.assertEqual([c.get("words") for c in self.chunks()[:2]],
                          [was[0]["words"], was[1]["words"]])
 
-    def test_a_draft_divides_its_words_with_its_blank_chunks(self):
-        self.meta(draft=True)
+    def test_a_blank_chunk_divides_its_words(self):
+        # in any video: a chunk nobody has glossed yet is legal everywhere,
+        # and re-chunking is wanted most exactly while the gloss is to come
         cs = self.chunks()
         blank = {"fa": cs[1]["fa"], "words": cs[1]["words"],
                  self.reading: "", "tr": "", "voc": "", "en": ""}
@@ -685,9 +702,67 @@ class OneChunk(unittest.TestCase):
         self.assertIn("no word layer", errors[0])
 
     def test_a_reading_that_is_not_text_is_reported_not_tripped_on(self):
+        # said once, as what it is -- not also as a reading that is missing
         errors, _w = self.run_chunk({"fa": "山", "words": "山(やま)", "kana": 7,
                                      "tr": "yama", "en": "mountain"}, "ja")
-        self.assertEqual(errors, ["x: missing 'kana'"])
+        self.assertEqual(errors, ["x: kana must be text, not int"])
+
+    def test_a_gloss_field_that_is_not_text_is_said_once_in_every_language(self):
+        """A vocabulary sent as a list of entries, a note as an object, a
+        meaning or a transliteration as a number: what an LLM's answer or a
+        hand-edited file turns up with.  Each is ONE error, naming the field
+        and what it is instead of text -- and a required field that is not
+        text is not also "missing": it is there, wrongly written, and the
+        two sentences would send the reader looking for two faults."""
+        for vj in EVERY:
+            L = languages.get(load(vj)["language"])
+            ann = load(os.path.join(os.path.dirname(vj), "annotations.json"))
+            ch = next(c for sg in ann["segments"] if not sg.get("plain")
+                      for c in sg.get("chunks") or []
+                      if CA.required(c, L) and CA.complete(c, L))
+            with self.subTest(L.code):
+                clean = self.run_chunk(ch, L.code)
+                self.assertEqual(clean[0], [])
+                bad = [("voc", ["a word", "a meaning"]), ("note", {"said": "a note"}),
+                       ("en", 5), ("en", ["a", "meaning"])]
+                bad += [("tr", 5)] if L.require_tr else []
+                bad += [("kana", 5)] if L.reading else []
+                for field, value in bad:
+                    errors, warnings = self.run_chunk(dict(ch, **{field: value}), L.code)
+                    self.assertEqual(errors, ["x: %s must be text, not %s"
+                                              % (field, type(value).__name__)], field)
+                    self.assertEqual(warnings, clean[1], field)
+
+    def test_the_bundle_door_refuses_a_gloss_field_that_is_not_text(self):
+        """lib/bundle.py asks the same checker, with its own `half` (a chunk
+        half glossed is a note there, not a refusal): a field that is not text
+        is no half gloss, and the door refuses the video -- it is the one door
+        that has no guard of its own before the checker (annwrite and the
+        region fill have theirs)."""
+        for vj in EVERY:
+            meta = load(vj)
+            with self.subTest(meta["language"]), tempfile.TemporaryDirectory() as td:
+                d = os.path.join(td, os.path.basename(os.path.dirname(vj)))
+                shutil.copytree(os.path.dirname(vj), d)
+                code, gloss = meta["language"], meta.get("gloss") or "en"
+                self.assertTrue(bundle._check_video(d, os.path.basename(d), code, gloss))
+                ap = os.path.join(d, "annotations.json")
+                good = raw(ap)
+                ann = json.loads(good)
+                i, k = next((i, k) for i, sg in enumerate(ann["segments"]) if not sg.get("plain")
+                            for k, c in enumerate(sg.get("chunks") or [])
+                            if CA.required(c, languages.get(code)))
+                for field, value in (("voc", ["a word", "a meaning"]), ("note", {"said": "x"}),
+                                     ("en", 5)):
+                    ann = json.loads(good)
+                    ann["segments"][i]["chunks"][k][field] = value
+                    dump(ap, ann)
+                    with self.assertRaises(bundle.BundleError) as cm:
+                        bundle._check_video(d, os.path.basename(d), code, gloss)
+                    self.assertIn("segment %d (start %s) chunk %d: %s must be text, not %s"
+                                  % (i, ann["segments"][i]["start"], k, field,
+                                     type(value).__name__), str(cm.exception))
+                    self.assertNotIn("missing", str(cm.exception))
 
     def test_chinese_tr_writes_the_changed_tone_and_the_word_its_own(self):
         ch = {"fa": "一个", "words": "一(yī) 个(gè)", "tr": "yí gè", "en": "one"}

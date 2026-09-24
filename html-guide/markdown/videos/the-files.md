@@ -1,6 +1,6 @@
 ---
 title: A video's files
-weight: 13
+weight: 14
 description: What a video is on disk — video.json, transcript.txt, annotations.json, parts, notes, the waveform and the film — field by field, and the tools behind the pages.
 ---
 
@@ -47,7 +47,6 @@ needed; the others appear when there is something to put in them.
 | `duration` | about how long it is, the last caption's time |
 | `added` | the day it was added |
 | `blurb` | one sentence for the card |
-| `draft` | `true` while it is being written ([drafts](video-info-and-drafts.md#drafts)) |
 | `reorders` | `true` for a text read out of its written order ([kanbun](video-info-and-drafts.md#kanbun)) |
 
 `language` and `gloss` are never to be read for each other: an Italian
@@ -145,25 +144,35 @@ you empty rather than leave `"col": ""` behind.
   a space, or nothing for Japanese and Chinese, whose spaces are ignored —
   **reproduce** its text; the language's marks (the harakat of Persian and
   Arabic) are set aside first, and nothing else is;
-- every phrase of the language has the fields its language requires: the
-  meaning; the transliteration where required; the kana for Japanese —
-  except a phrase with nothing written in it, in a draft;
+- every phrase of the language that has any gloss written has all the
+  fields its language requires: the meaning; the transliteration where
+  required; the kana for Japanese. A phrase with **nothing** written in it
+  is legal in every video, and is only counted, in one note (*12 of 40
+  chunks have no gloss yet*); a phrase half glossed is an error;
 - a colour is one of the four; `words`, where present, give back `fa`;
 - a phrase longer than **seven words** is warned about: the conventions ask
   for two to six.
 
-### parts/ and merge_parts {#parts}
+### parts/ is retired {#parts}
 
-A video added from an LLM's answer keeps that answer under `parts/`, in
-files of twenty-five captions. `merge_parts.py` builds `annotations.json`
-from them and the transcript, and the add page runs it once, when the video
-is added. **Every change made in the player is written to
-`annotations.json` only.** So running `merge_parts.py` again by hand
-rebuilds the file from the old answer and throws those changes away — the
-colours, the edited glosses, the phrases cut and joined. Edit in the
-player, or edit `parts/` and re-merge; not both. A video started empty has
-no `parts/` at all, so nothing can overwrite it. ([The timings](the-timings.md)
-is the exception: it moves a start in `parts/` too.)
+A video added from an LLM's answer is assembled from that answer in batches
+of twenty-five captions, under `parts/`. They live only while the video is
+being added: `merge_parts.py` folds them into `annotations.json`, the
+checker passes on it, and the batches are dropped before the video reaches
+the shelf. **A video on the shelf has no `parts/`, and `annotations.json`
+is its only annotation** — the player writes it, and nothing rebuilds it.
+
+That is new since the 23rd of September 2026, and it is there because the
+old arrangement lost work: every change made in the player went to
+`annotations.json` alone, so a `merge_parts.py` run again by hand rebuilt
+the file from the old answer and threw those changes away — the colours,
+the edited glosses, the phrases cut and joined — without a word.
+
+A video added before that date still has its batches on disk. Nothing
+reads them, and you may delete the folder. If you do run `merge_parts.py`
+on such a video, it now refuses when `annotations.json` is newer than the
+batches, and says how many captions and which fields the rebuild would
+have lost.
 
 ## The other files
 
@@ -190,7 +199,7 @@ python3 lib/check_annotations.py $V        # the whole check; it must end: 0 err
 python3 lib/slice_part.py $V               # how the captions divide into batches
 python3 lib/slice_part.py $V 0 25          # captions 0..24, verbatim, to annotate
 python3 lib/check_part.py $V parts/01.json # one batch, checked on its own
-python3 lib/merge_parts.py $V              # parts/ + transcript.txt -> annotations.json
+python3 lib/merge_parts.py $V              # parts/ + transcript.txt -> annotations.json, once, while adding
 python3 lib/import_old_video.py <dir>      # a video in the older watching-edition format
 cd ..
 python3 lib/draft.py video --transcript t.txt --lang fa --url <URL> --into youtube/videos

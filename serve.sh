@@ -4,7 +4,9 @@
 # Linux and macOS alike.  (On Windows, double-click serve.bat instead.)
 #
 #   ./serve.sh              start it and print the addresses
-#   ./serve.sh 9000         ... on another port (default 8765)
+#   ./serve.sh 9000         ... on another port, this once (the port Parseh
+#                           keeps is on its Settings > Network page, and a
+#                           change there moves it for good and at once)
 #   ./serve.sh stop         stop it
 #   ./serve.sh status       is it running, and where
 #   ./serve.sh log          follow the log
@@ -16,7 +18,12 @@
 # Everything -- the book reader, the video player, the studio, the exercise
 # decks, the Anki store -- is served by serve.py at ONE https address:
 #
-#   https://localhost:8765/          (and the Tailscale / LAN addresses it prints)
+#   https://localhost:7654/          (and the Tailscale / LAN addresses it prints)
+#
+# WHO CAN REACH IT is not decided here.  A fresh Parseh answers this computer
+# and a VPN, and the Wi-Fi door is shut until Settings > Network opens it; a
+# device on the Wi-Fi is then let in once with a code shown on the computer.
+# Nothing in this file can change that, and nothing needs to (lib/network.py).
 #
 # The certificate is made by serve.py itself on first start, signed by an
 # authority of this machine's own (docs/mobile.md, "Parseh as an app").
@@ -47,7 +54,12 @@ ROOT="$(pwd)"
 ENVNAME=ilya-frank
 PIDFILE="$ROOT/.serve.pid"
 LOG="$ROOT/serve.log"
-PORT=8765
+# The port Parseh keeps, which its Settings > Network page writes; a number on
+# this command line wins for this one start.  Filled in below, once the Python
+# that can read the file has been found -- config/network.json is JSON, and
+# this is /bin/sh.
+PORT=""
+DEFAULT_PORT=7654
 
 cmd=""
 for a in "$@"; do
@@ -113,6 +125,20 @@ PY="$PARSEH_PY"
 if [ -z "$PARSEH_PREFIX" ]; then
   echo "note: no '$ENVNAME' environment -- serving with $PY"
   echo "      ./install.sh makes it (rebuilding books and dividing words need it)"
+fi
+
+# The port the Settings page keeps, unless one was given above.  serve.py
+# would find it by itself; it is read here too because this script polls the
+# address to see that the server came up, and stops it by posting to it.
+if [ -z "$PORT" ]; then
+  PORT=$("$PY" -c 'import json,sys
+try:
+    with open("config/network.json", encoding="utf-8") as f:
+        p = int(json.load(f).get("port") or 0)
+except Exception:
+    p = 0
+print(p if 1024 <= p <= 65535 else '"$DEFAULT_PORT"')' 2>/dev/null) || PORT=""
+  [ -n "$PORT" ] || PORT=$DEFAULT_PORT
 fi
 
 case "$cmd" in

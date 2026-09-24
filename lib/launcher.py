@@ -3,7 +3,7 @@
 """What serve.bat runs on Windows: a setup wizard the first time, then the server.
 
     python lib/launcher.py            first time: the wizard; then start, and open the browser
-    python lib/launcher.py 9000       ... on another port (default 8765)
+    python lib/launcher.py 9000       ... on another port, this once
     python lib/launcher.py setup      the wizard again
     python lib/launcher.py stop       stop a running server (the stop button on any page does too)
     python lib/launcher.py status     is it running, and where
@@ -47,11 +47,16 @@ sys.path.insert(0, LIB)
 from books import all_books          # noqa: E402  where the books are (two levels: books/<language>/<slug>/)
 import guidebuild                    # noqa: E402  the HTML guide: whether its pages are compiled, and from what
 import languages                     # noqa: E402  the registry: which web fonts travel, which language needs a system font
+import network                       # noqa: E402  the port Parseh keeps, and who may reach it
 import runtime                       # noqa: E402  what the environment is, where it is, how it is made
 
 NAME = "Parseh"
 ENVNAME = "ilya-frank"
-DEFAULT_PORT = 8765
+# The port is Parseh's own setting, kept in config/network.json and moved from
+# its Settings > Network page (lib/network.py): this window must not be a
+# second place that decides it, only the place that reads it.  A number on the
+# command line still wins for that one start.
+DEFAULT_PORT = network.DEFAULT_PORT
 MARKER = os.path.join(ROOT, ".setup-done")   # written once the wizard has run through
 TLS_DIR = os.path.join(ROOT, ".tls")
 WIN = os.name == "nt"
@@ -291,7 +296,8 @@ def run_tool(args, cwd=ROOT):
 
 
 def make_cert():
-    """serve.py --cert: a fresh self-signed certificate in .tls/."""
+    """serve.py --cert: a fresh certificate in .tls/, signed by the authority
+    Parseh keeps for this machine alone."""
     return run_tool(["serve.py", "--cert"]) and have_cert()
 
 
@@ -422,6 +428,10 @@ def wizard():
     say("  the Anki store from one https address on this computer,")
     say("  https://localhost:%d/, and from the same address on a phone or a" % DEFAULT_PORT)
     say("  laptop over Tailscale.")
+    say("")
+    say("  A fresh %s answers this computer and a VPN, and nothing else: the" % NAME)
+    say("  Wi-Fi door is shut until you open it on its Settings > Network page,")
+    say("  where a device on the Wi-Fi is then let in with a code shown here.")
     say("")
     say("  This wizard runs once.  It looks at what this computer has, builds the")
     say("  reading editions and compiles the guide, makes the certificate, and")
@@ -573,7 +583,7 @@ def wizard():
     if have_cert():
         good(".tls/ has a certificate  (`serve.bat cert` makes a fresh one)")
     elif find_openssl():
-        say("  Making a self-signed certificate for every name and address this computer has:")
+        say("  Making a certificate for every name and address this computer has:")
         if make_cert():
             good("certificate made in .tls/")
         else:
@@ -581,7 +591,7 @@ def wizard():
     else:
         bad("no openssl, so no certificate yet -- %s serves plain http for now" % NAME)
     say("")
-    say("  Every browser warns once about a self-signed certificate: it is ours, accept it")
+    say("  Every browser warns once about the certificate: it is ours, accept it")
     say("  (Chrome: Advanced, then Proceed).  And Windows Firewall will ask once whether")
     say("  Python may accept connections: allow it, or only this computer can reach %s." % NAME)
     pause()
@@ -604,7 +614,8 @@ def wizard():
 
 # ------------------------------------------------------------------ main
 def main(argv):
-    port, verb, browser = DEFAULT_PORT, "start", True
+    # the port Parseh keeps, unless this start names another one
+    port, verb, browser = network.port(), "start", True
     for a in argv:
         if a in ("start", "setup", "stop", "status", "cert", "readers"):
             verb = a

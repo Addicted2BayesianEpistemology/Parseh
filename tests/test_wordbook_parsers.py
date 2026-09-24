@@ -343,25 +343,28 @@ class WordBook(unittest.TestCase):
         self.assertNotEqual(rc, 0, out)
         self.assertIn("ERROR words of %r: Persian has no word layer" % fa, out)
 
-    def test_check_batch_draft_still_refuses_a_line(self):
-        # a draft forgives an unwritten GLOSS; a word line the PDF cannot set
-        # is not a gloss, and stays an error
+    def test_check_batch_an_unglossed_chunk_still_refuses_a_line(self):
+        # a chunk nobody has glossed yet is legal, and only counted; a word
+        # line the PDF cannot set is not a gloss, and stays an error in it
         for which in WORDS:
             with self.subTest(which):
                 b = self.book(which)
-                meta = dict(b.meta, draft=True)
-                with open(os.path.join(b.dir, "book.json"), "w", encoding="utf-8") as f:
-                    json.dump(meta, f, ensure_ascii=False)
-                b = books.Book(b.dir)
                 fa, line = BAD[which]
                 pj = self.para0(b, **{fa: line})
-                for c in (c for s in pj["ann"]["sentences"] for c in s["chunks"]):
+                chunks = [c for s in pj["ann"]["sentences"] for c in s["chunks"]]
+                for c in chunks:
                     if c["fa"] == fa:
                         c.update(tr="", voc="", en="", kana="")
                 rc, out = self.check_batch(b, pj)
                 self.assertEqual(rc, 1, out)
                 self.assertIn("ERROR words of %r: the words do not reproduce" % fa, out)
-                self.assertIn("have no gloss written yet", out)
+                self.assertIn("note  1 of %d chunks have no gloss yet" % len(chunks), out)
+                self.assertNotIn("empty en", out, "the blank chunk is asked nothing")
+                # and a "draft": true an older version left in book.json is
+                # never read: the same paragraph, the same words
+                with open(os.path.join(b.dir, "book.json"), "w", encoding="utf-8") as f:
+                    json.dump(dict(b.meta, draft=True), f, ensure_ascii=False)
+                self.assertEqual(self.check_batch(books.Book(b.dir), pj), (rc, out))
 
     def test_assemble_blank_words_and_the_warning_count(self):
         for which in WORDS:

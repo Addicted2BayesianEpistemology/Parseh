@@ -37,11 +37,6 @@ header .ttl .fa-ttl:empty{display:none}
    of the transcript the height of one. */
 header .ttl .lat{color:var(--dim);font-size:12.5px;white-space:nowrap;
   min-width:0;overflow:hidden;text-overflow:ellipsis}
-/* a video still being written says so: the chip is why an unglossed phrase
-   is hoverable here and why the checker is forgiving one */
-header .badge{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--warn);border:1px solid var(--warn);border-radius:20px;
-  padding:1px 8px;white-space:nowrap}
 header .sp{flex:1}
 header button{font:inherit;font-size:13px;padding:5px 9px;
   border:1px solid var(--rule);background:var(--bg);color:var(--ink);
@@ -82,9 +77,18 @@ body.nopin #playerwrap{position:static;box-shadow:none}
   background:#000;border-radius:10px;overflow:hidden;
   border:1px solid var(--rule)}
 #vid iframe,#vid video{position:absolute;inset:0;width:100%;height:100%;border:0}
-#novid{position:absolute;inset:0;display:flex;align-items:center;
-  justify-content:center;color:#bbb;font-size:14px;text-align:center;
-  padding:12px;pointer-events:none}
+/* IT HAS THINGS TO PRESS NOW (2026-09-23): a way to try again and a way out
+   to YouTube, so it can no longer be see-through to the finger.  It is drawn
+   only when something really failed, and then it is the one thing on the
+   picture worth touching. */
+#novid{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;
+  color:#bbb;font-size:14px;text-align:center;
+  padding:12px;line-height:1.5}
+#novid .novid-again{font:inherit;font-size:14px;min-height:44px;padding:8px 16px;
+  border:1px solid #666;border-radius:9px;background:#1a1a1a;color:#eee;cursor:pointer}
+#novid .novid-again:hover{border-color:#bbb;color:#fff}
+#novid .novid-out{color:#9cf}
 /* an ID rule beats the UA's [hidden]{display:none}, so say it again --
    without this the offline note sits over the video permanently */
 #novid[hidden]{display:none}
@@ -180,7 +184,7 @@ html[data-lang="zh"] body.aloud .seg .fa>*+.w{margin-inline-start:.3em}
   bottom:-6px;left:calc(50% - 5px)}
 #cloud.below .arrow{transform:rotate(225deg);bottom:auto;top:-6px}
 
-/* a draft's chunk before anybody has written on it */
+/* a chunk nobody has glossed yet: a phrase all the same, and its cloud says so */
 #cloud .unwritten{color:var(--faint);font-style:italic}
 /* THE DICTIONARY, AND THE MODEL, AND WHY NEITHER LOOKS LIKE A GLOSS.
    A written gloss is somebody's judgement about this word in this phrase.  A
@@ -479,6 +483,14 @@ html[data-theme=dark]{
 #cloud .mkrow button.esave:hover{color:var(--accent-fg);
   border-color:var(--accent);filter:brightness(1.08)}
 #cloud .esave .kbd{opacity:.7;font-size:10.5px}
+/* DELETE GLOSS, beside save and never in the hover cloud: one click takes the
+   gloss off (no confirm -- undo delete is right there), so it wears no accent,
+   only the danger colour when the pointer is on it.  Greyed while the chunk as
+   saved carries nothing to delete; undo delete is a plain button that appears
+   only while the page remembers a deleted gloss for this very chunk. */
+#cloud .mkrow button.edel:hover:not(:disabled){color:var(--danger);border-color:var(--danger)}
+#cloud .mkrow button:disabled{opacity:.5;cursor:default;color:var(--dim);border-color:var(--rule)}
+#cloud .mkrow button[hidden]{display:none}
 
 /* while a modifier key is held, the word under the cursor shows it is
    the card-sized unit (alt-click / ctrl-click opens the dashboard) */
@@ -635,7 +647,10 @@ body.synced .seg.plain:hover .en-line{color:var(--dim)}
 #asndaudio{display:block;width:100%;max-width:380px;height:36px;margin-bottom:6px}
 #asndname{font:11.5px/1.4 ui-monospace,Menlo,monospace;font-feature-settings:'locl' 0;
   color:var(--dim);overflow-wrap:anywhere}
-#anki #asnd:disabled{opacity:.55;cursor:not-allowed;border-color:var(--rule)}
+/* the two buttons that need something this machine may not have -- a sound to
+   cut, a picture to take -- look the same when there is nothing to be done,
+   and each says underneath which of its reasons it is */
+#anki :is(#asnd,#ashot):disabled{opacity:.55;cursor:not-allowed;border-color:var(--rule)}
 .ajollyinto{color:var(--faint);font-size:12px}
 #anki #amdout{font:12px/1.5 ui-monospace,Menlo,monospace;font-feature-settings:'locl' 0}
 #astat a{color:inherit}
@@ -827,6 +842,128 @@ body.sbs #vid iframe,body.sbs #vid video,body.sbs.nopin #vid iframe,body.sbs.nop
 #dvstat.bad{color:var(--danger)}
 /* the three doors in the cloud's editor */
 .mkrow .edv{font-size:11.5px;padding:3px 8px}
+
+/* --- glossing a stretch with an LLM: the panel ----------------------------
+   A panel and not a sheet: no backdrop, because the stretch is picked by
+   clicking the captions beside it.  Fixed to the lower right, above the
+   header and the pinned video (50, 40), under the gloss cloud (80) so a
+   phrase hovered while picking still reads, and under every sheet and its
+   backdrop (88 and up).  On a window with room for both, the transcript's
+   column steps aside for it while it is open (body.rgpicking main, below);
+   on a narrower one it stays over the foot of the transcript -- spanning the
+   width below 560px -- where main's 60vh of bottom padding lets a caption be
+   scrolled up clear of it (and, above 560px, each caption's time on the
+   left, which picks it too, is never under it).  Built on .ahead and .anote,
+   the classes the card sheet defines, and on the palette's tokens alone, so
+   every theme follows. */
+#rgpanel{position:fixed;z-index:70;right:14px;bottom:14px;
+  width:min(430px,calc(100vw - 28px));max-height:min(80vh,760px);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.3);padding:12px 16px 12px;
+  font-size:13.5px;color:var(--ink)}
+#rgpanel[hidden]{display:none}
+#rgpanel:focus{outline:none}
+#rgpanel .ahead{margin-bottom:6px}
+#rgpanel button{font:inherit;font-size:13px;padding:5px 10px;
+  border:1px solid var(--rule);background:var(--bg);color:var(--ink);
+  border-radius:6px;cursor:pointer}
+#rgpanel button:hover{border-color:var(--accent)}
+#rgpanel button:disabled{opacity:.5;cursor:default;border-color:var(--rule)}
+#rgpanel #rgclose{font-size:12px;padding:2px 7px;color:var(--dim)}
+#rgpanel .rghint{margin:0 0 8px}
+/* the two ends of the stretch, each a caption's number and its time -- in the
+   monospace the time labels use, so the digits never fall into a script's */
+#rgpanel .rgslots{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+#rgpanel .rgslot{flex:1 1 150px;min-width:0;display:flex;align-items:baseline;gap:8px;
+  border:1px solid var(--rule);border-radius:8px;padding:5px 9px;background:var(--bg)}
+#rgpanel .rgslab{color:var(--faint);font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase}
+#rgpanel .rgval{color:var(--faint);font-style:italic;font-size:12.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rgpanel .rgval.set{color:var(--ink);font-style:normal;
+  font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  font-feature-settings:'locl' 0;font-variant-numeric:tabular-nums}
+#rgpanel .rgchk{display:flex;gap:7px;align-items:baseline;margin:8px 0 0;
+  cursor:pointer;line-height:1.45}
+#rgpanel .rgchk input{margin:0;flex:0 0 auto}
+#rgpanel .rgcnote{margin:1px 0 0 22px}
+#rgpanel .rgact{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 0}
+#rgpanel #rgfill{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#rgpanel #rgfill:hover:not(:disabled){filter:brightness(1.08)}
+/* armed: the answer would replace glosses, and a second press within the
+   arm's four seconds says yes -- in the danger colour, so it reads as what
+   it is before it is pressed */
+#rgpanel #rgfill.armed{background:var(--danger);border-color:var(--danger);color:var(--danger-fg)}
+#rgpanel .rglab{display:block;color:var(--faint);font-size:11.5px;margin:12px 0 3px}
+#rgpanel textarea{display:block;width:100%;box-sizing:border-box;font:inherit;
+  font-size:12.5px;line-height:1.45;background:var(--bg);color:var(--ink);
+  border:1px solid var(--rule);border-radius:6px;padding:6px 9px;resize:vertical}
+#rgpanel textarea:focus{border-color:var(--accent);outline:none}
+#rgpanel #rgans,#rgpanel #rgprompt{font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:11.5px;font-feature-settings:'locl' 0}
+#rgpromptrow{margin-top:8px}
+#rgpromptrow[hidden]{display:none}
+/* what the server answered: the summary under copy, the report under fill --
+   each keeps the server's own sentences, and a refusal is in the danger colour */
+#rgsum,#rgreport{font-size:12.5px;line-height:1.5;color:var(--dim);white-space:pre-line}
+#rgsum:empty,#rgreport:empty{display:none}
+#rgsum{margin-top:8px}
+#rgreport{margin-top:10px}
+#rgsum .bad,#rgreport .bad{color:var(--danger)}
+#rgsum b,#rgreport b{color:var(--ink);font-weight:600}
+#rgreport .rgtally{color:var(--ink)}
+#rgreport h5{margin:10px 0 3px;font-size:11px;font-weight:600;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--dim)}
+#rgreport ul{margin:0;padding:0;list-style:none}
+#rgreport li{padding:3px 0 3px 8px;border-inline-start:2px solid var(--rule);
+  margin:0 0 3px;white-space:normal;overflow-wrap:anywhere}
+#rgreport li.to{cursor:pointer}
+#rgreport li.to:hover{border-inline-start-color:var(--accent)}
+#rgreport .rgwhere{color:var(--ink)}
+#rgreport .rgwhy{color:var(--dim)}
+/* the stretch, on the transcript: a rail down each picked caption's edge and
+   the accent's tint behind it, kept beside the on-air highlight rather than
+   replacing it -- the line being spoken is still told apart inside the run.
+   EVERY RULE OF THE PICKING IS THE COMPUTER'S MODE'S ALONE: the phone's hides
+   the panel without closing it (below) and picks nothing (player.js
+   rgPicking), and a switch to it while the panel was open left the tint, the
+   crosshair and the 458px margin standing for a panel no longer there.  The
+   page paints again on the switch; scoped here as well, a class left behind
+   by anything draws nothing in the phone's mode. */
+html:not([data-mode=mobile]) .seg.rgpick{
+  background:color-mix(in srgb,var(--accent) 8%,transparent);
+  box-shadow:inset 3px 0 0 var(--accent)}
+html:not([data-mode=mobile]) .seg.rgpick.on-air{background:var(--hl);
+  box-shadow:0 0 0 4px var(--hl),inset 3px 0 0 var(--accent)}
+/* picking: a caption is something to click, whatever it holds */
+html:not([data-mode=mobile]) body.rgpicking .seg,
+html:not([data-mode=mobile]) body.rgpicking .seg .fa,
+html:not([data-mode=mobile]) body.rgpicking .seg .en-line{cursor:crosshair}
+/* THE CAPTIONS STAY WHERE A HAND CAN REACH THEM.  The panel sits over the
+   lower right of the page, which is exactly where a right-to-left caption
+   begins -- and all of a short one -- and, with the video pinned, a window of
+   1280x900 had no scroll that brought the head of a Persian caption out from
+   under it: the pinned video ends about where the panel starts.  So while a
+   stretch is being picked on a window wide enough for both, the transcript's
+   column keeps clear of the panel's 430px and its two 14px margins: centred
+   still where centring already clears it, pushed left of it where it would
+   not, and in the side-by-side layout narrowed from the right. */
+@media (min-width:820px){
+  html:not([data-mode=mobile]) body.rgpicking main{
+    margin-right:max(calc((100vw - var(--yt-width,760px)) / 2), 458px)}
+}
+@media (min-width:860px){
+  html:not([data-mode=mobile]) body.sbs.rgpicking main{margin-right:458px}
+}
+@media(max-width:560px){
+  #rgpanel{left:8px;right:8px;bottom:8px;width:auto;max-height:62vh;
+    padding:10px 12px}
+  #rgpanel .rgslot{flex-basis:120px}
+}
+/* the phone's page writes nothing (lib/mobile.css): a panel left open in the
+   browser mode is hidden there, not closed, as the sheets are */
+html.m-player[data-mode=mobile] #rgpanel{display:none!important}
 
 /* --- the seam between two captions, and the notes that sit in it ---------
    A transcript is a text and its gloss and has nowhere to say the other

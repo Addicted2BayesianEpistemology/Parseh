@@ -18,14 +18,14 @@ books and for videos, and every language has a row on it.
 |---|---|
 | The hub (the Browser layout) | its last door, **🔍 Reading what nobody has glossed**. Its tags say what you have: **no dictionary yet**, or **1 dictionary**, **3 dictionaries**… followed by the code of every language that has one. |
 | Any book reader or video player | **reading help**, in the header, just after the **dictionary** switch (which is only there once something is installed for that language). |
-| A chunk nobody has glossed | when nothing at all is installed for its language, the cloud of a chunk without a vocabulary line (in a book's **hover** mode) says *nothing glossed here yet*, and under it: “A dictionary can look these words up, a corpus can show a sentence somebody translated, and a model can read the line. **Set any of them up** — it takes a couple of minutes.” The link opens this page. The player says the same under *nothing glossed yet* — but with nothing installed, the only phrase with nothing written that it lets you open is one in a **draft** video. |
+| A chunk nobody has glossed | when nothing at all is installed for its language, the cloud of a chunk without a vocabulary line (in a book's **hover** mode) says *nothing glossed here yet*, and under it: “A dictionary can look these words up, a corpus can show a sentence somebody translated, and a model can read the line. **Set any of them up** — it takes a couple of minutes.” The link opens this page. The player says the same under *nothing glossed yet*, in the cloud of any phrase of the video's language that nobody has glossed. |
 | **Decompose Kanji** or **Decompose Hanzi** | the dialog's **Open dictionary & component setup**, **Manage component packs and fallback coverage** and **Open setup** links, which open the page at its components section |
 | The address bar | `/lookup/` on the server |
 
 The components section has an address of its own,
 `/lookup/#character-components`. On a Parseh started on this machine with
 its defaults, the whole address of the page is
-`https://localhost:8765/lookup/`.
+`https://localhost:7654/lookup/`.
 
 The page belongs to the **Browser** layout. The **Mobile** layout is for
 reading and studying and leaves out every page that installs or administers

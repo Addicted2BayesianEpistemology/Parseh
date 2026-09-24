@@ -171,6 +171,13 @@ sentence reuse it (*Reusing the translation pasted for this sentence.*) and
 only the mark moves. If the clipboard cannot be reached, the block says so
 and **Ask LLM** tries again.
 
+**Ask LLM** helps you write one chunk's gloss yourself. To have an LLM write
+the glosses of a whole stretch — every chunk nobody has glossed, from one
+sentence to a chapter — use the header's **gloss with an LLM** instead
+([Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM)): its
+answer goes into the book, where nothing here does, but only into chunks
+that have no gloss, and only whole.
+
 > **None of this is a gloss.** A dictionary lists everything a word can
 > mean and cannot say which is meant; a translated sentence is somebody
 > else's sentence; a machine's reading is nobody's judgement. So in the

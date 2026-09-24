@@ -9,11 +9,13 @@ studying a deck — and never for writing it.
 
 The mode is a choice, made with the **Browser | Mobile** switch in the hub's top
 bar (and in the bar of every mobile page), and it holds across every page and
-every reload until it is switched back. It is being built one interface at a
-time. Today the hub, the books (their shelf and every book's reader) and the
-exercise decks have their mobile layouts; the videos and the studio's notes do
-not yet, so their doors still open the browser pages: **a page without a mobile
-version always falls back to its browser version.**
+every reload until it is switched back. It was built one interface at a time,
+and today the hub, the books (their shelf and every book's reader), the
+exercise decks, the videos (their shelf, a channel, and the player with its
+transcript) and the studio's pages (its library, a document and its notes, to
+read) all have their mobile layouts. Only the guide has none, so its door
+opens the browser pages: **a page without a mobile version always falls back
+to its browser version.**
 
 A phone is held **sideways** as often as upright — more, to read — so every
 mobile layout is made for both: from 600px wide the columns widen and go two
@@ -264,40 +266,104 @@ mobile mode:
   (`display: contents`), so each control is an item of the header, placed by
   `order`. The first line is the way out and what a reader reaches for: the
   hub, the shelf, ☰ the contents, Aa the text size, and ⋯ — five 48px
-  targets, which fit a 320px phone. A narrated book adds the recording: ↺ ▶ ↻
-  and where it is (0:12 / 3:40). Upright, those four take a line of their own
-  under the first (a `.m-rbreak` the layer adds ends the first line there);
-  from 600px wide — a phone held sideways — all of it is one line.
+  targets, which fit a 320px phone, whatever the book and however the phone is
+  held. The recording is not moved from the header any more: ▶ leaves it (it
+  stays on the page, unshown, as the button the dock presses) and the dock
+  below does the moving.
   ⋯ opens the rest under it, a group to a line, each with a line saying what
   it is: *Passes* (the pass buttons, gloss, hover), *Listening* (continuous,
-  loop and its gap, stop at a change, the speed — with the word the select
-  does not say —, how far ↺ and ↻ move, listen and its follow and scroll,
-  the seek), *Looking a word up* (the dictionary and its definitions, where a
-  dictionary is installed), *This page* (the theme, putting the bars away, the
-  switch). A group with nothing this book offers has no line. Open, the
-  controls scroll inside the header, never taller than the screen.
+  loop and its gap, stop at a change, how far ↺ and ↻ move, where the
+  recording is (0:12 / 3:40), listen and its follow and scroll, the seek),
+  *Looking a word up* (the dictionary and its definitions, where a dictionary
+  is installed), *This page* (the theme, putting the bars away, the switch). A
+  group with nothing this book offers has no line. Open, the controls scroll
+  inside the header, never taller than the screen — and the dock is not drawn
+  while they are open, since the header then holds every control the page has.
+* **The dock: the recording, under the thumb** (`lib/narrctl.js`, the owner's
+  choices of 2026-09-22). A narrated book floats three buttons at the foot of
+  the screen, in the two corners a thumb owns without the hand shifting its
+  grip: **↺** in the left corner, **⏯** and **↻** in the right, with the
+  **speed** as a chip above them. They are 56px, not the 48px a target must be
+  at least, because they are pressed again and again and often without
+  looking; the page keeps a foot's room under its last line so nothing is read
+  through them, and they sit above the phone's own bottom bar
+  (`env(safe-area-inset-bottom)`).
+  They **fade when nothing is touched** for four seconds and are whole again
+  at the first touch, key or wheel — a page that scrolls *itself*, as this one
+  does all the while a narration plays, is not a touch, so they do not stay
+  bright over the text being read. ⏯ is the reader's own ▶ pressed: everything
+  play does — continuous, the loop, the fold ahead, the reading place — stays
+  the reader's own business, and the dock only mirrors whether the sound is
+  going.
 * **↺ and ↻ move the recording** back and on by so many seconds: ten, until
-  the *Listening* group's "skip by … seconds" field says otherwise — any whole
-  number from 1 to 600, kept for every book in this browser as `bk_skip`,
-  beside the reader's gap and rate (a number that is none keeps the one
-  before). The reader plays by subparagraph, so the move takes the reading
-  place with it: the subparagraph the recording lands in becomes the place —
-  the mark, the place kept for next time, and where the playing stops — found
-  as the reader's own *follow* finds it (`subAtTime`). In *listen* there is no
-  reading place, and only the fold ahead is worked out again. All of that is
-  the reader's own state, the top-level bindings of its script, which every
-  classic script on the page shares; a reader built before one of them
-  existed has the recording moved, and follows as it can. Paused, it stays
-  paused. A book with no narration has neither button nor field.
+  told otherwise. **Holding either one opens the seconds to choose from —
+  5 · 10 · 15 · 30 · 60** — and because a hold cannot be seen, the *Listening*
+  group under ⋯ shows the same row, and the first tap of ↺ or ↻ says "hold ↺
+  or ↻ to choose the seconds", once and never again (`bk_skiphint`). The
+  number is one for every book, kept in this browser as `bk_skip` beside the
+  reader's gap and rate. The reader plays by subparagraph, so the move takes
+  the reading place with it: the subparagraph the recording lands in becomes
+  the place — the mark, the place kept for next time, and where the playing
+  stops — found as the reader's own *follow* finds it (`subAtTime`). In
+  *listen* there is no reading place, and only the fold ahead is worked out
+  again. All of that is the reader's own state, the top-level bindings of its
+  script, which every classic script on the page shares; a reader built before
+  one of them existed has the recording moved, and follows as it can. Paused,
+  it stays paused. A book with no narration has no dock and no row.
+* **The speed is a chip**, saying 1.5×, and a tap opens the row: 0.5 · 0.6 ·
+  0.75 · 0.9 · 1 · 1.1 · 1.25 · 1.5 · 1.75 · 2 — the reader's own menu, with
+  the two speeds the owner asked for added to it. The chip *is* that menu: it
+  sets its value and lets the reader's own handler run, so the rate is saved
+  and applied exactly as it always was. **And the speed never changes by
+  itself**: loading a recording — which the reader does whenever the narration
+  moves into a part kept in another file — used to put the rate back to 1×
+  while the control still said 1.5×. Now `defaultPlaybackRate` is set with
+  every rate and the rate is set again after every load; a rate changed at any
+  other time (the audio element has a speed in its own menu) is somebody
+  meaning it, and the chip follows the sound instead of fighting it.
 * **The header gets out of the way at every width**: down, it goes; the
   smallest move up brings it back (parseh.js `bars()`, which the mobile mode
-  runs whatever the width). It holds still while ⋯ is open, and through the
-  scroll a skip makes to the new reading place, so ↺ and ↻ stay under the
-  thumb for a second press (`<body data-bars-held>`).
+  runs whatever the width). It holds still while ⋯ is open
+  (`<body data-bars-held>`). The dock needs no such hold: it floats, and stays
+  wherever the page goes.
+* **The reading place and the settings are the toolbox's** (`lib/prefs.py`,
+  `lib/prefs.js`, `/__prefs`, `config/prefs.json`). The place per book — which
+  subparagraph, said in words, how far in, by which device and when — and the
+  settings that follow a person: the narration's speed, the gap, the seconds ↺
+  and ↻ carry, stop-at-a-change, and the theme. **What is shown stays with the
+  device that shows it**: the passes, the text size, the margins. For the
+  settings the last change wins. For the place nothing is overruled: a book
+  opens where THIS device left it, and a line over the text asks — "On the
+  computer you were at 2.1, a moment ago. Go there?" — with *Go there* and
+  *Stay here*. A device names itself from its own browser ("Android phone ·
+  Chrome"): nothing to type. The shelf shows the toolbox's place too, so a
+  phone that has never opened a book still says how far it has been read. With
+  the computer unreachable, every page keeps its own place as it always did
+  and says nothing about it.
+* **A finger reaches what a key reached** (`lib/wordtouch.js`). Copying is a
+  Shift-click and a card an Alt-click, and a finger holds neither: so a finger
+  HELD on a word for half a second opens a small menu — *Card for “word”* ·
+  *Copy “the chunk”* · *Copy the sentence* (a video's transcript says *Copy
+  the caption*). Each line dispatches the very click the page already listens
+  for, so the card that opens is the page's own, with its cut editor, and the
+  copy is the page's own, with its toast. A tap is left alone — it still plays
+  or opens a gloss — and the click a phone sends when the finger is lifted is
+  swallowed. In the mobile mode the card is not offered: a card writes.
+* **“?”: nothing is known only to a mouse** (`lib/explain.js`). On a screen
+  that cannot hover, the page's bar gains a **?**. Press it and the next tap
+  on any control says what that control does, in a bubble beside it, instead
+  of pressing it; press it again, or Escape, or *done explaining*, and the
+  page is itself. The sentence is the control's own `title`, then its
+  aria-label, then its words — so nothing is written twice and a control added
+  later is explained the day it is added. Every page of the toolbox gets it
+  from parseh.js; the studio's pages carry a tag of their own, having no
+  parseh.js. Where a mouse can hover, nothing is drawn at all. The buttons
+  that only a hover brought out — a book card's build and delete — are always
+  drawn where there is no mouse; in the mobile mode nothing builds or deletes.
 * **Only what reads is there.** The sheet names the controls that stay; every
-  other one — book info, the builds, the narration, folding, the timings, the
-  download, the dictionary setup, stop, and whatever a later reader adds that
-  nobody has named — is not on a phone at all. Neither are the page's other
+  other one — book info, the builds, the narration, folding, gloss with an
+  LLM, the timings, the download, the dictionary setup, stop, and whatever a
+  later reader adds that nobody has named — is not on a phone at all. Neither are the page's other
   writing doors: the pencil over a chunk, the gloss cloud's *card* and *edit*,
   a seam's *+* for a note and the note viewer's *edit*, the naming of chapters
   and sections in the contents, and every sheet they open. A sheet left open
@@ -308,14 +374,112 @@ mobile mode:
   reader's as they always were.
 * **Reading is untouched**: the passes, the glosses and the gloss cloud (a tap
   opens it in hover mode), the narration in step, the contents, the notes
-  between two lines (the viewer opens the studio's page — its browser layout,
-  until the studio has a mobile one), looking a word up, taking a character
-  apart, the Aa panel, the reading place.
+  between two lines (the viewer opens the **bare note page** — the note on the
+  studio's own sheet and nothing else; one that holds an exercise opens the
+  full studio page, so it can still be answered), looking a word up, taking a
+  character apart, the Aa panel, the reading place.
 
 The page is marked `data-mobile-page`, so its links route: the shelf's ▤ goes to
 `/m/books/`. Going back to the browser mode leaves the page exactly as the reader
 built it: every rule is a mobile-mode rule, what the layer adds is
 `data-layout="mobile"`, and nothing of the reader's own was moved.
+
+### The videos, `/m/videos/`, and a video's page
+
+The browser's video index and channel pages are written per request
+(`youtube/lib/ytpages.py`) and carry what adds, deletes and bundles a video,
+so the phone has pages of its own (`lib/mobile.py`). **`/m/videos/` is the
+channels** — one card each, under its language, saying how many videos it
+holds, how many are glossed to the end and the levels they are marked with
+(there is no "in draft" count: a video is no longer marked as one, a blank
+gloss being legal in every video) — **and the videos are one tap inside**, on
+**`/m/videos/<channel>/`**, which has always been there. That is the browser
+index's own shape, and it is what the owner asked for (2026-09-23): this shelf
+was a flat list before — every video of every channel under a heading apiece —
+which on a phone is a page you scroll past rather than one you choose from. A
+channel with videos in two languages is two cards, one under each language's
+heading, so the chip row's counts stay honest; a card counts only the videos
+of the language it is filed under. A video nobody has glossed yet has nothing
+to read and says so, inside the channel, instead of being a link.
+`parseh.js` routes `/youtube/` and `/youtube/c/<slug>/` there in the mobile
+mode.
+
+**With the computer away** the shelf itself opens — it is part of the way in,
+kept with the app — and shows the channels the computer had when it was last
+reached. A **channel's page** is on this phone only if the app warmed it, and
+one added since the last warming is on nobody's: so `CHANNELS_JS` asks the
+phone's own caches, address by address, and a card whose page is not here is
+**drawn and cannot be tapped**, with a line saying so — the same face a book
+whose reader was never built has always worn. Nothing there decides whether
+the computer is away (that is `lib/keep.js`'s probe), and nothing is greyed
+until the caches have answered: the worse mistake is to refuse a page this
+phone really holds.
+
+**A video's own page is the same page**, with a layer over it
+(`lib/mobileplayer.js`, `html.m-player` in `lib/mobile.css`), exactly as a
+book's reader has one:
+
+* the header is **one line** — the hub, the channel, what this video is, ⛶, ?
+  and ⋯ — and ⋯ opens the rest under it, a group to a line: *Following the
+  video* (follow, hover ‖, the reading, pin), *Looking a word up*, *This page*
+  (the theme, the text size, the switch). What writes the video or administers
+  it is not there at all: its details, the caption timings, the download, the
+  dictionary setup, stop — nor the page's long explanation of the mouse's
+  gestures, since a held finger now says what a finger can do;
+* **the dock** at the foot plays it, moves it back and on by the seconds, and
+  sets its speed (`lib/narrctl.js`). A video has no `<audio>` element to
+  drive: it is YouTube's frame, or a film of this machine, behind the handle
+  the player hands out (`window.ParsehPlayer`), and the speeds offered are the
+  ones that player will really play at. ⏯ says **‖** and **▶** — the marks the
+  rest of Parseh uses, and not ⏸, which a phone's colour font claims and draws
+  as an orange emoji. **A video keeps a speed of its own** (`vd_rate`), put
+  back when the player says it is ready, and never the book's `bk_rate`:
+  watching and listening are different habits. The chip paints **the speed
+  that was chosen**, at once, and holds it until the player confirms — a
+  player is asked over a frame boundary and answers the old speed for a moment,
+  which made the chip lag one change behind. **The dock is never mirrored**: it
+  says `dir="ltr"` for itself, because time does not run backwards in a book
+  that reads right to left — ↺ is behind and ↻ ahead, wherever the words go;
+* **a video that will not play says what really went wrong**, and only when it
+  really has (the owner's 9, 2026-09-23: the player said *the video needs an
+  internet connection* while the phone was online, and embedded YouTube videos
+  in the studio's own pages would not open either). Two faults in one: that
+  sentence was the box's hardcoded default, put up by a blind six-second
+  timer; and the cause behind it was `lib/keep.js` starting to warm the app
+  shell — a megabyte and a half — the instant any mobile page loaded, which
+  over a tunnel is bandwidth YouTube's own script needed and lost. The warming
+  waits for the page's `load` and then for an idle moment, and fetches at low
+  priority; the player waits for the script's own `load` and `error`, gives it
+  a real grace, and then says what actually failed, with *Try again* and a way
+  out to YouTube;
+* **held sideways** the video goes to the left and the transcript to the
+  right, with the divider between them draggable by a finger — the player's
+  own `#grip`, whose side-by-side layout is restated for the phone here
+  (its own rules need 860px, and a phone's long side is less);
+* **⛶ gives the video the whole screen**, sideways only, with the line being
+  said lying over its foot as subtitles. **The full-screen element is the page
+  itself** (`document.documentElement`), and the layout over it is Parseh's own
+  (`html.m-vfullon` in `lib/mobile.css`): the video's box pinned over the page,
+  the picture centred on black, the subtitles at its foot, the dock where the
+  thumb left it. It is not the video's box that is enlarged — that box holds
+  YouTube's cross-origin frame, which takes the top layer with it, so nothing
+  of Parseh's was drawn over it and a phone was left with no subtitles and a
+  system bar it could not answer. Where a phone **refuses** the request the
+  pinned layout is all there is, which is the same picture with the browser's
+  own bars still showing, and the refusal is **said**. **Three ways out**,
+  because nobody may be trapped inside a video: the ⛶ in the corner (faint
+  with the dock, whole at a touch), the phone's **back gesture** (an entry is
+  pushed on the way in), and a **tap on the black** beside the picture.
+  YouTube's own ⛶ is not offered on a phone (`fs: 0`): there is one whole
+  screen, Parseh's, and it is the one that carries the subtitles. The gloss
+  **cloud stays in `<body>`** — it is fixed over everything the page has, so
+  the overlay never needs to hold it, and a cloud moved into a box that is over
+  nothing is a cloud nobody can see. The subtitle is a **copy** of the
+  transcript's line and a copy carries no listeners, so it says which caption
+  and which phrase it is and the player opens its own cloud anchored to it
+  (`ParsehPlayer.gloss`) — the gloss stands over the subtitle, where the finger
+  is. Upright there is no such button: a video on the whole screen leaves
+  nothing to read.
 
 ### The exercise decks, `/exercises/`
 
@@ -391,6 +555,30 @@ prompt pages, the Anki sync (`/anki/sync/`), the clip tray (`/clips/`) and the
 dictionary setup (`/lookup/`). A link to one of them from a mobile page still
 opens it — in its browser version.
 
+### The studio's library and a document, `/studio/`
+
+Both carry the two layouts, as the deck pages do
+(`markdown/app/templates/index.html`, `doc.html`, `static/mobile.css`): the
+head decides which is drawn before anything is painted
+(`deckroutes.MODE_SCRIPT`, handed to the studio's templates by
+`render_template`), the browser's header says `data-layout="browser"` and the
+phone's bar `data-layout="mobile"`. The few lines that keep the page in step
+with the mode — the switch, the theme button, the worker in the mobile mode,
+the bar that hides on a scroll — are `static/mode.js`, a tag of its own, so a
+page that only reads need not wait for `app.js`.
+
+**The library** keeps what finds a document: the search, the language chips,
+the tags, the cards (a finger's size). It loses the upload, the backup, the
+restore, the downloads, *+ New*, *Paste LLM answer*, *Stop server*, and the
+delete on a card — nothing there builds or deletes.
+
+**A document** keeps what reads it: the text, ☰ *Contents*, ⇄ *Glosses*, ↩
+*Linked from*, and Aa (the size of the text, which stays with the device).
+**Its exercises can be answered** — answering writes nothing — with targets of
+48px. It loses *Edit*, *Build PDF*, *View PDF*, *+ Add all exercises*, *+
+Deck*, *⚙ layout*, *Download*, *Duplicate*, *Delete*, the tag editor, *Print*
+and *Stop server* (the owner's choice, 2026-09-22).
+
 ## A phone held sideways
 
 What a phone held sideways lacks is height — 320 to 430px of it, against 640 to
@@ -414,6 +602,645 @@ thresholds do it, both in the sheets:
 And every mobile page's bar goes on the way down at every width (above). The
 phone adjustments of the browser pages are untouched: they still answer only
 under 560px.
+
+**The scroll strip** (TO-DO §4.16). Studying and cramming put their buttons in
+a column down the right, Skip at its top and the answer's button at its foot,
+and a long exercise had to be scrolled by reaching back across the screen. So
+the empty stretch of that column, between the buttons, scrolls the exercise: a
+finger dragged up or down it moves the page one pixel to one pixel, and leaves
+it flying on when the finger is lifted — slowing as a phone's own scrolling
+does, and stopping dead at the top and the bottom. `touch-action: none` on the
+strip alone, so the browser hands the drag over instead of moving the column,
+and never over a button: nothing there changes, and a tap on one is still a
+tap. A quiet grip marks it, and only while there is something to scroll. Study
+and cram alike; upright there is no empty column and no strip
+(`markdown/app/templates/study.html`, `cram.html`, `static/mobile.css`,
+`decks.js` `bindScrollStrip`).
+
+## Kept on this phone: Parseh with the computer away (§19)
+
+The worker used to keep nothing: every page came from the computer, fresh, and
+what an installed app needed of a worker was that there is one. That is
+reversed now — **what has been kept on this phone is answered by the phone**,
+so a book works with the computer asleep, off, or a train away.
+
+* **What a thing is made of** is asked of the computer: `GET <book>/__offline`
+  and `GET /youtube/v/<id>/__offline` (`lib/offline.py`) answer with every
+  address to keep, each with its size, in **three** lists — the **small
+  parts** (the page, the text, the pictures), which the phone renews by
+  itself; the **groups**, which are one tick apiece (today, the notes written
+  beside this book or this video); and the **heavy ones** (a recording, a
+  film), picked one by one — plus the shared files every page leans on and a
+  **version** for the whole. `totals()` says the cost in those same three
+  parts, because a group can be unticked and a sheet that had folded it into
+  "its text" would be taking back a number it had already given. An entry of
+  any of the three may carry **`urls`** instead of standing for one address:
+  then `url` is its NAME, what the phone remembers as kept and unkept, and
+  `urls` is what is fetched and freed (the notes are one row of forty
+  addresses; their recordings are one row of all of them).
+* **Every entry says what the phone may test about it** (the owner's decision
+  A, 2026-09-23). A file of at most `DIGEST_MAX` (8 MB) carries **`digest`**,
+  the SHA-256 of the very bytes the server will send, lowercase hex; anything
+  bigger carries none and is tested by its **length** alone, because WebCrypto
+  has no streaming digest and hashing a 228 MB narration on a phone would want
+  all of it in memory at once. The line falls by **size and not by kind**: a
+  26 kB recording carries a digest like any other small file. And an answer
+  the computer **composes as it sends** — a note's page from a template, a
+  deck's exercises with the scheduler's numbers riding in them, a stylesheet
+  written out of the language registry — has neither a digest nor a length
+  anybody can predict, and says so with **`check: "here"`**: the phone may
+  test that it HAS that answer and must test nothing else about it. Where such
+  an entry still carries a size, the size is what the owner is being asked to
+  spend and not a claim about the body.
+* **The digests are remembered** in `config/digests.json`, one file for the
+  whole machine, keyed by the file's own path and holding `{size, mtime,
+  sha256}` — the same pair `_stamp()` decides a version by, so the two can
+  never disagree about whether a file changed. Written atomically and
+  best-effort: what is lost when it cannot be written is the second call's
+  speed and never the digest. **Nothing is ever written inside a book's, a
+  video's or a deck's own folder**, which hold the owner's work and nothing of
+  ours.
+* **A book's reader is kept whole, and that means every address its parser
+  stops on.** `/lib/mt.js` is loaded as a parser-blocking script in the head
+  of every reader `lib/tex2html.py` builds, and it was in no list at all: with
+  the computer away the request missed every cache, the parser stopped where
+  it stood, and the page never reached its body — the owner's "all books do
+  not open while offline, loading stops at ~half", in all five of his books.
+  It is in `SHARED` now, and `tests/mobile_pages.mjs` reads the reader the
+  computer really sends and checks every `src` and stylesheet `href` in it
+  against the record. **`timings.json` goes with it too**: the reader replaces
+  the times baked into its pages with that file's, so without it a kept
+  narrated book played to its build-time timings and none of the owner's
+  corrections.
+* **Every shape of narration is found.** A book may declare `"narrations": [
+  {id, audio, transcript, from, to} ]`, or the older top-level `"audio"` and
+  `"transcript"`, or nothing at all with a sound sitting in `audio/` that no
+  `book.json` names. All three are asked of `lib/books.py`'s own
+  `Book.narrations` rather than read out of the metadata by hand, and the
+  fallback scan over `audio/` takes films as well as sounds — a fully narrated
+  book whose recording was `audio/audio.webm` was offered no recording at all
+  until 2026-09-23, because `.webm` is a film's extension.
+* **Keep on this phone** (`lib/keep.js`) sits in the row the page names with
+  `data-keep-slot` — the deck's actions, the document's toolbar; under ⋯ with
+  the rest of *This page* where a page names none. The slot's value is the
+  class that page dresses its own buttons in, so the buttons stand in the row
+  looking like the ones beside them. It says what the text costs, lists the
+  recordings to pick one by one — a narrated book is hundreds of megabytes,
+  and nobody wants all of it by surprise (the owner's choice) — and shows its
+  progress. Persistent storage is asked for as it starts.
+* **Kept, it is two buttons, not one** (the owner's choice, 2026-09-23), and
+  **they share one line, half each** (his 4 of the block after it): *Change
+  what is kept* and *Remove from this phone* divide the space the one button
+  used to have. Remove used to hang on a line of its own directly underneath —
+  under the thumb that had just reached for the other one — and a button that
+  throws three hundred megabytes away should not stand where the other one was
+  a moment ago. `.kp-btn` is the **wrapper** now and no longer either button:
+  it wears that name because every sheet places the one button by it
+  (`lib/mobile.css` gives `.kp-btn` its order in a reader's header and its own
+  full line), so the pair has to answer to it to stand where the button stood;
+  what `.kp-btn` used to draw is undrawn on it in `lib/parseh.css`. With
+  nothing kept the second is hidden and the first has the line to itself.
+* *Change what is kept* opens the same list with **what is on the phone**
+  ticked — **Save fetches what is ticked and frees what is not**, saying both
+  numbers ("fetches 180 MB, frees 240 MB"), and **asks once** before it frees
+  anything that is already here. A **Select all** and a **Clear all** stand
+  over the list, and **a finger drawn across the boxes** takes every one it
+  crosses: `touch-action: none` on the rows alone (`lib/parseh.css`), pointer
+  events with the pointer captured, and the sheet still scrolls from anywhere
+  else. The list is the computer's (`<thing>/__offline`), so with the computer
+  away the button says **— needs the computer** and does not open.
+* **A row is four fifths of the width and sits against the left** (the owner's
+  2, 2026-09-23: *"reduce the size of the rectangles by 20% and align them
+  left, so that part of the page is free to move the thumb and scroll without
+  issues"*). A row takes the drag away from the browser, which is what makes
+  the finger stroke above work — so with rows the whole width of the sheet, a
+  book with fifty narrations was a list nobody could scroll past: wherever the
+  thumb landed it was on a row. The clear strip down the right is what it
+  lands on now, and that strip scrolls. **It is the width that shrinks and
+  nothing else**: every row keeps its 48px, which is the one rule the mobile
+  interface does not trade.
+* **A recording's row says where it is in the book** (his 2 again: *"indicate
+  also chapters and section range that each narration covers in the rectangles
+  instead of only the range of paragraphs"*). The chapter and the section come
+  first, in the reader's own wording — *chapter 2 · Sustainability · Water
+  Resources*, or *chapters 1-6* where it runs across several — and the
+  paragraph addresses go **under** them, small and dim, for whoever knows the
+  book by those. The wording is the reader's because it is read the same way
+  the reader reads it: `texparse.parse_book` once per record,
+  `structure.plain` for the names, the section carried forward per chapter
+  file exactly as `lib/tex2html.py` carries `sec_now`, and the stretch located
+  with `texparse.region_bounds`, the function the narration pickers use. A
+  record made before any of this — an older computer answering a newer app —
+  has no `where`, and then the paragraphs stay on top, exactly as they were.
+* **A tick means the file is there AND whole** (the owner's 3, 2026-09-23:
+  *"the boxes should by default show the things that are actually kept in
+  memory, and there should be a check of this, it should actually look for the
+  file and check that the download was complete and correct"*). A box used to
+  be ticked because the address was a key in a cache — which a 503 kept by
+  mistake satisfies, and a page the computer sent where a picture was asked
+  for, and a fetch a tunnel cut in half. So *Change what is kept* asks the
+  worker `{check: id, want: [{url, bytes, digest, check}]}` and is answered
+  `{check: id, urls: [{url, here, whole}]}`, and **the boxes are ticked from
+  that and from nothing else**. `here` is whether the cache holds the address
+  at all, which is what says there is room to give back; `whole` is whether
+  the body passes — a refusal is never whole, an HTML body where a recording
+  or a picture was asked for is never whole, a digest must match where the
+  record gave one and a length where it did not, and an entry marked `check:
+  "here"` is asked nothing beyond being there. What was kept and is no longer
+  whole is **unticked and says so in its own row** (*kept, but no longer whole
+  — tick it to fetch it again*), with a line over the list saying which of the
+  two things will happen: a recording is his choice, and the text, the pages
+  and the notes are fetched again unasked because the thing does not open
+  without them. Ticking it again fetches it **whole**: that press carries
+  `renew`, so nothing passes over "what is already there" and reports success
+  on a broken copy — not the worker's `keep`, and not the page, which on a
+  book's background way (below) is what takes what the phone holds off the
+  list before it is handed over (`planOf`), and takes nothing off on a renew.
+  And what comes by that way is put away only once it has passed this same
+  `whole` (`arrived`).
+* **The worker** (`lib/sw.js`) keeps one cache per thing, `parseh-kept-<id>`,
+  and one for the shared files, and **fetches into them itself** (`keep`: one
+  message from the page, one loop here) — everything on the iPad and in
+  Firefox, and everything but a book everywhere. A book, where the page's
+  registration has the browser's own download, is fetched by the browser and
+  only **put away** here (`settle`, *Two ways of keeping a book* below).
+  **The kept copy answers first**, and the small
+  parts are fetched again behind the page so the next open has whatever the
+  computer changed. **A range asked of a kept recording is cut in the worker
+  and answered 206** — the Cache API knows nothing of ranges, and without this
+  a kept narration would play from 0:00 and refuse to be moved.
+* **What has no answer offline says so at once**: looking a word up, the
+  translation, the activity poll, every door that writes — and the notes of a
+  thing whose notes were **not** kept — are answered 503 with a line of JSON.
+  No dictionary and no translation model is kept on the phone (the owner's
+  choice, 2026-09-22). Where the notes **were** kept, they are read from the
+  phone like everything else that was kept (below).
+* **Knowing you are offline**: every page asks the computer quietly, and when
+  it cannot be reached wears an **offline** chip that opens `/m/kept/` — the
+  list of what is kept, what each takes, how much room is left, each openable
+  and each removable. The offline page is that list too, since the worker
+  keeps it. `<html data-parseh-away>` says the same thing to the page itself.
+* **And a page opens in the state the last one was in** (the owner's 5,
+  2026-09-23: *"when changing pages the app rechecks if it's offline and
+  assumes being online even if the page before showed being offline; good on
+  the check, but assume that the status is the same of the page previous …
+  and yes do the check and if the situation changes, correct, of course"*).
+  Every probe writes what it found to `localStorage` under **`parseh_away`**
+  (`{at, away}`), and the next page reads it before anything is drawn — so
+  walking from an offline hub into the shelf no longer gives three seconds of
+  a page pretending all is well: cards that could be tapped and went nowhere,
+  no chip, the counts the clock had made wrong still on the screen. **It is a
+  memory and it is treated as one**: it is not trusted past three minutes — a
+  phone picked up in the evening must not open on what it found at lunchtime —
+  and the probe behind it corrects it either way, which is the half he asked
+  to keep. Nothing writes it but the probe; a remembered state that stamped
+  itself afresh from page to page would never grow old at all. `decks.js`
+  reads the same key, so the deck pages start where the last page left off
+  too.
+
+### The notes come with the book or the video (2026-09-23, second block)
+
+Until that day the records here never walked a `markdown/` folder, so a kept
+book kept its text and its recordings and left every note behind: every seam
+on a train opened on nothing. The owner's decisions, and where each one lives:
+
+* **One tick, beside the recordings.** The keep sheet has a row of its own —
+  *its notes · 34 · about 280 kB* — which can be unticked, and is ticked to
+  begin with. It is a **group**: one row carrying every note's page, the
+  pictures in those notes, and the seams' list. *About*, and the sheet says
+  the word: a note's page is the same wrapper every time (measured off
+  `templates/note.html` and `doc.html`, so it cannot go stale) plus its own
+  `source.md`; the pictures are files and are weighed exactly. Nothing here is
+  rendered to answer a question about keeping — asking what a thing is made of
+  must not cost what reading it costs.
+* **The marks travel with them.** The reader draws a mark from
+  `<mount>/api/marks` and from nothing else, so a kept note whose list stayed
+  on the computer is a page nothing on the phone can reach. It is kept as a
+  **door** (`lib/sw.js` `isDoor`): the computer is asked first and the kept
+  copy stands behind it — which is also what makes a note written after the
+  book was kept show its mark the moment the phone is home.
+* **A note that holds an exercise keeps its full studio page**, because
+  without the studio's scripts an exercise is a box that cannot be answered;
+  that is why the bare address redirects at the desk, and away from the desk
+  it must open exactly as it does there. The scripts are paid **once for the
+  phone**: the document page links them at the studio's own address
+  (`{{STUDIO}}`), as the bare note page already did, and `lib/sw.js` puts
+  everything under a `static/` path in the **shared** cache.
+* **The studio's thirteen faces travel too**, once, 1.83 MB
+  (`markdown/app/static/fonts/`, read off the directory rather than off a
+  list). Nothing named them before — they are named only inside `url()` calls
+  in `sheet.css`, which nothing but a browser reads — so a kept *document*
+  already rendered in whatever face the phone had. This mends that as well.
+* **MathJax where there is a formula**, and at the address the page really
+  asks for: `<studio>/static/mathjax/tex-svg.js`, 2.1 MB, because the little
+  loader works the library's address out of its own `src`. Whether there is a
+  formula is asked of this toolbox's dialect (`]{math}`, `:::math`) and not of
+  `$`, which is an ordinary character here.
+* **A note's pictures come with the notes; its recordings do not.** They are
+  one row of their own in the heavy list, beside the narrations — *the notes'
+  recordings · 4 files · 12 MB* — so nothing heavy is ever kept by surprise.
+* **A note written, edited or deleted moves the thing's version**, so the
+  out-of-date bar offers it in one tap; and what the phone holds under a
+  thing's cache that the door no longer names is what the next *Save* gives
+  back, with the sheet saying how many first.
+* **Books and videos together**: `<book>/notes` and `/youtube/v/<id>/notes`
+  are the same mount served by the same routes, and the two records are one
+  shape. `serve.py`'s `notes_to_keep` gathers the list for both — the studio's
+  own knowledge of which notes there are and what each render holds stays in
+  the studio, because `lib/` must never import it.
+
+### Two ways of keeping a book: the browser's own download, and the worker's (2026-09-23)
+
+Keeping was one message to the worker and one loop there (`keep`), and
+Chromium stops a worker's event once it has run five minutes (driven: stopped
+at 310 s, the fetch in flight cut, no `catch` run and no `{kept}` sent) —
+which a narration of two hundred megabytes over a tunnel does not finish
+inside. So **a book goes by the browser's own download (Background Fetch)
+where the page's registration has one**: the browser finishes it, with the
+page closed and the worker stopped (driven) and, it is meant, with the phone
+locked (his phone's to show, below), and on Android it shows in a
+notification of its own, with its own Cancel. Everywhere else — the iPad,
+Firefox — **the worker keeps it exactly as it always did**, and that is not a
+lesser way: it is the whole feature there. The owner's decisions, and where
+each one lives:
+
+* **The page decides, per press** (`bgFor`, `lib/keep.js`): a book, and
+  `'backgroundFetch' in registration` — his own check — asked of the page's
+  own registration (`bgLook`: once when the page starts, with a deadline, and
+  again on `controllerchange`, since the first page after an install looks
+  before any worker is active; driven: a fresh phone's first keep went the
+  old way until this). **The page starts the downloads, not the worker**:
+  since Chrome 149 a worker may not start one at all (driven:
+  `NotAllowedError`, although `'backgroundFetch' in self.registration` is
+  still true there). Every keep of a book goes this way where it can — *Keep
+  it*, *Save* and *Keep it again*, and Chrome on a computer too. Videos,
+  decks and documents stay on the worker's way, and so does `decks.js`'s
+  `keepDeck`.
+* **Two downloads a press, the text first** (`bgKeep`): the text — the page,
+  the chapters, the pictures, the shared files, and the notes, which travel
+  with it — and then the recordings, the book's ticked ones and the
+  notes' together, so a book opens on a train as soon as its text is in. Both
+  are registered at the press, since the worker could not start the second;
+  one with nothing in it is not started, and a press with nothing left to
+  fetch answers at once. What the phone holds already is taken off the list
+  first, asked of the two caches the worker's `held` asks (`planOf`), because
+  a download cannot pass over a file. The ids are
+  `parseh-keep:<token>:<text|rec>:<thing id>`, and the notifications read
+  `<title> — its text, coming onto this phone` and `<title> — its
+  recordings, coming onto this phone`. The recordings' download carries
+  `downloadTotal`, the exact sum of their sizes, so that Android's bar counts
+  megabytes; where one size is not known the total is left out, since a total
+  too small leaves a download waiting for ever.
+* **A note for whoever finishes it** (the cache `parseh-jobs`). The download
+  may end with every page closed and a worker the browser has only just
+  woken, and a worker cannot write the registry (`parseh_kept` is
+  `localStorage`). So at the press the page writes a note at
+  `/__keepjob/<token>` — an address no page ever asks for — saying what the
+  thing is, which addresses each download holds, what each should weigh,
+  whether it is a first keep, and the registry entry to write when it is
+  done, with the version it was started on. The entry is made by the same
+  `entryOf` as a keep that ends in front of the page: two copies of that
+  shape would be two registries that drift. Each download's outcome goes
+  under `/__keepjob/<token>/<part>`, and the end under `…/end`. The notes are
+  read without making the cache, so a browser that never keeps in the
+  background — the iPad — is not left an empty one; and the book's own
+  `parseh-kept-` cache is made at the press, as `keep` makes it, so that a
+  book waiting behind another counts as kept to `reclaim` and the shared
+  files it was told it need not fetch are not swept away by another book's
+  Remove.
+* **The download ending is not the keep ending** (`settle`, `lib/sw.js`). The
+  browser wakes the worker with `backgroundfetchsuccess`, `…fail` or
+  `…abort`, and `settle` does what `keep` does, address by address. It writes
+  a *settling* note first — the browser stops this event after five minutes
+  as well, and a note still saying so long after is how a page tells — and
+  puts each answer that passes where `isShared` says. **A success is not
+  taken on trust**: a connection refused under the download can end in
+  "success" over an EMPTY body, status 200, with the file's own
+  Content-Length (driven, four ways), so each answer is measured before it is
+  put away (`arrived`: the body's size against its Content-Length, and then
+  the sheet's own `whole`, with what the record said the file weighs). A 404
+  or a 410 is a file the computer no longer has; a `QuotaExceededError` on a
+  put is no room, and every put after it is counted as the same fact rather
+  than tried. When every download of the press has settled (`finish`), the
+  end is written in the notes, `{kept}` goes to **every** page with the
+  keep's token — this event has no page to answer — and the notification's
+  last words are set (`updateUI`, which a Cancel does not allow):
+  `<title> is on this phone now`, `<title>: 3 of its files could not be
+  kept`, `<title>: no room on this phone`; and the text's, while the
+  recordings follow, `<title> — its text is on this phone; its recordings are
+  next`. A first keep that brought nothing leaves no empty cache behind. A tap
+  on the notification opens the book's reader, or brings it forward where it
+  is open (`backgroundfetchclick`).
+* **A keep that ends part-way keeps what arrived** (the owner). A Cancel on
+  **either** notification stops the whole keep, the other download of the
+  press as well (`stopOthers`: a worker may stop a download where it may not
+  start one). What came is written down, *Change what is kept* shows what did
+  not come unticked, and the line says which fact it was, each in its own
+  words (`keptLine`): `<title>: stopped from the notification — what had come
+  is on this phone`; `<title>: 2 of its files are no longer on the computer`;
+  `<title>: no room on this phone for 2 of its files`; and otherwise today's
+  *N of its files could not be kept — try again with the computer awake*. A
+  **first** keep cancelled before anything had come says `<title>: stopped
+  from the notification — nothing of it had come yet`, is **not** written
+  down, and its button reads *Keep on this phone* again.
+* **Written down by the next page that opens** (`bgMerge`, `written`,
+  `foot`). Whichever page of Parseh opens next writes the entry down — dated
+  when the keep finished, and never over a newer one (a *Save* since) — says
+  the line **once, at its foot**, in a bar with *OK* that stays until it is
+  put away (a toast gone in two seconds would be a line never read, about a
+  book that came while he was not looking), and clears the notes. *Kept on
+  this phone* and the offline page draw from the registry before
+  `lib/keep.js` could run, and the offline page has no script from anywhere,
+  so they do it themselves first (`MERGE_JS` in `lib/mobile.py`, which says
+  so with `parsehMerging`), and say the line under their list rather than in
+  that bar. A note whose downloads are gone and which has no end — the
+  putting-away cut off, or never run — is written down from what the caches
+  really hold (`interrupted`), and only once it has had a minute and no fresh
+  *settling* note says the worker is still at it.
+* **What the page says while it comes** (`bgFollow`, `keepingWords`). The
+  progress is counted in bytes, from the browser's own downloads against what
+  the note says the files weigh, and never goes backwards. **The page says
+  which way it is**: *Keeping… 43% — you can leave this page*, where the
+  worker's way reads *Keeping… 43%* as it always did. A second book waits
+  behind the first and says so — `Waiting for <first book> — you can leave
+  this page` — and starts by itself; a press that would not fit Android's
+  five downloads of one site is refused: *Two books are already coming onto
+  this phone — keep this one once one of them is in.* The computer going
+  quiet is waited out, and said — *Keeping… 43% — waiting for the computer*
+  — and the browser carries on by itself when it answers. A browser that
+  refuses (the site's permission, asked first, or the download refused as it
+  is asked for) is said plainly and nothing is fetched: *Chrome will not
+  download for Parseh in the background — turn on Automatic downloads for this
+  site in Chrome’s Site settings.* A download taken and not started yet is
+  **waited for**, never called a refusal (the owner, on second thought, the
+  same day): Chrome holds a new download while any page is loading and for
+  half a minute after, and on a computer for up to a minute after it starts —
+  driven here, where a rule that stopped a keep bringing no byte in thirty
+  seconds stopped three good keeps out of four that, left alone, arrived at
+  about sixty seconds. The same hold PAUSES a download already running when a
+  tab starts loading, until half a minute after it stops (read in Chromium's
+  source; not driven), so walking between Parseh's pages mid-download may
+  slow it. A recording that has grown on the computer since the list was
+  made is NOT failed by the browser: the download stops a little short of
+  the total it was given and waits there for ever (driven), which looks just
+  like a paused download or a quiet computer. So a page that is open looks
+  into a recordings download that has not moved for a minute: it asks the
+  computer what the book is made of now, and only if one of those recordings
+  is named at another size than the note has is the download stopped — what
+  had come stays (`grown`, D12). A page opened or reloaded while its book is
+  coming takes the keep up where it is (`bgResume`), and the out-of-date bar
+  waits until it has ended. A second tap on the press, or a press on a book
+  already coming — *Keep on this phone*, or a *Save* whose sheet was opened
+  before another tab pressed — takes that keep up rather than starting
+  another (`bgKeep`, `bgTakeUp`): nothing is freed, and what is written down
+  at its end is what that keep brought, never the second press's own picks.
+  Where those picks were not all in it, the press says so in the owner's
+  words (D20): `<title> was already coming onto this phone — change what is
+  kept once it is in`.
+  Save asks whether the browser will take it (`bgReady`) **before** it
+  frees what was unticked, so a refused Save gives nothing back; and Keep it
+  again that brings nothing leaves the registry at the version the phone
+  really holds, so the out-of-date bar still offers it.
+* **Remove, and Stop.** *Remove from this phone* while the book is coming —
+  from its page or from *Kept on this phone*, looked at when it is pressed —
+  stops it first and puts nothing of it away (`bgRemove`, `stopAll`): its notes say
+  `removed` **before** the downloads are stopped, so the `settle` the stop
+  wakes finds the word and keeps nothing, and takes out what a put already in
+  flight wrote (`thrownAway`). *Kept on this phone* lists a book still coming
+  — read from the browser's own list of downloads and the notes, never made
+  up, so the iPad's list is the one it always drew — as *coming — 43%*, with
+  **Stop** in place of Remove. Stop is what Cancel is: the whole keep stops,
+  what had come stays, and the line says where it was stopped —
+  `<title>: stopped on this phone — what had come is on this phone`, or
+  `— nothing of it had come yet`.
+* **The room it needs for a moment** (`roomFor`, `roomWords`; the background
+  way only). The browser holds a download until it has been put away in the
+  cache, so for a moment it is on the phone twice. The sheet asks the browser
+  what this site may still use (`navigator.storage.estimate()`, its quota
+  less its usage) and, where that is short of twice what will be fetched,
+  says so before anything starts — *Needs about 980 MB free while it
+  arrives; this phone has 600 MB* — and the press then reads *Keep it
+  anyway*; a tick changed afterwards asks again. The out-of-date bar asks the
+  same, with *Keep it anyway* and *Not now*. Where the browser says nothing,
+  nothing is said. The worker's way needs the room once, and its sheet is as
+  it was.
+* **Two things mended on both ways.** **The button says *Keeping… N%* until
+  the keep has ended** (`busy`): the probe repaints the page every twenty
+  seconds (`paintAway`), and a repaint with no state put the button back to
+  *Keep on this phone* in the middle of a keep — for the whole of a
+  narration, and live again under the thumb. And **an answer is taken only by
+  the keep it answers**: the background end goes to every page, so `tell()`
+  and `decks.js`'s `keepDeck` compare the id in `{kept}` with their own — a
+  deck waiting for its copy must not take a book's end for its own and check
+  itself out with its copy half made.
+
+**Both ways are driven on every run** of `tests/mobile_pages.mjs`. As
+launched, its Chromium has the background download, so a book is kept that
+way through every keep assertion the suite had; at its end the suite runs its
+parts *offline* and *checkout* again, by itself and only after the first run
+has closed (never at once), with `MOBILE_KEEP_WAY=worker` — the same Chromium
+launched with `--disable-blink-features=BackgroundFetch`, the API gone from
+the page and the worker alike, as on the iPad — through the very same
+assertions. **Which way a keep went is proven from outside the page's own
+words** (`keptWay`): the browser's own record of its background downloads
+(CDP's `BackgroundService`) and the notes in `parseh-jobs`, which a
+background keep leaves and clears; a keep that fell back quietly to the other
+way would otherwise pass every assertion. A deck is held to the worker's way
+even where the browser has the other. The part *background* drives what only
+that way has, with the computer stopped by SIGSTOP (a phone meets silence, not
+refusal) and the notification's Cancel made as the notification makes it, by
+the download's own abort; its scenarios are lettered, and
+`MOBILE_BG_ONLY=a,j` runs some of them alone:
+
+* (a) the page closed and the worker stopped mid-download, and the book still
+  arrives, each file in the cache it belongs in, written down by the next page
+  opened, its line said once;
+* (b) Cancel before anything had come, and (c) after the text had, the
+  recording then unticked in *Change what is kept*;
+* (d) a recording taken off the computer after the list was made;
+* (e) no room, the site's quota made really short, and (e2) the room warning,
+  with the browser's report made small in that one context — nothing else
+  makes `estimate()` say so;
+* (f) a second book waiting behind the first, and the first waiting for a
+  silent computer; (g) a page reloaded mid-keep taking it up;
+* (h) *coming — N%* and Stop on *Kept on this phone*; (i) Chrome refusing,
+  the permission denied; (i2) a Save refused that way gives nothing back;
+  and in (a), two taps at once start one keep;
+* (j) the phone's own kind of profile — an incognito one never resumes a
+  download — with the computer killed mid-recording and started again ten
+  seconds later: resumed, and whole.
+
+Waits on the caches are polled from outside the page (`until`): Playwright
+1.52's `waitForFunction` takes an async predicate's Promise for a yes and
+"passes" at once, which had made the suite's own *ticking it again fetches it
+again* wait vacuous; it is real now.
+
+**What only his phones can show** (TO-DO §19.11): Android's notification
+itself — its words, its Cancel and Pause, the tap that opens the book; a
+locked phone, and Doze; the installed app; his tunnel; the cookie of a phone
+let in at the Wi-Fi door, on a real phone's downloads; and the iPad's own
+WebKit — the suite drives the worker's way in Chromium with the API taken
+out, not in Safari. **And what was not driven here either** (TO-DO §19.14):
+the stop of a recording grown on the computer mid-download; the five-minute
+cap on `settle`; a new `sw.js` arriving mid-download; and a page opening in
+the moment between a download ending and the worker putting it away.
+
+### The app with the computer away (the owner's 1 and 2, 2026-09-23)
+
+The app used to stall on its own splash: its start address `/?mode=mobile`
+was in no cache, and the worker's `fetch` had no deadline, so a network that
+was up with a computer that was not — asleep, or a Tailscale peer down — left
+a socket that never settled and a `respondWith` that never resolved. Both are
+put right, and the rule is: **the usual pages open, and there is no "Parseh
+cannot be reached" page for them.**
+
+* **The way in is kept**, from one list the computer gives at `GET /__shell`
+  (`offline.shell()`): the hub at **both** its addresses — `caches.match`
+  tells `/` and `/?mode=mobile` apart, so the one answer is put under both —
+  `/m/books/`, `/m/videos/`, `/exercises/`, `/studio/`, `/m/kept/` and
+  `/m/offline/`, the two lists the library pages ask for rather than carry,
+  and every sheet and script they load with the toolbox's own faces (`SHARED`,
+  and the studio's own `STUDIO_FILES`) — the studio's thirteen faces apart,
+  which are `later` and are warmed only where they are wanted (below).
+* **It is kept AFTER the app is installed, not during** (TO-DO §0, the third
+  block of 2026-09-23). The worker's `install` event fetched the whole way in
+  — fifty-nine addresses, 3.26 MB, one after another inside `waitUntil` — and
+  a worker that grinds through three megabytes over a tunnel stays in the
+  installing state, which is a state **Chrome will not install a site from**:
+  the offer was accepted on the phone and no icon appeared. Install is back to
+  what it was before §19 — the two small pages that must open with the
+  computer away (`OWN`: `/m/offline/` and `/m/kept/`), `skipWaiting()` called
+  first of all — and neither `install` nor `activate` so much as reads the
+  shell.
+* **A page asks for the warming, by message**, once it is up and the computer
+  is known to be there: `{warm: 'way-in'}` is the pages, the two lists and the
+  files; `{warm: 'studio'}` is the faces. The worker reads `/__shell` when it
+  has not got the list, then fetches **one address at a time**, passing over
+  every address the shell's cache or the shared one holds already — asked of
+  the caches and not guessed from the address, by the same `held` that `keep`
+  asks with. A kept book's own cache is deliberately not among them: it leaves
+  when the book does, and the app shell must not be left pointing at a face
+  that went with somebody's book. So **asking is cheap**: a warm phone
+  settles the list without a single fetch, and a warming cut off partway
+  through (Chrome stops a worker whenever it likes) carries on where it
+  stopped the next time it is asked. `lib/keep.js` sends both — the way in on
+  every app page, the studio's faces on a studio or deck page and the moment a
+  note's mark is clicked — and sends neither in the browser mode or while the
+  computer is away: this is the app fetching its own pages.
+* **The studio's thirteen faces are `later`**, not `files` — 1.83 MB that a
+  studio PAGE needs to look like itself, which is not how anybody gets
+  anywhere. They are named by `studio_faces()` in the same one place as
+  everything else, kept by the same worker into the same cache, and no phone
+  fetches one until a page that needs it says so.
+* **And the app says how it is going** (the owner's decision, 2026-09-23: "I
+  want the warming not to be silent"). The worker tells every window
+  `{warming: {what, done, of}}` as it goes and `{warmed: {what, of}}` when it
+  has stopped working on that list; `done` counts addresses **settled**,
+  fetched or skipped. Any page may carry `[data-parseh-warm]`: while a warming
+  runs it reads *Getting ready — 41 of 59*, and a page that asked for nothing
+  shows nothing. The hub carries one and the line **goes** when there is
+  nothing left to say; the install page's says `stay`, because that page asks
+  somebody to wait until it is ready and a line that vanished would answer the
+  waiting with nothing. **It stands at the foot of the page, under the last
+  door, and not above them** (the owner's 1, 2026-09-23): a line that appears
+  and goes at the top pushed every door down and let them spring back a moment
+  later, under a thumb that was already reaching for one — and on a phone that
+  has everything already, which is most days, that is the whole of what he saw
+  of it.
+* **A shell page opens from the phone and is filled in.** It is answered from
+  the phone's copy at once; the worker reads it again behind the page and,
+  when what comes back differs, says so (`shellFresh`). `lib/keep.js` then
+  replaces the page's one list block in place — the block a page marks with
+  `data-shell-block` (`lib/mobile.py`), or the hub's `.m-doors`. `/m/kept/`
+  carries no such mark: that list is the phone's own. The two lists that are
+  asked for rather than carried go the other way round — the computer first,
+  under the same deadline, the phone's last copy behind it.
+* **What is not on this phone is drawn and cannot be tapped**, with a line
+  saying so — exactly as a book whose reader was never built already looks on
+  the shelf (`m-book m-off`). The phone knows what is kept from the
+  `parseh_kept` registry, and `lib/keep.js` undoes it the moment the computer
+  can be reached again.
+* **Counts the clock makes wrong are not shown** while the computer is away —
+  what is due, on the hub and on the decks. The lists stay; the numbers
+  nobody should act on go. A page marks its own with `data-clock-count`.
+* **`/m/offline/` is left for a navigation that is neither kept nor part of
+  the way in** ("Parseh cannot be reached", and *Try again* — a page that
+  stands alone, no stylesheet or script from anywhere).
+
+| Kind | Kept | Works offline | Still needs the computer |
+|---|---|---|---|
+| A book | the reader, its chapters, its pictures; the recordings picked; **its notes**, one tick, with their marks and their pictures — their recordings a row of their own | reading, the glosses, the narration with seeking, the reading place; **the notes in their seams**, and an exercise in one answerable | looking a word up, the translation, *Ask LLM*; writing or editing a note; the notes of a book kept with that row unticked |
+| A video | the page, the transcript, the glosses; a film on this machine; **its notes**, exactly as a book's | reading the transcript and its glosses; a local film plays; **the notes in the seams of the transcript** | a YouTube video itself (§18), looking a word up; writing or editing a note |
+| A deck | its three pages, **its exercises as the cram page renders them**, their pictures and recordings, and the studio's own sheets and scripts | **cramming** — an exercise shown, answered, and the next one; **studying, when the deck is checked out** (below) | adding or correcting an exercise; **studying a deck that was not taken out**, which says so at once rather than hanging |
+| A document | the page as the computer rendered it, its pictures, its recordings picked, **the faces it is set in** | reading it, and answering its exercises — **in the studio's own face**, which it was not until 2026-09-23 | editing it, building anything from it |
+
+### Studying offline: a deck is CHECKED OUT (§19.10)
+
+Studying writes — every rating changes a card's schedule — and a phone away
+from the computer cannot write there. Of the four ways out (merge, queue and
+replay, check out, two equal peers) the owner chose **check-out**, and this is
+what it means:
+
+* **Keeping a deck and taking it out are two things** (the owner's choice,
+  2026-09-23). *Keep on this phone* is the **copy** — the deck's pages, its
+  exercises and their media — which is what makes it open and be crammed with
+  the computer away. *Take it out* is the **right to study** it away, and it
+  is no use without the copy: where the deck is not kept, taking it out
+  **keeps it as part of the same press**, saying so while it does it;
+* **the exercises travel with the deck, always, under its one tick** (the
+  owner's decision B, 2026-09-23): their rendered HTML, their pictures and
+  their recordings, a few hundred kilobytes for a deck of a hundred — the same
+  order as the deck's own text — so there is nothing left to choose and
+  `media` is empty on purpose. Two things had to change for it to be possible
+  at all. **A service worker cannot cache a POST**: not "does not" — the Cache
+  API refuses a request whose method is anything but GET — and the cram page
+  asked for its exercises with a POST carrying the picked ids, so from the day
+  it did, a kept deck could never show one exercise away from the computer,
+  however faithfully its pages and scripts had been kept. That is the "loading
+  exercises…" the owner sat in front of in airplane mode. Beside the POST
+  there is now a **GET at the same address** (`GET …/cram`) which renders the
+  whole deck, nothing chosen and nothing in the address to vary, which is
+  exactly what makes it keepable: `lib/offline.py` names it in the record and
+  `static/decks.js` asks for it when the POST cannot be made or when the
+  computer is known to be away, taking the picks out of the whole deck here.
+  And **the media is read off the RENDERED html** — `src`, `href`, `data-src`,
+  `poster`, resolved back to files through the deck module's own `image_file`
+  and `audio_file` — instead of by a regex for markdown links over the
+  exercise's source, which matched nothing any exercise in this toolbox has
+  ever been written as and so kept not one of his recordings;
+* the phone's deck page offers **Take it out**. The computer hands over the
+  whole queue — every card that is due, in the order it would give them,
+  rendered as the learner sees them, each with the four interval labels **the
+  computer** worked out;
+* **while it is out the computer may only cram that deck.** Studying and
+  editing are refused, in a line saying which device has it and since when; a
+  second phone is refused as well. Cramming never schedules, so it is
+  untouched (§18);
+* the phone studies from that pack and keeps every answer. Whenever it can
+  reach the computer — opening any deck page, coming back online, or *Give it
+  back* — the answers are sent, and the computer **replays them in the order
+  they were given, through its own scheduler**;
+* the deck stays the phone's until **Give it back**, so it can be studied day
+  after day away from the desk without being taken out again. **Giving it back
+  leaves the kept copy alone**: coming home from a journey must not cost the
+  whole deck again the next time. *Remove from this phone* is what takes it
+  off — and it **refuses while the deck is out**, saying why, because what has
+  been answered here is nowhere else until it has gone home;
+* **Take it back**, on the computer, is for a phone that will not come home.
+  After it, that phone's answers are **refused and listed** on the deck, with
+  why — nothing is applied behind the learner's back, and nothing is dropped
+  in silence. The list is cleared when it has been read.
+
+**There is no scheduler on the phone, and none is needed.** The alternative
+that queued answers without ownership would have wanted a JavaScript port of
+`markdown/app/srs.py`, held equal to the Python by shared cases; a check-out
+does not, because only one place answers the deck at a time. The phone shows
+what the computer worked out; the computer schedules for real. One scheduler,
+no drift.
+
+The state lives in `checkout.json` beside the deck (`decks.checkout_of`,
+`checkout`, `give_back`, `take_back`, `answers_from`), and the doors are
+`POST …/checkout`, `…/return`, `…/takeback`, `…/answers`, `…/refused`.
 
 ## Parseh as an app
 
@@ -445,16 +1272,19 @@ phone trusts. Here:
   own.
 * **The service worker**, `lib/sw.js`, served at `/sw.js` so that its scope is
   the whole site, and registered by `lib/parseh.js` and the decks' `decks.js`
-  while the mode is mobile (on every page, which costs nothing). **It is not a
-  cache of the toolbox**: Parseh is a server on somebody's own computer, and
-  every page, book and recording comes from there, fresh, as without it. It
-  answers page loads only (navigations, `GET`), and only when the network
-  fails does it answer anything itself: the offline page, `/m/offline/`
-  (`mobile.offline_page()`: "Parseh cannot be reached", and *Try again* — a
-  page that stands alone, no stylesheet or script from anywhere), which it
-  keeps when it is installed. A recording and its ranges, a picture, an upload,
-  every call of an API goes by untouched. A new `VERSION` in it keeps the
-  offline page again and lets the old copy go.
+  while the mode is mobile (on every page, which costs nothing). It used to
+  keep nothing but the offline page; §19 reversed that, and *Kept on this
+  phone* below says what it holds now. What it keeps of **the app itself** is
+  the way in — the hub at `/` and at `/?mode=mobile`, the shelves, the two
+  libraries, `/m/kept/` and `/m/offline/`, with the sheets and scripts they
+  load — but **its install event fetches two small pages and nothing else**:
+  the way in is warmed afterwards, when a page that is open asks for it, and
+  the studio's faces when a page that needs them does (below, *The app with
+  the computer away*). An install event that fetched the whole shell is what
+  stopped the app installing at all. And **every navigation has a deadline** of about 2.5 seconds, so
+  that a computer which is unreachable rather than refusing does not leave the
+  app on its splash for ever. A new `APP`/`SHELL` name in it lets the old
+  copies go.
 * **Installing**, `/m/install/` (`mobile.install_page()`), from the mobile hub's
   *As an app* door (not drawn inside the app: `display-mode`). It says, live,
   where this phone stands — in the app already; a browser that installs nothing;
@@ -497,5 +1327,11 @@ migration, a hand-placed one left alone, and a real TLS server handing over the
 authority to a client that trusts nothing else. `tests/mobile_pages.mjs` (its
 part *app*) drives it: the app's address, Chromium's own verdict that the pages
 are installable (`Page.getInstallabilityErrors`: nothing but the test's
-incognito profile), the worker taking the pages over, the install page, and —
-the server stopped — the page that says so.
+incognito profile), the worker taking the pages over, **the app getting itself
+ready afterwards** — the page asking for the way in by itself, the hub counting
+the addresses as they come and saying nothing once they are all there, the
+studio's faces on no phone that has only installed the app and all thirteen of
+them the moment a note is opened — the install page, and — the server stopped —
+the page that says so. Its part *kept on this phone* waits for the worker's own
+*that list is done* before it stops the computer, since the way in is warmed
+now rather than installed.

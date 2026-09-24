@@ -1,7 +1,7 @@
 ---
 title: Taking videos away and bringing them back
 linkTitle: Downloads and backups
-weight: 12
+weight: 13
 description: A video's ⤓ bundle and its size, bringing one back with its refusals, the backup of the whole shelf, and the trash.
 ---
 
@@ -20,7 +20,7 @@ Parseh can install whole**. It holds a folder named after the video's id:
 | `video.json` | the title, the channel, the language… |
 | `annotations.json` | every phrase and its gloss |
 | `transcript.txt` | the transcript it was checked against |
-| `parts/*.json` | the answer an LLM gave, where there is one |
+| `parts/*.json` | the answer an LLM gave, on a video added before `parts/` was [retired](the-files.md#parts) |
 | `markdown/**` | the [notes](notes-in-the-seam.md), with their pictures and recordings (an `.svg` figure excepted: it stays on the machine it was drawn on) |
 | `waveform.json` | the picture of the sound, [where one was drawn](the-timings.md#the-picture-of-the-sound) |
 | `media.<ext>` | the film, for [a film on this machine](a-film-on-this-machine.md) |
@@ -86,7 +86,7 @@ What it refuses, and what each refusal means:
 | *this bundle carries '…', which is not a path inside it -- refused whole, and nothing was unpacked* | an entry that would land outside the video's folder |
 | *video.json language 'xx' is not a registry code (known: fa, ar, …)* | a language this toolbox has not got |
 | *parseh-bundle.json says the language is fr and video.json says en -- they must agree* | the manifest is checked against the files, not believed |
-| *check_annotations refuses this video (2 error(s)): …* | the video's own checker, in its own words — a draft's flag taken out before its last phrase was glossed, a hand-edited file |
+| *check_annotations refuses this video (2 error(s)): …* | the video's own checker, in its own words — a hand-edited file, most often. A phrase **half** glossed is not one of the reasons: the video is taken in, and the answer carries a note (*2 chunks half glossed -- kept, not refused: finish them in the player*). A phrase with nothing written in it is legal anywhere |
 | *… is already in the toolbox at youtube/videos/japanese/…, filed as Japanese, and this bundle is Chinese: it would go to … and leave the toolbox holding that name twice …* | the same id under another language: replacing cannot cross the two — move, rename or delete the one there first, as the sentence says |
 | *… is already in the toolbox, at youtube/videos/persian/…. Ticking replace overwrites its authored files with this bundle's.* | the one refusal with a way forward: the panel offers **replace** and **leave it** |
 

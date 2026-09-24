@@ -47,6 +47,7 @@ for p in (str(HERE), str(EXLEX), str(LIB), str(YT_LIB)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+import activity       # noqa: E402  the Working… list a long download reports on
 import audiofile      # noqa: E402
 import htmlgen        # noqa: E402
 import notes          # noqa: E402
@@ -58,6 +59,7 @@ import languages      # noqa: E402
 import anki_store     # noqa: E402
 import decks          # noqa: E402  the exercise decks (serve.py's hub reads it)
 import deckroutes     # noqa: E402  and their routes, mounted at /exercises
+import webexport      # noqa: E402  a document as one HTML page for a website (§8.38)
 # NOTE: `verify` (and its pymupdf dependency) is imported lazily inside
 # build_pdf, so the whole UI still starts when pymupdf is absent — only
 # PDF verification, not the library/editor/preview, needs it.
@@ -189,25 +191,30 @@ WEB_FONTS = [
 
 
 def ensure_web_fonts():
+    """Put every face the sheet names into static/fonts/, once.
+
+    THE SHIPPED COPY FIRST, whatever `how` says.  TeX Gyre Pagella and Heros
+    travel with the toolbox now (lib/fonts, under the GUST licence beside
+    them), so the studio is set in the faces it was designed for on a
+    machine with no TeX at all; asking TeX is what is left for a checkout
+    that has not got them."""
     fdir = STATIC / "fonts"
     fdir.mkdir(parents=True, exist_ok=True)
     for name, how in WEB_FONTS:
         dst = fdir / name
         if dst.exists():
             continue
-        if how is None:
-            for src in (EXLEX / "assets" / "fonts" / name, LIB_FONTS / name):
-                if src.exists():
-                    shutil.copy(src, dst)
-                    break
-        else:
-            if shutil.which(how) is None:
-                continue        # no TeX here: build_pdf() says so when it matters
+        shipped = [src for src in (EXLEX / "assets" / "fonts" / name, LIB_FONTS / name)
+                   if src.exists()]
+        if shipped:
+            shutil.copy(shipped[0], dst)
+        elif how is not None and shutil.which(how) is not None:
             r = subprocess.run([how, name],
                                capture_output=True, text=True)
             p = r.stdout.strip()
             if p and Path(p).exists():
                 shutil.copy(p, dst)
+        # else: no TeX here -- build_pdf() says so when it matters
 
 
 def ensure_build_env_async():
@@ -421,7 +428,24 @@ def build_pdf(doc_id, scale, size=texgen.DEFAULT_PRINT_SIZE, mono=False):
 
 def render_template(name, mapping):
     tpl = (TEMPLATES / name).read_text(encoding="utf-8")
-    mapping = dict(mapping, BASE=base())
+    # THE MOBILE INTERFACE (docs/mobile.md, TO-DO §4.3).  The library and a
+    # document carry both layouts, as the deck pages do: which is drawn is
+    # decided in the head, before anything is painted, by the same snippet --
+    # and the switch between them, and the tags that make the page part of
+    # the app, are the deck routes' too, so there is one of each in the
+    # toolbox rather than a copy per template.
+    # {{BASE}} IS THIS MOUNT, {{STUDIO}} IS THE STUDIO.  They are the same
+    # prefix on the studio's own pages and on the deck pages, and they part
+    # company under a notes mount: a note's own links (its edit page, its
+    # media, the deck it copies an exercise into) belong to the book it sits
+    # beside, but the studio's FILES -- one stylesheet, one script, one
+    # MathJax -- are the same bytes whichever book asked for them.  Written
+    # under each book's own prefix they were a separate download, and a
+    # separate cache entry, per book; written under the studio's they are
+    # fetched once for the whole shelf.
+    mapping = dict(mapping, BASE=base(), MODE_SCRIPT=deckroutes.MODE_SCRIPT,
+                   MODE_SWITCH=deckroutes.MODE_SWITCH, APP_HEAD=deckroutes.APP_HEAD,
+                   STUDIO=BASE)
     for k, v in mapping.items():
         tpl = tpl.replace("{{%s}}" % k, v)
     return tpl
@@ -694,6 +718,32 @@ def page_index(h):
     h.send_html(render_template("index.html", m))
 
 
+def api_doc_offline(h, doc_id):
+    """What this document is made of, as addresses (lib/offline.py, §19.8).
+
+    The studio renders a document on the server, so keeping one means keeping
+    the rendered PAGE -- nothing on a phone could render it -- with the
+    pictures it shows, its recordings to pick, and the studio's own sheets
+    and scripts.
+
+    TWO BASES, exactly as render_template hands the page {{BASE}} and
+    {{STUDIO}}.  The document itself belongs to THIS mount -- under a notes
+    mount that is the book or the video it sits beside -- but the studio's
+    FILES are the same bytes whichever book asked for them, and they answer
+    at the studio's own prefix.  Named under each book's prefix instead, a
+    phone keeping a note from the second book would download the sheet, the
+    script and MathJax all over again, which is the one thing the owner's
+    decision 3 forbids: the studio's scripts are paid once for the phone."""
+    import offline
+    rec = offline.document(store, doc_id, base(), BASE)
+    if rec is None:
+        return h.send_json({"ok": False, "error": "no such document"}, 404)
+    rec["ok"] = True
+    rec["shared"] = offline.shared()
+    rec.update(offline.totals(rec))
+    h.send_json(rec)
+
+
 def page_prompt(h):
     h.send_html(render_template("prompt.html", _lang_mapping(None)))
 
@@ -803,6 +853,74 @@ def page_doc(h, doc_id):
     h.send_html(render_template("doc.html", m))
 
 
+# The scale a target script is set at when nobody has said otherwise; the
+# same three numbers app.js's defaultScale gives, written here because the
+# bare note page has no app.js to ask.
+_FA_SCALE = {"latin": "1.0", "arabic": "1.52"}
+
+
+def page_note(h, doc_id):
+    """A NOTE, AND NOTHING ELSE: the rendered document on the studio's sheet,
+    with no editor and none of the studio's scripts (templates/note.html).
+
+    The document page is what a note used to open as, and it costs about
+    1.3 MB every time -- app.css, app.js, the exercise forms, the mode
+    switch, the keeping and explaining scripts, the activity poll -- for a
+    page that is read a dozen times in a session and written on almost
+    never.  This is the same document, rendered by the same renderer, on the
+    same sheet (static/sheet.css, which both pages link), and "open in the
+    studio" in its header is one click from the whole of it.
+
+    AN EXERCISE SENDS THE READER TO THE FULL PAGE INSTEAD.  Without the
+    studio's script an exercise is a box that cannot be answered, checked or
+    copied: nothing inert is ever shown, so a note that holds one is
+    redirected to the document page, which is what it always was.  The
+    question is asked of the RENDER (htmlgen's `exercises`) rather than of
+    the markdown, because only the render knows what a block became -- a
+    malformed exercise block is still an exercise box on the page.
+    """
+    meta, markdown = store.get(doc_id)
+    doc = htmlgen.render_document(markdown,
+                                  asset_base=base() + "/media/%s/" % doc_id,
+                                  docs=store.doc_index(),
+                                  deck_button=False)
+    if doc["exercises"]:
+        return h.send_bytes(b"", "text/plain; charset=utf-8", 302,
+                            {"Location": "%s/doc/%s" % (base(), doc_id)})
+    L = languages.get_or_default(doc["target"])
+    # MathJax only where there is maths.  Every renderer writes a formula as
+    # <span class="math" …> holding its own TeX, so a page that never draws
+    # one still says what it was; lib/mathjax.js is a small loader and the
+    # two megabytes behind it are fetched only once it finds something.
+    #
+    # BASE, NOT base(): the studio's own prefix, and not this note's mount.
+    # The loader works out where the heavy library is from its own src, so
+    # one linked under a book's prefix would go on to ask that book for
+    # tex-svg.js -- two megabytes fetched, and kept on a phone, once per
+    # book.  templates/doc.html names the same two addresses, so the bare
+    # note page and the document page share one copy of each (TO-DO §0).
+    maths = 'class="math' in doc["html"]
+    m = {
+        "DOC_ID": doc_id,
+        "TITLE": htmlgen.esc(meta.get("title") or doc_id),
+        "LANG": htmlgen.esc(doc["lang"] or "en"),
+        "TARGET": L.code,
+        "SCRIPT": htmlgen.esc(L.script or ""),
+        "FA_SCALE": _FA_SCALE.get(L.script, "1.2"),
+        "ARTICLE": doc["html"],
+        "STUDIO_DOC": "%s/doc/%s" % (base(), doc_id),
+        "MATH_HEAD": ('<link rel="stylesheet" href="%s/static/mathjax.css">'
+                      % BASE) if maths else "",
+        # typeset after the page is standing, and only then: this is the one
+        # thing the sheet cannot draw by itself
+        "MATH_FOOT": ('<script src="%s/static/mathjax.js"></script>\n'
+                      '<script>window.ParsehMath && '
+                      'ParsehMath.typeset(document.getElementById("sheet"));'
+                      '</script>' % BASE) if maths else "",
+    }
+    h.send_html(render_template("note.html", m))
+
+
 def page_edit(h, doc_id):
     # the renames the page has seen go with its text: its saves follow the
     # ones made after (store.save, `since`)
@@ -839,6 +957,27 @@ def serve_app_js(h):
                  {"Cache-Control": "no-cache"})
 
 
+def serve_app_css(h):
+    """The studio's sheet, and the chrome around it, under the one name.
+
+    static/sheet.css is the reading sheet on its own -- the faces, the
+    palette, the LaTeX-styled view -- split out so that the bare note page
+    can link it and nothing else (page_note).  static/app.css is the rest.
+
+    They are put back together HERE, rather than by an @import at the head
+    of app.css, so that /static/app.css goes on answering with exactly what
+    it always answered with.  Everything that ever asked for that address
+    keeps working untouched: the deck pages, a document kept on a phone (the
+    worker caches the answer, and an answer that named a second file would
+    have left that file uncached and the page blank), and every template
+    that links it.  Two files to write in, one address to ask for.
+    """
+    sheet = (STATIC / "sheet.css").read_text(encoding="utf-8")
+    chrome = (STATIC / "app.css").read_text(encoding="utf-8")
+    h.send_bytes((sheet + "\n" + chrome).encode("utf-8"),
+                 "text/css; charset=utf-8", 200, {"Cache-Control": "no-cache"})
+
+
 def serve_static(h, rel):
     rel = urllib.parse.unquote(rel)
     path = (STATIC / rel).resolve()
@@ -853,12 +992,44 @@ def serve_static(h, rel):
 # into a second directory at every start is two megabytes for nothing.  The
 # studio answers for them here so that it works the same whether it is
 # mounted in the toolbox (where /lib/ is the hub's) or run on its own.
+#
+# AND THEY ARE THE ONE THING HERE WORTH CACHING.  Everything else these
+# routes serve is somebody's work, which is why it goes out `no-cache` -- a
+# reload must show the edit.  MathJax is two megabytes of checkout that
+# change only when the checkout does, and it was being fetched afresh every
+# time a note with a formula was opened, which on a phone over a tunnel is
+# the whole wait.  serve.py grants the same day to /lib/mathjax/ for the
+# rest of the toolbox; this is that same exemption, for the copies the
+# studio (and every note beside a book) asks for under its own prefix.
+MATH_CACHE = "max-age=86400"
+
+
+def send_math(h, path, ctype):
+    """One of the MathJax files, with the day's cache on it.
+
+    Sent whole rather than through `send_file`, because the handler
+    answering may not be this module's: the toolbox runs these very routes
+    under its own prefixes (serve.py, _studio), and its `send_file` chooses
+    the header itself and takes no say in it.  `send_bytes` is the one
+    helper both handlers offer on the same terms, and nothing here is big
+    enough or seekable enough to want the other.
+
+    A file that is NOT there gets the ordinary 404, which is never kept: a
+    404 held for a day would outlive the file's arrival.
+    """
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return h.send_json({"error": "not found"}, 404)
+    h.send_bytes(data, ctype, 200, {"Cache-Control": MATH_CACHE})
+
+
 def serve_math_js(h, _m=None):
-    h.send_file(LIB / "mathjax.js", inline_type="text/javascript")
+    send_math(h, LIB / "mathjax.js", "text/javascript; charset=utf-8")
 
 
 def serve_math_css(h, _m=None):
-    h.send_file(LIB / "mathjax.css", inline_type="text/css")
+    send_math(h, LIB / "mathjax.css", "text/css; charset=utf-8")
 
 
 def serve_math_lib(h, rel):
@@ -866,7 +1037,7 @@ def serve_math_lib(h, rel):
     path = (LIB / "mathjax" / rel).resolve()
     if not str(path).startswith(str((LIB / "mathjax").resolve())):
         return h.send_json({"error": "forbidden"}, 403)
-    h.send_file(path, inline_type="text/javascript")
+    send_math(h, path, "text/javascript; charset=utf-8")
 
 
 def serve_pdf(h, doc_id):
@@ -893,6 +1064,15 @@ def serve_download(h, doc_id, kind):
         # library's upload takes back
         return h.send_bytes(store.doc_zip(doc_id, slug), "application/zip", 200,
                             {"Content-Disposition": 'attachment; filename="%s.zip"' % slug})
+    if kind == "html":
+        # ONE PAGE FOR A WEBSITE (TO-DO §8.38): the document as it reads,
+        # with its exercises working, its pictures and recordings inside it,
+        # and nothing of its Markdown -- webexport says what goes in and why
+        _meta, markdown = store.get(doc_id)
+        name, data = webexport.document_html(doc_id, meta, markdown, _doc_file(doc_id))
+        return h.send_bytes(data, "text/html; charset=utf-8", 200,
+                            {"Content-Disposition": webexport.disposition(name),
+                             "Cache-Control": "no-store"})
     d = store.doc_dir(doc_id)
     files = {
         "md": (d / "source.md", slug + ".md"),
@@ -901,6 +1081,28 @@ def serve_download(h, doc_id, kind):
     }
     path, name = files[kind]
     h.send_file(path, download_name=name)
+
+
+def _doc_file(doc_id):
+    """The file on disk a document's Markdown names (`images/cat.png`,
+    `audio/word.mp3`), or None -- what the HTML export carries into the page
+    (webexport).  A PDF figure is shown through its SVG twin, built here when
+    it is missing, as the media route builds it (serve_media)."""
+    def find(path):
+        kind, _, name = (path or "").partition("/")
+        try:
+            if kind == "images":
+                p = store.image_path(doc_id, name)
+                if not p.exists() and name.lower().endswith(".pdf.svg"):
+                    store.ensure_pdf_twin(p.with_name(p.name[:-4]))
+            elif kind == "audio":
+                p = store.audio_path(doc_id, name)
+            else:
+                return None
+        except (KeyError, ValueError, OSError):
+            return None
+        return p if p.is_file() else None
+    return find
 
 
 # ----------------------------------------------------------------------
@@ -1653,6 +1855,16 @@ def api_status(h):
 
 
 def api_export(h):
+    """The whole library as one zip.
+
+    A large library says so WHILE IT PACKS, on the Working… list: the
+    Backup button is a plain link, so the answer goes to the browser and
+    there is no page left to write on, and the list is what every page of
+    the toolbox shows while a download is being made.  Nothing is refused
+    here -- the restore's ceilings are far above it (store.LIB_MAX_*) -- but
+    a library growing towards them should be noticed long before."""
+    act = getattr(h, "_act", None)     # this request's Working… entry, in Parseh
+    files = raw = told = 0
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for f in sorted(store.lib().rglob("*")):
@@ -1665,6 +1877,14 @@ def api_export(h):
             if "build" in rel.parts and f.name != "main.pdf":
                 continue
             zf.write(f, str(rel))
+            files, raw = files + 1, raw + f.stat().st_size
+            # said once on crossing, then as it keeps growing: the figures
+            # are what is worth watching, not the crossing
+            if act and (files > store.LIB_WARN_FILES or raw > store.LIB_WARN_BYTES) \
+                    and (not told or files - told >= 500):
+                told = files
+                activity.relabel(act, store.big_backup_note(
+                    "The backup of the studio library", files, raw))
     name = "exlex-library-%s.zip" % time.strftime("%Y%m%d-%H%M")
     h.send_bytes(buf.getvalue(), "application/zip", 200,
                  {"Content-Disposition": 'attachment; filename="%s"' % name})
@@ -1869,10 +2089,19 @@ ROUTES = [
     ("GET",    r"^/new$",                                 page_new),
     ("GET",    r"^/prompt$",                              page_prompt),
     ("GET",    r"^/doc/([a-z0-9\-]+)$",                   page_doc),
+    # the same document with no editor and no scripts, for a note opened
+    # over a reader or a player (page_note)
+    ("GET",    r"^/note/([a-z0-9\-]+)$",                  page_note),
+    # what a document is made of, for a phone to keep (§19.3, §19.8)
+    ("GET",    r"^/doc/([a-z0-9\-]+)/__offline$",         api_doc_offline),
     ("GET",    r"^/doc/([a-z0-9\-]+)/edit$",              page_edit),
     ("GET",    r"^/pdf/([a-z0-9\-]+)$",                   serve_pdf),
-    ("GET",    r"^/download/([a-z0-9\-]+)/(md|tex|pdf|zip)$", serve_download),
+    ("GET",    r"^/download/([a-z0-9\-]+)/(md|tex|pdf|zip|html)$", serve_download),
     ("GET",    r"^/static/langs\.css$",                   serve_langs_css),
+    # the sheet and the chrome, put back together under the name every page
+    # already links (serve_app_css); static/sheet.css is served as it is, by
+    # the general static route below, for the bare note page
+    ("GET",    r"^/static/app\.css$",                     serve_app_css),
     ("GET",    r"^/static/app\.js$",                      serve_app_js),
     ("GET",    r"^/static/mathjax\.js$",                  serve_math_js),
     ("GET",    r"^/static/mathjax\.css$",                 serve_math_css),

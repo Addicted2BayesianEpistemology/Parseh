@@ -171,6 +171,18 @@ for st in {store, serve.studio.store}:
     st.set_clips_dir(tmp / "tray")
 decks.set_dir(tmp / "exercises")
 decks.set_clips_dir(tmp / "tray")
+# WHAT THIS MACHINE KEEPS, into the temporary tree (lib/prefs.py, and
+# lib/network.py since the network settings): a suite must never read the
+# owner's own reading places, theme or network doors -- nor write them, which
+# is what happened here: a suite turned the theme to dark in the real
+# config/prefs.json and every page of the next suite opened dark.
+import prefs
+import network
+prefs.STORE = str(tmp / "config" / "prefs.json")
+network.STORE = str(tmp / "config" / "network.json")
+import offline  # the phone-keeping memories (lib/offline.py) too
+offline.DIGESTS = str(tmp / "config" / "digests.json")
+offline.WHERES = str(tmp / "config" / "wheres.json")
 serve.ROOT = str(tmp / "root")
 serve._AtRoot.directory = str(tmp / "root")
 ytpages.VIDEOS = str(tmp / "root" / "youtube" / "videos")

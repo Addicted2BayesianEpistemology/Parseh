@@ -12,6 +12,12 @@
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
 <!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
 <link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
+<!-- "?": on a touch screen, every button's explanation is one tap away
+     (lib/explain.js, TO-DO §4.7); it draws nothing where a mouse hovers -->
+<script src="/lib/explain.js" defer></script>
+<!-- keeping this on the phone, and the chip that says the computer cannot be
+     reached (lib/keep.js, TO-DO §19.2, §19.5) -->
+<script src="/lib/keep.js" defer></script>
 </head>
 <body data-page="cram" data-base="{{BASE}}" data-studio="{{STUDIO}}" data-target="{{TARGET}}">
 <header class="topbar" data-layout="browser">
@@ -38,6 +44,13 @@
   <article id="cram-stage" class="sheet dk-sheet" data-lang="{{TARGET}}">
     <p class="pv-status">Loading exercises…</p>
   </article>
+  <!-- WHAT CANNOT BE DONE HERE, AND WHAT CAN (decks.js sayInstead, TO-DO
+       §19.9).  The exercises are rendered by the computer, so a phone that
+       cannot reach it shows what it kept -- and where it kept nothing, this
+       says so and says what would mend it, in the place of the exercise.
+       Before today it said nothing at all: the page sat on "Loading
+       exercises…" until it was closed (the owner's 8, 2026-09-23). -->
+  <div id="cram-cannot" class="dk-done" hidden></div>
   <div id="cram-result" class="dk-result" role="status" hidden></div>
   <section id="cram-solution" class="dk-solution" aria-labelledby="cram-solution-head" hidden>
     <h2 id="cram-solution-head" class="dk-solution-head">Correct answer</h2>
@@ -49,6 +62,12 @@
     <button type="button" class="btn big" id="cram-wrong" hidden>Wrong</button>
     <button type="button" class="btn primary big" id="cram-correct" hidden>Correct</button>
     <button type="button" class="btn big" id="cram-next" hidden>Next exercise</button>
+    <!-- THE SCROLL STRIP (docs/mobile.md, TO-DO §4.16): held sideways, these
+         buttons stand in a column down the right, and a long exercise had to be
+         scrolled by reaching back across the screen.  A finger dragged on the
+         empty stretch between the buttons scrolls the exercise instead -- the
+         buttons do not move, and a tap on one is still a tap (decks.js). -->
+    <div class="dk-strip" data-layout="mobile" aria-hidden="true"><span class="dk-grip"></span></div>
     <span class="dk-grow"></span>
     <button type="button" class="btn" id="cram-skip"
             title="Leave it unanswered: it does not come back in this practice, and the end names it among the skipped">Skip</button>
@@ -85,6 +104,8 @@
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
 <script src="{{STUDIO}}/static/app.js"></script>
+<!-- the exercise form, for ✎ Edit (static/exform.js, TO-DO §4.8) -->
+<script src="{{STUDIO}}/static/exform.js"></script>
 <script src="{{STUDIO}}/static/decks.js"></script>
 </body>
 </html>

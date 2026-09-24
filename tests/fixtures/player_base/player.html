@@ -1,0 +1,345 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en" data-lang="__LANG__" data-dir="__LANG_DIR__"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__ — __APP__ videos</title>
+<link rel="stylesheet" href="/lib/parseh.css">
+<link rel="stylesheet" href="__BASE__/lib/style.css">
+<link rel="stylesheet" href="/lib/langs.css">
+<script src="/lib/parseh.js"></script>
+<script src="/lib/wordline.js"></script>
+<script src="/lib/llm.js"></script>
+<script src="/lib/mt.js"></script>
+<link rel="stylesheet" href="/lib/decomposition.css">
+<script src="/lib/decomposition.js"></script>
+<!-- the card kit, shared with the book reader: the cut editor that gives a
+     card its sound, and a card for an exercise deck or as markdown -->
+<link rel="stylesheet" href="/lib/cardkit.css">
+<script src="/lib/cardkit.js"></script>
+<!-- the timeline, shared with the book reader: where one caption stops
+     being said and the next starts, moved over a picture of the sound -->
+<link rel="stylesheet" href="/lib/timeline.css">
+<script src="/lib/timeline.js"></script>
+</head><body>
+<!-- The page's chrome is English and left-to-right whatever the video
+     speaks, so <html> keeps lang="en" and no dir; the language of the
+     CONTENT is data-lang (which /lib/langs.css turns into the font token
+     --tl-font) and data-dir, and every element that holds target text --
+     the title, the transcript lines, the dashboard's fields -- sets its
+     own lang and dir attributes, the script filling them from
+     window.YTFRANK.lang (the registry record the server embeds below).
+     The GLOSS is a second language and gets the same treatment from
+     window.YTFRANK.gloss: an Italian learning English reads the meanings
+     in Italian, and an Arabic one reads them right to left inside this
+     left-to-right form, which only a dir of their own can do. -->
+<header>
+  <a class="home glyph" href="/" title="__APP__ — the hub">ش</a>
+  <a class="home" href="__BASE__/c/__CHANSLUG__/" title="__CHANNEL__: all its videos">▤</a>
+  <!-- the whole video as one zip -- annotations, transcript, parts and
+       video.json -- to hand to another Parseh, which installs it through
+       /youtube/api/upload.  Beside the channel link because it addresses
+       this video as a thing, not the view of it; written out rather than
+       relative ("__download" beside the page) because the player answers
+       at /v/<id> as well as at /v/<id>/, and from the address without the
+       slash a relative link would ask for /youtube/v/__download. -->
+  <a class="home" id="dl" href="__BASE__/v/__ID__/__download"
+     title="download this video as a bundle: one zip another Parseh can install">⤓</a>
+  <span class="ttl">
+    <bdi class="fa-ttl" lang="__LANG__" dir="__LANG_DIR__">__TITLE_NATIVE__</bdi>
+    <span class="lat" title="__TITLE__ — __CHANNEL__">__TITLE__ — __CHANNEL__</span>
+    <!-- video.json's "draft" flag, read by the script: a video still being
+         written says so, because that is what a chunk with no gloss on it
+         means here (and what the checker is forgiving) -->
+    <span id="draft" class="badge" hidden
+      title="this video is still being written: a phrase nobody has glossed yet is still yours to fill in, and the checker forgives it">draft</span>
+  </span>
+  <button id="vidinfo" title="edit the title, the channel and the other details this video is filed under">video info</button>
+  <!-- where each caption starts, moved over a picture of the sound: the
+       transcript editor of the add page does this before a video is added,
+       and this is the one door that does it afterwards (youtube/lib/captimes.py) -->
+  <button id="captimes" title="move where each caption starts, by ear">the timings</button>
+  <span class="sp"></span>
+  <span id="pos"></span>
+  <button id="follow" title="keep the playing caption in view">follow</button>
+  <button id="hoverpause" title="pause the video while a gloss is open">hover&nbsp;⏸</button>
+  <button id="dictmode" hidden title="look the words of an unglossed phrase up in a dictionary">dictionary</button>
+  <!-- only where the dictionary defines its words in their own language
+       (English's): its definitions, and the definitions translated; the
+       script names the second after the gloss language -->
+  <button id="defmode" hidden disabled>definitions</button>
+  <button id="defmt" hidden disabled>translated</button>
+  <!-- only a language divided into words (Japanese, Chinese) shows it; the
+       script names it after the reading (kana, pinyin) -->
+  <button id="aloud" hidden title="the reading alone, each chunk as it is said">reading</button>
+  <a id="lookupset" href="/lookup/" title="get a dictionary for this language, to look words up where nothing is glossed">reading help</a>
+  <button id="sbs" title="put the video beside the transcript instead of above it">◫&nbsp;side</button>
+  <button id="pin" title="keep the video pinned while scrolling">pin</button>
+  <button id="theme" data-parseh-theme title="theme: light / dark / sepia">◐</button>
+  <button id="typo" title="text size and margins">Aa</button>
+  <button id="stop" data-parseh-stop title="stop the server">⏻</button>
+</header>
+
+<div id="playerwrap"><div id="vid">
+  <div id="yt"></div>
+  <div id="novid" hidden>the video needs an internet connection —<br>
+    the transcript below still works</div>
+</div>
+<div id="grip" title="drag to resize the video — double-click to reset"></div>
+</div>
+
+<main>
+  <p class="hint">Hover a phrase for its gloss — transliteration, vocabulary,
+  meaning, the way the reading editions set them. Click a sentence to replay
+  the video from its beginning; the greyed lines around the spoken one are
+  its context and stay hoverable too. <b>Shift-click a phrase to copy it</b>
+  (the whole caption, if you shift-click beside one; the cloud has a copy
+  button too). <b>Alt-click (or Ctrl-click) a word</b> to turn the text into a
+  card — or use the “+ card” button inside any gloss cloud for the
+  whole phrase. The card goes to an Anki deck, to one of your exercise decks,
+  or onto the clipboard as markdown for a studio document. It can carry the
+  word's own sound, cut with “🔊 cut the audio…”: from the film, for a film on
+  this machine; from a recording of this tab, for a YouTube video in Chrome or
+  Edge.
+  The cloud is where a phrase is <b>written</b> too: the four
+  dots mark it in the reading editions' own colours, and <b>✎ edit</b> opens
+  its fields — the text, the transliteration, the vocabulary, the meaning —
+  and saves them into this video's annotations.</p>
+  <div id="segs"><p class="hint">loading the annotations…</p></div>
+</main>
+
+<div id="cloud" hidden></div>
+
+<div id="ntback" hidden></div>
+<div id="ntbox" hidden>
+  <div class="ahead"><span id="nttitle">note</span><span class="sp"></span>
+    <button type="button" id="ntedit" title="write this note">edit</button>
+    <button type="button" id="ntread" hidden title="read it as it renders">read</button>
+    <button type="button" id="ntclose" title="close (Esc)">&#10005;</button></div>
+  <iframe id="ntframe" title="a note beside this video"></iframe>
+</div>
+
+<div id="dvback" hidden></div>
+<form id="dvbox" hidden autocomplete="off">
+  <div class="ahead"><span id="dvtitle"></span><span class="sp"></span>
+    <button type="button" id="dvcancel" title="close (Esc)">&#10005;</button></div>
+  <div id="dvwhere"></div>
+  <div id="dvpair"></div>
+  <div id="dvnotes"></div>
+  <div class="arow afoot"><span class="alab"></span>
+    <div class="actl">
+      <button type="button" id="dvdo">divide</button>
+      <span id="dvstat"></span>
+    </div></div>
+</form>
+
+<div id="ankiback" hidden></div>
+<form id="anki" hidden autocomplete="off">
+  <!-- the head names the card the destination below makes: an anki card, an
+       exercise card or card markdown (the book reader's sheet does the same) -->
+  <div class="ahead"><span id="ahtitle">anki card</span> <span id="atime"></span><span class="sp"></span>
+    <button type="button" id="acancel" title="close (Esc)">✕</button></div>
+  <!-- WHERE THE CARD GOES, remembered (localStorage yt_card_target): a note
+       in an Anki deck, as it always was; an exercise in one of this toolbox's
+       exercise decks; or the card as studio markdown on the clipboard.  The
+       same fields make all three -- the rows below that one of them has no
+       use for are hidden by the script -->
+  <div class="arow"><span class="alab">to</span>
+    <div class="actl">
+      <div class="atarget" role="group" aria-label="where the card goes">
+        <button type="button" id="atanki" class="on" aria-pressed="true"
+          title="a note in one of your Anki decks, built into an .apkg">Anki</button>
+        <button type="button" id="atdeck" aria-pressed="false"
+          title="an exercise in one of the exercise decks, studied on its deck page">exercise deck</button>
+        <button type="button" id="atmd" aria-pressed="false"
+          title="the card as studio markdown, put on the clipboard to paste into a document or a deck">markdown</button>
+      </div>
+      <div class="anote" id="atnote" hidden></div>
+    </div></div>
+  <div class="arow" id="adeckrow">
+    <label class="alab" for="adeck">deck</label>
+    <div class="actl">
+      <select id="adeck"></select>
+      <input id="adecknew" placeholder="name the new deck (use :: to nest)" hidden>
+    </div>
+  </div>
+  <div class="arow"><span class="alab">type</span>
+    <div class="actl akind">
+      <button type="button" id="akvocab" class="on">vocabulary</button>
+      <button type="button" id="akopp">opposites</button>
+      <!-- an exercise deck's and the studio's own card, which Anki has no
+           note type for: four fields of any studio markdown -->
+      <button type="button" id="akjolly" hidden
+        title="a card of four fields of studio markdown: front and back, each a main text and a smaller one">jolly</button>
+    </div></div>
+  <!-- the jolly card's four fields, prefilled from the word when jolly is
+       picked.  A recording cut or a frame captured while it is on goes into
+       the box the cursor was last in, typed in or not (the back's main text
+       until one has been) -->
+  <div id="ajollyrow" hidden>
+    <div class="arow"><label class="alab" for="ajfp" title="the front: its main text">front</label>
+      <div class="actl"><textarea id="ajfp" rows="2" dir="auto" placeholder="the front's main text"></textarea></div></div>
+    <div class="arow"><label class="alab" for="ajfs" title="the front: the smaller text under it">front, small</label>
+      <div class="actl"><textarea id="ajfs" rows="2" dir="auto" placeholder="smaller text under it (optional)"></textarea></div></div>
+    <div class="arow"><label class="alab" for="ajbp" title="the back: its main text">back</label>
+      <div class="actl"><textarea id="ajbp" rows="2" dir="auto" placeholder="the back's main text"></textarea></div></div>
+    <div class="arow"><label class="alab" for="ajbs" title="the back: the smaller text under it">back, small</label>
+      <div class="actl"><textarea id="ajbs" rows="2" dir="auto" placeholder="smaller text under it (optional)"></textarea>
+        <div class="anote">Any studio markdown: paragraphs, lists, tables,
+          &gt; boxes, pictures, recordings. A side needs one of its two. A recording
+          cut or a frame captured below goes into the box the cursor was last in
+          (the back's main text until one has been).</div></div></div>
+  </div>
+  <!-- the first field is the target language's: its label, lang and dir are
+       filled by the script from the language record (dir only when RTL) -->
+  <div class="arow" id="afarow"><label class="alab" for="afa" id="afalab">__LANG_NAME__</label>
+    <div class="actl"><textarea id="afa" lang="__LANG__" rows="1"></textarea></div></div>
+  <!-- the reading row exists only for a language with a reading (kana) -->
+  <div class="arow" id="akanarow" hidden><label class="alab" for="akana">reading</label>
+    <div class="actl"><input id="akana" lang="__LANG__"></div></div>
+  <div class="arow" id="atrrow"><label class="alab" for="atr">translit.</label>
+    <div class="actl"><input id="atr"></div></div>
+  <!-- the meaning: written in the video's GLOSS language, so the label, the
+       lang and the dir are that language's and the script fills all three
+       (an RTL meaning in this left-to-right form is why the dir is set at
+       all).  It falls back to "meaning" when the two languages are the
+       same -- an English video glossed in English would otherwise label
+       two different fields "english" and neither label would say which was
+       which -- and "meaning" is what the gloss cloud and the reading
+       editions' sheet call the field. -->
+  <div class="arow" id="aenrow"><label class="alab" for="aen" id="aenlab">meaning</label>
+    <div class="actl"><textarea id="aen" rows="2"></textarea></div></div>
+  <div class="arow" id="actxrow"><label class="alab" for="actx">context</label>
+    <div class="actl"><textarea id="actx" lang="__LANG__" rows="2"></textarea></div></div>
+  <div class="arow" id="aopprow" hidden><label class="alab" for="aopp">opposite</label>
+    <div class="actl">
+      <textarea id="aopp" lang="__LANG__" rows="1" placeholder="…the opposite, written by you"></textarea>
+      <input id="aoppkana" lang="__LANG__" placeholder="its reading (kana)" hidden>
+      <input id="aopptr" placeholder="its transliteration (optional)">
+    </div></div>
+  <div class="arow" id="anotesrow"><label class="alab" for="anotes">notes</label>
+    <div class="actl"><textarea id="anotes" rows="3"></textarea></div></div>
+  <!-- Anki's alone: an exercise has no tags -->
+  <div class="arow" id="atagsrow"><label class="alab" for="atags">tags</label>
+    <div class="actl"><input id="atags"></div></div>
+  <div class="arow" id="asrcrow"><label class="alab" for="asrc">source</label>
+    <div class="actl"><input id="asrc"></div></div>
+  <div class="arow" id="adirrow"><span class="alab">direction</span>
+    <div class="actl adir" id="adir">
+      <button type="button" class="dbtn on" data-dir="both" title="two cards: __LANG_NAME__ → __GLOSS_NAME__ and __GLOSS_NAME__ → __LANG_NAME__">⇄ both</button>
+      <button type="button" class="dbtn" data-dir="forward" id="adirfwd" title="one card: __LANG_NAME__ → __GLOSS_NAME__">→ __LANG_NAME__ → __GLOSS_NAME__</button>
+      <button type="button" class="dbtn" data-dir="reverse" id="adirrev" title="one card: __GLOSS_NAME__ → __LANG_NAME__ — for a meaning whose __LANG_NAME__ side lists several words, each asked separately by its own forward-only card">← __GLOSS_NAME__ → __LANG_NAME__ only</button>
+    </div></div>
+  <div class="arow"><span class="alab">frame</span>
+    <div class="actl">
+      <button type="button" id="ashot">📷 capture the current frame</button>
+      <div id="ashotprev" hidden>
+        <img id="ashotimg" alt="captured frame">
+        <div class="ashotside">
+          <label class="ashotpick"><input type="radio" name="aside" value="front"> on the __LANG_NAME__ side</label>
+          <label class="ashotpick"><input type="radio" name="aside" value="back" checked> on the __GLOSS_NAME__ side</label>
+          <span class="ajollyinto" hidden>in the jolly box the cursor was last in (the back's main text until one has been)</span>
+          <button type="button" id="ashotdel">remove</button>
+        </div>
+      </div>
+      <div class="anote" id="ashothint" hidden>works in any browser on any of
+        the toolbox's https addresses (the browser asked you once about the
+        certificate — that was it). In Chrome pick “This Tab”; in Firefox
+        share this browser window (or the screen) and keep the player
+        visible — two coloured dots flash on the video's corners while the
+        capture finds the exact video area. Sharing stays on, so later
+        captures are instant, and in Chrome and Edge the same share lets
+        “cut the audio…” record a YouTube video's sound (leave “Also allow
+        tab audio” on). A paused video rolls in muted from ~5 seconds
+        before the moment — YouTube keeps its overlay up that long — so the
+        controls fade out of the shot, and it freezes back on the exact
+        frame</div>
+    </div>
+  </div>
+  <!-- THE CARD'S SOUND: the stretch of the video the card is about, cut into
+       the clip tray by the card kit's editor (lib/cardkit.js), which opens
+       with its edges already where the word is likely to be.  A film on this
+       machine is cut by the server; a YouTube video's sound reaches no script,
+       so the editor first records this tab as the stretch plays (Chrome and
+       Edge, on the share the frame capture uses too).  The script disables the
+       button, saying why, wherever neither can be done -->
+  <div class="arow" id="asndrow"><span class="alab">recording</span>
+    <div class="actl">
+      <button type="button" id="asnd">🔊 cut the audio…</button>
+      <!-- why the button is disabled, said under it too: a phone shows no title -->
+      <div class="anote" id="asndwhy" hidden></div>
+      <div id="asndprev" hidden>
+        <audio id="asndaudio" controls preload="metadata"></audio>
+        <div class="ashotside">
+          <code id="asndname"></code>
+          <span class="asndside ashotside" id="asndsides">
+            <label class="asndpick"><input type="radio" name="asndside" value="front" checked> on the __LANG_NAME__ side</label>
+            <label class="asndpick"><input type="radio" name="asndside" value="back"> on the __GLOSS_NAME__ side</label>
+          </span>
+          <span class="ajollyinto" hidden>in the jolly box the cursor was last in (the back's main text until one has been)</span>
+          <button type="button" id="asnddel">remove</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="arow afoot"><span class="alab"></span>
+    <div class="actl">
+      <button type="button" id="asave"><span id="asavelab">save card</span> <span class="kbd">Ctrl+↵</span></button>
+      <button type="button" id="apreview" title="how the finished card will look in Anki, both directions">preview card</button>
+      <button type="button" id="abuild" title="build the deck's .apkg and download it">build .apkg</button>
+      <a id="async" href="/anki/sync/" target="_blank" title="edited these cards inside Anki? pull those edits home before you build, or building will overwrite them">&#8646; synced lately?</a>
+      <!-- a deck's warnings each on a line of their own -->
+      <span id="astat" role="status" style="white-space:pre-line"></span>
+    </div></div>
+  <!-- the markdown, where the clipboard could not be reached: to copy by hand -->
+  <div class="arow" id="amdrow" hidden><label class="alab" for="amdout">markdown</label>
+    <div class="actl"><textarea id="amdout" rows="8" readonly></textarea>
+      <div class="anote">the clipboard could not be reached: select this and copy it</div></div></div>
+  <div class="arow" id="apvrow" hidden>
+    <span class="alab">preview</span>
+    <div class="actl">
+      <iframe id="apvframe" sandbox="allow-same-origin" title="card preview"></iframe>
+      <div class="anote"><span id="apvnote">rendered with the very templates and styles the
+        .apkg carries — the line is where Anki flips to the answer</span>
+        <button type="button" id="apvhide">hide</button></div>
+    </div>
+  </div>
+</form>
+<div id="vmback" hidden></div>
+<form id="vmbox" hidden autocomplete="off">
+  <div class="ahead">video info<span class="sp"></span>
+    <button type="button" id="vmcancel" title="close (Esc)">&#10005;</button></div>
+  <div class="arow"><label class="alab" for="vmtitle">title</label>
+    <div class="actl"><input id="vmtitle"></div></div>
+  <div class="arow"><label class="alab" for="vmtitlenative" id="vmtnlab">__LANG_NAME__</label>
+    <div class="actl"><input id="vmtitlenative" lang="__LANG__" dir="__LANG_DIR__"></div></div>
+  <div class="arow"><label class="alab" for="vmchannel">channel</label>
+    <div class="actl"><input id="vmchannel"></div></div>
+  <div class="arow"><span class="alab">level</span>
+    <div class="actl"><select id="vmlevel">
+      <option value="">unset</option>
+      <option value="beginner">beginner</option>
+      <option value="lower-intermediate">lower-intermediate</option>
+      <option value="intermediate">intermediate</option>
+      <option value="upper-intermediate">upper-intermediate</option>
+      <option value="advanced">advanced</option>
+    </select></div></div>
+  <div class="arow"><label class="alab" for="vmblurb">blurb</label>
+    <div class="actl"><textarea id="vmblurb" rows="2"></textarea></div></div>
+  <div class="arow" id="vmreordersrow"><span class="alab">order</span>
+    <div class="actl"><label><input type="checkbox" id="vmreorders" style="width:auto;margin:0 .4em 0 0;vertical-align:middle">
+      read out of its written order (kanbun)</label>
+      <div class="anote">each chunk's reading is then not its words' readings
+        in a row, and the two are no longer compared</div></div></div>
+  <div class="arow afoot"><span class="alab"></span>
+    <div class="actl">
+      <button type="button" id="vmsave">save <span class="kbd">Ctrl+&#8629;</span></button>
+      <span id="vmstat"></span>
+    </div></div>
+</form>
+
+<!-- {id, ann: the annotations.json under videos/<folder>/<id>/, lang: the
+     language record from lib/languages.json} -- filled by ytpages.player_page -->
+<script>window.YTFRANK=__YTFRANK__</script>
+<script src="__BASE__/lib/player.js"></script>
+</body></html>

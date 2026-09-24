@@ -1,7 +1,7 @@
 ---
 title: Notes between the captions
 linkTitle: Notes between captions
-weight: 9
+weight: 10
 description: A studio document written into the seam between two captions — writing one, reading one, where it says it sits, and where it lives.
 ---
 
@@ -41,6 +41,26 @@ The sheet's bar has the title, **edit** (the note in the editor), **read**
 (back to the note as it renders) and **✕**. Esc, the ✕, or a click on the
 darkened page around it closes it; the marks are then drawn again, in case
 the title changed.
+
+**It opens at once.** What the sheet shows is the note on the studio's own
+sheet — the same face, colours and marks — with no editor and no scripts
+behind it, and the player fetches the notes of the captions around you
+before you ask for one, so a mark opens instantly even over a slow tunnel.
+**Open in the studio**, in the sheet's bar, is there when the full page is
+wanted; a note that **holds an exercise** opens that full page straight
+away, so nothing that cannot be answered is ever put in front of you.
+
+**They come with the video onto a phone.** *Keep on this phone* lists them as
+one line of its own — *its notes · 12 · about 96 kB* — ticked to begin with,
+and unticked with a tap where you would rather not have them. Kept, the marks
+are in the seams of the transcript and the notes open with the computer away,
+in the studio's own face and colours; one that holds an **exercise** can be
+answered there as it can at the desk. The **pictures** in them come along;
+their **recordings** are a line of their own beside the film, so nothing heavy
+is kept by surprise. A note written at the desk afterwards shows its mark as
+soon as the two can reach each other, and the video says it is out of date so
+the note itself is one tap away
+([Browser and Mobile](../getting-started/mobile-mode.md)).
 
 **Rest the pointer on a mark first, and it says what the note is.** After a
 third of a second — so that sweeping across a seam on the way to a phrase
@@ -87,10 +107,11 @@ note names a caption that is no longer in the video — open it and change
 its anchor line*. That is where somebody will look for it.
 
 > **After moving a caption's start.** [The timings](the-timings.md) move
-> a caption's start in the video's files, but a note anchored to that
-> caption keeps its old number and comes adrift at the end. Open it and put
-> the caption's new start in its anchor line, in seconds — the time you gave
-> it in the timings, where `0:12.50` is `12.5` here.
+> a caption's start in the video's files *and* in the anchor line of every
+> note anchored to it, so a note you have not touched stays where you put
+> it. A note comes adrift only when somebody writes an anchor by hand for a
+> caption that is not there. The number is seconds — the time the timings
+> gave it, where `0:12.50` is `12.5` here.
 
 ## Where notes live
 

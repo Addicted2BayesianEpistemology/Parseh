@@ -420,11 +420,6 @@ def card(b):
     st = stats(b)
     L = b.lang
     tags = []
-    # a book.json still saying "draft" is one somebody is in the middle of
-    # writing: the first thing to know about it, because it is why its
-    # glosses are blank and why the checker forgives them
-    if b.meta.get("draft"):
-        tags.append('<span class="tag on">draft</span>')
     if st.get("built"):
         tags.append('<span class="tag">%s chapters</span>'
                     % len(st.get("chapters", [])))

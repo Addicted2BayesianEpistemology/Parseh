@@ -48,6 +48,18 @@ def say_report(report, where, quiet=False):
                  report.media, "" if report.media == 1 else "s", where,
                  len(report.warnings), "" if len(report.warnings) == 1 else "s",
                  len(report.errors), "" if len(report.errors) == 1 else "s"))
+    # WHAT THIS COMPILE DID NOT WRITE, AND DID NOT DELETE EITHER.  A compile
+    # carries over whatever the site had that it cannot make itself -- the
+    # PDF of a machine with no TeX, say -- rather than deleting it (site.py's
+    # _keep_whatever_it_had).  Said here, because a file in site/ that no
+    # compile wrote is otherwise a small mystery; and NOT counted as a
+    # warning, since --strict would then fail a machine for doing the right
+    # thing.
+    if getattr(report, "kept", None):
+        few = report.kept[:4]
+        print("kept from the site that was there (this compile did not write them): %s%s"
+              % (", ".join(few),
+                 "" if len(report.kept) <= len(few) else ", and %d more" % (len(report.kept) - len(few))))
 
 
 # What --pages leaves in the folder it lays out, and the one thing that lets

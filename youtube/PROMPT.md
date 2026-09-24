@@ -3,7 +3,7 @@
 *(Copy everything below into a Claude session opened in the project root,
 then paste the video URL, its language, and the timed transcript after it.
 The short way, for any LLM without the project, is the **Add a video** page
-at `https://localhost:8765/youtube/add/` — it uses `docs/chat-prompt.md`,
+at `https://localhost:7654/youtube/add/` — it uses `docs/chat-prompt.md`,
 the same conventions, and checks the answer with the same tools.)*
 
 ---
@@ -14,7 +14,7 @@ You are annotating a YouTube video for the Frank-method video player in
 no file outside it holds one, so read the entry for the code, its folder and
 what the language asks of a chunk) and a timed transcript (copied from
 YouTube's "Show transcript" panel). Produce the files that make the video
-playable at `https://localhost:8765/youtube/v/<id>/`. Do not modify the
+playable at `https://localhost:7654/youtube/v/<id>/`. Do not modify the
 player, the server, other videos' directories, or anything outside
 `youtube/videos/<folder>/<id>/` (plus a word list under `youtube/docs/`,
 if the video needs one).
@@ -158,7 +158,16 @@ python3 ../lib/fill_words.py --lang ja --json videos/<folder>/<id>/parts/01.json
 python3 lib/check_part.py videos/<folder>/<id> parts/01.json   # after each batch
 python3 lib/merge_parts.py videos/<folder>/<id>                # parts -> annotations.json
 python3 lib/check_annotations.py videos/<folder>/<id>          # must end:  0 error(s)
+rm -r videos/<folder>/<id>/parts                              # the batches have done their job
 ```
+
+`parts/` lives only while a video is being added. Once `merge_parts.py` has
+folded the batches into `annotations.json` and the checker has passed on it,
+delete them: `annotations.json` is the video's only annotation from then on,
+the player writes it, and a folder left behind is a second, older copy that
+a merge run again would quietly put back. The add page does this for you.
+`merge_parts.py` will not rebuild over an `annotations.json` newer than the
+batches — it says which captions and which fields that would have lost.
 
 `check_part.py` checks one batch on its own, before the rest of the video
 exists — run it after every batch and fix until it prints `0 error(s)`, while
@@ -168,7 +177,7 @@ the transliteration where the language wants one; the kana where it has a
 reading). The fidelity test strips the language's marks (harakat) from both
 sides, so it cannot see a vocalisation mistake: reread your own batch once
 after the mechanical checks pass. Then reload (nothing to restart: pages are
-assembled per request) and confirm `https://localhost:8765/youtube/v/<id>/`
+assembled per request) and confirm `https://localhost:7654/youtube/v/<id>/`
 renders and the captions highlight in time with the video.
 
 ## What good looks like

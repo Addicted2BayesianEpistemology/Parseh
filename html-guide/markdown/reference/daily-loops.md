@@ -13,7 +13,7 @@ the map.
 
 1. Start Parseh: `./serve.sh` on Linux, a double-click on
    **Parseh.command** on a Mac, on **serve.bat** on Windows.
-2. Open `https://localhost:8765/` — or, from a phone or another computer
+2. Open `https://localhost:7654/` — or, from a phone or another computer
    on your network, the address Parseh printed when it started. The first
    time, each browser warns about the certificate: accept it once.
 3. On the hub, pick your language's chip: every door then opens on that
@@ -113,6 +113,22 @@ the map.
 4. **Let an LLM do it outside**: the page gives you the recipe for a
    working folder and the prompt that sets the work going, batch by
    batch, and the command that brings the finished book back.
+
+## Glossing with an LLM
+
+1. In a book's reader, **gloss with an LLM** in the header (or **gloss
+   around here with an LLM…** in a chunk's sheet); in a video's player,
+   **gloss with an LLM** in the bar, then a click on the first caption and
+   one on the last.
+2. Pick the stretch, and **copy the prompt**. Paste it into any chatbot.
+3. Paste its whole reply into **the LLM's answer** and press **fill from
+   the answer**. Only chunks nobody has glossed are filled; the report says
+   what was filled, kept and dropped.
+4. A gloss you want written again: **delete gloss** in its sheet or ✎
+   form first, then copy the prompt.
+
+See [Glossing a stretch with an LLM](../books/glossing-with-an-llm.md) and
+[Glossing captions with an LLM](../videos/glossing-with-an-llm.md).
 
 ## Writing one yourself, in the files
 

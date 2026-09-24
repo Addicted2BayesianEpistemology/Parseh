@@ -1,7 +1,7 @@
 ---
 title: Cram mode
 weight: 7
-description: Practising a chosen set of exercises in random order until each is right — without touching their schedule.
+description: Practising a chosen set of exercises in random order until each is right — without touching their schedule — and the same as one HTML page for a website.
 ---
 
 Studying follows the scheduler: it shows what is due, and nothing else.
@@ -94,3 +94,37 @@ Browse, then choose Cram exercises.*
 
 The two go well together: study every day, and cram a lesson's exercises on
 the evening before you need them.
+
+## As a page for a website {#as-a-page-for-a-website}
+
+**Export selected to HTML**, beside **Cram exercises** on the deck's page,
+makes the selected exercises **one HTML file that crams them**, for
+students who have no Parseh: put it on your class's website, or send it.
+Select the exercises (the button is dimmed while nothing is selected) and
+press it. The file downloads, named after the deck
+(`persian-practice.html`), and a message says how many went: *12 exercises
+exported: persian-practice.html*.
+
+The page is this cram page, less the way back to a deck that is not there:
+
+- the exercises in random order, one at a time, with **Check**, **Show
+  answer**, **Wrong** and **Correct**, and **Skip**; a wrong answer comes
+  back at the end;
+- *Practice complete*, its tally and its two lists, each exercise opening
+  solved, **Cram these again** and **Shuffle and repeat**;
+- their pictures and recordings inside the file, and their formulas; a
+  recording played only in part is cut down to that stretch where ffmpeg is
+  installed;
+- **Aa**, for the size of the text and the theme, and at its foot *This
+  page was exported from Parseh*, with links to Parseh on GitHub and to this
+  guide.
+
+Only the exercises go into it, as they are shown: not their Markdown, their
+tags or their history. It schedules nothing, and the deck is not touched.
+Like a document's page for a website, it keeps nothing and sends nothing:
+what a student does on it is forgotten when the tab closes.
+[A page for a website](../studio/web-page.md) says the rest, which is the
+same for both.
+
+The button is in the Browser layout of the deck's page only
+([Browser and Mobile](../getting-started/mobile-mode.md)).

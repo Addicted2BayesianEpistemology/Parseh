@@ -124,12 +124,8 @@
   function hoverPointer() { return HOVER_OK && !touchNow; }
   var segs = [];          // [{start, text, chunks:[{fa,tr,voc,en,note}]}]
   var els = [];           // the .seg elements, same order
-  // video.json's flag: a video still being written.  It changes one thing
-  // here -- a chunk nobody has glossed yet is still a phrase, hoverable
-  // and writable, because it is the very chunk the author came to fill in.
-  var draft = false;
-  // and its "reorders": a text read out of its written order (kanbun), whose
-  // words the word strip does not compare with the chunk's reading
+  // video.json's "reorders": a text read out of its written order (kanbun),
+  // whose words the word strip does not compare with the chunk's reading
   var reorders = false;
   var player = null, ready = false, active = -1;
   var lastUserScroll = 0;
@@ -178,8 +174,20 @@
   // page stays stacked whatever the setting says, and the CSS agrees (the
   // layout lives inside the same media query).
   var WIDE = '(min-width: 860px)';
+  // A PHONE HELD SIDEWAYS is the other case, and there it is not a setting:
+  // the owner asked for the video at the left and the transcript at the right
+  // whenever the phone is turned, with the divider between them draggable
+  // (TO-DO §4.2, 2026-09-22).  844px is a phone's long side, under the 860
+  // a window needs, so the mobile mode has a threshold of its own, and
+  // lib/mobile.css carries the layout for it.
+  var WIDE_M = '(orientation: landscape) and (min-width: 600px)';
+  function mobileMode() {
+    return document.documentElement.getAttribute('data-mode') === 'mobile';
+  }
   function sideOn() {
-    return opts.sbs && window.matchMedia && window.matchMedia(WIDE).matches;
+    if (!window.matchMedia) return false;
+    if (mobileMode()) return window.matchMedia(WIDE_M).matches;
+    return opts.sbs && window.matchMedia(WIDE).matches;
   }
   // the theme (light / dark / sepia) is the toolbox's own, one preference
   // for every page: /lib/parseh.js keeps it and wires the ◐ button
@@ -199,7 +207,8 @@
     $('#aloud').classList.toggle('on', opts.aloud);
     document.body.classList.toggle('aloud', aloudOn());
     document.body.classList.toggle('nopin', !opts.pin);
-    document.body.classList.toggle('sbs', opts.sbs);
+    // in the mobile mode the phone's own orientation decides it
+    document.body.classList.toggle('sbs', mobileMode() ? sideOn() : opts.sbs);
     // beside the text the video is always in view, so pinning has nothing
     // left to decide -- say so rather than leaving a dead button
     $('#pin').disabled = sideOn();
@@ -276,11 +285,21 @@
     });
     refillCloud();
   };
+  // EVERY LOOKUP GOES THROUGH THE ONE ASK THAT CANNOT HANG (lib/parseh.js,
+  // `ask`).  A bare fetch towards a computer on the far side of a tunnel
+  // that has gone is not refused, it is swallowed: the cloud said "looking
+  // it up\u2026" for ever, and a video opened away never grew its dictionary
+  // button at all.  Watched beside the one cheap question "is anybody
+  // there?" rather than timed, so an honestly slow answer is still waited
+  // for.  Without lib/parseh.js on the page it is a plain fetch, as before.
+  function pAsk(u, i) {
+    return (window.Parseh && Parseh.ask) ? Parseh.ask(u, i) : fetch(u, i);
+  }
   // Ask once whether it has anything behind it.  A button nobody can use is
   // a button that should not be there, so it stays hidden until the server
   // says otherwise -- which for a toolbox with no dictionary is never, and
   // the player is then exactly the player it was.
-  fetch('/youtube/api/lookup', {
+  pAsk('/youtube/api/lookup', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ video: CFG.id, about: 1 })
   }).then(function (r) { return r.json(); }).then(function (j) {
@@ -601,9 +620,14 @@
     if (ch.voc) h += '<div class="voc"' + GATTRS + '>' + glossHTML(ch.voc) + '</div>';
     if (ch.en) h += '<div class="en"' + GATTRS + '>' + glossHTML(ch.en) + '</div>';
     if (ch.note) h += '<div class="note"' + GATTRS + '>' + glossHTML(ch.note) + '</div>';
-    // a draft's chunk before anybody has written on it: say so, rather than
-    // opening a cloud that looks broken
-    if (!(ch.tr || ch.voc || ch.en || ch.note || (L.reading && ch.kana))) {
+    // a chunk nobody has glossed yet -- a phrase all the same, hoverable and
+    // writable (segEl() says why): say so, rather than opening a cloud that
+    // looks broken.  THE GLOSS ALONE decides, as it does for the checker
+    // (check_annotations.unwritten) and for "delete gloss" (hasGloss, below):
+    // a note is the author's aside and no gloss, and a phrase whose gloss has
+    // just been deleted keeps its note -- whose cloud showed that note alone,
+    // reading as if it were the meaning, with nothing to say the gloss was gone
+    if (!hasGloss(ch)) {
       h += '<div class="unwritten">nothing glossed yet</div>';
       // NOTHING SET UP AT ALL, and the reader is looking at an empty phrase:
       // this is the moment they want to know the feature exists, so say so
@@ -975,7 +999,7 @@
       more.type = 'button'; more.className = 'dmore'; more.textContent = 'Load more';
       more.onclick = function () {
         more.disabled = true; more.textContent = 'Loading…';
-        fetch('/youtube/api/lookup', {
+        pAsk('/youtube/api/lookup', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(withLine({video: CFG.id, text: (ch && ch.fa) || '',
             sentence: (sg && sg.text) || '', corpus_only: true,
@@ -1025,7 +1049,7 @@
     var sentence = (sg && sg.text) || '', key = dictKey(text, sentence, lineOf(ch));
     if (DICT.cache[key]) { dictFill(box, DICT.cache[key], ch, sg); return; }
     box.innerHTML = '<div class="dwait">looking it up…</div>';
-    fetch('/youtube/api/lookup', {
+    pAsk('/youtube/api/lookup', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(withSenses(withLine({ video: CFG.id, text: text, sentence: sentence }, ch)))
     }).then(function (r) { return r.json(); }).then(function (j) {
@@ -1131,23 +1155,25 @@
     if (PRE.busy || cloudFor || editing) return;
     if (Date.now() - PRE.touched < 1500) return;
     var batch = preSentences();
-    if (batch) { PRE.busy = true; batch.then(function () { PRE.busy = false; }); return; }
+    if (batch) { PRE.busy = true; batch.then(function () { PRE.busy = false; },
+                                             function () { PRE.busy = false; }); return; }
     if (!PRE.queue.length) PRE.queue = preTargets();
     var t = PRE.queue.shift();
     if (!t) {
       // every lookup ahead is in: what their definitions say, in one call
       var defs = preDefinitions();
-      if (defs) { PRE.busy = true; defs.then(function () { PRE.busy = false; }); }
+      if (defs) { PRE.busy = true; defs.then(function () { PRE.busy = false; },
+                                             function () { PRE.busy = false; }); }
       return;
     }
     PRE.busy = true;
-    preOne(t).then(function () { PRE.busy = false; });
+    preOne(t).then(function () { PRE.busy = false; }, function () { PRE.busy = false; });
   }
   function preStart() { if (!PRE.timer) PRE.timer = setInterval(prePump, 900); }
 
   /* ---------------- writing a phrase ----------------
      The three numbers the edit endpoint wants are already in the page: the
-     video is CFG.id, the caption's element carries the index render() gave
+     video is CFG.id, the caption's element carries the index segEl() gave
      it (data-i) and the phrase carries its own within the caption (data-j,
      which is the chunk's number in annotations.json).  So nothing new is
      remembered anywhere -- the coordinates are read back off the DOM at the
@@ -1177,8 +1203,13 @@
      half-written -- and that sentence is what the reader has to see: it
      names the rule that stopped him, where "failed" would name nothing.
      A refusal writes nothing at all, so the page and the file still agree
-     and the form can simply stay open with the text in it. */
-  function post(fields, after) {
+     and the form can simply stay open with the text in it.
+     `said` is what the cloud says once it is written -- "saved ✓" unless the
+     caller names it (a deleted gloss says so).  `done` runs on EVERY success,
+     before `after` and whether or not the cloud is still on this phrase: what
+     the page must remember about a write it made (a deleted gloss) cannot
+     depend on where the pointer went while it was on its way. */
+  function post(fields, after, said, done) {
     var at = coords();
     if (!at) return;
     stat('saving…');
@@ -1195,13 +1226,24 @@
       var ch = at.ch, now = res.chunk_now || {};
       Object.keys(ch).forEach(function (k) { delete ch[k]; });
       Object.keys(now).forEach(function (k) { ch[k] = now[k]; });
+      // AND THE CAPTION'S TEXT, which the page keeps apart from its chunks:
+      // a phrase marked free takes its caption's text with it, the server
+      // rewrites that text, and the shift-click copy of the caption, the
+      // dictionary's sentence, "ask an LLM" and the timings all read it
+      // from here -- they went on reading the old text until a reload
+      if (typeof res.text === 'string' && at.sg === segs[at.si]) at.sg.text = res.text;
+      // the file has just changed under any prompt the LLM panel is holding
+      // for a copy by hand -- a gloss deleted here would go out in it again,
+      // old words and all, and come back filled (rgForget, below)
+      rgForget();
+      if (done) done(ch);
       paintWords(at.w, ch);
       paintCol(at.w, ch);
       // the answer may arrive after the pointer has moved to the next
       // phrase, whose cloud must not be told about this one
       if (cloudFor !== at.w) return;
       if (after) after(ch);
-      stat('saved ✓');
+      stat(said || 'saved ✓');
     }).catch(function (e) {
       // a refusal is never dropped, though: it names the rule the edit
       // broke, so a cloud that has moved on comes back to the phrase the
@@ -1386,6 +1428,13 @@
     h += '</div></div>';                  // .emain, .ebody
     h += '<div class="mkrow"><button type="button" class="esave">save' +
          ' <span class="kbd">Ctrl+↵</span></button>' +
+         // its own button, beside save and never in the hover cloud: taking a
+         // gloss off is a distinct thing from saving one (paintDel below
+         // hides, greys and offers the undo)
+         '<button type="button" class="edel" title="' + esc(DEL_TITLE) +
+         '">delete gloss</button>' +
+         '<button type="button" class="eundo" hidden title="write the deleted ' +
+         'gloss back">undo delete</button>' +
          '<button type="button" class="edv" data-dv="split" title="cut this ' +
          'phrase in two">✂ cut in two</button>' +
          '<button type="button" class="edv" data-dv="next" title="join this ' +
@@ -1400,6 +1449,7 @@
     cloud.innerHTML = h + colourRow(at.ch);
     Array.prototype.forEach.call(cloud.querySelectorAll('.ef.tl'), targetAttrs);
     Array.prototype.forEach.call(cloud.querySelectorAll('.ef.gl'), glossAttrs);
+    paintDel(at);
     fitFields();
     wordsInto(at);
     var srcBtn = cloud.querySelector('.esrc');
@@ -1796,7 +1846,7 @@
 
     var allPairs = null;
     function corpusPage(offset) {
-      return fetch('/youtube/api/lookup', {
+      return pAsk('/youtube/api/lookup', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(withLine({ video: CFG.id, text: text, sentence: sentence,
                                corpus_only: true, corpus_offset: offset,
@@ -1907,7 +1957,7 @@
     // ONE lookup, read twice: by the dictionary block, and by the model's,
     // which marks the phrase's share of the caption by what it says the
     // phrase's words mean
-    var look = fetch('/youtube/api/lookup', {
+    var look = pAsk('/youtube/api/lookup', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(withLine({ video: CFG.id, text: text,
                              sentence: (sg && sg.text) || '' }, at.ch))
@@ -1979,7 +2029,13 @@
     if (strip) { strip.destroy(); strip = null; }   // and a proposal neither
     cloud.classList.remove('editing', 'sideon');
     cloud.style.maxHeight = '';
-    if (editWasPlaying && player && ready) player.playVideo();
+    // the LLM panel still open holds the video too (the transcript must keep
+    // still under its picking hand): the video it would play on is handed to
+    // the panel, and plays when that closes -- rgShut does the same the
+    // other way round
+    if (editWasPlaying && player && ready) {
+      if (rgOn) rgWasPlaying = true; else player.playVideo();
+    }
     editWasPlaying = false;
     closeCloud();          // the gloss it now has is one hover away again
   }
@@ -2018,10 +2074,118 @@
       });
       if (freeBox) freeBox.checked = !!ch.free;
       if (strip) mountStrip(at, ch.words || '');
+      paintDel(at);
     });
+  }
+  /* ---------- deleting a gloss, and taking the delete back ----------------
+     DELETE GLOSS empties the gloss's own boxes -- the reading where the
+     language has one, the transliteration, the vocabulary, the meaning --
+     through the very door a save goes through (/youtube/api/edit), and
+     nothing else: the text, the colour, the word line, the note and the
+     transcript mark stay, and the chunk is one nobody has glossed yet, which
+     is legal in every video.  One click and no question, because the undo is
+     right there: the old gloss is kept IN THE PAGE (never in storage) until
+     the page is reloaded, and UNDO DELETE writes it back through the same
+     door -- filling boxes is always allowed.  Reopening the form on the chunk
+     later offers the undo again.
+
+     The memory is keyed by the chunk's place AND its text: a cut or a join
+     renumbers the phrases of a caption, and a gloss must never be written
+     back onto whichever phrase has moved into the deleted one's place.  An
+     emptied chunk is also what an LLM is asked to fill (the region panel
+     below), so delete, copy the prompt, paste the answer is a way to have a
+     gloss written afresh. */
+  var DEL_TITLE = "empty this chunk's transliteration, vocabulary and meaning " +
+                  '(and its reading) — the text, the colour and the word line ' +
+                  'stay; undo delete puts the gloss back';
+  // the gloss's own boxes, the ones the form shows and whose being written
+  // makes a chunk glossed: the reading only where the language has one (a
+  // stray kana key elsewhere is nobody's gloss -- check_annotations.unwritten
+  // ignores it there too, so the page and the checker agree which chunk has
+  // a gloss).  What delete SENDS is a little more (delSlots, below).
+  var GLOSS_SLOTS = (L.reading ? ['kana'] : []).concat(['tr', 'voc', 'en']);
+  // THE BOXES DELETE EMPTIES, AND UNDO WRITES BACK: the gloss's own, and a
+  // stray kana too, whatever L.reading says.  A language with no reading
+  // shows no kana box, but an answer pasted when the video was added can
+  // leave a "kana" key on a phrase all the same (the chat prompt's example
+  // carries one for every language).  Left out of the delete, it stood as
+  // the one written box of the phrase: the server's blank test counted it
+  // then, so "delete gloss" was refused with a sentence telling the person
+  // to press "delete gloss" -- and nothing in the form could clear it.  Sent
+  // empty with the rest, the phrase is left blank whichever way the checker
+  // counts it, and undo puts it back exactly as it was.
+  function delSlots(ch) {
+    return !L.reading && ch && ch.kana != null ? GLOSS_SLOTS.concat(['kana'])
+                                               : GLOSS_SLOTS;
+  }
+  var UNDO = new Map();          // "<segment>:<chunk>\n<fa>" -> {kana?, tr, voc, en}
+  function delKey(at) { return at.si + ':' + at.ci + '\n' + (at.ch.fa || ''); }
+  // A reading that still says exactly what the chunk's word line proposes
+  // (lib/wordline.js seed, lib/wordline.py's own rule) is nobody's writing:
+  // it is what a draft starts a Japanese or Chinese chunk with, and the
+  // checker calls such a chunk unglossed (check_annotations.unwritten), so
+  // here it is no gloss either -- no "delete gloss" to offer on it, and
+  // "nothing glossed yet" in its cloud.
+  function hasGloss(ch) {
+    var W = window.ParsehWordline;
+    var sd = W && W.seed ? W.seed(ch, L) : [null, ''];
+    return GLOSS_SLOTS.some(function (f) {
+      var v = typeof ch[f] === 'string' ? ch[f].trim() : '';
+      return !!v && !(f === sd[0] && sd[1] && v === sd[1]);
+    });
+  }
+  // the two buttons as the chunk AS SAVED stands: no delete for a plain
+  // chunk, a greyed one where there is nothing to take off, and the undo
+  // wherever the page still holds a deleted gloss for this chunk
+  function paintDel(at) {
+    var del = cloud.querySelector('.edel'), undo = cloud.querySelector('.eundo');
+    if (!del || !undo || !at) return;
+    del.hidden = !!at.ch.plain;
+    del.disabled = !hasGloss(at.ch);
+    undo.hidden = !!at.ch.plain || !UNDO.has(delKey(at));
+  }
+  // after a delete or an undo, the boxes that hold the gloss show what is
+  // now on disk; the text box and the transcript mark keep whatever is being
+  // typed there, which neither button touched
+  function repaintGloss(at, ch) {
+    GLOSS_SLOTS.forEach(function (f) {
+      var el = cloud.querySelector('.ef[data-f="' + f + '"]');
+      if (el) el.value = ch[f] || '';
+    });
+    // the word line is checked against the reading box, which has just changed
+    if (strip) mountStrip(at, strip.value());
+    paintDel(at);
+    fitFields();
+  }
+  function deleteGloss() {
+    var at = coords();
+    if (!at || at.ch.plain || !hasGloss(at.ch)) return;
+    var old = {}, fields = {}, key = delKey(at);
+    delSlots(at.ch).forEach(function (f) {
+      old[f] = typeof at.ch[f] === 'string' ? at.ch[f] : '';
+      fields[f] = '';
+    });
+    post(fields, function (ch) { repaintGloss(at, ch); }, 'gloss deleted',
+         // remembered on every success, even one that lands after the form
+         // has been closed: the gloss is gone from the file either way
+         function () { UNDO.set(key, old); });
+  }
+  function undoDelete() {
+    var at = coords();
+    if (!at) return;
+    var key = delKey(at), old = UNDO.get(key);
+    if (!old) { paintDel(at); return; }
+    // every box the delete emptied -- a stray kana among them -- and no other
+    var fields = {};
+    Object.keys(old).forEach(function (f) { fields[f] = old[f] || ''; });
+    post(fields, function (ch) { repaintGloss(at, ch); }, 'gloss written back ✓',
+         function () { UNDO.delete(key); });
   }
   document.addEventListener('keydown', function (e) {
     if (!editing || dvOn) return;      // the divide sheet is over the editor
+    // a key pressed in the LLM panel is the panel's: Esc there closes it, and
+    // Ctrl+Enter in its answer box is no save of this form
+    if (e.target && e.target.closest && e.target.closest('#rgpanel')) return;
     if (e.key === 'Escape') { e.preventDefault(); closeEditor(); }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault(); saveEdit();
@@ -2252,6 +2416,8 @@
     if (t.classList.contains('mkedit')) { openEditor(); return; }
     if (t.classList.contains('ecancel')) { closeEditor(); return; }
     if (t.classList.contains('edv')) { dvStart(t.dataset.dv); return; }
+    if (t.classList.contains('edel')) { if (!t.disabled) deleteGloss(); return; }
+    if (t.classList.contains('eundo')) { undoDelete(); return; }
     if (t.classList.contains('esave')) { saveEdit(); }
   });
   document.addEventListener('click', function (e) {
@@ -2277,22 +2443,120 @@
              close: $('#ntclose') };
   var ntOn = false, ntId = '', noteList = [];
 
-  function ntFrame(url) {
+  /* ---------- the bare note page, and the notes read ahead --------------
+     What a mark opens is the studio's BARE note page (its templates/
+     note.html): the rendered note on the studio's own sheet, with no editor
+     and none of its scripts.  The document page it used to open is about
+     1.3 MB fetched afresh every time, for something read a dozen times in a
+     session and written on almost never; "open in the studio", in the bare
+     page's own header, is one click from the whole of it.
+
+     And a note whose mark comes near the window is read BEFORE it is asked
+     for, so that the click costs nothing -- the same bargain the reader
+     makes.  It is held as text and put into the frame with srcdoc, not left
+     to the browser's cache, because the studio answers `no-cache` for
+     everything it renders (a page somebody may be editing must never come
+     back stale) and a revalidation over a tunnel is the very wait this is
+     here to remove.  Capped, because a long video has a great many notes
+     and a viewer walking it would otherwise carry all of them; never while
+     a note is open, because the note being read is what the connection is
+     for; and never for one that holds an exercise, which the server answers
+     with a redirect to the studio's full page (an exercise with no script
+     is a box that cannot be answered), remembered here so the next click
+     goes straight there.
+
+     AWAY FROM THE COMPUTER THERE IS NO REDIRECT TO SEE.  A kept video keeps
+     its notes, and for a note that holds an exercise what was kept IS the
+     studio's full page, so it can be answered on a train exactly as it is at
+     the desk (TO-DO §0, "the notes, kept with their book or video").  The
+     worker hands that page back at the bare address without a hop, and
+     `redirected` is false: a test that believed it would put a document
+     page, scripts and all, into the frame through srcdoc.  So the page is
+     asked what it is as well.  The studio writes that on its own <body> --
+     `data-page="doc"` on the document page, `data-page="note"` on the bare
+     one -- which is honest whoever gave the answer, and which a note's own
+     text cannot forge: everything it contributes went through the
+     renderer's escaping. */
+  var NOTE_HOLD = 12;
+  // the studio's document page saying so itself (its templates/doc.html)
+  var NOTE_FULL_MARK = '<body data-page="doc"';
+  var noteHeld = {};        // id -> the bare page's html
+  var noteOrder = [];       // those ids, the one held longest first
+  var noteFull = {};        // ids the server sends to the studio instead
+  var noteWaiting = [];     // came near while a note was open
+  var noteBusy = {};
+
+  function holdNote(id) {
+    if (!id || noteHeld[id] || noteFull[id] || noteBusy[id]) return;
+    if (ntOn) {
+      if (noteWaiting.indexOf(id) < 0) noteWaiting.push(id);
+      return;
+    }
+    noteBusy[id] = true;
+    fetch(NOTES + '/note/' + encodeURIComponent(id)).then(function (r) {
+      if (!r.ok) return null;
+      if (r.redirected) { noteFull[id] = true; return null; }
+      return r.text();
+    }).then(function (html) {
+      if (html == null) return;
+      // the kept page saying what it is, where there was no redirect to see:
+      // this note is answered by the studio's whole document page, so the
+      // frame is sent to that address rather than fed these bytes
+      if (html.indexOf(NOTE_FULL_MARK) >= 0) { noteFull[id] = true; return; }
+      noteHeld[id] = html; noteOrder.push(id);
+      while (noteOrder.length > NOTE_HOLD) delete noteHeld[noteOrder.shift()];
+    }).catch(function () {
+      // a server that does not know the bare address, or none at all: the
+      // mark still opens the note, it simply opens it when it is clicked
+    }).then(function () { delete noteBusy[id]; });
+  }
+  function forgetNote(id) {
+    if (!id) return;
+    delete noteHeld[id]; delete noteFull[id];
+    var i = noteOrder.indexOf(id);
+    if (i >= 0) noteOrder.splice(i, 1);
+  }
+  var nearNote = window.IntersectionObserver
+    ? new IntersectionObserver(function (es) {
+        es.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          nearNote.unobserve(e.target);
+          holdNote(e.target.dataset.note);
+        });
+      }, { rootMargin: '600px 0px' })
+    : null;
+
+  function ntFrame(url, html) {
     // a fresh element, not a new src: an iframe's navigations land on the
     // joint session history, so three notes read would be three presses of
     // Back before the page moved
     var old = NT.frame;
     var f = document.createElement('iframe');
-    f.id = 'ntframe'; f.title = old.title; f.src = url;
+    f.id = 'ntframe'; f.title = old.title;
+    // srcdoc for one already in hand: the same bytes the address would have
+    // answered, drawn without going back for them.  Every address the note
+    // page writes is absolute (the studio's own prefix), so nothing in it
+    // depends on where the frame thinks it is.
+    if (html != null) f.srcdoc = html; else f.src = url;
     old.parentNode.replaceChild(f, old);
     NT.frame = f;
   }
-  function ntShow(id, title, editing) {
+  // '' the bare page, 'edit' the studio's editor, 'full' its document page
+  function noteUrl(id, how) {
+    var at = NOTES + '/' + (how ? 'doc' : 'note') + '/' + encodeURIComponent(id);
+    return how === 'edit' ? at + '/edit' : at;
+  }
+  function ntShow(id, title, how) {
     peekHide();             // the note itself is coming; its preview goes
+    // one already known to need the studio's page goes straight there,
+    // rather than to a bare address that would only redirect
+    if (!how && noteFull[id]) how = 'full';
     ntId = id; ntOn = true;
     NT.title.textContent = title || 'note';
-    ntFrame(NOTES + '/doc/' + encodeURIComponent(id) + (editing ? '/edit' : ''));
-    NT.edit.hidden = !!editing; NT.read.hidden = !editing;
+    var held = how ? null : noteHeld[id];
+    if (held) ntFrame(null, held); else ntFrame(noteUrl(id, how));
+    NT.edit.hidden = how === 'edit'; NT.read.hidden = how !== 'edit';
+    NTOLD.hidden = !notesAway;  // what is in the frame is as of when it was kept
     NT.back.hidden = false; NT.box.hidden = false;
     if (player && ready && player.pauseVideo) player.pauseVideo();
   }
@@ -2300,18 +2564,35 @@
     if (!ntOn) return;
     ntOn = false; NT.box.hidden = true; NT.back.hidden = true;
     ntFrame('about:blank');
+    // the one that was open is the one that may have just been written --
+    // the editor is reached through this very frame -- so the copy in hand
+    // is dropped rather than shown again
+    forgetNote(ntId);
+    var waited = noteWaiting.slice();
+    noteWaiting.length = 0;
+    waited.forEach(holdNote);     // what came near while it was open
     loadNotes();            // the title may have changed, or the note be gone
   }
-  // a key pressed inside the frame belongs to the frame's document; the
-  // studio posts up when it is framed, so "close (Esc)" is true in there too
+  // A key pressed inside the frame belongs to the frame's document; the note
+  // posts up when it is framed, so "close (Esc)" is true in there too.
+  //
+  // `open-note-full` is the bare page's own header asking for the whole of
+  // the studio.  It is done from out here, and not by the link navigating
+  // itself, because a navigation inside the frame lands on the joint session
+  // history: a note opened in full would cost a press of Back before the
+  // video moved.
   window.addEventListener('message', function (e) {
     if (e.origin !== location.origin) return;
-    if (e.data && e.data.parseh === 'close-note') ntShut();
+    var d = e.data;
+    if (!d || !d.parseh) return;
+    if (d.parseh === 'close-note') ntShut();
+    else if (d.parseh === 'open-note-full' && ntOn)
+      ntShow(ntId, NT.title.textContent, 'full');
   });
   NT.close.onclick = ntShut;
   NT.back.addEventListener('click', ntShut);
-  NT.edit.onclick = function () { ntShow(ntId, NT.title.textContent, true); };
-  NT.read.onclick = function () { ntShow(ntId, NT.title.textContent, false); };
+  NT.edit.onclick = function () { ntShow(ntId, NT.title.textContent, 'edit'); };
+  NT.read.onclick = function () { ntShow(ntId, NT.title.textContent, ''); };
   document.addEventListener('keydown', function (e) {
     if (ntOn && e.key === 'Escape') {
       // stopImmediatePropagation, not stopPropagation: the divide sheet's own
@@ -2373,7 +2654,7 @@
     peekLine('pkf', adrift
       ? 'this note names a caption that is no longer in the video — open it ' +
         'and change its anchor line'
-      : 'click to open');
+      : (notesAway ? NT_KEPT : 'click to open'));
     // placed the way the cloud is: above the mark, below it only when the
     // mark is too near the top to leave room, and always inside the window
     peekEl.style.left = '8px'; peekEl.style.top = '-9999px';
@@ -2420,14 +2701,20 @@
       b.addEventListener('mouseleave', peekHide);
       b.addEventListener('blur', peekHide);
     } else {
-      b.title = adrift
+      // without a hover the title is all there is, and lib/explain.js puts
+      // it under "?" on a touch screen: what the mark DOES comes first and
+      // the kept copy is said after it, rather than in place of it
+      b.title = (adrift
         ? 'this note names a caption that is no longer in the video — open it ' +
           'and change its anchor line'
-        : 'read this note';
+        : 'read this note') + (notesAway ? ' — ' + NT_KEPT : '');
     }
     b.onclick = function (e) {
-      e.stopPropagation(); peekHide(); ntShow(n.id, n.title);
+      e.stopPropagation(); peekHide(); ntShow(n.id, n.title, '');
     };
+    // read ahead when it comes near the window, so the click costs nothing
+    b.dataset.note = n.id;
+    if (nearNote) nearNote.observe(b);
     return b;
   }
   function newNote(gap) {
@@ -2440,12 +2727,15 @@
     }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok || !j.note) return;
       return loadNotes().then(function () {
-        ntShow(j.note.id, j.note.title, true);   // straight into the editor
+        ntShow(j.note.id, j.note.title, 'edit');   // straight into the editor
       });
     }).catch(function () {});
   }
   function paintNotes() {
     peekHide();             // every mark is about to be drawn again
+    // and thrown away with it: an observer still watching the old marks
+    // would keep them, and the notes behind them, alive for the session
+    if (nearNote) nearNote.disconnect();
     var gaps = document.querySelectorAll('#segs .gap');
     Array.prototype.forEach.call(gaps, function (g) {
       g.textContent = '';
@@ -2474,10 +2764,65 @@
   function loadNotes() {
     if (!NOTES) { noteList = []; paintNotes(); return Promise.resolve(); }
     return fetch(NOTES + '/api/marks').then(function (r) { return r.json(); })
-      .then(function (j) { noteList = (j && j.ok && j.notes) ? j.notes : []; })
-      .catch(function () { noteList = []; })
+      // ONLY AN ANSWER THE COMPUTER REALLY GAVE MAY REPLACE THE MARKS.  The
+      // seams' list is a door (lib/sw.js, isDoor): the computer is asked
+      // first and the copy kept with the video answers when it does not, so
+      // a kept note stays reachable -- there would be no mark to click on
+      // otherwise.  What tells the two apart is `ok`: the studio answers this
+      // address with {ok:true, notes:[...]} and nothing else, whether that
+      // answer comes down the wire now or out of the cache where the wire
+      // last put it, so an `ok` answer is the computer's own and an empty
+      // `notes` in it is the truth -- the seams empty.
+      .then(function (j) { if (j && j.ok && j.notes) noteList = j.notes; })
+      // A REFUSAL IS NOT AN ANSWER ABOUT THE MARKS, and neither is a request
+      // that never arrived.  Away from the computer the worker writes
+      // {ok:false, offline:true} with a 503 of its own for a video kept
+      // without its notes, and in the moment before the kept copy lands: it
+      // is well-formed JSON and it knows nothing.  Either way the marks
+      // already in hand stay -- they were true when they were read, and a
+      // video whose notes vanish as the train enters a tunnel is the failure
+      // this is here to prevent.  With none in hand the seams stay empty.
+      .catch(function () {})
       .then(function () { paintNotes(); });
   }
+
+  /* ---------- the marks, and the computer being away --------------------
+     What is kept was kept at a moment, and the marks are as of that moment:
+     a note written at the desk this morning is not in a list read last
+     night.  Said quietly, and only while the computer cannot be reached --
+     lib/keep.js asks that question for the whole toolbox and puts the
+     answer on <html>, so nothing here pings anything -- and said in the two
+     places it is wanted: on the frame the note is read in, and in the card
+     a mark shows before it is opened.  The book reader carries the same
+     lines (lib/tex2html.py); the two are a mirror and are meant to stay one.
+
+     The "as kept" line is made here rather than written into player.html
+     for the same reason the peek card is: it belongs to the notes and to
+     nothing else on the page. */
+  var notesAway = document.documentElement.hasAttribute('data-parseh-away');
+  var NT_KEPT = 'the computer cannot be reached — the notes and their marks '
+              + 'are as they were when this video was kept on this phone';
+  var NTOLD = document.createElement('span');
+  NTOLD.id = 'ntold';
+  NTOLD.hidden = true;
+  NTOLD.textContent = 'as kept';
+  NTOLD.title = NT_KEPT;
+  NTOLD.style.cssText = 'color:var(--faint);letter-spacing:0;text-transform:none;'
+                      + 'font-size:11.5px;font-style:italic;white-space:nowrap';
+  if (NT.title && NT.title.parentNode)
+    NT.title.parentNode.insertBefore(NTOLD, NT.title.nextSibling);
+  // The attribute is put on by another script, twenty seconds after the page
+  // opened at the earliest, and taken off again when the computer comes
+  // back; watching it is how this page hears both without asking anybody.
+  if (window.MutationObserver)
+    new MutationObserver(function () {
+      var away = document.documentElement.hasAttribute('data-parseh-away');
+      if (away === notesAway) return;
+      notesAway = away;
+      NTOLD.hidden = !away;
+      paintNotes();             // the marks' explanations have just changed
+    }).observe(document.documentElement,
+               { attributes: true, attributeFilter: ['data-parseh-away'] });
 
   /* ---------------- where a chunk ends ----------------
      A chunk is a sense group, and the groups an LLM cut on its first pass
@@ -2544,10 +2889,13 @@
     var fa = document.createElement('div');
     fa.className = 'dvfa'; fa.setAttribute('dir', L.dir); fa.lang = L.code;
     fa.textContent = ch.fa || ''; c.appendChild(fa);
-    var carry = ['col', 'plain', 'note'];
-    carry.forEach(function (k) {
-      if (ch[k] !== undefined && ch[k] !== '') c.dataset['x' + k] = String(ch[k]);
-    });
+    // the colour is the one field the sheet draws no box for and still sends:
+    // it is a field a page may set (annwrite.EDITABLE), and a page that left
+    // it out would be saying "no colour".  The note and the plain mark are
+    // not a page's to set at all -- the server refuses a divide that names
+    // them ("cannot set 'note' on a chunk") -- and it carries both across
+    // itself, from the chunk being divided or joined, so they stay here.
+    if (ch.col) c.dataset.xcol = String(ch.col);
     var add = function (key, label, rows, kind) {
       var l = document.createElement('label'); l.textContent = label;
       var t = document.createElement('textarea');
@@ -2570,9 +2918,9 @@
     Array.prototype.forEach.call(col.querySelectorAll('textarea'), function (t) {
       out[t.dataset.k] = t.value.trim();
     });
+    // only what annwrite lets a page set: a note, and the plain mark, sent
+    // back here made a phrase with a note impossible to cut or join
     if (col.dataset.xcol) out.col = col.dataset.xcol;
-    if (col.dataset.xnote) out.note = col.dataset.xnote;
-    if (col.dataset.xplain) out.plain = col.dataset.xplain === 'true';
     return out;
   }
   function dvPaintChips() {
@@ -2704,6 +3052,9 @@
     // from it: every phrase after the change has a new number, and a patch
     // would leave the hover closures one out
     segs[dvAt.si].chunks = j.chunks;
+    // a prompt the LLM panel holds for a copy by hand was made from the
+    // phrases as they were before this cut or join (rgForget)
+    rgForget();
     closeEditor();
     render();
     // render() has replaced every .seg, and the on-air highlight was a class
@@ -2717,9 +3068,13 @@
       : 'The two phrases are one now.') +
       ' Segment ' + dvAt.si + ' has ' + j.count + ' of them, and the ' +
       'transcript has been drawn again from the file.',
-      'annotations.json is what was written. parts/ is the paste it was ' +
-      'built from and is untouched, so running merge_parts.py again would ' +
-      'put the old division back — the same as for any edit made here.']);
+      // parts/ is retired (youtube/lib/merge_parts.py): the batches a video
+      // is added from are dropped once it is on the shelf, and merge_parts
+      // refuses to rebuild over an annotations.json newer than the batches
+      // an older video still has -- so no division comes back over this one
+      'annotations.json is what was written, and it is the video’s one ' +
+      'copy of its phrases: nothing rebuilds it from anything else, so the ' +
+      'old division cannot come back.']);
     dvSay('done ✓');
     $('#dvdo').textContent = 'close';
     $('#dvdo').disabled = false;
@@ -2787,90 +3142,7 @@
         h.textContent = sg.chapter;
         box.appendChild(h);
       }
-      var d = document.createElement('div');
-      d.className = 'seg' + (sg.plain ? ' plain' : '');
-      d.dataset.i = i;
-      var lab = document.createElement('button');
-      lab.className = 'lab'; lab.textContent = fmt(sg.start);
-      lab.title = 'play from ' + fmt(sg.start);
-      lab.onclick = function (e) { e.stopPropagation(); seek(sg.start); };
-      d.appendChild(lab);
-      var fa = document.createElement('div');
-      if (sg.plain) {
-        // the video's own framing, not the language it teaches and not the
-        // language it is glossed in: shown as it stands, never glossed.
-        // English in every video the toolbox holds, which is what the class
-        // and these attributes are named after and say.
-        fa.className = 'en-line';
-        fa.setAttribute('dir', 'ltr'); fa.lang = 'en';
-        fa.textContent = sg.text || '';
-      } else {
-        // the line reads in the language's direction and face: the dir
-        // attribute sets the direction, data-lang on <html> the font token
-        fa.className = 'fa'; fa.setAttribute('dir', L.dir); fa.lang = L.code;
-        (sg.chunks || []).forEach(function (ch, j) {
-          // chunks are joined with the caption's own separator: a space for
-          // most languages, nothing for Japanese, which the annotator split
-          // at nothing (the fidelity check joins them the same way)
-          if (j && L.word_sep) fa.appendChild(document.createTextNode(L.word_sep));
-          // a chunk with nothing to say -- a run of the video's own framing
-          // inside a caption of the target script, or an aside marked plain,
-          // which for a Latin-script target is how one is said -- is text, not
-          // a target: no hover, no card, no dots.  Where the language has
-          // a reading, the kana alone is something to say (a part still
-          // being annotated shows its readings before its glosses).
-          // In a DRAFT every chunk that is not plain stays a phrase even
-          // with nothing written on it: an unglossed chunk is precisely
-          // what the author opened the page to write, and a span with no
-          // hover is a chunk the player could never be used to fill in.
-          // CFG.help: a dictionary or a model is set up, so an unglossed
-          // chunk is something the reader can still be given an answer
-          // about, and must stay a phrase to be asked about at all.
-          if (ch.plain || !(draft || CFG.help || ch.tr || ch.en || ch.voc ||
-                            ch.note || (L.reading && ch.kana))) {
-            var bare = document.createElement('span');
-            // target text left unglossed (ch.plain, from an import) reads
-            // as the text around it, in the language's face (.tl); a run
-            // of another script keeps its own quieter dress.  For a
-            // Latin-script language nothing can be told apart, so a bare
-            // run is always the quiet aside it was marked as.
-            bare.className = 'bare' + (hasScript(ch.fa) ? ' tl' : '');
-            bare.setAttribute('dir', 'auto');
-            bare.textContent = ch.fa;
-            // a mark set by hand in the file still shows on a chunk the
-            // player itself would not offer to colour
-            paintCol(bare, ch);
-            fa.appendChild(bare);
-            return;
-          }
-          var w = document.createElement('span');
-          w.className = 'w'; w.dataset.j = j;
-          paintWords(w, ch);
-          paintCol(w, ch);
-          w.addEventListener('mouseenter', function () {
-            if (!hoverPointer()) return;    // a tap's synthetic hover: not one
-            openCloud(w, ch, sg);
-          });
-          w.addEventListener('mouseleave', scheduleClose);
-          // wired always, and deciding per event rather than per device: a
-          // screen that claims a hover it never delivers still glosses a tap
-          w.addEventListener('click', function (e) {     // touch: tap = gloss
-            if (hoverPointer()) return;                  // a mouse: replay
-            e.stopPropagation();
-            if (cloudFor === w) closeCloud(); else openCloud(w, ch, sg);
-          });
-          fa.appendChild(w);
-        });
-      }
-      d.appendChild(fa);
-      // clicking a sentence replays it from its own beginning -- including
-      // a click on a phrase (the gloss is already open from the hover)
-      d.addEventListener('click', function (e) {
-        if (e.altKey || e.ctrlKey || e.metaKey) return;   // that's a card
-        if (e.shiftKey) return;                           // that's a copy
-        if (String(window.getSelection ? window.getSelection() : '')) return;
-        seek(sg.start);
-      });
+      var d = segEl(sg, i);
       box.appendChild(d);
       els.push(d);
       if (i === segs.length - 1) {
@@ -2881,7 +3153,130 @@
       }
       if (i === segs.length - 1) paintNotes();   // the seams exist now
     });
+    // a stretch being picked for an LLM stays lit across a redraw (a divide,
+    // a timing moved): the lines are new, the pick is not
+    rgPaint();
     measure();
+  }
+  /* ONE CAPTION'S LINE, whole: its time, its phrases, and every listener the
+     line and its phrases carry.  A function of its own because two things
+     draw it -- render(), for the whole transcript, and redrawSeg(), for the
+     few captions an LLM's answer has just written to, which are swapped in
+     where they stand so nothing else on the page moves. */
+  function segEl(sg, i) {
+    var d = document.createElement('div');
+    d.className = 'seg' + (sg.plain ? ' plain' : '');
+    d.dataset.i = i;
+    var lab = document.createElement('button');
+    lab.className = 'lab'; lab.textContent = fmt(sg.start);
+    lab.title = 'play from ' + fmt(sg.start);
+    lab.onclick = function (e) {
+      e.stopPropagation();
+      // picking a stretch for an LLM: the time is part of the line it heads
+      if (rgPickAt(+d.dataset.i)) return;
+      seek(sg.start);
+    };
+    d.appendChild(lab);
+    var fa = document.createElement('div');
+    if (sg.plain) {
+      // the video's own framing, not the language it teaches and not the
+      // language it is glossed in: shown as it stands, never glossed.
+      // English in every video the toolbox holds, which is what the class
+      // and these attributes are named after and say.
+      fa.className = 'en-line';
+      fa.setAttribute('dir', 'ltr'); fa.lang = 'en';
+      fa.textContent = sg.text || '';
+    } else {
+      // the line reads in the language's direction and face: the dir
+      // attribute sets the direction, data-lang on <html> the font token
+      fa.className = 'fa'; fa.setAttribute('dir', L.dir); fa.lang = L.code;
+      (sg.chunks || []).forEach(function (ch, j) {
+        // chunks are joined with the caption's own separator: a space for
+        // most languages, nothing for Japanese, which the annotator split
+        // at nothing (the fidelity check joins them the same way)
+        if (j && L.word_sep) fa.appendChild(document.createTextNode(L.word_sep));
+        // WHAT IS DRAWN BARE -- text, not a target: no hover, no card, no
+        // dots, no ✎ -- is two things and only two.  A chunk marked plain
+        // (an import's, or an aside marked so, which for a Latin-script
+        // target is the only way one is told).  And a run of the video's own
+        // framing inside a caption of the target script: a chunk with nothing
+        // written on it, of a language with a script of its own, holding none
+        // of that script -- the English a teacher says between two Persian
+        // sentences.  Where the language has a reading, the kana alone is
+        // something written.
+        // EVERY OTHER CHUNK IS A PHRASE, glossed or not.  A chunk of the
+        // target's text nobody has glossed yet is precisely what somebody
+        // opens the page to write, and a span with no hover is a chunk the
+        // player could never be used to fill in -- nor delete a gloss from
+        // and fill again, nor ask a dictionary about.  An unglossed chunk is
+        // legal in every video (check_annotations), so nothing about the
+        // video decides this: its cloud says "nothing glossed yet" and offers
+        // the ✎, whatever is or is not installed.
+        var written = !!(ch.tr || ch.en || ch.voc || ch.note || (L.reading && ch.kana));
+        if (ch.plain || (!written && L.chars && !hasScript(ch.fa))) {
+          var bare = document.createElement('span');
+          // target text left unglossed (ch.plain, from an import) reads
+          // as the text around it, in the language's face (.tl); a run
+          // of another script keeps its own quieter dress.  For a
+          // Latin-script language nothing can be told apart, so a bare
+          // run is always the quiet aside it was marked as.
+          bare.className = 'bare' + (hasScript(ch.fa) ? ' tl' : '');
+          bare.setAttribute('dir', 'auto');
+          bare.textContent = ch.fa;
+          // a mark set by hand in the file still shows on a chunk the
+          // player itself would not offer to colour
+          paintCol(bare, ch);
+          fa.appendChild(bare);
+          return;
+        }
+        var w = document.createElement('span');
+        w.className = 'w'; w.dataset.j = j;
+        paintWords(w, ch);
+        paintCol(w, ch);
+        w.addEventListener('mouseenter', function () {
+          if (!hoverPointer()) return;    // a tap's synthetic hover: not one
+          openCloud(w, ch, sg);
+        });
+        w.addEventListener('mouseleave', scheduleClose);
+        // wired always, and deciding per event rather than per device: a
+        // screen that claims a hover it never delivers still glosses a tap
+        w.addEventListener('click', function (e) {     // touch: tap = gloss
+          if (hoverPointer()) return;                  // a mouse: replay
+          // picking a stretch: the tap is the line's, and picks it below
+          if (rgPicking()) return;
+          e.stopPropagation();
+          if (cloudFor === w) closeCloud(); else openCloud(w, ch, sg);
+        });
+        fa.appendChild(w);
+      });
+    }
+    d.appendChild(fa);
+    // clicking a sentence replays it from its own beginning -- including
+    // a click on a phrase (the gloss is already open from the hover) --
+    // unless a stretch is being picked for an LLM, when it picks the line
+    d.addEventListener('click', function (e) {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;   // that's a card
+      if (e.shiftKey) return;                           // that's a copy
+      if (String(window.getSelection ? window.getSelection() : '')) return;
+      if (rgPickAt(+d.dataset.i)) return;
+      seek(sg.start);
+    });
+    return d;
+  }
+  /* One caption drawn again where it stands, from segs[i] as it now is: the
+     line the answer wrote to, and nothing around it -- the seams, the notes,
+     the on-air highlight, the scroll and the video all stay where they were.
+     A cloud open on one of its old phrases has nothing left to point at. */
+  function redrawSeg(i) {
+    var old = els[i];
+    if (!old || !old.parentNode || !segs[i]) return;
+    var d = segEl(segs[i], i);
+    ['on-air', 'near'].forEach(function (c) {
+      if (old.classList.contains(c)) d.classList.add(c);
+    });
+    if (cloudFor && old.contains(cloudFor) && !editing) closeCloud();
+    old.parentNode.replaceChild(d, old);
+    els[i] = d;
   }
 
   // shift-click copies: the phrase under the cursor (the hoverable unit),
@@ -3032,6 +3427,7 @@
     opp: $('#aopp'), oppKana: $('#aoppkana'), oppTr: $('#aopptr'),
     stat: $('#astat'), saveLab: $('#asavelab'), note: $('#atnote'),
     prev: $('#ashotprev'), img: $('#ashotimg'), hint: $('#ashothint'),
+    shot: $('#ashot'), shotWhy: $('#ashotwhy'),
     snd: $('#asnd'), sndPrev: $('#asndprev'), sndAudio: $('#asndaudio'),
     sndName: $('#asndname'), sndWhy: $('#asndwhy'),
     mdRow: $('#amdrow'), mdOut: $('#amdout'),
@@ -3644,6 +4040,7 @@
     setTarget(localStorage.getItem('yt_card_target') || 'anki');
     setKind('vocab');
     paintCut();
+    paintShot();
     A.box.querySelector('input[name=asndside][value=front]').checked = true;
     A.back.hidden = false; A.box.hidden = false; ankiOpen = true;
     A.fa.focus();
@@ -3668,9 +4065,24 @@
     }
   });
 
-  /* -- capturing a frame.  The iframe is cross-origin, so its pixels can
-     only come from a display capture -- but everything below exists to
-     hand back the VIDEO'S OWN frame, never a page screenshot:
+  /* -- capturing a frame.  THERE ARE TWO WAYS, and which one is used depends
+     on where the picture is, not on the browser (the owner's choice,
+     2026-09-23).
+
+     A FILM ON THIS MACHINE is a <video> of this very page, served from this
+     very origin: a canvas reads its pixels outright.  No sharing question, no
+     calibration dots, no rolling in muted past an overlay that is not there,
+     and -- the point -- it works on a phone, where no browser shares a tab at
+     all.  Until today every capture went the long way round, so the button on
+     a phone answered "capture needs a secure page", which was never the
+     reason (TO-DO §2.18).
+
+     A YOUTUBE VIDEO is behind a cross-origin iframe and its pixels can only
+     come from a display capture, which is a computer's affair.  On a phone
+     the button says so plainly instead of blaming the address.
+
+     Everything below is that second way, and all of it exists to hand back
+     the VIDEO'S OWN frame, never a page screenshot:
        . Chrome, "This Tab": Region Capture crops the stream to the video
          element itself; older Chromium falls back to viewport arithmetic.
        . Firefox -- and any window or screen share: the page flashes two
@@ -3890,8 +4302,111 @@
       throw new Error('calibration failed — try again');
     return { sx: sx, sy: sy, ox: ax - p.x1 * sx, oy: ay - p.y1 * sy };
   }
+
+  /* -- THE FILM'S OWN FRAME.  The <video> and the film are of this origin, so
+     the canvas is not tainted and toDataURL answers.  The film is put at the
+     card's moment first -- a card can be about a caption the film is nowhere
+     near -- and put back where it stood afterwards, because taking a picture
+     must not move the film under the person watching it. -- */
+  function filmAt(t) {
+    var f = $('#film');
+    return new Promise(function (res, rej) {
+      if (!f) return rej(new Error('the film is not on this page'));
+      if (Math.abs((f.currentTime || 0) - t) < 0.08) return res(f);
+      var done = false;
+      var there = function () {
+        if (done) return;
+        done = true;
+        clearTimeout(bell);
+        res(f);
+      };
+      // a seek that never answers -- a file still arriving over the network --
+      // still gets a frame drawn rather than a button that hangs
+      var bell = setTimeout(there, 2500);
+      f.addEventListener('seeked', there, { once: true });
+      try { f.currentTime = Math.max(0, t); }
+      catch (e) { clearTimeout(bell); rej(e); }
+    });
+  }
+  function drawFilm(f) {
+    if (!f.videoWidth)
+      throw new Error('the film has not loaded far enough yet — try once more');
+    var c = document.createElement('canvas');
+    c.width = f.videoWidth; c.height = f.videoHeight;
+    c.getContext('2d').drawImage(f, 0, 0, c.width, c.height);
+    return toJpeg(c);
+  }
+
+  /* Why there is no frame to take, or '' when there is -- said under the
+     button, as the recording's reason is, because a phone shows no title. */
+  function noShot() {
+    if (CFG.media) return '';        // the film is here: the canvas reads it
+    if (CFG.local)
+      return 'the film of this video is not on this machine any more, so there is no frame to take';
+    if (!window.isSecureContext)
+      return 'capture needs a secure page — open the toolbox over its https address';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia)
+      return 'a YouTube video’s frame is taken from a share of this tab, and this browser ' +
+             'shares no tab — no phone browser does. Capture this video’s frame on the computer.';
+    return '';
+  }
+  function paintShot() {
+    var why = noShot();
+    A.shot.disabled = !!why;
+    A.shot.title = why || (CFG.media
+      ? 'take the frame the film is showing at this card’s moment, straight from the film'
+      : 'share this tab and take the frame the video is showing at this card’s moment');
+    A.shotWhy.textContent = why;
+    A.shotWhy.hidden = !why;
+    // the long explanation of sharing is the tab share's, and belongs to
+    // nobody else: a film needs no share and no explaining
+    if (CFG.media || why) A.hint.hidden = true;
+  }
+
+  // what a capture does with the picture it got, and with the failure it got
+  // instead: one pair for both ways of taking one
+  function gotShot(data) {
+    ankiShot = data; A.img.src = data; A.prev.hidden = false;
+    A.hint.hidden = true; A.stat.textContent = '';
+    unarm();
+    // a jolly card names its picture in a field: the frame goes to the
+    // tray now, to have a name to write there
+    if (ankiKind === 'jolly') {
+      ensureFrame().then(function (rec) {
+        if (ankiKind === 'jolly') offerFrame(rec);
+      }, function (e) { A.stat.textContent = e.message; });
+    }
+  }
+  function shotFailed(e) {
+    if (window.console && console.warn) console.warn('capture:', e);
+    A.stat.textContent = 'capture failed — ' + ((e && (e.message || e.name)) || e);
+    // the hint tells somebody how to answer the sharing question, which a
+    // film never asks
+    A.hint.hidden = !!CFG.media;
+  }
+
   $('#ashot').onclick = function () {
+    var why = noShot();
+    if (why) { A.stat.textContent = why; paintShot(); return; }
     A.stat.textContent = 'capturing…';
+    // A FILM ON THIS MACHINE: the short way, on a phone as on the computer
+    if (CFG.media) {
+      var f = $('#film');
+      var stood = f ? (f.currentTime || 0) : 0, wasGoing = !!(f && !f.paused);
+      if (wasGoing) f.pause();
+      Promise.resolve().then(function () { return filmAt(ankiTime); })
+        .then(drawFilm).then(gotShot).catch(shotFailed)
+        .then(function () {
+          // the film back where it stood, and playing again if it was: a
+          // picture taken of a film must not move the film under the person
+          if (!f) return;
+          if (Math.abs((f.currentTime || 0) - stood) > 0.08) {
+            try { f.currentTime = stood; } catch (e) {}
+          }
+          if (wasGoing) { var again = f.play(); if (again) again.catch(function () {}); }
+        });
+      return;
+    }
     var t0 = ankiTime, rolled = false, wasMuted = true;
     // Promise.resolve() first: ensureCapture must not be able to fail
     // synchronously past the chain (that is how the button once managed
@@ -3937,23 +4452,7 @@
             r.width * map.sx, r.height * map.sy);
         });
       });
-    }).then(function (data) {
-      ankiShot = data; A.img.src = data; A.prev.hidden = false;
-      A.hint.hidden = true; A.stat.textContent = '';
-      unarm();
-      // a jolly card names its picture in a field: the frame goes to the
-      // tray now, to have a name to write there
-      if (ankiKind === 'jolly') {
-        ensureFrame().then(function (rec) {
-          if (ankiKind === 'jolly') offerFrame(rec);
-        }, function (e) { A.stat.textContent = e.message; });
-      }
-    }).catch(function (e) {
-      if (window.console && console.warn) console.warn('capture:', e);
-      A.stat.textContent = 'capture failed — ' +
-        ((e && (e.message || e.name)) || e);
-      A.hint.hidden = false;
-    }).then(function () {
+    }).then(gotShot).catch(shotFailed).then(function () {
       hideMarkers();
       A.box.style.visibility = ''; A.back.style.visibility = '';
       if (rolled) {
@@ -3986,9 +4485,15 @@
         tags: A.tags.value.trim().split(/\s+/).filter(Boolean),
         source: {
           label: A.src.value.trim(),
-          // a film on this machine has no address anybody else could open,
-          // so the card carries the player's own, which this toolbox can
-          url: CFG.media
+          // A LOCAL VIDEO'S ADDRESS IS THIS PLAYER'S, ALWAYS.  A film on this
+          // machine has no address anybody else could open, so the card
+          // carries the player's own, which this toolbox can.  CFG.media
+          // alone was the wrong question (TO-DO §2.16): a local video whose
+          // film has been moved away has no CFG.media either, and every card
+          // made from it went to youtube.com/watch?v=<the folder's name> --
+          // an address YouTube has never heard of.  What decides is whether
+          // the video IS a YouTube video, and CFG.local says so.
+          url: (CFG.media || CFG.local)
             ? (location.origin + location.pathname + '#t=' + Math.floor(ankiTime))
             : ('https://www.youtube.com/watch?v=' + CFG.id +
                '&t=' + Math.floor(ankiTime) + 's')
@@ -4703,6 +5208,434 @@
   }
   $('#vmsave').onclick = saveVidMeta;
 
+  /* ---------------- glossing a stretch with an LLM ----------------
+     A run of captions, picked on the transcript, sent to an LLM as a prompt
+     and filled from its answer -- the book reader's region sheet, for a
+     video.  Everything that matters is decided by the server
+     (lib/glossregion.py): which chunks the prompt asks to be glossed, and,
+     when the answer comes back, which of them it may write.  The page only
+     says which captions and how, and shows what the server did.
+
+     PICKED ON THE TRANSCRIPT ITSELF.  While the panel is open a click on a
+     caption -- its time, its text, any phrase of it -- picks it instead of
+     playing it: the first sets "from", the second "to" (the two swapped if
+     the second is the earlier), and a third starts again.  The run is lit on
+     the transcript and each end is named in its slot by its number and its
+     time.  The number is the caption's place among ALL the captions, plain
+     ones included -- the numbering /youtube/api/edit and the editor's
+     "segment N" use, and the one the server's own region words print -- so
+     a plain caption can be an end, and inside the run it is sent as context
+     and never glossed.  With "to" not picked the stretch is the one caption.
+
+     THE TWO BOXES ARE READ WHEN THEY ARE USED: copying sends their state to
+     make the prompt, and filling sends their state AT THAT MOMENT -- the
+     state when you paste decides what may be replaced, whatever it was when
+     the prompt was made (the owner's rule, D12).  A re-gloss that would
+     replace a gloss writes nothing the first time: the button asks again,
+     armed, and a second press within four seconds (the reader's two-press
+     arm) says yes.
+
+     WHAT THE ANSWER WROTE IS DRAWN AGAIN IN PLACE.  The server hands back
+     every caption it wrote to, whole; each replaces its entry in `segs` and
+     its line is swapped for a new one where it stands (redrawSeg) -- the
+     video, the scroll, the on-air line, the other captions, the answer box
+     and the undo memory all stay as they were, which a reload would lose. */
+  var RG = {
+    panel: $('#rgpanel'), btn: $('#rgn'), close: $('#rgclose'),
+    from: $('#rgfrom'), to: $('#rgto'),
+    regloss: $('#rgregloss'), perfield: $('#rgperfield'),
+    copy: $('#rgcopy'), sum: $('#rgsum'),
+    promptRow: $('#rgpromptrow'), prompt: $('#rgprompt'),
+    ans: $('#rgans'), fill: $('#rgfill'), report: $('#rgreport')
+  };
+  var FILL_LABEL = 'fill from the answer', RG_ARM_MS = 4000;
+  var rgOn = false, rgFrom = null, rgTo = null, rgWasPlaying = false;
+  var rgBusy = false, rgArmed = false, rgArmTimer = 0;
+  RG.panel.setAttribute('tabindex', '-1');     // focusable as a whole, on opening
+
+  // picking happens only with the panel open, and never in the phone's
+  // mode, whose page writes nothing (lib/mobile.css hides the panel there)
+  function rgPicking() { return rgOn && !mobileMode(); }
+  // the stretch as [first, last], or null before a caption is picked
+  function rgRange() {
+    if (rgFrom === null) return null;
+    var b = rgTo === null ? rgFrom : rgTo;
+    return rgFrom <= b ? [rgFrom, b] : [b, rgFrom];
+  }
+  // a caption as a slot names it: "caption 12, 1:02", as the server does
+  function rgName(i) {
+    var sg = segs[i];
+    return 'caption ' + i + ', ' + fmt(sg ? +sg.start || 0 : 0);
+  }
+  // the run on the transcript, the two slots, and the two buttons
+  function rgPaint() {
+    var r = rgPicking() ? rgRange() : null;
+    els.forEach(function (el, k) {
+      el.classList.toggle('rgpick', !!r && k >= r[0] && k <= r[1]);
+    });
+    document.body.classList.toggle('rgpicking', rgPicking());
+    [[RG.from, rgFrom], [RG.to, rgTo]].forEach(function (p) {
+      var set = p[1] !== null && p[1] < segs.length;
+      p[0].textContent = set ? rgName(p[1]) : 'click a caption';
+      p[0].classList.toggle('set', set);
+    });
+    var none = rgFrom === null;
+    [RG.copy, RG.fill].forEach(function (b) {
+      b.disabled = none || rgBusy;
+      b.title = none ? 'click a caption first: the stretch starts there' : '';
+    });
+    if (!none) {
+      RG.copy.title = 'make the prompt for ' + rgWords() + ' and put it on the clipboard';
+      RG.fill.title = rgArmed ? 'press again to replace them'
+        : "write the LLM's answer into " + rgWords() + ': only what the server lets through ' +
+          'is written, and the report says what was kept and dropped';
+    }
+  }
+  function rgWords() {
+    var r = rgRange();
+    return r[0] === r[1] ? 'caption ' + r[0] : 'captions ' + r[0] + '–' + r[1];
+  }
+  // A CLICK ON A CAPTION, while picking: true when it was taken as a pick
+  // (and so must not seek), false when the page is not picking
+  function rgPickAt(i) {
+    if (!rgPicking() || isNaN(i) || i < 0 || i >= segs.length) return false;
+    if (rgFrom === null || rgTo !== null) { rgFrom = i; rgTo = null; }
+    else if (i < rgFrom) { rgTo = rgFrom; rgFrom = i; }
+    else rgTo = i;
+    // what was said about the last stretch is not about this one
+    rgDisarm();
+    rgSay(RG.sum, '');
+    RG.promptRow.hidden = true;
+    rgPaint();
+    return true;
+  }
+  function rgSay(el, text, bad) {
+    el.textContent = '';
+    if (!text) return;
+    var s = document.createElement('span');
+    s.textContent = text;
+    if (bad) s.className = 'bad';
+    el.appendChild(s);
+  }
+  /* A PROMPT THE CLIPBOARD REFUSED, shown in the box under "copy the prompt"
+     to be copied by hand, is a picture of the files AT THE MOMENT IT WAS
+     MADE -- every gloss the stretch had then goes out in it as context the
+     LLM is told to leave alone, and an LLM echoes such context back.  So it
+     must never outlive those files: kept past a ✎ delete, it sent the deleted
+     gloss out again, the answer echoed it, the server found the chunk blank
+     at paste time and filled it with the very gloss just taken off -- the
+     delete undone without a word, the report saying only "filled 1".  On an
+     iPad (Safari refuses a copy made after the round trip) this box is how
+     every prompt arrives, so the fault was the ordinary road there.  The
+     reader lets its own go the same way (rgDrop, lib/tex2html.py); here it
+     goes when the panel opens or closes, when either box changes what the
+     prompt would say, after a fill that wrote, and after every write through
+     post() -- the ✎ form's save, delete and undo, a colour -- or the divide
+     sheet (dvDone).  The summary goes with it
+     only when it was the line pointing at the box -- a prompt that did reach
+     the clipboard is out of this page's hands, and its summary stays. */
+  function rgForget() {
+    // called from inside the writes' success paths, where a throw would be
+    // caught and shown as a refusal of an edit that was in fact written
+    if (!RG || !RG.prompt || !RG.promptRow) return;
+    RG.prompt.value = '';
+    if (RG.promptRow.hidden) return;
+    RG.promptRow.hidden = true;
+    rgSay(RG.sum, '');
+  }
+  function rgOpen() {
+    if (rgOn) return;
+    rgForget();
+    rgOn = true;
+    RG.panel.hidden = false;
+    RG.btn.classList.add('on'); RG.btn.setAttribute('aria-expanded', 'true');
+    // the transcript must hold still under the picking hand: a playing video
+    // scrolls it to the line being spoken (the editor pauses for the same
+    // reason), and it plays on when the panel is closed
+    if (player && ready && player.getPlayerState &&
+        player.getPlayerState() === 1) {
+      rgWasPlaying = true; player.pauseVideo();
+    } else rgWasPlaying = false;
+    // A VIDEO ONLY HELD BY A HOVER is a playing video all the same: the
+    // hover-pause resumes it a moment after the cloud closes, which would be
+    // under the open panel (a click on this button is a pointer that has
+    // just left a phrase, or a finger whose cloud is still open).  The panel
+    // takes the resume over and plays it when it closes.
+    if (wasPlaying) {
+      clearTimeout(resumeTimer); wasPlaying = false; rgWasPlaying = true;
+    }
+    rgPaint();
+    try { RG.panel.focus({ preventScroll: true }); } catch (e) { RG.panel.focus(); }
+  }
+  function rgShut() {
+    if (!rgOn) return;
+    rgOn = false;
+    RG.panel.hidden = true;
+    RG.btn.classList.remove('on'); RG.btn.setAttribute('aria-expanded', 'false');
+    rgDisarm();
+    // with the panel shut, a phrase may be saved, deleted, cut or joined
+    // unseen by it: a prompt kept for the copy by hand goes (rgForget)
+    rgForget();
+    // the picks are kept, unlit, for the next time the panel is opened
+    rgPaint();
+    if (RG.panel.contains(document.activeElement) || document.activeElement === RG.panel)
+      RG.btn.focus();
+    // NEVER UNDER THE ✎ FORM.  The panel has no backdrop, so the form can be
+    // opened while it is open and closed after it, or before: whichever
+    // closes first hands the video it paused to the one still open, and the
+    // last to close plays it.  Played here, it would scroll the phrase being
+    // typed into out from under the form (closeEditor does the same the
+    // other way round)
+    if (rgWasPlaying && player && ready) {
+      if (editing) editWasPlaying = true; else player.playVideo();
+    }
+    rgWasPlaying = false;
+  }
+  function rgArm() {
+    rgArmed = true;
+    clearTimeout(rgArmTimer);
+    rgArmTimer = setTimeout(rgDisarm, RG_ARM_MS);
+    RG.fill.classList.add('armed');
+  }
+  function rgDisarm() {
+    rgArmed = false;
+    clearTimeout(rgArmTimer); rgArmTimer = 0;
+    RG.fill.classList.remove('armed');
+    RG.fill.textContent = FILL_LABEL;
+    if (rgFrom !== null) rgPaint();
+  }
+  function rgBody(extra) {
+    var r = rgRange(), b = {
+      video: CFG.id, from: r[0], to: r[1],
+      regloss: !!RG.regloss.checked, perfield: !!RG.perfield.checked
+    };
+    Object.keys(extra || {}).forEach(function (k) { b[k] = extra[k]; });
+    return b;
+  }
+  // through the ask that cannot hang (lib/parseh.js): a computer gone quiet
+  // is said at once rather than waited on for ever, and a write is not even
+  // tried while the page knows it is away
+  function rgAsk(what, body) {
+    return pAsk('/youtube/api/region/' + what, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () {
+        return { ok: false, error: 'the server answered ' + r.status + ' with no sentence' };
+      });
+    });
+  }
+  function rgWhy(e, writing) {
+    if (e && e.away)
+      return 'the computer does not answer — ' + (writing ? 'nothing was written' : 'no prompt was made');
+    return (e && e.message) || String(e);
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
+  // a note of the server's, which is a sentence, or a {where, note} about a chunk
+  function rgNote(n) {
+    if (!n) return '';
+    if (typeof n === 'string') return n;
+    return (n.where ? n.where + ': ' : '') + (n.note || n.why || '');
+  }
+
+  /* COPY THE PROMPT: the server makes it, for the stretch and the two boxes
+     as they are now, and it goes on the clipboard exactly as written (raw:
+     its line breaks are its fences).  Under the button, what was made: the
+     stretch in the server's words, how many chunks it holds, how many the
+     LLM is asked to gloss and how many go along glossed as context, and the
+     server's notes.  A stretch with nothing to gloss is said so, and nothing
+     goes on the clipboard: an LLM given nothing to do answers nothing. */
+  function rgCopy() {
+    if (rgFrom === null || rgBusy) return;
+    rgDisarm();
+    rgBusy = true; rgPaint();
+    RG.promptRow.hidden = true;
+    rgSay(RG.sum, 'making the prompt…');
+    rgAsk('prompt', rgBody()).then(function (j) {
+      if (!j || !j.ok) throw new Error((j && j.error) || 'the prompt could not be made');
+      if (!j.fill) { rgSummary(j, null); return; }
+      var put = (window.Parseh && Parseh.copy) ? Parseh.copy(j.prompt, true)
+                                               : Promise.resolve(false);
+      return put.then(function (ok) {
+        rgSummary(j, !!ok);
+        // the clipboard could not be reached: the prompt, to copy by hand
+        if (!ok) { RG.prompt.value = j.prompt; RG.promptRow.hidden = false; }
+      });
+    }).catch(function (e) {
+      rgSay(RG.sum, rgWhy(e, false), true);
+    }).then(function () {
+      rgBusy = false; rgPaint();
+    });
+  }
+  function rgSummary(j, copied) {
+    RG.sum.textContent = '';
+    var head = document.createElement('b');
+    head.textContent = j.region || rgWords();
+    RG.sum.appendChild(head);
+    var lines = [plural(+j.chunks || 0, 'chunk') + ', ' + (+j.fill || 0) + ' to gloss, ' +
+                 (+j.glossed || 0) + ' glossed sent as context'];
+    if (+j.folded) lines.push(plural(+j.folded, 'folded paragraph') + ' left out');
+    // the server's own note says why, and what to tick instead
+    if (!j.fill) lines.push('nothing was copied');
+    else if (copied) lines.push('the prompt is on the clipboard: paste it into the LLM, ' +
+                                'then paste its answer below');
+    else lines.push('the prompt is below: copy it into the LLM, then paste its answer ' +
+                    'under it');
+    (j.notes || []).forEach(function (n) { if (rgNote(n)) lines.push(rgNote(n)); });
+    lines.forEach(function (t) {
+      RG.sum.appendChild(document.createTextNode('\n' + t));
+    });
+  }
+
+  /* FILL FROM THE ANSWER: the answer as pasted, the stretch, and the two
+     boxes as they are at this press.  What comes back is a count of what was
+     written and three lists -- what the answer tried to change and was kept,
+     what was dropped and why, what the answer said nothing about -- and the
+     captions written to, which are drawn again where they stand. */
+  function rgFill() {
+    if (rgFrom === null || rgBusy) return;
+    var answer = RG.ans.value;
+    if (!answer.trim()) {
+      rgSay(RG.report, "paste the LLM's answer into the box first", true);
+      RG.ans.focus();
+      return;
+    }
+    var confirm = rgArmed;
+    rgDisarm();
+    rgBusy = true; rgPaint();
+    rgSay(RG.report, confirm ? 'replacing…' : 'reading the answer…');
+    rgAsk('apply', rgBody({ answer: answer, confirm: confirm })).then(function (j) {
+      if (!j || !j.ok) throw new Error((j && j.error) || 'the answer was refused');
+      rgBusy = false;
+      rgApplied(j);
+    }).catch(function (e) {
+      rgBusy = false;
+      rgSay(RG.report, rgWhy(e, true), true);
+    }).then(function () { rgPaint(); });
+  }
+  function rgApplied(j) {
+    if (j.confirm_needed) {
+      var n = +j.replace || 0;
+      rgArm();
+      RG.fill.textContent = 'replace ' + plural(n, 'gloss', 'glosses') + ' — press again';
+      rgReport(j, 'armed');
+      return;
+    }
+    // a prompt still in the box was made before these phrases were written
+    if (j.wrote) rgForget();
+    var closed = rgRedraw(j.segments || {});
+    rgReport(j, closed);
+  }
+  // the captions the answer wrote to, drawn again from what the server read
+  // back off the file.  A ✎ form open on one of them is closed first: the
+  // chunk it was showing has just been written under it, and a save from it
+  // would put the old boxes back (or be refused) -> the caption closed, if any
+  function rgRedraw(segments) {
+    var closed = null;
+    Object.keys(segments).forEach(function (k) {
+      var i = +k, sg = segments[k];
+      if (isNaN(i) || i < 0 || i >= segs.length || !sg || typeof sg !== 'object') return;
+      if (editing && cloudFor && els[i] && els[i].contains(cloudFor)) {
+        closeEditor(); closed = i;
+      }
+      segs[i] = sg;
+      redrawSeg(i);
+    });
+    rgPaint();
+    return closed;
+  }
+  function rgReport(j, how) {
+    var box = RG.report;
+    box.textContent = '';
+    var tally = document.createElement('div');
+    tally.className = 'rgtally';
+    if (how === 'armed') {
+      var n = +j.replace || 0;
+      var b = document.createElement('b');
+      b.textContent = plural(n, 'existing gloss', 'existing glosses') + ' will be replaced';
+      tally.appendChild(b);
+      tally.appendChild(document.createTextNode(
+        (+j.fill ? ', and ' + plural(+j.fill, 'chunk') + ' with no gloss filled' : '') +
+        '. Nothing is written yet: press the button again within four seconds to go ahead.'));
+    } else {
+      tally.textContent = 'filled ' + (+j.filled || 0) + ' · completed ' + (+j.completed || 0) +
+                          ' · replaced ' + (+j.replaced || 0);
+      if (!j.wrote) tally.appendChild(document.createTextNode('\nnothing was written'));
+    }
+    box.appendChild(tally);
+    if (typeof how === 'number')
+      box.appendChild(document.createTextNode('the ✎ form open on caption ' + how +
+        ' was closed: the answer wrote to that caption'));
+    // not "protected" chunks alone: a phrase the answer has just FILLED is
+    // listed here too when it also tried its word line, colour or note
+    // (glossregion._decided), so the heading names every case -- as the
+    // reader's does -- and each row's why says which
+    rgList(box, 'kept — what the answer tried to change and may not (a gloss already there, ' +
+                'a word line, a colour, a note, the free mark, a plain phrase), left as it is', j.kept);
+    rgList(box, 'dropped', j.dropped);
+    rgList(box, 'not answered', j.unanswered);
+    rgList(box, 'notes', (j.notes || []).map(function (n) {
+      return typeof n === 'string' ? { why: n } : { where: n.where, why: n.note || n.why, i: n.i };
+    }));
+  }
+  // one list of the report, each entry "where — why"; an entry that names a
+  // caption brings it into view when clicked (and plays nothing)
+  function rgList(box, head, list) {
+    if (!list || !list.length) return;
+    var h = document.createElement('h5');
+    h.textContent = head + ' (' + list.length + ')';
+    box.appendChild(h);
+    var ul = document.createElement('ul');
+    list.forEach(function (e) {
+      var li = document.createElement('li');
+      if (e.where) {
+        var w = document.createElement('span');
+        w.className = 'rgwhere'; w.textContent = e.where;
+        li.appendChild(w);
+      }
+      if (e.why) {
+        var y = document.createElement('span');
+        y.className = 'rgwhy';
+        y.textContent = (e.where ? ' — ' : '') + e.why;
+        li.appendChild(y);
+      }
+      var i = e.i;
+      if (typeof i === 'number' && els[i]) {
+        li.className = 'to';
+        li.title = 'show this caption';
+        li.onclick = function () {
+          lastUserScroll = Date.now();
+          els[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+      }
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+  }
+  RG.btn.onclick = function () { if (rgOn) rgShut(); else rgOpen(); };
+  RG.close.onclick = rgShut;
+  RG.copy.onclick = rgCopy;
+  RG.fill.onclick = rgFill;
+  // a box changed or the answer edited after the server asked for a yes: the
+  // yes was about something else now.  And a box changed makes another
+  // prompt -- re-gloss leaves the glosses out of it, per field marks the
+  // half-glossed chunks to fill -- so one kept for the copy by hand is no
+  // longer the prompt these boxes ask for (rgForget)
+  [RG.regloss, RG.perfield].forEach(function (b) {
+    b.addEventListener('change', function () { if (rgArmed) rgDisarm(); rgForget(); });
+  });
+  RG.ans.addEventListener('input', function () { if (rgArmed) rgDisarm(); });
+  // Esc closes the panel and ends the picking -- not while a sheet is over
+  // the page, nor while the ✎ form is open, which each close first on their
+  // own Esc; the ✎ form gives way when the key was pressed in the panel
+  document.addEventListener('keydown', function (e) {
+    if (!rgOn || e.key !== 'Escape' || e.defaultPrevented) return;
+    if (dvOn || ankiOpen || vmOpen || ntOn) return;
+    if (editing && !RG.panel.contains(e.target)) return;
+    e.preventDefault(); rgShut();
+  });
+  rgPaint();
+
   function isNight() {
     return window.Parseh ? Parseh.theme.isDark()
       : document.documentElement.getAttribute('data-theme') === 'dark';
@@ -4765,20 +5698,20 @@
   };
 
   /* ---------------- boot ----------------
-     video.json first, and only for its "draft" flag, which render() needs
-     before it draws a phrase: it sits beside the annotations, so the page
-     already knows where it is.  A video.json that will not load is no
-     error worth a message -- the transcript is what the page is for -- so
-     that fetch answers with an empty record and the video reads as
-     finished, which is what every video written before drafts existed is. */
+     video.json first, for its "reorders" (a text read out of its written
+     order, whose word strip the editor draws without comparing the words
+     with the reading): it sits beside the annotations, so the page already
+     knows where it is.  A video.json that will not load is no error worth
+     a message -- the transcript is what the page is for -- so that fetch
+     answers with an empty record and the video reads in its written order,
+     which is what every video that says nothing means.  Nothing else in the
+     file changes how the transcript is drawn. */
   fetch(String(CFG.ann).replace(/annotations\.json$/, 'video.json'),
         { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : {}; })
     .catch(function () { return {}; })
     .then(function (meta) {
-      draft = !!(meta && meta.draft);
       reorders = !!(meta && meta.reorders);
-      $('#draft').hidden = !draft;
       return fetch(CFG.ann, { cache: 'no-store' });
     })
     .then(function (r) {
@@ -4846,10 +5779,18 @@
       // reads the film with ffmpeg instead -- but the shim answers
       // everything the page asks of a player, or it is not a player
       getPlaybackRate: function () { return film.playbackRate || 1; },
-      setPlaybackRate: function (r) { try { film.playbackRate = r || 1; } catch (e) {} }
+      setPlaybackRate: function (r) { try { film.playbackRate = r || 1; } catch (e) {} },
+      // YouTube offers the speeds IT will play at, and the controls ask for
+      // that list (lib/narrctl.js, the speed chip): a <video> of this machine
+      // plays at whatever rate it is given, so it says it has no list of its
+      // own and the chip offers the toolbox's own speeds
+      getAvailablePlaybackRates: function () { return null; }
     };
     film.addEventListener('loadedmetadata', function () {
       ready = true; $('#novid').hidden = true; measure(); jumpToHash();
+      // as the YouTube player does on its own ready: the controls outside this
+      // script learn there is something to drive (lib/narrctl.js)
+      saidState();
     });
     // the download carries the film, so the button says so -- and how big
     // it is, as the server sums what the bundle will carry (bundle.payload),
@@ -4865,8 +5806,9 @@
                  'Add ?media=text to the address for the words alone.';
     }
     // the same meaning as YT's state 1: the person pressed play, so the
-    // hover-pause has nothing of its own to resume
-    film.addEventListener('play', function () { wasPlaying = false; });
+    // hover-pause has nothing of its own to resume -- and nor has the LLM
+    // panel (rgWasPlaying, onStateChange below says why)
+    film.addEventListener('play', function () { wasPlaying = false; rgWasPlaying = false; });
     film.addEventListener('error', function () {
       // SAY WHICH THING WENT WRONG.  A file that is gone and a file the
       // browser cannot decode are different problems with different
@@ -4898,7 +5840,14 @@
     window.onYouTubeIframeAPIReady = function () {
       player = new YT.Player('yt', {
         videoId: CFG.id,
-        playerVars: { rel: 0, playsinline: 1 },
+        // YOUTUBE'S OWN ⛶ IS NOT ON A PHONE (the owner's choice, 2026-09-23).
+        // The mobile interface has a whole screen of its own -- the page, laid
+        // out by Parseh, with the line being said over the picture
+        // (lib/mobileplayer.js) -- and a second ⛶ inside the frame puts the
+        // iframe on top, which takes those subtitles away and leaves a way out
+        // nobody here can offer.  One full screen, and it is the one with the
+        // words in it.  On a computer the frame keeps its own button.
+        playerVars: { rel: 0, playsinline: 1, fs: mobileMode() ? 0 : 1 },
         events: {
           // the offline note may have been shown by the slow-API timeout;
           // a player that reaches ready proves it wrong
@@ -4906,19 +5855,231 @@
             ready = true; $('#novid').hidden = true; measure(); jumpToHash();
             // a sheet opened before the player came can cut from it now
             if (ankiOpen) paintCut();
+            paintShot();
+            // and the controls outside this script learn there is a player to
+            // drive: the speed a video was last watched at is put back the
+            // moment one exists (lib/narrctl.js)
+            saidState();
           },
           onStateChange: function (e) {
-            if (e.data === 1) wasPlaying = false;  // user pressed play himself
+            // the user pressed play himself: the hover-pause has nothing of
+            // its own to resume, AND NEITHER HAS THE LLM PANEL.  It paused the
+            // video when it opened and plays it when it closes; but it has no
+            // backdrop, the video's own controls stay in reach -- and, a click
+            // on a caption being a pick, they are how a line is heard while
+            // picking.  Played and paused again by hand, the video is where the
+            // person left it, and closing the panel started it by itself.
+            // rgShut's own play comes after it has let the flag go, and the ✎
+            // form's handover sets it with no play at all, so neither is lost
+            if (e.data === 1) { wasPlaying = false; rgWasPlaying = false; }
+            saidState();
+          },
+          // THE RATE, WHEN YOUTUBE HAS REALLY TAKEN IT.  setPlaybackRate is a
+          // message to the frame and getPlaybackRate answers with the rate
+          // from before it lands, so the speed chip painted one change behind
+          // until it was given something to wait for (TO-DO §0, 2026-09-23).
+          onPlaybackRateChange: saidState,
+          /* A VIDEO YOUTUBE WILL NOT PLAY used to fail without a word: the
+             frame sat empty and nothing said why (TO-DO §2.17).  The reasons
+             are few and each has a different answer, so each is said in the
+             same place that says why a player never started at all. */
+          onError: function (e) {
+            var code = e && e.data;
+            var why = code === 2
+              ? 'YouTube does not know this address —<br>' +
+                'the id this video is filed under is not one of its own'
+              : code === 5
+                ? 'YouTube will not play this video in this browser —<br>' +
+                  'it can still be watched on youtube.com'
+                : code === 100
+                  ? 'this video is gone from YouTube —<br>' +
+                    'it was taken down, or it was made private'
+                  : (code === 101 || code === 150)
+                    ? 'the owner of this video does not allow it to be played ' +
+                      'outside YouTube —<br>it can still be watched on youtube.com'
+                    : 'YouTube would not play this video (error ' + esc(String(code)) + ')';
+            $('#novid').innerHTML = why + '<br>— the transcript below still works';
+            $('#novid').hidden = false;
           }
         }
       });
     };
-    var tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    tag.onerror = function () { $('#novid').hidden = false; };
-    document.head.appendChild(tag);
-    setTimeout(function () { if (!player) $('#novid').hidden = false; }, 6000);
+    /* WAITING IS NOT FAILING.  This used to hang a blind six-second timer on
+       the page: whatever had happened, if no player existed by then the box
+       came up saying the video needed an internet connection -- which the
+       page had never tested, and which was false every time the phone was
+       merely slow.  On a tunnel, with the app fetching its own pages in the
+       background, six seconds is an ordinary time for YouTube's script to
+       arrive (that is exactly how this came to be seen: the owner, online,
+       2026-09-23).  So the script's own load and error are listened to, the
+       waiting says it is waiting, and only a real failure says so -- with
+       what failed, a way to try again, and a way to watch it where it is. */
+    var apiSaid = false;
+    function giveUp(why) {
+      if (apiSaid) return;
+      apiSaid = true;
+      var box = $('#novid');
+      box.innerHTML = '';
+      box.appendChild(document.createTextNode(why));
+      box.appendChild(document.createElement('br'));
+      var again = document.createElement('button');
+      again.type = 'button';
+      again.className = 'novid-again';
+      again.textContent = 'Try again';
+      again.addEventListener('click', function () {
+        box.hidden = true;
+        apiSaid = false;
+        loadApi();
+      });
+      box.appendChild(again);
+      if (CFG.id && !CFG.media) {
+        var out = document.createElement('a');
+        out.className = 'novid-out';
+        out.href = 'https://www.youtube.com/watch?v=' + encodeURIComponent(CFG.id);
+        out.rel = 'noreferrer';
+        out.target = '_blank';
+        out.textContent = 'Watch it on YouTube';
+        box.appendChild(document.createTextNode(' · '));
+        box.appendChild(out);
+      }
+      /* AND WHERE TO LOOK WHEN IT IS THE TUNNEL.  A phone on Tailscale can
+         reach Parseh perfectly and not the open internet at all -- MagicDNS
+         answers the tailnet's names and the phone cannot reach the resolver
+         that would answer the rest -- and then every video fails here while
+         everything else about Parseh works.  It is not something this page
+         can mend, and it is not something anybody would guess, so the page
+         says where it is written down. */
+      var help = document.createElement('a');
+      help.className = 'novid-out';
+      help.href = '/guide/site/getting-started/other-devices.html' +
+                  '#a-phone-on-tailscale-that-cannot-reach-the-internet';
+      help.textContent = 'On a phone over Tailscale, this is usually DNS — what to change';
+      box.appendChild(document.createElement('br'));
+      box.appendChild(help);
+      box.appendChild(document.createElement('br'));
+      box.appendChild(document.createTextNode('— the transcript below still works'));
+      box.hidden = false;
+    }
+    function loadApi() {
+      if (window.YT && window.YT.Player) { window.onYouTubeIframeAPIReady(); return; }
+      var tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      // the script itself failing is the one thing that IS a network answer
+      tag.onerror = function () {
+        giveUp('YouTube’s player could not be fetched — Parseh itself is answering, ' +
+               'so it is YouTube this phone cannot reach.');
+      };
+      // it arrived: from here on the wait is YouTube's own, and a wait is not
+      // a failure -- the player is given a long, honest grace
+      tag.onload = function () {
+        setTimeout(function () {
+          if (!player) giveUp('YouTube’s player was fetched but never started.');
+        }, 20000);
+      };
+      document.head.appendChild(tag);
+      // and if the script neither loads nor errors -- a request left hanging,
+      // which is what a phone with a network and no route does -- say so
+      // rather than sitting silent for ever
+      setTimeout(function () {
+        if (!player && !window.YT) giveUp('YouTube’s player has not arrived yet.');
+      }, 25000);
+    }
+    loadApi();
   }
   setInterval(tick, 250);
   measure();
+  // a phone turned, or the mode switched in another tab: the layout follows
+  if (window.matchMedia) {
+    try {
+      window.matchMedia(WIDE_M).addEventListener('change', function () {
+        paintButtons();
+        applySize();
+        if (active >= 0) show(active);
+      });
+    } catch (e) {}
+  }
+  // The mode switched, here or in another tab: the layout follows -- AND SO
+  // DOES THE LLM PANEL'S PICKING, which the phone's mode has none of
+  // (rgPicking).  The panel is hidden there, not closed, and the run lit on
+  // the transcript and body.rgpicking -- the column pushed 458px aside for a
+  // panel no longer shown, the crosshair -- were left standing until
+  // something else repainted, taps seeking under a tint that said they
+  // picked.  Painted again on the switch, the run goes out in the phone's
+  // mode and comes back lit in the computer's, the panel still open
+  // (style.css also scopes those rules to a page not in the phone's mode)
+  if (window.MutationObserver) {
+    new MutationObserver(function () { paintButtons(); applySize(); rgPaint(); })
+      .observe(document.documentElement, {attributes: true, attributeFilter: ['data-mode']});
+  }
+
+  /* ---- THE VIDEO, FOR THE LAYERS OUTSIDE THIS SCRIPT (TO-DO §4.2) ----
+     On a phone the narration's controls float at the foot of the screen --
+     ↺, ⏯, ↻ and the speed -- and they are the book reader's (lib/narrctl.js),
+     which drives a book's <audio> straight.  A video has no such element: it
+     is YouTube's own frame, or a film of this machine behind the same six
+     calls (the shim above).  So the page hands out exactly what a control
+     needs and nothing it could break with.  The speeds are the player's own,
+     since YouTube offers the ones it offers and nothing else.  */
+  var stateFns = [];
+  function saidState() {
+    stateFns.forEach(function (fn) { try { fn(); } catch (e) {} });
+  }
+  var filmEl = null;
+  function watchFilm() {
+    var f = $('#film');
+    if (!f || f === filmEl) return;
+    filmEl = f;
+    ['play', 'pause', 'ended', 'ratechange'].forEach(function (n) {
+      f.addEventListener(n, saidState);
+    });
+  }
+  window.ParsehPlayer = {
+    kind: function () { return CFG.media ? 'film' : 'youtube'; },
+    ready: function () { return !!(player && ready); },
+    paused: function () {
+      try { return !player || !ready || player.getPlayerState() !== 1; } catch (e) { return true; }
+    },
+    play: function () { watchFilm(); if (player && ready) { player.playVideo(); saidState(); } },
+    pause: function () { if (player && ready) { player.pauseVideo(); saidState(); } },
+    time: function () { try { return player.getCurrentTime() || 0; } catch (e) { return 0; } },
+    duration: function () { try { return player.getDuration() || 0; } catch (e) { return 0; } },
+    seek: function (t) {
+      if (!(player && ready)) return;
+      var end = 0;
+      try { end = player.getDuration() || 0; } catch (e) {}
+      try { player.seekTo(Math.max(0, end ? Math.min(t, end - 0.1) : t), true); } catch (e) {}
+    },
+    rate: function () { try { return player.getPlaybackRate() || 1; } catch (e) { return 1; } },
+    setRate: function (r) {
+      try { player.setPlaybackRate(r); } catch (e) {}
+      saidState();
+    },
+    // what this player will actually play at: YouTube's own list where it
+    // says one, and a film's anything
+    rates: function () {
+      try {
+        var list = player.getAvailablePlaybackRates && player.getAvailablePlaybackRates();
+        if (list && list.length) return list.slice();
+      } catch (e) {}
+      return null;
+    },
+    onChange: function (fn) { stateFns.push(fn); watchFilm(); },
+    /* THE SUBTITLE OVER A VIDEO ON THE WHOLE SCREEN (lib/mobileplayer.js).
+       The line laid over the picture is a COPY of the caption being said, and
+       a copy carries none of the listeners this page hung on each phrase as it
+       drew it -- so a tap on a copied phrase glossed nothing, and the one
+       thing the whole screen was for had never worked.  Here the layer says
+       which caption and which phrase its copy is, and hands the copy itself as
+       the thing to hang the cloud on: the gloss opens against the subtitle,
+       under the finger, and not against a transcript the video is covering. */
+    gloss: function (i, j, at) {
+      var sg = segs[i], ch = sg && sg.chunks && sg.chunks[j];
+      if (!ch || !at) return false;
+      if (cloudFor === at) { closeCloud(); return true; }
+      openCloud(at, ch, sg);
+      return true;
+    },
+    ungloss: function () { closeCloud(); }
+  };
+  watchFilm();
 })();

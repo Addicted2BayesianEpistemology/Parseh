@@ -8,6 +8,9 @@
 <link rel="stylesheet" href="__BASE__/lib/style.css">
 <link rel="stylesheet" href="/lib/langs.css">
 <script src="/lib/parseh.js"></script>
+<!-- a held finger opens what a shift-click (copy) and an alt-click (a card)
+     open for a mouse, in this transcript as in a book's reader (§4.6) -->
+<script src="/lib/wordtouch.js" defer></script>
 <script src="/lib/wordline.js"></script>
 <script src="/lib/llm.js"></script>
 <script src="/lib/mt.js"></script>
@@ -48,17 +51,16 @@
   <span class="ttl">
     <bdi class="fa-ttl" lang="__LANG__" dir="__LANG_DIR__">__TITLE_NATIVE__</bdi>
     <span class="lat" title="__TITLE__ — __CHANNEL__">__TITLE__ — __CHANNEL__</span>
-    <!-- video.json's "draft" flag, read by the script: a video still being
-         written says so, because that is what a chunk with no gloss on it
-         means here (and what the checker is forgiving) -->
-    <span id="draft" class="badge" hidden
-      title="this video is still being written: a phrase nobody has glossed yet is still yours to fill in, and the checker forgives it">draft</span>
   </span>
   <button id="vidinfo" title="edit the title, the channel and the other details this video is filed under">video info</button>
   <!-- where each caption starts, moved over a picture of the sound: the
        transcript editor of the add page does this before a video is added,
        and this is the one door that does it afterwards (youtube/lib/captimes.py) -->
   <button id="captimes" title="move where each caption starts, by ear">the timings</button>
+  <!-- a run of captions glossed by an LLM: the panel below (#rgpanel) makes
+       the prompt and puts the answer back, through lib/glossregion.py -->
+  <button id="rgn" aria-expanded="false" aria-controls="rgpanel"
+    title="copy a prompt that has an LLM gloss a stretch of the video, and fill in its answer">gloss with an LLM</button>
   <span class="sp"></span>
   <span id="pos"></span>
   <button id="follow" title="keep the playing caption in view">follow</button>
@@ -82,8 +84,13 @@
 
 <div id="playerwrap"><div id="vid">
   <div id="yt"></div>
-  <div id="novid" hidden>the video needs an internet connection —<br>
-    the transcript below still works</div>
+  <!-- WHAT IT SAYS IS WRITTEN WHEN IT HAPPENS, not here.  This used to carry
+       "the video needs an internet connection", which the page had never
+       tested: it was shown whenever YouTube's script was merely slow, and it
+       blamed the phone's connection for something no connection had been
+       asked about (the owner, online, 2026-09-23).  player.js fills it with
+       what actually failed, a way to try again, and a way out to YouTube. -->
+  <div id="novid" hidden></div>
 </div>
 <div id="grip" title="drag to resize the video — double-click to reset"></div>
 </div>
@@ -114,7 +121,7 @@
 <div id="ntbox" hidden>
   <div class="ahead"><span id="nttitle">note</span><span class="sp"></span>
     <button type="button" id="ntedit" title="write this note">edit</button>
-    <button type="button" id="ntread" hidden title="read it as it renders">read</button>
+    <button type="button" id="ntread" hidden title="back to the note as it reads">read</button>
     <button type="button" id="ntclose" title="close (Esc)">&#10005;</button></div>
   <iframe id="ntframe" title="a note beside this video"></iframe>
 </div>
@@ -132,6 +139,45 @@
       <span id="dvstat"></span>
     </div></div>
 </form>
+
+<!-- GLOSSING A STRETCH WITH AN LLM.  Not a sheet over the page but a panel
+     beside it, with no backdrop: the stretch is picked on the transcript
+     itself -- while this is open a click on a caption picks it rather than
+     playing it -- so the captions have to stay where a hand can reach them.
+     The page never decides what the answer may change: the server does,
+     against the file as it stands when the answer is pasted
+     (lib/glossregion.py), and the report says what it kept and dropped. -->
+<aside id="rgpanel" hidden aria-labelledby="rghead">
+  <div class="ahead"><span id="rghead">gloss a stretch with an LLM</span><span class="sp"></span>
+    <button type="button" id="rgclose" title="close (Esc)">&#10005;</button></div>
+  <div class="anote rghint">Click a caption for <b>from</b>, then another for
+    <b>to</b>; a third click starts again. While this is open a click on a
+    caption picks it instead of playing it.</div>
+  <div class="rgslots">
+    <div class="rgslot"><span class="rgslab">from</span><span id="rgfrom" class="rgval">click a caption</span></div>
+    <div class="rgslot"><span class="rgslab">to</span><span id="rgto" class="rgval">click a caption</span></div>
+  </div>
+  <label class="rgchk"><input type="checkbox" id="rgregloss"> re-gloss what is already glossed</label>
+  <div class="anote rgcnote">its glosses are not sent, and the answer replaces them</div>
+  <label class="rgchk"><input type="checkbox" id="rgperfield"> also fill the empty boxes of partly glossed chunks</label>
+  <div class="anote rgcnote">otherwise a chunk with any gloss is left exactly as it is</div>
+  <div class="rgact">
+    <button type="button" id="rgcopy">copy the prompt</button>
+  </div>
+  <div id="rgsum" role="status"></div>
+  <!-- the prompt, where the clipboard could not be reached: to copy by hand -->
+  <div id="rgpromptrow" hidden>
+    <textarea id="rgprompt" rows="5" readonly></textarea>
+    <div class="anote">the clipboard could not be reached: select this and copy it</div>
+  </div>
+  <label class="rglab" for="rgans">the LLM's answer</label>
+  <textarea id="rgans" rows="5" spellcheck="false"
+    placeholder="paste the LLM's reply here, as it came — several messages one under the other"></textarea>
+  <div class="rgact">
+    <button type="button" id="rgfill">fill from the answer</button>
+  </div>
+  <div id="rgreport" role="status"></div>
+</aside>
 
 <div id="ankiback" hidden></div>
 <form id="anki" hidden autocomplete="off">
@@ -233,6 +279,10 @@
   <div class="arow"><span class="alab">frame</span>
     <div class="actl">
       <button type="button" id="ashot">📷 capture the current frame</button>
+      <!-- why the button is disabled, said under it too: a phone shows no
+           title.  A film on this machine is never disabled — its frame comes
+           off a canvas, here and on a phone alike -->
+      <div class="anote" id="ashotwhy" hidden></div>
       <div id="ashotprev" hidden>
         <img id="ashotimg" alt="captured frame">
         <div class="ashotside">
@@ -242,18 +292,23 @@
           <button type="button" id="ashotdel">remove</button>
         </div>
       </div>
-      <div class="anote" id="ashothint" hidden>works in any browser on any of
-        the toolbox's https addresses (the browser asked you once about the
-        certificate — that was it). In Chrome pick “This Tab”; in Firefox
-        share this browser window (or the screen) and keep the player
-        visible — two coloured dots flash on the video's corners while the
-        capture finds the exact video area. Sharing stays on, so later
-        captures are instant, and in Chrome and Edge the same share lets
-        “cut the audio…” record a YouTube video's sound (leave “Also allow
-        tab audio” on). A paused video rolls in muted from ~5 seconds
-        before the moment — YouTube keeps its overlay up that long — so the
-        controls fade out of the shot, and it freezes back on the exact
-        frame</div>
+      <!-- shown only where the frame has to come from a share of this tab,
+           which is a YouTube video on a computer.  A film on this machine is
+           read straight off the film and asks none of this -->
+      <div class="anote" id="ashothint" hidden>a YouTube video's frame comes
+        from a share of this tab, on a computer: no browser on a phone shares
+        a tab, and there the frame can only be captured from a film kept on
+        this machine. It needs one of the toolbox's https addresses (the
+        browser asked you once about the certificate — that was it). In
+        Chrome pick “This Tab”; in Firefox share this browser window (or the
+        screen) and keep the player visible — two coloured dots flash on the
+        video's corners while the capture finds the exact video area. Sharing
+        stays on, so later captures are instant, and in Chrome and Edge the
+        same share lets “cut the audio…” record a YouTube video's sound
+        (leave “Also allow tab audio” on). A paused video rolls in muted from
+        ~5 seconds before the moment — YouTube keeps its overlay up that
+        long — so the controls fade out of the shot, and it freezes back on
+        the exact frame</div>
     </div>
   </div>
   <!-- THE CARD'S SOUND: the stretch of the video the card is about, cut into

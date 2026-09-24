@@ -4,12 +4,12 @@ weight: 1
 description: The book cards, building a book, taking one off the shelf, bringing one back, and backing up the whole shelf.
 ---
 
-The hub's **Books** door opens the library, `https://localhost:8765/books/`.
+The hub's **Books** door opens the library, `https://localhost:7654/books/`.
 It is one page: a row of language chips, the books grouped by language,
 the **＋ Add a book** card, and two panels at the foot — one that takes a
 single book back in, and one for the whole shelf.
 
-![The library: the language chips, a card per book, a draft among them](shots/library.png)
+![The library: the language chips and a card per book](shots/library.png)
 
 ## The language chips
 
@@ -27,7 +27,6 @@ transliterated title and author, the one-sentence blurb, and a row of tags:
 
 | Tag | Means |
 |---|---|
-| **draft** | `book.json` says the book is being written: its checker forgives a chunk nobody has glossed yet. See [Adding a book](doc:Adding a book). |
 | **N chapters**, **N subparagraphs** | what the built reader holds |
 | **audio · 12/57 timed** | the book has a recording, and how many subparagraphs have a time in it |
 | **no audio yet** | the book has no recording |

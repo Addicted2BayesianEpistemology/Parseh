@@ -123,7 +123,9 @@ INSTALLING refuses, always with a sentence naming what to do about it:
       bundle does not carry, whose chapters do not parse, whose text no
       longer reproduces its own source paragraphs (verify_book.py's check),
       or one of whose word lines cannot be set (lib/wordline.py's check)
-    * a video whose annotations do not pass check_annotations.py
+    * a video whose annotations do not pass check_annotations.py (a chunk
+      half glossed is only noted: it is the middle of the work, which is
+      when a video goes out and comes back)
     * a slug or an id already in the toolbox where this one would go, unless
       the caller passes replace -- and the answer then says what is being
       replaced
@@ -302,7 +304,9 @@ HOLD = ".parseh-replaced-"
 # else through on the way back.  "dirs" maps a carried directory to the
 # extensions it may hold -- .txt and .json under source/ is what the book
 # pipeline writes there (extract_pdf.py, chapter_src.py), .json under parts/
-# is what merge_parts.py reads.
+# is the batches of a video added before they were retired (2026-09-23):
+# nothing reads them any more, and they are carried so that an old video
+# still travels whole rather than arriving with a folder silently missing.
 # The notes somebody has written into the seams of a book or a video
 # (markdown/app/notes.py).  They are part of the content and not of the
 # toolbox, so they travel in EVERY shape of the bundle -- a `text` book with
@@ -1465,11 +1469,23 @@ def _check_video(tree, name, language, gloss):
     if meta.get("id") and meta["id"] != name:
         notes.append('video.json says id "%s" while the bundle holds "%s"; the '
                      'directory name wins' % (meta["id"], name))
-    errors, warnings, (nseg, nch, nw) = CA.check(tree)
+    # A chunk HALF GLOSSED -- the meaning typed, the transliteration still to
+    # come -- is how a video looks in the middle of its glossing, and the
+    # player saves it so; a bundle is how that video goes to another machine
+    # and back, so here it is noted and not refused.  The checker names each
+    # missing field; the note counts the chunks (the part of the message
+    # before ": missing").  Every other error still refuses.
+    halves = []
+    errors, warnings, (nseg, nch, nw) = CA.check(tree, half=halves.append)
     if errors:
         raise BundleError("check_annotations refuses this video (%d error(s)):\n"
                           % len(errors)
                           + "\n".join("  " + _here(e, tree) for e in errors[:9]))
+    half = len({m.rsplit(": missing", 1)[0] for m in halves})
+    if half:
+        notes.append("%d chunk%s half glossed -- kept, not refused: finish %s "
+                     "in the player" % (half, "" if half == 1 else "s",
+                                        "it" if half == 1 else "them"))
     notes += ["check_annotations: " + _here(w, tree) for w in warnings[:5]]
     notes.append("%d captions, %d chunks, %d words -- %s, glossed in %s"
                  % (nseg, nch, nw, L.name, G.name))

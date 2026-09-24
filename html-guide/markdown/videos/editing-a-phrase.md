@@ -2,7 +2,7 @@
 title: Editing a phrase in the player
 linkTitle: Editing a phrase
 weight: 7
-description: The four colours, the ✎ form and its fields, the words of Japanese and Chinese, the sources beside the fields, and every refusal.
+description: The four colours, the ✎ form and its fields, deleting a gloss, the words of Japanese and Chinese, the sources beside the fields, and every refusal.
 ---
 
 A video's writing door is the gloss cloud itself, and it needs no mode:
@@ -27,10 +27,9 @@ filters by one. It is your own mark on the text — *this is the word I did
 not know*, *this is the construction I keep missing*.
 
 > A colour, like every edit made in the player, is written into
-> `annotations.json`. A video made by an LLM also keeps the answer it was
-> built from, under `parts/`; running `merge_parts.py` again by hand would
-> rebuild `annotations.json` from those and lose the colours and the edits.
-> The pages never run it on a video that is already there
+> `annotations.json`, and nothing else on the shelf holds a gloss: the
+> answer a video was built from is folded in once, while the video is being
+> added, and the batches are dropped there and then
 > ([A video's files](the-files.md#parts)).
 
 ## The form
@@ -58,12 +57,12 @@ Target-language boxes take the language's face and direction; the
 vocabulary and the meaning take the gloss language's, so an Arabic meaning
 runs right to left inside this left-to-right form.
 
-Under the fields: **save** (**Ctrl+↵**, or ⌘+↵), **✂ cut in two**,
-**join next**, and — from the second phrase of a caption on —
-**join previous**; those three move where a phrase ends
-([Cutting and joining](cutting-and-joining.md)). The colour row stays at
-the foot. **⊕ sources** in the head opens the column described below, and
-**✕** or Esc closes the form.
+Under the fields: **save** (**Ctrl+↵**, or ⌘+↵) and **delete gloss**
+beside it (below), **✂ cut in two**, **join next**, and — from the second
+phrase of a caption on — **join previous**; those three move where a phrase
+ends ([Cutting and joining](cutting-and-joining.md)). The colour row stays
+at the foot. **⊕ sources** in the head opens the column described below,
+and **✕** or Esc closes the form.
 
 **While the form is open the cloud stops being a hover**: it stays when the
 pointer leaves it, and pointing at another phrase does not wipe what you
@@ -82,6 +81,38 @@ Two fields are deliberately not in the form: `note` and `plain`. They
 belong to whoever authored the video — `plain` in particular decides
 whether a phrase is asked for a gloss at all — so they are edited in the
 file ([A video's files](the-files.md)).
+
+**One box at a time is fine.** A phrase nobody has glossed opens with its
+boxes empty, and you may fill them in any order, over as many sittings as
+you like: a meaning saved before its transliteration is saved as it is, and
+the checker lists the phrase until the rest is written. What is refused is
+the opposite — emptying, on its own, a box the language requires, which
+would turn a finished gloss into a half-finished one (the refusals, below).
+
+## Deleting a gloss {#deleting-a-gloss}
+
+**delete gloss**, beside **save**, takes the phrase's whole gloss off in one
+click: its transliteration, its kana (in Japanese), its vocabulary and its
+meaning. It asks
+nothing first, because it can be undone. The text, the colour, the words, the
+note and the transcript mark stay; what is left is a phrase with no gloss.
+In Japanese and Chinese that is one step emptier than a phrase nobody has
+touched: a drafted phrase holds the reading proposed from its words (the
+kana, or the pinyin), and delete empties the reading rather than put that
+proposal back. The form says *gloss deleted*, and an **undo delete** button
+appears: it writes the deleted gloss back, down the same route as a save.
+
+The page keeps the deleted gloss until it is reloaded, not longer: close the
+form, open the same phrase again later, and **undo delete** is still there;
+reload the player, and it is gone. The button is not offered on a phrase
+marked plain, and is greyed out on one that has no gloss as saved — a
+reading that still says exactly what its words propose is none.
+
+It is how a gloss is written again from nothing — by you, or by an LLM: a
+deleted gloss counts as no gloss, so the next prompt of **gloss with an
+LLM** asks for this phrase, and the answer may fill it
+([Glossing captions with an LLM](glossing-with-an-llm.md)). It is also the
+one way to empty a box the language requires.
 
 ## When YouTube heard wrong {#when-youtube-heard-wrong}
 
@@ -180,15 +211,16 @@ line is built entry by entry. Nothing is saved until **save**.
 Every save goes through `check_annotations.py` **before** anything is
 written, and is refused — in the checker's own words, shown at the foot of
 the form — if it brings in an error the file did not already have.
-*Brings in*, not *has*: a video being written from nothing is missing half
-its glosses by definition, and an editor that would not work until the
-video was finished could not be how the video gets finished. A refused save
-writes nothing at all; the form stays open with your text in it.
+*Brings in*, not *has*: an editor that would not work until the video was
+finished could not be how the video gets finished. And a box still empty
+beside the ones you fill is never counted: a phrase half glossed is the
+middle of the work. A refused save writes nothing at all; the form stays
+open with your text in it.
 
 | It says | Which means |
 |---|---|
 | *segment 1 (start 6): chunks do not reproduce the text* (with the two texts under it) | the text changed. Marks are set aside first, so vowelling goes through, and changing a word or a stop does not. Moving a word to the next phrase is not one phrase's edit: it is a boundary moving ([Cutting and joining](cutting-and-joining.md)). A misheard word is what **the transcript** box is for |
-| *segment 4 (start 21) chunk 1: missing 'en'* | you emptied a field the language wants. Filling a blank field of a blank phrase always goes through; emptying one that was filled does not, because that error is new |
+| *segment 4 (start 21) chunk 1: a glossed phrase needs its meaning -- check_annotations.py calls an empty en an error; empty every box of the gloss ("delete gloss") to take the whole gloss off* | you emptied, on its own, a field the language requires. The same goes for the transliteration where the language romanises every phrase (*Persian romanises every phrase, so tr cannot be emptied on its own*) and for the kana of a Japanese phrase. Emptying **every** box at once is allowed — that is **delete gloss** — and the vocabulary may always be emptied. Filling a box is never refused for what is still empty beside it |
 | *segment 2 (start 12) chunk 1: the words do not reproduce the text: …* | Japanese, Chinese: the text changed and the words did not — change both in one save |
 | *no chunk 3 in segment 4: there are 2* | the page is out of date: the file was changed elsewhere since it was drawn. Reload rather than let a neighbouring phrase be edited by mistake |
 | *the edit was refused* / *the server did not answer* | the server is stopped or could not be reached; nothing was written |

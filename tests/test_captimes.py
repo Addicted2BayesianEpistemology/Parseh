@@ -202,9 +202,15 @@ class Notes(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="parseh-captimes-notes-")
         self.d = os.path.join(self.tmp, "fA6bK2mQ8sT")
         shutil.copytree(FIXTURE, self.d)
-        d = os.path.join(self.d, "notes", "a-note")
+        # WHERE THE STUDIO REALLY PUTS A VIDEO'S NOTES (§2.1): this test used
+        # to write into <video>/notes/, the same folder captimes.py looked in
+        # and the studio has never written -- so both were wrong together and
+        # the test passed while a moved caption left its note behind.  The
+        # studio's own layout is markdown/<language>/<id>/source.md
+        # (markdown/app/notes.py, DIR = "markdown").
+        d = os.path.join(self.d, "markdown", "persian", "a-note")
         os.makedirs(d)
-        self.note = os.path.join(d, "index.md")
+        self.note = os.path.join(d, "source.md")
         with io.open(self.note, "w", encoding="utf-8") as f:
             f.write("---\ntitle: About this bit\nanchor: after cap 12\n---\n\nSomething.\n")
 

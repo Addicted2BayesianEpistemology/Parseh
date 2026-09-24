@@ -54,23 +54,33 @@ left undone: each chunk's word line, `山(やま) へ 柴刈り(しばかり) �
 and read by lib/words.py (see _chunk_line).  It is a mechanical cut in the
 sense above: the words must rejoin the chunk's text, so a boundary in the
 wrong place is a local edit and never a lost character.  Its readings are a
-dictionary's, which is why they sit in the word line and not in the chunk's
-own kana or tr: those stay blank for the author and are never derived from
-the words.  Where the analyzers are not in the running Python nothing is
-proposed, and the chunk is written as it always was.  A video's chunks get
-theirs the same way, as the "words" key after "fa" (see _blank_chunk).
+dictionary's, and they sit in the word line.  The chunk's own reading --
+kana where the language has one, tr (the pinyin) where it has not -- starts
+as those readings run together (wordline.reading_from), so the two agree:
+a proposal like the line it comes from, which the author corrects with it,
+and which counts as nobody's writing while it still says exactly that
+(wordline.seed).  Where the analyzers are not in the running Python nothing
+is proposed, and the chunk is written as it always was.  A video's chunks get
+their line and reading the same way, the line as the "words" key after "fa"
+(see _blank_chunk).
 
-WHAT SAYS IT IS A DRAFT
------------------------
-`book.json` and `video.json` get `"draft": true`.  A draft has no
-transliteration and no reading by definition, so it would fail its own
-checker on the day it was created; the flag is what lets `check_batch.py`
-report a wholly-unwritten gloss as a note instead of an error, while a
-HALF-written one -- a meaning with no transliteration beside it, in a
-language that requires one -- stays the error it has always been.  The
-flag goes in the metadata rather than in the annotations because
-`merge_parts.py` rewrites `annotations.json` from the parts and would drop
-it.  Delete it when the last paragraph is glossed.
+A BLANK GLOSS IS LEGAL
+----------------------
+Nothing in a draft's gloss was written by a person: no meaning, no
+vocabulary, and no transliteration or reading beyond the one a language
+divided into words is proposed from its word line (above), which counts as
+unwritten until somebody writes something else in the chunk.  Nothing needs
+to say so: a chunk nobody has glossed yet is legal everywhere.
+`check_batch.py` and `check_annotations.py` count it in a note, the reader
+and the player show it and open it for editing, and the PDF sets it -- so a
+drafted book or video is read, built and filled in from the first minute, in
+the reader's chunk sheet or the player's form, a chunk at a time by hand or a
+region at a time with an LLM.  What the checkers do call an error is a
+HALF-written gloss -- a meaning with no transliteration beside it, in a
+language that requires one -- and emptying every box of a chunk at once is
+how a gloss is taken off again.  Nothing here writes a marker into
+`book.json` or `video.json`: a drafted edition and a finished one are the
+same kind of file, some of whose glosses are still blank.
 
 WHAT IS REFUSED
 ---------------
@@ -389,9 +399,11 @@ CH_HEADER = """\
 %% name of a slot (docs/languages.md section 3).  To split a sentence into
 %% the phrases it should be read in, cut its line into several -- the
 %% chunking is the editorial work, which is why nothing guessed at it here.
-%% book.json says "draft": true while that is going on, and check_batch.py
-%% then reports a gloss nobody has written as a note rather than an error;
-%% take the flag out when the last paragraph is done.
+%% A blank gloss is legal: the reader shows the chunk as it is, the PDF sets
+%% it and check_batch.py counts it in a note, so the book reads and builds
+%% while the glosses are filled in -- here, or in the reader, a chunk at a
+%% time by hand or a region at a time with an LLM.  A chunk with only part
+%% of its gloss written is an error to the checker until the rest is in.
 """
 CH_WORDS = """\
 %% The last field is the chunk's WORDS (\\chrw and \\chw are \\chr and \\ch
@@ -460,7 +472,8 @@ def _chapter_tex(paras, L, G, chapter, how=chunker.DEFAULT_WAY, cuts=None,
 
 
 MAIN_TEX = r"""%% {byline}.  Build:  ./build.sh {slug}
-% A DRAFT: book.json says "draft": true, and check_batch.py reads that flag.
+% Drafted from its text (lib/draft.py): every gloss starts blank, and a blank
+% gloss is legal -- fill them in in the reader, or in the chapter files.
 % The language taught, the language the glosses are written in, and where the
 % shared preamble lives come first: the preamble reads all three before it
 % does anything (docs/languages.md section 6).
@@ -544,9 +557,6 @@ def book_from_text(text, lang, title, gloss="", slug=None, author="",
         # reader of either that took it for the other would be wrong about
         # half the page (docs/languages.md section 3)
         "gloss": G.code,
-        # first thing after the two languages, because it changes how every
-        # tool reads the rest of the file
-        "draft": True,
         "title": title,
         "title_latin": (title_latin or "").strip() or slug,
         "title_en": (title_en or "").strip(),
@@ -592,7 +602,7 @@ def book_from_text(text, lang, title, gloss="", slug=None, author="",
     n_chunk = sum(len(v) for v in cuts.values())
     out = {"slug": slug, "language": L.code, "gloss": G.code, "folder": L.folder,
            "title": title, "chapter": chapter, "paragraphs": len(paras),
-           "sentences": n_sent, "chunks": n_chunk, "draft": True,
+           "sentences": n_sent, "chunks": n_chunk,
            "how": how,
            "dir": None, "files": files}
     if into:
@@ -794,8 +804,10 @@ def video_from_transcript(transcript, lang, gloss="", video_id=None, url="",
 
     `gloss` is the language those meanings will be written in (English when
     nothing is said, as everywhere else).  It goes in video.json and not in
-    annotations.json, for the reason the draft flag does: `merge_parts.py`
-    rewrites the annotations from the parts and would drop it.
+    annotations.json because it is true of the whole video, not of one
+    caption (and, when this was written, because `merge_parts.py` would have
+    dropped it -- it no longer rewrites anything once a video is on the
+    shelf).
 
     Every caption becomes a segment; a segment's text becomes one chunk per
     sentence with `tr`, `voc`, `en` (and `kana`, for a language with a
@@ -808,7 +820,8 @@ def video_from_transcript(transcript, lang, gloss="", video_id=None, url="",
     Returns a dict of counts and `files` (video.json, transcript.txt,
     annotations.json).  With `into` (the youtube/videos/ directory) they are
     written to into/<language folder>/<id>/, and `dir` says where; a video
-    already there is never overwritten.
+    already there is never overwritten -- nor one with the same id filed
+    under ANOTHER language's folder (_video_on_shelf says why).
     """
     L = _lang(lang)
     G = _gloss(gloss)
@@ -830,6 +843,19 @@ def video_from_transcript(transcript, lang, gloss="", video_id=None, url="",
         raise ValueError(
             "no video to draft: pass the YouTube URL, or the 11-character id"
             + ("" if not given else " -- %r is neither" % given))
+    if into:
+        # before anything is cut: the answer does not depend on the text
+        there = _video_on_shelf(into, vid)
+        if there:
+            where, marker = there
+            raise ValueError(
+                "%s already exists in %s -- draft into a new name, or move "
+                "that one out of the way%s"
+                % (marker, where,
+                   "" if os.path.abspath(where) == os.path.abspath(
+                       os.path.join(into, L.folder, vid))
+                   else " (a video's id is its address in every language, "
+                        "so one id cannot be two videos)"))
     text = (transcript or "").replace("\r\n", "\n").replace("\r", "\n")
     # before the parse, because transcript.txt is written back whole: a
     # control character between two captions would reach the file even though
@@ -874,12 +900,25 @@ def video_from_transcript(transcript, lang, gloss="", video_id=None, url="",
         segs.append({k: sg[k] for k in ("start", "chapter", "plain", "text",
                                         "chunks") if k in sg})
 
+    # A BARE ID IS NO ADDRESS.  The add page's URL box takes the eleven
+    # characters alone as readily as a whole URL, and "Start it empty" hands
+    # the box to this function as `url` -- so the id alone went into
+    # video.json's "url", the one field a person opens to find the source,
+    # while the LLM road (ytpages.api_add) writes the watch URL for the same
+    # typing.  An 11-character YouTube id is written as that URL here too.
+    # Only a YouTube id: ytpages.video_id returns the text itself only when
+    # it IS one, and never for a local id (is_local_id refuses that shape),
+    # so a film on this machine keeps the url it was given -- none -- and a
+    # URL in any spelling is kept as it was typed.
+    said = (url or "").strip()
+    if said and ytpages.video_id(said) == said:
+        said = "https://www.youtube.com/watch?v=" + said
     meta = {
         "id": vid,
         # A LOCAL VIDEO HAS NO ADDRESS and is given none: writing
         # youtube.com/watch?v=<a local id> would be a link to a video that
         # does not exist, in the one field a person opens to find the source.
-        "url": ((url or "").strip() or
+        "url": (said or
                 ("" if ytpages.is_local_id(vid)
                  else "https://www.youtube.com/watch?v=" + vid)),
         "title": (title or "").strip() or vid,
@@ -887,7 +926,6 @@ def video_from_transcript(transcript, lang, gloss="", video_id=None, url="",
         "channel": (channel or "").strip() or "Unknown channel",
         "language": L.code,
         "gloss": G.code,                # what the glosses are written IN
-        "draft": True,
         # the same three the add page offers and ytpages writes; anything
         # else is a typo, and the index would file the video under a level
         # no chip can pick
@@ -903,7 +941,6 @@ def video_from_transcript(transcript, lang, gloss="", video_id=None, url="",
         "annotations.json": json.dumps(ann, ensure_ascii=False, indent=1) + "\n",
     }
     out = {"id": vid, "language": L.code, "gloss": G.code, "folder": L.folder,
-           "draft": True,
            "captions": len(captions), "glossed": len(want),
            "plain": len(captions) - len(want), "chunks": nchunks,
            "dir": None, "files": files}
@@ -911,6 +948,56 @@ def video_from_transcript(transcript, lang, gloss="", video_id=None, url="",
         out["dir"] = _write(os.path.join(into, L.folder, vid), files,
                             "annotations.json")
     return out
+
+
+def _video_on_shelf(videos, vid):
+    """(directory, the file that shows a video is there) for a video with
+    this id anywhere under `videos` -- the youtube/videos/ directory, or the
+    one a caller named -- or None.
+
+    _write refuses a directory that already holds the video, but it is handed
+    ONE directory, into/<language folder>/<id>/, and a video's id is unique
+    across languages: the player's address is /v/<id>/ with no folder in it,
+    and ytpages.find_video opens the first folder that has it.  So the same
+    id drafted into a second language's folder would be a second video under
+    one address, and whichever came first in folder order would hide the
+    other.  This looks where find_video looks, over this directory rather
+    than the server's own: videos/<folder>/<id>/ in every folder (holding
+    annotations.json, _write's marker, or video.json), videos/<id>/ in the
+    layout before languages, and then a video.json under any other name that
+    declares the id.  Dot-directories (videos/.trash/) are never content."""
+    try:
+        names = sorted(os.listdir(videos))
+    except OSError:
+        return None
+    homes = []                  # every directory that might hold a video
+    for name in names:
+        top = os.path.join(videos, name)
+        if name.startswith(".") or not os.path.isdir(top):
+            continue
+        if os.path.isfile(os.path.join(top, "video.json")):
+            homes.append(top)                       # legacy: videos/<id>/
+            continue
+        try:
+            subs = sorted(os.listdir(top))
+        except OSError:
+            continue
+        homes.extend(os.path.join(top, sub) for sub in subs
+                     if not sub.startswith("."))
+    for d in homes:
+        if os.path.basename(d) == vid:
+            for marker in ("annotations.json", "video.json"):
+                if os.path.isfile(os.path.join(d, marker)):
+                    return d, marker
+    for d in homes:
+        try:
+            with io.open(os.path.join(d, "video.json"), encoding="utf-8") as f:
+                meta = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(meta, dict) and meta.get("id") == vid:
+            return d, "video.json"
+    return None
 
 
 # ------------------------------------------------------------------ writing

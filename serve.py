@@ -2,12 +2,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Parseh -- one server for the whole toolbox, over HTTPS.
 
-    python3 serve.py                 every interface, https on port 8765
-    python3 serve.py 9000            ... on another port
+    python3 serve.py                 the doors Settings has open, https on 7654
+    python3 serve.py 9000            ... on another port, this once
     python3 serve.py --host 100.x.y.z    bind one address only (e.g. Tailscale)
     python3 serve.py --local         bind 127.0.0.1 only
     python3 serve.py --http          plain http, no TLS (debugging only)
     python3 serve.py --cert          (re)make the certificate and exit
+
+Nothing above is needed to run Parseh: which doors are open, and on which
+port, is a page -- /settings/network/ -- and a change there takes effect at
+once, without a restart and without a command (lib/network.py keeps it in
+config/network.json, lib/settingspage.py writes the page).  The arguments
+are for this one run, and for the tests.
 
 What is mounted where -- one address, one port, one process:
 
@@ -32,7 +38,17 @@ What is mounted where -- one address, one port, one process:
     /licences/        the licences: Parseh's (GPL-3.0-or-later, its text at
                       /licences/LICENSE), and those of the fonts, MathJax and
                       the data the reading help downloads (lib/notices.py)
+    /settings/        the settings, from the pages: /settings/network/ is who
+                      may reach this Parseh, on which port, with which
+                      certificate (lib/settingspage.py, lib/network.py)
     /__shutdown       POST: stop the server (every page has a button)
+
+WHO MAY REACH IT.  This computer always; a VPN (Tailscale's range, and
+anything Settings adds) by default; the Wi-Fi only once its door is opened
+AND the device has been let in with a code shown on the computer.  The range
+question is asked of the connection, before a byte of HTTP (Server.
+verify_request); the "let in" question is asked of the request, because the
+answer is a cookie (Handler._gate).
 
 HTTPS, with a certificate this program makes itself.  Browsers hand out
 screen capture (the frame button on a card) and the clipboard only on
@@ -92,7 +108,6 @@ YT_LIB = os.path.join(YT, "lib")
 STUDIO = os.path.join(ROOT, "markdown")
 STUDIO_APP = os.path.join(STUDIO, "app")
 TLS_DIR = os.path.join(ROOT, ".tls")
-DEFAULT_PORT = 8765
 
 for _p in (LIB, YT_LIB):
     if _p not in sys.path:
@@ -114,7 +129,12 @@ import timestamp as tstamp  # noqa: E402  the aligner: its transcript parser, fo
 import bundle              # noqa: E402  a book or a video as one file, out and back
 import shelf               # noqa: E402  a whole shelf of either, backed up and put back
 import texwrite            # noqa: E402  one chunk of a chapter, edited in place
+import glossregion         # noqa: E402  a region glossed by an LLM: the prompt, the answer put back
 import reading              # noqa: E402  what somebody decided about the text itself
+import prefs                # noqa: E402  the reading place and the settings that follow a person
+import network              # noqa: E402  who may reach this Parseh, and on which port (§1.1, §3.3)
+import settingspage         # noqa: E402  the Settings section, and the page a device not let in sees
+import offline              # noqa: E402  what a thing is made of, for a phone to keep (§19.3)
 import structure            # noqa: E402  a chapter's name and the sections inside it
 import bookmeta             # noqa: E402  a book's title, author and the like, edited in place
 import chunker            # noqa: E402  the two ways a draft may be cut
@@ -130,6 +150,12 @@ import clips               # noqa: E402  the tray a card's recording is cut into
 import guidebuild          # noqa: E402  the HTML guide: its files, and its compile as a job
 
 ANKI = ytpages.ANKI
+
+# The port Parseh answers on when nothing else says otherwise.  It is
+# lib/network.py's, because the Settings page keeps it and the default has to
+# be the same number in both places; 8765 was left behind because it is also
+# AnkiConnect's (TO-DO §2.14).
+DEFAULT_PORT = network.DEFAULT_PORT
 
 
 def _load_studio():
@@ -177,8 +203,10 @@ def book_dir(url_path):
 
 def video_dir(vid):
     """The directory of a video by its id, or None -- the same lookup the
-    player page does, so an id that shows a page has a directory here."""
-    if not vid or ".." in vid or "/" in vid:
+    player page does, so an id that shows a page has a directory here.  An
+    id that is not text at all -- a number in a JSON body -- names no video,
+    rather than a TypeError out of the route that asked."""
+    if not isinstance(vid, str) or not vid or ".." in vid or "/" in vid:
         return None
     found = ytpages.find_video(vid)
     return found[1] if found else None
@@ -207,6 +235,147 @@ def notes_library(prefix):
 
 # the studio alone has no books or videos: only this server can say
 studio.deckroutes.set_notes_resolver(notes_library)
+
+
+# WHAT A NOTE RENDERED TO, LAST TIME ANYBODY ASKED: (library, id) -> (stamp,
+# exercises, maths).  See notes_to_keep for why the render is needed at all
+# and why the stamp is the right key.  It is a cache and nothing else: losing
+# it costs one render, so it is never written to disk and never consulted for
+# anything but the two flags.
+#
+# BOUNDED, and oldest out first.  A shelf of books each with its notes would
+# otherwise grow this without end in a process that runs for weeks; a
+# thousand notes is far more than anybody's shelf and costs a few tens of
+# kilobytes of small tuples.  Eviction is by the order they were put in
+# rather than by the order they were read, because the two barely differ
+# here -- a keep asks for every note of one book in one sweep -- and FIFO
+# needs no bookkeeping on the hits, which are the case that must stay cheap.
+_NOTE_RENDERS = {}
+_NOTE_RENDERS_MAX = 1024
+# The server is a ThreadingHTTPServer: two phones asking two books at once
+# must not tear this dict.  The lock covers only the dict, never a render.
+_NOTE_RENDERS_LOCK = threading.Lock()
+
+
+def _remember_note_render(key, stamp, exercises, maths):
+    """Put one note's two flags away under its stamp, and drop the oldest if
+    the memory has grown past its bound.
+
+    A re-written note replaces its own entry rather than adding one, so the
+    memory is at worst one entry per note that has ever been asked about, and
+    at best exactly the shelf.  Dropping the FIRST key is dropping the
+    longest-standing one, dicts keeping the order they were written in since
+    Python 3.7."""
+    with _NOTE_RENDERS_LOCK:
+        _NOTE_RENDERS.pop(key, None)
+        _NOTE_RENDERS[key] = (stamp, exercises, maths)
+        while len(_NOTE_RENDERS) > _NOTE_RENDERS_MAX:
+            _NOTE_RENDERS.pop(next(iter(_NOTE_RENDERS)), None)
+
+
+def notes_to_keep(content_dir):
+    """The notes beside this book or this video, as lib/offline.py wants them.
+
+    THIS LOOKUP IS HERE AND NOT THERE, and that is the point of it.  A note is
+    a studio document: which notes there are, and what each one renders to, is
+    the studio's own knowledge (store.list_docs, htmlgen.render_document), and
+    lib/offline.py must not import the studio -- lib/ is what a reader, a
+    bundle and the launcher lean on, and none of them has a studio.  This
+    module is the one place that holds both, so this module looks and hands
+    the answer over; offline.notes_group turns it into addresses and sizes.
+
+    WHY A NOTE IS RENDERED TO ANSWER THIS.  Whether a note holds an exercise
+    is asked of the RENDER and not of the markdown, exactly as page_note asks
+    it -- only the render knows what a block became, and a malformed exercise
+    block is still an exercise box on the page.  Getting that wrong would keep
+    a bare page for a note that redirects to the document page, so the phone
+    would hold a note it cannot open.  The same render says whether there is a
+    formula in it (the `class="math"` every renderer writes), which is what
+    decides whether the two megabytes of MathJax are kept.
+
+    AND WHY IT IS RENDERED ONCE AND NOT AGAIN.  This door is not asked only
+    when somebody presses *Keep on this phone*: lib/keep.js asks it a second
+    and a half after every open of a kept book, to see whether what the phone
+    holds has gone stale.  Rendering forty notes on every open of a book is
+    reading the whole book to answer a question about keeping, which is the
+    one thing docs/mobile.md says this must never cost.  So each note's two
+    flags are remembered against its `updated` stamp, and the render is
+    skipped while the stamp stands.
+
+    THE STAMP IS THE RIGHT KEY because it is the same one the rest of this
+    work stamps a note by: offline.notes_group puts `updated` into the book's
+    version and offline.document puts it into the document's, so a note whose
+    stamp has not moved is a note the phone is already holding the right bytes
+    for -- and a note written or edited later moves the stamp, which both
+    refreshes the marks and sends this render round again (decision 7).  The
+    library is part of the key as well, because two books' notes are two
+    stores and an id is only unique inside one.
+
+    A render that THREW is not remembered.  The failure may be the note's or
+    it may be the moment's, and a note that could not be read once should not
+    be written off as plain until somebody edits it; it costs one render per
+    ask, for a note nobody has managed to break yet.
+
+    The library is pointed at this content's own notes for the length of the
+    call and put back in the `finally`, as `_notes` does, so nothing can leave
+    this thread reading somebody's book.
+    """
+    notes_dir = studio.notes.dir_for(content_dir)
+    if not notes_dir.is_dir():
+        return []
+    was = studio.store.use_library(notes_dir)
+    try:
+        lib_key = str(notes_dir)
+        # The index is what a render needs to resolve links between notes, and
+        # a walk of the store to build.  Held back until the first note that
+        # really has to be rendered, so a book whose notes are all remembered
+        # costs this door nothing but the listing it already did.
+        docs = None
+        out = []
+        for meta in studio.store.list_docs():
+            doc_id = meta.get("id") or ""
+            if not doc_id:
+                continue
+            stamp = str(meta.get("updated") or "")
+            key = (lib_key, doc_id)
+            with _NOTE_RENDERS_LOCK:
+                seen = _NOTE_RENDERS.get(key)
+            if seen is not None and seen[0] == stamp:
+                exercises, maths = seen[1], seen[2]
+            else:
+                # outside the note's own `try`, because a library whose index
+                # cannot be built is not a note that will not render: it is
+                # the listing failing, which belongs to the handler below that
+                # keeps the book without its notes
+                if docs is None:
+                    docs = studio.store.doc_index()
+                try:
+                    _m, markdown = studio.store.get(doc_id)
+                    doc = studio.htmlgen.render_document(markdown, docs=docs,
+                                                         deck_button=False)
+                except Exception:   # noqa: BLE001 -- a note that will not
+                    # render is still a note, and its bare page still opens (it
+                    # renders there or it says why); keeping it is never worse
+                    # than leaving it behind
+                    exercises, maths = False, False
+                else:
+                    exercises = bool(doc.get("exercises"))
+                    maths = 'class="math' in (doc.get("html") or "")
+                    _remember_note_render(key, stamp, exercises, maths)
+            out.append({"id": doc_id,
+                        "updated": stamp,
+                        "dir": str(studio.store.doc_dir(doc_id)),
+                        "exercises": exercises,
+                        "maths": maths})
+        return out
+    except Exception as e:          # noqa: BLE001 -- a book whose notes
+        # cannot be listed is still a book worth keeping: it is kept without
+        # them rather than not at all
+        sys.stderr.write("[notes] %s: not listed for keeping (%s)\n"
+                         % (content_dir, e))
+        return []
+    finally:
+        studio.store.use_library(was)
 
 
 def notes_came_back(item_dir):
@@ -258,6 +427,25 @@ STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js"
                 # the mobile interface's sheet (docs/mobile.md), and the layer
                 # parseh.js loads into every book's reader for it
                 "/lib/mobile.css", "/lib/mobilereader.js",
+                # the narration's controls -- ▶ ↺ ↻, the speed -- which
+                # parseh.js loads into every reader in EITHER mode, so a book
+                # built before today gains them without being built again
+                "/lib/narrctl.js",
+                # a video's page in the mobile interface (TO-DO §4.2)
+                "/lib/mobileplayer.js",
+                # a held finger opens what a shift- or alt-click opens for a
+                # mouse: a copy, a card (lib/wordtouch.js, TO-DO §4.6)
+                "/lib/wordtouch.js",
+                # "?": on a screen with no hover, every title is one tap away
+                # (lib/explain.js, TO-DO §4.7) -- the studio's pages load it
+                # with a tag of their own, since they have no parseh.js
+                "/lib/explain.js",
+                # the reading place and the settings that follow a person
+                # (lib/prefs.js, its store lib/prefs.py, TO-DO §4.9)
+                "/lib/prefs.js",
+                # keeping a thing on the phone, and saying when the computer
+                # cannot be reached (lib/keep.js, TO-DO §19.2, §19.5)
+                "/lib/keep.js",
                 # the mobile interface installed as an app: its icons
                 # (lib/icons/make.mjs drew them; /manifest.webmanifest names them)
                 "/lib/icons/parseh-192.png", "/lib/icons/parseh-512.png",
@@ -298,7 +486,20 @@ UPLOAD_ROUTES = ("/anki/sync/upload", "/books/__upload", "/exercises/api/import"
                  # books carries the narrations: this is the largest body
                  # this toolbox ever takes.
                  "/exercises/api/restore", "/books/__restore",
-                 ytpages.BASE + "/api/restore")
+                 ytpages.BASE + "/api/restore",
+                 # ONE DOCUMENT'S ZIP, which used to be the one door of the
+                 # studio's that could give out more than it would take back
+                 # (TO-DO §2.8): its Download "Markdown + media" is unbounded,
+                 # its store takes 200 MB of it, and this route alone still
+                 # met the 32 MB cap meant for an edit.
+                 STUDIO_BASE + "/api/docs/zip")
+
+# WHAT IS SPOOLED AND THEN READ BACK.  A route in UPLOAD_ROUTES gets a file on
+# disk and reads it as a file; `/api/docs/zip` reads its body whole
+# (markdown/app/store.py, import_zip), so its spool is read back into memory
+# here, and refused above what that store would take anyway -- which is the
+# only ceiling that was ever true for it.
+SPOOL_READ_BACK = {STUDIO_BASE + "/api/docs/zip": 200 * 1024 * 1024}
 AUDIO_EXTS = (".mp3", ".m4a", ".mp4", ".aac", ".webm", ".ogg", ".oga", ".opus",
               ".wav", ".flac")
 
@@ -489,6 +690,14 @@ def word_pieces(line, cap=LOOKUP_TEXT):
 
 ADDRESSES = []                          # filled at startup, shown on the hub
 
+# WHAT THIS RUN IS BOUND TO, and what it is to be bound to next.  The Network
+# page can move the server while it is running (lib/settingspage.py): the
+# request that saves writes here and asks the current server to stop, and
+# main's loop -- the only place that binds or closes a socket -- builds the
+# next one from it.  `forced_host` is --host or --local, which belong to this
+# run and are not overruled by a page.
+RUN = {"host": "", "port": 0, "scheme": "https", "forced_host": "", "again": False}
+
 
 def static_ok(path):
     """May this address be answered with a file off the disk?
@@ -617,8 +826,13 @@ def count_tag(counts, key, fmt, total, on=True):
     per = {"all": fmt(int(total))}
     for L in languages.LANGS.values():
         per[L.code] = fmt(int(counts[L.code][key]))
-    return '<span class="tag%s" data-counts="%s">%s</span>' % (
-        " on" if on else "", esc(json.dumps(per, sort_keys=True)), esc(per["all"]))
+    # data-count-kind says WHAT is counted, so that a phone with the computer
+    # away can hide the counts the clock makes wrong (what is due today) and
+    # keep the ones that stay true (how many books there are) -- lib/keep.js,
+    # which would otherwise have to match the words in the tag
+    return '<span class="tag%s" data-count-kind="%s" data-counts="%s">%s</span>' % (
+        " on" if on else "", esc(str(key)), esc(json.dumps(per, sort_keys=True)),
+        esc(per["all"]))
 
 
 def mode_switch():
@@ -680,6 +894,11 @@ def hub_page():
 <link rel="stylesheet" href="/lib/langs.css">
 <link rel="stylesheet" href="/lib/mobile.css">
 <script src="/lib/parseh.js"></script>
+<!-- keeping, the offline chip, and the swap that fills a shell page in when
+     the computer's fresh answer lands (lib/keep.js).  Loaded here in BOTH
+     modes, as the studio's templates load it: the hub is answered from the
+     phone's copy whichever interface is on, so both need the swap. -->
+<script src="/lib/keep.js" defer></script>
 </head><body class="index" data-mobile-page>
 <div class="parseh-bar" data-layout="browser">
   <a class="home" href="/"><span class="glyph" lang="fa">&#x67E;</span><span class="word">%(name)s</span></a>
@@ -748,6 +967,15 @@ def hub_page():
       needs any more.</div>
       <div class="tags">%(nclips)s</div>
     </a>
+    <!-- Settings (TO-DO §1.1, §3.3): in the browser layout only, as the stop
+         button and the Anki sync are, because the mobile hub administers
+         nothing (docs/mobile.md).  The page itself opens on a phone. -->
+    <a class="door wide" href="/settings/">
+      <div class="dname">&#9881; Settings</div>
+      <div class="dwhat">Who may reach %(name)s &mdash; this computer, a VPN, the
+      Wi-Fi &mdash; letting a phone in with a code, the port, and the certificate.</div>
+      <div class="tags"><span class="tag on">%(reach)s</span></div>
+    </a>
     <a class="door wide" href="/lookup/">
       <div class="dname">&#128269; Reading what nobody has glossed</div>
       <div class="dwhat">A book or a video whose glosses are not written yet is
@@ -758,6 +986,7 @@ def hub_page():
   </div>
   <div class="foot">
     Reachable at <span class="addr">%(addrs)s</span>
+    &mdash; from %(reach)s (<a href="/settings/network/">change who</a>).
     Every browser warns once about the certificate: it is ours, accept it.<br>
     The &#9211; stop button at the top of a page stops the server. A book is built
     from its card on the library page, and a video added from the video index;
@@ -822,6 +1051,14 @@ def hub_page():
       <img class="m-dicon" src="/lib/icons/parseh-192.png" width="44" height="44" alt="">
     </a>
     </div>
+    <!-- GETTING READY (TO-DO §0, the third block of 2026-09-23), AT THE FOOT
+         AND NOT ABOVE THE DOORS.  The app fetches its pages just after it is
+         installed and says how far it has got -- but a line that appears and
+         goes at the top pushed every door down and let them spring back a
+         moment later, under a thumb that was already reaching for one (the
+         owner, on his phone).  At the foot it says the same thing and moves
+         nothing anybody is aiming at. -->
+    <p data-parseh-warm role="status" hidden></p>
     <p class="m-foot">Free software, GPL 3 or later &middot; <a href="/licences/">Licences</a></p>
   </div>
 </main>
@@ -842,6 +1079,10 @@ def hub_page():
        # the card store underneath is one store, not one per language
        "ncards": n(int(yt.get("cards") or 0), "card"),
        "ndecks": n(int(yt.get("decks") or 0), "deck"), "addrs": addrs,
+       # who may reach this Parseh, in the words the Settings page uses: the
+       # hub is where somebody looks before they wonder why their phone
+       # cannot open it (lib/settingspage.py)
+       "reach": esc(settingspage.doors_said(network.settings())),
        "dicttags": dict_tags(), "nclips": clip_tags()}
 
 
@@ -1021,6 +1262,35 @@ def not_found_page(msg=""):
 <a class="crumb" href="/exercises/">exercises</a></p>
 </main></body></html>
 """ % (NAME, NAME, esc(msg) or "That address is not part of the toolbox.")
+
+
+def failed_page(msg, back=""):
+    """A DOWNLOAD THAT FAILED, said in words (TO-DO §2.19).
+
+    A download is a navigation: the page's helper sets `location.href` to
+    the address (lib/activity.js), so whatever the server answers REPLACES
+    what was on the screen.  Answering a refusal as JSON therefore put
+    `{"ok": false, "error": ...}` over somebody's library, with the back
+    button as the only way out.  Every refusal to a navigation is answered
+    with this instead: what went wrong, and the way back to where the click
+    came from."""
+    back = back or "/"
+    return """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>that did not work &mdash; %s</title>
+<link rel="stylesheet" href="/lib/parseh.css"><link rel="stylesheet" href="/lib/langs.css">
+<script src="/lib/parseh.js"></script>
+</head><body class="index">
+<div class="parseh-bar"><a class="home" href="/"><span class="glyph" lang="fa">&#x67E;</span>%s</a>
+<span class="where">that did not work</span></div>
+<main><h1 class="idx">that did not work</h1>
+<p class="sub">%s</p>
+<p class="sub"><a class="crumb" href="%s">&lsaquo; back</a> &nbsp;
+<a class="crumb" href="/">the hub</a></p>
+<p class="sub">Nothing was changed, and nothing was downloaded.</p>
+</main></body></html>
+""" % (NAME, NAME, esc(msg) or "Parseh could not do that.", esc(back))
 
 
 # ------------------------------------------------------------------ handler
@@ -1237,6 +1507,9 @@ def long_work(method, path, query, length=0):
                 {"audio": "rebuilding the reader", "import": "unpacking"}.get(m.group(1))
         if path.rstrip("/").endswith("/__save/subtimes.json"):
             return "narration", "Saving the times set by hand in " + _book_named(path), None
+        if path.rstrip("/").endswith("/__region/apply"):
+            # one edit a chunk, then the reader built again
+            return "build", "Glossing part of %s from an LLM's answer" % _book_named(path), None
         return None
     if path == yt + "/api/upload":
         return "upload", "Uploading " + file, "installing"
@@ -1248,6 +1521,8 @@ def long_work(method, path, query, length=0):
         return "install", "Adding a video", None
     if path == yt + "/api/prepare":
         return "compile", "Preparing the prompt for a video", None
+    if path == yt + "/api/region/apply":
+        return "install", "Glossing part of a video from an LLM's answer", None
     if path == "/anki/sync/upload":
         return "upload", "Uploading %s to the Anki inbox" % file, "saving"
     if path == "/anki/sync/run":
@@ -1371,6 +1646,16 @@ def activity_now():
                 finished=None if running else job.get("finished"),
                 ok=not job.get("error")))
     return dict(activity.snapshot(extra), ok=True)
+
+
+
+# the one sentence a refused body is answered with, where "bad JSON body"
+# would not say what to do (_json_body): still a JSONDecodeError, so every
+# route table that already maps that to a 400 keeps doing so
+class _BadBody(json.JSONDecodeError):
+    def __init__(self, said):
+        json.JSONDecodeError.__init__(self, said, "", 0)
+        self.said = said
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -1505,8 +1790,47 @@ class Handler(SimpleHTTPRequestHandler):
         # call it done -- nor a download the browser gave up on (GONE, below)
         if isinstance(obj, dict) and obj.get("ok") is False:
             self._failed = True
+        if self._is_navigation() and (code >= 400 or
+                                      (isinstance(obj, dict) and obj.get("ok") is False)):
+            # A REFUSAL TO A NAVIGATION IS A PAGE, not JSON (§2.19).  Asked
+            # here, once, rather than at each of the dozen routes a download
+            # button can land on -- including the ones the player and the
+            # studio own, which answer through this same method.
+            said = obj.get("error") if isinstance(obj, dict) else ""
+            return self.send_html(failed_page(said, self._came_from()),
+                                  code if code >= 400 else 400)
         self.send_bytes(json.dumps(obj, ensure_ascii=False).encode("utf-8"),
                         "application/json; charset=utf-8", code)
+
+    def _is_navigation(self):
+        """Is this request the browser going somewhere, rather than a script
+        asking something?
+
+        `Sec-Fetch-Dest: document` is the browser saying so outright, and
+        every browser this toolbox runs in sends it on a secure origin.  For
+        one that does not, a GET that asks for HTML and was not made by
+        fetch() is taken as a navigation too; a script's fetch sends `*/*`
+        or `application/json`, so this cannot turn an API answer into a
+        page."""
+        if self.command not in ("GET", "HEAD"):
+            return False
+        dest = (self.headers.get("Sec-Fetch-Dest") or "").strip().lower()
+        if dest:
+            return dest == "document"
+        accept = (self.headers.get("Accept") or "").lower()
+        return "text/html" in accept
+
+    def _came_from(self):
+        """Where a click came from, for the way back: this server's own
+        pages only -- a Referer is whatever the other end wrote."""
+        ref = self.headers.get("Referer") or ""
+        try:
+            parts = urllib.parse.urlsplit(ref)
+        except ValueError:
+            return "/"
+        if parts.path.startswith("/") and not parts.path.startswith("//"):
+            return parts.path + (("?" + parts.query) if parts.query else "")
+        return "/"
 
     def send_html(self, text, code=200):
         self.send_bytes(text.encode("utf-8"), "text/html; charset=utf-8", code)
@@ -1577,7 +1901,98 @@ class Handler(SimpleHTTPRequestHandler):
         return self._raw
 
     def _json_body(self):
-        return json.loads(self._raw.decode("utf-8")) if self._raw else {}
+        """The body as a dict.  THE ONE DEFINITION (TO-DO §2.6).
+
+        There used to be two of these in this class, with opposite contracts:
+        this one, which raises, and a later one that answered 400 itself and
+        gave back None.  The later one won, so a route written for this one
+        called `.get` on the None, its dispatcher wrote a second answer, and
+        the keep-alive connection was left with an answer nobody had asked
+        for -- which the NEXT request on it read as its own.
+
+        So there is one, and it never answers: a body that is not a JSON
+        object raises, and exactly one place turns that into a 400 -- this
+        handler's dispatch, the studio's route table, or the decks' -- all
+        three of which already do.  It is also the contract the studio's own
+        handler keeps when it is run alone (markdown/app/server.py), so a
+        route cannot behave differently under the two servers."""
+        if not self._raw:
+            return {}
+        try:
+            body = json.loads(self._raw.decode("utf-8"))
+        except RecursionError:
+            # nested past what the decoder can follow: unreadable, a 400 like
+            # any other body that is not JSON -- not a 500 with a traceback
+            raise _BadBody("the request nests too deep to be read")
+        if not isinstance(body, dict):
+            raise json.JSONDecodeError("expected a JSON object", "", 0)
+        # A LONE SURROGATE (\ud800-\udfff) is legal in a JSON escape, which is
+        # how a browser's JSON.stringify sends one a paste carried in, and is
+        # no character at all: every file this server writes is UTF-8, and so
+        # is every answer (send_json), so it would fail at the first write --
+        # after whatever the route had already written -- as a 500.  Refused
+        # here, once, for every route, before any of them has touched a file.
+        if glossregion.broken(body):
+            raise _BadBody("the request carries a broken character (an "
+                           "unpaired surrogate) -- copy the text again")
+        return body
+
+    def _cookie(self, name):
+        """One cookie of this request, or "".  A device that has been let in
+        carries its token in one (lib/network.py)."""
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == name:
+                return v.strip().strip('"')
+        return ""
+
+    def _set_device_cookie(self, token):
+        """Remember this device in the browser that has just been let in.
+
+        Ten years, because being let in is meant to be done once; HttpOnly,
+        because no page of this toolbox has any business reading it; Secure
+        wherever there is TLS, which is everywhere but `--http`."""
+        bits = ["parseh_device=%s" % token, "Path=/", "Max-Age=%d" % (10 * 365 * 86400),
+                "HttpOnly", "SameSite=Lax"]
+        if self.server.ssl_ctx is not None:
+            bits.append("Secure")
+        return "; ".join(bits)
+
+    def _whose_device(self):
+        """The name this device gives itself, for the list on the Settings
+        page -- "Android phone · Chrome", as lib/prefs.js names one."""
+        return network.name_from_agent(self.headers.get("User-Agent"))
+
+    # THE SECOND HALF OF THE DOOR (TO-DO §1.1, §3.3).  Server.verify_request
+    # has already decided whether this ADDRESS may speak to Parseh at all.
+    # What is left is the question that only a request can answer: a device
+    # on the Wi-Fi has to have been let in once, and what says it has is a
+    # cookie.  Until it has, it is served one page -- whatever it asks for --
+    # and the one route that page posts to.
+    PAIR_ROUTE = "/settings/api/pair"
+
+    def _gate(self, method, path):
+        """-> True when this request may go on; answers it itself when not."""
+        ip = (self.client_address or ("",))[0]
+        doc = network.settings()
+        if not network.needs_code(ip, doc):
+            return True                         # this computer, or a VPN
+        if method == "POST" and path == self.PAIR_ROUTE:
+            return True                         # the knock itself
+        if network.let_in(self._cookie("parseh_device"), ip, doc):
+            return True
+        if method in BODY_METHODS:
+            # the body has not been read, and never will be: the connection
+            # must not be re-used, or the next request on it would be this
+            # one's body
+            self.close_connection = True
+            self.send_json({"ok": False, "error": "this device has not been let in: "
+                            "open Parseh in a browser and type the code shown on its "
+                            "computer"}, 403)
+            return False
+        self.send_html(settingspage.locked_page(
+            network.WHERE_SAID[network.LAN]), 403)
+        return False
 
     def _redirect(self, where, code=302):
         self.send_response(code)
@@ -1664,6 +2079,8 @@ class Handler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path
         self.query = urllib.parse.parse_qs(parsed.query)
+        if not self._gate(method, path):
+            return
         if method in BODY_METHODS:
             # The body is read ONCE, here, whatever route answers: a body
             # left on the socket would be parsed as the next request.
@@ -1732,6 +2149,21 @@ class Handler(SimpleHTTPRequestHandler):
                 self._received()
                 self._spool = spool
                 self.rfile = io.BytesIO(b"")
+                cap = SPOOL_READ_BACK.get(path)
+                if cap is not None:
+                    # a route that reads its body whole: it was spooled to
+                    # lift the JSON cap, and is handed back as bytes within
+                    # the ceiling the store it goes into keeps anyway
+                    if got > cap:
+                        os.unlink(spool)
+                        self._spool = None
+                        self.close_connection = True
+                        return self.send_json(
+                            {"ok": False, "error": "that zip is %d MB; this door takes "
+                             "%d MB" % (got >> 20, cap >> 20)}, 413)
+                    with open(spool, "rb") as f:
+                        self._raw = f.read()
+                    self.rfile = io.BytesIO(self._raw)
                 try:
                     self._route(method, path)
                 finally:
@@ -1761,6 +2193,14 @@ class Handler(SimpleHTTPRequestHandler):
         except GONE:
             self.close_connection = True
             self._failed = True
+        except json.JSONDecodeError as e:
+            # a body that is not a JSON object, refused ONCE and here (§2.6):
+            # _json_body raises rather than answering, so that the route it
+            # was called from cannot answer a second time into the same
+            # keep-alive connection.  The studio's and the decks' route
+            # tables catch the same exception for the routes they own.
+            self.send_json({"ok": False, "error": getattr(e, "said", None)
+                            or "bad JSON body"}, 400)
         except Exception as e:
             # never let a request die without an answer: the page can print
             # a JSON error, but "NetworkError" names neither cause nor file
@@ -1784,6 +2224,35 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "POST":
                 return self._method_not_allowed()
             return self._shutdown()
+        if path == "/__prefs":
+            # THE READING PLACE AND THE SETTINGS THAT FOLLOW A PERSON
+            # (lib/prefs.py, TO-DO §4.9): asked for by every page at load
+            # (lib/prefs.js) and written back whenever one of them changes,
+            # so a phone goes on where the computer stopped.  What is SHOWN
+            # -- the passes, the text size, the margins -- is not here: it
+            # stays with the device showing it.
+            if method == "GET":
+                return self.send_json({"ok": True, **prefs.all_of()})
+            if method != "POST":
+                return self._method_not_allowed()
+            body = self._json_body()
+            by = str(body.get("by") or "")
+            out = {"ok": True}
+            try:
+                if isinstance(body.get("settings"), dict):
+                    out["settings"] = prefs.set_settings(body["settings"], by)
+                if isinstance(body.get("place"), dict):
+                    pl = body["place"]
+                    out["place"] = prefs.set_place(pl.get("path"), pl.get("i"),
+                                                   pl.get("label") or "", pl.get("pct"),
+                                                   by, pl.get("at"))
+                if body.get("forget"):
+                    out["forgotten"] = prefs.forget_place(str(body["forget"]))
+            except (ValueError, OSError) as e:
+                return self.send_json({"ok": False, "error": str(e)}, 400)
+            return self.send_json(out)
+        if path == "/settings" or path.startswith("/settings/"):
+            return self._settings(method, path)
         if path == "/__activity":
             # what the server is busy with, polled by lib/activity.js on
             # every page: cheap, never on the list itself, never cached
@@ -1853,6 +2322,44 @@ class Handler(SimpleHTTPRequestHandler):
             if path != "/m/books/":
                 return self._redirect("/m/books/")
             return self.send_html(mobile.books_page())
+        # the mobile interface's videos, and one channel's (TO-DO §4.2): the
+        # browser's index and channel pages are written per request too, but
+        # they carry what adds, deletes and bundles a video -- so the phone
+        # has pages of its own, and lib/parseh.js routes /youtube/ there
+        if path in ("/m/videos", "/m/videos/", "/m/videos/index.html"):
+            if method != "GET":
+                return self._method_not_allowed()
+            if path != "/m/videos/":
+                return self._redirect("/m/videos/")
+            return self.send_html(mobile.videos_page())
+        m = re.fullmatch(r"/m/videos/([^/]+)/?", path)
+        if m:
+            if method != "GET":
+                return self._method_not_allowed()
+            if not path.endswith("/"):
+                return self._redirect(path + "/")
+            page = mobile.channel_page(m.group(1))
+            if page is None:
+                return self._not_found("no such channel")
+            return self.send_html(page)
+        # what is kept on this phone (TO-DO §19.2): the list is the phone's
+        # own, so this is a frame the phone fills in from its registry
+        if path in ("/m/kept", "/m/kept/", "/m/kept/index.html"):
+            if method != "GET":
+                return self._method_not_allowed()
+            if path != "/m/kept/":
+                return self._redirect("/m/kept/")
+            return self.send_html(mobile.kept_page())
+        # THE WAY IN, KEPT (TO-DO §0, the owner's reports of 2026-09-23).  The
+        # app stalled on its own splash because its start address was in no
+        # cache at all: lib/sw.js now keeps the hub, the two shelves and the
+        # two libraries, and this is the one list that says what they are made
+        # of -- so a page added to the mobile interface is named here and
+        # nowhere else (lib/offline.py shell()).
+        if path == "/__shell":
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_json(offline.shell(STUDIO_BASE, studio.deckroutes.BASE))
         # THE MOBILE INTERFACE AS AN APP (docs/mobile.md): its description,
         # its service worker -- at the top of the site, so that its scope is
         # all of it -- the page it keeps for when this server cannot be
@@ -1861,15 +2368,36 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/manifest.webmanifest":
             if method != "GET":
                 return self._method_not_allowed()
-            return self.send_bytes(json.dumps(mobile.manifest(), ensure_ascii=False).encode("utf-8"),
-                                   "application/manifest+json; charset=utf-8",
-                                   extra={"Cache-Control": "no-cache"})
+            # WHO IS ASKING DECIDES WHERE THE ICONS ARE (mobile.mints): Chrome
+            # on Android sends this description away to be built into a real
+            # Android app, and the server that builds it fetches the icons
+            # from the internet, where this computer cannot be reached -- so
+            # that one browser is told the public copies.  Everybody else
+            # fetches the icons itself and is told this server, because an
+            # address it cannot reach is an icon it cannot draw.  `Vary` so
+            # that nothing hands one browser's answer to another.
+            agent = self.headers.get("User-Agent", "")
+            return self.send_bytes(
+                json.dumps(mobile.manifest(agent), ensure_ascii=False).encode("utf-8"),
+                "application/manifest+json; charset=utf-8",
+                extra={"Cache-Control": "no-cache", "Vary": "User-Agent"})
         if path == "/sw.js":
             if method != "GET":
                 return self._method_not_allowed()
             with open(os.path.join(LIB, "sw.js"), "rb") as f:
                 return self.send_bytes(f.read(), "text/javascript; charset=utf-8",
                                        extra={"Cache-Control": "no-cache"})
+        # AN IPHONE'S OWN PLACE FOR THE ICON.  Safari takes the tag a page
+        # carries (lib/mobile.py app_head), and where a page carries none it
+        # asks the top of the site for these two names.  Both are the one
+        # file in lib/icons/; "precomposed" is the older name, and tells an
+        # iPhone old enough to care not to lay its own shine over it.
+        if path in ("/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"):
+            if method != "GET":
+                return self._method_not_allowed()
+            with open(os.path.join(LIB, "icons", "apple-touch-icon.png"), "rb") as f:
+                return self.send_bytes(f.read(), "image/png",
+                                       extra={"Cache-Control": "max-age=86400"})
         if path in ("/m/offline", "/m/offline/"):
             if method != "GET":
                 return self._method_not_allowed()
@@ -1971,10 +2499,13 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._book_download()
             if method == "POST" and ("/__save/" in path or "/__narration/" in path
                                      or "/__edit/" in path or "/__divide/" in path
+                                     or "/__region/" in path
                                      or "/__reading/" in path
                                      or "/__struct/" in path or "/__clip/" in path
                                      or "/__lookup" in path or "/__words/" in path):
                 return self._books_post(path)
+            if method == "GET" and path.rstrip("/").endswith("/__offline"):
+                return self._offline_manifest(path)
             if method == "GET" and path.endswith("/__narration/status"):
                 return self._narration_status()
             if method == "GET" and path.endswith("/__narration/export"):
@@ -2186,8 +2717,6 @@ class Handler(SimpleHTTPRequestHandler):
         directory a replaced video already goes to (ytpages.trash_video), so
         there is one place to look and one rule about what is in it."""
         body = self._json_body()
-        if body is None:
-            return
         d = self._video_dir(body.get("video") or "")
         if not d:
             return self.send_json({"ok": False, "error": "no such video"}, 404)
@@ -2255,8 +2784,6 @@ class Handler(SimpleHTTPRequestHandler):
         """
         if body is None:
             body = self._json_body()
-            if body is None:
-                return
         have = lookup.available(code)
         has_corpus = corpus.available(code, gloss)
         out = {"ok": True, "lang": code, "gloss": gloss,
@@ -2370,8 +2897,6 @@ class Handler(SimpleHTTPRequestHandler):
         """
         if body is None:
             body = self._json_body()
-            if body is None:
-                return
         text = body.get("text")
         if not isinstance(text, str):
             return self.send_json({"ok": False, "error": "text must be the "
@@ -2408,8 +2933,6 @@ class Handler(SimpleHTTPRequestHandler):
         page can draw a bar rather than a hung request.
         """
         body = self._json_body()
-        if body is None:
-            return
         if what == "decompositions":
             with DECOMPOSITION_LOCK:
                 jobs = {key: dict(value) for key, value in DECOMPOSITION_JOBS.items()}
@@ -2731,8 +3254,6 @@ class Handler(SimpleHTTPRequestHandler):
         language is the content's own, so a note opens in the same face and
         direction the text beside it is set in."""
         body = self._json_body()
-        if body is None:
-            return
         side, kind, at = body.get("side"), body.get("kind"), body.get("at")
         target = body.get("target") or languages.DEFAULT
         try:
@@ -2798,6 +3319,10 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._video_local()
             if sub == "/api/edit":
                 return self._video_edit_chunk()
+            if sub == "/api/region/prompt":
+                return self._video_region("prompt")
+            if sub == "/api/region/apply":
+                return self._video_region("apply")
             if sub == "/api/editmeta":
                 return self._video_edit_meta()
             if sub == "/api/divide":
@@ -2814,8 +3339,6 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._video_clip("peaks")
             if sub == "/api/lookup":
                 body = self._json_body()
-                if body is None:
-                    return
                 d = self._video_dir(body.get("video") or "")
                 if not d:
                     return self.send_json({"ok": False, "error": "no such video"}, 404)
@@ -2824,8 +3347,6 @@ class Handler(SimpleHTTPRequestHandler):
                                     body, meta.get("gloss") or "en")
             if sub == "/api/words":
                 body = self._json_body()
-                if body is None:
-                    return
                 vid = body.get("video")
                 d = self._video_dir(vid if isinstance(vid, str) else "")
                 if not d:
@@ -2852,6 +3373,26 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_html(ytpages.not_found_page(
                     "no such channel", ytpages.BASE + "/", "all channels"), 404)
             return self.send_html(page)
+        m = re.match(r"^/v/([^/]+)/__offline/?$", sub)
+        if m:
+            meta, vpath = ytpages.find_video(m.group(1))
+            if meta is None:
+                return self._not_found("no such video")
+            # find_video answers the video's own DIRECTORY (ytpages.video_dirs)
+            rec = offline.video(vpath, m.group(1), ytpages.BASE,
+                                notes_to_keep(vpath), STUDIO_BASE)
+            if rec is None:
+                return self._not_found("no such video")
+            rec["ok"] = True
+            # WHAT EVERY PAGE OF THE APP NEEDS, and nothing else.  What a
+            # kept NOTE leans on -- the studio's sheet, its faces, MathJax --
+            # stays inside rec["notes"]["shared"], where the sheet fetches it
+            # only if the notes row is ticked: merged in here it would be
+            # four megabytes fetched on a first keep by somebody who wanted
+            # the text of a book and was told it cost a few hundred kB.
+            rec["shared"] = offline.shared()
+            rec.update(offline.totals(rec))
+            return self.send_json(rec)
         m = re.match(r"^/v/([^/]+)/?$", sub)
         if m:
             vid = m.group(1)
@@ -2867,6 +3408,26 @@ class Handler(SimpleHTTPRequestHandler):
 
     # ---- the Anki store, shared by both readers
     def _anki(self, method, path):
+        """The card store's routes.
+
+        A ZIP THAT IS NOT AN ANKI EXPORT MUST NOT KILL THE REQUEST (TO-DO
+        §2.4).  The importer says so by calling sys.exit -- which raises
+        SystemExit, which is not an Exception, so the route's own `except
+        Exception` never saw it and the page got a network error instead of
+        the sentence written for exactly this case.  It is caught here, at
+        the one place every one of these routes passes through, and said in
+        the importer's own words."""
+        try:
+            return self._anki_route(method, path)
+        except SystemExit as e:
+            said = str(e) or "that file could not be read as an Anki export"
+            try:
+                said = ytpages._explain(e)
+            except Exception:
+                pass
+            return self.send_json({"ok": False, "error": said}, 400)
+
+    def _anki_route(self, method, path):
         if method == "GET":
             if path == "/anki/decks":
                 return ytpages.anki_decks(self)
@@ -2892,6 +3453,8 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/anki/preview":
                 return ytpages.anki_preview(self)
             if path == "/anki/sync/upload":
+                if self._spool:
+                    return self._anki_upload_spooled()
                 return ytpages.sync_upload(self)
             if path == "/anki/sync/run":
                 return ytpages.sync_run(self)
@@ -2899,6 +3462,43 @@ class Handler(SimpleHTTPRequestHandler):
                 return ytpages.sync_bootstrap(self)
             return self.send_json({"ok": False, "error": "nothing to POST here"}, 404)
         self._method_not_allowed()
+
+    def _anki_upload_spooled(self):
+        """AN ANKI EXPORT BIGGER THAN THE JSON CAP (TO-DO §2.3).
+
+        `/anki/sync/upload` is in UPLOAD_ROUTES, so a big body is already a
+        file on disk when the route is reached -- but the route reads it out
+        of memory (ytpages.sync_upload, `h._raw`), so an export with its
+        media in it, which passes 32 MB without trying, arrived as an "empty
+        upload".  Here it is taken from the spool instead: the same name the
+        other path would have given it, the same refusal for a file that is
+        not a zip, and the bytes moved rather than copied where they can be.
+        """
+        want = (self.query.get("name") or [""])[0]
+        with open(self._spool, "rb") as f:
+            head = f.read(2)
+        size = os.path.getsize(self._spool)
+        if not size:
+            return self.send_json({"ok": False, "error": "empty upload"}, 400)
+        if head != b"PK":
+            return self.send_json(
+                {"ok": False, "error": "that is not an .apkg (an Anki package is a "
+                 "zip; this file does not start like one)"}, 400)
+        stem = re.sub(r"[^A-Za-z0-9._ -]", "_", os.path.basename(want))
+        stem = re.sub(r"\.apkg$", "", stem, flags=re.I).strip() or "deck"
+        name = "%s-%s.apkg" % (time.strftime("%Y%m%d-%H%M%S"), stem[:60])
+        os.makedirs(ytpages.INBOX, exist_ok=True)
+        path = os.path.join(ytpages.INBOX, name)
+        tmp = path + ".part"
+        # the spool is in the system's temporary folder, which is often
+        # another filesystem: move, then rename into place, so that a name
+        # in the inbox never names half a file
+        # (the dispatcher unlinks the spool afterwards and does not mind that
+        # it has already gone)
+        shutil.move(self._spool, tmp)
+        os.replace(tmp, path)
+        return self.send_json({"ok": True, "file": name, "bytes": size,
+                               "path": os.path.join("youtube", "anki", "inbox", name)})
 
     # ---- the clip tray: what a card's recording is cut into (lib/clips.py)
     def _clips(self, method, path):
@@ -2978,8 +3578,6 @@ class Handler(SimpleHTTPRequestHandler):
         in the tray, so the asset base is the tray's, and its `[…](doc:Name)`
         links resolved in the studio's library, where a deck resolves them."""
         body = self._json_body()
-        if body is None:
-            return
         md = body.get("markdown")
         if not isinstance(md, str) or len(md) > 200000:
             return self.send_json({"ok": False, "error": "markdown must be text"}, 400)
@@ -3003,8 +3601,6 @@ class Handler(SimpleHTTPRequestHandler):
         if not b:
             return self.send_json({"ok": False, "error": "no book here"}, 404)
         body = self._json_body()
-        if body is None:
-            return
         nid = body.get("narration") or ""
         if not isinstance(nid, str):
             return self.send_json({"ok": False, "error": "narration is a recording's id"}, 400)
@@ -3025,8 +3621,6 @@ class Handler(SimpleHTTPRequestHandler):
         """`/youtube/api/clip` and `/youtube/api/peaks`: the same two, out of a
         video's own film.  A YouTube video has no file here to cut."""
         body = self._json_body()
-        if body is None:
-            return
         vid = body.get("video")
         d = self._video_dir(vid if isinstance(vid, str) else "")
         if not d:
@@ -3109,6 +3703,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self._book_structure("chapter")
         if p.endswith("__edit/chunk"):
             return self._book_edit_chunk()
+        if p.endswith("__region/prompt"):
+            return self._book_region("prompt")
+        if p.endswith("__region/apply"):
+            return self._book_region("apply")
         if p.endswith("__edit/meta"):
             return self._book_edit_meta()
         if p.endswith("__divide/chunk"):
@@ -3162,18 +3760,6 @@ class Handler(SimpleHTTPRequestHandler):
     # what lives here is the mapping from a request to one of their calls and
     # from their refusals to a status code.  Their exceptions are the error
     # messages: they were written to be read by whoever pressed the button.
-    def _json_body(self):
-        """The body as a dict, or None having already answered."""
-        try:
-            body = json.loads(self._raw.decode("utf-8"))
-        except Exception:
-            self.send_json({"ok": False, "error": "not JSON"}, 400)
-            return None
-        if not isinstance(body, dict):
-            self.send_json({"ok": False, "error": "expected a JSON object"}, 400)
-            return None
-        return body
-
     def _send_bundle(self, data, name):
         # Content-Disposition is what makes the browser save it rather than
         # try to display a zip; the name is a slug or a video id, so ASCII,
@@ -3285,8 +3871,6 @@ class Handler(SimpleHTTPRequestHandler):
     def _book_empty(self):
         """A book with the text in it and every gloss blank, to author by hand."""
         body = self._json_body()
-        if body is None:
-            return
         try:
             r = draft.book_from_text(
                 body.get("text") or "", body.get("lang") or "",
@@ -3323,8 +3907,6 @@ class Handler(SimpleHTTPRequestHandler):
         reason it is after a divide.
         """
         body = self._json_body()
-        if body is None:
-            return
         try:
             r = draft.add_to_book(book, body.get("text") or "",
                                   how=chunk_way(body),
@@ -3378,6 +3960,44 @@ class Handler(SimpleHTTPRequestHandler):
                 "error": ((r.stderr or r.stdout or "").strip().splitlines() or ["it failed"])[-1]
                          if r.returncode else ""}
 
+    def _offline_manifest(self, path):
+        """WHAT A THING IS MADE OF, as addresses (lib/offline.py, §19.3).
+
+        One answer per thing -- a book here, a video and a deck below -- so
+        that a phone can keep exactly what it needs and know, by the version,
+        when what it holds is older than the computer's.  Three lists: the
+        small parts (the page, the text, the pictures), which the worker
+        renews behind every answer; the heavy ones (a recording, a film),
+        picked one by one when the thing is kept (the owner's choice,
+        2026-09-22); and the groups, which are one tick apiece -- today, the
+        notes written beside this book, their pictures with them and their
+        marks (2026-09-23).
+        """
+        rel = path.rstrip("/")[: -len("/__offline")]
+        # asked at the book (/books/<…>/__offline) or at its reader, which is
+        # the page a phone is on when it presses Keep (lib/keep.js)
+        if rel.endswith("/reader"):
+            rel = rel[: -len("/reader")]
+        book = book_dir(rel)
+        if not book:
+            return self._not_found("no book here")
+        base = rel if rel.endswith("/") else rel + "/"
+        rec = offline.book(book, base, notes_to_keep(book), STUDIO_BASE)
+        if rec is None:
+            return self.send_json({"ok": False,
+                                   "error": "this book has no reader built yet: a phone cannot "
+                                            "build one"}, 409)
+        rec["ok"] = True
+        # WHAT EVERY PAGE OF THE APP NEEDS, and nothing else.  What a kept
+        # NOTE leans on -- the studio's sheet, its faces, MathJax -- stays
+        # inside rec["notes"]["shared"], where the sheet fetches it only if
+        # the notes row is ticked: merged in here it would be four megabytes
+        # fetched on a first keep by somebody who wanted the text of a book
+        # and was told it cost a few hundred kB.
+        rec["shared"] = offline.shared()
+        rec.update(offline.totals(rec))
+        return self.send_json(rec)
+
     def _book_reading(self, what):
         """What somebody has decided about the text itself: reading.json.
 
@@ -3394,8 +4014,6 @@ class Handler(SimpleHTTPRequestHandler):
         if not book:
             return self.send_json({"ok": False, "error": "no book here"}, 404)
         body = self._json_body()
-        if body is None:
-            return
         on = bool(body.get("on", True))
         try:
             if what == "free":
@@ -3438,8 +4056,6 @@ class Handler(SimpleHTTPRequestHandler):
         if not book:
             return self.send_json({"ok": False, "error": "no book here"}, 404)
         body = self._json_body()
-        if body is None:
-            return
         title = body.get("title") or ""
         try:
             if what == "chapter":
@@ -3472,8 +4088,6 @@ class Handler(SimpleHTTPRequestHandler):
         if not book:
             return self.send_json({"ok": False, "error": "no book here"}, 404)
         body = self._json_body()
-        if body is None:
-            return
         index, fields = body.get("index"), body.get("fields")
         if not isinstance(index, int) or index < 0:
             return self.send_json({"ok": False, "error": "index must be the chunk's "
@@ -3505,8 +4119,6 @@ class Handler(SimpleHTTPRequestHandler):
         if not book:
             return self.send_json({"ok": False, "error": "no book here"}, 404)
         body = self._json_body()
-        if body is None:
-            return
         fields = body.get("fields")
         try:
             meta = bookmeta.edit_meta(book, fields)
@@ -3567,8 +4179,6 @@ class Handler(SimpleHTTPRequestHandler):
         if not book:
             return self.send_json({"ok": False, "error": "no book here"}, 404)
         body = self._json_body()
-        if body is None:
-            return
         action, index = body.get("action"), body.get("index")
         if action not in ("preview", "split", "merge"):
             return self.send_json({"ok": False, "error": "action must be "
@@ -3609,6 +4219,64 @@ class Handler(SimpleHTTPRequestHandler):
             r["pdf_stale"] = True
         self.send_json(dict(r, ok=True))
 
+    @staticmethod
+    def _region_flags(body, names):
+        """The region routes' true-or-false fields, each false when left out
+        -> (flags, None) or (None, the sentence to refuse with)."""
+        flags = {}
+        for k in names:
+            v = body.get(k, False)
+            if not isinstance(v, bool):
+                return None, "%s is true or false" % k
+            flags[k] = v
+        return flags, None
+
+    def _book_region(self, what):
+        """Part of a book glossed by an LLM (lib/glossregion.py): `prompt`
+        is what the page copies for the chatbot, `apply` the chatbot's
+        answer pasted back.
+
+        The region is named in the page's own numbering, the book-wide chunk
+        numbers __edit/chunk takes (first, last, inclusive), and answered in
+        it.  What the answer may change is decided in glossregion from the
+        chapter files as they are when it lands, never from anything the page
+        says; each chunk goes in through texwrite.edit_chunk, the door the
+        chunk sheet uses, and the reader is built again ONCE after them all
+        -- an apply that wrote nothing (every chunk kept or dropped, or a
+        re-gloss waiting to be confirmed) leaves it alone.
+        """
+        book = self._book_dir()
+        if not book:
+            return self.send_json({"ok": False, "error": "no book here"}, 404)
+        body = self._json_body()
+        first, last = body.get("first"), body.get("last")
+        for name, v in (("first", first), ("last", last)):
+            if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+                return self.send_json({"ok": False, "error": "%s must be a chunk's "
+                                       "number in the reader" % name}, 400)
+        flags, bad = self._region_flags(
+            body, ("regloss", "perfield") + (("confirm",) if what == "apply" else ()))
+        if bad:
+            return self.send_json({"ok": False, "error": bad}, 400)
+        answer = body.get("answer")
+        if what == "apply" and (not isinstance(answer, str) or not answer.strip()):
+            return self.send_json({"ok": False, "error": "answer must be the LLM's "
+                                   "reply, pasted as it came"}, 400)
+        try:
+            if what == "prompt":
+                r = glossregion.book_prompt(book, first, last, **flags)
+            else:
+                r = glossregion.book_apply(book, first, last, answer, **flags)
+        except glossregion.NotFound as e:
+            return self.send_json({"ok": False, "error": str(e)}, 404)
+        except (glossregion.Refused, texwrite.Refused) as e:
+            return self.send_json({"ok": False, "error": str(e)}, 400)
+        if what == "apply" and r.get("wrote"):
+            r["reader"] = self._rebuild_reader(book)
+            # the PDF is built by LaTeX and nothing here can do that
+            r["pdf_stale"] = True
+        self.send_json(dict(r, ok=True))
+
     def _video_dir(self, vid):
         """The directory of a video by its id, or None (video_dir)."""
         return video_dir(vid)
@@ -3640,8 +4308,6 @@ class Handler(SimpleHTTPRequestHandler):
     def _video_empty(self):
         """A video whose captions are chunked and whose glosses are all blank."""
         body = self._json_body()
-        if body is None:
-            return
         try:
             r = draft.video_from_transcript(
                 # The add page invites a .srt or .vtt to be pasted whole, and
@@ -3675,8 +4341,6 @@ class Handler(SimpleHTTPRequestHandler):
         downstream still reads one format.
         """
         body = self._json_body()
-        if body is None:
-            return
         taken = [name for _f, name, _p in ytpages.video_dirs()]
         try:
             ytpages.one_source(body)
@@ -3724,8 +4388,6 @@ class Handler(SimpleHTTPRequestHandler):
         annotations.json itself the next time it loads.
         """
         body = self._json_body()
-        if body is None:
-            return
         d = self._video_dir(body.get("video") or "")
         if not d:
             return self.send_json({"ok": False, "error": "no such video"}, 404)
@@ -3757,8 +4419,6 @@ class Handler(SimpleHTTPRequestHandler):
         on every later visit.
         """
         body = self._json_body()
-        if body is None:
-            return
         d = self._video_dir(body.get("video") or "")
         if not d:
             return self.send_json({"ok": False, "error": "no such video"}, 404)
@@ -3797,8 +4457,6 @@ class Handler(SimpleHTTPRequestHandler):
         the edit just wrote, so the answer is the chunk as it now stands.
         """
         body = self._json_body()
-        if body is None:
-            return
         d = self._video_dir(body.get("video") or "")
         if not d:
             return self.send_json({"ok": False, "error": "no such video"}, 404)
@@ -3814,7 +4472,14 @@ class Handler(SimpleHTTPRequestHandler):
             # annwrite refuses with the checker's own words, which is what
             # the page should show: it names the rule, not the exception
             return self.send_json({"ok": False, "error": str(e)}, 400)
-        self.send_json({"ok": True, "segment": seg, "chunk": chunk, "chunk_now": r})
+        # and the caption's text as it now stands: a chunk marked "free" takes
+        # its caption's text with it (annwrite._retext), and the page holds
+        # that text apart from the chunks -- for the copy of the caption, the
+        # dictionary's sentence, the timeline -- so it is handed back to be
+        # put where the page keeps it, instead of going stale until a reload
+        text = annwrite.read(d)["segments"][seg].get("text")
+        self.send_json({"ok": True, "segment": seg, "chunk": chunk, "chunk_now": r,
+                        "text": text if isinstance(text, str) else ""})
 
     def _video_edit_meta(self):
         """The video's own title, channel, level and blurb -- not a chunk,
@@ -3824,8 +4489,6 @@ class Handler(SimpleHTTPRequestHandler):
         video.json.  Unlike a book there is nothing to rebuild: the player
         reads the file the edit just wrote."""
         body = self._json_body()
-        if body is None:
-            return
         d = self._video_dir(body.get("video") or "")
         if not d:
             return self.send_json({"ok": False, "error": "no such video"}, 404)
@@ -3844,8 +4507,6 @@ class Handler(SimpleHTTPRequestHandler):
         chunk after the change has moved and a patch would leave the page
         pointing at the wrong ones."""
         body = self._json_body()
-        if body is None:
-            return
         d = self._video_dir(body.get("video") or "")
         if not d:
             return self.send_json({"ok": False, "error": "no such video"}, 404)
@@ -3881,6 +4542,43 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": False, "error":
                                    "this video has no annotations.json yet"}, 404)
         self.send_json(dict(r, ok=True))
+
+    def _video_region(self, what):
+        """Part of a video glossed by an LLM (lib/glossregion.py): the prompt
+        for a run of captions, or the answer pasted back.  The books' route
+        with the video's own addressing -- `from` and `to`, indices of
+        annotations.json's segments, plain captions included, as /api/edit
+        numbers them -- and nothing to rebuild: the answer carries every
+        caption it wrote to, whole, under "segments", for the player to
+        redraw exactly those."""
+        body = self._json_body()
+        vid = body.get("video")
+        d = self._video_dir(vid) if isinstance(vid, str) else None
+        if not d:
+            return self.send_json({"ok": False, "error": "no such video"}, 404)
+        frm, to = body.get("from"), body.get("to")
+        for name, v in (("from", frm), ("to", to)):
+            if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+                return self.send_json({"ok": False, "error": "%s must be a caption's "
+                                       "number" % name}, 400)
+        flags, bad = self._region_flags(
+            body, ("regloss", "perfield") + (("confirm",) if what == "apply" else ()))
+        if bad:
+            return self.send_json({"ok": False, "error": bad}, 400)
+        answer = body.get("answer")
+        if what == "apply" and (not isinstance(answer, str) or not answer.strip()):
+            return self.send_json({"ok": False, "error": "answer must be the LLM's "
+                                   "reply, pasted as it came"}, 400)
+        try:
+            if what == "prompt":
+                r = glossregion.video_prompt(d, frm, to, **flags)
+            else:
+                r = glossregion.video_apply(d, frm, to, answer, **flags)
+        except glossregion.NotFound as e:
+            return self.send_json({"ok": False, "error": str(e)}, 404)
+        except glossregion.Refused as e:
+            return self.send_json({"ok": False, "error": str(e)}, 400)
+        self.send_json(dict(r, ok=True, video=vid))
 
     def _subtimes(self):
         """Timestamps edited in the page, made persistent.
@@ -4607,9 +5305,153 @@ class Handler(SimpleHTTPRequestHandler):
                         "subs": st.get("subs", 0), "timed": st.get("timed", 0)})
 
     def _shutdown(self):
+        RUN["again"] = False             # a stop is a stop, not a re-bind
         self.send_json({"ok": True, "stopping": True})
         # answer first, then stop from another thread so the reply is delivered
         threading.Thread(target=self.server.shutdown, daemon=True).start()
+
+    # ------------------------------------------------------------ the settings
+    def _settings(self, method, path):
+        """/settings/ -- the section, its Network page, and the four things
+        that page does.  Who may do each of them is decided here and not in
+        the page: a page is a suggestion, and a rule that lives in one is no
+        rule at all."""
+        if path in ("/settings", "/settings/index.html"):
+            return self._redirect("/settings/")
+        if path == "/settings/":
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(settingspage.hub())
+        if path in ("/settings/network", "/settings/network/index.html"):
+            return self._redirect("/settings/network/")
+        if path == "/settings/network/":
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(settingspage.network_page(self._network_state()))
+        if path == "/settings/api/ping":
+            # THE ONE ROUTE A MOVING PAGE KNOCKS AT.  After a re-bind the
+            # page that saved is on an address that no longer answers; it
+            # asks here, at each address the save named, until one does.
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_json({"ok": True, "port": RUN["port"]})
+        if path == self.PAIR_ROUTE:
+            if method != "POST":
+                return self._method_not_allowed()
+            return self._pair()
+        if path not in ("/settings/api/network", "/settings/api/code",
+                        "/settings/api/forget"):
+            return self._not_found()
+        if method != "POST":
+            return self._method_not_allowed()
+        # FROM HERE ON, THE COMPUTER ITSELF ONLY (the owner's decision of
+        # 2026-09-23).  A phone may read the page -- it is useful to see
+        # which door let you in from the device that came through it -- but
+        # one device that has been let in must never be able to let the whole
+        # network in, or to move the port out from under the others.
+        if not network.may_save((self.client_address or ("",))[0]):
+            return self.send_json(
+                {"ok": False, "error": "the network settings are changed on the "
+                 "computer Parseh runs on, and nowhere else. This page is showing "
+                 "you how they stand."}, 403)
+        if path == "/settings/api/network":
+            return self._settings_save()
+        if path == "/settings/api/code":
+            c = network.code(fresh=True)
+            return self.send_json({"ok": True, "code": network.say_code(c["code"]),
+                                   "said": _code_said(c)})
+        if path == "/settings/api/forget":
+            body = self._json_body()
+            gone = network.forget("" if body.get("all") else body.get("id"))
+            return self.send_json({"ok": True, "forgotten": gone})
+        return self._not_found()
+
+    def _network_state(self):
+        """What the Network page is drawn from."""
+        doc = network.settings()
+        ip = (self.client_address or ("",))[0]
+        c = network.code()
+        return {"settings": doc, "may_save": network.may_save(ip),
+                "where": network.where(ip, doc),
+                "code": c, "code_said": network.say_code(c["code"]),
+                "left_said": _code_said(c),
+                "own_cert": network.own_cert(doc),
+                "has_authority": authority_der() is not None,
+                "addresses": list(ADDRESSES)}
+
+    def _pair(self):
+        """A device typing the code.  Open to a device that has NOT been let
+        in -- it is the only thing such a device may do -- so it says as
+        little as it can: right or wrong, and how many tries are left."""
+        ip = (self.client_address or ("",))[0]
+        if not network.needs_code(ip):
+            return self.send_json({"ok": True, "already": True})
+        try:
+            body = self._json_body()
+        except json.JSONDecodeError:
+            body = {}
+        token, why = network.check_code(body.get("code"), ip,
+                                        self.headers.get("User-Agent"))
+        if not token:
+            return self.send_json({"ok": False, "error": why}, 403)
+        self.send_bytes(json.dumps({"ok": True, "name": self._whose_device()}).encode("utf-8"),
+                        "application/json; charset=utf-8",
+                        extra={"Set-Cookie": self._set_device_cookie(token)})
+        print("%s: %s at %s was let in" % (NAME, self._whose_device(), ip))
+
+    def _settings_save(self):
+        """Save, and -- when what was saved changes the socket -- move.
+
+        The answer goes out BEFORE anything is re-bound (the re-bind waits on
+        a thread), because the page that asked is about to lose the address
+        it asked from, and an answer it never receives is an answer that
+        cannot tell it where to go."""
+        body = self._json_body()
+        was = network.settings()
+        # A CERTIFICATE OF YOUR OWN IS TRIED BEFORE IT IS SAVED.  Discovering
+        # that openssl will not read it at the moment the socket is rebuilt
+        # would mean falling back with the page already gone; here it is one
+        # refusal on the page that asked, with what the library said.
+        want = (body.get("cert") or {}) if isinstance(body.get("cert"), dict) else {}
+        if want.get("cert") and want.get("key") and self.server.ssl_ctx is not None:
+            try:
+                probe = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                probe.load_cert_chain(want["cert"], want["key"])
+            except (ssl.SSLError, OSError, ValueError) as e:
+                return self.send_json({"ok": False, "error": "that certificate and key "
+                                       "cannot be used: %s" % e}, 400)
+        try:
+            doc = network.save(body)
+        except network.NetworkError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 400)
+        except OSError as e:
+            return self.send_json({"ok": False, "error": "config/network.json could "
+                                   "not be written: %s" % e}, 500)
+        # RUN is empty when this server was not started by main -- a test
+        # harness holding a Server of its own -- and there is then no loop to
+        # bind the next socket, so nothing is moved and the save is just a save
+        moving = bool(RUN["port"]) and (
+            doc["port"] != RUN["port"]
+            or network.bind_host(doc) != RUN["host"]
+            or network.own_cert(doc) != network.own_cert(was))
+        out = {"ok": True, "settings": {k: doc[k] for k in ("port", "vpn", "lan", "extra")},
+               "said": settingspage.doors_said(doc), "moving": moving}
+        if moving:
+            out["go"] = _where_to_go(doc)
+            # A FRESH CERTIFICATE IS NOT A FRESH CEREMONY -- unless it is.
+            # Opening a door can put an address in the certificate that was
+            # not in it before; under Parseh's own authority a phone that
+            # trusts the authority notices nothing, and a browser that
+            # accepted the old certificate by hand asks once more.
+            out["cert_again"] = bool(_cert_stale() and authority_der() is None
+                                     and network.own_cert(doc) is None)
+            if RUN["forced_host"]:
+                out["moving"] = False
+                out["said"] += (" — this run was started with a fixed address, "
+                                "so it stays on it until Parseh is started again")
+        self.send_json(out)
+        if out["moving"]:
+            _rebind_soon(self.server, doc)
 
 
 class _Limited:
@@ -4631,6 +5473,10 @@ class _Limited:
 
 
 # ------------------------------------------------------------------ the server
+# when each refused address was last written to the log (Server.verify_request)
+_REFUSED = {}
+
+
 class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
@@ -4639,6 +5485,37 @@ class Server(socketserver.ThreadingTCPServer):
     def __init__(self, addr, handler, ssl_ctx=None):
         self.ssl_ctx = ssl_ctx
         super().__init__(addr, handler)
+
+    def verify_request(self, request, client_address):
+        """WHO MAY SPEAK TO THIS SERVER AT ALL (TO-DO §1.1, §3.3).
+
+        Asked by socketserver for every connection, before a byte of HTTP is
+        read, so a refusal costs a closed socket and nothing else -- and so
+        that a port scan on the Wi-Fi finds a door that does not open rather
+        than a toolbox that answers.
+
+        It is the RANGE question only: this computer, a VPN, the Wi-Fi with
+        its door open, or nothing.  Whether a Wi-Fi device has been let in is
+        a question about a cookie, and a cookie arrives in a request, not in
+        a connection: Handler._gate asks that one.
+
+        With both doors shut there is nothing for this to refuse, because the
+        socket is bound to 127.0.0.1 and the Wi-Fi cannot reach it at all."""
+        ip = (client_address or ("",))[0]
+        if network.may_connect(ip):
+            return True
+        now = time.time()
+        if now - _REFUSED.get(ip, 0) > 60:
+            # once a minute per address: a scanner must not be able to fill
+            # the log, and a person wondering why their phone cannot get in
+            # must be able to see that it knocked
+            if len(_REFUSED) > 500:
+                _REFUSED.clear()         # a scanner must not fill this either
+            _REFUSED[ip] = now
+            print("%s: refused a connection from %s (%s) -- Settings > Network "
+                  "says who may reach %s"
+                  % (NAME, ip, network.WHERE_SAID.get(network.where(ip), "?"), NAME))
+        return False
 
     def handle_error(self, request, client_address):
         """socketserver prints a full traceback for anything that escapes a
@@ -4859,13 +5736,38 @@ nameConstraints = critical,@permitted
     return ca, ca_key
 
 
+def cert_wants():
+    """The names and addresses the server's certificate should carry now:
+    what this machine answers to, less anything the authority may not vouch
+    for.  Asked in two places -- when the certificate is made, and when it is
+    checked against .tls/names.txt (TO-DO §3.6) -- so it is worked out once."""
+    names, ips = cert_names()
+    names = [n for n in names if n == names[1] or n == "localhost"
+             or n.endswith((".local", ".ts.net"))]
+    return names, [i for i in ips if _ip_permitted(i)]
+
+
+def _cert_stale():
+    """Does the certificate name something other than what the machine has?
+
+    .tls/names.txt was written at every mint and never read (TO-DO §3.6).
+    It is read here, and a difference means the certificate should be made
+    again -- which costs a phone nothing now that the authority it trusts
+    stays put, so it can be done at a start or when a door opens."""
+    names, ips = cert_wants()
+    try:
+        with open(os.path.join(TLS_DIR, "names.txt"), encoding="utf-8") as f:
+            had = [line.strip() for line in f if line.strip()]
+    except OSError:
+        return False                     # no file: somebody else's certificate
+    return had != names + ips
+
+
 def make_server_cert(ca, ca_key):
     """cert.pem (the server's, then the authority's: the chain it sends) and
     key.pem, for every name and address the machine has that the authority
     may vouch for."""
-    names, ips = cert_names()
-    names = [n for n in names if n == names[1] or n == "localhost" or n.endswith((".local", ".ts.net"))]
-    ips = [i for i in ips if _ip_permitted(i)]
+    names, ips = cert_wants()
     san = ",".join(["DNS:%s" % n for n in names] + ["IP:%s" % i for i in ips])
     cert, key = os.path.join(TLS_DIR, "cert.pem"), os.path.join(TLS_DIR, "key.pem")
     csr, leaf = os.path.join(TLS_DIR, "server.csr"), os.path.join(TLS_DIR, "server.pem")
@@ -4924,8 +5826,12 @@ def make_cert(force=False):
             return cert, key
         if not have_ca and not _made_here(cert):
             return cert, key                    # somebody's own: used as it is
-        if have_ca and not _ends_soon(cert):
+        if have_ca and not _ends_soon(cert) and not _cert_stale():
             return cert, key
+        # past here, under our own authority: it is near its end, or the
+        # machine has an address it does not name (TO-DO §3.6).  Making it
+        # again costs a phone that trusts the authority nothing at all,
+        # which is why this no longer waits to be asked.
     if not shutil.which("openssl"):
         raise SystemExit(
             "openssl is needed to make the certificate (apt install openssl),\n"
@@ -4968,9 +5874,103 @@ def addresses():
     return out
 
 
+# ------------------------------------------------- binding, and binding again
+def tls_context(doc=None):
+    """The TLS this run speaks with.
+
+    A certificate this person pointed Parseh at (Settings, "use my own
+    certificate") is loaded and never written to; otherwise Parseh's own,
+    under the authority it made for this machine (make_cert)."""
+    own = network.own_cert(doc)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    if own:
+        ctx.load_cert_chain(own[0], own[1])
+    else:
+        ctx.load_cert_chain(*make_cert())
+    return ctx
+
+
+def _code_said(c):
+    """How long the pairing code has left, in one line for the page."""
+    left = int(c.get("left") or 0)
+    if left <= 0:
+        return "Ask for a fresh code."
+    return ("Good for another %d minutes; after that this page shows a new one."
+            % max(1, round(left / 60.0)))
+
+
+def _where_to_go(doc):
+    """The addresses the page that just saved should try, in order.
+
+    Only the computer itself may save, so its own address is first and is
+    the one that cannot fail; the others are there for the tab somebody has
+    open on the second screen."""
+    port = doc["port"]
+    out = ["%s://localhost:%d/" % (RUN["scheme"], port)]
+    if network.bind_host(doc) == "0.0.0.0":
+        for ip, _ in addresses():
+            url = "%s://%s:%d/" % (RUN["scheme"], ip, port)
+            if url not in out:
+                out.append(url)
+    return out
+
+
+def _rebind_soon(httpd, doc, after=0.7):
+    """Put the new address where main's loop will read it, and ask the
+    current server to stop -- from a thread, so that the answer to the save
+    is on the wire before the socket it went out through is closed.
+
+    Nothing here binds or closes anything: main is the only place that does,
+    which is what keeps a re-bind from racing a shutdown."""
+    def go():
+        time.sleep(after)
+        RUN["port"] = doc["port"]
+        RUN["host"] = RUN["forced_host"] or network.bind_host(doc)
+        RUN["again"] = True
+        httpd.shutdown()
+    threading.Thread(target=go, daemon=True).start()
+
+
+def _announce(ctx, first):
+    """The addresses, printed -- and kept in ADDRESSES, which is what the
+    hub's foot shows.  Printed again after a re-bind, because the lines above
+    it in the log are about an address that has stopped existing."""
+    host, port, scheme = RUN["host"], RUN["port"], RUN["scheme"]
+    if host == "0.0.0.0":
+        found = addresses()
+        ADDRESSES[:] = ["%s://%s:%d/" % (scheme, ip, port) for ip, _ in found]
+    else:
+        found = [(host, "this machine" if host.startswith("127.") else "as asked for")]
+        ADDRESSES[:] = ["%s://%s:%d/" % (scheme, host, port)]
+    doc = network.settings()
+    print("%s: serving %s on %s:%d (%s)\n" % (NAME, ROOT, host, port, scheme))
+    for (ip, what), url in zip(found, ADDRESSES):
+        print("  %-42s (%s)" % (url, what))
+    print("\n  /books/  /youtube/  /studio/  /exercises/  /anki/sync/  /settings/")
+    print("\nreachable from: %s%s" % (
+        settingspage.doors_said(doc),
+        "  (this run was started with a fixed address)" if RUN["forced_host"] else ""))
+    if doc["lan"]:
+        # printed where somebody watching the log can read it off, as well as
+        # on the Settings page: a phone being let in for the first time is
+        # often held by the person looking at this window
+        print("a device on the Wi-Fi is let in with the code:  %s   "
+              "(Settings > Network shows the one that works)" % network.say_code())
+    if ctx and first:
+        if network.own_cert():
+            print("\nusing the certificate you pointed Parseh at; Parseh never writes to it.")
+        else:
+            print("\nthe certificate is Parseh's own: each browser warns once -- accept it,"
+                  "\nor tell a phone to trust the authority once, from /m/install/.")
+    print("Ctrl-C, or any of the page's stop buttons, to stop.")
+
+
 def main():
     ap = argparse.ArgumentParser(description="%s -- the whole toolbox, one server" % NAME)
-    ap.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT)
+    # no default: a port given here is for this run, and a port nobody gave
+    # is the one the Settings page keeps (config/network.json)
+    ap.add_argument("port", nargs="?", type=int)
     ap.add_argument("--port", dest="port_opt", type=int)
     ap.add_argument("--host", default=None,
                     help="bind one address only (e.g. your Tailscale IP)")
@@ -4984,16 +5984,13 @@ def main():
     if args.cert:
         make_cert(force=True)
         return
-    port = args.port_opt or args.port
-    host = "127.0.0.1" if args.local else (args.host or "0.0.0.0")
-    scheme = "http" if args.http else "https"
-
-    ctx = None
-    if not args.http:
-        cert, key = make_cert()
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-        ctx.load_cert_chain(cert, key)
+    # WHO DECIDES WHAT.  The Settings page decides the port and the doors
+    # (lib/network.py); an argument here overrules it for this one run, which
+    # is what the tests and `--local` are for, and says so on the page.
+    RUN["port"] = args.port_opt or args.port or network.port()
+    RUN["forced_host"] = "127.0.0.1" if args.local else (args.host or "")
+    RUN["host"] = RUN["forced_host"] or network.bind_host()
+    RUN["scheme"] = "http" if args.http else "https"
 
     all_bks = booklib.all_books()
     if all_bks:
@@ -5021,28 +6018,57 @@ def main():
     studio.ensure_build_env_async()
 
     os.chdir(ROOT)
-    httpd = Server((host, port), Handler, ctx)
-    studio.SERVER["instance"] = httpd     # so the studio's stop button works too
-    if host == "0.0.0.0":
-        ADDRESSES[:] = ["%s://%s:%d/" % (scheme, ip, port) for ip, _ in addresses()]
-    else:
-        ADDRESSES[:] = ["%s://%s:%d/" % (scheme, host, port)]
-    print("%s: serving %s on %s:%d (%s)\n" % (NAME, ROOT, host, port, scheme))
-    if host == "0.0.0.0":
-        for (ip, what), url in zip(addresses(), ADDRESSES):
-            print("  %-42s (%s)" % (url, what))
-    else:
-        print("  " + ADDRESSES[0])
-    print("\n  /books/  /youtube/  /studio/  /exercises/  /anki/sync/")
-    if ctx:
-        print("\nself-signed certificate: each browser warns once -- accept it.")
-    print("Ctrl-C, or any of the page's stop buttons, to stop.")
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        httpd.server_close()
+    # ONE LOOP, BECAUSE THE SERVER MAY MOVE.  Saving the Network page binds a
+    # different socket -- another port, or a closed door that turns
+    # 0.0.0.0 into 127.0.0.1 -- and that has to happen without a restart and
+    # without a terminal.  So the request writes the new address into RUN and
+    # stops the server; here, and nowhere else, the old socket is closed and
+    # the new one opened.  A stop button leaves `again` false and the loop
+    # ends, exactly as it always did.
+    good = None                    # the last address that worked, to fall back on
+    first = True
+    while True:
+        try:
+            ctx = None if args.http else tls_context()
+            httpd = Server((RUN["host"], RUN["port"]), Handler, ctx)
+        except (OSError, ssl.SSLError) as e:
+            why = (network.free_port(RUN["port"], RUN["host"]) if isinstance(e, OSError)
+                   else "") or str(e)
+            print("!! %s cannot serve on %s:%d -- %s" % (NAME, RUN["host"], RUN["port"], why))
+            if good is None or (RUN["host"], RUN["port"]) == good[:2]:
+                # nothing left to fall back to: either this is the first bind,
+                # or the address that WAS working has gone too while we were
+                # moving off it.  Better to stop and say so than to spin here
+                raise SystemExit(
+                    "%s could not start. Stop whatever holds the port, or start %s on\n"
+                    "another one; the Network page under Settings moves it for good."
+                    % (NAME, NAME))
+            # it was moved from the page and the move did not take: back to
+            # the address that was working, with the settings that named it,
+            # so the page it was saved from can be reached and told why
+            print("   keeping the address that worked: %s:%d" % good[:2])
+            RUN["host"], RUN["port"] = good[0], good[1]
+            try:
+                network.save(good[2], check_port=False)
+            except (network.NetworkError, OSError) as back:
+                print("!! and config/network.json still says otherwise: %s" % back)
+            continue
+        studio.SERVER["instance"] = httpd     # so the studio's stop button works too
+        _announce(ctx, first)
+        first = False
+        doc = network.settings()
+        good = (RUN["host"], RUN["port"],
+                {k: doc[k] for k in ("port", "vpn", "lan", "extra", "cert")})
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            RUN["again"] = False
+        finally:
+            httpd.server_close()
+        if not RUN["again"]:
+            break
+        RUN["again"] = False
+        print("\n%s is moving to %s:%d ..." % (NAME, RUN["host"], RUN["port"]))
     print("stopped.")
 
 
