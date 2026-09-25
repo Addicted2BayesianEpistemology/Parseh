@@ -123,6 +123,20 @@
 .tl-by-b:disabled{opacity:.45;cursor:not-allowed}
 .tl-by-b:focus-visible{outline:2px solid var(--tl-accentlt);outline-offset:1px;position:relative}
 
+/* the box for the next N seconds, between what is estimated and how: the
+   words are the row's own small grey, the box is the time boxes' with the
+   accent when it holds something.  Kept in one piece when the row wraps.  A
+   box that is not a number says so in the sheet's own red, and E will not
+   run until it is mended or emptied. */
+.tl-nx{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--tl-dim);
+  white-space:nowrap}
+.tl-nx-in{font:inherit;font-size:13px;width:60px;text-align:center;padding:4px 4px;
+  border:1px solid var(--tl-rule);border-radius:6px;background:var(--tl-card);
+  color:var(--tl-ink)}
+.tl-nx-in:focus{outline:2px solid var(--tl-accentlt);outline-offset:-1px}
+.tl-nx-in[aria-invalid=true]{border-color:var(--tl-danger);color:var(--tl-danger)}
+.tl-nx-in:read-only{opacity:.6}
+
 /* the sound, at the foot of the sheet */
 .tl-zoom{display:flex;align-items:center;gap:5px;margin-bottom:4px;font-size:11px;
   color:var(--tl-faint)}
@@ -181,4 +195,8 @@
   .tl-at{width:72px}
   .tl-step{min-width:30px;padding:3px 5px}
   .tl-est{flex-wrap:wrap}
+  /* a long word from the sheet takes its own row, the buttons under it
+     at the right, and not a tall column of it beside them */
+  .tl-stat{flex-basis:100%}
+  .tl-foot .tl-save{margin-left:auto}
 }

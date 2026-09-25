@@ -87,6 +87,8 @@ const linesOf = pg => pg.evaluate(() => {
   return {t0, t1, gaps: document.querySelectorAll('.tl-gap').length};
 });
 const r2 = x => Math.round(x * 100) / 100;
+const tenth = x => Math.round(x * 10) / 10;
+const clock = t => { const m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(2); };
 const pressedOn = pg => pg.evaluate(() => ['by-text', 'by-sound'].map(x =>
   document.querySelector(`[data-x="${x}"]`).getAttribute('aria-pressed')));
 const soundLive = (pg, ms = 15000) => pg.waitForFunction(() => {
@@ -547,6 +549,99 @@ for name in os.listdir(out):
                      {t0: at(0.65), t1: at(0.95), confidence: 0.4, t0_min: at(0.6), t0_max: at(0.7)}]};
   };
 
+  // SIX PIECES WHOSE EVERY NUMBER IS KNOWN, on a sheet opened straight from
+  // the page's own ParsehTimeline: the stretch the box picks can then be
+  // checked to the hundredth on both kinds (a book's two numbers a piece, a
+  // video's one) and both ways.  Their texts have 4, 8, 4, 12, 2 and 12
+  // letters -- all that by the text looks at -- and the estimate is answered
+  // in the page, in the server's shape, by what it was asked: 'even' shares
+  // the stretch out equally and ends at its end, 'tail' leaves the last 20%
+  // of it to nobody (the pause the sound showed), 'over' ends the last piece
+  // past the end, which no server does.  With the line at the START of the
+  // second piece (3 s) the cuts after it are 6, 8, 12, 13 and the end, 20.
+  const SIX = {texts: ['zero', 'aaaaaaaa', 'bbbb', 'cccccccccccc', 'dd', 'eeeeeeeeeeee'],
+               t0: [0.5, 3, 6, 8, 12, 13], t1: [3, 6, 8, 12, 13, 20], dur: 20};
+  // (`set` puts other pieces in their place: the same shape as SIX)
+  const sixSheet = async (pg, o) => {
+    await pg.evaluate(o => {
+      try { localStorage.setItem('tl_estimate_by', o.by); } catch (_) {}
+      window.__asked = []; window.__saved = 0;
+      const S6 = o.six;
+      const marks = S6.texts.map((t, i) => ({key: 'k' + i, label: 'p' + i, text: t, t0: S6.t0[i],
+                                             t1: o.kind === 'point' ? null : S6.t1[i]}));
+      const draw = (a, b, n) => Promise.resolve({ok: true, peaks: new Array(n).fill(0.4), start: a, end: b});
+      const answer = req => {
+        const S = req.start, E = req.end, n = req.texts.length;
+        const T = o.shape === 'tail' ? S + (E - S) * 0.8 : E;
+        const at = k => S + (T - S) * k / n;
+        return {ok: true, method: 'wavealign', confidence: 0.5, anchored: 1, boundaries: n - 1,
+                words: n, pieces: req.texts.map((_, k) => ({t0: at(k),
+                  t1: o.shape === 'over' && k === n - 1 ? E + 0.7 : at(k + 1), confidence: 0.5}))};
+      };
+      ParsehTimeline.open({title: 'six pieces', kind: o.kind, duration: S6.dur, marks: marks, peaks: draw,
+        estimate: o.estimate === false ? undefined : req => {
+          window.__asked.push(req);
+          return new Promise(ok => setTimeout(() => ok(answer(req)), o.delay || 0));
+        },
+        save: () => { window.__saved++; return Promise.resolve(); },
+        play: () => {}, stop: () => {}, now: () => null});
+    }, {...o, six: o.set || SIX});
+    await pg.waitForSelector('.tl-root');
+    await pg.waitForFunction(() => document.querySelector('.tl-strip.tl-drawn'));
+    await pg.click('[data-x="all"]');
+  };
+  // the box, filled the way a hand does; false when there is no box to fill --
+  // and then every later touch of it is refused at once, so that a sheet
+  // without one fails these checks one by one instead of waiting on each
+  let boxGone = false;
+  const boxIn = async (pg, v) => {
+    if (boxGone) return false;
+    const ok = await pg.fill('.tl-nx-in', v, {timeout: 3000}).then(() => true, () => false);
+    if (!ok) boxGone = true;
+    return ok;
+  };
+  const boxDo = async (pg, key) => {                 // a key pressed in the box; a click when key is null
+    if (boxGone) return;
+    await (key ? pg.press('.tl-nx-in', key, {timeout: 3000}) : pg.click('.tl-nx-in', {timeout: 3000}))
+      .catch(() => { boxGone = true; });
+  };
+  const boxOf = (pg, what) => pg.evaluate(w => {     // what the box holds or says: null with no box
+    const b = document.querySelector('.tl-nx-in');
+    if (!b) return null;
+    return w === 'value' ? b.value : w === 'readOnly' ? b.readOnly : w === 'focused' ? document.activeElement === b
+         : b.getAttribute(w);
+  }, what);
+  const restLabel = pg => pg.evaluate(() => document.querySelector('[data-x="rest"]').textContent);
+  // ONE ESTIMATE OVER THE SIX: the sheet opened, the piece taken up (its END
+  // in hand when `edge` is 'e'), the number typed and taken with Enter --
+  // which gives the sheet its keys back -- and E pressed.  What comes back is
+  // the button's own words, the questions the server was asked, the numbers
+  // on the strip and the status line.
+  const runStretch = async (pg, o) => {
+    await sixSheet(pg, o);
+    // a piece too narrow to click on, under its own two lines, is taken up with the key
+    if (o.keys) for (let i = 0; i < (o.sel || 1); i++) await pg.keyboard.press('.');
+    else await pg.click(`.tl-band[data-i="${o.sel || 1}"]`);
+    if (o.edge === 'e') {                              // nudged away and back
+      await pg.click('.tl-row[data-edge="e"] [data-e="e+1"]');
+      await pg.click('.tl-row[data-edge="e"] [data-e="e-1"]');
+    }
+    const was = await linesOf(pg);
+    if (o.n != null) {
+      await boxIn(pg, String(o.n));
+      await boxDo(pg, 'Enter');
+    }
+    const label = await restLabel(pg);
+    if (o.via === 'click') await pg.click('[data-x="rest"]');
+    else await pg.keyboard.press('e');
+    if (o.by === 'sound' && o.estimate !== false) await settled(pg, 15000);
+    else await pg.waitForTimeout(200);
+    const after = {label: await restLabel(pg), readOnly: await boxOf(pg, 'readOnly')};
+    return {was, label, after, lines: await linesOf(pg), status: await statOf(pg),
+            asked: await pg.evaluate(() => window.__asked || []),
+            saved: await pg.evaluate(() => window.__saved)};
+  };
+
   console.log('i) "estimate the rest" goes by the text, or by the sound');
   await byEar();
   const look = await bp.evaluate(() => {
@@ -936,6 +1031,486 @@ for name in os.listdir(out):
   peaksRule = null;
   await bp.unroute('**/__clip/peaks');
 
+  /* ---- the next N seconds: a stretch of the rest, by the same two ways ---- */
+  // THE OWNER'S WORDS (2026-09-25): a box for a number of seconds beside
+  // "estimate the rest" and its switch; filled, the button reads "estimate
+  // the next <N> seconds" and does the same act over a shorter stretch --
+  // from the line in hand to the existing boundary closest to <N> seconds
+  // after it, which stays where it is.  The algorithms are the same two, and
+  // nothing outside the stretch moves.  The number is NOT kept: every sheet
+  // opens on "estimate the rest".
+  console.log('i) estimate the next N seconds: the box, beside "estimate the rest" and its switch');
+  answer = null;
+  await byEar();
+  const nx = await bp.evaluate(() => {
+    const b = document.querySelector('.tl-nx-in');
+    if (!b) return null;
+    const rest = document.querySelector('[data-x="rest"]'), by = document.querySelector('[data-x="by-text"]');
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+    return {group: b.closest('.tl-est') === rest.closest('.tl-est') && b.closest('.tl-est') === by.closest('.tl-est'),
+            empty: b.value === '', label: rest.textContent, words: b.getAttribute('aria-label') || '',
+            seen: r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight
+              && r.left >= 0 && r.right <= innerWidth && hit === b};
+  }) || {};
+  assert(nx.group, 'the box is in the same group as "estimate the rest" and its switch');
+  assert(nx.seen, 'and on the screen, where a hand can type in it');
+  assert(nx.empty && nx.label === 'estimate the rest',
+         'empty, the button says "estimate the rest", as ever: ' + JSON.stringify(nx.label));
+  assert(/seconds/.test(nx.words), 'and the box says in words what it wants: ' + JSON.stringify(nx.words));
+  const keysBefore = await bp.evaluate(() => JSON.stringify(Object.keys(localStorage).sort()));
+
+  console.log('   the button says what it will do, in the number as typed');
+  for (const [typed, want] of [['30', 'estimate the next 30 seconds'], ['1', 'estimate the next 1 second'],
+      ['1.0', 'estimate the next 1 second'], ['1:30', 'estimate the next 90 seconds'],
+      ['1,5', 'estimate the next 1.5 seconds'], ['0.25', 'estimate the next 0.25 seconds'],
+      ['0.005', 'estimate the next 0.01 seconds'],
+      ['', 'estimate the rest']]) {
+    await boxIn(bp, typed);
+    eq(await restLabel(bp), want, `${JSON.stringify(typed)} in the box`);
+  }
+  await boxIn(bp, '30');
+  const nxTitle = await bp.evaluate(() => document.querySelector('[data-x="rest"]').title);
+  assert(/in the next 30 seconds/.test(nxTitle) && /boundary closest/.test(nxTitle)
+           && /Nothing outside that stretch/.test(nxTitle) && /\(E\)/.test(nxTitle),
+         'its title says what it does, and its key: ' + nxTitle);
+  assert(await bp.evaluate(() => /in the next 30 seconds, up to the boundary closest to them/
+           .test(document.querySelector('.tl-hint').textContent)
+           && /by the text or by the sound/.test(document.querySelector('.tl-hint').textContent)),
+         'and so does the hint under the strip, which still says E goes whichever way is pressed');
+  eq(await bp.evaluate(() => JSON.stringify(Object.keys(localStorage).sort())), keysBefore,
+     'the number is written nowhere: this device keeps nothing new');
+  for (const [typed, button] of [['30', 'estimate the next 30 seconds'], ['', 'estimate the rest']]) {
+    await boxIn(bp, typed);
+    await bp.click('[data-x="by-text"]');
+    eq((await statOf(bp)).text, `\u201c${button}\u201d now goes by the text`,
+       `pressing the switch names the button as it reads: ${JSON.stringify(button)}`);
+    await bp.click('[data-x="by-sound"]');
+    eq((await statOf(bp)).text, `\u201c${button}\u201d now goes by the sound`, 'and the other way');
+  }
+  console.log('   what is not a number of seconds is refused in words, and nothing is estimated');
+  const REFUSE_BAD = 'the box must hold seconds (90 or 1:30) or be empty; nothing was estimated';
+  const REFUSE_ZERO = 'the seconds in the box must be above zero, or the box empty; nothing was estimated';
+  await soundLive(bp);
+  await bp.click('.tl-band[data-i="1"]');
+  const refusedFrom = await linesOf(bp);
+  const nAsk = asked.length;
+  for (const [typed, words] of [['abc', REFUSE_BAD], ['30 s', REFUSE_BAD], ['-3', REFUSE_BAD],
+                                ['1:2:3:4', REFUSE_BAD], ['0', REFUSE_ZERO], ['0.00', REFUSE_ZERO],
+                                ['0.004', REFUSE_ZERO]]) {
+    await boxIn(bp, typed);
+    await boxDo(bp, 'Enter');
+    eq(await restLabel(bp), 'estimate the rest', `${JSON.stringify(typed)}: the button stays "estimate the rest"`);
+    assert(await boxOf(bp, 'aria-invalid') === 'true',
+           `${JSON.stringify(typed)}: and the box says it is not a number`);
+    await bp.keyboard.press('e');
+    await bp.waitForTimeout(150);
+    eq(await statOf(bp), {text: words, bad: true}, `${JSON.stringify(typed)}: E is refused in words`);
+    const still = await linesOf(bp);
+    eq([still.t0, still.t1], [refusedFrom.t0, refusedFrom.t1], `${JSON.stringify(typed)}: and not one number moved`);
+  }
+  await bp.click('[data-x="rest"]');
+  await bp.waitForTimeout(150);
+  eq(asked.length - nAsk, 0, 'the button is refused the same: no question went to the server');
+  await boxIn(bp, '');
+  assert([null, 'false'].includes(await boxOf(bp, 'aria-invalid')) && !boxGone,
+         'emptied, the box is no longer called wrong');
+  await shut();
+
+  console.log('   the keys typed in the box are the box\'s: the sheet is not stepped or saved from it');
+  await sixSheet(bp, {kind: 'span', by: 'text'});
+  await bp.click('.tl-band[data-i="1"]');
+  const inHand = () => bp.evaluate(() => document.querySelector('.tl-now .tl-say').textContent.slice(0, 2));
+  eq(await inHand(), 'p1', 'the second piece is in hand');
+  await boxDo(bp, null);
+  await bp.keyboard.type('1.5,');
+  eq([await inHand(), await boxOf(bp, 'value')], ['p1', '1.5,'],
+     'a full stop and a comma typed in the box do not take up the next piece');
+  await boxIn(bp, '5');
+  await bp.keyboard.press('Enter');
+  assert(!boxGone && await boxOf(bp, 'focused') === false,
+         'Enter takes the number, and the keys are the sheet\'s again');
+  await bp.keyboard.press('e');
+  await bp.waitForTimeout(200);
+  assert(await bp.evaluate(() => /\(\d+\)/.test(document.querySelector('[data-x="save"]').textContent)),
+         'E has moved something, so there is something to save');
+  await boxDo(bp, null);
+  await bp.keyboard.press('Enter');
+  eq([await bp.evaluate(() => window.__saved), await bp.evaluate(() => !!document.querySelector('.tl-root'))],
+     [0, true], 'and Enter in the box saves nothing and leaves nothing: it only takes the number');
+  // the key held down on: Enter has just handed the focus to the sheet, where Enter saves --
+  // and a repeat of it must not
+  await boxDo(bp, null);
+  await bp.keyboard.down('Enter');
+  await bp.keyboard.down('Enter');
+  await bp.keyboard.up('Enter');
+  eq([await bp.evaluate(() => window.__saved), await bp.evaluate(() => !!document.querySelector('.tl-root'))],
+     [0, true], 'a held Enter in the box saves nothing either: the repeat of it lands on the sheet, and is not a save');
+  await shut();
+
+  console.log('   a sheet with nothing to time: E says so as it always did, and nothing throws');
+  await bp.evaluate(() => {
+    try { localStorage.setItem('tl_estimate_by', 'text'); } catch (_) {}
+    ParsehTimeline.open({title: 'nothing', kind: 'span', duration: 5, marks: [],
+      peaks: () => Promise.resolve(null), play: () => {}, stop: () => {}, now: () => null});
+  });
+  await bp.waitForSelector('.tl-root');
+  await bp.keyboard.press('e');
+  await bp.waitForTimeout(150);
+  eq(await statOf(bp), {text: 'there is nothing after this one to estimate', bad: true}, 'E on an empty sheet');
+  await shut();
+
+  console.log('   the stretch: from the line to the cut closest to it, on either side, a tie to the earlier');
+  // the line at 3 s; the cuts after it are the starts of the pieces (6, 8,
+  // 12 and 13) and the end of the last (20).  a + n is where the number
+  // points; the cut nearest it is where the stretch ends, and the pieces
+  // asked about are the ones between.
+  const ROUNDS = [[4, 6, 'a tie (6 and 8 are as far from 7): the earlier'], [5, 8, 'exactly on a cut'],
+    [5.4, 8, 'between two, the nearer below'], [7, 8, 'a tie again (8 and 12 from 10)'],
+    [7.1, 12, 'a hair past the middle: the nearer cut, though beyond it'],
+    [8.5, 12, 'beyond, and nearer than the last cut not beyond it'],
+    [1, 6, 'shorter than the first piece: still one piece'], [0.5, 6, 'so is half a second'],
+    [10, 13, 'on a cut, the one before the end'],
+    [16, 20, 'nearer the end than the last start: the whole rest'], [500, 20, 'past the end: the whole rest']];
+  for (const kind of ['span', 'point']) {
+    for (const [n, cut, why] of ROUNDS) {
+      const r = await runStretch(bp, {kind, by: 'sound', n});
+      const to = cut === 20 ? 5 : SIX.t0.indexOf(cut) - 1;
+      const rq = r.asked[0] || {};
+      eq([r.asked.length, rq.start, rq.end, rq.kind, rq.texts],
+         [1, 3, cut, kind, SIX.texts.slice(1, to + 1)],
+         `${kind}: ${n} s from 3 asks for 3 to ${cut} (${why}), about the pieces inside it only`);
+    }
+  }
+  await shut();
+
+  // A TIE IS A TIE IN DECIMALS, NOT IN DOUBLES: with the line at 3.9 the cuts
+  // are 5.2, 6.5 and 7.8.  3.9 + 1.95 = 5.85 and 3.9 + 3.25 = 7.15 are exactly
+  // between two of them, and in doubles 7.15 is nearer 7.8 than 6.5 by 1e-15:
+  // a plain comparison takes the later, which here is the end and so the
+  // whole rest.  The earlier is the answer, always.
+  const FLT = {texts: ['zero', 'aaaaaaaa', 'bbbb', 'cccc'], t0: [0.8, 3.9, 5.2, 6.5],
+               t1: [3.9, 5.2, 6.5, 7.8], dur: 8};
+  for (const [n, cut, count] of [[1.95, 5.2, 1], [3.25, 6.5, 2]]) {
+    const r = await runStretch(bp, {kind: 'span', by: 'sound', n, set: FLT});
+    const rq = r.asked[0] || {};
+    eq([rq.start, rq.end, (rq.texts || []).length], [3.9, cut, count],
+       `a tie (3.9 + ${n} is halfway between two cuts) goes to the earlier cut, ${cut}`);
+  }
+
+  console.log('   a cut too near the line to hold a piece is passed over for the next');
+  {
+    // the second piece is 0.3 s long: 3.3 is the closest cut to 3 + 0.2, and no piece fits before it
+    const SLIV = {texts: SIX.texts, t0: [0.5, 3, 3.3, 6, 12, 13], t1: [3, 3.3, 6, 12, 13, 20], dur: 20};
+    for (const kind of ['span', 'point']) {
+      const r = await runStretch(bp, {kind, by: 'sound', n: 0.2, set: SLIV, keys: true});
+      const rq = r.asked[0] || {};
+      eq([r.asked.length, rq.start, rq.end, rq.texts], [1, 3, 6, ['aaaaaaaa', 'bbbb']],
+         `${kind}: 0.2 s from 3 would end at 3.3, 0.3 s on, too near to hold a piece: the next cut, 6`);
+    }
+    const t = await runStretch(bp, {kind: 'span', by: 'text', n: 0.2, set: SLIV, keys: true});
+    eq([t.lines.t0, t.lines.t1], [[0.5, 3, 5, 6, 12, 13], [3, 5, 6, 12, 13, 20]],
+       'and by the text the two pieces share 3 to 6 in proportion to their words');
+  }
+
+  console.log('   a cut exactly the floor away is decided in decimals, whichever way the doubles fall');
+  for (const [a, cut] of [[42.55, 42.95], [42.6, 43]]) {
+    // 42.55 + 0.4 is 42.949999999999996 in doubles, 42.6 + 0.4 is exactly 43: in both the cut is
+    // 0.4 s from the line, no piece fits between, and the stretch goes on to the next
+    const FLOOR = {texts: SIX.texts, t0: [0.5, a, cut, cut + 9.9, cut + 15, cut + 16],
+                   t1: [a, cut, cut + 9.9, cut + 15, cut + 16, cut + 30], dur: cut + 30};
+    const r = await runStretch(bp, {kind: 'span', by: 'sound', n: 2.21, set: FLOOR, keys: true});
+    const rq = r.asked[0] || {};
+    eq([rq.start, rq.end, rq.texts], [a, cut + 9.9, [SIX.texts[1], SIX.texts[2]]],
+       `the line at ${a}: a cut at ${cut}, 0.4 s on, is passed over for the next`);
+  }
+  console.log('   the END of a split boundary in hand, with a number: the stretch starts at that end');
+  {
+    const SPLE = {texts: SIX.texts, t0: SIX.t0, t1: [3, 5, 8, 12, 13, 20], dur: 20};      // 5 | 6 pulled apart
+    const r = await runStretch(bp, {kind: 'span', by: 'sound', n: 7, edge: 'e', set: SPLE, shape: 'even'});
+    const rq = r.asked[0] || {};
+    eq([r.was.gaps, rq.start, rq.end, rq.texts], [1, 5, 12, ['bbbb', 'cccccccccccc']],
+       'from the end at 5, not the next piece\'s old start at 6, to the cut at 12');
+    // (the boundary at the line itself stays flagged split, with two equal numbers, as it does at
+    // every estimate that starts from the end of one: nothing outside the stretch is touched)
+    eq([r.lines.t0, r.lines.t1], [[0.5, 3, 5, 8.5, 12, 13], [3, 5, 8.5, 12, 13, 20]],
+       'the piece in hand keeps both its numbers, and the next starts at the line, as by the text would start it');
+  }
+  console.log('   no room for a piece between the line and the end: refused as before, over any number');
+  {
+    const NR = {texts: SIX.texts, t0: [0.5, 3, 6, 8, 12, 19.7], t1: [3, 6, 8, 12, 19.7, 20], dur: 20};
+    for (const by of ['text', 'sound']) {
+      const r = await runStretch(bp, {kind: 'span', by, n: 5, set: NR, sel: 5, keys: true});
+      eq([r.status, r.asked.length, r.lines.t0, r.lines.t1], [{text: 'there is no room between this line and the end', bad: true}, 0, NR.t0, NR.t1],
+         `by the ${by}: the last piece is 0.3 s long: no room, nothing asked, nothing moved`);
+    }
+  }
+
+  console.log('   by the text, over the stretch: every number to the hundredth, nothing outside it moved');
+  for (const kind of ['span', 'point']) {
+    for (const [n, t0, t1, said] of [
+        [5, [0.5, 3, 6.33, 8, 12, 13], [3, 6.33, 8, 12, 13, 20],
+         '2 pieces in the next 5 s (to 0:08.00) estimated afresh by the text; nothing outside that stretch moved'],
+        [7.1, [0.5, 3, 6, 7.5, 12, 13], [3, 6, 7.5, 12, 13, 20],
+         '3 pieces in the next 9 s (to 0:12.00) estimated afresh by the text; nothing outside that stretch moved'],
+        [4, SIX.t0, SIX.t1,
+         'the one piece in the next 3 s (to 0:06.00) estimated afresh by the text; nothing outside that stretch moved']]) {
+      const r = await runStretch(bp, {kind, by: 'text', n});
+      eq([r.lines.t0, r.lines.t1, r.lines.gaps], [t0, t1, 0], `${kind}: ${n} s -> the numbers, joined`);
+      eq(r.status, {text: said, bad: false}, `${kind}: and the status names the stretch as laid`);
+    }
+  }
+  {
+    const rest = await runStretch(bp, {kind: 'span', by: 'text'});
+    const wide = await runStretch(bp, {kind: 'span', by: 'text', n: 16});
+    eq([wide.lines.t0, wide.lines.t1], [rest.lines.t0, rest.lines.t1],
+       'a number that reaches the end is exactly "estimate the rest": the same numbers');
+    eq(wide.status.text, rest.status.text.replace('; nothing to the left of it moved',
+         '; nothing to the left of it moved (the closest boundary to the next 16 seconds is the end, so this is the whole rest)'),
+       'and the status says so');
+    const via = await runStretch(bp, {kind: 'span', by: 'text', n: 5, via: 'click'});
+    eq([via.lines.t0, via.lines.t1], [[0.5, 3, 6.33, 8, 12, 13], [3, 6.33, 8, 12, 13, 20]],
+       'pressing the button is the same act as E');
+  }
+  {
+    const off = await runStretch(bp, {kind: 'span', by: 'text', n: 'abc'});
+    eq([off.lines.t0, off.lines.t1, off.status.bad], [off.was.t0, off.was.t1, true],
+       'by the text, a box that is not a number refuses too, and moves nothing');
+  }
+
+  console.log('   by the sound, over the stretch: the answer laid inside it, the cut where it was');
+  for (const kind of ['span', 'point']) {
+    const even5 = await runStretch(bp, {kind, by: 'sound', n: 5, shape: 'even'});
+    eq([even5.lines.t0, even5.lines.t1, even5.lines.gaps],
+       [[0.5, 3, 5.5, 8, 12, 13], [3, 5.5, 8, 12, 13, 20], 0], `${kind}: the answer's numbers, to the hundredth`);
+    eq(even5.after, {label: 'estimate the next 5 seconds', readOnly: false},
+       `${kind}: and the sheet is live again: the button says it, and the box takes a number`);
+    eq(even5.status, {text: '2 pieces in the next 5 s (to 0:08.00) estimated from the sound — the boundary '
+                            + 'between them sits in a pause it heard; nothing outside that stretch moved', bad: false},
+       `${kind}: and the status names the stretch, and what it heard`);
+    // the last 20% of the stretch left to nobody: a book's last piece ends
+    // there and the boundary at the cut is split, the next piece keeping its
+    // start; a video's caption runs on until the cut
+    const tail = await runStretch(bp, {kind, by: 'sound', n: 5, shape: 'tail'});
+    if (kind === 'span')
+      eq([tail.lines.t0, tail.lines.t1, tail.lines.gaps],
+         [[0.5, 3, 5, 8, 12, 13], [3, 5, 7, 12, 13, 20], 1],
+         'span: a pause left before the cut splits the boundary there; the piece after it keeps its start');
+    else
+      eq([tail.lines.t0, tail.lines.t1, tail.lines.gaps],
+         [[0.5, 3, 5, 8, 12, 13], [3, 5, 8, 12, 13, 20], 0],
+         'point: the last caption of the stretch runs until the cut, as the rest\'s runs until the end');
+    const over = await runStretch(bp, {kind, by: 'sound', n: 5, shape: 'over'});
+    eq([over.lines.t0, over.lines.t1, over.lines.gaps],
+       [[0.5, 3, 5.5, 8, 12, 13], [3, 5.5, 8, 12, 13, 20], 0],
+       `${kind}: an answer that ends past the cut is laid ending AT it, never beyond`);
+    const whole = await runStretch(bp, {kind, by: 'sound', n: 500});
+    const plain = await runStretch(bp, {kind, by: 'sound'});
+    eq([whole.lines.t0, whole.lines.t1, whole.asked], [plain.lines.t0, plain.lines.t1, plain.asked],
+       `${kind}: past the end it is "estimate the rest": the same question, the same numbers`);
+    const past = await runStretch(bp, {kind, by: 'sound', n: 500, shape: 'over'});
+    eq([past.lines.t0, past.lines.t1], [plain.lines.t0, plain.lines.t1],
+       `${kind}: and an answer that ends past the end of the recording is laid ending AT it`);
+  }
+  console.log('   a boundary split beforehand: at the cut it is the stretch\'s to decide; beyond the cut it stays');
+  {
+    // the boundary at the cut (7.5 | 8) and the one just beyond it (11 | 12) are both pulled apart
+    const SPLT = {texts: SIX.texts, t0: SIX.t0, t1: [3, 6, 7.5, 11, 13, 20], dur: 20};
+    const r = await runStretch(bp, {kind: 'span', by: 'text', n: 5, set: SPLT});
+    eq([r.was.t0, r.was.t1, r.was.gaps], [SIX.t0, [3, 6, 7.5, 11, 13, 20], 2],
+       'two boundaries are split to begin with: the one at the cut and the one beyond it');
+    eq([r.lines.t0, r.lines.t1, r.lines.gaps], [[0.5, 3, 6.33, 8, 12, 13], [3, 6.33, 8, 11, 13, 20], 1],
+       'by the text the stretch ends AT the cut, joined; the split beyond it is as it was');
+    const t = await runStretch(bp, {kind: 'span', by: 'sound', n: 5, set: SPLT, shape: 'tail'});
+    eq([t.lines.t0, t.lines.t1, t.lines.gaps], [[0.5, 3, 5, 8, 12, 13], [3, 5, 7, 11, 13, 20], 2],
+       'by the sound, a pause before the cut splits it there, and the one beyond it is as it was');
+    const e = await runStretch(bp, {kind: 'span', by: 'sound', n: 5, set: SPLT, shape: 'even'});
+    eq([e.lines.t0, e.lines.t1, e.lines.gaps], [[0.5, 3, 5.5, 8, 12, 13], [3, 5.5, 8, 11, 13, 20], 1],
+       'and an answer that ends at the cut joins it, leaving the one beyond as it was');
+  }
+  console.log('   the END of a boundary in hand starts the stretch, the piece in hand keeping both its numbers');
+  {
+    const r = await runStretch(bp, {kind: 'span', by: 'sound', n: 4, edge: 'e'});
+    const rq = r.asked[0] || {};
+    eq([rq.start, rq.end, rq.texts], [6, 8, ['bbbb']], 'from the end at 6 to the cut at 8, about the one piece between');
+    eq([r.lines.t0.slice(0, 3), r.lines.t1.slice(0, 2)], [[0.5, 3, 6], [3, 6]],
+       'the piece in hand keeps its start and its end, and the ones before it are as they were');
+    eq([r.lines.t0.slice(3), r.lines.t1.slice(3)], [[8, 12, 13], [12, 13, 20]], 'and from the cut on, too');
+  }
+  console.log('   a reader built before this has no picture to go by, and the box still works, by the text');
+  {
+    const r = await runStretch(bp, {kind: 'span', by: 'sound', n: 5, estimate: false});
+    eq([r.lines.t0, r.lines.t1, r.status.text],
+       [[0.5, 3, 6.33, 8, 12, 13], [3, 6.33, 8, 12, 13, 20],
+        '2 pieces in the next 5 s (to 0:08.00) estimated afresh by the text; nothing outside that stretch moved'],
+       'E goes by the text over the stretch, asking nothing');
+  }
+  console.log('   while the sound is read, and what moves under it');
+  {
+    await sixSheet(bp, {kind: 'span', by: 'sound', delay: 1200});
+    await boxIn(bp, '5');
+    await boxDo(bp, 'Enter');
+    await bp.click('.tl-band[data-i="1"]');
+    const held0 = await linesOf(bp);
+    await bp.keyboard.press('e');
+    await bp.waitForTimeout(250);
+    const waiting = await bp.evaluate(() => ({
+      said: document.querySelector('.tl-stat').textContent,
+      stop: document.querySelector('[data-x="rest"]').textContent}));
+    waiting.box = await boxOf(bp, 'readOnly'); waiting.val = await boxOf(bp, 'value');
+    eq(waiting.said, 'estimating the next 5 s from the sound…', 'the status says which stretch is being read');
+    eq([waiting.stop, waiting.box, waiting.val], ['stop estimating', true, '5'],
+       'the button is the stop, and the box is held still with what it held');
+    await bp.keyboard.press('Escape');
+    eq(await statOf(bp), {text: 'stopped: nothing was estimated, and nothing moved', bad: false},
+       'Escape gives the wait up');
+    eq(await restLabel(bp), 'estimate the next 5 seconds', 'and the button is itself again, with the number still in the box');
+    await bp.waitForTimeout(1300);                   // the answer comes, to a question given up
+    const dropped = await linesOf(bp);
+    eq([dropped.t0, dropped.t1], [held0.t0, held0.t1], 'its late answer laid nothing');
+    await bp.keyboard.press('e');
+    await bp.waitForTimeout(250);
+    await bp.click('[data-x="rest"]');
+    eq((await statOf(bp)).text, 'stopped: nothing was estimated, and nothing moved', 'the button gives it up just the same');
+    await bp.waitForTimeout(1300);
+    eq(await bp.evaluate(() => window.__asked.map(x => [x.start, x.end, x.texts.length])), [[3, 8, 2], [3, 8, 2]],
+       'each question had gone out once, about the stretch from 3 to 8');
+    const dropped2 = await linesOf(bp);
+    eq([dropped2.t0, dropped2.t1], [held0.t0, held0.t1], 'and laid nothing either');
+    // the timings that move under the question: a line dragged while the
+    // sound is read (the drag began before E was pressed, which is the one
+    // way to move them meanwhile) -- so the answer, laid over numbers it was
+    // not asked about, is refused whole
+    const line = await bp.locator('.tl-edge[data-i="0"][data-who="e"]').boundingBox();
+    const cx = line.x + line.width / 2, cy = line.y + line.height / 2;
+    await bp.mouse.move(cx, cy);
+    await bp.mouse.down();
+    await bp.keyboard.press('e');
+    await bp.waitForTimeout(150);
+    await bp.mouse.move(cx + 30, cy, {steps: 6});
+    await bp.mouse.up();
+    await bp.waitForFunction(() => /so nothing was laid/.test(document.querySelector('.tl-stat').textContent),
+                             null, {timeout: 6000}).catch(() => {});
+    eq(await statOf(bp), {text: 'the timings moved while the sound was being read, so nothing was laid', bad: true},
+       'a line dragged meanwhile: the answer is refused whole');
+    const meanwhile = await linesOf(bp);
+    eq([meanwhile.t0.slice(2), meanwhile.t1.slice(2)], [held0.t0.slice(2), held0.t1.slice(2)],
+       'nothing was laid over the stretch');
+    assert(meanwhile.t0[1] > held0.t0[1] + 0.05, 'and the hand\'s own move is still there: ' + meanwhile.t0[1]);
+    eq(await bp.evaluate(() => window.__asked.map(x => [x.start, x.end, x.texts.length]).slice(2)), [[3, 8, 2]],
+       'the third question was about the same stretch');
+    // the sheet is live again after a refusal: the box takes a number and the button says it
+    await boxIn(bp, '7');
+    eq([await restLabel(bp), await boxOf(bp, 'readOnly')], ['estimate the next 7 seconds', false],
+       'after a refused answer the button says the number, and the box is the hand\'s');
+    await shut();
+    // the same, with the line dragged lying OUTSIDE the stretch: the end of a split boundary moves
+    // only the piece before the line, and held() watches every mark, not only the stretch's
+    await sixSheet(bp, {kind: 'span', by: 'sound', delay: 900,
+                        set: {texts: SIX.texts, t0: SIX.t0, t1: [2.5, 6, 8, 12, 13, 20], dur: 20}});
+    await boxIn(bp, '5');
+    await boxDo(bp, 'Enter');
+    const before = await linesOf(bp);
+    const gate = await bp.locator('.tl-edge[data-i="0"][data-who="e"]').boundingBox();
+    const gx = gate.x + gate.width / 2, gy = gate.y + gate.height / 2;
+    await bp.mouse.move(gx, gy);
+    await bp.mouse.down();
+    await bp.keyboard.press('e');
+    await bp.waitForTimeout(150);
+    await bp.mouse.move(gx + 30, gy, {steps: 6});
+    await bp.mouse.up();
+    await bp.waitForFunction(() => /so nothing was laid/.test(document.querySelector('.tl-stat').textContent),
+                             null, {timeout: 6000}).catch(() => {});
+    eq(await statOf(bp), {text: 'the timings moved while the sound was being read, so nothing was laid', bad: true},
+       'a line before the stretch dragged meanwhile: the answer is refused whole');
+    const outside = await linesOf(bp);
+    eq([outside.t0.slice(1), outside.t1.slice(1)], [before.t0.slice(1), before.t1.slice(1)],
+       'and nothing was laid');
+    assert(outside.t1[0] > before.t1[0] + 0.05, 'while the piece before the line kept the hand\'s move: ' + outside.t1[0]);
+    await shut();
+  }
+  await bp.evaluate(() => { try { localStorage.setItem('tl_estimate_by', 'sound'); } catch (_) {} });
+
+  console.log('   on the real book: what the reader asks, and where the numbers land');
+  // The pieces are whatever the book's timings are by now (the saves above
+  // moved some), read off the strip: the line at the start of the second
+  // piece, and the cuts after it the starts of the third and fourth and the
+  // end of the last.  The answer is skewed so that a moved boundary shows.
+  const fullTexts = q.texts;                         // the three pieces after the line, from the first E above
+  const skew = body => {
+    const S = body.start, E = body.end, n = body.texts.length, at = k => S + (E - S) * Math.pow(k / n, 1.5);
+    return {ok: true, method: 'wavealign', confidence: 0.6, anchored: 1, boundaries: n - 1, words: n,
+            pieces: body.texts.map((_, k) => ({t0: at(k), t1: at(k + 1), confidence: 0.6}))};
+  };
+  answer = body => ({json: skew(body)});
+  const stretchOnce = async n => {
+    await byEar();
+    await soundLive(bp);
+    const b0 = await linesOf(bp);
+    await bp.click('.tl-band[data-i="1"]');
+    await boxIn(bp, n);
+    await boxDo(bp, 'Enter');
+    const label = await restLabel(bp);
+    const k0 = asked.length;
+    await bp.keyboard.press('e');
+    const ok = await settled(bp, 15000);
+    return {b0, label, ok, asked: asked.slice(k0), got: await linesOf(bp), said: await statOf(bp)};
+  };
+  {
+    const r = await stretchOnce('2.5');
+    const a = r.b0.t0[1], cut = r.b0.t0[3];
+    // 2.5 s after the line points at a + 2.5, and the fourth piece's start is the cut nearest it
+    assert(Math.abs((a + 2.5) - cut) < Math.min(Math.abs((a + 2.5) - r.b0.t0[2]), Math.abs((a + 2.5) - r.b0.t1[3])),
+           'the book\'s numbers are what this check counts on: ' + JSON.stringify(r.b0));
+    eq(r.label, 'estimate the next 2.5 seconds', 'the button says it');
+    assert(r.ok, 'the sheet says it is done');
+    const rq = r.asked[0] || {};
+    eq([r.asked.length, rq.narration, rq.kind, rq.texts], [1, 'n1', 'span', fullTexts.slice(0, 2)],
+       'one request, about this recording, with the two pieces inside the stretch and no more');
+    assert(Math.abs(rq.start - a) < 0.006 && Math.abs(rq.end - cut) < 0.006,
+           'from the line to the start of the fourth piece, the cut closest to the line + 2.5: '
+           + JSON.stringify([rq.start, rq.end]));
+    const mid = r2(a + (cut - a) * Math.pow(0.5, 1.5));
+    eq([r.got.t0[0], r.got.t1[0]], [r.b0.t0[0], r.b0.t1[0]], 'nothing to the left of the line moved');
+    eq([r.got.t0[1], r.got.t1[1], r.got.t0[2], r.got.t1[2]], [a, mid, mid, cut],
+       'the two pieces are the answer\'s, to the hundredth, the second ending AT the cut');
+    eq([r.got.t0[3], r.got.t1[3], r.got.gaps], [r.b0.t0[3], r.b0.t1[3], 0],
+       'and the piece at the cut, and everything after it, is exactly as it was: same start, same end');
+    eq(r.said, {text: `2 pieces in the next ${tenth(cut - a)} s (to ${clock(cut)}) estimated from the sound — the boundary `
+                      + 'between them sits in a pause it heard; nothing outside that stretch moved', bad: false},
+       'the status names the stretch as laid: the seconds are the real ones after rounding');
+    await shut();
+  }
+  {
+    const r = await stretchOnce('1');
+    const rq = r.asked[0] || {};
+    const a = r.b0.t0[1], cut = r.b0.t0[2];
+    eq([rq.texts, r.label], [fullTexts.slice(0, 1), 'estimate the next 1 second'],
+       'a number shorter than the first piece still lays one piece');
+    assert(Math.abs(rq.end - cut) < 0.006, 'up to where the next begins: ' + rq.end);
+    eq(r.said.text, `the one piece in the next ${tenth(cut - a)} s (to ${clock(cut)}) estimated from the sound; `
+                    + 'nothing outside that stretch moved', 'and says so, in the singular');
+    await shut();
+  }
+  {
+    const r = await stretchOnce('50');
+    const rq = r.asked[0] || {};
+    eq([rq.texts, Math.abs(rq.end - r.b0.t1[3]) < 0.006], [fullTexts, true],
+       'a number past the end asks exactly what "estimate the rest" asks');
+    assert(/^3 pieces after this estimated from the sound — .*; nothing to the left of it moved \(the closest boundary to the next 50 seconds is the end, so this is the whole rest\)$/
+             .test(r.said.text), 'and the status says it was the rest: ' + r.said.text);
+    await shut();
+  }
+
+  console.log('   the number is not kept: a sheet opens on "estimate the rest"');
+  await byEar();
+  eq([await restLabel(bp), await boxOf(bp, 'value')],
+     ['estimate the rest', ''], 'reopened, the box is empty and the button says the rest');
+  eq(await bp.evaluate(() => JSON.stringify(Object.keys(localStorage).sort())), keysBefore,
+     'and nothing about it is on this device');
+  await shut();
+  answer = null;
+
   if (REAL) {
     console.log('   and the real answer, from lib/wavealign.py through serve.py');
     answer = null;
@@ -963,6 +1538,40 @@ for name in os.listdir(out):
     assert(inOrder && r1.t1[3] <= real0.t1[3] + 0.001,
            'the pieces it laid are in order, inside the stretch: ' + JSON.stringify(r1));
     assert(/pieces after this estimated from the sound/.test(realSaid.text), 'and it says so: ' + realSaid.text);
+    await shut();
+
+    console.log('   and over a stretch, from lib/wavealign.py through serve.py: nothing outside it moves');
+    await byEar();
+    assert(await soundLive(bp), 'by the sound is live');
+    const real2 = await linesOf(bp);
+    await bp.click('.tl-band[data-i="1"]');
+    await boxIn(bp, '2.5');
+    await boxDo(bp, 'Enter');
+    const n8 = asked.length;
+    const resp2 = bp.waitForResponse(r => r.url().includes('__clip/estimate'), {timeout: 60000})
+      .then(r => r.json(), () => null);
+    await bp.keyboard.press('e');
+    const ok2 = await settled(bp, 60000);
+    const rr = await resp2;
+    const said2 = await statOf(bp);
+    assert(ok2 && rr && rr.ok && !said2.bad,
+           'the hub answers: ' + JSON.stringify(said2) + ' ' + JSON.stringify(rr).slice(0, 200));
+    eq(asked.length - n8, 1, 'one request');
+    const q8 = asked[asked.length - 1] || {};
+    assert(Math.abs(q8.start - real2.t0[1]) < 0.006 && Math.abs(q8.end - real2.t0[3]) < 0.006
+             && (q8.texts || []).length === 2,
+           'about the two pieces up to the cut at the start of the third: ' + JSON.stringify([q8.start, q8.end]));
+    const r4 = await linesOf(bp);
+    eq([r4.t0[0], r4.t1[0], r4.t0[1]], [real2.t0[0], real2.t1[0], real2.t0[1]],
+       'nothing to the left of the line moved, and the piece at it kept its start');
+    eq([r4.t0[3], r4.t1[3]], [real2.t0[3], real2.t1[3]],
+       'and the piece at the cut, with everything after it, is exactly as it was');
+    assert(r4.t0[1] < r4.t1[1] && r4.t0[2] < r4.t1[2] && r4.t1[1] <= r4.t0[2] + 0.001
+             && r4.t1[2] <= real2.t0[3] + 0.001,
+           'the two pieces it laid are in order, inside the stretch: ' + JSON.stringify(r4));
+    assert(said2.text.startsWith(`2 pieces in the next ${tenth(real2.t0[3] - real2.t0[1])} s (to ${clock(real2.t0[3])}) `
+                                 + 'estimated from the sound') && /; nothing outside that stretch moved$/.test(said2.text),
+           'and it names the stretch: ' + said2.text);
     await shut();
   } else {
     console.log('   (the real answer is not asked for: lib/wavealign.py does not import here)');
@@ -1134,6 +1743,55 @@ for name in os.listdir(out):
                               + 'it moved', bad: false}, 'the status says so');
   await vp.keyboard.press('Escape');
 
+  console.log('i) a film over a stretch: the next N seconds, from the caption in hand to the closest start');
+  // the captions start at 0, 3 and 5 and the film ends at 8: the line at 3,
+  // the cuts 5 and 8.  The answer is skewed (as on the book) by what it was
+  // asked, so that a caption that moved shows.
+  const fasked = [];
+  await vp.route('**/youtube/api/estimate', async r => {
+    const body = JSON.parse(r.request().postData() || '{}');
+    fasked.push(body);
+    await r.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(skew(body))});
+  });
+  const filmSheet = async n => {
+    await openSheet(vp, '#captimes');
+    await vp.click('[data-x="all"]');
+    await soundLive(vp);
+    const at = await linesOf(vp);
+    await vp.click('.tl-band[data-i="1"]');
+    const filled = await boxIn(vp, n);
+    await boxDo(vp, 'Enter');
+    const label = await restLabel(vp);
+    const k0 = fasked.length;
+    await vp.keyboard.press('e');
+    const ok = await settled(vp, 15000);
+    return {at, filled, label, ok, asked: fasked.slice(k0), got: await linesOf(vp), said: await statOf(vp)};
+  };
+  {
+    const f = await filmSheet('1');
+    assert(f.filled, 'the box is there on the player\'s sheet too');
+    eq([f.at.t0[1], f.at.t0[2]], [3, 5], 'the captions the film has, as this test counts on them');
+    eq(f.label, 'estimate the next 1 second', 'the button says it');
+    const fq3 = f.asked[0] || {};
+    eq([f.asked.length, fq3.video, fq3.kind, (fq3.texts || []).length, fq3.start, fq3.end],
+       [1, VIDEO, 'point', 1, 3, 5],
+       'one request, as captions: the one caption inside the stretch, from the line to the next start');
+    eq([f.got.t0, f.got.gaps], [f.at.t0, 0], 'a shorter number than the first caption still lays one: nothing moved');
+    eq(f.said.text, 'the one piece in the next 2 s (to 0:05.00) estimated from the sound; nothing outside that stretch moved',
+       'and it says so');
+    await vp.keyboard.press('Escape');
+    const g = await filmSheet('100');
+    const fq4 = g.asked[0] || {};
+    eq([(fq4.texts || []).length, fq4.start, Math.abs(fq4.end - g.at.t1[2]) < 0.006], [2, 3, true],
+       'a number past the end is the rest: both captions after the line, to the end of the film');
+    eq([g.got.t0[0], g.got.t0[1], g.got.t0[2]],
+       [g.at.t0[0], g.at.t0[1], r2(3 + (g.at.t1[2] - 3) * Math.pow(0.5, 1.5))],
+       'the caption before the line, and the one at it, keep their starts; the next is the answer\'s');
+    assert(/^2 pieces after this estimated from the sound — .*; nothing to the left of it moved \(the closest boundary to the next 100 seconds is the end, so this is the whole rest\)$/
+             .test(g.said.text), 'and the status says it was the rest: ' + g.said.text);
+    await vp.keyboard.press('Escape');
+  }
+
   await vp.close();
 
   /* ==== d) a YouTube video: no sound any script here can reach ==== */
@@ -1292,6 +1950,41 @@ for name in os.listdir(out):
   eq(ygot.t0.slice(2), [12.8, 19.6, 26.4, 33.2], 'and the rest start where the answer says');
   assert(/^5 pieces after this estimated from the sound — 2 of the 4 boundaries sit in a pause/
            .test((await statOf(yp)).text), 'the status says so: ' + (await statOf(yp)).text);
+  await yp.keyboard.press('Escape');
+
+  console.log('i) the same video over a stretch: the picture sent is the stretch\'s, and the cut stays');
+  const y2 = [];
+  await yp.route('**/youtube/api/estimate', async r => {
+    const body = JSON.parse(r.request().postData() || '{}');
+    y2.push(body);
+    await r.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(skew(body))});
+  });
+  await openSheet(yp, '#captimes');
+  await yp.click('[data-x="all"]');
+  assert(await soundLive(yp), 'by the sound is live');
+  const y0 = await linesOf(yp);
+  eq(y0.t0, [0, 6, 12, 18, 24, 30], 'the captions the video has, as this test counts on them');
+  await yp.click('.tl-band[data-i="1"]');
+  assert(await boxIn(yp, '10'), 'the box is there');
+  await boxDo(yp, 'Enter');
+  eq(await restLabel(yp), 'estimate the next 10 seconds', 'the button says it');
+  await yp.keyboard.press('e');
+  assert(await settled(yp, 15000), 'the sheet says it is done');
+  const yq2 = y2[y2.length - 1] || {};
+  const yw2 = yq2.wave || {};
+  // the line at 6 s; the cuts are 12, 18, 24, 30 and 40; 6 + 10 = 16 is
+  // nearer 18 than 12, so the stretch is the two captions between
+  eq([y2.length, yq2.video, yq2.kind, (yq2.texts || []).length, yq2.start, yq2.end],
+     [1, YT, 'point', 2, 6, 18], 'one request: the two captions inside the stretch, from 6 s to 18 s');
+  eq([yw2.rate, yw2.start, (yw2.peaks || []).length], [20, 6, 241],
+     'and the picture sent is the stretch\'s only: one number every 50 ms, from 6 s to 18 s and the one after');
+  assert(JSON.stringify(yw2.peaks) === JSON.stringify(peaks.slice(120, 361)),
+         'the numbers as they were kept, untouched');
+  const y1 = await linesOf(yp);
+  eq(y1.t0, [0, 6, r2(6 + 12 * Math.pow(0.5, 1.5)), 18, 24, 30],
+     'the caption at the cut, and every one after it, start exactly where they did');
+  eq((await statOf(yp)).text, '2 pieces in the next 12 s (to 0:18.00) estimated from the sound — the boundary '
+       + 'between them sits in a pause it heard; nothing outside that stretch moved', 'the status says so');
   await yp.keyboard.press('Escape');
   await yp.close();
 

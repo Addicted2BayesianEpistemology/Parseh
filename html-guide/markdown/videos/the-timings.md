@@ -2,7 +2,7 @@
 title: "The timings: moving a caption's start"
 linkTitle: The timings
 weight: 11
-description: The one door that moves where a caption starts after a video is added — the sheet, its keys, estimating the rest by the text or by the sound, the picture of the sound, and why it moves nothing else.
+description: The one door that moves where a caption starts after a video is added — the sheet, its keys, estimating the rest — or only the next few seconds — by the text or by the sound, the picture of the sound, and why it moves nothing else.
 ---
 
 **the timings**, in the player's bar beside **video info**, moves where each
@@ -43,7 +43,7 @@ would break, in the checker's words.
 
 ## The sheet
 
-![The timings over a film on this machine: the caption being timed with its neighbours, the six steps, and the picture of the sound](shots/timings.png)
+![The timings sheet: the caption being timed with its neighbours, the six steps, the row of estimate the next 10 seconds with its box and its by the text / by the sound switch, and the picture of the sound](shots/timings.png)
 
 The button opens a sheet, **the timings —** and the video's id, over the
 player. From the top:
@@ -61,7 +61,7 @@ player. From the top:
   **▶ across the join** — the second before its boundary and the second
   after, to hear whether the line falls in the right place;
   **into the quiet**, and **estimate the rest** with its switch, **by the
-  text** or **by the sound** (below);
+  text** or **by the sound**, and a box for the next few seconds (below);
 - the **strip**: the picture of the sound, a tinted band for each caption,
   a line at every boundary, and the playhead. Drag a line; click a band to
   take that caption up. **−** and **+** zoom out and in, **fit** returns to
@@ -82,7 +82,7 @@ moved*, and the transcript is redrawn at the new times without a reload.
 | **,** and **.** (also `<` `>`, `[` `]`, PageUp and PageDown) | take up the caption before, or after |
 | **F** | bring the view back onto the caption being timed |
 | **S** | **into the quiet**: move the line to the middle of the nearest stretch where the sound falls away |
-| **E** | **estimate the rest**: a fresh guess over every caption after this line — by the text or by the sound, whichever is pressed |
+| **E** | **estimate the rest**: a fresh guess over every caption after this line — by the text or by the sound, whichever is pressed; with seconds in the box beside the button, only the next stretch of that length |
 | Enter | save (in a time box: take the time typed) |
 | Esc | leave without saving |
 
@@ -141,7 +141,9 @@ carry their full stops, and fare as well as any.
 It reads the rest of the video, from the line to its end, so the time depends
 on how much is left: a few seconds for an hour, up to about a minute for four
 hours, more on a computer busy with something else. Meanwhile the sheet says
-*estimating from the sound…* and holds its lines still, and the work is on
+*estimating from the sound…* — or, over a stretch that stops short of the end,
+*estimating the next 28.6 s from the sound…* — and holds its lines still, and
+the work is on
 the [**Working…**](../getting-started/working-indicator.md) list —
 *Estimating a video's timings by the sound* — where the hub and any other
 page see it. While it waits, **estimate the rest** reads **stop
@@ -172,6 +174,54 @@ While it is greyed, **by the text** shows pressed and **E** goes by the text.
 Your choice is kept all the same: draw the sound, and **by the sound** is
 back in force at once. The choice is remembered in this browser, for videos
 and books alike ([Fixing the timings](../books/timings.md#estimate-the-rest-by-the-text-or-by-the-sound)).
+
+### Only the next few seconds
+
+The guess over everything after the line is often more than the next stretch
+of work needs. Beside **estimate the rest**, between it and the switch, a
+small box reads **the next [ ] s**. Type a number of seconds in it — **90**,
+or **1:30** — and the button reads **estimate the next 90 seconds**
+(**estimate the next 1 second**, for one): the same act, **by the text** or
+**by the sound** as the switch says, over a shorter stretch. **E** runs
+whatever the button reads.
+
+- **Which captions.** From the line in hand, the stretch runs to the
+  **caption start closest to that many seconds after it** — a start that is
+  already there — or to the end of the video, when that is the closest.
+  Closest means on either side, so 90 seconds may end a little before the
+  ninetieth second or a little after it, and a tie goes to the shorter
+  stretch. It always holds at least one caption, so a number shorter than the
+  first still estimates that one; and when the closest start is the end of the
+  video — the number reaches it, or is nearer to it than to the last caption's
+  start — it is exactly **estimate the rest**, which the status says. The button's tooltip says how
+  many captions the number makes of it today, how many seconds and up to
+  when — worth reading when the captions are long, because the rounding can
+  land well away from the number you typed.
+- **What does not move.** Nothing before the line, as ever — and nothing from
+  the start the stretch ends at on: that caption keeps its start, and so does
+  every one after it. The last caption of the stretch runs until that start,
+  as the last caption of the rest runs until the end of the video.
+- **What it says.** The status names the stretch as it was laid, with the
+  real number of seconds after the rounding: *5 pieces in the next 28.6 s (to
+  3:41.20) estimated from the sound — 3 of the 4 boundaries sit in a pause it
+  heard; nothing outside that stretch moved*.
+- **A shorter wait.** Only the sound of the stretch is read — or, for a
+  YouTube video, only the stretch of the picture you recorded is sent — so
+  **by the sound** takes time in proportion to the stretch, and not to
+  everything that is left.
+- **Empty is the rest.** The box starts empty on every sheet and is not
+  remembered: how far to estimate is decided each time, for the stretch in
+  front of you; the switch is the habit that is remembered. Seconds are typed
+  as **90**, **1.5** or **1:30**. Anything else — letters, a minus sign —
+  turns the box red, and pressing the button or **E** is refused in words:
+  *the box must hold seconds (90 or 1:30) or be empty; nothing was
+  estimated*. So is **0**, or a number so small that it rounds to nothing,
+  with *the seconds in the box must be above zero, or the box empty; nothing
+  was estimated*. It never guesses what was meant.
+- **While you type.** The keys are the box's while it has the focus: a full
+  stop or a comma typed in it does not step to the next caption. **Enter**
+  takes the number and gives the sheet its keys back; it does not estimate —
+  press **E** or the button for that.
 
 ## The picture of the sound
 

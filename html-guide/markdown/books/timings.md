@@ -1,7 +1,7 @@
 ---
 title: Fixing the timings
 weight: 7
-description: Where each subparagraph starts and ends in the recording — edit times, one subparagraph at a time, and by ear, boundary by boundary over a picture of the sound, with the rest estimated again by the text or by the sound.
+description: Where each subparagraph starts and ends in the recording — edit times, one subparagraph at a time, and by ear, boundary by boundary over a picture of the sound, with the rest — or only the next few seconds of it — estimated again by the text or by the sound.
 ---
 
 An alignment, or a first guess, times a whole recording at once, and some
@@ -60,7 +60,7 @@ question from **align**: not *where is each subparagraph*, for the whole
 recording at once, but *where does this one stop and the next begin*, for
 the one boundary that came out wrong.
 
-![By ear: the three subparagraphs around the boundary, its two times and six steps, and the waveform with every boundary on it](shots/by-ear.png)
+![By ear: the three subparagraphs around the boundary, its two times and six steps, the row of estimate the next 30 seconds with its box and its by the text / by the sound switch, and the waveform with every boundary on it](shots/by-ear.png)
 
 The sheet, from the top:
 
@@ -81,7 +81,9 @@ The sheet, from the top:
   two beside it is pressed ([below](#estimate-the-rest-by-the-text-or-by-the-sound)).
   Nothing to the left of the line is touched — that is the point of it: a
   hand works left to right, and by the time the tenth boundary is right, the
-  fortieth still carries the first guess's error;
+  fortieth still carries the first guess's error. A number of seconds in the
+  small box beside it makes it **estimate the next 90 seconds** instead —
+  only that stretch ([below](#only-the-next-few-seconds));
 - **split from the next** / **join to the next** (below);
 - the zoom: **−** and **+** show more or less of the recording, **fit** goes
   back to the piece in hand and its neighbours, **all** shows the whole
@@ -147,8 +149,10 @@ What it changes, and what it does not:
 **How long it takes.** It reads the rest of the recording, from the line to
 the end, so the time depends on how much is left: a few seconds for an hour,
 up to about a minute for four hours, more on a computer busy with something
-else. Meanwhile the sheet says *estimating from the sound…* and holds its
-lines still, and the work is on the
+else. (With seconds in the box, [below](#only-the-next-few-seconds), it reads
+only that stretch.) Meanwhile the sheet says *estimating from the sound…* —
+or, over a stretch that stops short of the end, *estimating the next 28.6 s
+from the sound…* — and holds its lines still, and the work is on the
 [**Working…**](../getting-started/working-indicator.md) list — *Estimating
 the timings of “Momotarō” by the sound* — where the hub and any other page
 see it.
@@ -168,7 +172,10 @@ see it.
   estimated*.
 - **Too long for the memory.** On a computer short of memory, a stretch of
   many hours may be refused: *this stretch is too long to estimate by the
-  sound at once: estimate from a line nearer the end, or by the text*.
+  sound at once: estimate from a line nearer the end, or by the text*. A
+  number of seconds in the box beside the button
+  ([below](#only-the-next-few-seconds)) is the third way out: the stretch
+  is only that long.
 
 **A text with no punctuation** — a transcript nobody punctuated — is its
 weakest case: with no sentence ends to hold on to, a long stretch can drift
@@ -201,6 +208,63 @@ the installer again ([Updating
 Parseh](../reference/daily-loops.md#updating-parseh)), then start Parseh
 again.
 
+### Only the next few seconds
+
+**estimate the rest** lays the guess over everything after the line, and that
+is often more than the next stretch of work needs: with fifty subparagraphs
+still to go, you may mean to fix the next ten and hear them before you touch
+the rest. Beside the button, between it and the switch, a small box reads
+**the next [ ] s**. Type a number of seconds in it — **90**, or **1:30** —
+and the button reads **estimate the next 90 seconds** (**estimate the next 1
+second**, for one): the same act, **by the text** or **by the sound** as the
+switch says, over a shorter stretch. **E** runs whatever the button reads.
+
+- **Which subparagraphs.** From the line in hand, the stretch runs to the
+  **boundary closest to that many seconds after it** — a boundary that is
+  already there: the start of one of the subparagraphs after the line, or the
+  end of the last. Closest means on either side, so 90 seconds may end a
+  little before the ninetieth second or a little after it, and a tie goes to
+  the shorter stretch. The stretch always holds at least one subparagraph, so
+  a number shorter than the first still estimates that one; and when the
+  closest boundary is the end — the number reaches it, or is nearer to it than
+  to the last subparagraph's start — it is exactly **estimate the rest**,
+  which the status says.
+  The button's tooltip says how many subparagraphs the number makes of it
+  today, how many seconds and up to when — worth reading when the
+  subparagraphs are long, because the rounding can land well away from the
+  number you typed.
+- **What does not move.** Nothing to the left of the line, as ever — and
+  nothing from the boundary the stretch ends at on: the subparagraph after it
+  keeps its start and its end, and so does every one beyond. Inside the
+  stretch it is the guess **by the text** or **by the sound** always makes.
+  The last subparagraph of the stretch ends at that boundary **by the text**;
+  **by the sound** it ends where the sound says, never past it — joined to
+  the next subparagraph if that is where it ends, or split from it, the
+  silence left to neither, if the sound pauses before it.
+- **What it says.** The status names the stretch as it was laid, with the
+  real number of seconds after the rounding: *5 pieces in the next 28.6 s (to
+  3:41.20) estimated from the sound — 3 of the 4 boundaries sit in a pause it
+  heard; nothing outside that stretch moved*.
+- **A shorter wait.** Only the sound of the stretch is read, so **by the
+  sound** takes time in proportion to the stretch, and not to everything that
+  is left.
+- **Empty is the rest.** The box starts empty on every sheet and is not
+  remembered — how far to estimate is decided each time, for the stretch in
+  front of you; the switch is the habit that is remembered. Seconds are
+  typed as **90**, **1.5** or **1:30**. Anything else — letters, a minus
+  sign — turns the box red, and pressing the button or **E** is refused in
+  words: *the box must hold seconds (90 or 1:30) or be empty; nothing was
+  estimated*. So is **0**, or a number so small that it rounds to nothing,
+  with *the seconds in the box must be above zero, or the box empty; nothing
+  was estimated*. It never guesses what was meant.
+- **While you type.** The keys are the box's while it has the focus: a full
+  stop or a comma typed in it does not step to the next piece. **Enter**
+  takes the number and gives the sheet its keys back; it does not estimate —
+  press **E** or the button for that.
+- **A reader built before it.** The box and **by the text** work in a reader
+  built before **by the sound** existed, as the rest of the sheet does; only
+  **by the sound** waits for the rebuild.
+
 ### The keys
 
 The same few movements, over and over, so they are all under the hand:
@@ -210,7 +274,7 @@ The same few movements, over and over, so they are all under the hand:
 | **,** and **.** | take up the piece before and the piece after (so do **[** **]** and **PageUp** **PageDown**) |
 | **F** | bring the view back onto the piece in hand |
 | **S** | drop the line into the nearest quiet |
-| **E** | estimate everything after it afresh — by the text or by the sound, whichever is pressed |
+| **E** | estimate everything after it afresh — by the text or by the sound, whichever is pressed; with seconds in the box beside the button, only the next stretch of that length |
 | **←** **→** (or **↓** **↑**) | nudge by a tenth of a second; with **Shift**, half a second |
 | **Space** | play the piece, or stop |
 | **Enter** | save the timings |

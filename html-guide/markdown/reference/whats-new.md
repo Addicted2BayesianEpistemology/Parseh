@@ -15,6 +15,24 @@ change. A new version comes in from **Settings → Updating Parseh**
 ([Updating Parseh](../getting-started/updating.md)), which compiles this
 guide and rebuilds the readers by itself.
 
+## a0.3.3 — not yet released
+
+### Estimate the next N seconds
+
+On the sheet of a book's **by ear** and of a video's **the timings**, a small
+box beside **estimate the rest** reads **the next [ ] s**. Type a number of
+seconds in it — 90, or 1:30 — and the button becomes **estimate the next 90
+seconds**: the same guess, **by the text** or **by the sound** as the switch
+says, over a shorter stretch — from the line in hand to the boundary closest
+to that many seconds after it, on either side, and that boundary stays where
+it is. Nothing outside the stretch moves, and a shorter stretch is a shorter
+wait by the sound. **E** runs whatever the button reads. Empty, it is
+**estimate the rest**, as ever; a box that holds anything but seconds is
+refused in words and estimates nothing. The number is not remembered: every
+sheet opens on the rest. It is explained in full for
+[books](../books/timings.md#only-the-next-few-seconds) and for
+[videos](../videos/the-timings.md#only-the-next-few-seconds).
+
 ## a0.3.2 — 25 September 2026
 
 ### Updating Parseh from Settings
