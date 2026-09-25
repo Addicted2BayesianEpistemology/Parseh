@@ -398,9 +398,11 @@ def page(state=None, jobs=None, queues=None):
     draws it."""
     import settingspage
     v = view(state, jobs, queues)
-    main = ('<main class="settings rh">\n<h1 class="idx">settings</h1>\n'
-            '<p class="sub">What this %s is set to, and what this computer has fetched to '
-            'help you read.</p>\n%s\n<div id="rh-band" class="band"></div>\n'
+    # the bar of Settings' doors first and the page's own name under it, as on
+    # every page of Settings (the owner, 2026-09-25)
+    main = ('<main class="settings rh">\n%s\n<h1 class="idx">reading help</h1>\n'
+            '<p class="sub">What this computer has fetched to help you read what nobody '
+            'has glossed.</p>\n<div id="rh-band" class="band"></div>\n'
             '<div id="rh"><p class="rh-wait">Reading what is here&hellip;</p></div>\n'
             '<p class="foot">What is fetched here lives in the %s folder &mdash; '
             '<code>dict/</code>, <code>corpus/</code>, <code>mt/</code>, '
@@ -409,7 +411,7 @@ def page(state=None, jobs=None, queues=None):
             'also on the <a href="/licences/">licences</a> page. '
             '<a href="%s" data-guide>How the reading help works</a>, in the guide.</p>\n'
             '</main>'
-            % (settingspage.NAME, settingspage.settings_doors("/settings/reading-help/"),
+            % (settingspage.settings_doors("/settings/reading-help/"),
                settingspage.NAME, settingspage.NAME, GUIDE + "#how-the-reading-help-works"))
     script = ('<script id="rh-state" type="application/json">%s</script>\n<script>%s</script>'
               % (json.dumps(v, ensure_ascii=False).replace("</", "<\\/"), SCRIPT))

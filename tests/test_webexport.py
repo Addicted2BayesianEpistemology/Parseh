@@ -284,11 +284,14 @@ class Starters(unittest.TestCase):
 
     def test_the_script_is_the_exercises_and_nothing_that_saves(self):
         js = webexport._runtime()
+        # the transliteration cloud travels too (the owner, 2026-09-25), with
+        # appliers of the page's own that keep nothing (export.js, xpCloud)
         for needed in ("function bindExercises", "function applyTypo", "function clipWindow",
-                       "function bindFootnoteClouds", "function armClipReplay"):
+                       "function bindFootnoteClouds", "function armClipReplay",
+                       "function bindColorPalette"):
             self.assertIn(needed, js)
-        for never in ("function initDoc", "function initIndex", "function bindColorPalette",
-                      "function bindImageLayout", "function api(", "fetch(", "XMLHttpRequest",
+        for never in ("function initDoc", "function initIndex", "function docColorApplier",
+                      "function docMarkApplier", "function bindImageLayout", "function api(", "fetch(", "XMLHttpRequest",
                       "sendBeacon", "document.cookie", "indexedDB", "serviceWorker",
                       "window.localStorage", "window.sessionStorage", "__FOLD__"):
             self.assertNotIn(never, js, never)

@@ -62,6 +62,8 @@ import deckroutes     # noqa: E402  and their routes, mounted at /exercises
 import webexport      # noqa: E402  a document as one HTML page for a website (§8.38)
 import version        # noqa: E402  which Parseh this is, for the Server header
 import crosssite      # noqa: E402  only Parseh's own pages may write (TO-DO §3.1)
+import latexdraw      # noqa: E402  a latex block, compiled on its own and kept (§8.39)
+import latexrename    # noqa: E402  a theme renamed, every block put right (§8.39)
 # NOTE: `verify` (and its pymupdf dependency) is imported lazily inside
 # build_pdf, so the whole UI still starts when pymupdf is absent — only
 # PDF verification, not the library/editor/preview, needs it.
@@ -99,6 +101,13 @@ DECKS_BASE = deckroutes.BASE
 # gets the studio's own, so the studio, the command line and every test go on
 # as before.
 _MOUNT = threading.local()
+
+
+# A LATEX BLOCK IS DRAWN BY lib/latexdraw.py (TO-DO §8.39).  The studio alone
+# has no Settings, so a block that cannot be drawn names no page to mend it
+# in; serve.py hands in its own Settings page's address.
+htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings=None)
+texgen.set_latex(latexdraw.draw)
 
 
 def set_base(base):
@@ -364,9 +373,21 @@ def build_pdf(doc_id, scale, size=texgen.DEFAULT_PRINT_SIZE, mono=False):
                 "error": "could not prepare an image for the PDF: %s" % e}
 
     fm, blocks = mdparser.parse(markdown)
+    # the drawings first, side by side: generate() then finds each one kept
+    pairs = htmlgen.latex_pairs(blocks, fm.get("target"))
+    if pairs:
+        latexdraw.draw_all(pairs)
     tex = texgen.generate(fm, blocks, fa_scale="%.2f" % scale,
                           docs=store.doc_index(), font_size=size, mono=mono)
     (outdir / "main.tex").write_text(tex, encoding="utf-8")
+    # each drawing the .tex includes, beside it as latex/<key>.pdf; what an
+    # earlier build staged goes first, as its pictures do
+    drawings, drawn_failed = texgen.latex_used()
+    shutil.rmtree(outdir / "latex", ignore_errors=True)
+    if drawings:
+        (outdir / "latex").mkdir(parents=True, exist_ok=True)
+        for key, pdf in drawings:
+            shutil.copy(pdf, outdir / "latex" / (key + ".pdf"))
 
     log = ""
     for _ in range(2):
@@ -398,6 +419,9 @@ def build_pdf(doc_id, scale, size=texgen.DEFAULT_PRINT_SIZE, mono=False):
         "size": size,
         "mono": bool(mono),
         "stale": False,
+        # the latex blocks that could not be drawn, each a framed note on the
+        # paper where it would have stood (the owner, 2026-09-25)
+        "latex_failed": drawn_failed,
     }
     # Verification (and page count) needs pymupdf; if it is unavailable the
     # PDF still built — report it as unverified rather than failing.
@@ -1289,6 +1313,33 @@ def api_meta(h, doc_id):
     h.send_json({"meta": meta})
 
 
+def api_latex_themes(h):
+    import latexthemes
+    doc = latexthemes.all_of()
+    h.send_json({"themes": [t["name"] for t in doc["themes"]], "default": doc["default"]})
+
+
+def api_latex_preview(h):
+    """One block, drawn as the sheet is typed in -- the drawing it will be."""
+    body = h._json_body() or {}
+    tex = str(body.get("tex") or "")[:20000]
+    theme = str(body.get("theme") or "") or None
+    if not tex.strip():
+        return h.send_json({"ok": False, "said": "Nothing to draw yet."})
+    r = latexdraw.draw(tex, theme)
+    if r.get("ok"):
+        return h.send_json({"ok": True, "url": BASE + r["url"], "w": r["w"], "h": r["h"]})
+    return h.send_json({k: r.get(k) for k in ("ok", "kind", "said", "line", "detail", "fix")})
+
+
+def serve_latex(h, name):
+    """A drawing latexdraw made: named by its key, so it never changes."""
+    path = latexdraw.file_of(name)
+    if path is None:
+        return h.send_json({"error": "no such drawing"}, 404)
+    return h.send_file(Path(path))
+
+
 def serve_media(h, doc_id, name):
     store.get(doc_id)                       # 404 if unknown doc
     path = store.image_path(doc_id, name)
@@ -2122,6 +2173,13 @@ ROUTES = [
     ("GET",    r"^/static/mathjax\.css$",                 serve_math_css),
     ("GET",    r"^/static/mathjax/(.+)$",                  serve_math_lib),
     ("GET",    r"^/static/(.+)$",                         serve_static),
+    # the LaTeX drawing sheet: the themes to choose from, and a block drawn as
+    # it is typed (static/exform.js, openLatexOverlay)
+    ("GET",    r"^/api/latex/themes$",                    api_latex_themes),
+    ("POST",   r"^/api/latex/preview$",                   api_latex_preview),
+    # a latex block's drawing, by its key (lib/latexdraw.py): one address for
+    # the whole toolbox, whichever page or note shows it
+    ("GET",    r"^/latex/([0-9a-f]{64}\.(?:svg|pdf))$",   serve_latex),
     ("GET",    r"^/media/([a-z0-9\-]+)/images/([A-Za-z0-9._\-]+)$", serve_media),
     ("GET",    r"^/api/docs/([a-z0-9\-]+)/images$",       api_images_list),
     ("POST",   r"^/api/docs/([a-z0-9\-]+)/images$",       api_image_upload),

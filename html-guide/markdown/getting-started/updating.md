@@ -123,9 +123,12 @@ afterwards:
   decks' schedules, `youtube/anki/` and `clips/`.
 - **The reading help.** `dict/`, `corpus/`, `mt/` and `components/` —
   gigabytes, perhaps, and nothing is downloaded again.
+- **The TeX packages** Parseh got for its drawings, `texmf/`, and the
+  drawings themselves, `markdown/latex/`.
 - **Your settings.** `config/`: the preferences that follow you from
   device to device, who may reach Parseh and the devices you let in
-  (`config/network.json`), the languages you added, and the daily look.
+  (`config/network.json`), the languages you added, the LaTeX themes
+  (`config/latex.json`), and the daily look.
 - **The certificate.** `.tls/`: no browser and no phone is asked to trust
   Parseh again, and a phone that was let in stays let in.
 - **The environment.** `.runtime/`, where the installer made it, is
@@ -173,6 +176,7 @@ few minutes and downloads nothing of yours again.
      `exercises/` and `clips/`: your content;
    - `dict/`, `corpus/`, `mt/` and `components/`: the reading help's
      downloads;
+   - `texmf/`: the TeX packages Parseh got for its drawings;
    - `config/`: your settings and the devices you let in;
    - `.tls/`: the certificate, so that no browser and no phone is asked to
      trust Parseh again;

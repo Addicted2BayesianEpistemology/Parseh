@@ -30,6 +30,17 @@ config/languages.json.tmp
 # found (lib/updater.py): this machine's choice, like the settings above
 config/updates.json
 config/updates.json.*.tmp
+# the LaTeX themes (lib/latexthemes.py, TO-DO §8.39): this machine's, like the
+# settings above
+config/latex.json
+config/latex.json.tmp
+# the drawings LaTeX made of the latex blocks (lib/latexdraw.py): derived, made
+# again from their blocks whenever they are missing -- never content
+markdown/latex/
+# the TeX packages Parseh got for the drawings (lib/texpackages.py): content,
+# kept by every update; texmf/README.md stays tracked
+texmf/*
+!texmf/README.md
 serve.log
 .serve.pid
 .setup-done

@@ -328,6 +328,15 @@ PY
 else
   skip "lualatex (only needed to rebuild the PDF)"
 fi
+# the studio's PDFs and the LaTeX drawings (Settings -> LaTeX drawings) ask
+# for xelatex, and a drawing's theme may ask for pdflatex (TO-DO §8.37, §8.39)
+for tex in xelatex pdflatex; do
+  if command -v "$tex" >/dev/null 2>&1; then
+    good "$tex ($("$tex" --version | head -1 | cut -c1-40))"
+  else
+    skip "$tex (a studio PDF and the LaTeX drawings use it)"
+  fi
+done
 
 say ""
 say "== optional: re-running the alignment, cutting a card's recording =="

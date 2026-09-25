@@ -5881,6 +5881,10 @@ import network, offline, prefs
 config = sys.argv[1]
 prefs.STORE = os.path.join(config, "prefs.json")
 network.STORE = os.path.join(config, "network.json")
+import latexthemes, latexdraw, texpackages
+latexthemes.STORE = os.path.join(config, "latex.json")
+latexdraw.DRAWN = os.path.join(os.path.dirname(config), "latex-drawn")
+texpackages.TREE = os.path.join(os.path.dirname(config), "texmf")
 offline.DIGESTS = os.path.join(config, "digests.json")
 offline.WHERES = os.path.join(config, "wheres.json")
 sys.argv = ["serve.py"] + sys.argv[2:]

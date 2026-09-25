@@ -99,6 +99,10 @@ notation goes through exactly as written and TeX sets it.
   item or a cell of its own, or on its own lines with `:::math`.
 - **A `:::math` must be closed.** Without its closing `:::` it takes the
   rest of the document into the formula.
+- **What MathJax cannot draw** — a reaction with `mhchem`, a molecule with
+  `chemfig`, a TikZ drawing, a plot — LaTeX itself draws, in a
+  [latex block](latex-drawings.md), `::::latex` with four colons. It
+  needs TeX on the computer; a formula never does.
 
 ```markdown
 [sic] and its square [x^2]{math}                 <- one broken formula

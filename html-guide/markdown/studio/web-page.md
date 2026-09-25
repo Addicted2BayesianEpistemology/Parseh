@@ -50,6 +50,14 @@ A deck's exercises can be a page too, one that crams them: see
   line under the video says so: *YouTube plays this video only when the
   page is on a website — watch it on YouTube*, the last words opening the
   video on YouTube, from where the page's stretch of it begins.
+- **The transliteration cloud.** Pointing at a word of the target
+  language opens the studio's own cloud: its transliteration, the kana of
+  a Japanese word, the colours. What is changed in it is changed **on the
+  open page only** — the cloud says so — and is gone when the tab is
+  closed or reloaded.
+- **Its LaTeX drawings**, inside the file as pictures
+  ([LaTeX drawings](../dialect/latex-drawings.md)); one that could not be
+  made stands as its frame, and the studio says how many.
 - **Contents.** At the top, when the document has sections: a list that
   opens and shuts, whose entries jump to their section.
 - **Glosses.** Under the contents: the document's glosses as a table that
@@ -74,8 +82,9 @@ change it.
   editor finds a line by. The document's Markdown can be neither read nor
   pieced back together from the file.
 - **Nothing that edits.** There is no ✎, no ⚙ on a picture or a player,
-  no **+ Deck** and no colour palette, and none of the code behind them is
-  in the file.
+  no **+ Deck**, and none of the code behind them is in the file. The
+  cloud's colours and transliterations change the open page and nothing
+  else.
 - **No links to your other documents.** A link to another document of the
   library (`[…](doc:Name)`) keeps its words and loses the link, and the
   other document's name goes with it: that document is not on the website.
@@ -88,7 +97,8 @@ change it.
 ## It keeps nothing
 
 The page keeps nothing and sends nothing. The size and theme chosen with
-**Aa**, the answers given, the transliterations hidden: all of it lasts
+**Aa**, the answers given, the transliterations hidden, what was changed in
+the cloud: all of it lasts
 until the tab is closed or reloaded, and none of it is written anywhere.
 Nothing goes into the browser's storage or a cookie, and nothing to any
 server. The page tells the browser so itself: its own security rules forbid

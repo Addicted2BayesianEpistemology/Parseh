@@ -84,6 +84,7 @@ import math
 import mimetypes
 import os
 import re
+import signal
 import shutil
 import socket
 import socketserver
@@ -127,6 +128,8 @@ import decomposition      # local optional component trees
 import corpus             # noqa: E402  and the sentences somebody translated
 import getmt              # noqa: E402  and the model that runs in the page
 import lookuppage         # noqa: E402  the page that sets the dictionaries up
+import latexpage          # noqa: E402  Settings -> LaTeX drawings (§8.39)
+import latexthemes        # noqa: E402  the themes a latex block is drawn with
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
 import make_index           # noqa: E402  what a built reader says about itself
 import mobile               # noqa: E402  the mobile interface's own pages (/m/books/)
@@ -187,6 +190,10 @@ def _load_studio():
 studio = _load_studio()
 STUDIO_BASE = "/studio"
 studio.set_base(STUDIO_BASE)
+# a latex block that cannot be drawn names the page that mends it: this
+# server's Settings -> LaTeX drawings (the studio alone has none)
+import latexdraw                                               # noqa: E402
+studio.htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings="/settings/latex/")
 
 
 class _AtRoot(object):
@@ -1539,6 +1546,67 @@ UPDATE_ROUTES = ("/settings/api/update/state", "/settings/api/update/plan",
                  "/settings/api/update/fetch", "/settings/api/update/stop",
                  "/settings/api/update/upload", "/settings/api/update/discard",
                  "/settings/api/update/apply")
+
+# SETTINGS -> LaTeX DRAWINGS (TO-DO §8.39, lib/latexpage.py): the page, and
+# each of its routes, every one of them in lib/settingspage.py ROUTES
+LATEX_PAGE = "/settings/latex/"
+LATEX_ROUTES = {
+    "/settings/api/latex/state": "state",
+    "/settings/api/latex/fonts": "fonts",
+    "/settings/api/latex/export": "export",
+    "/settings/api/latex/rename-plan": "rename-plan",
+    "/settings/api/latex/package-plan": "package-plan",
+    "/settings/api/latex/package-status": "package-status",
+    "/settings/api/latex/sample": "sample",
+    "/settings/api/latex/save": "save",
+    "/settings/api/latex/delete": "delete",
+    "/settings/api/latex/default": "default",
+    "/settings/api/latex/rename": "rename",
+    "/settings/api/latex/import-read": "import-read",
+    "/settings/api/latex/import": "import",
+    "/settings/api/latex/limit": "limit",
+    "/settings/api/latex/package-get": "package-get",
+    "/settings/api/latex/package-remove": "package-remove",
+    "/settings/api/latex/package-stop": "package-stop",
+    "/settings/api/latex/forget": "forget",
+}
+
+
+def notes_libraries():
+    """(folder, label) of every notes library there is -- each book's and each
+    video's, in a trash or not: where a latex block may be, besides the
+    studio's own library and the decks (markdown/app/latexrename.py)."""
+    import glob
+    out = []
+    books_root = booklib.BOOKS_DIR
+    for pattern in (os.path.join(books_root, "*", "*", "markdown"),
+                    os.path.join(books_root, "*", "markdown"),
+                    os.path.join(books_root, ".trash", "*", "markdown"),
+                    os.path.join(ytpages.VIDEOS, "*", "*", "markdown"),
+                    os.path.join(ytpages.VIDEOS, ".trash", "*", "markdown"),
+                    os.path.join(ytpages.VIDEOS, "*", ".trash", "*", "markdown")):
+        for d in sorted(glob.glob(pattern)):
+            if os.path.isdir(d):
+                rel = os.path.relpath(os.path.dirname(d), ROOT)
+                out.append((d, "the notes of " + rel.replace(os.sep, "/")))
+    seen, uniq = set(), []
+    for d, label in out:
+        real = os.path.realpath(d)
+        if real not in seen:
+            seen.add(real)
+            uniq.append((d, label))
+    return uniq
+
+
+def latex_used():
+    """The key of every drawing some block now asks for: what "Forget
+    drawings nothing uses" keeps."""
+    keys = set()
+    for tex, theme in studio.latexrename.every_block(notes_libraries()):
+        p = latexdraw.plan(tex, theme)
+        if p.get("ok"):
+            keys.add(p["key"])
+    return keys
 # THE ONE DOWNLOAD OF A RELEASE the server may be running: {running, done,
 # total, error, stopped, version}, and the Event that stops it.  One at a
 # time, since there is one candidate.
@@ -2952,6 +3020,18 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_html(hub_page())
         if path == "/index.html":
             return self._redirect("/")
+        if path.startswith("/latex/"):
+            # a drawing, by its key (lib/latexdraw.py): the studio's pages ask
+            # for it under the studio's own prefix, Settings' samples here
+            if method != "GET":
+                return self._method_not_allowed()
+            f = latexdraw.file_of(path[len("/latex/"):])
+            if f is None:
+                return self._not_found()
+            with open(f, "rb") as fh:
+                data = fh.read()
+            return self.send_bytes(data, "image/svg+xml" if f.endswith(".svg") else "application/pdf",
+                                   200, {"Cache-Control": "max-age=31536000, immutable"})
         if path == "/__shutdown":
             if method != "POST":
                 return self._method_not_allowed()
@@ -6093,6 +6173,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_html(updatepage.page(updater.plan(ROOT), updater.settings(ROOT),
                                                   updater.state(ROOT), self._where(),
                                                   update_fetch_now()))
+        if path == LATEX_PAGE.rstrip("/"):
+            return self._redirect(LATEX_PAGE)
+        if path == LATEX_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(latexpage.page(self._where()))
         if path.startswith("/settings/api/") and method == "POST":
             # WHO MAY IS A PROPERTY OF THE SETTING (TO-DO §11.10, the owner,
             # 2026-09-24), and the table in lib/settingspage.py says it for
@@ -6118,6 +6204,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._pair()
         if path in UPDATE_ROUTES:
             return self._update_api(method, path)
+        if path in LATEX_ROUTES:
+            return self._latex_api(method, path)
         if path not in ("/settings/api/network", "/settings/api/code",
                         "/settings/api/forget"):
             return self._not_found()
@@ -6284,6 +6372,28 @@ class Handler(SimpleHTTPRequestHandler):
     def _where(self):
         """Where the device asking is: lib/network.py's SELF, VPN, LAN or AWAY."""
         return network.where((self.client_address or ("",))[0])
+
+    def _latex_api(self, method, path):
+        """Settings -> LaTeX drawings (lib/latexpage.py).  A theme's export is
+        a download, and a read; everything else is a POST, gated above."""
+        what = LATEX_ROUTES[path]
+        if what == "export":
+            if method != "GET":
+                return self._method_not_allowed()
+            name = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("name", [""])[0]
+            try:
+                data = latexthemes.export_bytes(name)
+            except latexthemes.ThemeError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 404)
+            safe = re.sub(r"[^\w-]+", "-", name, flags=re.U).strip("-") or "theme"
+            return self.send_bytes(data, "application/json; charset=utf-8", 200, {
+                "Content-Disposition": "attachment; filename*=UTF-8''%s.parseh-theme.json"
+                                       % urllib.parse.quote(safe)})
+        if method != "POST":
+            return self._method_not_allowed()
+        code, out = latexpage.api(what, self._json_body(), self._where(), notes_libraries(),
+                                  rename=studio.latexrename, used=latex_used)
+        return self.send_json(out, code)
 
     def _refused(self, route):
         """The table's answer for this POST (lib/settingspage.py ROUTES):
@@ -6990,6 +7100,24 @@ def main():
     # stops the server; here, and nowhere else, the old socket is closed and
     # the new one opened.  A stop button leaves `again` false and the loop
     # ends, exactly as it always did.
+    # THE DRAWINGS NOTHING HAS ASKED FOR IN 30 DAYS, let go (the owner,
+    # 2026-09-25) -- off the way in; and a drawing being made when the server
+    # stops is stopped with it, whatever stops it
+    threading.Thread(target=latexdraw.prune, daemon=True).start()
+
+    def _stop_drawings(*_a):
+        latexdraw.stop_all()
+        try:
+            import texpackages
+            texpackages.stop()
+        except Exception:                                     # noqa: BLE001
+            pass
+    import atexit
+    atexit.register(_stop_drawings)
+    try:
+        signal.signal(signal.SIGTERM, lambda *a: (_stop_drawings(), sys.exit(0)))
+    except (ValueError, AttributeError, OSError):
+        pass
     good = None                    # the last address that worked, to fall back on
     first = True
     while True:

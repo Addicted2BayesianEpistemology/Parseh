@@ -108,12 +108,21 @@ PLAYER_REFERRER = "strict-origin-when-cross-origin"
 # back together.
 SOURCE_ATTRS = frozenset((
     "data-tl-src", "data-rtl-src", "data-la-src", "data-math-src",
-    "data-src-line", "data-src-end", "data-occ", "data-tl-occ", "data-fa",
+    # (a word's data-fa travels: it is the word as it is shown, what the
+    # transliteration cloud opens on, and nothing of the source)
+    "data-src-line", "data-src-end", "data-occ", "data-tl-occ",
     "data-name", "data-tl-kind", "data-rtl-kind", "data-math-kind",
-    "data-editor-preview", "data-idx"))
+    "data-editor-preview", "data-idx",
+    # a latex block's own LaTeX, and its theme's name: the source, which
+    # never travels (a drawing does, as a picture)
+    "data-latex-src", "data-latex-theme", "data-latex-key"))
 
-# the pieces of the studio's page that write, or edit: never shipped
-DROP_CLASSES = frozenset(("video-edit", "audio-edit", "ex-edit", "ex-to-deck"))
+# the pieces of the studio's page that write, or edit: never shipped -- and,
+# of a latex block that could not be drawn, its LaTeX, LaTeX's log and the
+# buttons that mend it on the computer: the page says it could not be drawn,
+# and nothing of the source travels
+DROP_CLASSES = frozenset(("video-edit", "audio-edit", "ex-edit", "ex-to-deck",
+                          "latex-code", "latex-log", "latex-fix"))
 
 MEDIA_SCHEME = "parseh-media:"
 
@@ -371,10 +380,28 @@ class _Clean(HTMLParser):
         pass
 
 
+# A LATEX BLOCK'S DRAWING TRAVELS AS WHAT WAS DRAWN (TO-DO §8.39): the SVG
+# lib/latexdraw.py made, inside the page as a data: URI -- nothing reading the
+# page needs LaTeX, a compiler, or Parseh.
+_LATEX_SRC_RE = re.compile(r'src="[^"]*/latex/([0-9a-f]{64})\.svg"')
+
+
+def _drawings(rendered):
+    import latexdraw
+
+    def one(m):
+        path = latexdraw.file_of(m.group(1) + ".svg")
+        if not path:
+            return m.group(0)
+        with open(path, "rb") as fh:
+            return 'src="%s"' % _data_uri(fh.read(), "image/svg+xml")
+    return _LATEX_SRC_RE.sub(one, rendered)
+
+
 def clean(rendered, media):
     """The rendered HTML fit to travel (_Clean)."""
     p = _Clean(media)
-    p.feed(rendered)
+    p.feed(_drawings(rendered))
     p.close()
     return "".join(p.out)
 
@@ -512,6 +539,9 @@ def _css(text, lang, math):
 # slice is worked out from app.js as it is today, every time, so a helper an
 # exercise comes to need later is carried without anybody remembering to.
 ROOTS = ("bindExercises", "bindFootnoteClouds", "armClipReplay", "applyTypo",
+         # the cloud a word of the target language opens: its transliteration
+         # (and kana), and the colours -- changed on the open page only
+         "bindColorPalette",
          "loadTypo", "defaultScale", "lang", "langAttrs", "TYPO_DEFAULTS",
          "sharedSheetTheme", "foldCase", "escAttr", "clipWindow", "watchClipEnd",
          "flipCard", "toggleCardAudio", "openCardZoom")

@@ -509,6 +509,7 @@ function openExerciseForm({model, def, mode = "add", onSave, preview, title, sav
     <div class="ex-form-head"><div><h3></h3><p></p></div><button type="button" class="btn ghost" data-x="cancel" title="Close">✕</button></div>
     <div class="ex-form-body"></div>
     <div class="row ex-form-actions">
+    <button class="btn ghost" data-x="latex" title="A drawing made by LaTeX itself -- chemistry, TikZ, units -- put in the field you were last in. It belongs in a Jolly card's four fields, which take blocks.">LaTeX drawing…</button>
     <button class="btn ghost" data-x="math" title="Write a formula with its picture beside it and put it in the field you were last in — the same sheet the document editor uses. In an exercise a formula may sit in the prompt, in the sentence, in an answer or on a card; it may not sit inside a blank.">∑ Maths…</button>
     <span class="ex-form-spacer"></span>
     <button class="btn" data-x="cancel">Cancel</button>
@@ -1021,6 +1022,21 @@ function openExerciseForm({model, def, mode = "add", onSave, preview, title, sav
     if (t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type === "text")))
       lastField = t;
   });
+  const latexBtn = $('[data-x="latex"]', ov);
+  if (latexBtn) latexBtn.addEventListener("click", () => {
+    const into = lastField || $("textarea,input", body);
+    if (!into) { toast("Put the cursor in a field first.", true); return; }
+    openLatexOverlay({
+      offset: false,         // a card's pictures have no offset, and neither has a drawing on one
+      onSave: text => {
+        const at = into.selectionStart == null ? into.value.length : into.selectionStart;
+        const before = into.value.slice(0, at), after = into.value.slice(into.selectionEnd == null ? at : into.selectionEnd);
+        const block = (before && !before.endsWith("\n") ? "\n\n" : "") + text + (after && !after.startsWith("\n") ? "\n\n" : "");
+        into.value = before + block + after;
+        into.dispatchEvent(new Event("input", {bubbles: true}));
+      },
+    });
+  });
   const mathBtn = $('[data-x="math"]', ov);
   if (mathBtn) mathBtn.addEventListener("click", () => {
     const into = lastField || $("textarea,input", body);
@@ -1357,3 +1373,110 @@ function openExercisePicker(opts = {}) {
   $(".ex-picker", ov).focus({preventScroll: true});
 }
 
+
+
+/* ---------------------------------------------------------------------------
+   THE LaTeX DRAWING SHEET (TO-DO §8.39): a block drawn by LaTeX itself, with
+   a theme's packages -- chemistry, TikZ, units -- written with its drawing
+   beside it, made by the computer as it is typed.  What it writes is a
+   `::::latex` block: the theme's name after the fence (none for the
+   default), the figure's layout in braces, the LaTeX, a line `::::`.  Four
+   colons, so that it may go into a jolly card's field too.  */
+const LATEX_BASE = (function () {
+  const s = document.currentScript && document.currentScript.src || "";
+  const m = s.match(/^(?:https?:\/\/[^/]+)?(.*)\/static\/exform\.js/);
+  return m ? m[1] : "/studio";
+})();
+
+function latexMarkup(tex, theme, layout) {
+  const parts = [];
+  if (layout && layout.width) parts.push("width=" + layout.width);
+  if (layout && layout.align && layout.align !== "center") parts.push("align=" + layout.align);
+  if (layout && layout.offset) parts.push("offset=" + layout.offset);
+  return "::::latex" + (theme ? " " + theme : "") + (parts.length ? " {" + parts.join(" ") + "}" : "")
+    + "\n" + String(tex || "").replace(/\s+$/, "") + "\n::::";
+}
+
+function openLatexOverlay(opts) {
+  opts = opts || {};
+  const root = document.body;
+  $$(".latex-overlay", root).forEach(n => n.remove());
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay latex-overlay";
+  ov.innerHTML = `<div class="modal latex-modal" role="dialog" aria-modal="true" aria-label="LaTeX drawing">
+    <h3>LaTeX drawing</h3>
+    <p>Drawn by LaTeX itself, with a theme's packages: chemistry, TikZ, units. A formula
+    MathJax can draw is better written with ∑ Maths, which works everywhere.</p>
+    <div class="row"><label>Theme <select class="lx-theme"></select></label></div>
+    <textarea class="lx-src" rows="7" spellcheck="false" dir="ltr"
+      placeholder="\\ce{2H2 + O2 -> 2H2O}"></textarea>
+    <div class="row lx-layout">
+      <label><input type="checkbox" class="lx-natural"> its natural size</label>
+      <label>width <input type="range" class="lx-width" min="5" max="100" value="60"> <span class="lx-wv">60</span>%</label>
+      <label>align <select class="lx-align"><option value="center">center</option><option value="left">left</option><option value="right">right</option></select></label>
+      <label class="lx-off">offset <input type="number" class="lx-offset" min="-100" max="100" value="0" style="width:4.5em"></label>
+    </div>
+    <small class="pv-status lx-status"></small>
+    <div class="sheet lx-stage"></div>
+    <div class="row"><button class="btn" data-x="cancel">Cancel</button>
+      <button class="btn primary" data-x="ok">${opts.okLabel || "Insert"}</button></div></div>`;
+  const q = s => $(s, ov);
+  const ta = q(".lx-src"), sel = q(".lx-theme"), status = q(".lx-status"), stage = q(".lx-stage");
+  const lay = opts.layout || {};
+  ta.value = opts.tex || "";
+  q(".lx-natural").checked = !lay.width;
+  q(".lx-width").value = lay.width || 60;
+  q(".lx-wv").textContent = lay.width || 60;
+  q(".lx-align").value = lay.align || "center";
+  q(".lx-offset").value = lay.offset || 0;
+  if (opts.offset === false) q(".lx-off").hidden = true;
+  fetch(LATEX_BASE + "/api/latex/themes").then(r => r.json()).then(j => {
+    sel.innerHTML = `<option value="">the default (${escAttr(j.default)})</option>` +
+      j.themes.map(n => `<option value="${escAttr(n)}">${escAttr(n)}</option>`).join("");
+    if (opts.theme && !j.themes.some(n => n.toLowerCase() === opts.theme.toLowerCase()))
+      sel.insertAdjacentHTML("beforeend", `<option value="${escAttr(opts.theme)}">${escAttr(opts.theme)} (not on this Parseh)</option>`);
+    sel.value = opts.theme || "";
+    draw();
+  }).catch(() => { status.textContent = "The themes could not be read."; });
+  let asked = 0;
+  const draw = async () => {
+    const mine = ++asked, tex = ta.value.trim();
+    if (!tex) { stage.innerHTML = ""; status.textContent = "Nothing to draw yet."; return; }
+    status.textContent = "Drawing…";
+    try {
+      const r = await fetch(LATEX_BASE + "/api/latex/preview", {method: "POST",
+        headers: {"Content-Type": "application/json"}, body: JSON.stringify({tex, theme: sel.value})});
+      const j = await r.json();
+      if (mine !== asked) return;
+      if (j.ok) {
+        status.textContent = "";
+        stage.innerHTML = `<img src="${escAttr(j.url)}" alt="the drawing" style="max-width:100%;background:#fff;padding:6px;border-radius:4px">`;
+      } else {
+        status.textContent = j.said || j.error || "It could not be drawn.";
+        stage.innerHTML = j.detail ? `<pre style="white-space:pre-wrap;font-size:12px">${escAttr(j.detail)}</pre>` : "";
+      }
+    } catch (e) { if (mine === asked) status.textContent = "The computer did not answer."; }
+  };
+  const later = debounce(draw, 700);
+  ta.addEventListener("input", later);
+  sel.addEventListener("change", draw);
+  q(".lx-width").addEventListener("input", () => { q(".lx-wv").textContent = q(".lx-width").value; q(".lx-natural").checked = false; });
+  const close = () => { ov.remove(); if (opts.backTo && opts.backTo.focus) opts.backTo.focus(); };
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.addEventListener("keydown", e => {
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); q('[data-x="ok"]').click(); }
+  });
+  q('[data-x="cancel"]').addEventListener("click", close);
+  q('[data-x="ok"]').addEventListener("click", () => {
+    const tex = ta.value.trim();
+    if (!tex) { close(); return; }
+    const layout = {width: q(".lx-natural").checked ? null : +q(".lx-width").value,
+                    align: q(".lx-align").value,
+                    offset: opts.offset === false ? 0 : (+q(".lx-offset").value || 0)};
+    opts.onSave(latexMarkup(tex, sel.value, layout));
+    close();
+  });
+  root.appendChild(ov);
+  ta.focus();
+}

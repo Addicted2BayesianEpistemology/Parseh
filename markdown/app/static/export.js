@@ -207,6 +207,7 @@ function xpDocument(place) {
   bindFootnoteClouds(sheet);
   armClipReplay(sheet);
   bindExercises(sheet);
+  xpCloud(sheet);
   // the glosses' filter: by the target text, its reading, its
   // transliteration or its translation, folded as the studio folds
   const filter = $(".xp-gl-filter");
@@ -216,6 +217,39 @@ function xpDocument(place) {
       tr.hidden = !!q && !foldCase(tr.textContent).includes(q);
     });
   });
+}
+
+/* THE TRANSLITERATION CLOUD (the owner, 2026-09-25): pointing at a word of
+   the target language opens the studio's own cloud -- its transliteration,
+   the kana for Japanese, the colours -- and what is changed in it is changed
+   ON THIS OPEN PAGE ONLY.  Nothing is sent anywhere or kept anywhere: no
+   server, no file, no storage that outlives the tab; the cloud says so. */
+function xpCloud(sheet) {
+  const colour = (body, span) => {
+    let wrap = span.parentElement && span.parentElement.classList.contains("fac") ? span.parentElement : null;
+    if (!body.color) {
+      if (wrap) { wrap.replaceWith(...wrap.childNodes); }
+      return;
+    }
+    if (!wrap) {
+      wrap = document.createElement("span");
+      span.replaceWith(wrap);
+      wrap.appendChild(span);
+    }
+    wrap.className = "fac";
+    wrap.style.color = "";
+    if (body.color.startsWith("#")) wrap.style.color = body.color;
+    else wrap.classList.add("fac-" + body.color);
+    wrap.dataset.color = body.color;
+  };
+  const mark = kind => (body, span) => {
+    const v = (body[kind] || "").trim();
+    if (v) span.dataset[kind] = v;
+    else delete span.dataset[kind];
+    if (span.parentElement && span.parentElement.dataset[kind] && !v) delete span.parentElement.dataset[kind];
+  };
+  bindColorPalette(sheet, {apply: colour, applyTranslit: mark("translit"), applyKana: mark("kana"),
+                           onlyHere: true});
 }
 
 /* ---------------------------------------------------------------- a deck: cram */

@@ -1137,7 +1137,8 @@ def _doclink_pieces(text):
         if _PIECE_RULE_RE.fullmatch(s):
             cut()
             goes_on = None
-        elif mdparser.EXERCISE_OPEN_RE.match(s) or mdparser.MATH_OPEN_RE.match(s):
+        elif (mdparser.EXERCISE_OPEN_RE.match(s) or mdparser.MATH_OPEN_RE.match(s)
+              or mdparser.latexthemes.FENCE_OPEN_RE.match(s)):
             start(a, b, "fence")
         elif mdparser._FOOTNOTE_DEF.match(s):
             start(a, b, "note")
@@ -2659,6 +2660,64 @@ def _render_exercise(b):
     return "\\par\\medskip\\expaperexercise{%s}\\medskip%s" % (inside, _end_defer(prev))
 
 
+# LATEX BLOCKS ON PAPER (TO-DO §8.39) are the same drawing the screen shows:
+# the PDF lib/latexdraw.py compiled on its own, included as a picture and
+# laid out as a figure -- never the block's LaTeX set in this document, whose
+# preamble a theme's packages must not touch (the owner, 2026-09-24).  The
+# drawer is handed in (set_latex) by whoever builds; the files each .tex
+# needs are what latex_used() says, staged beside it as latex/<key>.pdf.
+LATEX = {"draw": None}
+_LATEX_RUN = ThreadDict(used=[], failed=0)
+
+
+def set_latex(draw):
+    LATEX["draw"] = draw
+
+
+def latex_used():
+    """([(key, pdf path)], how many blocks could not be drawn) of the last
+    generate() on this thread."""
+    return list(_LATEX_RUN["used"]), _LATEX_RUN["failed"]
+
+
+def _latex_note(said):
+    """A drawing that could not be made, said on the paper where it would
+    have stood -- as an exercise that needs attention is."""
+    _LATEX_RUN["failed"] += 1
+    return (r"\par\medskip\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}"
+            r"{\small\textbf{LaTeX drawing.} %s}}\par\medskip" % escape_latin(said))
+
+
+def _render_latex(b):
+    if b.get("errors"):
+        return _latex_note("; ".join(b["errors"]).capitalize() + ".")
+    draw = LATEX["draw"]
+    if draw is None:
+        return _latex_note("It is drawn by LaTeX where Parseh can compile it.")
+    r = draw(b.get("tex", ""), b.get("theme") or None)
+    if not r.get("ok"):
+        return _latex_note(r.get("said") or "This drawing could not be made.")
+    _LATEX_RUN["used"].append((r["key"], r["pdf"]))
+    f = "latex/%s.pdf" % r["key"]
+    align = b.get("align") or "center"
+    offset = 0 if _CARD["on"] else (b.get("offset") or 0)
+    if b.get("width"):
+        w = b["width"] / 100.0
+        ml = image_indent({"width": b["width"], "align": align, "offset": offset})
+        return (r"\par\medskip\noindent\hspace*{%.3f\linewidth}"
+                r"\begin{minipage}{%.3f\linewidth}\includegraphics[width=\linewidth]{%s}"
+                r"\end{minipage}\par\medskip" % (ml, w, f))
+    # its natural size: set at 10 pt, it grows with the print size as the
+    # text round it does, and never past the column
+    scale = print_size() / 10.0
+    place = {"left": r"\hspace*{%.3f\linewidth}" % (offset / 100.0),
+             "right": r"\hfill"}.get(align, r"\hfill")
+    after = "" if align in ("left", "right") else r"\hfill\null"
+    return (r"\par\medskip\noindent\begingroup\setbox0\hbox{\includegraphics[scale=%.3f]{%s}}"
+            r"\ifdim\wd0>\linewidth\setbox0\hbox{\includegraphics[width=\linewidth]{%s}}\fi"
+            r"%s\box0%s\endgroup\par\medskip" % (scale, f, f, place, after))
+
+
 def render_blocks(blocks, inside_box=False):
     out = []
     card = _CARD["on"]
@@ -2728,6 +2787,8 @@ def render_blocks(blocks, inside_box=False):
             out.append(_render_box(b))
         elif t == "exercise":
             out.append(_render_exercise(b))
+        elif t == "latex":
+            out.append(_render_latex(b))
         elif t == "math":
             # `\[ ... \]` is display mathematics in LaTeX's own words, and
             # the body is the author's, untouched -- nothing in this file
@@ -3127,6 +3188,7 @@ def generate(fm, blocks, fa_scale=None, voce_size="38", voce_lead="44",
     template = (HERE / "template.tex").read_text(encoding="utf-8")
     L = set_target(fm.get("target"))
     set_print(font_size, mono)
+    _LATEX_RUN.update({"used": [], "failed": 0})
     reset_footnotes(fm.get("_footnotes"))
     set_doc_index(docs)
     scale = str(fa_scale) if fa_scale else default_scale(L)
