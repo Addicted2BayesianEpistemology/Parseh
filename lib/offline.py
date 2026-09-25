@@ -917,6 +917,39 @@ STUDIO_MATHJAX = ("/static/mathjax.css", "/static/mathjax.js",
 # (mdparser.MATH_OPEN_RE).  Used only where there is no rendered page to ask
 # -- a note is decided from its render, which knows what a block became.
 _MATHS_IN_SOURCE = re.compile(r"\]\{\s*math\s*\}|^:::math\s*$", re.I | re.M)
+# a latex block's body is LaTeX for its own compile, never MathJax's: what it
+# holds decides nothing about the two megabytes (and a `]{math}` in it is not
+# a formula of the page's)
+_LATEX_BLOCK = re.compile(r"^[ \t>]*::::latex\b.*?^[ \t>]*::::[ \t]*$", re.I | re.M | re.S)
+
+
+def _maths_in(markdown):
+    return bool(_MATHS_IN_SOURCE.search(_LATEX_BLOCK.sub("", markdown or "")))
+
+
+def _drawings(markdown, studio_base, have, stamps):
+    """THE DRAWINGS OF A PAGE'S LATEX BLOCKS (TO-DO §8.39), each an entry with
+    its digest, at the one address every page loads it from (the studio's).
+    Each drawing's key stamps the version, so a block redrawn after a theme
+    was edited, or after an update, is "updated" on the phone and never
+    "damaged" (lib/keep.js).  Made here if it is not made yet: keeping is
+    asked of the computer, which is the one that can draw."""
+    import latexdraw
+    import latexthemes
+    out = []
+    for b in latexthemes.blocks_in(markdown):
+        if b["errors"] or not b["closed"]:
+            continue
+        r = latexdraw.draw(b["tex"], b["theme"] or None)
+        if not r.get("ok"):
+            continue
+        url = studio_base.rstrip("/") + latexdraw.url_of(r["key"])
+        if url in have:
+            continue
+        have.add(url)
+        out.append(_entry(url, r["svg"], "picture"))
+        stamps.append((url, r["key"]))
+    return out
 
 
 # THE THREE THE STUDIO MAKES UP AS IT ANSWERS, and which therefore have
@@ -1086,6 +1119,14 @@ def notes_group(mount, notes, studio_base="/studio"):
         stamps.append((page, str(n.get("updated") or "")))
         if not d:
             continue
+        try:
+            with open(os.path.join(d, "source.md"), encoding="utf-8") as fh:
+                source = fh.read()
+        except OSError:
+            source = ""
+        for x in _drawings(source, studio_base, set(u["url"] for u in urls), stamps):
+            urls.append(x)
+            about += x.get("bytes") or 0
         # A NOTE'S PICTURES COME WITH THE NOTES and its RECORDINGS DO NOT
         # (decision 6): a picture is part of reading the note, a recording is
         # megabytes nobody asked for.  The recordings are one row of their own
@@ -1482,6 +1523,8 @@ def deck(decks_mod, folder, slug, url_base="/exercises", studio_base="/studio"):
         cost += (_CARD_WRAP + html_bytes
                  + len(json.dumps(it, ensure_ascii=False).encode("utf-8")))
         small.extend(_deck_media(decks_mod, folder, slug, asks, asset_base, seen))
+        small.extend(_drawings(it.get("markdown") or "", studio_base,
+                               set(x["url"] for x in small), stamps))
     if counted > 1:
         cost += _CRAM_JOIN * (counted - 1)
     # THE MATHS, ONLY WHERE AN EXERCISE HAS ANY (the owner's decision 5, which
@@ -1586,7 +1629,8 @@ def document(store_mod, doc_id, url_base="/studio", studio_base=None):
     # one full of mathematics kept none.  Said in one line here rather than
     # imported, because lib/ does not import the studio; a third spelling
     # would be a change to the dialect, which is a change to this line.
-    if _MATHS_IN_SOURCE.search(markdown or ""):
+    small.extend(_drawings(markdown, studio_base, set(x["url"] for x in small), stamps))
+    if _maths_in(markdown):
         have = set(x["url"] for x in small)
         for rel in STUDIO_MATHJAX:
             x = _studio_entry(studio_base, rel)

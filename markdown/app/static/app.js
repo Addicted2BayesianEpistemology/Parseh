@@ -3516,7 +3516,11 @@ function initIndex() {
           ? `<span class="badge warn">not verified</span>`
           : `<span class="badge ok">${b.verify_ok}/${b.verify_ok} verified</span>`);
     const pp = b.pages != null ? ` ${b.pages} pp` : "";
-    return `<span class="badge ok">PDF ✓${pp}</span>${verify}${stale}`;
+    // a latex block that could not be drawn is a framed note on the paper
+    const drawn = b.latex_failed
+      ? `<span class="badge warn">${b.latex_failed} drawing${b.latex_failed === 1 ? "" : "s"} could not be made</span>`
+      : "";
+    return `<span class="badge ok">PDF ✓${pp}</span>${verify}${drawn}${stale}`;
   }
 
   let loadSeq = 0;

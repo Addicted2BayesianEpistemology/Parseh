@@ -1322,3 +1322,15 @@ figure.audio.img-editing audio { outline: 2px solid var(--accent); outline-offse
   border-top: 1px solid var(--rulec);
   font-size: .72em; color: var(--graytx); line-height: 1.5;
 }
+
+/* ---------- LaTeX drawings (TO-DO §8.39) --------------------------- */
+figure.latex { margin: 1.2em 0; display: block; max-width: 100%; }
+figure.latex img { display: block; width: 100%; height: auto; }
+.ex-flashcard figure.latex { margin-top: .5em; margin-bottom: .5em; }
+.latex-fail { border: 1px dashed var(--rule, #8888); border-radius: 6px; padding: .6em .8em;
+  margin: 1em 0; font-size: .9em; }
+.latex-fail .latex-said { margin: 0 0 .4em; }
+.latex-fail .latex-fix { margin: .3em 0; display: flex; gap: .5em; flex-wrap: wrap; }
+.latex-fail pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85em; margin: .4em 0 0;
+  direction: ltr; text-align: left; }
+.latex-fail .latex-log summary { cursor: pointer; font-size: .9em; }

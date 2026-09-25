@@ -1590,7 +1590,10 @@ function initDeck() {
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
-      toast(`${plural(ids.length, "exercise")} exported: ${name}`);
+      // a latex block that could not be drawn travels as a frame saying so
+      const failed = +(r.headers.get("X-Parseh-Drawings-Failed") || 0);
+      toast(`${plural(ids.length, "exercise")} exported: ${name}` +
+            (failed ? ` — ${plural(failed, "drawing")} could not be made` : ""));
     } catch (e) {
       toast("Could not export: " + e.message, true);
     } finally {

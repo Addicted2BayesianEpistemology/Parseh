@@ -679,9 +679,13 @@ def api_export_html(h, folder, slug):
         name, data = webexport.deck_html(deck, items, media, render)
     except webexport.ExportError as e:
         raise decks.DeckError(str(e))
+    # each exercise travels twice (answered and solved): its failed drawings
+    # are counted once, for the page to say so beside "exported"
+    failed = data.count(b'latex-fail') // 2
     h.send_bytes(data, "text/html; charset=utf-8", 200,
                  {"Content-Disposition": webexport.disposition(name),
-                  "Cache-Control": "no-store"})
+                  "Cache-Control": "no-store",
+                  "X-Parseh-Drawings-Failed": str(failed)})
 
 
 def api_image_upload(h, folder, slug):

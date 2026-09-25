@@ -22,6 +22,10 @@ _LIB = Path(__file__).resolve().parent.parent.parent / "lib"
 if str(_LIB) not in sys.path:
     sys.path.insert(0, str(_LIB))
 import languages  # noqa: E402
+# the latex block's fence, its themes' names and its layout words: lib's, so that
+# what may not import the studio (lib/offline.py, a theme's rename) reads the
+# same fence the pages are drawn from
+import latexthemes  # noqa: E402
 # the mark grammar (`{teal kana:… translit:…}`) is texgen's; the parser
 # reads it in one place only, the headword of a lemma heading
 from texgen import (parse_mark_fields, LA_RE, tl_re,  # noqa: E402
@@ -223,7 +227,19 @@ def parse_exercise(lines, start):
     subtype = (m.group(1) or "").lower()
     end = start + 1
     body = []
-    while end < len(lines) and lines[end].strip() != ":::":
+    # A LATEX BLOCK IN A CARD'S FIELD IS OPAQUE to the exercise: its lines are
+    # the drawing's, and no line of them -- a `:::`, a `- (1,0)` of TikZ, a
+    # `key: value` -- ends the exercise or starts a row or a field.  Its fence
+    # is four colons so that it may sit here at all (latexthemes).
+    in_latex = False
+    while end < len(lines):
+        s_ = lines[end].strip()
+        if in_latex:
+            in_latex = s_ != latexthemes.FENCE_CLOSE
+        elif latexthemes.FENCE_OPEN_RE.match(s_):
+            in_latex = True
+        elif s_ == ":::":
+            break
         body.append(lines[end])
         end += 1
 
@@ -261,6 +277,17 @@ def parse_exercise(lines, start):
     i = 0
     while i < len(body):
         raw, s = body[i], body[i].strip()
+        if pending is not None and latexthemes.FENCE_OPEN_RE.match(s):
+            # a drawing in a field written without `|`: every line of it goes
+            # to the field as it is, through its closing fence
+            pending[2].append(raw)
+            i += 1
+            while i < len(body):
+                pending[2].append(body[i])
+                i += 1
+                if body[i - 1].strip() == latexthemes.FENCE_CLOSE:
+                    break
+            continue
         if not s or s.startswith("<!--"):
             if pending is not None and not s:
                 pending[2].append("")   # a blank line parts two paragraphs
@@ -277,8 +304,14 @@ def parse_exercise(lines, start):
                 more = []
                 i += 1
                 first = i
-                while i < len(body) and (not body[i].strip()
+                in_drawing = False
+                while i < len(body) and (in_drawing or not body[i].strip()
                                          or body[i].startswith((" ", "\t"))):
+                    s_ = body[i].strip()
+                    if in_drawing:
+                        in_drawing = s_ != latexthemes.FENCE_CLOSE
+                    elif latexthemes.FENCE_OPEN_RE.match(s_):
+                        in_drawing = True
                     more.append(body[i])
                     i += 1
                 field_lines[key] = (start + 1 + first, start + i)
@@ -767,6 +800,33 @@ def parse(text, target=None, card=False):
             flush_para(para)
             exercise, i = parse_exercise(lines, i)
             blocks.append(exercise)
+            continue
+
+        # A DRAWING MADE BY LaTeX ITSELF (latexthemes): `::::latex`, a
+        # theme's name, the layout in braces, and a line `::::`.  The body is
+        # LaTeX, carried whole to lib/latexdraw.py, which compiles it on its
+        # own; nothing here reads it.
+        op = latexthemes.opening(s)
+        if op is not None:
+            flush_para(para)
+            start = i
+            i += 1
+            body = []
+            while i < len(lines) and lines[i].strip() != latexthemes.FENCE_CLOSE:
+                body.append(lines[i])
+                i += 1
+            closed = i < len(lines)
+            if closed:
+                i += 1                      # the closing fence
+            errors = list(op["errors"])
+            if not closed:
+                errors.append("a latex block is closed by a line of four colons, ::::, "
+                              "and this one never is")
+            attrs = latexthemes.parse_attrs(op["attrs"], card=card)
+            blocks.append({"type": "latex", "tex": latexthemes.dedent_body(body),
+                           "theme": op["theme"], "errors": errors,
+                           "_line": start, "_end_line": i - 1, **attrs})
+            silent.extend(range(start, i))
             continue
 
         # a formula on its own line, the same fence one line shorter

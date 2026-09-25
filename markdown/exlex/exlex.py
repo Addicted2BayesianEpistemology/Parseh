@@ -28,6 +28,8 @@ import envsetup            # noqa: E402
 import mdparser            # noqa: E402
 import texgen              # noqa: E402
 import verify as verifier  # noqa: E402
+import latexdraw           # noqa: E402  (lib/, reached through mdparser's path)
+texgen.set_latex(latexdraw.draw)
 
 
 def _xelatex(outdir, passes=2):
@@ -65,6 +67,14 @@ def cmd_build(a):
     tex = texgen.generate(fm, blocks, fa_scale=a.scale,
                           font_size=a.size, mono=a.mono)
     (outdir / "main.tex").write_text(tex, encoding="utf-8")
+    # the latex blocks' drawings beside the .tex, as the studio stages them
+    drawings, failed = texgen.latex_used()
+    shutil.rmtree(outdir / "latex", ignore_errors=True)
+    for key, pdf in drawings:
+        (outdir / "latex").mkdir(parents=True, exist_ok=True)
+        shutil.copy(pdf, outdir / "latex" / (key + ".pdf"))
+    if failed:
+        print("note: %d drawing(s) could not be made; each is a framed note in the PDF" % failed)
 
     ok, log = _xelatex(outdir)
     if not ok:

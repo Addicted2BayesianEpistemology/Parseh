@@ -772,6 +772,110 @@ def _render_audio(b, ctx):
                b["width"], ml, media, edit, cap))
 
 
+# ----------------------------------------------------------------------
+# LaTeX drawings (TO-DO §8.39)
+# ----------------------------------------------------------------------
+
+# WHO DRAWS A LATEX BLOCK: lib/latexdraw.py, handed in by whoever serves the
+# pages (set_latex) -- the toolbox, the studio alone, the exlex command.  A
+# renderer with none -- the guide's compile, which runs on computers with no
+# TeX -- never draws one live, and shows the block as what it is instead.
+# `settings` is where the computer's Settings -> LaTeX drawings is, for the
+# buttons under a block that cannot be drawn: none where there is no such page.
+LATEX = {"draw": None, "draw_all": None, "settings": None}
+
+
+def set_latex(draw, draw_all=None, settings=None):
+    LATEX.update(draw=draw, draw_all=draw_all, settings=settings)
+
+
+def latex_pairs(blocks, target=None):
+    """(tex, theme) of every well-formed latex block, in a box and on a jolly
+    card too -- drawn side by side before a page is rendered (render_document)."""
+    out = []
+    for b in blocks:
+        if b["type"] == "latex" and not b.get("errors"):
+            out.append((b.get("tex", ""), b.get("theme") or None))
+        elif b["type"] == "box":
+            out += latex_pairs(b["blocks"], target)
+        elif (b["type"] == "exercise" and not b.get("errors")
+              and b.get("primitive") == "flashcard"
+              and (b["fields"].get("card-type") or "").lower() == "jolly"):
+            for field in mdparser.card_fields(b, target)[0].values():
+                if field and field[0] == "blocks":
+                    out += latex_pairs(field[1], target)
+    return out
+
+
+def _latex_src(b, ctx):
+    if ctx.get("in_card"):
+        return ""
+    return (' data-latex-src="%s" data-latex-theme="%s"'
+            % (esc(b.get("tex", "")), esc(b.get("theme") or "")))
+
+
+def _latex_frame(b, r, ctx):
+    """A block that is not drawn, and why -- its source shown as code, never
+    a hole and never a wrong drawing (the owner, 2026-09-24)."""
+    ctx["latex_failed"] = ctx.get("latex_failed", 0) + 1
+    said = r.get("said") or "This drawing could not be made."
+    out = ['<div class="latex-fail" role="note" data-latex-kind="%s"%s>'
+           % (esc(r.get("kind") or ""), _latex_src(b, ctx)),
+           '<p class="latex-said"><b>LaTeX drawing.</b> %s</p>' % esc(said)]
+    fix, url = r.get("fix") or {}, LATEX.get("settings")
+    links = []
+    if url and fix.get("kind") == "theme-missing":
+        links.append('<a class="btn" href="%s?import=1">Import a theme…</a>' % esc(url))
+        links.append('<a class="btn" href="%s?make=%s">Make a theme called “%s”</a>'
+                     % (esc(url), esc(fix.get("theme") or ""), esc(fix.get("theme") or "")))
+    elif url and fix.get("kind") == "install":
+        links.append('<a class="btn" href="%s?install=%s">Install %s…</a>'
+                     % (esc(url), esc(fix.get("package") or ""), esc(fix.get("package") or "")))
+    elif url and fix.get("kind") == "theme" and fix.get("theme"):
+        links.append('<a class="btn" href="%s?theme=%s">Open the theme “%s”</a>'
+                     % (esc(url), esc(fix["theme"]), esc(fix["theme"])))
+    if links:
+        out.append('<p class="latex-fix">%s</p>' % " ".join(links))
+    if r.get("detail"):
+        out.append('<details class="latex-log"><summary>What LaTeX said</summary>'
+                   '<pre dir="ltr">%s</pre></details>' % esc(r["detail"]))
+    out.append('<pre class="latex-code" dir="ltr">%s</pre></div>' % esc(b.get("tex", "")))
+    return "".join(out)
+
+
+def _render_latex(b, ctx):
+    """A latex block: the drawing lib/latexdraw.py made of it, laid out as a
+    figure is -- `width` a percentage of the column, `align`, `offset` -- and
+    at its natural size when it gives no width: its width in points over
+    the ten points it was set at, in ems, so it reads at the size of the
+    text round it and grows with it."""
+    if b.get("errors"):
+        return _latex_frame(b, {"kind": "dialect",
+                                "said": "; ".join(b["errors"]).capitalize() + "."}, ctx)
+    draw = LATEX.get("draw")
+    if draw is None:
+        return _latex_frame(b, {"kind": "here", "said": "It is drawn by LaTeX where Parseh "
+                                "can compile it, and shown here as it is written."}, ctx)
+    r = draw(b.get("tex", ""), b.get("theme") or None)
+    if not r.get("ok"):
+        return _latex_frame(b, r, ctx)
+    align, offset = b.get("align") or "center", 0 if ctx.get("in_card") else b.get("offset") or 0
+    if b.get("width"):
+        ml = image_indent({"width": b["width"], "align": align, "offset": offset}) * 100
+        style = "width:%d%%;margin-left:%.2f%%" % (b["width"], ml)
+    else:
+        em = (r.get("w") or 0) / 10.0
+        side = {"left": "margin-left:0;margin-right:auto", "right": "margin-left:auto;margin-right:0"
+                }.get(align, "margin-left:auto;margin-right:auto")
+        style = "width:%.2fem;max-width:100%%;%s" % (em, side)
+        if offset:
+            style += ";position:relative;left:%d%%" % offset
+    return ('<figure class="latex align-%s" data-latex-key="%s" data-width="%s" data-align="%s" '
+            'data-offset="%d"%s style="%s"><img src="%s" alt="%s"></figure>'
+            % (align, esc(r["key"]), b.get("width") or "", align, offset, _latex_src(b, ctx),
+               style, esc(URL_BASE + r["url"]), esc("A drawing made by LaTeX")))
+
+
 def _render_box(b, ctx):
     inner = render_blocks(b["blocks"], ctx, inside_box=True)
     return '<div class="box">%s</div>' % inner
@@ -1586,6 +1690,8 @@ def render_blocks(blocks, ctx, inside_box=False):
             ctx["exercise_nested"] = inside_box
             out.append(_render_exercise(b, ctx))
             ctx["exercise_nested"] = was_nested
+        elif t == "latex":
+            out.append(_render_latex(b, ctx))
         elif t == "math":
             # a <div> and not a <p>: it is a block of its own, and the
             # opening tag is a real one so the editor's line anchor lands
@@ -1940,6 +2046,11 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
            "editor_preview": bool(editor_preview),
            "deck_button": bool(deck_button) and not editor_preview}
     title = _titleblock(fm)          # rendered first: it comes first in source
+    if LATEX.get("draw_all"):
+        # every drawing the page needs, made side by side before any is shown
+        pairs = latex_pairs(blocks, L.code)
+        if pairs:
+            LATEX["draw_all"](pairs)
     body = render_blocks(blocks, ctx)
     article = title + "\n" + body + "\n" + _footnote_list()
     if ctx["scored"] and not editor_preview:
@@ -1961,6 +2072,9 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
         # off the render and not off the markdown because only the render
         # knows what a block actually became.
         "exercises": ctx["exercise"],
+        # the latex blocks that could not be drawn: the PDF and the export
+        # say how many (the owner, 2026-09-25)
+        "latex_failed": ctx.get("latex_failed", 0),
         "title": fm.get("title", ""),
         "subtitle": fm.get("subtitle", ""),
         "note": fm.get("note", ""),

@@ -38,6 +38,7 @@ import audiofile
 import clips          # lib/, as audiofile: the tray's decode check (holds_sound)
 import htmlgen
 import mdparser
+import latexthemes  # noqa: E402  (lib/, as mdparser has it)
 import languages
 from texgen import set_target, cur_lang, is_latin_target, parse_mark_fields, clip_window
 from texgen import (LEGACY_UID_RE, doc_name_key, escape_doc_name, find_doclinks,
@@ -322,6 +323,8 @@ def create(text, tags=None, renames=None, strict=False, file=None, since=None):
     lib().mkdir(parents=True, exist_ok=True)
     markdown = _strip_controls(extract_markdown(text))
     with _names_lock():
+        if strict:
+            markdown = latexthemes.catch_up(markdown, since)
         missed = renames_since(since) if strict else []
         if missed:
             markdown = catch_up(markdown, missed)
@@ -400,6 +403,7 @@ def save(doc_id, markdown, renames=None, since=None):
     markdown = _strip_controls(markdown)
     with _names_lock():
         old = _read_meta(_doc_dir(doc_id)).get("title") or ""
+        markdown = latexthemes.catch_up(markdown, since)
         missed = renames_since(since)
         if missed:
             markdown = catch_up(markdown, missed, old)
@@ -2403,13 +2407,15 @@ def names_mark():
     """How far this library's renames go now, as a page carries it: the
     mark a save sends back to have the renames made since followed."""
     with _RENAME_GUARD:
-        return "%s:%d" % (_RENAME_EPOCH, _RENAME_N[0])
+        # and after a `~`, how far the LaTeX themes' renames go
+        # (latexthemes.catch_up), which a save follows too
+        return "%s:%d~%s" % (_RENAME_EPOCH, _RENAME_N[0], latexthemes.rename_mark())
 
 
 def renames_since(mark):
     """The batches of renames made in this library after `mark` (names_mark),
     oldest first; none for a mark of another process, or none at all."""
-    epoch, _, n = str(mark or "").partition(":")
+    epoch, _, n = str(mark or "").split("~")[0].partition(":")
     if epoch != _RENAME_EPOCH or not n.isdigit():
         return []
     key = os.path.abspath(str(lib()))
