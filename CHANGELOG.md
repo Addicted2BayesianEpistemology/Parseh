@@ -1,3 +1,6 @@
+## [a0.4.0] - unreleased
+### Added
+
 ## [a0.3.3] - 2026-09-25
 ### Added
 - Estimate the next N seconds, beside estimate the rest
