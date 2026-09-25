@@ -1,6 +1,16 @@
 ## [a0.4.0] - unreleased
+### Added
+- LaTeX drawings: a ::::latex block is compiled by LaTeX itself, beside the formulas MathJax draws
+- The same drawing on screen, in the PDF, in an HTML export and on a phone, made once and kept
+- A drawing that cannot be made shows its source and one line saying why, with the button that mends it
+- Settings → LaTeX drawings: named themes of packages, languages, a font, a preamble and a compiler
+- Themes exported and imported as files; a rename rewrites every block that names the theme
+- TeX packages got into Parseh's own texmf/, what they cost said first; how long a drawing may take
+- The transliteration cloud works on an exported page, changing that open page only
+
 ### Changed
 - Every Settings page starts with the bar of its doors, Network included
+- Documents, decks, bundles and shelves are stored in a new shape: going back to a0.3.2 says so first
 
 ## [a0.3.2] - 2026-09-25
 ### Added

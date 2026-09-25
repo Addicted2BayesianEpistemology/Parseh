@@ -193,7 +193,10 @@ A few things a card does differently from a page, each for a reason:
   Latin blocks. A field that is one paragraph keeps them.
 - **A field cannot hold an exercise.** And a line that is only `:::` ends
   the exercise, however far it is indented — so a formula on a card is
-  written in a line, `[…]{math}`, not as a `:::math` block.
+  written in a line, `[…]{math}`, not as a `:::math` block. A
+  [LaTeX drawing](../dialect/latex-drawings.md) may stand in a field: its
+  fence has four colons, `::::latex` … `::::`, and does not end the
+  exercise.
 - **`front-image` and the other picture and recording fields** belong to
   the other two kinds; a Jolly card ignores them. Put a picture or a
   recording in a field, as a line of its own.

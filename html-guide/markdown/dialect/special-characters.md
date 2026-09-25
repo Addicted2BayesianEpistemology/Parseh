@@ -1,7 +1,7 @@
 ---
 title: Special characters and the editor's inserts
 linkTitle: Special characters
-weight: 13
+weight: 14
 description: The wrong-form cross, the tick, the arrow, the line break, the zero-width non-joiner and the guillemets — and every button of the editor that types a piece of the dialect for you.
 ---
 

@@ -8,7 +8,7 @@ without loading the studio's renderer into its own process.
 """
 
 # the modules the engine imports, by their path in Parseh
-MODULE_FILES = ("lib/languages.py", "lib/languages.json",
+MODULE_FILES = ("lib/languages.py", "lib/languages.json", "lib/latexthemes.py",
                 "markdown/exlex/mdparser.py", "markdown/exlex/texgen.py",
                 "markdown/app/htmlgen.py")
 # the licences the fonts travel with (lib/fonts/): copied into

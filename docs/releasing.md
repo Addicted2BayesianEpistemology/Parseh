@@ -357,13 +357,16 @@ through, and to prove that what is theirs survives it.
    - a dictionary — **Settings → Reading help**, the Persian dictionary is
      21 MB;
    - a changed setting — the theme, and the port (7655) on
-     **Settings → Network**.
+     **Settings → Network**;
+   - a LaTeX theme of your own on **Settings → LaTeX drawings**, a document
+     with a `::::latex` block drawn with it, and one TeX package got there
+     into `texmf/` (from a0.4.0 on).
 3. **Fingerprint what is yours**, in Parseh-test's folder (the readers, the
    library page and the phone's checksums are left out: an update rebuilds
    the first two and the server rewrites the others as it pleases):
 
    ```bash
-   find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-before.txt
+   find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components texmf config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-before.txt
    ```
 
 4. **Update to the rehearsal.** **Settings → Updating Parseh → A zip of
@@ -385,7 +388,7 @@ through, and to prove that what is theirs survives it.
    - the fingerprint again, and compare — **no line may differ**:
 
      ```bash
-     find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-after.txt; diff ../parseh-test-before.txt ../parseh-test-after.txt && echo "all yours, untouched"
+     find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components texmf config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-after.txt; diff ../parseh-test-before.txt ../parseh-test-after.txt && echo "all yours, untouched"
      ```
 
    - the book opens and its narration plays in step;
@@ -394,7 +397,9 @@ through, and to prove that what is theirs survives it.
    - a word looked up in the book answers from the dictionary;
    - the theme is the one you set, and **Settings → Network** still says
      port 7655 and lists every device you let in;
-   - the browser did not warn about the certificate again.
+   - the browser did not warn about the certificate again;
+   - the document's latex block shows its drawing, and **Settings → LaTeX
+     drawings** lists your theme and the package you got.
 6. **Go back.** Take the fingerprint again first, into
    `../parseh-test-before.txt` as in 5.3 — opening the book moved its
    reading place in `config/prefs.json`. Then choose
@@ -403,7 +408,9 @@ through, and to prove that what is theirs survives it.
    this version raised a data format, it also says *What may not survive
    going back*, names it, and keeps the button off until you tick *I
    understand*: that is expected exactly when this version's changelog says
-   it changed how something is stored, and a fault otherwise. Go back, and
+   it changed how something is stored, and a fault otherwise (a0.4.0 raised
+   the documents, the decks, the bundles and the shelves: going back to
+   a0.3.2 says so). Go back, and
    compare the fingerprint as in 5.5, before opening anything: no line may
    differ.
 7. **Forward again, then the same version twice.** Choose

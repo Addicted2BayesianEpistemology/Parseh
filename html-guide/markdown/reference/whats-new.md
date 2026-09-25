@@ -17,6 +17,43 @@ guide and rebuilds the readers by itself.
 
 ## a0.4.0 — not yet released
 
+### LaTeX drawings
+
+What MathJax cannot draw — a reaction with `mhchem`, a molecule with
+`chemfig`, a TikZ drawing, a plot — LaTeX itself draws now, in a block
+between `::::latex` and `::::`, four colons, so that it may stand in a
+Jolly card's field too. Each block is compiled on its own and becomes one
+picture, made once and kept: the same drawing on the page, in the PDF, in
+an HTML export and on a phone. One that cannot be made shows its source and
+a line saying why, with the button that mends it. The editor has a sheet
+for writing one, the drawing made as you type, and **✎** on a drawing opens
+it again ([LaTeX drawings](../dialect/latex-drawings.md)).
+
+### Themes, in Settings
+
+**Settings → LaTeX drawings** keeps named themes: packages ticked from a
+list, the languages Parseh teaches, a font, a preamble of your own, and the
+compiler. A fresh Parseh has *default*, *chemistry* and *drawing*. A theme
+is exported as a file and imported — its whole preamble shown first; a
+rename says how many blocks name the theme, and where, then rewrites every
+one. The same page gets the TeX packages a theme needs into Parseh's own
+`texmf/`, saying first what they cost, and sets how long a drawing may take
+([Themes](../dialect/latex-drawings.md#themes)).
+
+### The transliteration cloud on an exported page
+
+On a page exported for a website, pointing at a word of the target
+language opens the cloud — its transliteration, the kana, the colours —
+and what is changed there changes the open page only, and is gone with the
+tab ([A page for a website](../studio/web-page.md)).
+
+### Going back
+
+Documents, notes, decks, bundles and shelves are kept in a new shape, since
+a latex block may be in them: a0.3.2 does not know one. Going back says so
+first, under *What may not survive going back*
+([Updating Parseh](../getting-started/updating.md)).
+
 ### Settings, one bar on every page
 
 Every page of **Settings** — Reading help, Network, Updating Parseh — starts

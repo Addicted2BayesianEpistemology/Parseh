@@ -32,6 +32,8 @@ Parseh/
   clips/                 the clip tray
   dict/  corpus/  mt/  components/
                          what the reading help fetches
+  texmf/                 the TeX packages Parseh got for its drawings
+  markdown/latex/        the LaTeX drawings, made again when missing
   config/                your settings, the devices let in
   lib/  markdown/app/  markdown/exlex/  youtube/lib/
                          the software
@@ -62,6 +64,11 @@ Parseh/
 - `dict/`, `corpus/`, `mt/`, `components/` — **what the reading help
   fetches** (**Settings → Reading help**): dictionaries, translated
   sentences, translation models, character packs.
+- `texmf/` — **the TeX packages Parseh got** on **Settings → LaTeX
+  drawings**, for the [latex blocks](../dialect/latex-drawings.md) of a
+  theme, with `parseh-packages.json`, the list of them.
+- `markdown/latex/` — **the drawings** the latex blocks became, each once:
+  made again from its block when it is missing.
 - `config/` — **your settings**: `prefs.json`, each book's reading place
   and the settings that follow you from device to device; `network.json`,
   who may reach Parseh, its port, and every device you let in, each with
@@ -133,6 +140,7 @@ it — a download, a backup, a book kept on your phone:
 - the dictionaries, sentences, translation models and character packs —
   somebody else's work, under somebody else's licence: `dict/`, `corpus/`,
   `mt/`, `components/`;
+- the TeX packages Parseh got for its drawings: `texmf/`;
 - your settings and the devices you let in: `config/`;
 - the environment, the certificate, the log: `.runtime/`, `.tls/`,
   `serve.log`;

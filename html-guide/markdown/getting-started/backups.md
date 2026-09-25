@@ -84,11 +84,16 @@ back as the same deck, with every file it had and every answer.
 - The dictionaries, sentences and models fetched on **Settings → Reading
   help**: fetch them again there.
 - Your settings and the devices you let in, `config/`: a Parseh on another
-  computer starts with its own, and a phone is let in there once more.
+  computer starts with its own, and a phone is let in there once more. A
+  LaTeX theme travels on its own: **Export** on **Settings → LaTeX
+  drawings**, and **Import a theme…** on the other computer.
+- The TeX packages Parseh got, `texmf/`: get them again on **Settings →
+  LaTeX drawings**.
 - What each browser remembers: the theme, the language, where you are in a
   book.
 - What can be built again: the readers, the library page, the PDFs of the
-  books.
+  books, the LaTeX drawings (`markdown/latex/`), made again from their
+  blocks.
 
 None of it is needed to update Parseh: [an update from
 Settings](updating.md) keeps every shelf, and everything in this list, as it
