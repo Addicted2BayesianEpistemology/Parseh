@@ -672,16 +672,28 @@ def api_export_html(h, folder, slug):
             return None
         return None
 
+    # THE DRAWINGS THAT COULD NOT BE MADE, counted where they are made and never
+    # in the finished page.  Counting the word `latex-fail` there said "2
+    # drawings could not be made" of every deck (the stylesheet every exported
+    # page carries names the class five times), and the frame's own tag is not
+    # in the page as written either: the cards travel as JSON, where its
+    # quotes and its "<" are escaped.  Each exercise is rendered twice,
+    # answered and solved; it counts once, by the render that lost more.
+    lost = {}
+
     def render(item, asset_base, preview):
-        return decks.render_item({"lang": code}, item, asset_base, preview=preview, docs=None)
+        said = {}
+        html = decks.render_item({"lang": code}, item, asset_base, preview=preview,
+                                 docs=None, report=said)
+        key = str(item.get("id"))
+        lost[key] = max(lost.get(key, 0), said.get("latex_failed", 0))
+        return html
 
     try:
         name, data = webexport.deck_html(deck, items, media, render)
     except webexport.ExportError as e:
         raise decks.DeckError(str(e))
-    # each exercise travels twice (answered and solved): its failed drawings
-    # are counted once, for the page to say so beside "exported"
-    failed = data.count(b'latex-fail') // 2
+    failed = sum(lost.values())     # for the page to say so beside "exported"
     h.send_bytes(data, "text/html; charset=utf-8", 200,
                  {"Content-Disposition": webexport.disposition(name),
                   "Cache-Control": "no-store",

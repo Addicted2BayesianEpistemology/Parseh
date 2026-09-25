@@ -24,6 +24,7 @@ import tempfile
 import unittest
 import urllib.parse
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 for folder in (ROOT / "markdown" / "exlex", ROOT / "markdown" / "app",
@@ -34,6 +35,7 @@ for folder in (ROOT / "markdown" / "exlex", ROOT / "markdown" / "app",
 import audiofile            # noqa: E402
 import deckroutes           # noqa: E402
 import decks                # noqa: E402
+import htmlgen              # noqa: E402
 import languages            # noqa: E402
 import server               # noqa: E402
 import store                # noqa: E402
@@ -431,6 +433,9 @@ class Routes(unittest.TestCase):
         status, data, ctype, headers = h.sent
         self.assertEqual((status, ctype), (200, "text/html; charset=utf-8"))
         self.assertIn('filename="%s.html"' % S, headers["Content-Disposition"])
+        self.assertEqual(headers["X-Parseh-Drawings-Failed"], "0",
+                         "no drawing failed: the stylesheet the page carries names the class, "
+                         "which is not a drawing")
         page = data.decode("utf-8")
         cards = json.loads(re.search(r'<script id="parseh-cards" type="application/json">(.*?)</script>',
                                      page, re.S).group(1))
@@ -454,6 +459,55 @@ class Routes(unittest.TestCase):
         # nothing about the deck changed: no item touched, nothing scheduled
         self.assertEqual([decks.get_item(F, S, i) for i in ids], before)
         self.assertEqual(sorted(p.name for p in decks.deck_dir(F, S).rglob("*")), files)
+
+    def test_a_drawing_that_could_not_be_made_is_counted_once_and_only_then(self):
+        """The toast beside "exported" says how many drawings could not be made
+        (decks.js, from X-Parseh-Drawings-Failed).  It was the word
+        `latex-fail` counted in the finished page, and the page's own
+        stylesheet names that class five times: every deck said "2 drawings
+        could not be made" (found by tests/html_export.mjs, 2026-09-25).  The
+        frame's own tag is not in the page as written either -- the cards
+        travel as JSON, its quotes and its "<" escaped -- so the renderer that
+        made the frame counts it."""
+        d = decks.create_deck("Italiano: disegni", "it")
+        F, S = d["folder"], d["slug"]
+        card = (":::exercise flashcard\ncard-type: jolly\nfront-primary: |\n  ::::latex\n"
+                "  \\ce{H2O}\n  ::::\nfront-secondary: Che cos'e?\nback-primary: acqua\n:::\n")
+        item = decks.add_item(F, S, card)
+        self.assertEqual(item["errors"], [], "a Jolly card, written as the guide writes one")
+        calls = []
+
+        def export(draw):
+            del calls[:]
+            # `draw_all` too: importing the studio (above) set the REAL one, which compiles
+            # each block with the TeX this computer has and writes markdown/latex/ in the
+            # checkout -- a unit test that is slow where TeX is and writes where it should not
+            with mock.patch.dict(htmlgen.LATEX, {"draw": draw, "draw_all": None}):
+                h = Fake(json.dumps({"ids": [item["id"]]}).encode("utf-8"))
+                deckroutes.dispatch(h, "POST", "/api/decks/%s/%s/export-html" % (F, S))
+            status, data, _ctype, headers = h.sent
+            self.assertEqual(status, 200)
+            page = data.decode("utf-8")
+            cards = json.loads(re.search(r'<script id="parseh-cards" type="application/json">(.*?)</script>',
+                                         page, re.S).group(1))
+            return headers["X-Parseh-Drawings-Failed"], cards
+
+        def drawn(tex, theme):
+            calls.append(tex)
+            return {"ok": True, "key": "k" * 16, "url": "/latex/k.svg", "w": 40}
+
+        def broken(tex, theme):
+            calls.append(tex)
+            return {"ok": False, "kind": "compile", "said": "LaTeX stopped."}
+
+        said, cards = export(drawn)
+        self.assertEqual(calls, ["\\ce{H2O}"] * 2, "asked for the drawing, answered and solved")
+        self.assertEqual(said, "0", "a drawing that was made")
+        self.assertNotIn('class="latex-fail"', cards[0]["html"] + cards[0]["solution"])
+        said, cards = export(broken)
+        self.assertIn('class="latex-fail"', cards[0]["html"], "the block travels as a frame saying why")
+        self.assertIn('class="latex-fail"', cards[0]["solution"])
+        self.assertEqual(said, "1", "one drawing, though the card travels answered and solved")
 
     def test_nothing_picked_is_refused(self):
         d = decks.create_deck("Empty", "it")

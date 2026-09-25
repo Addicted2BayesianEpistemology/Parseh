@@ -1562,13 +1562,18 @@ def _copy(d, doc_id, ordinal, subtype, updated, force, now, prefix):
 
 # ---------------------------------------------------------------- studying
 
-def render_item(deck, item, asset_base, preview=False, docs=None):
-    """The exercise as document html (no colophon), in the deck's language."""
+def render_item(deck, item, asset_base, preview=False, docs=None, report=None):
+    """The exercise as document html (no colophon), in the deck's language.
+    `report`, a dict, is given "latex_failed": how many of its LaTeX drawings
+    could not be made, counted by the renderer that tried (TO-DO §8.39)."""
     md = _front(languages.get(deck["lang"]).code) + item["markdown"]
     if item.get("footnotes"):
         md += "\n\n" + item["footnotes"]
-    return htmlgen.render_document(md, colophon=False, asset_base=asset_base, docs=docs,
-                                   editor_preview=preview)["html"]
+    out = htmlgen.render_document(md, colophon=False, asset_base=asset_base, docs=docs,
+                                  editor_preview=preview)
+    if report is not None:
+        report["latex_failed"] = out.get("latex_failed", 0)
+    return out["html"]
 
 
 def next_card(folder, slug, now=None, skip=None):
