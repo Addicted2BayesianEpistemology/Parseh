@@ -1334,3 +1334,6 @@ figure.latex img { display: block; width: 100%; height: auto; }
 .latex-fail pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85em; margin: .4em 0 0;
   direction: ltr; text-align: left; }
 .latex-fail .latex-log summary { cursor: pointer; font-size: .9em; }
+
+/* the transliteration cloud on an exported page: what it changes is not kept */
+.fapal .fapal-here { flex-basis: 100%; font-size: .72rem; color: var(--graytx, #777); margin-top: 2px; }

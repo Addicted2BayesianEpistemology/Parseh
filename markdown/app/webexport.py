@@ -108,7 +108,9 @@ PLAYER_REFERRER = "strict-origin-when-cross-origin"
 # back together.
 SOURCE_ATTRS = frozenset((
     "data-tl-src", "data-rtl-src", "data-la-src", "data-math-src",
-    "data-src-line", "data-src-end", "data-occ", "data-tl-occ", "data-fa",
+    # (a word's data-fa travels: it is the word as it is shown, what the
+    # transliteration cloud opens on, and nothing of the source)
+    "data-src-line", "data-src-end", "data-occ", "data-tl-occ",
     "data-name", "data-tl-kind", "data-rtl-kind", "data-math-kind",
     "data-editor-preview", "data-idx",
     # a latex block's own LaTeX, and its theme's name: the source, which
@@ -537,6 +539,9 @@ def _css(text, lang, math):
 # slice is worked out from app.js as it is today, every time, so a helper an
 # exercise comes to need later is carried without anybody remembering to.
 ROOTS = ("bindExercises", "bindFootnoteClouds", "armClipReplay", "applyTypo",
+         # the cloud a word of the target language opens: its transliteration
+         # (and kana), and the colours -- changed on the open page only
+         "bindColorPalette",
          "loadTypo", "defaultScale", "lang", "langAttrs", "TYPO_DEFAULTS",
          "sharedSheetTheme", "foldCase", "escAttr", "clipWindow", "watchClipEnd",
          "flipCard", "toggleCardAudio", "openCardZoom")

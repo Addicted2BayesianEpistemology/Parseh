@@ -1756,6 +1756,14 @@ function bindColorPalette(container, opts) {
         `${m.kind === "kana" ? ` lang="${L.code}"` : ""}>` +
       `</span>`).join("") +
       `<span class="lbl">colour</span>`;
+    if (opts.onlyHere) {
+      // AN EXPORTED PAGE KEEPS NOTHING: what is changed in the cloud is
+      // changed on this open page, and gone when the tab closes
+      const note = document.createElement("span");
+      note.className = "fapal-here";
+      note.textContent = "On this page only: nothing is saved.";
+      pal.appendChild(note);
+    }
     for (const c of colors) {
       const b = document.createElement("button");
       b.type = "button";
@@ -1894,7 +1902,9 @@ function bindColorPalette(container, opts) {
     try {
       await fn(body, span);
       showMarks(span);
-      toast(v ? `${what} saved: ${v}` : `${what} removed`);
+      toast(opts.onlyHere
+        ? (v ? `${what}: ${v} — on this page only, nothing is saved` : `${what} removed on this page only`)
+        : (v ? `${what} saved: ${v}` : `${what} removed`));
       hide();
     } catch (e) {
       toast(`Could not save the ${m.label}: ` + e.message, true);
@@ -1957,8 +1967,9 @@ function bindColorPalette(container, opts) {
     try {
       await opts.apply(body, span);
       hide();
-      toast(color ? `Marked ${color} — saved in the markdown`
-                  : "Colour removed");
+      toast(opts.onlyHere
+        ? (color ? `Marked ${color} — on this page only, nothing is saved` : "Colour removed on this page only")
+        : (color ? `Marked ${color} — saved in the markdown` : "Colour removed"));
     } catch (e) {
       toast("Could not set the colour: " + e.message, true);
     }
