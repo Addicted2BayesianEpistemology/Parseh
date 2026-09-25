@@ -1313,6 +1313,25 @@ def api_meta(h, doc_id):
     h.send_json({"meta": meta})
 
 
+def api_latex_themes(h):
+    import latexthemes
+    doc = latexthemes.all_of()
+    h.send_json({"themes": [t["name"] for t in doc["themes"]], "default": doc["default"]})
+
+
+def api_latex_preview(h):
+    """One block, drawn as the sheet is typed in -- the drawing it will be."""
+    body = h._json_body() or {}
+    tex = str(body.get("tex") or "")[:20000]
+    theme = str(body.get("theme") or "") or None
+    if not tex.strip():
+        return h.send_json({"ok": False, "said": "Nothing to draw yet."})
+    r = latexdraw.draw(tex, theme)
+    if r.get("ok"):
+        return h.send_json({"ok": True, "url": BASE + r["url"], "w": r["w"], "h": r["h"]})
+    return h.send_json({k: r.get(k) for k in ("ok", "kind", "said", "line", "detail", "fix")})
+
+
 def serve_latex(h, name):
     """A drawing latexdraw made: named by its key, so it never changes."""
     path = latexdraw.file_of(name)
@@ -2154,6 +2173,10 @@ ROUTES = [
     ("GET",    r"^/static/mathjax\.css$",                 serve_math_css),
     ("GET",    r"^/static/mathjax/(.+)$",                  serve_math_lib),
     ("GET",    r"^/static/(.+)$",                         serve_static),
+    # the LaTeX drawing sheet: the themes to choose from, and a block drawn as
+    # it is typed (static/exform.js, openLatexOverlay)
+    ("GET",    r"^/api/latex/themes$",                    api_latex_themes),
+    ("POST",   r"^/api/latex/preview$",                   api_latex_preview),
     # a latex block's drawing, by its key (lib/latexdraw.py): one address for
     # the whole toolbox, whichever page or note shows it
     ("GET",    r"^/latex/([0-9a-f]{64}\.(?:svg|pdf))$",   serve_latex),
