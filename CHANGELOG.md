@@ -1,4 +1,4 @@
-## [a0.3.2] - unreleased
+## [a0.3.2] - 2026-09-25
 ### Added
 - Estimate the rest by the sound: boundaries placed in the pauses of the waveform, in books and videos
 - Update Parseh from Settings, from GitHub or a zip, to any version, keeping your content and settings
