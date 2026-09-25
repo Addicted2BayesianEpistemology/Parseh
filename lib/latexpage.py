@@ -291,7 +291,8 @@ SCRIPT = r"""
       var p = inst[n];
       return '<tr><td>' + esc(n) + '</td><td>' + esc(p.licence || '') + '</td><td>' + MB(p.size) + '</td><td><button type="button" data-remove="' + esc(n) + '"' + dis('latex.packages') + '>Remove…</button></td></tr>';
     }).join('') || '<tr><td colspan="4">No package got through Parseh yet.</td></tr>';
-    var running = Object.keys(jobs).map(function (n) {
+    // a job that finished is in the table above; only one running, or one that failed, needs a line
+    var running = Object.keys(jobs).filter(function (n) { return jobs[n].running || jobs[n].error; }).map(function (n) {
       var j = jobs[n];
       return '<div>' + esc(n) + ': ' + (j.running ? 'installing' + (j.total ? ' ' + j.done + '/' + j.total : '') + ' — ' + esc(j.say || '') +
         ' <button type="button" data-stop="' + esc(n) + '"' + dis('latex.packages') + '>Stop</button>' : (j.error ? '<span class="bad">' + esc(j.error) + '</span>' : '✓ installed')) + '</div>';

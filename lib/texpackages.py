@@ -206,12 +206,25 @@ def plan(names):
     return {"packages": rows, "can": True, "why": "", "tex": d["said"]}
 
 
+# WHY A RUN FAILED.  tlmgr's last line is always "An error has occurred. See
+# above messages. Exiting.", which said nothing to the person reading it here
+# (nothing is above it on the page): the line before that names the cause --
+# a package its repository does not have, a repository of another year, a
+# host it could not reach -- and that is the one kept.
+_GENERIC = re.compile(r"see above messages|an error has occurred", re.I)
+_WHY = re.compile(r"not present in|older than remote|cannot|can't|could not|couldn't|unable|"
+                  r"failed|refused|no route|resolve|timed out|not found|no such", re.I)
+
+
 def _progress(job, line):
     m = re.search(r"\[(\d+)/(\d+)", line)
     if m:
         job["done"], job["total"] = int(m.group(1)), int(m.group(2))
-    if line.strip():
-        job["say"] = line.strip()[:200]
+    s = line.strip()
+    if s:
+        job["say"] = s[:200]
+        if _WHY.search(s) and not _GENERIC.search(s):
+            job["why"] = s[:200]
 
 
 def _run(job, name):
@@ -228,6 +241,7 @@ def _run(job, name):
                 if job.get("stopped"):
                     break
                 cmd = _tlmgr(["install", name], repo)
+                job["why"] = None
                 ok = _stream(job, name, cmd)
                 if ok or job.get("stopped"):
                     break
@@ -255,7 +269,8 @@ def _run(job, name):
             import latexdraw
             latexdraw.forget_failures()
         elif not job.get("error"):
-            job["error"] = ("%s could not be installed: %s" % (name, job.get("say") or "it failed"))
+            job["error"] = ("%s could not be installed: %s"
+                            % (name, job.get("why") or job.get("say") or "it failed"))
     except Exception as e:                                   # noqa: BLE001
         job["error"] = "%s could not be installed: %s" % (name, e)
     finally:
@@ -346,6 +361,8 @@ def remove(name):
         raise ValueError("%s could not be removed: %s" % (name, (r.stdout or r.stderr).strip()[-300:]))
     doc["packages"].pop(name, None)
     _save_manifest(doc)
+    with _LOCK:
+        JOBS.pop(name, None)        # else the page went on saying "installed" beside it
     import latexdraw
     latexdraw.forget_failures()
 
