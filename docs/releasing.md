@@ -398,6 +398,14 @@ through, and to prove that what is theirs survives it.
      find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components texmf config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-after.txt; diff ../parseh-test-before.txt ../parseh-test-after.txt && echo "all yours, untouched"
      ```
 
+     **a0.4.0 only.** a0.3.3 has no `texmf/`, and a0.4.0 ships one, holding
+     a README, so that one line is *new*: `> … texmf/README.md`. It is the
+     release's own file, not yours, and it is the only line that may differ
+     — going back to a0.3.3 (step 6) takes it away again, and going forward
+     (step 7) brings it back. Anything else is a fault. (Checked on
+     2026-09-25 with the published a0.3.3 zip and this rehearsal's, on a
+     throwaway install: exactly that one line, each time.)
+
    - the book opens and its narration plays in step;
    - the deck opens, and the exercises you answered are not *new* any
      more;
