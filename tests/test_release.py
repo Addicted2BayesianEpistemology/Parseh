@@ -839,8 +839,14 @@ class TheWorkflow(unittest.TestCase):
         self.wf = self.WF.read_text(encoding="utf-8")
 
     def runs(self):
-        """[(step name or uses, the run text)] in order."""
-        steps = re.split(r"(?m)^      - ", self.wf.split("\n    steps:\n", 1)[1])[1:]
+        """Every job's steps, in order, each as its text.  A job's steps end
+        where a line at the jobs' own depth begins (two spaces: the next
+        job, or a comment before it), so no step runs on into the next job's
+        header."""
+        steps = []
+        for part in self.wf.split("\n    steps:\n")[1:]:
+            body = re.split(r"(?m)^(?=  ?\S)", part, maxsplit=1)[0]
+            steps += re.split(r"(?m)^      - ", body)[1:]
         return steps
 
     def test_a_tag_or_a_hand_makes_it_run(self):
@@ -866,8 +872,10 @@ class TheWorkflow(unittest.TestCase):
         for said in ('"dist/parseh-$TAG.zip"', '"dist/parseh-$TAG.zip.sha256"', "--draft",
                      '--prerelease="$PRERELEASE"', "--verify-tag", "--notes-file dist/notes.md"):
             self.assertIn(said, create)
-        # the one rule for what a rehearsal is decides, never a pattern here
-        self.assertEqual(re.findall(r"--prerelease\S*", self.wf), ['--prerelease="$PRERELEASE"'])
+        # the one rule for what a rehearsal is decides, never a pattern here;
+        # the second flag is the guard's, which only ever takes the mark off
+        self.assertEqual(re.findall(r"--prerelease\S*", self.wf),
+                         ['--prerelease="$PRERELEASE"', "--prerelease=false"])
         self.assertIn('echo "PRERELEASE=$prerelease" >> "$GITHUB_ENV"', steps[order[6]])
         self.assertNotRegex(self.wf.split("\n    steps:\n", 1)[1], r"-rc|\*rc|rc\*")
         self.assertIn("exit 1", steps[order[7]])          # a published release stops it
@@ -928,6 +936,42 @@ class TheWorkflow(unittest.TestCase):
             self.assertIn("is not a version's", r.stderr)
             self.assertEqual(envfile.read_text(encoding="utf-8"), "")
 
+    def test_a_published_release_wakes_only_the_guard(self):
+        # the owner, 2026-09-25: a version is published as a FULL release;
+        # the guard runs when one is published, the builder never does then
+        self.assertRegex(self.wf, r"(?m)^  release:\n    types: \[published\]\n")
+        self.assertRegex(self.wf, r"(?m)^  release:\n    # [^\n]*\n    if: github\.event_name != 'release'\n")
+        self.assertRegex(self.wf, r"(?m)^  full-release:\n    if: github\.event_name == 'release'\n")
+        guard = self.wf.split("\n  full-release:\n", 1)[1]
+        self.assertIn("TAG: ${{ github.event.release.tag_name }}", guard)
+        self.assertIn("MARKED: ${{ github.event.release.prerelease }}", guard)
+        self.assertIn('python3 lib/release.py prerelease "$TAG"', guard)
+        # it may take the mark off, and nothing else: never delete, never mark
+        self.assertNotRegex(guard, r"DELETE|release delete|--prerelease=true|--draft")
+
+    @unittest.skipUnless(shutil.which("bash"), "bash is not on PATH")
+    def test_the_guard_takes_the_mark_off_a_version_and_only_a_version(self):
+        guard = self.step("gh release edit")
+        with tempfile.TemporaryDirectory() as td:
+            gh = Path(td, "gh")
+            gh.write_text('#!/bin/sh\nfor a in "$@"; do printf "%s\\n" "$a"; done > "$GH_SAID"\n',
+                          encoding="utf-8")
+            gh.chmod(0o755)
+            for tag, marked, edits in (("a0.3.2", "true", True), ("a0.3.2", "false", False),
+                                       ("a0.3.2-rc1", "true", False), ("b1.0", "true", True)):
+                with self.subTest(tag=tag, marked=marked):
+                    said = Path(td, "said")
+                    if said.exists():
+                        said.unlink()
+                    r = self.bash(guard, TAG=tag, MARKED=marked, GH_SAID=str(said),
+                                  PATH=td + os.pathsep + os.environ["PATH"])
+                    self.assertEqual(r.returncode, 0, r.stderr)
+                    self.assertEqual(said.exists(), edits, r.stdout)
+                    if edits:
+                        self.assertEqual(said.read_text(encoding="utf-8").split("\n")[:5],
+                                         ["release", "edit", tag, "--prerelease=false", "--latest"])
+                        self.assertIn("the mark is taken off", r.stdout)
+
     def test_the_tag_never_reaches_a_script_as_an_expression(self):
         # ${{ }} in a run: is a script-injection door: the tag goes by $TAG
         for step in self.runs():
@@ -955,6 +999,9 @@ class TheWorkflow(unittest.TestCase):
         self.assertEqual(doc["permissions"], {"contents": "write"})
         job = doc["jobs"]["release"]
         self.assertEqual(job["env"]["TAG"], "${{ inputs.tag || github.ref_name }}")
+        self.assertEqual(doc[True]["release"], {"types": ["published"]})
+        self.assertEqual(job["if"], "github.event_name != 'release'")
+        self.assertEqual(doc["jobs"]["full-release"]["if"], "github.event_name == 'release'")
 
 
 if __name__ == "__main__":

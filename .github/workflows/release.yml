@@ -30,14 +30,26 @@
 # A REHEARSAL IS A PRERELEASE, A VERSION IS NOT (the owner, 2026-09-25).  A
 # rehearsal's tag, aX.Y.Z-rcN, is pushed first to see the whole road work:
 # its draft is marked a prerelease, and is deleted with its tag once looked
-# at.  A version's own tag makes a draft that is NOT a prerelease: the
-# version's own "a" says alpha, and GitHub's "latest release" -- what
-# Settings asks for when it looks for an update -- never answers with a
-# prerelease, which is also how a bad release is withdrawn from "latest"
-# (docs/releasing.md).  `release.py prerelease` says which a tag is, by
-# lib/version.py's rule.  The one checksum published is the one of the zip
-# built here, never one for GitHub's own "Source code" archives, whose
-# compression GitHub has changed before.
+# at.  A version's own tag makes a draft that is NOT a prerelease, and it is
+# PUBLISHED AS A FULL RELEASE, alpha or not: an "a" in front of the numbers
+# is never a reason to mark it.  GitHub's "latest release" -- what Settings
+# asks for when it looks for an update -- never answers with a prerelease,
+# which is how a bad release is withdrawn from "latest" (docs/releasing.md),
+# and why a good one must never carry the mark.  `release.py prerelease`
+# says which a tag is, by lib/version.py's rule.
+#
+# The one checksum published is the one of the zip built here, never one
+# for GitHub's own "Source code" archives, whose compression GitHub has
+# changed before.
+#
+# AND A GUARD FOR THE ONE STEP DONE BY HAND.  The first managed release was
+# published with the pre-release box ticked (2026-09-25), though its draft
+# had been made without it, and every Parseh's "Check now" then found no
+# release at all.  So when a release is PUBLISHED, the second job below
+# looks at it: a version's own tag published as a prerelease has the mark
+# taken off and is made the latest release, and says so in the run.
+# Marking a published release a prerelease LATER, to withdraw it, is an
+# edit, not a publish, and is left alone.
 name: release
 
 on:
@@ -49,6 +61,9 @@ on:
         description: "The tag to release, already pushed to GitHub"
         required: true
         type: string
+  # the guard's own trigger: a release published by hand on github.com
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -60,6 +75,8 @@ concurrency:
 
 jobs:
   release:
+    # a published release is the guard's business, not the builder's
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
     # the tag reaches the steps as $TAG, never pasted into a script
     env:
@@ -107,3 +124,30 @@ jobs:
           "dist/parseh-$TAG.zip" "dist/parseh-$TAG.zip.sha256"
           --draft --prerelease="$PRERELEASE" --verify-tag
           --title "Parseh $TAG" --notes-file dist/notes.md
+
+  # A VERSION PUBLISHED AS A PRERELEASE IS PUT RIGHT (see the header).  The
+  # one rule for what a rehearsal is decides, as it does for the draft.
+  full-release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      MARKED: ${{ github.event.release.prerelease }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ github.event.release.tag_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: A version is a full release, and the latest
+        run: |
+          rehearsal=$(python3 lib/release.py prerelease "$TAG")
+          if [ "$rehearsal" = "false" ] && [ "$MARKED" = "true" ]; then
+            gh release edit "$TAG" --prerelease=false --latest
+            echo "::warning::$TAG was published as a pre-release; the mark is taken off and it is the latest release now (docs/releasing.md, step 10)"
+          else
+            echo "$TAG is published as it should be"
+          fi

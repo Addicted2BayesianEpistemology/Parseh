@@ -48,8 +48,8 @@ it is only ever a tag's name.
   7. [The day, and the release commit](#7-the-day-and-the-release-commit)
   8. [Tag and push: GitHub's draft](#8-tag-and-push-githubs-draft)
   9. [The draft is what you built](#9-the-draft-is-what-you-built)
-  10. [The canary, Parseh-mine](#10-the-canary-parseh-mine)
-  11. [Publish](#11-publish)
+  10. [Publish](#10-publish)
+  11. [Parseh-mine, from GitHub](#11-parseh-mine-from-github)
   12. [Afterwards](#12-afterwards)
 - [When a draft is wrong](#when-a-draft-is-wrong)
 - [When a published release is bad](#when-a-published-release-is-bad)
@@ -64,7 +64,7 @@ A step a machine enforces is a step nobody can forget. These are enforced:
 | `lib/release.py check`, run by GitHub before it builds anything | a tag, `VERSION`, `CHANGELOG.md`'s newest heading and What's new's newest heading (`html-guide/markdown/reference/whats-new.md`) that do not all name the same version; a tag that is neither a version nor a rehearsal of one (`-rc1`, `-rc2` …: not `-rc0`, `-rc01`, `-RC1` or `-beta`); an empty newest section. For a **version's own tag**, also: a changelog heading that still says `unreleased`, a What's new heading that still says `not yet released`, and the two giving different days. A **rehearsal's tag** passes with both still undated. GitHub then makes no draft, and the run is red. |
 | `lib/release.py guide`, run by GitHub before it builds anything | a compiled guide (`html-guide/site/`, which ships as committed) that is not what the guide's sources compile to — a page, a picture, the guide's engine or the studio's renderer changed after the last compile — or whose last compile had errors, or that is missing. GitHub then makes no draft. |
 | `lib/release.py build`, locally and on GitHub | a release missing a folder Parseh writes into or a file it cannot do without; a `.bat` without CRLF line endings; a launcher that lost its executable bit; anything personal or any content (`.tls/`, a file in `config/`, `books/`, `dict/` and the rest other than a `.gitkeep` or a `README.md`); `tests/` or a GIF in `docs/`; a symbolic link. `--tag` refuses a tag that is not `VERSION`'s own or a rehearsal of it. It writes no zip then. |
-| the release workflow (`.github/workflows/release.yml`) | building over a release that is already published: a published release is never replaced. An earlier **draft** of the same tag is replaced. It marks a rehearsal's draft **pre-release** and a version's draft not. It runs **no test suite**. |
+| the release workflow (`.github/workflows/release.yml`) | building over a release that is already published: a published release is never replaced. An earlier **draft** of the same tag is replaced. It marks a rehearsal's draft **pre-release** and a version's draft not. **When a release is published**, a version's own tag published as a pre-release has the mark taken off and is made the latest (a guard for step 10's one box ticked by hand); marking a release pre-release later, to withdraw it, is left alone. It runs **no test suite**. |
 | `tests/test_html_guide.py` | a guide page *What changed, version by version* whose `## ` headings are not the changelog's versions, in its order, with its days. |
 | `tests/test_version.py` | a `VERSION` that is not one line holding a version (never a rehearsal's name); a version written by hand anywhere in the code; a `README.md` that names a version (it links to the newest release instead, so it never goes stale); a kind of file Parseh keeps without a data-format number in `lib/version.py`. |
 | `tests/test_release.py` | an `export-ignore` list in `.gitattributes`, a `/dist/` rule in `.gitignore`, or a release workflow that drifted from what this page relies on (its steps and their order — check, guide, build, notes, pre-release or not, the draft — and no test suite in it) — and the builder's own refusals, each driven in a scratch repository. |
@@ -72,7 +72,7 @@ A step a machine enforces is a step nobody can forget. These are enforced:
 **Not enforced — this page is the only guard:** that the suites were run
 and are no redder than the baseline (GitHub runs none: they need a browser
 and the whole toolchain, which are on your computer); the rehearsals; the
-canary; publishing; everything under *Afterwards*.
+publishing; Parseh-mine's update from GitHub; everything under *Afterwards*.
 
 ## Before you start
 
@@ -115,10 +115,18 @@ canary; publishing; everything under *Afterwards*.
     so it can run beside the other. Nothing in it matters; it is there to be
     broken.
   - **Parseh-mine** — the Parseh actually used, with the real books, decks
-    and dictionaries. It is **never updated by hand and never from a file you
-    built**: only from the zip GitHub built, through **Settings → Updating
-    Parseh**, exactly as every other person's is. It is the canary for the
-    public road: what goes wrong there would have gone wrong for everybody.
+    and dictionaries, answering on **7654**. It is **never updated by hand,
+    never from a file you built and never from a draft**: once the release is
+    PUBLISHED, it updates from GitHub itself, through **Settings → Updating
+    Parseh → Check now → Download**, exactly as every other person's does
+    (the owner, 2026-09-25). What goes wrong there would have gone wrong for
+    everybody, so it is checked the day of publishing, before anybody else
+    has had time to update.
+  - **Never serve Parseh-test on 7654.** Each install makes its own
+    certificate authority in its own `.tls/`, and the browsers you use have
+    accepted Parseh-mine's for `localhost:7654`: a Parseh-test answering
+    there would present another certificate to them. Parseh-test is always
+    started with `./serve.sh 7655`.
 - **No phone, no tablet.** Nothing here needs one. The promise a phone
   depends on (the app takes the new version, says so in a line, and keeps
   everything it kept) is held by `tests/mobile_pages.mjs`, whose `update`
@@ -318,6 +326,17 @@ A fault found in steps 5 and 6 costs nothing: mend it, commit, and rehearse
 again from step 3 under the next name, `<version>-rc2`.
 
 ### 5. The rehearsal, on Parseh-test
+
+Start Parseh-test, from its own folder, **always on port 7655**:
+
+```bash
+./serve.sh 7655
+```
+
+Parseh-test is ALWAYS served on 7655, never on 7654, so that it cannot
+damage the Parseh-mine installation: Parseh-mine answers on 7654, and the
+browsers you use have accepted ITS certificate (from its own `.tls/`) for
+that address; another install there would present them another one.
 
 Your own steps, by hand, in the browser, at `https://localhost:7655/` —
 never scripted. The point is to go through what somebody updating will go
@@ -541,50 +560,68 @@ before you tag.
    pack the same bytes differently). **They DISAGREE** means the draft is
    not what you built: [When a draft is wrong](#when-a-draft-is-wrong).
 
-### 10. The canary, Parseh-mine
-
-Your own step, by hand, in the browser: the update everybody will make, on
-the Parseh you use, from the zip GitHub built — the last proof before
-anyone else is exposed.
-
-1. On Parseh-mine, **Settings → Updating Parseh → A zip of your own**, and
-   choose the draft's zip you downloaded in step 9 — **not** the one in
-   `dist/`. (*Check now* cannot see a draft: GitHub shows a draft to nobody
-   until it is published, the updater included.)
-2. Read **Ready to install** as in step 5.4: ↑ newer, nothing changed by
-   hand but the guide's compiled pages, the environment line.
-3. **Update to <version>**, **Yes**, and wait for the page to come back.
-4. Then use it for a few minutes as on any day: a book and its narration, a
-   video, a deck, a word looked up, the page you last worked on. The hub's
-   foot says `<version>`.
-
-If anything is wrong, stop here: nothing is public yet. Go back on
-Parseh-mine (choose `parseh-<previous>.zip`, **Go back to <previous>**),
-then [When a draft is wrong](#when-a-draft-is-wrong).
-
-### 11. Publish
+### 10. Publish
 
 The moment the world sees it.
 
 1. On GitHub, **Releases**, the draft, **Edit** (the pencil).
 2. Leave the notes as they are — they are the changelog's; a change to them
    is a change to `CHANGELOG.md` and a new draft.
-3. **Set as a pre-release**: unticked, as the workflow left it (the
-   version's own `a` says alpha, and the updater's *Check now* never sees a
-   pre-release). **Set as the latest release**: ticked.
+3. **Set as a pre-release: LEAVE IT UNTICKED.** An alpha (`a…`) is
+   published as a **full release**, never a pre-release: the `a` in front of
+   the numbers is not a reason to tick it. A pre-release is invisible to
+   GitHub's *latest release*, which is what every Parseh's **Check now**
+   asks — ticked, the release would be there and nobody would be offered
+   it (a0.3.2 was published so by mistake, 2026-09-25). Only a rehearsal's
+   draft (`-rc1`) is a pre-release, and it is deleted, never published.
+   **Set as the latest release**: ticked.
 4. **Publish release**.
+5. **Check it is the latest**, in a minute or two, from the terminal:
+
+   ```bash
+   curl -s https://api.github.com/repos/Addicted2BayesianEpistemology/Parseh/releases/latest | grep '"tag_name"'
+   ```
+
+   It must name `<version>`. (If the box was ticked after all, GitHub's
+   *release* workflow runs its guard on publishing, takes the mark off and
+   makes the release the latest — **Actions → release**, the run named after
+   the release, says so in a warning — and this then names `<version>` too.)
 
 From now on this release is somebody's download: it is never replaced, and
 its tag never moves. GitHub's workflow refuses to build over it.
 
+### 11. Parseh-mine, from GitHub
+
+Your own step, by hand, in the browser, **once the release is published**:
+Parseh-mine updates the way everybody's does — from GitHub, through the
+updater's public road, never from a zip you downloaded or built — and it is
+the first to take it.
+
+1. On Parseh-mine (`https://localhost:7654/`), **Settings → Updating Parseh
+   → Check now**: it names `<version>` as the newest release.
+2. **Download**: the zip GitHub built comes down and is checked against the
+   `.sha256` published beside it.
+3. Read **Ready to install** as in step 5.4: ↑ newer, nothing changed by
+   hand but the guide's compiled pages, the environment line.
+4. **Update to <version>**, **Yes**, and wait for the page to come back.
+5. Then use it for a few minutes as on any day: a book and its narration, a
+   video, a deck, a word looked up, the page you last worked on. The hub's
+   foot says `<version>`.
+
+If anything is wrong, it is wrong for everybody: go to
+[When a published release is bad](#when-a-published-release-is-bad) at once
+(withdraw it first), and take Parseh-mine back through the updater
+(**A zip of your own**, `parseh-<previous>.zip` from its page on GitHub's
+releases, **Go back to <previous>**).
+
 ### 12. Afterwards
 
-1. **The public road.** On Parseh-mine, **Settings → Updating Parseh →
-   Check now**: it must name `<version>` as the newest release, *the
-   version this Parseh already is*. On Parseh-test, go back to `<previous>`
-   with its zip, then **Check now**, **Download** and **Update to
-   <version>**: the whole road a user takes, checksum included. (Parseh-test
-   then runs `<version>`, ready for the next rehearsal.)
+1. **The public road, once more.** On Parseh-mine, **Check now** now says
+   *the version this Parseh already is*. On Parseh-test, go back to
+   `<previous>` with its zip, then **Check now**, **Download** and **Update
+   to <version>**: the whole road a user takes, checksum included, from the
+   other direction. (Parseh-test then runs `<version>`, ready for the next
+   rehearsal.)
 2. **The releases page, signed out** (a private window): the release is
    there, with the zip and its `.sha256`, and no rehearsal.
 3. **Pages is current.** GitHub, **Actions**: the *pages build and
@@ -719,9 +756,10 @@ install, saying to install afresh from a release. So, that once:
 
   That clone is never pushed; delete `../parseh-next` and
   `../parseh-next-dist` after the rehearsal.
-- **Parseh-mine** is moved into a fresh install made from the draft's zip,
-  by hand, as the guide's *Updating Parseh → Moving into a fresh install,
-  once* describes, in place of step 10's update — then checked as step
-  10.4 says.
+- **Parseh-mine** is moved into a fresh install made from the PUBLISHED
+  release's zip, downloaded from its page on GitHub's releases, by hand, as
+  the guide's *Updating Parseh → Moving into a fresh install, once*
+  describes, in place of step 11's update — then checked as step 11.5 says.
+  From the next release on it updates from GitHub like everybody's.
 - **12.1's second half** (going back to `<previous>`, then the public road)
   waits for the second release.
