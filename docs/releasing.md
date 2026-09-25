@@ -140,16 +140,18 @@ Some suites are red before any release work starts. They must be known
 is old breakage, anything else is new, and new breakage stops the release.
 
 Measured on 2026-09-25, on the finished a0.3.2 tree before its commit, one
-suite at a time, with `TMPDIR` on the main disk:
+suite at a time, with `TMPDIR` on the main disk — and again the same day on
+the finished a0.4.0 tree (the same three reds, failing the same way; the
+counts below are the a0.4.0 tree's):
 
 | Suite | State | How it fails |
 |---|---|---|
-| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 1739 tests … OK (skipped=12)` |
-| `python3 tests/smoke.py` | green | `1838 passed, 0 failed, 21 skipped` |
+| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 1765 tests … OK (skipped=12)` |
+| `python3 tests/smoke.py` | green | `1842 passed, 0 failed, 21 skipped` |
 | `tests/decomposition.mjs` | **red** | `TimeoutError: locator.click: Timeout 7000ms exceeded` waiting for `.test-extra [data-character="想"]`: the mode bar's *Choose a kanji in the text.* (with `#novid` and `#captimes`) covers it — `tests/decomposition.mjs:119` |
 | `tests/exercises.mjs` | **red** | `page.evaluate: Error: a line of chunks points its arrows along the line` — `tests/exercises.mjs:91`. A second red hides behind it: the mocked editor page never shows `.ex-edit` (a 30 s timeout). Mending the first will not turn it green. |
 | `tests/studio_narrow.mjs` | **red** | `FAIL: from 280 to 1440 px the editor never scrolls sideways …`: at 730 and 740 px the page is 741 px wide and `ins-br` is off screen; its parts b and c never run |
-| the other 39 `tests/*.mjs` | green | `tests/activity.mjs` among them only on a second run, alone: see *Flaky* below |
+| the other 41 `tests/*.mjs` | green | `tests/activity.mjs` among them only on a second run, alone: see *Flaky* below |
 
 The three reds are old: they failed the same way on a0.3.0, before this
 version's work began (measured again on 2026-09-24).
@@ -360,7 +362,12 @@ through, and to prove that what is theirs survives it.
      **Settings → Network**;
    - a LaTeX theme of your own on **Settings → LaTeX drawings**, a document
      with a `::::latex` block drawn with it, and one TeX package got there
-     into `texmf/` (from a0.4.0 on).
+     into `texmf/` (from a0.4.0 on). A computer whose TeX has every package
+     the page lists has none missing to get: type `tikzmark` (9 kB) in the
+     page's *a TeX Live package* box, press **What it costs…**, then **Get
+     it**: a few seconds. (The main repository is a year ahead of a
+     distribution's TeX Live, and tlmgr refuses it; Parseh then falls back,
+     by itself, to the archive of the installed TeX Live's own year.)
 3. **Fingerprint what is yours**, in Parseh-test's folder (the readers, the
    library page and the phone's checksums are left out: an update rebuilds
    the first two and the server rewrites the others as it pleases):
