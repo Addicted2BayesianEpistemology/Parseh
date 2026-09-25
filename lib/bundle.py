@@ -1023,6 +1023,17 @@ def _open(data):
         raise BundleError("the bundle cannot be read (%s)" % e)
 
 
+def _reads(stamp, fmt):
+    """Is `stamp` one this Parseh reads -- its own, or any number before it
+    (a0.4.0 raised them for the latex block, TO-DO §8.39: what an older
+    Parseh wrote holds none, and is read as it always was)?"""
+    name, _, n = fmt.rpartition("/")
+    if not isinstance(stamp, str) or not stamp.startswith(name + "/"):
+        return False
+    have = stamp[len(name) + 1:]
+    return have.isdigit() and 1 <= int(have) <= int(n)
+
+
 def _manifest(z):
     """parseh-bundle.json, checked far enough to be believed about the rest."""
     try:
@@ -1947,13 +1958,3 @@ def main(argv=None):
 if __name__ == "__main__":
     sys.exit(main())
 
-
-def _reads(stamp, fmt):
-    """Is `stamp` one this Parseh reads -- its own, or any number before it
-    (a0.4.0 raised them for the latex block, TO-DO §8.39: what an older
-    Parseh wrote holds none, and is read as it always was)?"""
-    name, _, n = fmt.rpartition("/")
-    if not isinstance(stamp, str) or not stamp.startswith(name + "/"):
-        return False
-    have = stamp[len(name) + 1:]
-    return have.isdigit() and 1 <= int(have) <= int(n)

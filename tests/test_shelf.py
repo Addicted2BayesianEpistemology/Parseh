@@ -119,6 +119,25 @@ class Books(ShelfCase):
         self.assertTrue(out["ok"], out)
         self.assertEqual(self.names(far), ["mini-en"])
 
+    def test_the_door_run_as_a_script_reads_a_bundle_too(self):
+        """`python3 lib/bundle.py inspect <bundle>` is a door of its own, and
+        a helper defined BELOW its `if __name__ == "__main__"` line is not
+        there yet when main() runs: the a0.4.0 branch put `_reads` there, and
+        the door died with a NameError while every import of it worked --
+        which is all the other tests do."""
+        import subprocess
+        path, _ = self.pack()
+        with zipfile.ZipFile(path) as zf:
+            one = zf.read("mini-en-book.zip")
+        f = os.path.join(self.root, "mini-en-book.zip")
+        with open(f, "wb") as fh:
+            fh.write(one)
+        r = subprocess.run([sys.executable, os.path.join(REPO, "lib", "bundle.py"), "inspect", f],
+                           capture_output=True, text=True, timeout=120)
+        self.assertNotIn("NameError", r.stderr)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("mini-en", r.stdout)
+
     def test_book_backup_uses_linked_shape_without_recordings(self):
         book = os.path.join(self.root, "books", "english", "mini-en")
         path = os.path.join(book, "book.json")
