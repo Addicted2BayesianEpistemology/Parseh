@@ -15,6 +15,16 @@ change. A new version comes in from **Settings → Updating Parseh**
 ([Updating Parseh](../getting-started/updating.md)), which compiles this
 guide and rebuilds the readers by itself.
 
+## a0.4.0 — not yet released
+
+### Settings, one bar on every page
+
+Every page of **Settings** — Reading help, Network, Updating Parseh — starts
+with the same bar of doors, the page you are on marked, each door saying who
+may change what is behind it; moving from one page to another never needs
+the hub. **Network**, the oldest of them, is laid out as the others now
+([Other devices](../getting-started/other-devices.md)).
+
 ## a0.3.2 — 25 September 2026
 
 ### Updating Parseh from Settings

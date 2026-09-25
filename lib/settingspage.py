@@ -302,6 +302,9 @@ main.settings { max-width: 58rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
 .settings .sdoor b { display: block; font-size: 14.5px; }
 .settings .sdoor small { display: block; color: var(--dim); font-size: 12.5px; line-height: 1.35; }
 .settings .sdoor .gate { margin-top: 5px; }
+/* the line under a page of Settings: where its things are kept, and the guide */
+.settings .foot { color: var(--faint); font-size: 12.5px; line-height: 1.7; margin-top: 22px; }
+.settings .foot a { color: var(--dim); }
 """
 
 LOCK = ('<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" '
@@ -460,7 +463,11 @@ def network_page(state):
         'shown as it stands, and each part says who may change it: all of it decides who '
         'may reach %s, so all of it is changed on the computer %s runs on.</div>'
         % (esc(state.get("device") or "another device"), esc(_came_in(where)), NAME, NAME))
-    main = """<main class="settings">
+    # THE BAR OF DOORS FIRST, as on every page of Settings (the owner,
+    # 2026-09-25): Network was drawn before the bar existed and was the one
+    # page whose siblings could only be reached back through the hub
+    main = """<main class="settings net">
+%(doors)s
 <h1 class="idx">network</h1>
 <p class="sub">Who may reach this %(name)s, on which port, with which certificate.</p>
 %(notice)s
@@ -531,8 +538,12 @@ def network_page(state):
   %(save)s
   <span class="doing" data-doing></span>
 </div>
+<p class="foot">What is set here is kept on this computer, in <code>config/</code>, and an
+update keeps it. <a href="/guide/site/getting-started/other-devices.html">How another device
+reaches %(name)s</a>, in the guide.</p>
 </main>""" % {
         "name": NAME, "notice": notice, "code": code,
+        "doors": settings_doors("/settings/network/"),
         "vpn": _switch("vpn", "A VPN (Tailscale, and anything named below)",
                        "Your own devices, wherever they are. Trusted without a code: "
                        "a device is on your tailnet only because you put it there.",

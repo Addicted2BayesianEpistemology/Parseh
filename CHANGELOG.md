@@ -1,3 +1,7 @@
+## [a0.4.0] - unreleased
+### Changed
+- Every Settings page starts with the bar of its doors, Network included
+
 ## [a0.3.2] - 2026-09-25
 ### Added
 - Estimate the rest by the sound: boundaries placed in the pauses of the waveform, in books and videos
