@@ -34,6 +34,11 @@ import store   # noqa: E402
 tmp = Path(tempfile.mkdtemp(prefix="parseh-doclinks-test-"))
 store.LIB = tmp / "library"
 network.STORE = str(tmp / "config" / "network.json")
+# and the LaTeX drawings' themes, their drawings and their packages
+import latexthemes, latexdraw, texpackages
+latexthemes.STORE = str(tmp / "config" / "latex.json")
+latexdraw.DRAWN = str(tmp / "latex-drawn")
+texpackages.TREE = str(tmp / "texmf")
 import offline  # the phone-keeping memories (lib/offline.py) too
 offline.DIGESTS = str(tmp / "config" / "digests.json")
 offline.WHERES = str(tmp / "config" / "wheres.json")

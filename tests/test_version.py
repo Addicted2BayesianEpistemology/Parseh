@@ -288,6 +288,8 @@ class DataFormats(unittest.TestCase):
         import merge_parts
         import store
         import timestamp
+        import latexthemes
+        import texpackages
         got = version.formats()
         self.assertEqual(set(got), set(version.FORMATS))
         held = {"parseh-timings": timestamp.TIMINGS_FORMAT, "parseh-review": timestamp.REVIEW_FORMAT,
@@ -306,7 +308,10 @@ class DataFormats(unittest.TestCase):
                 "parseh-prefs": prefs.STORE_FORMAT, "parseh-network": network.STORE_FORMAT,
                 "parseh-languages": languages.STORE_FORMAT,
                 "parseh-digests": offline.DIGESTS_FORMAT, "parseh-wheres": offline.WHERES_FORMAT,
-                "parseh-updates": updater.STORE_FORMAT}
+                "parseh-updates": updater.STORE_FORMAT,
+                "parseh-latex": latexthemes.STORE_FORMAT,
+                "parseh-latex-theme": latexthemes.EXPORT_FORMAT,
+                "parseh-texmf": texpackages.MANIFEST_FORMAT}
         self.assertEqual(set(held) - set(got), set(), "held here, with no row")
         self.assertEqual(set(got) - set(held), set(), "a row this test does not hold")
         for fmt, value in held.items():
@@ -360,14 +365,16 @@ class DataFormats(unittest.TestCase):
             "clips/": ("parseh-clips",),
             "youtube/anki/": ("parseh-anki",),
             "config/": ("parseh-prefs", "parseh-network", "parseh-languages", "parseh-digests",
-                        "parseh-wheres", "parseh-updates"),
+                        "parseh-wheres", "parseh-updates", "parseh-latex"),
+            "texmf/": ("parseh-texmf",),
             "dict/": ("parseh-dictionary",),
             "corpus/": ("parseh-corpus",),
             "mt/": ("parseh-synonyms",),
             "components/": ("parseh-components",)}
     # the rows that are not a store but a file made to travel: each is read
     # back by its own stamp, whatever wrote it
-    TRAVEL = {"parseh-bundle", "parseh-shelf", "parseh-narration", "parseh-exercise-shelf"}
+    TRAVEL = {"parseh-bundle", "parseh-shelf", "parseh-narration", "parseh-exercise-shelf",
+              "parseh-latex-theme"}
 
     def test_every_place_a_person_s_things_are_kept_has_its_rows(self):
         import release
@@ -424,7 +431,7 @@ class DataFormats(unittest.TestCase):
             prefs.write_text(prefs.read_text(encoding="utf-8").replace("STORE_FORMAT = 1", "STORE_FORMAT = 2"),
                              encoding="utf-8")
             bundle = Path(td, "lib", "bundle.py")
-            bundle.write_text(bundle.read_text(encoding="utf-8").replace('"parseh-bundle/1"',
+            bundle.write_text(bundle.read_text(encoding="utf-8").replace('"parseh-bundle/2"',
                                                                          '"parseh-bundle/3"'),
                               encoding="utf-8")
             theirs = version.formats(td)

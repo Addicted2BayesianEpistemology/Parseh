@@ -48,7 +48,7 @@ import store
 import texgen
 
 DIR = Path(__file__).resolve().parent.parent.parent / "exercises"
-FORMAT = "parseh-exercise-deck/1"
+FORMAT = "parseh-exercise-deck/2"
 MANIFEST = "parseh-exercise-deck.json"
 # THE SHAPE OF schedule/<id>.json -- the srs state and the history of answers
 # (answer() writes it) -- as a number (lib/version.py FORMATS).  The deck's
@@ -1935,7 +1935,7 @@ def _entry_kind(name):
 # export leaves out (it is rebuilt from the manifest, under a new id where
 # the import asks for one) and a BACKUP must carry whole, because the id in
 # it is the identity everything else is matched on.
-SHELF_FORMAT = "parseh-exercise-shelf/1"
+SHELF_FORMAT = "parseh-exercise-shelf/2"
 SHELF_MANIFEST = "parseh-exercise-shelf.json"
 
 
@@ -2100,7 +2100,7 @@ def _read_manifest(reader, entries):
     manifest = reader.json(info)
     if not isinstance(manifest, dict):
         raise DeckError("the deck manifest (%s) is not readable" % MANIFEST)
-    if manifest.get("format") != FORMAT:
+    if not _reads(manifest.get("format"), FORMAT):
         raise DeckError("unsupported deck format %r (expected %s)"
                         % (manifest.get("format"), FORMAT))
     deck = manifest.get("deck")
@@ -2331,7 +2331,7 @@ def restore_zip(source, replace=False):
                             % SHELF_MANIFEST)
         reader = _Reader(zf)
         doc = reader.json(manifest)
-        if not isinstance(doc, dict) or doc.get("format") != SHELF_FORMAT:
+        if not isinstance(doc, dict) or not _reads(doc.get("format"), SHELF_FORMAT):
             raise DeckError("that zip is not an exercises backup this version reads")
         groups = {}
         for name in entries:
@@ -2425,3 +2425,14 @@ def _installed_summary(d, meta, imported):
             "settings": _settings(meta),
             "counts": {"total": imported, "new": 0, "learning": 0, "review": 0},
             "study": {"new": 0, "learning": 0, "review": 0}, "next_due": None}
+
+
+def _reads(stamp, fmt):
+    """Is `stamp` one this Parseh reads -- its own, or any number before it
+    (a0.4.0 raised them for the latex block, TO-DO §8.39: what an older
+    Parseh wrote holds none, and is read as it always was)?"""
+    name, _, n = fmt.rpartition("/")
+    if not isinstance(stamp, str) or not stamp.startswith(name + "/"):
+        return False
+    have = stamp[len(name) + 1:]
+    return have.isdigit() and 1 <= int(have) <= int(n)

@@ -214,7 +214,8 @@ except ImportError:
     import check_annotations as CA          # noqa: E402
 
 MANIFEST = "parseh-bundle.json"
-FORMAT = "parseh-bundle/1"      # bumped only when a reader of /1 would get it wrong
+FORMAT = "parseh-bundle/2"      # bumped only when a reader of /1 would get it wrong
+# (2: a0.4.0, a note may hold a latex block, TO-DO §8.39)
 # who wrote a bundle, exactly as the server announces itself (serve.py's
 # server_version): the name and the version of the Parseh doing the writing.
 # Bundles written before the version was kept in one place say "Parseh/1.0",
@@ -1040,7 +1041,7 @@ def _manifest(z):
         raise BundleError("%s is not JSON (%s)" % (MANIFEST, e))
     if not isinstance(man, dict):
         raise BundleError("%s must be a JSON object" % MANIFEST)
-    if man.get("format") != FORMAT:
+    if not _reads(man.get("format"), FORMAT):
         raise BundleError("this bundle says format %r; this toolbox reads %r"
                           % (man.get("format"), FORMAT))
     kind = man.get("kind")
@@ -1945,3 +1946,14 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def _reads(stamp, fmt):
+    """Is `stamp` one this Parseh reads -- its own, or any number before it
+    (a0.4.0 raised them for the latex block, TO-DO §8.39: what an older
+    Parseh wrote holds none, and is read as it always was)?"""
+    name, _, n = fmt.rpartition("/")
+    if not isinstance(stamp, str) or not stamp.startswith(name + "/"):
+        return False
+    have = stamp[len(name) + 1:]
+    return have.isdigit() and 1 <= int(have) <= int(n)

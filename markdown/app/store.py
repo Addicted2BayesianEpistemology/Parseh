@@ -53,7 +53,7 @@ LIB = ROOT / "library"
 # number is theirs too; the files carry none.  RAISE IT when the shape
 # changes so that the Parseh before this one would read a document wrong; a
 # key an older reader ignores is not such a change.
-LIBRARY_FORMAT = 1
+LIBRARY_FORMAT = 2
 
 # THE CLIP TRAY.  The book reader and the video player cut recordings and
 # pictures into one flat folder at the toolbox's root (lib/clips.py), under

@@ -2271,7 +2271,7 @@ async function endToEnd(browser) {
              ['parseh-exercise-deck.json', ...ids.map(i => `items/${i}.json`), ...ids.map(i => `schedule/${i}.json`)].sort()),
            'its entries: the manifest, 6 exercises, 6 schedules, nothing else');
     let manifest = JSON.parse(byName['parseh-exercise-deck.json']);
-    assert(manifest.format === 'parseh-exercise-deck/1' && manifest.scheduling === true && manifest.deck.name === 'Italian drills'
+    assert(manifest.format === 'parseh-exercise-deck/2' && manifest.scheduling === true && manifest.deck.name === 'Italian drills'
            && manifest.deck.lang === 'it' && manifest.deck.id === deckFile.id, 'the manifest says so (format, scheduling, the deck)');
     const matchSched = JSON.parse(byName[`schedule/${matchId}.json`]);
     assert(matchSched.state.state === 'review' && matchSched.history.map(h => h.rating).join() === 'again,easy', 'a schedule: state and history');

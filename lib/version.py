@@ -67,7 +67,7 @@ THE DATA'S OWN NUMBERS ARE NOT THE VERSION.  What Parseh writes to the disk
 has a shape, and a shape changes far less often than the software: a book
 written by a0.2.0 is read by a0.3.1 exactly as it stands.  Each shape has its
 own whole number, kept BESIDE THE CODE THAT WRITES IT -- the stamps written
-into the files themselves ("parseh-bundle/1" and its four siblings), and a
+into the files themselves ("parseh-bundle/<number>" and its siblings), and a
 plain number for every store written without a stamp (a book's book.json and
 its narration's timings.json, a deck's schedule, a video's waveform.json, the
 studio's documents, the Anki decks, the settings in config/, the databases
@@ -236,6 +236,15 @@ FORMATS = {
     "parseh-updates": ("lib/updater.py", "STORE_FORMAT",
                        "whether Parseh looks for a new version once a day, and what it last "
                        "found (config/updates.json)"),
+    # the LaTeX drawings (TO-DO §8.39, a0.4.0)
+    "parseh-latex": ("lib/latexthemes.py", "STORE_FORMAT",
+                     "the LaTeX themes, the default one and how long a drawing may take "
+                     "(config/latex.json)"),
+    "parseh-latex-theme": ("lib/latexthemes.py", "EXPORT_FORMAT",
+                           "a LaTeX theme exported to a file"),
+    "parseh-texmf": ("lib/texpackages.py", "MANIFEST_FORMAT",
+                     "the TeX packages Parseh got for the LaTeX drawings, and their list "
+                     "(texmf/)"),
     # a book's narration, as the aligner leaves it beside the book
     "parseh-timings": ("lib/timestamp.py", "TIMINGS_FORMAT",
                        "where each sentence of a book's narration begins and ends "

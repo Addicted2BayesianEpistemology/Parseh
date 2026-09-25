@@ -145,6 +145,11 @@ def serve_it(tmp, port, no_ffmpeg, tray):
     # settings nor shut his Wi-Fi door by running
     import network
     network.STORE = str(tmp / "config" / "network.json")
+    # and the LaTeX drawings' themes, their drawings and their packages
+    import latexthemes, latexdraw, texpackages
+    latexthemes.STORE = str(tmp / "config" / "latex.json")
+    latexdraw.DRAWN = str(tmp / "latex-drawn")
+    texpackages.TREE = str(tmp / "texmf")
     # and the two memories of what a phone may keep (lib/offline.py): the
     # checksums of files by absolute path, and where each kept thing lives.
     # Left pointing at the checkout's config/, every suite booted through

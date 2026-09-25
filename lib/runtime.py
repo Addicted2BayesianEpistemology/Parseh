@@ -86,6 +86,9 @@ ENV_TOOLS = (
 # (the program, what it is for, where it comes from): never the environment's
 SYSTEM_TOOLS = (
     ("lualatex", "building a book's PDF", "TeX Live; ./install.sh --pdf adds the packages it lacks"),
+    ("xelatex", "building a studio document's PDF, and the LaTeX drawings of a theme that asks "
+                "for it", "TeX Live or MiKTeX"),
+    ("pdflatex", "the LaTeX drawings of a theme that asks for it", "TeX Live or MiKTeX"),
     ("ffmpeg", "snapping a narration's timings to its silences, drawing the picture of the sound "
                "that \"estimate the rest by the sound\" reads, and cutting a card's recording out of "
                "a narration or a film", "the system's package manager"),

@@ -35,7 +35,7 @@ import books as booklib
 import bundle
 
 MANIFEST = "parseh-shelf.json"
-FORMAT = "parseh-shelf/1"
+FORMAT = "parseh-shelf/2"
 KINDS = ("book", "video")
 
 # A shelf is bigger than a bundle in every direction, and these are the only
@@ -156,7 +156,7 @@ def restore(kind, source, replace=False, root=None):
             doc = json.loads(zf.read(names[MANIFEST]).decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             raise ShelfError("that backup's %s is not readable" % MANIFEST)
-        if not isinstance(doc, dict) or doc.get("format") != FORMAT:
+        if not isinstance(doc, dict) or not _reads(doc.get("format"), FORMAT):
             raise ShelfError("that zip is not a shelf backup this version reads")
         if doc.get("kind") != kind:
             raise ShelfError("that is a backup of %ss; this is where %ss go"
@@ -197,3 +197,14 @@ def restore(kind, source, replace=False, root=None):
             if out.get("dir"):
                 dirs.append(out["dir"])
         return {"restored": restored, "kept": kept, "warnings": warnings, "dirs": dirs}
+
+
+def _reads(stamp, fmt):
+    """Is `stamp` one this Parseh reads -- its own, or any number before it
+    (a0.4.0 raised them for the latex block, TO-DO §8.39: what an older
+    Parseh wrote holds none, and is read as it always was)?"""
+    name, _, n = fmt.rpartition("/")
+    if not isinstance(stamp, str) or not stamp.startswith(name + "/"):
+        return False
+    have = stamp[len(name) + 1:]
+    return have.isdigit() and 1 <= int(have) <= int(n)

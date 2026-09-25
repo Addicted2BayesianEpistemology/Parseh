@@ -565,6 +565,8 @@ def wizard():
     say("")
     say("  Optional tools (only for rebuilding a PDF, re-aligning a narration, or cutting a card's recording):")
     for tool, what in (("lualatex", "rebuilding a book's PDF"),
+                       ("xelatex", "a studio document's PDF, and the LaTeX drawings"),
+                       ("pdflatex", "the LaTeX drawings of a theme that asks for it"),
                        ("ffmpeg", "snapping timings to silences, cutting a card's recording"),
                        ("pdftotext", "re-extracting a book's source")):
         (good if shutil.which(tool) else skip)("%s -- %s" % (tool, what))
