@@ -1052,47 +1052,59 @@ function initEdit() {
     openLatexOverlay({backTo: src, onSave: text => insertStandaloneLine(text)});
   });
   /* ✎ on a drawing in the preview reopens its block in the sheet, and the
-     edit goes back over the lines it came from (the fence to its `::::`) */
+     edit goes back over the lines it came from (the fence to its `::::`).
+     The button is the RTL pencil's (sheet.css keeps it `display: none`, so it
+     is shown and hidden through `display`, as bindTlEditCloud does: setting
+     `hidden` never showed it, and nothing ever hid it again), and it is put
+     where the drawing is on the screen -- so a scroll of the preview hides
+     it rather than leave it hanging where the drawing was. */
   (function bindLatexPencil() {
-    let btn = null, target = null;
-    sheet.addEventListener("mouseover", e => {
-      const el = e.target.closest && e.target.closest("[data-latex-src][data-src-line]");
-      if (!el) return;
+    let btn = null, target = null, hideTimer = null;
+    const hide = () => { clearTimeout(hideTimer); if (btn) btn.style.display = "none"; target = null; };
+    const scheduleHide = () => { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 260); };
+    function reopen(el) {
+      const at = +el.dataset.srcLine;
+      const lines = src.value.split("\n");
+      let end = at + 1;
+      while (end < lines.length && lines[end].trim() !== "::::") end++;
+      const w = el.dataset.width ? +el.dataset.width : null;
+      openLatexOverlay({backTo: src, okLabel: "Save", tex: el.dataset.latexSrc,
+                        theme: el.dataset.latexTheme,
+                        layout: {width: w, align: el.dataset.align || "center",
+                                 offset: +el.dataset.offset || 0},
+                        onSave: text => {
+                          pushHistory(true);
+                          const cur = src.value.split("\n");
+                          cur.splice(at, Math.min(end, cur.length - 1) - at + 1, ...text.split("\n"));
+                          src.value = cur.join("\n");
+                          dirty = true;
+                          pushHistory(true);
+                          debouncedPreview();
+                        }});
+    }
+    function build() {
+      btn = document.createElement("button");
+      btn.type = "button"; btn.className = "rtl-edit-btn"; btn.textContent = "✎";
+      btn.title = "Edit this drawing";
+      btn.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+      btn.addEventListener("mouseleave", scheduleHide);
+      btn.addEventListener("click", () => { const el = target; hide(); if (el) reopen(el); });
+      document.body.appendChild(btn);
+    }
+    function show(el) {
+      if (!btn) build();
+      clearTimeout(hideTimer);
       target = el;
-      if (!btn) {
-        btn = document.createElement("button");
-        btn.type = "button"; btn.className = "rtl-edit-btn"; btn.textContent = "✎";
-        btn.title = "Edit this drawing";
-        btn.addEventListener("click", () => {
-          if (!target) return;
-          const at = +target.dataset.srcLine;
-          const lines = src.value.split("\n");
-          let end = at + 1;
-          while (end < lines.length && lines[end].trim() !== "::::") end++;
-          const w = target.dataset.width ? +target.dataset.width : null;
-          openLatexOverlay({backTo: src, okLabel: "Save", tex: target.dataset.latexSrc,
-                            theme: target.dataset.latexTheme,
-                            layout: {width: w, align: target.dataset.align || "center",
-                                     offset: +target.dataset.offset || 0},
-                            onSave: text => {
-                              pushHistory(true);
-                              const cur = src.value.split("\n");
-                              cur.splice(at, Math.min(end, cur.length - 1) - at + 1, ...text.split("\n"));
-                              src.value = cur.join("\n");
-                              dirty = true;
-                              pushHistory(true);
-                              debouncedPreview();
-                            }});
-        });
-        document.body.appendChild(btn);
-      }
-      const r = el.getBoundingClientRect();
+      btn.style.display = "block";
       btn.style.position = "fixed";
-      btn.style.top = Math.max(0, r.top + 4) + "px";
-      btn.style.left = Math.max(0, r.right - 30) + "px";
-      btn.style.zIndex = 50;
-      btn.hidden = false;
-    });
+      const r = el.getBoundingClientRect();
+      btn.style.top = Math.max(4, r.top + 4) + "px";
+      btn.style.left = Math.max(4, r.right - btn.offsetWidth - 4) + "px";
+    }
+    const drawing = e => e.target.closest && e.target.closest("[data-latex-src][data-src-line]");
+    sheet.addEventListener("mouseover", e => { const el = drawing(e); if (el) show(el); });
+    sheet.addEventListener("mouseout", e => { if (drawing(e)) scheduleHide(); });
+    window.addEventListener("scroll", hide, true);
   })();
 
   const btnTlEditor = $("#btn-tl-editor");
