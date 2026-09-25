@@ -269,6 +269,31 @@ def entries_and_frames(pdf, prompt="Match them."):
     return out
 
 
+def card_frames(pdf):
+    """Every flashcard printed, as the PDF draws it: (page number, its
+    frame -- a stroked path wider than half the page, with the curves of its
+    round corners --, its fold line -- a dashed line inside it --, the
+    frame's colour, the letters inside the frame as (character, bbox))."""
+    out = []
+    with pymupdf.open(str(pdf)) as d:
+        for page in d:
+            paths = page.get_drawings()
+            glyphs = [(c["c"], pymupdf.Rect(c["bbox"])) for b in page.get_text("rawdict")["blocks"]
+                      for l in b.get("lines", []) for s in l["spans"] for c in s["chars"] if c["c"].strip()]
+            for p in paths:
+                r = p["rect"]
+                if not (p.get("color") and r.width > page.rect.width / 2
+                        and any(item[0] == "c" for item in p["items"])):
+                    continue
+                folds = [q["rect"] for q in paths if q.get("dashes") not in (None, "[] 0")
+                         and q["rect"].width < 2 and r.x0 < q["rect"].x0 < r.x1
+                         and r.y0 - 2 <= q["rect"].y0 and q["rect"].y1 <= r.y1 + 2]
+                if len(folds) == 1:
+                    out.append((page.number, r, folds[0], p["color"],
+                                [(c, g) for c, g in glyphs if r.contains(g.tl) and r.contains(g.br)]))
+    return out
+
+
 def image_samples(pdf):
     with pymupdf.open(str(pdf)) as d:
         for page in d:
@@ -306,6 +331,7 @@ class PrintedPdf(unittest.TestCase):
                 ("de", cls.dir / "de", ()), ("de17", cls.dir / "de", ("--size", "17")),
                 ("de20", cls.dir / "de", ("--size", "20")),
                 ("audio17", cls.dir / "audio", ("--size", "17")),
+                ("audio20", cls.dir / "audio", ("--size", "20")),
                 ("tate20", cls.dir / "tate", ("--size", "20")),
                 ("lemma20", cls.dir / "lemma", ("--size", "20"))):
             out = cls.dir / name
@@ -383,27 +409,71 @@ class PrintedPdf(unittest.TestCase):
         self.assertTrue(any(verify._script_only("\u0622\u0631\u06cc", fa) in l for l in lines),
                         "the choice under the passage")
 
-    def test_no_piece_of_a_split_exercise_is_taller_than_its_page(self):
-        # the audio fixture's first flashcard is taller than a page at 17 pt
-        # as it stands, so it takes the path that splits it, and fits its
-        # page in one piece only by shrinking its glue: packed again at its
-        # natural height it was 26 pt too tall, its frame over the number
-        out = self.built("audio17")
-        log = (out / "main.log").read_text(encoding="utf-8", errors="replace")
-        self.assertEqual([], re.findall(r"Overfull \\vbox.*", log))
-        with pymupdf.open(str(out / "main.pdf")) as d:
-            tall = 0
-            for page in d:
-                number = [s["bbox"] for b in page.get_text("dict")["blocks"] for l in b.get("lines", [])
-                          for s in l["spans"] if s["text"].strip() == str(page.number + 1)
-                          and abs((s["bbox"][0] + s["bbox"][2]) / 2 - page.rect.width / 2) < 10]
-                self.assertEqual(1, len(number), page.number)
-                panels = [p["rect"] for p in page.get_drawings()
-                          if p.get("fill") and abs(p["fill"][0] - 0.98) < 0.005]
-                tall += sum(r.height > page.rect.height / 2 for r in panels)
-                for r in panels:
-                    self.assertLess(r.y1, number[0][1], page.number)
-            self.assertEqual(1, tall)                        # the card, a page high
+    def test_a_flashcard_is_a_card_to_cut_out_and_fold(self):
+        # a frame with round corners, the front in its left half and the
+        # back in its right, and a dashed line exactly between them, from
+        # the frame's top to its foot: cut out and folded on it, the two
+        # halves are back to back.  Nothing is set across the fold.
+        for name in ("colour", "mono", "large", "both"):
+            pdf = self.built(name) / "main.pdf"
+            cards = card_frames(pdf)
+            self.assertEqual(1, len(cards), name)            # the document's one card
+            _n, frame, fold, colour, glyphs = cards[0]
+            self.assertAlmostEqual((frame.x0 + frame.x1) / 2, fold.x0 + fold.width / 2, delta=0.05, msg=name)
+            self.assertAlmostEqual(frame.y0, fold.y0, delta=1, msg=name)
+            self.assertAlmostEqual(frame.y1, fold.y1, delta=1, msg=name)
+            middle = fold.x0 + fold.width / 2
+            self.assertEqual([], [c for c, r in glyphs if r.x0 < middle < r.x1], name)
+            self.assertTrue(glyphs, name)
+            front = "".join(c for c, r in glyphs if r.x1 <= middle)
+            back = "".join(c for c, r in glyphs if r.x0 >= middle)
+            self.assertIn("book", back, name)
+            self.assertNotIn("book", front, name)
+            self.assertTrue(any(arabic(c) for c in front) and not any(arabic(c) for c in back), name)
+            # at least three fifths of a half as tall: an index card, folded
+            self.assertGreaterEqual(frame.height, 0.6 * frame.width / 2 - 1, name)
+            black = all(abs(x) < 1e-6 for x in colour)
+            self.assertEqual(name in ("mono", "both"), black, (name, colour))
+
+    def test_a_card_taller_than_a_page_is_made_to_fit_its_page_under_its_heading(self):
+        # the audio fixture's first card is taller than a page at 17 pt and
+        # at 20: a card is never split between pages, since two pieces could
+        # not be folded -- it is made smaller instead, until it fits one page
+        # with the heading it follows (a heading goes where its card goes),
+        # its frame above the page number and nothing across its fold
+        for name in ("audio17", "audio20"):
+            out = self.built(name)
+            log = (out / "main.log").read_text(encoding="utf-8", errors="replace")
+            self.assertEqual([], re.findall(r"Overfull \\[hv]box.*", log), name)
+            cards = card_frames(out / "main.pdf")
+            self.assertEqual(2, len(cards), name)
+            with pymupdf.open(str(out / "main.pdf")) as d:
+                for n, frame, fold, _colour, glyphs in cards:
+                    page = d[n]
+                    number = [s["bbox"] for b in page.get_text("dict")["blocks"] for l in b.get("lines", [])
+                              for s in l["spans"] if s["text"].strip() == str(n + 1)
+                              and abs((s["bbox"][0] + s["bbox"][2]) / 2 - page.rect.width / 2) < 10]
+                    self.assertEqual(1, len(number), (name, n))
+                    self.assertLess(frame.y1, number[0][1], (name, n))
+                    middle = fold.x0 + fold.width / 2
+                    self.assertEqual([], [c for c, r in glyphs if r.x0 < middle < r.x1], (name, n))
+                n, tall = cards[0][0], cards[0][1]
+                self.assertGreater(tall.height, d[n].rect.height / 2, name)
+                heading = d[n].search_for("A card made of blocks")
+                self.assertTrue(heading, name)
+                self.assertLess(heading[0].y1, tall.y0, name)
+        # the back's علیک سلام wraps in its half, beside the front's lines:
+        # the build verifies it (built() read N/N) by reading the halves as
+        # columns, and without that it was reported missing
+        import verify
+        out = self.built("audio20")
+        real = verify.side_by_side
+        verify.side_by_side = lambda lines: []
+        try:
+            _ok, without = verify.check(str(out / "main.pdf"), str(out / "main.tex"))
+        finally:
+            verify.side_by_side = real
+        self.assertEqual([("علیک سلام", "missing")], without)
 
     def test_a_lemma_heads_transliteration_stays_on_the_paper_in_large_print(self):
         # a one-word IPA 112 pt wider than its column at 20 pt ran off the

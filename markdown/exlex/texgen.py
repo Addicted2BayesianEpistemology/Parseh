@@ -1226,7 +1226,9 @@ def run_is_long(run, size=DEFAULT_PRINT_SIZE):
 
 
 def _fa_macro(run, force_breakable=False):
-    breakable = force_breakable or run_is_long(run, print_size())
+    # on a flashcard every run may break: half of a card is a narrow column,
+    # as a matching exercise's frame is, and nothing may cross its fold
+    breakable = force_breakable or _CARD["on"] or run_is_long(run, print_size())
     if is_latin_target():
         # a Latin run may carry TeX specials (an apostrophe is fine, a
         # per-cent sign is not); the scripts never do
@@ -1533,8 +1535,10 @@ def _render_table(b):
     # otherwise yield a colspec narrower than the emitted cells, and
     # xelatex dies with "Extra alignment tab" (halt-on-error -> no PDF).
     colspec = "@{}" + " ".join((b["align"] + ["l"] * ncols)[:ncols]) + "@{}"
-    # in large print a table too wide for the line is scaled to it (_FIT_TEX)
-    fit = print_size() != DEFAULT_PRINT_SIZE
+    # in large print a table too wide for the line is scaled to it (_FIT_TEX),
+    # and on a flashcard at every size: half a card is narrow, and a table
+    # must not cross the line the card is folded on
+    fit = print_size() != DEFAULT_PRINT_SIZE or _CARD["on"]
     out = ["\\begin{center}", size,
            "\\setlength{\\tabcolsep}{5pt}",
            "\\renewcommand{\\arraystretch}{1.45}",
@@ -1838,36 +1842,151 @@ _EX_TEX_LABELS = {
 # label on the card, never a numbered section of the document
 _CARD = ThreadDict(on=False)
 
+# A FLASHCARD ON PAPER IS A CARD TO CUT OUT AND FOLD (\expapercard, in
+# CARD_PAPER): its front in the left half of a frame, its back in the right,
+# each side drawn as the page's card draws it (htmlgen._render_exercise_
+# flashcard) -- the picture, the recording, then the fields one under
+# another in the middle of the half, at their sizes and in their shades,
+# the main ones bold.  The fields a card's kind shows, and which of them are
+# secondary (88 per cent and grey, where the main ones are 120 and ink):
+_CARD_SECONDARY = ("front-secondary", "back-secondary", "reading", "transliteration",
+                   "context", "notes", "source", "opposite-reading",
+                   "opposite-transliteration")
 
-def _card_side(cards, keys):
-    """One side of a jolly card on paper (`cards` from mdparser.card_fields,
-    read the same for both renderers): its fields `a / b` inline, as they
-    always were, when every one reads inline; otherwise each field on its
-    own, blocks rendered as on the card."""
-    parts = [cards[k] for k in keys if cards.get(k)]
-    if all(how == "inline" for how, _, _ in parts):
-        return " " + inline(" / ".join(text for _, text, _ in parts))
-    out = []
+
+def _card_look(f, key, rich=False):
+    """A field's size and colour on paper, read exactly as the page's card
+    reads them (htmlgen._card_style): (per cent of the text round the card,
+    the TeX that sets its colour, or nothing for the ink).  A field of
+    blocks is at the page's size unless a size is written for it.  In black
+    and white every shade is the ink."""
+    secondary = key in _CARD_SECONDARY
+    default = 88 if secondary else 120
+    try:
+        size = max(50, min(250, int(f.get(key + "-size", default) or default)))
+    except ValueError:
+        size = default
+    if rich and size == default:
+        size = 100
+    if is_mono():
+        return size, ""
+    shade = (f.get(key + "-shade") or ("subdued" if secondary else "primary")).lower()
+    colour = {"subdued": "\\color{graytx}", "muted": "\\color{graytx!72}",
+              "accent": "\\color{accent}"}.get(shade, "")
+    if not colour and re.fullmatch(r"#[0-9a-f]{6}", shade):
+        colour = "\\color[HTML]{%s}" % shade[1:].upper()
+    return size, colour
+
+
+def _card_line(f, key, text, primary=False):
+    """A field of one paragraph -- a line, or several (⏎) -- in the middle of
+    its half.  Fitted to the half (\\exlexfitpar): nothing on a card crosses
+    the line it is folded on, at any print size."""
+    if not text:
+        return ""
+    size, colour = _card_look(f, key)
+    return ("\\exlexfitpar{\\linewidth}{\\expapercardsize{%d}\\centering"
+            "\\let\\newline\\expapercardcr\\hspace{0pt}{%s%s %s}}"
+            % (size, colour, "\\bfseries" if primary else "",
+               _ex_inline(text, force_breakable=True)))
+
+
+def _card_blocks(f, key, blocks, primary=False):
+    """A Jolly field that is blocks, drawn as the page draws them (a heading
+    a label on the card, _CARD).  Several of them -- a table, a list, a box,
+    a figure -- are laid out from the start of the line at the page's
+    weight, as the page's card lays them out.  One paragraph of the page's
+    own kind is the card's own line still: a target-language block in the
+    middle of the half, as the screen puts it, and a line of nothing but the
+    target script without the indent and the size it has on a page."""
+    import mdparser     # exlex's parser imports this module: not at the top
+    rich = mdparser.card_field_is_rich(blocks)
+    size, colour = _card_look(f, key, rich)
     was, _CARD["on"] = _CARD["on"], True
     try:
-        for how, content, _ in parts:
-            if how == "inline":
-                out.append(inline(content))
-            else:
-                out.append(render_blocks(content, inside_box=True))
+        txt = "" if rich else blocks[0]["text"].strip()
+        if rich or LA_RE.fullmatch(txt):
+            inner = render_blocks(blocks, inside_box=True)
+        elif _is_pure_fa_paragraph(txt):
+            inner = "\\pel{%s}" % txt
+        else:
+            inner = render_blocks(blocks, inside_box=True)
+            if inner:
+                inner = ("\\let\\raggedleft\\centering\\let\\raggedright\\centering"
+                         "\\let\\newline\\expapercardcr " + inner)
     finally:
         _CARD["on"] = was
-    return "\\par\n" + "\\par\n".join(x for x in out if x)
+    if not inner:
+        return ""
+    if rich:
+        return "{\\raggedright\\expapercardsize{%d}%s %s\\par}" % (size, colour, inner)
+    return "{\\expapercardsize{%d}%s%s %s\\par}" % (
+        size, colour, "\\bfseries" if primary else "", inner)
+
+
+def _card_jolly(f, key, field, primary=False):
+    """A Jolly field (mdparser.card_field, read the same for both
+    renderers), or nothing when it is empty."""
+    if field is None:
+        return ""
+    how, content, _notes = field
+    if how == "inline":
+        return _card_line(f, key, content, primary)
+    return _card_blocks(f, key, content, primary)
+
+
+def _card_picture(f, key):
+    """`front-image: images/cat.png`: the picture, never larger than it is,
+    nor wider than its half or taller than the page's card lets it be
+    (\\expapercardpic).  An SVG is read through the build's .svg.pdf twin."""
+    import mdparser
+    path = f.get(key, "")
+    if not path or not mdparser.IMAGE_PATH_RE.match(path):
+        return ""
+    if path.lower().endswith(".svg"):
+        path += ".pdf"
+    return "\\expapercardpic{%s}" % path
 
 
 def _card_audio(f, key):
-    """`\\audioX~word.mp3` before a vocab or opposites side's text."""
+    """`front-audio: audio/word.mp3`: a recording cannot be played from
+    paper, so the side says it has one -- ♪ and its file's name, as a
+    recording's card does."""
     import mdparser
     path = f.get(key, "")
     if not path or not mdparser.AUDIO_PATH_RE.match(path):
         return ""
-    return ("{\\color{accent}\\audioX}~{\\footnotesize\\color{graytx}%s}\\quad "
+    return ("{\\footnotesize{\\color{accent}\\audioX}~{\\color{graytx}%s}\\par}"
             % escape_latin(path.split("/", 1)[1]))
+
+
+def _card_sides(f, kind, cards):
+    """(front, back) of a card on paper: the pieces of each side, the
+    picture, the recording, then the fields, as the page shows them --
+    turned round by `direction: reverse`, since the left half is the side
+    the card shows first."""
+    if kind == "jolly":
+        front = [_card_jolly(f, "front-primary", cards.get("front-primary"), True),
+                 _card_jolly(f, "front-secondary", cards.get("front-secondary"))]
+        back = [_card_jolly(f, "back-primary", cards.get("back-primary"), True),
+                _card_jolly(f, "back-secondary", cards.get("back-secondary"))]
+    else:
+        line = lambda key, primary=False: _card_line(f, key, f.get(key, ""), primary)
+        if kind == "opposites":
+            front = [line("target", True), line("reading"), line("transliteration")]
+            back = [line("opposite", True), line("opposite-reading"),
+                    line("opposite-transliteration"), line("notes"), line("source")]
+        else:
+            front = ([line("front", True)] if f.get("front") else
+                     [line("target", True), line("reading"), line("transliteration")])
+            back = ([line("back", True)] if f.get("back") else
+                    [line("meaning", True), line("context"), line("notes"), line("source")])
+        front = [_card_picture(f, "front-image"), _card_audio(f, "front-audio")] + front
+        back = [_card_picture(f, "back-image"), _card_audio(f, "back-audio")] + back
+    if (f.get("direction") or "forward").lower() == "reverse":
+        front, back = back, front
+    side = lambda parts: "\\expapercardgap\n".join(p for p in parts if p)
+    return side(front), side(back)
 
 
 # A BLANK IS DRAWN OVER THE SET SENTENCE, and a formula is part of that
@@ -2252,13 +2371,145 @@ EXERCISE_PAPER = r"""% ----------------------- EXERCISES ON PAPER --------------
   \makebox[\expapermarks][r]{#2}\par\vspace{1.2ex}}"""
 
 
-def exercise_paper_tex():
+CARD_PAPER = r"""% ----------------------- FLASHCARDS ON PAPER ----------------------
+% A flashcard is printed as a card to cut out and fold: a frame with round
+% corners -- the scissors on it say it is cut along -- its front in the left
+% half and its back in the right, and a dashed line exactly between them to
+% fold it on.  Folded, the two halves are back to back, a card in the hand,
+% both faces the right way up.  Each half holds its side as the page's card
+% draws it, in the middle of the half (texgen._card_sides); the card is as
+% tall as its taller side, and never less than three fifths of a half's
+% width, the shape of an index card.  The label and the prompt stand above
+% the frame and never part from it, and a card is never split between two
+% pages, which could not be folded: one taller than a page is made smaller,
+% until it fits one.
+%
+% The frame is drawn by TikZ; a TeX without it (no pgf) draws a square one.
+\IfFileExists{tikz.sty}{\usepackage{tikz}}{}
+\newlength\expapercardwd
+\newlength\expapercardhalf
+\newlength\expapercardht
+\newlength\expapercardpad
+\newlength\expapercardfs
+\newlength\expapercardroom
+\newlength\expapercardrule
+\setlength\expapercardrule{%%CARDRULE%%}
+\newsavebox\expapercardfront
+\newsavebox\expapercardback
+\newsavebox\expapercardpicbox
+\newbox\expapercardbox
+\ifdefined\symfont\newcommand\expapercutX{{\symfont ✂}}\else\newcommand\expapercutX{}\fi
+\makeatletter
+% a field's size, #1 per cent of the text round the card
+\newcommand\expapercardsize[1]{%
+  \setlength\expapercardfs{\dimexpr\f@size pt*#1/100\relax}%
+  \fontsize{\expapercardfs}{1.25\expapercardfs}\selectfont}
+\newcommand\expapercardgap{\par\vskip.35em\relax}
+% a line break (⏎) in the middle of a half: the \hfil a \newline ends its
+% line with would push the line off the middle
+\newcommand\expapercardcr{\unskip\break}
+% a card's picture: its own size, or smaller to fit its half and 8em in
+% height -- never larger; a file the build does not have is named instead
+\newcommand\expapercardpic[1]{%
+  \IfFileExists{#1}{%
+    \sbox\expapercardpicbox{\includegraphics{#1}}%
+    \ifdim\wd\expapercardpicbox>\linewidth
+      \sbox\expapercardpicbox{\includegraphics[width=\linewidth,height=8em,keepaspectratio]{#1}}%
+    \else\ifdim\ht\expapercardpicbox>8em
+      \sbox\expapercardpicbox{\includegraphics[width=\linewidth,height=8em,keepaspectratio]{#1}}%
+    \fi\fi
+    \usebox\expapercardpicbox}%
+   {{\footnotesize\color{graytx}\detokenize{#1}}}\par}
+% one side, set in its half less the card's padding, each paragraph centred
+\newcommand\expapercardside[2]{%
+  \sbox#1{\begin{minipage}{\dimexpr\expapercardhalf-2\expapercardpad\relax}%
+    \centering#2\par\end{minipage}}}
+% a half: its side in the middle of it, across and down
+\newcommand\expapercardhalfbox[1]{%
+  \vbox to\expapercardht{\vss\hbox to\expapercardhalf{\hss\usebox#1\hss}\vss}}
+% the frame, drawn from the card's foot on the left, where the pen stands
+\@ifpackageloaded{tikz}{%
+  \newcommand\expapercardframe{%
+    \begin{tikzpicture}[overlay]
+      \draw[line width=\expapercardrule, draw=accentlt, fill=white, rounded corners=.9em]
+        (0,0) rectangle (\expapercardwd,\expapercardht);
+      \draw[line width=.75\expapercardrule, draw=graytx,
+            dash pattern=on 5\expapercardrule off 3.5\expapercardrule]
+        (\expapercardhalf,0) -- (\expapercardhalf,\expapercardht);
+      \node[fill=white, inner sep=.12em, text=graytx]
+        at (2.4em,\expapercardht) {\Large\expapercutX};
+    \end{tikzpicture}}%
+}{%
+  \newcommand\expapercardframe{\rlap{\color{accentlt}%
+    \hskip-.5\expapercardrule
+    \vrule width\dimexpr\expapercardwd+\expapercardrule\relax
+      height.5\expapercardrule depth.5\expapercardrule
+    \hskip-\dimexpr\expapercardwd+\expapercardrule\relax
+    \vrule width\dimexpr\expapercardwd+\expapercardrule\relax
+      height\dimexpr\expapercardht+.5\expapercardrule\relax
+      depth-\dimexpr\expapercardht-.5\expapercardrule\relax
+    \hskip-\dimexpr\expapercardwd+\expapercardrule\relax
+    \vrule width\expapercardrule
+      height\dimexpr\expapercardht+.5\expapercardrule\relax depth.5\expapercardrule
+    \hskip\dimexpr\expapercardwd-\expapercardrule\relax
+    \vrule width\expapercardrule
+      height\dimexpr\expapercardht+.5\expapercardrule\relax depth.5\expapercardrule
+    \hskip-\dimexpr\expapercardhalf+.875\expapercardrule\relax
+    {\color{graytx}\vbox to\expapercardht{\cleaders\vbox to 8.5\expapercardrule{\vss
+      \hrule width.75\expapercardrule height 5\expapercardrule\vss}\vfill}}}}%
+}
+% \expapercard{above it}{front}{back}
+\newcommand\expapercard[3]{%
+  \par
+  \setlength\expapercardwd{\dimexpr\linewidth-\expapercardrule\relax}%
+  \setlength\expapercardhalf{.5\expapercardwd}%
+  \setlength\expapercardpad{1.2em}%
+  \expapercardside\expapercardfront{#2}%
+  \expapercardside\expapercardback{#3}%
+  \setlength\expapercardht{\dimexpr\ht\expapercardfront+\dp\expapercardfront\relax}%
+  \ifdim\dimexpr\ht\expapercardback+\dp\expapercardback\relax>\expapercardht
+    \setlength\expapercardht{\dimexpr\ht\expapercardback+\dp\expapercardback\relax}%
+  \fi
+  \addtolength\expapercardht{2\expapercardpad}%
+  \ifdim\expapercardht<.6\expapercardhalf \setlength\expapercardht{.6\expapercardhalf}\fi
+  \setbox\expapercardbox\vbox{\hsize\linewidth\@parboxrestore
+    #1\par\vskip1.2ex
+    \hbox{\hskip.5\expapercardrule\expapercardframe
+      \expapercardhalfbox\expapercardfront\expapercardhalfbox\expapercardback}%
+    \vskip.5\expapercardrule}%
+  % the most a card may be: a page less a line -- and straight after a
+  % heading, which goes wherever the card goes, a page less five lines (the
+  % two go over together), or what is left of this page when that is more
+  \setlength\expapercardroom{\dimexpr\textheight-\baselineskip\relax}%
+  \ifinner\else\if@nobreak
+    \setlength\expapercardroom{\dimexpr\textheight-5\baselineskip\relax}%
+    \ifdim\pagegoal<\maxdimen
+      \ifdim\dimexpr\pagegoal-\pagetotal-\pagedepth-\baselineskip\relax>\expapercardroom
+        \setlength\expapercardroom{\dimexpr\pagegoal-\pagetotal-\pagedepth-\baselineskip\relax}%
+      \fi
+    \fi
+  \fi\fi
+  \ifdim\dimexpr\ht\expapercardbox+\dp\expapercardbox\relax>\expapercardroom
+    \setbox\expapercardbox\hbox to\linewidth{\hss
+      \resizebox{!}{\expapercardroom}{\box\expapercardbox}\hss}%
+  \fi
+  \noindent\box\expapercardbox\par}
+\makeatother"""
+
+
+def exercise_paper_tex(cards=False):
     """The %%EXERCISEPAPER%% block, its writing lines as heavy as the print
     size's blanks, and \\exlexfitpar first unless large print has already
-    defined it (print_options_tex)."""
+    defined it (print_options_tex); with `cards`, the flashcards' own
+    (CARD_PAPER), whose frame is twice as heavy as the blanks."""
     paper = EXERCISE_PAPER.replace("%%RULE%%", rule_width())
     if print_size() == DEFAULT_PRINT_SIZE:
         paper = _FITPAR_TEX + "\n" + paper
+    if cards:
+        if print_size() == DEFAULT_PRINT_SIZE:
+            paper += "\n" + _FIT_TEX          # a card's tables, at every size
+        paper += "\n" + CARD_PAPER.replace(
+            "%%CARDRULE%%", "%.1fpt" % (0.8 * print_size() / DEFAULT_PRINT_SIZE))
     return paper
 
 
@@ -2326,26 +2577,22 @@ def _render_exercise(b):
     prompt = _exercise_prompt(f["prompt"]) if f.get("prompt") else ""
     if b.get("primitive") != "flashcard":
         prompt += _ex_image(f, "image") + _ex_audio(f, "audio")
+    elif not b.get("errors"):
+        # a card to cut out and fold, its label and prompt above its frame
+        # (\expapercard); in large print a step larger, as every exercise is
+        front, back = _card_sides(f, kind, cards)
+        head = ("{\\sffamily\\bfseries\\footnotesize\\color{accent}%s}\\par\\smallskip%s"
+                % (escape_latin(label), prompt))
+        card = "\\expapercard{%s}{%s}{%s}" % (head, front, back)
+        if print_size() != DEFAULT_PRINT_SIZE:
+            card = "{\\large %s}" % card
+        return "\\par\\bigskip%s\\medskip%s" % (card, _end_defer(prev))
     if b.get("errors"):
         # black and white keeps the words and loses the red, as every
         # colour written in this file does there
         body.append("{\\bfseries Exercise needs attention in the Markdown source.}"
                     if is_mono() else
                     "{\\color{red}Exercise needs attention in the Markdown source.}")
-    elif b.get("primitive") == "flashcard":
-        if kind == "jolly":
-            front = _card_side(cards, ("front-primary", "front-secondary"))
-            back = _card_side(cards, ("back-primary", "back-secondary"))
-            body.append("\\textbf{Front:}%s\\par\\medskip\\textbf{Back:}%s" % (front, back))
-        else:
-            if kind == "opposites":
-                front, back = f.get("target", ""), f.get("opposite", "")
-            else:
-                front = f.get("front") or f.get("target", "")
-                back = f.get("back") or f.get("meaning", "")
-            body.append("\\textbf{Front:} %s%s\\par\\medskip\\textbf{Back:} %s%s" %
-                        (_card_audio(f, "front-audio"), _ex_inline(front),
-                         _card_audio(f, "back-audio"), _ex_inline(back)))
     elif b.get("mode") == "fill":
         # the blanks are drawn after the sentence is set: a rule written
         # before would be escaped into its own text by _ex_inline()
@@ -2900,7 +3147,8 @@ def generate(fm, blocks, fa_scale=None, voce_size="38", voce_lead="44",
     tex = _placeholder_line(tex, "PRINTOPTIONS", print_options_tex(size, is_mono()))
     # the exercises' own macros, only where one of them is printed
     tex = _placeholder_line(tex, "EXERCISEPAPER",
-                            exercise_paper_tex() if "\\expaper" in body else "")
+                            exercise_paper_tex("\\expapercard{" in body)
+                            if "\\expaper" in body else "")
     tex = (tex
            .replace("%%MARGINS%%", _MARGINS[size])
            .replace("%%TARGETMARK%%", "%% exlex-target: %s %s" % (L.code, L.dir))

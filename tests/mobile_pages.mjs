@@ -80,8 +80,14 @@
 //   b) the install page says this phone trusts Parseh, and says when the
 //      waiting it asked for is over; the hub has its door
 //   c) the server stopped, a page opened says Parseh cannot be reached
+// update -- Parseh updated on the computer (TO-DO §13.16): a book and a video
+//   kept, the hub back as another release with two shared scripts changed;
+//   the app takes the new worker and says so in a line, reloading nothing;
+//   the kept caches survive; renew mends every copy; the keep check says
+//   "updated" and never "no longer whole" for them, and still catches a copy
+//   really broken; both still open with the computer away
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/mobile_pages.mjs
-//   MOBILE_PARTS=shelf,reader,touch,prefs,video,studio,decks,offline,checkout,background,app runs some of it
+//   MOBILE_PARTS=shelf,reader,touch,prefs,video,studio,decks,offline,checkout,background,app,update runs some of it
 //   (MOBILE_KEEP_WAY=worker: keeping the iPad's way only; see WAY below)
 import { chromium } from 'npm:playwright-core@1.52.0';
 
@@ -89,7 +95,7 @@ const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
 const SHOTS = Deno.env.get('SHOTS') || '';
-const PARTS = (Deno.env.get('MOBILE_PARTS') || 'shelf,reader,touch,prefs,video,studio,decks,offline,checkout,background,app').split(',');
+const PARTS = (Deno.env.get('MOBILE_PARTS') || 'shelf,reader,touch,prefs,video,studio,decks,offline,checkout,background,app,update').split(',');
 const td = new TextDecoder();
 let passed = 0;
 const assert = (v, m) => { if (!v) throw Error('FAIL: ' + m); passed++; console.log('  ok', m); };
@@ -580,6 +586,28 @@ async function partReader() {
       assert(await isDrawn(page, '#cloud .mkcopy'), `${code}: a tap opens the gloss cloud, with copy`);
       assert(!(await isDrawn(page, '#cloud .mkcard')) && !(await isDrawn(page, '#cloud .mkedit')),
              `${code}: and no card, no edit`);
+      // THE CLOUD LEFT ALONE (a0.3.2, TO-DO §4.18): on a phone the dictionary
+      // opens in a sheet of its own, and only when asked -- a chunk tapped
+      // opens its gloss beside the word exactly as it did: the row's own
+      // reading, transliteration, vocabulary and meaning, line for line, the
+      // cloud at the word, and nothing of the dictionary
+      const alone = await page.evaluate(() => {
+        const cloud = document.getElementById('cloud'), hot = document.querySelector('.hot');
+        const row = document.querySelector(`main .p2 .row[data-c="${hot.closest('[data-c]').dataset.c}"] .gl`);
+        const lines = els => [...els].filter(e => e.matches('.kana, .tr, .voc, .en'))
+          .map(e => [e.className, e.textContent.replace(/\s+/g, ' ').trim()]);
+        const c = cloud.getBoundingClientRect(), w = hot.getBoundingClientRect();
+        return {cloud: lines(cloud.children), row: lines(row.children),
+                beside: (c.bottom <= w.top + 1 && w.top - c.bottom < 24 || c.top >= w.bottom - 1 && c.top - w.bottom < 24) &&
+                        c.left < w.right && c.right > w.left,
+                sheet: !!document.querySelector('.m-dback, .m-dsheet'), entry: !!cloud.querySelector('.dict'),
+                sparse: document.documentElement.classList.contains('m-sparse'), marks: document.querySelectorAll('.m-gl').length};
+      });
+      assert(alone.cloud.length > 0 && JSON.stringify(alone.cloud) === JSON.stringify(alone.row),
+             `${code}: the cloud is the chunk's own gloss, line for line: ${JSON.stringify(alone.cloud)}`);
+      eq([alone.beside, alone.sheet, alone.entry, alone.sparse, alone.marks], [true, false, false, false, 0],
+         `${code}: at the word, with no sheet and no entry -- and a book glossed as this one is wears no mark`);
+      assert(await isDrawn(page, '#cloud .mkdict'), `${code}: the dictionary one press away, beside copy`);
       await page.evaluate(() => { localStorage.setItem('bk_hover', '0'); });
 
       // ---- e) the shelf's ▤ goes to the mobile shelf
@@ -1149,6 +1177,13 @@ async function partVideo() {
      [true, true, true, true], 'the player wears the mobile layer, with ⋯ and the dock at the foot');
   for (const no of ['#dl', '#vidinfo', '#captimes', '#lookupset', '#sbs', '#stop', 'main > .hint'])
     assert(!(await isDrawn(page, no)), 'the player: no ' + no);
+  // nor the + between two captions, "write a note here" (a0.3.2): it writes
+  // into the video, and a mobile page never writes -- the book's reader has
+  // hidden its own (.gap .plus) from the first.  Counted first, so the check
+  // cannot pass for want of a transcript with seams
+  eq(await page.evaluate(() => document.querySelectorAll('#segs .gap .plus').length > 0), true,
+     'the transcript has its seams, each with its +');
+  assert(!(await isDrawn(page, '#segs .gap .plus')), 'the player: no + between the captions to write a note with');
   allFit(await targets(page, 'header a[href], header button'), 'its header: 48px, on the screen');
   // ⋯ opens the rest, a group to a line
   await tap(page, '.m-rmore');
@@ -1325,6 +1360,7 @@ async function partVideo() {
                                 !!document.querySelector('.nc-dock'),
                                 document.getElementById('dl').offsetParent !== null]),
      [false, false, true], 'in the browser mode the player is the page it always was');
+  assert(await isDrawn(page, '#segs .gap .plus'), 'the + between the captions there, to write a note with');
   await ctx.close();
 }
 
@@ -2458,9 +2494,18 @@ async function partOffline() {
   eq([ranged[0], ranged[2]], [206, 100],
      'a range asked of the kept recording is answered 206, cut to size (' + ranged[1] + ') — seeking works');
   eq(await page.evaluate(async () => {
-    const r = await fetch('/__activity');
+    const r = await fetch('/__prefs');
     return [r.status, (await r.json()).offline === true];
   }), [503, true], 'and what only the computer can answer says so at once, instead of hanging');
+  // the page's one question is the one address the worker leaves to the
+  // browser (TO-DO §2.24): it hears the network itself, and a refusal is
+  // heard at once, never waited out
+  eq(await page.evaluate(async () => {
+    const t = performance.now();
+    try { await fetch('/__activity'); return 'answered'; }
+    catch (e) { return performance.now() - t < 1000 ? 'refused at once' : 'refused late'; }
+  }), 'refused at once',
+     'and "is the computer there?" hears the refusal itself, at once, with no worker in between');
   await page.waitForSelector('.kp-off', {timeout: 30000});
   assert(await page.evaluate(() => document.querySelector('.kp-off').getAttribute('href') === '/m/kept/'),
          'the page wears the offline chip, which opens the list of what is kept');
@@ -2875,7 +2920,9 @@ async function partDecks() {
     assert(!(await isDrawn(page, '.m-topbar')) && !(await isDrawn(page, '#btn-practise')) &&
            !(await isDrawn(page, '.m-pickhead')), 'and the mobile one is gone');
     if (tag === 'desktop') {
-      // the browser layout fills a blank as it always has: a word, then its blank
+      // the browser layout fills a blank from its cloud too (a0.3.1), and as
+      // it always has: a word, then its blank -- which then opens no cloud
+      // (tests/blank_cloud.mjs has every way, the drag among them)
       const fill = (await (await fetch(B + `/exercises/api/decks/${EN.folder}/${EN.slug}`)).json())
         .items.find(it => it.subtype === 'fill-blanks');
       await page.evaluate(([k, id]) => sessionStorage.setItem(k, JSON.stringify([id])),
@@ -2883,11 +2930,15 @@ async function partDecks() {
       await page.goto(B + `/exercises/deck/${EN.folder}/${EN.slug}/cram`);
       await page.waitForSelector('#cram-stage .ex-blank');
       await page.locator('#cram-stage .ex-blank').first().click();
-      assert(!(await isDrawn(page, '.ex-cloud')), 'the browser layout: a click on a blank opens no cloud');
+      await sleep(250);
+      assert(await isDrawn(page, '#cram-stage .ex-cloud'), 'the browser layout: a click on a blank opens its cloud');
+      await page.keyboard.press('Escape');
+      assert(!(await isDrawn(page, '#cram-stage .ex-cloud')), 'and Escape puts it away');
       await page.locator('#cram-stage .ex-bank .ex-item').filter({hasText: /^\s*went\s*$/}).click();
       await page.locator('#cram-stage .ex-blank').first().click();
       eq(await page.evaluate(() => document.querySelector('#cram-stage .ex-blank').textContent.trim()), 'went',
          'and a word, then its blank, fills it, as it always has');
+      assert(!(await isDrawn(page, '#cram-stage .ex-cloud')), 'a picked word goes into the blank clicked: no cloud opens');
     }
     await page.context().close();
   }
@@ -3395,9 +3446,11 @@ async function partBackground() {
       await b.waitForFunction(w => (document.querySelector('.kp-keep') || {}).textContent === w,
                               'Waiting for ' + TITLE + LEAVE, {timeout: 20000});
       assert(true, 'the second book waits behind the first and says so: "Waiting for ' + TITLE + LEAVE + '"');
+      // silence is offline only once three asks across 45 s have gone
+      // unanswered (TO-DO §2.24, the owner's window): the line follows that
       await a.waitForFunction(() => /^Keeping… \d+% — waiting for the computer$/
                                 .test((document.querySelector('.kp-keep') || {}).textContent),
-                              null, {timeout: 40000});
+                              null, {timeout: 75000});
       assert(true, 'and the first, with the computer silent, says what it is waiting for: ' +
              JSON.stringify(await button(a)));
       goHub();
@@ -3427,9 +3480,11 @@ async function partBackground() {
       await press(page);
       await midway(page, 'rec');
       await page.reload();
+      // a refresh asks afresh, and silence takes the owner's 45 s to be
+      // believed (TO-DO §2.24)
       await page.waitForFunction(() => /^Keeping… \d+% — waiting for the computer$/
                                    .test((document.querySelector('.kp-keep') || {}).textContent),
-                                 null, {timeout: 40000});
+                                 null, {timeout: 75000});
       assert(true, 'reloaded from the phone\'s copy with the computer silent, the page takes the keep up: ' +
              JSON.stringify(await button(page)));
       goHub();
@@ -3808,6 +3863,422 @@ async function partApp() {
   await page.context().close();
 }
 
+// ======== Parseh updated on the computer: the app's half (TO-DO §13.16) ========
+/* THE PHONE MEETS TWO PARSEHS.  Everything else in this file meets one; the
+   owner's promise about an update is about the moment the phone meets the
+   next.  A book and a video are kept from the first release, the hub is
+   stopped, and it comes back as ANOTHER RELEASE: another version in its
+   Server header and in the worker it serves (PARSEH_TEST_VERSION,
+   tests/mobile_harness.py), and two of lib/'s shared scripts changed as a
+   release changes them -- parseh.js, which the reader loads, and
+   mobileplayer.js, which a reader never does, so one copy is renewed by the
+   visit and the other is not.  What he asked for, each driven here:
+
+     - the app takes the new worker by itself, and SAYS in one line that
+       Parseh was updated -- never a silent swap, and nothing reloaded;
+     - activate keeps `parseh-kept-*` and `parseh-shared`;
+     - `renew` mends the shared copy on the next online visit -- every copy
+       of it, the way in's too;
+     - the keep check calls what Parseh changed "updated", writes down the
+       digest the copy really has, fetches nothing for it, and never calls it
+       "no longer whole" -- while a copy that really is broken is still caught
+       and mended;
+     - the kept book and video still open with the computer away. */
+async function partUpdate() {
+  console.log('\n== Parseh updated on the computer: the app is told, and keeps what it kept');
+  const BOOK = MADE.readers.hi, VID = `/youtube/v/${MADE.video}/`;
+  const LIBDIR = `${WORK}/root/lib`;
+  const CHANGED = ['parseh.js', 'mobileplayer.js'];
+  const PJS = '/lib/parseh.js', MPJ = '/lib/mobileplayer.js';
+  async function hubAs(version) {
+    if (hubUp) { hub.kill('SIGTERM'); await hub.status; hubUp = false; }
+    hub = new Deno.Command(PY, {args: ['tests/mobile_harness.py', 'serve', WORK, String(port)], cwd: root,
+                                env: version ? {PARSEH_TEST_VERSION: version} : {},
+                                stdout: 'piped', stderr: 'piped'}).spawn();
+    hubUp = true;
+    for (const st of [hub.stdout, hub.stderr])
+      (async () => { for await (const c of st.pipeThrough(new TextDecoderStream())) log.push(c); })();
+    for (const t = Date.now();;) {
+      try { const r = await fetch(B + '/'); await r.body?.cancel(); if (r.ok) break; } catch (_) {}
+      if (Date.now() - t > 60000) throw Error('the hub did not start:\n' + log.join('').slice(-2000));
+      await sleep(250);
+    }
+  }
+  async function hubDown() {
+    if (!hubUp) return;
+    hub.kill('SIGTERM');
+    await hub.status;
+    hubUp = false;
+    for (let i = 0; i < 40; i++) {
+      try { const r = await fetch(B + '/', {cache: 'no-store'}); await r.body?.cancel(); await sleep(250); }
+      catch (_) { break; }
+    }
+  }
+  // what the hub says it is, twice: in its Server header, and in its worker
+  const says = async () => {
+    const r = await fetch(B + '/sw.js');
+    const js = await r.text();
+    return {server: (r.headers.get('server') || '').split(' ')[0], js,
+            release: (/const RELEASE = "([^"]*)";/.exec(js) || [])[1] || null,
+            build: (/const BUILD = "([^"]*)";/.exec(js) || [])[1]};
+  };
+  const digestOf = (rec, url) => ([].concat(rec.small || [], rec.shared || [], rec.media || [])
+    .find(x => x.url === url) || {}).digest || '';
+  async function open(page, url) {
+    await page.goto(B + url);
+    await setMode(page, 'mobile');
+    await page.reload();
+    await page.waitForFunction(() => !!window.ParsehKeep, null, {timeout: 20000});
+    if (!(await page.evaluate(() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)))) {
+      await page.waitForFunction(() => navigator.serviceWorker.ready, null, {timeout: 20000}).catch(() => {});
+      await page.reload();
+      await page.waitForFunction(() => navigator.serviceWorker.controller, null, {timeout: 20000});
+    }
+    await answerPlace(page);
+  }
+  async function sheet(page) {
+    await page.waitForFunction(() => !document.documentElement.hasAttribute('data-parseh-away'),
+                               null, {timeout: 30000});
+    await reveal(page);
+    if ((await page.getAttribute('.m-rmore', 'aria-expanded')) !== 'true') await tap(page, '.m-rmore');
+    await page.waitForFunction(() => { const b = document.querySelector('.kp-keep'); return !!b && !b.disabled; },
+                               null, {timeout: 60000});
+    await tap(page, '.kp-keep');
+    await page.waitForSelector('.kp-sheet');
+  }
+  // Keep it, or Save; and where the phone's room is asked about, anyway
+  async function press(page) {
+    await page.locator('.kp-go').click();
+    await page.waitForFunction(() => !document.querySelector('.kp-sheet') || !!document.querySelector('.kp-room'),
+                               null, {timeout: 15000});
+    if (await page.$('.kp-room')) await page.locator('.kp-go').click();
+  }
+  const kept = (page, id) => until(page, id => {
+    try {
+      const b = document.querySelector('.kp-keep');
+      return !!JSON.parse(localStorage.getItem('parseh_kept') || '{}')[id] && !!b && !b.disabled;
+    } catch (e) { return false; }
+  }, id, 180000);
+  // the sheet's own verdict, once the worker has looked file by file
+  async function looked(page) {
+    await page.waitForFunction(() => {
+      const c = document.querySelector('.kp-check');
+      return !!c && !/Looking at/.test(c.textContent);
+    }, null, {timeout: 60000});
+    return page.evaluate(() => ({line: document.querySelector('.kp-check').textContent,
+                                 sum: (document.querySelector('.kp-sum') || {}).textContent || '',
+                                 torn: document.querySelectorAll('.kp-row.kp-torn').length}));
+  }
+  // one copy on the phone: its bytes' digest, the digest written on it, and
+  // how it ends (the changed release's scripts end with a line saying so)
+  const copy = (page, url, name = 'parseh-shared') => page.evaluate(async ([url, name]) => {
+    if (!(await caches.has(name))) return null;
+    const r = await (await caches.open(name)).match(url, {ignoreVary: true});
+    if (!r) return null;
+    const body = await r.arrayBuffer();
+    const sum = [...new Uint8Array(await crypto.subtle.digest('SHA-256', body))]
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    return {sum, kept: r.headers.get('x-parseh-kept-digest') || '', bytes: body.byteLength,
+            tail: new TextDecoder().decode(body.slice(-80))};
+  }, [url, name]);
+  const cachesNow = page => page.evaluate(async () => {
+    const out = {};
+    for (const k of await caches.keys()) out[k] = (await (await caches.open(k)).keys()).length;
+    return out;
+  });
+  // what the tab has said, and which pages it loaded and how, across pages
+  const tab = page => page.evaluate(() => {
+    const read = k => { try { return JSON.parse(sessionStorage.getItem(k) || '[]'); } catch (e) { return []; } };
+    return {said: read('__said').filter(s => /^Parseh (was updated|went back)/.test(s)), docs: read('__docs')};
+  });
+  // the worker in charge, asked what it is
+  const inCharge = page => page.evaluate(() => new Promise(ok => {
+    const sw = navigator.serviceWorker;
+    const hear = e => { if (e.data && e.data.release) { sw.removeEventListener('message', hear); ok(e.data.release); } };
+    sw.addEventListener('message', hear);
+    sw.controller.postMessage({release: 1});
+    setTimeout(() => ok(null), 10000);
+  }));
+
+  // ---- a) THE FIRST RELEASE, as the checkout is
+  await hubAs(null);
+  const was = await says();
+  const source = await Deno.readTextFile('lib/sw.js');
+  assert(was.release && was.server === 'Parseh/' + was.release,
+         'the hub serves its worker stamped with its own release, the one its Server header names: ' +
+         JSON.stringify([was.server, was.release]));
+  eq(was.js, source.replace("'__PARSEH_RELEASE__'", JSON.stringify(was.release))
+                   .replace("'__PARSEH_BUILD__'", JSON.stringify(was.build)),
+     'and the worker is lib/sw.js with those two strings written in, and not a byte else');
+  const NEXT = was.release.replace(/\d+$/, n => String(+n + 1));
+  const MARK = `// ${NEXT}: changed by this release`;
+
+  const ctx = await browser.newContext(PHONE);
+  // EVERY LINE THE PAGE SAYS, written down as it appears: a toast is gone in
+  // seconds, and a test that looked for it whenever it got round to looking
+  // would be timing the worker rather than reading the page.  AND EVERY PAGE
+  // THAT LOADS, with how it was loaded.  Both are kept in the tab's
+  // sessionStorage as well, so that they outlive the page they happened on:
+  // the new worker may take over whichever page is open when it comes, and
+  // a reload nobody asked for is exactly what must be seen if it happens.
+  await ctx.addInitScript(() => {
+    const read = k => { try { return JSON.parse(sessionStorage.getItem(k) || '[]'); } catch (e) { return []; } };
+    const keep = (k, v) => { try { const a = read(k); a.push(v); sessionStorage.setItem(k, JSON.stringify(a)); } catch (e) {} };
+    try {
+      const n = performance.getEntriesByType('navigation')[0];
+      if (location.protocol === 'http:' && window.top === window)
+        keep('__docs', [location.pathname, n ? n.type : '?']);
+    } catch (e) { /* a page with no storage: nothing to write down */ }
+    window.__said = [];
+    const look = () => {
+      const t = document.getElementById('parseh-toast');
+      const now = [t && t.classList.contains('show') ? t.textContent : '']
+        .concat([...document.querySelectorAll('.kp-updated')].map(e => e.textContent));
+      for (const s of now)
+        if (s && window.__said[window.__said.length - 1] !== s) { window.__said.push(s); keep('__said', s); }
+    };
+    const watch = () => {
+      if (!document.documentElement) { setTimeout(watch, 0); return; }
+      new MutationObserver(look).observe(document.documentElement,
+        {subtree: true, childList: true, characterData: true, attributes: true});
+    };
+    watch();
+  });
+  // a window of the app: its pages share the phone's worker, caches and
+  // localStorage, and each window has its own sessionStorage
+  const windowOf = async () => {
+    const p = await ctx.newPage();
+    p.on('pageerror', e => { errors.push('update: ' + e.message); console.log('PAGE ERROR update', e.message); });
+    p.touch = await ctx.newCDPSession(p);
+    await p.touch.send('Emulation.setTouchEmulationEnabled', {enabled: true, maxTouchPoints: 1});
+    return p;
+  };
+  let page = await windowOf();
+  try {
+    await open(page, BOOK);
+    // A FIRST INSTALL IS NOT AN UPDATE: the phone writes down which release
+    // it met, and says nothing
+    const first = await until(page, () => localStorage.getItem('parseh_release'), null, 30000);
+    eq([first, (await tab(page)).said],
+       [was.release + (was.build ? '+' + was.build : ''), []],
+       'installing the app, the phone notes the release it met and announces nothing');
+
+    // ---- b) a book and a video kept, with the way in warmed behind them
+    await sheet(page);
+    await press(page);
+    await kept(page, BOOK);
+    await open(page, VID);
+    await sheet(page);
+    await press(page);
+    await kept(page, VID);
+    const warmed = await page.evaluate(() => new Promise((ok, no) => {
+      const sw = navigator.serviceWorker;
+      const heard = e => {
+        const d = e.data || {};
+        if (!d.warmed || d.warmed.what !== 'way-in') return;
+        sw.removeEventListener('message', heard);
+        ok(d.warmed);
+      };
+      sw.addEventListener('message', heard);
+      sw.controller.postMessage({warm: 'way-in'});
+      setTimeout(() => no(new Error('the way in was never warmed')), 180000);
+    }));
+    assert(warmed.of > 10, 'a book and a video kept on the phone, and the way in warmed: ' + warmed.of);
+    const before = await cachesNow(page);
+    assert(before['parseh-kept-' + BOOK] > 0 && before['parseh-kept-' + VID] > 0 && before['parseh-shared'] > 0,
+           'each in a cache of its own, the shared files in one for both: ' + JSON.stringify(before));
+    const rec1 = await (await fetch(B + BOOK + '__offline')).json();
+    const old = {pjs: digestOf(rec1, PJS), mpj: digestOf(rec1, MPJ)};
+    const kp = {pjs: await copy(page, PJS), mpj: await copy(page, MPJ)};
+    // THE DIGEST EACH FILE WAS KEPT WITH IS WRITTEN ON THE COPY (lib/sw.js,
+    // `stamped`): what the computer said the file was, and the copy is it
+    eq([kp.pjs.kept, kp.pjs.sum, kp.mpj.kept, kp.mpj.sum], [old.pjs, old.pjs, old.mpj, old.mpj],
+       'each kept copy carries the digest the computer gave it, and its bytes are that file');
+    await open(page, BOOK);
+    await sheet(page);
+    const calm = await looked(page);
+    eq([calm.line, calm.torn], ['Looked at file by file: what is ticked is whole on this phone.', 0],
+       'before any update the keep check finds the book whole and says nothing more');
+    await page.locator('.kp-no').click();
+
+    // ---- c) THE NEXT RELEASE: another version, and two shared scripts
+    // changed.  The tree's lib/ becomes a folder of its own -- every entry a
+    // link to the checkout's, but the two, which are copies with a line more.
+    // The app is CLOSED first, as a phone's is overnight, and opened again
+    // in a new window once the computer has been updated: a page left open on
+    // the old release would be the one the new worker takes over, and the
+    // line would be said there -- right, and not what this part reads -- and
+    // the first page of each opening of the app is where it asks for a new
+    // worker (lib/keep.js, releaseCheck)
+    await page.close();
+    page = await windowOf();
+    const loadsBefore = 0;
+    await hubDown();
+    const real = await Deno.realPath(LIBDIR);
+    await Deno.remove(LIBDIR);                   // the link, and nothing it points at
+    await Deno.mkdir(LIBDIR);
+    for await (const e of Deno.readDir(real)) {
+      if (CHANGED.includes(e.name))
+        await Deno.writeTextFile(`${LIBDIR}/${e.name}`,
+                                 (await Deno.readTextFile(`${real}/${e.name}`)) + '\n' + MARK + '\n');
+      else await Deno.symlink(`${real}/${e.name}`, `${LIBDIR}/${e.name}`);
+    }
+    try {
+      await hubAs(NEXT);
+      const now = await says();
+      eq([now.server, now.release], ['Parseh/' + NEXT, NEXT],
+         'the computer is another release now, and says so in its Server header and in its worker');
+      const rec2 = await (await fetch(B + BOOK + '__offline')).json();
+      const neu = {pjs: digestOf(rec2, PJS), mpj: digestOf(rec2, MPJ)};
+      assert(neu.pjs && neu.mpj && neu.pjs !== old.pjs && neu.mpj !== old.mpj,
+             'and its digests for the two changed scripts have moved');
+
+      // ---- d) THE APP REACHES THE COMPUTER: a new worker, and one line
+      await page.goto(B + BOOK);
+      // WITHIN A MINUTE OR SO: the page asks for the new worker as soon as it
+      // finds the computer (lib/keep.js, releaseCheck), and Chromium holds an
+      // update back until a minute after the last one it made (driven: the
+      // same ask on a registration a minute old installed in 0.3 s)
+      const told = await until(page, () => {
+        try {
+          return JSON.parse(sessionStorage.getItem('__said') || '[]')
+            .find(s => /^Parseh (was updated|went back)/.test(s)) || null;
+        } catch (e) { return null; }
+      }, null, 150000).catch(async e => {
+        // what the phone was doing instead, so that a failure says why
+        console.log('the phone, when no line came:', JSON.stringify(await page.evaluate(async () => {
+          const r = await navigator.serviceWorker.getRegistration();
+          const url = w => (w ? w.state : null);
+          return {active: url(r && r.active), waiting: url(r && r.waiting), installing: url(r && r.installing),
+                  controlled: !!navigator.serviceWorker.controller, seen: localStorage.getItem('parseh_release'),
+                  said: window.__said, mode: document.documentElement.dataset.mode};
+        })), JSON.stringify(await inCharge(page)));
+        throw e;
+      });
+      eq(told, 'Parseh was updated to ' + NEXT,
+         'the app took the new worker by itself, and says so in one line');
+      await shot(page, 'update-line');
+      const since = (await tab(page)).docs.slice(loadsBefore);
+      eq([since, (await tab(page)).said.length], [[[BOOK, 'navigate']], 1],
+         'and nothing was reloaded under the thumb: the one page opened is the one that says it, once');
+      const boss = await inCharge(page);
+      eq([boss && boss.version, boss && boss.replaced, boss && boss.previous], [NEXT, true, was.release],
+         'the worker in charge is the new release\'s, and knows which one it replaced');
+      const after = await cachesNow(page);
+      const keptKeys = o => Object.keys(o).filter(k => k.startsWith('parseh-kept-')).sort();
+      eq(keptKeys(after), keptKeys(before), 'every parseh-kept-* cache survived the new worker');
+      eq(keptKeys(after).map(k => after[k]), keptKeys(before).map(k => before[k]),
+         'with every file it held');
+      assert(after['parseh-shared'] >= before['parseh-shared'],
+             'and parseh-shared with them (' + before['parseh-shared'] + ' → ' + after['parseh-shared'] + ')');
+
+      // ---- e) RENEW MENDS THE SHARED COPY ON THIS VERY VISIT -- every copy
+      // of it, the way in's as well as the one kept for the book
+      const mended = await until(page, async ([url, mark]) => {
+        const r = await (await caches.open('parseh-shared')).match(url, {ignoreVary: true});
+        return r && (await r.clone().text()).includes(mark) ? true : null;
+      }, [PJS, MARK], 60000);
+      const pjsNow = await copy(page, PJS);
+      eq([mended, pjsNow.sum, pjsNow.kept], [true, neu.pjs, neu.pjs],
+         'the reader\'s visit brought the new parseh.js into parseh-shared, its digest written on it');
+      const shellPjs = await until(page, async ([url, mark]) => {
+        const r = await (await caches.open('parseh-shell-1')).match(url, {ignoreVary: true});
+        return r && (await r.clone().text()).includes(mark) ? true : null;
+      }, [PJS, MARK], 30000);
+      eq(shellPjs, true, 'and into the way in\'s copy too: every cache that held it, not the first found');
+      const mpjNow = await copy(page, MPJ);
+      eq([mpjNow.tail.includes(MARK), mpjNow.sum, mpjNow.kept], [false, old.mpj, old.mpj],
+         'while mobileplayer.js, which no reader loads, is still the copy it was kept as');
+
+      // ---- f) THE KEEP CHECK AFTER THE UPDATE.  parseh.js's copy is given
+      // back the digest it was KEPT with -- as a copy renewed by a worker
+      // that did not write digests down would be -- so that the check's own
+      // refreshing is what is seen, and not renew's
+      await page.evaluate(async ([url, was]) => {
+        const c = await caches.open('parseh-shared');
+        const r = await c.match(url, {ignoreVary: true});
+        const head = new Headers(r.headers);
+        head.set('X-Parseh-Kept-Digest', was);
+        await c.put(url, new Response(await r.arrayBuffer(), {status: r.status, statusText: r.statusText,
+                                                              headers: head}));
+      }, [PJS, old.pjs]);
+      await sheet(page);
+      const check = await looked(page);
+      await shot(page, 'update-keep-check');
+      assert(/^Looked at file by file: what is ticked is whole on this phone\. 2 of its files were updated on the computer since they were kept/.test(check.line) &&
+             check.torn === 0 && !/no longer whole/.test(check.line),
+             'the keep check calls the two scripts Parseh changed "updated", and not one file ' +
+             '"no longer whole": ' + JSON.stringify(check.line));
+      eq(check.sum, 'Nothing to change: what is ticked is whole on this phone.',
+         'and Save would fetch nothing for them');
+      await page.locator('.kp-no').click();
+      const pjsRec = await copy(page, PJS), mpjRec = await copy(page, MPJ);
+      eq([pjsRec.kept, pjsRec.sum], [neu.pjs, neu.pjs],
+         'the copy that already was the new file has its RECORDED digest refreshed to it');
+      eq([mpjRec.kept, mpjRec.sum, mpjRec.tail.includes(MARK)], [old.mpj, old.mpj, false],
+         'and the one that was not is left as it is — nothing was downloaded again for it');
+
+      // ---- g) AND A COPY THAT REALLY IS BROKEN IS STILL CAUGHT.  One byte of
+      // the kept mobileplayer.js turned over, its size and its headers kept,
+      // so it matches neither the digest it was kept with nor the computer's
+      const torn = await page.evaluate(async (url) => {
+        const c = await caches.open('parseh-shared');
+        const r = await c.match(url, {ignoreVary: true});
+        const body = new Uint8Array(await r.arrayBuffer());
+        const at = Math.floor(body.length / 2);
+        body[at] ^= 0xff;
+        await c.put(url, new Response(body, {status: r.status, statusText: r.statusText,
+                                             headers: new Headers(r.headers)}));
+        return body.length;
+      }, MPJ);
+      assert(torn > 1000, 'a kept script damaged on the phone, byte for byte the same size');
+      await sheet(page);
+      const bad = await looked(page);
+      assert(/^One file kept here is no longer whole\./.test(bad.line) && !/updated/.test(bad.line),
+             'the keep check catches it, among the files an update changed: ' + JSON.stringify(bad.line));
+      await press(page);
+      const fixed = await until(page, async ([url, mark]) => {
+        const r = await (await caches.open('parseh-shared')).match(url, {ignoreVary: true});
+        return r && (await r.clone().text()).includes(mark) ? true : null;
+      }, [MPJ, MARK], 120000);
+      const mpjFixed = await copy(page, MPJ);
+      eq([fixed, mpjFixed.sum, mpjFixed.kept], [true, neu.mpj, neu.mpj],
+         'and Save fetches it again, the new release\'s, with its digest written on it');
+      await kept(page, BOOK);
+
+      // ---- h) SAID ONCE: the next page opened knows it was said
+      await page.goto(B + VID);
+      await page.waitForFunction(() => document.querySelectorAll('#segs .seg').length > 0, null, {timeout: 30000});
+      await sleep(3000);
+      eq([await page.evaluate(() => window.__said.filter(s => /Parseh (was updated|went back)/.test(s))),
+          (await tab(page)).said.length, await page.evaluate(() => localStorage.getItem('parseh_release'))],
+         [[], 1, NEXT], 'the next page opened says nothing: the phone has written down that it was said');
+      await sheet(page);
+      const vid = await looked(page);
+      assert(vid.torn === 0 && !/no longer whole/.test(vid.line),
+             'and the video\'s keep check finds nothing broken either: ' + JSON.stringify(vid.line));
+      await page.locator('.kp-no').click();
+
+      // ---- i) THE KEPT THINGS STILL OPEN WITH THE COMPUTER AWAY
+      await hubDown();
+      await page.goto(B + BOOK, {timeout: 30000});
+      await page.waitForFunction(() => typeof SUBS !== 'undefined', null, {timeout: 30000});
+      assert(await page.evaluate(() => document.querySelectorAll('.sub').length > 0),
+             'with the computer stopped after the update, the kept book opens, its text there');
+      await page.goto(B + VID, {timeout: 30000});
+      await page.waitForFunction(() => document.querySelectorAll('#segs .seg').length > 0, null, {timeout: 30000});
+      assert(true, 'and so does the kept video, its captions drawn');
+      await shot(page, 'after-update-offline');
+    } finally {
+      // the tree's lib/ goes back to being the link it was
+      await Deno.remove(LIBDIR, {recursive: true}).catch(() => {});
+      await Deno.symlink(real, LIBDIR).catch(() => {});
+    }
+  } finally {
+    await ctx.close();
+  }
+}
+
 try {
   if (PARTS.includes('shelf')) await partShelf();
   if (PARTS.includes('reader')) await partReader();
@@ -3821,6 +4292,8 @@ try {
   if (PARTS.includes('checkout')) await partCheckout();
   if (PARTS.includes('background')) await partBackground();
   if (PARTS.includes('app')) await partApp();
+  // after everything: it restarts the hub as another release
+  if (PARTS.includes('update')) await partUpdate();
 } finally {
   await browser.close();
   if (hubUp) { hub.kill('SIGTERM'); await hub.status; }

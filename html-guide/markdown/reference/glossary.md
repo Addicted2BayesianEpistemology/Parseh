@@ -24,7 +24,8 @@ Registry
 : `lib/languages.json`, the one table that says what each of the eleven
   languages is: its code, its folder, its script and direction, its
   fonts, the passes of its books, its Anki note types. Nothing else in
-  Parseh holds a list of languages.
+  Parseh holds a list of languages. A language added on this machine has
+  its row in `config/languages.json`, read after it.
 
 Target language
 : The language being learned: `"language"` in a `book.json` or
@@ -194,8 +195,8 @@ Machine's reading
 
 Reading help
 : What helps with a chunk nobody has glossed: a dictionary, sentences
-  somebody translated, a machine's reading. All three are got on
-  `/lookup/`, with **get it**; none of them is a gloss, and none goes into
+  somebody translated, a machine's reading. All three are got on the
+  reading-help page, in Settings, with **Get it**; none of them is a gloss, and none goes into
   a book unless you put it in the chunk's fields and save.
 
 Sources sidebar
@@ -304,17 +305,38 @@ Door
 
 Environment
 : The packages Parseh uses beyond Python itself, in one environment
-  called `ilya-frank`: in the checkout's `.runtime/env` when the installer
-  made it, or wherever your conda keeps it.
+  called `ilya-frank`: in Parseh's folder, `.runtime/env`, when the
+  installer made it, or wherever your conda keeps it.
 
 Hub
 : The first page, `https://localhost:7654/`: the doors, the language
   chips, the **guide** button.
 
+Going back
+: Installing an older version in place of the one you have, from
+  **Settings → Updating Parseh**: the same update, the other way, never
+  presented as an ordinary one. It is how a release that went wrong is
+  escaped ([Updating Parseh](../getting-started/updating.md)).
+
 Language chips
 : The row of languages on the hub and on each door's page. Behind a door
   they filter what is listed; on the hub they choose the language the doors
   open with and count for. One setting for the whole toolbox.
+
+Release
+: One version of Parseh as it is given out: a zip, `parseh-<version>.zip`,
+  on GitHub's releases page, holding the program and a list of its own
+  files with a checksum for each (`.parseh-release.json`). Parseh is
+  installed from one, and updated from one
+  ([Installing Parseh](../getting-started/installing.md#getting-parseh)).
+
+Version
+: Which Parseh this is — `a` for alpha, then three numbers — written in
+  `VERSION`, at the foot of the hub and on **Settings**. [What changed,
+  version by version](whats-new.md) says what each brought. A rehearsal,
+  made before a version is released, adds `-rc` and a number (`-rc1`):
+  Parseh counts it as coming before the version it rehearses, and
+  **Settings → Updating Parseh** names it so on an install made from one.
 
 Working…
 : The pill in the corner of every page, and the panel on the hub, that

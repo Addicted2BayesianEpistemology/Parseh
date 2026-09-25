@@ -13,8 +13,9 @@ and Chinese get with their readings.
 ## What can help, and where it comes from
 
 Three things can speak for a phrase with no vocabulary line, and each is a
-separate download on the dictionaries page, `/lookup/` (the **reading
-help** link in the player's bar goes there):
+separate download on the reading-help page, in Settings,
+`/settings/reading-help/` (the **reading help** link in the player's bar
+goes there):
 
 - **a dictionary** of the video's language, which looks the words up;
 - **a corpus** of sentences somebody translated, which shows real sentences

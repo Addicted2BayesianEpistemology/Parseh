@@ -6,7 +6,7 @@ description: The tools behind the reading-help downloads, the book and video pip
 ---
 
 > **For the command line — and only if you want it.** The reading-help
-> page (`/lookup/`) gets and removes every dictionary, corpus, model and
+> page (Settings → Reading help) gets and removes every dictionary, corpus, model and
 > component pack with a button; the readers and the player edit, download
 > and take back books and videos; the **Anki** page syncs your cards; the
 > studio builds its PDFs. These are the scripts under those buttons, for
@@ -22,7 +22,7 @@ has the installers, the server and the builds.
 
 Each of these downloads somebody else's work once, builds a file from it
 on your machine, and never sends anything about what you read. They are
-exactly what the buttons on `/lookup/` run, with a progress bar over them;
+exactly what the buttons of the reading-help page run, with a progress bar over them;
 **remove** there deletes the file.
 
 ### A dictionary: getdict.py
@@ -277,7 +277,9 @@ python3 lib/newlang.py ko --name Korean --native 한국어 \
   [--script … --chars … --font … --web-font …]
 ```
 
-A language is a row of `lib/languages.json` and the files it implies;
+A language is a row of the registry and the files it implies — the row in
+`config/languages.json`, this machine's languages, which an update keeps
+(`--shipped` writes Parseh's own `lib/languages.json` instead);
 `newlang.py` writes them all at once, and says what it did not write — the
 verb recipe, `lib/verbs/<code>.py`.
 

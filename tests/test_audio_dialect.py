@@ -47,6 +47,13 @@ def tex_body(md):
     return tex[tex.index("\\begin{document}"):]
 
 
+# a field of one paragraph on a card on paper: a line in the middle of its
+# half, at a size (per cent) and in a colour of its own (texgen._card_line)
+def card_line(size, text):
+    return ("\\exlexfitpar{\\linewidth}{\\expapercardsize{%d}\\centering"
+            "\\let\\newline\\expapercardcr\\hspace{0pt}{%s}}" % (size, text))
+
+
 def exercise(md):
     return next(b for b in blocks_of(md) if b["type"] == "exercise")
 
@@ -556,10 +563,13 @@ class FlashcardHtmlTests(unittest.TestCase):
         self.assertIn('style="font-size:120%;color:var(--ink)">___</div>', back)
         self.assertNotRegex(html, r'<div class="ex-card-(front|back)"( hidden)?></div>')
         body = tex_body(md)
-        self.assertIn("\\textbf{Front:}\\par\n{\\sffamily\\bfseries\\large\\color{accent} 1 rule of the club\\par}"
-                      "\\smallskip\\par\n---\\par\\medskip\\textbf{Back:}\\par\n{\\sffamily\\bfseries\\large"
-                      "\\color{accent} Big word\\par}\\smallskip", body)
-        self.assertIn("\\textbf{Front:} ***\\par\\medskip\\textbf{Back:} \\_\\_\\_}\\medskip", body)
+        self.assertIn("Flashcard}\\par\\smallskip}{{\\raggedright\\expapercardsize{100} {\\sffamily\\bfseries"
+                      "\\large\\color{accent} 1 rule of the club\\par}\\smallskip\\par}\\expapercardgap\n"
+                      + card_line(88, "\\color{graytx} ---") + "}{{\\raggedright\\expapercardsize{100} "
+                      "{\\sffamily\\bfseries\\large\\color{accent} Big word\\par}\\smallskip\n\nthe rest\\par}",
+                      body)
+        self.assertIn("}{" + card_line(120, "\\bfseries ***") + "}{"
+                      + card_line(120, "\\bfseries \\_\\_\\_") + "}\\medskip", body)
 
     def test_the_preview_shows_both_sides_turned(self):
         html = self.rich(editor_preview=True)["html"]
@@ -782,17 +792,25 @@ class TexTests(unittest.TestCase):
     def test_a_jolly_card_made_of_blocks(self):
         body = tex_body(doc("Before[^a].\n\n[^a]: Note A.\n\n" + FlashcardHtmlTests.RICH +
                             "\n\n[^doc]: The document's note."))
-        # the exercise's box (\expaperexercise) closes on its \medskip
+        # the card (\expapercard) closes on its \medskip
         end = body.index("}\\medskip\n", body.index("Flashcard}"))
         card, after = body[body.index("Flashcard}"):end], body[end:]
-        self.assertIn("\\textbf{Front:}\\par\n{\\sffamily\\bfseries\\large\\color{accent} A heading on the card\\par}\\smallskip", card)
+        # a field of blocks on its half from the start of the line, at the
+        # page's size; a heading on it a label
+        self.assertIn("Flashcard}\\par\\smallskip}{{\\raggedright\\expapercardsize{100} {\\sffamily\\bfseries"
+                      "\\large\\color{accent} A heading on the card\\par}\\smallskip", card)
         self.assertIn("{\\sffamily\\bfseries\\normalsize\\color{accentlt} {\\tlfont\\beginR سلام\\endR}\\par}\\smallskip", card)
         self.assertIn("\\voce{کتاب}{}{ketâb}{}", card)
         self.assertNotIn("\\section", card)
         self.assertNotIn("\\subsection", card)
-        for piece in ("{\\Large\\color{accent}\\audioX}", "\\begin{tabular}", "\\begin{itemize}",
-                      "\\includegraphics[width=\\linewidth]{images/p.png}", "\\href{https://youtu.be/nFoM8JraEek?t=3}",
-                      "\\colorbox{boxbg}{\\begin{minipage}{0.93\\linewidth}", "\\par\nsalâm\\par\\medskip\\textbf{Back:}\\par\n"):
+        # half a card is narrow: its table is fitted to it and its target
+        # runs may break, at the normal size as in large print
+        for piece in ("{\\Large\\color{accent}\\audioX}", "\\exlexfit{\\begin{tabular}", "\\pel{سلام} & hello",
+                      "\\begin{itemize}", "\\includegraphics[width=\\linewidth]{images/p.png}",
+                      "\\href{https://youtu.be/nFoM8JraEek?t=3}",
+                      "\\colorbox{boxbg}{\\begin{minipage}{0.93\\linewidth}",
+                      "\\expapercardgap\n" + card_line(88, "\\color{graytx} salâm")
+                      + "}{{\\raggedright\\expapercardsize{100} \\textbf{hello}, a note"):
             self.assertIn(piece, card)
         # every note is set after the exercise's box, never inside it
         self.assertIn("\\textbf{hello}, a note\\protect\\footnotemark[2]", card)
@@ -804,26 +822,78 @@ class TexTests(unittest.TestCase):
 
     def test_a_jolly_card_prints_its_fields_as_the_page_draws_them(self):
         body = tex_body(COMPAT_MD)
-        # a field of one target-language line is the display line and the
-        # target block the page draws, on paper as on the screen; the prose
-        # fields are the inline text they always were
-        self.assertIn("\\textbf{Front:}\\par\n\\par\\medskip\\noindent\\hspace*{1.5em}"
-                      "{\\large\\pel{سؤال}}\\par\\medskip\\par\nfirst line\\newline second line"
-                      "\\par\\medskip\\textbf{Back:} question / a \\textbf{request} for information"
-                      "}\\medskip", body)
-        self.assertIn("\\textbf{Front:}\\par\n\\begin{fapar}سلام\\end{fapar}\\par\nsalâm"
-                      "\\par\\medskip\\textbf{Back:} hello / greeting, see"
-                      "\\protect\\footnotemark[2]}"
-                      "\\medskip\n\\footnotetext[2]{A document note that a card cites too.}", body)
+        # a field of one target-language line is the card's own line, as the
+        # page's card draws it: the target block the page draws, in the
+        # middle of its half, and a line of the target script alone without
+        # the display line's indent and size; the prose fields are lines of
+        # their own, at their sizes and in their shades, the main ones bold
+        self.assertIn("}{{\\expapercardsize{140}\\bfseries \\pel{سؤال}\\par}\\expapercardgap\n"
+                      + card_line(88, "\\color{graytx} first line\\newline second line") + "}{"
+                      + card_line(120, "\\color[HTML]{AA3300}\\bfseries question") + "\\expapercardgap\n"
+                      + card_line(88, "\\color{graytx} a \\textbf{request} for information")
+                      + "}\\medskip", body)
+        self.assertIn("}{{\\expapercardsize{120}\\bfseries \\let\\raggedleft\\centering"
+                      "\\let\\raggedright\\centering\\let\\newline\\expapercardcr \\begin{fapar}سلام"
+                      "\\end{fapar}\\par}\\expapercardgap\n" + card_line(88, "\\color{graytx} salâm") + "}{"
+                      + card_line(120, "\\bfseries hello") + "\\expapercardgap\n"
+                      + card_line(88, "\\color{graytx} greeting, see\\protect\\footnotemark[2]")
+                      + "}\\medskip\n\\footnotetext[2]{A document note that a card cites too.}", body)
+        # turned round (direction: reverse), the back is the left half, the
+        # side the card shows first: its picture, its meaning, its example
+        self.assertIn("\\smallskip}{\\expapercardpic{images/fig.pdf}\\expapercardgap\n"
+                      + card_line(120, "\\bfseries book") + "\\expapercardgap\n", body)
+        self.assertIn("}{\\expapercardpic{images/cat.png}\\expapercardgap\n"
+                      + card_line(120, "\\bfseries {\\tlfont\\beginR کتاب\\endR}"), body)
 
     def test_vocabulary_names_its_recordings(self):
+        # on each half of the card, as on the page: the picture, then the
+        # recording -- ♪ and its file's name -- then the words
         body = tex_body(doc(FlashcardHtmlTests.VOCAB % ("vocab", "")))
-        self.assertIn("\\textbf{Front:} {\\color{accent}\\audioX}~{\\footnotesize\\color{graytx}ketab.mp3}\\quad "
-                      "{\\tlfont\\beginR کتاب\\endR}\\par\\medskip\\textbf{Back:} {\\color{accent}\\audioX}~"
-                      "{\\footnotesize\\color{graytx}book.m4a}\\quad book", body)
+        self.assertIn("\\smallskip}{\\expapercardpic{images/cat.png}\\expapercardgap\n"
+                      "{\\footnotesize{\\color{accent}\\audioX}~{\\color{graytx}ketab.mp3}\\par}\\expapercardgap\n"
+                      + card_line(120, "\\bfseries {\\tlfont\\beginR کتاب\\endR}")
+                      + "}{{\\footnotesize{\\color{accent}\\audioX}~{\\color{graytx}book.m4a}\\par}\\expapercardgap\n"
+                      + card_line(120, "\\bfseries book") + "}\\medskip", body)
         body = tex_body(doc((FlashcardHtmlTests.VOCAB % ("opposites", "")).replace("front-audio: audio/ketab.mp3\n", "")))
-        self.assertIn("\\textbf{Front:} {\\tlfont\\beginR کتاب\\endR}\\par\\medskip\\textbf{Back:} "
-                      "{\\color{accent}\\audioX}~{\\footnotesize\\color{graytx}book.m4a}\\quad \\pe{دفتر}", body)
+        self.assertIn("\\smallskip}{\\expapercardpic{images/cat.png}\\expapercardgap\n"
+                      + card_line(120, "\\bfseries {\\tlfont\\beginR کتاب\\endR}")
+                      + "}{{\\footnotesize{\\color{accent}\\audioX}~{\\color{graytx}book.m4a}\\par}\\expapercardgap\n"
+                      + card_line(120, "\\bfseries \\pel{دفتر}") + "}\\medskip", body)
+
+    def test_a_card_on_paper_is_cut_out_and_folded(self):
+        card = (":::exercise flashcard\ncard-type: jolly\nfront-primary: big\nfront-primary-size: 200\n"
+                "front-secondary: quiet\nfront-secondary-shade: muted\nback-primary: red\n"
+                "back-primary-shade: #aa3300\nback-secondary: loud\nback-secondary-shade: accent\n"
+                "back-secondary-size: 999\n:::")
+        tex = texgen.generate(*mdparser.parse(doc(card)), colophon=False)
+        # the card's own macros, TikZ with them, only where a card is printed
+        self.assertIn("FLASHCARDS ON PAPER", tex)
+        self.assertIn("\\IfFileExists{tikz.sty}{\\usepackage{tikz}}{}", tex)
+        self.assertIn("\\setlength\\expapercardrule{0.8pt}", tex)
+        self.assertIn("rounded corners=.9em", tex)
+        self.assertIn("dash pattern=on 5\\expapercardrule off 3.5\\expapercardrule", tex)
+        self.assertNotIn("%%", tex)
+        plain = texgen.generate(*mdparser.parse(doc(":::exercise yes-no\n- Is it? => yes\n:::")),
+                                colophon=False)
+        self.assertIn("EXERCISES ON PAPER", plain)
+        self.assertNotIn("FLASHCARDS ON PAPER", plain)
+        self.assertNotIn("tikz", plain)
+        # sizes and shades as the page's card has them: muted is the grey at
+        # 72 per cent, a size out of 50-250 the nearer end
+        body = tex[tex.index("\\begin{document}"):]
+        self.assertIn(card_line(200, "\\bfseries big") + "\\expapercardgap\n"
+                      + card_line(88, "\\color{graytx!72} quiet") + "}{"
+                      + card_line(120, "\\color[HTML]{AA3300}\\bfseries red") + "\\expapercardgap\n"
+                      + card_line(250, "\\color{accent} loud") + "}\\medskip", body)
+        # black and white: every shade is the ink; the frame heavier in large print
+        mono = texgen.generate(*mdparser.parse(doc(card)), colophon=False, mono=True, font_size=20)
+        body = mono[mono.index("\\begin{document}"):]
+        self.assertIn("{\\large \\expapercard{", body)
+        self.assertIn(card_line(88, " quiet"), body)
+        self.assertIn(card_line(120, "\\bfseries red"), body)
+        self.assertNotIn("\\color", body[body.index("\\expapercard{"):body.index("}\\medskip")]
+                         .replace("\\color{accent}Flashcard", ""))
+        self.assertIn("\\setlength\\expapercardrule{1.5pt}", mono)
 
     def test_a_note_in_a_table_in_a_box_reaches_the_page(self):
         body = tex_body(doc("> A box:\n>\n> | a | b |\n> |---|---|\n> | x | cell[^t] |\n>\n> after[^b]\n\n"

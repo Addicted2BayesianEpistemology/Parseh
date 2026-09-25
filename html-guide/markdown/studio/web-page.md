@@ -56,8 +56,10 @@ A deck's exercises can be a page too, one that crams them: see
   opens and shuts, with a box that filters them as you type. The studio's
   flashcard drill of the glosses is not on the page.
 - **Aa.** At the top right: the size of the text and the theme, **Paper**,
-  **Sepia** or **Dark**. The page starts dark on a computer or phone that
-  is set to dark.
+  **Sepia** or **Dark**. The page starts on **Sepia**, the warm paper made
+  for reading, whatever the studio was showing when you made it and
+  whatever the student's computer or phone prefers; a student who likes
+  another picks it here, until the tab is closed.
 - **Its foot.** *This page was exported from Parseh*, with links to
   **Parseh on GitHub** and to **Parseh's guide**, this one. Each opens in a
   new tab, so the page, and every answer given on it, stays as it was.

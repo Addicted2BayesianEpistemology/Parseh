@@ -28,13 +28,14 @@ A corpus is a **pair** of languages: the language you read, and the one
 your glosses are written in. Persian glossed in English and Persian glossed
 in Italian are two different files.
 
-1. On the [reading-help page](reading-help.md), go to **Sentences somebody
-   has already translated**. Every language has a row.
-2. Beside **get it** is a picker holding the other ten languages Parseh
-   teaches, with **English** chosen. Pick the language your book's or
-   video's glosses are written in — English, unless you chose another when
-   you added it ([Target language and gloss language](target-and-gloss.md)).
-3. Press **get it**.
+1. On the [reading-help page](reading-help.md), find the card of the
+   language you read (a language with nothing on your shelf: **Open** on
+   its line).
+2. In the card's header, **glossed in** names the language its books and
+   videos are glossed in — English, unless you chose another when you added
+   them ([Target language and gloss language](target-and-gloss.md)). Pick
+   another to see that pair instead.
+3. Press **Get it** on the **Sentences people translated** row.
 
 The picker holds only the languages Parseh teaches, so a book glossed in a
 language it only writes in — Portuguese, say — has no corpus to offer.
@@ -44,13 +45,11 @@ between them — and only the sentences the links name are kept, which is why
 the English export of millions of sentences does not become a corpus of
 millions.
 
-When it is done the row lists the pair on a line of its own — *glossed in
-**English** · 8,454 sentence pairs · 3 MB · Tatoeba (tatoeba.org) · CC BY
-2.0 FR · built …* — with **rebuild** and **remove** beside it, and the
-picker stays for another pair. A language may have several pairs, each on
-its line with its own buttons; the picker offers only the ones it has not
-got. **rebuild** is worth pressing now and then: Tatoeba gains sentences
-every week.
+When it is done the row says how many sentence pairs it holds, its size
+and when it was built, with Tatoeba and its licence on its last line, and
+**Rebuild** and **Remove…** beside it. Another pair is another choice under
+**glossed in**, and a file of its own. **Rebuild** is worth pressing now and
+then: Tatoeba gains sentences every week.
 
 ### What it costs, and what you get
 
@@ -73,11 +72,10 @@ saying so.
 A corpus is indexed word by word, and a sentence written without spaces has
 to be cut into words first — which only the dictionary's own word list can
 do. So until the **Japanese** or **Chinese** dictionary is installed, their
-row says *its dictionary first — Japanese is written without spaces between
-its words, so a corpus of it has to be cut into words before it can be
-indexed, and the dictionary's own word list is what cuts it*, and offers no
-button. Install the dictionary above, reload the page, and the row offers
-**get it**.
+row says *Japanese is written without spaces between its words, so its
+dictionary comes first: the sentences are cut into words with it*, and
+offers no button. Get the dictionary on the same card, and the row offers
+**Get it**; **Get everything** fetches the two in that order by itself.
 
 Every other language's corpus stands on its own: it needs no dictionary,
 and a corpus alone is enough for the reader to show its **dictionary**

@@ -31,15 +31,18 @@ of its doors:
 | **✂ The clip tray** | the recordings and pictures cut for cards, waiting to go onto one |
 | **🔍 Reading what nobody has glossed** | dictionaries, and the rest of what reading an unglossed text takes |
 
-What you read through them is yours: Parseh comes with the doors, one short
-example book, and nothing else of anybody's.
+What you read through them is yours: Parseh comes with the doors and
+nothing of anybody's, so its shelves are empty until you fill them.
 
 ## The short version
 
-1. **Install it, once.** On Linux, run `./install.sh` in the Parseh folder.
-   On a Mac, double-click **Parseh.command**. On Windows, double-click
-   **install.bat**. [Installing Parseh](installing.md) says what that does
-   and what it needs.
+1. **Get it, and install it, once.** Download the newest release's zip,
+   `parseh-<version>.zip`, from the
+   [releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest)
+   and unpack it where Parseh will live. Then, on Linux, run `./install.sh`
+   in that folder; on a Mac, double-click **Parseh.command**; on Windows,
+   double-click **install.bat**. [Installing Parseh](installing.md) says
+   what that does and what it needs.
 2. **Start it.** On Linux, `./serve.sh`; on a Mac, **Parseh.command** again;
    on Windows, **serve.bat** — whose first run is a
    [setup wizard](windows-wizard.md). See
@@ -49,6 +52,9 @@ example book, and nothing else of anybody's.
    never asks again. From a phone, use one of the other addresses Parseh
    prints — [From a phone or another computer](other-devices.md).
 4. **Pick a door** on [the hub](the-hub.md).
+5. **Update it** from **⚙ Settings → Updating Parseh**, when a new version
+   comes out: your books, decks, dictionaries and settings stay as they are.
+   [Updating Parseh](updating.md) says how.
 
 When you are done, the **⏻ stop** button at the top of the hub stops the
 server; while it is still working on something — a build, an upload — it

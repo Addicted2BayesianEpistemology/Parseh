@@ -22,7 +22,8 @@ still be true after the next row lands and a number in a sentence is not.
 
 ## 1. The registry: `lib/languages.json` and `lib/languages.py`
 
-One table, `lib/languages.json`, holds everything a language is: code, names,
+One table, `lib/languages.json` — with a second half, `config/languages.json`,
+for the languages added on one machine (below) — holds everything a language is: code, names,
 folder, direction, script (as regex character ranges), digits, the marks the
 bare pass strips, whether it has a *reading* (kana), whether it can be set
 vertically, fonts (CSS stacks and TeX names), the babel/fontspec names, the
@@ -41,6 +42,79 @@ into it.
 
 **No other file may hold a list of languages, a language-specific regex, a
 font name or a digit table.** A tool that needs one asks the registry.
+
+### Two files, one registry: Parseh's languages and this machine's
+
+The registry has **two halves**, and to every tool they are one table.
+`lib/languages.json` holds **Parseh's own** languages — the ones a release
+ships, tests and documents — and it is part of the software: updating
+Parseh replaces it with the new version's, like every other file a release
+carries. **A language somebody adds on their own machine** is theirs, like
+their settings, and lives where their settings live:
+**`config/languages.json`**, beside the checkout, which no release carries
+and no update touches (and which `.gitignore` keeps out of git). It holds
+rows of exactly the same shape, under the store's own `_comment` and a
+`_format` stamp, `parseh-languages/1` (`languages.STORE_FORMAT`, which
+`lib/version.formats()` reports so an update to a Parseh that reads an older
+shape is told so first). `lib/newlang.py` writes it (§10).
+
+`lib/languages.py` reads **Parseh's table first and then the machine's**
+(`read_rows`), and marks every language of the second half as the person's:
+`Lang.mine` is true, `languages.mine()` lists them. The rules, and why:
+
+- **Parseh's own row wins a code both hold.** The day Parseh ships Korean, a
+  Korean somebody added for themselves is passed over, not merged — two rows
+  for one code would be two answers to every question — and `newlang.py
+  --check` says so, as a note: their row can go.
+- **A row whose folder another language already has is left out**, because a
+  folder is how a book, a video or a document is found to *be* in a language
+  (§2). `--check` calls that a fault.
+- **The person's half never stops Parseh.** A `config/languages.json` that is
+  not JSON, or a row missing a field or carrying a class that does not
+  compile, is left out and said — in the server's log as it starts
+  (`languages.PROBLEMS`) and by `--check` — and every other language goes on
+  working. Parseh's own table still raises on a fault, as it always has: a
+  fault there is a fault of the release.
+
+The **book preamble reads the registry itself**, in Lua (§6), and follows the
+same rule: `lib/frank-preamble.tex` reads `lib/languages.json`, then
+`config/languages.json` for the codes Parseh's own lacks, so the PDF and the
+reader of one book never take a language from two different rows. The path
+is `\FrankLib`'s with its last component changed from `lib` to `config`,
+worked out on the text rather than through `lib/..`, so a tree whose `lib/`
+is a link into another checkout reads its own `config/`, as the Python side
+does (`languages.PERSONAL` comes from the imported path, not the resolved
+one). **Both files are in both of `build.sh`'s keys**, so a change to a
+language added on this machine rebuilds its books as a change to Parseh's
+table does; a missing `config/languages.json` adds nothing to either key, so
+no existing book's key moved when the second half was introduced.
+
+**`_shipped`** at the top of `lib/languages.json` names the rows that are
+Parseh's, in order, and a unit test (`tests/test_languages_store.py`) holds it
+to the table. It is how a row that is **not** Parseh's is told apart when it
+turns up in Parseh's file anyway — an older `newlang.py` spliced every new
+language there, and a hand may still. **`languages.migrate()` moves such a
+row**: written into `config/languages.json`, then cut out of
+`lib/languages.json` so that Parseh's own rows come out **byte for byte** and
+the file is again the one the release shipped (the update that follows then
+has nothing of the person's to replace). The server runs it as it starts,
+and a file with nothing to move costs one read and writes nothing — which is
+how it happens once. It is careful where a mistake would lose something: it
+**never runs in a git checkout** (there a row `_shipped` does not name is a
+language being added to Parseh by its author, and `newlang.py --migrate` is
+the way to ask for it); it **never writes over a `config/languages.json` it
+could not read**; a row the store already holds **the same** is only taken
+out of `lib/`; one it holds **differently** is left in both, the one in
+`lib/` is read, and the log says so, because which of two hand edits is right
+is not a thing to guess. A `lib/languages.json` with **no** `_shipped` — one
+from before the list existed — is taken as all Parseh's, and nothing is
+moved.
+
+**What stays where it was.** A language added on this machine still has its
+`lib/lang/<code>.tex` and `docs/lang/<code>.md` (and whatever else §10 lists:
+`lib/verbs/<code>.py`, a starter, `lib/lang/<code>.*.json`) where every tool
+looks for them. They are not in any release's manifest, so an update, which
+replaces and removes only the files its manifests name, never touches them.
 
 **`iso3` is in the table because one outside source keys its files by it.**
 Parseh keys everything by ISO 639-1; Tatoeba, whose exports `lib/getcorpus.py`
@@ -559,6 +633,22 @@ along with the registry, so the twelfth language is offered slot 12
 that rests on somebody reading a paragraph at the right moment is not a
 guarantee; this one is made by the code that would otherwise break it.
 
+**A language added on one machine takes its pair from another part of the
+grid.** Parseh's own languages walk up from slot 0, and the next one Parseh
+ships takes the next free slot of that walk — in the checkout it is added
+in, which knows nothing of a Korean somebody added for themselves (§1, *Two
+files, one registry*). Had that Korean walked the same grid it would have
+taken the same slot, and after the update Anki would merge the two. So
+`newlang.py` gives a language of this machine's a slot **drawn at random from
+slot 1000 up** (`PERSONAL_SLOT`, ten million slots wide), checked like any
+other against every id in both halves and the retired ones; Parseh's walk
+stops below it (`--shipped`, §10, is the walk). At random, not the first free
+one, because two people who each add a language and then swap decks meet the
+same danger one step further on, and a fixed "first personal slot" would be
+everybody's. A row an older `newlang.py` wrote, and `migrate()` moved to
+`config/`, keeps the ids it has — they are what that person's cards already
+carry — and `--check` notes that it sits on Parseh's part of the grid.
+
 ### The store, per language
 
 - **Writing.** `anki_store.add_card` files a card under its own
@@ -950,14 +1040,34 @@ python3 lib/newlang.py ko --name Korean --native 한국어 --script other \
     --chars '\uAC00-\uD7AF\u1100-\u11FF' --font 'Noto Serif KR' --web-font NotoSerifKR.woff2
 ```
 
-`lib/newlang.py` writes all six things a language is: the entry in
-`lib/languages.json` (spliced into the text, so the entries already there come
-out byte for byte), `lib/lang/<code>.tex` and `docs/lang/<code>.md` from the
-templates beside them (`lib/lang/_template.tex`, `docs/lang/_template.md`),
-and the three content directories, each with a `.gitkeep` so the layout
-survives a clone. It derives what it can — the folder, the tag, the babel
-name, the passes, the labels, and the next free Anki model ids on the
-`1724563200000 + 10·n + 1/2` grid, checked against every id in the registry —
+`lib/newlang.py` writes all six things a language is: the entry, in
+**`config/languages.json`** — the registry's second half, this machine's, which
+no update touches (§1, *Two files, one registry*) — then `lib/lang/<code>.tex`
+and `docs/lang/<code>.md` from the templates beside them
+(`lib/lang/_template.tex`, `docs/lang/_template.md`), and the three content
+directories, each with a `.gitkeep` so the layout survives a clone. The two
+files and the directories are where they always were: the whole toolbox looks
+for them there, and no release's manifest names them, so an update leaves
+them alone.
+
+**Where the entry goes is the one choice left to make.** Without a flag it is
+a language of this machine's. **`--shipped`** is the other case: a developer
+adding a language to Parseh itself, for everybody, in a checkout. The entry
+then goes into `lib/languages.json` (spliced into the text, so the entries
+already there come out byte for byte) and its code into that file's
+`_shipped`, in the same write — a row there that `_shipped` did not name would
+be taken for somebody's own and moved out to `config/` the first time an
+install started. **`--migrate`** moves the rows of `lib/languages.json` that
+`_shipped` does not name to `config/languages.json` on request: what Parseh
+does by itself as it starts (§1), for the one place it will not, a git
+checkout. Adding a language runs the same move first, so the new row lands in
+a registry whose two halves already say whose is whose.
+
+It derives what it can — the folder, the tag, the babel
+name, the passes, the labels, and the Anki model ids on the
+`1724563200000 + 10·n + 1/2` grid, checked against every id in both halves:
+the next free pair for `--shipped`, and a free pair drawn from slot 1000 up
+for a language of this machine's (§4) —
 and refuses what a default cannot rescue: a code or folder already in use, a
 code that is not two or three letters, a `chars` that does not compile as a
 regex in Python **and** as a JS RegExp source. The one thing the grid cannot
@@ -1004,7 +1114,9 @@ a language whose videos are written without the marks its dictionary keeps
 where they exist (§12), and a language starts without them.
 
 Then `python3 lib/newlang.py --check` (non-zero when anything is missing; it
-walks every language, not only the new one) and `python3 tests/smoke.py`.
+walks every language of both halves, not only the new one, marks the ones
+added on this machine, and reports a row of theirs the registry had to leave
+out) and `python3 tests/smoke.py`.
 
 The process end to end, written for someone who has not read the code, is the
 guide's page **"Adding a language"**
@@ -1241,7 +1353,9 @@ the same thing.
   one thread that ran them, which is why they never worked.
 
 - **The dictionaries are set up from one page, and it is linked from three
-  places.** `/lookup/` (`lib/lookuppage.py`) carries them, in the first of
+  places.** `/lookup/` (`lib/lookuppage.py`; since TO-DO §11.10 the reading
+  help in Settings, `/settings/reading-help/`, a card per language, with
+  `/lookup/` redirecting to it) carries them, in the first of
   the page's three sections (the corpora and the models are the other two,
   below) — a row per language, with a button that does what `getdict.py`
   does, a progress line while it builds, and a remove. What the row offers
@@ -1999,16 +2113,20 @@ the same thing.
   pointer but has a `tr-conj` table of its own becomes an entry. English
   chooses among its pronunciations by `avoid_mode` (above).
 
-  None of it reaches a file that is not rebuilt — **rebuild** on
-  `/lookup/`, or `python3 lib/getdict.py <code>` (`--out PATH` writes it
+  None of it reaches a file that is not rebuilt — **Rebuild** on the
+  reading help, or `python3 lib/getdict.py <code>` (`--out PATH` writes it
   there and leaves `dict/` alone; a build is written to a `.part` and
   renamed, so a failed one leaves the old file where it was). A dictionary
   built before is still read and gives less: Chinese no `\vb` (no pinyin),
   French and English no sound for a form (no `form.ipa`), German no
   auxiliary or government per sense, Persian the head line's stems where
   the literary table would have spoken, and every one of them slower
-  without the index. Built on this machine: German 342 MB, Spanish 272 MB,
-  Italian 155 MB, Hindi 88 MB, Japanese 62 MB, Chinese 57 MB, Persian 21 MB.
+  without the index. Built on this machine (2026-09-10): German 342 MB,
+  Spanish 272 MB, Italian 155 MB, Hindi 88 MB, Japanese 62 MB, Chinese
+  57 MB, Persian 21 MB. Built again on 2026-09-24: Turkish 306 MB (from a
+  431 MB extract), Japanese 89 MB, Persian 21 MB — so read the older
+  figures as floors; `lib/getdict.py`'s MEASURED table is what the reading
+  help says.
 
 - **A verb hit carries its `\vb`, and what goes into it is each language's
   recipe.** A dictionary hit for a verb used to reach the gloss editor as a
@@ -2466,8 +2584,8 @@ the same thing.
   `lib/getsyn.py` builds `mt/synonyms.en.json` from
   [WordNet 3.1](https://wordnet.princeton.edu/) (Princeton University;
   the WordNet 3.0 licence, redistribution and modification allowed with the
-  notice kept): `{stem: [stem, ...]}`, about a megabyte, fetched by
-  `/lookup/` and loaded once (`synLoad`, kicked off from `has()` the moment
+  notice kept): `{stem: [stem, ...]}`, about a megabyte, fetched from the
+  reading help and loaded once (`synLoad`, kicked off from `has()` the moment
   a reader learns a model exists — well before a hover, so it is ready in
   time — with `translate()` as a backstop). `meet(a, b)` tries it last, at a
   fixed quality `SYN_Q` (0.62) — below a stemmed match (1), a
@@ -2624,8 +2742,8 @@ the same thing.
   up is the gloss editor's sources sidebar, below, and even there it lands in
   an unsaved field.) All three are downloaded rather than shipped and silent
   rather than loud when absent, so a toolbox with none of them is the toolbox
-  as it was, and a finished edition looks exactly as it did. `/lookup/` now
-  carries three sections — dictionaries, corpora, models — a row per language
+  as it was, and a finished edition looks exactly as it did. `/lookup/` then
+  carried three sections — dictionaries, corpora, models — a row per language
   in each: the dictionary row offers **get it**, or **rebuild** beside
   **remove** (above), and the corpus and model rows carry a **gloss picker**
   beside **get it**, with **remove** for each pair already there, because a
@@ -2642,7 +2760,7 @@ the same thing.
   for each what is missing and what the machine loses by it.
 
   A FOURTH thing is not per language at all: the synonym table (below) is
-  one file, English only, and `/lookup/`'s row for it has no gloss picker
+  one file, English only, and the page's row for it has no gloss picker
   and no per-language loop — **get it**, **rebuild**, **remove**, the same
   three words, on one row. `install.sh` reports it alongside the other
   three.

@@ -7,6 +7,11 @@ python3 lib/getdecomposition.py kanjivg --input path/to/source.zip
 
 Downloads are pinned, checked, parsed in a temporary file and atomically
 published. Source notices and transformation details travel inside each pack.
+
+A download goes through lib/download.py: it resumes where a cut line or Stop
+left it (components/.download-<pack>-<file>.part), says how far it has got,
+and is refused unless it has the digest pinned below. A pack's build reports
+its entries against the count the pinned source is known to hold.
 """
 import argparse
 import hashlib
@@ -15,13 +20,17 @@ import os
 import sqlite3
 import tempfile
 import time
-import urllib.request
 import zipfile
 from contextlib import closing
 from pathlib import Path
 
 import decomposition as domain
 import decomposition_sources as parsers
+import download                 # resumable, stoppable, and says how far
+import version                  # who is asking, in the User-Agent
+
+# the User-Agent every request here sends, as the other downloaders' UA
+UA = 'Parseh/%s (local component installer)' % version.VERSION
 
 SOURCES = {
     'kanjivg': ('KanjiVG/kanjivg', '422b5538595676da918c288a4230cb5e22a1ee7e', 'data.zip',
@@ -32,23 +41,70 @@ SOURCES = {
               'bfc70a8c09f9f5616ebf0543bd6681e67314e9f7ae2307e5ae8c6f15bdc5c6a6'),
 }
 
+# WHAT EACH PACK COSTS, MEASURED -- exactly, because each source is pinned by
+# its digest and so its size cannot move: (the pinned file's bytes, its
+# notices' bytes, the built pack's bytes, the entries it holds). The files'
+# sizes as GitHub served them on 2026-09-25 (KanjiVG's generated archive
+# names no size of its own, so this is also what its bar counts against);
+# the packs as built from them on 2026-09-24 and 2026-09-25. A pack's size
+# moves only when the conversion here does.
+MEASURED = {
+    'kanjivg': (23_497_394, 0, 2_654_208, 6_704),
+    'makemeahanzi': (2_570_140, 10_783, 2_000_000, 9_574),
+    'cjkvi': (2_161_631, 3_644, 34_488_320, 176_521),
+}
+LIMIT = 100_000_000             # no pinned source is a quarter of this
 
-def fetch(url, path, say):
-    request = urllib.request.Request(url, headers={'User-Agent': 'Parseh/1.0 (local component installer)'})
-    with urllib.request.urlopen(request, timeout=120) as response, open(path, 'wb') as out:
-        total = 0
-        while True:
-            block = response.read(1 << 18)
-            if not block:
-                break
-            total += len(block)
-            if total > 100_000_000:
-                raise ValueError('component download exceeded its size limit')
-            out.write(block)
-            say('Downloading component data: %.1f MB' % (total / 1e6))
+# THE SHAPE OF A PACK, components/<source>.db -- the node and meta tables
+# build() makes -- as a number (lib/version.py FORMATS).  The one number a
+# pack carries itself, as its manifest's "schema", so it is written from
+# here.  RAISE IT when the shape changes so that the Parseh before this one
+# would read a pack wrong.
+PACK_FORMAT = 1
 
 
-def build(source, input_path=None, say=print):
+def fetch(url, path, say, progress=None, cancel=None, sha256=None, size=None):
+    download.fetch(url, str(path), say=say, progress=progress, cancel=cancel, sha256=sha256,
+                   size=size, limit=LIMIT, headers={'User-Agent': UA}, timeout=120)
+
+
+def _download_path(source):
+    """Where a pack's source is downloaded to: beside the packs, and kept there until the pack is built,
+    so that a download cut short -- or a build stopped after it -- is carried on from, not started again."""
+    _repo, _revision, filename, _expected = SOURCES[source]
+    return domain.path_for(source).parent / ('.download-%s-%s' % (source, filename))
+
+
+def plan(source, input_path=None, *, probe=True):
+    """What installing this pack will cost, before anything is fetched: lib/download.py's plan() shape. Every
+    size is MEASURED (the sources are pinned), so `probe` is never needed; it is taken for the same shape of call
+    as the other downloaders' plan()."""
+    if source not in SOURCES:
+        raise ValueError('unknown decomposition source')
+    size, notices, kept, _entries = MEASURED[source]
+    if input_path:
+        return download.plan(0, kept=kept)
+    dest = str(_download_path(source))
+    have = os.path.getsize(dest) if os.path.isfile(dest) else download.leftover(dest)
+    return download.plan(size + notices, measured=True, kept=kept, have=have)
+
+
+def discard(source):
+    """Throw away a downloaded or half-downloaded source left by a build that was stopped. Returns the bytes
+    freed; an installed pack is untouched."""
+    dest = str(_download_path(source))
+    freed = download.leftover(dest)
+    download.discard(dest)
+    if os.path.isfile(dest):
+        freed += os.path.getsize(dest)
+        os.unlink(dest)
+    return freed
+
+
+def build(source, input_path=None, say=print, progress=None, cancel=None):
+    """Install one pack. `progress(done, total, phase)` hears the download ("download": bytes) and the build
+    ("build": entries against the pinned source's known count); `cancel` stops either as download.Cancelled,
+    keeping the download to carry on from and leaving the installed pack as it was."""
     if source not in SOURCES:
         raise ValueError('unknown decomposition source')
     repo, revision, filename, expected = SOURCES[source]
@@ -56,11 +112,18 @@ def build(source, input_path=None, say=print):
     url = 'https://codeload.github.com/%s/zip/%s' % (repo, revision) if source == 'kanjivg' else raw + filename
     target = domain.path_for(source)
     target.parent.mkdir(parents=True, exist_ok=True)
+    size, _notices, _kept, known = MEASURED[source]
+    fetched = None
+    if not input_path:
+        fetched = _download_path(source)
+        if fetched.is_file() and download.digest(fetched) == expected:
+            say('Using the component data already here')
+        else:
+            say('Downloading component data…')
+            fetch(url, fetched, say, progress=progress, cancel=cancel, sha256=expected, size=size)
     with tempfile.TemporaryDirectory(prefix='.build-', dir=target.parent) as tmp:
         tmp = Path(tmp)
-        data = Path(input_path) if input_path else tmp / filename
-        if not input_path:
-            fetch(url, data, say)
+        data = Path(input_path) if input_path else fetched
         digest = hashlib.sha256(data.read_bytes()).hexdigest()
         if not input_path and digest != expected:
             raise ValueError('download checksum does not match the tested source revision')
@@ -78,9 +141,10 @@ def build(source, input_path=None, say=print):
                     if local.exists():
                         notices[name] = local.read_text(encoding='utf-8')
                 else:
-                    fetch(raw + name, tmp / name, say)
+                    fetch(raw + name, tmp / name, say, cancel=cancel)
                     notices[name] = (tmp / name).read_text(encoding='utf-8')
         say('Building component trees…')
+        meter = download.Meter(progress, cancel, total=None if input_path else known)
         db = tmp / 'pack.db'
         with closing(sqlite3.connect(db)) as conn:
             conn.executescript('CREATE TABLE node(lang TEXT, character TEXT, tree TEXT, PRIMARY KEY(lang, character));'
@@ -90,9 +154,11 @@ def build(source, input_path=None, say=print):
                 conn.execute('INSERT OR REPLACE INTO node VALUES(?,?,?)',
                              (lang, character, json.dumps(tree, ensure_ascii=False, separators=(',', ':'))))
                 entries += 1
+                if entries % 200 == 0:
+                    meter.at(min(entries, meter.total) if meter.total else entries)
             if not entries:
                 raise ValueError('no component entries found; the previous pack has been kept')
-            meta = dict(domain.PACKS[source], source=source, schema=1, entries=entries,
+            meta = dict(domain.PACKS[source], source=source, schema=PACK_FORMAT, entries=entries,
                         built=time.strftime('%Y-%m-%d'), revision=revision if digest == expected else 'local import',
                         sha256=digest, source_url=url, notices=notices,
                         transformation='Parseh component-only conversion: IDS parsed; graphical SVG groups flattened; '
@@ -100,6 +166,9 @@ def build(source, input_path=None, say=print):
             conn.execute('INSERT INTO meta VALUES(?,?)', ('manifest', json.dumps(meta, ensure_ascii=False)))
             conn.commit()
         os.replace(db, target)
+    meter.end()
+    if fetched is not None:
+        fetched.unlink(missing_ok=True)
     say('Installed %s: %s component entries' % (domain.PACKS[source]['name'], entries))
     return entries
 

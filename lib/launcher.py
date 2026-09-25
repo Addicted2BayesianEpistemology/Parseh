@@ -29,6 +29,15 @@ in it.  It offers to install what winget can, builds the readers and the
 library page the way ./build.sh --html does, compiles the HTML guide as
 install.bat does, and makes the certificate.  Serving itself needs only the
 standard library.
+
+AN UPDATE FROM SETTINGS RUNS IN THIS WINDOW (lib/updater.py, TO-DO §13.16).
+The server is started knowing that this window waits on it (PARSEH_LAUNCHER),
+and when it stops to be updated it leaves with updater.LAUNCHER_EXIT: this
+window then runs the update's helper -- its lines are this window's log like
+everything else -- and starts the new version in the same window.  A new
+version that does not come up is undone and the old one started again.  And
+an update that did not finish (the power cut) is finished or undone first
+thing, before this file imports anything else of Parseh's, as serve.py does.
 """
 import http.client
 import json
@@ -44,6 +53,12 @@ import webbrowser
 LIB = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.realpath(os.path.join(LIB, ".."))
 sys.path.insert(0, LIB)
+# AN UPDATE THAT DID NOT FINISH IS FINISHED FIRST, before anything else of
+# Parseh's is imported from files it may have left half replaced
+# (lib/updater.py; serve.py asks the same as it starts)
+import updater                       # noqa: E402  updating in place, from Settings (TO-DO §13.16)
+if __name__ == "__main__":
+    updater.finish_first(ROOT)
 from books import all_books          # noqa: E402  where the books are (two levels: books/<language>/<slug>/)
 import guidebuild                    # noqa: E402  the HTML guide: whether its pages are compiled, and from what
 import languages                     # noqa: E402  the registry: which web fonts travel, which language needs a system font
@@ -369,7 +384,10 @@ def stop(port):
     return 1
 
 
-def start(port, open_browser=True):
+def start(port, open_browser=True, updated=""):
+    """Start the server in this window and wait on it.  `updated` names an
+    update this window has just applied: a new version that does not come
+    up is undone, and the old one started in its place."""
     url = server_url(port)
     if url:
         say("already running: %s" % url)
@@ -386,7 +404,9 @@ def start(port, open_browser=True):
         cmd.append("--http")
     say("starting:  " + " ".join(cmd))
     say("")
-    proc = subprocess.Popen(cmd, cwd=ROOT)
+    # the server is told who waits on it: when it stops to be updated it
+    # leaves with updater.LAUNCHER_EXIT, and this window runs the update
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=dict(os.environ, PARSEH_LAUNCHER="1"))
     url = None
     for _ in range(80):                        # up to 20 s: the first start mints the certificate
         if proc.poll() is not None:
@@ -400,6 +420,12 @@ def start(port, open_browser=True):
             proc.terminate()
         say("")
         say("failed to start -- the messages above say why")
+        if updated:
+            say("It was just updated, so the update is undone and the version before it started.")
+            helper = os.path.join(ROOT, updater.WORK, "helper.py")
+            if os.path.isfile(helper):
+                subprocess.call([sys.executable, helper, "rollback", ROOT], cwd=ROOT)
+                return start(port, open_browser=False)
         return 1
     say("")
     say("%s is up at %s -- this window is its log.  Close it, press Ctrl-C," % (NAME, url))
@@ -414,6 +440,17 @@ def start(port, open_browser=True):
         except subprocess.TimeoutExpired:
             proc.terminate()
             rc = 0
+    if rc == updater.LAUNCHER_EXIT:
+        # IT STOPPED TO BE UPDATED (Settings > Updating Parseh).  The update
+        # runs here, in this window, which stays the log; then the new
+        # version starts in it as the old one did -- without a browser
+        # window, since the page that asked comes back by itself.
+        say("")
+        say("%s stopped to be updated; this window starts it again when that is done." % NAME)
+        job = updater.running(ROOT)
+        updater.run_helper(ROOT)
+        say("")
+        return start(port, open_browser=False, updated=job)
     say("stopped.")
     return rc
 

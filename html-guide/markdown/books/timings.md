@@ -1,7 +1,7 @@
 ---
 title: Fixing the timings
 weight: 7
-description: Where each subparagraph starts and ends in the recording — edit times, one subparagraph at a time, and by ear, boundary by boundary over a picture of the sound.
+description: Where each subparagraph starts and ends in the recording — edit times, one subparagraph at a time, and by ear, boundary by boundary over a picture of the sound, with the rest estimated again by the text or by the sound.
 ---
 
 An alignment, or a first guess, times a whole recording at once, and some
@@ -77,10 +77,11 @@ The sheet, from the top:
   where a boundary belongs. How far it looks depends on how far you are
   zoomed in, and a gap shorter than a breath is passed over;
 - **estimate the rest** (**E**) lays a fresh guess over everything *after*
-  the line in hand, each piece given a slice of what is left in proportion to
-  how much text it has. Nothing to the left of the line is touched — that is
-  the point of it: a hand works left to right, and by the time the tenth
-  boundary is right, the fortieth still carries the first guess's error;
+  the line in hand — **by the text** or **by the sound**, whichever of the
+  two beside it is pressed ([below](#estimate-the-rest-by-the-text-or-by-the-sound)).
+  Nothing to the left of the line is touched — that is the point of it: a
+  hand works left to right, and by the time the tenth boundary is right, the
+  fortieth still carries the first guess's error;
 - **split from the next** / **join to the next** (below);
 - the zoom: **−** and **+** show more or less of the recording, **fit** goes
   back to the piece in hand and its neighbours, **all** shows the whole
@@ -98,6 +99,108 @@ apart and shades the silence between them as said by neither; **join to the
 next** puts them together again. An alignment snaps to the silences, so after
 one the boundaries often arrive split.
 
+### Estimate the rest: by the text or by the sound
+
+Beside **estimate the rest** sit two buttons that work as a switch, **by the
+text** and **by the sound**. The one pressed is how the button, and **E**,
+make the guess; pressing the other says so — *“estimate the rest” now goes
+by the sound*.
+
+**by the text** is the guess **estimate the rest** has always made: what is
+left is shared out in proportion to how much text each subparagraph has, the
+way **estimate times** shares out a whole recording, and every boundary after
+the line comes back joined. It needs no picture of the sound, and it hears
+nothing: every pause the reader took, and every sentence read faster than the
+last, pushes it further off.
+
+**by the sound** lays the same subparagraphs through the picture of the
+sound instead. A boundary goes into a pause the picture shows, where the
+length of the text allows one there; between the pauses the text is shared
+out at the pace of the speech, and the pace is followed as it changes. What
+it hears is **where the voice stops and starts** — how loud the recording is,
+moment by moment, and nothing else. It never hears **which word is which**:
+nothing recognises speech, and nothing listens to the words. So it is a
+better first guess, not an alignment: play the boundaries and correct what
+is off, as you would after **by the text**.
+
+When it is done it says how many boundaries it could put in a pause: *12
+pieces after this estimated from the sound — 9 of the 11 boundaries sit in a
+pause it heard; nothing to the left of it moved*. A line that sits in a gap
+of the waveform is the likeliest to be right. One drawn across the sound
+itself fell in continuous speech, where nothing in the picture tells one word
+from the next and the length of the text decided: listen to those first.
+
+What it changes, and what it does not:
+
+- **Nothing to the left of the line.** The subparagraph at the line keeps its
+  start, and the silence before its first word stays with it. With a
+  subparagraph's **end** in hand, the one after it starts at that line, as
+  **by the text** would start it.
+- **Joined or split, as the sound has it.** A boundary across a pause of half
+  a second or more comes back split, a tenth of a second either side of the
+  voice, the silence left to neither; across a shorter gap it comes back
+  joined, one line at the gap's quietest point.
+- **Nothing saved yet.** The guess is written by **save the timings**, like
+  any other move. **cancel** leaves without it — and without everything else
+  moved since the sheet was opened.
+
+**How long it takes.** It reads the rest of the recording, from the line to
+the end, so the time depends on how much is left: a few seconds for an hour,
+up to about a minute for four hours, more on a computer busy with something
+else. Meanwhile the sheet says *estimating from the sound…* and holds its
+lines still, and the work is on the
+[**Working…**](../getting-started/working-indicator.md) list — *Estimating
+the timings of “Momotarō” by the sound* — where the hub and any other page
+see it.
+
+- **Waiting is not a trap.** While it waits, **estimate the rest** reads
+  **stop estimating**: it, or **Esc**, gives the wait up — *stopped: nothing
+  was estimated, and nothing moved* — and the sheet is yours again, with
+  everything you moved by hand still there to save. **cancel** and **✕**
+  leave the sheet as ever. An answer that arrives after either is dropped.
+- **One at a time.** Only one estimate by the sound runs on the computer at
+  once; a second — from another sheet, another page — is refused at once:
+  *another estimate by the sound is running: try again when it has
+  finished*.
+- **A server that never answers.** It is given up after a few minutes —
+  two, and a second more for every minute of the stretch: *the server gave
+  no answer in 3 minutes, so the estimate was given up — nothing was
+  estimated*.
+- **Too long for the memory.** On a computer short of memory, a stretch of
+  many hours may be refused: *this stretch is too long to estimate by the
+  sound at once: estimate from a line nearer the end, or by the text*.
+
+**A text with no punctuation** — a transcript nobody punctuated — is its
+weakest case: with no sentence ends to hold on to, a long stretch can drift
+by a second or two. Put the full stops in first if you can.
+
+**When by the sound is greyed.** It needs a picture of the sound, and when
+there is none its tooltip says why:
+
+- **A reader built before it.** *this reader was built before estimating by
+  the sound existed: press “rebuild the reader” in the bar at the top of the
+  page, then reload the page*. The rebuild takes a few seconds, without
+  LaTeX.
+- **No ffmpeg on the computer.** *there is no picture of the sound here to
+  estimate by — it is drawn by ffmpeg, on the computer Parseh runs on*. The
+  waveform is missing too. The installer's report says whether ffmpeg is
+  there ([Installing](../getting-started/installing.md)).
+- **The picture on its way.** *waiting for the picture of the sound…*, for
+  the moment it takes to draw.
+
+While it is greyed, **by the text** shows pressed and **E** goes by the text.
+Your choice is kept all the same, and is back in force as soon as there is a
+picture.
+
+**The choice is remembered** in this browser, for books and videos alike:
+press **by the sound** once, and every sheet opens with it — a book's **by
+ear** and a video's [**the timings**](../videos/the-timings.md). If pressing
+**E** then says *estimating by the sound needs numpy, which the Python running
+Parseh does not have…*, the environment lacks the one package it needs: run
+the installer again ([Updating
+Parseh](../reference/daily-loops.md#updating-parseh)), then start Parseh
+again.
+
 ### The keys
 
 The same few movements, over and over, so they are all under the hand:
@@ -107,7 +210,7 @@ The same few movements, over and over, so they are all under the hand:
 | **,** and **.** | take up the piece before and the piece after (so do **[** **]** and **PageUp** **PageDown**) |
 | **F** | bring the view back onto the piece in hand |
 | **S** | drop the line into the nearest quiet |
-| **E** | estimate everything after it afresh |
+| **E** | estimate everything after it afresh — by the text or by the sound, whichever is pressed |
 | **←** **→** (or **↓** **↑**) | nudge by a tenth of a second; with **Shift**, half a second |
 | **Space** | play the piece, or stop |
 | **Enter** | save the timings |
@@ -124,5 +227,6 @@ or **Esc** leave without saving. The reader takes the new times at once —
 
 The picture of the sound is drawn by the server from the recording (with
 ffmpeg). Where there is none, **into the quiet** says *there is no picture
-of the sound here to find the quiet in* and does nothing else; the rest of
-the sheet still works.
+of the sound here to find the quiet in* and does nothing else, and **by the
+sound** is greyed ([above](#estimate-the-rest-by-the-text-or-by-the-sound));
+the rest of the sheet still works.

@@ -8,6 +8,7 @@ the three things ffmpeg does with one when the machine has it.
     name = audiofile.clean_stem("Hello World!")  # "hello-world"
     audiofile.extract(src, 12.3, 13.1, "/tmp/clip")  # -> "/tmp/clip.mp3"
     audiofile.peaks(src, 10.0, 15.0, 400)        # [0.0 .. 1.0] * 400
+    audiofile.envelope(src, 60.0, 3600.0)        # one loudness every 10 ms, full scale
 
 Every door that takes audio in -- a studio document's `audio/` folder, an
 exercise deck's, the clip tray the book reader and the video player cut into
@@ -28,12 +29,17 @@ instead.  With it, `extract` cuts [start, end] out of any file ffmpeg reads --
 a narration or a film -- into the best format the build can write (mp3, else
 m4a, else wav), and `transcode` turns a browser's WAV or WebM into the same.
 
-Standard library only; lib/ imports nothing outside itself.
+Standard library only; lib/ imports nothing outside itself.  The one
+exception is asked for, never needed: `envelope` counts with NumPy where the
+Python running it has NumPy, and with the standard library where it has not.
 """
+import math
 import os
 import re
 import shutil
 import subprocess
+import tempfile
+import threading
 import unicodedata
 
 EXTS = ("mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "flac", "webm")
@@ -380,3 +386,179 @@ def peaks(src, start, end, buckets=400, rate=8000):
         out.append(max((abs(s) for s in seg), default=0))
     top = max(out) or 1
     return [round(v / top, 3) for v in out]
+
+
+# ------------------------------------------------------------------ the envelope
+
+# THE SHAPE OF A WHOLE STRETCH, for estimating timings by the sound
+# (lib/wavealign.py): the decode `peaks` uses, cut into slices of 10 ms by
+# default, and read as a few parts at once when the stretch is long.
+ENVELOPE_HZ = 8000          # what ffmpeg decodes to: every syllable is still there
+ENVELOPE_PIECE = 300.0      # a stretch shorter than this is read by one ffmpeg
+ENVELOPE_JOBS = 8           # and a longer one by at most this many at once
+_ENVELOPE_CHUNK = 2048      # slices read off ffmpeg's output at a time
+
+
+def _numpy():
+    """NumPy, where the Python running this has it, else None."""
+    try:
+        import numpy
+    except ImportError:
+        return None
+    return numpy
+
+
+def envelope(src, start, end, rate=100):
+    """The loudness of [start, end] of `src` as one number every 1/rate s:
+    the PEAK |sample| of each slice over FULL SCALE, 0..1.  A list of
+    floats, one per slice from `start` -- round((end - start) * rate) of
+    them, at least one -- for estimating timings by the sound
+    (lib/wavealign.py), which is given this and never the sound itself.
+
+    NOT `peaks`, which draws a window: that scales each window to its own
+    loudest so that a quiet passage still fills the strip.  This must not,
+    because the same breath has to read as the same number wherever the
+    stretch happens to begin, and the aligner finds its own floor and
+    ceiling from how the numbers spread.
+
+    STREAMED.  Four hours at 8 kHz is 230 MB of samples, and none of it is
+    ever held: ffmpeg's output is read a few hundred kilobytes at a time and
+    each piece is folded into its slices at once.  A LONG STRETCH IS READ IN
+    PARTS AT ONCE, each by an ffmpeg of its own from its own seek -- with
+    `_seek`'s pre-roll, so the silence an MP3 decoder gives after a seek is
+    never taken for a pause at the seam -- because decoding is the whole
+    cost, and it is one core's work per ffmpeg.
+
+    Past the end of the file there is nothing to hear, so those slices are
+    0.0, as `peaks` answers there.  NumPy counts where it is installed and
+    the standard library where it is not; the numbers are the same."""
+    exe = ffmpeg()
+    if not exe:
+        raise AudioError("ffmpeg is not installed")
+    start, end = max(0.0, float(start)), float(end)
+    if not end > start:
+        raise AudioError("the end must come after the start")
+    rate = int(rate)
+    if not 1 <= rate <= 1000:
+        raise AudioError("an envelope has between 1 and 1000 numbers a second")
+    # a whole number of samples a slice, so no slice straddles two: 8000 Hz
+    # exactly at 100 or 20 a second, and within a few hertz of it otherwise
+    per = max(1, int(round(ENVELOPE_HZ / float(rate))))
+    count = max(1, int((end - start) * rate + 0.5))
+    parts = max(1, min(ENVELOPE_JOBS, os.cpu_count() or 1,
+                       int(math.ceil((end - start) / ENVELOPE_PIECE))))
+    size = int(math.ceil(count / float(parts)))
+    spans = [(a, min(count, a + size)) for a in range(0, count, size)]
+    np = _numpy()
+    stop = threading.Event()        # one part failed: the others stop too
+    out = [None] * len(spans)
+    errors = []
+
+    def part(k):
+        a, b = spans[k]
+        try:
+            out[k] = _envelope_part(exe, src, start + a / float(rate), b - a,
+                                    rate, per, np, stop)
+        except Exception as e:      # said by the caller, once, below
+            errors.append(e)
+            stop.set()
+
+    if len(spans) == 1:
+        part(0)
+    else:
+        workers = [threading.Thread(target=part, args=(k,), daemon=True)
+                   for k in range(len(spans))]
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join()
+    if errors:
+        e = errors[0]
+        raise e if isinstance(e, AudioError) else AudioError("the sound could not be read: %s" % e)
+    values = []
+    for piece in out:
+        values.extend(piece)
+    return values
+
+
+def _envelope_part(exe, src, at, count, rate, per, np, stop):
+    """`count` slices of `per` samples from `at` seconds: one ffmpeg, its
+    output folded as it comes.  None when a sibling part failed first."""
+    hz = per * rate
+    cmd = ([exe, "-nostdin", "-v", "error"] + _seek(src, at)[0] +
+           ["-t", "%.3f" % (count / float(rate)), "-vn", "-sn", "-dn",
+            "-ac", "1", "-ar", str(hz), "-f", "s16le", "-"])
+    want = count * per * 2               # bytes: anything after is -t rounding
+    width = per * 2 * _ENVELOPE_CHUNK
+    values = []
+    late = []
+    # ffmpeg's complaints go to a file, not a pipe: a damaged recording can
+    # say one line per broken packet, and a pipe nobody reads until the end
+    # fills and stops ffmpeg dead
+    with tempfile.TemporaryFile() as err:
+        try:
+            p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                 stderr=err)
+        except OSError as e:
+            raise AudioError("ffmpeg could not run: %s" % e)
+
+        def overdue():
+            late.append(True)
+            p.kill()
+        # four times faster than playing is slower than any machine decodes
+        # at 8 kHz; a stretch still going after that has hung
+        timer = threading.Timer(60 + count / float(rate) / 4, overdue)
+        timer.daemon = True
+        timer.start()
+        got = 0
+        try:
+            while True:
+                if stop.is_set():
+                    p.kill()
+                    break
+                data = p.stdout.read(width)
+                if not data:
+                    break
+                if got < want:
+                    use = data[:want - got]
+                    got += len(use)
+                    values.extend(_fold(use, per, np))
+        finally:
+            p.stdout.close()
+            rc = p.wait()
+            timer.cancel()
+        if stop.is_set():
+            return None
+        if late:
+            raise AudioError("ffmpeg took too long reading the sound at %.2f s" % at)
+        if rc != 0:
+            err.seek(0)
+            tail = err.read().decode("utf-8", "replace").strip().splitlines()[-3:]
+            raise AudioError("ffmpeg failed: %s" % (" ".join(tail) or "exit %d" % rc))
+    values.extend([0.0] * (count - len(values)))
+    return values[:count]
+
+
+def _fold(data, per, np):
+    """Little-endian 16-bit samples -> the peak |sample| of each `per` of
+    them over full scale; a last slice cut short by the end of the file is
+    the peak of what there is."""
+    data = data[:len(data) // 2 * 2]
+    if not data:
+        return []
+    if np is not None:
+        a = np.frombuffer(data, dtype="<i2").astype(np.int32)
+        short = -len(a) % per
+        if short:
+            a = np.concatenate([a, np.zeros(short, dtype=np.int32)])
+        return (np.abs(a).reshape(-1, per).max(axis=1) / 32768.0).tolist()
+    import array
+    samples = array.array("h")
+    samples.frombytes(data)
+    if os.sys.byteorder == "big":
+        samples.byteswap()
+    out = []
+    for i in range(0, len(samples), per):
+        seg = samples[i:i + per]
+        out.append(max(max(seg), -min(seg)) / 32768.0)
+    return out

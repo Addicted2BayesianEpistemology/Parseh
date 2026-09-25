@@ -5,11 +5,17 @@ description: For whoever maintains Parseh — the one command that adds a twelft
 ---
 
 > **An advanced page, for the command line.** Nothing here is needed to
-> *use* Parseh. A new language is a change to the program itself — a row of
-> its language table and two files that go with it — so it is done in
-> Parseh's folder, from a terminal, by whoever maintains the toolbox, and
-> then shared like any other change to the code. There is no button for it,
-> on purpose: once it is done, the language is simply there in every page.
+> *use* Parseh. A new language is a row of its language table and the files
+> that go with it, so it is done in Parseh's folder, from a terminal, by
+> whoever is comfortable there. There is no button for it yet: once it is
+> done, the language is simply there in every page.
+>
+> **The language is yours, and an update keeps it.** Its row goes into
+> `config/languages.json`, beside Parseh's own table rather than inside it —
+> the same folder as your settings, which no update touches — and its two
+> files stay in `lib/lang/` and `docs/lang/`, which an update does not
+> touch either. Adding a language to Parseh itself, for everybody, is the
+> one flag `--shipped` (below).
 
 Nothing about the number eleven is special. French, German, Turkish,
 Hindi, Spanish and Chinese each arrived as one run of one command — a row
@@ -18,7 +24,12 @@ reads the table rather than keeping a list of languages of its own.
 
 ## What a language is
 
-A language is **one row of `lib/languages.json`**, the registry, plus:
+A language is **one row of the registry** plus the files that go with it.
+The registry is two files read as one: **`lib/languages.json`**, Parseh's own
+languages, which comes with Parseh and is replaced by each update, and
+**`config/languages.json`**, the languages added on this machine, read after
+it. Where both have a row for the same code, Parseh's own is the one used.
+Beside the row:
 
 - `lib/lang/<code>.tex` — what a reading edition's LaTeX needs to know about
   it;
@@ -66,9 +77,9 @@ python3 lib/newlang.py ko --name Korean --native 한국어 --script other \
 ```
 
 It asks for nothing it can work out — the folder, the tag, babel's name,
-the passes and their titles, the labels, and the next free pair of Anki
-ids, checked against every id in the table and every retired one — and
-works out nothing you ought to decide. The flags that carry a decision:
+the passes and their titles, the labels, and a free pair of Anki ids,
+checked against every id in both files and every retired one — and works
+out nothing you ought to decide. The flags that carry a decision:
 
 | Flag | |
 |---|---|
@@ -94,6 +105,7 @@ works out nothing you ought to decide. The flags that carry a decision:
 | `--anki-field`, `--duration-units`, `--chapter-words` | the rest of the row |
 | `--dry-run` | print the row that would be added, and write nothing |
 | `--force` | overwrite the `.tex` and the `.md` if they are already there |
+| `--shipped` | put the row into Parseh's own table, `lib/languages.json`, and name it in that file's `_shipped` list: for a language added to Parseh itself, to be shared with everybody. Without it the row goes into `config/languages.json` and is this machine's |
 
 It **refuses**, and writes nothing, for a code that is taken or is not two
 or three lower-case letters, a folder or a tag another language has, a
@@ -112,11 +124,11 @@ adding Korean (ko, 한국어) to Parseh
 warnings (none of them stopped anything):
   - --font 'Noto Serif KR' is not on this machine.  Kept: the entry may be for another one, and \FrankPickFont falls through tex.main_fallbacks.
 
-  lib/languages.json   entry added after zh:
+  config/languages.json entry added -- a language of this machine's, which an update leaves where it is:
       folder korean/   tag korean   dir ltr   script other   digits Latin
       passes: 1 (the sentence), 2 (chunks and glosses)
       fonts:  main Noto Serif KR, alt none, bundled none
-      anki:   1724563200121 / 1724563200122 (slot 12), field Korean
+      anki:   1724587311241 / 1724587311242 (slot 2411124), field Korean
   lib/lang/ko.tex      written
   docs/lang/ko.md      written
   books/korean/        made, with .gitkeep
@@ -220,7 +232,8 @@ python3 tests/smoke.py               # the regression run, every renderer
 python3 tests/smoke.py --pdf         # ... and the LaTeX builds (minutes)
 ```
 
-`--check` walks the **whole** registry and prints a line for everything it
+`--check` walks the **whole** registry — both files, marking the languages
+added on this machine — and prints a line for everything it
 looked at: the `.tex` and the `.md`, that the verb labels and the passes in
 the registry and the `.tex` agree, the three folders, that babel has the
 locale, the fonts, the bundled files, that the Anki ids are the language's
@@ -231,7 +244,7 @@ that does not exist yet, a font this machine lacks, a locale this TeX
 installation has not got. `--strict` counts the notes as faults too.
 
 ```text
-  ko  Korean (korean)
+  ko  Korean (korean)  -- added on this machine
       ok       lib/lang/ko.tex (the reading editions' preamble)
       ok       docs/lang/ko.md (the annotation conventions)
       ok       vb labels 'pres.' / 'past': the registry and the .tex agree
@@ -240,7 +253,7 @@ installation has not got. `--strict` counts the notes as faults too.
       ok       books/korean/, youtube/videos/korean/, library/korean/
       ok       babel imports 'ko', which is installed
       note     tex.main 'Noto Serif KR' is not on this machine and no fallback is either
-      ok       Anki ids 1724563200121 / 1724563200122 are this language's alone
+      ok       Anki ids 1724587311241 / 1724587311242 are this language's alone
       ok       chars: compiles in Python and JS
 
 12 languages: 0 faults, 1 note.
@@ -299,9 +312,12 @@ reading-alone pass) and, if it can be set in columns, `--vertical`; the
 scaffold then leaves TODO blocks in the `.tex` to copy from `ja.tex` and
 `zh.tex`.
 
-> **Never type an Anki note-type id by hand.** The command allocates the
-> next free pair and checks it against every id in the table and every
-> retired one, which is the whole reason to let it. An id that collides
+> **Never type an Anki note-type id by hand.** The command allocates a
+> free pair and checks it against every id in both files and every
+> retired one, which is the whole reason to let it. A language added on
+> your own machine draws its pair at random from slot 1000 up, a part of
+> the grid Parseh's own languages never reach — so the next language
+> Parseh ships cannot be handed the pair yours already has. An id that collides
 > with another language's breaks nothing in Parseh — it breaks inside
 > Anki, months later, by quietly merging two note types and the cards
 > under them.
@@ -312,7 +328,8 @@ scaffold then leaves TODO blocks in the `.tex` to copy from `ja.tex` and
 > types in Anki. So when you remove one, add its two ids to
 > `RETIRED_ANKI_IDS` in `lib/newlang.py`, with the language and the date
 > beside them. Pali's pair (slot 9, `1724563200091` / `1724563200092`) is
-> already there, which is why the Korean above got slot 12 and not slot 9.
+> already there, which is why a twelfth language added to Parseh itself
+> (`--shipped`) is given slot 12 and not slot 9.
 > The command then never hands a retired pair out again, and `--check`
 > calls any row that uses one a **MISSING** fault (*the Anki id … is
 > already retired*).

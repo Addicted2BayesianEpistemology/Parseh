@@ -26,14 +26,13 @@ words that are interchangeable in one sense.
 
 ## Getting it
 
-It is **one row**, named **synonyms**, with no language and no picker —
-the table is about English words, not about any language you read. Press
-**get it**; it is about a megabyte, fetched once, and kept as
-`mt/synonyms.en.json`. Installed, the row says how many words it holds, its
-size, its source and licence (*WordNet 3.1 (Princeton University) · WordNet
-3.0 licence (free redistribution and modification)*) and when it was built,
-with **remove** (after a confirmation: *Remove the synonym table?*) and
-**rebuild**.
+It is **one row**, **English synonyms**, on the card every language shares
+at the foot of the [reading-help page](reading-help.md) — the table is about
+English words, not about any language you read. Press **Get it**; it is a
+16 MB download, kept as about a megabyte in `mt/synonyms.en.json`.
+Installed, the row says how many words it holds, its size and when it was
+built, with WordNet 3.1 and its licence on its last line, and **Rebuild**
+and **Remove…** (which asks in the row first).
 
 There is nothing to switch on. A reader loads the table the moment it
 learns that a model exists for its pair — well before you open a cloud —

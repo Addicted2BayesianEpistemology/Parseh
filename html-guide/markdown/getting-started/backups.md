@@ -81,12 +81,16 @@ back as the same deck, with every file it had and every answer.
   from it through the **⇆ Anki** door.
 - The clip tray: the recordings and pictures waiting for a card. A card, a
   deck or a document that uses one keeps its own copy.
-- The dictionaries, sentences and models fetched on the **Reading what
-  nobody has glossed** page: fetch them again there.
+- The dictionaries, sentences and models fetched on **Settings → Reading
+  help**: fetch them again there.
+- Your settings and the devices you let in, `config/`: a Parseh on another
+  computer starts with its own, and a phone is let in there once more.
 - What each browser remembers: the theme, the language, where you are in a
   book.
 - What can be built again: the readers, the library page, the PDFs of the
   books.
 
-[Where everything lives](where-things-live.md) has the folders all of
+None of it is needed to update Parseh: [an update from
+Settings](updating.md) keeps every shelf, and everything in this list, as it
+is. [Where everything lives](where-things-live.md) has the folders all of
 these are kept in.

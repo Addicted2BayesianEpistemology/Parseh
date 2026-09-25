@@ -38,7 +38,9 @@ fresh block in place of the one the page opened with.  /m/kept/ carries no
 such mark: its list is the phone's own and the computer knows nothing of it.
 """
 import html
+import json
 import os
+import re
 import sys
 
 LIB = os.path.dirname(os.path.realpath(__file__))
@@ -161,6 +163,63 @@ def manifest(user_agent=None):
     }
 
 
+# THE WORKER, AS IT IS SERVED (TO-DO §13.16, the app's half of an update).
+# A browser installs a new service worker only when the bytes of /sw.js
+# change, and lib/sw.js changes only when somebody edits it -- so a release
+# that happened not to touch it left every phone on the old worker, with the
+# old way in and not a word said.  So the release is written into the worker
+# as it is served: its version (lib/version.py, the one place it is read) and
+# its build, the commit in the release's own manifest where the install has
+# one.  Every release is then new bytes, every phone that reaches the computer
+# takes a new worker, and that worker is what tells the page, in a line, that
+# Parseh was updated (lib/sw.js, `announce`; lib/keep.js).  The build is for
+# the one case the version cannot see: the same version installed twice, which
+# is how a release nobody has seen yet is fixed and tried again.
+#
+# Two placeholders, each a quoted JavaScript string in lib/sw.js, each
+# replaced by a JSON string: a version is letters, digits and dots and a
+# commit is hex, but what is written into a script is written escaped.
+WORKER = os.path.join(LIB, "sw.js")
+WORKER_MARKS = (b"'__PARSEH_RELEASE__'", b"'__PARSEH_BUILD__'")
+# where a release's manifest sits in an install (lib/release.py, MANIFEST)
+RELEASE_MANIFEST = ".parseh-release.json"
+_build = None
+
+
+def release_build():
+    """The commit this install was built from, twelve hex digits, or "".
+
+    Read once: the manifest is written by the installer and the updater, both
+    of which start the server again afterwards.  An install with no manifest
+    -- a git checkout, a copy made before releases had one -- has no build,
+    and its worker changes only with its version.
+    """
+    global _build
+    if _build is None:
+        _build = ""
+        try:
+            with open(os.path.join(os.path.dirname(LIB), RELEASE_MANIFEST),
+                      encoding="utf-8") as fh:
+                commit = str(json.load(fh).get("commit") or "")
+            if re.fullmatch(r"[0-9a-f]{7,64}", commit):
+                _build = commit[:12]
+        except (OSError, ValueError, AttributeError):
+            pass
+    return _build
+
+
+def worker():
+    """/sw.js as the server answers it: lib/sw.js with this Parseh's version
+    and build written in (see WORKER_MARKS).  Read from the disk every time,
+    as it always was, so an edit to the worker is served without a restart."""
+    import version                  # the one reader of VERSION (TO-DO §16.1)
+    with open(WORKER, "rb") as fh:
+        js = fh.read()
+    for mark, value in zip(WORKER_MARKS, (version.VERSION, release_build())):
+        js = js.replace(mark, json.dumps(value).encode("utf-8"))
+    return js
+
+
 # THE PAGE ARRIVES ALREADY KNOWING (the owner's rule of 2026-09-23).
 #
 #   "If the page knows the machine is offline when you click a thing, the
@@ -182,15 +241,34 @@ def manifest(user_agent=None):
 # This is the first thing on every page of the app, before any script of its
 # own: the memory, read, and the mark set on <html> that everything else
 # already keys off.  Nothing fetches, nothing waits -- it is a localStorage
-# read and an attribute -- and lib/keep.js's own probe follows a moment later
-# and may still turn the mark ON.  It may not turn it off: that is the second
-# half of the rule, and it lives in lib/keep.js (`chipPaint`).
+# read and an attribute -- and the page's one question (lib/activity.js)
+# follows a moment later and either confirms the mark or takes it off in the
+# page's first breath.  Once confirmed it stays for the page's life: that is
+# the second half of the rule, and it lives in lib/keep.js (`paintAway`).
+#
+# The mark says `assumed`: what the page before found, not what this one has,
+# and an assumed away refuses no write (static/app.js, `api`) -- only one the
+# page has confirmed does.
+#
+# AND NEVER ON A REFRESH (the owner's fall-back, 2026-09-24): "if we refresh
+# the page, then it is forced to check again if the computer is online -- so
+# upon refreshing, do not assume still offline."  Every refresh -- F5, the
+# browser's button, a finger pulling the page down, ↻ -- is reported as
+# "reload", already here in the head, the worker's cached copy included
+# (driven in Chromium and Firefox); the older performance.navigation says the
+# same where the newer entry is not there yet.  The memory is kept, not
+# erased: the question writes it again whatever it finds.  Wrapped in a
+# function so that it leaves no global behind for a page's own `let` to
+# collide with.
 AWAY_BOOT = (
-    '<script>/* the state the page before this one found: lib/keep.js, `noted` */\n'
-    'try{var a=JSON.parse(localStorage.getItem("parseh_away")||"null");\n'
-    'if(a&&a.away===true&&typeof a.at==="number"&&\n'
+    '<script>/* the state the page before this one found (lib/keep.js, `noted`), '
+    'never acted on by a refresh */\n'
+    '(function(){try{var a=JSON.parse(localStorage.getItem("parseh_away")||"null"),\n'
+    'n=performance.getEntriesByType?performance.getEntriesByType("navigation")[0]:null,\n'
+    'r=n?n.type==="reload":!!(performance.navigation&&performance.navigation.type===1);\n'
+    'if(!r&&a&&a.away===true&&typeof a.at==="number"&&\n'
     '   Date.now()/1000-a.at<=(typeof a.trusted==="number"?a.trusted:180))\n'
-    'document.documentElement.setAttribute("data-parseh-away","");}catch(e){}</script>')
+    'document.documentElement.setAttribute("data-parseh-away","assumed");}catch(e){}})();</script>')
 
 
 def app_head():

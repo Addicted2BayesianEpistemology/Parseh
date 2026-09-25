@@ -181,19 +181,23 @@
       mode = c ? c[1] : 'browser';
     }
   }
-  /* The host's answer OR the browser's: lib/keep.js asks the computer every
-     twenty seconds, so a note opened in the first of those seconds would
-     find the attribute not yet on -- and a phone that knows perfectly well
-     it has no network is not worth doubting.  Going offline while the note
-     is open takes the link away then and there, since the frame is not
-     reloaded for it. */
+  /* The host's answer, and the browser's only where there is no host.  The
+     host page's mark is the page's one question answered (lib/activity.js,
+     lib/keep.js), or what the page before it found; the browser saying "no
+     network" is a reason for that question to ask, not an answer of its own
+     (TO-DO §2.24) -- a phone reaching its computer through a VPN can say
+     it and still be there.  The host going away while the note is open
+     takes the link away then and there, since the frame is not reloaded for
+     it. */
   var studio = document.getElementById('nfull');
   function shut() {
-    var away = (host && host.hasAttribute('data-parseh-away')) || !navigator.onLine;
+    var away = host ? host.hasAttribute('data-parseh-away') : !navigator.onLine;
     if (studio && (mode === 'mobile' || away)) studio.hidden = true;
   }
   shut();
-  window.addEventListener('offline', shut);
+  if (host && window.MutationObserver)
+    new MutationObserver(shut).observe(host, {attributes: true, attributeFilter: ['data-parseh-away']});
+  else window.addEventListener('offline', shut);
   if (!framed) return;
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;

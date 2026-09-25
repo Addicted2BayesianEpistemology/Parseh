@@ -1,0 +1,109 @@
+# A release of Parseh on GitHub: push a tag, get a zip people can download.
+#
+# THIS WORKFLOW, when a tag is pushed -- or when run by hand for a tag that is
+# on GitHub already (Actions -> release -> Run workflow, and type the tag) --
+# builds that commit's release and leaves it on the Releases page AS A DRAFT:
+# parseh-<tag>.zip, its .sha256, and the notes cut from the tag's own section
+# of CHANGELOG.md.  Nobody but the repository's owner sees a draft.
+# Publishing it is a separate, deliberate act, by hand on github.com
+# (Releases -> the draft -> Edit -> Publish release); until then the tag can
+# be moved or deleted and the draft made again.  Running this again for the
+# same tag replaces that tag's draft, and it never touches a release that is
+# published already: somebody may have downloaded it.  docs/releasing.md is
+# the whole procedure, of which this is one step.
+#
+# ONE BUILDER.  lib/release.py, which the developer runs on his own machine
+# too, before any tag exists, so that the two builds can be compared
+# (release.py compare): `check` refuses unless the tag, VERSION,
+# CHANGELOG.md's newest heading and the guide's What's new name the same
+# version, and -- for a version's own tag -- both headings carry the day it
+# is released; `guide` refuses unless the compiled guide (html-guide/site/,
+# which ships as committed) is what its sources compile to -- nothing is
+# released while either refuses -- and `build` makes the zip, with the
+# manifest (.parseh-release.json) inside it that an update from Settings
+# reads.  THE GUIDE CHECK ONLY, NO TEST SUITE (the owner, 2026-09-25): the
+# suites are run on the developer's machine before the tag, where a browser
+# and the rest of the toolchain are.  Standard library only: setup-python is
+# all it needs, and gh, which every GitHub runner has, makes the release.
+# Nothing here names a version: every future tag goes the same way.
+#
+# A REHEARSAL IS A PRERELEASE, A VERSION IS NOT (the owner, 2026-09-25).  A
+# rehearsal's tag, aX.Y.Z-rcN, is pushed first to see the whole road work:
+# its draft is marked a prerelease, and is deleted with its tag once looked
+# at.  A version's own tag makes a draft that is NOT a prerelease: the
+# version's own "a" says alpha, and GitHub's "latest release" -- what
+# Settings asks for when it looks for an update -- never answers with a
+# prerelease, which is also how a bad release is withdrawn from "latest"
+# (docs/releasing.md).  `release.py prerelease` says which a tag is, by
+# lib/version.py's rule.  The one checksum published is the one of the zip
+# built here, never one for GitHub's own "Source code" archives, whose
+# compression GitHub has changed before.
+name: release
+
+on:
+  push:
+    tags: ["*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The tag to release, already pushed to GitHub"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# one run per tag at a time; a second waits for the one in progress
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # the tag reaches the steps as $TAG, never pasted into a script
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The tag, VERSION, the changelog and What's new agree
+        run: python3 lib/release.py check "$TAG"
+      - name: The compiled guide is in step with its sources
+        run: python3 lib/release.py guide
+      - name: Build the zip and its manifest
+        run: python3 lib/release.py build --tag "$TAG" --out dist
+      - name: The notes, from the changelog
+        run: python3 lib/release.py notes "$TAG" > dist/notes.md
+      # an assignment fails the step when the command in it fails, where an
+      # echo of the same $(...) would not
+      - name: A rehearsal or a version
+        run: |
+          prerelease=$(python3 lib/release.py prerelease "$TAG")
+          echo "PRERELEASE=$prerelease" >> "$GITHUB_ENV"
+      # a published release is somebody's download: it is never replaced
+      - name: Never over a published release
+        run: |
+          if gh api "repos/$GH_REPO/releases/tags/$TAG" --silent 2>/dev/null; then
+            echo "::error::$TAG is published already, and a published release is never replaced: release the fix as a new version (docs/releasing.md)"
+            exit 1
+          fi
+      # a draft is not: this tag's earlier draft goes, and this run's takes its place
+      - name: Replace an earlier draft of this tag
+        run: |
+          gh api "repos/$GH_REPO/releases" --paginate --jq ".[] | select(.draft and .tag_name == \"$TAG\") | .id" |
+          while read -r id; do
+            gh api -X DELETE "repos/$GH_REPO/releases/$id"
+          done
+      - name: The draft release
+        run: >-
+          gh release create "$TAG"
+          "dist/parseh-$TAG.zip" "dist/parseh-$TAG.zip.sha256"
+          --draft --prerelease="$PRERELEASE" --verify-tag
+          --title "Parseh $TAG" --notes-file dist/notes.md

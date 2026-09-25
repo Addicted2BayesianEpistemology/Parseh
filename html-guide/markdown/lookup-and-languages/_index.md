@@ -9,7 +9,7 @@ language of what you are reading.
 
 **The first half is reading help.** A book or a video can be read long
 before its glosses are written, and for those weeks most chunks are phrases
-you cannot get past. One page, **`/lookup/`**, sets up everything that helps
+you cannot get past. One page, **Reading help** in Settings, sets up everything that helps
 with that: a dictionary for each language, the components of a Japanese or
 Chinese character, sentences somebody has already translated, a translation
 model that runs inside the page, and a small table of English synonyms that
@@ -25,9 +25,9 @@ its script, its fonts, its passes, its transliteration.
 
 ## Reading help
 
-1. [The reading-help page](reading-help.md) — how to reach `/lookup/`, the
-   five things it can install, what every row and button does, where the
-   files go, and whose work they are.
+1. [The reading-help page](reading-help.md) — how to reach it, what each
+   language can have and what it costs, what every row and button does,
+   where the files go, whose work they are, and how it all works.
 2. [Dictionaries](dictionaries.md) — the **dictionary** switch in every
    reader and player, and the panel it opens under a chunk nobody has
    glossed.

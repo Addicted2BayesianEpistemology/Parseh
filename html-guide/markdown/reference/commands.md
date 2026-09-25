@@ -15,7 +15,7 @@ description: For those who like a terminal — the installers, the server, the b
 > and for scripting. On Windows, where there is no shell, the double-clicks
 > (`install.bat`, `serve.bat`) are the whole of it.
 
-Run everything from the top of the repository, the folder that holds
+Run everything from the top of Parseh's folder, the one that holds
 `serve.sh`. Where a line starts with `python3`, it means the Python of
 Parseh's environment: `./serve.sh`, `./build.sh` and `./install.sh` find
 that environment by themselves (`lib/env.sh`), and
@@ -48,7 +48,7 @@ dictionaries and cards.
 | `--conda` | Makes the environment with this machine's conda (`ilya-frank`) instead of the checkout's own micromamba. |
 | `--recreate` | Throws `.runtime/env` away and makes it again. |
 | `--json` | The installing only, reported as JSON lines for a graphical installer to read (below), and nothing else. |
-| `--pdf` | The report also checks the TeX Live packages a book's or a studio document's PDF needs, and installs the missing ones with `tlmgr` — among them `extsizes`, which the studio's large print needs, and the hyphenation patterns of every language that hyphenates. |
+| `--pdf` | The report also checks the TeX Live packages a book's or a studio document's PDF needs, and installs the missing ones with `tlmgr` — among them `extsizes`, which the studio's large print needs, `pgf`, which draws a flashcard's round frame on paper, and the hyphenation patterns of every language that hyphenates. |
 | `--align` | The report also says how to re-align a narration from the command line. |
 
 Flags combine (`./install.sh --pdf --align`); an unknown one is refused
@@ -149,8 +149,9 @@ A conda user can still make the environment the usual way —
 
 The server keeps running when the terminal closes; its process id is in
 `.serve.pid` and its output in `serve.log`. A second start while one is
-running says `already running` and leaves it alone. `youtube/serve.sh`
-only forwards to this one, for old habits.
+running says `already running` and leaves it alone. (A copy of the
+source code also has `youtube/serve.sh`, which only forwards to this one,
+for old habits; a release does not carry it.)
 
 ### serve.py (any system, in the foreground)
 
@@ -176,7 +177,7 @@ On start it lists the books it found (and any narration a `book.json`
 names that is missing), the addresses it can be reached at, and the
 doors: `/books/`, `/youtube/`, `/studio/`, `/exercises/`, `/anki/sync/`,
 `/settings/` — and, under them, who may reach it.
-The rest of the addresses are `/lookup/` (the reading help), `/clips/`
+The rest of the addresses are `/settings/reading-help/` (the reading help; its old address `/lookup/` still opens it), `/clips/`
 (the clip tray), `/guide/` (these pages) and `/licences/` (what Parseh, its
 fonts and the data it downloads are under).
 
@@ -303,8 +304,9 @@ content, lookup, Anki](commands-content.md#books-by-hand).
 
 ## Checking the toolbox
 
-For whoever changes Parseh's own code. Never run two of these at once in
-the same checkout.
+For whoever changes Parseh's own code, in a copy of its source code — a
+release does not carry the tests. Never run two of these at once in the
+same checkout.
 
 ```bash
 # the unit tests
@@ -327,4 +329,22 @@ environment carries) against a Chromium:
 ```bash
 CHROME_BIN=/path/to/chrome PARSEH_PYTHON=/path/to/python3 \
   deno run --allow-all tests/html_guide.mjs
+```
+
+## Releasing a version
+
+For whoever releases Parseh, from a copy of its source code;
+[`docs/releasing.md`](https://github.com/Addicted2BayesianEpistemology/Parseh/blob/main/docs/releasing.md)
+is the whole procedure, step by step. The one tool it uses:
+
+```bash
+# the release's zip, its checksum and its list of files, in dist/,
+# made from a commit (HEAD, or --ref) exactly as GitHub makes it
+python3 lib/release.py build
+# refuses unless the tag, VERSION and CHANGELOG.md's newest heading agree
+python3 lib/release.py check <version>
+# that version's section of CHANGELOG.md: the release's notes
+python3 lib/release.py notes <version>
+# whether two builds -- zips, lists of files, or one of each -- ship the same
+python3 lib/release.py compare dist/parseh-<version>.zip ~/Downloads/parseh-<version>.zip
 ```

@@ -77,6 +77,16 @@ if TOOLBOX_LIB not in sys.path:
 import languages  # noqa: E402  the registry: scripts, digits, duration words
 import wordline   # noqa: E402  the word line's grammar, the books' as well
 
+# THE SHAPES OF video.json AND annotations.json, as numbers (lib/version.py
+# FORMATS).  Several modules write the two files -- the add page, the
+# player's editor, the aligner, a bundle coming in -- and this is the file
+# that says what every one of them must write, so the numbers are kept here.
+# RAISE ONE when its file's shape changes so that the Parseh before this one
+# would read a video wrong; a field an older reader ignores is not such a
+# change.
+VIDEO_FORMAT = 1
+ANNOTATIONS_FORMAT = 1
+
 # A caption's clock line: "8:07", "1:02:03" -- and, since the add page's
 # editor can move a caption by a tenth of a second, an optional fraction
 # after it ("0:08.4", or "0:08,4" as a comma-writing keyboard types it).  A

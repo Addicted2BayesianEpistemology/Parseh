@@ -145,6 +145,8 @@ a.m-door.m-guide{min-height:72px;margin-top:22px;background:none;border-style:da
    finger's height */
 .m-foot{margin:28px 0 0;text-align:center;color:var(--faint);font-size:13.5px}
 .m-foot a{color:var(--dim);display:inline-flex;align-items:center;min-height:48px;padding:0 6px}
+/* the version, under the licence line (serve.py's hub) */
+.m-ver{margin:0 0 8px;text-align:center;color:var(--faint);font-size:12.5px}
 
 /* The licences page (/licences/, lib/notices.py) carries both layouts in
    one column: in the mobile mode, the mobile column. */
@@ -284,7 +286,7 @@ a.m-book:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 html.m-reader[data-mode=mobile] header{flex-direction:row;flex-wrap:wrap;align-items:center;
   gap:6px;padding:6px 10px}
 html.m-reader[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
-html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#toc,#typo,#theme,.pgrp,.px-ask,.kp-btn,.kp-off,
+html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#toc,#typo,#theme,.pgrp,.px-ask,.kp-btn,.kp-off,.kp-again,.kp-wait,
   [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#listen,#listenfollow,
   #listenscroll,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#bars,
   #audio,[data-layout=mobile]){display:none!important}
@@ -337,7 +339,7 @@ html.m-reader[data-mode=mobile] header .m-rmore{order:9;margin-inline-start:auto
 html.m-reader[data-mode=mobile] header .px-ask{order:10}
 /* the chip that says the computer cannot be reached (lib/keep.js, §19.5):
    on the first line, where it is seen at once and not only under ⋯ */
-html.m-reader[data-mode=mobile] header .kp-off{order:11}
+html.m-reader[data-mode=mobile] header :is(.kp-off,.kp-again,.kp-wait){order:11}
 @media (max-width:359px){
   html.m-reader[data-mode=mobile] header{gap:4px;padding:6px 6px}
 }
@@ -485,6 +487,197 @@ html.m-reader[data-mode=mobile] :is(#chpen,#anki,#ankiback,#bmbox,#bmback,#chbox
 /* and the word under the pointer no longer lights up for a card while a
    modifier is held: there is no card to make */
 html.m-reader[data-mode=mobile] body.altdown .wd:hover{background:none;box-shadow:none}
+/* THE DICTIONARY UNDER ANY GLOSS: the button lib/mobilereader.js puts
+   beside "copy", drawn as copy is (the reader's own sheet knows the classes
+   it built, and a reader built before this one knows nothing of it), and
+   marked while the panel it opened is showing */
+html.m-reader[data-mode=mobile] #cloud .mkdict{font:inherit;font-size:11.5px;color:var(--dim);
+  background:var(--bg);border:1px solid var(--rule);border-radius:5px;padding:3px 8px;
+  cursor:pointer;margin-left:4px}
+html:is(.m-reader,.m-player)[data-mode=mobile] #cloud .mkdict:is(:hover,[aria-expanded=true]){
+  color:var(--accent);border-color:var(--accent)}
+/* AND THE CLOUD'S BUTTONS A FINGER'S SIZE, as every target on a phone is
+   (docs/mobile.md): drawn for a mouse they were 25px tall, and "dictionary"
+   is the one way to the sheet for a chunk that has a gloss */
+html:is(.m-reader,.m-player)[data-mode=mobile] #cloud .mkrow button{min-height:48px;
+  padding:6px 14px;font-size:14px;border-radius:9px}
+
+/* ================= THE DICTIONARY'S SHEET (TO-DO §4.18) =================
+   What the cloud's "dictionary" opens on a phone, and what a tap on a chunk
+   nobody has glossed opens with the dictionary switched on: Parseh.dictSheet
+   (lib/parseh.js) builds it for a book's reader and a video's page alike.
+   It is drawn as "Keep on this phone" is (.kp-back / .kp-sheet in
+   lib/parseh.css) -- the dimmed page, the card risen from the foot, rounded
+   at its top, the phone's own bottom edge paid for -- under names of its own.
+
+   THE ENTRY'S RULES, RESTATED.  Every rule that draws an entry is written
+   `#cloud .dict ...`: baked into each reader by lib/tex2html.py, and in
+   youtube/lib/style.css.  Out of the cloud none of them holds -- and with
+   them would go the language's face, its direction and the isolation that
+   keeps a Persian or an Arabic word from turning the line around it.  So the
+   sheet says all of it again here, at a size for reading on a phone: the
+   words of the language in --tl-font and --tl-dir, isolated, with the leading
+   Nastaliq and Devanagari need; the rest in the page's own English chrome.
+
+   Where it stands: over the page, its dialogs (95), the Aa panel (120) and
+   the gloss cloud (80); under the toast (400), the held finger's menu (420),
+   the ? bubble (430) and the keep sheet (440).  The two lines that stand at
+   the foot over everything (415) -- where the other device stopped, and the
+   keep bar -- give way to it while it is up (below), as the place question
+   gives way to the card panel and the notes (lib/parseh.css). */
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dback{position:fixed;inset:0;z-index:300;
+  display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.34);
+  direction:ltr;text-align:left;touch-action:none;overscroll-behavior:contain;
+  -webkit-tap-highlight-color:transparent}
+/* the lines at the foot that stand over everything, out of the sheet's way:
+   they sat on its lower half and took its taps.  Nothing is lost -- the
+   sheet goes, and they are there again (lib/prefs.js waits the same way
+   before it asks where you had got to) */
+html:is(.m-reader,.m-player)[data-mode=mobile] body:has(.m-dback) :is(.pf-bar,.kp-bar){display:none}
+/* AS TALL AS WHAT IT HOLDS, up to 86% of the screen (the owner, 2026-09-24:
+   no peek), and never a box that scrolls inside a box: the head stays put,
+   the body is the one thing that scrolls */
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet{position:relative;box-sizing:border-box;
+  width:min(560px,100%);max-height:86vh;max-height:86dvh;display:flex;flex-direction:column;
+  background:var(--card);color:var(--ink);border-radius:16px 16px 0 0;
+  box-shadow:0 -6px 28px rgba(0,0,0,.22);padding-bottom:env(safe-area-inset-bottom);
+  font-size:15px;line-height:1.5;font-style:normal;font-weight:400;letter-spacing:normal;
+  outline:none;transition:transform .16s ease-out}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet.m-dsdrag{transition:none}
+@media (prefers-reduced-motion:reduce){
+  html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet{transition:none}}
+/* the head: the grip, the chunk looked up, ✕ -- and the handle a swipe down
+   takes, so it scrolls nothing */
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dshead{flex:0 0 auto;position:relative;
+  display:flex;align-items:flex-start;gap:8px;padding:12px 8px 6px 18px;
+  border-bottom:1px solid var(--rule);touch-action:none;cursor:grab}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dgrip{position:absolute;top:6px;left:50%;
+  width:40px;height:4px;margin-left:-20px;border-radius:2px;background:var(--faint)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dstitle{flex:1 1 auto;min-width:0;margin:6px 0 2px;
+  font-family:var(--tl-font,serif);direction:var(--tl-dir,ltr);unicode-bidi:isolate;
+  text-align:start;font-size:22px;line-height:1.75;color:var(--ink);overflow-wrap:anywhere}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsx{flex:0 0 auto;min-width:48px;min-height:48px;
+  margin:0;padding:0;font:inherit;font-size:19px;line-height:1;border:1px solid transparent;
+  border-radius:12px;background:transparent;color:var(--dim);cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsx:hover{color:var(--accent);border-color:var(--rule)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsbody{flex:1 1 auto;min-height:0;overflow-y:auto;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+  padding:10px 18px 20px}
+/* the gloss the cloud had, over the entry: the chunk's reading, its
+   transliteration, its vocabulary and its meaning, as the cloud sets them */
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsgl{margin:0 0 12px;padding:0 0 10px;
+  border-bottom:1px solid var(--rule);color:var(--dim)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsgl :is(.kana,.ctext){font-family:var(--tl-font,serif);
+  direction:var(--tl-dir,ltr);unicode-bidi:isolate;text-align:start;color:var(--ink);font-size:17px;line-height:1.7}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsgl .tr{font-style:italic;color:var(--ink);font-size:15.5px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsgl :is(.voc,.en){margin-top:3px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsgl :is(.note,.unwritten){color:var(--faint);font-style:italic;
+  font-size:14px;margin-top:3px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet bdi.v{font-family:var(--tl-font,serif);font-style:normal;
+  font-size:1.06em}
+/* the entry itself: the three blocks, ruled apart as they are in the cloud;
+   never cut to a height, whatever a cloud it came out of had cut it to (an
+   inline max-height, which Parseh.dictSheet clears as it takes the box in) */
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dict{margin:0;padding:0;background:none;
+  border:0;max-height:none!important;overflow:visible}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dict>:is(.ddict,.dmt,.dpairs){margin:0;padding:0 0 8px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dict>*+:is(.dmt,.dpairs){margin-top:10px;
+  padding-top:12px;border-top:2px solid var(--faint)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dhead{font-size:12px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dw{margin:0 0 12px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet :is(.dwd,.m-dhw,.psrc){font-family:var(--tl-font,serif);
+  direction:var(--tl-dir,ltr);unicode-bidi:isolate}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dwd{font-size:20px;line-height:1.8;color:var(--ink);
+  text-align:start}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dwd .dread{font-size:15px;color:var(--dim)}
+/* a hit: its headword in the language's face, its transliteration, its part
+   of speech as a label beside them; then a verb's parts; then its senses,
+   numbered, one to a line */
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dhit{margin:4px 0 10px;padding-inline-start:12px;
+  border-inline-start:3px solid var(--rule)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dhead2{color:var(--ink)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .m-dhw{font-size:18px;line-height:1.7}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .m-dtl{color:var(--dim);font-style:italic}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dpos{display:inline-block;margin-inline-start:8px;
+  padding:0 8px;border:1px solid var(--rule);border-radius:99px;background:var(--bg);font-size:12px;
+  line-height:20px;font-style:normal;color:var(--dim);vertical-align:2px;white-space:nowrap}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dnote{color:var(--dim);font-size:13.5px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dvb{color:var(--dim);font-size:14px;margin:2px 0 4px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dsense{position:relative;margin:3px 0 0;
+  padding-inline-start:1.9em;font-size:15.5px;line-height:1.45;color:var(--ink)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .m-dsn{position:absolute;inset-inline-start:0;top:0;
+  width:1.5em;text-align:end;color:var(--dim);font-variant-numeric:tabular-nums}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .ddef .dlabel{color:var(--dim);font-style:italic}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .ddef .dtr{color:var(--dim)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .ddef .dtr.dwaiting{color:var(--faint)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet :is(.dnone,.dwait){color:var(--dim);font-style:italic;
+  font-size:14px;margin:2px 0}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dsrc{font-size:12px;color:var(--faint);
+  font-style:italic;margin-top:6px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .mtout{color:var(--ink)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .mtout .mthere{color:var(--accent);font-weight:600}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .mtout .mthere.mtmaybe{font-weight:400;color:var(--ink);
+  text-decoration:underline dotted}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dpair{margin:0 0 10px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .psrc{color:var(--ink);font-size:17px;line-height:1.8}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .pdst{color:var(--dim)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .pwhy{color:var(--faint);font-size:12px;font-style:italic}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dict a{color:var(--accent)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dict button{font:inherit;font-size:14px;
+  min-height:40px;margin:6px 0 0;padding:6px 14px;color:var(--dim);background:var(--bg);
+  border:1px solid var(--rule);border-radius:9px;cursor:pointer}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dict button:hover{color:var(--accent);
+  border-color:var(--accent)}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dict button[hidden]{display:none}
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dsheet .dmore{display:block;margin:10px auto 0}
+/* THE WORD THE SHEET IS ABOUT, marked for as long as the sheet is up: the
+   page was scrolled to keep it above the sheet where it could be, and the
+   eye has to find it -- and where the sheet covers it, the mark is what
+   the eye finds when the sheet goes */
+html:is(.m-reader,.m-player)[data-mode=mobile] .m-dword{background:var(--hl);border-radius:4px;
+  box-shadow:0 0 0 3px var(--hl);outline:2px solid var(--accent);outline-offset:3px}
+html.m-player[data-mode=mobile] .m-subs .m-dword{background:rgba(255,255,255,.16);
+  box-shadow:0 0 0 3px rgba(255,255,255,.16);outline-color:#fff}
+
+/* A FEW GLOSSES, AND WHERE THEY ARE (the owner, 2026-09-24 and -25).  A
+   press on a glossed chunk -- one with any line of a gloss: a meaning, a
+   transliteration, a vocabulary line -- opens its gloss beside it; a press
+   on one with nothing written opens the dictionary's sheet, with the
+   dictionary switched on.  In a book or a video where most chunks carry a
+   gloss nobody needs telling which is which; where fewer than half do
+   (html.m-sparse, counted per book by lib/mobilereader.js and per video by
+   youtube/lib/player.js, in the mobile mode only), the glossed ones are
+   marked (.m-gl), in a way that changes neither their text nor its colour:
+     - WHERE NOTHING IS UNDERLINED -- a book's passes, and in hover mode its
+       passes other than the first -- a glossed chunk wears a faint dotted
+       underline, 1px, in the theme's --faint;
+     - WHERE EVERY PHRASE ALREADY WEARS THAT LINE -- a video's phrases, and a
+       book's words in its first pass in hover mode, the affordance of a
+       phrase a mouse can rest on -- the unglossed ones keep it as it was,
+       and a glossed one wears it darker, in --dim, the theme's muted ink:
+       a second mark over the first rather than the first taken away from
+       the rest, which would have left the unglossed phrases looking like
+       nothing could be pressed there at all.
+   Over the black of the subtitles on the whole screen "darker" is the
+   wrong way round -- the dotted line there is drawn against black, and the
+   theme's --dim is dimmer than its --faint in a light theme -- so there the
+   glossed phrase's line is a near white: the same mark, the stronger ink
+   for the ground it is on. */
+html.m-reader[data-mode=mobile].m-sparse :is(.pass .w.m-gl,.row.m-gl>.fa){
+  text-decoration:underline dotted var(--faint) 1px;text-decoration-skip-ink:none;
+  text-underline-offset:7px}
+html.m-reader[data-mode=mobile].m-sparse body.hovermode .p1 .w.m-gl:not(.hot):not(:hover),
+html.m-player.m-sparse[data-mode=mobile] .w.m-gl:not(.hot):not(:hover){
+  text-decoration-color:var(--dim)}
+/* and a glossed word a finger or a mouse is on lights its line in the
+   accent, as every word in hover mode does (the reader's own rule, which the
+   underline above is written over) */
+html.m-reader[data-mode=mobile].m-sparse body.hovermode .p1 .w.m-gl:is(.hot,:hover){
+  text-decoration-color:var(--accent)}
+html.m-player.m-sparse[data-mode=mobile] .m-subs .w.m-gl:not(.hot):not(:hover){
+  text-decoration-color:rgba(255,255,255,.82)}
 
 
 /* ================= A VIDEO'S PAGE, ON A PHONE (TO-DO §4.2) =================
@@ -502,7 +695,7 @@ html.m-player[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
    stop, and whatever a later player adds that nobody here has named -- is not
    on a phone at all */
 html.m-player[data-mode=mobile] header > :not(a.home,.ttl,#follow,#hoverpause,#aloud,#pin,
-  #dictmode,#defmode,#defmt,#theme,#typo,.px-ask,.kp-btn,.kp-off,[data-layout=mobile]){display:none!important}
+  #dictmode,#defmode,#defmt,#theme,#typo,.px-ask,.kp-btn,.kp-off,.kp-again,.kp-wait,[data-layout=mobile]){display:none!important}
 html.m-player[data-mode=mobile] header #dl{display:none!important}
 html.m-player[data-mode=mobile] header :is(button,select,a.home){min-height:48px;
   font-size:15px;padding:6px 12px;border-radius:10px;-webkit-tap-highlight-color:transparent}
@@ -518,7 +711,7 @@ html.m-player[data-mode=mobile] header .ttl{order:3;flex:1 1 40%;min-width:0;fon
 html.m-player[data-mode=mobile] header .ttl .lat{display:none}
 html.m-player[data-mode=mobile] header .m-vfull{order:4}
 html.m-player[data-mode=mobile] header .px-ask{order:5}
-html.m-player[data-mode=mobile] header .kp-off{order:7}
+html.m-player[data-mode=mobile] header :is(.kp-off,.kp-again,.kp-wait){order:7}
 html.m-player[data-mode=mobile] header .m-rmore{order:6;margin-inline-start:auto;font-size:20px;
   line-height:1;letter-spacing:.06em}
 html.m-player[data-mode=mobile] header.m-more .m-rmore{background:var(--hl);
@@ -557,9 +750,17 @@ html.m-player[data-mode=mobile] main{padding-bottom:calc(84px + env(safe-area-in
 /* the transcript at a size to read, its captions a finger's targets */
 html.m-player[data-mode=mobile] #segs .seg{padding:10px 8px}
 /* NOTHING THAT WRITES THE VIDEO, and no sheet of one: the card, the chunk's
-   own fields, the division of a chunk, the note's editor, the timings */
+   own fields, the division of a chunk, the note's editor, the timings -- and
+   the cloud's colour marks, which write the phrase's colour into the video's
+   annotations, with the line under them that says how the writing went
+   (youtube/lib/player.js, colourRow: .colrow and .cstat; this rule named
+   them `.colors` once, which matched nothing, and the swatches were drawn)
+   -- and the + between two captions, "write a note here" (paintNotes),
+   which the book's reader has hidden on a phone from the first (.gap .plus,
+   above): a mobile page never writes */
 html.m-player[data-mode=mobile] :is(#anki,#ankiback,#dvbox,#dvback,#ntedit,#ntread,
-  #vmbox,#vmback,#cloud .mkcard,#cloud .mkedit,#cloud .colors,#subedit){display:none!important}
+  #vmbox,#vmback,#cloud .mkcard,#cloud .mkedit,#cloud .colrow,#cloud .cstat,#subedit,
+  #segs .gap .plus){display:none!important}
 
 /* HELD SIDEWAYS: the video at the left, the transcript at the right, with the
    divider between them draggable (the player's own #grip, which listens to
@@ -619,6 +820,23 @@ html.m-player[data-mode=mobile] .m-vout{position:absolute;z-index:6;
   -webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;
   justify-content:center;transition:opacity .35s ease}
 html.m-player[data-mode=mobile] .m-vout.nc-idle{opacity:.33}
+/* beside it, the switch for the lines around the one being said: the same
+   button, drawn as what it shows -- three bars, the middle one bright, the
+   two beside it faint while they are off and nearly white while they show */
+html.m-player[data-mode=mobile] .m-vctx{position:absolute;z-index:6;
+  top:calc(10px + env(safe-area-inset-top));right:calc(66px + env(safe-area-inset-right));
+  min-width:48px;min-height:48px;padding:0;border-radius:12px;
+  background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.4);color:#fff;
+  -webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;
+  justify-content:center;transition:opacity .35s ease}
+html.m-player[data-mode=mobile] .m-vctx.nc-idle{opacity:.33}
+html.m-player[data-mode=mobile] .m-vctx[aria-pressed=true]{background:rgba(255,255,255,.2);border-color:#fff}
+html.m-player[data-mode=mobile] .m-vctx-ico{display:flex;flex-direction:column;align-items:center;gap:4px}
+html.m-player[data-mode=mobile] .m-vctx-ico i{display:block;width:14px;height:2px;border-radius:1px;
+  background:rgba(255,255,255,.3)}
+html.m-player[data-mode=mobile] .m-vctx-ico i:nth-child(2){width:20px;height:3px;background:#fff}
+html.m-player[data-mode=mobile] .m-vctx[aria-pressed=true] .m-vctx-ico i{background:rgba(255,255,255,.75)}
+html.m-player[data-mode=mobile] .m-vctx[aria-pressed=true] .m-vctx-ico i:nth-child(2){background:#fff}
 /* The dock keeps its two corners at this same foot -- ↺ on the left, ⏯ and ↻
    on the right -- and it must stay reachable with the video on the whole
    screen, so the line keeps to the middle and clear of both columns: 56px of
@@ -636,8 +854,32 @@ html.m-player[data-mode=mobile] .m-subs .m-subline{pointer-events:auto;max-width
    unreadable, and the plainest reason the subtitles were never seen working.
    Here the line is white on black, whatever the theme and however the
    transcript dresses the same element. */
-html.m-player[data-mode=mobile] .m-subs .m-subline :is(.fa,.w,.wd,.bare,.tl){color:#fff}
-html.m-player[data-mode=mobile] .m-subs .m-subline .fa{text-align:center}
+html.m-player[data-mode=mobile] .m-subs .m-subline :is(.fa,.w,.wd,.bare,.tl,.en-line){color:#fff}
+html.m-player[data-mode=mobile] .m-subs .m-subline :is(.fa,.en-line){text-align:center}
+/* THE LINES AROUND THE ONE BEING SAID (the switch beside the way out,
+   lib/mobileplayer.js): the three in one cloud, larger for them -- as tall
+   as the screen allows under the corner's buttons, and scrolled within when
+   three long captions will not fit -- the caption before above and the one
+   after below, each a little smaller and a little greyer than the line
+   being said, which keeps its size and its white.  Each is still a line of
+   phrases, and each phrase answers a tap with its gloss. */
+html.m-player[data-mode=mobile] .m-subs .m-subctx{pointer-events:auto;max-width:min(900px,94vw);
+  max-height:calc(100vh - 88px);
+  max-height:calc(100dvh - 88px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y:auto;overscroll-behavior:contain;padding:10px 16px;border-radius:14px;
+  background:rgba(0,0,0,.66);backdrop-filter:blur(2px);display:flex;flex-direction:column;gap:6px}
+html.m-player[data-mode=mobile] .m-subs .m-subctx .m-subline{padding:0;border-radius:0;
+  background:none;backdrop-filter:none}
+html.m-player[data-mode=mobile] .m-subs .m-subnear{margin:0;padding:0;border-radius:0;
+  background:none;box-shadow:none;font-size:16px;line-height:1.45;text-align:center}
+html.m-player[data-mode=mobile] .m-subs .m-subnear .fa{font-size:calc(var(--yt-fa,20px) * .82);text-align:center}
+html.m-player[data-mode=mobile] .m-subs .m-subnear .fa .bare:not(.tl){font-size:calc(var(--yt-fa,20px) * .66)}
+html.m-player[data-mode=mobile] .m-subs .m-subnear .en-line{font-size:calc(var(--yt-fa,20px) * .64);
+  text-align:center}
+html.m-player[data-mode=mobile] .m-subs .m-subnear :is(.fa,.w,.wd,.bare,.tl,.en-line){color:rgba(255,255,255,.7)}
+html.m-player[data-mode=mobile] .m-subs .m-subnear .w:is(:hover,.hot){
+  background:rgba(255,255,255,.14);box-shadow:0 0 0 3px rgba(255,255,255,.14)}
+html.m-player[data-mode=mobile] .m-subs .m-subnear :is(.lab,.note,.seg-note){display:none}
 /* and a phrase answering a tap lifts against the black, not against --card */
 html.m-player[data-mode=mobile] .m-subs .m-subline .w:is(:hover,.hot){
   background:rgba(255,255,255,.16);box-shadow:0 0 0 3px rgba(255,255,255,.16)}

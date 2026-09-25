@@ -74,10 +74,13 @@ async function call(path, opts = {}) {
      reconciling by itself, the moment anything opens, and refusing it
      because the page is still marked away would strand a journey's work on
      the phone until every page had been closed and opened again. */
+  /* And only a page that KNOWS: an away this page has confirmed, not one it
+     assumed from the page before (static/app.js, `pageIsAway`; TO-DO §2.24). */
   const evenAway = init.evenAway;
   delete init.evenAway;
   if (!evenAway && (init.method || "GET").toUpperCase() !== "GET" &&
-      document.documentElement.hasAttribute("data-parseh-away")) {
+      (typeof pageIsAway === "function" ? pageIsAway()
+       : document.documentElement.getAttribute("data-parseh-away") === "confirmed")) {
     const shut = new Error("Parseh's computer cannot be reached, and this needs it");
     shut.away = true;
     throw shut;
@@ -117,62 +120,21 @@ async function call(path, opts = {}) {
   return data;
 }
 
-/* IS THE COMPUTER THERE?  lib/keep.js asks that one question on every page
-   of the app and writes the answer twice: on the document, as
-   `data-parseh-away`, and in localStorage under parseh_away, so that a page
-   opens in the state the page before it was in instead of guessing "online"
-   and being wrong for the first three seconds (the owner's 5, 2026-09-23).
-   Both are read here, the document first because it is this page's own
-   answer and the remembered one is the page before's.
-
-   A remembered state is only worth having while it is fresh: past a few
-   minutes the phone may well have walked out of the tunnel, and guessing
-   "away" then would send a page to a copy when the computer is right there.
-
-   HOW LONG "FRESH" IS BELONGS TO lib/keep.js AND IS ASKED OF IT.  That file
-   is the one that writes the memory down, and it decides how old a memory it
-   will still act on itself (`TRUSTED`); a second number kept here was a
-   second opinion about the same memory, and the two had already parted --
-   five minutes on this side, three on that.  The gap was not harmless: for
-   the two minutes between them lib/keep.js had already thrown the memory
-   away and was drawing the page as though all were well, while this file was
-   still reading the same entry and sending the learner to a copy.  So the
-   number is fetched from `window.ParsehKeep`, and a memory this page cannot
-   date against that one is not used at all -- with no lib/keep.js on the
-   page there is no probe writing the entry either, so what is in there is
-   some earlier page's and asking the computer is the honest thing to do.
+/* IS THE COMPUTER THERE?  The page's own mark answers it: `data-parseh-away`
+   on <html>, which the head of every deck page sets before any script of it
+   runs when the page before found the computer away (AWAY_BOOT, in
+   deckroutes' APP_HEAD -- never on a refresh), and which lib/keep.js
+   confirms, or takes off, once the page's one question has an answer
+   (lib/activity.js).  This used to read the memory in localStorage again
+   for itself, on terms of its own, and to believe `navigator.onLine ===
+   false` on its own: a second opinion beside the one question, which
+   disagreed with it whenever another tab wrote the memory -- and "no
+   network" is a reason to ask, not an answer (the owner, TO-DO §2.24).
 
    This is what lets a deck page decide whether to ask the computer AT ALL.
    Cramming a kept deck must not wait out a door nobody is going to answer. */
-const AWAY_KEY = "parseh_away";
-/* HOW LONG THE MEMORY IS WORTH ACTING ON, ASKED OF WHOEVER WROTE IT -- and
-   asked of the ENTRY first, because this page cannot count on lib/keep.js
-   having run.  It is deferred and this file is not (a plain script at the
-   foot of the body runs before a deferred one in the head), so at the moment
-   a page's own code runs `window.ParsehKeep` is reliably ABSENT.  Reading the
-   number only from there meant the memory was thrown away exactly when it
-   mattered most -- on the first breath of a page, before anything had looked
-   -- and every page decided the computer was there and asked it.  The entry
-   now carries its own terms (lib/keep.js, `noted`), so there is still no
-   second opinion about the same memory, and no dependence on load order. */
-function awayFresh(seen) {
-  if (seen && typeof seen.trusted === "number" && seen.trusted > 0) return seen.trusted;
-  const keep = window.ParsehKeep;
-  const n = keep && typeof keep.trusted === "number" ? keep.trusted : 0;
-  return n > 0 ? n : 0;                 // seconds; 0 means "do not trust it"
-}
 function computerAway() {
-  if (document.documentElement.hasAttribute("data-parseh-away")) return true;
-  // the browser's own answer is only ever trusted when it says no network:
-  // a phone on wifi with the computer asleep calls itself online
-  if (navigator.onLine === false) return true;
-  const seen = readJsonKey(AWAY_KEY, null);
-  const fresh = awayFresh(seen);
-  if (!fresh) return false;
-  if (!seen || typeof seen.at !== "number") return false;
-  // seconds or milliseconds, whichever lib/keep.js wrote
-  const at = seen.at > 1e11 ? seen.at / 1000 : seen.at;
-  return Date.now() / 1000 - at <= fresh && !!seen.away;
+  return document.documentElement.hasAttribute("data-parseh-away");
 }
 
 /* NEVER A SPINNER THAT NEVER STOPS (the owner's 8, 2026-09-23).  When a page
@@ -2710,7 +2672,7 @@ const answerQueue = deck => readJsonKey(ANS_KEY(deck), []) || [];
 
 /* keeping the deck's own pages and media, so it opens with the computer away
    (lib/keep.js does the same for a book; here the worker is asked straight) */
-function keepDeck(deck, urls, version) {
+function keepDeck(deck, urls, version, digests) {
   const w = navigator.serviceWorker && navigator.serviceWorker.controller;
   if (!w) return Promise.resolve(false);
   return new Promise(done => {
@@ -2723,7 +2685,10 @@ function keepDeck(deck, urls, version) {
       done(true);
     };
     navigator.serviceWorker.addEventListener("message", hear);
-    w.postMessage({keep: {id: deckPage(deck), urls, version}});
+    // with what the computer said each file was, which the worker writes on
+    // the copy it keeps (lib/sw.js, `stamped`): it is how the keep check
+    // tells a file Parseh updated since from one that is broken
+    w.postMessage({keep: {id: deckPage(deck), urls, version, digests: digests || {}}});
     setTimeout(() => done(false), 10 * 60 * 1000);
   });
 }
@@ -2767,7 +2732,10 @@ async function keepDeckNow(deck) {
   const urls = (made.small || []).map(x => x.url)
     .concat((made.shared || []).map(x => x.url))
     .concat((made.media || []).map(x => x.url));
-  await keepDeck(deck, urls, made.version);
+  const digests = {};
+  for (const x of [].concat(made.small || [], made.shared || [], made.media || []))
+    if (x && x.url && x.digest) digests[x.url] = x.digest;
+  await keepDeck(deck, urls, made.version, digests);
   rememberKept(deck, made, urls.length);
   return made;
 }

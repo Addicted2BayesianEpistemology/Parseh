@@ -41,6 +41,10 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE = os.path.join(ROOT, "config", "prefs.json")
+# the shape of STORE, as a number (lib/version.py FORMATS): RAISE IT when the
+# shape changes so that the Parseh before this one would read the file wrong
+# -- an updater going back to that one then says so before it moves
+STORE_FORMAT = 1
 
 # the settings that follow a person from one device to another.  A key not
 # named here is nobody's business but the browser's that wrote it -- which is

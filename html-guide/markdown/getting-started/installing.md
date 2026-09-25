@@ -2,14 +2,42 @@
 title: Installing Parseh
 linkTitle: Installing
 weight: 1
-description: What Parseh needs, the one command or double-click that installs it on Linux, macOS and Windows, and every option of the installers.
+description: Getting Parseh from its releases page, what it needs, the one command or double-click that installs it on Linux, macOS and Windows, and every option of the installers.
 ---
 
-Parseh is a folder: a copy of its repository, cloned with git or unpacked
-from a zip. Installing it means giving that folder what it needs to run,
-and almost nothing goes anywhere else on the computer — so removing the
-folder removes Parseh, all but the few things [Removing it](#removing-it)
-lists.
+Parseh is a folder, unpacked from the zip of one of its releases.
+Installing it means giving that folder what it needs to run, and almost
+nothing goes anywhere else on the computer — so removing the folder removes
+Parseh, all but the few things [Removing it](#removing-it) lists.
+
+## Getting Parseh
+
+1. Open the [releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest)
+   and download the zip of the newest release, **`parseh-<version>.zip`**
+   (under *Assets*). The `.sha256` file beside it is its checksum, for
+   those who check one.
+2. Unpack it — double-click it on a Mac, **Extract All…** in its right-click
+   menu on Windows, your file manager's *Extract* on Linux. It holds one
+   folder, `parseh-<version>`: that folder is Parseh.
+3. Put the folder where it will stay, with the name you like — `Parseh` in
+   your home folder, say — **before** you install: the installer makes the
+   environment inside it.
+4. Install it, below.
+
+**Install from a release, and nothing else.** A release's zip carries the
+list of its own files, and that list is what lets Parseh
+[update itself from Settings](updating.md) later, keeping everything that is
+yours. The *Code → Download ZIP* button and the *Source code* archives on
+GitHub are the source code, not a release: they have no such list, carry the
+tests, and cannot update themselves. A copy made with `git clone` is for
+working on Parseh's own code; git keeps it up to date, and Settings leaves it
+alone.
+
+**The first double-click may be questioned**, because the files came from
+the internet. On a Mac the Finder may say that **Parseh.command** is from an
+unidentified developer: Control-click it, choose **Open**, then **Open**
+again, once. On Windows a blue *Windows protected your PC* may cover
+**install.bat**: **More info**, then **Run anyway**.
 
 ## What it needs
 
@@ -35,6 +63,7 @@ computer's own Python is never touched:
 | spacy-pkuseg | dividing Chinese into words, and naming their parts of speech |
 | pypinyin | reading Chinese words in pinyin |
 | zstandard | opening a modern Anki export |
+| numpy | estimating the timings by the sound ([Fixing the timings](../books/timings.md#estimate-the-rest-by-the-text-or-by-the-sound)) |
 
 The environment also carries two programs of its own, `openssl` (the
 certificate) and `deno` (the browser tests), so that no computer has to
@@ -46,7 +75,7 @@ do.** Nothing breaks without them; the pages that need one say so.
 | Program | What it is for | Where it comes from |
 |---|---|---|
 | TeX Live | a book's PDF (LuaLaTeX), a studio document's PDF (XeLaTeX) | the system's packages; `./install.sh --pdf` adds the TeX packages it lacks |
-| ffmpeg | snapping a narration's timings to its silences; cutting a card's recording out of a narration or a film; cutting a recording down to the stretch a [page for a website](../studio/web-page.md) plays | the system's package manager |
+| ffmpeg | snapping a narration's timings to its silences; the picture of the sound a book's or a film's timings are estimated by; cutting a card's recording out of a narration or a film; cutting a recording down to the stretch a [page for a website](../studio/web-page.md) plays | the system's package manager |
 | pdftotext | re-extracting a book's source from a PDF | poppler-utils |
 | a CJK font | Japanese and Chinese PDFs, and the face their pages are set in | Noto Serif CJK (`fonts-noto-cjk` on Debian and Ubuntu); macOS and Windows have faces of their own for the pages |
 
@@ -124,8 +153,10 @@ program, `lib/runtime.py`:
 
 The second step is what keeps an older installation up to date: a package
 added to `environment.yml` after your computer was set up is added the next
-time the installer runs, whatever made the environment. Running the
-installer again is always safe.
+time the installer runs, whatever made the environment. An
+[update from Settings](updating.md) does the same by itself when the new
+version asks for a package, and then compiles the guide and builds the
+readers as this table does. Running the installer again is always safe.
 
 The guide's step is the one that may fail without the installation failing:
 Parseh works without these pages, so a compile that goes wrong is said as
@@ -161,7 +192,7 @@ optional that is not there — under these headings:
 | the environment | `ilya-frank`, each of its packages and the two programs it carries |
 | optional: rebuilding the PDF | LuaLaTeX; with `--pdf`, the TeX packages and each language's hyphenation patterns; the fonts LuaLaTeX reads, which it builds from the web fonts when they are missing |
 | optional: re-running the alignment, cutting a card's recording, cutting the clips of a page for a website | ffmpeg and pdftotext |
-| optional: reading a book nobody has glossed yet | a dictionary, sentences somebody translated, a translation model, a synonym table — all got from the **Reading what nobody has glossed** door |
+| optional: reading a book nobody has glossed yet | a dictionary, sentences somebody translated, a translation model, a synonym table — all got from **Settings → Reading help** (the hub's **Reading what nobody has glossed** door) |
 | optional: dividing Japanese and Chinese into words | the two word analyzers and pkuseg's models |
 
 It ends by building the readers and counting what it found — *28 checks

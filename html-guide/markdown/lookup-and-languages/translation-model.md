@@ -35,16 +35,15 @@ chunk's* marked inside it.
 
 ## Getting one
 
-In the **A translation model, in the page** section of the
-[reading-help page](reading-help.md), each language has a row with a picker
-and **get it**:
+On the [reading-help page](reading-help.md), each language's card has a
+**Translation model** row, for the pair its **glossed in** names, with
+**Get it**:
 
 - **Only pairs with English exist.** Mozilla trains its models against
   English rather than against each other, so a Persian book glossed in
-  English has a model and the same book glossed in Italian has none. Each
-  language's picker therefore offers **English** — and **English**'s row
-  offers the other ten, for an English book glossed in Italian, Persian,
-  Japanese… A pair that cannot exist is never offered. An English book
+  English has a model and the same book glossed in Italian has none: that
+  row says *No model*, and why. **English**'s card offers the other ten,
+  for an English book glossed in Italian, Persian, Japanese… An English book
   glossed in English has no model either way: a translation is between two
   languages.
 - **What it costs.** *About 20 MB a pair, plus a 5 MB engine once* — the
@@ -54,14 +53,18 @@ and **get it**:
   system of thousands of characters makes the largest models). The
   Chinese model is Mozilla's simplified-characters one, which is what
   Parseh's `zh` is.
-- **Installed.** The row says *into **English** · 22 MB · Mozilla Firefox
-  Translations models · CC BY-SA 4.0* with a **remove** button. There is no
-  **rebuild**: a model is a fixed version and would come back byte for byte
-  the same. To get it again, remove it and press **get it**.
+- **Installed.** The row says its size, with Mozilla Firefox Translations
+  models and CC BY-SA 4.0 on its last line, and a **Remove…** button. There
+  is no **Rebuild**: a model is a fixed version and would come back byte for
+  byte the same. To get it again, remove it and press **Get it**.
 
-The engine is pinned to one version (0.4.9, under the MPL 2.0), so nothing
-fetched over the network changes under you without somebody deciding it
-should.
+The engine is pinned to one version (0.4.9, under the MPL 2.0), and more
+than by its number: its three files must match fingerprints (SHA-256)
+written into this version of Parseh, and each file of a model must match the
+fingerprint Mozilla publishes beside it. A file that does not match is
+refused and nothing is installed — so the code that runs inside the reader
+is the code your version of Parseh names, and nothing fetched over the
+network changes under you without somebody deciding it should.
 
 ## In the reader and the player
 
@@ -137,7 +140,7 @@ python3 lib/getmt.py --engine        # only the engine, without a model
 python3 tests/mtcheck.py             # prove each installed pair runs in a real browser
 ```
 
-`tests/mtcheck.py` needs Playwright and a Chromium; it opens `/lookup/`,
+`tests/mtcheck.py` needs Playwright and a Chromium; it opens the reading-help page,
 checks the engine is served as WebAssembly, and translates one sentence per
 installed pair.
 {{< /details >}}

@@ -1,8 +1,10 @@
 # Character decomposition
 
-Install component packs from **Reading help → Kanji & Hanzi components**
-(`/lookup/#character-components`), beside the existing dictionary, corpus and
-translation installers. The reader button also links there if nothing is installed.
+Install component packs from **Settings → Reading help**, on the Japanese or
+Chinese card's *Character components* row (`/settings/reading-help/#character-components`;
+the old `/lookup/#character-components` redirects there, fragment kept), beside the
+dictionary, corpus and translation installers; CJKVI-IDS is on the card shared by
+every language. The reader button also links there if nothing is installed.
 
 - **KanjiVG** is the preferred Japanese pack.
 - **Make Me a Hanzi** is the preferred Chinese pack.

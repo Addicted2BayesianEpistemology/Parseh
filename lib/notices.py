@@ -165,35 +165,50 @@ def carried():
     return "".join(out)
 
 
-def fetched():
-    """What the reading help downloads when somebody asks it to, each with the
-    licence its downloader records in the file it builds."""
+def credits():
+    """Whose work each download of the reading help is, and under which
+    licence: {what: (whose, the licence as HTML)} -- "dict", "corpus",
+    "model", "engine", "synonyms", and "components:<pack>" for each component
+    pack.  Read from the downloaders themselves, and used twice: by this
+    page, and on each row of the reading help (lib/lookuppage.py), so that
+    the licence beside a download is the licence named here."""
     import getdict
     import getcorpus
     import getmt
     import getsyn
     import decomposition
+    out = {"dict": (esc(getdict.SOURCE), licence_link(getdict.LICENCE)),
+           "corpus": (esc(getcorpus.SOURCE), licence_link(getcorpus.LICENCE)),
+           "model": (esc(getmt.MODEL_SOURCE), licence_link(getmt.MODEL_LICENCE)),
+           "engine": ("bergamot-translator %s" % esc(getmt.ENGINE_VERSION),
+                      licence_link(getmt.ENGINE_LICENCE)),
+           "synonyms": (esc(getsyn.SOURCE), licence_link(getsyn.LICENCE, "WordNet"))}
+    for key, pack in decomposition.PACKS.items():
+        out["components:" + key] = (esc(pack["attribution"]), licence_link(pack["licence"]))
+    return out
+
+
+def fetched():
+    """What the reading help downloads when somebody asks it to, each with the
+    licence its downloader records in the file it builds."""
+    import decomposition
+    who = credits()
     out = [work("Dictionaries", "One per language, in <code>dict/</code>: what the words of "
-                "a chunk nobody has glossed mean.", esc(getdict.SOURCE),
-                licence_link(getdict.LICENCE)),
+                "a chunk nobody has glossed mean.", *who["dict"]),
            work("Sentences people have translated", "One file per pair of languages, in "
-                "<code>corpus/</code>: a word shown in use.",
-                esc(getcorpus.SOURCE), licence_link(getcorpus.LICENCE)),
+                "<code>corpus/</code>: a word shown in use.", *who["corpus"]),
            work("Translation models", "One per pair of languages, in <code>mt/</code>: what "
-                "translates a chunk, inside the page.", esc(getmt.MODEL_SOURCE),
-                licence_link(getmt.MODEL_LICENCE)),
+                "translates a chunk, inside the page.", *who["model"]),
            work("The translation engine", "In <code>mt/</code>: what runs the models, inside "
-                "the page.", "bergamot-translator %s" % esc(getmt.ENGINE_VERSION),
-                licence_link(getmt.ENGINE_LICENCE)),
+                "the page.", *who["engine"]),
            work("English synonyms", "One file in <code>mt/</code>: how a machine translation "
-                "is matched word by word to the chunk it translates.",
-                esc(getsyn.SOURCE), licence_link(getsyn.LICENCE, "WordNet"))]
+                "is matched word by word to the chunk it translates.", *who["synonyms"])]
     for key, pack in decomposition.PACKS.items():
         out.append(work(
             "Character components: " + pack["name"],
             "In <code>components/</code>: how a %s character is built from its parts." % " or ".join(
                 {"ja": "Japanese", "zh": "Chinese"}.get(c, c) for c in pack["languages"]),
-            esc(pack["attribution"]), licence_link(pack["licence"])))
+            *who["components:" + key]))
     return "".join(out)
 
 
@@ -249,7 +264,7 @@ its own licence, which travels with it.</p>
 %(carried)s
 <h2>What it fetches when you ask</h2>
 <p class="intro">Not in the %(app)s folder: each is downloaded from its source when you
-ask for it (<a href="/lookup/">reading what nobody has glossed</a>), and keeps its own
+ask for it (<a href="/settings/reading-help/">reading help</a>, in Settings), and keeps its own
 licence, which %(app)s writes into the file it builds from it. So do the programs the
 installer fetches &mdash; micromamba, Python and the packages <code>environment.yml</code>
 lists &mdash; each under the licence it comes with.</p>

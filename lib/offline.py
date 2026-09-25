@@ -167,6 +167,9 @@ DIGEST_MAX_MEDIA = 2 * 1024 * 1024
 # renewal and every offline probe would cost that read over and over, which is
 # the difference between a door that answers at once and one he waits on.
 DIGESTS = os.path.join(os.path.dirname(LIB), "config", "digests.json")
+# its shape, as a number (lib/version.py FORMATS): RAISE IT when the shape
+# changes so that the Parseh before this one would read the file wrong
+DIGESTS_FORMAT = 1
 
 
 def _store_read(path):
@@ -637,6 +640,8 @@ def _wheres(book_dir, meta, narrs):
 # every reason written over that one.  It holds, per book, the stamp of what
 # was parsed and the one short line each recording was given.
 WHERES = os.path.join(os.path.dirname(LIB), "config", "wheres.json")
+# its shape, as a number, as DIGESTS_FORMAT is DIGESTS's
+WHERES_FORMAT = 1
 
 _wheres_store = None
 _wheres_store_new = False

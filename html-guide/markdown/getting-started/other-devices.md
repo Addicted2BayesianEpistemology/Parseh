@@ -33,14 +33,24 @@ address by itself — no restart, no window to close — and the page you saved
 from follows it there.
 
 **Only the computer may change this.** A phone can open the page and read
-it, with every control greyed out and a line saying why; the doors are opened
-from the side they protect.
+it, with every control greyed out and, under each part, a lock and a line
+saying why; the doors are opened from the side they protect. What a phone may
+and may not change is decided setting by setting, by one rule: a setting that
+decides who may reach Parseh, what it exposes or what it runs is changed on
+the computer alone. Every part of Network is one of those. Getting a
+dictionary is not, so a phone that has been let in may get and remove
+anything on the [reading-help page](../lookup-and-languages/reading-help.md).
+Installing another version of Parseh changes what it runs: a phone may look
+for a new version, but only the computer installs one
+([Updating Parseh](updating.md#from-a-phone)).
 
 ## Letting a phone in
 
 With the Wi-Fi door open, a device on the Wi-Fi that opens Parseh gets one
 page: *this device has not been let in*, a box, and a button. On the
-computer, **Settings → Network** shows a short code —
+computer, **Settings → Network** shows a short code — only there: a phone
+opening the same page is told *The code is shown on the computer only*,
+since whoever can read the code can let a device in —
 
 ```text
   KP4-R7M

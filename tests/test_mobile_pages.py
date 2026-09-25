@@ -17,6 +17,7 @@ the reader of each language -- is driven in a browser by
 tests/mobile_pages.mjs.
 """
 import hashlib
+import importlib.util
 import os
 import re
 import shutil
@@ -35,6 +36,42 @@ FIXTURES = ROOT / "tests" / "fixtures" / "books"
 
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta',
         'source', 'track', 'wbr'}
+
+
+# THE PHONE-KEEPING MEMORIES GO TO A FOLDER OF THIS FILE'S OWN (TO-DO §2.25).
+# The record tests below ask lib/offline.py what a book, a deck and the app
+# are made of, and every file it hashes is remembered in `offline.DIGESTS`
+# (and every book's places in `offline.WHERES`): config/digests.json and
+# config/wheres.json beside the checkout, which are the owner's.  Left there,
+# this file wrote into his digests at every run.  Patched for as long as the
+# module runs, as tests/test_wave_estimate.py patches them -- and the memories
+# themselves with them, which lib/offline.py keeps between calls, so that
+# nothing learnt in here goes on into the next module to be written wherever
+# the stores point by then.  What the SHIPPED constants say is read off the
+# file itself, apart (test_the_digest_cache_is_never_written_inside_...).
+_scratch = None
+_patches = []
+
+
+def setUpModule():
+    global _scratch
+    import offline
+    _scratch = tempfile.TemporaryDirectory()
+    config = Path(_scratch.name) / 'config'
+    _patches[:] = [patch.object(offline, 'DIGESTS', str(config / 'digests.json')),
+                   patch.object(offline, 'WHERES', str(config / 'wheres.json')),
+                   patch.object(offline, '_digests', None),
+                   patch.object(offline, '_digests_new', False),
+                   patch.object(offline, '_wheres_store', None),
+                   patch.object(offline, '_wheres_store_new', False)]
+    for p in _patches:
+        p.start()
+
+
+def tearDownModule():
+    for p in reversed(_patches):
+        p.stop()
+    _scratch.cleanup()
 
 
 class Page(HTMLParser):
@@ -315,14 +352,134 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("window.addEventListener('click'", js)
         self.assertIn("window.addEventListener('keydown'", js)
         self.assertIn("e.key === 'e' || e.key === 'E'", js)
-        self.assertEqual(js.count('if (!mobile()'), 2, 'each refusal asks the mode first')
-        # nothing of the reader's own is moved or rewritten: the layer only
-        # adds, into the header's first row, elements it made itself (the
-        # groups' lines and the Browser | Mobile switch)
+        # each refusal asks the mode first, and so does the dictionary's
+        # button, which is the mobile mode's alone
+        self.assertEqual(js.count('if (!mobile()'), 3, 'each refusal asks the mode first')
+        # nothing of the reader's own is rewritten: the layer only adds
+        # elements it made itself -- into the header's first row (the groups'
+        # lines and the Browser | Mobile switch), the dictionary's button into
+        # the gloss cloud beside "copy" (a0.3.1), and into those its own
+        # pieces -- and, in a book with few glosses, it marks the glossed
+        # chunks with a class of its own and takes it off again (a0.3.2).
+        # The one thing of the reader's it takes out: the dictionary's panel
+        # the reader pours into the cloud of a chunk with no vocabulary line,
+        # where the chunk has a meaning or a reading written all the same
+        # (a0.3.2: on a phone a gloss is any line of one), and so opens its
+        # cloud with the button instead
         receivers = re.findall(r'(\w+)\.(?:appendChild|insertBefore|replaceWith|replaceChildren|remove)\(', js)
-        self.assertEqual(set(receivers), {'row', 'sw'})
+        self.assertEqual(set(receivers) - {'classList'}, {'row', 'sw', 'none', 'box', 'auto'})
+        self.assertEqual(js.count('auto.remove();'), 1)
+        self.assertEqual(re.findall(r"\.classList\.(?:add|remove)\('([\w-]+)'\)", js), ['m-gl', 'm-gl'])
         self.assertIn("var sw = el('span', 'parseh-mode');", js)
+        self.assertIn("var b = el('button', 'mkdict', 'dictionary');", js)
+        self.assertIn("var box = el('div', 'dict m-dict');", js)
+        # THE ONE THING OF THE READER'S IT HANDS ON (a0.3.2, TO-DO §4.18): the
+        # entry the reader's fillCloud pours into the cloud of a chunk with no
+        # vocabulary line goes -- the very box, its answer on the way into it
+        # -- to the dictionary's sheet (Parseh.dictSheet, lib/parseh.js), and
+        # only for a tap, never a mouse at rest.  The cloud is HIDDEN while the
+        # sheet is up and never closed under it, for the reader's dictInto
+        # fills its box only while its cloud is open on that chunk; the sheet
+        # gone, the cloud is closed with it -- once, and only if it is still
+        # that chunk's
+        self.assertIn('if (tapping && autoPanel()) toSheet(auto);', js)
+        # -- and only for a chunk with nothing written at all
+        auto = js[js.index("var auto = cloud.querySelector('.dict:not(.m-dict)');"):js.index('auto.remove();')]
+        self.assertIn('if (!hasGloss(cloudC)) {', auto)
+        self.assertIn('cloud.hidden = true;', js)
+        self.assertIn("if (cloudC === n && typeof closeCloud === 'function') closeCloud();", js)
+        self.assertEqual(js.count('closeCloud()'), 1)
         self.assertNotIn('innerHTML', js)
+        # and the cloud the reader fills AGAIN while the sheet is up for its
+        # chunk (a translation model found late opens it again) is hidden
+        # again, for a shown cloud is one a tap in the sheet would close
+        self.assertIn('if (sheet && sheet.open() && cloudC === sheetN) { cloud.hidden = true; return; }', js)
+        # THE NARRATION WAITS while the sheet is up, through the reader's own
+        # ▶ -- pressed, as the dock presses it, never driven from here
+        self.assertIn("b = document.getElementById('play')", js)
+        self.assertNotIn('.pause()', js)
+        self.assertNotIn('.play()', js)
+        # A FEW GLOSSES, COUNTED OVER THE WHOLE BOOK: from the reader's SRC
+        # (every chunk of the book, any line of a gloss counting), not from
+        # the chapters that happen to be on the page -- and a chapter that
+        # comes later is marked as it comes, when the reader takes its
+        # data-part off
+        self.assertIn('if (srcGlossed(src[i])) { g[i] = 1; count++; }', js)
+        self.assertIn("attributeFilter: ['data-part']", js)
+        # which is what the reader writes into SRC, in that order, and what
+        # every reader built since the first has carried
+        tex = (ROOT / 'lib' / 'tex2html.py').read_text(encoding='utf-8')
+        self.assertRegex(tex, r'src\.append\(\[HL\.get\(c\.col, ""\), c\.fa, c\.kana,\s+c\.tr, c\.voc, c\.en, c\.wordline\]\)')
+        self.assertIn('delete sec.dataset.part;', tex)
+
+    def test_on_a_phone_a_gloss_is_any_line_of_one(self):
+        # THE OWNER, 2026-09-25: a chunk is glossed when ANY line of a gloss is
+        # written -- a meaning, a transliteration (the kana, where the
+        # language has a reading), a vocabulary line -- and only a chunk with
+        # nothing written opens the dictionary's sheet by itself.  One rule
+        # for the press and for the count of a book or a video with few
+        # glosses, in both pages
+        layer = (ROOT / 'lib' / 'mobilereader.js').read_text(encoding='utf-8')
+        body = layer[layer.index('function srcGlossed(s) {'):layer.index('function rowGlossed(r) {')]
+        # SRC's fields: [colour, text, kana, tr, voc, en, words]
+        self.assertIn('if (line(4) || line(5) || (kana && line(3))) return true;', body)
+        self.assertIn("var field = kana ? 'kana' : 'tr', v = line(kana ? 2 : 3), sd = null;", body)
+        # a reading a draft seeded, with nothing else written, is nobody's
+        # gloss -- asked of the one seed the player and the build ask
+        self.assertIn("sd = W.seed({words: String(s[6] || '')}, L);", body)
+        self.assertIn("r.hasAttribute('data-seed')", layer)
+        player = (ROOT / 'youtube' / 'lib' / 'player.js').read_text(encoding='utf-8')
+        self.assertIn('var dictShown = (mobileNow() ? !hasGloss(ch) : !ch.voc) && (DICT.ready || MT.ready) && opts.dict;',
+                      player)
+        mark = player[player.index('  function markGlossed() {'):]
+        self.assertIn('if (ch && hasGloss(ch)) gl.push(w);', mark[:mark.index('\n  }\n')])
+        # "Set any of them up": Settings, Reading help, wherever a phone's
+        # cloud or sheet says nothing is set up
+        self.assertIn("to.href = '/settings/reading-help/';", layer)
+        self.assertNotIn("'/lookup/'", layer)
+        self.assertEqual(player.count('<a href="/settings/reading-help/">Set any of them up</a>'), 2)
+        self.assertNotIn('<a href="/lookup/">', player)
+
+    def test_the_sheet_is_as_tall_as_its_entry_whatever_is_pinned(self):
+        # THE OWNER, 2026-09-25: the dictionary's sheet always opens as tall as
+        # the entry, up to 86% of the screen -- never cut short under what a
+        # page pins at its top to leave the word a room (it once was, down to
+        # 45% of the screen).  The word is scrolled clear where there is room
+        # for it, and otherwise left where it was, under the sheet
+        js = (ROOT / 'lib' / 'parseh.js').read_text(encoding='utf-8')
+        clear = js[js.index('  function dsClear(s) {'):js.index('  function dsClose(s, how) {')]
+        self.assertNotIn('maxHeight', clear)
+        self.assertNotIn('0.45', clear)
+        self.assertIn('if (top - ceil < r.height + 12) return;', clear)
+        sheet = js[js.index("/* ---- the dictionary's sheet, on a phone"):js.index('dictSheet.close = function')]
+        self.assertEqual(sheet.count('.style.maxHeight'), 1, "only the cloud's cut, cleared off the box it hands in")
+        css = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
+        self.assertRegex(css, r'\.m-dsheet\{[^}]*max-height:86dvh')
+
+    def test_the_few_glosses_mark_is_a_second_mark_where_every_phrase_has_one(self):
+        # THE OWNER, 2026-09-25: where every phrase already wears the faint
+        # dotted line (a video's phrases; a book's first pass in hover mode),
+        # the glossed ones wear it darker and the others KEEP it -- no rule of
+        # the few-glosses mark makes a line transparent any more
+        css = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
+        few = css[css.index('/* A FEW GLOSSES, AND WHERE THEY ARE'):css.index('A VIDEO\'S PAGE, ON A PHONE')]
+        self.assertNotIn('transparent', few)
+        self.assertIn('html.m-reader[data-mode=mobile].m-sparse body.hovermode .p1 .w.m-gl:not(.hot):not(:hover),\n'
+                      'html.m-player.m-sparse[data-mode=mobile] .w.m-gl:not(.hot):not(:hover){\n'
+                      '  text-decoration-color:var(--dim)}', few)
+        # where nothing is underlined, the faint line, as built
+        self.assertIn('html.m-reader[data-mode=mobile].m-sparse :is(.pass .w.m-gl,.row.m-gl>.fa){\n'
+                      '  text-decoration:underline dotted var(--faint) 1px;', few)
+
+    def test_the_video_on_a_phone_offers_no_note_to_write(self):
+        # the + between two captions writes a note into the video (player.js,
+        # paintNotes); the book's reader hides its own, and so does the player
+        css = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
+        m = re.search(r"html\.m-player\[data-mode=mobile\] :is\(([^)]*)\)\{display:none!important\}", css)
+        self.assertIsNotNone(m)
+        shut = {s.strip() for s in m.group(1).split(',')}
+        for door in ('#segs .gap .plus', '#ntedit', '#cloud .mkedit', '#cloud .colrow', '#subedit'):
+            self.assertIn(door, shut)
 
     def test_the_recording_moves_by_the_seconds_asked_and_takes_the_reading_place_along(self):
         # ↺ and ↻ belong to BOTH modes now (lib/narrctl.js, TO-DO §4.15):
@@ -732,9 +889,23 @@ class WhatTheRecordPromisesTests(unittest.TestCase):
 
     def test_the_digest_cache_is_never_written_inside_the_owners_content(self):
         """It is machine-local derived data keyed by absolute path: it belongs
-        in config/, beside prefs.json, and nowhere near a book."""
-        self.assertEqual(Path(self.offline.DIGESTS).resolve().parent, (ROOT / 'config').resolve(),
-                         'one file for the whole machine, beside what else it knows about itself')
+        in config/, beside prefs.json, and nowhere near a book.
+
+        WHERE PARSEH PUTS IT, NOT WHERE THIS TEST DOES.  This module points
+        both stores at a folder of its own while it runs (setUpModule), so the
+        module in hand would only answer with that folder.  The shipped
+        constants are read off lib/offline.py itself, loaded a second time,
+        apart from the one the tests use."""
+        spec = importlib.util.spec_from_file_location('offline_as_shipped',
+                                                      ROOT / 'lib' / 'offline.py')
+        shipped = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(shipped)
+        for store in (shipped.DIGESTS, shipped.WHERES):
+            self.assertEqual(Path(store).resolve().parent, (ROOT / 'config').resolve(),
+                             'one file for the whole machine, beside what else it knows '
+                             'about itself: %s' % store)
+        self.assertNotEqual(Path(self.offline.DIGESTS).resolve().parent, (ROOT / 'config').resolve(),
+                            'and while this module runs, the one it writes is its own')
         before = {p: p.stat().st_mtime for p in self.book_dir.rglob('*') if p.is_file()}
         self.offline.book(str(self.book_dir), '/books/english/mini-en/')
         after = {p: p.stat().st_mtime for p in self.book_dir.rglob('*') if p.is_file()}
@@ -866,6 +1037,54 @@ class AppTests(unittest.TestCase):
         js = (ROOT / 'lib' / 'parseh.js').read_text(encoding='utf-8')
         self.assertIn("if (location.protocol === 'file:' || document.querySelector('link[rel=manifest]')) return;", js)
         self.assertIn("['link', {rel: 'manifest', href: '/manifest.webmanifest'}]", js)
+
+    def test_a_refresh_never_takes_up_what_the_page_before_found(self):
+        """The owner's fall-back (TO-DO §2.24, 2026-09-24): "upon refreshing,
+        do not assume still offline".  Every refresh -- F5, the browser's
+        button, a finger pulling the page down, ↻ -- is reported as
+        "reload", and on one the boot line sets no mark; the older
+        performance.navigation decides where the newer entry is absent.  The
+        mark it does set says `assumed`, and the line leaves no global for a
+        page's own `let` to collide with.  The copy at the top of
+        lib/parseh.js (a reader's, a player's) says the same."""
+        import mobile
+        boot = mobile.AWAY_BOOT
+        self.assertIn('getEntriesByType("navigation")', boot)
+        self.assertIn('type==="reload"', boot)
+        self.assertIn('performance.navigation.type===1', boot)
+        self.assertIn('if(!r&&a&&a.away===true', boot)
+        self.assertIn('setAttribute("data-parseh-away","assumed")', boot)
+        self.assertIn('\n(function(){try{', boot)
+        self.assertTrue(boot.endswith('}catch(e){}})();</script>'), boot[-40:])
+        top = (ROOT / 'lib' / 'parseh.js').read_text(encoding='utf-8').split('var KEY =', 1)[0]
+        self.assertIn("getEntriesByType('navigation')", top)
+        self.assertIn("nav.type === 'reload'", top)
+        self.assertIn('performance.navigation.type === 1', top)
+        self.assertIn('if (!afresh && seen && seen.away === true', top)
+        self.assertIn("setAttribute('data-parseh-away', 'assumed')", top)
+
+    def test_whether_the_computer_is_there_is_asked_in_one_place(self):
+        """TO-DO §2.24: `/__activity` was asked by three things at once --
+        the activity list, lib/keep.js's probe and every watched ask -- and
+        none of them cancelled an ask it had given up on, which on a slow
+        tunnel piled up until a computer that was there looked gone.  One
+        poll now, in lib/activity.js, with a cancel; everything else
+        listens.  And the worker leaves that one address to the browser, so
+        a refusal and a silence reach the page as what they are.  (The stop
+        buttons still read the LIST once, on the press, to name what a stop
+        would cut off: a question about the work, never about whether the
+        computer is there.)"""
+        keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.assertNotIn('/__activity', keep.replace('lib/activity.js', ''))
+        for name in ('lib/parseh.js', 'markdown/app/static/app.js', 'markdown/app/static/decks.js'):
+            self.assertNotIn('nobodyThere', (ROOT / name).read_text(encoding='utf-8'), name)
+        for name in ('lib/keep.js', 'lib/parseh.js', 'markdown/app/static/app.js'):
+            self.assertIn("'parseh:reach'", (ROOT / name).read_text(encoding='utf-8').replace('"', "'"), name)
+        act = (ROOT / 'lib' / 'activity.js').read_text(encoding='utf-8')
+        self.assertEqual(act.count("fetch('/__activity'"), 1)
+        self.assertIn('ctl.abort()', act)
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn("if (url.pathname === '/__activity') return;", sw)
 
     def test_the_hub_has_the_door_and_the_app_not(self):
         import test_mobile_mode
@@ -1326,6 +1545,190 @@ class AppTests(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which('openssl'), 'openssl makes the certificate')
+class UpdateTests(unittest.TestCase):
+    """The app's half of an update (TO-DO §13.16): every release a new worker,
+    which says so in a line; nothing kept swept by it; and a keep check that
+    tells a file Parseh changed from a file that is broken.  What a browser
+    does with all of it is driven in tests/mobile_pages.mjs (`update`); what
+    is held here is the shape that makes it possible."""
+
+    def setUp(self):
+        import mobile
+        self.mobile = mobile
+        self.sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.keep = (ROOT / 'lib' / 'keep.js').read_text(encoding='utf-8')
+        self.fresh_build = patch.object(mobile, '_build', None)
+        self.fresh_build.start()
+
+    def tearDown(self):
+        self.fresh_build.stop()
+
+    def event(self, name):
+        return self.sw.split("self.addEventListener('%s'" % name)[1].split('\n});')[0]
+
+    def test_the_worker_is_served_with_this_release_written_in(self):
+        """A browser installs a new worker only when /sw.js is new bytes, and
+        a release that did not edit lib/sw.js changed none of them."""
+        import version
+        served = self.mobile.worker().decode('utf-8')
+        self.assertIn('const RELEASE = %s;' % json_str(version.VERSION), served)
+        self.assertNotIn('__PARSEH_', served, 'both placeholders are written over')
+        self.assertEqual(served, self.sw.replace("'__PARSEH_RELEASE__'", json_str(version.VERSION))
+                                        .replace("'__PARSEH_BUILD__'", json_str(self.mobile.release_build())),
+                         'and nothing else in the worker is touched')
+        with patch.object(version, 'VERSION', 'a9.9.9'):
+            other = self.mobile.worker().decode('utf-8')
+        self.assertNotEqual(served, other, 'another release is another worker')
+        self.assertIn('const RELEASE = "a9.9.9";', other)
+        # read unstamped -- off the disk, by a server that does not know to
+        # write it -- the worker knows no release and announces nothing
+        self.assertIn("const STAMPED = RELEASE.indexOf('__') !== 0;", self.sw)
+
+    def test_the_build_is_the_commit_of_the_release_manifest(self):
+        """The same version installed twice -- how an unpublished release is
+        iterated on -- is two workers when the commit differs."""
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = Path(tmp) / 'lib'
+            lib.mkdir()
+            with patch.object(self.mobile, 'LIB', str(lib)):
+                self.assertEqual(self.mobile.release_build(), '', 'no manifest, no build')
+                self.mobile._build = None
+                (Path(tmp) / '.parseh-release.json').write_text(
+                    '{"format": "parseh-release/1", "commit": "33e05192fed8aa0011223344556677889900aabb"}',
+                    encoding='utf-8')
+                self.assertEqual(self.mobile.release_build(), '33e05192fed8')
+                self.assertIn('const BUILD = "33e05192fed8";', self.mobile.worker().decode('utf-8'))
+                self.mobile._build = None
+                (Path(tmp) / '.parseh-release.json').write_text('{"commit": "</script>"}', encoding='utf-8')
+                self.assertEqual(self.mobile.release_build(), '', 'what is not a commit is not written in')
+        import release
+        self.assertEqual(self.mobile.RELEASE_MANIFEST, release.MANIFEST,
+                         'the manifest is looked for under the name the release builder writes')
+
+    def test_the_server_answers_sw_js_stamped(self):
+        import http.client
+        import threading
+        import serve
+        with patch.object(serve.Handler, 'log_request', lambda *a, **k: None):
+            srv = serve.Server(('127.0.0.1', 0), serve.Handler, None)
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                c = http.client.HTTPConnection('127.0.0.1', srv.server_address[1], timeout=60)
+                c.request('GET', '/sw.js')
+                r = c.getresponse()
+                body = r.read()
+                c.close()
+            finally:
+                srv.shutdown()
+                srv.server_close()
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r.getheader('Cache-Control'), 'no-cache')
+        self.assertEqual(body, self.mobile.worker())
+
+    def test_activate_sweeps_nothing_that_was_kept(self):
+        """The owner's promise: an update keeps what the phone kept.  Only the
+        app's own pages and its way in are dropped, and only by prefix."""
+        activate = self.event('activate')
+        swept = activate.split('keys.filter(')[1].split('.map(k => caches.delete(k))')[0]
+        self.assertEqual(re.findall(r"startsWith\('([^']+)'\)", swept), ['parseh-app-', 'parseh-shell-'])
+        for kept in ('KEPT', 'SHARED', 'JOBS', 'parseh-kept', 'parseh-shared', 'parseh-jobs'):
+            self.assertNotIn(kept, swept, kept)
+        self.assertIn("const KEPT = 'parseh-kept-';", self.sw)
+        self.assertIn("const SHARED = 'parseh-shared';", self.sw)
+
+    def test_a_new_worker_says_so_and_a_page_says_it_once(self):
+        install, activate = self.event('install'), self.event('activate')
+        # the one moment "an update, or a first install?" can be asked
+        self.assertIn('const replacing = !!self.registration.active;', install)
+        self.assertLess(install.index('const replacing'), install.index('e.waitUntil('))
+        self.assertIn('noteRelease(replacing)', install)
+        # told to the pages it has just claimed, after claiming them
+        self.assertLess(activate.index('self.clients.claim()'), activate.index('announce()'))
+        self.assertIn("if (said.version && said.replaced) await tellClients({updated: said});", self.sw)
+        # and asked by a page opened later
+        self.assertIn('if (msg.release) e.waitUntil(releaseSays().then(r => reply({release: r})));', self.sw)
+        keep = self.keep
+        self.assertIn("var RELEASE_SEEN = 'parseh_release';", keep)
+        self.assertIn("if (d.updated) released(d.updated, true);", keep)
+        self.assertIn("if (d.release) released(d.release, false);", keep)
+        self.assertIn("navigator.serviceWorker.addEventListener('controllerchange', askRelease);", keep)
+        self.assertIn("'Parseh was updated to ' + r.version", keep)
+        # a downgrade is not passed off as an update
+        self.assertIn("'Parseh went back to ' + r.version", keep)
+        # and a first install is not an update
+        self.assertIn('if (!seen && !r.replaced) return;', keep)
+        # THE PAGE ASKS FOR THE NEW WORKER ITSELF -- the browser's own check
+        # never came in the driving -- once the computer is found, on the
+        # first page of each opening of the app and then at most once in ten
+        # minutes, never on every page
+        self.assertIn('if (!away) releaseCheck();', keep)
+        self.assertIn("var releaseAsked = false, RELEASE_ASKED = 'parseh_release_asked', "
+                      "RELEASE_EVERY = 10 * 60;", keep)
+        self.assertIn('opened = !sessionStorage.getItem(RELEASE_ASKED);', keep)
+        self.assertIn("return r && r.update ? r.update() : null;", keep)
+        # NEVER A SILENT RELOAD: the worker never sends a page anywhere, and
+        # what the page does on hearing of a release is a line and nothing
+        # else (the ↻ a person presses is the one reload keep.js has)
+        self.assertNotIn('location.reload', self.sw)
+        self.assertNotIn('.navigate(', self.sw)
+        told = keep.split('/* ---- Parseh was updated')[1].split('  function start_() {')[0]
+        self.assertNotIn('reload', told)
+        self.assertNotIn('location', told)
+
+    def test_the_keep_check_tells_an_update_from_damage(self):
+        # the digest a file was kept with is written on the kept copy, by each
+        # of the three ways a copy is put: keep, a background keep, and renew
+        self.assertIn("const KEPT_DIGEST = 'X-Parseh-Kept-Digest';", self.sw)
+        self.assertIn('await to.put(req, stamped(res, digests[url]));', self.sw)
+        self.assertIn(".put(new Request(url), stamped(res, ((head.want || {})[url] || {}).digest));", self.sw)
+        self.assertIn('await c.put(new Request(url), fresh(res, body, sum));', self.sw)
+        # the page hands the worker what the computer said, with every keep
+        self.assertEqual(self.keep.count('digests: digestsOf(rec)'), 2)
+        decks = (ROOT / 'markdown' / 'app' / 'static' / 'decks.js').read_text(encoding='utf-8')
+        self.assertIn('digests: digests || {}', decks)
+        # the three verdicts
+        check = self.sw.split('async function check(job, reply)')[1].split('\n}\n')[0]
+        self.assertIn('if (sound && seen.sum && kept !== seen.sum) {', check)
+        self.assertIn('await from.put(req, stamped(res, seen.sum, seen.body));', check)
+        self.assertIn('} else if (!sound && seen.sum && kept && seen.sum === kept && kept !== now) {', check)
+        self.assertIn('whole: here && sound, updated: here && updated', check)
+        # updated is whole, is counted to be said, and is never fetched again
+        self.assertIn('if (x.here && x.whole && x.updated) updated++;', self.keep)
+        self.assertIn('if (x.here && !x.whole) { broken[x.url] = true; torn.push(x.url); }', self.keep)
+        self.assertIn('were updated on the computer since they were kept', self.keep)
+
+    def test_renew_mends_every_copy_not_the_first_found(self):
+        """/lib/'s scripts are in the way in AND in the shared cache, and a
+        renew that stopped at the first left the other the old release's."""
+        renew = self.sw.split('function renew(request) {')[1].split('\n}\n')[0]
+        self.assertIn("if (!k.startsWith(KEPT) && k !== SHARED && k !== SHELL && k !== APP) continue;", renew)
+        self.assertNotIn('return;\n    }\n  }).catch', renew, 'no holder ends the walk')
+        loop = renew.split('for (const k of keys) {')[1]
+        self.assertNotIn('      return;', loop, 'every holder is written, none returns early')
+
+    def test_the_page_compares_versions_by_lib_version_rules(self):
+        """The line says which way it went, and it must agree with the one
+        written rule (lib/version.py) about which way that is."""
+        deno = shutil.which('deno')
+        if not deno:
+            self.skipTest('deno is not on the PATH')
+        import version
+        body = self.keep.split('function vkey(v) {')[1].split('  function released(')[0]
+        pairs = [('a0.3.2', 'a0.3.10'), ('a0.3.10', 'a0.3.9'), ('a1.0', 'a1.0.0'), ('b0.1', 'a0.9'),
+                 ('a0.9', 'b0.1'), ('1.0', 'b9.9'), ('a0.3.2', 'a0.3.2'), ('a0.2.0', 'a0.3.0')]
+        js = ('function vkey(v) {' + body +
+              'console.log(JSON.stringify(%s.map(([a, b]) => older(a, b))));' % json_str(pairs))
+        out = subprocess.run([deno, 'eval', js], capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        import json
+        self.assertEqual(json.loads(out.stdout), [version.compare(a, b) < 0 for a, b in pairs])
+
+
+def json_str(value):
+    import json
+    return json.dumps(value)
+
+
 class CertificateTests(unittest.TestCase):
     """serve.py's certificate: an authority of the machine's own, which a
     phone is told to trust once, and the server's, signed by it."""

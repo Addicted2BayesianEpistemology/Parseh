@@ -252,8 +252,9 @@ if command -v lualatex >/dev/null 2>&1; then
   good "lualatex ($(lualatex --version | head -1 | cut -c1-40))"
   if [ -n "$want_pdf" ] && command -v tlmgr >/dev/null 2>&1; then
     # a minimal TeX Live (TinyTeX) has none of these
-    # (extsizes: the studio's large print, its 14, 17 and 20 pt classes)
-    for pkg in luatexbase fancyhdr environ etoolbox geometry xcolor fontspec babel-english tex-gyre hyperref bookmark microtype enumitem needspace titlesec booktabs graphics extsizes; do
+    # (extsizes: the studio's large print, its 14, 17 and 20 pt classes;
+    # pgf: TikZ, which draws a flashcard's round frame on paper)
+    for pkg in luatexbase fancyhdr environ etoolbox geometry xcolor fontspec babel-english tex-gyre hyperref bookmark microtype enumitem needspace titlesec booktabs graphics extsizes pgf; do
       tlmgr info --only-installed "$pkg" >/dev/null 2>&1 \
         && good "tex: $pkg" || { bad "tex: $pkg"; tlmgr install "$pkg" || true; }
     done
@@ -352,9 +353,9 @@ then
   ok=$((ok+1))
 else
   skip "no dictionary in dict/ — the lookup is not offered"
-  say "        get one:    open /lookup/ once the server is running and press"
-  say "                    get it beside your language — three clicks, no"
-  say "                    account, nothing to sign up for"
+  say "        get one:    open Settings, Reading help once the server is running,"
+  say "                    and press Get it beside your language — three clicks,"
+  say "                    no account, nothing to sign up for"
   say "                    or  python3 lib/getdict.py <code>   (fa, hi, zh, ...)"
 fi
 if python3 -c 'import sys;sys.path.insert(0,"lib");import corpus;sys.exit(0 if corpus.installed() else 1)' 2>/dev/null; then
@@ -362,14 +363,14 @@ if python3 -c 'import sys;sys.path.insert(0,"lib");import corpus;sys.exit(0 if c
   ok=$((ok+1))
 else
   skip "no parallel corpus — the panel lists senses but shows no example sentence"
-  say "        get one:    open /lookup/, or  python3 lib/getcorpus.py <code>"
+  say "        get one:    Settings, Reading help, or  python3 lib/getcorpus.py <code>"
 fi
 if python3 -c 'import sys;sys.path.insert(0,"lib");import getmt;sys.exit(0 if getmt.installed() else 1)' 2>/dev/null; then
   say "  ok    a translation model in the page: $(python3 -c 'import sys;sys.path.insert(0,"lib");import getmt;print(" ".join("%s-%s" % p for p in getmt.installed()))')"
   ok=$((ok+1))
 else
   skip "no translation model — the reader cannot translate a line for you"
-  say "        get one:    open /lookup/, or  python3 lib/getmt.py <from> <to>"
+  say "        get one:    Settings, Reading help, or  python3 lib/getmt.py <from> <to>"
   say "                    about 20 MB a pair, and it runs in the page itself"
 fi
 if python3 -c 'import sys;sys.path.insert(0,"lib");import getsyn;sys.exit(0 if getsyn.installed() else 1)' 2>/dev/null; then
@@ -377,7 +378,7 @@ if python3 -c 'import sys;sys.path.insert(0,"lib");import getsyn;sys.exit(0 if g
   ok=$((ok+1))
 else
   skip "no synonym table — a mark still comes from the word itself, never a synonym of it"
-  say "        get one:    open /lookup/, or  python3 lib/getsyn.py"
+  say "        get one:    Settings, Reading help, or  python3 lib/getsyn.py"
   say "                    about a megabyte, from WordNet (Princeton University)"
 fi
 say ""

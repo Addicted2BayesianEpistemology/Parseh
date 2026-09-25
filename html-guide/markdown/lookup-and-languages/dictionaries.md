@@ -11,25 +11,31 @@ that says plainly it is **not a gloss**.
 
 ## Getting one
 
-1. Open the [reading-help page](reading-help.md) (`/lookup/`). Its first
-   section, **A dictionary**, has a row for each of the eleven languages.
-2. Press **get it** beside the language you are reading.
+1. Open the [reading-help page](reading-help.md) (**Settings → Reading
+   help**, `/settings/reading-help/`). The card of the language you are
+   reading has a **Dictionary** row; a language with nothing on your shelf
+   is one line under **Other languages** — press **Open**.
+2. Press **Get it** on that row. The row says the size beforehand; where
+   nobody has measured it, Parseh asks the source first and says how big it
+   is before it starts.
 3. Watch the row. Parseh downloads Wiktionary's own extract for that
-   language, from kaikki.org, and builds a database out of it, saying as it
-   goes how far it has got. The download is 30 MB for a small language and
-   half a gigabyte for a large one; a minute or two on a fast line, longer
-   for the large ones.
+   language, from kaikki.org, and builds a database out of it, with a bar
+   and the time left. The download is 30 MB for a small language and over
+   a gigabyte for the largest; a minute or two on a fast line, longer for
+   the large ones. **Stop** keeps what has come, and **Carry on** fetches
+   the rest.
 
 When it is done the row says how many entries it holds, its size, where it
 came from and when it was built — Persian's is about 21 MB built, German's
 over 300 — and from then on a reader or player of that language, opened or
 reloaded, has a **dictionary** switch in its header.
 
-**rebuild** fetches it again: that is how you pick up a year of Wiktionary's
+**Rebuild** fetches it again: that is how you pick up a year of Wiktionary's
 edits, and how a dictionary built by an older Parseh gains what a newer one
 reads from it (the labels that put the likely sense first, the forms a verb
 entry is made from). The old file keeps working until the new one is whole.
-**remove** deletes the file, after asking.
+**Remove…** asks, in the row, what it frees and what getting it back costs,
+then deletes the file.
 
 ## The switch
 
@@ -111,6 +117,11 @@ In the video player the same panel appears in a phrase's cloud, under
 whatever the phrase has written, and says *phrase* where the book says
 *chunk*.
 
+On a phone, in the mobile interface, the same entry opens in a sheet from
+the foot of the screen instead, and not in the cloud — in a book and in a
+video alike ([The dictionary, on a
+phone](../getting-started/mobile-mode.md#the-dictionary-on-a-phone)).
+
 ### The likely sense first
 
 A word may carry a dozen senses and only three fit. Wiktionary cannot say
@@ -127,7 +138,7 @@ kind of tie: when one written word reaches two different headwords, the one
 more of the corpus's sentences actually use is listed first.
 
 A dictionary built before these labels existed still works; it simply gives
-its senses in Wiktionary's order until you press **rebuild**.
+its senses in Wiktionary's order until you press **Rebuild**.
 
 ### How a form is found
 

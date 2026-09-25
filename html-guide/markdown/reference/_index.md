@@ -15,23 +15,24 @@ with the answer.
 
 - **[When something looks wrong](troubleshooting.md)** — a message a page
   showed you, or something that did not happen: what it means and what to
-  do. Arranged by where you met it — starting Parseh, the guide, the
-  books, the videos, the cards, the reading help, the studio, the
+  do. Arranged by where you met it — starting Parseh, updating it, the
+  guide, the books, the videos, the cards, the reading help, the studio, the
   exercises.
 - **[Commands: install, serve, build](commands.md)** — the installers, the
   server, the book builds, the two guides and the tests, every flag.
 - **[Commands: content, lookup, Anki](commands-content.md)** — the tools
   behind the reading-help downloads, the book and video pipelines, the
   bundles, the Anki sync and the studio's PDF.
-- **[The file layout](file-layout.md)** — the folders of the
-  repository, and what a book, a video, a studio document, a note, an
+- **[The file layout](file-layout.md)** — the folders of Parseh, and
+  what a book, a video, a studio document, a note, an
   exercise deck and an Anki deck look like on the disk.
 - **[The daily loops](daily-loops.md)** — the handful of routines most days
   are made of, a few steps each.
 - **[Glossary](glossary.md)** — chunk, gloss, seam, run, pass, shape, jolly
   card and the rest: the words Parseh uses, each in a sentence or two.
-- **[What changed recently](whats-new.md)** — the newest features, each with
-  a line on what it does and a link to the pages that explain it.
+- **[What changed, version by version](whats-new.md)** — every version,
+  newest first, and what it brought, each thing with a line on what it does
+  and a link to the pages that explain it.
 
 Almost everything is done from the pages, with a button. The few things
 that are not — a fresh certificate, a TeX package for large print, a book
@@ -49,9 +50,9 @@ a message, in a badge or in a dialog, in a full sentence. That sentence is
 the best first clue; the [troubleshooting page](troubleshooting.md)
 quotes the common ones.
 
-**What you read is not in the repository.** The books, the videos, the
-studio's documents, your exercise decks and your Anki cards are yours: the
-repository ships the doors, and of the content only one short example
-book. That is why a fresh checkout opens on nearly empty shelves; [The file
-layout](file-layout.md#what-is-not-in-the-repository) says what git keeps
-and what it never sees.
+**What you read is not in Parseh.** The books, the videos, the studio's
+documents, your exercise decks and your Anki cards are yours: a release
+ships the doors and none of the content. That is why a fresh install opens
+on empty shelves; [The file
+layout](file-layout.md#what-is-not-in-a-release) says what a release
+carries, what git keeps, and what neither ever sees.

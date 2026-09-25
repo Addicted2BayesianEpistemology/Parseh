@@ -374,7 +374,13 @@ class ExerciseDialectTests(unittest.TestCase):
         self.assertIn('<div class="ex-card-field ex-card-blocks secondary" style="font-size:88%;'
                       'color:var(--graytx)"><ul><li>hello</li><li>hi</li></ul>\n<div class="tablewrap">', html)
         paper = texgen.generate(*mdparser.parse(md))
-        self.assertIn("\\textbf{Back:}\\par\n\\begin{itemize}\n\\item hello", paper)
+        # on paper the back half of the card: its blocks from the start of
+        # the line, at the page's size, in the field's shade -- and a table
+        # fitted to the half, at every print size
+        self.assertIn("}{{\\raggedright\\expapercardsize{100}\\color{graytx} \\begin{itemize}\n"
+                      "\\item hello", paper)
+        self.assertIn("\\exlexfit{\\begin{tabular}", paper)
+        self.assertIn("\\newcommand\\exlexfit[1]", paper)
         lonely = document({"flashcard": "card-type: jolly\nfront-primary: only a front"})
         self.assertEqual(["a Jolly flashcard needs a front field and a back field"],
                          mdparser.parse(lonely)[1][-1]["errors"])

@@ -75,6 +75,7 @@ PACKAGES = (
     ("spacy_pkuseg", "spacy-pkuseg", "dividing Chinese into words, and naming their parts of speech"),
     ("pypinyin", "pypinyin", "reading Chinese words in pinyin"),
     ("zstandard", "zstandard", "opening a modern Anki export"),
+    ("numpy", "numpy", "estimating timings by the sound of a recording"),
 )
 # (the program, the name environment.yml gives it, what it is for): programs
 # the environment carries, so that no machine has to find them for itself
@@ -85,7 +86,9 @@ ENV_TOOLS = (
 # (the program, what it is for, where it comes from): never the environment's
 SYSTEM_TOOLS = (
     ("lualatex", "building a book's PDF", "TeX Live; ./install.sh --pdf adds the packages it lacks"),
-    ("ffmpeg", "snapping a narration's timings to its silences, and cutting a card's recording out of a narration or a film", "the system's package manager"),
+    ("ffmpeg", "snapping a narration's timings to its silences, drawing the picture of the sound "
+               "that \"estimate the rest by the sound\" reads, and cutting a card's recording out of "
+               "a narration or a film", "the system's package manager"),
     ("pdftotext", "re-extracting a book's source from a PDF", "poppler-utils"),
 )
 

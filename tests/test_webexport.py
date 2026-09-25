@@ -68,6 +68,25 @@ def foot_of(page):
     return feet[0]
 
 
+def theme_of(page):
+    """-> (the theme the page's <body> names, the Aa menu's themes in order,
+    the one it has selected).
+
+    AN EXPORTED PAGE OPENS ON SEPIA (TO-DO §2.26), the paper made for
+    reading, whatever the studio was showing and whatever the system
+    prefers: the page names it on its own <body>, so that it is sepia before
+    its script has run and where it never runs, and its script starts from
+    there.  A default and not a lock, so the menu offers all three still.
+    tests/html_export.mjs opens both files and sees it painted, on a dark
+    system and in a browser profile made that moment."""
+    body = re.search(r"<body\b[^>]*>", page).group(0)
+    named = re.search(r'data-theme="([^"]*)"', body)
+    menu = re.search(r'<select id="xp-theme">(.*?)</select>', page, re.S).group(1)
+    return (named.group(1) if named else None,
+            re.findall(r'<option value="([^"]+)"', menu),
+            re.findall(r'<option value="([^"]+)" selected>', menu))
+
+
 def links_of(fragment):
     """The addresses a fragment links to, each of which must open in a tab
     of its own (the page keeps nothing, so leaving it loses the answers)."""
@@ -237,6 +256,11 @@ class Starters(unittest.TestCase):
                     self.assertIn('"Noto Serif Devanagari"', css)
                 if L.script == "latin":
                     self.assertNotIn('"Vazirmatn"', css, "a Latin page carries no Persian face")
+
+    def test_the_page_opens_on_sepia_and_offers_all_three(self):
+        for code, (_md, _name, page) in self.pages.items():
+            with self.subTest(code):
+                self.assertEqual(theme_of(page), ("sepia", ["paper", "sepia", "dark"], ["sepia"]))
 
     def test_the_contents_and_the_glosses_are_panels(self):
         for code, (_md, _name, page) in self.pages.items():
@@ -419,6 +443,8 @@ class Routes(unittest.TestCase):
             self.assertNotIn(item["markdown"], page)
         self.assertNotIn(":::exercise", body_of(page))
         self.assertIn("connect-src 'none'", csp_of(page))
+        self.assertEqual(theme_of(page), ("sepia", ["paper", "sepia", "dark"], ["sepia"]),
+                         "it opens on Sepia too, and Aa offers all three")
         foot = foot_of(page)
         self.assertIn("This page was exported from Parseh.", foot)
         self.assertEqual(links_of(foot), [webexport.GITHUB, webexport.GUIDE])

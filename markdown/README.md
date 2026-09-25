@@ -282,8 +282,13 @@ else renders as blocks. A heading on a card is unnumbered and never enters
 the contents, a footnote defined on a card joins the document's notes, and
 a field may not hold an `:::exercise` (`front-primary cannot hold an
 exercise`). A line that is exactly `:::` still closes the exercise, even
-indented. In the PDF a jolly card prints `Front:` and `Back:`, each field
-inline or as its blocks.
+indented. In the PDF every card is a card to cut out and fold
+(`texgen._card_sides`, `\expapercard` in `CARD_PAPER`): its front in the
+left half of a frame with round corners, its back in the right, a dashed
+line between them; a jolly field of one paragraph is a centred line there
+(`\exlexfitpar`, so nothing crosses the fold), a field of blocks is laid
+out as the page lays it out, its tables fitted to the half and its target
+runs breakable (`_CARD`).
 
 **What a card does not offer.** A figure on a card — picture, recording or
 video — has no layout number and no ⚙ handle, and a click on a picture there

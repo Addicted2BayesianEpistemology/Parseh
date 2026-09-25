@@ -18,7 +18,7 @@ things help, all on this machine, and none of them is a gloss:
   chunk — settle which of the senses on the list is the live one.
 
 They are installed once, with buttons, on the **reading help** page
-(`/lookup/`), which the header's **reading help** link opens; the Lookup and
+(Settings, `/settings/reading-help/`), which the header's **reading help** link opens; the Lookup and
 languages section of this guide goes through it. A reader with none of them
 is exactly the reader it always was.
 

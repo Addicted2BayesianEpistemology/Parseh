@@ -31,6 +31,15 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //      by __save/subtimes.json, the one `save times` has always used; a
 //      video's by /youtube/api/times, which moves the start in every file
 //      that carries one (tests/test_captimes.py is the proof of that half).
+//   i) "ESTIMATE THE REST" GOES BY THE TEXT OR BY THE SOUND, a choice kept
+//      on this device.  By the sound asks the server once (lib/wavealign.py
+//      behind serve.py) and lays its answer after the line exactly as by the
+//      text would -- nothing left of the line moves -- and it is grey, saying
+//      why, wherever there is no picture of the sound to go by: a reader
+//      built before it, a machine without ffmpeg, a YouTube video whose sound
+//      has not been drawn -- and ONLY there: a view too long for the server
+//      to draw at once ("all" over a long narration) is not a machine
+//      without ffmpeg.  A failure changes nothing and says so.
 //
 // The hub is REAL (tests/cardkit_harness.py builds a temp toolbox and runs
 // serve.main over it) because the waveform comes from a real ffmpeg over a
@@ -60,6 +69,44 @@ async function openSheet(pg, sel) {
   }
   throw new Error('the timings sheet never opened');
 }
+
+// every piece's two numbers as the strip shows them, read off its lines
+// (each line's aria-valuenow) with the view on the whole recording, so that
+// reading them takes up no piece and moves no line in hand: [t0], [t1] and
+// the silences drawn as said by neither
+const linesOf = pg => pg.evaluate(() => {
+  const ls = [...document.querySelectorAll('.tl-edge')].map(e =>
+    ({i: +e.dataset.i, who: e.dataset.who, t: +e.getAttribute('aria-valuenow')}));
+  const n = document.querySelectorAll('.tl-band').length;
+  let k = 0;
+  const t0 = [ls[k++].t], t1 = [];
+  for (let i = 0; i < n; i++) {
+    t1.push(ls[k++].t);
+    if (i + 1 < n) t0.push(k < ls.length && ls[k].who === 's' ? ls[k++].t : t1[i]);
+  }
+  return {t0, t1, gaps: document.querySelectorAll('.tl-gap').length};
+});
+const r2 = x => Math.round(x * 100) / 100;
+const pressedOn = pg => pg.evaluate(() => ['by-text', 'by-sound'].map(x =>
+  document.querySelector(`[data-x="${x}"]`).getAttribute('aria-pressed')));
+const soundLive = (pg, ms = 15000) => pg.waitForFunction(() => {
+  const b = document.querySelector('[data-x="by-sound"]');
+  return b && !b.disabled;
+}, null, {timeout: ms}).then(() => true, () => false);
+const statOf = pg => pg.evaluate(() => {
+  const s = document.querySelector('.tl-stat');
+  return s ? {text: s.textContent, bad: s.classList.contains('tl-bad')} : null;
+});
+const settled = (pg, ms = 60000) => pg.waitForFunction(() => {
+  const s = document.querySelector('.tl-stat');
+  return s && (/estimated from the sound/.test(s.textContent) || s.classList.contains('tl-bad'));
+}, null, {timeout: ms}).then(() => true, () => false);
+// Is lib/wavealign.py there, and does it import with the Python the hub
+// runs?  Only then is the real answer asked for; every other check routes
+// the request and makes the answer up, because what they test is the page.
+const REAL = new Deno.Command(PY, {
+  args: ['-c', 'import sys; sys.path.insert(0, "lib"); import wavealign; wavealign.estimate_pieces'],
+  stdout: 'null', stderr: 'null'}).outputSync().code === 0;
 
 const build = new Deno.Command(PY, {args: ['tests/cardkit_harness.py', 'build', TMP]}).outputSync();
 if (build.code !== 0) {
@@ -429,6 +476,499 @@ try {
   eq([vals[0].src, vals[0].conf], ['manual', 1], 'written as fixed by hand');
   await page.close();
 
+
+  /* ======= i) estimate the rest: by the text, or by the sound ======= */
+  // The choice beside "estimate the rest", and what "by the sound" does with
+  // the server's answer.  The answer is ROUTED here -- made up, its numbers
+  // chosen from the question so that what the page lays can be checked to
+  // the hundredth -- because what is tested is the page: one request, the
+  // numbers laid after the line and none before it, a split where the answer
+  // leaves a pause, the busy spell, a failure that changes nothing, a sheet
+  // shut while it waits.  The real answer (lib/wavealign.py behind serve.py)
+  // is asked for at the end, wherever that file imports.
+  const bp = await browser.newPage({viewport: {width: 1100, height: 850}});
+  bp.on('pageerror', e => errors.push('by the sound: ' + e.message));
+  const asked = [];
+  let answer = null;          // question -> {status, json, delay}; null asks the hub
+  await bp.route('**/__clip/estimate', async r => {
+    const body = JSON.parse(r.request().postData() || '{}');
+    asked.push(body);
+    if (!answer) return r.continue();
+    const a = answer(body);
+    if (a.delay) await new Promise(ok => setTimeout(ok, a.delay));
+    try {
+      await r.fulfill({status: a.status || 200, contentType: 'application/json',
+                       body: JSON.stringify(a.json)});
+    } catch (_) { /* the page may have gone meanwhile */ }
+  });
+  // SAVING (e, above) REBUILT THE READER, and a reader built in a temporary
+  // tree climbs to lib/ by a path the hub does not serve: cardkit_harness.py
+  // writes that climb as the hub's own /lib/ when it builds the book, and
+  // the one the server has just rebuilt needs the same
+  const relinked = new Deno.Command(PY, {args: ['-c', `
+import os, sys
+out = sys.argv[1]
+climb = os.path.relpath(os.getcwd(), out).replace(os.sep, "/") + "/"
+for name in os.listdir(out):
+    if name.endswith(".html"):
+        p = os.path.join(out, name)
+        text = open(p, encoding="utf-8").read()
+        open(p, "w", encoding="utf-8").write(text.replace(climb, "/"))
+`, `${TMP}/root/books/english/mini-en/reader`]}).outputSync();
+  if (relinked.code) throw new Error(new TextDecoder().decode(relinked.stderr));
+  await bp.goto(`${BASE}/books/english/mini-en/reader/`);
+  await bp.waitForFunction(() => typeof SUBS !== 'undefined' && document.querySelector('.sub'));
+  const byEar = async () => {
+    const listed = await bp.evaluate(() => {
+      const l = document.querySelector('#nlist');
+      return !!l && !l.hidden && !!l.offsetParent;
+    });
+    if (!listed) {
+      await bp.click('#narr');
+      await bp.waitForSelector('#nlist:not([hidden])');
+    }
+    await bp.click('#nlist .nitem [data-x="byear"]');
+    await bp.waitForSelector('.tl-root');
+    await bp.waitForFunction(() => document.querySelectorAll('.tl-band').length > 0);
+    await bp.click('[data-x="all"]');
+  };
+  const shut = async () => {
+    await bp.keyboard.press('Escape');
+    await bp.waitForFunction(() => !document.querySelector('.tl-root'));
+  };
+  // a made-up answer in the server's shape: the first piece to 30% of the
+  // stretch, a pause the sound left, the second from 40% to 65%, the third
+  // joined to it and ending short of the end -- a trailing silence
+  const made = body => {
+    const S = body.start, E = body.end, at = f => S + (E - S) * f;
+    return {ok: true, method: 'wavealign', confidence: 0.7, anchored: 1, boundaries: 2, words: 12,
+            pieces: [{t0: S, t1: at(0.3), confidence: 1, t0_min: S, t0_max: S},
+                     {t0: at(0.4), t1: at(0.65), confidence: 0.8, t0_min: at(0.38), t0_max: at(0.42)},
+                     {t0: at(0.65), t1: at(0.95), confidence: 0.4, t0_min: at(0.6), t0_max: at(0.7)}]};
+  };
+
+  console.log('i) "estimate the rest" goes by the text, or by the sound');
+  await byEar();
+  const look = await bp.evaluate(() => {
+    const t = document.querySelector('[data-x="by-text"]');
+    const s = document.querySelector('[data-x="by-sound"]');
+    const rest = document.querySelector('[data-x="rest"]');
+    // on the screen, and the thing a finger lands on at its middle
+    const seen = b => {
+      const r = b.getBoundingClientRect();
+      const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+      return r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight
+        && r.left >= 0 && r.right <= innerWidth && (hit === b || b.contains(hit));
+    };
+    return {words: t && s ? [t.textContent, s.textContent] : null,
+            together: !!t && !!rest.closest('.tl-est') && t.closest('.tl-est') === rest.closest('.tl-est'),
+            group: t && t.parentElement.getAttribute('role'),
+            seen: !!t && seen(t) && seen(s) && seen(rest),
+            pressed: t && [t.getAttribute('aria-pressed'), s.getAttribute('aria-pressed')]};
+  });
+  eq(look.words, ['by the text', 'by the sound'], 'the two ways are there, in words');
+  assert(look.together && look.group === 'group', 'beside "estimate the rest", as one switch');
+  assert(look.seen, 'and on the screen, where a hand can press them');
+  eq(look.pressed, ['true', 'false'], 'by the text is the one in force until the other is chosen');
+  assert(await soundLive(bp), 'by the sound is live on a book whose sound the server draws');
+  assert(/picture of the sound/.test(await bp.evaluate(() =>
+           document.querySelector('[data-x="by-sound"]').title)),
+         'and its button says what it does');
+  assert(await bp.evaluate(() => /by the text or by the sound/.test(
+           document.querySelector('.tl-hint').textContent)),
+         'the hint says E goes whichever way is pressed');
+
+  console.log('   the choice is kept on this device');
+  await bp.click('[data-x="by-sound"]');
+  eq(await pressedOn(bp), ['false', 'true'], 'pressed, by the sound is the one in force');
+  const restSays = await bp.evaluate(() => document.querySelector('[data-x="rest"]').title);
+  assert(/from the picture of the sound/.test(restSays) && /\(E\)/.test(restSays),
+         '"estimate the rest" says which way it goes now, and its key');
+  eq(await bp.evaluate(() => localStorage.getItem('tl_estimate_by')), 'sound', 'kept on this device');
+  await shut();
+  await byEar();
+  assert(await soundLive(bp), 'by the sound is live again on the sheet opened again');
+  eq(await pressedOn(bp), ['false', 'true'], 'and it is still the one chosen');
+
+  console.log('   E by the sound: one question, and the answer laid after the line');
+  const was = await linesOf(bp);
+  await bp.click('.tl-band[data-i="1"]');          // its START is the line in hand
+  assert(await bp.evaluate(() => !!document.querySelector('.tl-row.tl-on[data-edge="s"]')),
+         'the line in hand is the start of the second piece');
+  let laid = null;
+  answer = body => { laid = made(body); return {json: laid}; };
+  const n0 = asked.length;
+  await bp.keyboard.press('e');
+  assert(await settled(bp, 15000), 'the sheet says it is done');
+  const got = await linesOf(bp);
+  eq(asked.length - n0, 1, 'one request to __clip/estimate');
+  const q = asked[asked.length - 1] || {};
+  eq([q.narration, q.kind, (q.texts || []).length], ['n1', 'span', 3],
+     'asked about this recording, as a book (two numbers a piece), with the three pieces after the line');
+  assert((q.texts || []).every(t => typeof t === 'string' && t.trim().length > 3),
+         'each piece sent with its words');
+  assert(Math.abs(q.start - was.t0[1]) < 0.006 && Math.abs(q.end - was.t1[3]) < 0.006,
+         'over the stretch from the line to the last end: ' + JSON.stringify([q.start, q.end]));
+  eq([got.t0[0], got.t1[0]], [was.t0[0], was.t1[0]], 'not one number of the piece before the line moved');
+  eq(got.t0[1], was.t0[1], 'and the piece at the line keeps its start');
+  if (laid) {
+    const p = laid.pieces;
+    eq([got.t1[1], got.t0[2], got.t1[2], got.t0[3], got.t1[3]],
+       [r2(p[0].t1), r2(p[1].t0), r2(p[1].t1), r2(p[2].t0), r2(p[2].t1)],
+       'every number after it is the answer\'s, to the hundredth');
+  }
+  eq(got.gaps, 1, 'the pause the answer left between two pieces is drawn, said by neither');
+  assert(got.t1[1] < got.t0[2] && got.t1[2] === got.t0[3],
+         'split there, and joined where the answer joins them');
+  const told = await statOf(bp);
+  eq(told, {text: '3 pieces after this estimated from the sound — 1 of the 2 boundaries sits '
+                  + 'in a pause it heard; nothing to the left of it moved', bad: false},
+     'the status says what it did, and what it heard');
+  assert(await bp.evaluate(() => /\(\d+\)/.test(document.querySelector('[data-x="save"]').textContent)),
+         'and nothing is saved until "save the timings"');
+  await shut();
+
+  console.log('   while the sound is being read, the sheet holds still');
+  await byEar();
+  await soundLive(bp);
+  const still = await linesOf(bp);
+  await bp.click('.tl-band[data-i="1"]');
+  answer = body => ({delay: 1500, json: made(body)});
+  const n1 = asked.length;
+  await bp.keyboard.press('e');
+  await bp.waitForTimeout(250);
+  const busy = await bp.evaluate(() => ({
+    said: document.querySelector('.tl-stat').textContent,
+    off: ['by-text', 'by-sound', 'quiet', 'split', 'save'].map(x =>
+      document.querySelector(`[data-x="${x}"]`).disabled),
+    stop: (b => [b.disabled, b.textContent])(document.querySelector('[data-x="rest"]')),
+    steps: [...document.querySelectorAll('.tl-step')].every(b => b.disabled),
+    boxes: [...document.querySelectorAll('.tl-at')].every(b => b.readOnly)}));
+  eq(busy.said, 'estimating from the sound…', 'it says it is listening');
+  eq(busy.off, [true, true, true, true, true], 'the choice, quiet, split and save are grey');
+  eq(busy.stop, [false, 'stop estimating'], 'and "estimate the rest" is the way to stop it');
+  assert(busy.steps && busy.boxes, 'and so are the steps and the time boxes');
+  await bp.keyboard.press('ArrowRight');           // a nudge meanwhile moves nothing
+  await bp.keyboard.press('e');                    // and E again asks nothing more
+  const mid = await linesOf(bp);
+  eq([mid.t0, mid.t1], [still.t0, still.t1], 'an arrow pressed while waiting moved nothing');
+  assert(await settled(bp, 15000), 'the answer comes');
+  eq(asked.length - n1, 1, 'and it was asked for once, however often E was pressed');
+  const heldAfter = await linesOf(bp);
+  eq([heldAfter.t0[0], heldAfter.t1[0], heldAfter.t0[1]], [still.t0[0], still.t1[0], still.t0[1]],
+     'laid after the line, as before');
+  assert(!await bp.evaluate(() => document.querySelector('[data-x="by-text"]').disabled),
+         'and the sheet is live again');
+  await shut();
+
+  console.log('   a failure changes nothing, and says the server\'s own words');
+  await byEar();
+  await soundLive(bp);
+  const firm = await linesOf(bp);
+  await bp.click('.tl-band[data-i="1"]');
+  const refusal = 'there is no picture of the sound to estimate from: ffmpeg, which reads the '
+    + 'recording, is not installed on this computer';
+  answer = () => ({status: 409, json: {ok: false, error: refusal}});
+  await bp.keyboard.press('e');
+  assert(await settled(bp, 15000), 'the sheet says it is done');
+  eq(await statOf(bp), {text: refusal, bad: true}, 'the refusal is said in its own words, as a fault');
+  const left = await linesOf(bp);
+  eq([left.t0, left.t1, left.gaps], [firm.t0, firm.t1, firm.gaps], 'and not one number moved');
+  assert(await bp.evaluate(() => document.querySelector('[data-x="save"]').disabled),
+         'so there is nothing to save');
+  assert(!await bp.evaluate(() => document.querySelector('[data-x="rest"]').disabled),
+         'and it may be asked again');
+  await shut();
+
+  console.log('   the wait can be given up, and what the hand moved stays');
+  // An hour of sound is read for a minute or two, and until the answer
+  // comes the sheet holds still, save and all.  Escape and the button
+  // itself give the wait up -- the sheet stays, with every change the hand
+  // made, and the answer, when it comes, is dropped.
+  await byEar();
+  await soundLive(bp);
+  await bp.click('.tl-band[data-i="0"]');
+  await bp.click('.tl-row[data-edge="e"] [data-e="e+"]');   // a change by hand, not saved
+  const handMoved = await linesOf(bp);
+  await bp.click('.tl-band[data-i="1"]');
+  answer = body => ({delay: 1500, json: made(body)});
+  const n5 = asked.length;
+  await bp.keyboard.press('e');
+  await bp.waitForTimeout(250);
+  const stopper = await bp.evaluate(() => {
+    const b = document.querySelector('[data-x="rest"]');
+    return {off: b.disabled, words: b.textContent, why: b.title};
+  });
+  assert(!stopper.off && stopper.words === 'stop estimating' && /Escape/.test(stopper.why),
+         'while it waits, the button is a stop, and says Escape is one too: ' + JSON.stringify(stopper));
+  await bp.keyboard.press('Escape');
+  eq(await statOf(bp), {text: 'stopped: nothing was estimated, and nothing moved', bad: false},
+     'Escape gives the wait up, and says so');
+  assert(await bp.evaluate(() => !!document.querySelector('.tl-root')), 'and the sheet stays open');
+  assert(!await bp.evaluate(() => document.querySelector('[data-x="by-text"]').disabled),
+         'live again at once');
+  eq(await bp.evaluate(() => document.querySelector('[data-x="rest"]').textContent), 'estimate the rest',
+     'the button is itself again');
+  await bp.waitForTimeout(1800);                   // the answer comes, to a question given up
+  const keptHand = await linesOf(bp);
+  eq([keptHand.t0, keptHand.t1], [handMoved.t0, handMoved.t1],
+     'nothing was laid, and the change made by hand is still there');
+  assert(await bp.evaluate(() => {
+    const b = document.querySelector('[data-x="save"]');
+    return !b.disabled && /\(\d+\)/.test(b.textContent);
+  }), 'still there to be saved');
+  await bp.keyboard.press('e');
+  await bp.waitForTimeout(250);
+  await bp.click('[data-x="rest"]');
+  eq((await statOf(bp)).text, 'stopped: nothing was estimated, and nothing moved',
+     'and the button gives it up just the same');
+  await bp.waitForTimeout(1800);
+  eq(asked.length - n5, 2, 'each question had gone out once');
+  const keptHand2 = await linesOf(bp);
+  eq([keptHand2.t0, keptHand2.t1], [handMoved.t0, handMoved.t1], 'and its late answer laid nothing either');
+  await shut();
+
+  console.log('   the end of a split boundary in hand: the stretch starts at that end');
+  // By the text lays the rest from the line in hand, whichever edge it is;
+  // with the END of a split boundary in hand, the next piece's start moves
+  // to it.  By the sound must ask from there too -- not from the next
+  // piece's old start, which would leave the sound between them to nobody.
+  const even = body => {
+    const S = body.start, E = body.end, n = body.texts.length, at = k => S + (E - S) * k / n;
+    return {ok: true, method: 'wavealign', confidence: 0.5, anchored: 0, boundaries: n - 1,
+            words: n, pieces: body.texts.map((_, k) => ({t0: at(k), t1: at(k + 1),
+                                                          confidence: k ? 0.5 : 1,
+                                                          t0_min: at(k), t0_max: at(k)}))};
+  };
+  await byEar();
+  await soundLive(bp);
+  await bp.click('.tl-band[data-i="1"]');
+  if (/^split/.test(await bp.evaluate(() => document.querySelector('[data-x="split"]').textContent)))
+    await bp.click('[data-x="split"]');
+  await bp.click('.tl-row[data-edge="e"] [data-e="e-5"]');
+  const endIn = await linesOf(bp);
+  assert(endIn.t1[1] < endIn.t0[2] - 0.3,
+         'the end in hand stands well before the next start: ' + JSON.stringify(endIn));
+  assert(await bp.evaluate(() => !!document.querySelector('.tl-row.tl-on[data-edge="e"]')),
+         'and it is the end that is the line in hand');
+  answer = body => ({json: even(body)});
+  const n4 = asked.length;
+  await bp.keyboard.press('e');
+  assert(await settled(bp, 15000), 'the sheet says it is done');
+  eq(asked.length - n4, 1, 'one request');
+  const qe = asked[asked.length - 1] || {};
+  assert(Math.abs(qe.start - endIn.t1[1]) < 0.006,
+         'asked from the end in hand, not from the next piece\'s old start: '
+         + JSON.stringify([qe.start, endIn.t1[1], endIn.t0[2]]));
+  eq((qe.texts || []).length, 2, 'about the pieces after it');
+  const afterE = await linesOf(bp);
+  eq([afterE.t0[1], afterE.t1[1]], [endIn.t0[1], endIn.t1[1]], 'the piece in hand kept both its numbers');
+  eq(afterE.t0[2], endIn.t1[1], 'and the next starts at the line, as by the text would start it');
+  await shut();
+
+  console.log('   a sheet shut while it waits drops the late answer');
+  await byEar();
+  await soundLive(bp);
+  const unshut = await linesOf(bp);
+  await bp.click('.tl-band[data-i="1"]');
+  answer = body => ({delay: 1200, json: made(body)});
+  const n2 = asked.length;
+  await bp.keyboard.press('e');
+  await bp.waitForTimeout(200);
+  // (Escape now gives the wait up: leaving is the ✕)
+  await bp.click('[data-x="cancel"]');
+  await bp.waitForFunction(() => !document.querySelector('.tl-root'));
+  await bp.waitForTimeout(1800);                   // the answer has come, to nobody
+  eq(asked.length - n2, 1, 'the question had gone out');
+  assert(!await bp.evaluate(() => !!document.querySelector('.tl-root')),
+         'and its answer opened nothing');
+  await byEar();
+  const reopened = await linesOf(bp);
+  eq([reopened.t0, reopened.t1], [unshut.t0, unshut.t1], 'and laid nothing anywhere');
+  await shut();
+
+  console.log('   where it cannot go by the sound, it says why, and goes by the text');
+  // three sheets opened straight from the page's own ParsehTimeline, each
+  // with what one kind of caller gives: a reader built before this (no
+  // estimate), a machine with no picture to be had (peaks answer nothing),
+  // and a video not drawn yet, which then is
+  const sheetFor = async opts => {
+    await bp.evaluate(o => {
+      const marks = [{key: 'a', label: '1', text: 'One two three.', t0: 0.5, t1: 3},
+                     {key: 'b', label: '2', text: 'Four five.', t0: 3, t1: 6},
+                     {key: 'c', label: '3', text: 'Six.', t0: 6, t1: 9}];
+      window.__drawn = false;
+      const draw = (a, b, n) => Promise.resolve({ok: true, peaks: new Array(n).fill(0.4), start: a, end: b});
+      ParsehTimeline.open({
+        title: o.title, kind: o.kind, duration: 10, marks: marks,
+        peaks: o.peaks === 'drawn' ? draw
+             : o.peaks === 'none' ? () => Promise.resolve(null)
+             : (a, b, n) => window.__drawn ? draw(a, b, n) : Promise.resolve(null),
+        estimate: o.estimate ? req => Promise.resolve({ok: true, anchored: 0, boundaries: req.texts.length - 1,
+          pieces: req.texts.map((_, k) => ({t0: req.start + k, t1: req.start + k + 1}))}) : undefined,
+        wave: o.wave ? {why: '', run: () => { window.__drawn = true;
+                                              return Promise.resolve({rate: 20, peaks: [0.4, 0.4]}); }}
+                     : null,
+        play: () => {}, stop: () => {}, now: () => null});
+    }, opts);
+    await bp.waitForSelector('.tl-root');
+    await bp.waitForFunction(() => document.querySelector('.tl-strip.tl-drawn, .tl-strip.tl-plain'));
+    await bp.waitForTimeout(100);
+    return bp.evaluate(() => {
+      const s = document.querySelector('[data-x="by-sound"]');
+      return {off: s.disabled, why: s.title,
+              pressed: ['by-text', 'by-sound'].map(x =>
+                document.querySelector(`[data-x="${x}"]`).getAttribute('aria-pressed'))};
+    });
+  };
+  const old = await sheetFor({title: 'a reader built before this', kind: 'span', peaks: 'drawn'});
+  assert(old.off && /rebuild the reader/.test(old.why),
+         'a reader built before this: grey, and the rebuild that brings it is named -- ' + old.why);
+  eq(old.pressed, ['true', 'false'],
+     'by the text is shown in force meanwhile, though by the sound is the one kept');
+  await bp.click('.tl-band[data-i="0"]');
+  await bp.click('.tl-row[data-edge="e"] [data-e="e+"]');
+  await bp.click('.tl-row[data-edge="e"] [data-e="e-"]');
+  await bp.keyboard.press('e');
+  assert(/estimated afresh by the text/.test((await statOf(bp)).text), 'and E goes by the text');
+  eq(await bp.evaluate(() => localStorage.getItem('tl_estimate_by')), 'sound',
+     'without forgetting the choice kept');
+  await shut();
+  const bare = await sheetFor({title: 'no ffmpeg', kind: 'span', peaks: 'none', estimate: true});
+  assert(bare.off && /no picture of the sound here/.test(bare.why) && /ffmpeg/.test(bare.why),
+         'no picture to be had: grey, and says what draws one -- ' + bare.why);
+  await shut();
+  const undrawn = await sheetFor({title: 'not drawn yet', kind: 'point', peaks: 'later',
+                              estimate: true, wave: true});
+  assert(undrawn.off && /draw the sound first/.test(undrawn.why),
+         'a video not drawn yet: grey, and says to draw the sound first -- ' + undrawn.why);
+  eq(undrawn.pressed, ['true', 'false'], 'by the text in force until then');
+  await bp.click('[data-x="wave"]');
+  assert(await soundLive(bp, 5000), 'drawn, by the sound is live at once');
+  eq(await pressedOn(bp), ['false', 'true'], 'and the choice kept is back in force');
+  await shut();
+
+  console.log('   "all" before the first picture, on a recording longer than one picture may be');
+  // THE SERVER DRAWS AT MOST FIVE MINUTES AT A TIME (clips.MAX_SECONDS), so
+  // "all" over a longer narration is refused on a computer whose ffmpeg
+  // draws every shorter window.  Pressed before the strip's first picture
+  // had come, that refusal once read as "no picture of the sound here":
+  // by the sound went grey blaming ffmpeg, and E went by the text.  Here
+  // the limit is scaled to this eight-second recording -- a window longer
+  // than seven seconds is refused as the server refuses one over three
+  // hundred -- and every picture is held back a little, so that "all" is
+  // surely pressed before the first one has come.  Then the same door
+  // refusing everything, which is what a computer without ffmpeg does.
+  const LIMIT = 7;
+  let peaksRule = null;     // null: the hub answers; 'limit' or 'none': refused here
+  const peaksAsked = [];
+  await bp.route('**/__clip/peaks', async r => {
+    if (!peaksRule) return r.continue();
+    const body = JSON.parse(r.request().postData() || '{}');
+    const refused = peaksRule === 'none' || !(body.end - body.start <= LIMIT);
+    peaksAsked.push({start: body.start, end: body.end, refused});
+    await new Promise(ok => setTimeout(ok, 400));
+    try {
+      if (!refused) await r.continue();
+      else if (peaksRule === 'none')
+        await r.fulfill({status: 409, contentType: 'application/json',
+                         body: JSON.stringify({ok: false, error: 'ffmpeg is not installed', record: true})});
+      else
+        await r.fulfill({status: 400, contentType: 'application/json',
+                         body: JSON.stringify({ok: false, error: `a clip is at most ${LIMIT} seconds long`})});
+    } catch (_) { /* the sheet may have gone meanwhile */ }
+  });
+  const soundState = () => bp.evaluate(() => {
+    const s = document.querySelector('[data-x="by-sound"]');
+    return {off: s.disabled, why: s.title,
+            plain: !!document.querySelector('.tl-strip.tl-plain'),
+            pressed: ['by-text', 'by-sound'].map(x =>
+              document.querySelector(`[data-x="${x}"]`).getAttribute('aria-pressed'))};
+  });
+  peaksRule = 'limit';
+  await byEar();                                   // "all" the moment the blocks are there
+  assert(!await bp.evaluate(() => !!document.querySelector('.tl-strip.tl-drawn')),
+         'no picture had come when "all" was pressed');
+  const liveAfterAll = await soundLive(bp);
+  await bp.waitForTimeout(800);                    // and nothing still on its way takes it back
+  const afterAll = await soundState();
+  const allRefused = peaksAsked.findIndex(p => p.refused && p.start === 0 && p.end >= 7.9);
+  assert(allRefused >= 0, 'the picture of all of it was refused, as the server refuses more '
+         + 'than five minutes: ' + JSON.stringify(peaksAsked));
+  assert(afterAll.plain, 'so the strip over all of it has no picture');
+  assert(liveAfterAll && !afterAll.off,
+         'yet by the sound stays live: the sound can be drawn here, just not all at once -- '
+         + JSON.stringify(afterAll));
+  assert(!/ffmpeg/.test(afterAll.why) && /picture of the sound/.test(afterAll.why),
+         'and its button says what it does, blaming nothing: ' + afterAll.why);
+  eq(afterAll.pressed, ['false', 'true'], 'the choice kept is the one in force');
+  eq(peaksAsked.slice(allRefused + 1).map(p => [p.refused, +(p.end - p.start).toFixed(2) <= 2]),
+     [[false, true]], 'it asked once more, for a short stretch, and was drawn one');
+  await bp.click('.tl-band[data-i="1"]');          // in view already: nothing more is asked
+  answer = body => ({json: made(body)});
+  const n6 = asked.length;
+  await bp.keyboard.press('e');
+  assert(await settled(bp, 15000), 'E goes by the sound: ' + JSON.stringify(await statOf(bp)));
+  eq(asked.length - n6, 1, 'one request to __clip/estimate');
+  await shut();
+
+  peaksRule = 'none';
+  peaksAsked.length = 0;
+  await byEar();
+  const noneWhy = await bp.waitForFunction(() =>
+    /ffmpeg/.test(document.querySelector('[data-x="by-sound"]').title), null, {timeout: 15000})
+    .then(() => true, () => false);
+  await bp.waitForTimeout(800);
+  const noFF = await soundState();
+  assert(peaksAsked.length > 0 && peaksAsked.every(p => p.refused),
+         'with every picture refused, as a computer without ffmpeg refuses it: ' + peaksAsked.length);
+  assert(noneWhy && noFF.off && /no picture of the sound here/.test(noFF.why) && /ffmpeg/.test(noFF.why),
+         'by the sound is grey, and says what draws one -- ' + noFF.why);
+  eq(noFF.pressed, ['true', 'false'], 'by the text is shown in force');
+  await bp.click('.tl-band[data-i="1"]');
+  const n7 = asked.length;
+  await bp.keyboard.press('e');
+  await bp.waitForTimeout(400);
+  assert(/estimated afresh by the text/.test((await statOf(bp)).text),
+         'and E goes by the text: ' + (await statOf(bp)).text);
+  eq(asked.length - n7, 0, 'asking the server nothing');
+  await shut();
+  peaksRule = null;
+  await bp.unroute('**/__clip/peaks');
+
+  if (REAL) {
+    console.log('   and the real answer, from lib/wavealign.py through serve.py');
+    answer = null;
+    await byEar();
+    assert(await soundLive(bp), 'by the sound is live');
+    const real0 = await linesOf(bp);
+    await bp.click('.tl-band[data-i="1"]');
+    const n3 = asked.length;
+    const resp = bp.waitForResponse(r => r.url().includes('__clip/estimate'), {timeout: 60000})
+      .then(r => r.json(), () => null);
+    await bp.keyboard.press('e');
+    const ok = await settled(bp, 60000);
+    const real = await resp;
+    const realSaid = await statOf(bp);
+    assert(ok && real && real.ok && !realSaid.bad,
+           'the hub answers: ' + JSON.stringify(realSaid) + ' ' + JSON.stringify(real).slice(0, 200));
+    eq(asked.length - n3, 1, 'one request');
+    const r1 = await linesOf(bp);
+    eq([r1.t0[0], r1.t1[0], r1.t0[1]], [real0.t0[0], real0.t1[0], real0.t0[1]],
+       'nothing to the left of the line moved, and the piece at it kept its start');
+    let inOrder = true;
+    for (let i = 1; i < r1.t0.length; i++) {
+      if (!(r1.t0[i] < r1.t1[i]) || (i + 1 < r1.t0.length && r1.t1[i] > r1.t0[i + 1])) inOrder = false;
+    }
+    assert(inOrder && r1.t1[3] <= real0.t1[3] + 0.001,
+           'the pieces it laid are in order, inside the stretch: ' + JSON.stringify(r1));
+    assert(/pieces after this estimated from the sound/.test(realSaid.text), 'and it says so: ' + realSaid.text);
+    await shut();
+  } else {
+    console.log('   (the real answer is not asked for: lib/wavealign.py does not import here)');
+  }
+  await bp.close();
+
   /* ============ c) a video: one number per boundary, and no split ========= */
   const vp = await browser.newPage({viewport: {width: 1200, height: 900}});
   vp.on('pageerror', e => errors.push('film: ' + e.message));
@@ -556,6 +1096,44 @@ try {
          'no silence was opened: a caption has one number and there is nothing to split');
   await vp.keyboard.press('Escape');
 
+  console.log('i) a film estimates by the sound too, its captions one number each');
+  // the answer is routed and made up, as for the book: what is tested is
+  // what the player asks and what the sheet does with the answer
+  const vasked = [];
+  await vp.route('**/youtube/api/estimate', async r => {
+    const body = JSON.parse(r.request().postData() || '{}');
+    vasked.push(body);
+    const S = body.start, E = body.end, at = f => S + (E - S) * f;
+    await r.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify({
+      ok: true, method: 'wavealign', confidence: 0.6, anchored: 1, boundaries: 1, words: 7,
+      pieces: [{t0: S, t1: at(0.45), confidence: 1, t0_min: S, t0_max: S},
+               {t0: at(0.45), t1: E, confidence: 0.7, t0_min: at(0.4), t0_max: at(0.5)}]})});
+  });
+  await openSheet(vp, '#captimes');
+  await vp.click('[data-x="all"]');
+  assert(await soundLive(vp), 'by the sound is live on a film: the server draws its sound');
+  await vp.click('[data-x="by-sound"]');
+  const fwas = await linesOf(vp);
+  await vp.click('.tl-band[data-i="1"]');
+  await vp.keyboard.press('e');
+  assert(await settled(vp, 15000), 'the sheet says it is done');
+  const fq = vasked[vasked.length - 1] || {};
+  eq([vasked.length, fq.video, fq.kind, (fq.texts || []).length, 'wave' in fq],
+     [1, VIDEO, 'point', 2, false],
+     'one request, about this film, as captions (one number a piece), with no picture sent: '
+     + 'the server reads the film itself');
+  const fgot = await linesOf(vp);
+  const fS = fq.start, fE = fq.end;
+  assert(Math.abs(fS - fwas.t0[1]) < 0.006, 'asked from the line in hand: ' + fS);
+  eq([fgot.t0[0], fgot.t0[1]], [fwas.t0[0], fwas.t0[1]],
+     'the caption before the line, and the one at it, keep their starts');
+  eq(fgot.t0[2], r2(fS + (fE - fS) * 0.45), 'the next starts where the answer says');
+  eq([fgot.t1[1], fgot.gaps], [fgot.t0[2], 0], 'and the one before runs until it, with no gap');
+  eq(await statOf(vp), {text: '2 pieces after this estimated from the sound — the boundary '
+                              + 'between them sits in a pause it heard; nothing to the left of '
+                              + 'it moved', bad: false}, 'the status says so');
+  await vp.keyboard.press('Escape');
+
   await vp.close();
 
   /* ==== d) a YouTube video: no sound any script here can reach ==== */
@@ -582,6 +1160,18 @@ try {
     }};
     if (window.onYouTubeIframeAPIReady) window.onYouTubeIframeAPIReady();`,
   }));
+  const yasked = [];
+  await yp.route('**/youtube/api/estimate', async r => {
+    const body = JSON.parse(r.request().postData() || '{}');
+    yasked.push(body);
+    const S = body.start, E = body.end, n = (body.texts || []).length;
+    await r.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify({
+      ok: true, method: 'wavealign', confidence: 0.5, anchored: 2, boundaries: n - 1, words: 20,
+      pieces: body.texts.map((_, k) => ({t0: S + (E - S) * k / n, t1: S + (E - S) * (k + 1) / n,
+                                         confidence: k ? 0.5 : 1}))})});
+  });
+  // the choice is kept on this device: by the sound is the one wanted here
+  await yp.addInitScript(() => { try { localStorage.setItem('tl_estimate_by', 'sound'); } catch (_) {} });
   await yp.goto(`${BASE}/youtube/v/${YT}/`);
 
   console.log('d) a YouTube video is offered a waveform, and works without one');
@@ -595,10 +1185,38 @@ try {
          'live on a browser that can record a tab, and saying what it costs first');
   assert(await yp.evaluate(() => !!document.querySelector('.tl-strip.tl-plain')),
          'the strip says it has no waveform rather than pretending to one');
+  const undrawnYT = await yp.evaluate(() => {
+    const s = document.querySelector('[data-x="by-sound"]');
+    return {off: s.disabled, why: s.title,
+            pressed: ['by-text', 'by-sound'].map(x =>
+              document.querySelector(`[data-x="${x}"]`).getAttribute('aria-pressed'))};
+  });
+  assert(undrawnYT.off && /draw the sound first/.test(undrawnYT.why),
+         'i) by the sound is grey on a video not drawn yet, and says to draw it first -- '
+         + undrawnYT.why);
+  eq(undrawnYT.pressed, ['true', 'false'], 'so E goes by the text, though by the sound is the one kept');
+  // a view that comes back with no picture is followed by one question for
+  // a short stretch, in case the sound CAN be drawn here and only that view
+  // could not: on a video never drawn that finds nothing either, and it
+  // stays grey, saying the same
+  await yp.click('[data-x="all"]');
+  await yp.waitForTimeout(800);
+  const allYT = await yp.evaluate(() => {
+    const s = document.querySelector('[data-x="by-sound"]');
+    return {off: s.disabled, why: s.title};
+  });
+  assert(allYT.off && /draw the sound first/.test(allYT.why),
+         'with "all" pressed and the question for a short stretch answered, still grey, '
+         + 'and still says to draw the sound first -- ' + allYT.why);
   await yp.click('.tl-band[data-i="1"]');
   await yp.click('.tl-row[data-edge="s"] [data-e="s+1"]');
   eq(await yp.evaluate(() => document.querySelectorAll('.tl-at')[0].value), '0:07.00',
      'and a caption still moves by its steps with no picture at all');
+  await yp.keyboard.press('e');
+  await yp.waitForTimeout(300);
+  assert(/estimated afresh by the text/.test((await statOf(yp)).text),
+         'E goes by the text: ' + (await statOf(yp)).text);
+  eq(yasked.length, 0, 'asking the server nothing');
   await yp.keyboard.press('Escape');
 
   // the card kit reads navigator.userAgentData.brands and never a UA string
@@ -649,6 +1267,32 @@ try {
   });
   assert(shape.loud > 20, 'what the recording heard at 11 s is drawn tall: ' + shape.loud);
   assert(shape.quiet < shape.loud / 3, 'and the silence at 30 s is flat: ' + shape.quiet);
+
+  console.log('i) drawn, the same video estimates by the sound, sending what it recorded');
+  assert(await soundLive(yp), 'by the sound is live now that there is a picture');
+  eq(await pressedOn(yp), ['false', 'true'], 'and the choice kept is the one in force');
+  const ywas = await linesOf(yp);
+  await yp.click('.tl-band[data-i="1"]');
+  await yp.keyboard.press('e');
+  assert(await settled(yp, 15000), 'the sheet says it is done');
+  const yq = yasked[yasked.length - 1] || {};
+  eq([yasked.length, yq.video, yq.kind, (yq.texts || []).length], [1, YT, 'point', 5],
+     'one request, about this video, with the five captions after the line');
+  const w = yq.wave || {};
+  // caption 1 starts at 6 s and the stretch runs to the end of the video (40
+  // s): the numbers kept are one every 50 ms, the 120th heard at 6 s
+  eq([yq.start, yq.end, w.rate, w.start, (w.peaks || []).length], [6, 40, 20, 6, 680],
+     'and the picture of the stretch it recorded sent with it, at its own rate, from 6 s');
+  assert(JSON.stringify(w.peaks) === JSON.stringify(peaks.slice(120, 800)),
+         'the numbers as they were kept, untouched: the loud stretch at '
+         + JSON.stringify([(w.peaks || []).indexOf(1), (w.peaks || []).lastIndexOf(1)]));
+  const ygot = await linesOf(yp);
+  eq([ygot.t0[0], ygot.t0[1]], [ywas.t0[0], ywas.t0[1]],
+     'nothing to the left of the line moved, nor the start of the caption at it');
+  eq(ygot.t0.slice(2), [12.8, 19.6, 26.4, 33.2], 'and the rest start where the answer says');
+  assert(/^5 pieces after this estimated from the sound — 2 of the 4 boundaries sit in a pause/
+           .test((await statOf(yp)).text), 'the status says so: ' + (await statOf(yp)).text);
+  await yp.keyboard.press('Escape');
   await yp.close();
 
   assert(errors.length === 0, 'no page threw anything: ' + JSON.stringify(errors));

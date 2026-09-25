@@ -1,11 +1,22 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The Settings section, and the page a device that has not been let in sees.
 
-Settings opens from the hub and holds, for now, one page: **Network** -- who
-may reach this Parseh, on which port, with which certificate (lib/network.py
-keeps the answers; TO-DO §1.1, §3.3, §3.4, and the owner's decisions of
-2026-09-23).  The section is a section rather than a page because the next
-settings to come out of the pages will live beside it.
+Settings opens from the hub, says which Parseh this is (its version), and
+holds three pages: **Network** -- who may reach this Parseh, on which port,
+with which certificate (lib/network.py keeps the answers; TO-DO §1.1, §3.3,
+§3.4, and the owner's decisions of 2026-09-23) -- **Reading help**, the
+dictionaries, corpora, models and component packs this computer has fetched
+(lib/lookuppage.py draws it; TO-DO §11.10) -- and **Updating Parseh**, another
+version in place of this one (lib/updatepage.py draws it, lib/updater.py does
+it; TO-DO §13.16).  The section was a section rather
+than a page from the start because the next settings to come out of the pages
+were always going to live beside the first.
+
+WHO MAY CHANGE WHAT is written below, once, as a table: every setting, and
+for each risky one the part of the owner's sentence it trips.  Both routers
+that change anything (serve.py's /settings/api/ and /lookup/api/) ask it
+before they act, and the pages draw each control's lock from it -- so the
+page and the server cannot say different things.
 
 EVERY ACTION IS A BUTTON HERE, because that is the rule this toolbox is
 written to: there is no line in the guide that says to edit a file or to
@@ -40,6 +51,166 @@ import mobile                                                  # noqa: E402
 import network                                                 # noqa: E402
 
 NAME = "Parseh"
+
+
+# ---------------------------------------------------------------------------
+# WHO MAY SAVE IS A PROPERTY OF THE SETTING, NOT OF THE PAGE (TO-DO §11.10,
+# the owner, 2026-09-24).  Settings used to refuse every save that did not
+# come from the computer, wholesale -- a rule that only looked like a rule
+# about Settings because Network was the only setting there was.  It is a rule
+# about RISK, and what counts as risky is written down here, once, rather than
+# left to grow by accident:
+#
+#     a setting is risky when it changes who may reach Parseh, what Parseh
+#     exposes, or what Parseh will run.
+#
+# A risky setting is changed on the computer Parseh runs on and nowhere else;
+# anything else is open to every device that has been let in.  Each risky
+# entry names the part of that sentence it trips, and that part is what a
+# phone is told when it is refused -- by the server, which is the rule, and by
+# the page, which only repeats it.  Decide each new one against the sentence,
+# not by feel.
+REACH = "it decides who may reach %s" % NAME
+EXPOSE = "it decides what %s exposes" % NAME
+RUN = "it changes what %s will run" % NAME
+
+# setting -> (the part of the sentence it trips, or None; one more sentence
+# saying what that means here, for the lock line under it)
+SETTINGS = {
+    "network.doors": (REACH, "A device that has been let in must not be able to let the "
+                             "rest of the network in."),
+    "network.extra": (REACH, "A device on a network named here is trusted without a code."),
+    "network.port": (REACH, "Moving it changes every address, this device's included."),
+    "network.cert": (EXPOSE, "It is what %s shows every device as itself, and its path "
+                             "names a file on this computer." % NAME),
+    "network.code": (REACH, "Whoever can read the code can let a device in."),
+    "network.forget": (REACH, "Forgetting a device shuts it out; only the computer decides "
+                              "who is let in."),
+    # THE READING HELP IS NOT RISKY.  Getting a dictionary puts somebody else's
+    # data on this computer's own disk and changes nothing about who can reach
+    # what.  Removing one changes neither either -- it costs a download, and
+    # the page says how big before it asks.  The translation engine is code
+    # that runs in the reader, but its bytes are pinned by hash in
+    # lib/getmt.py: fetching it adds nothing the person who installed this
+    # Parseh did not already choose.
+    "reading.get": (None, "It puts a download on this computer's disk."),
+    "reading.remove": (None, "It frees the space a download took."),
+    "reading.stop": (None, "It stops a download this page started."),
+    # UPDATING PARSEH (TO-DO §13.16) replaces the program itself.
+    "parseh.update": (RUN, "An update replaces %s itself." % NAME),
+    # ASKING WHICH VERSION IS NEWEST changes none of the three: it is one
+    # question to GitHub that says nothing about the person, and its answer
+    # is only shown.  So "Check now", and the daily look (config/updates.json),
+    # are open to any device let in; installing what it found is not.
+    "parseh.check": (None, "It asks GitHub which release is newest, and installs nothing."),
+}
+
+# Asking how things stand is not a setting: open to every device let in, and
+# a phone may always SEE what it may not change.
+READ = "read"
+# The one route open to a device that has NOT been let in: the knock itself
+# (serve.py's _gate lets nothing else through for such a device).
+KNOCK = "knock"
+
+# EVERY ROUTE THAT CHANGES OR ASKS ANYTHING UNDER /settings/api/ AND
+# /lookup/api/, and what it is.  A route that is not here is refused, for
+# everybody: a new one is not open because somebody forgot to write it down,
+# and tests/test_settings_risk.py fails when serve.py answers a route this
+# table does not name.
+ROUTES = {
+    "/settings/api/ping": READ,
+    "/settings/api/pair": KNOCK,
+    # one body saves all four, so all four must be allowed
+    "/settings/api/network": ("network.doors", "network.extra", "network.port", "network.cert"),
+    "/settings/api/code": ("network.code",),
+    "/settings/api/forget": ("network.forget",),
+    # the reading help: what is there, and what it would cost
+    "/lookup/api/status": READ,
+    "/lookup/api/plan": READ,
+    "/lookup/api/dicts": READ,
+    "/lookup/api/corpora": READ,
+    "/lookup/api/models": READ,
+    "/lookup/api/syn": READ,
+    "/lookup/api/decompositions": READ,
+    # a reader's own read -- the Kanji/Hanzi dialog -- and not a setting at all
+    "/lookup/api/decompose": READ,
+    # getting, and getting everything for a language at once
+    "/lookup/api/getdict": ("reading.get",),
+    "/lookup/api/getcorpus": ("reading.get",),
+    "/lookup/api/getmodel": ("reading.get",),
+    "/lookup/api/getsyn": ("reading.get",),
+    "/lookup/api/getdecomposition": ("reading.get",),
+    "/lookup/api/getall": ("reading.get",),
+    # removing
+    "/lookup/api/dropdict": ("reading.remove",),
+    "/lookup/api/dropcorpus": ("reading.remove",),
+    "/lookup/api/dropmodel": ("reading.remove",),
+    "/lookup/api/dropsyn": ("reading.remove",),
+    "/lookup/api/dropdecomposition": ("reading.remove",),
+    "/lookup/api/stop": ("reading.stop",),
+    # updating Parseh (lib/updater.py): what is waiting and how far an update
+    # has got, open; asking GitHub, open; everything that brings a version in
+    # or puts one in place, the computer's alone
+    "/settings/api/update/state": READ,
+    "/settings/api/update/plan": READ,
+    "/settings/api/update/check": ("parseh.check",),
+    "/settings/api/update/daily": ("parseh.check",),
+    "/settings/api/update/fetch": ("parseh.update",),
+    "/settings/api/update/stop": ("parseh.update",),
+    "/settings/api/update/upload": ("parseh.update",),
+    "/settings/api/update/discard": ("parseh.update",),
+    "/settings/api/update/apply": ("parseh.update",),
+}
+
+
+def may(setting, where):
+    """May a device at `where` (lib/network.py's SELF, VPN, LAN or AWAY)
+    change `setting`?  A setting that is not in the table is refused."""
+    if setting not in SETTINGS:
+        return False
+    return SETTINGS[setting][0] is None or where == network.SELF
+
+
+def refusal(setting):
+    """What a device that may not change `setting` is told: the part of the
+    sentence it trips, and what that means here."""
+    risk, why = SETTINGS.get(setting, (None, ""))
+    if setting not in SETTINGS:
+        return "%s knows no setting called %s, so nobody may change it." % (NAME, setting)
+    return ("That is changed on the computer %s runs on and nowhere else, because "
+            "%s. %s" % (NAME, risk, why)).strip()
+
+
+def may_post(route, where):
+    """The gate both routers ask before they act -> (True, "") or (False, why).
+
+    A read is open to every device let in, the knock to every device at all
+    (serve.py's own gate decides who may knock), a change to whoever may change
+    every setting it touches, and a route missing from ROUTES to nobody."""
+    what = ROUTES.get(route)
+    if what is None:
+        return False, ("%s has no setting at %s: it is not in the table of settings "
+                       "(lib/settingspage.py), so it is refused." % (NAME, route))
+    if what in (READ, KNOCK):
+        return True, ""
+    for setting in what:
+        if not may(setting, where):
+            return False, refusal(setting)
+    return True, ""
+
+
+def open_to_all(settings):
+    """Is every one of `settings` open to any device let in?  What a door and
+    a page say about themselves, in the same words the server refuses in."""
+    return all(SETTINGS[s][0] is None for s in settings)
+
+
+def parseh_version():
+    """This Parseh's version, as the one file that holds it says (TO-DO
+    §16.1, lib/version.py), for Settings to show.  Imported when asked, so
+    that a page drawn in a test that never asks does not need it."""
+    import version                                             # noqa: E402
+    return version.VERSION
 
 
 def esc(s):
@@ -104,7 +275,124 @@ main.settings { max-width: 58rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
 .settings .addr { font-family: ui-monospace, monospace; }
 .settings .shut input { pointer-events: none; }
 @media (max-width: 40rem) { .settings section { padding: .8rem; } }
+.settings input:disabled, .settings textarea:disabled, .settings button:disabled {
+  opacity: .55; cursor: not-allowed; }
+/* WHO MAY CHANGE IT, IN WORDS: a lock and a sentence, never a colour alone
+   and never a dead button left to explain itself */
+.settings .gate { display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
+  color: var(--dim); border: 1px dashed var(--rule); border-radius: 20px;
+  padding: 1px 8px 1px 6px; background: var(--boxbg); }
+.settings .gate svg { width: 12px; height: 12px; flex: none; }
+.settings .gate.open { border-style: solid; }
+.settings .lockline { display: flex; gap: 8px; align-items: flex-start; font-size: 13px;
+  background: var(--boxbg); border: 1px dashed var(--rule); border-radius: 8px;
+  padding: 8px 10px; margin-top: 10px; }
+.settings .lockline svg { width: 15px; height: 15px; flex: none; margin-top: 2px; color: var(--dim); }
+.settings .lockline .w { color: var(--dim); }
+.settings .notice { border-inline-start: 3px solid var(--accent); background: var(--card);
+  padding: 10px 12px; margin: 0 0 16px; font-size: 13.5px; border-radius: 0 8px 8px 0; }
+.settings .ver { color: var(--dim); font-size: 13.5px; margin: -.2rem 0 1rem; }
+/* Settings' doors as one row at the top of a settings page */
+.settings .sdoors { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+.settings .sdoor { flex: 1 1 11rem; display: block; text-decoration: none; color: var(--ink);
+  background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+  padding: 9px 12px; min-width: 0; }
+.settings .sdoor:hover { border-color: var(--accentlt); }
+.settings .sdoor.on { border-color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
+.settings .sdoor b { display: block; font-size: 14.5px; }
+.settings .sdoor small { display: block; color: var(--dim); font-size: 12.5px; line-height: 1.35; }
+.settings .sdoor .gate { margin-top: 5px; }
 """
+
+LOCK = ('<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" '
+        'rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" '
+        'stroke="currentColor" stroke-width="1.6"/></svg>')
+TICK = ('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" '
+        'stroke="currentColor" stroke-width="2"/></svg>')
+
+# THE DOORS OF SETTINGS, each with the settings behind it: what the door says
+# about who may change them is worked out from SETTINGS, never written twice.
+DOORS = (
+    ("/settings/reading-help/", "Reading help",
+     "Dictionaries, translated sentences, translation models, character parts",
+     ("reading.get", "reading.remove", "reading.stop")),
+    ("/settings/network/", "Network",
+     "Who may reach %s, the code, the port, the certificate" % NAME,
+     ("network.doors", "network.extra", "network.port", "network.cert", "network.code",
+      "network.forget")),
+    ("/settings/update/", "Updating %s" % NAME,
+     "Another version in place of this one: newer, older, or the same again",
+     ("parseh.update", "parseh.check")),
+)
+
+
+def gate(settings):
+    """The pill that says who may change these settings."""
+    if open_to_all(settings):
+        return '<span class="gate open">%sany device let in</span>' % TICK
+    return '<span class="gate">%schanged on the computer only</span>' % LOCK
+
+
+def lockline(setting, where, said=None):
+    """What stands under a control that this device may not change: a lock,
+    and the sentence the server would refuse it with.  Nothing where the
+    device may."""
+    if may(setting, where):
+        return ""
+    return ('<div class="lockline" data-lock="%s">%s<span>%s <span class="w">%s</span></span></div>'
+            % (esc(setting), LOCK, esc(said or "Changed on the computer only."),
+               esc(SETTINGS[setting][1])))
+
+
+def settings_doors(here):
+    """Settings' doors as one row, the one at `here` marked."""
+    out = []
+    for href, name, what, settings in DOORS:
+        on = href == here
+        out.append('<a class="sdoor%s" href="%s"%s><b>%s</b><small>%s</small>%s</a>'
+                   % (" on" if on else "", esc(href), ' aria-current="page"' if on else "",
+                      esc(name), esc(what), gate(settings)))
+    return '<nav class="sdoors" aria-label="settings">%s</nav>' % "".join(out)
+
+
+def frame(title, where_html, m_where, guide, main, style="", script="", extra_head=""):
+    """A page of Settings: the head, the two bars (browser and mobile, as
+    docs/mobile.md has every page that opens on a phone carry them), the
+    main and its script."""
+    return """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>%(title)s</title>
+%(apphead)s
+<link rel="stylesheet" href="/lib/parseh.css">
+<link rel="stylesheet" href="/lib/langs.css">
+<link rel="stylesheet" href="/lib/mobile.css">
+<script src="/lib/parseh.js"></script>
+%(extra_head)s
+<style>%(style)s</style>
+</head><body class="index" data-mobile-page>
+<div class="parseh-bar" data-layout="browser">
+  <a class="home" href="/"><span class="glyph" lang="fa">&#x67E;</span><span class="word">%(name)s</span></a>
+  <span class="where">%(where)s</span>
+  <span class="sp"></span>
+  %(modes)s
+  <a class="parseh-btn" href="%(guide)s" title="the guide">guide</a>
+  <button type="button" data-parseh-theme title="theme">&#9680;</button>
+</div>
+<div class="parseh-bar m-bar" data-layout="mobile">
+  <a class="home" href="/"><span class="glyph" lang="fa">&#x67E;</span><span class="word">%(name)s</span></a>
+  <span class="m-where">%(m_where)s</span>
+  <span class="sp"></span>
+  %(modes)s
+  <button type="button" data-parseh-theme title="theme">&#9680;</button>
+</div>
+%(main)s
+%(script)s
+</body></html>
+""" % {"title": title, "apphead": mobile.app_head(), "extra_head": extra_head,
+       "style": STYLE + style, "name": NAME, "where": where_html, "modes": mobile.mode_switch(),
+       "guide": esc(guide), "m_where": esc(m_where), "main": main, "script": script}
 
 
 def _switch(key, title, said, on, may_save):
@@ -117,18 +405,26 @@ def _switch(key, title, said, on, may_save):
 def network_page(state):
     """/settings/network/.  `state` is what serve.py knows and this module
     must not find out for itself: the settings, the addresses the server is
-    answering on, the pairing code, whose certificate is in use, and whether
-    the browser asking is the computer itself."""
+    answering on, the pairing code, whose certificate is in use, where the
+    browser asking is (lib/network.py's SELF, VPN, LAN) and what it calls
+    itself.
+
+    EACH SECTION ASKS THE TABLE for itself (SETTINGS, above): what this device
+    may not change is drawn disabled with its reason under it, and the
+    pairing code -- which lets a device in to whoever reads it -- is not
+    drawn at all where the code may not be made."""
     doc = state["settings"]
-    may = bool(state["may_save"])
+    where = state.get("where") or (network.SELF if state.get("may_save") else network.LAN)
+    can = {k: may(k, where) for k in SETTINGS}
+    save_keys = ROUTES["/settings/api/network"]
+    may_all = all(can[k] for k in save_keys)
     devs = network.devices(doc)
-    code = state["code"]
     rows = "".join(
         '<tr><td>%s</td><td>%s</td><td class="addr">%s</td>'
         '<td><button type="button" class="parseh-btn" data-forget="%s"%s>'
         'Forget this device</button></td></tr>'
         % (esc(d["name"]), esc(when(d["at"])), esc(d["ip"]), esc(d["id"]),
-           "" if may else " disabled")
+           "" if can["network.forget"] else " disabled")
         for d in devs)
     if not rows:
         rows = ('<tr><td colspan="4">No device has been let in yet. A phone on the '
@@ -148,35 +444,23 @@ def network_page(state):
                      "<code>.tls/</code> by hand.")
 
     addrs = "".join('<li class="addr">%s</li>' % esc(a) for a in state["addresses"])
-    return """<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Network &mdash; %(name)s settings</title>
-%(apphead)s
-<link rel="stylesheet" href="/lib/parseh.css">
-<link rel="stylesheet" href="/lib/langs.css">
-<link rel="stylesheet" href="/lib/mobile.css">
-<script src="/lib/parseh.js"></script>
-<script src="/lib/explain.js" defer></script>
-<style>%(style)s</style>
-</head><body class="index" data-mobile-page>
-<div class="parseh-bar" data-layout="browser">
-  <a class="home" href="/"><span class="glyph" lang="fa">&#x67E;</span><span class="word">%(name)s</span></a>
-  <span class="where"><a href="/settings/">settings</a> &middot; network</span>
-  <span class="sp"></span>
-  %(modes)s
-  <a class="parseh-btn" href="/guide/site/getting-started/other-devices.html" title="the guide: from a phone or another computer">guide</a>
-  <button type="button" data-parseh-theme title="theme">&#9680;</button>
-</div>
-<div class="parseh-bar m-bar" data-layout="mobile">
-  <a class="home" href="/"><span class="glyph" lang="fa">&#x67E;</span><span class="word">%(name)s</span></a>
-  <span class="m-where">Network</span>
-  <span class="sp"></span>
-  %(modes)s
-  <button type="button" data-parseh-theme title="theme">&#9680;</button>
-</div>
-<main class="settings">
+    if can["network.code"]:
+        code = ('<div class="code" data-code>%s</div>\n  <p class="left" data-left>%s</p>\n'
+                '  <p><button type="button" class="parseh-btn" data-fresh-code>Make a fresh '
+                'code</button>\n  <span class="left">&mdash; the old one stops working at '
+                'once.</span></p>' % (esc(state["code_said"]), esc(state["left_said"])))
+    else:
+        # THE CODE IS NOT DRAWN FOR A DEVICE THAT MAY NOT MAKE ONE.  A phone
+        # let in cannot make a code, but a phone that could READ it could pass
+        # it on for as long as it lasts -- which is letting the network in one
+        # device at a time, the very thing the lock is for.
+        code = lockline("network.code", where, "The code is shown on the computer only.")
+    notice = "" if may_all else (
+        '<div class="notice">You are reading this on <b>%s</b>, %s. Everything here is '
+        'shown as it stands, and each part says who may change it: all of it decides who '
+        'may reach %s, so all of it is changed on the computer %s runs on.</div>'
+        % (esc(state.get("device") or "another device"), esc(_came_in(where)), NAME, NAME))
+    main = """<main class="settings">
 <h1 class="idx">network</h1>
 <p class="sub">Who may reach this %(name)s, on which port, with which certificate.</p>
 %(notice)s
@@ -193,7 +477,8 @@ def network_page(state):
   range (<code>10.8.0.0/24</code>) or name (<code>laptop.example.ts.net</code>) per
   line. A device on one of these is trusted without a code, as a Tailscale device
   is.</span>
-  <textarea data-extra%(shut)s rows="3">%(extra)s</textarea></div>
+  <textarea data-extra%(shut_extra)s rows="3">%(extra)s</textarea></div>
+  %(lock_doors)s
 </section>
 
 <section>
@@ -202,16 +487,14 @@ def network_page(state):
   but the asking page until it types it; afterwards this computer remembers it and
   it is never asked again. A device on a VPN is never asked, and this computer
   never is.</p>
-  <div class="code" data-code>%(code)s</div>
-  <p class="left" data-left>%(left)s</p>
-  <p><button type="button" class="parseh-btn" data-fresh-code%(shut)s>Make a fresh code</button>
-  <span class="left">&mdash; the old one stops working at once.</span></p>
+  %(code)s
   <table class="devices">
     <tr><th>Device</th><th>Let in</th><th>Address</th><th></th></tr>
     %(devices)s
   </table>
-  <p><button type="button" class="parseh-btn" data-forget-all%(shut)s>Forget every device</button>
+  <p><button type="button" class="parseh-btn" data-forget-all%(shut_forget)s>Forget every device</button>
   <span class="left">&mdash; every phone and laptop has to be let in again.</span></p>
+  %(lock_forget)s
 </section>
 
 <section>
@@ -219,11 +502,12 @@ def network_page(state):
   <p class="why">%(name)s answers on this port. The default is
   <code>%(default_port)d</code>.</p>
   <div class="fld"><span>Port</span>
-  <input type="number" data-port min="1024" max="65535" value="%(port)d"%(shut)s></div>
+  <input type="number" data-port min="1024" max="65535" value="%(port)d"%(shut_port)s></div>
   <div class="warn">Moving the port changes every address: a bookmark on a phone
   stops working until it is made again, and the mobile interface installed as an
   app has to be installed again from its new address. <b>8765 is also the port
   Anki&rsquo;s AnkiConnect add-on uses</b>, which is why %(name)s left it.</div>
+  %(lock_port)s
 </section>
 
 <section>
@@ -231,10 +515,11 @@ def network_page(state):
   <p class="why">%(cert_said)s</p>
   <div class="fld"><span>Use my own certificate &mdash; the certificate file
   (leave both empty for %(name)s&rsquo;s own)</span>
-  <input type="text" data-cert size="60" value="%(cert)s"%(shut)s></div>
+  <input type="text" data-cert size="60" value="%(cert)s"%(shut_cert)s></div>
   <div class="fld"><span>&hellip; and its private key</span>
-  <input type="text" data-key size="60" value="%(key)s"%(shut)s></div>
+  <input type="text" data-key size="60" value="%(key)s"%(shut_cert)s></div>
   <p class="left">%(name)s reads these two files and never writes to either.</p>
+  %(lock_cert)s
 </section>
 
 <section>
@@ -243,10 +528,38 @@ def network_page(state):
 </section>
 
 <div class="actions">
-  <button type="button" class="parseh-btn" data-save%(shut)s>Save the network settings</button>
+  %(save)s
   <span class="doing" data-doing></span>
 </div>
-</main>
+</main>""" % {
+        "name": NAME, "notice": notice, "code": code,
+        "vpn": _switch("vpn", "A VPN (Tailscale, and anything named below)",
+                       "Your own devices, wherever they are. Trusted without a code: "
+                       "a device is on your tailnet only because you put it there.",
+                       doc["vpn"], can["network.doors"]),
+        "lan": _switch("lan", "The Wi-Fi this computer is on",
+                       "Every device on the same network as this computer may knock. "
+                       "Each one still has to be let in once with the code below. "
+                       "Shut on a fresh install.",
+                       doc["lan"], can["network.doors"]),
+        "lock_doors": lockline("network.doors", where) or lockline("network.extra", where),
+        "shut_extra": "" if can["network.extra"] else " disabled",
+        "extra": esc("\n".join(doc["extra"])),
+        "devices": rows,
+        "shut_forget": "" if can["network.forget"] else " disabled",
+        "lock_forget": lockline("network.forget", where),
+        "port": doc["port"], "default_port": network.DEFAULT_PORT,
+        "shut_port": "" if can["network.port"] else " disabled",
+        "lock_port": lockline("network.port", where),
+        "cert": esc((doc["cert"] or {}).get("cert") or ""),
+        "key": esc((doc["cert"] or {}).get("key") or ""),
+        "shut_cert": "" if can["network.cert"] else " disabled",
+        "lock_cert": lockline("network.cert", where),
+        "cert_said": cert_said, "addrs": addrs,
+        "save": ('<button type="button" class="parseh-btn" data-save>Save the network '
+                 'settings</button>' if may_all else ""),
+    }
+    script = """
 <script id="settings-state" type="application/json">%(state)s</script>
 <script>
 (function () {
@@ -341,85 +654,60 @@ def network_page(state):
     post('/settings/api/forget', {all: true}).then(function () { location.reload(); });
   });
 })();
-</script>
-</body></html>
-""" % {
-        "name": NAME, "apphead": mobile.app_head(), "modes": mobile.mode_switch(),
-        "style": STYLE,
-        "notice": "" if state["may_save"] else (
-            '<div class="warn">You are reading this from %s. The network settings '
-            'are changed from the computer %s runs on and nowhere else &mdash; a '
-            'device that has been let in must not be able to let the rest of the '
-            'network in. Everything below is shown as it stands.</div>'
-            % (esc(network.WHERE_SAID.get(state["where"], "another device")), NAME)),
-        "vpn": _switch("vpn", "A VPN (Tailscale, and anything named below)",
-                       "Your own devices, wherever they are. Trusted without a code: "
-                       "a device is on your tailnet only because you put it there.",
-                       doc["vpn"], may),
-        "lan": _switch("lan", "The Wi-Fi this computer is on",
-                       "Every device on the same network as this computer may knock. "
-                       "Each one still has to be let in once with the code below. "
-                       "Shut on a fresh install.",
-                       doc["lan"], may),
-        "extra": esc("\n".join(doc["extra"])),
-        "shut": "" if may else " disabled",
-        "code": esc(state["code_said"]), "left": esc(state["left_said"]),
-        "devices": rows,
-        "port": doc["port"], "default_port": network.DEFAULT_PORT,
-        "cert": esc((doc["cert"] or {}).get("cert") or ""),
-        "key": esc((doc["cert"] or {}).get("key") or ""),
-        "cert_said": cert_said, "addrs": addrs,
-        "state": _in_script({"name": NAME, "may_save": may}),
-    }
+</script>""" % {"state": _in_script({"name": NAME, "may_save": may_all})}
+    return frame("Network &mdash; %s settings" % NAME,
+                 '<a href="/settings/">settings</a> &middot; network', "Network",
+                 "/guide/site/getting-started/other-devices.html", main,
+                 extra_head='<script src="/lib/explain.js" defer></script>', script=script)
 
 
-def hub():
-    """/settings/ -- the section itself.  One page today; the door says what
-    is behind it rather than only naming it."""
-    return """<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Settings &mdash; %(name)s</title>
-%(apphead)s
-<link rel="stylesheet" href="/lib/parseh.css">
-<link rel="stylesheet" href="/lib/langs.css">
-<link rel="stylesheet" href="/lib/mobile.css">
-<script src="/lib/parseh.js"></script>
-<style>%(style)s</style>
-</head><body class="index" data-mobile-page>
-<div class="parseh-bar" data-layout="browser">
-  <a class="home" href="/"><span class="glyph" lang="fa">&#x67E;</span><span class="word">%(name)s</span></a>
-  <span class="where">settings</span>
-  <span class="sp"></span>
-  %(modes)s
-  <a class="parseh-btn" href="/guide/" title="the guide: how to use Parseh">guide</a>
-  <button type="button" data-parseh-theme title="theme">&#9680;</button>
-</div>
-<div class="parseh-bar m-bar" data-layout="mobile">
-  <a class="home" href="/"><span class="glyph" lang="fa">&#x67E;</span><span class="word">%(name)s</span></a>
-  <span class="m-where">Settings</span>
-  <span class="sp"></span>
-  %(modes)s
-  <button type="button" data-parseh-theme title="theme">&#9680;</button>
-</div>
-<main class="settings">
+def hub(reading_tags="", update_tags=""):
+    """/settings/ -- the section itself.  Each door says what is behind it
+    rather than only naming it, and who may change it, in the words of the
+    table above; `reading_tags` is what the reading help has (serve.py knows
+    it: the hub's own door says the same).  And which Parseh this is: the
+    version, from the one file that holds it."""
+    net = DOORS[1][3]
+    main = """<main class="settings">
 <h1 class="idx">settings</h1>
-<p class="sub">What this %(name)s is set to, on this computer.</p>
+<p class="sub">What this %(name)s is set to, and what this computer has fetched to help you read.</p>
+<p class="ver" data-version>This is %(name)s <b>%(version)s</b>.</p>
 <div class="doors">
+  <a class="door" href="/settings/reading-help/">
+    <div class="dname">Reading help</div>
+    <div class="dwhat">Reading what nobody has glossed: a dictionary for each language,
+    sentences people translated, translation models, and the parts of a kanji or a
+    hanzi &mdash; fetched once, kept on this computer.</div>
+    <div class="tags">%(reading_gate)s%(reading_tags)s</div>
+  </a>
   <a class="door" href="/settings/network/">
     <div class="dname">Network</div>
     <div class="dwhat">Who may reach %(name)s &mdash; this computer, a VPN, the
     Wi-Fi &mdash; letting a phone in with a code, the port, and the certificate.</div>
-    <div class="tags"><span class="tag on">%(where)s</span><span class="tag">port %(port)d</span></div>
+    <div class="tags">%(net_gate)s<span class="tag on">%(where)s</span><span class="tag">port %(port)d</span></div>
+  </a>
+  <a class="door" href="/settings/update/">
+    <div class="dname">Updating %(name)s</div>
+    <div class="dwhat">Another version of %(name)s in place of this one &mdash; the newest
+    release from GitHub, or a zip of your own; newer, older, or the same one again &mdash;
+    keeping your books, videos, decks, dictionaries and settings.</div>
+    <div class="tags">%(update_gate)s%(update_tags)s</div>
   </a>
 </div>
-</main>
-</body></html>
-""" % {"name": NAME, "apphead": mobile.app_head(), "modes": mobile.mode_switch(),
-       "style": STYLE + "\n.settings .doors { display: grid; gap: 1rem; }\n",
-       "where": esc(doors_said(network.settings())),
-       "port": network.port()}
+</main>""" % {"name": NAME, "version": esc(parseh_version()),
+              "reading_gate": gate(DOORS[0][3]), "reading_tags": reading_tags,
+              "update_gate": gate(DOORS[2][3]), "update_tags": update_tags,
+              "net_gate": gate(net),
+              "where": esc(doors_said(network.settings())), "port": network.port()}
+    return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", main,
+                 style="\n.settings .doors { display: grid; gap: 1rem; }\n"
+                       ".settings .doors .tags { align-items: center; }\n")
+
+
+def _came_in(where):
+    """How a device reached this page, said in a clause."""
+    return {network.LAN: "let in over the Wi-Fi", network.VPN: "on a VPN",
+            network.SELF: "the computer %s runs on" % NAME}.get(where, "another device")
 
 
 def doors_said(doc):

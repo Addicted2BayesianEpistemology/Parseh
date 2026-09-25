@@ -21,6 +21,15 @@ config/digests.json.*.tmp
 config/wheres.json
 config/wheres.json.tmp
 config/wheres.json.*.tmp
+# the languages somebody added on this machine (lib/newlang.py writes them,
+# lib/languages.py reads them after lib/languages.json): theirs, like the
+# settings above, and kept out of the software so an update cannot replace it
+config/languages.json
+config/languages.json.tmp
+# whether this Parseh looks for a new version once a day, and what it last
+# found (lib/updater.py): this machine's choice, like the settings above
+config/updates.json
+config/updates.json.*.tmp
 serve.log
 .serve.pid
 .setup-done
@@ -33,11 +42,20 @@ __pycache__/
 # checkout so that removing the folder removes all of it.  Hundreds of
 # megabytes, rebuilt from environment.yml, never committed.
 .runtime/
+# An update from Settings (lib/updater.py): the version waiting to be
+# installed, each update's backup of the files it replaced, its journal and
+# its report, and the helper that applies it -- this install's own, and in
+# no release.
+.parseh-update/
 # Claude Code's own scratch checkouts of this repository
 .claude/worktrees/
 # A bundle downloaded from the toolbox and dropped at the top of the checkout
 # -- a book, a video, a deck, somebody's test -- is content, not software.
 /*.zip
+# What `python3 lib/release.py build` writes: a release's zip, its checksum
+# and its manifest, made from a commit and made again at will -- never
+# committed (and .gitattributes keeps it out of an archive besides).
+/dist/
 # built by ./build.sh; rebuild, do not commit.
 # A book lives at books/<language>/<slug>/; the one-level patterns stay for
 # a book from before languages, which lies directly under books/.
@@ -197,3 +215,16 @@ components/.build-*/
 # The working list of what is left to do, at the top of the checkout: notes
 # for whoever works on the toolbox, not part of it.
 /TO-DO.md
+# And the briefs beside it: one file per piece of work waiting to be handed
+# to a session, written out in full so that nothing has to be remembered.
+# Notes about the toolbox, like TO-DO.md, and not part of it.  The TO-DO
+# item that each one belongs to names its file.
+/PROMPT-*.md
+# And the little reader for TO-DO.md (python3 todoview.py): a browser page
+# on 127.0.0.1 that parses that file and shows it, searchable, with its
+# §references as links.  A tool for whoever works on the toolbox, like the
+# list it reads, and no more part of Parseh than the list is.
+/todoview.py
+# xelatex leaves texput.log where markdown/exlex/envsetup.py probes whether a font is
+# registered (a dot-file probe it refuses in nonstop mode): a by-product, never content
+texput.log

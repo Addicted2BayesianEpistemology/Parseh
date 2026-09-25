@@ -636,7 +636,7 @@
         h += '<div class="dict"><div class="dnone">A dictionary can look ' +
              'these words up, a corpus can show a sentence somebody ' +
              'translated, and a model can read the line. ' +
-             '<a href="/lookup/">Set any of them up</a> — it takes a couple ' +
+             '<a href="/settings/reading-help/">Set any of them up</a> — it takes a couple ' +
              'of minutes.</div></div>';
     }
     // The dictionary goes BELOW that line and never in place of it: it is
@@ -645,12 +645,33 @@
     // here and filled when the answer comes back, because the cloud must
     // open at once and a lookup is a round trip.  Only where no vocabulary
     // line exists: a written phrase looks exactly as it did before this was
-    // built.
-    if (!ch.voc && (DICT.ready || MT.ready) && opts.dict)
+    // built.  AND ON A PHONE, only where nothing at all is written (the
+    // owner, 2026-09-25: a gloss is ANY line of one -- a meaning, a
+    // transliteration, a vocabulary line; hasGloss): there the panel goes
+    // straight into the dictionary's sheet (openCloud), and a phrase with a
+    // meaning written under it would have gone there too, its meaning lost
+    // at the top of a long entry.  Such a phrase opens its cloud, as any
+    // glossed phrase does, with the dictionary a press away (dictAsk).
+    var dictShown = (mobileNow() ? !hasGloss(ch) : !ch.voc) && (DICT.ready || MT.ready) && opts.dict;
+    var setupShown = !hasGloss(ch) && !DICT.ready && !MT.ready;
+    if (dictShown)
       h += '<div class="dict" data-fill="1"></div>';
+    // THE DICTIONARY UNDER ANY GLOSS, on a phone (the owner, 2026-09-24).
+    // The panel above opens by itself only where nobody has written a
+    // vocabulary line, and only with the header's switch on; a reader on a
+    // phone may want the dictionary's senses of a phrase that has a gloss
+    // too, and the switch is under ⋯.  So beside "copy", the mobile
+    // interface has a button that opens the dictionary's sheet, on demand --
+    // wherever the panel is not there already (dictOnDemand): under every
+    // gloss, and under "nothing glossed yet" with the dictionary switched off.
+    var dictAsk = !dictShown && !setupShown && mobileNow()
+      ? '<button type="button" class="mkdict" data-layout="mobile" aria-expanded="false" ' +
+        'title="what the dictionary says of these words, in a sheet over the foot of the screen">' +
+        'dictionary</button>'
+      : '';
     h += '<div class="mkrow"><button type="button" class="mkcard">' +
          '+ card</button><button type="button" class="mkcopy" ' +
-         'title="copy this phrase">&#10697; copy</button>' +
+         'title="copy this phrase">&#10697; copy</button>' + dictAsk +
          '<button type="button" class="mkedit" ' +
          'title="write this phrase: its text and its gloss">&#9998; edit</button></div>';
     cloud.innerHTML = h + colourRow(ch);
@@ -662,8 +683,110 @@
       READINGS.wordControls(cloud, line);
     else if (GUESS && ch.kana) READINGS.controls(cloud, ch.fa);
     var dbox = cloud.querySelector('.dict[data-fill]');
+    // the entry of a phrase nobody has glossed, which openCloud hands to the
+    // dictionary's sheet on a phone
+    autoBox = dictShown ? dbox : null;
     if (dbox) dictInto(dbox, ch);
   }
+
+  // the mobile interface is in force (lib/parseh.js says, as every page asks it)
+  function mobileNow() {
+    var p = window.Parseh;
+    return !!(p && p.mode && p.mode.isMobile && p.mode.isMobile());
+  }
+  /* The dictionary's entry for a phrase, asked for with the cloud's own
+     button (fillCloud, the mobile interface): the same entry an unglossed
+     phrase shows, filled the same way, in the dictionary's sheet.  Where
+     nothing is set up for the language, the sheet says so and where to set
+     one up, as an unglossed phrase's cloud does. */
+  function dictOnDemand(btn) {
+    if (!cloudCtx) return;
+    var box = document.createElement('div');
+    box.className = 'dict m-dict';
+    btn.setAttribute('aria-expanded', 'true');
+    openSheet(box);
+    if (DICT.ready || MT.ready) dictInto(box, cloudCtx.ch);
+    else box.innerHTML = '<div class="dnone">Nothing is set up to look ' + esc(L.name) +
+      ' words up: a dictionary, a corpus of translated sentences or a model. ' +
+      '<a href="/settings/reading-help/">Set any of them up</a> — it takes a couple of minutes.</div>';
+  }
+  /* THE DICTIONARY'S SHEET (TO-DO §4.18; Parseh.dictSheet, lib/parseh.js).
+     On a phone an entry is read in a sheet from the foot of the screen, not
+     in the cloud: the cloud is a card a few centimetres wide over the very
+     phrase it is about, and an entry scrolling inside it was, the owner
+     said, "basically unusable".  THE CLOUD STAYS FOR THE GLOSSES -- a
+     glossed phrase nobody asks the dictionary about opens its cloud as it
+     always did; what opens the sheet is the cloud's "dictionary", and a tap
+     on a phrase with nothing glossed while the dictionary is on.
+
+     While the sheet is up the cloud is hidden but not closed, and nothing
+     but the sheet may close it (`dsheet`, which closeCloud and scheduleClose
+     ask as they ask `editing`): the pointer "leaving" the cloud for the
+     sheet, or a subtitle changing on the whole screen, would otherwise close
+     it underneath -- and closing the cloud is what starts a paused video
+     again.  The video is paused while the sheet is up, whether or not the
+     cloud had paused it (on the whole screen the sheet covers the
+     subtitles); when the sheet goes, the cloud goes with it, nothing is left
+     open, and a video paused for either goes on as it does when a cloud
+     closes (the owner's 4). */
+  var dsheet = null, sheetPaused = false, autoBox = null;
+  function openSheet(box) {
+    if (!cloudCtx || !window.Parseh || !Parseh.dictSheet) return;
+    var ch = cloudCtx.ch;
+    // the gloss the cloud was showing, over the entry
+    var carry = Array.prototype.filter.call(cloud.children, function (c) {
+      return c.matches('.ctext, .kana, .tr, .voc, .en, .note, .unwritten');
+    });
+    if (player && ready) {
+      clearTimeout(resumeTimer);
+      var st = null;
+      try { st = player.getPlayerState && player.getPlayerState(); } catch (e) {}
+      // playing, or about to (3: YouTube buffering, as it does on a phone
+      // over a slow link) -- left alone, a buffering video started under the
+      // sheet as soon as it had enough, and on the whole screen took the
+      // subtitles and their marked phrase away from under it
+      if (st === 1 || st === 3) { wasPlaying = true; sheetPaused = true; player.pauseVideo(); }
+    }
+    cloud.hidden = true;
+    dsheet = Parseh.dictSheet({
+      box: box, lang: { code: L.code, dir: L.dir }, title: dictText(ch), anchor: cloudFor,
+      // the room a phrase can be read in, above the sheet: under the header,
+      // and under the video where it is pinned over the transcript (upright;
+      // held sideways it is pinned BESIDE it, and the sheet knows the
+      // difference)
+      carry: carry, pinned: ['header', '#playerwrap'],
+      onClose: function () { dsheet = null; closeCloud(); }
+    });
+  }
+
+  /* ---- a video with few glosses (the owner, 2026-09-24) ----
+     Fewer than half of its phrases with a gloss, and a press on a
+     phrase does one of two different things on a phone -- the gloss beside
+     it, or the dictionary's sheet -- with nothing to say which.  Every phrase
+     already wears a faint dotted underline (style.css); in such a video, in
+     the mobile mode, the ones with a gloss -- any line of one, hasGloss (the
+     owner, 2026-09-25) -- are marked (m-gl) and the page says the video is
+     sparse (m-sparse), and lib/mobile.css draws their line darker, the
+     others keeping theirs as it was -- in the transcript and in the
+     subtitles over the whole screen, which are copies of it.  A video
+     glossed half or more, and the browser mode, are left exactly as they
+     were: not a class is written. */
+  function markGlossed() {
+    var root = document.documentElement, on = mobileNow();
+    var ws = on ? document.querySelectorAll('#segs .seg .w') : [], gl = [];
+    Array.prototype.forEach.call(ws, function (w) {
+      var line = w.closest('.seg'), sg = line && segs[+line.dataset.i];
+      var ch = sg && sg.chunks && sg.chunks[+w.dataset.j];
+      if (ch && hasGloss(ch)) gl.push(w);
+    });
+    var sparse = on && ws.length > 0 && gl.length * 2 < ws.length;
+    if (root.classList.contains('m-sparse') !== sparse) root.classList.toggle('m-sparse', sparse);
+    Array.prototype.forEach.call(document.querySelectorAll('.m-gl'), function (w) {
+      w.classList.remove('m-gl');
+    });
+    if (sparse) gl.forEach(function (w) { w.classList.add('m-gl'); });
+  }
+  if (window.Parseh && Parseh.mode && Parseh.mode.onChange) Parseh.mode.onChange(markGlossed);
 
   /* ---------------- the dictionary behind an unglossed phrase ------------
      The same panel the book reader draws (lib/tex2html.py), for the same
@@ -2360,6 +2483,11 @@
       var st = player.getPlayerState && player.getPlayerState();
       if (st === 1) { wasPlaying = true; player.pauseVideo(); }
     }
+    // A PHRASE NOBODY HAS GLOSSED, TAPPED ON A PHONE: its entry, already
+    // being fetched into the cloud, goes into the dictionary's sheet, the
+    // cloud never shown.  Not for a mouse at rest on it: a sheet that covers
+    // the page must never spring up at a hover.
+    if (autoBox && mobileNow() && !hoverPointer()) openSheet(autoBox);
   }
   /* The hover cloud drawn again for what the reader has just switched on,
      or what has just arrived (a model), and placed again at its new size.
@@ -2368,17 +2496,24 @@
      gone, and the page still latched in `editing`, so no phrase would open
      a cloud until Esc. */
   function refillCloud() {
-    if (!cloudFor || !cloudCtx || editing) return;
+    // and never under the dictionary's sheet: placing the cloud shows it, and
+    // a translation model found after the sheet opened drew the cloud again
+    // behind the dimmed page, with a second lookup in it -- the sheet is
+    // what the reader is looking at, and closing it closes the cloud anyway
+    if (!cloudFor || !cloudCtx || editing || dsheet) return;
     fillCloud(cloudCtx.ch); placeCloud(cloudFor);
   }
   function closeCloud() {
     // while a phrase is being written only ✕ and Esc close the cloud: a
     // pointer wandering off the form, or a click on the video, must not
-    // throw the typing away
-    if (editing) return;
+    // throw the typing away -- and while the dictionary's sheet is up, only
+    // the sheet closes it (openSheet)
+    if (editing || dsheet) return;
     if (cloudFor) cloudFor.classList.remove('hot');
     cloudFor = null; cloud.hidden = true;
-    if (opts.hoverpause && wasPlaying && player && ready) {
+    var held = sheetPaused;
+    sheetPaused = false;
+    if ((opts.hoverpause || held) && wasPlaying && player && ready) {
       // a small grace: darting to the neighbouring phrase must not stutter
       clearTimeout(resumeTimer);
       resumeTimer = setTimeout(function () {
@@ -2390,7 +2525,7 @@
     }
   }
   function scheduleClose() {
-    if (editing) return;
+    if (editing || dsheet) return;
     clearTimeout(hideTimer);
     hideTimer = setTimeout(closeCloud, 120);
   }
@@ -2405,6 +2540,7 @@
       if (window.Parseh) Parseh.copy(cloudCtx.ch.fa);
       return;
     }
+    if (t.classList.contains('mkdict')) { dictOnDemand(t); return; }
     if (t.classList.contains('mkcard')) {
       var c = cloudCtx;                 // closeCloud() clears cloudCtx
       // the whole phrase: its caption and its chunk, no word of it
@@ -3157,6 +3293,7 @@
     // a timing moved): the lines are new, the pick is not
     rgPaint();
     measure();
+    markGlossed();
   }
   /* ONE CAPTION'S LINE, whole: its time, its phrases, and every listener the
      line and its phrases carry.  A function of its own because two things
@@ -3277,6 +3414,7 @@
     if (cloudFor && old.contains(cloudFor) && !editing) closeCloud();
     old.parentNode.replaceChild(d, old);
     els[i] = d;
+    markGlossed();
   }
 
   // shift-click copies: the phrase under the cursor (the hoverable unit),
@@ -4962,6 +5100,56 @@
         .catch(function () { return null; });
     return Promise.resolve(capWaveWindow(a, b, buckets));
   }
+  /* "ESTIMATE THE REST" BY THE SOUND (lib/timeline.js): the captions after
+     the line in hand, laid through a picture of the sound by the server
+     (lib/wavealign.py).  A film on this machine is read there with ffmpeg,
+     as its strip is.  A YouTube video's only picture is the one recorded
+     from this tab, which the page already holds: the numbers for the
+     stretch asked about are sent as they are -- raw, at their own rate, with
+     the time of the first -- so the server needs nothing it does not have.
+     With no picture there is nothing to send, and the sheet has already
+     greyed the choice out; the refusal here is for the hand that got past.
+     A picture that ends before the stretch begins (captions after the
+     length the recording saw) is said the same way as the server says it,
+     without asking.  And the request has a deadline, as the reader's has
+     (tex2html.py): two minutes and a second for every minute of sound. */
+  function capEstimate(req) {
+    var body = {video: CFG.id, start: req.start, end: req.end, texts: req.texts,
+                kind: req.kind || 'point'};
+    if (!CFG.media) {
+      if (!capWave || !capWave.peaks || !capWave.peaks.length)
+        return Promise.reject(new Error('draw the sound first: there is no picture of ' +
+                                        'this video’s sound yet to estimate by'));
+      var rate = capWave.rate || 20;
+      var k0 = Math.max(0, Math.floor(req.start * rate));
+      if (k0 >= capWave.peaks.length)
+        return Promise.reject(new Error('the picture of this video’s sound ends before ' +
+                                        'this stretch begins, so it cannot be estimated by ' +
+                                        'the sound: estimate it by the text'));
+      var k1 = Math.min(capWave.peaks.length, Math.ceil(req.end * rate) + 1);
+      body.wave = {rate: rate, start: k0 / rate, peaks: capWave.peaks.slice(k0, k1)};
+    }
+    var wait = 120000 + Math.max(0, req.end - req.start) * 1000 / 60;
+    var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, wait);
+    function failed(e) {
+      throw new Error(ctl.signal.aborted
+        ? 'the server gave no answer in ' + Math.round(wait / 60000) +
+          ' minutes, so the estimate was given up — nothing was estimated'
+        : 'the server did not answer (' + ((e && e.message) || e) +
+          ') — nothing was estimated');
+    }
+    return fetch('/youtube/api/estimate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body), signal: ctl.signal
+    }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) {
+        if (ctl.signal.aborted) failed();
+        if (!r.ok || !j || !j.ok)
+          throw new Error((j && j.error) || 'the sound could not be read to estimate from');
+        return j;
+      });
+    }, failed).finally(function () { clearTimeout(timer); });
+  }
 
   /* RECORDING THE SHAPE OF A YOUTUBE VIDEO'S SOUND.
 
@@ -5107,6 +5295,7 @@
       duration: isFinite(dur) ? dur : 0,
       dir: L.dir, lang: L.code,
       peaks: capPeaks,
+      estimate: capEstimate,
       play: capPlay, stop: capStop, now: capNow,
       // a film on this machine has its waveform for nothing, and one already
       // recorded is on disk: the offer is for the case that has neither
@@ -6072,14 +6261,23 @@
        which caption and which phrase its copy is, and hands the copy itself as
        the thing to hang the cloud on: the gloss opens against the subtitle,
        under the finger, and not against a transcript the video is covering. */
-    gloss: function (i, j, at) {
+    /* `hover`: a mouse come to rest on the phrase, as the transcript's own
+       phrases answer one -- it opens the cloud and leaves it open, where a
+       tap on the phrase whose cloud is open closes it again. */
+    gloss: function (i, j, at, hover) {
       var sg = segs[i], ch = sg && sg.chunks && sg.chunks[j];
       if (!ch || !at) return false;
-      if (cloudFor === at) { closeCloud(); return true; }
+      if (cloudFor === at) {
+        if (hover) clearTimeout(hideTimer); else closeCloud();
+        return true;
+      }
       openCloud(at, ch, sg);
       return true;
     },
-    ungloss: function () { closeCloud(); }
+    ungloss: function () { closeCloud(); },
+    // the mouse gone off a phrase: the cloud goes after the transcript's own
+    // grace, which the pointer travelling into the cloud cancels
+    unglossSoon: function () { scheduleClose(); }
   };
   watchFilm();
 })();

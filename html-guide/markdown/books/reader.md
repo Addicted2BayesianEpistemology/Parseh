@@ -29,7 +29,7 @@ reading-help switches only where something is installed for the language.
 | **gloss** (**G**) | shows or hides the glosses beside the chunks, leaving the chunks themselves |
 | **hover** (**H**) | hover mode: the text alone, and a chunk's gloss in a cloud when you point at it (below) |
 | **dictionary**, **definitions**, **in *english*** | reading help where nothing is glossed: [Reading a book nobody has glossed](doc:Reading a book nobody has glossed). Shown only when a dictionary, a corpus or a translation model is installed for the language. |
-| **reading help** | opens `/lookup/`, where dictionaries, corpora and models are installed |
+| **reading help** | opens the reading help in Settings (`/settings/reading-help/`), where dictionaries, corpora and models are installed |
 | the time | in a book with a recording: where it is, `0:42 / 12:05`, and which recording when there are several |
 | the build stamp | which build of the reader this is, and when it was made (`04ad5c 14:23`) |
 | **PDF behind the text — build it** | appears after an edit: the reader shows it, the PDF does not yet. Click it to build the PDF. |
@@ -177,7 +177,7 @@ and bottom*…). Click a component to explore it in turn; **← Back** and
 **Esc** leaves the mode. The narration pauses while the window is open.
 
 The components come from packs installed once on the **reading help** page
-(`/lookup/`, section *Kanji & Hanzi components*): until one is, the button
+(the *Character components* row of the language's card): until one is, the button
 opens a window saying *Install character components*, with a link to that
 page. A character no pack describes says so.
 

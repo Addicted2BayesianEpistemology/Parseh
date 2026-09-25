@@ -48,6 +48,8 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import languages                                              # noqa: E402
+import version                                                # noqa: E402  who is asking: UA
+import download       # noqa: E402  resumable, stoppable, and says how far
 
 MT_DIR = os.path.join(ROOT, "mt")
 ENGINE_DIR = os.path.join(MT_DIR, "engine")
@@ -63,6 +65,28 @@ ENGINE_FILES = ("translator-worker.js", "bergamot-translator-worker.js",
 ENGINE_LICENCE = "MPL 2.0"
 ENGINE_SOURCE = "bergamot-translator %s (%s)" % (ENGINE_VERSION, ENGINE_LICENCE)
 
+# ...AND ITS BYTES PINNED WITH IT: (SHA-256, size) of each file of
+# ENGINE_VERSION, and a download that does not match is refused and deleted
+# (download.Mismatch).  The engine is code -- it runs in every reader that
+# translates -- and the version number alone trusted a CDN to hand over the
+# same bytes for it forever.  With the digests written here, what may run is
+# fixed by the Parseh release the person installed, so fetching it from a page
+# adds nothing they did not already choose (the owner, 2026-09-24).  Taken
+# from the pinned files downloaded on 2026-09-25, and the same as the engine
+# installed on 2026-09-24.  Moving ENGINE_VERSION means moving these with it:
+# a new version with the old digests is refused, which is the point.
+ENGINE_SHA256 = {
+    "translator-worker.js": (
+        "90257af9ee0758983501bdce77ca7ec168cd7360d4689298c20a81b0251d6b62",
+        17191),
+    "bergamot-translator-worker.js": (
+        "748b2418418a2ffc6e70721aeb10098d8e6fb589ea156b91f4ae8bc3490d8f7a",
+        80474),
+    "bergamot-translator-worker.wasm": (
+        "95a2b58dd6773bf1b3f345d71f9149928b9f75f4ec9c9064c0b3e42c298671b2",
+        5174294),
+}
+
 # Where Firefox itself gets its models.  The records carry the pair, the file
 # type, a version and an attachment; the attachment's `location` hangs off the
 # CDN below.
@@ -72,49 +96,116 @@ ATTACH = "https://firefox-settings-attachments.cdn.mozilla.net/"
 MODEL_SOURCE = "Mozilla Firefox Translations models"
 MODEL_LICENCE = "CC BY-SA 4.0"
 
+# WHAT A MODEL COSTS, MEASURED: the pair's files, in bytes, as installed on
+# 2026-09-24 (Persian, Italian, Japanese, Turkish to English; English to
+# Italian) and as html-guide's translation-model page gives them for Spanish
+# and Chinese to English.  A model is not built, so what is downloaded is what
+# is kept.  Read by plan(), so the page can say how big before anybody presses
+# a button; a pair not here is asked -- the service's own list says each
+# file's size, so plan() reads it rather than guessing.  Mozilla publishes new
+# versions of a pair now and then, so these are "about".
+MEASURED = {
+    ("fa", "en"): 21_900_000,
+    ("it", "en"): 37_100_000,
+    ("ja", "en"): 54_800_000,
+    ("tr", "en"): 22_600_000,
+    ("en", "it"): 36_500_000,
+    ("es", "en"): 37_000_000,
+    ("zh", "en"): 55_000_000,
+}
+
 # What a pair needs.  `lex` is the shortlist, `vocab` the sentencepiece
 # vocabulary; a few pairs split the vocabulary in two and name the halves
 # separately, which is why both spellings are looked for.
 WANT = ("model", "lex", "vocab", "srcvocab", "trgvocab")
-UA = "Parseh/1.0 (+https://github.com/Addicted2BayesianEpistemology/Parseh)"
+UA = "Parseh/%s (+https://github.com/Addicted2BayesianEpistemology/Parseh)" % version.VERSION
 
 
-def _get(url, dest, say=print):
+def _get(url, dest, say=print, progress=None, cancel=None, sha256=None,
+         size=None):
+    """One file, through lib/download.py: resumed if a try before was cut
+    short, refused if `sha256` is given and the bytes do not have it."""
     say("    %s" % os.path.basename(dest))
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
     try:
-        with urllib.request.urlopen(req, timeout=180) as r, io.open(dest, "wb") as f:
-            got, t0 = 0, time.time()
-            while True:
-                buf = r.read(1 << 16)
-                if not buf:
-                    break
-                f.write(buf)
-                got += len(buf)
-                if got % (1 << 22) < (1 << 16) and got > (1 << 22):
-                    say("      %.0f MB (%.0fs)" % (got / 1e6, time.time() - t0))
+        download.fetch(url, dest, say=say, progress=progress, cancel=cancel,
+                       sha256=sha256, size=size, headers={"User-Agent": UA},
+                       timeout=180)
+    except download.Mismatch as e:
+        raise SystemExit("getmt: %s" % e)
     except urllib.error.HTTPError as e:
         raise SystemExit("getmt: could not download %s (%s)" % (url, e))
     except OSError as e:
-        raise SystemExit("getmt: could not download (%s)" % e)
+        raise SystemExit("getmt: could not download (%s).  What came is "
+                         "kept: the next try carries on from there." % e)
 
 
 def engine_ready():
     return all(os.path.isfile(os.path.join(ENGINE_DIR, f)) for f in ENGINE_FILES)
 
 
-def get_engine(say=print, force=False):
-    """The WebAssembly engine, once, shared by every pair."""
+def engine_matches():
+    """Are the engine's files here, and the very ones ENGINE_SHA256 pins?
+    Reads five megabytes, so it is for the Settings page's status, not for
+    every request (engine_ready is that)."""
+    for f in ENGINE_FILES:
+        p = os.path.join(ENGINE_DIR, f)
+        try:
+            if download.digest(p) != ENGINE_SHA256[f][0]:
+                return False
+        except OSError:
+            return False
+    return True
+
+
+def _engine_wanted():
+    """(url, file, sha256, size) of each engine file."""
+    return [("%s/%s" % (ENGINE_BASE, f), f) + ENGINE_SHA256[f]
+            for f in ENGINE_FILES]
+
+
+def _fetch_all(files, say, progress, cancel):
+    """Several files as ONE bar: [(url, dest, sha256, size)], sizes known
+    beforehand (the engine's are pinned, a model's come with its record).
+    A file already here whole and matching its digest is not fetched
+    again -- which is how a model interrupted after its first two files
+    carries on at its third."""
+    whole = sum(f[3] for f in files) if all(f[3] for f in files) else None
+    before = 0
+    for url, dest, sha, size in files:
+        if (os.path.isfile(dest) and sha
+                and download.digest(dest) == sha.lower()):
+            say("    already here: %s" % os.path.basename(dest))
+        else:
+            _get(url, dest, say, progress=download.shifted(progress, before,
+                                                           whole),
+                 cancel=cancel, sha256=sha, size=size)
+        before += size or 0
+
+
+def get_engine(say=print, force=False, progress=None, cancel=None):
+    """The WebAssembly engine, once, shared by every pair -- each file
+    checked against ENGINE_SHA256 before it is put in place.
+
+    `force` fetches every file that is not already the pinned one; a file
+    that is would come back byte for byte the same, so it stays, and the
+    engine a reader is using is never taken away while its replacement is
+    on its way."""
     if engine_ready() and not force:
         return False
     os.makedirs(ENGINE_DIR, exist_ok=True)
     say("  the engine, %s" % ENGINE_SOURCE)
-    for f in ENGINE_FILES:
-        _get("%s/%s" % (ENGINE_BASE, f), os.path.join(ENGINE_DIR, f), say)
-    io.open(os.path.join(ENGINE_DIR, "meta.json"), "w", encoding="utf-8").write(
-        json.dumps({"source": ENGINE_SOURCE, "version": ENGINE_VERSION,
-                    "built": time.strftime("%Y-%m-%d")}, indent=1))
+    _fetch_all([(url, os.path.join(ENGINE_DIR, f), sha, size)
+                for url, f, sha, size in _engine_wanted()],
+               say, progress, cancel)
+    _engine_meta()
     return True
+
+
+def _engine_meta():
+    with io.open(os.path.join(ENGINE_DIR, "meta.json"), "w",
+                 encoding="utf-8") as f:
+        f.write(json.dumps({"source": ENGINE_SOURCE, "version": ENGINE_VERSION,
+                            "built": time.strftime("%Y-%m-%d")}, indent=1))
 
 
 # What the service calls a language, where that is not what the registry
@@ -133,7 +224,7 @@ def trainable(a, b):
 
     Mozilla trains every pair against English rather than against each other,
     so `fa-en` and `en-it` exist and `fa-it` does not, and no amount of
-    asking will produce one.  The /lookup/ page asks this before it offers a
+    asking will produce one.  The Reading help page asks this before it offers a
     gloss, because a choice that can only fail is worse than no choice.
     """
     if a == b:
@@ -208,64 +299,147 @@ def pairs(say=print):
     return sorted(got)
 
 
-def build(a, b, say=print):
-    """Download the engine if it is missing, then this pair's model."""
-    A = languages.get_or_default(a)
-    B = languages.get_or_default(b)
-    if A.code == B.code:
-        raise SystemExit("getmt: a language translated into itself is a copy")
-    get_engine(say)
-    say("  %s to %s, from %s" % (A.name, B.name, MODEL_SOURCE))
-    recs = _records(say)
+def _model_files(A, B, recs):
+    """(url, file name, sha256, size) of each file of this pair's newest
+    stable model, from the service's records -- or a refusal naming why
+    there is none."""
     want = _pick(recs, service_code(A.code), service_code(B.code))
     if "model" not in want:
         raise SystemExit(
             "getmt: there is no %s-to-%s model.\n"
             "  Mozilla trains its pairs against English rather than against\n"
-            "  each other, so %s-en and en-%s exist where %s-%s does not.\n"
-            "  `python3 lib/getmt.py --pairs` lists what there is."
+            "  each other, so %s-en and en-%s may exist where %s-%s does not,\n"
+            "  and not every language has both."
             % (A.code, B.code, A.code, B.code, A.code, B.code))
-    d = path_for(A.code, B.code)
-    part = d + ".part"
-    if os.path.isdir(part):
-        for n in os.listdir(part):
-            os.unlink(os.path.join(part, n))
-    os.makedirs(part, exist_ok=True)
-    try:
-        names = {}
-        for kind, r in sorted(want.items()):
-            att = r["attachment"]
-            name = att.get("filename") or "%s.bin" % kind
-            _get(ATTACH + att["location"], os.path.join(part, name), say)
-            names[kind] = name
-        meta = {"from": A.code, "to": B.code, "files": names,
-                "version": (want["model"].get("version") or ""),
-                "source": MODEL_SOURCE, "licence": MODEL_LICENCE,
-                "engine": ENGINE_SOURCE,
-                "built": time.strftime("%Y-%m-%d")}
-        io.open(os.path.join(part, "meta.json"), "w", encoding="utf-8").write(
-            json.dumps(meta, indent=1))
-        # beside the old one and moved over it, for the reason getdict.py does
-        if os.path.isdir(d):
-            for n in os.listdir(d):
-                os.unlink(os.path.join(d, n))
-            os.rmdir(d)
-        os.replace(part, d)
-    except BaseException:
-        if os.path.isdir(part):
-            for n in os.listdir(part):
-                try:
-                    os.unlink(os.path.join(part, n))
-                except OSError:
-                    pass
+    out = []
+    for kind, r in sorted(want.items()):
+        att = r["attachment"]
+        out.append((kind, ATTACH + att["location"],
+                    att.get("filename") or "%s.bin" % kind,
+                    att.get("hash") or None, att.get("size") or None,
+                    r.get("version") or ""))
+    return out
+
+
+def _tidy(part, names):
+    """Everything in a pair's .part folder that is not one of `names`, or
+    an interrupted download of one, goes: an older version's file, the
+    meta.json of a try that stopped at the last step."""
+    keep = set()
+    for n in names:
+        keep.update((n, n + ".part", n + ".part.json"))
+    for n in os.listdir(part):
+        if n not in keep:
             try:
-                os.rmdir(part)
+                os.unlink(os.path.join(part, n))
             except OSError:
                 pass
-        raise
+
+
+def build(a, b, say=print, progress=None, cancel=None):
+    """Download the engine if it is missing, then this pair's model.
+
+    ONE BAR FOR ALL OF IT: the service's records give each model file's
+    size (and its SHA-256, which every file is checked against), and the
+    engine's are pinned, so the whole download is known before its first
+    byte.  `progress(done, total, "download")`; `cancel` is
+    download.Cancelled.  WHAT CAME IS KEPT for the next try, in
+    mt/<a>-<b>.part/: a whole file is not fetched again and a cut one is
+    resumed (discard() throws it away).  Nothing reads that folder; the
+    pair appears, as before, only when its last file is in and its
+    meta.json written, by one rename.
+    """
+    A = languages.get_or_default(a)
+    B = languages.get_or_default(b)
+    if A.code == B.code:
+        raise SystemExit("getmt: a language translated into itself is a copy")
+    say("  %s to %s, from %s" % (A.name, B.name, MODEL_SOURCE))
+    files = _model_files(A, B, _records(say))
+    d = path_for(A.code, B.code)
+    part = d + ".part"
+    os.makedirs(part, exist_ok=True)
+    _tidy(part, [name for _k, _u, name, _h, _s, _v in files])
+    engine = []
+    if not engine_ready():
+        say("  the engine, %s" % ENGINE_SOURCE)
+        os.makedirs(ENGINE_DIR, exist_ok=True)
+        engine = [(url, os.path.join(ENGINE_DIR, f), sha, size)
+                  for url, f, sha, size in _engine_wanted()]
+    _fetch_all(engine + [(url, os.path.join(part, name), sha, size)
+                         for _k, url, name, sha, size, _v in files],
+               say, progress, cancel)
+    if engine:
+        _engine_meta()
+    names = {kind: name for kind, _u, name, _h, _s, _v in files}
+    meta = {"from": A.code, "to": B.code, "files": names,
+            "version": next(v for kind, _u, _n, _h, _s, v in files
+                            if kind == "model"),
+            "source": MODEL_SOURCE, "licence": MODEL_LICENCE,
+            "engine": ENGINE_SOURCE,
+            "built": time.strftime("%Y-%m-%d")}
+    # closed before the rename: Windows will not move a folder holding an
+    # open file
+    with io.open(os.path.join(part, "meta.json"), "w", encoding="utf-8") as f:
+        f.write(json.dumps(meta, indent=1))
+    # beside the old one and moved over it, for the reason getdict.py does
+    if os.path.isdir(d):
+        for n in os.listdir(d):
+            os.unlink(os.path.join(d, n))
+        os.rmdir(d)
+    os.replace(part, d)
     size = sum(os.path.getsize(os.path.join(d, n)) for n in os.listdir(d))
     say("  %s-%s: %.1f MB" % (A.code, B.code, size / 1e6))
     return size
+
+
+def _part_bytes(part):
+    try:
+        return sum(os.path.getsize(os.path.join(part, n))
+                   for n in os.listdir(part) if not n.endswith(".part.json"))
+    except OSError:
+        return 0
+
+
+def plan(a, b, *, probe=True):
+    """What getting this pair will cost, before anything is fetched:
+    lib/download.py's plan() shape, for the same arguments as build().
+
+    A model is downloaded and kept as it comes, so the download, the peak
+    and what is kept are one number -- plus the engine's five megabytes
+    when it is not here yet, whose size is pinned.  A pair MEASURED is not
+    asked about; any other is read from the service's list (one small
+    request) unless `probe` is False."""
+    A = languages.get_or_default(a)
+    B = languages.get_or_default(b)
+    engine = 0 if engine_ready() else sum(sz for _s, sz in ENGINE_SHA256.values())
+    have = _part_bytes(path_for(A.code, B.code) + ".part")
+    if engine:
+        have += sum(download.leftover(os.path.join(ENGINE_DIR, f))
+                    for f in ENGINE_FILES)
+    model = MEASURED.get((A.code, B.code))
+    measured = model is not None
+    if model is None and probe:
+        try:
+            files = _model_files(A, B, _records(lambda _m: None))
+            if all(f[4] for f in files):
+                model = sum(f[4] for f in files)
+        except SystemExit:
+            model = None                  # no such pair, or the list is out of reach
+    dl = None if model is None else model + engine
+    return download.plan(dl, measured=measured, kept=dl, have=have,
+                         peak=None if dl is None else max(dl - have, 0))
+
+
+def discard(a, b):
+    """Throw away an interrupted download of this pair (its .part folder).
+    Returns the bytes freed.  The installed pair, if any, is untouched."""
+    part = path_for(a, b) + ".part"
+    freed = _part_bytes(part)
+    if os.path.isdir(part):
+        for n in os.listdir(part):
+            os.unlink(os.path.join(part, n))
+        os.rmdir(part)
+    return freed
 
 
 def installed():

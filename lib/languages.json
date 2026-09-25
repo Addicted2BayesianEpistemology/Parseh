@@ -1,5 +1,6 @@
 {
-  "_comment": "The language registry of Parseh -- one entry per language a learner can study. Read by lib/languages.py (Python) and embedded, per page, into the HTML the tools write; nothing else holds a table of languages. Order here is display order. Character classes are regex ranges usable by both Python's re and JavaScript's RegExp.",
+  "_comment": "The language registry of Parseh -- one entry per language a learner can study. Read by lib/languages.py (Python) and embedded, per page, into the HTML the tools write; nothing else holds a table of languages. Order here is display order. Character classes are regex ranges usable by both Python's re and JavaScript's RegExp. This file is Parseh's own, and an update replaces it: a language added on one machine is written to config/languages.json instead, which lib/languages.py reads after this one. _shipped names the rows that belong here; a row this file holds and _shipped does not name was added by hand, and Parseh moves it to config/languages.json when it starts (docs/languages.md, section 1).",
+  "_shipped": ["fa", "ar", "it", "ja", "fr", "de", "tr", "en", "hi", "es", "zh"],
   "fa": {
     "name": "Persian", "native": "فارسی", "folder": "persian", "tag": "farsi",
     "iso3": "pes",

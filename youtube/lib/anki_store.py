@@ -96,6 +96,14 @@ def as_dict(v):
 # never a deck: the .apkg output and the sync wizard's uploads
 COLLECTION_DIRS = ("build", "inbox")
 
+# THE SHAPE OF THE STORE -- the layout in this module's docstring, deck.json,
+# a card's cards/<id>.json, notetypes.json and seen.json -- as a number
+# (lib/version.py FORMATS).  Both dashboards write through this module, so
+# the number is kept here; the files carry none.  RAISE IT when the shape
+# changes so that the Parseh before this one would read a deck or a card
+# wrong; a field an older reader ignores is not such a change.
+STORE_FORMAT = 1
+
 # Placement complaints are said ONCE per process, however many times the
 # decks are listed: both dashboards poll /anki/decks every time they open,
 # and a legacy deck used to fill the log with the same line a hundred

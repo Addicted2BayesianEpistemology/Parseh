@@ -20,6 +20,7 @@ any other page of Parseh open in any tab or on any device.
 | a whole shelf backed up, or put back from a backup | *Packing the backup of every book*, *Restoring the decks from “decks-backup.zip” (3.2 MB)* |
 | a bundle coming back in, a deck imported or exported | *Uploading “mini-en-full.zip” (8.7 MB)*, *Exporting the deck “First words”* |
 | a book's narration: a recording uploaded, aligned, spread over its stretch, moved, taken off or put back, a transcript or hand-set times saved | *Aligning the narration of “Momotarō”* |
+| the timings of a book or a video estimated by the sound | *Estimating the timings of “Momotarō” by the sound*, *Estimating a video's timings by the sound* |
 | a studio document's PDF | *Building the PDF of “Greetings”* |
 | a video added, from YouTube or from a file on the computer, and its prompt prepared | *Adding a video from a file on this machine* |
 | text added to a book, a new empty book | *Adding text to “Momotarō”* |

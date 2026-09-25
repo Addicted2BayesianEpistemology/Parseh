@@ -53,7 +53,6 @@ import re
 import sys
 import time
 import urllib.error
-import urllib.request
 
 LIB = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.dirname(LIB)
@@ -61,6 +60,7 @@ sys.path.insert(0, LIB)
 import languages                                               # noqa: E402
 import translit                # noqa: E402  which reading, and how it is written
 import lookup                                                  # noqa: E402
+import download       # noqa: E402  resumable, stoppable, and says how far
 
 # Wiktionary's text is CC BY-SA 4.0; the extraction is Tatu Ylönen's
 # wiktextract.  Both are named in every built file's meta table and printed
@@ -69,6 +69,29 @@ import lookup                                                  # noqa: E402
 SOURCE = "Wiktionary, extracted by kaikki.org (wiktextract)"
 LICENCE = "CC BY-SA 4.0"
 URL = "https://kaikki.org/dictionary/%s/kaikki.org-dictionary-%s.jsonl"
+
+# WHAT A DICTIONARY COSTS, MEASURED: (the extract's download, the built
+# dictionary), in bytes, None where nobody has measured it.  Read by plan(),
+# so the Reading help page can say how big before anybody presses a button
+# -- and it says "about", because kaikki rebuilds its extracts every week and
+# they only grow.  The extracts are docs/languages.md's (German 1 077 MB,
+# Spanish 1 038 MB) and lib/lookuppage.py's (Turkish 431 MB); the built sizes
+# are the dictionaries built on 2026-09-24 (English, Persian, Italian,
+# Japanese, Turkish), and the 2026-09-10 builds docs/languages.md lists for
+# the others -- smaller than today's builder makes (Japanese was 62 MB then,
+# 89 MB now), so read those four as floors.  A language not here is asked:
+# plan() reads the extract's size from kaikki before anything is fetched.
+MEASURED = {
+    "tr": (431_000_000, 306_000_000),
+    "de": (1_077_000_000, 342_000_000),
+    "es": (1_038_000_000, 272_000_000),
+    "en": (None, 293_000_000),
+    "fa": (None, 21_000_000),
+    "it": (None, 155_000_000),
+    "ja": (None, 89_000_000),
+    "hi": (None, 88_000_000),
+    "zh": (None, 57_000_000),
+}
 
 # form rows that are not forms: kaikki puts the shape of the inflection
 # table into the same list as the words in it.
@@ -1004,18 +1027,54 @@ def _form_rows(o, L):
     return out
 
 
-def convert(path, code, db_path, limit=0, say=print):
-    """One JSONL extract into one dictionary.  Returns how many entries."""
-    L = languages.get_or_default(code)
+# HOW A BUILD'S TIME DIVIDES, for the bar: reading the extract, then linking
+# the form pages, then the VACUUM.  Measured on Turkish (a 435 MB extract,
+# 2026-09-25): 13.1 s reading, 0.9 s linking and vacuuming together.
+READ_SHARE, LINK_SHARE = 0.90, 0.05      # and the VACUUM the last 0.05
+
+
+def convert(path, code, db_path, limit=0, say=print, progress=None,
+            cancel=None):
+    """One JSONL extract into one dictionary.  Returns how many entries.
+
+    `progress(done, total, "build")` and `cancel` as lib/download.py means
+    them: the bar is the extract's bytes, and Stop is honoured between any
+    two lines (download.Cancelled; the caller removes the half-built file).
+
+    THE FILE IS CLOSED HOWEVER THE BUILD ENDS, Stop included: the caller
+    deletes the half-built file next, and Windows will not delete a file
+    that is still open.
+    """
     c = lookup.create(db_path)
+    try:
+        return _convert(c, path, code, limit, say, progress, cancel)
+    finally:
+        c.close()
+
+
+def _convert(c, path, code, limit, say, progress, cancel):
+    L = languages.get_or_default(code)
     n = skipped = 0
     # (surface, lemma word, note, kind, the page's pos, how the page's own
     # word is romanised, how it is said)
     pending = []
     t0 = time.time()
-    with io.open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            line = line.strip()
+    # ONE BAR FOR THREE STEPS.  Reading the extract is most of a build, and
+    # its bytes are the one count known before it starts; the linking pass
+    # and the VACUUM after it are given the rest of the bar in the shares
+    # measured above READ_SHARE.
+    meter = download.Meter(progress, cancel, total=os.path.getsize(path))
+    reading, linking = meter.share(0, READ_SHARE), \
+        meter.share(READ_SHARE, READ_SHARE + LINK_SHARE)
+    size = float(meter.total or 1)
+    got = 0
+    # Read as bytes and decoded a line at a time, which is what the text
+    # mode did, so that the bytes read so far are a sum and not a seek.
+    with io.open(path, "rb") as f:
+        for raw in f:
+            got += len(raw)
+            reading(got / size)
+            line = raw.decode("utf-8", errors="replace").strip()
             if not line:
                 continue
             try:
@@ -1103,7 +1162,9 @@ def convert(path, code, db_path, limit=0, say=print):
     # lemma is in, point them at it
     say("    linking %d inflected forms" % len(pending))
     made, linked = 0, set()
-    for surface, lemma, note, kind, pos, said, heard in pending:
+    every = float(len(pending) or 1)
+    for i, (surface, lemma, note, kind, pos, said, heard) in enumerate(pending):
+        linking(i / every)
         # A ROW THE LANGUAGE'S OWN SCRIPT CANNOT CONTAIN is refused here as
         # it is on the lemma's own page (`_foreign`); a Japanese rōmaji page
         # says so in its note and stays, and so does `ok` pointing at
@@ -1164,8 +1225,10 @@ def convert(path, code, db_path, limit=0, say=print):
         ("entries", str(n)), ("forms", str(made)),
     ])
     c.commit()
+    linking(1.0)
     c.execute("VACUUM")
     c.close()
+    meter.end()
     say("    %d entries, %d inflected forms linked, %d lines skipped"
         % (n, made, skipped))
     return n
@@ -1210,26 +1273,21 @@ def _folded(rows, L=None, head=None):
     return out
 
 
-def fetch(L, dest, say=print):
+def fetch(L, dest, say=print, progress=None, cancel=None):
     """Download the extract, reporting as it goes: these are big files and a
-    silent hour is indistinguishable from a hang."""
+    silent hour is indistinguishable from a hang.
+
+    RESUMED, NOT RESTARTED (TO-DO §11.4).  Turkish's extract is 431 MB and
+    German's a gigabyte, and a line that dropped at 80% used to cost the
+    whole of it again -- and worse, left a truncated extract at `dest`
+    that the next build took for a whole one.  lib/download.py writes to
+    `dest.part` and renames only a complete file, and the next fetch asks
+    kaikki for the rest; Stop (`cancel`) is download.Cancelled, and keeps
+    what came."""
     url = url_for(L)
     say("  %s" % url)
     try:
-        with urllib.request.urlopen(url, timeout=120) as r:
-            total = int(r.headers.get("Content-Length") or 0)
-            got, tick = 0, time.time()
-            with open(dest, "wb") as f:
-                while True:
-                    b = r.read(1 << 20)
-                    if not b:
-                        break
-                    f.write(b)
-                    got += len(b)
-                    if time.time() - tick > 3:
-                        tick = time.time()
-                        say("    %.0f MB%s" % (got / 1e6,
-                            " of %.0f" % (total / 1e6) if total else ""))
+        download.fetch(url, dest, say=say, progress=progress, cancel=cancel)
     except urllib.error.HTTPError as e:
         if e.code == 404:
             raise SystemExit(
@@ -1238,11 +1296,70 @@ def fetch(L, dest, say=print):
                 "that is what the URL is built from." % url)
         raise SystemExit("getdict: %s" % e)
     except OSError as e:
-        raise SystemExit("getdict: could not download (%s)" % e)
-    say("    %.0f MB" % (os.path.getsize(dest) / 1e6))
+        raise SystemExit("getdict: could not download (%s).  What came is "
+                         "kept: the next try carries on from there." % e)
 
 
-def build(code, src=None, limit=0, keep=False, say=print, out=None):
+def _extract_for(L):
+    """Where this language's extract is downloaded to, and kept by --keep."""
+    return os.path.join(lookup.DICT_DIR, "%s.jsonl" % L.code)
+
+
+def plan(code, src=None, limit=0, keep=False, out=None, *, probe=True):
+    """What building this dictionary will cost, before anything is fetched:
+    lib/download.py's plan() shape -- the download, whether that size is the
+    MEASURED table's, the most room it needs at once, and what it keeps.
+
+    The same arguments as build(), and `probe=False` for an answer that
+    sends nothing anywhere (a page drawing its rows asks nobody): a
+    language the table does not measure then has no download size.
+
+    THE PEAK IS THE EXTRACT AND THE DICTIONARY TOGETHER: the one is read
+    while the other is written beside the old one (about 740 MB for
+    Turkish).  Where the built size is not measured, it is taken to be the
+    extract's own -- a bound, not a guess: of every language measured, none
+    built bigger than its extract (Turkish 306 of 431 MB, German 342 of
+    1 077)."""
+    L = languages.get_or_default(code)
+    dl, kept = MEASURED.get(L.code, (None, None))
+    measured, have = dl is not None, 0
+    if src is not None:                   # built from a file already here
+        dl, measured, bound = 0, False, os.path.getsize(src)
+    else:
+        tmp = _extract_for(L)
+        if os.path.isfile(tmp):           # a whole extract, kept from before
+            dl = have = os.path.getsize(tmp)
+            measured = False
+        else:
+            have = download.leftover(tmp)
+            if dl is None and probe:
+                dl = download.probe(url_for(L))
+        bound = dl
+    built = kept if kept is not None else bound
+    peak = None
+    if dl is not None and built is not None:
+        peak = max(dl - have, 0) + built
+    if keep and src is None and kept is not None and dl is not None:
+        kept += dl
+    return download.plan(dl, measured=measured, kept=kept, have=have,
+                         peak=peak)
+
+
+def discard(code):
+    """Throw away this language's extract: one cut short, waiting to be
+    resumed, or a whole one left by a build that was stopped (or kept by
+    --keep).  Returns the bytes freed; the dictionary itself is untouched."""
+    tmp = _extract_for(languages.get_or_default(code))
+    freed = download.leftover(tmp)
+    download.discard(tmp)
+    if os.path.isfile(tmp):
+        freed += os.path.getsize(tmp)
+        os.unlink(tmp)
+    return freed
+
+
+def build(code, src=None, limit=0, keep=False, say=print, out=None,
+          progress=None, cancel=None):
     """Build this language's dictionary, from the download or from `src`.
 
     `out` puts it somewhere other than dict/<code>.db.  A test, or anybody
@@ -1250,6 +1367,11 @@ def build(code, src=None, limit=0, keep=False, say=print, out=None):
     extract into a scratch file -- and rebuilding the reader's own dictionary
     to find out was the only way there used to be.  Same conversion, same
     atomic rename, a different place.
+
+    `progress(done, total, phase)` hears the download ("download") and then
+    the build ("build"); `cancel` stops either, as download.Cancelled: an
+    interrupted download is kept to be resumed, a half-built dictionary is
+    removed, and the one that was there before is untouched.
     """
     L = languages.get_or_default(code)
     if out:
@@ -1260,11 +1382,12 @@ def build(code, src=None, limit=0, keep=False, say=print, out=None):
         db = lookup.path_for(L.code)
     tmp = None
     if src is None:
-        tmp = os.path.join(lookup.DICT_DIR, "%s.jsonl" % L.code)
+        tmp = _extract_for(L)
+        os.makedirs(lookup.DICT_DIR, exist_ok=True)
         if os.path.isfile(tmp):
             say("  using the download already here: %s" % os.path.relpath(tmp, ROOT))
         else:
-            fetch(L, tmp, say)
+            fetch(L, tmp, say, progress=progress, cancel=cancel)
         src = tmp
     # BUILT BESIDE THE OLD ONE AND MOVED OVER IT.  lookup.create() unlinks
     # its target before it writes, so building straight onto dict/<code>.db
@@ -1276,7 +1399,8 @@ def build(code, src=None, limit=0, keep=False, say=print, out=None):
                            if db.startswith(ROOT + os.sep) else db))
     part = db + ".part"
     try:
-        n = convert(src, L.code, part, limit=limit, say=say)
+        n = convert(src, L.code, part, limit=limit, say=say,
+                    progress=progress, cancel=cancel)
         os.replace(part, db)
     except BaseException:
         if os.path.isfile(part):

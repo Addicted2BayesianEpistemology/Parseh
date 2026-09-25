@@ -54,6 +54,12 @@ import audiofile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR = os.path.join(ROOT, "clips")
+# THE SHAPE OF clips/<name>.json, the file beside each clip saying where it
+# came from, as a number (lib/version.py FORMATS); the file carries none.
+# RAISE IT when the shape changes so that the Parseh before this one would
+# read a clip's record wrong; a key an older reader ignores is not such a
+# change.
+INFO_FORMAT = 1
 
 IMAGE_RE = re.compile(r"^[a-z0-9][a-z0-9._\-]*\.(?:png|jpe?g)$")
 IMAGE_MAX = 15 * 1024 * 1024        # a frame; the studio's own picture ceiling

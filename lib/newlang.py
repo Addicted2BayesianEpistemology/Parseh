@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Add a language to the toolbox: the registry entry and the files around it.
 
-A language is one row of lib/languages.json plus the two files that row
+A language is one row of the registry (lib/languages.json for Parseh's own,
+config/languages.json for one added on this machine) plus the two files that row
 implies -- lib/lang/<code>.tex, what the reading editions' preamble leaves to
 the language, and docs/lang/<code>.md, the conventions every annotation
 prompt carries -- plus the three directories its content lives in.  Six
@@ -21,6 +22,20 @@ is not, so "did I forget something" has one answer and it takes a second.
     python3 lib/newlang.py ko --name Korean --native 한국어 --script other \\
         --chars '\\uAC00-\\uD7AF\\u1100-\\u11FF\\u3130-\\u318F' \\
         --font 'Noto Serif KR' --web-font NotoSerifKR.woff2
+    python3 lib/newlang.py ko ... --shipped   the row into Parseh's own table instead
+    python3 lib/newlang.py --migrate          a hand-added row of lib/ moved to config/
+
+WHERE THE ROW GOES.  A language added on a machine is that machine's, and
+its row is written to config/languages.json -- the registry's second half,
+which lib/languages.py reads after Parseh's own table and which no update
+touches -- because lib/languages.json ships with Parseh and an update
+replaces it: the row used to be spliced in there, and the next version would
+have taken it away while the .tex and the .md stayed.  Those two files are
+still written to lib/lang/ and docs/lang/, where the rest of the toolbox
+looks for them; a release's manifest does not list them, so an update leaves
+them alone.  --shipped is the other case, a developer adding a language to
+Parseh itself for everyone: the row goes into lib/languages.json, and its
+code into that file's `_shipped`.
 
 It asks for nothing it can derive.  The folder is the English name in lower
 case, the tag is the folder, the babel name is the English name, the Anki
@@ -57,6 +72,7 @@ Standard library only, like everything the server imports.
 import argparse
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -67,7 +83,8 @@ ROOT = os.path.dirname(LIB)
 sys.path.insert(0, LIB)
 import languages                                               # noqa: E402
 
-REGISTRY = os.path.join(LIB, "languages.json")
+REGISTRY = os.path.join(LIB, "languages.json")     # Parseh's own rows
+PERSONAL = languages.PERSONAL                      # this machine's (config/languages.json)
 LANG_TEX = os.path.join(LIB, "lang")
 LANG_DOCS = os.path.join(ROOT, "docs", "lang")
 FONT_DIR = os.path.join(LIB, "fonts")
@@ -80,6 +97,20 @@ STUDIO = os.path.join(ROOT, "markdown")
 # languages sharing one would merge two people's decks (youtube/anki/README).
 ANKI_BASE = 1724563200000
 ANKI_STEP = 10
+# A LANGUAGE ADDED ON ONE MACHINE TAKES ITS PAIR FROM ANOTHER PART OF THE GRID.
+# Parseh's own languages walk up from slot 0, and the next one it ships will
+# take the next free slot of THAT walk -- which, in the checkout it is added
+# in, knows nothing of a Korean somebody added on their own machine.  Had the
+# Korean taken the same walk it would have taken the same slot, and after the
+# update Anki would merge the two note types.  So a person's language draws a
+# slot at random from PERSONAL_SLOT up, where Parseh's walk never reaches, and
+# at random rather than the next free one because two people who each add a
+# language and then swap decks meet the same danger one step further on: a
+# fixed "first personal slot" would be everybody's first, and ten million
+# slots drawn from make that meeting a one-in-millions accident.
+PERSONAL_SLOT = 1000
+PERSONAL_SLOTS = 10 ** 7
+_pick = random.SystemRandom().randrange            # tests patch it
 
 # What a script kind decides when the flags do not.  `chars` is the regex
 # character class the whole toolbox detects a run of the language by -- null
@@ -164,12 +195,26 @@ SCRIPTS = {
 
 # --------------------------------------------------------------- the registry
 def read_registry():
-    """The registry as text and as data.  The text matters: the entry is
-    spliced into it rather than dumped over it, so the four hand-formatted
-    entries and the _comment key come out of this byte for byte."""
+    """lib/languages.json as text, and the whole registry as data.
+
+    The text is Parseh's own file, and it matters for --shipped: the entry is
+    spliced into it rather than dumped over it, so the hand-formatted
+    entries and the _comment key come out of this byte for byte.  The data
+    is both halves -- that file's keys, then the rows of
+    config/languages.json that lib/languages.py takes in -- because every
+    question asked of it (is the code taken, the folder, the Anki ids?) is a
+    question about every language this machine knows.  Two keys say which
+    rows are whose: `_mine`, the person's codes in order, and `_problems`,
+    the person's rows that were left out and why."""
     with open(REGISTRY, encoding="utf-8") as f:
         text = f.read()
-    return text, json.loads(text)
+    reg = json.loads(text)
+    rows, mine, problems = languages.read_rows(REGISTRY, PERSONAL)
+    for code, d in rows.items():
+        reg.setdefault(code, d)
+    reg["_mine"] = [c for c in rows if c in mine]
+    reg["_problems"] = problems
+    return text, reg
 
 
 def entries(reg):
@@ -201,24 +246,40 @@ def used_anki_ids(reg):
 RETIRED_ANKI_IDS = frozenset((1724563200091, 1724563200092))
 
 
-def next_anki_pair(reg):
+def next_anki_pair(reg, personal=False):
     """The next free (vocab, opposites) pair on the 1724563200000 + 10n grid,
     checked against every id in the registry rather than against the number of
     languages: a language removed by hand would otherwise hand its ids to the
     next one, and Anki would merge the two note types on import.
 
     RETIRED_ANKI_IDS is checked too, so a slot a departed language once used
-    is skipped rather than handed out again."""
+    is skipped rather than handed out again.
+
+    `personal` -- a language added on this machine -- draws a free slot at
+    random from PERSONAL_SLOT up instead (the constant says why); Parseh's own
+    walk stops below it."""
     used = dict(used_anki_ids(reg))
     used.update({i: "retired" for i in RETIRED_ANKI_IDS})
+
+    def pair(n):
+        return ANKI_BASE + ANKI_STEP * n + 1, ANKI_BASE + ANKI_STEP * n + 2
+
+    if personal:
+        for _ in range(1000):
+            n = PERSONAL_SLOT + _pick(PERSONAL_SLOTS)
+            vocab, opp = pair(n)
+            if vocab not in used and opp not in used:
+                return vocab, opp, n
+        raise SystemExit("newlang: no free Anki model id in the personal part of the grid")
     n = 0
     while True:
-        vocab, opp = ANKI_BASE + ANKI_STEP * n + 1, ANKI_BASE + ANKI_STEP * n + 2
+        vocab, opp = pair(n)
         if vocab not in used and opp not in used:
             return vocab, opp, n
         n += 1
-        if n > 10000:                     # cannot happen; a runaway loop is worse
-            raise SystemExit("newlang: no free Anki model id under the 10n grid")
+        if n >= PERSONAL_SLOT:            # cannot happen; a runaway loop is worse
+            raise SystemExit("newlang: no free Anki model id below the personal part "
+                             "of the grid")
 
 
 def insert_entry(text, code, entry):
@@ -250,6 +311,39 @@ def insert_entry(text, code, entry):
     back = json.loads(out)
     if back.get(code) != entry:
         raise SystemExit("newlang: the spliced registry does not read back as written")
+    return out
+
+
+SHIPPED_LINE = re.compile(r'^(\s*"_shipped":\s*)\[[^\]\n]*\](,?)\s*$', re.M)
+
+
+def add_shipped(text, code):
+    """lib/languages.json's text with `code` added to its `_shipped`, the list
+    of the rows that are Parseh's own.  A row that is not named there is taken
+    for one somebody added on their own machine, and moved out to
+    config/languages.json when Parseh starts -- so --shipped has to say both
+    things, the row and the name, or the language it adds for everybody would
+    leave the table the first time an install started.  The line is rewritten
+    in place, one line as it stands; the result is parsed and compared before
+    it is let near the disk, like the splice above."""
+    before = json.loads(text)
+    have = before.get("_shipped")
+    if not isinstance(have, list):
+        raise SystemExit("newlang: lib/languages.json has no _shipped list to add %r to"
+                         % code)
+    if code in have:
+        return text
+    m = SHIPPED_LINE.search(text)
+    if not m:
+        raise SystemExit("newlang: lib/languages.json's _shipped is not the one line "
+                         "this can rewrite; add %r to it by hand" % code)
+    line = m.group(1) + json.dumps(have + [code], ensure_ascii=False) + m.group(2)
+    out = text[:m.start()] + line + text[m.end():]
+    back = json.loads(out)
+    if back.get("_shipped") != have + [code] or \
+            {k: v for k, v in back.items() if k != "_shipped"} != \
+            {k: v for k, v in before.items() if k != "_shipped"}:
+        raise SystemExit("newlang: _shipped did not read back as written")
     return out
 
 
@@ -409,7 +503,7 @@ def build_entry(a, reg):
     # and the chapter numbers without a fourth pass of its own.
     alt = (a.alt_font or "").strip() or None
     alt_key = (a.alt_key or ("alt" if alt else None))
-    vocab, opp, slot = next_anki_pair(reg)
+    vocab, opp, slot = next_anki_pair(reg, personal=not getattr(a, "shipped", False))
     vb_labels = [s.strip() for s in (a.vb_labels or "").split(",") if s.strip()] \
         or ["pres.", "past"]
     if len(vb_labels) != 2:
@@ -759,8 +853,15 @@ def show():
     print("      every entry validated, every file it needs present.  "
           "Non-zero when one is missing.\n")
     print("  python3 lib/newlang.py <code> --name <English> --native <its own name> [flags]")
-    print("      writes: the entry in lib/languages.json, lib/lang/<code>.tex,")
-    print("              docs/lang/<code>.md, and the three content directories.\n")
+    print("      writes: the entry in config/languages.json (this machine's languages,")
+    print("              which an update never touches), lib/lang/<code>.tex,")
+    print("              docs/lang/<code>.md, and the three content directories.")
+    print("      --shipped puts the entry in lib/languages.json instead: a language")
+    print("              added to Parseh itself, for everybody.\n")
+    print("  python3 lib/newlang.py --migrate")
+    print("      moves the rows of lib/languages.json that Parseh does not ship to")
+    print("      config/languages.json (Parseh does it itself as it starts, except in")
+    print("      a git checkout).\n")
     print("  The flags that carry a decision no default can make:")
     print("      --dir rtl|ltr                  which side the chunk sits on")
     print("      --script arabic|devanagari|latin|cjk|other  picks chars, word_sep, digits, strip")
@@ -783,18 +884,26 @@ def show():
     hdr = "  %-4s %-10s %-9s %-9s %-4s %-6s %-32s %s"
     print(hdr % ("code", "name", "folder", "script", "dir", "digits", "passes", "anki ids"))
     print("  " + "-" * 100)
+    loaded, _ = languages._load(REGISTRY, PERSONAL)
     for code, d in langs.items():
-        L = languages.get(code)
-        print(hdr % (code, d["name"], d["folder"], d.get("script", "?"), d.get("dir", "?"),
+        L = loaded.get(code)
+        print(hdr % (code, d.get("name", "?"), d.get("folder", "?"), d.get("script", "?"),
+                     d.get("dir", "?"),
                      "native" if d.get("digits") != "0123456789" else "latin",
-                     "/".join(L.pass_keys) +
-                     ("  +reading" if L.reading else "") +
-                     ("  +words" if L.words else "") +
-                     ("  +vertical" if L.vertical else ""),
-                     "%s/%s" % (d.get("anki", {}).get("vocab_model"),
-                                d.get("anki", {}).get("opposites_model"))))
+                     ("/".join(L.pass_keys) +
+                      ("  +reading" if L.reading else "") +
+                      ("  +words" if L.words else "") +
+                      ("  +vertical" if L.vertical else "")) if L else "(cannot be read)",
+                     "%s/%s%s" % (d.get("anki", {}).get("vocab_model"),
+                                  d.get("anki", {}).get("opposites_model"),
+                                  "  added on this machine" if code in reg["_mine"] else "")))
+    for code, why in reg["_problems"]:
+        print("  left out%s: %s" % ((" " + code) if code else "", why))
     vocab, opp, slot = next_anki_pair(reg)
-    print("\n  the next free Anki model ids: %d / %d (slot %d)" % (vocab, opp, slot))
+    print("\n  the next free Anki model ids for a language of Parseh's own (--shipped): "
+          "%d / %d (slot %d)" % (vocab, opp, slot))
+    print("  a language added on this machine draws a free pair at random from slot %d up"
+          % PERSONAL_SLOT)
     return 0
 
 
@@ -905,7 +1014,15 @@ def check(strict=False):
     def good(msg):
         print("      ok       " + msg)
 
-    print("checking %s\n" % REGISTRY)
+    print("checking %s (Parseh's own)\n     and %s (the languages added on this "
+          "machine%s)\n" % (REGISTRY, PERSONAL,
+                            "" if os.path.isfile(PERSONAL) else ": none yet"))
+    mine = set(reg.get("_mine") or ())
+    own_rows = json.loads(text)
+    shipped_list = own_rows.get("_shipped")
+    # read as lib/languages.py reads them, from the same two files, so a row
+    # it would leave out is found here and not only in a server's log
+    loaded, problems = languages._load(REGISTRY, PERSONAL)
     seen_folders = {}
     # AND THE VALIDATOR KNOWS THE RETIRED ONES TOO.  next_anki_pair refuses to
     # hand them out, but a row written by hand, pasted, or restored off an
@@ -914,7 +1031,21 @@ def check(strict=False):
     seen_ids = {i: "retired (a departed language was synced under it)"
                 for i in RETIRED_ANKI_IDS}
     for code, d in langs.items():
-        print("  %s  %s (%s)" % (code, d.get("name", "?"), d.get("folder", "?")))
+        print("  %s  %s (%s)%s" % (code, d.get("name", "?"), d.get("folder", "?"),
+                                   "  -- added on this machine" if code in mine else ""))
+        # A PERSON'S ROW IN PARSEH'S OWN FILE is one an older newlang.py wrote
+        # there, or a hand did: the next update replaces that file, and the
+        # row goes with it.  Parseh moves it to config/ as it starts; a git
+        # checkout is left to its author, who is told here.
+        if code in mine and code in own_rows:
+            note(code, "its row is in lib/languages.json, which is Parseh's own and "
+                       "which an update replaces, and _shipped does not name it: "
+                       "Parseh moves it to config/languages.json when it starts (in a "
+                       "git checkout, `newlang.py --migrate` does; or add it to "
+                       "_shipped, if it is a language for everybody)")
+        if code in mine and code not in loaded:
+            fault(code, "every page goes without this language: %s"
+                        % "; ".join(why for c, why in problems if c == code))
         if not (d.get("iso3") or "").strip():
             note(code, "no iso3: %s can have no parallel corpus until one is "
                        "written (Tatoeba keys its exports by ISO 639-3)" % code)
@@ -1053,10 +1184,46 @@ def check(strict=False):
         if not clash and (d.get("anki") or {}).get("vocab_model"):
             good("Anki ids %s / %s are this language's alone"
                  % (d["anki"].get("vocab_model"), d["anki"].get("opposites_model")))
+        # a language of this machine's on Parseh's own walk of the grid: what
+        # an older newlang.py gave every language.  Nothing is wrong today;
+        # the day Parseh ships a language on that slot, Anki merges the two.
+        # A note and not a fault, and nothing is changed for it: the ids are
+        # what this person's cards already carry in Anki, and new ones would
+        # part the cards from the note type they were made with.
+        vm = (d.get("anki") or {}).get("vocab_model")
+        if code in mine and isinstance(vm, int) and \
+                0 <= (vm - ANKI_BASE) // ANKI_STEP < PERSONAL_SLOT:
+            note(code, "its Anki ids are slot %d of the part of the grid Parseh's own "
+                       "languages are given, so a language Parseh ships later may be "
+                       "given the same pair" % ((vm - ANKI_BASE) // ANKI_STEP))
         # the script
         ok, detail = check_chars(d.get("chars"))
         (good if ok else (lambda m: fault(code, m)))("chars: " + detail)
         print("")
+
+    # what lib/languages.py could not take in, and why: a row of the person's
+    # that Parseh's own now shadows is a note (nothing is broken, and theirs
+    # can go); one that cannot be read, or takes a folder that is somebody
+    # else's, is a language every page goes without -- a fault
+    left = [(c, why) for c, why in problems if not (c in mine and c not in loaded)]
+    if left:
+        print("  left out of config/languages.json")
+    for code, why in left:
+        (note if code in own_rows else fault)(code, "%s%s" % ((code + ": ") if code else "",
+                                                              why))
+    if left:
+        print("")
+    # _shipped says which of lib/languages.json's rows are Parseh's own, and
+    # a name in it with no row behind it is a list that has drifted from the
+    # table it describes
+    if isinstance(shipped_list, list):
+        for code in shipped_list:
+            if not isinstance(own_rows.get(code), dict):
+                fault(code, "lib/languages.json's _shipped names %r, which has no row "
+                            "there" % code)
+    else:
+        fault("", "lib/languages.json has no _shipped list, so no row of it can be told "
+                  "from one somebody added on their own machine")
 
     if languages.DEFAULT not in langs:
         faults.append((languages.DEFAULT, "the default language is not in the registry"))
@@ -1075,6 +1242,12 @@ def check(strict=False):
 
 
 def add(a):
+    # a row an older newlang.py (or a hand) left in Parseh's own file goes to
+    # config/ first, as it would at the next start: the new row is then
+    # written into a registry whose two halves already say whose is whose
+    if not a.dry_run:
+        for line in languages.migrate(REGISTRY, PERSONAL):
+            print(line)
     text, reg = read_registry()
     langs = entries(reg)
     code = a.code.strip().lower()
@@ -1083,8 +1256,25 @@ def add(a):
     if not CODE_RE.match(code):
         refuse("%r is not a code: two or three lower-case letters (ko, fa, nap)" % a.code)
     if code in langs:
-        refuse("%r is already %s.  An existing language is edited by hand, not scaffolded."
-               % (code, langs[code].get("name", code)))
+        refuse("%r is already %s%s.  An existing language is edited by hand, not "
+               "scaffolded." % (code, langs[code].get("name", code),
+                                " (added on this machine, in config/languages.json)"
+                                if code in reg["_mine"] else ""))
+    # the person's store has to be readable before anything is added to it:
+    # a file that could not be read would be written over, and every language
+    # in it lost -- and a row it holds that was left out (a folder somebody
+    # else has, say) is still that code's, and is not to be overwritten either
+    if not a.shipped:
+        try:
+            held = languages.read_store(PERSONAL)
+        except (OSError, ValueError) as e:
+            refuse("config/languages.json cannot be read (%s): mend it or move it aside "
+                   "first -- nothing is written over a file of languages that cannot be "
+                   "read" % e)
+        if code in held:
+            refuse("%r is already in config/languages.json, where it was left out: %s"
+                   % (code, "; ".join(why for c, why in reg["_problems"] if c == code)
+                         or "see newlang.py --check"))
     if not a.name:
         refuse("--name is required: the English name, which becomes the folder, the babel "
                "language, the Anki field and the label on every slider")
@@ -1144,15 +1334,25 @@ def add(a):
         for w in warnings:
             print("  - " + w)
         print("")
-    out = insert_entry(text, code, entry)
+    out = add_shipped(insert_entry(text, code, entry), code) if a.shipped else None
+    where = "lib/languages.json" if a.shipped else "config/languages.json"
     if a.dry_run:
         print(json.dumps({code: entry}, indent=2, ensure_ascii=False))
-        print("\n--dry-run: nothing written.")
+        print("\n--dry-run: nothing written (the row would go into %s)." % where)
         return 0
-    with open(REGISTRY + ".tmp", "w", encoding="utf-8") as f:
-        f.write(out)
-    os.replace(REGISTRY + ".tmp", REGISTRY)
-    print("  lib/languages.json   entry added after %s:" % list(langs)[-1])
+    if a.shipped:
+        with open(REGISTRY + ".tmp", "w", encoding="utf-8") as f:
+            f.write(out)
+        os.replace(REGISTRY + ".tmp", REGISTRY)
+        print("  %-20s entry added after %s, and named in _shipped:"
+              % (where, [c for c in langs if c not in reg["_mine"]][-1]))
+    else:
+        held[code] = entry
+        languages.write_store(held, PERSONAL)
+        if languages.read_store(PERSONAL).get(code) != entry:
+            raise SystemExit("newlang: config/languages.json does not read back as written")
+        print("  %-20s entry added -- a language of this machine's, which an update "
+              "leaves where it is:" % where)
     print("      folder %s/   tag %s   dir %s   script %s   digits %s"
           % (folder, entry["tag"], entry["dir"], entry["script"],
              "the language's own" if entry["digits"] != "0123456789" else "Latin"))
@@ -1244,7 +1444,7 @@ def add(a):
         print("     If %s videos are written without the marks its dictionary keeps"
               % entry["name"])
         print("     (Arabic's are unvowelled), set \"vb_video_bare\": true in its row of")
-        print("     lib/languages.json by hand -- there is no flag for it -- and a")
+        print("     %s by hand -- there is no flag for it -- and a" % where)
         print("     video's verb line drops them.")
     print("\nThen:  python3 lib/newlang.py --check     (every language, its files and fonts)")
     print("       python3 tests/smoke.py             (the regression run)")
@@ -1341,8 +1541,21 @@ def main(argv=None):
     p.add_argument("--force", action="store_true", help="overwrite files that are there")
     p.add_argument("--dry-run", dest="dry_run", action="store_true",
                    help="print the entry that would be added and write nothing")
+    p.add_argument("--shipped", action="store_true",
+                   help="a language added to Parseh itself, for everybody: the entry goes "
+                        "into lib/languages.json and its _shipped, not into this "
+                        "machine's config/languages.json")
+    p.add_argument("--migrate", action="store_true",
+                   help="move the rows of lib/languages.json that _shipped does not name "
+                        "to config/languages.json (Parseh does it as it starts, except in "
+                        "a git checkout)")
     a = p.parse_args(argv)
 
+    if a.migrate:
+        said = languages.migrate(REGISTRY, PERSONAL, force=True)
+        print("\n".join(said) if said else
+              "nothing to move: every row of lib/languages.json is named in its _shipped")
+        return 1 if any(s.startswith("!!") for s in said) else 0
     if a.check:
         return check(a.strict)
     if not a.code:

@@ -146,6 +146,10 @@ class PackTests(unittest.TestCase):
             self.assertTrue(domain.is_han(text))
         import serve
         handler = object.__new__(serve.Handler)
+        # THE COMPUTER ITSELF asks: every POST now goes through
+        # lib/settingspage.py's table, which asks where the knock came from,
+        # and a Handler made by hand has no address unless it is given one.
+        handler.client_address = ("127.0.0.1", 0)
         def call(action, body):
             handler._json_body = lambda: body
             handler.send_json = lambda payload, status=200: (status, payload)

@@ -43,6 +43,16 @@ no address here is a real video.
 Two cards per language, made up for the tests. Each `deck.json` says what
 it is in its `_comment`.
 
+## Bundles from an older Parseh: `bundles/`
+
+`mini-en-book.zip` and `eN5wX7zA9bC-video.zip` are the English fixture book
+and video above, downloaded as bundles by a0.3.0's own `lib/bundle.py` (the
+release before the version was kept in one place) and never touched since.
+Their manifests say `"software": "Parseh/1.0"`, a number no release ever had;
+`tests/test_version.py` holds that a bundle written so still installs. Their
+text is the fixtures', written for the tests. Do not regenerate them: their
+whole worth is that an older Parseh wrote them.
+
 ## Studio documents: `studio/`
 
 - `feature-test/`, `exercises/`, `audio/`: written for the tests of the

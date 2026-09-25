@@ -216,9 +216,9 @@ The main fields — `target`, `meaning`, `opposite`, `front`, `back`,
 `front-primary`, `back-primary` — start at `120` and `primary`; the others
 at `88` and `subdued`. A size outside 50–250 is taken as 50 or 250,
 whichever is nearer, and one that is not a number leaves the field at its
-own size; a shade the card does not know is the page's ink. Both are the
-page's: on paper every field is printed at the size of the text round it,
-and in its ink.
+own size; a shade the card does not know is the page's ink. Both hold on
+paper too ([On paper](#on-paper)), where black and white prints every shade
+black.
 
 In the form, every text field has **Text appearance** under it: *Text size
 (%)*, and *Color treatment* — **Primary text**, **Subdued**, **Muted**,
@@ -301,22 +301,42 @@ the page with it; Escape or ✕ closes the window.
 
 ## On paper
 
-A card prints **both its sides** — *Front:* and *Back:* — as a card to
-study from; it is the one exercise whose answer is on the paper.
+A card prints as **a card to cut out and fold**: a frame with round
+corners, the card's **front in its left half** and its **back in the
+right**, and a dashed line exactly between the two. Cut along the frame —
+the ✂ on it says so — and fold on the dashed line, the print outside: the
+halves are back to back, a card in the hand with the front on one face and
+the back on the other, both the right way up. It is the one exercise whose
+answer is on the paper.
 
-- A **vocabulary** card prints `target` (or `front`) and `meaning` (or
-  `back`): the reading, transliteration, context, notes and source, and
-  the pictures, are left to the screen. A recording is ♪ and its file's
-  name, before the side's text.
-- An **opposites** card prints `target` and `opposite`, each after ♪ and
-  its recording's file name when that side has one (`front-audio`,
-  `back-audio`); the rest is left to the screen.
-- A **Jolly** card prints its fields: side by side, `a / b`, when each is
-  one paragraph, and otherwise one under the other, as blocks — its pictures,
-  tables and lists included, and a recording as the small card a recording
-  prints as.
-- The sides are printed as written: `direction: reverse` does not swap
-  them on paper, and sizes and shades are the page's only.
+![Two Japanese flashcards on paper, from the Japanese starter: each a frame with round corners and scissors on its top edge, a dashed line down the middle; on the left 家 with いえ and ie under it, on the right the picture of a house, ♪ starter-chime.mp3, house, home in bold and the example and notes in grey; below, 暑い and 寒い with their readings](shots/paper-flashcard.png){width=80 align=center}
+
+- **Each half holds its side as the page draws it.** The picture first,
+  then the recording, then the fields, one under another in the middle of
+  the half: the main field bold and larger, the others smaller and grey,
+  each at its own `-size` and in its own `-shade` — in black and white,
+  every shade is black. A recording cannot be played from paper, so it is
+  ♪ and its file's name.
+- A **vocabulary** card prints every field it shows on the page: `target`
+  (or `front`) with its reading and transliteration, and `meaning` (or
+  `back`) with its context, notes and source — and its pictures. An
+  **opposites** card prints the word and its opposite, with their
+  readings, transliterations, notes and source.
+- A **Jolly** field of one paragraph is a line of its own in the middle of
+  its half; a field of blocks — a table, a list, a box, a picture — is laid
+  out from the start of the line, at the page's size, and a table too wide
+  for its half is made to fit it.
+- **`direction: reverse` turns the card round on paper too.** The side the
+  card shows first is the left half.
+- **Nothing crosses the fold**, at any print size: a long word is
+  hyphenated inside its half, a phrase of the target language wraps, and
+  what cannot break is set smaller until it fits.
+- The card is as tall as its taller side, and never less than three fifths
+  of a half's width, the shape of an index card; its label and its prompt
+  stand above the frame. **A card is never split between two pages**, which
+  could not be folded: one taller than a page — a Jolly card holding a
+  table, a list and a picture, in large print — is printed smaller, whole,
+  on one page.
 
 ## Where cards come from
 

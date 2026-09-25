@@ -378,6 +378,127 @@ mobile mode:
   studio's own sheet and nothing else; one that holds an exercise opens the
   full studio page, so it can still be answered), looking a word up, taking a
   character apart, the Aa panel, the reading place.
+* **The dictionary under any gloss** (a0.3.1): the gloss cloud gets a
+  *dictionary* button beside *copy*, which opens the dictionary for a chunk
+  that has a gloss too -- the entry the cloud opens by itself only for an
+  unglossed chunk with the header's switch on.  The cloud is the reader's
+  (`fillCloud`, built into the page), so `lib/mobilereader.js` adds the button
+  each time the cloud is filled (and has the reader place its cloud again,
+  `refitCloud`, since the button can change its size), and the entry is drawn
+  by the reader's own `dictInto`, a global of its classic script: every reader
+  built since the dictionary existed has it, and one built before gets no
+  button.  The video's cloud has the same button, written by
+  `youtube/lib/player.js` itself (the player is served live), in the mobile
+  mode only.
+* **The dictionary's sheet** (a0.3.2, TO-DO §4.18): on a phone the entry is
+  never read inside the cloud -- a small box scrolling inside a scrolling
+  page, over the word, which the owner found "basically unusable".  The
+  button, and a tap on a chunk with NOTHING written while the switch is on
+  (the reader's own auto panel, handed over whole by the layer's
+  MutationObserver; only for a click or a tap, never a mouse at rest), open
+  **`Parseh.dictSheet`** (`lib/parseh.js`, the one script both pages and every
+  reader load; drawn by `lib/mobile.css` under its own classes, `.m-dback` /
+  `.m-dsheet`, in the look of the keep sheet's `.kp-back` / `.kp-sheet`):
+  - the box the page's own `dictInto` fills, in a sheet as tall as the entry
+    up to `86dvh` (no peek, the owner's choice), whose body is the one
+    scroller (`overscroll-behavior:contain`) -- ALWAYS, whatever the page pins
+    at its top (the owner, 2026-09-25: it once stopped short of the word under
+    the player's pinned video, down to 45% of the screen).  The box is taken in whole: the
+    inline `max-height` a cloud cut its panel to (`placeCloud`, both pages)
+    is cleared, and `.m-dsheet .dict` is `max-height:none!important`, or an
+    entry already cached opened as a peek of itself;
+  - the chunk as its head, in `--tl-font` and `--tl-dir`, and the cloud's
+    gloss lines copied over the entry; every entry rule restated under
+    `.m-dsheet`, because every rule the reader and the player have for an
+    entry is scoped `#cloud .dict` and means nothing outside the cloud; each
+    hit's `.dhead2` split into the headword (`.m-dhw`, with the language's
+    `lang` and `dir`, isolated) and its romanisation; each sense numbered with
+    a `.m-dsn` of the sheet's own (text, so it is read out);
+  - the word marked (`.m-dword`) and scrolled into the room between what is
+    pinned at the top of the screen OVER ITS COLUMN (`pinned`: the header,
+    and the player's `#playerwrap`; held sideways the video is pinned down the
+    left, beside the transcript, and does not count) and the sheet, again
+    whenever the sheet grows -- where that room holds it; where it does not
+    (an upright video under a long entry, a book held sideways), the page is
+    left where it is and the sheet covers the word, still marked, and the
+    sheet's closing, which spends its history entry, brings the page back to
+    where the word was tapped; the
+    page lent room at its foot (`.m-dspace`) where it is too short to scroll
+    that far, and given it back on closing; the header held where it is while
+    the sheet is up (`html.m-dsup`, which `bars()` asks, as it asks
+    `data-bars-held`);
+  - dismissed by a swipe down (the head with pointer events, the body with
+    touch events while it is at its top), a tap on the backdrop, ✕, Escape
+    and the back gesture (`history.pushState({parsehDictSheet: id})`; any
+    other close spends that entry with `history.back()`, whose popstate the
+    sheet counts as its own; a sheet opened over a sheet `replaceState`s the
+    entry instead, since a spending `back()` lands after a push and took the
+    new entry with it);
+  - `lang="en" dir="ltr"` on `.m-dback`, as the reader's `#cloud` has: its
+    English would otherwise be taken for the book's language; the runs in
+    the language carry their own;
+  - a dialog that holds the page (`aria-modal`): Tab and Shift+Tab go round
+    its own buttons and links, and closing gives the keyboard back to what
+    opened it where that is still drawn;
+  - `z-index:300`: over the page, its dialogs and the cloud, under the toast
+    (400), the held finger's menu (420) and the ? bubble (430).  The two
+    lines at the foot at 415 -- `.pf-bar` (where the other device stopped)
+    and `.kp-bar` -- are `display:none` while `.m-dback` is on the page, and
+    `lib/prefs.js`'s `sheetOver()` waits for it before it asks;
+  - `Parseh.dictSheet.up()` / `.close(how)` for a page that did not open
+    it: `lib/mobileplayer.js`'s `onFullChange`, when the browser leaves ITS
+    full screen with a sheet up (Android's Chrome spends the back gesture on
+    that and sends no popstate), closes the sheet alone -- which spends its
+    own entry -- and keeps the overlay and the full screen's entry, so the
+    next back leaves the video: one back, one thing, no dead entry.
+  THE CLOUD IS HIDDEN, NOT CLOSED, while the sheet is up: the reader's
+  `dictInto` fills only while `cloudC` is still that chunk, and its "click
+  outside" listener asks `!cloud.hidden`; the player's `closeCloud` and
+  `scheduleClose` refuse while its `dsheet` is up (as they do while
+  `editing`).  And it STAYS hidden when the page draws it again (the reader
+  reopens its cloud when a translation model is found late, and placing it
+  shows it: the layer's MutationObserver hides it again while the sheet is
+  up for that chunk; the player's `refillCloud` does nothing while `dsheet`
+  is up).  The video is paused for the sheet when it plays or is buffering
+  (YouTube's state 3), and a book's narration is paused and started again
+  through the reader's own `#play` -- the button the dock presses.  And the mouse events a phone makes up after a tap on the
+  sheet (the pointer "leaving" the cloud's button) are stopped at the window
+  while the sheet is up: both pages close the cloud on its `mouseleave`, which
+  would have thrown the book's answer away and started a paused video again.
+  Closing the sheet closes the cloud with it -- nothing is left open -- and a
+  video paused for the sheet or by the cloud's own pause goes on.  On the
+  whole screen `lib/mobileplayer.js`'s `onPop` stays put when the entry it
+  lands on is its own (`parsehVideoFull` carries an id, since
+  `history.state` outlives a reload), so the back gesture closes the sheet
+  and not the video's whole screen.  `tests/phone_clouds.mjs` drives all of
+  it, with an English, a Persian and an Arabic dictionary of its own.
+* **What a gloss is, on a phone** (the owner, 2026-09-25): ANY line of one --
+  a meaning, a transliteration (the kana too, in a language with a reading),
+  a vocabulary line -- save a reading a draft seeded from the word line with
+  nothing else written (`ParsehWordline.seed`, as the build's `seeded()` and
+  the player's `hasGloss` ask).  The reader's `fillCloud` and the player's
+  go by the vocabulary line alone for their dictionary panel; in the mobile
+  mode a chunk with a meaning or a reading and no vocabulary line opens its
+  cloud with the dictionary's button instead (the player never draws the
+  panel for it; the reader's layer takes the panel the reader poured in out
+  again), and only a chunk with nothing written opens the sheet by itself.
+  One rule, `hasGloss`, in both pages, for the press and for the count below.
+* **Few glosses** (a0.3.2): in the mobile mode, a book (`lib/mobilereader.js`)
+  or a video (`youtube/lib/player.js`) with a gloss on fewer than half its
+  chunks gets `html.m-sparse` and `.m-gl` on every drawn element of its
+  glossed chunks (a book's `.pass [data-c]`, the transcript's `.w`, which the
+  subtitles over the whole screen copy).  A book is counted from the
+  reader's `SRC` (every chunk of the book, `[colour, text, kana, tr, voc, en,
+  words]`), not from the page, which holds only the chapters fetched so far;
+  a chapter the reader fills later (`fillChapter` takes its `data-part` off)
+  is marked by a MutationObserver as it arrives.  `lib/mobile.css` draws the
+  mark: where nothing is underlined (a book's passes; in hover mode its passes
+  but the first) a 1px dotted `--faint` underline on the glossed chunks;
+  where every phrase already wears that underline (a video's transcript, a
+  book's pass 1 in hover mode) the unglossed KEEP it and the glossed wear it
+  in `--dim` -- over the subtitles' black, a near white.  Nothing is written
+  in the browser mode, where `tests/player_words.mjs` compares the transcript
+  byte for byte.
 
 The page is marked `data-mobile-page`, so its links route: the shelf's ▤ goes to
 `/m/books/`. Going back to the browser mode leaves the page exactly as the reader
@@ -411,7 +532,8 @@ one added since the last warming is on nobody's: so `CHANNELS_JS` asks the
 phone's own caches, address by address, and a card whose page is not here is
 **drawn and cannot be tapped**, with a line saying so — the same face a book
 whose reader was never built has always worn. Nothing there decides whether
-the computer is away (that is `lib/keep.js`'s probe), and nothing is greyed
+the computer is away (that is the page's one question, `lib/activity.js`,
+drawn by `lib/keep.js`), and nothing is greyed
 until the caches have answered: the worse mistake is to refuse a page this
 phone really holds.
 
@@ -424,8 +546,14 @@ book's reader has one:
   video* (follow, hover ‖, the reading, pin), *Looking a word up*, *This page*
   (the theme, the text size, the switch). What writes the video or administers
   it is not there at all: its details, the caption timings, the download, the
-  dictionary setup, stop — nor the page's long explanation of the mouse's
-  gestures, since a held finger now says what a finger can do;
+  dictionary setup, stop, and the cloud's card, edit and colour marks
+  (`#cloud .colrow` and its status line `.cstat` -- the rule once named them
+  `.colors`, which matched nothing, and a phone could write a phrase's
+  colour), and the transcript's *+* between two captions that writes a note
+  (`#segs .gap .plus`, a0.3.2; the book's reader has hidden its own from the
+  first) — nor the page's long explanation of the mouse's gestures, since a
+  held finger now says what a finger can do; the cloud's own buttons are
+  48px tall, as every target is;
 * **the dock** at the foot plays it, moves it back and on by the seconds, and
   sets its speed (`lib/narrctl.js`). A video has no `<audio>` element to
   drive: it is YouTube's frame, or a film of this machine, behind the handle
@@ -480,6 +608,21 @@ book's reader has one:
   (`ParsehPlayer.gloss`) — the gloss stands over the subtitle, where the finger
   is. Upright there is no such button: a video on the whole screen leaves
   nothing to read.
+* **The lines around the one being said** (a0.3.1): beside the ⛶ in the corner
+  a second button (`.m-vctx`, three bars, the middle one bright) shows the
+  caption before above the line being said and the caption after below it, in
+  **one** cloud (`.m-subctx`) that grows for them -- as tall as the screen
+  allows under the corner's buttons, scrolled within beyond that -- each a
+  little smaller (0.82 of the text size) and greyer (white at 70%) than the
+  line being said. Every phrase of the three answers a tap with its own gloss
+  (`ParsehPlayer.gloss` is told which caption from the copy's own `data-i`),
+  and a mouse at rest on one as well, as the transcript's phrases answer one
+  (`gloss(..., hover)` opens without toggling, `unglossSoon` closes after the
+  transcript's grace). The choice is kept for every video on the phone
+  (`vd_subctx`). A caption of the video's own framing (`.plain`, an
+  `.en-line`) is white over the picture too: it used to take the
+  transcript's ink, dark on the black in the light theme
+  (`tests/phone_clouds.mjs`).
 
 ### The exercise decks, `/exercises/`
 
@@ -532,7 +675,11 @@ home, the way up (the decks, the deck), the switch and the theme.
   by the same `moveItem` a drop uses, so what the place held goes back to the
   bank and checking is unchanged; a filled place's cloud can empty it. The
   bank stays, to show what is left, and is not picked up or dragged in this
-  mode; an empty match's place says *tap to choose*. (An ordering exercise
+  mode; an empty match's place says *tap to choose*. (Since a0.3.1 the
+  browser layout has the same cloud, beside its dragging and its word picked
+  then placed -- a place clicked while a word is picked takes that word and
+  opens no cloud; only this mode has the cloud alone. `tests/blank_cloud.mjs`
+  drives every way in both, on a document, a deck and an exported page.) (An ordering exercise
   has no places: its blocks move by their arrows, in either layout.) No *Edit* (correcting an exercise is the browser
   layout's), no key hints, no stop.
 * **Cramming**: the same box, the same place — *Skip* beside *Check* then
@@ -551,9 +698,16 @@ pressing ◐ lets such a pick go and the studio follows the toolbox again.
 These stay browser pages only, with no mobile version planned, because what
 they are for is making or administering something: adding a book or a video
 (`/books/add/`, `/youtube/add/`), the studio's editor, new document and LLM
-prompt pages, the Anki sync (`/anki/sync/`), the clip tray (`/clips/`) and the
-dictionary setup (`/lookup/`). A link to one of them from a mobile page still
-opens it — in its browser version.
+prompt pages, the Anki sync (`/anki/sync/`) and the clip tray (`/clips/`). A
+link to one of them from a mobile page still opens it — in its browser version.
+The reading help (`/settings/reading-help/`, once `/lookup/`, which redirects
+there) moved into Settings (TO-DO §11.10) and, like its sibling Network,
+carries the phone's bar; the mobile hub still has no door to it (a reader's
+**reading help** link and a cloud's **Set any of them up** reach it). Getting
+a dictionary is not administering by the rule Settings now writes down in
+`lib/settingspage.py`: a setting is risky — and changed on the computer
+alone — when it changes who may reach Parseh, what it exposes, or what it
+runs.
 
 ### The studio's library and a document, `/studio/`
 
@@ -758,6 +912,24 @@ so a book works with the computer asleep, off, or a train away.
   list before it is handed over (`planOf`), and takes nothing off on a renew.
   And what comes by that way is put away only once it has passed this same
   `whole` (`arrived`).
+* **An update is not damage** (TO-DO §13.16). The digest in `want` is the
+  computer's *now*, and a new release changes Parseh's own scripts by design,
+  so every kept copy of `/lib/`'s files used to fail it the morning after an
+  update. So **each kept copy carries the digest it was kept with**, as a
+  header on the stored answer (`X-Parseh-Kept-Digest`, lib/sw.js `stamped`):
+  the page hands the worker the record's digests with every keep
+  (`digestsOf`, and `decks.js` for a deck), `keep` and `settle` write them
+  on, and `renew` writes the digest of the body it has just read whole. The
+  check then answers `{url, here, whole, updated}`: a body matching the
+  computer's digest is whole, and where the digest it was kept with is
+  another, that record is **refreshed** to it (`updated`); a body matching the
+  digest it was kept with while the computer's has moved on is **still whole
+  and `updated`**, and is **not fetched again** — kept things can be big, and
+  a page that uses it renews it behind itself; only a body matching neither
+  is *no longer whole*. The line says it: *N of its files were updated on the
+  computer since they were kept: the copies here are whole, and nothing is
+  fetched again for them.* A copy kept by a Parseh from before this carries no
+  digest and is measured against the computer's alone, as every copy was.
 * **The worker** (`lib/sw.js`) keeps one cache per thing, `parseh-kept-<id>`,
   and one for the shared files, and **fetches into them itself** (`keep`: one
   message from the page, one loop here) — everything on the iPad and in
@@ -770,7 +942,7 @@ so a book works with the computer asleep, off, or a train away.
   and answered 206** — the Cache API knows nothing of ranges, and without this
   a kept narration would play from 0:00 and refuse to be moved.
 * **What has no answer offline says so at once**: looking a word up, the
-  translation, the activity poll, every door that writes — and the notes of a
+  translation, every door that writes — and the notes of a
   thing whose notes were **not** kept — are answered 503 with a line of JSON.
   No dictionary and no translation model is kept on the phone (the owner's
   choice, 2026-09-22). Where the notes **were** kept, they are read from the
@@ -778,25 +950,62 @@ so a book works with the computer asleep, off, or a train away.
 * **Knowing you are offline**: every page asks the computer quietly, and when
   it cannot be reached wears an **offline** chip that opens `/m/kept/` — the
   list of what is kept, what each takes, how much room is left, each openable
-  and each removable. The offline page is that list too, since the worker
-  keeps it. `<html data-parseh-away>` says the same thing to the page itself.
+  and each removable — with **↻** beside it, which opens the page afresh. The
+  offline page is that list too, since the worker keeps it.
+  `<html data-parseh-away>` says the same thing to the page itself: `assumed`
+  when it came from the page before, `confirmed` when this page found it.
+* **Offline is a verdict, not a guess** (TO-DO §2.24, the owner, 2026-09-24:
+  *"Offline will mean drastic things usually, it's not a status that should
+  change fast … We should not talk of offline for simply having a slow
+  connection"*). Whether the computer is there is asked **once per page**, by
+  the same poll that draws the *Working…* list (`lib/activity.js`), one ask at
+  a time and each one **cancelled** when it is given up on — three pollers
+  that never cancelled anything used to pile up on a slow tunnel until a
+  computer that was right there looked gone. The worker leaves that one
+  address alone, so what the page hears is the network itself. **Any answer,
+  however late, is online.** Offline is: three asks in a row that fail at
+  once, two seconds apart (a refusal, a name not found, no route — about four
+  seconds); or the browser saying there is no network together with an ask
+  that fails (at once); or **three asks across 45 seconds with not one
+  answered** — which is the only sign there is when the computer on the far
+  side of Tailscale is off or asleep, since that is silence and not a
+  refusal, and silence is also what a slow link looks like at first. While an
+  answer is five seconds late the page says **checking…** where the chip
+  goes, and goes on behaving as online. A page that has **confirmed** the
+  computer away is the offline version for as long as it is open (§19), and a
+  write on it fails at once; an away it only **assumed** from the page before
+  refuses no write.
 * **And a page opens in the state the last one was in** (the owner's 5,
   2026-09-23: *"when changing pages the app rechecks if it's offline and
   assumes being online even if the page before showed being offline; good on
   the check, but assume that the status is the same of the page previous …
   and yes do the check and if the situation changes, correct, of course"*).
-  Every probe writes what it found to `localStorage` under **`parseh_away`**
-  (`{at, away}`), and the next page reads it before anything is drawn — so
-  walking from an offline hub into the shelf no longer gives three seconds of
-  a page pretending all is well: cards that could be tapped and went nowhere,
-  no chip, the counts the clock had made wrong still on the screen. **It is a
-  memory and it is treated as one**: it is not trusted past three minutes — a
-  phone picked up in the evening must not open on what it found at lunchtime —
-  and the probe behind it corrects it either way, which is the half he asked
-  to keep. Nothing writes it but the probe; a remembered state that stamped
-  itself afresh from page to page would never grow old at all. `decks.js`
-  reads the same key, so the deck pages start where the last page left off
+  Every answer is written to `localStorage` under **`parseh_away`**
+  (`{at, away, trusted, why}`), and the next page reads it before anything is
+  drawn (`AWAY_BOOT`, the first thing in its head) — so walking from an
+  offline hub into the shelf no longer gives a moment of a page pretending
+  all is well: cards that could be tapped and went nowhere, no chip, the
+  counts the clock had made wrong still on the screen. **It is a memory and
+  it is treated as one**: it is not trusted past three minutes — a phone
+  picked up in the evening must not open on what it found at lunchtime — and
+  the question behind it corrects it either way, which is the half he asked
+  to keep. Nothing writes it but the question; a remembered state that
+  stamped itself afresh from page to page would never grow old at all. The
+  deck pages read the same mark, so they start where the last page left off
   too.
+* **Except after a refresh** (the owner's fall-back, 2026-09-24: *"if we
+  refresh the page, then it is forced to check again if the computer is
+  online — so upon refreshing, do not assume still offline"*). F5, the
+  browser's button, a finger pulling the page down, ↻ — the browser reports
+  every one of them as `reload`, already in the head and whether or not the
+  worker answered from its cache (driven in Chromium and Firefox), and on one
+  the memory is kept but not acted on: the page says *checking…* if the
+  memory said away, and asks at once. So a page wrongly offline is one
+  refresh from right; a page rightly offline comes back offline — at once
+  when the computer refuses, after the 45 seconds when it is silent. In the
+  installed app on Android the pull-down is the only refresh there is; on an
+  iPhone or iPad there is, as far as is known, none at all, which is what ↻
+  is for.
 
 ### The notes come with the book or the video (2026-09-23, second block)
 
@@ -1025,8 +1234,9 @@ each one lives:
   nothing is said. The worker's way needs the room once, and its sheet is as
   it was.
 * **Two things mended on both ways.** **The button says *Keeping… N%* until
-  the keep has ended** (`busy`): the probe repaints the page every twenty
-  seconds (`paintAway`), and a repaint with no state put the button back to
+  the keep has ended** (`busy`): the page is repainted whenever the question
+  of whether the computer is there changes its answer (`paintAway`), and a
+  repaint with no state put the button back to
   *Keep on this phone* in the middle of a keep — for the whole of a
   narration, and live again under the thumb. And **an answer is taken only by
   the keep it answers**: the background end goes to every page, so `tell()`
@@ -1285,6 +1495,27 @@ phone trusts. Here:
   that a computer which is unreachable rather than refusing does not leave the
   app on its splash for ever. A new `APP`/`SHELL` name in it lets the old
   copies go.
+* **Every release is a new worker, and says so** (TO-DO §13.16). A browser
+  installs a new worker only when `/sw.js` is new bytes, so the server writes
+  the release into it as it serves it (`mobile.worker()`: the version from
+  `lib/version.py`, and the commit from the install's `.parseh-release.json`
+  as the build, for the same version installed twice). The first mobile page
+  of each opening of the app, and then at most one page in ten minutes, asks
+  the browser for a new worker once it has found the computer (`lib/keep.js`
+  `releaseCheck`; the browser's own check never came in two minutes of
+  navigations, driven in Chromium);
+  the new one notes at install whether it replaced another
+  (`registration.active`, in the app's cache under `/__release`), keeps
+  `parseh-kept-*` and `parseh-shared` at activate as always, and tells the
+  pages it claims `{updated}`; a page opened later asks `{release}`. The page
+  compares with the release this phone last knew (`parseh_release` in
+  `localStorage`) and says once, in the toast, *Parseh was updated to
+  <version>* — or *Parseh went back to <version>, an older version than this
+  phone had*, by `lib/version.py`'s order — and **reloads nothing**. A first
+  install says nothing. `renew` now writes a fresh copy into **every** cache
+  that holds the address (the way in's, the shared one, the app's own two
+  pages), where it used to stop at the first, which left the shared copy the
+  old release's for good. Driven in `tests/mobile_pages.mjs` (`update`).
 * **Installing**, `/m/install/` (`mobile.install_page()`), from the mobile hub's
   *As an app* door (not drawn inside the app: `display-mode`). It says, live,
   where this phone stands — in the app already; a browser that installs nothing;

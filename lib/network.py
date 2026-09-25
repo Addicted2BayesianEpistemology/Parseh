@@ -63,6 +63,9 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE = os.path.join(ROOT, "config", "network.json")
+# the shape of STORE, as a number (lib/version.py FORMATS): RAISE IT when the
+# shape changes so that the Parseh before this one would read the file wrong
+STORE_FORMAT = 1
 
 # THE PORT.  8765 was Parseh's from the start, and it is also AnkiConnect's
 # (TO-DO §2.14): an Anki user with the add-on running could not start Parseh

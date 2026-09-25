@@ -363,8 +363,10 @@ async function partHub() {
       assert(s.pressed[0][2] !== s.pressed[1][2] && !/rgba\(0, 0, 0, 0\)/.test(s.pressed[0][2]),
              'and drawn pressed: ' + s.pressed.map(p => p[2]).join(' vs '));
       const before = s.clickable;
+      // (the reading help's door, "Reading what nobody has glossed", opens its
+      // page in Settings since a0.3.2; /lookup/ only sends there)
       for (const h of ['a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/anki/sync/', 'a:/clips/',
-                       'a:/lookup/', 'button:stop', 'a:/guide/'])
+                       'a:/settings/reading-help/', 'button:stop', 'a:/guide/'])
         assert(before.includes(h), 'the browser hub shows ' + h);
       assert(!before.some(h => /guide\.pdf/.test(h)), 'and no link opens the PDF guide any more');
       await page.mouse.move(1, 1);
@@ -386,7 +388,7 @@ async function partHub() {
              'the focus went with the click to the Mobile button now on the screen');
       eq(s.clickable, await MOBILE_CLICKABLE(page),
          'all there is to tap: home, the switch, the theme, the chips, four doors, the guide, the app\'s and the licences');
-      for (const no of ['button:stop', 'a:/anki/sync/', 'a:/clips/', 'a:/lookup/'])
+      for (const no of ['button:stop', 'a:/anki/sync/', 'a:/clips/', 'a:/lookup/', 'a:/settings/reading-help/'])
         assert(!s.clickable.includes(no), 'no ' + no + ' on the mobile hub');
       assert(!(await page.evaluate(() => [...document.querySelectorAll('.addr, .foot')].some(e => e.getClientRects().length))),
              'and no server address, no foot');

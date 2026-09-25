@@ -16,10 +16,10 @@ read offline.
 ## The three packs
 
 The data comes in **component packs**, from three independent projects. You
-install them in the **Kanji & Hanzi components** section of the
-[reading-help page](reading-help.md) — the second section, straight after the
-dictionaries — with the same **get it**, **rebuild** and **remove** buttons
-as everywhere on that page.
+install them on the [reading-help page](reading-help.md), each a **Character
+components** row: KanjiVG on the Japanese card, Make Me a Hanzi on the
+Chinese card, and CJKVI-IDS on the card every language shares — with the same
+**Get it**, **Rebuild** and **Remove…** as every row on that page.
 
 | Pack | For | Download | Licence | What is taken from it |
 |---|---|---|---|---|
@@ -27,12 +27,10 @@ as everywhere on that page.
 | **Make Me a Hanzi** | Chinese: the preferred pack | about 3 MB | LGPL-3.0-or-later | each character's decomposition, and nothing else |
 | **CJKVI-IDS** | both, **optional**: a fallback where the preferred pack has no entry | about 3 MB | GPL-2.0 | the component description of each character, choosing the Japanese or the Chinese shape |
 
-Each row's name links to its project. A row not yet installed says what it
-is for (*Japanese component trees*, *Chinese component trees*, *Optional
-fallback for both languages*) and its licence; an installed one says how
-many entries it holds, its size and its licence, and offers **rebuild** and
-**remove** (which asks: *Remove this component pack? You can install it
-again at any time.*).
+A row not yet installed says what it is for, shows a small component tree
+of what it adds, and names its project and licence on its last line; an
+installed one says how many entries it holds and its size, and offers
+**Rebuild** and **Remove…**, which asks in the row first.
 
 The download is pinned: a fixed revision of each project, whose checksum is
 checked before anything is built — a download that does not match is
@@ -101,8 +99,8 @@ their components below them, as far as the data goes.
   data* and its own **Try again**.
 - *The local component data could not be read. Reinstall it from setup.*
   is that reason when the pack file on this machine is damaged: press
-  **rebuild** on its row of the [reading-help page](reading-help.md) (or
-  **get it**, if the row no longer knows the pack).
+  **Rebuild** on its row of the [reading-help page](reading-help.md) (or
+  **Get it**, if the row no longer knows the pack).
 
 The foot of the dialog credits what was used: *Meanings:* and the
 dictionary's source and licence (or *Install the Chinese dictionary to show

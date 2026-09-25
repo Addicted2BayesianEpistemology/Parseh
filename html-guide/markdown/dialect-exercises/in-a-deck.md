@@ -67,7 +67,7 @@ answered the way it is on a page:
 
 | Family | Answered with | Then |
 |---|---|---|
-| [placement](placement.md), [matching](matching.md) | the blocks, dragged, tapped or moved with their arrows | **Check** or Enter: *Correct* or *Not quite*, the explanations, and — when it was wrong — **Correct answer**, the exercise shown solved underneath |
+| [placement](placement.md), [matching](matching.md) | the blocks, dragged, tapped, chosen from a blank's cloud or moved with their arrows | **Check** or Enter: *Correct* or *Not quite*, the explanations, and — when it was wrong — **Correct answer**, the exercise shown solved underneath |
 | [choice](choice.md) | the answer buttons | **Check** or Enter: *Correct* or *Not quite*, the explanations; the answers are marked as on a page, the one it wanted included |
 | [flashcards](flashcards.md) | nothing | **Show answer**, Enter, or a click on the card — or on the enlarged card of **⤢ Enlarge** |
 

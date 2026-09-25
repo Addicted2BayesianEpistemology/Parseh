@@ -847,7 +847,7 @@ def synonyms(sync_playwright):
             page = b.new_page()
             errs = []
             page.on("pageerror", lambda e: errs.append(str(e)))
-            page.goto("http://127.0.0.1:%d/lookup/" % PORT, wait_until="load")
+            page.goto("http://127.0.0.1:%d/settings/reading-help/" % PORT, wait_until="load")
             page.add_script_tag(url="/lib/mt.js")
 
             # --- THE TWO STEMMERS AGREE.  lib/getsyn.py ports lib/mt.js's
@@ -893,14 +893,15 @@ def synonyms(sync_playwright):
                          json.dumps(begin_syn)):
                 bad += 1
 
-            # --- THE PAGE SOMEBODY WOULD ACTUALLY PRESS.  /lookup/'s own
-            # get/rebuild/remove row for the table, the same pattern as a
-            # dictionary's -- because the resource this whole section tests
-            # is worth nothing to a reader who never finds the button that
-            # fetches it.
-            row = page.evaluate("() => (document.querySelector('#syn')||{}).innerText || ''")
-            if not check("remove" in row and "rebuild" in row,
-                         "/lookup/ offers to remove and rebuild the table it "
+            # --- THE PAGE SOMEBODY WOULD ACTUALLY PRESS.  The reading help's
+            # own get/rebuild/remove row for the table (Settings, TO-DO
+            # §11.10), the same pattern as a dictionary's -- because the
+            # resource this whole section tests is worth nothing to a reader
+            # who never finds the button that fetches it.
+            row = page.evaluate("() => (document.querySelector('[data-row=\"synonyms:\"]')"
+                                "||{}).innerText || ''")
+            if not check("Remove" in row and "Rebuild" in row and "Installed" in row,
+                         "the reading help offers to remove and rebuild the table it "
                          "already found installed", repr(row[:120])):
                 bad += 1
 
@@ -1004,7 +1005,7 @@ def main(argv):
             page = b.new_page()
             errs = []
             page.on("pageerror", lambda e: errs.append(str(e)))
-            page.goto("http://127.0.0.1:%d/lookup/" % PORT, wait_until="load")
+            page.goto("http://127.0.0.1:%d/settings/reading-help/" % PORT, wait_until="load")
             ct = page.evaluate("""async () => {
                 const r = await fetch('/mt/engine/bergamot-translator-worker.wasm',
                                       {method: 'HEAD'});

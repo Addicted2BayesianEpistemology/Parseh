@@ -2,7 +2,7 @@
 title: "The timings: moving a caption's start"
 linkTitle: The timings
 weight: 11
-description: The one door that moves where a caption starts after a video is added — the sheet, its keys, the picture of the sound, and why it moves nothing else.
+description: The one door that moves where a caption starts after a video is added — the sheet, its keys, estimating the rest by the text or by the sound, the picture of the sound, and why it moves nothing else.
 ---
 
 **the timings**, in the player's bar beside **video info**, moves where each
@@ -60,7 +60,8 @@ player. From the top:
 - **▶ hear it** — the caption, from its start to where the next begins;
   **▶ across the join** — the second before its boundary and the second
   after, to hear whether the line falls in the right place;
-  **into the quiet** and **estimate the rest** (below);
+  **into the quiet**, and **estimate the rest** with its switch, **by the
+  text** or **by the sound** (below);
 - the **strip**: the picture of the sound, a tinted band for each caption,
   a line at every boundary, and the playhead. Drag a line; click a band to
   take that caption up. **−** and **+** zoom out and in, **fit** returns to
@@ -81,7 +82,7 @@ moved*, and the transcript is redrawn at the new times without a reload.
 | **,** and **.** (also `<` `>`, `[` `]`, PageUp and PageDown) | take up the caption before, or after |
 | **F** | bring the view back onto the caption being timed |
 | **S** | **into the quiet**: move the line to the middle of the nearest stretch where the sound falls away |
-| **E** | **estimate the rest**: a fresh guess over every caption after this line |
+| **E** | **estimate the rest**: a fresh guess over every caption after this line — by the text or by the sound, whichever is pressed |
 | Enter | save (in a time box: take the time typed) |
 | Esc | leave without saving |
 
@@ -100,11 +101,77 @@ looks depends on how far you are zoomed in — and puts the line in the
 middle of it. With no picture of the sound it is greyed out: *there is no
 picture of the sound here to find the quiet in*.
 
+### Estimate the rest: by the text or by the sound
+
 **estimate the rest** is for the middle of a long job: a hand works left to
 right, and by the time the tenth boundary is right the fortieth is still
 where a first guess put it. It lays the guess again over everything **after**
-the line in hand — each caption given a slice of what is left in proportion
-to how much text it has — and touches nothing before it.
+the line in hand, and touches nothing before it. Beside it sit two buttons
+that work as a switch, **by the text** and **by the sound**: the one pressed
+is how the button, and **E**, make the guess.
+
+**by the text** is the guess it has always made: each caption given a slice
+of what is left in proportion to how much text it has. It needs no picture
+of the sound, and it hears nothing.
+
+**by the sound** lays the captions through the picture of the sound. A
+caption's start goes into the pause before its first word, just before the
+voice comes back, where the length of the text allows one there; between the
+pauses the text is shared out at the pace of the speech, followed as it
+changes. It hears **where the voice stops and starts**, and never **which
+word is which**: nothing recognises speech. So it is a better first guess,
+not an alignment — play the boundaries and correct what is off. A caption
+cut in the middle of a sentence has no pause to sit in, and its start is the
+likeliest to need your ear.
+
+When it is done it says how many boundaries it could put in a pause: *30
+pieces after this estimated from the sound — 24 of the 29 boundaries sit in a
+pause it heard; nothing to the left of it moved*. The caption at the line
+keeps its start, and nothing is written until **save the timings**:
+**cancel** leaves without the guess — and without everything else moved
+since the sheet was opened.
+
+**Captions with no punctuation** — auto-captions as YouTube leaves them, which
+it does for Persian and Arabic — are its weakest case: with no sentence ends
+to hold on to, a long stretch can drift by a second or two, and in a short
+Chinese stretch by the text can do better. Captions put into sentences by
+[**✨ tidy up**](mending-the-transcript.md#-tidy-up) when the video was added
+carry their full stops, and fare as well as any.
+
+It reads the rest of the video, from the line to its end, so the time depends
+on how much is left: a few seconds for an hour, up to about a minute for four
+hours, more on a computer busy with something else. Meanwhile the sheet says
+*estimating from the sound…* and holds its lines still, and the work is on
+the [**Working…**](../getting-started/working-indicator.md) list —
+*Estimating a video's timings by the sound* — where the hub and any other
+page see it. While it waits, **estimate the rest** reads **stop
+estimating**: it, or **Esc**, gives the wait up, and everything you moved
+by hand stays — as on a book's sheet, where the rest is said too: one
+estimate at a time, and a deadline of a few minutes
+([Fixing the timings](../books/timings.md#estimate-the-rest-by-the-text-or-by-the-sound)).
+
+It needs a picture of the sound, and without one it is greyed, its tooltip
+saying why:
+
+- **A film on this machine.** The server reads the film itself with ffmpeg,
+  as it does for the strip. Only on a computer without ffmpeg is there none:
+  *there is no picture of the sound here to estimate by — it is drawn by
+  ffmpeg, on the computer Parseh runs on*.
+- **A YouTube video.** Its only picture is the one **● draw the sound**
+  records ([below](#the-picture-of-the-sound)) — twenty numbers a second,
+  against a film's hundred, and nearly as good for this. Until it has been
+  drawn: *draw the sound first (“● draw the sound”, above the picture): there
+  is no picture of it here yet to estimate by*. In a browser that cannot draw
+  it, it says so, and why: *there is no picture of the sound here to estimate
+  by, and it cannot be drawn in this browser: …*. Captions after the end of
+  what was drawn are refused when **E** is pressed: *the picture of this
+  video’s sound ends before this stretch begins, so it cannot be estimated by
+  the sound: estimate it by the text*.
+
+While it is greyed, **by the text** shows pressed and **E** goes by the text.
+Your choice is kept all the same: draw the sound, and **by the sound** is
+back in force at once. The choice is remembered in this browser, for videos
+and books alike ([Fixing the timings](../books/timings.md#estimate-the-rest-by-the-text-or-by-the-sound)).
 
 ## The picture of the sound
 
@@ -134,7 +201,8 @@ every later visit draws it, and it travels in the video's download.
   *the tab stopped being shared while the sound was being drawn*.
 
 Without a picture the sheet still works: the steps, the typed times, ◉ and
-▶ move a caption perfectly well by ear. The button's tooltip in the bar
+▶ move a caption perfectly well by ear. Only **into the quiet** and **by the
+sound** need one. The button's tooltip in the bar
 says when there is no waveform, and why.
 
 ## What it refuses

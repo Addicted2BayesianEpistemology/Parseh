@@ -26,6 +26,16 @@ in the toolbox holds a list of languages; adding one means adding an entry
 there (docs/languages.md says what each field does and what else a new
 language needs).
 
+    L.mine                                          # True for a language added on this machine
+    PERSONAL                                        # config/languages.json: where those live
+    migrate()                                       # a hand-added row of lib/ moved there, once
+
+The table has a second half, config/languages.json, for the languages a
+person adds on their own machine (lib/newlang.py writes it): lib/languages.json
+is Parseh's own and an update replaces it, so a row written into it would
+vanish with the next version.  Both are read here, Parseh's first, and to
+every tool the two are one registry.
+
 The target-language text is stored under the key `fa` in every data format
 (video chunks, Anki cards, the .tex chunks read by texparse) -- the name is
 from the days the toolbox knew Persian alone, and it is kept because every
@@ -46,8 +56,38 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 REGISTRY = os.path.join(HERE, "languages.json")
 DEFAULT = "fa"          # the toolbox's first language: what undeclared content is
 
+# THE LANGUAGES A PERSON ADDS LIVE BESIDE THE SOFTWARE, NOT INSIDE IT.
+# lib/languages.json ships with Parseh, and updating Parseh replaces every
+# file a release carries -- so a row lib/newlang.py once spliced into it was
+# a row the next update took away, while the lib/lang/<code>.tex and
+# docs/lang/<code>.md written beside it stayed behind, orphaned.  A person's
+# languages are that person's, like their preferences and their network
+# settings, and they are kept where those are: config/, which no release
+# carries and no update touches.
+#
+# Found the way lib/prefs.py finds config/ -- from this file's path as it was
+# imported, not as symlinks resolve it -- so a test tree that links lib/ in
+# from a checkout still reads the config/ of its own tree and not the
+# owner's.  (REGISTRY above resolves symlinks, as it always has: Parseh's own
+# table is the same file whichever tree imports it.)
+PERSONAL = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "config", "languages.json")
+# What config/languages.json says it is.  Bumped only when a reader of /1
+# would read a newer store wrongly; lib/version.formats() reports it, so an
+# update to a Parseh that reads an older shape is told so before it runs.
+STORE_FORMAT = "parseh-languages/1"
+STORE_COMMENT = ("The languages added on this machine (lib/newlang.py writes "
+                 "them), in the shape of lib/languages.json's rows. Parseh's "
+                 "own table is read first and wins for a code both hold; an "
+                 "update never touches this file.")
+
 
 class Lang:
+    # True for a language this machine's person added (config/languages.json,
+    # or a row of lib/languages.json that Parseh does not ship): set by
+    # _load, so a Lang built by hand is Parseh's own
+    mine = False
+
     def __init__(self, code, d):
         self.code = code
         self.name = d["name"]
@@ -220,20 +260,129 @@ class Lang:
         return "<Lang %s %s>" % (self.code, self.name)
 
 
-def _load():
-    with open(REGISTRY, encoding="utf-8") as f:
+def read_store(path=None):
+    """The rows of config/languages.json -> {code: row}, in its order; {} when
+    there is no such file, which is every machine where nobody has added a
+    language.  A file that is there and cannot be read raises (OSError,
+    ValueError): the caller decides whether that is a note or a refusal,
+    and the one that writes must never write over a file it could not read."""
+    try:
+        with open(path or PERSONAL, encoding="utf-8") as f:
+            doc = json.load(f)
+    except FileNotFoundError:
+        return {}
+    if not isinstance(doc, dict):
+        raise ValueError("it holds %s, not a table of languages" % type(doc).__name__)
+    return {k: v for k, v in doc.items() if not k.startswith("_")}
+
+
+def write_store(rows, path=None):
+    """Write config/languages.json: the rows given, in their order, under
+    the store's own comment and format stamp.  Whole, through a temporary
+    file and a rename, so a crash leaves the old store or the new one and
+    never half of either.  The store is Parseh's to write, so it is simply
+    dumped -- unlike lib/languages.json, whose hand-set layout newlang.py
+    splices round."""
+    path = path or PERSONAL
+    doc = {"_comment": STORE_COMMENT, "_format": STORE_FORMAT}
+    doc.update((k, v) for k, v in rows.items() if not k.startswith("_"))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+    os.replace(tmp, path)
+    return path
+
+
+def read_rows(shipped=None, personal=None):
+    """Every row of the registry, as data -> (rows, mine, problems).
+
+    `rows` is {code: row} in display order: lib/languages.json's rows as that
+    file has them, then config/languages.json's.  `mine` is the set of codes
+    that are the person's -- every row of config/, and a row of lib/ that its
+    `_shipped` does not name (one an older newlang.py wrote there, or a hand;
+    migrate() moves it).  `problems` is [(code, why)]: the person's rows left
+    out, each with the reason in words, for newlang.py --check and the
+    server's log.
+
+    PARSEH'S OWN ROW WINS A CODE BOTH HOLD.  The day Parseh ships Korean, a
+    Korean somebody added for themselves is passed over, not merged: two
+    rows for one code would be two answers to every question a tool asks,
+    and the one that is kept is the one the release was tested with.  A
+    row of the person's that takes a folder somebody already has is left
+    out too, because a folder is how a book is found to BE in a language.
+
+    A PERSON'S ROW NEVER STOPS PARSEH.  lib/languages.json is part of the
+    release and a fault in it is a fault of the release, so it raises, as
+    it always has.  config/languages.json is written on this machine, and
+    by hand as often as not: a store that is not JSON, or a row missing a
+    field, is left out and said, and every other language goes on working.
+    """
+    with open(shipped or REGISTRY, encoding="utf-8") as f:
         raw = json.load(f)
-    out = {}
+    own = raw.get("_shipped")
+    # a file with no _shipped is one written before the list existed: every
+    # row of it is then taken as Parseh's, which is what it was
+    own = set(own) if isinstance(own, list) else None
+    rows, mine, problems = {}, set(), []
     for code, d in raw.items():
         if code.startswith("_") or not isinstance(d, dict):
             continue
-        out[code] = Lang(code, d)
+        rows[code] = d
+        if own is not None and code not in own:
+            mine.add(code)
+    try:
+        store = read_store(personal)
+    except (OSError, ValueError) as e:
+        problems.append(("", "config/languages.json cannot be read (%s): the languages "
+                             "added on this machine are left out until it is mended" % e))
+        store = {}
+    folders = {d.get("folder"): c for c, d in rows.items()}
+    for code, d in store.items():
+        if not isinstance(d, dict):
+            problems.append((code, "its row in config/languages.json is not a table"))
+        elif code in rows and code in mine:
+            problems.append((code, "lib/languages.json holds a row for it as well, and "
+                                   "that one is read; config/languages.json's is not"))
+        elif code in rows:
+            problems.append((code, "Parseh itself now carries %r (%s), and its row is the "
+                                   "one read: yours in config/languages.json is not"
+                                   % (code, rows[code].get("name", code))))
+        elif d.get("folder") in folders:
+            problems.append((code, "its folder %r is %s's already, and one folder cannot "
+                                   "hold two languages" % (d.get("folder"),
+                                                           folders[d.get("folder")])))
+        else:
+            rows[code] = d
+            mine.add(code)
+            folders[d.get("folder")] = code
+    return rows, mine, problems
+
+
+def _load(shipped=None, personal=None):
+    """The registry as Lang objects -> ({code: Lang}, problems)."""
+    rows, mine, problems = read_rows(shipped, personal)
+    out = {}
+    for code, d in rows.items():
+        if code in mine:
+            try:
+                L = Lang(code, d)
+            except (KeyError, TypeError, ValueError, AttributeError, re.error) as e:
+                problems.append((code, "its row cannot be read (%s: %s), so it is left out"
+                                       % (type(e).__name__, e)))
+                continue
+            L.mine = True
+        else:
+            L = Lang(code, d)
+        out[code] = L
     if DEFAULT not in out:
         raise SystemExit("lib/languages.json has no entry for the default language %r" % DEFAULT)
-    return out
+    return out, problems
 
 
-LANGS = _load()
+# PROBLEMS: [(code, why)] -- the person's rows that could not be taken in
+# (read_rows says which and why); empty on nearly every machine
+LANGS, PROBLEMS = _load()
 CODES = list(LANGS)
 FOLDERS = {L.folder: L.code for L in LANGS.values()}
 
@@ -272,6 +421,150 @@ def detect_from_path(path):
         if L:
             return L
     return None
+
+
+def mine():
+    """The codes of the languages added on this machine, in registry order."""
+    return [L.code for L in LANGS.values() if L.mine]
+
+
+# ------------------------------------------------------- a person's row, moved
+# Before config/languages.json existed, lib/newlang.py spliced a new language
+# into lib/languages.json itself, and somebody may have added a row there by
+# hand since.  Either way the row sits in the one file an update replaces.
+# migrate() moves it: every row lib/languages.json holds that its `_shipped`
+# does not name is written into config/languages.json and then taken out of
+# lib/languages.json, whose own rows come out byte for byte -- so the file is
+# again the one the release shipped, and the update that follows has nothing
+# of the person's to replace.  serve.py calls it as Parseh starts; a file
+# with nothing to move costs one read and writes nothing, which is how it
+# happens "once".
+
+
+def _members(text):
+    """The top-level members of a JSON object's text -> [(key, start, end)],
+    `start` at the key's opening quote and `end` just past its value, so a
+    row can be cut out of the text without re-dumping the rest."""
+    dec = json.JSONDecoder()
+    ws = re.compile(r"[ \t\r\n]*")
+    i = ws.match(text, 0).end()
+    if text[i:i + 1] != "{":
+        raise ValueError("not a JSON object")
+    i += 1
+    out = []
+    while True:
+        i = ws.match(text, i).end()
+        if text[i:i + 1] == "}":
+            return out
+        if text[i:i + 1] != '"':
+            raise ValueError("a key was expected at %d" % i)
+        start = i
+        key, i = json.decoder.scanstring(text, i + 1)
+        i = ws.match(text, i).end()
+        if text[i:i + 1] != ":":
+            raise ValueError("a colon was expected at %d" % i)
+        _, i = dec.raw_decode(text, ws.match(text, i + 1).end())
+        out.append((key, start, i))
+        i = ws.match(text, i).end()
+        if text[i:i + 1] == ",":
+            i += 1
+        elif text[i:i + 1] != "}":
+            raise ValueError("a comma or a closing brace was expected at %d" % i)
+
+
+def _without(text, codes):
+    """The registry's text with these rows cut out, everything else as it
+    was.  A row goes with the comma and the white space that lead up to it
+    -- the exact inverse of newlang.insert_entry, which adds ",\\n" and the
+    row before the closing brace -- or, first in the table, with what
+    follows it up to the next key."""
+    members = _members(text)
+    for n in range(len(members) - 1, -1, -1):
+        key, start, end = members[n]
+        if key not in codes:
+            continue
+        if n > 0:
+            text = text[:members[n - 1][2]] + text[end:]
+        elif len(members) > 1:
+            text = text[:start] + text[members[1][1]:]
+        else:
+            text = text[:start] + text[end:]
+        members = _members(text)
+    return text
+
+
+def migrate(shipped=None, personal=None, force=False):
+    """Move the rows of lib/languages.json that Parseh does not ship into
+    config/languages.json -> the lines saying what was done ([] when
+    nothing was).
+
+    NOT IN A GIT CHECKOUT, unless forced (newlang.py --migrate).  There the
+    tree is somebody's working copy of Parseh itself: a row in
+    lib/languages.json that `_shipped` does not name is a language being
+    added to Parseh by hand, and moving it out from under its author at the
+    next start would be the tool deciding what the change is.  A release
+    install has no .git (the updater refuses one that has), and that is
+    where a row can be lost to an update.
+
+    A row config/ already holds, the same, is only taken out of lib/; one it
+    holds DIFFERENTLY is left in both and said -- which of two hand edits is
+    the right one is not a thing to guess."""
+    shipped = shipped or REGISTRY
+    personal = personal or PERSONAL
+    root = os.path.dirname(os.path.dirname(os.path.abspath(shipped)))
+    if not force and os.path.exists(os.path.join(root, ".git")):
+        return []
+    with open(shipped, encoding="utf-8") as f:
+        text = f.read()
+    raw = json.loads(text)
+    own = raw.get("_shipped")
+    if not isinstance(own, list):
+        return []                     # which rows are Parseh's cannot be told
+    extra = [c for c, d in raw.items()
+             if not c.startswith("_") and isinstance(d, dict) and c not in own]
+    if not extra:
+        return []
+    try:
+        store = read_store(personal)
+    except (OSError, ValueError) as e:
+        return ["!! languages: %s is Parseh's own file and holds %s, which Parseh does "
+                "not ship; they were not moved, because config/languages.json cannot "
+                "be read (%s)" % (shipped, ", ".join(extra), e)]
+    said, move, added = [], [], False
+    for code in extra:
+        if code not in store:
+            store[code] = raw[code]
+            move.append(code)
+            added = True
+        elif store[code] == raw[code]:
+            move.append(code)
+        else:
+            said.append("!! languages: %s (%s) is in lib/languages.json and in "
+                        "config/languages.json, and the two rows differ: both are left as "
+                        "they are, and lib/'s is the one read" % (code, raw[code].get("name")))
+    if added:
+        write_store(store, personal)
+        back = read_store(personal)
+        if any(back.get(c) != raw[c] for c in move):
+            return said + ["!! languages: config/languages.json did not read back as "
+                           "written; lib/languages.json was left as it is"]
+    if move:
+        out = _without(text, set(move))
+        want = [(k, v) for k, v in raw.items() if k not in move]
+        if list(json.loads(out).items()) != want:
+            return said + ["!! languages: %s could not be taken out of lib/languages.json "
+                           "cleanly; it is in config/languages.json as well now, and "
+                           "lib/'s row is the one read" % ", ".join(move)]
+        tmp = shipped + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(out)
+        os.replace(tmp, shipped)
+        for code in move:
+            said.append("languages: %s (%s) moved from lib/languages.json to "
+                        "config/languages.json, where a language added on this machine "
+                        "is kept and an update cannot take it away"
+                        % (code, raw[code].get("name", code)))
+    return said
 
 
 # ------------------------------------------------------------------ the gloss
@@ -518,10 +811,13 @@ def chips(counts=None):
 
 if __name__ == "__main__":
     for L in LANGS.values():
-        print("%-3s %-9s %-9s %s  digits=%s  passes=%s%s%s"
+        print("%-3s %-9s %-9s %s  digits=%s  passes=%s%s%s%s"
               % (L.code, L.name, L.folder, L.dir, L.digits, "/".join(L.pass_keys),
-                 "  reading" if L.reading else "", "  vertical" if L.vertical else ""))
+                 "  reading" if L.reading else "", "  vertical" if L.vertical else "",
+                 "  (added on this machine)" if L.mine else ""))
     print("glosses may be written in: %s" % ", ".join(GLOSS_CODES))
+    for code, why in PROBLEMS:
+        print("left out%s: %s" % ((" " + code) if code else "", why))
 
 
 # ---------------------------------------------------------------- the pages

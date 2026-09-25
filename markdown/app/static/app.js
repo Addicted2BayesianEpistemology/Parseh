@@ -138,46 +138,53 @@ function serverSaid(data, r) {
    A BLANKET TIMEOUT WOULD BE THE WRONG MEND.  Importing a deck, packing a
    backup, building a PDF: these are honestly slow and must not be cut off
    at three seconds because a phone might have been in a tunnel.  So the ask
-   is not timed -- it is WATCHED.  Every few seconds, while it is still out,
-   the one cheap question is asked beside it: is anybody there?  A computer
-   that answers that goes on being waited for however long it needs; a
-   computer that does not is gone, and the ask fails at once and says so
-   (`away`), which is what every offline fallback in this app keys off. */
-const WATCH = 3000;
-async function nobodyThere() {
-  try {
-    const r = await Promise.race([
-      fetch("/__activity", {cache: "no-store"}),
-      new Promise(done => setTimeout(() => done(null), WATCH)),
-    ]);
-    return !r || (!r.ok && r.status === 503);
-  } catch (e) { return true; }
-}
+   is not timed -- it is WATCHED: it waits for the page's one question, "is
+   the computer there?", which lib/activity.js asks for the whole page.  A
+   computer that is slow goes on being waited for however long it needs --
+   slow is online (TO-DO §2.24) -- and a computer the question finds gone
+   ends the ask at once, saying so (`away`), which is what every offline
+   fallback in this app keys off.  It used to ask the question itself, beside
+   every ask, and read three seconds of silence as "gone": on a slow tunnel
+   the asks and the probes beside them piled up until a computer that was
+   right there looked absent. */
+// on a page already offline an ask is given as long as the worker takes to
+// answer from a kept copy (lib/sw.js, DEADLINE), and no longer
+const KEPT_ONLY = 3000;
 function watched(go) {
   return new Promise((yes, no) => {
-    let settled = false;
-    go.then(r => { if (!settled) { settled = true; yes(r); } },
-            e => { if (!settled) { settled = true; no(e); } });
-    const look = async () => {
-      if (settled) return;
-      if (!(await nobodyThere())) { if (!settled) setTimeout(look, WATCH); return; }
-      if (settled) return;
+    let settled = false, short = null;
+    const end = () => {
       settled = true;
-      const gone = new Error("the server does not answer — is Parseh still running?");
-      gone.away = true;
-      no(gone);
+      clearTimeout(short);
+      document.removeEventListener("parseh:reach", heard);
     };
-    setTimeout(look, WATCH);
+    const gone = () => {
+      if (settled) return;
+      end();
+      const out = new Error("the server does not answer — is Parseh still running?");
+      out.away = true;
+      no(out);
+    };
+    const heard = e => { if (e.detail && e.detail.state === "away") gone(); };
+    go.then(r => { if (!settled) { end(); yes(r); } },
+            e => { if (!settled) { end(); no(e); } });
+    document.addEventListener("parseh:reach", heard);
+    if (pageIsAway()) short = setTimeout(gone, KEPT_ONLY);
   });
 }
-/* AND A PAGE THAT KNOWS THE COMPUTER IS AWAY DOES NOT ASK IT TO WRITE.  The
-   mark is on <html> before any script of this page runs (lib/mobile.py,
-   AWAY_BOOT) and a page that opened away stays away while it is open
-   (lib/keep.js) -- so this is the page acting on what the page before it
-   found, which is the whole of the rule.  A GET is left alone: the worker
+/* AND A PAGE THAT KNOWS THE COMPUTER IS AWAY DOES NOT ASK IT TO WRITE.  But
+   KNOWS: an away this page has confirmed (lib/keep.js marks it `confirmed`),
+   or that the page's one question has found -- not one merely ASSUMED from
+   what the page before found (AWAY_BOOT marks that `assumed`).  An assumed
+   away is the page drawing itself offline before anything has been asked,
+   and the question corrects it in the page's first breath; a write pressed
+   in that breath used to fail with "cannot be reached" on a computer that
+   was right there (TO-DO §2.24).  A GET is left alone either way: the worker
    may have a copy of it, and answering from what is kept is the point. */
 function pageIsAway() {
-  return document.documentElement.hasAttribute("data-parseh-away");
+  if (document.documentElement.getAttribute("data-parseh-away") === "confirmed") return true;
+  const A = window.ParsehActivity;
+  return !!(A && A.reach && A.reach().state === "away");
 }
 
 async function api(path, opts = {}) {
@@ -1659,6 +1666,9 @@ function bindTypoControls(id, onChange) {
 function bindPersianCopy(container) {
   container.addEventListener("click", async e => {
     if (e.target.closest(".fapal")) return;      // palette clicks aren't copies
+    // nor is a click that fills a blank or a match: a word of the bank, a
+    // place, a word of a place's cloud -- an answer, not a copy
+    if (e.target.closest(".ex-cloud, .ex-bank, .ex-blank, .ex-match-drop")) return;
     const fa = e.target.closest(".fa, .voce-fa");
     if (!fa || !container.contains(fa)) return;
     const text = fa.textContent.trim();
@@ -2722,25 +2732,31 @@ function bindExercises(container, opts = {}) {
       ? over : over.nextElementSibling;
   }
 
-  /* A BLANK OR A MATCH IN THE MOBILE INTERFACE: THE PLACE FIRST, THEN WHAT
-     GOES IN IT.  Everywhere else a word is taken from the bank and put where
-     it goes -- a fill-in's blank, the place beside a matching exercise's
-     term -- dragged, or tapped and then its place tapped, and on a phone
-     neither goes smoothly: a drag the page does not see as one, two taps a
-     screen apart.  So in the mobile interface (<html data-mode="mobile">,
-     asked at each tap: the mode can change under an open page) it is the
-     other way round.  A tap on a blank, or on a match's place, opens a
-     cloud beside it holding a copy of everything the bank holds now; a tap
-     on one puts it there -- the same move a drop makes (moveItem), so what
-     was there goes back to the bank, and checking is as it always was.  A
-     filled place's cloud can empty it.  The bank stays where it is, and says
-     what is left; it is no longer picked up or dragged.  A tap anywhere
-     else, or Escape, puts the cloud away.  The cloud hangs inside the
-     exercise, so the exercise redrawn or checked takes it with it.  (An
-     ordering exercise has no such places: its blocks move by their arrows.) */
+  /* A BLANK OR A MATCH: THE PLACE FIRST, THEN WHAT GOES IN IT.  A word is
+     taken from the bank and put where it goes -- a fill-in's blank, the
+     place beside a matching exercise's term -- dragged, or tapped and then
+     its place tapped; or the other way round.  A click (a tap) on a blank,
+     or on a match's place, opens a cloud beside it holding a copy of
+     everything the bank holds now; a click on one puts it there -- the same
+     move a drop makes (moveItem), so what was there goes back to the bank,
+     and checking is as it always was.  A filled place's cloud can empty it.
+     A click anywhere else, or Escape, puts the cloud away.  The cloud hangs
+     inside the exercise, so the exercise redrawn or checked takes it with
+     it.  (An ordering exercise has no such places: its blocks move by their
+     arrows.)
+
+     Every interface has the cloud; the browser keeps the other ways beside
+     it -- a word dragged, or picked and then its place clicked, which puts
+     the picked word there rather than opening the cloud.  On a phone
+     neither goes smoothly -- a drag the page does not see as one, two taps
+     a screen apart -- so the mobile interface (<html data-mode="mobile">,
+     asked at each tap: the mode can change under an open page) has the
+     cloud alone: the bank stays where it is, and says what is left; it is
+     no longer picked up or dragged there. */
   const PLACES = ".ex-blank, .ex-match-drop";
-  const byCloud = ex => !!ex
-    && (ex.dataset.subtype === "fill-blanks" || ex.dataset.primitive === "matching")
+  const hasCloud = ex => !!ex
+    && (ex.dataset.subtype === "fill-blanks" || ex.dataset.primitive === "matching");
+  const cloudOnly = ex => hasCloud(ex)
     && document.documentElement.getAttribute("data-mode") === "mobile";
   let cloud = null, cloudFor = null;
   function closeCloud(refocus) {
@@ -2770,6 +2786,10 @@ function bindExercises(container, opts = {}) {
       b.dataset.pick = word.dataset.item;
       // the word as the bank shows it: its script, its direction, its reading
       for (const node of word.childNodes) b.appendChild(node.cloneNode(true));
+      // a copy to choose from, not a word of the document: the page's hover
+      // tools (the colour palette of the reading view) are not offered on it
+      $$("[data-fa], [data-occ], [data-tl-src], [data-rtl-src]", b).forEach(x =>
+        ["data-fa", "data-occ", "data-tl-src", "data-rtl-src"].forEach(a => x.removeAttribute(a)));
       cloud.appendChild(b);
     }
     if ($(".ex-item", blank)) {
@@ -2842,15 +2862,24 @@ function bindExercises(container, opts = {}) {
       return true;
     }
     const ex = e.target.closest(".exercise");
-    if (!byCloud(ex)) return false;
+    if (!hasCloud(ex)) return false;
     const blank = e.target.closest(PLACES);
     if (blank) {
+      // a word picked in the bank (the browser's other way) goes where the
+      // click is, as it always did; otherwise the place opens its cloud
+      if (picked && picked.closest(".exercise") === ex) {
+        const item = picked;
+        picked = null;
+        moveItem(item, blank);
+        return true;
+      }
       if (cloudFor === blank) closeCloud(true);
       else openCloud(blank);
       return true;
     }
-    // the bank's words are there to be read: the blanks take them
-    return !!e.target.closest(".ex-bank");
+    // in the mobile interface the bank's words are there to be read: the
+    // blanks take them
+    return cloudOnly(ex) && !!e.target.closest(".ex-bank");
   }
   listen(document, "pointerdown", e => {
     if (cloud && !cloud.contains(e.target) && !cloudFor.contains(e.target)) closeCloud();
@@ -2861,8 +2890,10 @@ function bindExercises(container, opts = {}) {
   let dragged = null, picked = null;
   listen(container, "dragstart", e => {
     const item = e.target.closest(".ex-item");
-    if (item && !preview && byCloud(item.closest(".exercise"))) { e.preventDefault(); return; }
+    if (item && !preview && cloudOnly(item.closest(".exercise"))) { e.preventDefault(); return; }
     if (!item || preview || !mayDrag(item)) return;
+    // the cloud is a copy of the bank as it was: a drag changes the bank
+    closeCloud();
     dragged = item; item.classList.add("dragging");
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", item.dataset.item || "item");
@@ -2962,10 +2993,11 @@ function bindExercises(container, opts = {}) {
       return;
     }
     if (preview || !["Enter", " "].includes(e.key)) return;
-    // a place the mobile interface fills from its cloud: Enter or Space on it
-    // is the tap that opens it (a key on a word in the cloud is its button's)
+    // a place filled from its cloud: Enter or Space on it is the click that
+    // opens it, or that puts a picked word there (a key on a word in the
+    // cloud is its button's)
     const choose = e.target.matches && e.target.matches(PLACES) ? e.target : null;
-    if (choose && byCloud(choose.closest(".exercise"))) {
+    if (choose && hasCloud(choose.closest(".exercise"))) {
       e.preventDefault();
       if (!e.repeat) choose.click();
       return;
@@ -2994,7 +3026,7 @@ function bindExercises(container, opts = {}) {
     if (e.target.closest(".ex-move")) return;
     touchItem = e.target.closest(".ex-item");
     // nor is a word that the mobile interface places from a blank's cloud
-    if (touchItem && (!mayDrag(touchItem) || byCloud(touchItem.closest(".exercise")))) {
+    if (touchItem && (!mayDrag(touchItem) || cloudOnly(touchItem.closest(".exercise")))) {
       touchItem = null;
       return;
     }

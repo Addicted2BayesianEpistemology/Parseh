@@ -71,8 +71,8 @@ and four wide ones under them, for the work around the four:
 |---|---|---|
 | **⇆ Anki** | the card store and its sync with Anki, `/anki/sync/` | how many cards and decks the store holds — one store for every language |
 | **✂ The clip tray** | the recordings and pictures cut for cards, `/clips/` | how many clips wait there, or *the tray is empty* |
-| **🔍 Reading what nobody has glossed** | the dictionaries and the rest, `/lookup/` | how many languages have a dictionary, and which, or *no dictionary yet* |
-| **⚙ Settings** | what this Parseh is set to, `/settings/` | who may reach it — this computer, a VPN, the Wi-Fi ([From a phone or another computer](other-devices.md)) |
+| **🔍 Reading what nobody has glossed** | the dictionaries and the rest, in Settings, `/settings/reading-help/` | how many languages have a dictionary, and which, or *no dictionary yet* |
+| **⚙ Settings** | what this Parseh is set to, `/settings/`: which version it is, **Reading help**, **Network** and **Updating Parseh** ([Updating Parseh](updating.md)) | who may reach it — this computer, a VPN, the Wi-Fi ([From a phone or another computer](other-devices.md)) |
 
 A door that says 0, or *no dictionary yet*, is doing its job: it tells you
 there is something there you have not started using.
@@ -88,7 +88,12 @@ At the bottom of the hub:
   Parseh's own;
 - that the **⏻ stop** button stops the server, that a book is built from
   its card on the books' library page and a video added from the video
-  index — and that **the guide** has the rest.
+  index — and that **the guide** has the rest;
+- which version of Parseh this is, and that it is free software, with a
+  link to its **licences** ([Licences and credits](../reference/licences.md)).
+  The mobile hub says the same in two lines at its very foot, the version
+  on the second. [What's new](../reference/whats-new.md) says what each
+  version brought.
 
 ## The theme
 

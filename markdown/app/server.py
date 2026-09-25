@@ -60,6 +60,8 @@ import anki_store     # noqa: E402
 import decks          # noqa: E402  the exercise decks (serve.py's hub reads it)
 import deckroutes     # noqa: E402  and their routes, mounted at /exercises
 import webexport      # noqa: E402  a document as one HTML page for a website (§8.38)
+import version        # noqa: E402  which Parseh this is, for the Server header
+import crosssite      # noqa: E402  only Parseh's own pages may write (TO-DO §3.1)
 # NOTE: `verify` (and its pymupdf dependency) is imported lazily inside
 # build_pdf, so the whole UI still starts when pymupdf is absent — only
 # PDF verification, not the library/editor/preview, needs it.
@@ -502,7 +504,9 @@ def byte_range(header, size):
 # ----------------------------------------------------------------------
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "exlex-studio/1.0"
+    # the studio is Parseh's, so it answers with Parseh's version -- heard
+    # only when it runs on its own: inside Parseh, serve.py answers
+    server_version = "exlex-studio/" + version.VERSION
     protocol_version = "HTTP/1.1"
 
     # ---- helpers ------------------------------------------------------
@@ -630,6 +634,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def _dispatch(self, method):
         self._raw = None
+        # ONLY PARSEH'S OWN PAGES MAY WRITE (lib/crosssite.py): run on its
+        # own, the studio is a server on this computer as the hub is, and a
+        # page on another site open in the same browser could save over a
+        # document or delete one.  Asked before the body is read, which is
+        # then left unread: the connection is not used again.  Inside Parseh
+        # serve.py asks the same before it hands a request to the routes.
+        if method not in crosssite.SAFE:
+            crossed = crosssite.refusal(self.headers)
+            if crossed:
+                self.close_connection = True
+                return self.send_json({"ok": False, "error": crossed}, 403)
         # Chunked bodies have no Content-Length, so _body() cannot drain
         # them; rather than desync the connection, refuse them outright.
         te = (self.headers.get("Transfer-Encoding") or "").lower()

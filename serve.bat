@@ -78,9 +78,12 @@ echo   Install Python 3 from https://www.python.org/downloads/windows/ and run t
 goto fail
 
 :run
-%PY% lib\launcher.py %*
-if errorlevel 1 goto fail
-exit /b 0
+rem ONE LINE, READ WHOLE BEFORE IT RUNS.  cmd.exe reads a .bat from the disk a
+rem line at a time, going on at the offset where it stopped -- and an update
+rem from Settings replaces this very file while the launcher below waits on the
+rem server.  So what runs after the launcher is on the launcher's own line, read
+rem before it started: a new serve.bat is never read from the middle.
+%PY% lib\launcher.py %* & if errorlevel 1 (echo. & pause & exit /b 1) else exit /b 0
 
 :fail
 echo.

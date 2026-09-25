@@ -46,6 +46,13 @@ from texgen import (LEGACY_UID_RE, doc_name_key, escape_doc_name, find_doclinks,
 
 ROOT = Path(__file__).resolve().parent.parent
 LIB = ROOT / "library"
+# THE SHAPE OF A DOCUMENT ON THE DISK -- the layout above, source.md and
+# meta.json -- as a number (lib/version.py FORMATS).  The notes written into
+# a book or a video are documents of this same shape (notes.py), so the one
+# number is theirs too; the files carry none.  RAISE IT when the shape
+# changes so that the Parseh before this one would read a document wrong; a
+# key an older reader ignores is not such a change.
+LIBRARY_FORMAT = 1
 
 # THE CLIP TRAY.  The book reader and the video player cut recordings and
 # pictures into one flat folder at the toolbox's root (lib/clips.py), under

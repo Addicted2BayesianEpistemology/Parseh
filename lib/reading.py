@@ -39,6 +39,9 @@ import json
 import os
 
 NAME = "reading.json"
+# the file's shape, as a number (lib/version.py FORMATS): RAISE IT when the
+# shape changes so that the Parseh before this one would read the file wrong
+READING_FORMAT = 1
 
 
 def path_for(book_dir):

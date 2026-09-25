@@ -1,7 +1,7 @@
 ---
 title: Where everything lives
 weight: 8
-description: The folders on the disk — the software, your books, videos, documents and decks, and what the toolbox makes — and what is in the repository and what never is.
+description: The folders on the disk — the software, your books, videos, documents and decks, your settings, and what the toolbox makes — what a release brings, and what never leaves your computer.
 ---
 
 Everything Parseh has is in its own folder: the software, everything you
@@ -31,14 +31,16 @@ Parseh/
   exercises/             the exercise decks
   clips/                 the clip tray
   dict/  corpus/  mt/  components/
-                         what the dictionaries' page fetches
+                         what the reading help fetches
+  config/                your settings, the devices let in
   lib/  markdown/app/  markdown/exlex/  youtube/lib/
                          the software
   html-guide/            this guide
   docs/                  notes on the design
-  tests/                 the tests, and what they test with
   .runtime/              the environment the installer made
   .tls/                  the certificate
+  .parseh-release.json   the list of the release's own files
+  .parseh-update/        the backups of the last updates
 ```
 
 **What one of each is made of**:
@@ -57,9 +59,16 @@ Parseh/
 - `exercises/<language>/<slug>/` — **an exercise deck**: `deck.json`,
   `items/`, `schedule/` (your answers), `images/`, `audio/`.
 - `clips/` — **the clip tray**: the recordings and frames cut for cards.
-- `dict/`, `corpus/`, `mt/`, `components/` — **what the dictionaries' page
-  fetches**: dictionaries, translated sentences, translation models,
-  character packs.
+- `dict/`, `corpus/`, `mt/`, `components/` — **what the reading help
+  fetches** (**Settings → Reading help**): dictionaries, translated
+  sentences, translation models, character packs.
+- `config/` — **your settings**: `prefs.json`, each book's reading place
+  and the settings that follow you from device to device; `network.json`,
+  who may reach Parseh, its port, and every device you let in, each with
+  the secret token it carries — keep it to yourself, as you would a key;
+  `languages.json`, the languages you added, when you have; `updates.json`,
+  whether Parseh looks for a new version once a day; and `digests.json`
+  with `wheres.json`, what a phone checks the things it keeps against.
 
 **The files at the top**:
 
@@ -71,6 +80,10 @@ Parseh/
 | `serve.py` | the server itself |
 | `build.sh` | building the books: their PDFs, their readers, the library page |
 | `environment.yml` | what the environment holds |
+| `VERSION` | which version of Parseh this is, in one line |
+| `CHANGELOG.md` | what each version changed |
+| `README.md`, `LICENSE` | what Parseh is, and its licence |
+| `.parseh-release.json` | the release's list of its own files, each with its checksum: what an [update](updating.md) reads |
 | `serve.log`, `.serve.pid` | the server's log and its process number, on Linux and macOS |
 | `.setup-done` | the Windows wizard has run through |
 
@@ -86,60 +99,68 @@ You never need to touch these folders: every door adds, changes, backs up
 and removes what is behind it from its own pages. They are described here
 so that you know what to keep safe, and what a folder you see is for.
 
-## What is in the repository
+## What a release brings
 
-The repository holds **the software, and not your content**. A fresh copy
-of Parseh has:
+Parseh comes as a release: one zip, `parseh-<version>.zip`, holding **the
+software, and not your content** ([Installing Parseh](installing.md#getting-parseh)).
+A fresh install has:
 
 - all the code, the fonts of Persian, Arabic and Hindi (with their
-  licences), the language
-  registry, and the installers;
+  licences), the language registry, and the installers;
 - the studio's starting pages — what a new document opens with, one for
   each language — with their pictures and their recording;
-- this guide's pages;
-- the tests, with a small book and a short video in each language to test
-  with.
+- this guide, its pages already compiled;
+- the list of its own files, `.parseh-release.json`;
+- and empty shelves: every folder of content holds nothing but a
+  placeholder until you fill it.
 
-## What never is
+An [update from Settings](updating.md) replaces the files on that list and
+nothing else. What you add is not on it, so no update touches it.
 
-What you read and write is yours, not the software's, and the repository
-leaves it out.
+## What never leaves your computer
 
-**Your books, videos and studio documents** — in `books/`,
-`youtube/videos/` and `markdown/library/` — are *untracked*: git shows them
-as new files, and what you do with them is up to you.
+What you read and write is yours, not the software's. No release carries
+it, no update touches it, and none of it leaves the computer unless you take
+it — a download, a backup, a book kept on your phone:
 
-**The rest, git ignores altogether**:
-
-- the narrations, hundreds of megabytes each:
-  `books/<language>/<slug>/audio/`;
-- the films of your own videos: `media.*` beside each video;
-- your Anki cards and decks: `youtube/anki/`;
+- your books, with their narrations, hundreds of megabytes each:
+  `books/`;
+- your videos, and the films of your own: `youtube/videos/`;
+- your studio documents: `markdown/library/`;
 - your exercise decks, with every answer you gave in them: `exercises/`;
+- your Anki cards and decks: `youtube/anki/`;
 - the clip tray: `clips/`;
 - the dictionaries, sentences, translation models and character packs —
   somebody else's work, under somebody else's licence: `dict/`, `corpus/`,
   `mt/`, `components/`;
-- what is built — the readers, the library page, the PDFs: `reader/`,
-  `books/index.html`, `main.pdf` (this guide's compiled pages,
-  `html-guide/site/`, are the one exception: they are committed, so that
-  GitHub Pages can publish them);
+- your settings and the devices you let in: `config/`;
 - the environment, the certificate, the log: `.runtime/`, `.tls/`,
-  `serve.log`.
+  `serve.log`;
+- the backups the last updates kept: `.parseh-update/`.
 
-So a copy of the folder is how your content moves — or, better, the
-backups: [Backups at a glance](backups.md) has the four shelves, and a
-single book, video, document or deck travels as its own zip from its own
-page.
+So the backups are how your content moves to another computer:
+[Backups at a glance](backups.md) has the four shelves, and a single book,
+video, document or deck travels as its own zip from its own page. Moving a
+whole Parseh from before it could update itself into a fresh install is
+[a few folders moved once](updating.md#moving-into-a-fresh-install-once).
+
+**A copy of the source code**, made with git, holds the same software and
+more — the tests, and what GitHub needs. Git ignores most of the list above,
+and shows your books, videos and documents as files it has never been told
+to keep, so none of it is committed unless you commit it. Such a copy is for
+working on Parseh itself, not for using it: it cannot update itself from
+Settings.
 
 ## Kept in the browser
 
 A few things are not in the folder at all, because they are yours in one
-browser rather than the toolbox's: the theme, the language picked on the
-chips, the **Browser | Mobile** choice, where you are in each book and the
-narration's speed, the switches of the reader and the player, the settings
-of the **Aa** panels, the kanji you marked as known. Each browser keeps its
-own, per address, and a backup does not carry them.
+browser rather than the toolbox's: the language picked on the chips, the
+**Browser | Mobile** choice, the switches of the reader and the player, the
+settings of the **Aa** panels, the kanji you marked as known. Each browser
+keeps its own, per address, and a backup does not carry them. Where you are
+in each book, the narration's speed and its gap, and the theme are the
+computer's, in `config/prefs.json`, so a phone goes on where the desk
+stopped.
 
 ## Pages that open from the disk
 

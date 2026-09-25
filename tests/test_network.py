@@ -16,6 +16,7 @@ the smoke test, which owns a running Parseh.
 """
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -218,11 +219,20 @@ class NetworkTest(unittest.TestCase):
                  "own_cert": None, "has_authority": True,
                  "addresses": ["https://localhost:7654/"]}
         page = settingspage.network_page(state)
-        self.assertIn("changed from the computer", page)
-        self.assertIn("disabled", page)
+        # EACH PART SAYS WHO MAY CHANGE IT (TO-DO §11.10): a lock and the
+        # setting's own sentence under every control, and no Save button
+        self.assertTrue("is changed on the computer Parseh runs on" in page)
+        self.assertTrue(re.search(r"\sdisabled[\s>]", page))
+        for setting in ("network.doors", "network.code", "network.forget", "network.port",
+                        "network.cert"):
+            self.assertTrue('data-lock="%s"' % setting in page, setting)
+        self.assertFalse("Save the network settings" in page)
+        self.assertFalse("ABC-123" in page, "and the code is not shown to a phone")
         may = settingspage.network_page(dict(state, may_save=True, where=network.SELF))
-        self.assertNotIn("disabled", may)
+        self.assertIsNone(re.search(r"\sdisabled[\s>]", may), "nothing is shut to the computer")
+        self.assertNotIn("data-lock=", may)
         self.assertIn("Save the network settings", may)
+        self.assertIn("ABC-123", may)
 
 
 if __name__ == "__main__":

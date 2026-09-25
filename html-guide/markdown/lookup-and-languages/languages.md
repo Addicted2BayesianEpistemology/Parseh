@@ -173,8 +173,10 @@ starts, so changing a language's face is a change to one table.
 
 Everything on this page — and everything a language *is* to Parseh: its
 folders, its passes, its labels, its verb forms, its Anki note types, its
-LaTeX settings — lives in one file, `lib/languages.json`, the **language
-registry**. Every tool reads it, and nothing else in Parseh keeps a list of
+LaTeX settings — lives in one table, `lib/languages.json`, the **language
+registry**, with a second file beside it, `config/languages.json`, for the
+languages added on this machine (read after it, and kept by every update).
+Every tool reads it, and nothing else in Parseh keeps a list of
 languages, a script's letters, a font name or a table of digits. That is
 why a twelfth language is a row of that table and two small files
 ([Adding a language](adding-a-language.md)), and why

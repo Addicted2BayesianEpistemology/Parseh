@@ -142,11 +142,25 @@ function xpVideoNotes(root) {
 /* ---------------------------------------------------------------- Aa */
 
 /* The size of the text and the theme, and nothing else of the studio's Aa
-   bar.  They start where the studio's sheet starts -- the PDF's sizes, and
-   the system's light or dark -- and are kept for as long as the tab: the
+   bar.  The size starts where the studio's sheet starts, at the PDF's; the
+   theme on the page's own, below.  Both are kept for as long as the tab: the
    storage loadTypo reads is this page's own, and empty. */
 function xpLook() {
   const t = loadTypo(null);
+  /* SEPIA, WHATEVER THE SYSTEM PREFERS (TO-DO §2.26, the owner's choice).
+     These pages are read by students, on somebody else's website, and sepia
+     is the paper made for reading -- the warm one the studio has always read
+     on.  What loadTypo falls back to when nothing was picked -- the
+     toolbox's shared ◐, then the system's light or dark -- belongs to no
+     reader of this page, so the page starts on the theme its own <body>
+     names instead: the template sets it there, which makes it sepia from
+     the first frame, before this has run, and where it never runs.  A
+     default and not a lock: a pick in the menu below wins, for as long as
+     the tab. */
+  if (t.themeFollows) {
+    t.theme = document.body.dataset.theme || "paper";
+    t.themeFollows = false;
+  }
   const size = $("#xp-size"), out = $("#xp-size-out"), theme = $("#xp-theme");
   const base = t.base;
   function paint() {

@@ -100,6 +100,29 @@
   color:var(--tl-accent-fg)}
 .tl-save:disabled{background:var(--tl-card);color:var(--tl-ink);border-color:var(--tl-rule)}
 
+/* "estimate the rest" and the two ways of doing it, kept together when the
+   row wraps: a switch of two halves, the one E runs pressed.  THREE LOOKS,
+   no two of them alike.  The half pressed is tinted and ringed.  The other
+   half, which a press would choose, is a button like every other in the
+   row: the page's own ink, and the accent under the pointer -- in the dim
+   grey of a label it read as switched off.  And a half that cannot be had
+   here is faded as the row's grey buttons are, under a pointer that says
+   no, with its title saying why. */
+.tl-est{display:inline-flex;align-items:stretch;gap:4px;flex-wrap:nowrap}
+.tl-by{display:inline-flex;align-items:stretch}
+.tl-by-b{font:inherit;font-size:12px;padding:4px 8px;border:1px solid var(--tl-rule);
+  background:var(--tl-card);color:var(--tl-ink);cursor:pointer;white-space:nowrap}
+.tl-by-b:first-child{border-radius:7px 0 0 7px}
+.tl-by-b + .tl-by-b{border-radius:0 7px 7px 0;margin-left:-1px}
+.tl-by-b:hover:not(:disabled){border-color:var(--tl-accent);color:var(--tl-accent);
+  background:var(--tl-boxbg);position:relative}
+.tl-by-b[aria-pressed=true]{background:var(--tl-hl);color:var(--tl-ink);
+  border-color:var(--tl-accentlt);box-shadow:inset 0 0 0 1px var(--tl-accentlt);
+  position:relative}
+.tl-by-b[aria-pressed=true]:hover:not(:disabled){background:var(--tl-hl)}
+.tl-by-b:disabled{opacity:.45;cursor:not-allowed}
+.tl-by-b:focus-visible{outline:2px solid var(--tl-accentlt);outline-offset:1px;position:relative}
+
 /* the sound, at the foot of the sheet */
 .tl-zoom{display:flex;align-items:center;gap:5px;margin-bottom:4px;font-size:11px;
   color:var(--tl-faint)}
@@ -157,4 +180,5 @@
   .tl-who,.tl-lbl{flex-basis:38px}
   .tl-at{width:72px}
   .tl-step{min-width:30px;padding:3px 5px}
+  .tl-est{flex-wrap:wrap}
 }

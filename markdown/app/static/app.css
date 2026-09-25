@@ -1167,6 +1167,15 @@ body[data-page="edit"] figure.img:hover img { outline: none; }
 .kp-off{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:20px;
   background:var(--warn);color:#fff;font-size:13px;text-decoration:none;white-space:nowrap}
 .kp-off:hover{opacity:.9}
+/* ↻ and "checking…" beside it: the same two as lib/parseh.css draws, in the
+   studio's own tokens (lib/keep.js, `chips`) */
+.kp-again{display:inline-flex;align-items:center;justify-content:center;min-height:36px;
+  min-width:36px;padding:0 10px;margin-inline-start:6px;border:1px solid var(--warn);
+  border-radius:20px;background:none;color:var(--warn);font:inherit;font-size:17px;line-height:1;
+  cursor:pointer}
+.kp-again:hover{background:var(--warn);color:#fff}
+.kp-wait{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:20px;
+  border:1px dashed var(--chrome-line);color:var(--chrome-mut);font-size:13px;white-space:nowrap}
 /* A CARD WHOSE THING IS NOT ON THIS PHONE (TO-DO §0).  Offline a shelf still
    shows everything the computer had when it was last reached; what is not
    kept is drawn and cannot be tapped, which is the look a book whose reader

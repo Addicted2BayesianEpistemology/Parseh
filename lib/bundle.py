@@ -198,6 +198,7 @@ import timestamp           # noqa: E402  AT_RE: the aligner's own `% @par` lines
 import verify_book         # noqa: E402  does the built text still say what the source says
 import wordline            # noqa: E402  can each chunk's word line be set
 import audiofile           # noqa: E402  what a recording may be called
+import version             # noqa: E402  which Parseh this is: VERSION, read once
 
 # check_annotations is the video door's checker and lives under youtube/lib.
 # The server has that directory on sys.path already; run as a script from
@@ -214,7 +215,12 @@ except ImportError:
 
 MANIFEST = "parseh-bundle.json"
 FORMAT = "parseh-bundle/1"      # bumped only when a reader of /1 would get it wrong
-SOFTWARE = "Parseh/1.0"         # as the server announces itself (serve.py's server_version)
+# who wrote a bundle, exactly as the server announces itself (serve.py's
+# server_version): the name and the version of the Parseh doing the writing.
+# Bundles written before the version was kept in one place say "Parseh/1.0",
+# a number no release ever had; they install as every bundle does, because
+# nothing reads this field back (see _manifest_for).
+SOFTWARE = "Parseh/" + version.VERSION
 
 # A zip arrives from the network and is unpacked onto the disk before any of
 # it can be checked, so the two things a small file can do -- unpack to

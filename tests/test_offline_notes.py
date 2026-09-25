@@ -66,6 +66,41 @@ import serve                                        # noqa: E402
 store = serve.studio.store
 STUDIO = serve.STUDIO_BASE
 
+
+# THE PHONE-KEEPING MEMORIES GO TO A FOLDER OF THIS FILE'S OWN (TO-DO §2.25).
+# Every test here asks lib/offline.py what a thing is made of, and the answer
+# is remembered in `offline.DIGESTS` and `offline.WHERES`: config/digests.json
+# and config/wheres.json beside the checkout, which are the owner's.  Left
+# there, this file wrote about a hundred entries a run into his digests, each
+# named by the path of one of its own temporary books.  Patched for as long as
+# the module runs, as tests/test_wave_estimate.py patches them -- and the
+# memories themselves with them, which lib/offline.py keeps between calls: a
+# memory read in here, or learnt and not yet written, would otherwise go on
+# into the next module and be written wherever the stores point by then.
+_scratch = None
+_patches = []
+
+
+def setUpModule():
+    global _scratch
+    _scratch = tempfile.TemporaryDirectory()
+    config = Path(_scratch.name) / "config"
+    _patches[:] = [mock.patch.object(offline, "DIGESTS", str(config / "digests.json")),
+                   mock.patch.object(offline, "WHERES", str(config / "wheres.json")),
+                   mock.patch.object(offline, "_digests", None),
+                   mock.patch.object(offline, "_digests_new", False),
+                   mock.patch.object(offline, "_wheres_store", None),
+                   mock.patch.object(offline, "_wheres_store_new", False)]
+    for p in _patches:
+        p.start()
+
+
+def tearDownModule():
+    for p in reversed(_patches):
+        p.stop()
+    _scratch.cleanup()
+
+
 # Five notes, because the owner named five kinds of them and each one is a
 # different sentence in his decision: a plain one, one with a picture, one
 # with a recording, one that holds an exercise, one with a formula.

@@ -87,7 +87,7 @@ Every control, left to right:
 | **dictionary** | reading help under a phrase nobody glossed; shown once there is something to help with ([Reading help](reading-help.md)) |
 | **definitions**, **in english** | the dictionary's own definitions, and the same translated; only where the dictionary defines its words in their own language |
 | **kana** / **pinyin** | Japanese and Chinese: the transcript as its reading alone |
-| **reading help** | the page that sets up dictionaries, corpora and translation models, `/lookup/` |
+| **reading help** | the page that sets up dictionaries, corpora and translation models, in Settings: `/settings/reading-help/` |
 | **◫ side** | the video beside the transcript instead of above it |
 | **pin** | keeps the video in view while you scroll (on until you turn it off) |
 | **○** / **●** / **◐** | the theme — light, dark, sepia — one setting for the whole toolbox |

@@ -54,19 +54,29 @@ import sys
 import tarfile
 import time
 import urllib.error
-import urllib.request
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+import version                                                # noqa: E402  who is asking: UA
+import download       # noqa: E402  resumable, stoppable, and says how far
 
 MT_DIR = os.path.join(ROOT, "mt")
 OUT = os.path.join(MT_DIR, "synonyms.en.json")
+# THE SHAPE OF OUT, as a number (lib/version.py FORMATS); the file carries
+# none.  RAISE IT when the shape changes so that the Parseh before this one
+# would read the table wrong.
+FORMAT = 1
 
 WORDNET_URL = "https://wordnetcode.princeton.edu/wn3.1.dict.tar.gz"
 SOURCE = "WordNet 3.1 (Princeton University)"
 LICENCE = "WordNet 3.0 licence (free redistribution and modification)"
-UA = "Parseh/1.0 (+https://github.com/Addicted2BayesianEpistemology/Parseh)"
+UA = "Parseh/%s (+https://github.com/Addicted2BayesianEpistemology/Parseh)" % version.VERSION
+
+# WHAT IT COSTS, MEASURED: WordNet 3.1's archive (16 358 468 bytes, as its
+# server gave them on 2026-09-25 -- the file has not changed since February
+# 2012) and the table built from it on 2026-09-24.  Read by plan().
+MEASURED = (16_358_468, 1_004_000)
 
 # Which of WordNet's four part-of-speech files to read, and the index file
 # that gives each of their words its senses in frequency order.
@@ -153,25 +163,36 @@ def stem(word):
     return s
 
 
-def _get(url, say=print):
+def _archive():
+    """Where the WordNet archive is downloaded to, beside the table it
+    becomes (asked each time: a test points MT_DIR elsewhere)."""
+    return os.path.join(MT_DIR, WORDNET_URL.rsplit("/", 1)[-1])
+
+
+def _get(url, say=print, progress=None, cancel=None):
+    """The archive's bytes.  DOWNLOADED TO A FILE, not into memory as it
+    used to be, so that a cut line or Stop leaves what came for the next try
+    to carry on from (lib/download.py); and a whole archive already here --
+    left by a build that was stopped after its download -- is used as it
+    is, WordNet 3.1 having been the same file since 2012.  get() deletes it
+    once the table is written."""
     say("  %s" % url.rsplit("/", 1)[-1])
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    try:
-        with urllib.request.urlopen(req, timeout=180) as r:
-            buf, got, t0 = io.BytesIO(), 0, time.time()
-            while True:
-                chunk = r.read(1 << 16)
-                if not chunk:
-                    break
-                buf.write(chunk)
-                got += len(chunk)
-                if got % (1 << 22) < (1 << 16) and got > (1 << 22):
-                    say("    %.0f MB (%.0fs)" % (got / 1e6, time.time() - t0))
-            return buf.getvalue()
-    except urllib.error.HTTPError as e:
-        raise SystemExit("getsyn: could not download %s (%s)" % (url, e))
-    except OSError as e:
-        raise SystemExit("getsyn: could not download (%s)" % e)
+    dest = _archive()
+    if not os.path.isfile(dest):
+        try:
+            download.fetch(url, dest, say=say, progress=progress,
+                           cancel=cancel, headers={"User-Agent": UA},
+                           timeout=180)
+        except urllib.error.HTTPError as e:
+            raise SystemExit("getsyn: could not download %s (%s)" % (url, e))
+        except OSError as e:
+            raise SystemExit("getsyn: could not download (%s).  What came "
+                             "is kept: the next try carries on from there."
+                             % e)
+    else:
+        say("    already here")
+    with io.open(dest, "rb") as f:
+        return f.read()
 
 
 def _index_primary(text):
@@ -230,19 +251,30 @@ def _synsets(text):
     return out
 
 
-def build_from(archive_bytes, say=print):
+def build_from(archive_bytes, say=print, progress=None, cancel=None):
     """The synonym table, from the WordNet tarball's bytes.  {stem: [stem,
     ...]}, sorted, every list a set of stems that share a first sense with
-    the key -- see the module docstring for why both sides must agree."""
+    the key -- see the module docstring for why both sides must agree.
+
+    `progress(done, total, "build")` counts the bytes of the eight files
+    read (each part of speech's data and index); `cancel` is asked between
+    them (download.Cancelled).  Two or three seconds in all, so eight steps
+    are fine enough."""
     with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as tf:
         members = {m.name: m for m in tf.getmembers()}
         adjacency = collections.defaultdict(set)
         pairs = 0
+        meter = download.Meter(progress, cancel, total=sum(
+            members[n].size for pair in POS.values() for n in pair
+            if n in members) or None)
+        read = 0
         for pos, (data_name, index_name) in POS.items():
+            meter.at(read)
             data_m, index_m = members.get(data_name), members.get(index_name)
             if data_m is None or index_m is None:
                 raise SystemExit("getsyn: %s is missing %s or %s -- the "
                                  "archive's layout changed" % (WORDNET_URL, data_name, index_name))
+            read += data_m.size + index_m.size
             data_text = tf.extractfile(data_m).read().decode("latin-1")
             index_text = tf.extractfile(index_m).read().decode("latin-1")
             primary = _index_primary(index_text)
@@ -263,6 +295,7 @@ def build_from(archive_bytes, say=print):
                         if sa != sb:
                             adjacency[sa].add(sb)
                             pairs += 1
+    meter.end()
     say("  %d mutual first-sense pairs, %d stems" % (pairs, len(adjacency)))
     return {k: sorted(v) for k, v in sorted(adjacency.items())}
 
@@ -271,24 +304,61 @@ def installed():
     return os.path.isfile(OUT)
 
 
-def get(say=print, force=False):
+def get(say=print, force=False, progress=None, cancel=None):
     """Fetch WordNet, build the table, write `mt/synonyms.en.json`.  Returns
     False without doing anything if the file is already there and `force`
-    is not set -- the same rule getdict.py's `rebuild` button overrides."""
+    is not set -- the same rule getdict.py's `rebuild` button overrides.
+
+    `progress(done, total, phase)` hears the download and then the build;
+    `cancel` stops either (download.Cancelled), keeping what was downloaded
+    and writing nothing: the table appears whole or not at all."""
     if installed() and not force:
         return False
     os.makedirs(MT_DIR, exist_ok=True)
     say("  %s" % SOURCE)
-    archive = _get(WORDNET_URL, say)
-    table = build_from(archive, say)
+    archive = _get(WORDNET_URL, say, progress=progress, cancel=cancel)
+    table = build_from(archive, say, progress=progress, cancel=cancel)
     part = OUT + ".part"
-    io.open(part, "w", encoding="utf-8").write(
-        json.dumps({"source": SOURCE, "licence": LICENCE,
-                    "built": time.strftime("%Y-%m-%d"), "synonyms": table},
-                   separators=(",", ":"), ensure_ascii=False))
+    with io.open(part, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"source": SOURCE, "licence": LICENCE,
+                            "built": time.strftime("%Y-%m-%d"),
+                            "synonyms": table},
+                           separators=(",", ":"), ensure_ascii=False))
     os.replace(part, OUT)                     # atomic: a reader mid-fetch never sees a half file
+    try:
+        os.unlink(_archive())
+    except FileNotFoundError:
+        pass
     say("  %s, %.1f MB" % (os.path.relpath(OUT, ROOT), os.path.getsize(OUT) / 1e6))
     return True
+
+
+def plan(force=False, *, probe=True):
+    """What get(force=...) will cost, before anything is fetched: lib/
+    download.py's plan() shape.  Nothing to fetch when the table is here
+    and `force` is not set; otherwise the MEASURED archive, less whatever
+    of it is here already, and the table built from it.  The sizes are
+    known, so `probe` is never needed; it is taken for the same shape of
+    call as the other downloaders' plan()."""
+    if installed() and not force:
+        return download.plan(0, measured=False, kept=os.path.getsize(OUT),
+                             peak=0)
+    dl, kept = MEASURED
+    have = (os.path.getsize(_archive()) if os.path.isfile(_archive())
+            else download.leftover(_archive()))
+    return download.plan(dl, measured=True, kept=kept, have=have)
+
+
+def discard():
+    """Throw away a downloaded or half-downloaded archive left by a get()
+    that was stopped.  Returns the bytes freed; the table is untouched."""
+    dest, freed = _archive(), 0
+    if os.path.isfile(dest):
+        freed = os.path.getsize(dest)
+        os.unlink(dest)
+    freed += download.leftover(dest)
+    download.discard(dest)
+    return freed
 
 
 def remove(say=print):

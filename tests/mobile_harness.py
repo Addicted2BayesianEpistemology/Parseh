@@ -167,6 +167,25 @@ def build(tmp):
 
 
 def serve_it(tmp, port):
+    # A PARSEH OF ANOTHER VERSION, for the suite's update (tests/mobile_pages.mjs,
+    # partUpdate): PARSEH_TEST_VERSION is the version this hub says it is --
+    # in its Server header and in the worker it serves -- set before serve is
+    # imported, since the header is read when the module is.  The checkout's
+    # VERSION is never touched.
+    fake = os.environ.get("PARSEH_TEST_VERSION")
+    if fake:
+        import version
+        version.VERSION = fake
+    # AND A TREE WITH A lib/ OF ITS OWN (the same update: a release that
+    # changed one of the shared scripts).  The hub serves /lib/ off the tree's
+    # root, so what lib/offline.py weighs and digests must be the same files,
+    # or the computer's digests would describe the checkout's scripts while
+    # the phone kept the tree's.  A tree whose lib/ is the usual link to the
+    # checkout's is left exactly as it was.
+    own = tmp / "root" / "lib"
+    if own.is_dir() and not own.is_symlink():
+        import offline
+        offline.LIB = str(own)
     import books
     import make_index
     here = str(tmp / "root" / "books")

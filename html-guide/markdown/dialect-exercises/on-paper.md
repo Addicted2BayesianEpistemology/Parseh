@@ -8,7 +8,8 @@ A studio document's PDF prints its exercises **unsolved**, as a worksheet:
 no blank is filled, no answer ticked, no statement marked true or false,
 and the explanations are left out, as are the answer's picture and
 recording. A flashcard is the exception, since it is there to study from:
-it prints both its sides.
+it prints both its sides, as a card to cut out and fold
+([Flashcards](flashcards.md#on-paper)).
 
 ## Making the PDF
 
@@ -48,7 +49,7 @@ file's name and the stretch its clip plays. Then the exercise itself:
 | `match-translations`, `match-opposites`, `match-definitions` | **every entry in a frame**, two equal columns with a gap for the line the student draws, the right column moved round by one row |
 | `yes-no`, `true-false` | **each statement in a column of its own, the marks *Yes / No* or *True / False* aligned in a column at the right** |
 | `single-choice`, `incorrect-part`, `choose-all`, `odd-one-out` | the answers as a list, a □ before each, in the order written |
-| `flashcard` | *Front:* and *Back:*, both printed |
+| `flashcard` | **a card to cut out and fold**: a frame with round corners, the front in its left half and the back in its right, each as the page draws it, and a dashed line between them to fold on ([Flashcards](flashcards.md#on-paper)) |
 | an exercise that needs attention | *Exercise needs attention in the Markdown source.* in red |
 
 An exercise that fits the page goes to the next one whole when it does not
@@ -59,6 +60,9 @@ each, instead of being cut off at the foot of one: at every print size.
 Straight after a heading, an exercise that a page could not hold together
 with its heading starts right under it instead, so a heading is never left
 alone at the foot of a page, nor pushed with its exercise off the next.
+A flashcard alone is **never split**, since two pieces of a card could not
+be folded into one: a card taller than a page is printed smaller, whole, on
+one page — under its heading, when it follows one.
 
 Each "moved round by one place" is the same on every build, so every copy
 of a worksheet is alike — and none of it depends on the page's shuffling,
@@ -104,6 +108,10 @@ Large print needs a TeX package, *extsizes*. It is one of the TeX packages
 the installer adds when it is asked to set up PDF building on a TeX Live
 that lacks them; a TeX without it stops a large-print build with a message
 that names the package, and the Normal size builds without it.
+
+The round corners of a flashcard's frame are drawn by *TikZ* (the TeX
+package *pgf*), which the installer adds as well. A TeX without it builds
+the PDF all the same, and draws the card's frame square.
 
 ## Black and white
 

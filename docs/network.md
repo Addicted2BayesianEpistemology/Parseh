@@ -171,13 +171,43 @@ who may reach *this* computer, which means nothing anywhere else, and the
 tokens in it are as good as keys. The pairing code is **not** in it — a code
 lives in the running process and for fifteen minutes.
 
+## Only Parseh's own pages may write
+
+The doors above ask *which device* is knocking. They cannot see a web page on
+another site, open in a tab of this computer's own browser, making that
+browser post to `https://localhost:7654/` — the request comes from this
+computer, where the door is always open. So every request that is not a read
+(anything but `GET` and `HEAD`, on every route) is asked where it came from,
+once, before its body is read (`lib/crosssite.py`, TO-DO §3.1; decided with
+the owner on 2026-09-25):
+
+| The request says | Parseh |
+|---|---|
+| `Sec-Fetch-Site: same-origin` — one of Parseh's own pages | answers |
+| `Sec-Fetch-Site: none` — the person typed the address | answers |
+| `Sec-Fetch-Site: same-site` — another port on this computer, or a sibling name | refuses (403, in words) |
+| `Sec-Fetch-Site: cross-site` — any other site | refuses |
+| no `Sec-Fetch-Site` (an older browser), an `Origin` that is not this address, `null` included | refuses |
+| no `Sec-Fetch-Site`, `Origin` this very address | answers |
+| neither header — curl (`serve.sh stop`), the Windows launcher, the test suites | answers: none of them is a browser a page could drive |
+
+`Sec-Fetch-Site` is written by the browser alone, so where it is present it
+decides, and `Origin` is read only where it is absent (a page of Parseh's own
+that asks for no referrer sends `Origin: null` on its own writes). Every page
+Parseh serves writes to a relative address — on the computer, on a phone, in
+the installed app — so every one is same-origin; the service worker writes
+nothing; a page exported to one file and opened from the disk cannot reach the
+server at all. The studio run on its own (`markdown/app/server.py`) asks the
+same. The updater's routes also insist on their own kind of body
+(`Handler._cross_site`).
+
 ## What this is not
 
 It is not authentication *between* the people using one Parseh: there is one
 person, and a device that has been let in is that person's. It is not a
-defence against somebody who has the computer itself. And it is not, on its
-own, the answer to a web page in your browser posting to Parseh behind your
-back — that is the cross-site check, TO-DO §3.1, which is still open.
+defence against somebody who has the computer itself, or against a program
+running on it (which is not a browser, and is answered). And it does not yet
+check the `Host` header against DNS rebinding (TO-DO §3.2).
 
 ## Where the code is
 
@@ -186,4 +216,6 @@ back — that is the cross-site check, TO-DO §3.1, which is still open.
 | the store, the ranges, the code, the devices | `lib/network.py` |
 | the pages: the section, Network, the locked page | `lib/settingspage.py` |
 | the connection door, the request gate, the re-bind | `serve.py` (`Server.verify_request`, `Handler._gate`, `_settings_save`, `_rebind_soon`, `main`) |
+| only Parseh's own pages may write | `lib/crosssite.py`, asked in `serve.py` `Handler._dispatch` and `markdown/app/server.py` `Handler._dispatch` |
 | the door without a server | `tests/test_network.py` |
+| the cross-site check, through the real server | `tests/test_cross_site.py` |

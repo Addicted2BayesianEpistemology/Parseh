@@ -300,7 +300,8 @@ class Served(unittest.TestCase):
         main = html[html.index('<main class="notices">'):html.index("</main>")]
         local = sorted(set(re.findall(r'href="(/[^"]*)"', main)))
         self.assertEqual(local, ["/lib/fonts/GUST-FONT-LICENSE.txt", "/lib/fonts/OFL.txt",
-                                 "/lib/mathjax/LICENSE", "/licences/LICENSE", "/lookup/"])
+                                 "/lib/mathjax/LICENSE", "/licences/LICENSE",
+                                 "/settings/reading-help/"])
         for href in local:
             self.assertEqual(self.get(href)[0], 200, href)
         # and the ones to the licences' own pages are the web's, opened apart

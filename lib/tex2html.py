@@ -4499,7 +4499,7 @@ function fillCloud(d) {
       o.innerHTML = '<div class="dhead">nothing glossed here yet</div>' +
         '<div class="dnone">A dictionary can look these words up, a corpus ' +
         'can show a sentence somebody translated, and a model can read the ' +
-        'line. <a href=\"__HUB__lookup/\">Set any of them up</a> — it takes ' +
+        'line. <a href=\"__HUB__settings/reading-help/\">Set any of them up</a> — it takes ' +
         'a couple of minutes.</div>';
     }
   }
@@ -7291,6 +7291,34 @@ async function narrByEar(n) {
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({narration: n.id, start: a, end: b, buckets: buckets})})
         .then(r => r.json()).then(j => j && j.ok ? j : null).catch(() => null),
+      // "estimate the rest" by the sound: the same recording, read whole
+      // over the stretch asked about and laid out by lib/wavealign.py on the
+      // server.  A refusal is the server's own words, for the sheet to say.
+      // A DEADLINE, generous and growing with the stretch -- two minutes,
+      // and a second more for every minute of sound -- so that a server
+      // gone quiet does not hold the sheet for ever; a hand that will not
+      // wait so long has the sheet's own stop.
+      estimate: req => {
+        const wait = 120000 + Math.max(0, req.end - req.start) * 1000 / 60;
+        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), wait);
+        const failed = e => {
+          throw new Error(ctl.signal.aborted
+            ? 'the server gave no answer in ' + Math.round(wait / 60000)
+              + ' minutes, so the estimate was given up — nothing was estimated'
+            : 'the server did not answer (' + ((e && e.message) || e)
+              + ') — nothing was estimated');
+        };
+        return fetch('__clip/estimate', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({narration: n.id, ...req}), signal: ctl.signal})
+          .then(r => r.json().catch(() => null).then(j => {
+            if (ctl.signal.aborted) failed();
+            if (!r.ok || !j || !j.ok)
+              throw new Error((j && j.error) || 'the sound could not be read to estimate from');
+            return j;
+          }), failed)
+          .finally(() => clearTimeout(timer));
+      },
       play: (a, b) => play.play(a, b),
       stop: () => play.stop(),
       now: () => play.now(),
@@ -10518,7 +10546,7 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
   <button id="dictmode" hidden title="look the words of an unglossed chunk up in a dictionary">dictionary</button>
   <button id="defmode" hidden disabled>definitions</button>
   <button id="defmt" hidden disabled>translated</button>
-  <a id="lookupset" href="__HUB__lookup/" title="get a dictionary for this language, to look words up where nothing is glossed">reading help</a>
+  <a id="lookupset" href="__HUB__settings/reading-help/" title="get a dictionary for this language, to look words up where nothing is glossed">reading help</a>
   <span class="sp"></span>
   <span id="warn" style="display:none;font-size:12px;color:var(--danger)">
     audio not seekable — <label style="text-decoration:underline;cursor:pointer">

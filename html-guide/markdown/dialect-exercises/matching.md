@@ -111,28 +111,32 @@ direction: definition-to-word
 
 ## On the page
 
-Each row is the fixed side with an empty box beside it, and under the rows
-is the row of blocks, shuffled afresh each time the page opens. Drag a
-block into a box, or tap the block and then the box; a box holds one
-block, and a block dropped on a full box sends the one that was there
-back to the row. From the keyboard, Tab reaches a block and Enter or Space
-picks it and puts it down. There are no arrows here, and the **✥
-dragging** switch never applies: a matching exercise can always be
-dragged.
+Each row is the fixed side with an empty box beside it, which says *drop
+or click to choose*, and under the rows is the row of blocks, shuffled
+afresh each time the page opens. A box is filled three ways: **drag a
+block into it**; **click the box**, and a cloud opens beside it with a copy
+of every block the row holds — the block clicked there goes into the box;
+or **click the block, then the box**, which puts the block there and opens
+no cloud.
 
-**In the mobile interface a box is filled the other way round: the box
-first, then the block.** Its empty box says *tap to choose*: tap it, and a
-cloud opens beside it with a copy of every block the row holds; tap one,
-and it goes into that box. Tap a filled box to put another block there —
-the one it held goes back to the row — or to **Empty this match**. A tap
-anywhere else, or Escape, puts the cloud away. The row stays where it is,
-to show what is left; its blocks are no longer picked up or dragged there.
-A fill-in's blanks work the same way
-([Placement](placement.md#moving-the-blocks)).
+A box holds one block, and a block dropped on a full box sends the one
+that was there back to the row. Click a filled box to put another block
+there from its cloud — the one it held goes back to the row — or to
+**Empty this match**. A click anywhere else, or Escape, puts the cloud
+away. From the keyboard, Tab reaches a block and a box: Enter or Space on
+a block picks it, and on a box puts it down — or, with nothing picked,
+opens the box's cloud. There are no arrows here, and the **✥ dragging**
+switch never applies: a matching exercise can always be dragged.
+
+**In the mobile interface the cloud is the only way to fill a box.** An
+empty box says *tap to choose*; the row stays where it is, to show what is
+left, and its blocks are no longer picked up or dragged there. A fill-in's
+blanks work the same way ([Placement](placement.md#moving-the-blocks)).
 
 **Check exercises** marks each box: ✓ where it holds the partner of its
 row, ✕ where it holds another block; a box left empty is framed red and
-still says *drop match here*. The exercise is right when every box is.
+still says *drop or click to choose*. The exercise is right when every box
+is.
 
 ## On paper
 

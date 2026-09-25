@@ -142,6 +142,13 @@ at a change, how far ↺ and ↻ move, where the narration has got to — *0:12 
 dictionary is installed, and **this page**: the theme, putting the bars away,
 and the **Browser | Mobile** switch.
 
+**The gloss cloud has a dictionary button beside *copy*.** A chunk that has
+a gloss never opens the dictionary by itself, and the header's switch for it
+is under **⋯**: **dictionary**, in the cloud, opens the dictionary for that
+chunk, in a sheet from the foot of the screen
+([The dictionary, on a phone](#the-dictionary-on-a-phone), below). A
+video's cloud has the same button.
+
 The header slides away as you read down and comes back on the smallest move
 up — held sideways too — and stays put while **⋯** is open. The floating
 buttons stay wherever the page goes, and step aside while **⋯** is open.
@@ -221,6 +228,17 @@ the file, that line is **not ticked**, its line says *kept, but no longer
 whole — tick it to fetch it again*, and the line over the list says what
 *Save* will do about it. Tick it and *Save* fetches it again, whole.
 
+**When Parseh is updated on the computer**, the app finds out the next time
+it reaches the computer and says so in one line at the foot of the page:
+*Parseh was updated to*, and the new version's number (if you went back to an
+older version, it says *went back to* instead). Nothing reloads under your
+thumb, and nothing you kept is lost. An update changes some of Parseh's own
+files, so the list may say *2 of its files were updated on the computer since
+they were kept*: that is not damage, the copies on the phone are whole, and
+nothing is downloaded again for them — each is brought up to date the next
+time a page uses it with the computer there. Only a file that is really
+damaged is called *no longer whole*.
+
 **Your notes come with it.** On that same list, above the recordings, is one
 line for all of them — *its notes · 34 · about 280 kB* — ticked to begin with,
 and unticked with a tap if you would rather keep the book alone. Kept, the
@@ -266,12 +284,28 @@ from this phone*. A book still coming onto the phone is there too, as *coming
 notification does — the whole keep stops, and what had come stays (*…:
 stopped on this phone — what had come is on this phone*).
 
+**Offline means the computer is really gone.** A slow answer is not offline:
+while one is a few seconds late, a quiet **checking…** stands where the chip
+would, and everything goes on as usual. Parseh calls the computer offline
+only when it is sure — at once when the phone has no network, within a few
+seconds when the computer refuses (Parseh not running on it, say), and after
+45 seconds of silence when it answers nothing at all, which is what a
+computer that is off or asleep looks like over Tailscale.
+
 **Parseh remembers that the computer was away.** Open a page after one that
 said *offline* and it starts offline too — the chip is there from the first
 moment, nothing you cannot open looks as though you could, and the numbers
 the clock has made wrong stay hidden. It still asks, every time, and puts
 itself right at once if the computer turns out to be there; and it does not
 believe a memory more than a few minutes old.
+
+**Refreshing always asks again.** A page that went offline stays offline
+while you use it — a book does not change under you halfway through. To
+look again, refresh it: press **↻** beside the *offline* chip, or pull the
+page down from the top. In the app on Android the pull is the only refresh
+there is; on an iPhone or an iPad **↻** is. A refreshed page never takes up
+what the page before found: if the computer is back it opens online, and if
+it is not it says *checking…* until it knows.
 
 What writes the book is not there: book info, building the PDF or the
 reader, the narration's panel, folding, the timings, the download, the
@@ -295,11 +329,90 @@ at the foot as a narrated book has — ↺, ⏯, ↻ and the speed. Hold ↺ or 
 choose how far they move, **1 · 2 · 5 · 10 · 15 · 30 · 60 seconds**, the same
 choice a book gives. Held **sideways**, the video goes to the left and the
 transcript to the right, with a divider you can drag; **⛶** gives the video
-the whole screen with the line being said lying over its foot.
+the whole screen with the line being said lying over its foot. A tap on a
+phrase of that line opens its gloss.
+
+A phrase's cloud has **dictionary** beside *copy*, as a book's has, and on
+the whole screen too: the dictionary's sheet then covers the subtitles
+while it is up, the video waits, and going back closes the sheet and leaves
+the video on the whole screen
+([The dictionary, on a phone](#the-dictionary-on-a-phone)). A phone's cloud
+has no colour marks, and its transcript no **+** between two captions to
+write a note there: both write into the video, which is the browser
+interface's to do.
+
+**The lines around it.** Beside the ⛶ that leaves the whole screen, a
+second button — three bars, the middle one bright — shows the caption
+before the one being said above it, and the caption after it below, in the
+same cloud, which grows for them. They are a little smaller and a little
+greyer than the line being said, and every phrase in them opens its own
+gloss at a tap (with a mouse, as the pointer rests on it). Press it again
+for the one line. The choice is kept for every video on this phone.
 
 With the computer away, the shelf still opens and shows the channels it last
 knew. A channel Parseh has not had a chance to put on this phone is drawn but
 cannot be tapped, and says so.
+
+## The dictionary, on a phone
+
+On a phone the dictionary opens in a **sheet** that rises from the foot of
+the screen, as *Keep on this phone* does — in a book and in a video alike —
+and never inside the gloss cloud, where it used to be a small box scrolling
+inside the page, over the very word it was about.
+
+![On a phone: the dictionary's sheet over a Persian book, the chunk looked up marked in the room above it; and over a Persian video under its pinned picture, where the entry takes most of the screen and covers the phrase until the sheet closes — in both, the chunk's gloss at the sheet's top, then each word with its entries, the senses numbered and the part of speech a label](shots/dictionary-sheet.png){width=80 align=center}
+
+- **What opens it.** The **dictionary** button in a chunk's gloss cloud; and, with the
+  dictionary switched on (under **⋯**, *Looking a word up*), a tap on a chunk
+  that has nothing written under it — no meaning, no transliteration, no
+  vocabulary — which opens the sheet at once, with no cloud. A chunk with
+  anything written opens its cloud, with **dictionary** beside *copy*.
+- **What is in it.** At the top, the chunk you looked up, in its own
+  language's type, then its gloss where it has one, then the dictionary's
+  entries — each word, each headword with its romanisation and its part of
+  speech, and the senses **numbered, one to a line** — then, where they are
+  installed, [a machine's reading](../lookup-and-languages/translation-model.md)
+  and [a sentence somebody translated](../lookup-and-languages/translated-sentences.md).
+  Persian, Arabic and every other language are set in their own type and
+  their own direction. Where nothing is set up to look the book's language
+  up with, the sheet says so and links to where one is set up.
+- **How tall it is.** As tall as the entry, up to most of the screen —
+  always, even under a video pinned at the top; a longer one scrolls inside
+  the sheet, and the page under it does not move. It opens saying *looking
+  it up…* and grows when the answer comes.
+- **The word you tapped stays marked.** Where there is room above the
+  sheet — under the header, and under the video where it stands above the
+  transcript — the page moves so the word sits there. Where there is not (a
+  long entry under an upright video, or a phone held sideways), the sheet
+  covers it, and closing the sheet shows it again where it was.
+- **Closing it.** Swipe it down, tap beside it, press **✕**, or go back —
+  the phone's back gesture or button. Nothing is left open: the sheet and
+  the chunk's cloud both close, and one going back undoes one thing.
+- **In a video, or a book read aloud.** The video, or the book's narration,
+  waits, paused, while the sheet is up, and goes on when it closes. On the
+  whole screen the sheet covers the subtitles, and going back closes the
+  sheet and leaves the video on the whole screen. On an Android phone in a
+  browser tab, going back also makes the browser give up its own full
+  screen: the sheet closes, the video stays over the page, and going back
+  once more leaves it.
+
+The gloss cloud is the gloss, as it always was. A glossed chunk opens its
+reading, transliteration, vocabulary and meaning beside the word, and a
+chunk nobody asks the dictionary about looks and answers exactly as before.
+
+**Few glosses, and which ones.** In a book or a video where fewer than half
+of all the chunks have anything written under them, a tap does one of two
+things — a glossed chunk opens its gloss, any other, with the dictionary
+switched on, opens the dictionary — so on a phone the glossed chunks are
+marked. Where every phrase already has a faint dotted line (a video's
+transcript; a book's first pass in hover mode), the glossed ones have it
+darker. Elsewhere in a book, every pass and every chapter as it arrives,
+the glossed chunks get a faint dotted line, in the theme's quietest ink.
+Over the whole-screen subtitles, the glossed phrase's line is almost white.
+A book is counted whole, not by the chapters on the screen: one glossed from
+the front is still a book with few glosses. The text and its colour are not
+changed. A book or a video glossed half or more looks as it always did, and
+the browser interface never shows the mark.
 
 ## The exercise decks
 
@@ -346,10 +459,12 @@ works the same way: **Check** then **Next exercise**, **Show answer** then
 exercises you got wrong at least once and the ones you skipped, each shown
 solved at a tap ([Cram mode](../exercises/cram.md#the-end)). The answers and blocks inside an exercise are big
 enough for a finger, and the arrows move a block where a mouse would drag
-it. **A blank, and a matching exercise's box, are filled the other way
-round**: tap the blank or the box, and a cloud offers the words the bank
-below holds — tap one and it is in; tap a filled one to change it or empty
-it ([Placement](../dialect-exercises/placement.md#moving-the-blocks),
+it. **A blank, and a matching exercise's box, are filled from a cloud**:
+tap the blank or the box, and a cloud offers the words the bank below holds
+— tap one and it is in; tap a filled one to change it or empty it. The
+browser interface has the same cloud, and dragging beside it; here the cloud
+is the only way, and the bank's words are there to be read
+([Placement](../dialect-exercises/placement.md#moving-the-blocks),
 [Matching](../dialect-exercises/matching.md#on-the-page)).
 
 Making a deck, adding, correcting, tagging or moving an exercise, setting

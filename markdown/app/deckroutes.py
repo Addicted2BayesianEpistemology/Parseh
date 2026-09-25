@@ -136,11 +136,14 @@ MODE_SWITCH = (
 # `data-parseh-away` (static/decks.js, computerAway) and all of them are
 # reached by a thumb from a page that had already looked.
 APP_HEAD = (
-    '<script>/* the state the page before this one found: lib/keep.js, `noted` */\n'
-    'try{var a=JSON.parse(localStorage.getItem("parseh_away")||"null");\n'
-    'if(a&&a.away===true&&typeof a.at==="number"&&\n'
+    '<script>/* the state the page before this one found (lib/keep.js, `noted`), '
+    'never acted on by a refresh */\n'
+    '(function(){try{var a=JSON.parse(localStorage.getItem("parseh_away")||"null"),\n'
+    'n=performance.getEntriesByType?performance.getEntriesByType("navigation")[0]:null,\n'
+    'r=n?n.type==="reload":!!(performance.navigation&&performance.navigation.type===1);\n'
+    'if(!r&&a&&a.away===true&&typeof a.at==="number"&&\n'
     '   Date.now()/1000-a.at<=(typeof a.trusted==="number"?a.trusted:180))\n'
-    'document.documentElement.setAttribute("data-parseh-away","");}catch(e){}</script>\n'
+    'document.documentElement.setAttribute("data-parseh-away","assumed");}catch(e){}})();</script>\n'
     '<link rel="manifest" href="/manifest.webmanifest">\n'
     '<link rel="apple-touch-icon" sizes="180x180" href="/lib/icons/apple-touch-icon.png">\n'
     '<meta name="theme-color" content="#f3eff1" media="(prefers-color-scheme: light)">\n'

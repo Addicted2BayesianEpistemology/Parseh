@@ -882,6 +882,24 @@ class TheGuideItself(unittest.TestCase):
             self.assertTrue((Path(td) / "site" / "showcase.html").is_file())
             self.assertTrue((Path(td) / "site" / "images" / "flashcard.gif").is_file())
 
+    def test_what_s_new_has_the_changelog_s_versions_in_its_order_and_days(self):
+        """CHANGELOG.md is written for a release and "What's new" for a
+        reader: two texts (the owner, 2026-09-24), which may say a version's
+        changes in different words but never name different versions.  Every
+        `## ` of the page is a version and its day, in the changelog's order,
+        "not yet released" where the changelog says "unreleased" -- and one
+        more, "Before <the oldest version>", last, for what came before
+        there were versions.  Both texts are read by lib/changelog.py, the
+        reader the release checks use (`release.py check` holds the tagged
+        version's day on this page too), which refuses any `## ` it cannot
+        read rather than skipping it."""
+        import changelog
+        want = [(s.version, changelog.said(s.date)) for s in changelog.read()]
+        page = (GUIDE / "markdown" / "reference" / "whats-new.md").read_text(encoding="utf-8")
+        heads, before = changelog.whats_new(page)          # a fenced ``` block is not read
+        self.assertEqual(before, want[-1][0], "the last heading is 'Before <the oldest version>'")
+        self.assertEqual([(h.version, changelog.said(h.date)) for h in heads], want)
+
     def test_the_sidebar_and_the_walk_follow_the_front_page_s_map(self):
         """The front page's map is written by hand; the sidebar (nav.js) and
         Previous/Next come from the weights.  They must agree: the reader's

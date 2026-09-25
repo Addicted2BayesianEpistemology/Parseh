@@ -123,22 +123,56 @@
 % No #, %, ~ or literal backslash in a \directlua body: TeX reads it first,
 % and ~ is an active character that expands to \nobreakspace -- so Lua's
 % "not equal" is written not (a == b) here (see frank_breaks below too).
+%
+% THE REGISTRY HAS TWO HALVES, and a book in a language somebody added on
+% their own machine is set from the second: config/languages.json, beside
+% lib/ (lib/languages.py says why the person's languages live there).  It is
+% read after Parseh's own and adds only the codes Parseh's own lacks -- the
+% rule lib/languages.py follows, so the PDF and the reader of one book never
+% take a language from two different rows.  Its path is \FrankLib's with the
+% last component changed from lib to config, worked out on the text and not
+% through lib/.., so a tree whose lib/ is a link to another checkout's reads
+% its own config/, as the Python side does.  A missing file is the ordinary
+% case and says nothing; one that is not JSON says so in the log and adds
+% nothing, and the book is set as if it were not there -- one person's typo
+% must not stop a book in any other language.
 \directlua{
   frank_registry = nil
-  function frank_reg_load()
-    if frank_registry then return frank_registry end
-    local path = "\FrankLib/languages.json"
+  function frank_reg_read(path, must)
     local f = io.open(path, "r")
     if not f then
-      tex.error("frank: cannot read the language registry at " .. path)
-      frank_registry = {} ; return frank_registry
+      if must then tex.error("frank: cannot read the language registry at " .. path) end
+      return {}
     end
     local s = f:read("*a") ; f:close()
     if not (utilities and utilities.json and utilities.json.tolua) then
       tex.error("frank: this LuaTeX has no JSON reader (lualibs); cannot read " .. path)
-      frank_registry = {} ; return frank_registry
+      return {}
     end
-    frank_registry = utilities.json.tolua(s) or {}
+    local t = utilities.json.tolua(s)
+    if not (type(t) == "table") then
+      if not must then
+        texio.write_nl("frank: " .. path .. " is not JSON; the languages added on this machine are left out")
+      end
+      return {}
+    end
+    return t
+  end
+  function frank_reg_load()
+    if frank_registry then return frank_registry end
+    local lib = "\FrankLib"
+    frank_registry = frank_reg_read(lib .. "/languages.json", true)
+    local mine = lib .. "/../config/languages.json"
+    if lib == "lib" then
+      mine = "config/languages.json"
+    elseif string.sub(lib, -4) == "/lib" then
+      mine = string.sub(lib, 1, -4) .. "config/languages.json"
+    end
+    for code, row in pairs(frank_reg_read(mine, false)) do
+      if type(row) == "table" and frank_registry[code] == nil then
+        frank_registry[code] = row
+      end
+    end
     return frank_registry
   end
   function frank_reg(lang, ...)

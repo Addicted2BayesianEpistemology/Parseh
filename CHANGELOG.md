@@ -1,38 +1,51 @@
+## [a0.3.2] - unreleased
+### Added
+- Estimate the rest by the sound: boundaries placed in the pauses of the waveform, in books and videos
+- Update Parseh from Settings, from GitHub or a zip, to any version, keeping your content and settings
+- Releases on GitHub, one zip per version; Parseh shows its version on the hub and in Settings
+- Downloads show their size, progress and time left, can be stopped, and resume where they stopped
+- On a phone, the dictionary opens in a sheet, and sparsely glossed books and videos mark their glossed chunks
+
+### Changed
+- Dictionaries and the other downloads moved to Settings → Reading help, laid out by language
+- "Offline" only when the computer is really gone, with ↻ to check again
+- Who may change a setting is decided per setting: Network and updates on the computer only
+- Languages you add are kept in config/
+- Exported pages open on sepia
+
+### Fixed
+- Pages of other websites could make Parseh change things
+- A phone could read the Wi-Fi pairing code
+- The test suites wrote into config/
+
+## [a0.3.1] - 2026-09-24
+### Changed
+- Fill in the blanks and matching: a click opens the word cloud in the browser too
+- Flashcards in the PDF are cards to cut out and fold
+- Answering an exercise no longer copies the word to the clipboard
+
+### Added
+- On a phone, a video on the whole screen can show the captions around the one being said
+- On a phone, a dictionary button in the gloss cloud
+
+### Fixed
+- A framing caption drawn dark on dark over a video on the whole screen
+
 ## [a0.3.0] - 2026-09-23
 ### Added
 - Videos and Markdown for mobile
-- Settings, from the hub, with Network as its first page: who may reach
-  Parseh, the port, and a certificate of your own — no terminal, and a change
-  takes effect at once
-- A phone on the Wi-Fi is let in once with a pairing code shown on the computer
-- Notes open at once, on the studio's sheet without the editor, and the reader
-  fetches the ones near you before you ask
-- A book kept on an Android phone comes by Android's own download: it goes
-  on with the page closed, shows in the notification with its own Cancel,
-  and the button says "— you can leave this page". The text comes first and
-  the recordings after it, so the book opens as soon as its text is in. On
-  the iPad and in Firefox, which have no such download, a book is kept as 
-  later described.
-- What is kept on this phone is checked file by file, against a checksum the
-  computer sends: a download cut off is unticked and says so
-- A kept deck brings its exercises, their pictures and their recordings, so
-  cramming works with the computer away
-- Delete a gloss: one button in the chunk sheet and in the player's ✎ form
-  empties the whole gloss and keeps the text, the colour and the word line;
-  undo delete puts it back while the page is open
-- Gloss a stretch with an LLM, in books and in videos: pick the stretch, copy
-  the prompt, paste the answer back. Only chunks nobody has glossed are
-  filled, whole or not at all; a gloss already there is never changed, and
-  Parseh decides that when you paste, not the LLM. Re-gloss (asked twice)
-  and filling the empty boxes of chunks that have a gloss are two
-  checkboxes; the second asks for every empty box, a vocabulary line left
-  empty on purpose (a word already given) included
+- Settings, with Network: who may reach Parseh, the port, your own certificate
+- A phone on the Wi-Fi is let in once with a pairing code
+- Notes open at once, and the reader fetches the ones near you ahead
+- On Android, a kept book downloads in the background, its text first
+- What is kept on a phone is checked file by file
+- A kept deck brings its exercises, pictures and recordings
+- Delete a gloss, with undo
+- Gloss a stretch with an LLM, in books and videos
 - HTML export of markdown and crammed decks
 
 ### Removed
-- The "draft" flag of books and videos, and its tags and marks in the
-  library, the reader, the player and on the phone. A leftover
-  `"draft": true` in a book.json or video.json is ignored
+- The "draft" flag of books and videos
 
 ## [a0.2.0] - 2026-09-22
 ### Added

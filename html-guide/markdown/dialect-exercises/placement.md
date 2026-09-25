@@ -2,7 +2,7 @@
 title: "Placement: blanks, order, sentences"
 linkTitle: Placement
 weight: 3
-description: fill-blanks, order-sentences and construct-sentence — blocks the learner moves into place, by dragging, tapping or with arrows.
+description: fill-blanks, order-sentences and construct-sentence — blocks the learner moves into place, by dragging, tapping, from a blank's cloud or with arrows.
 ---
 
 In a placement exercise the learner moves **blocks** — words, chunks,
@@ -16,33 +16,38 @@ whole sentences — into their places. Three types share the machinery:
 
 ## Moving the blocks
 
-There are three ways to move a block:
+There are four ways to move a block:
 
 - **drag it** to where it goes — into a blank, or, in an ordering
   exercise, onto the block it should stand beside (on that block's first
   half it goes before it, on its second half after it);
+- in a fill-in, **click the blank, then the block**: the blank's cloud
+  (below);
 - **tap it, then tap where it goes** — a blank, or the row of spare
   blocks. A tapped block is marked as picked; tap it again to put it down.
-  This is the way on a touch screen, and from the keyboard, where Tab
-  reaches a block and Enter or Space picks it and places it. In an
-  ordering exercise a picked block tapped onto its line goes to the end of
-  the line, which is rarely where it belongs: use the arrows there;
+  From the keyboard, Tab reaches a block and Enter or Space picks it and
+  places it. A blank clicked while a block is picked takes that block, and
+  opens no cloud. In an ordering exercise a picked block tapped onto its
+  line goes to the end of the line, which is rarely where it belongs: use
+  the arrows there;
 - in an ordering exercise, **its arrows** (below).
 
 A blank holds one block: a block dropped on a full blank sends the one
 that was there back to the row of spare blocks, and a block taken out of
 a blank goes back there too when you drop it, or tap it, on that row.
 
-**In the mobile interface a blank is filled the other way round: the
-blank first, then the word.** Tap a blank, and a cloud opens under the
-sentence with a copy of every block the row of spare blocks holds; tap
-one, and it goes into that blank. Tap a filled blank to put another block
-there — the one it held goes back to the row — or to **Empty this blank**.
-A tap anywhere else, or Escape, puts the cloud away. The row stays where it
-is, to show what is left; its blocks are no longer picked up or dragged
-there. A matching exercise's boxes work the same way
-([Matching](matching.md#on-the-page)). The browser interface keeps the
-three ways above
+**A blank's cloud: the blank first, then the word.** Click (or tap) a
+blank, and a cloud opens under the sentence with a copy of every block the
+row of spare blocks holds; click one, and it goes into that blank. Click a
+filled blank to put another block there — the one it held goes back to the
+row — or to **Empty this blank**. A click anywhere else, or Escape, puts the
+cloud away. From the keyboard, Enter or Space on a blank opens its cloud,
+its first block focused, and Enter puts the focused block in. A matching
+exercise's boxes work the same way ([Matching](matching.md#on-the-page)).
+
+**In the mobile interface the cloud is the only way to fill a blank.** The
+row of spare blocks stays where it is, to show what is left; its blocks
+are no longer picked up or dragged there
 ([Browser and Mobile](../getting-started/mobile-mode.md#the-exercise-decks)).
 
 **Every block of an ordering exercise carries two arrows**, and each moves

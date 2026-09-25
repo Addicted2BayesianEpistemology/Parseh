@@ -125,13 +125,13 @@ class HubTests(unittest.TestCase):
     def test_the_browser_layout_keeps_every_door(self):
         got = self.hrefs('browser')
         for href in ('/books/', '/youtube/', '/studio/', '/exercises/', '/anki/sync/', '/clips/',
-                     '/lookup/', '/guide/', '/'):
+                     '/settings/reading-help/', '/guide/', '/'):
             self.assertIn(href, got)
         self.assertTrue(any('data-parseh-stop' in a for t, a in self.page.of('browser')))
         self.assertTrue(any(a.get('class') == 'addr' for t, a in self.page.of('browser')))
         # the doors are still written as the other tests read them, and the
         # first of each is the browser layout's
-        for href in ('/books/', '/studio/', '/exercises/', '/lookup/'):
+        for href in ('/books/', '/studio/', '/exercises/', '/settings/reading-help/'):
             m = re.search(r'<a class="door(?: wide)?" href="%s">' % re.escape(href), self.html)
             self.assertIsNotNone(m, href)
             self.assertLess(self.html.index('class="hub-browser"'), m.start())
@@ -155,7 +155,10 @@ class HubTests(unittest.TestCase):
             self.assertNotIn(t, ('input', 'textarea', 'select', 'form'))
             self.assertNotIn(a.get('class'), ('addr', 'foot'))
         mobile = self.html[self.html.index('class="hub-mobile"'):]
-        for word in ('/anki/', '/clips/', '/lookup/', '/add/', 'stop', 'Anki', 'dictionar'):
+        # the reading help moved into Settings (TO-DO §11.10) and has no door
+        # here either: it is reached from a reader's own links
+        for word in ('/anki/', '/clips/', '/lookup/', '/settings/reading-help/', '/add/', 'stop',
+                     'Anki', 'dictionar'):
             self.assertNotIn(word, mobile)
 
     def test_a_mobile_door_counts_what_the_browser_door_counts(self):

@@ -6,7 +6,8 @@ description: What changes from one target language to the next — how its text 
 
 The dialect is the same for every language, and the front matter's
 `target:` decides what differs. Everything the studio knows about a
-language comes from the toolbox's language registry, `lib/languages.json`:
+language comes from the toolbox's language registry, `lib/languages.json`
+(and `config/languages.json`, for a language added on this machine):
 the characters of its script, its direction, its faces, whether it has a
 reading or can be set vertically. Nothing about a language is written into
 the studio itself, which is why every construct of this section works the

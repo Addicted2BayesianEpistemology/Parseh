@@ -52,6 +52,14 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from check_annotations import lang_code, parse_transcript
 
+# THE SHAPE OF parts/*.json, the one this docstring draws, as a number
+# (lib/version.py FORMATS).  The add page (ytpages.py) and import_old_video.py
+# write batches in it, captimes.py moves a start in the ones an older video
+# still carries, and this is what reads them, so the number is kept here; the
+# files carry none.  RAISE IT when the shape changes so that the Parseh
+# before this one would read a batch wrong.
+PARTS_FORMAT = 1
+
 # A second of slack before one file is called newer than another.  Some
 # filesystems keep a whole second only, and the pipeline writes the batches
 # and the annotations in one breath; without the slack a video added in that

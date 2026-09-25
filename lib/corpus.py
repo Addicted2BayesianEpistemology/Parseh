@@ -70,6 +70,13 @@ MAX_SRC_CHARS = 220
 # whole book arriving as one SQL statement.
 MAX_WORDS = 40
 
+# THE SHAPE OF corpus/<code>-<gloss>.db -- SCHEMA below, filled by
+# getcorpus.py through create() -- as a number (lib/version.py FORMATS).  The
+# database carries none.  RAISE IT when the shape changes so that the Parseh
+# before this one would read the sentences wrong; a column an older reader
+# never asks for is not such a change.
+DB_FORMAT = 1
+
 SCHEMA = """
 PRAGMA journal_mode = OFF;
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);

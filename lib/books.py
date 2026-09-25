@@ -50,6 +50,14 @@ import languages  # noqa: E402
 # writes exactly the bytes it always wrote.
 NARR_FIRST = "n1"
 
+# THE SHAPE OF book.json, as a number (lib/version.py FORMATS).  Many modules
+# write the file -- draft.py makes it, bookmeta.py edits its metadata, serve.py
+# its list of recordings -- and every one of them writes the shape this module
+# reads, so the number is kept here.  RAISE IT when the shape changes so that
+# the Parseh before this one would read a book wrong; a field added that an
+# older reader ignores (as "gloss" was) is not such a change.
+BOOK_FORMAT = 1
+
 
 class Book:
     def __init__(self, directory):

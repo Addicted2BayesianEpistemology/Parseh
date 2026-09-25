@@ -11,9 +11,13 @@
 //     YouTube demands; a link followed says nothing of where it was
 //   * the exercises answer and mark; the pictures and the maths are drawn;
 //     the recordings play, and a clip is cut to its stretch (ffmpeg here)
-//   * the Aa menu sizes the text and changes the theme, and a reload forgets
-//     both: nothing is written -- local and session storage, cookies,
-//     IndexedDB and the cache stay empty, whatever the page is asked to do
+//   * both pages open on Sepia (TO-DO §2.26) -- though the studio was
+//     showing Dark when they were made, on a dark system, in a browser
+//     profile made that moment, and before their script has run -- and the
+//     Aa menu still sizes the text and changes the theme, and a reload
+//     forgets both: nothing is written -- local and session storage,
+//     cookies, IndexedDB and the cache stay empty, whatever the page is
+//     asked to do
 //   * nothing of the studio's editing, nor of the Markdown, is on the page
 //   * the deck's page crams the picked exercises (and only those) to the end:
 //     a wrong one comes back, the tally and the lists, "Cram these again";
@@ -119,6 +123,49 @@ async function until(page, fn, arg = null, timeout = 8000) {
   }
 }
 
+/* Which theme a page is on: the name its <body> carries, what Aa says, and
+   the colour actually painted -- so that a sepia named and never painted
+   would not pass. */
+const look = page => page.evaluate(() => [document.body.dataset.theme || 'paper',
+  document.querySelector('#xp-theme').value, getComputedStyle(document.body).backgroundColor]);
+// the page's script has run: its Aa has painted, and set the column's width
+const painted = page => until(page, () => !!document.documentElement.style.getPropertyValue('--xp-width'));
+
+/* A STUDENT'S FIRST VISIT, twice over (TO-DO §2.26).  The file opened from
+   the disk in a browser profile made that moment -- nothing stored anywhere,
+   by any page -- on a system set to dark; and in a browser that runs no
+   script, where what the page is before its script has run is all there is.
+   Both must be the `sepia` the page was measured opening on. */
+async function firstVisits(browser, t, file, sepia) {
+  const {eq} = t;
+  const dir = await Deno.makeTempDir({prefix: 'parseh-html-export-profile-'});
+  try {
+    const fresh = await chromium.launchPersistentContext(dir, {executablePath: Deno.env.get('CHROME_BIN'),
+                                                               headless: true, colorScheme: 'dark'});
+    try {
+      const page = fresh.pages()[0] || await fresh.newPage();
+      await page.goto('file://' + file);
+      await painted(page);
+      eq(await look(page), ['sepia', 'sepia', sepia],
+         'in a browser profile made this moment, on a dark system, the page opens on Sepia');
+    } finally {
+      await fresh.close();
+    }
+  } finally {
+    await Deno.remove(dir, {recursive: true}).catch(() => {});
+  }
+  const bare = await browser.newContext({javaScriptEnabled: false});
+  try {
+    const page = await bare.newPage();
+    await page.goto('file://' + file);
+    eq(await page.evaluate(() => [!!document.documentElement.style.getPropertyValue('--xp-width'),
+                                  document.body.dataset.theme, getComputedStyle(document.body).backgroundColor]),
+       [false, 'sepia', sepia], 'and before its script has run -- here, never -- it is Sepia already');
+  } finally {
+    await bare.close();
+  }
+}
+
 // what the page could have kept, anywhere the browser keeps things
 const kept = page => page.evaluate(async () => {
   let dbs = -1, cached = 0;
@@ -164,6 +211,14 @@ async function suite(browser, mode, tmp) {
     const page = await ctx.newPage();
     watch(page, 'doc');
     await page.goto(url(`${S}/doc/${doc.id}`));
+    // THE STUDIO SHOWING DARK as it makes the page, by its own Aa: what the
+    // studio shows is its reader's, and the file must start on Sepia anyway
+    // (below, for both files -- the deck's page follows the studio's theme)
+    const typoShut = !(await page.locator('#sel-theme').isVisible());
+    if (typoShut) await page.click('#btn-typo');
+    await page.selectOption('#sel-theme', 'dark');
+    eq(await page.evaluate(() => document.body.dataset.theme), 'dark', 'the studio is showing Dark as it exports');
+    if (typoShut) await page.click('#btn-typo');
     await page.click('details.dropdown > summary:text-is("Download ▾")');
     const entries = await page.locator('details.dropdown[open] .menu a').evaluateAll(as => as.map(a => a.id || a.textContent.trim()));
     eq(entries.slice(entries.indexOf('dl-pdf'), entries.indexOf('dl-pdf') + 2), ['dl-pdf', 'dl-html'],
@@ -283,8 +338,14 @@ async function documentFile(browser, file, t) {
   const {assert, eq, mode} = t;
   const f = await openFile(browser, file);
   const {page, requests, errors} = f;
+  let opened = null;
   try {
     await until(page, () => document.querySelectorAll('#sheet .exercise').length > 0);
+    // SEPIA FROM THE START (TO-DO §2.26): the studio was showing Dark when
+    // this was made, and this browser has nothing stored
+    await painted(page);
+    opened = await look(page);
+    eq(opened.slice(0, 2), ['sepia', 'sepia'], 'the page opens on Sepia, not the Dark the studio was showing, and Aa says so');
     eq(await page.locator('#sheet .exercise').count(), BLOCKS.length, `all ${BLOCKS.length} exercises are on the page`);
     eq(await page.locator('#sheet [contenteditable], #sheet textarea, .ex-edit, .ex-to-deck, .video-edit, .audio-edit').count(), 0,
        'nothing on it edits');
@@ -382,7 +443,7 @@ async function documentFile(browser, file, t) {
     // the Aa menu: the text's size, and the theme
     const sizeOf = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#sheet p')).fontSize));
     const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    const size0 = await sizeOf(), paper = await bg();
+    const size0 = await sizeOf();
     await page.click('.xp-aa > summary');
     assert(await page.locator('.xp-aa-menu').isVisible(), 'Aa opens its menu');
     await page.locator('#xp-size').focus();
@@ -390,9 +451,13 @@ async function documentFile(browser, file, t) {
     eq(await page.locator('#xp-size-out').textContent(), '129%', 'the slider says the new size');
     const size1 = await sizeOf();
     assert(Math.abs(size1 / size0 - 22 / 17) < 0.02, `and the text is that much bigger (${size0}px → ${size1}px)`);
+    await page.selectOption('#xp-theme', 'paper');
+    const paper = await bg();
+    eq(await page.evaluate(() => document.body.dataset.theme || 'paper'), 'paper', 'Paper: the start is a default, not a lock');
     await page.selectOption('#xp-theme', 'sepia');
     const sepia = await bg();
     eq(await page.evaluate(() => document.body.dataset.theme), 'sepia', 'Sepia');
+    eq(sepia, opened[2], 'the very sepia the page opened on');
     await page.selectOption('#xp-theme', 'dark');
     const dark = await bg();
     eq(await page.evaluate(() => document.body.dataset.theme), 'dark', 'Dark');
@@ -438,25 +503,31 @@ async function documentFile(browser, file, t) {
     // and a reload is a fresh page: the choices and the answers gone
     await page.reload();
     await until(page, () => document.querySelectorAll('#sheet .exercise').length > 0);
+    await painted(page);
     eq(await page.evaluate(() => [document.body.dataset.theme || 'paper', document.querySelector('#xp-size').value,
                                   document.querySelector('#xp-size-out').textContent,
                                   document.querySelectorAll('#sheet .exercise.correct, #sheet .exercise.incorrect').length,
                                   document.body.classList.contains('ex-hide-transliteration')]),
-       ['paper', '17', '100%', 0, false], 'a reload forgets the size, the theme, the answers and the switch');
+       ['sepia', '17', '100%', 0, false], 'a reload forgets the size, the theme (Sepia again), the answers and the switch');
     assert(errors.length === 0, 'no page errors, no console errors (none refused by its own rules)' +
            (errors.length ? ':\n    ' + errors.join('\n    ') : ''));
   } finally {
     await f.ctx.close();
   }
-  // a reader whose system is dark gets it dark
+  // a reader whose system is dark gets Sepia all the same -- and Dark the
+  // moment it is picked
   const d = await openFile(browser, file, {colorScheme: 'dark'});
   try {
     await until(d.page, () => document.querySelectorAll('#sheet .exercise').length > 0);
-    eq(await d.page.evaluate(() => [document.body.dataset.theme, document.querySelector('#xp-theme').value]), ['dark', 'dark'],
-       'on a dark system the page is dark, and Aa says so');
+    await painted(d.page);
+    eq(await look(d.page), opened, 'on a dark system the page opens on Sepia all the same, and Aa says so');
+    await d.page.click('.xp-aa > summary');
+    await d.page.selectOption('#xp-theme', 'dark');
+    eq((await look(d.page)).slice(0, 2), ['dark', 'dark'], 'and Dark, picked in Aa, is Dark');
   } finally {
     await d.ctx.close();
   }
+  await firstVisits(browser, t, file, opened[2]);
   // on a website: YouTube plays nothing for a player that does not say
   // where it is embedded ("Video player configuration error"), so the player
   // alone is told the site -- its address, and nothing of the page's path --
@@ -485,8 +556,20 @@ async function deckFile(browser, file, t) {
   const {assert, eq, mode, picked, left} = t;
   const f = await openFile(browser, file);
   const {page, requests, errors} = f;
+  let opened = null;
   try {
     await page.waitForSelector('#cram-stage .exercise');
+    // SEPIA FROM THE START, as the document's (TO-DO §2.26) -- the studio
+    // was showing Dark -- and Aa changes it, and changes it back
+    await painted(page);
+    opened = await look(page);
+    eq(opened.slice(0, 2), ['sepia', 'sepia'], 'the page opens on Sepia, not the Dark the studio was showing, and Aa says so');
+    await page.click('.xp-aa > summary');
+    await page.selectOption('#xp-theme', 'dark');
+    eq((await look(page)).slice(0, 2), ['dark', 'dark'], 'Dark, picked in Aa, is Dark');
+    await page.selectOption('#xp-theme', 'sepia');
+    eq(await look(page), opened, 'and Sepia is the sepia it opened on');
+    await page.keyboard.press('Escape');
     const cards = await page.evaluate(() => JSON.parse(document.querySelector('#parseh-cards').textContent));
     eq(cards.length, picked, `the ${picked} picked exercises, and only those`);
     const excerpts = new Set(cards.map(c => c.item.excerpt));
@@ -579,6 +662,7 @@ async function deckFile(browser, file, t) {
   } finally {
     await f.ctx.close();
   }
+  await firstVisits(browser, t, file, opened[2]);
 }
 
 const tmp = await Deno.makeTempDir({prefix: 'parseh-html-export-'});

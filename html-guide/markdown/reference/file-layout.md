@@ -2,7 +2,7 @@
 title: The file layout
 linkTitle: File layout
 weight: 4
-description: The folders of the repository, and what a book, a video, a studio document, a note, an exercise deck and an Anki deck look like on the disk.
+description: The folders of Parseh, your settings in config/, and what a book, a video, a studio document, a note, an exercise deck and an Anki deck look like on the disk.
 ---
 
 Every folder and file of Parseh, one by one: the detailed companion of
@@ -15,22 +15,23 @@ safe](daily-loops.md#keeping-everything-safe)). This page is for when you want t
 anyway: to find a recording, to back a folder up by hand, to understand
 what a zip holds.
 
-Everything is under the folder you cloned or unpacked, the one that
+Everything is under the folder you unpacked from a release, the one that
 holds `serve.sh`. Nothing is installed anywhere else, except the word
 analyzers' models (in `~/.pkuseg/`), the environment if you made it with
 your own conda, and what your browser keeps.
 
-## The repository
+## The folder
 
 ```text
 Parseh/
   serve.sh  serve.py  serve.bat
   install.sh  install.bat  Parseh.command
   build.sh  environment.yml
+  VERSION  CHANGELOG.md  README.md  LICENSE
   lib/  books/  youtube/  markdown/  exercises/  clips/
-  dict/  corpus/  mt/  components/
-  docs/  guide/  html-guide/  tests/  .github/
-  .runtime/  .tls/
+  dict/  corpus/  mt/  components/  config/
+  docs/  html-guide/
+  .runtime/  .tls/  .parseh-release.json  .parseh-update/
 ```
 
 | Path | What it is |
@@ -40,6 +41,7 @@ Parseh/
 | `install.sh` | The installer on Linux and macOS. `install.bat` is Windows's, and `Parseh.command` a Mac's double-click that installs the first time and then starts. |
 | `build.sh` | Builds the books: each one's PDF and reader, and the library page. |
 | `environment.yml` | The packages of the `ilya-frank` environment. |
+| `VERSION` | Which version of Parseh this is, one line: what the hub's foot, Settings and the server's first line say. `CHANGELOG.md` says what each version changed. |
 | `lib/` | What every door shares — see the next table. |
 | `books/` | The books, one folder a book, under its language's folder (below). |
 | `youtube/` | The video player: `lib/` (its pages, its script, the annotation pipeline, the Anki tools), `videos/` (one folder a video, below), `anki/` (the card store, below). |
@@ -47,18 +49,19 @@ Parseh/
 | `exercises/` | The exercise decks, one folder a deck, under its language's folder (below). |
 | `clips/` | The clip tray: recordings and frames cut for cards, waiting to be used. |
 | `dict/` | The reading help's downloads, with `corpus/`, `mt/` and `components/` (below). |
-| `docs/` | The design notes: `languages.md`, `lang/<code>.md` (each language's conventions), `mobile.md`, `installer.md`, `studio-exercises.md`, the notes on character components, and the prompts. |
+| `config/` | Your settings, and the devices let in (below). |
+| `docs/` | The design notes: `languages.md`, `lang/<code>.md` (each language's conventions), `mobile.md`, `installer.md`, `studio-exercises.md`, the notes on character components, the prompts, and `releasing.md`, the checklist a new version is released by. |
 | `html-guide/` | These pages: `markdown/` (their source), `build.py` and `engine/` (the compiler), `assets/` and `index.html` (the front page); `site/` is what a compile makes. |
-| `.github/` | Its `guide-pages.yml` workflow: the guide, compiled and published on GitHub Pages. |
-| `tests/` | The unit tests, `smoke.py`, the browser tests, and `fixtures/`: a small book, video and Anki deck in every language. |
 | `.runtime/` | The environment, when the installer made it: `bin/micromamba`, `env/`, and micromamba's package cache, `mamba/`. |
 | `.tls/` | The certificates `serve.py` makes: its own authority (`ca.pem`, made once — the one a phone is told to trust, to install the mobile interface as an app) and the server's, signed by it and made again as it nears its end. |
+| `.parseh-release.json` | The release's list of its own files: the version, the commit it was built from, and every file with its checksum and whether it runs. An [update from Settings](../getting-started/updating.md) reads it, and writes the new version's in its place. |
+| `.parseh-update/` | What the last three updates kept, one folder each under `jobs/`: every file an update replaced or deleted, before it did, and the report the page shows. |
 
 ### Inside lib/
 
 | Path | What it is |
 |---|---|
-| `languages.json` | The language registry: everything a language is, read by every tool through `languages.py`. |
+| `languages.json` | The language registry: everything a language is, read by every tool through `languages.py`. Parseh's own languages; one added on this machine is in `config/languages.json`, which is read after it and which an update never touches ([Adding a language](../lookup-and-languages/adding-a-language.md)). |
 | `lang/<code>.tex` | What each language decides in a book's LaTeX preamble. |
 | `verbs/<code>.py` | How each language's verb entry (`\vb`) is read out of its dictionary. |
 | `parseh.js` | With `parseh.css`: the palette and the themes, the language chips, the clipboard, the Browser/Mobile mode. |
@@ -66,13 +69,16 @@ Parseh/
 | `mobile.py` | The mobile interface's pages the server writes: the book shelf, `/m/books/`; installing it as an app, `/m/install/`; the page the app shows when the server cannot be reached; the app's manifest. |
 | `mobilereader.js` | A book's reader in the mobile interface: the layer `parseh.js` loads into every reader. |
 | `sw.js` | The app's service worker, served at `/sw.js`: it answers a page with *Parseh cannot be reached* when the server is away, and touches nothing else. |
-| `icons/` | The app's icons, and `make.mjs`, which drew them. |
+| `icons/` | The app's icons. (A copy of the source code also has `make.mjs`, which drew them.) |
 | `activity.js` | With `activity.py`: what the server is working on — the **Working…** pill and the hub's panel. |
 | `tex2html.py` | A book's reader, written from its chapters. |
 | `bundle.py` | A book or a video as one zip. |
 | `draft.py` | A book or a video started empty. |
 | `runtime.py` | Finding the environment and making it; `env.sh` finds it for the shell scripts, and `launcher.py` starts Parseh on Windows. |
-| `getdict.py` | With `getcorpus.py`, `getmt.py`, `getsyn.py` and the components' getter: the reading help's downloads. |
+| `version.py` | Reads `VERSION`, compares two versions, and names the shape of each kind of file Parseh writes. |
+| `updater.py` | Updating from Settings, with `updatepage.py`, the page: the plan, the backup, the files replaced one by one, and finishing or undoing an update that was cut off. |
+| `release.py` | Building a release's zip and its list of files, for whoever releases Parseh (`docs/releasing.md`). |
+| `getdict.py` | With `getcorpus.py`, `getmt.py`, `getsyn.py` and the components' getter: the reading help's downloads, each through `download.py`, which stops them and carries them on. |
 | `guidebuild.py` | Serving the guide at `/guide/`, and its **Compile the guide** button. |
 | `fonts/` | Vazirmatn, Noto Nastaliq Urdu, Noto Naskh Arabic, Noto Serif Devanagari. The Japanese and Chinese faces are the system's own. |
 
@@ -227,16 +233,42 @@ what no card needs any more.
 | `mt/synonyms.en.json` | The WordNet synonyms the machine's reading uses. |
 | `components/` | The Kanji and Hanzi component packs, `<source>.db`. |
 
-All of them are got and removed on `/lookup/` (or by the commands in [The
-command line: content, lookup, Anki](commands-content.md)).
+All of them are got and removed on the reading-help page, `/settings/reading-help/` (or by the commands in [The
+command line: content, lookup, Anki](commands-content.md)). A download
+stopped half way leaves what had come beside where it goes — a file ending
+in `.part`, with a small `.part.json` saying where it came from; a model's
+`mt/<from>-<to>.part/` — so that the next **Get it** carries on from there.
 
-## What is not in the repository
+## Your settings: config/
 
-The repository ships the doors and none of the content: the language
-folders under `books/`, `youtube/videos/` and `markdown/library/` hold a
-`.gitkeep` and nothing else. What you add there — books, videos,
-documents and their notes — shows in git as untracked files: nothing
-ignores them, and nothing commits them unless you do.
+`config/` holds what this Parseh has been told, and nothing else. No
+release carries a file of it, and no [update](../getting-started/updating.md)
+touches one.
+
+| Path | What it is |
+|---|---|
+| `prefs.json` | Each book's reading place, and the settings that follow you from device to device: the narration's speed, its gap, how far ↺ and ↻ carry, the theme. |
+| `network.json` | Who may reach Parseh (the doors of **Settings → Network**, and the ranges and names you added), its port, the certificate you gave it if any, and **every device you let in**, each with the secret token it carries in a cookie. Whoever has this file can pass for those devices: keep it as you would a key. |
+| `languages.json` | The languages added on this machine ([Adding a language](../lookup-and-languages/adding-a-language.md)); there is none until you add one. |
+| `updates.json` | Whether Parseh looks for a new version once a day, and what it last found. |
+| `digests.json` | A checksum of every file a phone may keep, so that the phone can tell a file that came whole from one that did not. Worked out again whenever it is missing. |
+| `wheres.json` | Where in its book each recording is, as a phone's *Keep on this phone* list says it. Worked out again whenever it is missing. |
+
+Each is written whole, through a temporary file and a rename, so a crash
+leaves the old file or the new one and never half of either.
+
+## What is not in a release
+
+A release ships the doors and none of the content: the language folders
+under `books/`, `youtube/videos/` and `markdown/library/`, and `config/`,
+`dict/`, `clips/` and `exercises/`, hold a placeholder and nothing else.
+Nor does it carry what only the people working on Parseh need: the tests,
+the GitHub workflows, the demo pictures of the project's page. The builder
+that makes a release refuses one that would carry anything of yours.
+
+In a copy of the source code, what you add to those folders — books,
+videos, documents and their notes — shows in git as untracked files:
+nothing ignores them, and nothing commits them unless you do.
 
 Git ignores outright, so that a stray `git add` cannot take them:
 
@@ -249,5 +281,6 @@ Git ignores outright, so that a stray `git add` cannot take them:
   compiled `html-guide/site/`, which is committed so that GitHub Pages can
   publish it;
 - a book or a video taken off the shelf (`.trash/`), the downloads of the
-  reading help, the environment (`.runtime/`), the certificate (`.tls/`),
-  `serve.log` and `.serve.pid`.
+  reading help, your settings (`config/`), the environment
+  (`.runtime/`), the certificate (`.tls/`), the updates' backups
+  (`.parseh-update/`), `serve.log` and `.serve.pid`.

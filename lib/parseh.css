@@ -619,6 +619,18 @@ body.noaudio :is(.nc-skip,.nc-chip,.nc-dock){display:none!important}
 .kp-off{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:20px;
   background:var(--warn);color:#fff;font-size:13px;text-decoration:none;white-space:nowrap}
 .kp-off:hover{opacity:.9}
+/* ↻ BESIDE THE CHIP (the owner, 2026-09-24): a button of its own, which opens
+   the page afresh -- and a refresh never inherits what the page before found
+   (lib/keep.js, AWAY_BOOT), so it is the way back once the computer is. */
+.kp-again{display:inline-flex;align-items:center;justify-content:center;min-height:36px;
+  min-width:36px;padding:0 10px;margin-inline-start:6px;border:1px solid var(--warn);
+  border-radius:20px;background:none;color:var(--warn);font:inherit;font-size:17px;line-height:1;
+  cursor:pointer}
+.kp-again:hover{background:var(--warn);color:#fff}
+/* "CHECKING…": the computer has not answered yet.  Slow is online, so it is
+   quiet -- no fill, no link -- where the offline chip would stand. */
+.kp-wait{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:20px;
+  border:1px dashed var(--rule);color:var(--dim);font-size:13px;white-space:nowrap}
 /* A CARD WHOSE THING IS NOT ON THIS PHONE (TO-DO §0).  Offline a shelf still
    shows everything the computer had when it was last reached; what is not
    kept is drawn and cannot be tapped, which is the look a book whose reader
@@ -673,7 +685,8 @@ html.m-reader[data-mode=mobile] .pf-bar{bottom:calc(84px + env(safe-area-inset-b
    its buttons -- Save under a sentence about where you had got to -- and
    the press went to the sentence.  The question is not lost; the sheet is
    closed sooner or later, and the line is there again.  (lib/prefs.js waits
-   the same way before it asks at all.) */
+   the same way before it asks at all.  On a phone the dictionary's sheet is
+   one more, and lib/mobile.css says so beside its own rules.) */
 body:has(#ankiback:not([hidden])) .pf-bar,
 body:has(#ntback:not([hidden])) .pf-bar,
 body:has(.pc-root) .pf-bar,

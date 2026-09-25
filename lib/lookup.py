@@ -100,6 +100,14 @@ MAX_OWN_WORDS = 400
 MAX_PEEL = 2
 MAX_ROUTES = 60
 
+# THE SHAPE OF dict/<code>.db -- SCHEMA below, and the rows getdict.py puts
+# in it through create() -- as a number (lib/version.py FORMATS).  The
+# database carries none.  RAISE IT when the shape changes so that the Parseh
+# before this one would read a dictionary wrong: a column it asks for gone
+# or meaning something else.  A column added that an older reader never
+# asks for is not such a change.
+DB_FORMAT = 1
+
 SCHEMA = """
 PRAGMA journal_mode = OFF;
 CREATE TABLE meta  (key TEXT PRIMARY KEY, value TEXT NOT NULL);

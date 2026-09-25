@@ -31,9 +31,10 @@ of a page are joined with nothing in between, so a breakable run that
 wrapped is still found
 (the script-only filter has already dropped whatever Latin sat between)
 -- unless something stands beside it on its lines, as the marks stand
-beside a true/false statement and one column of a matching exercise
-beside the other; such a run is looked for once more down the page's
-columns (column_runs).  Vertical blocks are never checked: like the
+beside a true/false statement, one column of a matching exercise beside
+the other, and a flashcard's back beside its front; such a run is looked
+for once more down the page's columns (column_runs; on a right-to-left
+page, column_wrapped_runs).  Vertical blocks are never checked: like the
 `{fa}` blocks they are not \\pe arguments.
 """
 import os
@@ -358,50 +359,100 @@ def wrapped_runs(visual_lines_seq, L):
     return "\x00".join(out)
 
 
+def _line_pieces(page, ytol=2.5, gap=0.75):
+    """A page's visual lines, top to bottom, each cut where a gap wider than
+    `gap` em opens in it -- between a true/false statement and its marks,
+    between the two columns of a matching exercise, between the two halves
+    of a flashcard; a word space is a third of an em: [(y, [(left edge,
+    right edge, its characters in visual order), ...]), ...]."""
+    buckets = {}
+    for b in page.get_text("rawdict")["blocks"]:
+        if b.get("type") != 0:
+            continue
+        for l in b["lines"]:
+            for sp in l["spans"]:
+                for ch, c in _span_chars(sp):
+                    if c.isspace():
+                        continue     # a space the reader made up spans the gap
+                    y = round(ch["origin"][1], 1)
+                    k = next((k for k in buckets if abs(k - y) <= ytol), y)
+                    x0, _top, x1, _bottom = ch["bbox"]
+                    buckets.setdefault(k, []).append(
+                        (_middle(ch["bbox"]), x0, x1, sp["size"], c))
+    lines = []
+    for y, line in sorted(buckets.items()):
+        line.sort()
+        pieces, piece, left, right, size = [], [], 0, 0, 0
+        for _mid, x0, x1, sz, c in line:
+            if piece and x0 - right > gap * max(size, sz):
+                pieces.append((left, right, piece))
+                piece = []
+            if not piece:
+                left, right = x0, x1
+            piece.append(c)
+            right, size = max(right, x1), sz
+        pieces.append((left, right, piece))
+        lines.append((y, pieces))
+    return lines
+
+
+def side_by_side(lines):
+    """The columns of a page (_line_pieces) read down by where they stand,
+    not by where they start: each piece goes on the column whose last piece
+    it stands under -- the two overlap across the page -- and never on one
+    that already has a piece of its own line.  The two halves of a
+    flashcard are such columns, each centred in its half, so that no two of
+    a half's lines start at one x: a run that wrapped in one half is read
+    down that half, with nothing from the other between its lines.  Each
+    column is a list of its pieces, top to bottom (characters in visual
+    order)."""
+    columns = []                 # [left, right, y of its last piece, pieces]
+    for y, pieces in lines:
+        for left, right, chars in pieces:
+            col = next((c for c in reversed(columns)
+                        if c[2] != y and c[0] < right and left < c[1]), None)
+            if col is None:
+                col = [left, right, y, []]
+                columns.append(col)
+            col[0], col[1], col[2] = left, right, y
+            col[3].append(chars)
+    return [c[3] for c in columns]
+
+
 def column_runs(pdf_path, L, ytol=2.5, gap=0.75):
     """What a run that wrapped inside a column reads as, on a left-to-right
-    page.  Each visual line is cut where a gap wider than `gap` em opens in
-    it -- between a true/false statement and its marks, between the two
-    columns of a matching exercise; a word space is a third of an em -- and
-    the pieces that start at one x are read down the page, one after the
-    other: a column's lines in order, with nothing from beside it between
-    them.  Only a \\pel is looked for here, as in wrapped_runs."""
+    page.  Each visual line is cut into pieces where a gap opens in it
+    (_line_pieces), and the pieces that start at one x are read down the
+    page, one after the other: a column's lines in order, with nothing from
+    beside it between them -- and so are the pieces that stand under one
+    another (side_by_side), for a column whose lines are centred, as a
+    flashcard's are.  Only a \\pel is looked for here, as in wrapped_runs."""
     out = []
     with pymupdf.open(pdf_path) as doc:
         for page in doc:
-            buckets = {}
-            for b in page.get_text("rawdict")["blocks"]:
-                if b.get("type") != 0:
-                    continue
-                for l in b["lines"]:
-                    for sp in l["spans"]:
-                        for ch, c in _span_chars(sp):
-                            if c.isspace():
-                                continue     # a space the reader made up spans the gap
-                            y = round(ch["origin"][1], 1)
-                            k = next((k for k in buckets if abs(k - y) <= ytol), y)
-                            x0, _top, x1, _bottom = ch["bbox"]
-                            buckets.setdefault(k, []).append(
-                                (_middle(ch["bbox"]), x0, x1, sp["size"], c))
-            pieces = []                      # (left edge, y, text)
-            for y, line in sorted(buckets.items()):
-                line.sort()
-                piece, left, right, size = [], 0, 0, 0
-                for _mid, x0, x1, sz, c in line:
-                    if piece and x0 - right > gap * max(size, sz):
-                        pieces.append((left, y, "".join(piece)))
-                        piece = []
-                    if not piece:
-                        left, right = x0, x1
-                    piece.append(c)
-                    right, size = max(right, x1), sz
-                pieces.append((left, y, "".join(piece)))
+            lines = _line_pieces(page, ytol, gap)
             columns = {}
-            for left, y, text in sorted(pieces):
+            for left, y, text in sorted((left, y, "".join(chars))
+                                        for y, pieces in lines for left, _right, chars in pieces):
                 k = next((k for k in columns if abs(k - left) <= 1.5), left)
                 columns.setdefault(k, []).append((y, text))
             out += ["".join(t for _, t in sorted(col)) for col in columns.values()]
-    return "\x00".join(_script_only(_written_order(x, L), L) for x in out)
+            out += ["".join("".join(chars) for chars in col) for col in side_by_side(lines)]
+    # a column read both ways is the same text: once is enough
+    return "\x00".join(dict.fromkeys(_script_only(_written_order(x, L), L) for x in out))
+
+
+def column_wrapped_runs(pdf_path, L, ytol=2.5, gap=0.75):
+    """What a run that wrapped reads as on a right-to-left page (wrapped_runs),
+    read down the page's lines whole and down each of its columns
+    (side_by_side): a flashcard's front and back stand side by side, and a
+    run that wrapped in one half has the other half's lines between its
+    own when the page is read whole."""
+    out = [wrapped_runs(visual_lines(pdf_path, ytol), L)]
+    with pymupdf.open(pdf_path) as doc:
+        for page in doc:
+            out += [wrapped_runs(col, L) for col in side_by_side(_line_pieces(page, ytol, gap))]
+    return "\x00".join(out)
 
 
 def check(pdf_path, tex_path):
@@ -435,7 +486,7 @@ def check(pdf_path, tex_path):
         if len(t) < 2:
             continue
         if t not in haystack and a in breakable and wrapped is None:
-            wrapped = (wrapped_runs(visual_lines(pdf_path), L) if L.rtl
+            wrapped = (column_wrapped_runs(pdf_path, L) if L.rtl
                        else column_runs(pdf_path, L))
         if t in haystack or (a in breakable and t in wrapped):
             ok += 1

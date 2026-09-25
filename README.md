@@ -19,14 +19,21 @@ anything you read into Anki cards. Eleven languages: Persian, Arabic,
 Italian, Japanese, French, German, Turkish, English, Hindi, Spanish and
 Chinese.
 
-**Version a0.3.0** — currently released in alpha version. Bugs are to be
-expected.
+**In alpha: bugs are to be expected.** The newest version is on the
+[releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest),
+with what it changed; the one you are running is written at the foot of
+Parseh's hub. ([`CHANGELOG.md`](CHANGELOG.md) lists every version.)
 
 **The guide — installing, using and extending Parseh, and the full reference
 of its Markdown dialect — is at
 <https://addicted2bayesianepistemology.github.io/Parseh/>.**
 
 ## Quick start
+
+Download **`parseh-<version>.zip`** from the newest release's *Assets* on the
+[releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest)
+— not *Code → Download ZIP*, which is the source code — and unpack it where
+Parseh will live. In that folder:
 
 | Linux | macOS | Windows |
 |---|---|---|
@@ -38,6 +45,9 @@ the certificate, once — it is one Parseh makes for this computer alone.
 A fresh install answers **this computer** and any other on your **personal VPN**: Tailscale's range is
 trusted out of the box, and any other name or range you add. The local network access is also allowed — open it in **Settings → Network**, on the hub, and let
 each phone in once with the pairing code the page shows.
+
+A new version comes in from **Settings → Updating Parseh**, keeping your
+books, videos, decks, dictionaries and settings.
 
 Then read on the phone. The mobile interface installs **as an app**:
 

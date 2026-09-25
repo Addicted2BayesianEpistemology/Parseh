@@ -50,6 +50,13 @@ import texgen
 DIR = Path(__file__).resolve().parent.parent.parent / "exercises"
 FORMAT = "parseh-exercise-deck/1"
 MANIFEST = "parseh-exercise-deck.json"
+# THE SHAPE OF schedule/<id>.json -- the srs state and the history of answers
+# (answer() writes it) -- as a number (lib/version.py FORMATS).  The deck's
+# own files carry FORMAT; a schedule carries no stamp, so its number is kept
+# here.  RAISE IT when the shape changes so that the Parseh before this one
+# would read a schedule wrong -- somebody's answers are the one thing in a
+# deck that cannot be made again.
+SCHEDULE_FORMAT = 1
 
 # THE CLIP TRAY.  The book reader and the video player cut recordings and
 # pictures into one flat folder at the toolbox's root (lib/clips.py), under

@@ -10,6 +10,9 @@ for (const [folder,slug] of [['japanese','mini-ja'],['chinese','mini-zh'],['engl
 }
 const setupResult = await new Deno.Command(python,{args:['-c',"import sys;sys.path.insert(0,'lib');import lookuppage;print(lookuppage.page())"],stdout:'piped'}).output();
 const setupHTML = new TextDecoder().decode(setupResult.stdout);
+// the reading help draws itself from the state it carries, and asks /lookup/api/status
+// for it again after every change (lib/lookuppage.py): answered here from the same state
+const setupState = JSON.parse(setupHTML.match(/<script id="rh-state" type="application\/json">([\s\S]*?)<\/script>/)[1].replace(/<\\\//g, '</'));
 const browser = await chromium.launch({executablePath:Deno.env.get('CHROME_BIN'),headless:true});
 const artifacts = Deno.env.get('PARSEH_TEST_ARTIFACTS') || await Deno.makeTempDir({prefix:'parseh-decomposition-'});
 await Deno.mkdir(artifacts,{recursive:true});
@@ -44,6 +47,10 @@ async function wire(page) {
       else if (what === 'corpora') payload = {ok:true,corpora:[],jobs:{}};
       else if (what === 'models') payload = {ok:true,models:[],jobs:{}};
       else if (what === 'syn') payload = {ok:true,syn:{have:false},job:{}};
+      else if (what === 'status') {
+        payload = structuredClone(setupState); payload.ok = true;
+        Object.assign(payload.packs.kanjivg, {have:installed, entries:installed?3:0, size:installed?1000:0});
+      } else if (what === 'plan') payload = {ok:true,download:1000,measured:false,kept:1000,have:0,free:1e9,room:'',named:'the KanjiVG component pack'};
       return route.fulfill({json:payload});
     }
     try {
@@ -131,9 +138,19 @@ try {
   await mobile.getByRole('button',{name:'Decompose Hanzi',exact:true}).tap();await mobile.getByText('Install character components',{exact:true}).waitFor();
   assert(await mobile.locator('body.cd-mode').count()===0,'uninstalled pack does not activate mode');
   await mobile.close();
+  // THE READING HELP (Settings, TO-DO §11.10): Japanese is one line until opened; its
+  // components row gets the pack (asking first where its size was not measured) and
+  // removes it, asking in the row
+  installed=false;
   await page.goto('http://parseh.test/setup');
-  await page.locator('[data-component-get="kanjivg"]').click();await page.waitForSelector('[data-component-drop="kanjivg"]');
-  page.on('dialog',dialog=>dialog.accept());await page.locator('[data-component-drop="kanjivg"]').click();await page.waitForSelector('[data-component-get="kanjivg"].go');
+  const packRow='[data-row="components:kanjivg"]';
+  await page.locator('[data-open="ja"]').click();
+  await page.locator(packRow+' [data-get]').click();
+  await page.waitForSelector(packRow+' [data-remove], '+packRow+' [data-yes]');
+  if (await page.locator(packRow+' [data-yes]').count()) await page.locator(packRow+' [data-yes]').click();
+  await page.waitForSelector(packRow+' [data-remove]');
+  await page.locator(packRow+' [data-remove]').click();await page.locator(packRow+' [data-yes]').click();
+  await page.waitForSelector(packRow+' [data-get]');
   assert(installs===1&&drops===1,'optional installer/remove wiring');
   await page.goto('http://parseh.test/tests/fixtures/books/english/mini-en/reader/index.html',{waitUntil:'domcontentloaded'});
   assert(await page.locator('.cd-toggle').count()===0,'no control outside Japanese/Chinese');

@@ -1,2 +1,38 @@
 # cmd.exe misreads labels in a .bat file with bare LF line endings: keep CRLF
 *.bat text eol=crlf
+# the one line Parseh's version is read from (lib/version.py in Python; a
+# shell script with cat, a .bat with for /f): LF on every system, so a
+# checkout on Windows holds exactly the bytes a release zip does
+VERSION text eol=lf
+
+# WHAT A RELEASE LEAVES OUT.  A release's zip is `git archive` of the tagged
+# commit (lib/release.py), and git archive -- like GitHub's own "Source code"
+# archives -- leaves out every path marked export-ignore here.  The manifest
+# inside the zip is made from what is left, so it never lists a file the zip
+# lacks.  Out goes what serves the repository and not the program: the tests,
+# the three demo GIFs of the github.com page (8.5 MB, the largest files
+# tracked), CI, git's own files, what makes GitHub Pages serve the guide (the
+# root index.html and .nojekyll), a tool nothing runs, the owner's word list
+# for four particular videos (§18: no content ships), the wave bench, the old
+# forwarding stubs under youtube/, and a local build's dist/.  html-guide/site/
+# stays in: a person whose machine cannot compile the guide still has one.
+# Each path is anchored at the top (/...) and names a folder without a
+# trailing slash: git archive then leaves the folder out, and all of it (a
+# trailing slash is .gitignore's spelling, not this file's).
+# NEVER export-ignore clips/README.md, exercises/README.md or a .gitkeep: git
+# archive keeps no empty folder, and those files are why the folders Parseh
+# writes into exist in a fresh install.
+/tests export-ignore
+/docs/*.gif export-ignore
+/.github export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/.nojekyll export-ignore
+/index.html export-ignore
+/lib/icons/make.mjs export-ignore
+/youtube/docs/glossary-ci-stories.md export-ignore
+/lib/wavealign_lab.py export-ignore
+/youtube/.gitignore export-ignore
+/youtube/serve.py export-ignore
+/youtube/serve.sh export-ignore
+/dist export-ignore

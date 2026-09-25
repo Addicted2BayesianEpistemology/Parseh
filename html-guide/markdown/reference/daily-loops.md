@@ -161,11 +161,21 @@ Two of them do not hold everything:
 Your Anki cards go to Anki. [The file layout](file-layout.md) says where
 everything is on the disk.
 
-## After updating Parseh
+## Updating Parseh
 
-1. Run the installer again — `./install.sh`, **Parseh.command** or
-   **install.bat**. It adds what the environment lacks, compiles the
-   guide and rebuilds the readers.
-2. A book built before a new feature gains it with **rebuild the reader**
-   in its header.
-3. [What changed recently](whats-new.md) says what is new.
+1. **⚙ Settings → Updating Parseh**, on the computer Parseh runs on.
+   **Check now**, then **Download** the version it names — or choose a
+   release's zip you already have.
+2. Read what **Ready to install** says: which way it goes, what it writes
+   and deletes, any file changed by hand. Press **Update to…** and **Yes**.
+3. Wait for the page to come back by itself. The update adds what the
+   environment lacks, compiles the guide and rebuilds the readers; **The
+   last update** at the top says what it did, and **Back to where you
+   were** returns you to your page.
+4. [What changed, version by version](whats-new.md) says what is new.
+
+A Parseh installed before it could update itself moves into a fresh install
+once, by hand ([Updating Parseh](../getting-started/updating.md#moving-into-a-fresh-install-once)).
+And whenever a page says the environment lacks a package, run the installer
+again — `./install.sh`, **Parseh.command** or **install.bat** — which adds
+what is missing, and start Parseh again.

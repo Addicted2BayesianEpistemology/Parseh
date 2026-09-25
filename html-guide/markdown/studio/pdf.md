@@ -187,7 +187,7 @@ question's picture and recording under the prompt.
 | **Match translations, opposites, definitions** | every entry of both columns in a frame of its own; the two columns equally wide, with a gap between them for the line the student draws; the two frames of a row equally tall; the right column shuffled. A right-to-left entry is set flush right, and a picture sits in its frame |
 | **True / False**, **Yes / No** | each statement in a column of its own, wrapping inside it; *True / False* (or *Yes / No*) in a column on the right that nothing enters, level with the statement's first line and in the same place on every row |
 | **Choose one answer**, **Choose all correct answers**, **Identify the incorrect part**, **Odd one out** | the options as a list, each with a □ to tick, in the order written |
-| **Flashcards** | the exception: both sides, *Front:* and *Back:*, as a card to study from; a recording as ♪ and its file name |
+| **Flashcards** | the exception: a card to cut out and fold — the front in the left half of a frame with round corners, the back in the right, a dashed line between them to fold on; each side as the page draws it, a recording as ♪ and its file name ([Flashcards](../dialect-exercises/flashcards.md#on-paper)) |
 | **An exercise with errors** | *Exercise needs attention in the Markdown source.* |
 
 Nothing crosses a frame or runs under the marks, at any print size: a long

@@ -48,10 +48,12 @@
 #
 # Both keys take in everything a build reads that is not the book's own: the
 # shared preamble and front matter, every lib/lang/<code>.tex (the preamble
-# inputs the book's), lib/languages.json (the preamble reads the fonts from
-# it, and the reader its language record), the fonts, and lib/*.py for the
-# reader.  A file left out of a key is a change that can never trigger a
-# rebuild -- exactly the false skip the rule above forbids.
+# inputs the book's), lib/languages.json and config/languages.json (the
+# registry's two halves, Parseh's languages and this machine's: the preamble
+# reads the fonts from them, and the reader its language record -- a missing
+# config/languages.json adds nothing to either key), the fonts, and lib/*.py
+# for the reader.  A file left out of a key is a change that can never
+# trigger a rebuild -- exactly the false skip the rule above forbids.
 set -e
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
@@ -202,7 +204,8 @@ list_rel() {                      # list_rel <dir> -- every file under it, relat
 latex_key() {
   { cat_book_tex "$1" | strip_at
     cat "$ROOT/lib/frank-preamble.tex" "$ROOT/lib/frank-frontmatter.tex" \
-        "$ROOT/lib/languages.json" "$1/book.json" 2>/dev/null || true
+        "$ROOT/lib/languages.json" "$ROOT/config/languages.json" "$1/book.json" \
+        2>/dev/null || true
     cat_lib_lang
     cat_fonts
   } | sha1
@@ -224,7 +227,7 @@ reader_key() {
     # otherwise hash the same, and "rebuild the reader" would write nothing
     # and report success.
     cat "$1/book.json" "$1/timings.json" "$1/reading.json" \
-        "$ROOT/lib/languages.json" 2>/dev/null || true
+        "$ROOT/lib/languages.json" "$ROOT/config/languages.json" 2>/dev/null || true
     # The reader includes audio controls only for recordings present on disk.
     # A linked backup restores the metadata first; copying audio/ back later
     # must invalidate this key without hashing hundreds of MB of recordings.

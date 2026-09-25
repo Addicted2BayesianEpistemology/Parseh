@@ -52,6 +52,18 @@ BOOKOBJ = None
 # (canon, tokens, subkey) work for a caller that only imports them
 LANG = languages.get(languages.DEFAULT)
 
+# THE SHAPES OF timings.json AND review.json, as numbers (lib/version.py
+# FORMATS).  This aligner makes both; serve.py writes timings.json too -- a
+# time set by hand ("manual"), a narration's zip coming back in -- and the
+# reader, the book's build and the phone's keep sheet read it, all in the
+# shape made here, so the numbers are kept here.  Neither file carries its
+# number.  RAISE ONE when its file's shape changes so that the Parseh before
+# this one would read it wrong -- a narration's times are an hour of
+# listening nobody wants to spend twice; a field an older reader ignores is
+# not such a change.
+TIMINGS_FORMAT = 1
+REVIEW_FORMAT = 1
+
 
 def _bind(b):
     """Point the module at one book."""

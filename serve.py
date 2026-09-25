@@ -80,6 +80,7 @@ import argparse
 import importlib.util
 import io
 import json
+import math
 import mimetypes
 import os
 import re
@@ -112,6 +113,14 @@ TLS_DIR = os.path.join(ROOT, ".tls")
 for _p in (LIB, YT_LIB):
     if _p not in sys.path:
         sys.path.insert(0, _p)
+# AN UPDATE THAT DID NOT FINISH IS FINISHED FIRST (TO-DO §13.16), before a
+# line of the rest of Parseh is imported: the helper was killed half way --
+# the power cut, the laptop closed -- and the files below may be half one
+# version and half another.  The helper copy the update left carries it on,
+# or undoes it from its backup; lib/updater.py imports nothing of Parseh's.
+import updater              # noqa: E402  updating in place, from Settings (§13.16)
+if __name__ == "__main__":
+    updater.finish_first(ROOT, os.path.realpath(__file__))
 import books as booklib     # noqa: E402  where the books are
 import lookup              # noqa: E402  the dictionary behind an unglossed chunk
 import decomposition      # local optional component trees
@@ -133,7 +142,9 @@ import glossregion         # noqa: E402  a region glossed by an LLM: the prompt,
 import reading              # noqa: E402  what somebody decided about the text itself
 import prefs                # noqa: E402  the reading place and the settings that follow a person
 import network              # noqa: E402  who may reach this Parseh, and on which port (§1.1, §3.3)
+import crosssite            # noqa: E402  and that only its own pages may write to it (§3.1)
 import settingspage         # noqa: E402  the Settings section, and the page a device not let in sees
+import updatepage           # noqa: E402  Settings > Updating Parseh, the page (§13.16)
 import offline              # noqa: E402  what a thing is made of, for a phone to keep (§19.3)
 import structure            # noqa: E402  a chapter's name and the sections inside it
 import bookmeta             # noqa: E402  a book's title, author and the like, edited in place
@@ -148,6 +159,7 @@ import words               # noqa: E402  and one proposed, where the analyzers a
 import audiofile           # noqa: E402  what a recording is, and ffmpeg's three jobs on one
 import clips               # noqa: E402  the tray a card's recording is cut into
 import guidebuild          # noqa: E402  the HTML guide: its files, and its compile as a job
+import version             # noqa: E402  which Parseh this is: VERSION, read once (§16.1)
 
 ANKI = ytpages.ANKI
 
@@ -492,7 +504,10 @@ UPLOAD_ROUTES = ("/anki/sync/upload", "/books/__upload", "/exercises/api/import"
                  # (TO-DO §2.8): its Download "Markdown + media" is unbounded,
                  # its store takes 200 MB of it, and this route alone still
                  # met the 32 MB cap meant for an edit.
-                 STUDIO_BASE + "/api/docs/zip")
+                 STUDIO_BASE + "/api/docs/zip",
+                 # a release of Parseh itself, chosen on Settings > Updating
+                 # Parseh: some 15 MB today, and nothing says it stays so
+                 "/settings/api/update/upload")
 
 # WHAT IS SPOOLED AND THEN READ BACK.  A route in UPLOAD_ROUTES gets a file on
 # disk and reads it as a file; `/api/docs/zip` reads its body whole
@@ -508,7 +523,163 @@ def have_ffmpeg():
     return bool(shutil.which("ffmpeg")) or os.path.exists(tstamp.FFMPEG)
 
 
+# ------------------------------------------------------------------ by the sound
+# "ESTIMATE THE REST" BY THE SOUND (lib/timeline.js, the choice beside the
+# button): the pieces after the line in hand laid through a picture of the
+# recording's sound by lib/wavealign.py, which is given that picture -- one
+# loudness every 10 ms, or a YouTube video's 50 ms -- and the pieces' texts,
+# and never the sound itself.  Two doors ask it, a book's
+# (<reader>/__clip/estimate) and a video's (/youtube/api/estimate); what they
+# share is here, where a test can reach it without a server.
+ESTIMATE_RATE = 100             # numbers a second in a book's or a film's picture
+ESTIMATE_TEXTS = 20000          # pieces one request may carry
+ESTIMATE_CHARS = 20000          # characters one piece may carry
+ESTIMATE_SECONDS = 12 * 3600    # the longest stretch one request may cover
+ESTIMATE_WAVE = 2000000         # the numbers a page may send, as /api/waveform keeps
+ESTIMATE_LEAST = 0.1            # the shortest stretch estimated (the page asks 0.4 s at least)
+# AN ESTIMATE IS A CORE AND A FEW HUNDRED MEGABYTES FOR A MINUTE, at its
+# biggest (four hours of a book, its eight ffmpegs and then the aligner),
+# and it runs inside this process: two at once would be two of those, and
+# should the machine run out of memory it is the server that goes, with
+# every page it serves.  Every request has its own thread (Server), so one
+# running never keeps another page from being answered; this keeps a second
+# estimate from starting while one runs -- refused AT ONCE, in words, and
+# never queued: a sheet held silently behind somebody else's four hours is
+# a sheet that looks broken.
+ESTIMATE_SLOTS = threading.BoundedSemaphore(1)
+ESTIMATE_BUSY = "another estimate by the sound is running: try again when it has finished"
+# a YouTube video's picture that ends before the stretch asked about
+# (player.js capEstimate says the same, without asking)
+NO_WAVE_HERE = ("the picture of this video’s sound ends before this stretch begins, so it "
+                "cannot be estimated by the sound: estimate it by the text")
+
+
+def load_wavealign():
+    """(lib/wavealign.py, None), or (None, the words saying what is missing).
+
+    Imported when first asked and not with the rest, because it needs NumPy
+    and serving needs only the standard library: a Python without NumPy
+    serves every page as before and answers this one door with a 409."""
+    try:
+        import wavealign
+    except ImportError as e:
+        name = (getattr(e, "name", None) or "").split(".")[0]
+        if name == "wavealign":
+            return None, ("estimating by the sound is not part of this copy of Parseh "
+                          "(lib/wavealign.py is missing)")
+        return None, ("estimating by the sound needs %s, which the Python running Parseh "
+                      "does not have. It is one of the packages Parseh's installer adds: "
+                      "run the installer again, then start Parseh again" % (name or "numpy"))
+    return wavealign, None
+
+
+def estimate_request(body, kind):
+    """What an estimate door was asked -> ({start, end, texts, kind, wave}, None),
+    or (None, the words of a 400).  `kind` is the door's own when the body
+    names none: "span" for a book, "point" for a video."""
+    texts = body.get("texts")
+    if not isinstance(texts, list) or not texts:
+        return None, "texts must be the pieces' texts, in order"
+    if len(texts) > ESTIMATE_TEXTS:
+        return None, "that is %d pieces: at most %d are estimated at once" % (
+            len(texts), ESTIMATE_TEXTS)
+    for t in texts:
+        if not isinstance(t, str):
+            return None, "texts must be the pieces' texts, in order"
+        if len(t) > ESTIMATE_CHARS:
+            return None, "a piece's text is %d characters long: at most %d" % (
+                len(t), ESTIMATE_CHARS)
+    start, end = clips.number(body.get("start")), clips.number(body.get("end"))
+    if start is None or end is None:
+        return None, "start and end must be numbers of seconds"
+    if start < 0:
+        return None, "the start must be in the recording, at 0 s or after"
+    if not end > start:
+        return None, "the end must come after the start"
+    if end - start < ESTIMATE_LEAST:
+        return None, "the stretch is too short to estimate"
+    if end - start > ESTIMATE_SECONDS:
+        return None, "a stretch of at most %d hours is estimated at once" % (
+            ESTIMATE_SECONDS // 3600)
+    kind = body.get("kind", kind)
+    if kind not in ("span", "point"):
+        return None, 'kind is "span" or "point"'
+    wave = body.get("wave")
+    if wave is not None:
+        if not isinstance(wave, dict) or not isinstance(wave.get("peaks"), list) \
+                or not wave["peaks"]:
+            return None, ("wave must be the picture of the sound: its numbers, how many "
+                          "a second, and when the first one is")
+        if len(wave["peaks"]) > ESTIMATE_WAVE:
+            return None, "that waveform is too fine to send"
+        rate, first = clips.number(wave.get("rate")), clips.number(wave.get("start", 0))
+        if rate is None or not 1 <= rate <= 200:
+            return None, "a waveform carries between 1 and 200 numbers a second"
+        if first is None or first < 0:
+            return None, "the waveform's start must be a number of seconds, at 0 or after"
+        wave = {"rate": rate, "start": first, "peaks": wave["peaks"]}
+    return {"start": start, "end": end, "texts": texts, "kind": kind, "wave": wave}, None
+
+
+def wave_slice(wave, start, end):
+    """The numbers of a recorded waveform ({rate, start, peaks}: the k-th
+    heard at start + k / rate) that fall in [start, end] -> (values, times),
+    each time from `start`.  A number that is not one counts as silence --
+    the page's JSON writes a lost one as null -- and so does one that is no
+    float at all, an integer hundreds of digits long."""
+    rate, first, peaks = float(wave["rate"]), float(wave.get("start") or 0), wave["peaks"]
+    lo = max(0, int(math.ceil((start - first) * rate - 1e-6)))
+    hi = min(len(peaks) - 1, int(math.floor((end - first) * rate + 1e-6)))
+    values, times = [], []
+    for k in range(lo, hi + 1):
+        v = clips.number(peaks[k])
+        values.append(v if v is not None and v > 0 else 0.0)
+        times.append(min(end - start, max(0.0, first + k / rate - start)))
+    return values, times
+
+
+def estimate_answer(res, start, end, kind):
+    """wavealign.estimate_pieces' answer, from the start of the stretch,
+    made the door's: every time ABSOLUTE (`start` added) and to a hundredth,
+    the first piece starting at exactly `start` -- the line in hand, which
+    nothing may move -- and, for a video, each caption ending exactly where
+    the next begins and the last at `end`.  Should a hundredth be too coarse
+    for pieces crowded closer than that, the times keep a finer figure
+    rather than collapse into one another."""
+    got = res.get("pieces") or []
+    for places in (2, 3, 6):
+        r = lambda x: round(start + float(x), places)
+        t0 = [start] + [r(p["t0"]) for p in got[1:]]
+        if kind == "point":
+            t1 = t0[1:] + [end]
+        else:
+            t1 = [min(end, r(p["t1"])) for p in got]
+        fine = all(a < b for a, b in zip(t0, t1)) and \
+            all(t1[i] <= t0[i + 1] for i in range(len(t0) - 1))
+        if fine:
+            break
+    pieces = []
+    for i, p in enumerate(got):
+        c = float(p.get("confidence", 0) or 0)
+        lo = start if i == 0 else round(start + float(p.get("t0_min", p["t0"])), places)
+        hi = start if i == 0 else round(start + float(p.get("t0_max", p["t0"])), places)
+        pieces.append({"t0": t0[i], "t1": t1[i],
+                       "confidence": round(min(1.0, max(0.0, c)), 3),
+                       "t0_min": min(lo, t0[i]), "t0_max": max(hi, t0[i])})
+    return {"ok": True, "pieces": pieces,
+            "confidence": round(min(1.0, max(0.0, float(res.get("confidence", 0) or 0))), 3),
+            "anchored": int(res.get("anchored", 0) or 0),
+            "boundaries": int(res.get("boundaries", max(0, len(pieces) - 1)) or 0),
+            "words": int(res.get("words", 0) or 0),
+            "method": str(res.get("method") or "wavealign")}
+
+
 NARR_FORMAT = "parseh-narration/1"       # the export's manifest says what it is
+# THE SHAPE OF A VIDEO'S waveform.json -- {"rate", "peaks"}, written by
+# Handler._video_waveform and read by the player -- as a number
+# (lib/version.py FORMATS); the file carries none.  RAISE IT when the shape
+# changes so that the Parseh before this one would draw a video's sound wrong.
+WAVEFORM_FORMAT = 1
 
 
 def audio_files(d):
@@ -973,10 +1144,11 @@ def hub_page():
     <a class="door wide" href="/settings/">
       <div class="dname">&#9881; Settings</div>
       <div class="dwhat">Who may reach %(name)s &mdash; this computer, a VPN, the
-      Wi-Fi &mdash; letting a phone in with a code, the port, and the certificate.</div>
+      Wi-Fi &mdash; letting a phone in with a code, the port, and the certificate;
+      and updating %(name)s to another version.</div>
       <div class="tags"><span class="tag on">%(reach)s</span></div>
     </a>
-    <a class="door wide" href="/lookup/">
+    <a class="door wide" href="/settings/reading-help/">
       <div class="dname">&#128269; Reading what nobody has glossed</div>
       <div class="dwhat">A book or a video whose glosses are not written yet is
       still readable: get a dictionary for its language, and look the words of
@@ -991,8 +1163,9 @@ def hub_page():
     The &#9211; stop button at the top of a page stops the server. A book is built
     from its card on the library page, and a video added from the video index;
     <a href="/guide/">the guide</a> has the rest.<br>
-    %(name)s is free software, under the GNU GPL, version 3 or later; the fonts and
-    the data it uses keep their own licences: <a href="/licences/">licences</a>.
+    %(name)s <span class="ver">%(version)s</span> is free software, under the GNU GPL,
+    version 3 or later; the fonts and the data it uses keep their own licences:
+    <a href="/licences/">licences</a>.
   </div>
   </div>
   <div class="hub-mobile" data-layout="mobile">
@@ -1060,10 +1233,16 @@ def hub_page():
          nothing anybody is aiming at. -->
     <p data-parseh-warm role="status" hidden></p>
     <p class="m-foot">Free software, GPL 3 or later &middot; <a href="/licences/">Licences</a></p>
+    <!-- WHICH PARSEH THIS IS (TO-DO §16.1), on a line of its own under the
+         licence: the line above is a finger's height, and one more phrase
+         in it would wrap on a phone.  The hub is in the phone's offline
+         shell, so away from the computer it says the version last fetched. -->
+    <p class="m-ver">%(name)s %(version)s</p>
   </div>
 </main>
 </body></html>
-""" % {"name": NAME, "row": row, "mrow": mrow, "modes": mode_switch(), "apphead": mobile.app_head(),
+""" % {"name": NAME, "version": version.VERSION,
+       "row": row, "mrow": mrow, "modes": mode_switch(), "apphead": mobile.app_head(),
        # The four doors' counts are whole tags, each carrying what every
        # language has: pick a chip and they say that language's number.
        "nbooks": count_tag(counts, "books", lambda k: n(k, "book"), len(bks)),
@@ -1243,6 +1422,41 @@ def dict_tags():
     return "".join(out)
 
 
+def _glossed_in():
+    """What each language's books and videos are glossed in, most often:
+    {code: gloss code}.  The pair the reading help offers first for a
+    language -- a corpus and a model are pairs, and Persian glossed in
+    Italian wants Persian-Italian sentences, not Persian-English ones."""
+    seen = {}
+    for b in booklib.all_books():
+        try:
+            by = seen.setdefault(b.language, {})
+            by[b.gloss] = by.get(b.gloss, 0) + 1
+        except Exception:
+            continue
+    try:
+        folders = os.listdir(ytpages.VIDEOS)
+    except OSError:
+        folders = []
+    for folder in folders:
+        try:
+            ids = os.listdir(os.path.join(ytpages.VIDEOS, folder))
+        except OSError:
+            continue
+        for vid in ids:
+            try:
+                with open(os.path.join(ytpages.VIDEOS, folder, vid, "video.json"),
+                          encoding="utf-8") as f:
+                    meta = json.load(f)
+                code = languages.get_or_default(meta.get("language")).code
+                gloss = languages.gloss_or_default(meta.get("gloss")).code
+            except (OSError, ValueError, AttributeError, KeyError):
+                continue
+            by = seen.setdefault(code, {})
+            by[gloss] = by.get(gloss, 0) + 1
+    return {code: max(sorted(by), key=by.get) for code, by in seen.items() if by}
+
+
 def not_found_page(msg=""):
     return """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -1309,6 +1523,480 @@ MT_JOBS = {}
 # the synonym table is ONE file, not one per language or pair, so this is
 # a single job {running, say, error}, not a dict of them
 SYN_JOB = {}
+# WHERE THE READING HELP LIVES: a page of Settings since TO-DO §11.10, beside
+# Network.  Every link Parseh writes points here, and /lookup/ answers with a
+# redirect to it; its API stays at /lookup/api/ (see the router).
+READING_HELP = "/settings/reading-help/"
+
+# UPDATING PARSEH IN PLACE (TO-DO §13.16): a page of Settings, and its routes.
+# lib/updater.py does the work and lib/updatepage.py draws the page; who may
+# use each route is lib/settingspage.py's table, like every route under
+# /settings/api/ -- the check open to any device let in, the rest to the
+# computer alone, because an update changes what Parseh will run.
+UPDATE_PAGE = "/settings/update/"
+UPDATE_ROUTES = ("/settings/api/update/state", "/settings/api/update/plan",
+                 "/settings/api/update/check", "/settings/api/update/daily",
+                 "/settings/api/update/fetch", "/settings/api/update/stop",
+                 "/settings/api/update/upload", "/settings/api/update/discard",
+                 "/settings/api/update/apply")
+# THE ONE DOWNLOAD OF A RELEASE the server may be running: {running, done,
+# total, error, stopped, version}, and the Event that stops it.  One at a
+# time, since there is one candidate.
+UPDATE_FETCH = {}
+UPDATE_LOCK = threading.Lock()
+
+
+def update_fetch_now():
+    """The release download as the page and the state route show it, or
+    None when there has not been one since the server started."""
+    with UPDATE_LOCK:
+        if not UPDATE_FETCH:
+            return None
+        return {k: v for k, v in UPDATE_FETCH.items() if k not in ("cancel", "act")}
+
+
+def update_fetch(info):
+    """Download the release `info` (updater.latest()) on a thread of its own,
+    counting the bytes for the page and the activity list."""
+    cancel = threading.Event()
+    act = activity.begin("download", "Downloading %s %s" % (NAME, info["version"]),
+                         page=UPDATE_PAGE, total=info.get("size"))
+    with UPDATE_LOCK:
+        UPDATE_FETCH.clear()
+        UPDATE_FETCH.update(running=True, done=0, total=info.get("size"), error="", detail="",
+                            stopped=False, version=info["version"], cancel=cancel, act=act)
+
+    def progress(done, total, _phase=None):
+        with UPDATE_LOCK:
+            UPDATE_FETCH.update(done=done, total=total or UPDATE_FETCH.get("total"))
+        activity.progress(act, done=done, total=total)
+
+    def work():
+        import download
+        ok = False
+        try:
+            updater.fetch(ROOT, info, progress=progress, cancel=cancel)
+            ok = True
+        except download.Cancelled:
+            with UPDATE_LOCK:
+                UPDATE_FETCH["stopped"] = True
+        except updater.Refused as e:
+            with UPDATE_LOCK:
+                UPDATE_FETCH["error"], UPDATE_FETCH["detail"] = updater.plainly(e)
+        except Exception as e:                            # noqa: BLE001 -- said, not raised
+            traceback.print_exc()
+            # in words, and Python's line beneath them (updater.plainly)
+            with UPDATE_LOCK:
+                UPDATE_FETCH["error"], UPDATE_FETCH["detail"] = updater.plainly(
+                    e, "downloading %s %s" % (NAME, info["version"]))
+        finally:
+            with UPDATE_LOCK:
+                UPDATE_FETCH["running"] = False
+            activity.end(act, ok=ok)
+    threading.Thread(target=work, daemon=True).start()
+
+
+def update_daily():
+    """The daily look at GitHub, when somebody ticked it (config/updates.json):
+    asked a minute after the start and every hour after, and it goes to
+    GitHub only when a day has passed since the last look."""
+    time.sleep(60)
+    while True:
+        try:
+            if updater.due(ROOT):
+                s = updater.check(ROOT)
+                found = (s.get("latest") or {}).get("version")
+                print("%s: looked for a new version: %s" % (
+                    NAME, s.get("error") or ("the newest release is %s" % found)))
+        except Exception:                                 # noqa: BLE001 -- a courtesy, never a crash
+            traceback.print_exc()
+        time.sleep(3600)
+
+
+# ------------------------------------------------------------ the reading help's downloads
+# ONE RUNNER FOR THE FIVE KINDS.  A dictionary, a component pack, a corpus, a
+# translation model and the synonym table used to be started by five copies
+# of the same thread, each reporting one sentence.  Now each job also says
+# how far it has got -- `done` of `total` bytes, in its `phase` ("download",
+# then "build") -- so the page can draw a bar that moves and say the time
+# left; each can be STOPPED (a threading.Event the downloader asks between
+# blocks, lib/download.py), which keeps what was fetched for the next press;
+# and none starts without first being asked what it costs and whether the
+# disk has the room.  The downloaders' own interface: build(..., say=,
+# progress=, cancel=) and plan(...), for the same arguments.
+#
+# The job tables above keep their shapes and their keys -- the activity list,
+# the old status routes and the tests read them -- and each job gains:
+#   phase, done, total   how far, as the downloader last said (total None:
+#                        the server did not say how big)
+#   stopped              True when the person stopped it (not a failure)
+#   queue                the language whose "get everything" it is a step of
+#   waiting              True while it waits its turn in that queue
+READING_KINDS = ("dict", "components", "corpus", "model", "synonyms")
+CANCELS = {}                    # (kind, key) -> the Event its Stop button sets
+PLANS = {}                      # (kind, key) -> (when, plan): what it was said to cost
+PLAN_FOR = 600                  # seconds a plan is believed before it is asked again
+QUEUE = []                      # the steps "get everything" waits to run: [(kind, key)]
+QUEUES = {}                     # language -> "get everything" as one entry on the list
+QUEUE_LOCK = threading.Lock()
+QUEUE_WORKER = {"running": False}
+
+
+def reading_table(kind):
+    """The job table a kind reports into.  The synonym table is ONE job, not a
+    table of them, and is answered as a table with one key, ""."""
+    if kind == "synonyms":
+        return {"": SYN_JOB} if SYN_JOB else {}
+    return {"dict": DICT_JOBS, "corpus": CORPUS_JOBS, "model": MT_JOBS,
+            "components": DECOMPOSITION_JOBS}[kind]
+
+
+def reading_job(kind, key):
+    """The job for (kind, key), or None: running, finished or waiting."""
+    return reading_table(kind).get(key)
+
+
+def _reading_put(kind, key, state):
+    """Put a fresh job into its table and hand back the dict that IS the job
+    (the synonym table's is SYN_JOB itself, emptied and refilled)."""
+    with DECOMPOSITION_LOCK:
+        if kind == "synonyms":
+            SYN_JOB.clear()
+            SYN_JOB.update(state)
+            return SYN_JOB
+        reading_table(kind)[key] = state
+        return state
+
+
+def _reading_drop(kind, key):
+    with DECOMPOSITION_LOCK:
+        if kind == "synonyms":
+            SYN_JOB.clear()
+        else:
+            reading_table(kind).pop(key, None)
+
+
+def reading_check(kind, key):
+    """What is wrong with (kind, key) as something to get, in the words the
+    page shows -- or "" when nothing is.  -> (sentence, HTTP status)"""
+    if kind not in READING_KINDS:
+        return "no such kind of download", 404
+    if kind == "dict":
+        if key not in languages.LANGS:
+            return "no such language", 404
+    elif kind == "components":
+        if key not in decomposition.PACKS:
+            return "unknown decomposition source", 400
+    elif kind in ("corpus", "model"):
+        code, _, gloss = (key or "").partition("-")
+        if code not in languages.LANGS or gloss not in languages.LANGS:
+            return "no such language", 404
+        if code == gloss:
+            return (("a language translated into itself is a copy" if kind == "model" else
+                     "a language glossed in itself has nothing to translate"), 400)
+    elif key:
+        return "there is one synonym table, not one per language", 400
+    return "", 200
+
+
+# which downloader a kind is, and its arguments for (kind, key) -- the same
+# for build() and plan(), as lib/download.py's interface has them
+_reading_module = lookuppage.module_for
+_reading_args = lookuppage.args_for
+
+
+def reading_plan(kind, key, fresh=False):
+    """What getting (kind, key) costs: the downloader's plan() -- download,
+    measured, disk_peak, kept, have -- remembered for PLAN_FOR seconds, so
+    the plan the page showed before the person pressed "get it" is the one
+    the start is checked against, and a size read from the server is read
+    once."""
+    now = time.time()
+    had = PLANS.get((kind, key))
+    if had and not fresh and now - had[0] < PLAN_FOR:
+        return dict(had[1])
+    mod = _reading_module(kind)
+    p = mod.plan(*_reading_args(kind, key), **lookuppage.kwargs_for(kind))
+    PLANS[(kind, key)] = (now, dict(p))
+    return dict(p)
+
+
+def reading_folder(kind):
+    """Where a kind's files go, for the room left on that disk."""
+    return {"dict": lookup.DICT_DIR, "corpus": corpus.CORPUS_DIR, "model": getmt.MT_DIR,
+            "synonyms": getmt.MT_DIR, "components": str(decomposition.DATA_DIR)}[kind]
+
+
+disk_free = lookuppage.disk_free
+
+
+def _mb(n):
+    return ("%.1f GB" % (n / 1e9)) if n >= 1e9 else ("%d MB" % max(1, round(n / 1e6)))
+
+
+def reading_room(kind, key, plan, what=""):
+    """The sentence refusing to start for want of room, or "" -- NEVER START
+    WHAT CANNOT FINISH.  A download that fills the disk half-way through
+    its build leaves a half-built file and a computer with no room for
+    anything else, which is a worse place than not starting."""
+    need = plan.get("disk_peak")
+    if not need:
+        return ""
+    free = disk_free(reading_folder(kind))
+    if free >= need:
+        return ""
+    return ("There is not enough room on this computer: %s needs about %s free while it is "
+            "fetched and built, and %s %s free. Make room and press it again."
+            % (what or "this", _mb(need), _mb(free), "is" if free < 2e6 else "are"))
+
+
+def reading_named(kind, key):
+    """What the page and the activity list call (kind, key)."""
+    if kind == "components":
+        return "the %s component pack" % decomposition.PACKS.get(key, {}).get("name", key)
+    if kind == "synonyms":
+        return "the synonym table"
+    what = {"dict": "dictionary", "corpus": "translated sentences",
+            "model": "translation model"}[kind]
+    return "the %s %s" % (_lang_pair(key), what)
+
+
+def reading_start(kind, key, queue=None, wait=False):
+    """Start getting (kind, key): -> (answer, status).  In a thread of its
+    own, or -- `wait`, for the queue's own worker -- in this one."""
+    bad, status = reading_check(kind, key)
+    if bad:
+        return {"ok": False, "error": bad}, status
+    job = reading_job(kind, key)
+    if job and job.get("running"):
+        return {"ok": True, "already": True}, 200
+    if job and job.get("waiting") and not wait:
+        # pressed directly while it waits in a queue: it goes now, and the
+        # queue skips it
+        with QUEUE_LOCK:
+            if (kind, key) in QUEUE:
+                QUEUE.remove((kind, key))
+    if kind == "corpus":
+        code = key.split("-", 1)[0]
+        if not languages.LANGS[code].spaced and not lookup.available(code):
+            # THE CORPUS OF A LANGUAGE WITH NO WORD SEPARATOR is indexed
+            # through its dictionary's word list (lookuppage.corpora): built
+            # first, it reports itself built and can never match anything
+            return {"ok": False, "error": "%s is written without spaces between its words, "
+                    "so its dictionary comes first: the sentences are cut into words "
+                    "with it" % languages.LANGS[code].name}, 409
+    try:
+        plan = reading_plan(kind, key)
+    except Exception as e:
+        # a plan that cannot be made (offline, a source that moved) must not
+        # stop the download itself: the download will say what is wrong
+        plan = {"download": None, "error": "%s: %s" % (type(e).__name__, e)}
+    refuse = reading_room(kind, key, plan, reading_named(kind, key))
+    if refuse:
+        return {"ok": False, "error": refuse, "plan": plan}, 507
+    state = _reading_put(kind, key, {
+        "running": True, "say": "starting…", "error": "", "started": time.time(),
+        "phase": "download", "done": plan.get("have") or 0, "total": plan.get("download"),
+        "stopped": False, "queue": queue, "waiting": False})
+    cancel = threading.Event()
+    CANCELS[(kind, key)] = cancel
+
+    def progress(done, total=None, phase="download"):
+        state.update(done=done, total=total, phase=phase or state.get("phase"))
+
+    def say(message):
+        state["say"] = str(message).strip()
+
+    def work():
+        import download
+        try:
+            mod = _reading_module(kind)
+            if kind == "synonyms":
+                mod.get(say=say, force=True, progress=progress, cancel=cancel)
+            else:
+                mod.build(*_reading_args(kind, key), say=say, progress=progress, cancel=cancel)
+            state["say"] = "done"
+        except download.Cancelled:
+            state["stopped"] = True
+            state["say"] = "stopped"
+        except SystemExit as e:
+            state["error"] = str(e) or "it stopped"
+        except OSError as e:
+            # a line that dropped, a server that answered badly, a disk that
+            # filled: said in the downloader's own words, which name what
+            # happened -- the name of the exception class would not
+            state["error"] = str(e) or "the connection or the disk failed"
+        except Exception as e:
+            state["error"] = "%s: %s" % (type(e).__name__, e)
+        finally:
+            PLANS.pop((kind, key), None)       # what is on disk has changed
+            CANCELS.pop((kind, key), None)
+            state["finished"] = time.time()
+            state["running"] = False
+
+    if wait:
+        work()
+    else:
+        threading.Thread(target=work, daemon=True).start()
+    return {"ok": True}, 200
+
+
+def reading_stop(kind, key):
+    """Stop (kind, key): a running one is asked to stop between two blocks
+    and keeps what it fetched; one waiting in a queue leaves the queue."""
+    with QUEUE_LOCK:
+        if (kind, key) in QUEUE:
+            QUEUE.remove((kind, key))
+            _reading_drop(kind, key)
+            return True
+    cancel = CANCELS.get((kind, key))
+    if cancel is None:
+        return False
+    cancel.set()
+    return True
+
+
+def reading_jobs():
+    """Every job of the five kinds, copied: {kind: {key: job}}."""
+    with DECOMPOSITION_LOCK:
+        return {kind: {k: dict(v) for k, v in list(reading_table(kind).items())}
+                for kind in READING_KINDS}
+
+
+def queues_now():
+    """Every "get everything", running or finished: {language: entry}."""
+    with QUEUE_LOCK:
+        return {code: dict(q) for code, q in QUEUES.items()}
+
+
+def queue_steps(code, gloss):
+    """What "get everything" for a language fetches, in the order it must:
+    the dictionary first (a corpus of Japanese or Chinese is cut into words
+    with it, and the model's mark reads it), the language's own component
+    pack, then the sentences and the model of the pair it is glossed in.
+    Only what is not here and could be."""
+    steps = []
+    if not lookup.available(code):
+        steps.append(("dict", code))
+    pack = decomposition.PREFERRED.get(code)
+    if pack and not decomposition.about(pack):
+        steps.append(("components", pack))
+    if gloss != code and gloss in languages.LANGS:
+        if not corpus.available(code, gloss):
+            steps.append(("corpus", "%s-%s" % (code, gloss)))
+        if getmt.trainable(code, gloss) and not getmt.available(code, gloss):
+            steps.append(("model", "%s-%s" % (code, gloss)))
+    return steps
+
+
+def queue_plan(code, gloss):
+    """What "get everything" costs, said before it starts: every step's plan,
+    and the sums -- "at least" where a step's size is not known."""
+    steps, total, kept, peak, unknown = [], 0, 0, 0, False
+    for kind, key in queue_steps(code, gloss):
+        try:
+            p = reading_plan(kind, key)
+        except Exception as e:
+            p = {"download": None, "error": "%s: %s" % (type(e).__name__, e)}
+        steps.append({"kind": kind, "key": key, "named": reading_named(kind, key), "plan": p})
+        if p.get("download") is None:
+            unknown = True
+        total += (p.get("download") or 0) - (p.get("have") or 0)
+        kept += p.get("kept") or 0
+        # one at a time: the room needed at once is the largest step's, plus
+        # what the steps before it have left on the disk
+        peak = max(peak, kept - (p.get("kept") or 0) + (p.get("disk_peak") or 0))
+    return {"steps": steps, "download": total, "kept": kept, "disk_peak": peak or None,
+            "at_least": unknown}
+
+
+def queue_start(code, gloss):
+    """Put "get everything" for a language in the queue, and start the
+    worker if it is not running.  ONE AT A TIME, ON THE SERVER: a queue kept
+    by the page would die when a phone locks its screen, and two downloads
+    at once only halve each other's speed."""
+    if code not in languages.LANGS:
+        return {"ok": False, "error": "no such language"}, 404
+    plan = queue_plan(code, gloss)
+    if not plan["steps"]:
+        return {"ok": True, "nothing": True}, 200
+    if plan["disk_peak"]:
+        free = disk_free(reading_folder("dict"))
+        if free < plan["disk_peak"]:
+            return {"ok": False, "plan": plan, "error": reading_room(
+                "dict", code, {"disk_peak": plan["disk_peak"]},
+                "everything for %s" % languages.LANGS[code].name)}, 507
+    with QUEUE_LOCK:
+        added = 0
+        for step in plan["steps"]:
+            kind, key = step["kind"], step["key"]
+            job = reading_job(kind, key)
+            if (kind, key) in QUEUE or (job and job.get("running")):
+                continue
+            QUEUE.append((kind, key))
+            _reading_put(kind, key, {"running": False, "waiting": True, "queue": code,
+                                     "say": "waiting its turn", "error": "",
+                                     "stopped": False})
+            added += 1
+        q = QUEUES.get(code)
+        if not q or not q.get("running"):
+            QUEUES[code] = {"running": True, "started": time.time(), "steps": added,
+                            "done": 0, "error": "", "gloss": gloss}
+        else:
+            q["steps"] += added
+        if not QUEUE_WORKER["running"]:
+            QUEUE_WORKER["running"] = True
+            threading.Thread(target=_queue_work, daemon=True).start()
+    return {"ok": True, "plan": plan}, 200
+
+
+def queue_stop(code):
+    """Stop "get everything" for a language: the steps still waiting leave
+    the queue, and the one running is stopped."""
+    with QUEUE_LOCK:
+        for kind, key in [s for s in QUEUE if (reading_job(*s) or {}).get("queue") == code]:
+            QUEUE.remove((kind, key))
+            _reading_drop(kind, key)
+    for (kind, key), cancel in list(CANCELS.items()):
+        if (reading_job(kind, key) or {}).get("queue") == code:
+            cancel.set()
+    q = QUEUES.get(code)
+    if q and q.get("running"):
+        q["stopped"] = True
+    return True
+
+
+def _queue_work():
+    """The queue's one worker: a step at a time, until none is left."""
+    while True:
+        with QUEUE_LOCK:
+            if not QUEUE:
+                QUEUE_WORKER["running"] = False
+                for q in QUEUES.values():
+                    if q.get("running"):
+                        q["running"] = False
+                        q["finished"] = time.time()
+                return
+            kind, key = QUEUE.pop(0)
+        code = (reading_job(kind, key) or {}).get("queue")
+        q = QUEUES.get(code) or {}
+        q["now"] = reading_named(kind, key)
+        answer, _ = reading_start(kind, key, queue=code, wait=True)
+        job = reading_job(kind, key) or {}
+        if not answer.get("ok"):
+            # refused before it started (no room, a corpus before its
+            # dictionary): said in the row, and the rest of the queue goes on
+            _reading_put(kind, key, {"running": False, "error": answer.get("error"),
+                                     "queue": code, "started": time.time(),
+                                     "finished": time.time()})
+            q["error"] = answer.get("error") or ""
+        elif job.get("error"):
+            q["error"] = job["error"]
+        q["done"] = q.get("done", 0) + 1
+        with QUEUE_LOCK:
+            if code and not any((reading_job(*s) or {}).get("queue") == code for s in QUEUE):
+                q["running"] = False
+                q["finished"] = time.time()
 
 
 # ------------------------------------------------------------------ activity
@@ -1510,6 +2198,11 @@ def long_work(method, path, query, length=0):
         if path.rstrip("/").endswith("/__region/apply"):
             # one edit a chunk, then the reader built again
             return "build", "Glossing part of %s from an LLM's answer" % _book_named(path), None
+        if path.rstrip("/").endswith("/__clip/estimate"):
+            # seconds for an hour of a recording, and up to a minute for four:
+            # long enough to be on the list, where a page elsewhere sees it
+            return "narration", "Estimating the timings of %s by the sound" % (
+                _book_named(path)), None
         return None
     if path == yt + "/api/upload":
         return "upload", "Uploading " + file, "installing"
@@ -1523,6 +2216,8 @@ def long_work(method, path, query, length=0):
         return "compile", "Preparing the prompt for a video", None
     if path == yt + "/api/region/apply":
         return "install", "Glossing part of a video from an LLM's answer", None
+    if path == yt + "/api/estimate":
+        return "narration", "Estimating a video's timings by the sound", None
     if path == "/anki/sync/upload":
         return "upload", "Uploading %s to the Anki inbox" % file, "saving"
     if path == "/anki/sync/run":
@@ -1532,7 +2227,7 @@ def long_work(method, path, query, length=0):
     return None
 
 
-# what each of the lookup page's job tables is called on the list: its
+# what each of the reading help's job tables is called on the list: its
 # name among the entries, and the sentence (%s is the language, the pair or
 # the pack).  The tables are read afresh each time, never copied.
 LOOKUP_WORK = (
@@ -1637,14 +2332,37 @@ def activity_now():
             if not job.get("started") or not (running or job.get("finished")) \
                     or (not running and now - job["finished"] > activity.KEEP):
                 continue
+            if job.get("queue"):
+                continue                # "get everything" is one entry, below
             what = (decomposition.PACKS.get(key, {}).get("name", key)
                     if name == "components" else _lang_pair(key))
             extra.append(activity.entry(
                 "lookup:%s:%s@%.3f" % (name, key, job["started"]), "lookup",
                 say % what if "%s" in say else say, job["started"],
-                stage=job.get("say") or None, page="/lookup/",
+                done=job.get("done") if running else None,
+                total=job.get("total") if running else None,
+                stage=job.get("say") or None, page=READING_HELP,
                 finished=None if running else job.get("finished"),
-                ok=not job.get("error")))
+                # a download the person stopped did not fail, and did not
+                # finish either: not "Done"
+                ok=not job.get("error") and not job.get("stopped")))
+    # "GET EVERYTHING" FOR A LANGUAGE, as one entry: its steps run one after
+    # another in the queue's worker, and a list that named each would flicker
+    # from one to the next; this one says which it is on
+    for code, q in queues_now().items():
+        running = bool(q.get("running"))
+        if not q.get("started") or (not running and now - (q.get("finished") or 0)
+                                    > activity.KEEP):
+            continue
+        L = languages.LANGS.get(code)
+        extra.append(activity.entry(
+            "lookup:all:%s@%.3f" % (code, q["started"]), "lookup",
+            "Getting everything for %s" % (L.name if L else code), q["started"],
+            stage=("%d of %d: %s" % (min(q.get("done", 0) + 1, q.get("steps") or 1),
+                                     q.get("steps") or 1, q.get("now") or "")
+                   if running else None),
+            page=READING_HELP, finished=None if running else q.get("finished"),
+            ok=not q.get("error") and not q.get("stopped")))
     return dict(activity.snapshot(extra), ok=True)
 
 
@@ -1659,7 +2377,9 @@ class _BadBody(json.JSONDecodeError):
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = NAME + "/1.0"
+    # the name and the version, "Parseh/<version>", as a bundle's "software"
+    # says it (lib/bundle.py SOFTWARE), from the one VERSION file
+    server_version = NAME + "/" + version.VERSION
     protocol_version = "HTTP/1.1"       # keep-alive: one TLS handshake per tab
     timeout = 90                        # an idle keep-alive connection is reaped
 
@@ -2032,6 +2752,18 @@ class Handler(SimpleHTTPRequestHandler):
         `finally`, after the last byte of the answer has been written, so a
         download is on it while it is packed and while it is sent."""
         self._act, self._after, self._status, self._failed = None, None, 0, False
+        if method not in crosssite.SAFE:
+            # ONLY PARSEH'S OWN PAGES MAY WRITE (lib/crosssite.py, §3.1): a
+            # page on another site, open in this computer's browser, could
+            # otherwise stop the server, delete a book or replace Parseh
+            # itself.  Asked here, once, for every verb that is not a read
+            # and every route, before the body is read or the request put
+            # on the activity list; the body is left unread, so the
+            # connection is not used again.
+            crossed = crosssite.refusal(self.headers)
+            if crossed:
+                self.close_connection = True
+                return self.send_json({"ok": False, "error": crossed}, 403)
         if method != "HEAD":
             try:
                 parsed = urllib.parse.urlsplit(self.path)
@@ -2282,10 +3014,24 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_bytes(notices.licence_text(), "text/plain; charset=utf-8")
-        if path in ("/lookup", "/lookup/"):
-            if method != "GET":
+        if path in ("/lookup", "/lookup/", "/lookup/index.html"):
+            # THE READING HELP'S OLD ADDRESS, ANSWERED FOREVER (TO-DO §11.10,
+            # the owner, 2026-09-24).  The page moved into Settings, but the
+            # old address is baked into every reader built before the move
+            # and into every copy a phone keeps, and nobody can tell when the
+            # last of them has been rebuilt.  A 302 and not a 301: a 301 is
+            # remembered by the browser for good, which would make a later
+            # change of mind stick on every phone.  The Location carries no
+            # fragment, so the browser keeps the one it was given
+            # (/lookup/#character-components lands on the same section).
+            # The API below stays where it is: a redirect turns a POST into
+            # a GET and drops its body.
+            if method not in ("GET", "HEAD"):
                 return self._method_not_allowed()
-            return self.send_html(lookuppage.page())
+            where = READING_HELP
+            if self.query:
+                where += "?" + urllib.parse.urlencode(self.query, doseq=True)
+            return self._redirect(where)
         if path.startswith("/lookup/api/"):
             if method != "POST":
                 return self._method_not_allowed()
@@ -2384,9 +3130,11 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/sw.js":
             if method != "GET":
                 return self._method_not_allowed()
-            with open(os.path.join(LIB, "sw.js"), "rb") as f:
-                return self.send_bytes(f.read(), "text/javascript; charset=utf-8",
-                                       extra={"Cache-Control": "no-cache"})
+            # WITH THIS RELEASE WRITTEN INTO IT (mobile.worker): new bytes for
+            # every release, so every phone takes a new worker, and hears
+            # that Parseh was updated, the next time it reaches the computer
+            return self.send_bytes(mobile.worker(), "text/javascript; charset=utf-8",
+                                   extra={"Cache-Control": "no-cache"})
         # AN IPHONE'S OWN PLACE FOR THE ICON.  Safari takes the tag a page
         # carries (lib/mobile.py app_head), and where a page carries none it
         # asks the top of the site for these two names.  Both are the one
@@ -2924,15 +3672,37 @@ class Handler(SimpleHTTPRequestHandler):
                                "python": sys.executable})
 
     def _lookup_api(self, what):
-        """What the /lookup/ page asks: list the dictionaries, build one,
-        throw one away.
+        """What the reading help asks (/settings/reading-help/, lib/lookuppage.py):
+        how things stand, what getting one would cost, get it, stop it, throw
+        it away -- and the Kanji/Hanzi dialog's own read, decompose.
 
-        The whole of what `python3 lib/getdict.py <code>` did, which is the
-        right comparison, because a command nobody finds is a feature nobody
-        has.  Building runs in a thread and reports through DICT_JOBS, so the
-        page can draw a bar rather than a hung request.
+        The whole of what `python3 lib/getdict.py <code>` and its four
+        siblings did, which is the right comparison, because a command nobody
+        finds is a feature nobody has.  A download runs in a thread and
+        reports into its job table (reading_start), so the page can draw a bar
+        rather than a hung request.  WHO MAY is asked first, of the table in
+        lib/settingspage.py, like every route under /settings/api/.
         """
+        if self._refused("/lookup/api/" + what):
+            return
         body = self._json_body()
+        if what == "status":
+            return self.send_json(dict(lookuppage.view(self._reading_state(), reading_jobs(),
+                                                       queues_now()), ok=True))
+        if what == "plan":
+            return self._reading_plan(body)
+        if what == "getall":
+            answer, status = queue_start(str(body.get("code") or ""),
+                                         str(body.get("gloss") or "en"))
+            return self.send_json(answer, status)
+        if what == "stop":
+            if body.get("all"):
+                queue_stop(str(body["all"]))
+                return self.send_json({"ok": True})
+            kind, key = str(body.get("kind") or ""), str(body.get("key") or "")
+            if kind not in READING_KINDS:
+                return self.send_json({"ok": False, "error": "no such kind of download"}, 404)
+            return self.send_json({"ok": True, "stopped": reading_stop(kind, key)})
         if what == "decompositions":
             with DECOMPOSITION_LOCK:
                 jobs = {key: dict(value) for key, value in DECOMPOSITION_JOBS.items()}
@@ -2942,270 +3712,121 @@ class Handler(SimpleHTTPRequestHandler):
                 result = decomposition.character_tree(body.get("code"), body.get("character"))
             except (ValueError, TypeError):
                 return self.send_json({"ok": False, "error": "select one Japanese or Chinese character"}, 400)
-            except (OSError, sqlite3.Error) as e:
+            except (OSError, sqlite3.Error):
                 return self.send_json({"ok": False, "error": "The local component data could not be read. Reinstall it from setup."}, 500)
             return self.send_json(result)
-        if what in ("getdecomposition", "dropdecomposition"):
-            source = body.get("source")
-            if not isinstance(source, str) or source not in decomposition.PACKS:
-                return self.send_json({"ok": False, "error": "unknown decomposition source"}, 400)
-            with DECOMPOSITION_LOCK:
-                if DECOMPOSITION_JOBS.get(source, {}).get("running"):
-                    return self.send_json({"ok": False, "error": "this component pack is being installed"}, 409)
-                if what == "dropdecomposition":
-                    try:
-                        decomposition.path_for(source).unlink(missing_ok=True)
-                    except OSError as e:
-                        return self.send_json({"ok": False, "error": str(e)}, 500)
-                    DECOMPOSITION_JOBS.pop(source, None)
-                    return self.send_json({"ok": True})
-                state = {"running": True, "say": "Starting…", "error": "",
-                         "started": time.time()}
-                DECOMPOSITION_JOBS[source] = state
-
-            def work():
-                import getdecomposition
-                def update(**values):
-                    with DECOMPOSITION_LOCK:
-                        state.update(values)
-                try:
-                    getdecomposition.build(source, say=lambda message: update(say=message))
-                except Exception as e:
-                    update(error=str(e))
-                finally:
-                    update(running=False, finished=time.time())
-            threading.Thread(target=work, daemon=True).start()
-            return self.send_json({"ok": True})
         if what == "models":
             return self.send_json({"ok": True,
                                    "models": lookuppage.models(),
                                    "engine": getmt.engine_ready(),
                                    "jobs": dict(MT_JOBS)})
-        if what == "getmodel":
-            return self._getmodel(body.get("code") or "", body.get("gloss") or "en")
-        if what == "dropmodel":
-            code = (body.get("code") or "").strip()
-            gloss = (body.get("gloss") or "").strip()
-            if code not in languages.LANGS or gloss not in languages.LANGS:
-                return self.send_json({"ok": False, "error": "no such language"}, 404)
-            job = MT_JOBS.get("%s-%s" % (code, gloss))
-            if job and job.get("running"):
-                return self.send_json({"ok": False, "error":
-                                       "it is being fetched right now"}, 409)
-            d = getmt.path_for(code, gloss)
-            try:
-                if os.path.isdir(d):
-                    for n in os.listdir(d):
-                        os.unlink(os.path.join(d, n))
-                    os.rmdir(d)
-            except OSError as e:
-                return self.send_json({"ok": False, "error": str(e)}, 500)
-            return self.send_json({"ok": True})
         if what == "corpora":
             return self.send_json({"ok": True,
                                    "corpora": lookuppage.corpora(),
                                    "jobs": dict(CORPUS_JOBS)})
-        if what == "getcorpus":
-            return self._getcorpus(body.get("code") or "",
-                                   body.get("gloss") or "en")
-        if what == "dropcorpus":
-            code = (body.get("code") or "").strip()
-            gloss = (body.get("gloss") or "").strip()
-            if code not in languages.LANGS or gloss not in languages.LANGS:
-                return self.send_json({"ok": False, "error": "no such language"}, 404)
-            job = CORPUS_JOBS.get("%s-%s" % (code, gloss))
-            if job and job.get("running"):
-                return self.send_json({"ok": False, "error":
-                                       "it is being built right now"}, 409)
-            try:
-                p = corpus.path_for(code, gloss)
-                if os.path.isfile(p):
-                    os.unlink(p)
-            except OSError as e:
-                return self.send_json({"ok": False, "error": str(e)}, 500)
-            return self.send_json({"ok": True})
         if what == "syn":
             return self.send_json({"ok": True, "syn": lookuppage.synonym_table(),
                                    "job": dict(SYN_JOB)})
-        if what == "getsyn":
-            return self._getsyn()
-        if what == "dropsyn":
-            if SYN_JOB.get("running"):
-                return self.send_json({"ok": False, "error":
-                                       "it is being fetched right now"}, 409)
-            try:
-                import getsyn
-                getsyn.remove()
-            except OSError as e:
-                return self.send_json({"ok": False, "error": str(e)}, 500)
-            return self.send_json({"ok": True})
         if what == "dicts":
             return self.send_json({"ok": True, "dicts": lookuppage.dictionaries(),
                                    "jobs": dict(DICT_JOBS)})
-        if what == "getdict":
-            return self._getdict(body.get("code") or "")
-        if what == "dropdict":
-            code = (body.get("code") or "").strip()
+        # getting and removing: the same five kinds, each named by the body
+        # its page has always sent
+        kind, key = self._reading_key(what, body)
+        if kind is None:
+            return self.send_json({"ok": False, "error": "nothing to POST here"}, 404)
+        if what.startswith("get"):
+            answer, status = reading_start(kind, key)
+            return self.send_json(answer, status)
+        return self._reading_remove(kind, key)
+
+    @staticmethod
+    def _reading_key(what, body):
+        """(kind, key) for a get/drop route and its body; (None, None) for a
+        route that is neither."""
+        code = str(body.get("code") or "").strip()
+        gloss = str(body.get("gloss") or "en").strip()
+        for kind, get, drop in (("dict", "getdict", "dropdict"),
+                                ("corpus", "getcorpus", "dropcorpus"),
+                                ("model", "getmodel", "dropmodel"),
+                                ("components", "getdecomposition", "dropdecomposition"),
+                                ("synonyms", "getsyn", "dropsyn")):
+            if what in (get, drop):
+                if kind == "dict":
+                    return kind, code
+                if kind == "components":
+                    source = body.get("source")
+                    return kind, source if isinstance(source, str) else ""
+                if kind == "synonyms":
+                    return kind, ""
+                return kind, "%s-%s" % (code, gloss)
+        return None, None
+
+    def _reading_plan(self, body):
+        """What getting something would cost, said BEFORE it starts: its
+        download, what it keeps, the room it needs at once, the room there
+        is -- and, where there is not enough, the sentence refusing it."""
+        if body.get("all"):
+            code, gloss = str(body.get("all")), str(body.get("gloss") or "en")
             if code not in languages.LANGS:
                 return self.send_json({"ok": False, "error": "no such language"}, 404)
-            # the page hides the button while a build runs; this is the other
-            # half of that, because deleting a file being written to is a
-            # half-built dictionary that reports itself as whole
-            job = DICT_JOBS.get(code)
-            if job and job.get("running"):
-                return self.send_json({"ok": False, "error":
-                                       "it is being built right now"}, 409)
-            try:
-                p = lookup.path_for(code)
+            plan = queue_plan(code, gloss)
+            free = disk_free(reading_folder("dict"))
+            room = "" if not plan["disk_peak"] or free >= plan["disk_peak"] else reading_room(
+                "dict", code, {"disk_peak": plan["disk_peak"]},
+                "everything for %s" % languages.LANGS[code].name)
+            return self.send_json(dict(plan, ok=True, free=free, room=room))
+        kind, key = str(body.get("kind") or ""), str(body.get("key") or "")
+        bad, status = reading_check(kind, key)
+        if bad:
+            return self.send_json({"ok": False, "error": bad}, status)
+        try:
+            plan = reading_plan(kind, key, fresh=bool(body.get("fresh")))
+        except Exception as e:
+            return self.send_json({"ok": False, "error": "%s could not say how big it is: "
+                                   "%s" % (NAME, e)}, 502)
+        named = reading_named(kind, key)
+        return self.send_json(dict(plan, ok=True, named=named,
+                                   free=disk_free(reading_folder(kind)),
+                                   room=reading_room(kind, key, plan, named)))
+
+    def _reading_remove(self, kind, key):
+        """Throw one away.  Refused while it is being fetched or waits its
+        turn, because deleting a file being written is a half-built one that
+        reports itself as whole."""
+        bad, status = reading_check(kind, key)
+        if bad:
+            return self.send_json({"ok": False, "error": bad}, status)
+        job = reading_job(kind, key) or {}
+        if job.get("running"):
+            return self.send_json({"ok": False, "error": "it is being fetched right now"}, 409)
+        if job.get("waiting"):
+            return self.send_json({"ok": False, "error": "it is waiting its turn to be "
+                                   "fetched: stop that first"}, 409)
+        try:
+            if kind == "dict":
+                p = lookup.path_for(key)
                 if os.path.isfile(p):
                     os.unlink(p)
-            except OSError as e:
-                return self.send_json({"ok": False, "error": str(e)}, 500)
-            return self.send_json({"ok": True})
-        return self.send_json({"ok": False, "error": "nothing to POST here"}, 404)
-
-    def _getdict(self, code):
-        """Fetch and build one language's dictionary, in the background.
-
-        It is a download of tens of megabytes and a minute or two of work, so
-        it cannot be done inside a request: the thread reports into DICT_JOBS
-        and the page polls.  One at a time per language, because pressing the
-        button twice should not fetch it twice.
-        """
-        code = (code or "").strip()
-        if code not in languages.LANGS:
-            return self.send_json({"ok": False, "error": "no such language"}, 404)
-        job = DICT_JOBS.get(code)
-        if job and job.get("running"):
-            return self.send_json({"ok": True, "already": True})
-
-        def work():
-            import getdict
-            state = {"running": True, "say": "starting…", "error": "",
-                     "started": time.time()}
-            DICT_JOBS[code] = state
-            try:
-                getdict.build(code, say=lambda m: state.__setitem__("say", m.strip()))
-                state["say"] = "done"
-            except SystemExit as e:
-                state["error"] = str(e)
-            except Exception as e:
-                state["error"] = "%s: %s" % (type(e).__name__, e)
-            finally:
-                state["finished"] = time.time()
-                state["running"] = False
-
-        threading.Thread(target=work, daemon=True).start()
-        return self.send_json({"ok": True})
-
-    def _getsyn(self):
-        """Fetch and build the aligner's synonym table, in the background.
-
-        The same arrangement as _getdict, with no code and no gloss: there
-        is one file, not one per language, so there is one job to poll
-        rather than a dict of them.
-        """
-        if SYN_JOB.get("running"):
-            return self.send_json({"ok": True, "already": True})
-
-        def work():
-            import getsyn
-            state = {"running": True, "say": "starting…", "error": "",
-                     "started": time.time()}
-            SYN_JOB.clear()
-            SYN_JOB.update(state)
-            try:
-                getsyn.get(say=lambda m: SYN_JOB.__setitem__("say", m.strip()),
-                          force=True)
-                SYN_JOB["say"] = "done"
-            except SystemExit as e:
-                SYN_JOB["error"] = str(e)
-            except Exception as e:
-                SYN_JOB["error"] = "%s: %s" % (type(e).__name__, e)
-            finally:
-                SYN_JOB["finished"] = time.time()
-                SYN_JOB["running"] = False
-
-        threading.Thread(target=work, daemon=True).start()
-        return self.send_json({"ok": True})
-
-    def _getmodel(self, code, gloss):
-        """Fetch one pair's translation model, in the background.
-
-        Twenty megabytes and an engine of five, so it cannot happen inside a
-        request; the same job table and the same polling as the dictionaries.
-        """
-        code = (code or "").strip()
-        gloss = (gloss or "").strip()
-        if code not in languages.LANGS or gloss not in languages.LANGS:
-            return self.send_json({"ok": False, "error": "no such language"}, 404)
-        if code == gloss:
-            return self.send_json({"ok": False, "error":
-                                   "a language translated into itself is a copy"},
-                                  400)
-        key = "%s-%s" % (code, gloss)
-        job = MT_JOBS.get(key)
-        if job and job.get("running"):
-            return self.send_json({"ok": True, "already": True})
-
-        def work():
-            state = {"running": True, "say": "starting…", "error": "",
-                     "started": time.time()}
-            MT_JOBS[key] = state
-            try:
-                getmt.build(code, gloss,
-                            say=lambda m: state.__setitem__("say", m.strip()))
-                state["say"] = "done"
-            except SystemExit as e:
-                state["error"] = str(e)
-            except Exception as e:
-                state["error"] = "%s: %s" % (type(e).__name__, e)
-            finally:
-                state["finished"] = time.time()
-                state["running"] = False
-
-        threading.Thread(target=work, daemon=True).start()
-        return self.send_json({"ok": True})
-
-    def _getcorpus(self, code, gloss):
-        """Fetch and build one pair's corpus, in the background.
-
-        The same arrangement as _getdict and for the same reason -- the
-        English export alone is 25 MB and has to be read through -- with the
-        pair as the key, because Persian glossed in English and Persian
-        glossed in Italian are two different files.
-        """
-        code = (code or "").strip()
-        gloss = (gloss or "").strip()
-        if code not in languages.LANGS or gloss not in languages.LANGS:
-            return self.send_json({"ok": False, "error": "no such language"}, 404)
-        if code == gloss:
-            return self.send_json({"ok": False, "error":
-                                   "a language glossed in itself has nothing "
-                                   "to translate"}, 400)
-        key = "%s-%s" % (code, gloss)
-        job = CORPUS_JOBS.get(key)
-        if job and job.get("running"):
-            return self.send_json({"ok": True, "already": True})
-
-        def work():
-            import getcorpus
-            state = {"running": True, "say": "starting…", "error": "",
-                     "started": time.time()}
-            CORPUS_JOBS[key] = state
-            try:
-                getcorpus.build(code, gloss,
-                                say=lambda m: state.__setitem__("say", m.strip()))
-                state["say"] = "done"
-            except SystemExit as e:
-                state["error"] = str(e)
-            except Exception as e:
-                state["error"] = "%s: %s" % (type(e).__name__, e)
-            finally:
-                state["finished"] = time.time()
-                state["running"] = False
-
-        threading.Thread(target=work, daemon=True).start()
+            elif kind == "corpus":
+                p = corpus.path_for(*key.split("-", 1))
+                if os.path.isfile(p):
+                    os.unlink(p)
+            elif kind == "model":
+                d = getmt.path_for(*key.split("-", 1))
+                if os.path.isdir(d):
+                    for n in os.listdir(d):
+                        os.unlink(os.path.join(d, n))
+                    os.rmdir(d)
+            elif kind == "components":
+                decomposition.path_for(key).unlink(missing_ok=True)
+            else:
+                import getsyn
+                getsyn.remove()
+        except OSError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 500)
+        _reading_drop(kind, key)
+        PLANS.pop((kind, key), None)
         return self.send_json({"ok": True})
 
     # ---- the notes beside a book or a video, under their own prefix
@@ -3337,6 +3958,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._video_clip("cut")
             if sub == "/api/peaks":
                 return self._video_clip("peaks")
+            if sub == "/api/estimate":
+                return self._video_estimate()
             if sub == "/api/lookup":
                 body = self._json_body()
                 d = self._video_dir(body.get("video") or "")
@@ -3593,6 +4216,26 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": False, "error": "%s: %s" % (type(e).__name__, e)}, 400)
         self.send_json({"ok": True, "html": doc["html"]})
 
+    def _book_recording(self, b, body):
+        """(the recording a book's clip door names, None), or (None, the
+        refusal already sent): by its id (`n1`...), none named being the
+        first, and only a file that is on this machine."""
+        nid = body.get("narration") or ""
+        if not isinstance(nid, str):
+            self.send_json({"ok": False, "error": "narration is a recording's id"}, 400)
+            return None, True
+        recs = b.narrations
+        rec = b.narration(nid) if nid else (recs[0] if recs else None)
+        if rec is None:
+            self.send_json({"ok": False, "error": "this book has no recording %s"
+                            % (repr(nid) if nid else "at all")}, 400)
+            return None, True
+        if not rec["audio"] or not os.path.isfile(rec["audio"]):
+            self.send_json({"ok": False, "error": "the recording %s is not on this machine"
+                            % (rec["audio_rel"] or rec["id"])}, 400)
+            return None, True
+        return rec, None
+
     def _book_clip(self, what):
         """`<reader>/__clip/cut` and `__clip/peaks`: one of the book's own
         recordings, named by its id (`n1`...; none named is the first), cut
@@ -3601,17 +4244,9 @@ class Handler(SimpleHTTPRequestHandler):
         if not b:
             return self.send_json({"ok": False, "error": "no book here"}, 404)
         body = self._json_body()
-        nid = body.get("narration") or ""
-        if not isinstance(nid, str):
-            return self.send_json({"ok": False, "error": "narration is a recording's id"}, 400)
-        recs = b.narrations
-        rec = b.narration(nid) if nid else (recs[0] if recs else None)
-        if rec is None:
-            return self.send_json({"ok": False, "error": "this book has no recording %s"
-                                   % (repr(nid) if nid else "at all")}, 400)
-        if not rec["audio"] or not os.path.isfile(rec["audio"]):
-            return self.send_json({"ok": False, "error": "the recording %s is not on this machine"
-                                   % (rec["audio_rel"] or rec["id"])}, 400)
+        rec, refused = self._book_recording(b, body)
+        if refused:
+            return None
         where = "/" + os.path.relpath(b.dir, ROOT).replace(os.sep, "/")
         return self._clip_from(what, rec["audio"], body, b.lang.code,
                                {"kind": "book", "book": where, "narration": rec["id"],
@@ -3674,6 +4309,119 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": False, "error": str(e)}, 400)
         self.send_json({"ok": True, "clip": rec}, 201)
 
+    # ---- "estimate the rest" by the sound: the two doors, and what they share
+    def _book_estimate(self):
+        """`<reader>/__clip/estimate`: the pieces after the line in hand laid
+        through the sound of one of the book's recordings -- the one
+        `__clip/peaks` draws, found the same way.
+
+            {narration, start, end, texts, kind}  ->  {ok, pieces: [{t0, t1, ...}], ...}"""
+        b = self._narration_book()
+        if not b:
+            return self.send_json({"ok": False, "error": "no book here"}, 404)
+        body = self._json_body()
+        rec, refused = self._book_recording(b, body)
+        if refused:
+            return None
+        return self._estimate(body, "span", src=rec["audio"])
+
+    def _video_estimate(self):
+        """`/youtube/api/estimate`: the same for a video's captions.  A film on
+        this machine is read with ffmpeg, as its strip is; a YouTube video has
+        only the picture of its sound a tab recorded (waveform.json), which
+        the page sends as `wave` -- the slice it holds -- or which is read off
+        the shelf when the page sent none."""
+        body = self._json_body()
+        vid = body.get("video")
+        d = self._video_dir(vid if isinstance(vid, str) else "")
+        if not d:
+            return self.send_json({"ok": False, "error": "no such video"}, 404)
+        film = bundle.film_at(d)
+        if film:
+            return self._estimate(body, "point", src=os.path.join(d, film))
+        return self._estimate(body, "point", shelf=d)
+
+    def _estimate(self, body, kind, src=None, shelf=None):
+        """Read the picture of the sound of [start, end] -- from `src` with
+        ffmpeg, or from a recorded waveform (the page's, else the one on the
+        shelf at `shelf`) -- hand it and the texts to lib/wavealign.py, and
+        answer the pieces with their times made absolute.
+
+        Refused, in this order: what was asked (400), then what this machine
+        cannot do (409) -- NumPy first, because it is the cheaper to ask and
+        a request refused for it should not have decoded an hour first; then
+        another estimate already running (409, at once: ESTIMATE_SLOTS)."""
+        ask, why = estimate_request(body, kind)
+        if why:
+            return self.send_json({"ok": False, "error": why}, 400)
+        engine, missing = load_wavealign()
+        if engine is None:
+            return self.send_json({"ok": False, "error": missing}, 409)
+        start, end = ask["start"], ask["end"]
+        if not ESTIMATE_SLOTS.acquire(blocking=False):
+            return self.send_json({"ok": False, "error": ESTIMATE_BUSY}, 409)
+        try:
+            times = None
+            if src:
+                if not audiofile.have_ffmpeg():
+                    return self.send_json({"ok": False, "error":
+                                           "there is no picture of the sound to estimate from: "
+                                           "ffmpeg, which reads the recording, is not installed "
+                                           "on this computer"}, 409)
+                try:
+                    values = audiofile.envelope(src, start, end, ESTIMATE_RATE)
+                except audiofile.AudioError as e:
+                    return self.send_json({"ok": False, "error": str(e)}, 400)
+            else:
+                wave = ask["wave"] or self._shelf_wave(shelf)
+                if not wave:
+                    return self.send_json({"ok": False, "error":
+                                           "there is no picture of this video's sound yet: draw "
+                                           "it first (“● draw the sound”, in the "
+                                           "timings), then estimate by the sound"}, 409)
+                values, times = wave_slice(wave, start, end)
+                if not values:
+                    # a picture is recorded once and whole ("● draw the
+                    # sound" is gone once there is one), so the only way
+                    # out left to offer is the other way of estimating
+                    return self.send_json({"ok": False, "error": NO_WAVE_HERE}, 409)
+            try:
+                res = engine.estimate_pieces(values, end - start, ask["texts"], ask["kind"],
+                                             sample_times=times)
+            except ValueError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 400)
+            except MemoryError:
+                # the one failure that says what to do: a shorter stretch
+                return self.send_json({"ok": False, "error":
+                                       "this stretch is too long to estimate by the sound at "
+                                       "once: estimate from a line nearer the end, or by the "
+                                       "text"}, 409)
+            except Exception as e:
+                traceback.print_exc()
+                return self.send_json({"ok": False, "error":
+                                       "the estimate failed: %s" % e}, 500)
+        finally:
+            ESTIMATE_SLOTS.release()
+        if len(res.get("pieces") or []) != len(ask["texts"]):
+            return self.send_json({"ok": False, "error":
+                                   "the estimate did not come back with one time for each "
+                                   "piece"}, 500)
+        return self.send_json(estimate_answer(res, start, end, ask["kind"]))
+
+    def _shelf_wave(self, d):
+        """The waveform a tab recorded for a YouTube video, kept beside it
+        (_video_waveform), as {rate, start, peaks} -- or None."""
+        try:
+            with io.open(os.path.join(d, "waveform.json"), encoding="utf-8") as f:
+                w = json.load(f)
+        except (OSError, ValueError, TypeError):
+            return None
+        rate = clips.number(w.get("rate")) if isinstance(w, dict) else None
+        peaks = w.get("peaks") if isinstance(w, dict) else None
+        if rate is None or not 1 <= rate <= 200 or not isinstance(peaks, list) or not peaks:
+            return None
+        return {"rate": rate, "start": 0.0, "peaks": peaks}
+
     # ---- the book reader's two writes
     def _books_post(self, path):
         p = path.rstrip("/")
@@ -3715,6 +4463,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._book_clip("cut")
         if p.endswith("__clip/peaks"):
             return self._book_clip("peaks")
+        if p.endswith("__clip/estimate"):
+            return self._book_estimate()
         if p.endswith("__lookup"):
             book = self._book_dir()
             if not book:
@@ -5321,13 +6071,40 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/settings/":
             if method != "GET":
                 return self._method_not_allowed()
-            return self.send_html(settingspage.hub())
+            return self.send_html(settingspage.hub(dict_tags(), updatepage.door_tags(ROOT)))
         if path in ("/settings/network", "/settings/network/index.html"):
             return self._redirect("/settings/network/")
         if path == "/settings/network/":
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(settingspage.network_page(self._network_state()))
+        if path in ("/settings/reading-help", "/settings/reading-help/index.html"):
+            return self._redirect(READING_HELP)
+        if path == READING_HELP:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(lookuppage.page(self._reading_state(), reading_jobs(),
+                                                  queues_now()))
+        if path in ("/settings/update", "/settings/update/index.html"):
+            return self._redirect(UPDATE_PAGE)
+        if path == UPDATE_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(updatepage.page(updater.plan(ROOT), updater.settings(ROOT),
+                                                  updater.state(ROOT), self._where(),
+                                                  update_fetch_now()))
+        if path.startswith("/settings/api/") and method == "POST":
+            # WHO MAY IS A PROPERTY OF THE SETTING (TO-DO §11.10, the owner,
+            # 2026-09-24), and the table in lib/settingspage.py says it for
+            # every route here -- asked before anything is done.  A phone may
+            # read the Network page (it is useful to see which door let you in
+            # from the device that came through it), but one device that has
+            # been let in must never be able to let the whole network in, or
+            # to move the port out from under the others.  A route the table
+            # does not name is refused for everybody.
+            refused = self._refused(path)
+            if refused:
+                return refused
         if path == "/settings/api/ping":
             # THE ONE ROUTE A MOVING PAGE KNOCKS AT.  After a re-bind the
             # page that saved is on an address that no longer answers; it
@@ -5339,21 +6116,13 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "POST":
                 return self._method_not_allowed()
             return self._pair()
+        if path in UPDATE_ROUTES:
+            return self._update_api(method, path)
         if path not in ("/settings/api/network", "/settings/api/code",
                         "/settings/api/forget"):
             return self._not_found()
         if method != "POST":
             return self._method_not_allowed()
-        # FROM HERE ON, THE COMPUTER ITSELF ONLY (the owner's decision of
-        # 2026-09-23).  A phone may read the page -- it is useful to see
-        # which door let you in from the device that came through it -- but
-        # one device that has been let in must never be able to let the whole
-        # network in, or to move the port out from under the others.
-        if not network.may_save((self.client_address or ("",))[0]):
-            return self.send_json(
-                {"ok": False, "error": "the network settings are changed on the "
-                 "computer Parseh runs on, and nowhere else. This page is showing "
-                 "you how they stand."}, 403)
         if path == "/settings/api/network":
             return self._settings_save()
         if path == "/settings/api/code":
@@ -5366,13 +6135,193 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": True, "forgotten": gone})
         return self._not_found()
 
+    # ------------------------------------------------------------ updating Parseh
+    def _update_api(self, method, path):
+        """Settings > Updating Parseh (TO-DO §13.16).  Every POST here has
+        been held to lib/settingspage.py's table already (_refused); the two
+        reads are open to any device let in."""
+        if path in ("/settings/api/update/state", "/settings/api/update/plan"):
+            if method != "GET":
+                return self._method_not_allowed()
+            if path == "/settings/api/update/plan":
+                return self.send_json(dict(updater.plan(ROOT), ok=True))
+            st = updater.state(ROOT)
+            if st.get("phase") == "done":
+                # a server that answers has started: the one step the helper
+                # could not mark when the launcher's window starts it
+                for s in st.get("steps") or []:
+                    if s.get("id") == "start" and s.get("state") != "done":
+                        s.update(state="done", detail="running again")
+            return self.send_json(updatepage.state_json(
+                {"candidate": updater.candidate(ROOT), "busy": updater.running(ROOT)},
+                updater.settings(ROOT), st, update_fetch_now(), version.VERSION))
+        if method != "POST":
+            return self._method_not_allowed()
+        # ONLY FROM PARSEH'S OWN PAGE.  An update replaces the program itself,
+        # so a page on some other site, open in this computer's browser, must
+        # not be able to send a zip and install it.  A browser sends such a
+        # request without asking first only when it is text/plain or a form;
+        # this door takes its own kind alone -- application/json, or a zip for
+        # the upload -- which a browser sends to another site only after a
+        # CORS question Parseh never answers yes to.  Where the browser says
+        # where the request comes from, _dispatch has already held it to this
+        # page's own site (lib/crosssite.py), as it does every write; that is
+        # asked again here, so this door stays shut whoever calls it.
+        crossed = self._cross_site(path)
+        if crossed:
+            return self.send_json({"ok": False, "error": crossed}, 403)
+        if path == "/settings/api/update/check":
+            s = updater.check(ROOT)
+            if s.get("error"):
+                return self.send_json({"ok": False, "error": s["error"],
+                                       "detail": s.get("detail") or ""}, 502)
+            return self.send_json({"ok": True, "latest": s["latest"]})
+        if path == "/settings/api/update/daily":
+            s = updater.save_settings(ROOT, daily=bool(self._json_body().get("on")))
+            return self.send_json({"ok": True, "daily": s["daily"]})
+        refused = updater.installed(ROOT)["refused"]
+        if refused:
+            return self.send_json({"ok": False, "error": refused}, 409)
+        if path == "/settings/api/update/fetch":
+            info = updater.settings(ROOT).get("latest")
+            if not info:
+                return self.send_json({"ok": False, "error": "Ask GitHub first (Check now): "
+                                       "there is nothing to download yet."}, 409)
+            with UPDATE_LOCK:
+                busy = UPDATE_FETCH.get("running")
+            if not busy:
+                update_fetch(info)
+            return self.send_json({"ok": True})
+        if path == "/settings/api/update/stop":
+            with UPDATE_LOCK:
+                ev = UPDATE_FETCH.get("cancel")
+            if ev:
+                ev.set()
+            return self.send_json({"ok": True})
+        if path == "/settings/api/update/discard":
+            updater.discard(ROOT)
+            return self.send_json({"ok": True})
+        if path == "/settings/api/update/upload":
+            return self._update_upload()
+        if path == "/settings/api/update/apply":
+            return self._update_apply()
+        return self._not_found()
+
+    def _cross_site(self, path):
+        """Why this POST to the updater may not be from Parseh's own page, or
+        None when it is (see _update_api): its own kind of body, and the
+        check every write passes (lib/crosssite.py)."""
+        want = "application/zip" if path == "/settings/api/update/upload" else "application/json"
+        got = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if got != want:
+            return "This asks for %s, and was sent as %s." % (want, got or "nothing")
+        return crosssite.refusal(self.headers)
+
+    def _update_upload(self):
+        """A zip the person chose: onto the disk (a big one arrived spooled),
+        checked against its own list of files, and made the candidate."""
+        name = os.path.basename((self.query.get("name") or [""])[0])[:120] or "parseh.zip"
+        inc = os.path.join(ROOT, updater.WORK, "incoming")
+        os.makedirs(inc, exist_ok=True)
+        dest = os.path.join(inc, "upload.zip.part")
+        if self._spool:
+            shutil.move(self._spool, dest)
+        else:
+            with open(dest, "wb") as f:
+                f.write(self._raw)
+        try:
+            rec = updater.take(ROOT, dest, "zip", name)
+        except updater.Refused as e:
+            return self.send_json({"ok": False, "error": str(e), "detail": e.detail}, 400)
+        return self.send_json({"ok": True, "candidate": rec})
+
+    def _update_apply(self):
+        """Write the job down, hand it over, answer, and stop -- the helper
+        (lib/updater.py) does the rest and starts the server again."""
+        body = self._json_body()
+        if not RUN["port"]:
+            # a test's own Server, not main's: nothing could start it again
+            return self.send_json({"ok": False, "error": "This server was not started the way "
+                                   "%s starts, so it cannot stop and start again for an "
+                                   "update." % NAME}, 409)
+        launcher = os.environ.get("PARSEH_LAUNCHER") == "1"
+        cert = None
+        if RUN["scheme"] == "https":
+            own = network.own_cert()
+            cert = list(own) if own else [os.path.join(TLS_DIR, "cert.pem"),
+                                          os.path.join(TLS_DIR, "key.pem")]
+        server = {"pid": os.getpid(), "exe": sys.executable,
+                  "command": list(getattr(sys, "orig_argv", None) or [sys.executable] + sys.argv),
+                  "restart": "launcher" if launcher else "self",
+                  "pidfile": os.environ.get("SERVE_PIDFILE") or "",
+                  "scheme": RUN["scheme"], "host": RUN["host"], "port": RUN["port"],
+                  "cert": cert}
+        try:
+            job = updater.begin(ROOT, insist=bool(body.get("insist")),
+                                back_to=body.get("from") or "", server=server)
+        except updater.Refused as e:
+            return self.send_json({"ok": False, "error": str(e), "insist": e.insist}, 409)
+        if not launcher:
+            try:
+                updater.launch(ROOT, job)
+            except OSError as e:
+                updater.undo_begin(ROOT, job)
+                why, detail = updater.plainly(e)
+                return self.send_json({"ok": False, "detail": detail, "error": (
+                    "The update could not be started: %s%s" % (why[:1].lower(), why[1:]))}, 500)
+        print("%s: updating from %s to %s (%s); stopping to let it happen"
+              % (NAME, job["from"], job["to"], job["direction"]), flush=True)
+        self.send_json({"ok": True, "job": job["id"], "state": updater.state(ROOT)})
+        RUN["again"] = False
+        RUN["update"] = True
+        httpd = self.server
+
+        def stop():
+            time.sleep(0.4)              # the answer on the wire before the socket goes
+            httpd.shutdown()
+        threading.Thread(target=stop, daemon=True).start()
+
+    def _where(self):
+        """Where the device asking is: lib/network.py's SELF, VPN, LAN or AWAY."""
+        return network.where((self.client_address or ("",))[0])
+
+    def _refused(self, route):
+        """The table's answer for this POST (lib/settingspage.py ROUTES):
+        None when it may go on, else the answer already sent -- 403 with the
+        setting's own sentence, or 404 for a route the table does not name."""
+        ok, why = settingspage.may_post(route, self._where())
+        if ok:
+            return None
+        self.send_json({"ok": False, "error": why},
+                       403 if route in settingspage.ROUTES else 404)
+        return True
+
+    def _reading_state(self):
+        """What the Reading help page is drawn from, beside what lib/lookuppage.py
+        reads for itself: what is on the shelf in each language (its own
+        languages come first) and who is asking."""
+        try:
+            bks = book_stats()
+        except Exception:
+            traceback.print_exc()
+            bks = []
+        try:
+            yt = ytpages.stats()
+        except Exception:
+            traceback.print_exc()
+            yt = {}
+        where = self._where()
+        return {"shelf": lang_counts(bks, yt, []), "glossed": _glossed_in(),
+                "where": where, "device": self._whose_device(),
+                "may": {k: settingspage.may(k, where) for k in settingspage.SETTINGS}}
+
     def _network_state(self):
         """What the Network page is drawn from."""
         doc = network.settings()
         ip = (self.client_address or ("",))[0]
         c = network.code()
         return {"settings": doc, "may_save": network.may_save(ip),
-                "where": network.where(ip, doc),
+                "where": network.where(ip, doc), "device": self._whose_device(),
                 "code": c, "code_said": network.say_code(c["code"]),
                 "left_said": _code_said(c),
                 "own_cert": network.own_cert(doc),
@@ -5944,7 +6893,8 @@ def _announce(ctx, first):
         found = [(host, "this machine" if host.startswith("127.") else "as asked for")]
         ADDRESSES[:] = ["%s://%s:%d/" % (scheme, host, port)]
     doc = network.settings()
-    print("%s: serving %s on %s:%d (%s)\n" % (NAME, ROOT, host, port, scheme))
+    # the version first, where a log pasted into a bug report is read from
+    print("%s %s: serving %s on %s:%d (%s)\n" % (NAME, version.VERSION, ROOT, host, port, scheme))
     for (ip, what), url in zip(found, ADDRESSES):
         print("  %-42s (%s)" % (url, what))
     print("\n  /books/  /youtube/  /studio/  /exercises/  /anki/sync/  /settings/")
@@ -6009,6 +6959,18 @@ def main():
     studio.ensure_web_fonts()
     studio.seed_example()
     studio.migrate_library()
+    # A LANGUAGE ADDED ON THIS MACHINE BELONGS IN config/languages.json, which
+    # no update touches, and not in lib/languages.json, which every update
+    # replaces: a row an older lib/newlang.py (or a hand) put there is moved
+    # across, once -- the next start finds nothing to move.  Then a word for
+    # any row of the person's the registry had to leave out, and why.
+    try:
+        for line in languages.migrate():
+            print(line)
+    except (OSError, ValueError) as e:
+        print("!! could not move this machine's languages to config/languages.json: %s" % e)
+    for code, why in languages.PROBLEMS:
+        print("!! languages: %s%s" % ((code + " left out: ") if code else "", why))
     # the built readers link lib/langs.css relatively: keep the file on disk
     # in step with the registry (make_index.py writes it at build time too)
     try:
@@ -6016,6 +6978,9 @@ def main():
     except OSError as e:
         print("!! could not write lib/langs.css: %s (the route still answers)" % e)
     studio.ensure_build_env_async()
+    # the daily look for a new version, which does nothing until somebody
+    # ticks it on Settings > Updating Parseh (config/updates.json)
+    threading.Thread(target=update_daily, daemon=True).start()
 
     os.chdir(ROOT)
     # ONE LOOP, BECAUSE THE SERVER MAY MOVE.  Saving the Network page binds a
@@ -6069,6 +7034,13 @@ def main():
             break
         RUN["again"] = False
         print("\n%s is moving to %s:%d ..." % (NAME, RUN["host"], RUN["port"]))
+    if RUN.get("update"):
+        print("stopped, to be updated.", flush=True)
+        if os.environ.get("PARSEH_LAUNCHER") == "1":
+            # lib/launcher.py runs the update in its own window, and then
+            # starts the new version there (lib/updater.py, WHY A HELPER)
+            sys.exit(updater.LAUNCHER_EXIT)
+        return
     print("stopped.")
 
 

@@ -71,6 +71,10 @@ What it proves, in order:
   server    serve.py, started on a spare port over plain http, answers every
             door's pages and the new routes without a traceback
 
+And after all of it, whatever --only chose: config/ beside the checkout --
+the owner's preferences and the phone-keeping door's memories -- is byte for
+byte as the run found it (tests/configguard.py), or the run fails.
+
 books/, youtube/videos/ and the studio's library ship empty: what goes in
 them is the owner's, not the software's.  So every one of them is tried when
 something is there and skipped, by name, when nothing is -- the suite is
@@ -427,8 +431,9 @@ def test_registry():
     # it said "infinitive, pres. stem, past stem" in every book, which is
     # Persian's \vb and nobody else's.  Read from the registry's own file, so
     # the default languages.py fills in for a row without one cannot pass
-    # for a row that has it.
-    raw = json.load(open(os.path.join(LIB, "languages.json"), encoding="utf-8"))
+    # for a row that has it.  Both of the registry's files, as languages.py
+    # reads them: a language added on this machine is in config/languages.json.
+    raw = languages.read_rows()[0]
     forms_off = [c for c in languages.CODES
                  if not (isinstance((raw.get(c) or {}).get("vb_forms"), list)
                          and len(raw[c]["vb_forms"]) == 3
@@ -4342,7 +4347,9 @@ def test_lookup():
           "each with what it has, where it came from and how big it is")
     page = lookuppage.page()
     for want, why in (("data-get=", "a button to fetch one"),
-                      ("data-drop=", "a button to throw one away")):
+                      ("data-remove=", "a button to throw one away"),
+                      ("data-stop=", "a button to stop one on its way"),
+                      ("data-all=", "and one to get everything a language can have")):
         check(want in page, "the page carries %s" % why)
     check(not re.search(r"__[A-Z]+__", page),
           "and every placeholder in it was filled",
@@ -4350,7 +4357,7 @@ def test_lookup():
     check("/lookup/api/" in page,
           "and its buttons post where the server listens")
     hub = serve_hub()
-    check('href="/lookup/"' in hub,
+    check('href="/settings/reading-help/"' in hub,
           "the hub has a door to it -- the whole difference between a "
           "feature and a feature somebody can use")
     reader = io.open(os.path.join(LIB, "tex2html.py"), encoding="utf-8").read()
@@ -4653,7 +4660,7 @@ def test_getsyn():
         getsyn.MT_DIR = td
         getsyn.OUT = os.path.join(td, "synonyms.en.json")
         was_get = getsyn._get
-        getsyn._get = lambda url, say=print: buf.getvalue()
+        getsyn._get = lambda url, say=print, **_bar: buf.getvalue()
         try:
             check(not getsyn.installed(), "nothing installed before the first fetch")
             check(getsyn.get() is True and getsyn.installed(),
@@ -5860,6 +5867,27 @@ def _trash_path(j):
     return os.path.join(ROOT, t) if isinstance(t, str) and t.strip() else ""
 
 
+# THE SERVER'S OWN MEMORIES GO TO A FOLDER OF THE TEST'S (TO-DO §2.25).
+# serve.py started as it is starts on the owner's config/, and the sweep asks
+# it for /__shell -- which hashes every file of the app and remembers each one
+# in config/digests.json, so a run after any file of lib/ had changed wrote
+# there.  Started through runpy instead, with the four stores pointed at a
+# temporary folder first, the way tests/decks_harness.py and the harnesses
+# beside it start it: the same main(), the same arguments, none of his files.
+SERVE_BOOT = """
+import os, runpy, sys
+sys.path.insert(0, os.path.join(os.getcwd(), "lib"))
+import network, offline, prefs
+config = sys.argv[1]
+prefs.STORE = os.path.join(config, "prefs.json")
+network.STORE = os.path.join(config, "network.json")
+offline.DIGESTS = os.path.join(config, "digests.json")
+offline.WHERES = os.path.join(config, "wheres.json")
+sys.argv = ["serve.py"] + sys.argv[2:]
+runpy.run_path("serve.py", run_name="__main__")
+"""
+
+
 def test_server():
     section("server")
     # A PORT NOBODY HOLDS, asked of the system.  The fixed 8840 + pid % 50 was
@@ -5872,7 +5900,9 @@ def test_server():
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
-    proc = subprocess.Popen([sys.executable, "-u", "serve.py", "--http", "--local", str(port)],
+    config = tempfile.mkdtemp(prefix="parseh-smoke-config-")
+    proc = subprocess.Popen([sys.executable, "-u", "-c", SERVE_BOOT, config,
+                             "--http", "--local", str(port)],
                             cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
     try:
         up = False
@@ -5896,7 +5926,7 @@ def test_server():
         import languages
         doc_ids = [d["id"] for d in studio.store.list_docs()]
         pages = ["/", "/lib/langs.css", "/lib/parseh.css", "/lib/mobile.css", "/lib/parseh.js", "/lib/llm.js", "/lib/decomposition.js", "/lib/decomposition.css",
-                 "/lookup/", "/lib/fonts/NotoNaskhArabic.woff2",
+                 "/settings/reading-help/", "/lib/fonts/NotoNaskhArabic.woff2",
                  "/books/", "/books/add/",
                  "/youtube/", "/youtube/add/",
                  "/studio/", "/studio/static/langs.css", "/studio/api/docs", "/studio/prompt", "/studio/new",
@@ -6508,6 +6538,7 @@ def test_server():
         text = log.read()
         log.close()
         os.unlink(log.name)
+        shutil.rmtree(config, ignore_errors=True)
         check("Traceback" not in text, "no traceback in the server log", text[-1500:])
 
 
@@ -6676,6 +6707,8 @@ def main():
     only = set(x for x in a.only.split(",") if x)
     want = lambda k: not only or k in only
     os.chdir(ROOT)
+    import configguard
+    config_before = configguard.snapshot()
     if want("compile"):
         test_compile()
     if want("registry"):
@@ -6721,6 +6754,17 @@ def main():
         test_anki()
     if want("server"):
         test_server()
+    # NOTHING HERE MAY CHANGE config/ (tests/configguard.py): the owner's
+    # settings sit there, beside the checkout this runs in, and a sweep that
+    # changed them must not end green.  Looked at once, after everything, so
+    # that no section can be left out of it.
+    section("config")
+    config_after = configguard.snapshot()
+    said = configguard.report(config_before, config_after)
+    if said:
+        print(said, flush=True)
+    check(not said, "config/ is byte for byte as the run found it",
+          "; ".join(configguard.changes(config_before, config_after)))
     print("\n%d passed, %d failed, %d skipped" % (len(PASSES), len(FAILS), len(SKIPS)))
     for f in FAILS:
         print("  FAIL " + f[:300])

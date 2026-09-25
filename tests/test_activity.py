@@ -545,7 +545,7 @@ class OverHttp(unittest.TestCase):
         run = {e["id"].split("@")[0]: e for e in j["running"]}
         self.assertEqual(run["lookup:dict:fa"]["label"], "Getting the Persian dictionary")
         self.assertEqual(run["lookup:dict:fa"]["stage"], "reading the dump")
-        self.assertEqual(run["lookup:dict:fa"]["page"], "/lookup/")
+        self.assertEqual(run["lookup:dict:fa"]["page"], "/settings/reading-help/")
         self.assertEqual(run["lookup:model:fa-en"]["label"],
                          "Getting the Persian\u2013English translation model")
         self.assertEqual(run["lookup:synonyms:"]["label"], "Getting the synonym table")

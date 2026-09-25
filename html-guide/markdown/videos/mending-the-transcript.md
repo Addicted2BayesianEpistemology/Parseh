@@ -114,7 +114,7 @@ wrong is a **✂** or a **⤓** away.
 language. Not because a full stop needs one, but because everything above a
 full stop is a question about a word — is it a verb, is it a name — and a
 dictionary is what answers that. Without it the button is not shown at all;
-install the dictionary from the dictionaries page (`/lookup/`) and it is
+install the dictionary from the reading-help page (**Settings → Reading help**) and it is
 there the next time you open the editor, with nothing to restart.
 
 ## Or with an LLM…
