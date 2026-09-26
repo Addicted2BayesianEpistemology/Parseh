@@ -104,14 +104,13 @@ class Table(unittest.TestCase):
         self.assertEqual(S["parseh.update"][0], settingspage.RUN)
         for key in ("reading.get", "reading.remove", "reading.stop"):
             self.assertIsNone(S[key][0], key)
-        # the LaTeX drawings (TO-DO §8.39): a theme, a package, how long TeX may
-        # run and a rename are what Parseh will run, the computer's alone (the
-        # owner, 2026-09-24); forgetting the drawings nothing uses frees space
-        # and changes nothing any drawing will be
+        # the LaTeX drawings (TO-DO §8.39) are NOT risky (the owner, 2026-09-26; he
+        # had made them the computer's alone on 2026-09-24): a theme, a rename,
+        # an import, a package, how long TeX may run and forgetting the drawings
+        # nothing uses are open to any device that has been let in
         for key in ("latex.theme", "latex.rename", "latex.import", "latex.packages",
-                    "latex.limit"):
-            self.assertEqual(S[key][0], settingspage.RUN, key)
-        self.assertIsNone(S["latex.forget"][0])
+                    "latex.limit", "latex.forget"):
+            self.assertIsNone(S[key][0], key)
         self.assertEqual(settingspage.ROUTES["/settings/api/latex/export"], settingspage.READ)
         self.assertEqual(settingspage.ROUTES["/settings/api/latex/state"], settingspage.READ)
 

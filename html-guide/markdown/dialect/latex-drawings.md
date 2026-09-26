@@ -132,8 +132,10 @@ licence, and sets **how long a drawing may take** (30 seconds to begin
 with). **Forget drawings nothing uses** frees the space of the drawings no
 block asks for; a drawing nothing has asked for in 30 days goes by itself.
 
-Everything on the page is changed on the computer Parseh runs on: a phone
-sees it all, with its locks, and may export a theme.
+Everything on the page may be changed from any device that has been let in,
+a phone as well as the computer, as on the [reading
+help](../lookup-and-languages/reading-help.md). The drawings are still made
+by the computer Parseh runs on, and so are the packages it gets.
 
 ## Going back to an older Parseh
 

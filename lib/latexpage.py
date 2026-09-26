@@ -85,22 +85,16 @@ def view(where):
 
 def page(where):
     v = view(where)
-    notice = ""
-    if not v["may"]["latex.theme"]:
-        notice = ('<div class="notice">You are reading this on another device. %s</div>'
-                  % settingspage.lockline("latex.theme", where,
-                                          "Themes and packages are changed on the computer only."))
     main = """<main class="settings lx">
 %(doors)s
 <h1 class="idx">latex drawings</h1>
 <p class="sub">The themes a latex block is drawn with, the TeX this computer has, and the
 drawings kept. A formula written <code>:::math</code> is not touched by anything here.</p>
-%(notice)s
 <div id="lx"><p>Reading what is here&hellip;</p></div>
 <p class="foot">The themes are kept in <code>config/latex.json</code>, the packages Parseh got
 in <code>texmf/</code>, and the drawings in <code>markdown/latex/</code>, made again whenever
 they are needed. <a href="%(guide)s">LaTeX drawings</a>, in the guide.</p>
-</main>""" % {"doors": settingspage.settings_doors(PAGE), "notice": notice, "guide": GUIDE}
+</main>""" % {"doors": settingspage.settings_doors(PAGE), "guide": GUIDE}
     script = ('<script id="lx-state" type="application/json">%s</script>\n<script>%s</script>'
               % (settingspage._in_script(v), SCRIPT))
     return settingspage.frame("LaTeX drawings &mdash; %s settings" % settingspage.NAME,

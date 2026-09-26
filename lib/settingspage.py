@@ -103,16 +103,18 @@ SETTINGS = {
     # is only shown.  So "Check now", and the daily look (config/updates.json),
     # are open to any device let in; installing what it found is not.
     "parseh.check": (None, "It asks GitHub which release is newest, and installs nothing."),
-    # THE LaTeX DRAWINGS (TO-DO §8.39, a0.4.0): every setting of them is the
-    # computer's alone (the owner, 2026-09-24) -- a theme's preamble, a
-    # package, and how long TeX may run are what Parseh will run; a rename
-    # rewrites the blocks in every document, deck and note.
-    "latex.theme": (RUN, "A theme's preamble is LaTeX that every drawing naming it runs."),
-    "latex.rename": (RUN, "Renaming a theme rewrites the name in every block that uses it, in "
-                          "every document, deck and note."),
-    "latex.import": (RUN, "A theme from somebody else is LaTeX this computer would run."),
-    "latex.packages": (RUN, "A TeX package is somebody else's code, which TeX then runs."),
-    "latex.limit": (RUN, "It decides how long TeX may run for one drawing."),
+    # THE LaTeX DRAWINGS ARE NOT RISKY (the owner, 2026-09-26).  On 2026-09-24
+    # he had made every one of them the computer's alone -- a theme's preamble,
+    # a package and how long TeX may run are what Parseh will run -- and he
+    # took that back at the rehearsal of a0.4.0: they are the person's own
+    # themes and the packages they need, on this computer's own disk, and any
+    # device that has been let in may change them, from a phone as from the
+    # computer.
+    "latex.theme": (None, "It changes how the blocks that name a theme are drawn."),
+    "latex.rename": (None, "It rewrites the theme's name in every block that uses it."),
+    "latex.import": (None, "It adds a theme, from a file, to this computer's themes."),
+    "latex.packages": (None, "It puts a TeX package in Parseh's own texmf/, or takes one out."),
+    "latex.limit": (None, "It decides how long TeX may run for one drawing."),
     # FORGETTING THE DRAWINGS NOTHING USES frees the space they took and
     # changes nothing any drawing will be: each is made again from its
     # source when it is needed
