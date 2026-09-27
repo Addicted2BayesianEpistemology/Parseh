@@ -49,9 +49,18 @@ MAIN_REPO = "https://mirror.ctan.org/systems/texlive/tlnet"
 HISTORIC_REPO = "https://ftp.math.utah.edu/pub/tex/historic/systems/texlive/%d/tlnet-final"
 WIN = os.name == "nt"
 
-_LOCK = threading.Lock()
-JOBS = {}           # package name -> the job
+# JOBS and the process table are observed by the Settings page while the
+# worker changes them.  This is an RLock because a few of the small helpers
+# below intentionally compose a snapshot from both tables.
+_LOCK = threading.RLock()
+# A TeX Live user tree has one tlpdb.  Concurrent tlmgr processes can both
+# exit successfully while losing each other's database updates, so *every*
+# change to that tree (install or remove) goes through this lock.
+_MUTATION_LOCK = threading.RLock()
+JOBS = {}           # package name -> the job (queued, running, or last result)
 _PROCS = {}         # package name -> the running process
+_QUEUE = []         # package names, in the order a person asked for them
+_WORKER_RUNNING = False
 
 
 def tree():
@@ -64,24 +73,30 @@ def manifest_path():
 
 def manifest():
     """{"format", "packages": {name: {"at", "licence", "size", "via"}}}"""
-    try:
-        with open(manifest_path(), encoding="utf-8") as fh:
-            doc = json.load(fh)
-        if isinstance(doc, dict) and isinstance(doc.get("packages"), dict):
-            return doc
-    except (OSError, ValueError):
-        pass
-    return {"format": MANIFEST_FORMAT, "packages": {}}
+    with _LOCK:
+        try:
+            with open(manifest_path(), encoding="utf-8") as fh:
+                doc = json.load(fh)
+            if isinstance(doc, dict) and isinstance(doc.get("packages"), dict):
+                return doc
+        except (OSError, ValueError):
+            pass
+        return {"format": MANIFEST_FORMAT, "packages": {}}
 
 
 def _save_manifest(doc):
-    doc = dict(doc, format=MANIFEST_FORMAT)
-    os.makedirs(TREE, exist_ok=True)
-    tmp = manifest_path() + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, ensure_ascii=False, indent=1, sort_keys=True)
-        fh.write("\n")
-    os.replace(tmp, manifest_path())
+    # Most callers hold this lock over their preceding read too.  Taking it
+    # here as well keeps standalone manifest repairs from colliding with an
+    # installation.  It is re-entrant for the normal install/remove path.
+    with _MUTATION_LOCK:
+        with _LOCK:
+            doc = dict(doc, format=MANIFEST_FORMAT)
+            os.makedirs(TREE, exist_ok=True)
+            tmp = manifest_path() + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh, ensure_ascii=False, indent=1, sort_keys=True)
+                fh.write("\n")
+            os.replace(tmp, manifest_path())
 
 
 def state():
@@ -138,6 +153,48 @@ def installed(file):
         return None
 
 
+def _representative_file(name):
+    """A file that proves a single TeX Live package is already usable.
+
+    The catalogue sometimes names a bundle of TeX Live packages for one
+    feature (for example ``mhchem`` and ``chemgreek``).  One feature file
+    cannot prove that every package in such a bundle is present, so this is
+    deliberately conservative: only a catalogue entry owned by *one* TL
+    package is evidence that that package need not be downloaded again.
+    """
+    for row in latexthemes.PACKAGES.values():
+        if tuple(row["tl"]) == (name,):
+            return row["file"]
+    for _key, (tl, file, _licence) in latexthemes.ALWAYS.items():
+        if tuple(tl) == (name,):
+            return file
+    return None
+
+
+def availability(name, doc=None):
+    """Where a package is available to the current TeX.
+
+    ``parseh`` is a package recorded in Parseh's private tree; ``available``
+    is a known package whose representative file TeX can already find;
+    ``missing`` is a known absent representative; and ``unknown`` is used
+    when a package has no safe representative or TeX cannot be asked.  The
+    latter is intentionally not treated as missing: a typed package name
+    should still be possible to quote from its repository.
+    """
+    doc = manifest() if doc is None else doc
+    if name in doc.get("packages", {}):
+        return {"here": "parseh", "file": None}
+    file = _representative_file(name)
+    if not file:
+        return {"here": "unknown", "file": None}
+    got = installed(file)
+    if got is True:
+        return {"here": "available", "file": file}
+    if got is False:
+        return {"here": "missing", "file": file}
+    return {"here": "unknown", "file": file}
+
+
 def licence_of(tl_name):
     """The TeX Catalogue's licence of a TeX Live package, as the checkboxes know it."""
     for row in latexthemes.PACKAGES.values():
@@ -170,16 +227,37 @@ def _repositories():
 
 def plan(names):
     """What getting these TeX Live packages costs, before anything starts ->
-    {"packages": [{"name", "size", "licence"}], "can", "why"}."""
+    {"packages": [{"name", "size", "licence", "here", "repository",
+    "can_get", "why"}], "can", "why"}.
+
+    ``here`` tells the page whether a known package is already usable by this
+    TeX; ``repository`` tells it whether tlmgr explicitly says the requested
+    package exists upstream.  They are separate facts: a system package may
+    be available even when the selected historical repository no longer has
+    it.
+    """
+    names = list(dict.fromkeys(n for n in names if isinstance(n, str)))
     d = distribution()
-    rows = [{"name": n, "size": None, "licence": licence_of(n)} for n in names]
+    doc = manifest()
+    rows = []
+    for n in names:
+        here = availability(n, doc)
+        rows.append({"name": n, "size": None, "licence": licence_of(n),
+                     "here": here["here"], "repository": "unknown",
+                     "can_get": False, "why": "", "file": here["file"]})
     if d["kind"] is None:
+        for row in rows:
+            row["why"] = "This computer has no TeX."
         return {"packages": rows, "can": False,
                 "why": "This computer has no TeX. Install TeX Live or MiKTeX first: the "
                        "guide's Installing page says how."}
     if d["kind"] == "miktex" and not d.get("tool"):
+        for row in rows:
+            row["why"] = "MiKTeX's package manager was not found."
         return {"packages": rows, "can": False, "why": "MiKTeX's package manager was not found."}
     if d["kind"] == "texlive" and not d.get("tool"):
+        for row in rows:
+            row["why"] = "This TeX Live has no tlmgr."
         return {"packages": rows, "can": False,
                 "why": "This TeX Live has no tlmgr, so Parseh cannot add packages to it."}
     if d["kind"] == "texlive":
@@ -196,6 +274,12 @@ def plan(names):
             by = {x.get("name"): x for x in info if isinstance(x, dict)}
             for row in rows:
                 x = by.get(row["name"]) or {}
+                if x.get("available") is False:
+                    row["repository"] = "unavailable"
+                elif x:
+                    # Older tlmgr JSON did not have ``available``.  A record
+                    # for the requested name is still positive evidence.
+                    row["repository"] = "available"
                 try:
                     row["size"] = int(x.get("containersize") or 0) or None
                 except (TypeError, ValueError):
@@ -203,6 +287,15 @@ def plan(names):
                 lic = ((x.get("cataloguedata") or {}).get("license")) or row["licence"]
                 row["licence"] = lic
             break
+    for row in rows:
+        if row["here"] == "parseh":
+            row["why"] = "Already got through Parseh."
+        elif row["here"] == "available":
+            row["why"] = "Already available to this TeX."
+        elif row["repository"] == "unavailable":
+            row["why"] = "This TeX Live repository does not offer it."
+        else:
+            row["can_get"] = True
     return {"packages": rows, "can": True, "why": "", "tex": d["said"]}
 
 
@@ -217,65 +310,113 @@ _WHY = re.compile(r"not present in|older than remote|cannot|can't|could not|coul
 
 
 def _progress(job, line):
-    m = re.search(r"\[(\d+)/(\d+)", line)
-    if m:
-        job["done"], job["total"] = int(m.group(1)), int(m.group(2))
-    s = line.strip()
-    if s:
-        job["say"] = s[:200]
-        if _WHY.search(s) and not _GENERIC.search(s):
-            job["why"] = s[:200]
+    # Status polling may take a snapshot while tlmgr writes a line.  Keep the
+    # related fields together so the page never sees, for example, a new
+    # numerator with an old total.
+    with _LOCK:
+        m = re.search(r"\[(\d+)/(\d+)", line)
+        if m:
+            job["done"], job["total"] = int(m.group(1)), int(m.group(2))
+        s = line.strip()
+        if s:
+            job["say"] = s[:200]
+            if _WHY.search(s) and not _GENERIC.search(s):
+                job["why"] = s[:200]
+
+
+def _stopped(job):
+    with _LOCK:
+        return bool(job.get("stopped"))
+
+
+def _stop_queued(job):
+    """Finish a queued job without ever starting a package manager."""
+    with _LOCK:
+        job.update({"queued": False, "running": False, "stopped": True,
+                    "state": "stopped", "error": "Stopped.",
+                    "finished": time.time()})
 
 
 def _run(job, name):
-    d = distribution()
+    """Run one mutation of the TeX package database.
+
+    This is deliberately locked here rather than only in the queue worker:
+    direct callers (including repair code and focused tests) are safe too,
+    and removal uses the same lock.
+    """
+    installed_ok = False
     try:
-        if d["kind"] == "texlive":
-            os.makedirs(TREE, exist_ok=True)
-            if not os.path.exists(os.path.join(TREE, "tlpkg", "texlive.tlpdb")):
-                init = _tlmgr(["init-usertree"])
-                subprocess.run(init, capture_output=True, text=True, timeout=120,
-                               stdin=subprocess.DEVNULL)
-            ok = False
-            for repo in _repositories():
-                if job.get("stopped"):
-                    break
-                cmd = _tlmgr(["install", name], repo)
-                job["why"] = None
+        with _MUTATION_LOCK:
+            if _stopped(job):
+                return
+            d = distribution()
+            if d["kind"] == "texlive":
+                os.makedirs(TREE, exist_ok=True)
+                if not os.path.exists(os.path.join(TREE, "tlpkg", "texlive.tlpdb")):
+                    init = _tlmgr(["init-usertree"])
+                    subprocess.run(init, capture_output=True, text=True, timeout=120,
+                                   stdin=subprocess.DEVNULL)
+                ok = False
+                for repo in _repositories():
+                    if _stopped(job):
+                        break
+                    cmd = _tlmgr(["install", name], repo)
+                    with _LOCK:
+                        job["why"] = None
+                    ok = _stream(job, name, cmd)
+                    if ok or _stopped(job):
+                        break
+                    with _LOCK:
+                        job["tried"] = job.get("tried", []) + [repo]
+                via = "tlmgr"
+            elif d["kind"] == "miktex":
+                tool = d["tool"]
+                if os.path.basename(tool).lower().startswith("miktex"):
+                    cmd = [tool, "packages", "install", name]
+                else:
+                    cmd = [tool, "--install=%s" % name]
                 ok = _stream(job, name, cmd)
-                if ok or job.get("stopped"):
-                    break
-                job["tried"] = job.get("tried", []) + [repo]
-            via = "tlmgr"
-        elif d["kind"] == "miktex":
-            tool = d["tool"]
-            if os.path.basename(tool).lower().startswith("miktex"):
-                cmd = [tool, "packages", "install", name]
+                via = "miktex"
             else:
-                cmd = [tool, "--install=%s" % name]
-            ok = _stream(job, name, cmd)
-            via = "miktex"
-        else:
-            ok, via = False, ""
-            job["error"] = "This computer has no TeX."
-        if job.get("stopped"):
-            job["error"] = "Stopped."
-        elif ok:
-            doc = manifest()
-            doc["packages"][name] = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "via": via,
-                                     "licence": licence_of(name),
-                                     "size": _tree_size() if via == "tlmgr" else None}
-            _save_manifest(doc)
-            import latexdraw
-            latexdraw.forget_failures()
-        elif not job.get("error"):
-            job["error"] = ("%s could not be installed: %s"
-                            % (name, job.get("why") or job.get("say") or "it failed"))
+                ok, via = False, ""
+                with _LOCK:
+                    job["error"] = "This computer has no TeX."
+            if _stopped(job):
+                with _LOCK:
+                    job["error"] = "Stopped."
+            elif ok:
+                # _MUTATION_LOCK protects this read-modify-write from both
+                # the next queued install and a concurrent Remove action.
+                doc = manifest()
+                doc["packages"][name] = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "via": via,
+                                         "licence": licence_of(name),
+                                         "size": _tree_size() if via == "tlmgr" else None}
+                _save_manifest(doc)
+                installed_ok = True
+                import latexdraw
+                latexdraw.forget_failures()
+            else:
+                with _LOCK:
+                    if not job.get("error"):
+                        job["error"] = ("%s could not be installed: %s"
+                                        % (name, job.get("why") or job.get("say") or "it failed"))
     except Exception as e:                                   # noqa: BLE001
-        job["error"] = "%s could not be installed: %s" % (name, e)
+        with _LOCK:
+            job["error"] = "%s could not be installed: %s" % (name, e)
     finally:
-        job["running"] = False
-        job["finished"] = time.time()
+        with _LOCK:
+            job["queued"] = False
+            job["running"] = False
+            if job.get("stopped"):
+                job["state"] = "stopped"
+                job["error"] = "Stopped."
+            elif installed_ok:
+                job["state"] = "installed"
+                job["error"] = None
+                job["say"] = "installed"
+            else:
+                job["state"] = "failed"
+            job["finished"] = time.time()
 
 
 def _stream(job, name, cmd):
@@ -289,6 +430,11 @@ def _stream(job, name, cmd):
     proc = subprocess.Popen(cmd, **kw)
     with _LOCK:
         _PROCS[name] = proc
+        stopped = job.get("stopped")
+    # Stop can arrive in the small gap between Popen and publishing the
+    # process in _PROCS.  Do not let that gap turn Stop into a no-op.
+    if stopped:
+        _terminate(proc)
     try:
         for line in proc.stdout:
             _progress(job, line)
@@ -310,57 +456,145 @@ def _tree_size():
     return total
 
 
+def _queue_worker():
+    """Run requested packages in order, never more than one tlmgr at once."""
+    global _WORKER_RUNNING
+    while True:
+        with _LOCK:
+            job = None
+            while _QUEUE:
+                name = _QUEUE.pop(0)
+                candidate = JOBS.get(name)
+                if not candidate or candidate.get("state") != "queued":
+                    continue
+                if candidate.get("stopped"):
+                    _stop_queued(candidate)
+                    continue
+                candidate.update({"queued": False, "running": True, "state": "running",
+                                  "started": time.time(), "say": "starting"})
+                job = candidate
+                break
+            if job is None:
+                _WORKER_RUNNING = False
+                return
+        _run(job, name)
+
+
+def _finished_job(name, state, say):
+    return {"name": name, "state": state, "queued": False, "running": False,
+            "done": 0, "total": 0, "say": say, "error": None,
+            "started": None, "finished": time.time()}
+
+
 def start(name):
-    """Get one TeX package, in the background -> the job."""
+    """Queue one TeX package, in the background -> its truthful job state."""
+    global _WORKER_RUNNING
     if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,60}$", name or ""):
         raise ValueError("%r is not a package's name" % name)
+    here = availability(name)
     with _LOCK:
         job = JOBS.get(name)
-        if job and job.get("running"):
+        if job and job.get("state") in ("queued", "running"):
             return job
-        job = JOBS[name] = {"name": name, "running": True, "done": 0, "total": 0,
-                            "say": "starting", "error": None, "started": time.time()}
-    threading.Thread(target=_run, args=(job, name), daemon=True).start()
+        if here["here"] == "parseh":
+            job = JOBS[name] = _finished_job(name, "installed", "already got through Parseh")
+            return job
+        if here["here"] == "available":
+            job = JOBS[name] = _finished_job(name, "available", "already available to this TeX")
+            return job
+        job = JOBS[name] = {"name": name, "state": "queued", "queued": True,
+                            "running": False, "done": 0, "total": 0,
+                            "say": "waiting", "error": None, "requested": time.time(),
+                            "started": None}
+        _QUEUE.append(name)
+        if not _WORKER_RUNNING:
+            _WORKER_RUNNING = True
+            threading.Thread(target=_queue_worker, daemon=True).start()
     return job
 
 
 def stop(name=None):
     with _LOCK:
-        names = [name] if name else list(_PROCS)
+        names = ([name] if name else
+                 list(dict.fromkeys(list(_PROCS) + list(_QUEUE) +
+                                    [n for n, j in JOBS.items()
+                                     if j.get("state") in ("queued", "running")])))
+        for n in names:
+            job = JOBS.get(n)
+            if not job:
+                continue
+            if job.get("state") == "queued":
+                _stop_queued(job)
+            elif job.get("state") == "running":
+                # Keep the state truthful until the process actually exits.
+                job["stopped"] = True
+                job["stopping"] = True
+                job["say"] = "stopping"
+        _QUEUE[:] = [n for n in _QUEUE if not JOBS.get(n, {}).get("stopped")]
         procs = [(n, _PROCS.get(n)) for n in names]
     for n, p in procs:
-        if n in JOBS:
-            JOBS[n]["stopped"] = True
         if p is None:
             continue
-        try:
-            if WIN:
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
-            else:
-                os.killpg(p.pid, signal.SIGTERM)
-        except OSError:
-            pass
+        _terminate(p)
+
+
+def _terminate(proc):
+    """Ask a package-manager process and all of its children to stop."""
+    try:
+        if WIN:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+        else:
+            os.killpg(proc.pid, signal.SIGTERM)
+    except OSError:
+        pass
+
+
+def _in_tlmgr_tree(name):
+    """Whether a package is really still registered in Parseh's tlpdb.
+
+    This is deliberately a local check rather than another tlmgr command:
+    it works after tlmgr has returned its misleading non-zero status and it
+    cannot accidentally consult the system TeX tree.  ``None`` means the
+    database could not be read, not that the package is absent.
+    """
+    path = os.path.join(TREE, "tlpkg", "texlive.tlpdb")
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return None
+    return bool(re.search(r"(?m)^name\s+%s\s*$" % re.escape(name), text))
 
 
 def remove(name):
     """Remove a package Parseh installed -- and only one it did."""
-    doc = manifest()
-    got = doc["packages"].get(name)
-    if not got:
-        raise ValueError("%s was not installed by Parseh, so Parseh does not remove it" % name)
-    if got.get("via") == "tlmgr":
-        cmd = _tlmgr(["remove", name])
-    else:
-        d = distribution()
-        tool = d.get("tool") or ""
-        cmd = ([tool, "packages", "remove", name] if os.path.basename(tool).lower().startswith("miktex")
-               else [tool, "--uninstall=%s" % name])
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
-                       env=env())
-    if r.returncode != 0:
-        raise ValueError("%s could not be removed: %s" % (name, (r.stdout or r.stderr).strip()[-300:]))
-    doc["packages"].pop(name, None)
-    _save_manifest(doc)
+    with _MUTATION_LOCK:
+        doc = manifest()
+        got = doc["packages"].get(name)
+        if not got:
+            raise ValueError("%s was not installed by Parseh, so Parseh does not remove it" % name)
+        if got.get("via") == "tlmgr":
+            cmd = _tlmgr(["remove", name])
+        else:
+            d = distribution()
+            tool = d.get("tool") or ""
+            cmd = ([tool, "packages", "remove", name] if os.path.basename(tool).lower().startswith("miktex")
+                   else [tool, "--uninstall=%s" % name])
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
+                           env=env())
+        still_there = _in_tlmgr_tree(name) if got.get("via") == "tlmgr" else None
+        # TeX Live's user mode sometimes says exit 1 after it has removed the
+        # package (when a dependency belongs to the system tree).  The private
+        # tlpdb is the authoritative answer.  MiKTeX has no corresponding
+        # Parseh-owned database, so retain the old exit-status fallback there.
+        removed = still_there is False or (still_there is None and r.returncode == 0)
+        if not removed:
+            detail = (r.stdout or r.stderr).strip()[-300:]
+            if still_there is True:
+                detail = "it is still registered in Parseh's TeX Live tree"
+            raise ValueError("%s could not be removed: %s" % (name, detail or "it failed"))
+        doc["packages"].pop(name, None)
+        _save_manifest(doc)
     with _LOCK:
         JOBS.pop(name, None)        # else the page went on saying "installed" beside it
     import latexdraw
@@ -368,7 +602,22 @@ def remove(name):
 
 
 def status():
+    doc = manifest()
     with _LOCK:
-        jobs = {k: {x: v.get(x) for x in ("name", "running", "done", "total", "say", "error")}
+        jobs = {k: {x: v.get(x) for x in ("name", "state", "queued", "running", "stopping",
+                                         "done", "total", "say", "error", "requested",
+                                         "started", "finished")}
                 for k, v in JOBS.items()}
-    return {"jobs": jobs, "installed": manifest()["packages"]}
+    # A single state map saves clients from guessing whether a missing job is
+    # installed, while retaining the old ``installed`` manifest for callers
+    # that need licence, size and provenance.
+    states = {name: "installed" for name in doc["packages"]}
+    states.update({name: job.get("state") for name, job in jobs.items()})
+    # The page also needs to suppress a stale "not installed" shortcut
+    # before its next full state reload.  It asks this map only whether a
+    # package is already reachable; provenance remains in ``states``.
+    available = {name: True for name in doc["packages"]}
+    available.update({name: True for name, job in jobs.items()
+                      if job.get("state") == "available"})
+    return {"jobs": jobs, "installed": doc["packages"], "states": states,
+            "available": available}

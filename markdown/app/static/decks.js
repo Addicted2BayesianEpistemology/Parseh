@@ -922,6 +922,11 @@ function initDeck() {
   let items = [];
   let visible = [];
   const selected = new Set();
+  // A source is an OR within this facet, then an AND with the text, type,
+  // state and tag facets below.  It is deliberately page-local: browsing a
+  // deck must not change its stored exercises or their provenance.
+  const sourceFilters = new Set();
+  const sourceLabels = new Map();
   let selectionAnchor = null;
   const selectionKey = `parseh-selected:${deck.path}`;
   try {
@@ -1121,6 +1126,30 @@ function initDeck() {
     typeof u === "string" && u.length <= 500
       && /^(?:\/(?![\/\\])|https:\/\/www\.youtube\.com\/)[^\s\\\x00-\x1f\x7f]*$/.test(u) ? u : "";
 
+  /* What one source means in the browse facet.  A document's saved uid is
+     its identity even if its title was later changed or the document is no
+     longer here; old cards without one fall back to their saved id, then
+     title.  The label is likewise only saved provenance, never a fresh
+     document lookup. */
+  function sourceOf(it) {
+    const o = it && it.origin && typeof it.origin === "object" ? it.origin : {};
+    const saved = value => typeof value === "string" ? value.trim() : "";
+    const uid = saved(o.doc_uid), docId = saved(o.doc_id), title = saved(o.title);
+    // A book or a video origin carries a title too (Browse's own "from …"
+    // row prints it for either kind), so title alone must never decide this:
+    // only doc_uid/doc_id say "document", the same test the row's own link
+    // uses (o.doc_id, just above). A bare title with none of the three is
+    // "written here", exactly as that row already reads it.
+    const book = bookPath(o.book), video = videoId(o.video);
+    if (uid || docId) {
+      const identity = uid ? `uid:${uid}` : `id:${docId}`;
+      return {key: `document:${identity}`, label: `Document: ${title || docId || uid}`};
+    }
+    if (book) return {key: `book:${book}`, label: `Book: ${title || book.split("/").pop()}`};
+    if (video) return {key: `video:${video}`, label: `Video: ${title || video}`};
+    return {key: "written-here", label: "Written here"};
+  }
+
   const typeKey = it => it.subtype || "unreadable";
   const bucket = it => {
     const s = (it.schedule || {}).state;
@@ -1175,6 +1204,66 @@ function initDeck() {
     sel.value = counts.has(current) ? current : "";
   }
 
+  function browseFilters() {
+    return {q: foldCase($("#browse-filter").value.trim()), type: $("#browse-type").value,
+            state: $("#browse-state").value, tag: $("#browse-tag").value};
+  }
+
+  function matchesOtherFilters(it, filters) {
+    return (!filters.q || foldCase(it.excerpt || "").includes(filters.q)
+            || foldCase(it.markdown || "").includes(filters.q))
+      && (!filters.type || typeKey(it) === filters.type)
+      && (!filters.state || (filters.state === "due" ? dueNow(it) : bucket(it) === filters.state))
+      && (!filters.tag || (it.tags || []).includes(filters.tag));
+  }
+
+  /* The source menu is a self-narrowing facet: its counts and choices are
+     made after the other filters but before source choices.  An active
+     source with no remaining match stays as a checked zero only long enough
+     to be cleared; otherwise an AND filter could silently turn itself off.
+     Unselected zeroes are never offered. */
+  function renderSourceOptions(filters) {
+    const choices = new Map();
+    for (const it of items) {
+      const source = sourceOf(it);
+      if (!sourceLabels.has(source.key)) sourceLabels.set(source.key, source.label);
+      if (!matchesOtherFilters(it, filters)) continue;
+      const row = choices.get(source.key) || {key: source.key, label: source.label, count: 0};
+      row.count++;
+      choices.set(source.key, row);
+    }
+    for (const key of sourceFilters) {
+      if (!choices.has(key))
+        choices.set(key, {key, label: sourceLabels.get(key) || "Unavailable source", count: 0});
+    }
+
+    const box = $("#browse-source-options"), menu = $("#browse-source-filter");
+    const active = document.activeElement;
+    const focusedKey = active && active.matches && active.matches("input[data-source-key]")
+      ? active.dataset.sourceKey : "";
+    const rows = [...choices.values()].sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
+    box.replaceChildren(...rows.map(row => {
+      const label = el("label", "dk-source-option");
+      if (!row.count) label.classList.add("dk-source-zero");
+      const input = el("input");
+      input.type = "checkbox";
+      input.dataset.sourceKey = row.key;
+      input.checked = sourceFilters.has(row.key);
+      const name = el("span", "dk-source-name", row.label);
+      const count = el("span", "dk-source-count", `(${row.count})`);
+      label.append(input, name, count);
+      return label;
+    }));
+    menu.hidden = rows.length === 0;
+    if (!rows.length) menu.open = false;
+    $("#browse-source-label").textContent = sourceFilters.size ? `Sources (${sourceFilters.size})` : "Sources";
+    if (focusedKey) {
+      const next = $$('input[data-source-key]', box).find(input => input.dataset.sourceKey === focusedKey);
+      if (next) next.focus();
+      else $("#browse-source-filter summary").focus();
+    }
+  }
+
   function updateSelection() {
     const n = selected.size;
     try { sessionStorage.setItem(selectionKey, JSON.stringify([...selected])); }
@@ -1219,17 +1308,13 @@ function initDeck() {
   }
 
   function renderList() {
-    const q = foldCase($("#browse-filter").value.trim());
-    const type = $("#browse-type").value, state = $("#browse-state").value;
-    const tag = $("#browse-tag").value;
-    const shown = items.filter(it =>
-      (!q || foldCase(it.excerpt || "").includes(q) || foldCase(it.markdown || "").includes(q))
-      && (!type || typeKey(it) === type)
-      && (!state || (state === "due" ? dueNow(it) : bucket(it) === state))
-      && (!tag || (it.tags || []).includes(tag)));
+    const filters = browseFilters();
+    renderSourceOptions(filters);
+    const shown = items.filter(it => matchesOtherFilters(it, filters)
+      && (!sourceFilters.size || sourceFilters.has(sourceOf(it).key)));
     visible = shown;
     $("#browse-list").replaceChildren(...shown.map(itemRow));
-    $("#browse-count").textContent = q || type || state || tag
+    $("#browse-count").textContent = filters.q || filters.type || filters.state || filters.tag || sourceFilters.size
       ? `${shown.length} of ${items.length}` : plural(items.length, "exercise");
     const empty = $("#browse-empty");
     empty.hidden = shown.length > 0;
@@ -1401,6 +1486,13 @@ function initDeck() {
   $("#browse-type").addEventListener("change", renderList);
   $("#browse-state").addEventListener("change", renderList);
   $("#browse-tag").addEventListener("change", renderList);
+  $("#browse-source-options").addEventListener("change", e => {
+    const input = e.target.closest && e.target.closest("input[data-source-key]");
+    if (!input) return;
+    if (input.checked) sourceFilters.add(input.dataset.sourceKey);
+    else sourceFilters.delete(input.dataset.sourceKey);
+    renderList();
+  });
 
   $("#btn-select-all").addEventListener("click", () => {
     items.forEach(it => selected.add(it.id));

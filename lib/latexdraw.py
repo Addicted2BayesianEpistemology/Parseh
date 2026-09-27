@@ -61,14 +61,23 @@ import latexthemes                                           # noqa: E402
 
 DRAWN = os.path.join(ROOT, "markdown", "latex")
 FONTS = os.path.join(ROOT, "lib", "fonts")
-RENDERER = 1
+RENDERER = 2      # 2, 2026-09-27: an inline drawing's key also carries "inline" (TO-DO §8.39's L8)
 URL = "/latex/"
 KEY_RE = re.compile(r"^[0-9a-f]{64}$")
 DESIGN_PT = 10.0            # standalone's size: a drawing's natural width is w/10 em
+# A preview belongs to the editing moment, not to the library.  It has its
+# own small LRU cache under the derived drawings folder and vanishes when the
+# server next starts.  A saved source promotes its exact key into DRAWN.
+PREVIEW_DIR = ".preview"
+PREVIEW_MAX_DRAWINGS = 32
+PREVIEW_MAX_BYTES = 16 * 1024 * 1024
+OWNERS_FILE = "owners.json"
+OWNER_GRACE_SECONDS = 24 * 60 * 60
+REPAIR_SECONDS = 5 * 60
 PRUNE_DAYS = 30
 WIN = os.name == "nt"
 
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()
 _RUNNING = set()            # the TeX processes running now, killed when the server stops
 _BUSY = {}                  # key -> Event: one compile of a key at a time
 _FAILED = {}                # key -> the failure, while its key stands
@@ -116,9 +125,14 @@ def tex_state(name):
     return "%s|%s" % ((info or {}).get("version", ""), packages)
 
 
-def key_of(tex, resolved, state):
+def key_of(tex, resolved, state, inline=False):
+    # "inline" is in the key, not only RENDERER: an inline drawing carries a
+    # depth ("d") a block's meta never has, measured by a second, hbox'd
+    # compile a block never runs (TO-DO §8.39's L8) -- the same tex under the
+    # same theme must never answer one shape's request with the other's meta.
     blob = json.dumps({"renderer": RENDERER, "compiler": resolved["compiler"],
-                       "preamble": resolved["preamble"], "tex": tex, "tex-state": state},
+                       "preamble": resolved["preamble"], "tex": tex, "tex-state": state,
+                       "inline": bool(inline)},
                       sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -128,15 +142,29 @@ def _dir(key):
     return os.path.join(DRAWN, key[:2])
 
 
-def paths(key):
-    d = _dir(key)
+def _cache_dir(key, preview=False):
+    return os.path.join(DRAWN, PREVIEW_DIR, key[:2]) if preview else _dir(key)
+
+
+def paths(key, preview=False):
+    """The persistent path by default; a temporary preview path when asked."""
+    d = _cache_dir(key, preview)
     return {"svg": os.path.join(d, key + ".svg"), "pdf": os.path.join(d, key + ".pdf"),
             "meta": os.path.join(d, key + ".json"), "fail": os.path.join(d, key + ".fail.json")}
 
 
-def cached(key):
-    """The kept drawing's facts ({"w", "h"} in points), or None."""
-    p = paths(key)
+def _owners_path():
+    return os.path.join(DRAWN, OWNERS_FILE)
+
+
+def cached(key, preview=False):
+    """One drawing's facts ({"w", "h"} in points), or None.
+
+    Preview hits are deliberately touched on every use: their metadata is
+    their LRU clock.  Kept drawings retain the older once-a-day touch, which
+    avoids needless metadata writes while preserving the old prune rule.
+    """
+    p = paths(key, preview)
     try:
         with open(p["meta"], encoding="utf-8") as fh:
             meta = json.load(fh)
@@ -146,7 +174,7 @@ def cached(key):
         return None
     # used: a drawing asked for is not pruned (its meta's time says when)
     try:
-        if time.time() - os.path.getmtime(p["meta"]) > 86400:
+        if preview or time.time() - os.path.getmtime(p["meta"]) > 86400:
             os.utime(p["meta"], None)
     except OSError:
         pass
@@ -170,12 +198,15 @@ def file_of(name):
     m = re.match(r"^([0-9a-f]{64})\.(svg|pdf)$", name or "")
     if not m:
         return None
-    p = paths(m.group(1))[m.group(2)]
-    return p if os.path.isfile(p) else None
+    for preview in (False, True):
+        p = paths(m.group(1), preview)[m.group(2)]
+        if os.path.isfile(p):
+            return p
+    return None
 
 
 # ------------------------------------------------------------------ drawing
-def plan(tex, theme_name, theme=None):
+def plan(tex, theme_name, theme=None, inline=False):
     """What drawing a block would be -> {"key", "resolved", "compiler"} or a
     failure ({"ok": False, ...}) that no compile can mend: no such theme, or
     no such compiler on this computer."""
@@ -198,7 +229,7 @@ def plan(tex, theme_name, theme=None):
                         % resolved["compiler"],
                 "fix": {"kind": "theme", "theme": resolved["name"]}}
     state = tex_state(resolved["compiler"])
-    return {"ok": True, "key": key_of(tex, resolved, state), "resolved": resolved,
+    return {"ok": True, "key": key_of(tex, resolved, state, inline), "resolved": resolved,
             "compiler": info}
 
 
@@ -220,9 +251,14 @@ def peek(tex, theme_name):
     return {"ok": None, "key": p["key"]}
 
 
-def _ok(key, meta):
+def _ok(key, meta, preview=False):
+    # "d", the depth in points (how far the drawing reaches below its own
+    # baseline): only an inline drawing's meta ever has one (_compile,
+    # inline=True); a block's picture sits on nothing but the page, so its
+    # meta has none, and this is None for it, same as before this existed.
     return {"ok": True, "key": key, "url": url_of(key), "w": meta.get("w"), "h": meta.get("h"),
-            "pdf": paths(key)["pdf"], "svg": paths(key)["svg"]}
+            "d": meta.get("d"), "pdf": paths(key, preview)["pdf"],
+            "svg": paths(key, preview)["svg"]}
 
 
 def _read_fail(key):
@@ -234,21 +270,53 @@ def _read_fail(key):
         return None
 
 
-def draw(tex, theme_name, theme=None, limit=None):
+def _promote(key):
+    """Make a preview into the kept drawing with the same content key.
+
+    Copying rather than renaming leaves an already-open preview URL valid.
+    The source key makes this a safe promotion: there is no user-controlled
+    filename or mutable asset involved.
+    """
+    source, target = paths(key, True), paths(key)
+    if cached(key):
+        return True
+    if not cached(key, True):
+        return False
+    try:
+        for kind in ("pdf", "svg", "meta"):
+            with open(source[kind], "rb") as fh:
+                _write_atomic(target[kind], fh.read())
+        return True
+    except OSError:
+        return False
+
+
+def draw(tex, theme_name, theme=None, limit=None, inline=False, preview=False):
     """A block drawn -- from the cache when it is there, compiled when not ->
-    {"ok": True, "key", "url", "w", "h", "pdf", "svg"} or {"ok": False, "kind",
-    "said", "line"?, "detail"?, "fix"?}."""
-    p = plan(tex, theme_name, theme)
+    {"ok": True, "key", "url", "w", "h", "d", "pdf", "svg"} or {"ok": False,
+    "kind", "said", "line"?, "detail"?, "fix"?}.  `inline=True` (TO-DO
+    §8.39's L8) is a drawing meant to sit inside a line of running text: its
+    "d" is the depth to sit it on that line's baseline (`vertical-align`,
+    `\\raisebox`), measured by a second, small compile of the same content
+    boxed rather than typeset -- so a block's own compile, and everything a
+    block already promises, are exactly as they were."""
+    p = plan(tex, theme_name, theme, inline)
     if not p["ok"]:
         return p
     key = p["key"]
-    meta = cached(key)
+    # A saved page always gets the kept entry.  When its editor has just
+    # drawn the same thing, promote that bounded preview instead of compiling
+    # a second time.
+    if not preview:
+        if _promote(key):
+            _mark_unowned(key)
+    meta = cached(key, preview)
     if meta:
-        return _ok(key, meta)
+        return _ok(key, meta, preview)
     limit = limit or latexthemes.timeout()
     while True:
         with _LOCK:
-            if key in _FAILED and _FAILED[key].get("limit", limit) >= limit:
+            if not preview and key in _FAILED and _FAILED[key].get("limit", limit) >= limit:
                 return _FAILED[key]
             ev = _BUSY.get(key)
             if ev is None:
@@ -258,22 +326,26 @@ def draw(tex, theme_name, theme=None, limit=None):
                 mine = False
         if not mine:
             ev.wait(limit + 30)
-            meta = cached(key)
+            meta = cached(key, preview)
             if meta:
-                return _ok(key, meta)
+                return _ok(key, meta, preview)
             continue
         try:
-            fail = _read_fail(key)
+            # A failed keystroke is as transient as its preview.  A failure
+            # for saved content remains cached, as before, until something
+            # that could mend it changes.
+            fail = None if preview else _read_fail(key)
             if fail:
                 with _LOCK:
                     _FAILED[key] = fail
                 return fail
-            out = _compile(tex, p["resolved"], p["compiler"], key, limit)
+            out = _compile(tex, p["resolved"], p["compiler"], key, limit, inline, preview)
             if out.get("ok"):
                 return out
-            with _LOCK:
-                _FAILED[key] = dict(out, limit=limit)
-            if out.get("kind") != "timeout":
+            if not preview:
+                with _LOCK:
+                    _FAILED[key] = dict(out, limit=limit)
+            if not preview and out.get("kind") != "timeout":
                 try:
                     _write_atomic(paths(key)["fail"], json.dumps(out).encode("utf-8"))
                 except OSError:
@@ -285,10 +357,11 @@ def draw(tex, theme_name, theme=None, limit=None):
             ev.set()
 
 
-def draw_all(pairs):
-    """Many blocks at once, several compiles side by side ->
+def draw_all(pairs, inline=False, preview=False):
+    """Many blocks (or many inline drawings: `inline=True`, one call for
+    each, never mixed) at once, several compiles side by side ->
     [result, ...] in the order of `pairs` ((tex, theme name), ...)."""
-    futures = [_POOL.submit(draw, tex, name) for tex, name in pairs]
+    futures = [_POOL.submit(draw, tex, name, inline=inline, preview=preview) for tex, name in pairs]
     return [f.result() for f in futures]
 
 
@@ -303,7 +376,79 @@ def _preexec():
         pass
 
 
-def _compile(tex, resolved, info, key, limit):
+def _tex_env(work):
+    env = dict(os.environ, openin_any="p", openout_any="p")
+    try:
+        import texpackages
+        tree = texpackages.tree()
+    except Exception:                                        # noqa: BLE001
+        tree = None
+    if tree and os.path.isdir(tree):
+        env["TEXMFAUXTREES"] = tree.replace("\\", "/") + ","
+    return env
+
+
+def _run_tex(work, filename, info, limit):
+    """One compile of `filename` in `work`, already written -> (returncode or
+    None on a timeout, the process's own combined output, seconds spent)."""
+    cmd = [info["path"], "-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]
+    cmd += (["-disable-write18", "-disable-installer"] if info.get("miktex")
+            else ["-no-shell-escape"])
+    cmd.append(filename)
+    kw = {"cwd": work, "env": _tex_env(work), "stdin": subprocess.DEVNULL,
+          "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT}
+    if WIN:
+        kw["creationflags"] = (getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                               | getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    else:
+        kw["start_new_session"] = True
+        if sys.platform.startswith("linux"):
+            kw["preexec_fn"] = _preexec
+    started = time.time()
+    try:
+        proc = subprocess.Popen(cmd, **kw)
+    except OSError as e:
+        return "spawn", str(e), 0.0
+    with _LOCK:
+        _RUNNING.add(proc)
+    try:
+        out, _ = proc.communicate(timeout=limit)
+    except subprocess.TimeoutExpired:
+        _kill(proc)
+        proc.communicate()
+        return None, "", time.time() - started
+    finally:
+        with _LOCK:
+            _RUNNING.discard(proc)
+    return proc.returncode, (out or b"").decode("utf-8", "replace"), time.time() - started
+
+
+def _inline_depth(tex, resolved, info, work, limit):
+    """The depth (pt, below the baseline) an inline drawing of `tex` would
+    have, from a second compile that boxes it rather than typesets it --
+    None when the probe itself cannot be trusted (its own failure, its own
+    timeout, or a line it could not parse), never raised: an inline drawing
+    without a depth still draws, only sitting on its own bottom edge, as a
+    block already does."""
+    pre = resolved["preamble"]
+    doc = (pre + "\\begin{document}\n\\setbox0=\\hbox{" + tex + "}\n"
+           "\\newwrite\\parsehdepth\\immediate\\openout\\parsehdepth=pdepth.txt\n"
+           "\\immediate\\write\\parsehdepth{\\the\\dp0}\\immediate\\closeout\\parsehdepth\n"
+           "\\box0\n\\end{document}\n")
+    with open(os.path.join(work, "p.tex"), "w", encoding="utf-8") as fh:
+        fh.write(doc)
+    rc, _log, _took = _run_tex(work, "p.tex", info, min(limit, 20))
+    if rc != 0:
+        return None
+    try:
+        with open(os.path.join(work, "pdepth.txt"), encoding="utf-8") as fh:
+            raw = fh.read().strip()
+        return round(float(raw[:-2]) + latexthemes.BORDER_PT, 2) if raw.endswith("pt") else None
+    except (OSError, ValueError):
+        return None
+
+
+def _compile(tex, resolved, info, key, limit, inline=False, preview=False):
     work = tempfile.mkdtemp(prefix="parseh-latex-")
     try:
         pre = resolved["preamble"]
@@ -320,54 +465,23 @@ def _compile(tex, resolved, info, key, limit):
                         os.link(src, dst)
                     except OSError:
                         shutil.copy(src, dst)
-        cmd = [info["path"], "-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]
-        cmd += (["-disable-write18", "-disable-installer"] if info.get("miktex")
-                else ["-no-shell-escape"])
-        cmd.append("d.tex")
-        env = dict(os.environ, openin_any="p", openout_any="p")
-        try:
-            import texpackages
-            tree = texpackages.tree()
-        except Exception:                                    # noqa: BLE001
-            tree = None
-        if tree and os.path.isdir(tree):
-            env["TEXMFAUXTREES"] = tree.replace("\\", "/") + ","
-        kw = {"cwd": work, "env": env, "stdin": subprocess.DEVNULL,
-              "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT}
-        if WIN:
-            kw["creationflags"] = (getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-                                   | getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        else:
-            kw["start_new_session"] = True
-            if sys.platform.startswith("linux"):
-                kw["preexec_fn"] = _preexec
         started = time.time()
-        try:
-            proc = subprocess.Popen(cmd, **kw)
-        except OSError as e:
+        rc, out, _took = _run_tex(work, "d.tex", info, limit)
+        if rc == "spawn":
             return {"ok": False, "kind": "compiler", "said": "%s could not be started: %s"
-                    % (resolved["compiler"], e), "fix": {"kind": "theme", "theme": resolved["name"]}}
-        with _LOCK:
-            _RUNNING.add(proc)
-        try:
-            out, _ = proc.communicate(timeout=limit)
-        except subprocess.TimeoutExpired:
-            _kill(proc)
-            proc.communicate()
+                    % (resolved["compiler"], out), "fix": {"kind": "theme", "theme": resolved["name"]}}
+        if rc is None:
             return {"ok": False, "kind": "timeout",
                     "said": "The drawing did not finish in %d seconds, and was stopped. "
                             "Settings \u2192 LaTeX drawings says how long a drawing may take."
                             % limit}
-        finally:
-            with _LOCK:
-                _RUNNING.discard(proc)
         pdf = os.path.join(work, "d.pdf")
-        if proc.returncode != 0 or not os.path.exists(pdf):
+        if rc != 0 or not os.path.exists(pdf):
             try:
                 with open(os.path.join(work, "d.log"), encoding="utf-8", errors="replace") as fh:
                     log = fh.read()
             except OSError:
-                log = (out or b"").decode("utf-8", "replace")
+                log = out
             return explain(log, first_body, tex, resolved)
         try:
             import pymupdf
@@ -390,11 +504,17 @@ def _compile(tex, resolved, info, key, limit):
         meta = {"w": w, "h": h, "compiler": resolved["compiler"],
                 "theme": resolved["name"], "drawn": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "took": round(time.time() - started, 2), "renderer": RENDERER}
-        p = paths(key)
+        if inline:
+            meta["d"] = _inline_depth(tex, resolved, info, work, limit)
+        p = paths(key, preview)
         _write_atomic(p["pdf"], pdf_bytes)
         _write_atomic(p["svg"], svg.encode("utf-8"))
         _write_atomic(p["meta"], json.dumps(meta).encode("utf-8"))
-        return _ok(key, meta)
+        if preview:
+            prune_previews()
+        else:
+            _mark_unowned(key)
+        return _ok(key, meta, preview)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -553,10 +673,191 @@ def explain(log, first_body, tex, resolved):
 
 
 # ------------------------------------------------------------ what is kept
+def _owner_doc():
+    try:
+        with open(_owners_path(), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        if isinstance(doc, dict) and isinstance(doc.get("owners"), dict):
+            doc.setdefault("format", 1)
+            doc.setdefault("unowned", {})
+            return doc
+    except (OSError, ValueError):
+        pass
+    return {"format": 1, "owners": {}, "unowned": {}, "repaired": 0}
+
+
+def _save_owner_doc(doc):
+    safe = {"format": 1,
+            "owners": {str(owner): sorted({key for key in keys if KEY_RE.match(key)})
+                       for owner, keys in (doc.get("owners") or {}).items()},
+            "unowned": {str(key): float(at) for key, at in (doc.get("unowned") or {}).items()
+                        if KEY_RE.match(str(key)) and isinstance(at, (int, float))},
+            "repaired": float(doc.get("repaired") or 0)}
+    _write_atomic(_owners_path(), json.dumps(safe, sort_keys=True).encode("utf-8"))
+
+
+def _persistent_keys():
+    """Keys that actually have a kept SVG; temporary previews never count."""
+    if not os.path.isdir(DRAWN):
+        return set()
+    out = set()
+    for here, dirs, files in os.walk(DRAWN):
+        if PREVIEW_DIR in dirs:
+            dirs.remove(PREVIEW_DIR)
+        for name in files:
+            if name.endswith(".svg") and KEY_RE.match(name[:-4]):
+                out.add(name[:-4])
+    return out
+
+
+def _owned(doc):
+    return {key for keys in (doc.get("owners") or {}).values() for key in keys}
+
+
+def _remove_kept(key):
+    for p in paths(key).values():
+        try:
+            os.unlink(p)
+        except OSError:
+            pass
+    with _LOCK:
+        _FAILED.pop(key, None)
+
+
+def _reconcile_owners(doc, candidates=(), now=None):
+    """Start the grace period for lost keys and delete expired orphans."""
+    now = time.time() if now is None else now
+    live = _owned(doc)
+    pending = doc.setdefault("unowned", {})
+    for key in set(candidates):
+        if key in live:
+            pending.pop(key, None)
+        elif KEY_RE.match(key):
+            pending.setdefault(key, now)
+    for key in list(pending):
+        if key in live:
+            pending.pop(key, None)
+        elif now - pending[key] >= OWNER_GRACE_SECONDS:
+            _remove_kept(key)
+            pending.pop(key, None)
+
+
+def _source_keys(markdown):
+    """Keys a saved source names, including L8 inline marks.
+
+    Planning is enough: a newly saved source may not have been rendered yet,
+    but its future content key is already known and is protected before the
+    first page view compiles it.
+    """
+    pairs = []
+    for block in latexthemes.blocks_in(markdown or ""):
+        if not block.get("errors") and block.get("closed"):
+            pairs.append((block.get("tex", ""), block.get("theme") or None, False))
+    pairs += [(tex, theme, True) for tex, theme in latexthemes.inline_latex_pairs(markdown or "")]
+    keys = set()
+    for tex, theme, inline in pairs:
+        p = plan(tex, theme, inline=inline)
+        if p.get("ok"):
+            keys.add(p["key"])
+    return keys
+
+
+def own_source(owner, markdown):
+    """Record what one saved document/card owns and promote its previews.
+
+    `owner` is an internal stable path-and-id string, never a display name.
+    A direct save updates just that entry; `repair_owners` below is the
+    throttled safety net if a process died between a save and this call.
+    """
+    keys = _source_keys(markdown)
+    with _LOCK:
+        doc = _owner_doc()
+        before = set(doc["owners"].get(owner, []))
+        doc["owners"][owner] = sorted(keys)
+        for key in keys:
+            _promote(key)
+        _reconcile_owners(doc, before | keys)
+        _save_owner_doc(doc)
+    return keys
+
+
+def forget_owner(owner):
+    """A deleted document/card owns nothing from now; grace makes this safe."""
+    with _LOCK:
+        doc = _owner_doc()
+        old = set(doc["owners"].pop(owner, []))
+        _reconcile_owners(doc, old)
+        _save_owner_doc(doc)
+
+
+def repair_owners(used, force=False):
+    """Throttled mark-and-sweep repair from every saved source the server sees.
+
+    The scan is intentionally a fallback rather than the save path: a large
+    library is not walked for every keystroke.  It gives an interrupted save
+    or a lost owners.json the conservative answer -- keep known source keys,
+    then let anything else have the same 24-hour grace.
+    """
+    now = time.time()
+    with _LOCK:
+        doc = _owner_doc()
+        if not force and now - float(doc.get("repaired") or 0) < REPAIR_SECONDS:
+            return False
+        old = _owned(doc) | _persistent_keys()
+        doc["owners"]["__repair__"] = sorted({key for key in used if KEY_RE.match(key)})
+        doc["repaired"] = now
+        _reconcile_owners(doc, old | set(used), now)
+        _save_owner_doc(doc)
+    return True
+
+
+def _mark_unowned(key):
+    """A kept result made outside a save is eligible after the grace period."""
+    with _LOCK:
+        doc = _owner_doc()
+        _reconcile_owners(doc, (key,))
+        _save_owner_doc(doc)
+
+
+def prune_previews():
+    """Keep only the newest bounded preview cache; it is never in size()."""
+    root = os.path.join(DRAWN, PREVIEW_DIR)
+    rows = []
+    for here, _dirs, files in os.walk(root):
+        for name in files:
+            if name.endswith(".json") and not name.endswith(".fail.json") and KEY_RE.match(name[:-5]):
+                key, meta = name[:-5], os.path.join(here, name)
+                try:
+                    rows.append((os.path.getmtime(meta), key,
+                                 sum(os.path.getsize(p) for p in paths(key, True).values()
+                                     if os.path.isfile(p))))
+                except OSError:
+                    pass
+    rows.sort(reverse=True)
+    total, kept, gone = 0, 0, 0
+    for at, key, bytes_ in rows:
+        if kept >= PREVIEW_MAX_DRAWINGS or total + bytes_ > PREVIEW_MAX_BYTES:
+            for p in paths(key, True).values():
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+            gone += 1
+        else:
+            total += bytes_
+            kept += 1
+    return gone
+
+
 def size():
+    """Only saved drawings -- never a live editor's bounded previews."""
     n, total = 0, 0
-    for here, _dirs, files in os.walk(DRAWN):
+    for here, dirs, files in os.walk(DRAWN):
+        if PREVIEW_DIR in dirs:
+            dirs.remove(PREVIEW_DIR)
         for f in files:
+            if f == OWNERS_FILE:
+                continue
             if f.endswith(".svg"):
                 n += 1
             try:
@@ -567,12 +868,28 @@ def size():
 
 
 def prune(days=PRUNE_DAYS):
-    """What no block has asked for in `days` days, removed (when Parseh starts)."""
+    """Startup cleanup: discard old temporary previews and expired orphans.
+
+    An owned drawing is never removed merely because a phone or a document
+    did not open it recently.  The former 30-day access-time pruning remains
+    only as a conservative fallback for old caches with no ownership record.
+    """
+    shutil.rmtree(os.path.join(DRAWN, PREVIEW_DIR), ignore_errors=True)
+    with _LOCK:
+        doc = _owner_doc()
+        _reconcile_owners(doc, _persistent_keys())
+        _save_owner_doc(doc)
+        owned = _owned(doc)
+        waiting = set(doc.get("unowned") or {})
     cut = time.time() - days * 86400
     gone = 0
-    for here, _dirs, files in os.walk(DRAWN):
+    for here, dirs, files in os.walk(DRAWN):
+        if PREVIEW_DIR in dirs:
+            dirs.remove(PREVIEW_DIR)
         for f in files:
             if not f.endswith(".json") or f.endswith(".fail.json"):
+                continue
+            if f == OWNERS_FILE:
                 continue
             meta = os.path.join(here, f)
             try:
@@ -581,11 +898,9 @@ def prune(days=PRUNE_DAYS):
             except OSError:
                 continue
             key = f[:-5]
-            for p in paths(key).values():
-                try:
-                    os.unlink(p)
-                except OSError:
-                    pass
+            if key in owned or key in waiting:
+                continue
+            _remove_kept(key)
             gone += 1
     return gone
 
@@ -594,7 +909,9 @@ def forget_unused(used):
     """Every drawing whose key is not in `used`, removed -> how many, and
     how many bytes that freed.  Settings' "Forget drawings nothing uses"."""
     gone, freed = 0, 0
-    for here, _dirs, files in os.walk(DRAWN):
+    for here, dirs, files in os.walk(DRAWN):
+        if PREVIEW_DIR in dirs:
+            dirs.remove(PREVIEW_DIR)
         for f in files:
             key = f.split(".")[0]
             if KEY_RE.match(key) and key not in used:
@@ -606,6 +923,14 @@ def forget_unused(used):
                         gone += 1
                 except OSError:
                     pass
+    with _LOCK:
+        doc = _owner_doc()
+        for owner, keys in list(doc["owners"].items()):
+            doc["owners"][owner] = [key for key in keys if key in used]
+        for key in list(doc["unowned"]):
+            if key not in used:
+                doc["unowned"].pop(key, None)
+        _save_owner_doc(doc)
     with _LOCK:
         _FAILED.clear()
     return {"drawings": gone, "bytes": freed}

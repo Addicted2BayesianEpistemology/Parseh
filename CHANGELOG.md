@@ -1,11 +1,14 @@
 ## [a0.4.0] - unreleased
 ### Added
-- LaTeX drawings: a ::::latex block is compiled by LaTeX itself, beside the formulas MathJax draws
-- The same drawing on screen, in the PDF, in an HTML export and on a phone, made once and kept
+- LaTeX drawings: a ::::latex block, or [...]{latex} inline, compiled by LaTeX itself, beside the formulas MathJax draws
+- The same drawing on screen, in the PDF, in an HTML export and on a phone; a live preview kept only once it is saved
 - A drawing that cannot be made shows its source and one line saying why, with the button that mends it
-- Settings → LaTeX drawings: named themes of packages, languages, a font, a preamble and a compiler
+- The sheet that draws a block: its preview beside the source, size and position folded away
+- Settings → LaTeX drawings, styled like the rest of Settings: named themes of packages, languages, a font, a preamble and a compiler
 - Themes exported and imported as files; a rename rewrites every block that names the theme
-- TeX packages got into Parseh's own texmf/, what they cost said first; how long a drawing may take
+- Missing packages reviewed and gotten one at a time, in a table, what they cost said first
+- More packages to pick from: syntax trees and dependency arcs, the IPA, pinyin over Chinese characters
+- A deck's exercises filtered by where they came from, beside its text and tag filters
 - The transliteration cloud works on an exported page, changing that open page only
 
 ### Changed

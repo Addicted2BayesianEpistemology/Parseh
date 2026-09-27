@@ -25,6 +25,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODE = sys.argv[1] if len(sys.argv) > 1 else "studio"
+FORCE_LATEX_MISSING = "--latex-missing" in sys.argv[2:]
+FORCE_LATEX_COMPILER_STATES = "--latex-compiler-states" in sys.argv[2:]
 
 if MODE == "parseh":
     os.chdir(ROOT)
@@ -55,6 +57,20 @@ import latexthemes, latexdraw, texpackages
 latexthemes.STORE = str(tmp / "config" / "latex.json")
 latexdraw.DRAWN = str(tmp / "latex-drawn")
 texpackages.TREE = str(tmp / "texmf")
+# The LaTeX Settings browser pass needs a stable missing-package card even on
+# a computer with a complete TeX installation. This changes only the test
+# page's availability report; it never writes to or changes TeX.
+if FORCE_LATEX_MISSING:
+    texpackages.installed = lambda _file: False
+# Settings' compiler list needs both available and unavailable facts without
+# depending on the TeX tools installed on the computer that drives the browser.
+if FORCE_LATEX_COMPILER_STATES:
+    latexdraw.compilers = lambda fresh=False: {
+        "xelatex": {"path": "/test/xelatex", "version": "XeTeX test 2026"},
+        "pdflatex": None,
+        "lualatex": {"path": "/test/lualatex",
+                     "version": "LuaHBTeX, Version 1.19.0 (TeX Live test build)"},
+    }
 import offline  # the phone-keeping memories (lib/offline.py) too
 offline.DIGESTS = str(tmp / "config" / "digests.json")
 offline.WHERES = str(tmp / "config" / "wheres.json")

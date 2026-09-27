@@ -537,6 +537,87 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 /* a note's text is a sentence or two, not a document */
 .modal-fields ~ textarea { min-height: 120px; }
 
+/* ---------- the LaTeX drawing sheet ------------------------------- */
+/* A drawing is checked against its source again and again.  On a wide screen
+   the picture therefore gets a real pane of its own, at the left of the
+   notation; the actions stay below both panes instead of disappearing after
+   a long source or a large drawing. */
+.modal.latex-modal {
+  width: min(1100px, 96vw); height: min(780px, 88vh); max-height: 88vh;
+  gap: 0; padding: 0; overflow: hidden;
+}
+.latex-modal-head { flex: none; padding: 1rem 1.2rem .8rem; border-bottom: 1px solid var(--chrome-line); }
+.latex-modal-head p { margin-top: .35rem !important; max-width: 70rem; }
+.latex-modal-body {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(20rem, .9fr);
+  grid-template-areas: "preview editor"; flex: 1 1 auto; min-height: 0; overflow: hidden;
+}
+.lx-preview-pane {
+  grid-area: preview; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .55rem;
+  padding: 1rem 1.1rem; overflow: auto; background: var(--chrome-bg); border-right: 1px solid var(--chrome-line);
+}
+.lx-preview-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.lx-preview-head > b { font-size: .82rem; }
+.lx-preview-size { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+.lx-preview-size .btn[aria-pressed="true"] {
+  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--chrome-panel)); color: var(--accent);
+}
+.latex-modal .lx-status { display: block; min-height: 1.1em; margin: 0; }
+/* This is a small piece of the page, rather than the white browser card the
+   first sheet used: the author sees how a transparent drawing meets paper. */
+.latex-modal .lx-stage {
+  margin: 0; max-width: none; min-height: 21rem; flex: 1 1 auto;
+  display: flex; align-items: center; justify-content: center; overflow: auto;
+  padding: clamp(.8rem, 2vw, 1.6rem); border: 1px solid var(--chrome-line); border-radius: 9px;
+  box-shadow: none; background: var(--sheet-bg);
+}
+.latex-modal .lx-stage:empty::after { content: "The drawing will appear here."; color: var(--chrome-mut); font: .82rem var(--sans); }
+.lx-preview-image { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; }
+.lx-stage[data-lx-preview-mode="actual"] { align-items: flex-start; justify-content: flex-start; }
+.lx-stage[data-lx-preview-mode="actual"] .lx-preview-image { max-width: none; max-height: none; }
+.lx-preview-detail { width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, Menlo, monospace; }
+.lx-editor-pane {
+  grid-area: editor; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .85rem;
+  padding: 1rem 1.2rem; overflow: auto;
+}
+.lx-field { display: flex; flex-direction: column; gap: .28rem; color: var(--chrome-mut); font-size: .82rem; }
+.lx-field > span { color: var(--chrome-fg); font-weight: 600; }
+.lx-field select, .lx-layout select, .lx-layout input[type="number"] {
+  border: 1px solid var(--chrome-line); border-radius: 7px; background: var(--chrome-bg); color: var(--chrome-fg);
+  padding: .42rem .55rem; font: inherit;
+}
+.latex-modal .lx-src { min-height: 15rem; flex: 1 1 18rem; font-size: .88rem; }
+.lx-layout { flex: none; border: 1px solid var(--chrome-line); border-radius: 8px; background: var(--chrome-bg); }
+.lx-layout summary { cursor: pointer; padding: .65rem .75rem; color: var(--accent); font-size: .82rem; font-weight: 600; }
+.lx-layout[open] summary { border-bottom: 1px solid var(--chrome-line); }
+.lx-layout > p { margin: .6rem .75rem 0; color: var(--chrome-mut); font-size: .78rem; line-height: 1.4; }
+.lx-layout-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem .85rem; padding: .75rem; }
+.lx-layout-fields label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem .55rem; color: var(--chrome-mut); font-size: .78rem; }
+.lx-layout-fields .lx-natural-field { grid-column: 1 / -1; display: flex; justify-content: flex-start; }
+.lx-layout-fields .lx-width { grid-column: 1 / -1; width: 100%; }
+.lx-layout-fields input[type="range"] { accent-color: var(--accent); }
+.lx-layout-fields output { color: var(--chrome-fg); font-variant-numeric: tabular-nums; }
+.lx-layout-fields .lx-offset { width: 5em; }
+.latex-modal-actions {
+  display: flex; flex: none; justify-content: flex-end; gap: .6rem;
+  padding: .8rem 1.2rem; border-top: 1px solid var(--chrome-line); background: var(--chrome-panel);
+}
+@media (max-width: 760px) {
+  .modal-overlay.latex-overlay { align-items: stretch; padding: .5rem; }
+  .modal.latex-modal {
+    width: 100%; height: calc(100vh - 1rem); height: calc(100dvh - 1rem); max-height: none; border-radius: 10px;
+  }
+  .latex-modal-head { padding: .85rem 1rem .7rem; }
+  .latex-modal-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "editor" "preview"; overflow: auto; }
+  .lx-editor-pane, .lx-preview-pane { overflow: visible; padding: .85rem 1rem; }
+  .lx-preview-pane { min-height: 0; border-right: 0; border-top: 1px solid var(--chrome-line); }
+  .latex-modal .lx-src { min-height: 11rem; flex: none; }
+  .latex-modal .lx-stage { min-height: 15rem; flex: none; }
+  .lx-layout-fields { grid-template-columns: minmax(0, 1fr); }
+  .lx-layout-fields .lx-natural-field { grid-column: 1; }
+  .latex-modal-actions { padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom)); }
+}
+
 /* ---------- the name-conflict dialog (askNames) -------------------- */
 /* One fieldset per clash, two names in each; a name still taken says so
    under its own field, in the danger colour, and the field is outlined. */
@@ -872,6 +953,17 @@ body[data-page="edit"] figure.img:hover img { outline: none; }
 .dk-deckactions .dk-push { margin-left: auto; }
 
 .dk-browsebar { margin-top: 1.3rem; }
+.dk-source-filter .menu { left: 0; right: auto; width: 20rem; max-width: calc(100vw - 1.8rem); }
+.dk-source-menu { max-height: min(22rem, calc(100vh - 8rem)); overflow-y: auto; white-space: normal; }
+.dk-source-menu fieldset { border: 0; margin: 0; padding: .15rem .25rem; min-width: 0; }
+.dk-source-menu legend { padding: 0; margin: 0 0 .25rem; font-size: .82rem; font-weight: 600; }
+.dk-source-option { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .45rem;
+  align-items: start; padding: .35rem .25rem; cursor: pointer; line-height: 1.3; }
+.dk-source-option:hover { background: var(--chrome-bg); border-radius: 5px; }
+.dk-source-option.dk-source-zero { color: var(--chrome-mut); }
+.dk-source-option input { margin: .15rem 0 0; }
+.dk-source-name { overflow-wrap: anywhere; }
+.dk-source-count { color: var(--chrome-mut); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dk-bulkbar { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .55rem; }
 .dk-selection-hint { margin: .35rem 0 0; color: var(--chrome-mut); font-size: .82rem; }
 #browse-selected { color: var(--chrome-mut); font-size: .82rem; margin-right: auto; }

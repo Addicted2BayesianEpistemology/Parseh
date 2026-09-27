@@ -7,9 +7,11 @@ Found by driving the real page on 2026-09-25: a package that could not be got
 said only tlmgr's last line, "An error has occurred. See above messages.
 Exiting." (nothing is above it on the page), and a package that was removed
 went on being listed as "installed" beneath a table that no longer held it."""
+import json
 import os
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -81,6 +83,7 @@ class WhyItFailed(unittest.TestCase):
         self.assertEqual(job["error"], "nosuchpackage could not be installed: "
                                        "tlmgr install: package nosuchpackage not present in repository.")
         self.assertFalse(job["running"])
+        self.assertEqual(job["state"], "failed")
 
     def test_one_repository_reason_is_not_the_next_ones(self):
         """The main repository is tried first, then the historic one of the installed year: what
@@ -105,6 +108,151 @@ class WhyItFailed(unittest.TestCase):
         self.assertTrue(job["error"].startswith("x could not be installed: "))
 
 
+class Plans(unittest.TestCase):
+    def test_each_package_is_quoted_once_in_first_seen_order(self):
+        with mock.patch.object(texpackages, "distribution",
+                               return_value={"kind": None, "year": None, "tool": None,
+                                             "said": "no TeX on this computer"}):
+            plan = texpackages.plan(["xcolor", "amsmath", "xcolor", "amsmath"])
+        self.assertEqual([p["name"] for p in plan["packages"]], ["xcolor", "amsmath"])
+
+    def test_plan_distinguishes_present_and_repository_missing_packages(self):
+        info = [
+            {"name": "pgf", "available": True, "containersize": 123,
+             "cataloguedata": {"license": "fdl"}},
+            {"name": "not-there", "available": False},
+        ]
+
+        def here(name, doc=None):
+            return {"here": "available" if name == "pgf" else "missing", "file": None}
+
+        with mock.patch.object(texpackages, "distribution",
+                               return_value={"kind": "texlive", "year": 2026,
+                                             "tool": "tlmgr", "said": "TeX Live 2026"}), \
+                mock.patch.object(texpackages, "availability", side_effect=here), \
+                mock.patch.object(texpackages, "_repositories", return_value=["repo"]), \
+                mock.patch.object(texpackages, "_tlmgr", return_value=["tlmgr", "info"]), \
+                mock.patch.object(texpackages.subprocess, "run",
+                                  return_value=mock.Mock(returncode=0, stdout=json.dumps(info))):
+            rows = texpackages.plan(["pgf", "not-there"])["packages"]
+        self.assertEqual(rows[0]["here"], "available")
+        self.assertFalse(rows[0]["can_get"])
+        self.assertIn("Already available", rows[0]["why"])
+        self.assertEqual(rows[1]["repository"], "unavailable")
+        self.assertFalse(rows[1]["can_get"])
+        self.assertIn("does not offer", rows[1]["why"])
+
+
+class Queue(unittest.TestCase):
+    def test_one_worker_runs_requested_packages_in_order(self):
+        entered_first = threading.Event()
+        release_first = threading.Event()
+        finished = threading.Event()
+        seen = []
+
+        def run(job, name):
+            seen.append(name)
+            if name == "first":
+                entered_first.set()
+                release_first.wait(2)
+            with texpackages._LOCK:
+                job.update({"state": "installed", "queued": False, "running": False,
+                            "say": "installed", "error": None})
+            if len(seen) == 3:
+                finished.set()
+
+        missing = {"here": "missing", "file": None}
+        with mock.patch.object(texpackages, "JOBS", {}), \
+                mock.patch.object(texpackages, "_QUEUE", []), \
+                mock.patch.object(texpackages, "_WORKER_RUNNING", False), \
+                mock.patch.object(texpackages, "availability", return_value=missing), \
+                mock.patch.object(texpackages, "_run", side_effect=run):
+            texpackages.start("first")
+            self.assertTrue(entered_first.wait(2), "the first job should start")
+            self.assertEqual(texpackages.status()["jobs"]["first"]["state"], "running")
+            second = texpackages.start("second")
+            third = texpackages.start("third")
+            self.assertEqual(second["state"], "queued")
+            self.assertEqual(third["state"], "queued")
+            self.assertEqual(seen, ["first"], "the queue must not start a second tlmgr")
+            release_first.set()
+            self.assertTrue(finished.wait(2), "all queued jobs should eventually run")
+            self.assertEqual(seen, ["first", "second", "third"])
+            states = texpackages.status()["states"]
+        self.assertEqual(states, {"first": "installed", "second": "installed", "third": "installed"})
+
+    def test_an_already_reachable_package_is_not_enqueued(self):
+        known = {"here": "available", "file": "tikz.sty"}
+        with mock.patch.object(texpackages, "JOBS", {}), \
+                mock.patch.object(texpackages, "_QUEUE", []), \
+                mock.patch.object(texpackages, "_WORKER_RUNNING", False), \
+                mock.patch.object(texpackages, "availability", return_value=known), \
+                mock.patch.object(texpackages, "_run") as run:
+            job = texpackages.start("pgf")
+            self.assertEqual(job["state"], "available")
+            self.assertFalse(job["running"])
+            self.assertEqual(texpackages._QUEUE, [])
+            run.assert_not_called()
+
+    def test_three_queued_installs_keep_three_removable_manifest_records(self):
+        """The regression behind the queue: one user tree, three requests."""
+        tree = tempfile.TemporaryDirectory()
+        self.addCleanup(tree.cleanup)
+        tlpdb = Path(tree.name, "tlpkg", "texlive.tlpdb")
+        tlpdb.parent.mkdir()
+        tlpdb.write_text("")
+        first_started = threading.Event()
+        let_first_finish = threading.Event()
+        names = ["first", "second", "third"]
+        seen = []
+
+        def stream(job, name, cmd):
+            seen.append(name)
+            if name == "first":
+                first_started.set()
+                let_first_finish.wait(2)
+            with tlpdb.open("a") as fh:
+                fh.write("name %s\n" % name)
+            return True
+
+        missing = {"here": "missing", "file": None}
+        tex = {"kind": "texlive", "year": 2026, "tool": "tlmgr", "said": "TeX Live 2026"}
+        import latexdraw
+        with mock.patch.object(texpackages, "TREE", tree.name), \
+                mock.patch.object(texpackages, "JOBS", {}), \
+                mock.patch.object(texpackages, "_QUEUE", []), \
+                mock.patch.object(texpackages, "_WORKER_RUNNING", False), \
+                mock.patch.object(texpackages, "availability", return_value=missing), \
+                mock.patch.object(texpackages, "distribution", return_value=tex), \
+                mock.patch.object(texpackages, "_repositories", return_value=["repo"]), \
+                mock.patch.object(texpackages, "_tlmgr", side_effect=lambda args, repo=None: ["tlmgr"] + list(args)), \
+                mock.patch.object(texpackages, "_stream", side_effect=stream), \
+                mock.patch.object(latexdraw, "forget_failures"):
+            texpackages.start("first")
+            self.assertTrue(first_started.wait(2), "the first install should start")
+            texpackages.start("second")
+            texpackages.start("third")
+            self.assertEqual(seen, ["first"], "no second tlmgr runs beside the first")
+            let_first_finish.set()
+            for _ in range(200):
+                got = texpackages.manifest()["packages"]
+                if set(got) == set(names):
+                    break
+                threading.Event().wait(.01)
+            self.assertEqual(seen, names)
+            self.assertEqual(set(texpackages.manifest()["packages"]), set(names))
+
+            def remove_run(cmd, **_kw):
+                name = cmd[-1]
+                tlpdb.write_text(tlpdb.read_text().replace("name %s\n" % name, ""))
+                return mock.Mock(returncode=1, stdout="removed with a warning", stderr="")
+
+            with mock.patch.object(texpackages.subprocess, "run", side_effect=remove_run):
+                for name in names:
+                    texpackages.remove(name)
+            self.assertEqual(texpackages.manifest()["packages"], {})
+
+
 class Removal(unittest.TestCase):
     def test_a_removed_package_leaves_no_job_behind(self):
         tree = tempfile.TemporaryDirectory()
@@ -122,10 +270,38 @@ class Removal(unittest.TestCase):
         self.assertEqual(got["installed"], {})
         self.assertNotIn("tikzmark", got["jobs"], "else the page says \"installed\" beside an empty table")
 
-    def test_the_page_lists_only_a_job_that_runs_or_failed(self):
+    def test_tlmgr_exit_one_is_success_when_its_database_says_removed(self):
+        tree = tempfile.TemporaryDirectory()
+        self.addCleanup(tree.cleanup)
+        os.makedirs(os.path.join(tree.name, "tlpkg"))
+        Path(tree.name, "tlpkg", "texlive.tlpdb").write_text("name something-else\n")
+        with mock.patch.object(texpackages, "TREE", tree.name), \
+                mock.patch.object(texpackages, "_tlmgr", return_value=["tlmgr", "remove", "tikzmark"]), \
+                mock.patch.object(texpackages.subprocess, "run",
+                                  return_value=mock.Mock(returncode=1, stdout="removed with a warning", stderr="")):
+            texpackages._save_manifest({"packages": {"tikzmark": {"via": "tlmgr", "at": "x"}}})
+            texpackages.remove("tikzmark")
+            self.assertEqual(texpackages.manifest()["packages"], {})
+
+    def test_tlmgr_exit_zero_is_not_success_while_database_still_has_package(self):
+        tree = tempfile.TemporaryDirectory()
+        self.addCleanup(tree.cleanup)
+        os.makedirs(os.path.join(tree.name, "tlpkg"))
+        Path(tree.name, "tlpkg", "texlive.tlpdb").write_text("name tikzmark\n")
+        with mock.patch.object(texpackages, "TREE", tree.name), \
+                mock.patch.object(texpackages, "_tlmgr", return_value=["tlmgr", "remove", "tikzmark"]), \
+                mock.patch.object(texpackages.subprocess, "run",
+                                  return_value=mock.Mock(returncode=0, stdout="", stderr="")):
+            texpackages._save_manifest({"packages": {"tikzmark": {"via": "tlmgr", "at": "x"}}})
+            with self.assertRaisesRegex(ValueError, "still registered"):
+                texpackages.remove("tikzmark")
+            self.assertIn("tikzmark", texpackages.manifest()["packages"])
+
+    def test_the_page_has_row_states_for_queued_running_and_failed_jobs(self):
         page = (ROOT / "lib" / "latexpage.py").read_text(encoding="utf-8")
-        self.assertIn("jobs[n].running || jobs[n].error", page,
-                      "a finished job is in the table; a line for it is a second, stale answer")
+        self.assertIn("state === 'queued'", page)
+        self.assertIn("state === 'running'", page)
+        self.assertIn("state === 'failed'", page)
 
 
 if __name__ == "__main__":

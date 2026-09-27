@@ -471,13 +471,7 @@ body.index main.settings.rh{max-width:60rem;padding:22px 16px 60px}
 .rh .it .note{font-size:12.5px;color:var(--dim);margin-top:4px}
 .rh .it .note.bad{color:var(--danger)}
 .rh .it .ask{margin-top:8px}
-.rh button.go,.rh button.plain{font:inherit;font-size:13px;border-radius:7px;padding:6px 14px;cursor:pointer;
-  white-space:nowrap}
-.rh button.go{background:var(--accent);color:var(--accent-fg);border:1px solid var(--accent)}
-.rh button.plain{background:var(--bg);color:var(--dim);border:1px solid var(--rule)}
-.rh button.plain:hover{color:var(--accent);border-color:var(--accent)}
 .rh button.big{padding:8px 16px;font-weight:600}
-.rh button:disabled{opacity:.55;cursor:default}
 /* status: a glyph and a word, and a colour on top -- never the colour alone */
 .rh .st{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1.2;
   padding:2px 9px 2px 7px;border-radius:20px;border:1px solid currentColor;white-space:nowrap;

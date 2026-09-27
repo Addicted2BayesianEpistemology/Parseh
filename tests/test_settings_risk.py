@@ -135,6 +135,65 @@ class Table(unittest.TestCase):
         self.assertIn(settingspage.SETTINGS["network.port"][1], said)
 
 
+class SharedControlStyles(unittest.TestCase):
+    """Settings' affirmative/quiet controls and native choice colours live once."""
+
+    def test_go_plain_and_choice_controls_are_shared(self):
+        self.assertIn(".settings button.go, .settings button.plain", settingspage.STYLE)
+        self.assertIn("accent-color: var(--accent)", settingspage.STYLE)
+        self.assertIn("input[type=radio]", settingspage.STYLE)
+        self.assertIn(".settings .parseh-btn:focus-visible", settingspage.STYLE)
+        read = (ROOT / "lib" / "lookuppage.py").read_text(encoding="utf-8")
+        update = (ROOT / "lib" / "updatepage.py").read_text(encoding="utf-8")
+        self.assertNotIn(".rh button.go,.rh button.plain", read)
+        self.assertNotIn(".upd button.go,.upd button.plain", update)
+        self.assertIn(".rh button.big", read)
+        self.assertIn(".upd button.go.older", update)
+
+    def test_latex_actions_use_the_shared_controls(self):
+        latex = (ROOT / "lib" / "latexpage.py").read_text(encoding="utf-8")
+        for action in ("data-install=", "data-edit=", "data-rename=", "data-default=",
+                       "data-delete=", "data-draw-sample", "data-cancel", "data-remove=",
+                       "data-package-stop=", "data-new", "data-package-plan", "data-forget"):
+            self.assertIn('class="plain" ' + action, latex, action)
+        for action in ("data-save>", "data-save-limit", "data-import-go", "data-package-get=",
+                       "data-package-retry=", "data-package-get-all="):
+            self.assertIn('class="go" ' + action, latex, action)
+        self.assertIn('class="danger" data-remove-yes=', latex)
+        self.assertIn('class="plain" data-import-open', latex)
+        self.assertIn("picker.click()", latex, "the keyboard-focusable Import button opens its picker")
+
+    def test_package_review_is_explicit_and_reaches_its_result(self):
+        latex = (ROOT / "lib" / "latexpage.py").read_text(encoding="utf-8")
+        self.assertIn(">Review packages…</button>", latex)
+        self.assertIn('data-package-panel', latex)
+        self.assertIn('data-pkg-said aria-live="polite" aria-atomic="true" tabindex="-1"', latex)
+        self.assertIn("panel.scrollIntoView({block: 'center', behavior:", latex)
+        self.assertIn("Nothing has been downloaded.", latex)
+        self.assertIn("revealPackages(root.querySelector('[data-package-get]')", latex)
+        self.assertIn("var packageSerial = 0", latex)
+        self.assertIn("if (serial !== packageSerial) return;", latex)
+        self.assertIn("Could not ask what the packages cost.", latex)
+        self.assertIn('aria-label="Review packages needed by ', latex)
+        self.assertIn('aria-label="Get ', latex)
+        for label in ('aria-label="Edit theme ', 'aria-label="Rename theme ',
+                      'aria-label="Make ', 'aria-label="Export theme ',
+                      'aria-label="Delete theme ', 'aria-label="Remove ',
+                      'aria-label="Stop getting '):
+            self.assertIn(label, latex, label)
+
+    def test_compiler_facts_are_a_status_list_but_packages_stay_a_table(self):
+        latex = (ROOT / "lib" / "latexpage.py").read_text(encoding="utf-8")
+        self.assertIn('<dl class="tex-status">', latex)
+        self.assertIn('data-compiler="', latex)
+        self.assertIn('class="st ok"', latex)
+        self.assertIn('Not on this computer', latex)
+        self.assertIn('<h3 id="tex-packages">TeX packages</h3>', latex)
+        self.assertIn('<table class="pkg-table">', latex)
+        self.assertIn('data-package-row=', latex)
+        self.assertIn('@media (max-width:40rem){.lx .tex-status>div{grid-template-columns:1fr;gap:4px}}', latex)
+
+
 # ---------------------------------------------------------------- a server
 def fake_downloader(name, plan, steps=20, pause=0.02, log=None, write=None):
     """A stand-in for one of lib/getdict.py and its siblings, with the

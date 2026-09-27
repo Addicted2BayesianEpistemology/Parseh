@@ -296,6 +296,20 @@ main.settings { max-width: 58rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
   border: 1px solid var(--rule, #8886); background: var(--bg, transparent);
   color: inherit; max-width: 100%; }
 .settings textarea { width: 100%; min-height: 4.5rem; font-family: ui-monospace, monospace; }
+.settings button.go, .settings button.plain { font: inherit; font-size: 13.5px; line-height: 1.2;
+  min-height: 36px; padding: 7px 15px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.settings button.go { background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent);
+  font-weight: 600; }
+.settings button.plain { background: var(--bg); color: var(--dim); border: 1px solid var(--rule); }
+.settings button.plain:hover { color: var(--accent); border-color: var(--accent); }
+.settings button.danger { font: inherit; font-size: 13.5px; line-height: 1.2; min-height: 36px;
+  padding: 7px 15px; border-radius: 7px; cursor: pointer; background: var(--bg); color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--rule)); font-weight: 600; }
+.settings button.danger:hover { background: var(--danger); color: var(--danger-fg); border-color: var(--danger); }
+.settings button:focus-visible, .settings .parseh-btn:focus-visible,
+.settings :is(input[type=checkbox], input[type=radio]):focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+.settings :is(input[type=checkbox], input[type=radio]) { accent-color: var(--accent); }
 .settings .fld { margin: .6rem 0; }
 .settings .fld > span { display: block; font-size: .92rem; opacity: .85; margin-bottom: .15rem; }
 .settings .code { font: 700 2.2rem/1.1 ui-monospace, monospace; letter-spacing: .12em;
@@ -311,7 +325,11 @@ main.settings { max-width: 58rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
   margin-top: 1rem; }
 .settings .addr { font-family: ui-monospace, monospace; }
 .settings .shut input { pointer-events: none; }
-@media (max-width: 40rem) { .settings section { padding: .8rem; } }
+@media (max-width: 40rem) {
+  .settings section { padding: .8rem; }
+  .settings button.go, .settings button.plain, .settings button.danger { min-height: 44px; }
+  .settings .parseh-btn { display: inline-flex; align-items: center; min-height: 44px; }
+}
 .settings input:disabled, .settings textarea:disabled, .settings button:disabled {
   opacity: .55; cursor: not-allowed; }
 /* WHO MAY CHANGE IT, IN WORDS: a lock and a sentence, never a colour alone

@@ -118,7 +118,7 @@ def api(what, body, where, libraries=(), rename=None, used=None):
             return 200, {"ok": True, "fonts": fonts()}
         if what == "sample":
             theme = latexthemes.clean(dict(body.get("theme") or {}, name=body.get("theme", {}).get("name") or "sample"))
-            r = latexdraw.draw(body.get("tex") or SAMPLE, None, theme=theme)
+            r = latexdraw.draw(body.get("tex") or SAMPLE, None, theme=theme, preview=True)
             return 200, {"ok": True, "result": r, "preamble": latexthemes.preamble(theme)}
         if what == "save":
             t = latexthemes.save(body.get("theme") or {}, was=body.get("was"))
@@ -151,12 +151,14 @@ def api(what, body, where, libraries=(), rename=None, used=None):
             latexdraw.forget_failures()
             return 200, {"ok": True}
         if what == "forget":
-            return 200, dict(latexdraw.forget_unused(used() if used else set()), ok=True)
+            keys = used() if used else set()
+            latexdraw.repair_owners(keys)
+            return 200, dict(latexdraw.forget_unused(keys), ok=True)
         if what == "package-plan":
-            names = [n for n in (body.get("packages") or []) if isinstance(n, str)]
+            names = list(dict.fromkeys(n for n in (body.get("packages") or []) if isinstance(n, str)))
             return 200, dict(texpackages.plan(names), ok=True)
         if what == "package-get":
-            for n in body.get("packages") or []:
+            for n in dict.fromkeys(n for n in (body.get("packages") or []) if isinstance(n, str)):
                 texpackages.start(n)
             return 200, dict(texpackages.status(), ok=True)
         if what == "package-remove":
@@ -179,6 +181,7 @@ STYLE = r"""
 .lx .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .lx .grp{margin:8px 0}
 .lx .grp h4{margin:6px 0 4px;font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+.lx .grp-why{margin:0 0 5px;font-size:13px;color:var(--dim)}
 .lx label.pk{display:block;margin:3px 0;font-size:14px}
 .lx label.pk small{color:var(--dim)}
 .lx label.pk code{font-size:12px}
@@ -187,9 +190,52 @@ STYLE = r"""
 .lx pre.pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--boxbg);padding:8px;border-radius:6px;font-size:12px;max-height:22rem;overflow:auto}
 .lx .said{min-height:1.2em;font-size:13px}
 .lx .bad{color:var(--danger,#c33)}
+@keyframes lx-plan-flash{0%{outline:3px solid var(--accent);outline-offset:3px}100%{outline:3px solid transparent;outline-offset:7px}}
+@media (prefers-reduced-motion:reduce){.lx [data-package-panel].flash{animation:none}}
 .lx img.sample{max-width:100%;background:#fff;padding:6px;border-radius:4px}
+.lx .tex-status{margin:.65rem 0 1rem}
+.lx .tex-status>div{display:grid;grid-template-columns:minmax(8rem,.8fr) minmax(0,2fr);gap:6px 12px;align-items:center;
+  padding:8px 0;border-top:1px solid var(--rule)}
+.lx .tex-status>div:last-child{border-bottom:1px solid var(--rule)}
+.lx .tex-status dt{font-size:14px;font-weight:600}
+.lx .tex-status dd{margin:0;min-width:0;display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
+.lx .st{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1.2;
+  padding:2px 9px 2px 7px;border-radius:20px;border:1px solid currentColor;white-space:nowrap;
+  background:color-mix(in srgb,currentColor 9%,transparent)}
+.lx .st i{font-style:normal;font-weight:700}
+.lx .st.ok{color:var(--ok)}
+.lx .st.not,.lx .st.wait{color:var(--dim);border-style:dashed;background:none}
+.lx .st.run{color:var(--accent)}
+.lx .st.bad{color:var(--danger);background:color-mix(in srgb,var(--danger) 8%,transparent)}
+.lx .tex-status .compiler-version{min-width:0;color:var(--dim);font:12px ui-monospace,monospace;overflow-wrap:anywhere}
+@media (max-width:40rem){.lx .tex-status>div{grid-template-columns:1fr;gap:4px}}
 .lx table{border-collapse:collapse;width:100%}
 .lx td,.lx th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--rule);font-size:13px}
+.lx [data-package-panel]{scroll-margin-block:2rem}
+.lx [data-package-panel].flash{animation:lx-plan-flash 1.1s ease-out}
+.lx .pkg-intro{margin:.35rem 0 .65rem;color:var(--dim);font-size:13px}
+.lx .pkg-live{min-height:1.35em;margin:.35rem 0;font-size:13px}
+.lx .pkg-table{margin:.45rem 0}
+.lx .pkg-table th,.lx .pkg-table td{vertical-align:top}
+.lx .pkg-table th[scope=row]{font-weight:600;white-space:nowrap}
+.lx .pkg-why{display:block;margin-top:2px;color:var(--dim);font-size:12px;overflow-wrap:anywhere}
+.lx .pkg-state{min-width:12rem}
+.lx .pkg-detail{display:block;margin-top:3px;color:var(--dim);font-size:12px;overflow-wrap:anywhere}
+.lx .pkg-detail.bad{color:var(--danger)}
+.lx .pkg-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.lx .pkg-confirm{font-size:12px;color:var(--danger);margin-bottom:4px}
+.lx .pkg-empty{color:var(--dim);font-size:13px}
+.lx .pkg-bulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:.65rem 0}
+@media (max-width:40rem){
+  .lx .pkg-table,.lx .pkg-table tbody,.lx .pkg-table tr,.lx .pkg-table th,.lx .pkg-table td{display:block;width:100%}
+  .lx .pkg-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .lx .pkg-table tr{border:1px solid var(--rule);border-radius:8px;background:var(--boxbg);padding:6px 8px;margin:8px 0}
+  .lx .pkg-table th,.lx .pkg-table td{border:0;padding:4px 0;display:grid;grid-template-columns:7rem minmax(0,1fr);gap:5px 10px}
+  .lx .pkg-table th::before,.lx .pkg-table td::before{content:attr(data-label);font-size:12px;color:var(--dim);font-weight:400}
+  .lx .pkg-table .pkg-action{display:block}
+  .lx .pkg-table .pkg-action::before{display:block;margin-bottom:4px}
+  .lx .pkg-table .pkg-state{min-width:0}
+}
 """
 
 SCRIPT = r"""
@@ -199,6 +245,13 @@ SCRIPT = r"""
   var root = document.getElementById('lx');
   var API = '/settings/api/latex/';
   var editing = null;       // the theme being edited: {was, theme}
+  var packagePlans = {};    // name -> one quoted row, kept while the rest redraws
+  var packageAsked = {};    // one-off names typed into the package box
+  var packageRequest = {};  // name -> the quote currently allowed to change it
+  var packageSerial = 0;
+  var packageMessage = '';
+  var removing = null;
+  var polling = false;
   var q = new URLSearchParams(location.search);
   function esc(s) { return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
     return {'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[c]; }); }
@@ -213,24 +266,176 @@ SCRIPT = r"""
   function MB(n) { return n == null ? '' : (n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' kB'); }
   function reload() { return post('state').then(function (v) { if (v.ok) { S = v; draw(); } }); }
 
+  function unique(a) { return a.filter(function (x, at) { return x && a.indexOf(x) === at; }); }
+  function packageAvailable(name) {
+    var plan = packagePlans[name] || {};
+    return !!(((S.packages || {}).available || {})[name] || plan.here === 'available');
+  }
+  function themeNeed(t) {
+    var features = [], names = [];
+    (S.needs[t.name] || []).forEach(function (need) {
+      if (S.files[need[1]] !== false) return;
+      var want = (need[2] || []).filter(function (name) { return !packageAvailable(name); });
+      if (!want.length) return;
+      if (features.indexOf(need[0]) < 0) features.push(need[0]);
+      names = names.concat(want);
+    });
+    return {features: features, names: unique(names)};
+  }
+  function missingMarkup(t) {
+    var need = themeNeed(t);
+    if (!need.features.length) return '';
+    return '<div class="missing">Not installed here: ' + need.features.map(esc).join(', ') +
+      (need.names.length ? ' <button type="button" class="plain" data-install="' + esc(need.names.join(' ')) +
+       '" aria-label="Review packages needed by ' + esc(t.name) + '"' + dis('latex.packages') +
+       '>Review packages…</button>' : '') + '</div>';
+  }
+  function requiredPackages() {
+    var rows = {};
+    S.themes.forEach(function (t) {
+      var need = themeNeed(t);
+      need.names.forEach(function (name) {
+        var row = rows[name] || (rows[name] = {name: name, themes: [], licence: ''});
+        if (row.themes.indexOf(t.name) < 0) row.themes.push(t.name);
+        (S.needs[t.name] || []).forEach(function (one) {
+          if ((one[2] || []).indexOf(name) >= 0 && !row.licence) row.licence = one[3] || '';
+        });
+      });
+    });
+    Object.keys(packageAsked).forEach(function (name) {
+      if (packageAvailable(name)) return;
+      rows[name] = rows[name] || {name: name, themes: [], licence: ''};
+      rows[name].asked = true;
+    });
+    return rows;
+  }
+  function packageRows() {
+    var rows = requiredPackages(), installed = (S.packages || {}).installed || {}, jobs = (S.packages || {}).jobs || {};
+    Object.keys(installed).forEach(function (name) {
+      rows[name] = rows[name] || {name: name, themes: [], licence: ''};
+      rows[name].installed = installed[name];
+    });
+    Object.keys(jobs).forEach(function (name) {
+      rows[name] = rows[name] || {name: name, themes: [], licence: ''};
+      rows[name].job = jobs[name];
+    });
+    Object.keys(packagePlans).forEach(function (name) {
+      rows[name] = rows[name] || {name: name, themes: [], licence: ''};
+      rows[name].plan = packagePlans[name];
+    });
+    return Object.keys(rows).sort().map(function (name) { return rows[name]; });
+  }
+  function packageWhy(row) {
+    if (row.themes.length) return 'for the theme' + (row.themes.length === 1 ? ' ' : 's ') + row.themes.map(esc).join(', ');
+    return row.asked ? 'you asked for it' : '';
+  }
+  function packageState(row) {
+    var name = row.name, job = row.job || {}, plan = row.plan || {}, state = job.state ||
+      (job.running ? 'running' : (job.error ? (job.error === 'Stopped.' ? 'stopped' : 'failed') : ''));
+    var cost = plan.size == null ? '' : ', ' + MB(plan.size);
+    var get = '<button type="button" class="go" data-package-get="' + esc(name) +
+      '" aria-label="Get ' + esc(name + cost) + '"' + dis('latex.packages') + '>Get it</button>';
+    var retry = '<button type="button" class="go" data-package-retry="' + esc(name) +
+      '" aria-label="Try getting ' + esc(name) + ' again"' + dis('latex.packages') + '>Try again</button>';
+    var stop = '<button type="button" class="plain" data-package-stop="' + esc(name) +
+      '" aria-label="Stop getting ' + esc(name) + '"' + dis('latex.packages') + '>Stop</button>';
+    if (row.installed) {
+      if (removing === name) return {kind: 'got', text: '<span class="st ok"><i aria-hidden="true">✓</i> Got</span>',
+        detail: 'Remove only the copy Parseh got.', action: '<div class="pkg-confirm">Remove ' + esc(name) +
+        ' from Parseh?</div><div class="pkg-actions"><button type="button" class="danger" data-remove-yes="' + esc(name) +
+        '" aria-label="Yes, remove ' + esc(name) + ' from Parseh"' + dis('latex.packages') + '>Remove</button>' +
+        '<button type="button" class="plain" data-remove-no>Cancel</button></div>'};
+      return {kind: 'got', text: '<span class="st ok"><i aria-hidden="true">✓</i> Got</span>',
+        detail: '', action: '<button type="button" class="plain" data-remove="' + esc(name) +
+        '" aria-label="Remove ' + esc(name) + ' from Parseh"' + dis('latex.packages') + '>Remove…</button>'};
+    }
+    if (state === 'queued' || state === 'waiting') return {kind: 'waiting',
+      text: '<span class="st wait"><i aria-hidden="true">○</i> Waiting</span>', detail: 'Another package is being got first.', action: stop};
+    if (state === 'running') return {kind: 'getting',
+      text: '<span class="st run"><i aria-hidden="true">↻</i> Getting</span>',
+      detail: (job.total ? job.done + ' of ' + job.total : '') + (job.say ? (job.total ? ' — ' : '') + esc(job.say) : ''), action: stop};
+    if (state === 'failed') return {kind: 'failed',
+      text: '<span class="st bad"><i aria-hidden="true">!</i> Could not get it</span>', detail: esc(job.error || 'It failed.'), action: retry};
+    if (state === 'stopped') return {kind: 'stopped',
+      text: '<span class="st not"><i aria-hidden="true">—</i> Stopped</span>', detail: '', action: retry};
+    if (state === 'available' || packageAvailable(name) || plan.here === 'available') return {kind: 'available',
+      text: '<span class="st ok"><i aria-hidden="true">✓</i> Available to this TeX</span>', detail: 'Parseh will not add a second copy.', action: ''};
+    if (plan.state === 'asking') return {kind: 'asking',
+      text: '<span class="st wait"><i aria-hidden="true">○</i> Asking about it</span>', detail: '', action: ''};
+    if (plan.repository === 'unavailable' || plan.can_get === false || plan.state === 'unavailable') return {kind: 'unavailable',
+      text: '<span class="st bad"><i aria-hidden="true">!</i> Not available here</span>',
+      detail: esc(plan.why || 'This TeX Live repository does not offer it.'), action: ''};
+    if (plan.state === 'ready') return {kind: 'ready', text: '<span class="st run"><i aria-hidden="true">→</i> To get</span>',
+      detail: '', action: get, ready: true, size: plan.size};
+    return {kind: 'review', text: '<span class="st not"><i aria-hidden="true">?</i> Cost not checked</span>',
+      detail: 'Review its cost before getting it.', action: '<button type="button" class="plain" data-package-review="' + esc(name) +
+      '" aria-label="Review the cost of ' + esc(name) + '"' + dis('latex.packages') + '>Review cost</button>'};
+  }
+  function packageRow(row, state) {
+    var plan = row.plan || {}, licence = plan.licence || (row.installed || {}).licence || row.licence || '';
+    var size = plan.size != null ? MB(plan.size) : ((row.installed || {}).size != null ? MB(row.installed.size) : '');
+    return '<tr data-package-row="' + esc(row.name) + '"><th scope="row" data-label="Package"><code>' + esc(row.name) +
+      '</code></th><td data-label="Needed for">' + packageWhy(row) + '</td><td data-label="Licence">' + esc(licence) +
+      '</td><td data-label="Size">' + esc(size || 'Not known yet') + '</td><td class="pkg-state" data-label="State" aria-live="polite">' +
+      state.text + (state.detail ? '<span class="pkg-detail' + (state.kind === 'failed' || state.kind === 'unavailable' ? ' bad' : '') +
+      '">' + state.detail + '</span>' : '') + '</td><td class="pkg-action" data-label="Action">' + state.action + '</td></tr>';
+  }
+  function renderPackages() {
+    var panel = root.querySelector('[data-package-panel]');
+    if (!panel) return;
+    var typed = panel.querySelector('[data-pkgname]');
+    typed = typed ? typed.value : '';
+    var rows = packageRows().map(function (row) { return {row: row, state: packageState(row)}; });
+    var ready = rows.filter(function (x) { return x.state.ready; });
+    var total = ready.reduce(function (n, x) { return n + (+x.state.size || 0); }, 0);
+    var bulk = ready.length > 1 ? '<div class="pkg-bulk"><button type="button" class="go" data-package-get-all="' +
+      esc(ready.map(function (x) { return x.row.name; }).join(' ')) + '" aria-label="Get all ' + esc(ready.map(function (x) { return x.row.name; }).join(', ')) +
+      '"' + dis('latex.packages') + '>Get all' + (total ? ' — ' + MB(total) : '') + '</button><span>' + ready.length + ' packages ready</span></div>' : '';
+    panel.innerHTML = '<h3 id="tex-packages">TeX packages</h3><p class="pkg-intro">Packages needed by the themes stay here. Review a cost before getting one; Parseh gets them one at a time.</p>' +
+      '<div class="pkg-live" data-pkg-said aria-live="polite" aria-atomic="true" tabindex="-1">' + esc(packageMessage) + '</div>' + bulk +
+      '<table class="pkg-table"><thead><tr><th scope="col">Package</th><th scope="col">Needed for</th><th scope="col">Licence</th><th scope="col">Size</th><th scope="col">State</th><th scope="col">Action</th></tr></thead><tbody>' +
+      (rows.length ? rows.map(function (x) { return packageRow(x.row, x.state); }).join('') : '<tr><td colspan="6" class="pkg-empty">No package needs attention.</td></tr>') +
+      '</tbody></table><div class="row"><input type="text" data-pkgname placeholder="a TeX Live package, e.g. chemfig"' + dis('latex.packages') +
+      '><button type="button" class="plain" data-package-plan' + dis('latex.packages') + '>What it costs…</button></div>' + lock('latex.packages');
+    var input = panel.querySelector('[data-pkgname]');
+    if (input) input.value = typed;
+  }
+  function flashPackages() {
+    var panel = root.querySelector('[data-package-panel]');
+    if (!panel) return;
+    panel.classList.remove('flash'); void panel.offsetWidth; panel.classList.add('flash');
+  }
+  function revealPackages(focus) {
+    var panel = root.querySelector('[data-package-panel]');
+    if (!panel) return;
+    var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    panel.scrollIntoView({block: 'center', behavior: reduced ? 'auto' : 'smooth'});
+    try { (focus || panel.querySelector('[data-pkg-said]')).focus({preventScroll: true}); } catch (e) {}
+  }
+  function refreshThemeNeeds() {
+    Array.prototype.forEach.call(root.querySelectorAll('[data-theme-missing]'), function (box) {
+      var name = box.getAttribute('data-theme-missing');
+      var theme = S.themes.filter(function (t) { return t.name === name; })[0];
+      if (theme) box.innerHTML = missingMarkup(theme);
+    });
+  }
+
   function themeCard(t) {
     var isDef = t.name.toLowerCase() === S.default.toLowerCase();
     var comp = S.compilers[t.compiler];
-    var needs = (S.needs[t.name] || []).filter(function (n) { return S.files[n[1]] === false; });
     return '<div class="theme" data-theme="' + esc(t.name) + '"><h3>' + esc(t.name) +
       (isDef ? ' <small>(the default: a block naming no theme)</small>' : '') + '</h3>' +
       '<div class="facts">' + esc(t.compiler) + (comp ? '' : ' — not on this computer') + ' · ' +
       (t.packages.length ? esc(t.packages.join(', ')) : 'no packages') +
       (t.languages ? ' · text in the languages Parseh teaches' : '') +
       (t.font ? ' · font ' + esc(t.font) : '') + (t.preamble ? ' · a preamble of its own' : '') + '</div>' +
-      (needs.length ? '<div class="missing">Not installed here: ' + needs.map(function (n) { return esc(n[0]); }).join(', ') +
-        ' <button type="button" data-install="' + esc(needs.map(function (n) { return n[2].join(' '); }).join(' ')) + '"' + dis('latex.packages') + '>Install…</button></div>' : '') +
+      '<div data-theme-missing="' + esc(t.name) + '">' + missingMarkup(t) + '</div>' +
       '<div class="row">' +
-      '<button type="button" data-edit="' + esc(t.name) + '"' + dis('latex.theme') + '>Edit</button>' +
-      '<button type="button" data-rename="' + esc(t.name) + '"' + dis('latex.rename') + '>Rename…</button>' +
-      (isDef ? '' : '<button type="button" data-default="' + esc(t.name) + '"' + dis('latex.theme') + '>Make it the default</button>') +
-      '<a class="parseh-btn" href="' + API + 'export?name=' + encodeURIComponent(t.name) + '">Export</a>' +
-      (t.name.toLowerCase() === 'default' ? '' : '<button type="button" data-delete="' + esc(t.name) + '"' + dis('latex.theme') + '>Delete…</button>') +
+      '<button type="button" class="plain" data-edit="' + esc(t.name) + '" aria-label="Edit theme ' + esc(t.name) + '"' + dis('latex.theme') + '>Edit</button>' +
+      '<button type="button" class="plain" data-rename="' + esc(t.name) + '" aria-label="Rename theme ' + esc(t.name) + '"' + dis('latex.rename') + '>Rename…</button>' +
+      (isDef ? '' : '<button type="button" class="plain" data-default="' + esc(t.name) + '" aria-label="Make ' + esc(t.name) + ' the default theme"' + dis('latex.theme') + '>Make it the default</button>') +
+      '<a class="parseh-btn" href="' + API + 'export?name=' + encodeURIComponent(t.name) + '" aria-label="Export theme ' + esc(t.name) + '">Export</a>' +
+      (t.name.toLowerCase() === 'default' ? '' : '<button type="button" class="plain" data-delete="' + esc(t.name) + '" aria-label="Delete theme ' + esc(t.name) + '"' + dis('latex.theme') + '>Delete…</button>') +
       '</div><div class="said" data-said-for="' + esc(t.name) + '"></div></div>';
   }
 
@@ -247,7 +452,8 @@ SCRIPT = r"""
         return '<label class="pk"><input type="checkbox" data-pkg="' + esc(p.id) + '"' + (t.packages.indexOf(p.id) >= 0 ? ' checked' : '') + '> <b>' + esc(p.name) +
           '</b> <small>' + esc(p.what) + ' <code>' + esc(p.example) + '</code>' + (here === false ? ' <span class="missing">not installed</span>' : '') + '</small></label>';
       }).join('');
-      return '<div class="grp"><h4>' + esc(g[1]) + '</h4>' + rows + '</div>';
+      return '<div class="grp"><h4>' + esc(g[1]) + '</h4>' +
+        (g[2] ? '<p class="grp-why">' + esc(g[2]) + '</p>' : '') + rows + '</div>';
     }).join('');
     return '<section class="edit"><h2>' + (editing.was ? 'The theme ' + esc(editing.was) : 'A new theme') + '</h2>' +
       (editing.was ? '' : '<div class="fld"><span>Its name — ' + esc(S.rule) + '</span><input type="text" data-name value="' + esc(t.name) + '"></div>') +
@@ -257,7 +463,7 @@ SCRIPT = r"""
       '<div class="fld"><span>Packages</span>' + groups + '</div>' +
       '<div class="fld"><span>A preamble of its own, after the packages</span><textarea data-preamble>' + esc(t.preamble) + '</textarea></div>' +
       '<div class="fld"><span>Draw a sample with the theme as it is here</span><textarea data-sample>' + esc(S.sample) + '</textarea></div>' +
-      '<div class="row"><button type="button" data-draw-sample>Draw the sample</button><button type="button" data-save class="parseh-btn">Save the theme</button><button type="button" data-cancel>Cancel</button></div>' +
+      '<div class="row"><button type="button" class="plain" data-draw-sample>Draw the sample</button><button type="button" class="go" data-save>Save the theme</button><button type="button" class="plain" data-cancel>Cancel</button></div>' +
       '<div class="said" data-edit-said></div><div data-sample-out></div></section>';
   }
 
@@ -278,31 +484,24 @@ SCRIPT = r"""
   function draw() {
     var comps = Object.keys(S.compilers).map(function (c) {
       var v = S.compilers[c];
-      return '<tr><td>' + c + '</td><td>' + (v ? '✓ ' + esc(v.version) : '— not on this computer') + '</td></tr>';
-    }).join('');
-    var inst = S.packages.installed || {}, jobs = S.packages.jobs || {};
-    var pk = Object.keys(inst).sort().map(function (n) {
-      var p = inst[n];
-      return '<tr><td>' + esc(n) + '</td><td>' + esc(p.licence || '') + '</td><td>' + MB(p.size) + '</td><td><button type="button" data-remove="' + esc(n) + '"' + dis('latex.packages') + '>Remove…</button></td></tr>';
-    }).join('') || '<tr><td colspan="4">No package got through Parseh yet.</td></tr>';
-    // a job that finished is in the table above; only one running, or one that failed, needs a line
-    var running = Object.keys(jobs).filter(function (n) { return jobs[n].running || jobs[n].error; }).map(function (n) {
-      var j = jobs[n];
-      return '<div>' + esc(n) + ': ' + (j.running ? 'installing' + (j.total ? ' ' + j.done + '/' + j.total : '') + ' — ' + esc(j.say || '') +
-        ' <button type="button" data-stop="' + esc(n) + '"' + dis('latex.packages') + '>Stop</button>' : (j.error ? '<span class="bad">' + esc(j.error) + '</span>' : '✓ installed')) + '</div>';
+      return '<div data-compiler="' + esc(c) + '"><dt><code>' + esc(c) + '</code></dt><dd>' +
+        (v ? '<span class="st ok"><i aria-hidden="true">✓</i> Available</span><span class="compiler-version">' + esc(v.version) + '</span>'
+           : '<span class="st not"><i aria-hidden="true">—</i> Not on this computer</span>') +
+        '</dd></div>';
     }).join('');
     root.innerHTML =
       '<section><h2>The themes</h2><p class="why">A latex block names its theme after the fence — <code>::::latex chemistry</code> — and a block that names none is drawn with the default. Each theme is compiled on its own: nothing here touches a <code>:::math</code> formula.</p>' +
       S.themes.map(themeCard).join('') +
-      '<div class="row"><button type="button" data-new' + dis('latex.theme') + '>New theme</button>' +
-      '<label class="parseh-btn">Import a theme… <input type="file" data-import accept=".json,application/json" hidden' + dis('latex.import') + '></label></div>' +
+      '<div class="row"><button type="button" class="plain" data-new' + dis('latex.theme') + '>New theme</button>' +
+      '<button type="button" class="plain" data-import-open' + dis('latex.import') + '>Import a theme…</button>' +
+      '<input type="file" data-import accept=".json,application/json" hidden' + dis('latex.import') + '></div>' +
       lock('latex.theme') + '<div class="said" data-top-said></div><div data-import-out></div></section>' +
       editor() +
-      '<section><h2>TeX on this computer</h2><p class="why">' + esc(S.tex.said || '') + '. Parseh installs no TeX: it draws with the TeX this computer has, and puts the packages it gets for the drawings in its own folder, <code>texmf/</code>.</p><table>' + comps + '</table>' +
-      '<h3>Packages Parseh got</h3><table><tr><th>Package</th><th>Licence</th><th>Size</th><th></th></tr>' + pk + '</table>' + running +
-      '<div class="row"><input type="text" data-pkgname placeholder="a TeX Live package, e.g. chemfig"' + dis('latex.packages') + '><button type="button" data-plan' + dis('latex.packages') + '>What it costs…</button></div><div data-plan-out></div>' + lock('latex.packages') + '</section>' +
-      '<section><h2>How long a drawing may take</h2><p class="why">A drawing that has not finished by then is stopped, and its block says so.</p><div class="row"><input type="number" data-limit min="' + S.limits[0] + '" max="' + S.limits[1] + '" value="' + S.timeout + '"' + dis('latex.limit') + '> seconds <button type="button" data-save-limit' + dis('latex.limit') + '>Save</button></div>' + lock('latex.limit') + '<div class="said" data-limit-said></div></section>' +
-      '<section><h2>The drawings kept</h2><p class="why">' + S.kept.drawings + ' drawings, ' + MB(S.kept.bytes) + '. Each is made once and kept, and made again when its block, its theme, its packages or the TeX change; one nothing has asked for in 30 days is let go when Parseh starts.</p><div class="row"><button type="button" data-forget' + dis('latex.forget') + '>Forget drawings nothing uses</button></div><div class="said" data-forget-said></div></section>';
+      '<section><h2>TeX on this computer</h2><p class="why">' + esc(S.tex.said || '') + '. Parseh installs no TeX: it draws with the TeX this computer has, and puts the packages it gets for the drawings in its own folder, <code>texmf/</code>.</p><h3>Compilers</h3><dl class="tex-status">' + comps + '</dl>' +
+      '<div data-package-panel></div></section>' +
+      '<section><h2>How long a drawing may take</h2><p class="why">A drawing that has not finished by then is stopped, and its block says so.</p><div class="row"><input type="number" data-limit min="' + S.limits[0] + '" max="' + S.limits[1] + '" value="' + S.timeout + '"' + dis('latex.limit') + '> seconds <button type="button" class="go" data-save-limit' + dis('latex.limit') + '>Save</button></div>' + lock('latex.limit') + '<div class="said" data-limit-said></div></section>' +
+      '<section><h2>The drawings kept</h2><p class="why">' + S.kept.drawings + ' saved drawings, ' + MB(S.kept.bytes) + '. A live preview is temporary and is kept only when its document or exercise is saved. Saved source owns its drawing; one no saved source names is let go after a day. Each is made again when its block, theme, packages or TeX change.</p><div class="row"><button type="button" class="plain" data-forget' + dis('latex.forget') + '>Forget drawings nothing uses</button></div><div class="said" data-forget-said></div></section>';
+    renderPackages();
     var fl = root.querySelector('#lx-fonts');
     if (fl) post('fonts').then(function (r) { if (r.ok) fl.innerHTML = r.fonts.map(function (f) { return '<option value="' + esc(f) + '">'; }).join(''); });
   }
@@ -313,6 +512,7 @@ SCRIPT = r"""
     var b = e.target.closest ? e.target.closest('button') : null;
     if (!b) return;
     var a = function (n) { return b.getAttribute(n); };
+    if (a('data-import-open') !== null) { var picker = root.querySelector('[data-import]'); if (picker) picker.click(); return; }
     if (a('data-new') !== null) { editing = {was: null, theme: {name: q.get('make') || '', compiler: 'xelatex', packages: S.themes[0] ? S.themes[0].packages.slice() : [], languages: false, font: '', preamble: ''}}; draw(); return; }
     if (a('data-edit')) { var t = S.themes.filter(function (x) { return x.name === a('data-edit'); })[0]; editing = {was: t.name, theme: JSON.parse(JSON.stringify(t))}; draw(); return; }
     if (a('data-cancel') !== null) { editing = null; draw(); return; }
@@ -357,13 +557,36 @@ SCRIPT = r"""
       });
       return;
     }
-    if (a('data-install')) { planInstall(a('data-install').split(' ').filter(Boolean)); return; }
-    if (a('data-plan') !== null) { var n = root.querySelector('[data-pkgname]').value.trim(); if (n) planInstall([n]); return; }
-    if (a('data-get')) { post('package-get', {packages: a('data-get').split(' ')}).then(function () { poll(); }); return; }
-    if (a('data-stop')) { post('package-stop', {package: a('data-stop')}).then(reload); return; }
-    if (a('data-remove')) {
-      if (!confirm('Remove ' + a('data-remove') + '? Only what Parseh itself installed is ever removed.')) return;
-      post('package-remove', {package: a('data-remove')}).then(function (r) { if (!r.ok) alert(r.error); reload(); });
+    if (a('data-install') !== null) { planPackages(a('data-install').split(' ').filter(Boolean)); return; }
+    if (a('data-package-plan') !== null) {
+      var n = root.querySelector('[data-pkgname]').value.trim();
+      if (n) { packageAsked[n] = true; planPackages([n]); }
+      return;
+    }
+    if (a('data-package-review')) { planPackages([a('data-package-review')]); return; }
+    if (a('data-package-get')) { startPackages([a('data-package-get')]); return; }
+    if (a('data-package-retry')) { startPackages([a('data-package-retry')]); return; }
+    if (a('data-package-get-all')) { startPackages(a('data-package-get-all').split(' ').filter(Boolean)); return; }
+    if (a('data-package-stop')) {
+      post('package-stop', {package: a('data-package-stop')}).then(function (r) {
+        if (!r.ok) { packageMessage = r.error || 'Could not stop that package.'; }
+        else { S.packages = r; packageMessage = 'Stopped ' + a('data-package-stop') + '.'; }
+        renderPackages();
+      }).catch(function () { packageMessage = 'Could not stop that package.'; renderPackages(); });
+      return;
+    }
+    if (a('data-remove')) { removing = a('data-remove'); renderPackages(); return; }
+    if (a('data-remove-no') !== null) { removing = null; renderPackages(); return; }
+    if (a('data-remove-yes')) {
+      var removeName = a('data-remove-yes');
+      post('package-remove', {package: removeName}).then(function (r) {
+        removing = null;
+        if (!r.ok) { packageMessage = r.error || 'Could not remove ' + removeName + '.'; renderPackages(); return; }
+        S.packages = r;
+        packageMessage = 'Removed ' + removeName + ' from Parseh.';
+        renderPackages();
+        refreshPackageFacts();
+      }).catch(function () { removing = null; packageMessage = 'Could not remove ' + removeName + '.'; renderPackages(); });
       return;
     }
     if (a('data-save-limit') !== null) {
@@ -400,33 +623,112 @@ SCRIPT = r"""
           '<pre class="pre">' + esc(r.preamble) + '</pre>' +
           '<div class="fld"><span>Keep it as — ' + esc(S.rule) + (r.taken ? '. A theme called ' + esc(r.theme.name) + ' is here already: choose another name' : '') + '</span>' +
           '<input type="text" data-import-name value="' + esc(r.taken ? '' : r.theme.name) + '"></div>' +
-          '<div class="row"><button type="button" data-import-go>Import this theme</button></div></section>';
+          '<div class="row"><button type="button" class="go" data-import-go>Import this theme</button></div></section>';
       });
     });
   });
 
-  function planInstall(names) {
-    var out = root.querySelector('[data-plan-out]');
-    out.textContent = 'Asking what it costs…';
+  function planPackages(names) {
+    names = unique(names.map(function (name) { return String(name || '').trim(); }));
+    var skipped = names.filter(packageAvailable);
+    names = names.filter(function (name) { return !packageAvailable(name); });
+    if (!names.length) {
+      packageMessage = skipped.length ? 'That package is already available to this TeX.' : 'Enter a TeX Live package name first.';
+      renderPackages(); flashPackages(); revealPackages(); return;
+    }
+    var serial = ++packageSerial;
+    names.forEach(function (name) {
+      packageAsked[name] = true;
+      packageRequest[name] = serial;
+      packagePlans[name] = Object.assign({}, packagePlans[name] || {}, {name: name, state: 'asking'});
+    });
+    packageMessage = 'Asking what ' + (names.length === 1 ? names[0] + ' costs' : names.length + ' packages cost') + '… Nothing has been downloaded.';
+    renderPackages(); flashPackages(); revealPackages();
     post('package-plan', {packages: names}).then(function (p) {
-      if (!p.ok) { out.textContent = p.error; return; }
-      if (!p.can) { out.innerHTML = '<span class="bad">' + esc(p.why) + '</span>'; return; }
-      var rows = p.packages.map(function (x) { return esc(x.name) + (x.size ? ', ' + MB(x.size) : ', size not known before it starts') + (x.licence ? ' (' + esc(x.licence) + ')' : ''); }).join('; ');
-      out.innerHTML = 'Into Parseh\'s own <code>texmf/</code>, from ' + esc(p.tex || 'TeX') + ': ' + rows +
-        '. <button type="button" data-get="' + esc(names.join(' ')) + '">Get it</button>';
+      if (serial !== packageSerial) return;
+      if (!p.ok) {
+        names.forEach(function (name) {
+          if (packageRequest[name] === serial) packagePlans[name] = Object.assign({}, packagePlans[name], {state: 'unavailable', can_get: false, why: p.error || 'Could not ask what it costs.'});
+        });
+        packageMessage = p.error || 'Could not ask what the packages cost.';
+        renderPackages(); flashPackages(); revealPackages(); return;
+      }
+      var seen = {};
+      (p.packages || []).forEach(function (row) {
+        if (!row || !row.name || packageRequest[row.name] !== serial) return;
+        seen[row.name] = true;
+        var next = Object.assign({}, row);
+        next.state = row.here === 'available' ? 'available' :
+          (row.repository === 'unavailable' || row.can_get === false ? 'unavailable' : 'ready');
+        packagePlans[row.name] = next;
+      });
+      names.forEach(function (name) {
+        if (packageRequest[name] !== serial || seen[name]) return;
+        packagePlans[name] = Object.assign({}, packagePlans[name], {state: 'unavailable', can_get: false,
+          why: p.why || 'The TeX Live repository did not answer for this package.'});
+      });
+      var ready = names.filter(function (name) { return (packagePlans[name] || {}).state === 'ready'; });
+      var unavailable = names.length - ready.length;
+      packageMessage = ready.length ? ready.length + ' package' + (ready.length === 1 ? '' : 's') + ' ready to get' +
+        (unavailable ? '; ' + unavailable + ' unavailable here' : '') + '. Nothing has been downloaded.' :
+        (unavailable ? 'These packages are not available from this TeX Live repository.' : 'Nothing needs to be downloaded.');
+      renderPackages(); flashPackages();
+      revealPackages(root.querySelector('[data-package-get]') || root.querySelector('[data-pkg-said]'));
+    }).catch(function () {
+      if (serial !== packageSerial) return;
+      names.forEach(function (name) {
+        if (packageRequest[name] === serial) packagePlans[name] = Object.assign({}, packagePlans[name], {state: 'unavailable', can_get: false, why: 'Could not ask what it costs. Check the connection and try again.'});
+      });
+      packageMessage = 'Could not ask what the packages cost. Check the connection and try again.';
+      renderPackages(); flashPackages(); revealPackages();
     });
   }
-  function poll() {
-    post('package-status').then(function (st) {
-      S.packages = st; draw();
-      var busy = Object.keys(st.jobs || {}).some(function (n) { return st.jobs[n].running; });
-      if (busy) setTimeout(poll, 1000); else reload();
+  function startPackages(names) {
+    names = unique(names.map(function (name) { return String(name || '').trim(); })).filter(function (name) {
+      return (packagePlans[name] || {}).state === 'ready';
     });
+    if (!names.length) { packageMessage = 'Review a package cost before getting it.'; renderPackages(); return; }
+    packageMessage = 'Getting ' + names.join(', ') + ' one at a time…';
+    renderPackages();
+    post('package-get', {packages: names}).then(function (st) {
+      if (!st.ok) { packageMessage = st.error || 'Could not start getting those packages.'; renderPackages(); return; }
+      S.packages = st;
+      packageMessage = 'Getting ' + names.join(', ') + ' one at a time…';
+      renderPackages();
+      pollPackages();
+    }).catch(function () { packageMessage = 'Could not start getting those packages.'; renderPackages(); });
+  }
+  function refreshPackageFacts() {
+    post('state').then(function (v) {
+      if (!v.ok) return;
+      S = v;
+      renderPackages();
+      refreshThemeNeeds();
+    });
+  }
+  function pollPackages() {
+    if (polling) return;
+    polling = true;
+    function check() {
+      post('package-status').then(function (st) {
+        if (!st.ok) { packageMessage = st.error || 'Could not check package progress.'; polling = false; renderPackages(); return; }
+        S.packages = st;
+        renderPackages();
+        var busy = Object.keys(st.jobs || {}).some(function (name) {
+          var job = st.jobs[name] || {};
+          return job.running || job.state === 'queued' || job.state === 'waiting' || job.state === 'running';
+        });
+        if (busy) { setTimeout(check, 1000); return; }
+        polling = false;
+        refreshPackageFacts();
+      }).catch(function () { packageMessage = 'Could not check package progress.'; polling = false; renderPackages(); });
+    }
+    check();
   }
 
   draw();
   if (q.get('theme')) { var t0 = S.themes.filter(function (x) { return x.name.toLowerCase() === q.get('theme').toLowerCase(); })[0]; if (t0 && may('latex.theme')) { editing = {was: t0.name, theme: JSON.parse(JSON.stringify(t0))}; draw(); } }
   if (q.get('make') && may('latex.theme')) { root.querySelector('[data-new]').click(); }
-  if (q.get('install') && may('latex.packages')) planInstall([q.get('install')]);
+  if (q.get('install') && may('latex.packages')) planPackages([q.get('install')]);
 })();
 """

@@ -144,7 +144,7 @@ html[data-mode=mobile] .dk-deckactions .m-deckwhy{margin:2px 0 0;color:var(--chr
 }
 
 /* THE LIST, FOR PICKING WHAT TO CRAM.  The filters (the text, the type, the
-   state, the tag), the four ways to pick -- all, the ones shown, by tag,
+   state, the tag and the source), the four ways to pick -- all, the ones shown, by tag,
    none -- and the count; each exercise with a box a finger can hit, and a
    tap on the rest of it shows the exercise solved, as a click does in the
    browser layout.  Not here: the bulk bar's copy, move, tags, "set to new"
@@ -163,6 +163,12 @@ html[data-mode=mobile] .dk-browsebar{display:grid;grid-template-columns:repeat(3
 html[data-mode=mobile] .dk-browsebar #browse-filter{grid-column:1 / -1;width:100%;min-height:48px;
   box-sizing:border-box;font-size:16px}
 html[data-mode=mobile] .dk-browsebar select{width:100%;min-width:0;min-height:48px;font-size:15px}
+html[data-mode=mobile] .dk-browsebar .dk-source-filter{min-width:0}
+html[data-mode=mobile] .dk-browsebar .dk-source-filter summary{min-height:48px;box-sizing:border-box;
+  justify-content:center;font-size:15px}
+html[data-mode=mobile] .dk-source-filter .menu{left:0;right:auto;max-width:calc(100vw - 1.8rem)}
+html[data-mode=mobile] .dk-source-option{min-height:44px;box-sizing:border-box;align-items:center}
+html[data-mode=mobile] .dk-source-option input{width:20px;height:20px;margin:0}
 html[data-mode=mobile] .dk-browse-count{grid-column:1 / -1;margin:0;font-size:.9rem}
 html[data-mode=mobile] .dk-bulkbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
   gap:8px;margin-top:10px}

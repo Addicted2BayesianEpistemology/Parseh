@@ -30,6 +30,7 @@ import htmlgen          # first: it puts exlex/ (mdparser, texgen) and lib/ on s
 import activity         # the Working… list, which a long download reports on
 import audiofile
 import decks
+import latexdraw
 import offline               # what a deck is made of, for a phone to keep (§19.3)
 import languages
 import store
@@ -253,6 +254,16 @@ def _asset_base(folder, slug):
     return BASE + "/media/%s/%s/" % (folder, slug)
 
 
+def _latex_owner(folder, slug, item_id):
+    return "deck:%s:%s" % (str(decks.deck_dir(folder, slug).resolve()), item_id)
+
+
+def _own_item_latex(folder, slug, item):
+    # Footnotes are source too: an exercise may place a LaTeX drawing there.
+    latexdraw.own_source(_latex_owner(folder, slug, item["id"]),
+                         (item.get("markdown") or "") + "\n" + (item.get("footnotes") or ""))
+
+
 def _render(folder, slug, item, preview):
     return decks.render_item({"lang": _lang_of(folder)}, item, _asset_base(folder, slug),
                              preview=preview, docs=store.doc_index())
@@ -410,6 +421,11 @@ def api_deck_update(h, folder, slug):
 
 def api_deck_delete(h, folder, slug):
     _here(folder, slug)
+    # Record the owners before the directory goes away; their pictures keep
+    # the normal grace period rather than becoming permanent cache debris.
+    d = decks.deck_dir(folder, slug)
+    for item_id in decks._item_ids(d):
+        latexdraw.forget_owner(_latex_owner(folder, slug, item_id))
     decks.delete_deck(folder, slug)
     h.send_json({"ok": True})
 
@@ -424,6 +440,7 @@ def api_item_add(h, folder, slug):
     body = _obj(h)
     item = decks.add_item(folder, slug, body.get("markdown"), origin=body.get("origin"),
                           force=body.get("force") is True, tags=body.get("tags"))
+    _own_item_latex(folder, slug, decks.get_item(folder, slug, item["id"]))
     # beside the item, as the copy answers them: a picture or a recording
     # the exercise names and the deck does not have, even from the clip
     # tray (the page says so, the item is saved)
@@ -439,17 +456,21 @@ def api_item_update(h, folder, slug, item_id):
     _here(folder, slug)
     body = _obj(h)
     item = decks.update_item(folder, slug, item_id, body.get("markdown"))
+    _own_item_latex(folder, slug, decks.get_item(folder, slug, item_id))
     h.send_json({"ok": True, "item": item, "warnings": item.get("warnings") or []})
 
 
 def api_item_delete(h, folder, slug, item_id):
     _here(folder, slug)
     decks.delete_item(folder, slug, item_id)
+    latexdraw.forget_owner(_latex_owner(folder, slug, item_id))
     h.send_json({"ok": True})
 
 
 def api_item_duplicate(h, folder, slug, item_id):
-    h.send_json({"ok": True, "item": decks.duplicate_item(folder, slug, item_id)}, 201)
+    item = decks.duplicate_item(folder, slug, item_id)
+    _own_item_latex(folder, slug, decks.get_item(folder, slug, item["id"]))
+    h.send_json({"ok": True, "item": item}, 201)
 
 
 def api_items_bulk(h, folder, slug):
@@ -589,7 +610,7 @@ def api_preview(h, folder, slug):
     # is saved (decks.add_item brings it in): until then it plays from the tray
     html = decks.render_item({"lang": _lang_of(folder)}, draft,
                              decks.preview_assets(folder, slug, _asset_base(folder, slug)),
-                             preview=True, docs=store.doc_index())
+                             preview=True, docs=store.doc_index(), latex_preview=True)
     h.send_json({"ok": True, "html": html})
 
 

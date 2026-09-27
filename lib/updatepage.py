@@ -58,14 +58,7 @@ STYLE = """
 .upd .insist{display:flex;gap:8px;align-items:flex-start;margin:.6rem 0;font-weight:600}
 .upd .confirm{background:var(--boxbg);border:1px solid var(--rule);border-radius:8px;
   padding:10px 12px;margin-top:.8rem}
-.upd button.go,.upd button.plain{font:inherit;font-size:13.5px;border-radius:7px;padding:7px 15px;
-  cursor:pointer;white-space:nowrap}
-.upd button.go{background:var(--accent);color:var(--accent-fg);border:1px solid var(--accent);
-  font-weight:600}
 .upd button.go.older{background:var(--warn);border-color:var(--warn)}
-.upd button.plain{background:var(--bg);color:var(--dim);border:1px solid var(--rule)}
-.upd button.plain:hover{color:var(--accent);border-color:var(--accent)}
-.upd button:disabled{opacity:.5;cursor:not-allowed}
 .upd .bar{height:6px;background:var(--rule);border-radius:3px;overflow:hidden;margin:8px 0;
   max-width:32rem}
 .upd .bar i{display:block;height:100%;background:var(--accent);border-radius:3px;

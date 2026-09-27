@@ -1402,27 +1402,48 @@ function openLatexOverlay(opts) {
   const root = document.body;
   $$(".latex-overlay", root).forEach(n => n.remove());
   const ov = document.createElement("div");
+  const lay = opts.layout || {};
+  // A new drawing has no layout to change.  An existing one that somebody
+  // deliberately sized, moved, or put at a side opens that small section so
+  // its current shape is not hidden from them.
+  const hasLayout = !!lay.width || (lay.align && lay.align !== "center")
+    || Number(lay.offset || 0) !== 0;
   ov.className = "modal-overlay latex-overlay";
-  ov.innerHTML = `<div class="modal latex-modal" role="dialog" aria-modal="true" aria-label="LaTeX drawing">
-    <h3>LaTeX drawing</h3>
-    <p>Drawn by LaTeX itself, with a theme's packages: chemistry, TikZ, units. A formula
-    MathJax can draw is better written with ∑ Maths, which works everywhere.</p>
-    <div class="row"><label>Theme <select class="lx-theme"></select></label></div>
-    <textarea class="lx-src" rows="7" spellcheck="false" dir="ltr"
-      placeholder="\\ce{2H2 + O2 -> 2H2O}"></textarea>
-    <div class="row lx-layout">
-      <label><input type="checkbox" class="lx-natural"> its natural size</label>
-      <label>width <input type="range" class="lx-width" min="5" max="100" value="60"> <span class="lx-wv">60</span>%</label>
-      <label>align <select class="lx-align"><option value="center">center</option><option value="left">left</option><option value="right">right</option></select></label>
-      <label class="lx-off">offset <input type="number" class="lx-offset" min="-100" max="100" value="0" style="width:4.5em"></label>
+  ov.innerHTML = `<div class="modal latex-modal" role="dialog" aria-modal="true" aria-label="LaTeX drawing" tabindex="-1">
+    <header class="latex-modal-head">
+      <h3>LaTeX drawing</h3>
+      <p>Drawn by LaTeX itself, with a theme's packages: chemistry, TikZ, units. A formula
+      MathJax can draw is better written with ∑ Maths, which works everywhere.</p>
+    </header>
+    <div class="latex-modal-body">
+      <section class="lx-preview-pane" aria-label="Preview">
+        <div class="lx-preview-head"><b>Preview</b><div class="lx-preview-size" role="group" aria-label="Preview size">
+          <button type="button" class="btn small" data-lx-preview="fit" aria-pressed="true">Fit</button>
+          <button type="button" class="btn small" data-lx-preview="actual" aria-pressed="false">Actual size</button>
+        </div></div>
+        <small class="pv-status lx-status" aria-live="polite"></small>
+        <div class="sheet lx-stage" data-lx-preview-mode="fit" aria-label="Drawing preview"></div>
+      </section>
+      <section class="lx-editor-pane">
+        <label class="lx-field"><span>Theme</span><select class="lx-theme"></select></label>
+        <label class="lx-field lx-source-field"><span>LaTeX</span><textarea class="lx-src" rows="7" spellcheck="false" dir="ltr"
+          placeholder="\\ce{2H2 + O2 -> 2H2O}"></textarea></label>
+        <details class="lx-layout"${hasLayout ? " open" : ""}>
+          <summary>Size and position</summary>
+          <p>Leave this at its natural size unless the drawing needs a particular place in the page.</p>
+          <div class="lx-layout-fields">
+            <label class="lx-natural-field"><input type="checkbox" class="lx-natural"> use its natural size</label>
+            <label>Width of the column <span><output class="lx-wv">60</output>%</span><input type="range" class="lx-width" min="5" max="100" value="60"></label>
+            <label>Where it sits <select class="lx-align"><option value="center">center</option><option value="left">left</option><option value="right">right</option></select></label>
+            <label class="lx-off">Shift sideways <input type="number" class="lx-offset" min="-100" max="100" value="0"></label>
+          </div>
+        </details>
+      </section>
     </div>
-    <small class="pv-status lx-status"></small>
-    <div class="sheet lx-stage"></div>
-    <div class="row"><button class="btn" data-x="cancel">Cancel</button>
-      <button class="btn primary" data-x="ok">${opts.okLabel || "Insert"}</button></div></div>`;
+    <footer class="latex-modal-actions"><button type="button" class="btn" data-x="cancel">Cancel</button>
+      <button type="button" class="btn primary" data-x="ok">${opts.okLabel || "Insert"}</button></footer></div>`;
   const q = s => $(s, ov);
   const ta = q(".lx-src"), sel = q(".lx-theme"), status = q(".lx-status"), stage = q(".lx-stage");
-  const lay = opts.layout || {};
   ta.value = opts.tex || "";
   q(".lx-natural").checked = !lay.width;
   q(".lx-width").value = lay.width || 60;
@@ -1450,10 +1471,10 @@ function openLatexOverlay(opts) {
       if (mine !== asked) return;
       if (j.ok) {
         status.textContent = "";
-        stage.innerHTML = `<img src="${escAttr(j.url)}" alt="the drawing" style="max-width:100%;background:#fff;padding:6px;border-radius:4px">`;
+        stage.innerHTML = `<img class="lx-preview-image" src="${escAttr(j.url)}" alt="the drawing">`;
       } else {
         status.textContent = j.said || j.error || "It could not be drawn.";
-        stage.innerHTML = j.detail ? `<pre style="white-space:pre-wrap;font-size:12px">${escAttr(j.detail)}</pre>` : "";
+        stage.innerHTML = j.detail ? `<pre class="lx-preview-detail">${escAttr(j.detail)}</pre>` : "";
       }
     } catch (e) { if (mine === asked) status.textContent = "The computer did not answer."; }
   };
@@ -1461,6 +1482,12 @@ function openLatexOverlay(opts) {
   ta.addEventListener("input", later);
   sel.addEventListener("change", draw);
   q(".lx-width").addEventListener("input", () => { q(".lx-wv").textContent = q(".lx-width").value; q(".lx-natural").checked = false; });
+  const previewButtons = $$("[data-lx-preview]", ov);
+  const setPreviewSize = size => {
+    stage.dataset.lxPreviewMode = size;
+    previewButtons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lxPreview === size)));
+  };
+  previewButtons.forEach(b => b.addEventListener("click", () => setPreviewSize(b.dataset.lxPreview)));
   const close = () => { ov.remove(); if (opts.backTo && opts.backTo.focus) opts.backTo.focus(); };
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   ov.addEventListener("keydown", e => {

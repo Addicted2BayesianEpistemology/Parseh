@@ -1562,15 +1562,24 @@ def _copy(d, doc_id, ordinal, subtype, updated, force, now, prefix):
 
 # ---------------------------------------------------------------- studying
 
-def render_item(deck, item, asset_base, preview=False, docs=None, report=None):
+def render_item(deck, item, asset_base, preview=False, docs=None, report=None,
+                latex_preview=False):
     """The exercise as document html (no colophon), in the deck's language.
     `report`, a dict, is given "latex_failed": how many of its LaTeX drawings
     could not be made, counted by the renderer that tried (TO-DO §8.39)."""
     md = _front(languages.get(deck["lang"]).code) + item["markdown"]
     if item.get("footnotes"):
         md += "\n\n" + item["footnotes"]
+    # `preview` means "show the exercise's answer" here (htmlgen's own
+    # editor_preview, which _draw_exercise reads for exactly that) -- an
+    # ALREADY-SAVED item shown solved, on a deck's study or cram page.  It is
+    # not `latex_preview`, whether THIS render is itself unsaved (the add/edit
+    # form's own live preview, deckroutes.py) and so belongs in LaTeX's
+    # short-lived cache rather than being kept: the two are independent, and
+    # conflating them into one flag silently stopped a solved exercise from
+    # ever showing solved.
     out = htmlgen.render_document(md, colophon=False, asset_base=asset_base, docs=docs,
-                                  editor_preview=preview)
+                                  editor_preview=preview, latex_preview=latex_preview)
     if report is not None:
         report["latex_failed"] = out.get("latex_failed", 0)
     return out["html"]

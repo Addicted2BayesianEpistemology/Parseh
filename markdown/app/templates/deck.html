@@ -104,6 +104,18 @@
         <option value="due">Due now</option>
       </select>
       <select id="browse-tag" aria-label="Filter by tag"><option value="">All tags</option></select>
+      <details class="dropdown dk-source-filter" id="browse-source-filter">
+        <summary class="btn" aria-controls="browse-source-options"
+                 title="Filter exercises by where they came from">
+          <span id="browse-source-label">Sources</span><span aria-hidden="true">▾</span>
+        </summary>
+        <div class="menu dk-source-menu">
+          <fieldset>
+            <legend>Filter by source</legend>
+            <div id="browse-source-options"></div>
+          </fieldset>
+        </div>
+      </details>
       <span id="browse-count" class="dk-browse-count" aria-live="polite"></span>
     </div>
     <div class="dk-bulkbar" role="group" aria-label="Selected exercises">

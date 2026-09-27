@@ -62,6 +62,12 @@ EXPORT_FORMAT = "parseh-latex-theme/1"
 
 NAME = "Parseh"
 
+# `standalone`'s crop margin, on every side, every theme (preamble, below).
+# An inline drawing's depth (lib/latexdraw.py) is measured from a probe
+# compile that has none of it, then this same constant is added back, since
+# the border sits below the ink as much as above it.
+BORDER_PT = 2.0
+
 # ------------------------------------------------------------------ the fence
 FENCE_OPEN_RE = re.compile(r"^::::latex\b(.*)$", re.I)
 FENCE_CLOSE = "::::"
@@ -170,6 +176,46 @@ def blocks_in(markdown):
             i += 1
         out.append({"theme": op["theme"], "attrs": op["attrs"], "errors": op["errors"],
                     "tex": dedent_body(body), "line": start, "closed": closed})
+    return out
+
+
+# INLINE LATEX (TO-DO §8.39's L8): `[\ce{H2O}]{latex}`, or with its own
+# theme after the word -- `[\ce{H2O}]{latex chemistry}`, the owner's own
+# choice, 2026-09-27, the same way a `::::latex chemistry` block names one.
+# The body is raw LaTeX in text mode exactly as a block's is (so his own
+# examples write `$…$` INSIDE the brackets for a formula).  This lives here,
+# beside `blocks_in`, for the same reason that does (lib/offline.py's own
+# light reading, no studio parser needed) -- markdown/exlex/texgen.py and
+# markdown/app/htmlgen.py both import it from here, unchanged, for their own
+# full parsing; everything MATH_RE (texgen.py) works through to allow a
+# bracket the body opens and closes itself is copied unchanged, the same
+# reasons -- `\sqrt[3]{x}`, `[0,1)` -- being exactly as true of arbitrary
+# LaTeX as they are of a formula.
+_LATEX_END = r"\]\{\s*latex(?:\s+([^\s{}]+))?\s*\}"
+_LATEX_GROUP = r"\[[^\[\]]*\]"
+_LATEX_GROUP = r"\[(?:[^\[\]]|%s)*\]" % _LATEX_GROUP
+_LATEX_GROUP = r"\[(?:[^\[\]]|%s)*\]" % _LATEX_GROUP
+_LATEX_GROUP += r"(?!\{\s*latex\b)"
+_LATEX_SLOT = r"\[\[[^\[\]]+\]\](?!\{\s*latex\b)"
+LATEX_INLINE_RE = re.compile(
+    r"(?!%s)\[((?:[^\[\]]|%s|(?!%s)\[|\](?![{(\]])|\](?=%s))+?)%s"
+    % (_LATEX_SLOT, _LATEX_GROUP, _LATEX_GROUP, _LATEX_END, _LATEX_END))
+
+
+def inline_latex_pairs(source):
+    """Every distinct (tex, theme name or None) an inline `[…]{latex …}`
+    mark names in `source` (the WHOLE raw markdown, frontmatter and all --
+    an inline mark can sit in any text field), first-seen order, deduplicated
+    the way `htmlgen.latex_pairs` deduplicates a page's blocks: drawn side by
+    side before the page or the paper that shows it, the same reason a
+    block's own pre-compile exists (a screen calls `draw_all` on the result;
+    a paper document compiles each in turn, as it already does for blocks)."""
+    seen, out = set(), []
+    for m in LATEX_INLINE_RE.finditer(source):
+        pair = (m.group(1), m.group(3) or None)
+        if pair not in seen:
+            seen.add(pair)
+            out.append(pair)
     return out
 
 
@@ -292,10 +338,31 @@ CATALOGUE = (
      r"\begin{algorithm}[H] ... \end{algorithm}",
      "\\usepackage{float}\n\\usepackage[ruled,vlined]{algorithm2e}",
      ("float", "algorithm2e", "ifoddpage", "relsize"), "algorithm2e.sty", "lppl"),
+    # For someone teaching or learning a language rather than mathematics
+    # (TO-DO §8.39's L10, researched and each one really compiled, 2026-09-25):
+    ("linguistics", "forest", "forest", "Syntax trees, node by node.",
+     r"[S [NP [Det][N]] [VP [V][NP]]]", r"\usepackage{forest}", ("forest",),
+     "forest.sty", "lppl1.3"),
+    ("linguistics", "tikz-dependency", "tikz-dependency", "Dependency arcs between words.",
+     r"\begin{dependency}\begin{deptext}Cats \& sleep \\ \end{deptext}\depedge{2}{1}{subj}\end{dependency}",
+     "\\usepackage{tikz}\n\\usepackage{tikz-dependency}", ("pgf", "tikz-dependency"),
+     "tikz-dependency.sty", "lppl1.3c,gpl2"),
+    ("phonetics", "tipa", "tipa", "The International Phonetic Alphabet.",
+     '[\\textipa{s\\ae"læm}]', r"\usepackage{tipa}", ("tipa",), "tipa.sty", "lppl"),
+    ("scripts", "xpinyin", "xpinyin", "Pinyin written automatically over Chinese characters.",
+     r"\pinyin{你好}", "\\usepackage{xeCJK}\n\\usepackage{xpinyin}", ("xecjk", "xpinyin"),
+     "xpinyin.sty", "lppl1.3c"),
 )
-GROUPS = (("base", "The ones Formulae always loads"), ("letters", "Letters and symbols"),
+# The first line is the group heading a person sees in Settings.  The optional
+# third value is its plain-language explanation there; it is deliberately
+# independent of the application this catalogue originally came from.
+GROUPS = (("base", "Base packages", "The basics every drawing uses: mathematics, colour, units and scientific notation."),
+          ("letters", "Letters and symbols"),
           ("operations", "Operations and theorems"), ("drawings", "Drawings and plots"),
-          ("chemistry", "Chemistry"), ("code", "Code and algorithms"))
+          ("chemistry", "Chemistry"), ("code", "Code and algorithms"),
+          ("linguistics", "Linguistics", "Trees and diagrams for syntax and grammar."),
+          ("phonetics", "Phonetics"),
+          ("scripts", "Scripts and annotation", "Help with a non-Latin script beyond Parseh's own faces."))
 PACKAGES = {row[1]: {"group": row[0], "id": row[1], "name": row[2], "what": row[3],
                      "example": row[4], "code": row[5], "tl": row[6], "file": row[7],
                      "licence": row[8]} for row in CATALOGUE}
@@ -631,7 +698,7 @@ def preamble(theme, fonts_dir=os.path.join(ROOT, "lib", "fonts")):
     class to the last line before \\begin{document} -- what the import shows,
     and what a drawing's key is made of."""
     t = theme
-    out = ["\\documentclass[border=2pt]{standalone}"]
+    out = ["\\documentclass[border=%gpt]{standalone}" % BORDER_PT]
     rows = [PACKAGES[p] for p in ORDER if p in t.get("packages", ())]
     out += [r["code"] for r in rows if r["group"] == "base"]
     if t.get("font") and t.get("compiler") in UNICODE:

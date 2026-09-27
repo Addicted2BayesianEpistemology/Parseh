@@ -1225,6 +1225,11 @@ def api_create(h):
     except store.NameConflict as e:
         return _name_conflict(h, e)
     _adopt(meta["id"])
+    try:
+        _unused, markdown = store.get(meta["id"])
+        latexdraw.own_source(_latex_owner(meta["id"]), markdown)
+    except Exception as e:                                   # noqa: BLE001
+        sys.stderr.write("[studio] could not record new LaTeX drawings: %s\n" % e)
     store.migrate_after_import([])         # its links by uid, written by name
     h.send_json({"meta": meta}, 201)
 
@@ -1282,7 +1287,18 @@ def api_save(h, doc_id):
     except store.NameConflict as e:
         return _name_conflict(h, e)
     _adopt(doc_id)
+    # Saved source, unlike the editor buffer, owns its drawings.  This also
+    # promotes a matching temporary preview without compiling it again.
+    try:
+        latexdraw.own_source(_latex_owner(doc_id), markdown)
+    except Exception as e:                                   # noqa: BLE001 -- never lose a save
+        sys.stderr.write("[studio] could not record LaTeX drawing ownership: %s\n" % e)
     h.send_json({"meta": meta, "markdown": markdown, "names_mark": mark})
+
+
+def _latex_owner(doc_id):
+    """An internal stable owner, scoped to this library rather than a title."""
+    return "document:%s:%s" % (os.path.realpath(str(store.LIB)), doc_id)
 
 
 def _adopt(doc_id):
@@ -1326,7 +1342,7 @@ def api_latex_preview(h):
     theme = str(body.get("theme") or "") or None
     if not tex.strip():
         return h.send_json({"ok": False, "said": "Nothing to draw yet."})
-    r = latexdraw.draw(tex, theme)
+    r = latexdraw.draw(tex, theme, preview=True)
     if r.get("ok"):
         return h.send_json({"ok": True, "url": BASE + r["url"], "w": r["w"], "h": r["h"]})
     return h.send_json({k: r.get(k) for k in ("ok", "kind", "said", "line", "detail", "fix")})
@@ -1602,11 +1618,17 @@ def api_palette(h):
 
 def api_duplicate(h, doc_id):
     meta = store.duplicate(doc_id)
+    try:
+        _unused, markdown = store.get(meta["id"])
+        latexdraw.own_source(_latex_owner(meta["id"]), markdown)
+    except Exception as e:                                   # noqa: BLE001
+        sys.stderr.write("[studio] could not record copied LaTeX drawings: %s\n" % e)
     h.send_json({"meta": meta}, 201)
 
 
 def api_delete(h, doc_id):
     store.delete(doc_id)
+    latexdraw.forget_owner(_latex_owner(doc_id))
     h.send_json({"ok": True})
 
 

@@ -655,11 +655,18 @@ MATH_RE = re.compile(
     r"(?!%s)\[((?:[^\[\]]|%s|(?!%s)\[|\](?![{(\]])|\](?=%s))+?)%s"
     % (_MATH_SLOT, _MATH_GROUP, _MATH_GROUP, _MATH_END, _MATH_END))
 
+# INLINE LATEX (TO-DO §8.39's L8): `LATEX_INLINE_RE` and `inline_latex_pairs`
+# live in lib/latexthemes.py, beside `blocks_in` -- the same light reading a
+# phone's kept-page mechanism needs without importing the studio's parser
+# (lib/offline.py) -- and are used here exactly as `MATH_RE`, just below,
+# and every reason its own comment gives ("its body may hold brackets...").
+from latexthemes import LATEX_INLINE_RE, inline_latex_pairs  # noqa: E402,F401
+
 # A brace word that is NOT a run of the target language.  For a Latin
 # target an unknown word in the braces marks a run (docs/languages.md, 5),
-# and `math` must not be swallowed that way: `[E=mc^2]{math}` in an Italian
-# document is a formula, not Italian set in the target's font.
-NOT_A_RUN = ("la", "ltr", "math")
+# and `math`/`latex` must not be swallowed that way: `[E=mc^2]{math}` in an
+# Italian document is a formula, not Italian set in the target's font.
+NOT_A_RUN = ("la", "ltr", "math", "latex")
 
 # Soft background tints for target-language blocks (e.g. bg=quote marks a
 # citation).  Hex pairs: on paper / on the dark web theme.
@@ -1322,6 +1329,11 @@ def inline(text, force_breakable=False):
     #    escape_latin and goes out exactly as it was written
     text = MATH_RE.sub(lambda m: _aux("math", m.group(1)), text)
 
+    #    inline latex (TO-DO §8.39's L8): the drawing's own theme, not this
+    #    document's own packages -- so it is drawn apart, never inserted as
+    #    text here (see the "latex" case of _lone, below)
+    text = LATEX_INLINE_RE.sub(lambda m: _aux("latex", m.group(1), m.group(3)), text)
+
     #    cross-document links first: LINK_RE matches the same shape and
     #    would freeze `doc:…` as an ordinary URL
     def _doclink(m):
@@ -1489,6 +1501,27 @@ def inline(text, force_breakable=False):
             # through as itself and TeX sets it.  Frozen before escape_latin
             # (step 2), so not one backslash of it was touched.
             return "\\(%s\\)" % item[1]
+        if item[0] == "latex":
+            # UNLIKE MATHS, THIS IS A PICTURE HERE TOO (the owner, 2026-09-27,
+            # "same picture as the screen"): a theme's own packages must
+            # never reach this document's preamble, the same reason a block
+            # is one (TO-DO §8.39, above) -- an inline mark is drawn apart
+            # and included, raised by its own depth so it sits on the line
+            # it is in, never on its own bottom edge.
+            draw = LATEX["draw"]
+            tex, theme = item[1], item[2] if len(item) > 2 else None
+            if draw is None:
+                _LATEX_RUN["failed"] += 1
+                return r"\texttt{%s}" % escape_latin(tex)
+            r = draw(tex, theme, inline=True)
+            if not r.get("ok"):
+                _LATEX_RUN["failed"] += 1
+                return r"\texttt{%s}" % escape_latin(tex)
+            _LATEX_RUN["used"].append((r["key"], r["pdf"]))
+            scale = print_size() / 10.0
+            depth = (r.get("d") or 0) * scale
+            return (r"\raisebox{-%.3fpt}{\includegraphics[scale=%.3f]{%s}}"
+                    % (depth, scale, "latex/%s.pdf" % r["key"]))
         if item[0] == "rtl":
             attrs = item[2] if len(item) > 2 else parse_tl_attrs("")
             fnt = "\\tlalt" if attrs["font"] else "\\tlfont"
@@ -2569,13 +2602,31 @@ def _render_exercise(b):
     prev = _begin_defer()
     kind = (f.get("card-type") or "vocab").lower()
     cards = {}
+    import mdparser     # exlex's parser imports this module: not at the top
     if b.get("primitive") == "flashcard" and kind == "jolly":
         # every note written on the card is known before anything cites one
-        import mdparser     # exlex's parser imports this module: not at the top
         cards, notes = mdparser.card_fields(b, cur_lang().code)
         _FN["defs"].update(notes)
-    # the prompt is printed first, so its notes are numbered first
-    prompt = _exercise_prompt(f["prompt"]) if f.get("prompt") else ""
+    # the prompt is printed first, so its notes are numbered first.  Ordinary
+    # prose is set exactly as it always was; a prompt that is a fence on its
+    # own (a ::::latex drawing, TO-DO §8.39's L8) is not -- card_field tells
+    # the two apart for it, the same rule it already used for a jolly card.
+    prompt = ""
+    if f.get("prompt"):
+        field = mdparser.card_field(b, "prompt", cur_lang().code)
+        if field and field[0] == "blocks":
+            _FN["defs"].update(field[2])
+            prompt = render_blocks(field[1])
+            # what follows is set right after \smallskip (below), a control
+            # WORD: TeX would read a letter straight after it as part of its
+            # own name (found only by compiling: his own single-choice
+            # example became the undefined command \smallskipChoose).
+            # _exercise_prompt's own output never starts with one; this is
+            # the one new road that can, so it alone needs the empty group.
+            if prompt[:1].isalpha():
+                prompt = "{}" + prompt
+        else:
+            prompt = _exercise_prompt(f["prompt"])
     if b.get("primitive") != "flashcard":
         prompt += _ex_image(f, "image") + _ex_audio(f, "audio")
     elif not b.get("errors"):

@@ -903,6 +903,19 @@ class TexTests(unittest.TestCase):
         self.assertIn("\\end{center}\n\\footnotetext[1]{In the table.}\\stepcounter{footnote}\n"
                       "\\footnotetext[2]{In the box.}\\stepcounter{footnote}", body)
 
+    def test_a_fenced_prompt_never_gobbles_the_word_after_smallskip(self):
+        # TO-DO §8.39's L8: a prompt that is a ::::latex fence on its own is
+        # re-parsed as blocks (mdparser.card_field), so its own rendering can
+        # now START with a plain word where it never used to -- and
+        # \smallskip, a control WORD, reads the letters right after it as
+        # part of its own name unless something stops them.  Found only by
+        # really compiling his own single-choice example ("Choose the
+        # correct answer" became \smallskipChoose, and the PDF never built).
+        body = tex_body(doc(":::exercise single-choice\nprompt: |\n  Choose the correct answer.\n"
+                            "  ::::latex\n  x^2\n  ::::\n- [x] 1\n- [ ] 2\n:::"))
+        self.assertNotIn("smallskipChoose", body)
+        self.assertIn("\\smallskip{}Choose", body)
+
 
 class FixtureTests(unittest.TestCase):
     def test_the_fixture_renders_every_kind(self):

@@ -228,3 +228,32 @@ def every_block(libraries=()):
             for b in latexthemes.blocks_in(raw.get("markdown") or ""):
                 if not b["errors"] and b["closed"]:
                     yield b["tex"], b["theme"] or None
+
+
+def every_drawing(libraries=()):
+    """(tex, theme, inline) of every saved drawing, for cache ownership.
+
+    Kept inline marks are deliberately included here as well as block fences:
+    the Settings cleanup must not remove the picture a saved exercise option
+    or paragraph still names.
+    """
+    for _kind, root, _label in _doc_roots(libraries):
+        for _doc_id, src in _docs(root):
+            try:
+                text = src.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for b in latexthemes.blocks_in(text):
+                if not b["errors"] and b["closed"]:
+                    yield b["tex"], b["theme"] or None, False
+            for tex, theme in latexthemes.inline_latex_pairs(text):
+                yield tex, theme, True
+    for d, _label, _trashed in _deck_dirs():
+        for item_id in decks._item_ids(d):
+            raw = decks._read_json(d / "items" / (item_id + ".json")) or {}
+            text = (raw.get("markdown") or "") + "\n" + (raw.get("footnotes") or "")
+            for b in latexthemes.blocks_in(text):
+                if not b["errors"] and b["closed"]:
+                    yield b["tex"], b["theme"] or None, False
+            for tex, theme in latexthemes.inline_latex_pairs(text):
+                yield tex, theme, True

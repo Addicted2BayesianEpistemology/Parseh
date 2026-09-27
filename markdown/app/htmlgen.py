@@ -54,7 +54,8 @@ from texgen import (FA_CHARS, FA_RE, RUN_RE, PE_WORD_LIMIT,  # noqa: E402,F401
                     set_target, cur_lang, run_re, has_script, is_latin_target,
                     run_is_long, tl_re, UNGRAM_MARK_RE, UNGRAM_WORD,
                     PROSE_WORD_RE, audio_window,
-                    MATH_RE, NOT_A_RUN, is_target_line, prompt_lines)
+                    MATH_RE, LATEX_INLINE_RE, inline_latex_pairs,
+                    NOT_A_RUN, is_target_line, prompt_lines)
 import languages  # noqa: E402
 
 # THE PROSE A DOCUMENT IS EXPLAINED IN, when its front matter does not say.
@@ -132,6 +133,11 @@ def url_base():
 # too while a flashcard draws a field as blocks: the page's editors leave
 # a card alone, and store skips the same text (mdparser.card_spans).
 _FN = ThreadDict(n=0, defs={}, notes=[], muted=False, open=())
+# an inline latex mark's own failures (_inline_latex), counted the same way
+# a block's are (ctx["latex_failed"], _latex_frame) -- inline() has no ctx
+# to add to directly, so this is read back into it once render_document is
+# whole, the same reason _FN is a ThreadDict rather than threaded through
+_LATEX_INLINE_RUN = ThreadDict(failed=0)
 # How many of each thing the hover editors name by (what, occurrence) have
 # been drawn so far: a run under its text, a target-language block under
 # ("tl", kind, tl_key(content)).
@@ -156,6 +162,7 @@ def reset_state(defs=None):
     _FN.update({"n": 0, "defs": dict(defs or {}), "notes": [], "muted": False, "open": ()})
     _OCC.clear()
     _EX_ORDER.update({"on": False, "at": (0, 0), "runs": [], "block": None})
+    _LATEX_INLINE_RUN.update({"failed": 0, "preview": False})
 
 
 def _next_occ(key):
@@ -343,6 +350,10 @@ def inline(text, force_breakable=False):
     # the TeX goes into an attribute AND into the text
     text = MATH_RE.sub(lambda m: _aux("math", m.group(1)), text)
 
+    # inline latex (TO-DO §8.39's L8), the same reason: raw LaTeX, drawn
+    # apart with its own (optional) theme, never mistaken for prose or run
+    text = LATEX_INLINE_RE.sub(lambda m: _aux("latex", m.group(1), m.group(3)), text)
+
     # cross-document links before LINK_RE, which matches the same shape.
     # An empty label shows the target's title (or the name a dead link
     # waits for), drawn apart and handed in whole (_shown_title)
@@ -527,6 +538,8 @@ def inline(text, force_breakable=False):
             # with a `<` or a `"` in it is an ordinary formula.
             return '<span class="math" data-tex="%s">%s</span>' \
                 % (esc(item[1]), esc(item[1]))
+        if item[0] == "latex":
+            return _inline_latex(item[1], item[2] if len(item) > 2 else None)
         if item[0] == "rtl":
             # one isolated unit in the target's direction: the browser's
             # bidi keeps punctuation and embedded Latin words in reading
@@ -790,21 +803,73 @@ def set_latex(draw, draw_all=None, settings=None):
 
 
 def latex_pairs(blocks, target=None):
-    """(tex, theme) of every well-formed latex block, in a box and on a jolly
-    card too -- drawn side by side before a page is rendered (render_document)."""
+    """(tex, theme) of every well-formed latex block, in a box, in a prompt
+    that is a fence on its own, and on a jolly card too -- drawn side by
+    side before a page is rendered (render_document)."""
     out = []
     for b in blocks:
         if b["type"] == "latex" and not b.get("errors"):
             out.append((b.get("tex", ""), b.get("theme") or None))
         elif b["type"] == "box":
             out += latex_pairs(b["blocks"], target)
-        elif (b["type"] == "exercise" and not b.get("errors")
-              and b.get("primitive") == "flashcard"
-              and (b["fields"].get("card-type") or "").lower() == "jolly"):
-            for field in mdparser.card_fields(b, target)[0].values():
-                if field and field[0] == "blocks":
-                    out += latex_pairs(field[1], target)
+        elif b["type"] == "exercise" and not b.get("errors"):
+            if b.get("primitive") == "flashcard" and (b["fields"].get("card-type") or "").lower() == "jolly":
+                for field in mdparser.card_fields(b, target)[0].values():
+                    if field and field[0] == "blocks":
+                        out += latex_pairs(field[1], target)
+            prompt = mdparser.card_field(b, "prompt", target)
+            if prompt and prompt[0] == "blocks":
+                out += latex_pairs(prompt[1], target)
     return out
+
+
+# a display fraction reads at the size of the words round it (a block's own
+# rule), but MAY NOT push its own line apart from the ones around it: the
+# owner, 2026-09-27, chose a cap over letting one grow however tall it likes
+INLINE_LATEX_MAX_EM = 1.8
+
+
+def _inline_latex_sizing(w, h, d):
+    """(width, height, depth) in ems, the drawing's own w/h/d over the ten
+    points they were set at -- shrunk together, keeping their proportion,
+    when the height would be past INLINE_LATEX_MAX_EM."""
+    w_em, h_em, d_em = (w or 0) / 10.0, (h or 0) / 10.0, (d or 0) / 10.0
+    if h_em > INLINE_LATEX_MAX_EM > 0:
+        scale = INLINE_LATEX_MAX_EM / h_em
+        w_em, h_em, d_em = w_em * scale, h_em * scale, d_em * scale
+    return w_em, h_em, d_em
+
+
+def _inline_latex(tex, theme):
+    """`[…]{latex}` / `[…]{latex theme}` (TO-DO §8.39's L8) -- a drawing made
+    to sit inside a line of running text, on its own baseline, unlike a
+    block: never a hole, its own source shown in its place when it cannot be
+    made, exactly as a block's own failure frame promises, just without one
+    (nothing this small belongs in a box in the middle of a sentence)."""
+    draw = LATEX.get("draw")
+    if draw is None:
+        _LATEX_INLINE_RUN["failed"] += 1
+        return ('<code class="latex-inline-src" data-latex-src="%s" data-latex-theme="%s">%s'
+                '</code>' % (esc(tex), esc(theme or ""), esc(tex)))
+    # Do not add a false-valued keyword: integrations have long supplied the
+    # two/three-argument drawing callable, and only the editor needs preview
+    # storage in the first place.
+    if _LATEX_INLINE_RUN.get("preview"):
+        r = draw(tex, theme, inline=True, preview=True)
+    else:
+        r = draw(tex, theme, inline=True)
+    if not r.get("ok"):
+        _LATEX_INLINE_RUN["failed"] += 1
+        said = r.get("said") or "This drawing could not be made."
+        return ('<code class="latex-inline-src latex-inline-fail" title="%s" '
+                'data-latex-src="%s" data-latex-theme="%s">%s</code>'
+                % (esc(said), esc(tex), esc(theme or ""), esc(tex)))
+    w_em, h_em, d_em = _inline_latex_sizing(r.get("w"), r.get("h"), r.get("d"))
+    return ('<img class="latex-inline" src="%s" alt="A drawing made by LaTeX" '
+            'data-latex-key="%s" data-latex-src="%s" data-latex-theme="%s" '
+            'style="width:%.3fem;height:%.3fem;vertical-align:%.3fem">'
+            % (esc(URL_BASE + r["url"]), esc(r["key"]), esc(tex), esc(theme or ""),
+               w_em, h_em, -d_em))
 
 
 def _latex_src(b, ctx):
@@ -856,7 +921,15 @@ def _render_latex(b, ctx):
     if draw is None:
         return _latex_frame(b, {"kind": "here", "said": "It is drawn by LaTeX where Parseh "
                                 "can compile it, and shown here as it is written."}, ctx)
-    r = draw(b.get("tex", ""), b.get("theme") or None)
+    # latex_preview, not editor_preview: a deck's solved study/cram view sets
+    # the latter alone (show the answer) and its drawings must still be kept,
+    # not treated as an unsaved editor's ephemeral preview (TO-DO §8.39's L9).
+    # The kwarg is passed only when true, as every other LATEX["draw"] call
+    # here does, so a test's simpler (tex, theme) stand-in keeps working.
+    if ctx.get("latex_preview"):
+        r = draw(b.get("tex", ""), b.get("theme") or None, preview=True)
+    else:
+        r = draw(b.get("tex", ""), b.get("theme") or None)
     if not r.get("ok"):
         return _latex_frame(b, r, ctx)
     align, offset = b.get("align") or "center", 0 if ctx.get("in_card") else b.get("offset") or 0
@@ -1535,7 +1608,17 @@ def _draw_exercise(b, ctx):
     prompt_html = ""
     if prompt:
         with _field_at("prompt"):
-            prompt_html = '<div class="ex-prompt">%s</div>' % _ex_prompt(prompt, ctx)
+            # a prompt of ordinary prose is inline text, exactly as always;
+            # one that is a fence on its own (a ::::latex drawing, TO-DO
+            # §8.39's L8: "notice how the template setting is relevant also
+            # in this case") is not -- card_field already tells the two
+            # apart for a jolly card's own fields, by the same rule
+            field = mdparser.card_field(b, "prompt", cur_lang().code)
+            if field and field[0] == "blocks":
+                _FN["defs"].update(field[2])
+                prompt_html = '<div class="ex-prompt">%s</div>' % render_blocks(field[1], ctx)
+            else:
+                prompt_html = '<div class="ex-prompt">%s</div>' % _ex_prompt(prompt, ctx)
     if b["errors"]:
         body = '<div class="ex-invalid"><strong>Exercise needs attention.</strong><ul>%s</ul></div>' % "".join(
             '<li>%s</li>' % esc(e) for e in b["errors"])
@@ -2020,7 +2103,7 @@ def _count_images(blocks, kinds=("image", "video")):
 
 
 def render_document(markdown, colophon=True, asset_base=None, docs=None,
-                    editor_preview=False, deck_button=False):
+                    editor_preview=False, deck_button=False, latex_preview=None):
     """markdown source -> dict with article html, toc html, meta, stats,
     the target code and the language record the page embeds.
 
@@ -2036,21 +2119,42 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
     `deck_button` puts a "+ Deck" button on every exercise (the reading
     view of a document that can be copied from); never in the editor's
     preview, whose exercises are being written, not studied.
+    `latex_preview` (TO-DO §8.39's L9) is the SEPARATE question "is a
+    drawing made for this call unsaved, so its cache entry should be a
+    short-lived preview, not kept": the studio editor's own live preview is
+    both this AND `editor_preview` at once, which is why it defaults to
+    whatever `editor_preview` is; a deck showing an ALREADY-SAVED exercise
+    solved (decks.render_item's `preview`, "show the answer") is
+    `editor_preview` alone, its drawings still kept, so it passes this False
+    on purpose -- the two must never be conflated into one flag again, the
+    way they briefly were (found reviewing this: `render_item(preview=True)`
+    stopped showing the solved exercise at all, because `editor_preview`
+    had silently become this flag's alone).
     """
     fm, blocks = mdparser.parse(markdown)
     L = set_target(fm.get("target"))
     reset_state(fm.get("_footnotes"))
+    if latex_preview is None:
+        latex_preview = editor_preview
+    latex_preview = bool(latex_preview)
+    _LATEX_INLINE_RUN["preview"] = latex_preview
     set_doc_index(docs)
     ctx = {"sec": 0, "sub": 0, "voce": 0, "img": 0, "exercise": 0,
            "scored": 0, "toc": [], "asset_base": asset_base,
-           "editor_preview": bool(editor_preview),
+           "editor_preview": bool(editor_preview), "latex_preview": latex_preview,
            "deck_button": bool(deck_button) and not editor_preview}
     title = _titleblock(fm)          # rendered first: it comes first in source
     if LATEX.get("draw_all"):
         # every drawing the page needs, made side by side before any is shown
         pairs = latex_pairs(blocks, L.code)
         if pairs:
-            LATEX["draw_all"](pairs)
+            LATEX["draw_all"](pairs, preview=latex_preview)
+        # inline marks (TO-DO §8.39's L8) live in text, not in the block
+        # tree, so they are swept from the raw source instead -- a document,
+        # every exercise field, a note, wherever `[…]{latex}` can be written
+        inline_pairs = inline_latex_pairs(markdown)
+        if inline_pairs:
+            LATEX["draw_all"](inline_pairs, inline=True, preview=latex_preview)
     body = render_blocks(blocks, ctx)
     article = title + "\n" + body + "\n" + _footnote_list()
     if ctx["scored"] and not editor_preview:
@@ -2074,7 +2178,7 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
         "exercises": ctx["exercise"],
         # the latex blocks that could not be drawn: the PDF and the export
         # say how many (the owner, 2026-09-25)
-        "latex_failed": ctx.get("latex_failed", 0),
+        "latex_failed": ctx.get("latex_failed", 0) + _LATEX_INLINE_RUN["failed"],
         "title": fm.get("title", ""),
         "subtitle": fm.get("subtitle", ""),
         "note": fm.get("note", ""),

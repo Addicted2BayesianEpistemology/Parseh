@@ -20,25 +20,43 @@ guide and rebuilds the readers by itself.
 ### LaTeX drawings
 
 What MathJax cannot draw — a reaction with `mhchem`, a molecule with
-`chemfig`, a TikZ drawing, a plot — LaTeX itself draws now, in a block
+`chemfig`, a TikZ drawing, a plot — LaTeX itself draws now: in a block
 between `::::latex` and `::::`, four colons, so that it may stand in a
-Jolly card's field too. Each block is compiled on its own and becomes one
-picture, made once and kept: the same drawing on the page, in the PDF, in
-an HTML export and on a phone. One that cannot be made shows its source and
-a line saying why, with the button that mends it. The editor has a sheet
-for writing one, the drawing made as you type, and **✎** on a drawing opens
-it again ([LaTeX drawings](../dialect/latex-drawings.md)).
+Jolly card's field too, or inline, `[...]{latex}`, right inside a line of
+prose or an exercise's option, sitting on that line's own baseline. Each is
+compiled on its own and becomes one picture: the same drawing on the page,
+in the PDF, in an HTML export and on a phone. One that cannot be made shows
+its source and a line saying why, with the button that mends it. The
+editor has a sheet for writing one — its preview beside the source, the
+drawing made as you type, size and position folded away unless you have set
+them — and **✎** on a drawing opens it again. A drawing kept while you are
+only trying it out is not kept for long: it is a document or an exercise
+being saved that keeps a drawing, so trying a few before settling on one
+leaves nothing behind ([LaTeX drawings](../dialect/latex-drawings.md)).
 
 ### Themes, in Settings
 
-**Settings → LaTeX drawings** keeps named themes: packages ticked from a
-list, the languages Parseh teaches, a font, a preamble of your own, and the
-compiler. A fresh Parseh has *default*, *chemistry* and *drawing*. A theme
-is exported as a file and imported — its whole preamble shown first; a
-rename says how many blocks name the theme, and where, then rewrites every
-one. The same page gets the TeX packages a theme needs into Parseh's own
-`texmf/`, saying first what they cost, and sets how long a drawing may take
+**Settings → LaTeX drawings**, in the same look as the rest of Settings,
+keeps named themes: packages ticked from a list, the languages Parseh
+teaches, a font, a preamble of your own, and the compiler. A fresh Parseh
+has *default*, *chemistry* and *drawing*, and now also packages for
+linguists and poets — syntax trees, dependency arcs, the IPA, pinyin over
+Chinese characters. A theme is exported as a file and imported — its whole
+preamble shown first; a rename says how many blocks name the theme, and
+where, then rewrites every one. The same page gets the TeX packages a theme
+needs into Parseh's own `texmf/` — every one it still needs listed in a
+table, reviewed and gotten one at a time, what each costs said before it is
+gotten — and sets how long a drawing may take
 ([Themes](../dialect/latex-drawings.md#themes)).
+
+### A deck's exercises, filtered by where they came from
+
+Beside a deck's text and tag filters, **Sources** narrows Browse to the
+exercises one or more Markdown documents, books, videos or notes made — or
+to the ones written in the deck itself. Each choice says how many matching
+exercises it has, and the choices themselves narrow with the other filters,
+so a source with nothing left to show is not offered
+([Browsing a deck](../exercises/deck-page.md)).
 
 ### The transliteration cloud on an exported page
 

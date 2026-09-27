@@ -1599,11 +1599,11 @@ def notes_libraries():
 
 
 def latex_used():
-    """The key of every drawing some block now asks for: what "Forget
-    drawings nothing uses" keeps."""
+    """The key of every saved block or inline mark: Settings' explicit
+    cleanup and the ownership-index repair use the same source truth."""
     keys = set()
-    for tex, theme in studio.latexrename.every_block(notes_libraries()):
-        p = latexdraw.plan(tex, theme)
+    for tex, theme, inline in studio.latexrename.every_drawing(notes_libraries()):
+        p = latexdraw.plan(tex, theme, inline=inline)
         if p.get("ok"):
             keys.add(p["key"])
     return keys
@@ -7103,7 +7103,10 @@ def main():
     # THE DRAWINGS NOTHING HAS ASKED FOR IN 30 DAYS, let go (the owner,
     # 2026-09-25) -- off the way in; and a drawing being made when the server
     # stops is stopped with it, whatever stops it
-    threading.Thread(target=latexdraw.prune, daemon=True).start()
+    def _repair_latex_cache():
+        latexdraw.repair_owners(latex_used(), force=True)
+        latexdraw.prune()
+    threading.Thread(target=_repair_latex_cache, daemon=True).start()
 
     def _stop_drawings(*_a):
         latexdraw.stop_all()

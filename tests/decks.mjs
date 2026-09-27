@@ -576,8 +576,13 @@ async function suite(browser, mode) {
   function watch(page, name) {
     page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
     page.on('console', m => {
-      // a 404/409 answer is logged by Chrome as "Failed to load resource"; those are expected
-      if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(`${name} console: ${m.text()}`);
+      // a 404/409 answer is logged by Chrome as "Failed to load resource" for
+      // most tags, but as "A bad HTTP response code (…) was received when
+      // fetching the script" for a <script> Chrome noticed under mobile mode's
+      // extra bookkeeping (studio mode alone never serves /lib/*, on any
+      // layout: expected here, on both counts, same as decks_harness.py's docstring says)
+      if (m.type() === 'error' && !/Failed to load resource/.test(m.text())
+          && !/bad HTTP response code.*fetching the script/.test(m.text())) errors.push(`${name} console: ${m.text()}`);
     });
   }
   const toastText = page => page.locator('#toast').textContent();
@@ -989,6 +994,126 @@ async function suite(browser, mode) {
       throw Error(`FAIL (${mode}): ${what}`);
     };
     const pathOf = r => new URL(r.url()).pathname;
+
+    /* ---------------- browse: provenance facets ---------------- */
+    console.log('deck browse: provenance filters');
+    const sourceMade = (await (await ctx.request.post(url('/exercises/api/decks'), {
+      data: {name: 'Provenance filter', lang: 'fa'},
+    })).json()).deck;
+    const sourceBase = `/exercises/api/decks/${sourceMade.path}`;
+    const sourceCards = [
+      {markdown: PICK_EX.replace('Pick the greeting', 'Common provenance: notebook one alpha'),
+       origin: {doc_uid: 'notebook-one-uid', doc_id: 'notebook-one', title: 'Notebook one'}, tags: ['lesson']},
+      {markdown: PICK_EX.replace('Pick the greeting', 'Common provenance: notebook one beta'),
+       origin: {doc_uid: 'notebook-one-uid', doc_id: 'notebook-one', title: 'Notebook one'}, tags: ['detail']},
+      {markdown: PICK_EX.replace('Pick the greeting', 'Common provenance: notebook two'),
+       origin: {doc_uid: 'notebook-two-uid', doc_id: 'notebook-two', title: 'Notebook two'}, tags: ['lesson']},
+      {markdown: PICK_EX.replace('Pick the greeting', 'A book-source exercise'),
+       origin: {book: '/books/persian/grammar', title: 'Persian grammar'}, tags: ['lesson']},
+      {markdown: PICK_EX.replace('Pick the greeting', 'A video-source exercise'),
+       origin: {video: 'provenance-video', title: 'Lesson video'}, tags: ['video']},
+      {markdown: PICK_EX.replace('Pick the greeting', 'A local-source exercise'), tags: ['local']},
+    ];
+    for (const card of sourceCards) {
+      const made = await ctx.request.post(url(`${sourceBase}/items`), {data: card});
+      if (made.status() !== 201) throw Error(`could not add provenance exercise: ${await made.text()}`);
+    }
+    const provenance = await ctx.newPage();
+    watch(provenance, 'provenance');
+    await provenance.goto(url(`/exercises/deck/${sourceMade.path}/`));
+    await provenance.waitForFunction(() => document.querySelectorAll('.dk-row').length === 6);
+    assert(await provenance.locator('#browse-source-filter').isVisible(), 'the source facet is visible for a non-empty deck');
+    await provenance.locator('#browse-source-filter > summary').click();
+    const sourceTexts = await provenance.locator('.dk-source-option').allTextContents();
+    const hasSource = text => sourceTexts.some(x => x.trim() === text);
+    assert(hasSource('Document: Notebook one(2)') && hasSource('Document: Notebook two(1)')
+           && hasSource('Book: Persian grammar(1)') && hasSource('Video: Lesson video(1)')
+           && hasSource('Written here(1)'), 'document, book, video and written-here sources are counted');
+
+    const openSources = async () => {
+      const details = provenance.locator('#browse-source-filter');
+      if (!(await details.evaluate(x => x.open))) await details.locator('summary').click();
+    };
+    const sourceOption = text => provenance.locator('.dk-source-option', {hasText: text}).locator('input');
+    await sourceOption('Document: Notebook one').check();
+    await provenance.waitForFunction(() => document.querySelectorAll('.dk-row').length === 2
+                                      && document.querySelector('#browse-count').textContent === '2 of 6');
+    assert((await provenance.locator('#browse-source-label').textContent()) === 'Sources (1)', 'one selected source is named in the control');
+    await sourceOption('Document: Notebook two').check();
+    await provenance.waitForFunction(() => document.querySelectorAll('.dk-row').length === 3);
+    assert(true, 'two checked sources are alternatives within the source facet');
+    await sourceOption('Document: Notebook two').uncheck();
+
+    await provenance.fill('#browse-filter', 'common provenance');
+    await provenance.waitForFunction(() => document.querySelectorAll('.dk-row').length === 2
+                                      && document.querySelector('#browse-count').textContent === '2 of 6');
+    assert(true, 'a source choice ANDs with a text filter');
+    // the text filter narrowed the options above; clear it so the next check
+    // is of the tag filter narrowing them on its own, not the two combined
+    await provenance.fill('#browse-filter', '');
+    await provenance.selectOption('#browse-tag', 'lesson');
+    await provenance.waitForFunction(() => document.querySelectorAll('.dk-row').length === 1
+                                      && document.querySelector('#browse-count').textContent === '1 of 6');
+    const narrowedSources = await provenance.locator('.dk-source-option').allTextContents();
+    assert(narrowedSources.some(x => x.trim() === 'Document: Notebook one(1)')
+           && narrowedSources.some(x => x.trim() === 'Document: Notebook two(1)')
+           && narrowedSources.some(x => x.trim() === 'Book: Persian grammar(1)')
+           && !narrowedSources.some(x => /Video: Lesson video|Written here/.test(x)),
+           'source options self-narrow on the other filters and omit zeroes');
+    await provenance.locator('#btn-select-shown').click();
+    assert((await provenance.locator('#browse-selected').textContent()) === '1 selected', 'Select shown uses the source-filtered rows');
+    await provenance.locator('#btn-deselect-shown').click();
+    assert((await provenance.locator('#browse-selected').textContent()) === '0 selected', 'Deselect shown uses the same source-filtered rows');
+
+    await provenance.selectOption('#browse-tag', '');
+    await provenance.fill('#browse-filter', 'video-source');
+    await provenance.waitForFunction(() => document.querySelectorAll('.dk-row').length === 0
+                                      && document.querySelector('#browse-count').textContent === '0 of 6');
+    assert((await provenance.locator('.dk-source-option').allTextContents()).some(x => x.trim() === 'Document: Notebook one(0)'),
+           'an active source remains removable at zero, so it keeps the AND result');
+    await openSources();
+    // a plain click, not .uncheck(): once unticked this option's own count is
+    // zero and unselected, so the design removes its row on this very
+    // render (only a TICKED zero is kept) -- .uncheck() would keep polling a
+    // handle that is gone by design, not a bug to route around
+    await sourceOption('Document: Notebook one').click();
+    await provenance.waitForFunction(() => document.querySelectorAll('.dk-row').length === 1);
+    const videoOnlySources = await provenance.locator('.dk-source-option').allTextContents();
+    assert(videoOnlySources.length === 1 && videoOnlySources[0].trim() === 'Video: Lesson video(1)',
+           'a text-filtered source menu has no zero-count choices');
+
+    await provenance.fill('#browse-filter', '');
+    await openSources();
+
+    const phoneCtx = await browser.newContext({viewport: {width: 390, height: 844}});
+    try {
+      await phoneCtx.addInitScript(() => localStorage.setItem('parseh_mode', 'mobile'));
+      const phone = await phoneCtx.newPage();
+      watch(phone, 'provenance phone');
+      await phone.goto(url(`/exercises/deck/${sourceMade.path}/`));
+      await phone.waitForFunction(() => document.documentElement.dataset.mode === 'mobile'
+                                     && document.querySelectorAll('.dk-row').length === 6);
+      await phone.locator('#browse-source-filter > summary').click();
+      const phoneLayout = await phone.evaluate(() => {
+        const summary = document.querySelector('#browse-source-filter > summary').getBoundingClientRect();
+        const menu = document.querySelector('.dk-source-menu').getBoundingClientRect();
+        const option = document.querySelector('.dk-source-option').getBoundingClientRect();
+        return {summary: summary.height, option: option.height, left: menu.left, right: menu.right,
+                viewport: innerWidth, scroll: document.documentElement.scrollWidth};
+      });
+      assert(phoneLayout.summary >= 48 && phoneLayout.option >= 44
+             && phoneLayout.left >= 0 && phoneLayout.right <= phoneLayout.viewport + 1
+             && phoneLayout.scroll <= phoneLayout.viewport + 1,
+             'the source dropdown has phone-sized targets without horizontal overflow at 390px');
+      if (Deno.env.get('SHOTS')) {
+        const dir = Deno.env.get('SHOTS');
+        await provenance.screenshot({path: `${dir}/deck-provenance-desktop-${mode}.png`, fullPage: true});
+        await phone.screenshot({path: `${dir}/deck-provenance-phone-${mode}.png`, fullPage: true});
+      }
+    } finally {
+      await phoneCtx.close();
+    }
+    await provenance.close();
 
     /* ---------------- study: the answer of a wrong match or placement ---------------- */
     console.log('study: the solution under a wrong match or fill-in');

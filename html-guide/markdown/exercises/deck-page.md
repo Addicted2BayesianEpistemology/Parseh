@@ -87,10 +87,19 @@ The bar above the list narrows it:
 | **All types** | one kind of exercise; each kind is listed with how many there are, `Flashcard (2)` |
 | **Any state** | **New**, **Learning** (relearning included), **Review**, or **Due now**: the reviews and learning steps due at this moment |
 | **All tags** | the exercises with one tag, `food (4)` |
+| **Sources** | one or more places the exercises came from: a markdown document, a book, a video, or **Written here**; every checkbox says how many matching exercises it has |
 
 They work together, and the count at the end of the bar says how many rows
 are left: `3 of 8`, or `8 exercises` with no filter on. When nothing
 matches, the list says *No exercise matches these filters.*
+
+Open **Sources** to tick any number of sources. Ticked sources are alternatives
+to one another, while the source result is still combined with the text, type,
+state and tag filters. Its choices and counts follow those other filters, so an
+unselected source with no matching exercise is not shown. A checked source
+stays at `0` until you untick it, rather than silently turning that part of the
+filter off. A document source keeps the name saved on its exercises, so it is
+still useful if that document is renamed or later removed.
 
 **Due now** leaves out the new exercises (they are under **New**); a review
 counts as due for the whole of the day it falls on, and a learning step from

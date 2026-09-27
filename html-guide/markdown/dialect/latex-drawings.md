@@ -1,7 +1,7 @@
 ---
 title: LaTeX drawings
 weight: 13
-description: Chemistry, drawings, plots and units drawn by LaTeX itself, in a ::::latex block beside the formulas MathJax draws — with named themes, made in Settings, and a drawing that travels to paper, to a web page and onto a phone.
+description: Chemistry, drawings, plots and units drawn by LaTeX itself, in a ::::latex block or inline, [...]{latex}, beside the formulas MathJax draws — with named themes, made in Settings, and a drawing that travels to paper, to a web page and onto a phone.
 ---
 
 A formula is written with `[…]{math}` or `:::math`, and MathJax draws it
@@ -9,9 +9,10 @@ A formula is written with `[…]{math}` or `:::math`, and MathJax draws it
 mathematics**: nothing to install, drawn in the page, on a phone and
 offline. What MathJax cannot draw — a chemical reaction written with
 `mhchem`, a molecule with `chemfig`, a drawing or a plot with TikZ, units
-with `siunitx` — LaTeX itself can, and a **latex block** asks it to.
+with `siunitx` — LaTeX itself can, and a **latex block**, or `[…]{latex}`
+inline, asks it to.
 
-A latex block is **optional**. It needs TeX on the computer Parseh runs on
+A latex drawing is **optional**. It needs TeX on the computer Parseh runs on
 (TeX Live or MiKTeX): a document without one is read exactly as before.
 
 ## Writing one
@@ -59,31 +60,65 @@ field, where a line of three colons ends the exercise:
 
 ![A parabola, drawn with TikZ](images/latex-tikz.svg){width=50 align=center}
 
-In the editor, **LaTeX drawing** opens a sheet: the theme, the LaTeX, the
-drawing as the computer makes it while you type, and its size and side. In
-the preview, **✎** on a drawing opens it again. In the exercise form,
-**LaTeX drawing…** puts one in the field of a Jolly card you were last in.
+In the editor, **LaTeX drawing** opens a sheet: the preview beside the
+LaTeX, made as the computer draws it while you type, with **Fit** and
+**Actual size** to look at it either way. **Size and position** — the
+width, where it sits, a sideways shift — is folded away unless the drawing
+already has one. In the preview, **✎** on a drawing opens it again. In the
+exercise form, **LaTeX drawing…** puts one in the field of a Jolly card you
+were last in.
+
+### Inline, in the middle of a line
+
+`[...]{latex}` draws its LaTeX right there, on the very line it sits in —
+in a sentence, in an exercise's prompt or one of its options, wherever text
+already goes — sized to the words round it and set on their baseline, the
+same way `[...]{math}` is:
+
+```markdown
+The limit [$\displaystyle\lim_{x\rightarrow 0}\frac{\sin(x)}{x}$]{latex} is 1.
+```
+
+A word after `latex`, the same as a block's, names a theme:
+`[\ce{H2O}]{latex chemistry}`. No word, the default theme. A tall drawing —
+a big fraction, a stack — is shrunk to a height that will not push its own
+line apart from the ones round it; whatever it draws stays in proportion.
+An inline mark that cannot be drawn shows its own LaTeX in its place, in
+code, rather than a hole in the sentence.
 
 ## Where it goes
 
-Wherever a `:::math` formula may go — a document, a box, a note in a book
-or a video — and in the four fields of a Jolly card, in a document and in a
-deck. Not in an exercise's other fields, which are lines of prose.
+A **block** goes wherever a `:::math` formula may — a document, a box, a
+note in a book or a video — and in the four fields of a Jolly card, in a
+document and in a deck; a whole exercise **prompt** may also be one, on its
+own. An **inline** mark goes wherever prose already does: a document's
+paragraphs, lists, tables, headings and captions, a note, and any exercise
+field or option — the lines of prose a block alone could not reach.
 
 ## Drawn once, the same everywhere
 
-A block is compiled **on its own**, in a document of its own with its
-theme's preamble, and becomes a picture. So its packages can never change
-an ordinary formula, and the screen and paper show **the same drawing**:
-the page shows it as a vector picture, the PDF includes it, an [HTML
-export](../studio/web-page.md) carries it inside the file, and a page kept
-on a phone keeps it. In the PDF it is a picture, not text you can select,
-and it is set in LaTeX's own face.
+A block, or an inline mark, is compiled **on its own**, in a document of its
+own with its theme's preamble, and becomes a picture. So its packages can
+never change an ordinary formula or the document it sits in, and the screen
+and paper show **the same drawing** — an inline mark included, never
+retypeset into the page's own LaTeX: the page shows it as a vector picture,
+the PDF includes it, an [HTML export](../studio/web-page.md) carries it
+inside the file, and a page kept on a phone keeps it. In the PDF it is a
+picture, not text you can select, and it is set in LaTeX's own face.
 
-It is made **once** and kept (`markdown/latex/`), and made again only when
-something that decides what it looks like changes: the block, its theme's
-packages, preamble or compiler, the TeX installation, or Parseh's way of
-drawing. Renaming a theme redraws nothing.
+It is made **once**, and made again only when something that decides what
+it looks like changes: the block, its theme's packages, preamble or
+compiler, the TeX installation, or Parseh's way of drawing. Renaming a
+theme redraws nothing.
+
+**A drawing you are only trying is not kept for long.** While you are
+typing, or trying a theme in the sheet, what is drawn lives in a small,
+temporary place of its own, gone the next time the server starts; only a
+document, a note or an exercise being **saved** keeps the drawings it
+names, for as long as something still names them. Nothing you saved is
+ever removed for being old — **Settings → LaTeX drawings** says how many
+saved drawings there are, and **Forget drawings nothing uses** clears
+anything left over from a document, deck or note since deleted.
 
 ## When it cannot be drawn
 
@@ -92,23 +127,30 @@ line saying why**, in plain words and with the line of the block where
 LaTeX says one: a command a package would give (*\ce is not a command the
 theme "default" knows… tick mhchem*), a brace missing, a package not
 installed, a theme this Parseh does not have, a compiler this computer
-lacks, a drawing that took too long. The rest of the page is drawn. On the
-computer the frame has the button that mends it — the theme, **Install…**,
-or **Import a theme…** and **Make a theme called …** for a theme that is
-not here. In the PDF and in an export the frame stands where the drawing
-would, and the PDF's badge says how many could not be made.
+lacks, a drawing that took too long. An inline mark that cannot be drawn
+shows its own LaTeX where it sits instead, without a frame — nothing that
+small belongs in a box in the middle of a sentence. The rest of the page is
+drawn. On the computer the frame has the button that mends it — the theme,
+**Review packages…**, or **Import a theme…** and **Make a theme called
+…** for a theme that is not here. In the PDF and in an export the frame
+stands where the drawing would, and the PDF's badge says how many could
+not be made.
 
 ## Themes {#themes}
 
 **Settings → LaTeX drawings** holds the themes, as many as you like, each
 with a name of one word:
 
-- **Packages** as checkboxes, each with a line and an example: `amsmath`,
+- **Packages** as checkboxes, each with a line and an example, in groups:
+  **Base packages** — the basics every drawing uses — `amsmath`,
   `amssymb`, `amsfonts`, `mathtools`, `bm`, `xcolor`, `siunitx`,
-  `physics`, and `mathrsfs`, `dsfont`, `esvect`, `stmaryrd`, `wasysym`,
-  `marvosym`, `cancel`, `slashed`, `relsize`, `amsthm`, `tikz`, `tikz-cd`,
-  `bayesnet`, `pgfplots`, `circuitikz`, `mhchem`, `chemfig`, `listings`,
-  `algorithm2e`.
+  `physics`; then letters and symbols (`mathrsfs`, `dsfont`, `esvect`,
+  `stmaryrd`, `wasysym`, `marvosym`), operations and theorems (`cancel`,
+  `slashed`, `relsize`, `amsthm`), drawings and plots (`tikz`, `tikz-cd`,
+  `bayesnet`, `pgfplots`, `circuitikz`), chemistry (`mhchem`, `chemfig`),
+  code (`listings`, `algorithm2e`), linguistics (`forest`,
+  `tikz-dependency`), phonetics (`tipa`) and scripts and annotation
+  (`xpinyin`, pinyin over Chinese characters).
 - **Text in the languages Parseh teaches**: each language's face, as
   `\textfa{…}`, `\textja{…}`, `\texthi{…}` and so on, right to left
   where it is written so.
@@ -125,12 +167,16 @@ many blocks name the theme, and where — *3 documents, 1 exercise deck, 2
 notes* — then rewrites the name in every one of them; if one of them cannot
 be written (a deck taken out on a phone), nothing is renamed.
 
-The same page says which of the three compilers this computer has, gets
-the **TeX packages** a theme needs into Parseh's own folder `texmf/` — what
-it costs said first, then its progress, and **Stop** — with each package's
-licence, and sets **how long a drawing may take** (30 seconds to begin
-with). **Forget drawings nothing uses** frees the space of the drawings no
-block asks for; a drawing nothing has asked for in 30 days goes by itself.
+The same page says which of the three compilers this computer has, and
+lists the **TeX packages** the themes need, gotten into Parseh's own
+folder `texmf/`: every package still missing is a row of its own, with why
+it is needed, its licence and size, and its own **Get it** — reviewed
+before anything is downloaded, one package at a time, truthfully **Got**
+once it really is; **Get all** gets every ready package in one go.
+**Remove…** asks first, in the row itself. **How long a drawing may take**
+is also set here (30 seconds to begin with). **Forget drawings nothing
+uses** clears anything left over from a document, deck or note since
+deleted.
 
 Everything on the page may be changed from any device that has been let in,
 a phone as well as the computer, as on the [reading

@@ -1091,6 +1091,61 @@ body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .dropdown .menu{right: .9
   background: var(--chrome-bg); color: var(--chrome-fg);
   padding: .4rem .6rem; font-size: .9rem;}
 :is(.pz,.modal-overlay) .modal-fields ~ textarea{min-height: 120px;}
+:is(.pz,.modal-overlay) .modal.latex-modal{width: min(1100px, 96vw); height: min(780px, 88vh); max-height: 88vh;
+  gap: 0; padding: 0; overflow: hidden;}
+:is(.pz,.modal-overlay) .latex-modal-head{flex: none; padding: 1rem 1.2rem .8rem; border-bottom: 1px solid var(--chrome-line);}
+:is(.pz,.modal-overlay) .latex-modal-head p{margin-top: .35rem !important; max-width: 70rem;}
+:is(.pz,.modal-overlay) .latex-modal-body{display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(20rem, .9fr);
+  grid-template-areas: "preview editor"; flex: 1 1 auto; min-height: 0; overflow: hidden;}
+:is(.pz,.modal-overlay) .lx-preview-pane{grid-area: preview; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .55rem;
+  padding: 1rem 1.1rem; overflow: auto; background: var(--chrome-bg); border-right: 1px solid var(--chrome-line);}
+:is(.pz,.modal-overlay) .lx-preview-head{display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap;}
+:is(.pz,.modal-overlay) .lx-preview-head > b{font-size: .82rem;}
+:is(.pz,.modal-overlay) .lx-preview-size{display: inline-flex; gap: .3rem; flex-wrap: wrap;}
+:is(.pz,.modal-overlay) .lx-preview-size .btn[aria-pressed="true"]{border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--chrome-panel)); color: var(--accent);}
+:is(.pz,.modal-overlay) .latex-modal .lx-status{display: block; min-height: 1.1em; margin: 0;}
+:is(.pz,.modal-overlay) .latex-modal .lx-stage{margin: 0; max-width: none; min-height: 21rem; flex: 1 1 auto;
+  display: flex; align-items: center; justify-content: center; overflow: auto;
+  padding: clamp(.8rem, 2vw, 1.6rem); border: 1px solid var(--chrome-line); border-radius: 9px;
+  box-shadow: none; background: var(--sheet-bg);}
+:is(.pz,.modal-overlay) .latex-modal .lx-stage:empty::after{content: "The drawing will appear here."; color: var(--chrome-mut); font: .82rem var(--sans);}
+:is(.pz,.modal-overlay) .lx-preview-image{display: block; width: auto; height: auto; max-width: 100%; max-height: 100%;}
+:is(.pz,.modal-overlay) .lx-stage[data-lx-preview-mode="actual"]{align-items: flex-start; justify-content: flex-start;}
+:is(.pz,.modal-overlay) .lx-stage[data-lx-preview-mode="actual"] .lx-preview-image{max-width: none; max-height: none;}
+:is(.pz,.modal-overlay) .lx-preview-detail{width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, Menlo, monospace;}
+:is(.pz,.modal-overlay) .lx-editor-pane{grid-area: editor; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .85rem;
+  padding: 1rem 1.2rem; overflow: auto;}
+:is(.pz,.modal-overlay) .lx-field{display: flex; flex-direction: column; gap: .28rem; color: var(--chrome-mut); font-size: .82rem;}
+:is(.pz,.modal-overlay) .lx-field > span{color: var(--chrome-fg); font-weight: 600;}
+:is(.pz,.modal-overlay) .lx-field select,:is(.pz,.modal-overlay) .lx-layout select,:is(.pz,.modal-overlay) .lx-layout input[type="number"]{border: 1px solid var(--chrome-line); border-radius: 7px; background: var(--chrome-bg); color: var(--chrome-fg);
+  padding: .42rem .55rem; font: inherit;}
+:is(.pz,.modal-overlay) .latex-modal .lx-src{min-height: 15rem; flex: 1 1 18rem; font-size: .88rem;}
+:is(.pz,.modal-overlay) .lx-layout{flex: none; border: 1px solid var(--chrome-line); border-radius: 8px; background: var(--chrome-bg);}
+:is(.pz,.modal-overlay) .lx-layout summary{cursor: pointer; padding: .65rem .75rem; color: var(--accent); font-size: .82rem; font-weight: 600;}
+:is(.pz,.modal-overlay) .lx-layout[open] summary{border-bottom: 1px solid var(--chrome-line);}
+:is(.pz,.modal-overlay) .lx-layout > p{margin: .6rem .75rem 0; color: var(--chrome-mut); font-size: .78rem; line-height: 1.4;}
+:is(.pz,.modal-overlay) .lx-layout-fields{display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem .85rem; padding: .75rem;}
+:is(.pz,.modal-overlay) .lx-layout-fields label{display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem .55rem; color: var(--chrome-mut); font-size: .78rem;}
+:is(.pz,.modal-overlay) .lx-layout-fields .lx-natural-field{grid-column: 1 / -1; display: flex; justify-content: flex-start;}
+:is(.pz,.modal-overlay) .lx-layout-fields .lx-width{grid-column: 1 / -1; width: 100%;}
+:is(.pz,.modal-overlay) .lx-layout-fields input[type="range"]{accent-color: var(--accent);}
+:is(.pz,.modal-overlay) .lx-layout-fields output{color: var(--chrome-fg); font-variant-numeric: tabular-nums;}
+:is(.pz,.modal-overlay) .lx-layout-fields .lx-offset{width: 5em;}
+:is(.pz,.modal-overlay) .latex-modal-actions{display: flex; flex: none; justify-content: flex-end; gap: .6rem;
+  padding: .8rem 1.2rem; border-top: 1px solid var(--chrome-line); background: var(--chrome-panel);}
+@media (max-width: 760px){
+.modal-overlay.latex-overlay{align-items: stretch; padding: .5rem;}
+:is(.pz,.modal-overlay) .modal.latex-modal{width: 100%; height: calc(100vh - 1rem); height: calc(100dvh - 1rem); max-height: none; border-radius: 10px;}
+:is(.pz,.modal-overlay) .latex-modal-head{padding: .85rem 1rem .7rem;}
+:is(.pz,.modal-overlay) .latex-modal-body{grid-template-columns: minmax(0, 1fr); grid-template-areas: "editor" "preview"; overflow: auto;}
+:is(.pz,.modal-overlay) .lx-editor-pane,:is(.pz,.modal-overlay) .lx-preview-pane{overflow: visible; padding: .85rem 1rem;}
+:is(.pz,.modal-overlay) .lx-preview-pane{min-height: 0; border-right: 0; border-top: 1px solid var(--chrome-line);}
+:is(.pz,.modal-overlay) .latex-modal .lx-src{min-height: 11rem; flex: none;}
+:is(.pz,.modal-overlay) .latex-modal .lx-stage{min-height: 15rem; flex: none;}
+:is(.pz,.modal-overlay) .lx-layout-fields{grid-template-columns: minmax(0, 1fr);}
+:is(.pz,.modal-overlay) .lx-layout-fields .lx-natural-field{grid-column: 1;}
+:is(.pz,.modal-overlay) .latex-modal-actions{padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom));}
+}
 :is(.pz,.modal-overlay) .names-modal{width: min(600px, 94vw);}
 :is(.pz,.modal-overlay) .names-list{display: flex; flex-direction: column; gap: .7rem; overflow-y: auto; min-height: 0;}
 :is(.pz,.modal-overlay) .names-pair{display: flex; flex-direction: column; gap: .55rem; margin: 0;
@@ -1285,6 +1340,17 @@ body[data-page="doc"] :is(.pz,.modal-overlay) figure.img:hover img,body[data-pag
 :is(.pz,.modal-overlay) .dk-deckactions .dropdown .menu{left: 0; right: auto;}
 :is(.pz,.modal-overlay) .dk-deckactions .dk-push{margin-left: auto;}
 :is(.pz,.modal-overlay) .dk-browsebar{margin-top: 1.3rem;}
+:is(.pz,.modal-overlay) .dk-source-filter .menu{left: 0; right: auto; width: 20rem; max-width: calc(100vw - 1.8rem);}
+:is(.pz,.modal-overlay) .dk-source-menu{max-height: min(22rem, calc(100vh - 8rem)); overflow-y: auto; white-space: normal;}
+:is(.pz,.modal-overlay) .dk-source-menu fieldset{border: 0; margin: 0; padding: .15rem .25rem; min-width: 0;}
+:is(.pz,.modal-overlay) .dk-source-menu legend{padding: 0; margin: 0 0 .25rem; font-size: .82rem; font-weight: 600;}
+:is(.pz,.modal-overlay) .dk-source-option{display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .45rem;
+  align-items: start; padding: .35rem .25rem; cursor: pointer; line-height: 1.3;}
+:is(.pz,.modal-overlay) .dk-source-option:hover{background: var(--chrome-bg); border-radius: 5px;}
+:is(.pz,.modal-overlay) .dk-source-option.dk-source-zero{color: var(--chrome-mut);}
+:is(.pz,.modal-overlay) .dk-source-option input{margin: .15rem 0 0;}
+:is(.pz,.modal-overlay) .dk-source-name{overflow-wrap: anywhere;}
+:is(.pz,.modal-overlay) .dk-source-count{color: var(--chrome-mut); font-variant-numeric: tabular-nums; white-space: nowrap;}
 :is(.pz,.modal-overlay) .dk-bulkbar{display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .55rem;}
 :is(.pz,.modal-overlay) .dk-selection-hint{margin: .35rem 0 0; color: var(--chrome-mut); font-size: .82rem;}
 :is(.pz,.modal-overlay) #browse-selected{color: var(--chrome-mut); font-size: .82rem; margin-right: auto;}

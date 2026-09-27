@@ -919,12 +919,19 @@ STUDIO_MATHJAX = ("/static/mathjax.css", "/static/mathjax.js",
 _MATHS_IN_SOURCE = re.compile(r"\]\{\s*math\s*\}|^:::math\s*$", re.I | re.M)
 # a latex block's body is LaTeX for its own compile, never MathJax's: what it
 # holds decides nothing about the two megabytes (and a `]{math}` in it is not
-# a formula of the page's)
+# a formula of the page's) -- true of an inline `[…]{latex}` mark's own body
+# for the same reason (TO-DO §8.39's L8), so it is stripped here too, by the
+# same light regex the full parser matches inline marks with (imported, not
+# copied, so the two can never drift the way lib/latexthemes.blocks_in's own
+# comment warns a copy would).
 _LATEX_BLOCK = re.compile(r"^[ \t>]*::::latex\b.*?^[ \t>]*::::[ \t]*$", re.I | re.M | re.S)
 
 
 def _maths_in(markdown):
-    return bool(_MATHS_IN_SOURCE.search(_LATEX_BLOCK.sub("", markdown or "")))
+    import latexthemes
+    text = _LATEX_BLOCK.sub("", markdown or "")
+    text = latexthemes.LATEX_INLINE_RE.sub("", text)
+    return bool(_MATHS_IN_SOURCE.search(text))
 
 
 def _drawings(markdown, studio_base, have, stamps):
@@ -936,19 +943,27 @@ def _drawings(markdown, studio_base, have, stamps):
     asked of the computer, which is the one that can draw."""
     import latexdraw
     import latexthemes
+
+    def keep(r):
+        if not r.get("ok"):
+            return
+        url = studio_base.rstrip("/") + latexdraw.url_of(r["key"])
+        if url in have:
+            return
+        have.add(url)
+        out.append(_entry(url, r["svg"], "picture"))
+        stamps.append((url, r["key"]))
+
     out = []
     for b in latexthemes.blocks_in(markdown):
         if b["errors"] or not b["closed"]:
             continue
-        r = latexdraw.draw(b["tex"], b["theme"] or None)
-        if not r.get("ok"):
-            continue
-        url = studio_base.rstrip("/") + latexdraw.url_of(r["key"])
-        if url in have:
-            continue
-        have.add(url)
-        out.append(_entry(url, r["svg"], "picture"))
-        stamps.append((url, r["key"]))
+        keep(latexdraw.draw(b["tex"], b["theme"] or None))
+    # inline marks (TO-DO §8.39's L8) live in text, not in a fence a light
+    # reading finds the same way blocks_in does: swept straight from the
+    # source, the reason inline_latex_pairs sits beside blocks_in at all.
+    for tex, theme in latexthemes.inline_latex_pairs(markdown):
+        keep(latexdraw.draw(tex, theme, inline=True))
     return out
 
 
