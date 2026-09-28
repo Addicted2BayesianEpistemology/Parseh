@@ -114,7 +114,9 @@ gloss and the narration panel each look after the recording themselves, and
 stays paused until you press **▶**. It is the video's switch, worded the same
 ([The player](../videos/the-player.md)), and like it is remembered on this device only:
 it is not one of the settings the computer keeps for you, and it is not drawn
-in a book with no recording.
+in a book with no recording. Like ↺ and ↻ beside ▶, it comes from Parseh's
+own server: a reader opened off the disk, or an exported copy, does not have
+it.
 
 A chunk that nobody has glossed yet has no vocabulary line, and where
 nothing is installed for reading such chunks the cloud says *nothing glossed
