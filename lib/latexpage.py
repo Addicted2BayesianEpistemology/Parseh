@@ -59,11 +59,10 @@ def view(where):
     """Everything the page draws, in one answer."""
     doc = latexthemes.all_of()
     comps = latexdraw.compilers()
-    checks = {}
-    for t in doc["themes"]:
-        for pid, f, tl, lic in latexthemes.files_needed(t):
-            if f not in checks:
-                checks[f] = texpackages.installed(f)
+    # every file a theme could ask for, not only the saved themes' own: a box
+    # ticked in an open editor is marked missing at once, from one kpsewhich
+    checks = texpackages.installed_many([row["file"] for row in latexthemes.PACKAGES.values()] +
+                                        [row[1] for row in latexthemes.ALWAYS.values()])
     return {
         "themes": doc["themes"], "default": doc["default"], "timeout": doc["timeout"],
         "limits": [latexthemes.TIMEOUT_MIN, latexthemes.TIMEOUT_MAX],
@@ -71,6 +70,8 @@ def view(where):
         "catalogue": [latexthemes.PACKAGES[p] for p in latexthemes.ORDER],
         "groups": latexthemes.GROUPS,
         "files": checks,
+        "always": {k: [list(v[0]), v[1], v[2]] for k, v in latexthemes.ALWAYS.items()},
+        "unicode": list(latexthemes.UNICODE),
         "needs": {t["name"]: [list(x[:2]) + [list(x[2]), x[3]] for x in latexthemes.files_needed(t)]
                   for t in doc["themes"]},
         "tex": texpackages.distribution(),
@@ -151,9 +152,12 @@ def api(what, body, where, libraries=(), rename=None, used=None):
             latexdraw.forget_failures()
             return 200, {"ok": True}
         if what == "forget":
-            keys = used() if used else set()
-            latexdraw.repair_owners(keys)
-            return 200, dict(latexdraw.forget_unused(keys), ok=True)
+            # what is in a trash keeps nothing here: a drawing is derived, and a
+            # deck or a book taken back from its trash is drawn again
+            keys = used(include_trash=False) if used else set()
+            latexdraw.repair_owners(keys, force=True)
+            gone = latexdraw.forget_unused(keys)
+            return 200, dict(gone, ok=True, forgotten=gone["drawings"], kept=latexdraw.size())
         if what == "package-plan":
             names = list(dict.fromkeys(n for n in (body.get("packages") or []) if isinstance(n, str)))
             return 200, dict(texpackages.plan(names), ok=True)
@@ -189,9 +193,16 @@ STYLE = r"""
 .lx textarea{width:100%;min-height:6rem;font-family:ui-monospace,monospace}
 .lx pre.pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--boxbg);padding:8px;border-radius:6px;font-size:12px;max-height:22rem;overflow:auto}
 .lx .said{min-height:1.2em;font-size:13px}
+.lx .bar{height:6px;background:var(--rule);border-radius:3px;overflow:hidden;margin:8px 0;max-width:32rem}
+.lx .bar i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width .4s}
+.lx .bar.loose i{width:30%;animation:lx-slide 1.4s ease-in-out infinite}
+@keyframes lx-slide{0%{margin-inline-start:-30%}100%{margin-inline-start:100%}}
+@media (prefers-reduced-motion:reduce){.lx .bar.loose i{width:100%;opacity:.45;animation:none}}
+.lx .edit-missing{position:sticky;bottom:0;margin:8px 0 0;padding:8px 12px;font-size:13px;background:var(--boxbg);
+  border:1px solid var(--rule);border-inline-start:3px solid var(--warn);border-radius:8px}
+.lx .edit-missing a{color:var(--accent);text-underline-offset:2px}
 .lx .bad{color:var(--danger,#c33)}
 @keyframes lx-plan-flash{0%{outline:3px solid var(--accent);outline-offset:3px}100%{outline:3px solid transparent;outline-offset:7px}}
-@media (prefers-reduced-motion:reduce){.lx [data-package-panel].flash{animation:none}}
 .lx img.sample{max-width:100%;background:#fff;padding:6px;border-radius:4px}
 .lx .tex-status{margin:.65rem 0 1rem}
 .lx .tex-status>div{display:grid;grid-template-columns:minmax(8rem,.8fr) minmax(0,2fr);gap:6px 12px;align-items:center;
@@ -206,6 +217,7 @@ STYLE = r"""
 .lx .st.ok{color:var(--ok)}
 .lx .st.not,.lx .st.wait{color:var(--dim);border-style:dashed;background:none}
 .lx .st.run{color:var(--accent)}
+.lx .st.need{color:var(--warn)}
 .lx .st.bad{color:var(--danger);background:color-mix(in srgb,var(--danger) 8%,transparent)}
 .lx .tex-status .compiler-version{min-width:0;color:var(--dim);font:12px ui-monospace,monospace;overflow-wrap:anywhere}
 @media (max-width:40rem){.lx .tex-status>div{grid-template-columns:1fr;gap:4px}}
@@ -213,11 +225,13 @@ STYLE = r"""
 .lx td,.lx th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--rule);font-size:13px}
 .lx [data-package-panel]{scroll-margin-block:2rem}
 .lx [data-package-panel].flash{animation:lx-plan-flash 1.1s ease-out}
+@media (prefers-reduced-motion:reduce){.lx [data-package-panel].flash{animation:none}}
 .lx .pkg-intro{margin:.35rem 0 .65rem;color:var(--dim);font-size:13px}
 .lx .pkg-live{min-height:1.35em;margin:.35rem 0;font-size:13px}
 .lx .pkg-table{margin:.45rem 0}
 .lx .pkg-table th,.lx .pkg-table td{vertical-align:top}
 .lx .pkg-table th[scope=row]{font-weight:600;white-space:nowrap}
+.lx .pkg-table td[data-label=Size]{white-space:nowrap}
 .lx .pkg-why{display:block;margin-top:2px;color:var(--dim);font-size:12px;overflow-wrap:anywhere}
 .lx .pkg-state{min-width:12rem}
 .lx .pkg-detail{display:block;margin-top:3px;color:var(--dim);font-size:12px;overflow-wrap:anywhere}
@@ -245,42 +259,64 @@ SCRIPT = r"""
   var root = document.getElementById('lx');
   var API = '/settings/api/latex/';
   var editing = null;       // the theme being edited: {was, theme}
-  var packagePlans = {};    // name -> one quoted row, kept while the rest redraws
+  var packagePlans = {};    // name -> its quote, kept for the session while the rest redraws
   var packageAsked = {};    // one-off names typed into the package box
-  var packageRequest = {};  // name -> the quote currently allowed to change it
+  var packageRequest = {};  // name -> the newest ask, the only one allowed to change it
   var packageSerial = 0;
   var packageMessage = '';
   var removing = null;
   var polling = false;
+  var forgetting = false;   // the cleanup of the drawings is being done
+  var draft = {features: [], names: [], need: []};  // what the open editor's unsaved theme lacks here
+  var draftTimer = 0;
+  var QUOTES = 'parseh.lx.quotes', QUOTE_AGE = 30 * 60 * 1000;
+  var FORGET_WORKING = 'Looking through every document, deck and note…';
+  var ASK_MS = 150000;      // tlmgr may take 60 s on each of two repositories
   var q = new URLSearchParams(location.search);
   function esc(s) { return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
     return {'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[c]; }); }
-  function post(what, body) {
+  function post(what, body, ms) {
+    var ctl = ms && window.AbortController ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, ms) : 0;
     return fetch(API + what, {method: 'POST', headers: {'Content-Type': 'application/json'},
-                              body: JSON.stringify(body || {})})
-      .then(function (r) { return r.json().catch(function () { return {ok: false, error: r.statusText}; }); });
+                              body: JSON.stringify(body || {}), signal: ctl ? ctl.signal : undefined})
+      .then(function (r) { return r.json().catch(function () { return {ok: false, error: r.statusText}; }); })
+      .then(function (v) { clearTimeout(timer); return v; }, function (e) { clearTimeout(timer); throw e; });
   }
   function may(k) { return !!S.may[k]; }
   function dis(k) { return may(k) ? '' : ' disabled'; }
   function lock(k) { return may(k) ? '' : '<div class="lockline">Changed on the computer only.</div>'; }
   function MB(n) { return n == null ? '' : (n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' kB'); }
-  function reload() { return post('state').then(function (v) { if (v.ok) { S = v; draw(); } }); }
+  function drawings(n) { return n + ' drawing' + (n === 1 ? '' : 's'); }
+  // an editor open while the page is read again keeps what was typed in it
+  function keepEditing() { if (editing && root.querySelector('section.edit')) { try { editing.theme = current(); } catch (e) {} } }
+  function reload() { keepEditing(); return post('state').then(function (v) { if (v.ok) { S = v; draw(); } }); }
 
   function unique(a) { return a.filter(function (x, at) { return x && a.indexOf(x) === at; }); }
   function packageAvailable(name) {
     var plan = packagePlans[name] || {};
     return !!(((S.packages || {}).available || {})[name] || plan.here === 'available');
   }
-  function themeNeed(t) {
+  // an unsaved theme's [id, file, TeX Live packages, licence], as latexthemes.files_needed gives a saved one's
+  function draftNeeds(t) {
+    var a = S.always, uni = S.unicode.indexOf(t.compiler) >= 0;
+    var out = [['standalone', a.standalone[1], a.standalone[0], a.standalone[2]]];
+    S.catalogue.forEach(function (p) { if (t.packages.indexOf(p.id) >= 0) out.push([p.id, p.file, p.tl, p.licence]); });
+    if (uni && (t.font || t.languages)) out.push(['fontspec', a.fontspec[1], a.fontspec[0], a.fontspec[2]]);
+    if (uni && t.font) out.push(['unicode-math', a['unicode-math'][1], a['unicode-math'][0], a['unicode-math'][2]]);
+    return out;
+  }
+  function themeNeed(t, needs) {
     var features = [], names = [];
-    (S.needs[t.name] || []).forEach(function (need) {
+    needs = needs || S.needs[t.name] || [];
+    needs.forEach(function (need) {
       if (S.files[need[1]] !== false) return;
       var want = (need[2] || []).filter(function (name) { return !packageAvailable(name); });
       if (!want.length) return;
       if (features.indexOf(need[0]) < 0) features.push(need[0]);
       names = names.concat(want);
     });
-    return {features: features, names: unique(names)};
+    return {features: features, names: unique(names), need: needs};
   }
   function missingMarkup(t) {
     var need = themeNeed(t);
@@ -302,6 +338,13 @@ SCRIPT = r"""
         });
       });
     });
+    draft.names.forEach(function (name) {
+      var row = rows[name] || (rows[name] = {name: name, themes: [], licence: ''});
+      row.draft = true;
+      draft.need.forEach(function (one) {
+        if ((one[2] || []).indexOf(name) >= 0 && !row.licence) row.licence = one[3] || '';
+      });
+    });
     Object.keys(packageAsked).forEach(function (name) {
       if (packageAvailable(name)) return;
       rows[name] = rows[name] || {name: name, themes: [], licence: ''};
@@ -319,15 +362,15 @@ SCRIPT = r"""
       rows[name] = rows[name] || {name: name, themes: [], licence: ''};
       rows[name].job = jobs[name];
     });
-    Object.keys(packagePlans).forEach(function (name) {
-      rows[name] = rows[name] || {name: name, themes: [], licence: ''};
-      rows[name].plan = packagePlans[name];
-    });
+    Object.keys(rows).forEach(function (name) { if (packagePlans[name]) rows[name].plan = packagePlans[name]; });
     return Object.keys(rows).sort().map(function (name) { return rows[name]; });
   }
   function packageWhy(row) {
-    if (row.themes.length) return 'for the theme' + (row.themes.length === 1 ? ' ' : 's ') + row.themes.map(esc).join(', ');
-    return row.asked ? 'you asked for it' : '';
+    var why = [];
+    if (row.themes.length) why.push('for the theme' + (row.themes.length === 1 ? ' ' : 's ') + row.themes.map(esc).join(', '));
+    if (row.draft) why.push('for the theme being edited (unsaved)');
+    if (!why.length && row.asked) why.push('you asked for it');
+    return why.join('; ');
   }
   function packageState(row) {
     var name = row.name, job = row.job || {}, plan = row.plan || {}, state = job.state ||
@@ -361,44 +404,100 @@ SCRIPT = r"""
     if (state === 'available' || packageAvailable(name) || plan.here === 'available') return {kind: 'available',
       text: '<span class="st ok"><i aria-hidden="true">✓</i> Available to this TeX</span>', detail: 'Parseh will not add a second copy.', action: ''};
     if (plan.state === 'asking') return {kind: 'asking',
-      text: '<span class="st wait"><i aria-hidden="true">○</i> Asking about it</span>', detail: '', action: ''};
+      text: '<span class="st wait"><i aria-hidden="true">○</i> Asking…</span>', detail: '', action: ''};
+    if (plan.state === 'unreachable') return {kind: 'unreachable',
+      text: '<span class="st bad"><i aria-hidden="true">!</i> Could not ask</span>',
+      detail: esc(plan.why || 'The TeX Live repository could not be reached.'),
+      action: '<button type="button" class="plain" data-package-review="' + esc(name) +
+        '" aria-label="Ask again what ' + esc(name) + ' costs"' + dis('latex.packages') + '>Ask again</button>'};
     if (plan.repository === 'unavailable' || plan.can_get === false || plan.state === 'unavailable') return {kind: 'unavailable',
       text: '<span class="st bad"><i aria-hidden="true">!</i> Not available here</span>',
       detail: esc(plan.why || 'This TeX Live repository does not offer it.'), action: ''};
-    if (plan.state === 'ready') return {kind: 'ready', text: '<span class="st run"><i aria-hidden="true">→</i> To get</span>',
+    if (plan.state === 'ready') return {kind: 'ready', text: '<span class="st need"><i aria-hidden="true">○</i> Not installed</span>',
       detail: '', action: get, ready: true, size: plan.size};
-    return {kind: 'review', text: '<span class="st not"><i aria-hidden="true">?</i> Cost not checked</span>',
-      detail: 'Review its cost before getting it.', action: '<button type="button" class="plain" data-package-review="' + esc(name) +
+    return {kind: 'review', text: '<span class="st need"><i aria-hidden="true">○</i> Not installed</span>',
+      detail: 'Its cost is not known yet.', action: '<button type="button" class="plain" data-package-review="' + esc(name) +
       '" aria-label="Review the cost of ' + esc(name) + '"' + dis('latex.packages') + '>Review cost</button>'};
   }
+  // read as one line: Not installed · 26 kB · lppl1.3c · Get it
   function packageRow(row, state) {
     var plan = row.plan || {}, licence = plan.licence || (row.installed || {}).licence || row.licence || '';
     var size = plan.size != null ? MB(plan.size) : ((row.installed || {}).size != null ? MB(row.installed.size) : '');
     return '<tr data-package-row="' + esc(row.name) + '"><th scope="row" data-label="Package"><code>' + esc(row.name) +
-      '</code></th><td data-label="Needed for">' + packageWhy(row) + '</td><td data-label="Licence">' + esc(licence) +
-      '</td><td data-label="Size">' + esc(size || 'Not known yet') + '</td><td class="pkg-state" data-label="State" aria-live="polite">' +
-      state.text + (state.detail ? '<span class="pkg-detail' + (state.kind === 'failed' || state.kind === 'unavailable' ? ' bad' : '') +
-      '">' + state.detail + '</span>' : '') + '</td><td class="pkg-action" data-label="Action">' + state.action + '</td></tr>';
+      '</code></th><td data-label="Needed for">' + packageWhy(row) + '</td><td class="pkg-state" data-label="State" aria-live="polite">' +
+      state.text + (state.detail ? '<span class="pkg-detail' + (state.kind === 'failed' || state.kind === 'unavailable' || state.kind === 'unreachable' ? ' bad' : '') +
+      '">' + state.detail + '</span>' : '') + '</td><td data-label="Size">' + esc(size || 'Not known yet') +
+      '</td><td data-label="Licence">' + esc(licence) + '</td><td class="pkg-action" data-label="Action">' + state.action + '</td></tr>';
   }
+  function rowFromHtml(html) {
+    var t = document.createElement('tbody');
+    t.innerHTML = html;
+    var tr = t.firstElementChild;
+    tr._sig = html;
+    return tr;
+  }
+  // which control of a row has the keyboard: the first data-… attribute names it
+  function focusToken(el) {
+    if (!el || !el.attributes) return null;
+    for (var i = 0; i < el.attributes.length; i++) {
+      if (el.attributes[i].name.indexOf('data-') === 0) return {name: el.attributes[i].name, value: el.attributes[i].value};
+    }
+    return null;
+  }
+  function refocus(tr, tok) {
+    var found = null;
+    if (tok) Array.prototype.forEach.call(tr.querySelectorAll('[' + tok.name + ']'), function (el) {
+      if (!found && el.getAttribute(tok.name) === tok.value) found = el;
+    });
+    found = found || tr.querySelector('[data-remove-no]') || tr.querySelector('button');
+    try { if (found) found.focus({preventScroll: true}); } catch (e) {}
+  }
+  // The table is kept, not rebuilt: a quote changes its own row alone, so focus and typing stay.
   function renderPackages() {
     var panel = root.querySelector('[data-package-panel]');
     if (!panel) return;
-    var typed = panel.querySelector('[data-pkgname]');
-    typed = typed ? typed.value : '';
+    if (!panel.querySelector('[data-pkg-rows]')) {
+      panel.innerHTML = '<h3 id="tex-packages">TeX packages</h3><p class="pkg-intro">Packages a theme needs, and this computer lacks, are listed here with what each costs: Parseh asks the TeX Live repository, and downloads nothing until you press Get. It gets them one at a time.</p>' +
+        '<div class="pkg-live" data-pkg-said aria-live="polite" aria-atomic="true" tabindex="-1"></div><div data-pkg-bulk></div>' +
+        '<table class="pkg-table"><thead><tr><th scope="col">Package</th><th scope="col">Needed for</th><th scope="col">State</th><th scope="col">Size</th><th scope="col">Licence</th><th scope="col">Action</th></tr></thead><tbody data-pkg-rows></tbody></table>' +
+        '<div class="row"><input type="text" data-pkgname placeholder="a TeX Live package, e.g. chemfig"' + dis('latex.packages') +
+        '><button type="button" class="plain" data-package-plan' + dis('latex.packages') + '>What it costs…</button></div>' + lock('latex.packages');
+    }
     var rows = packageRows().map(function (row) { return {row: row, state: packageState(row)}; });
     var ready = rows.filter(function (x) { return x.state.ready; });
     var total = ready.reduce(function (n, x) { return n + (+x.state.size || 0); }, 0);
     var bulk = ready.length > 1 ? '<div class="pkg-bulk"><button type="button" class="go" data-package-get-all="' +
       esc(ready.map(function (x) { return x.row.name; }).join(' ')) + '" aria-label="Get all ' + esc(ready.map(function (x) { return x.row.name; }).join(', ')) +
       '"' + dis('latex.packages') + '>Get all' + (total ? ' — ' + MB(total) : '') + '</button><span>' + ready.length + ' packages ready</span></div>' : '';
-    panel.innerHTML = '<h3 id="tex-packages">TeX packages</h3><p class="pkg-intro">Packages needed by the themes stay here. Review a cost before getting one; Parseh gets them one at a time.</p>' +
-      '<div class="pkg-live" data-pkg-said aria-live="polite" aria-atomic="true" tabindex="-1">' + esc(packageMessage) + '</div>' + bulk +
-      '<table class="pkg-table"><thead><tr><th scope="col">Package</th><th scope="col">Needed for</th><th scope="col">Licence</th><th scope="col">Size</th><th scope="col">State</th><th scope="col">Action</th></tr></thead><tbody>' +
-      (rows.length ? rows.map(function (x) { return packageRow(x.row, x.state); }).join('') : '<tr><td colspan="6" class="pkg-empty">No package needs attention.</td></tr>') +
-      '</tbody></table><div class="row"><input type="text" data-pkgname placeholder="a TeX Live package, e.g. chemfig"' + dis('latex.packages') +
-      '><button type="button" class="plain" data-package-plan' + dis('latex.packages') + '>What it costs…</button></div>' + lock('latex.packages');
-    var input = panel.querySelector('[data-pkgname]');
-    if (input) input.value = typed;
+    var live = panel.querySelector('[data-pkg-said]');
+    if (live.textContent !== packageMessage) live.textContent = packageMessage;
+    var bulkBox = panel.querySelector('[data-pkg-bulk]');
+    if (bulkBox._sig !== bulk) {
+      var tok = bulkBox.contains(document.activeElement) ? focusToken(document.activeElement) : null;
+      bulkBox._sig = bulk; bulkBox.innerHTML = bulk;
+      if (tok) refocus(bulkBox, tok);
+    }
+    var body = panel.querySelector('[data-pkg-rows]'), have = {}, at = 0;
+    Array.prototype.forEach.call(body.children, function (tr) { if (tr.hasAttribute('data-package-row')) have[tr.getAttribute('data-package-row')] = tr; });
+    // a row that goes first, so that the rows after it are not moved (a moved row loses the keyboard)
+    Object.keys(have).forEach(function (name) {
+      if (!rows.some(function (x) { return x.row.name === name; })) { body.removeChild(have[name]); delete have[name]; }
+    });
+    rows.forEach(function (x) {
+      var html = packageRow(x.row, x.state), cur = have[x.row.name], tr = cur;
+      if (!cur || cur._sig !== html) {
+        tr = rowFromHtml(html);
+        var tok2 = cur && cur.contains(document.activeElement) ? focusToken(document.activeElement) : null;
+        if (cur) body.replaceChild(tr, cur);
+        if (tok2) refocus(tr, tok2);
+      }
+      if (body.children[at] !== tr) body.insertBefore(tr, body.children[at] || null);
+      at++;
+    });
+    while (body.children.length > at) body.removeChild(body.lastChild);
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6" class="pkg-empty">No package needs attention.</td></tr>';
+    }
   }
   function flashPackages() {
     var panel = root.querySelector('[data-package-panel]');
@@ -420,6 +519,135 @@ SCRIPT = r"""
     });
   }
 
+  // A missing package's cost is asked at once (the owner, 2026-09-28): metadata only, nothing
+  // downloaded, but it reaches the TeX Live repository, so a quote is kept for the session.
+  function quoteFrom(row, cacheable) {
+    var q = Object.assign({}, row, {name: row.name});
+    q.state = row.here === 'available' || row.here === 'parseh' ? 'available'
+      : (row.repository === 'unreachable' ? 'unreachable'
+        : (row.repository === 'unavailable' || row.can_get === false ? 'unavailable' : 'ready'));
+    q.at = cacheable && q.state !== 'unreachable' && q.state !== 'available' ? Date.now() : 0;
+    return q;
+  }
+  function loadQuotes() {
+    try {
+      var kept = JSON.parse(sessionStorage.getItem(QUOTES) || '{}');
+      Object.keys(kept).forEach(function (name) {
+        var one = kept[name];
+        if (one && one.at && Date.now() - one.at < QUOTE_AGE && !packagePlans[name]) packagePlans[name] = one;
+      });
+    } catch (e) {}
+  }
+  function saveQuotes() {
+    try {
+      var kept = {};
+      Object.keys(packagePlans).forEach(function (name) { if (packagePlans[name].at) kept[name] = packagePlans[name]; });
+      sessionStorage.setItem(QUOTES, JSON.stringify(kept));
+    } catch (e) {}
+  }
+  function quoteMessage(names) {
+    var ready = names.filter(function (name) { return (packagePlans[name] || {}).state === 'ready'; });
+    var lost = names.filter(function (name) { return (packagePlans[name] || {}).state === 'unreachable'; });
+    var no = names.filter(function (name) { return (packagePlans[name] || {}).state === 'unavailable'; });
+    if (lost.length && !ready.length) return 'Could not ask what ' + (lost.length === 1 ? lost[0] + ' costs' : lost.length + ' packages cost') + '. ' +
+      ((packagePlans[lost[0]] || {}).why || 'The TeX Live repository could not be reached.') + ' Nothing has been downloaded.';
+    if (ready.length) return ready.length + ' package' + (ready.length === 1 ? '' : 's') + ' ready to get' +
+      (no.length ? '; ' + no.length + ' unavailable here' : '') + (lost.length ? '; ' + lost.length + ' could not be asked' : '') + '. Nothing has been downloaded.';
+    return no.length ? 'These packages are not available from this TeX Live repository.' : 'Nothing needs to be downloaded.';
+  }
+  function askQuotes(names, o) {
+    o = o || {};
+    names = unique(names.map(function (name) { return String(name || '').trim(); })).filter(function (name) { return !packageAvailable(name); });
+    if (!names.length) return false;
+    var serial = ++packageSerial;
+    names.forEach(function (name) {
+      packageRequest[name] = serial;
+      packagePlans[name] = Object.assign({}, packagePlans[name] || {}, {name: name, state: 'asking', at: 0});
+    });
+    if (o.reveal) packageMessage = 'Asking what ' + (names.length === 1 ? names[0] + ' costs' : names.length + ' packages cost') + '… Nothing has been downloaded.';
+    renderPackages();
+    if (o.reveal) { flashPackages(); revealPackages(); }
+    function lose(why) {
+      names.forEach(function (name) {
+        if (packageRequest[name] === serial) packagePlans[name] = {name: name, state: 'unreachable', why: why, at: 0};
+      });
+    }
+    function done(bad) {
+      // a newer ask for every one of these names has taken over from this one
+      if (!names.some(function (name) { return packageRequest[name] === serial; })) return;
+      packageMessage = quoteMessage((o.all || unique(Object.keys(requiredPackages()).concat(names))).filter(function (name) {
+        return (packagePlans[name] || {}).state !== 'asking';
+      }));
+      saveQuotes();
+      renderPackages();
+      if (o.reveal) {
+        flashPackages();
+        revealPackages(bad ? null : root.querySelector('[data-package-get]') || root.querySelector('[data-pkg-said]'));
+      }
+    }
+    post('package-plan', {packages: names}, ASK_MS).then(function (p) {
+      if (!p.ok) { lose(p.error || 'Could not ask what it costs.'); return done(true); }
+      var seen = {};
+      (p.packages || []).forEach(function (row) {
+        if (!row || !row.name || packageRequest[row.name] !== serial) return;
+        seen[row.name] = true;
+        packagePlans[row.name] = quoteFrom(row, p.can !== false);
+      });
+      names.forEach(function (name) {
+        if (packageRequest[name] === serial && !seen[name]) packagePlans[name] = {name: name, state: 'unreachable', at: 0,
+          why: p.why || 'The TeX Live repository did not answer for this package.'};
+      });
+      done(false);
+    }).catch(function () {
+      lose('Parseh did not answer, so what it costs is not known. Check the connection and try again.');
+      done(true);
+    });
+    return true;
+  }
+  // a person asked: nothing is asked twice, but an answer that did not come is asked for again
+  function reviewPackages(names) {
+    names = unique(names.map(function (name) { return String(name || '').trim(); }));
+    var skipped = names.filter(packageAvailable);
+    names = names.filter(function (name) { return !packageAvailable(name); });
+    if (!names.length) {
+      packageMessage = skipped.length ? 'That package is already available to this TeX.' : 'Enter a TeX Live package name first.';
+      renderPackages(); flashPackages(); revealPackages(); return;
+    }
+    var ask = names.filter(function (name) { return !packagePlans[name] || packagePlans[name].state === 'unreachable'; });
+    if (ask.length) { askQuotes(ask, {reveal: true, all: names}); return; }
+    var waiting = names.filter(function (name) { return (packagePlans[name] || {}).state === 'asking'; });
+    packageMessage = waiting.length ? 'Asking what ' + (waiting.length === 1 ? waiting[0] + ' costs' : waiting.length + ' packages cost') + '… Nothing has been downloaded.' : quoteMessage(names);
+    renderPackages(); flashPackages();
+    revealPackages(root.querySelector('[data-package-get]') || root.querySelector('[data-pkg-said]'));
+  }
+  function wantedQuotes() {
+    var jobs = (S.packages || {}).jobs || {}, installed = (S.packages || {}).installed || {};
+    return Object.keys(requiredPackages()).filter(function (name) {
+      return !packagePlans[name] && !installed[name] && !jobs[name] && !packageAvailable(name);
+    });
+  }
+  function editorMissing() {
+    var el = root.querySelector('[data-edit-missing]');
+    if (!el) return;
+    var html = draft.features.length ? '<b>Not installed here:</b> ' + draft.features.map(esc).join(', ') +
+      ' — <a href="#tex-packages" data-see-table>see the table</a>' : '';
+    if (el._sig === html) return;
+    el._sig = html; el.innerHTML = html; el.hidden = !html;
+  }
+  // The open editor's unsaved theme is read again on every change; only the table and one line follow it.
+  function syncDraft() {
+    var box = root.querySelector('section.edit');
+    if (editing && box) {
+      var t;
+      try { t = current(); } catch (e) { t = editing.theme; }
+      draft = themeNeed(t, draftNeeds(t));
+    } else draft = {features: [], names: [], need: []};
+    editorMissing();
+    var ask = wantedQuotes();
+    if (!ask.length || !askQuotes(ask)) renderPackages();
+  }
+  function scheduleDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(syncDraft, 120); }
+
   function themeCard(t) {
     var isDef = t.name.toLowerCase() === S.default.toLowerCase();
     var comp = S.compilers[t.compiler];
@@ -434,7 +662,7 @@ SCRIPT = r"""
       '<button type="button" class="plain" data-edit="' + esc(t.name) + '" aria-label="Edit theme ' + esc(t.name) + '"' + dis('latex.theme') + '>Edit</button>' +
       '<button type="button" class="plain" data-rename="' + esc(t.name) + '" aria-label="Rename theme ' + esc(t.name) + '"' + dis('latex.rename') + '>Rename…</button>' +
       (isDef ? '' : '<button type="button" class="plain" data-default="' + esc(t.name) + '" aria-label="Make ' + esc(t.name) + ' the default theme"' + dis('latex.theme') + '>Make it the default</button>') +
-      '<a class="parseh-btn" href="' + API + 'export?name=' + encodeURIComponent(t.name) + '" aria-label="Export theme ' + esc(t.name) + '">Export</a>' +
+      '<a class="plain" href="' + API + 'export?name=' + encodeURIComponent(t.name) + '" aria-label="Export theme ' + esc(t.name) + '">Export</a>' +
       (t.name.toLowerCase() === 'default' ? '' : '<button type="button" class="plain" data-delete="' + esc(t.name) + '" aria-label="Delete theme ' + esc(t.name) + '"' + dis('latex.theme') + '>Delete…</button>') +
       '</div><div class="said" data-said-for="' + esc(t.name) + '"></div></div>';
   }
@@ -448,9 +676,8 @@ SCRIPT = r"""
     }).join('');
     var groups = S.groups.map(function (g) {
       var rows = S.catalogue.filter(function (p) { return p.group === g[0]; }).map(function (p) {
-        var here = S.files[p.file];
         return '<label class="pk"><input type="checkbox" data-pkg="' + esc(p.id) + '"' + (t.packages.indexOf(p.id) >= 0 ? ' checked' : '') + '> <b>' + esc(p.name) +
-          '</b> <small>' + esc(p.what) + ' <code>' + esc(p.example) + '</code>' + (here === false ? ' <span class="missing">not installed</span>' : '') + '</small></label>';
+          '</b> <small>' + esc(p.what) + ' <code>' + esc(p.example) + '</code></small></label>';
       }).join('');
       return '<div class="grp"><h4>' + esc(g[1]) + '</h4>' +
         (g[2] ? '<p class="grp-why">' + esc(g[2]) + '</p>' : '') + rows + '</div>';
@@ -460,7 +687,7 @@ SCRIPT = r"""
       '<div class="fld"><span>The compiler</span>' + comps + '</div>' +
       '<label class="pk"><input type="checkbox" data-languages' + (t.languages ? ' checked' : '') + '> <b>Text in the languages Parseh teaches</b> <small>Each language\'s face, as \\textfa{…}, \\textja{…}, \\texthi{…} and so on (xelatex or lualatex).</small></label>' +
       '<div class="fld"><span>A font of this computer for the drawing (xelatex or lualatex); empty for LaTeX\'s own</span><input type="text" data-font list="lx-fonts" value="' + esc(t.font) + '"><datalist id="lx-fonts"></datalist></div>' +
-      '<div class="fld"><span>Packages</span>' + groups + '</div>' +
+      '<div class="fld"><span>Packages</span>' + groups + '<div class="edit-missing" data-edit-missing aria-live="polite" hidden></div></div>' +
       '<div class="fld"><span>A preamble of its own, after the packages</span><textarea data-preamble>' + esc(t.preamble) + '</textarea></div>' +
       '<div class="fld"><span>Draw a sample with the theme as it is here</span><textarea data-sample>' + esc(S.sample) + '</textarea></div>' +
       '<div class="row"><button type="button" class="plain" data-draw-sample>Draw the sample</button><button type="button" class="go" data-save>Save the theme</button><button type="button" class="plain" data-cancel>Cancel</button></div>' +
@@ -500,8 +727,10 @@ SCRIPT = r"""
       '<section><h2>TeX on this computer</h2><p class="why">' + esc(S.tex.said || '') + '. Parseh installs no TeX: it draws with the TeX this computer has, and puts the packages it gets for the drawings in its own folder, <code>texmf/</code>.</p><h3>Compilers</h3><dl class="tex-status">' + comps + '</dl>' +
       '<div data-package-panel></div></section>' +
       '<section><h2>How long a drawing may take</h2><p class="why">A drawing that has not finished by then is stopped, and its block says so.</p><div class="row"><input type="number" data-limit min="' + S.limits[0] + '" max="' + S.limits[1] + '" value="' + S.timeout + '"' + dis('latex.limit') + '> seconds <button type="button" class="go" data-save-limit' + dis('latex.limit') + '>Save</button></div>' + lock('latex.limit') + '<div class="said" data-limit-said></div></section>' +
-      '<section><h2>The drawings kept</h2><p class="why">' + S.kept.drawings + ' saved drawings, ' + MB(S.kept.bytes) + '. A live preview is temporary and is kept only when its document or exercise is saved. Saved source owns its drawing; one no saved source names is let go after a day. Each is made again when its block, theme, packages or TeX change.</p><div class="row"><button type="button" class="plain" data-forget' + dis('latex.forget') + '>Forget drawings nothing uses</button></div><div class="said" data-forget-said></div></section>';
-    renderPackages();
+      '<section><h2>The drawings kept</h2><p class="why"><span data-kept>' + (S.kept.drawings === 1 ? '1 saved drawing' : S.kept.drawings + ' saved drawings') + ', ' + (S.kept.drawings ? MB(S.kept.bytes) : '0 kB') + '</span>. A live preview is temporary and is kept only when its document or exercise is saved. Saved source owns its drawing; one no saved source names is let go after a day. Each is made again when its block, theme, packages or TeX change. A document, deck or book in a trash keeps none: what comes back from a trash is drawn again.</p><div class="row"><button type="button" class="plain" data-forget' + (forgetting ? ' disabled' : dis('latex.forget')) + '>Forget drawings nothing uses</button></div>' +
+      '<div class="bar loose" role="progressbar" aria-label="Looking through every document, deck and note" data-forget-bar' + (forgetting ? '' : ' hidden') + '><i></i></div>' +
+      '<div class="said" data-forget-said aria-live="polite">' + (forgetting ? FORGET_WORKING : '') + '</div></section>';
+    syncDraft();
     var fl = root.querySelector('#lx-fonts');
     if (fl) post('fonts').then(function (r) { if (r.ok) fl.innerHTML = r.fonts.map(function (f) { return '<option value="' + esc(f) + '">'; }).join(''); });
   }
@@ -509,6 +738,7 @@ SCRIPT = r"""
   function say(sel, text, bad) { var el = root.querySelector(sel); if (el) { el.textContent = text || ''; el.className = 'said' + (bad ? ' bad' : ''); } }
 
   root.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('[data-see-table]')) { e.preventDefault(); flashPackages(); revealPackages(); return; }
     var b = e.target.closest ? e.target.closest('button') : null;
     if (!b) return;
     var a = function (n) { return b.getAttribute(n); };
@@ -531,7 +761,14 @@ SCRIPT = r"""
     if (a('data-save') !== null) {
       post('save', {theme: current(), was: editing.was}).then(function (r) {
         if (!r.ok) { say('[data-edit-said]', r.error, true); return; }
-        editing = null; reload();
+        editing = null;
+        reload().then(function () {
+          var saved = S.themes.filter(function (x) { return x.name === r.theme.name; })[0];
+          var need = saved ? themeNeed(saved) : {features: []};
+          if (!need.features.length) return;
+          packageMessage = 'Saved the theme ' + saved.name + '. Not installed here: ' + need.features.join(', ') + '. Each is listed below with what it costs.';
+          renderPackages(); flashPackages(); revealPackages();
+        });
       });
       return;
     }
@@ -557,13 +794,13 @@ SCRIPT = r"""
       });
       return;
     }
-    if (a('data-install') !== null) { planPackages(a('data-install').split(' ').filter(Boolean)); return; }
+    if (a('data-install') !== null) { reviewPackages(a('data-install').split(' ').filter(Boolean)); return; }
     if (a('data-package-plan') !== null) {
       var n = root.querySelector('[data-pkgname]').value.trim();
-      if (n) { packageAsked[n] = true; planPackages([n]); }
+      if (n) { packageAsked[n] = true; reviewPackages([n]); } else reviewPackages([]);
       return;
     }
-    if (a('data-package-review')) { planPackages([a('data-package-review')]); return; }
+    if (a('data-package-review')) { reviewPackages([a('data-package-review')]); return; }
     if (a('data-package-get')) { startPackages([a('data-package-get')]); return; }
     if (a('data-package-retry')) { startPackages([a('data-package-retry')]); return; }
     if (a('data-package-get-all')) { startPackages(a('data-package-get-all').split(' ').filter(Boolean)); return; }
@@ -593,10 +830,7 @@ SCRIPT = r"""
       post('limit', {seconds: +root.querySelector('[data-limit]').value}).then(function (r) { say('[data-limit-said]', r.ok ? 'Saved.' : r.error, !r.ok); });
       return;
     }
-    if (a('data-forget') !== null) {
-      post('forget').then(function (r) { if (r.ok) { say('[data-forget-said]', r.drawings + ' drawings forgotten, ' + MB(r.bytes) + ' freed.'); } else say('[data-forget-said]', r.error, true); });
-      return;
-    }
+    if (a('data-forget') !== null) { forgetDrawings(b); return; }
     if (a('data-import-go') !== null) {
       var name = root.querySelector('[data-import-name]').value.trim();
       post('import', {data: importing, name: name}).then(function (r) {
@@ -608,7 +842,9 @@ SCRIPT = r"""
   });
 
   var importing = null;
+  root.addEventListener('input', function (e) { if (editing && e.target.matches && e.target.matches('[data-font]')) scheduleDraft(); });
   root.addEventListener('change', function (e) {
+    if (editing && e.target.closest && e.target.closest('section.edit')) scheduleDraft();
     var f = e.target.matches && e.target.matches('[data-import]') ? e.target.files[0] : null;
     if (!f) return;
     f.text().then(function (text) {
@@ -628,59 +864,29 @@ SCRIPT = r"""
     });
   });
 
-  function planPackages(names) {
-    names = unique(names.map(function (name) { return String(name || '').trim(); }));
-    var skipped = names.filter(packageAvailable);
-    names = names.filter(function (name) { return !packageAvailable(name); });
-    if (!names.length) {
-      packageMessage = skipped.length ? 'That package is already available to this TeX.' : 'Enter a TeX Live package name first.';
-      renderPackages(); flashPackages(); revealPackages(); return;
+  // slow (every source is read), and a stopped server answers nothing: a bar, a deadline, no second press
+  function forgetDrawings(btn) {
+    if (forgetting) return;
+    forgetting = true;
+    btn.disabled = true;
+    var bar = root.querySelector('[data-forget-bar]');
+    if (bar) bar.hidden = false;
+    say('[data-forget-said]', FORGET_WORKING);
+    function over() {
+      forgetting = false;
+      var again = root.querySelector('[data-forget]'), gone = root.querySelector('[data-forget-bar]');
+      if (again) again.disabled = !may('latex.forget');
+      if (gone) gone.hidden = true;
     }
-    var serial = ++packageSerial;
-    names.forEach(function (name) {
-      packageAsked[name] = true;
-      packageRequest[name] = serial;
-      packagePlans[name] = Object.assign({}, packagePlans[name] || {}, {name: name, state: 'asking'});
-    });
-    packageMessage = 'Asking what ' + (names.length === 1 ? names[0] + ' costs' : names.length + ' packages cost') + '… Nothing has been downloaded.';
-    renderPackages(); flashPackages(); revealPackages();
-    post('package-plan', {packages: names}).then(function (p) {
-      if (serial !== packageSerial) return;
-      if (!p.ok) {
-        names.forEach(function (name) {
-          if (packageRequest[name] === serial) packagePlans[name] = Object.assign({}, packagePlans[name], {state: 'unavailable', can_get: false, why: p.error || 'Could not ask what it costs.'});
-        });
-        packageMessage = p.error || 'Could not ask what the packages cost.';
-        renderPackages(); flashPackages(); revealPackages(); return;
-      }
-      var seen = {};
-      (p.packages || []).forEach(function (row) {
-        if (!row || !row.name || packageRequest[row.name] !== serial) return;
-        seen[row.name] = true;
-        var next = Object.assign({}, row);
-        next.state = row.here === 'available' ? 'available' :
-          (row.repository === 'unavailable' || row.can_get === false ? 'unavailable' : 'ready');
-        packagePlans[row.name] = next;
-      });
-      names.forEach(function (name) {
-        if (packageRequest[name] !== serial || seen[name]) return;
-        packagePlans[name] = Object.assign({}, packagePlans[name], {state: 'unavailable', can_get: false,
-          why: p.why || 'The TeX Live repository did not answer for this package.'});
-      });
-      var ready = names.filter(function (name) { return (packagePlans[name] || {}).state === 'ready'; });
-      var unavailable = names.length - ready.length;
-      packageMessage = ready.length ? ready.length + ' package' + (ready.length === 1 ? '' : 's') + ' ready to get' +
-        (unavailable ? '; ' + unavailable + ' unavailable here' : '') + '. Nothing has been downloaded.' :
-        (unavailable ? 'These packages are not available from this TeX Live repository.' : 'Nothing needs to be downloaded.');
-      renderPackages(); flashPackages();
-      revealPackages(root.querySelector('[data-package-get]') || root.querySelector('[data-pkg-said]'));
+    post('forget', {}, 60000).then(function (r) {
+      over();
+      if (!r.ok) { say('[data-forget-said]', r.error || 'Parseh could not do that.', true); return; }
+      var said = r.drawings ? drawings(r.drawings) + ' forgotten, ' + MB(r.bytes) + ' freed.' :
+        'Nothing to forget: every saved drawing is still named by a document, deck or note.';
+      reload().then(function () { say('[data-forget-said]', said); });
     }).catch(function () {
-      if (serial !== packageSerial) return;
-      names.forEach(function (name) {
-        if (packageRequest[name] === serial) packagePlans[name] = Object.assign({}, packagePlans[name], {state: 'unavailable', can_get: false, why: 'Could not ask what it costs. Check the connection and try again.'});
-      });
-      packageMessage = 'Could not ask what the packages cost. Check the connection and try again.';
-      renderPackages(); flashPackages(); revealPackages();
+      over();
+      say('[data-forget-said]', 'Parseh did not answer in a minute. It may still be working: read this page again to see how many drawings are kept.', true);
     });
   }
   function startPackages(names) {
@@ -702,7 +908,7 @@ SCRIPT = r"""
     post('state').then(function (v) {
       if (!v.ok) return;
       S = v;
-      renderPackages();
+      syncDraft();
       refreshThemeNeeds();
     });
   }
@@ -726,9 +932,10 @@ SCRIPT = r"""
     check();
   }
 
+  loadQuotes();
   draw();
   if (q.get('theme')) { var t0 = S.themes.filter(function (x) { return x.name.toLowerCase() === q.get('theme').toLowerCase(); })[0]; if (t0 && may('latex.theme')) { editing = {was: t0.name, theme: JSON.parse(JSON.stringify(t0))}; draw(); } }
   if (q.get('make') && may('latex.theme')) { root.querySelector('[data-new]').click(); }
-  if (q.get('install') && may('latex.packages')) planPackages([q.get('install')]);
+  if (q.get('install') && may('latex.packages')) { packageAsked[q.get('install')] = true; reviewPackages([q.get('install')]); }
 })();
 """

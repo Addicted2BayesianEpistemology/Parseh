@@ -1598,11 +1598,13 @@ def notes_libraries():
     return uniq
 
 
-def latex_used():
-    """The key of every saved block or inline mark: Settings' explicit
-    cleanup and the ownership-index repair use the same source truth."""
+def latex_used(include_trash=True):
+    """The key of every saved block or inline mark.  The ownership-index
+    repair keeps what is in a trash too (a restore would need it); Settings'
+    explicit cleanup passes include_trash=False: what is in a trash draws
+    again when it comes back."""
     keys = set()
-    for tex, theme, inline in studio.latexrename.every_drawing(notes_libraries()):
+    for tex, theme, inline in studio.latexrename.every_drawing(notes_libraries(), include_trash):
         p = latexdraw.plan(tex, theme, inline=inline)
         if p.get("ok"):
             keys.add(p["key"])

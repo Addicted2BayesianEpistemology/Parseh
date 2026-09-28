@@ -72,6 +72,7 @@ PREVIEW_DIR = ".preview"
 PREVIEW_MAX_DRAWINGS = 32
 PREVIEW_MAX_BYTES = 16 * 1024 * 1024
 OWNERS_FILE = "owners.json"
+REPAIR_OWNER = "__repair__"     # the last repair's snapshot, kept as one owner
 OWNER_GRACE_SECONDS = 24 * 60 * 60
 REPAIR_SECONDS = 5 * 60
 PRUNE_DAYS = 30
@@ -781,11 +782,19 @@ def own_source(owner, markdown):
     return keys
 
 
-def forget_owner(owner):
-    """A deleted document/card owns nothing from now; grace makes this safe."""
+def forget_owner(owner, also=()):
+    """A deleted document/card owns nothing from now; grace makes this safe.
+
+    `also` are keys its source named that owners.json may not record (a
+    source saved before ownership was, or by a save that failed to record
+    it).  The repair's snapshot names every key live when it last ran,
+    this owner's among them, and would otherwise go on holding them: the
+    day's grace would then start only at the next repair, not at the delete."""
     with _LOCK:
         doc = _owner_doc()
-        old = set(doc["owners"].pop(owner, []))
+        old = set(doc["owners"].pop(owner, [])) | {k for k in also if KEY_RE.match(k)}
+        if REPAIR_OWNER in doc["owners"]:
+            doc["owners"][REPAIR_OWNER] = [k for k in doc["owners"][REPAIR_OWNER] if k not in old]
         _reconcile_owners(doc, old)
         _save_owner_doc(doc)
 
@@ -804,7 +813,7 @@ def repair_owners(used, force=False):
         if not force and now - float(doc.get("repaired") or 0) < REPAIR_SECONDS:
             return False
         old = _owned(doc) | _persistent_keys()
-        doc["owners"]["__repair__"] = sorted({key for key in used if KEY_RE.match(key)})
+        doc["owners"][REPAIR_OWNER] = sorted({key for key in used if KEY_RE.match(key)})
         doc["repaired"] = now
         _reconcile_owners(doc, old | set(used), now)
         _save_owner_doc(doc)
@@ -923,10 +932,17 @@ def forget_unused(used):
                         gone += 1
                 except OSError:
                     pass
+    for here, dirs, files in os.walk(DRAWN, topdown=False):
+        if here != DRAWN and PREVIEW_DIR not in here.split(os.sep) and not dirs and not files:
+            try:
+                os.rmdir(here)
+            except OSError:
+                pass
     with _LOCK:
         doc = _owner_doc()
-        for owner, keys in list(doc["owners"].items()):
-            doc["owners"][owner] = [key for key in keys if key in used]
+        doc["owners"] = {owner: [key for key in keys if key in used]
+                         for owner, keys in doc["owners"].items()}
+        doc["owners"] = {owner: keys for owner, keys in doc["owners"].items() if keys}
         for key in list(doc["unowned"]):
             if key not in used:
                 doc["unowned"].pop(key, None)

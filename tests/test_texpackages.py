@@ -131,6 +131,7 @@ class Plans(unittest.TestCase):
                                              "tool": "tlmgr", "said": "TeX Live 2026"}), \
                 mock.patch.object(texpackages, "availability", side_effect=here), \
                 mock.patch.object(texpackages, "_repositories", return_value=["repo"]), \
+                mock.patch.object(texpackages, "_query_tree", return_value="scratch"), \
                 mock.patch.object(texpackages, "_tlmgr", return_value=["tlmgr", "info"]), \
                 mock.patch.object(texpackages.subprocess, "run",
                                   return_value=mock.Mock(returncode=0, stdout=json.dumps(info))):
@@ -141,6 +142,108 @@ class Plans(unittest.TestCase):
         self.assertEqual(rows[1]["repository"], "unavailable")
         self.assertFalse(rows[1]["can_get"])
         self.assertIn("does not offer", rows[1]["why"])
+
+
+    def test_a_quote_is_asked_through_a_scratch_tree_and_says_when_nobody_answered(self):
+        # found driving the real page: texmf/ holds no tlpdb until a first package is
+        # got, and `tlmgr info` refuses such a folder, so a fresh Parseh could never
+        # quote a package; and an unreachable repository must not read as "can get it"
+        told = []
+        answers = {"repo": mock.Mock(returncode=1, stdout="")}
+
+        def run(cmd, **kw):
+            told.append(cmd)
+            return answers["repo"]
+
+        def tlmgr(args, repo=None, tree=None):
+            return ["tlmgr", "--usertree", tree or texpackages.TREE] + list(args)
+
+        with tempfile.TemporaryDirectory() as tree, \
+                mock.patch.object(texpackages, "TREE", tree), \
+                mock.patch.object(texpackages, "distribution",
+                                  return_value={"kind": "texlive", "year": 2026,
+                                                "tool": "tlmgr", "said": "TeX Live 2026"}), \
+                mock.patch.object(texpackages, "availability",
+                                  return_value={"here": "unknown", "file": None}), \
+                mock.patch.object(texpackages, "_repositories", return_value=["repo"]), \
+                mock.patch.object(texpackages, "_query_tree", return_value="scratch"), \
+                mock.patch.object(texpackages, "_tlmgr", side_effect=tlmgr), \
+                mock.patch.object(texpackages.subprocess, "run", side_effect=run):
+            lost = texpackages.plan(["mhchem"])["packages"][0]
+            self.assertEqual(lost["repository"], "unreachable")
+            self.assertFalse(lost["can_get"])
+            self.assertIn("could not be reached", lost["why"])
+            answers["repo"] = mock.Mock(returncode=0, stdout=json.dumps(
+                [{"name": "mhchem", "available": True, "containersize": 185132,
+                  "cataloguedata": {"license": "lppl1.3c"}}]))
+            got = texpackages.plan(["mhchem"])["packages"][0]
+            self.assertFalse(os.listdir(tree), "nothing was written into Parseh's own texmf/")
+        self.assertEqual((got["repository"], got["size"], got["licence"], got["can_get"]),
+                         ("available", 185132, "lppl1.3c", True))
+        self.assertTrue(all("scratch" in cmd for cmd in told), "the scratch tree asked, never texmf/")
+
+    def test_a_package_this_tex_already_has_is_not_called_unreachable(self):
+        with mock.patch.object(texpackages, "distribution",
+                               return_value={"kind": "texlive", "year": 2026,
+                                             "tool": "tlmgr", "said": "TeX Live 2026"}), \
+                mock.patch.object(texpackages, "availability",
+                                  return_value={"here": "available", "file": "x.sty"}), \
+                mock.patch.object(texpackages, "_repositories", return_value=["repo"]), \
+                mock.patch.object(texpackages, "_query_tree", return_value="scratch"), \
+                mock.patch.object(texpackages.subprocess, "run",
+                                  return_value=mock.Mock(returncode=1, stdout="")):
+            row = texpackages.plan(["xcolor"])["packages"][0]
+        self.assertEqual(row["here"], "available")
+        self.assertNotEqual(row["repository"], "unreachable")
+
+
+class ManyFiles(unittest.TestCase):
+    """The page checks every file a theme could need at once (L14)."""
+
+    def test_one_kpsewhich_answers_for_all_of_them(self):
+        calls = []
+
+        def run(cmd, **kw):
+            calls.append(cmd)
+            # kpsewhich prints only what it found, each as a whole path
+            return mock.Mock(returncode=1, stdout="/usr/share/texmf/tex/latex/base/standalone.cls\n"
+                                                  "/home/u/texmf/tex/latex/mhchem/mhchem.sty\n")
+
+        with mock.patch.object(texpackages.shutil, "which", return_value="/usr/bin/kpsewhich"), \
+                mock.patch.object(texpackages.subprocess, "run", side_effect=run):
+            got = texpackages.installed_many(["standalone.cls", "circuitikz.sty", "mhchem.sty",
+                                              "standalone.cls"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1:], ["standalone.cls", "circuitikz.sty", "mhchem.sty"])
+        self.assertEqual(got, {"standalone.cls": True, "circuitikz.sty": False, "mhchem.sty": True})
+
+    def test_without_kpsewhich_nothing_is_said_to_be_missing(self):
+        with mock.patch.object(texpackages.shutil, "which", return_value=None):
+            self.assertEqual(texpackages.installed_many(["a.sty", "b.sty"]), {"a.sty": None, "b.sty": None})
+
+    def test_the_page_state_names_every_catalogue_file_and_what_a_draft_adds(self):
+        import latexpage
+        import latexthemes
+        seen = []
+
+        def many(files):
+            seen.append(list(files))
+            return {f: f != "circuitikz.sty" for f in files}
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(latexthemes, "STORE", os.path.join(tmp, "latex.json")), \
+                mock.patch.object(texpackages, "installed_many", side_effect=many), \
+                mock.patch.object(texpackages, "distribution", return_value={"said": "TeX Live test"}), \
+                mock.patch.object(latexpage.latexdraw, "compilers", return_value={"xelatex": None}):
+            state = latexpage.view("")
+        self.assertEqual(len(seen), 1, "ONE batched check, not one kpsewhich a file")
+        every = {row["file"] for row in latexthemes.PACKAGES.values()} | \
+                {row[1] for row in latexthemes.ALWAYS.values()}
+        self.assertEqual(set(seen[0]), every)
+        self.assertEqual(set(state["files"]), every, "so an unticked package's file is known too")
+        self.assertIs(state["files"]["circuitikz.sty"], False)
+        self.assertEqual(state["always"]["fontspec"][1], "fontspec.sty")
+        self.assertEqual(state["unicode"], list(latexthemes.UNICODE))
 
 
 class Queue(unittest.TestCase):

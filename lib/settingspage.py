@@ -296,17 +296,18 @@ main.settings { max-width: 58rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
   border: 1px solid var(--rule, #8886); background: var(--bg, transparent);
   color: inherit; max-width: 100%; }
 .settings textarea { width: 100%; min-height: 4.5rem; font-family: ui-monospace, monospace; }
-.settings button.go, .settings button.plain { font: inherit; font-size: 13.5px; line-height: 1.2;
-  min-height: 36px; padding: 7px 15px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
-.settings button.go { background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent);
+.settings :is(button, a).go, .settings :is(button, a).plain { font: inherit; font-size: 13.5px; line-height: 1.2;
+  min-height: 36px; padding: 7px 15px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+  text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.settings :is(button, a).go { background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent);
   font-weight: 600; }
-.settings button.plain { background: var(--bg); color: var(--dim); border: 1px solid var(--rule); }
-.settings button.plain:hover { color: var(--accent); border-color: var(--accent); }
+.settings :is(button, a).plain { background: var(--bg); color: var(--dim); border: 1px solid var(--rule); }
+.settings :is(button, a).plain:hover { color: var(--accent); border-color: var(--accent); }
 .settings button.danger { font: inherit; font-size: 13.5px; line-height: 1.2; min-height: 36px;
   padding: 7px 15px; border-radius: 7px; cursor: pointer; background: var(--bg); color: var(--danger);
   border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--rule)); font-weight: 600; }
 .settings button.danger:hover { background: var(--danger); color: var(--danger-fg); border-color: var(--danger); }
-.settings button:focus-visible, .settings .parseh-btn:focus-visible,
+.settings button:focus-visible, .settings .parseh-btn:focus-visible, .settings a.plain:focus-visible,
 .settings :is(input[type=checkbox], input[type=radio]):focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px; }
 .settings :is(input[type=checkbox], input[type=radio]) { accent-color: var(--accent); }
@@ -327,7 +328,7 @@ main.settings { max-width: 58rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
 .settings .shut input { pointer-events: none; }
 @media (max-width: 40rem) {
   .settings section { padding: .8rem; }
-  .settings button.go, .settings button.plain, .settings button.danger { min-height: 44px; }
+  .settings button.go, .settings button.plain, .settings a.plain, .settings button.danger { min-height: 44px; }
   .settings .parseh-btn { display: inline-flex; align-items: center; min-height: 44px; }
 }
 .settings input:disabled, .settings textarea:disabled, .settings button:disabled {

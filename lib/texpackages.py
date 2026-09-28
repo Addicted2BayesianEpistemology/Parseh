@@ -32,6 +32,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -153,6 +154,23 @@ def installed(file):
         return None
 
 
+def installed_many(files):
+    """Which of these TeX files are reachable -> {file: True | False | None},
+    from ONE kpsewhich (None: there is none to ask)."""
+    files = list(dict.fromkeys(f for f in files if f))
+    k = shutil.which("kpsewhich")
+    if not k or not files:
+        return {f: None for f in files}
+    try:
+        r = subprocess.run([k] + files, capture_output=True, text=True, timeout=30, env=env(),
+                           stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return {f: None for f in files}
+    found = {os.path.basename(line.strip().replace("\\", "/")) for line in r.stdout.splitlines()
+             if line.strip()}
+    return {f: f in found for f in files}
+
+
 def _representative_file(name):
     """A file that proves a single TeX Live package is already usable.
 
@@ -206,15 +224,36 @@ def licence_of(tl_name):
     return ""
 
 
-def _tlmgr(args, repo=None):
+def _tlmgr(args, repo=None, tree=None):
     d = distribution()
     tool = d.get("tool")
     if not tool:
         return None
-    cmd = [tool, "--usermode", "--usertree", TREE]
+    cmd = [tool, "--usermode", "--usertree", tree or TREE]
     if repo:
         cmd += ["--repository", repo]
     return cmd + list(args)
+
+
+# `tlmgr info` refuses a tree with no tlpdb ("Cannot determine type of tlpdb"), which texmf/ is
+# until a first package is got, and would race an install writing it: quotes go through a scratch tree.
+_QUERY = {"dir": None}
+_QUERY_LOCK = threading.Lock()
+
+
+def _query_tree():
+    with _QUERY_LOCK:
+        if _QUERY["dir"] is None:
+            tmp = tempfile.TemporaryDirectory(prefix="parseh-tlquote-")
+            _QUERY["dir"] = tmp
+            init = _tlmgr(["init-usertree"], tree=tmp.name)
+            if init:
+                try:
+                    subprocess.run(init, capture_output=True, text=True, timeout=120,
+                                   stdin=subprocess.DEVNULL)
+                except (OSError, subprocess.SubprocessError):
+                    pass
+        return _QUERY["dir"].name
 
 
 def _repositories():
@@ -261,8 +300,9 @@ def plan(names):
         return {"packages": rows, "can": False,
                 "why": "This TeX Live has no tlmgr, so Parseh cannot add packages to it."}
     if d["kind"] == "texlive":
+        reached = False
         for repo in _repositories():
-            cmd = _tlmgr(["info", "--json"] + list(names), repo)
+            cmd = _tlmgr(["info", "--json"] + list(names), repo, _query_tree())
             try:
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
                                    stdin=subprocess.DEVNULL)
@@ -271,6 +311,7 @@ def plan(names):
                 info = None
             if not info:
                 continue
+            reached = True
             by = {x.get("name"): x for x in info if isinstance(x, dict)}
             for row in rows:
                 x = by.get(row["name"]) or {}
@@ -287,6 +328,10 @@ def plan(names):
                 lic = ((x.get("cataloguedata") or {}).get("license")) or row["licence"]
                 row["licence"] = lic
             break
+        if not reached:
+            for row in rows:
+                if row["here"] not in ("available", "parseh"):
+                    row["repository"] = "unreachable"
     for row in rows:
         if row["here"] == "parseh":
             row["why"] = "Already got through Parseh."
@@ -294,6 +339,8 @@ def plan(names):
             row["why"] = "Already available to this TeX."
         elif row["repository"] == "unavailable":
             row["why"] = "This TeX Live repository does not offer it."
+        elif row["repository"] == "unreachable":
+            row["why"] = "The TeX Live repository could not be reached."
         else:
             row["can_get"] = True
     return {"packages": rows, "can": True, "why": "", "tex": d["said"]}

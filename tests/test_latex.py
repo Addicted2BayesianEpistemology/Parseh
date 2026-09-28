@@ -5,6 +5,7 @@ what a compile makes is checked by hand (docs/releasing.md).  The themes'
 store is redirected to a temporary folder, so config/ is never written."""
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -411,6 +412,44 @@ class KeptDrawings(Store):
         latexdraw._reconcile_owners(doc, [key], now=100 + latexdraw.OWNER_GRACE_SECONDS + 1)
         self.assertFalse(os.path.exists(latexdraw.paths(key)["svg"]))
 
+    def test_a_delete_starts_the_grace_clock_even_after_a_repair(self):
+        # found by the owner, rc3: repair_owners keeps the whole live set as one
+        # owner, so a deleted document's keys still counted as owned and the
+        # day of grace began at the next repair, not at the delete
+        key = "e" * 64
+        self._put(key)
+        with open(latexdraw._owners_path(), "w", encoding="utf-8") as fh:
+            json.dump({"format": 1, "owners": {"document:a": [key]}, "unowned": {}, "repaired": 0}, fh)
+        latexdraw.repair_owners({key}, force=True)
+        self.assertIn(key, latexdraw._owner_doc()["owners"][latexdraw.REPAIR_OWNER])
+        latexdraw.forget_owner("document:a")
+        doc = latexdraw._owner_doc()
+        self.assertIn(key, doc["unowned"], "the day starts at the delete")
+        self.assertNotIn(key, latexdraw._owned(doc))
+
+    def test_a_delete_of_a_source_no_owner_recorded_starts_it_too(self):
+        key = "f" * 64
+        self._put(key)
+        latexdraw.repair_owners({key}, force=True)
+        latexdraw.forget_owner("document:never-recorded", also={key})
+        self.assertIn(key, latexdraw._owner_doc()["unowned"])
+
+    def test_forgetting_leaves_no_empty_owner_and_no_empty_folder(self):
+        gone, kept = "1" * 64, "2" * 64
+        self._put(gone)
+        self._put(kept)
+        with open(latexdraw._owners_path(), "w", encoding="utf-8") as fh:
+            json.dump({"format": 1, "owners": {"document:a": [gone], "document:b": [kept]},
+                       "unowned": {gone: 5}, "repaired": 0}, fh)
+        out = latexdraw.forget_unused({kept})
+        self.assertEqual(out["drawings"], 1)
+        doc = latexdraw._owner_doc()
+        self.assertEqual(doc["owners"], {"document:b": [kept]}, "an owner of nothing is dropped")
+        self.assertEqual(doc["unowned"], {})
+        self.assertFalse(os.path.exists(os.path.dirname(latexdraw.paths(gone)["svg"])),
+                         "the emptied folder goes with its last drawing")
+        self.assertTrue(os.path.isfile(latexdraw.paths(kept)["svg"]))
+
     def test_saving_promotes_the_matching_preview_and_records_its_owner(self):
         key = "c" * 64
         self._put(key, preview=True)
@@ -443,6 +482,221 @@ class KeptDrawings(Store):
             live = htmlgen.render_document(md, editor_preview=True, latex_preview=True)
             self.assertIn('data-editor-preview="1"', live["html"])
             self.assertEqual(calls, [True], "the studio's own unsaved typing IS both at once")
+
+
+class Handler:
+    """The parts of a request the routes below read and answer with."""
+
+    def __init__(self, body=None):
+        self.body, self.sent, self.query = body, None, {}
+
+    def _json_body(self):
+        return self.body
+
+    def _body(self):
+        return json.dumps(self.body).encode("utf-8")
+
+    def send_json(self, obj, code=200):
+        self.sent = (code, obj)
+
+
+NOTE = "---\ntarget: it\n---\n\n# %s\n\n::::latex\n\\ce{%s}\n::::\n\nA mark, [\\ce{%s2}]{latex}, in a line.\n"
+EXERCISE = (":::exercise single-choice\nprompt: |\n  Pick.\n  ::::latex\n  \\ce{NaCl}\n  ::::\n"
+            "- [x] [\\ce{Na}]{latex}\n- [ ] [\\ce{Cl}]{latex}\n:::\n")
+
+
+class ForgetWhatWasDeleted(Store):
+    """L26, the owner's report after rc3: every document, deck and note that
+    held a drawing deleted, the button freed only some.  Driven through the
+    routes the pages use -- the studio's, the decks', Settings' -- with the keys
+    the real plan() makes; only the TeX run is left out, a drawing being a file
+    put where its key says."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(ROOT))
+        import serve                                          # noqa: E402
+        import deckroutes                                     # noqa: E402
+        import decks                                          # noqa: E402
+        import latexpage                                      # noqa: E402
+        import network                                        # noqa: E402
+        import store                                          # noqa: E402
+        cls.serve, cls.studio, cls.deckroutes, cls.decks = serve, serve.studio, deckroutes, decks
+        cls.latexpage, cls.network, cls.store = latexpage, network, store
+
+    def setUp(self):
+        super().setUp()
+        base = Path(self.tmp.name)
+        self.library, self.exercises = base / "library", base / "exercises"
+        self.library.mkdir()
+        self.books = [base / "book-a" / "markdown", base / "book-b" / "markdown"]
+        for one in self.books:
+            one.mkdir(parents=True)
+        was_lib, self.store.LIB = self.store.LIB, self.library
+        was_decks = self.decks.set_dir(self.exercises)
+        self.addCleanup(lambda: setattr(self.store, "LIB", was_lib))
+        self.addCleanup(lambda: self.decks.set_dir(was_decks))
+        for patch in (mock.patch.object(latexdraw, "compiler", lambda name, fresh=False:
+                                        {"path": "xelatex", "version": "test", "miktex": False}),
+                      mock.patch.object(self.serve, "notes_libraries",
+                                        lambda: [(str(one), "the notes of " + one.parent.name)
+                                                 for one in self.books])):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def put(self, keys):
+        for key in keys:
+            for kind, path in latexdraw.paths(key).items():
+                if kind != "fail":
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path, "wb") as fh:
+                        fh.write(b"x")
+        return set(keys)
+
+    def make_document(self, title, formula):
+        h = Handler({"markdown": NOTE % (title, formula, formula)})
+        self.studio.api_create(h)
+        doc_id = h.sent[1]["meta"]["id"]
+        markdown = self.store.get(doc_id)[1]
+        return doc_id, self.put(latexdraw._source_keys(markdown))
+
+    def make_note(self, book, title, formula):
+        was = self.store.use_library(self.books[book])
+        try:
+            meta = self.store.create(NOTE % (title, formula, formula))
+            markdown = self.store.get(meta["id"])[1]
+            keys = self.put(latexdraw._source_keys(markdown))
+            latexdraw.own_source(self.studio._latex_owner(meta["id"]), markdown)
+        finally:
+            self.store.use_library(was)
+        return meta["id"], keys
+
+    def make_deck(self):
+        h = Handler({"name": "Geometry", "lang": "it"})
+        self.deckroutes.api_decks_create(h)
+        deck = h.sent[1]["deck"]
+        h = Handler({"markdown": EXERCISE})
+        self.deckroutes.api_item_add(h, deck["folder"], deck["slug"])
+        item = self.decks.get_item(deck["folder"], deck["slug"], h.sent[1]["item"]["id"])
+        keys = self.put(latexdraw._source_keys(item["markdown"] + "\n" + (item.get("footnotes") or "")))
+        return deck, keys
+
+    def forget(self):
+        code, out = self.latexpage.api("forget", {}, self.network.SELF, self.serve.notes_libraries(),
+                                       rename=self.studio.latexrename, used=self.serve.latex_used)
+        self.assertEqual(code, 200, out)
+        return out
+
+    def on_disk(self):
+        return sorted(os.path.join(here, f) for here, _d, files in os.walk(latexdraw.DRAWN)
+                      for f in files if f != latexdraw.OWNERS_FILE)
+
+    def test_every_deleted_document_deck_and_note_frees_its_drawings(self):
+        doc_id, doc = self.make_document("Uno", "H2O")
+        deck, exercise = self.make_deck()
+        note_id, note = self.make_note(0, "Nota", "NaOH")
+        self.assertEqual((len(doc), len(exercise), len(note)), (2, 3, 2))
+        self.assertEqual(latexdraw.size()["drawings"], 7)
+        self.assertEqual(self.forget()["drawings"], 0, "everything is still named by a source")
+        self.assertEqual(latexdraw.size()["drawings"], 7)
+
+        self.studio.api_delete(Handler(), doc_id)
+        self.assertEqual(self.forget()["drawings"], 2)
+        h = Handler()
+        self.deckroutes.api_deck_delete(h, deck["folder"], deck["slug"])
+        self.assertEqual(h.sent, (200, {"ok": True}))
+        self.assertTrue((self.exercises / ".trash").is_dir(), "a deck is only moved to its trash")
+        out = self.forget()
+        self.assertEqual(out["drawings"], 3, "the trashed deck's drawings go, as rc3 left 3 behind")
+        was = self.store.use_library(self.books[0])
+        try:
+            self.studio.api_delete(Handler(), note_id)
+        finally:
+            self.store.use_library(was)
+        out = self.forget()
+        self.assertEqual((out["drawings"], out["forgotten"]), (2, 2))
+        self.assertEqual(out["kept"], {"drawings": 0, "bytes": 0})
+        self.assertEqual(self.on_disk(), [], "not one file of a drawing is left")
+        doc = latexdraw._owner_doc()
+        self.assertEqual(doc["owners"], {}, "no owner of nothing")
+        self.assertEqual(self.forget()["drawings"], 0, "and a second press finds nothing")
+
+    def test_the_explicit_button_ignores_a_trash_and_the_startup_repair_keeps_it(self):
+        deck, exercise = self.make_deck()
+        self.deckroutes.api_deck_delete(Handler(), deck["folder"], deck["slug"])
+        self.assertEqual(self.serve.latex_used(), exercise, "the repair keeps what a restore would need")
+        self.assertEqual(self.serve.latex_used(include_trash=False), set())
+        # a book in its trash is a trash too
+        trashed = self.books[0].parent.parent / "trash-book" / ".trash" / "old" / "markdown"
+        trashed.mkdir(parents=True)
+        self.books.append(trashed)
+        was = self.store.use_library(trashed)
+        try:
+            meta = self.store.create(NOTE % ("Vecchia", "KCl", "KCl"))
+            note = latexdraw._source_keys(self.store.get(meta["id"])[1])
+        finally:
+            self.store.use_library(was)
+        self.assertEqual(self.serve.latex_used(), exercise | note)
+        self.assertEqual(self.serve.latex_used(include_trash=False), set())
+
+    def test_a_deck_taken_back_from_its_trash_is_simply_drawn_again(self):
+        deck, exercise = self.make_deck()
+        self.deckroutes.api_deck_delete(Handler(), deck["folder"], deck["slug"])
+        self.assertEqual(self.forget()["drawings"], 3)
+        self.assertEqual(self.on_disk(), [])
+        trashed, = list((self.exercises / ".trash").iterdir())
+        target = self.exercises / deck["folder"] / deck["slug"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        trashed.rename(target)
+        self.assertEqual(self.serve.latex_used(include_trash=False), exercise,
+                         "back in its place, its drawings are named again")
+        made = []
+
+        def compiled(tex, resolved, info, key, limit, inline=False, preview=False):
+            made.append(key)
+            self.put([key])
+            return latexdraw._ok(key, {"w": 10, "h": 10})
+
+        item = self.decks.get_item(deck["folder"], deck["slug"], self.decks._item_ids(target)[0])
+        block = [b for b in latexthemes.blocks_in(item["markdown"]) if b["closed"]][0]
+        with mock.patch.object(latexdraw, "_compile", compiled):
+            out = latexdraw.draw(block["tex"], block["theme"] or None)
+        self.assertTrue(out["ok"])
+        self.assertEqual(made, [out["key"]], "it was compiled again, the way a first sight is")
+        self.assertIn(out["key"], exercise)
+        self.assertTrue(os.path.isfile(latexdraw.paths(out["key"])["svg"]))
+
+    def test_the_same_note_in_two_books_is_two_owners(self):
+        # found reading, then driven: the owner was built from store.LIB and not
+        # from the library the request is in, so one note id in two libraries (a
+        # book brought back beside its trashed copy) shared an owner and each
+        # save overwrote the other's keys
+        a, keys_a = self.make_note(0, "Same", "AlCl3")
+        shutil.copytree(self.books[0], self.books[1], dirs_exist_ok=True)
+        for source in self.books[1].rglob("source.md"):
+            source.write_text(source.read_text(encoding="utf-8").replace("AlCl3", "FeCl3"), encoding="utf-8")
+        was = self.store.use_library(self.books[1])
+        try:
+            markdown = self.store.get(a)[1]
+            keys_b = self.put(latexdraw._source_keys(markdown))
+            self.assertNotEqual(self.studio._latex_owner(a), "document:%s:%s" % (os.path.realpath(str(self.library)), a))
+            latexdraw.own_source(self.studio._latex_owner(a), markdown)
+        finally:
+            self.store.use_library(was)
+        self.assertTrue(keys_a and keys_b and not (keys_a & keys_b))
+        owners = latexdraw._owner_doc()["owners"]
+        self.assertEqual(len(owners), 2)
+        self.assertEqual(sorted(k for keys in owners.values() for k in keys), sorted(keys_a | keys_b))
+        was = self.store.use_library(self.books[0])
+        try:
+            self.studio.api_delete(Handler(), a)
+        finally:
+            self.store.use_library(was)
+        owners = latexdraw._owner_doc()["owners"]
+        self.assertEqual(sorted(k for keys in owners.values() for k in keys), sorted(keys_b),
+                         "deleting one book's note leaves the other's drawings owned")
+        self.assertEqual(self.forget()["drawings"], len(keys_a))
+        self.assertEqual(latexdraw.size()["drawings"], len(keys_b))
 
 
 if __name__ == "__main__":

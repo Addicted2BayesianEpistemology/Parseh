@@ -230,14 +230,21 @@ def every_block(libraries=()):
                     yield b["tex"], b["theme"] or None
 
 
-def every_drawing(libraries=()):
+def every_drawing(libraries=(), include_trash=True):
     """(tex, theme, inline) of every saved drawing, for cache ownership.
 
     Kept inline marks are deliberately included here as well as block fences:
     the Settings cleanup must not remove the picture a saved exercise option
     or paragraph still names.
+
+    A source in a trash is one too, unless `include_trash` is False: the
+    startup repair keeps what a restore would need, but the explicit
+    "Forget drawings nothing uses" does not -- a drawing is derived, and a
+    deck or a book taken back from its trash draws again.
     """
     for _kind, root, _label in _doc_roots(libraries):
+        if not include_trash and ".trash" in root.parts:
+            continue
         for _doc_id, src in _docs(root):
             try:
                 text = src.read_text(encoding="utf-8")
@@ -248,7 +255,9 @@ def every_drawing(libraries=()):
                     yield b["tex"], b["theme"] or None, False
             for tex, theme in latexthemes.inline_latex_pairs(text):
                 yield tex, theme, True
-    for d, _label, _trashed in _deck_dirs():
+    for d, _label, trashed in _deck_dirs():
+        if trashed and not include_trash:
+            continue
         for item_id in decks._item_ids(d):
             raw = decks._read_json(d / "items" / (item_id + ".json")) or {}
             text = (raw.get("markdown") or "") + "\n" + (raw.get("footnotes") or "")

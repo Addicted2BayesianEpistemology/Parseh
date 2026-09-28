@@ -82,7 +82,7 @@ x
 async function startHarness(mode) {
   const args = [root + '/tests/studio_harness.py', mode];
   if (mode === 'parseh') args.push('--latex-missing');
-  if (settingsOnly && mode === 'parseh') args.push('--latex-compiler-states');
+  if (mode === 'parseh') args.push('--latex-compiler-states');
   const proc = new Deno.Command(python, {args, cwd: root,
                                          stdout: 'piped', stderr: 'piped'}).spawn();
   const log = [];
@@ -216,6 +216,19 @@ async function suite(mode) {
     /* ---------------- d) Settings ---------------- */
     if (mode === 'parseh') {
       console.log('d) Settings -> LaTeX drawings');
+      const planReply = (names, licence = 'lppl1.3c', repository = 'available') => ({
+        ok: true, can: true, tex: 'TeX Live test', why: '',
+        packages: names.map((name, at) => ({name, size: repository === 'unreachable' ? null : 185000 + at * 1000,
+          licence, here: 'missing', repository, can_get: repository === 'available',
+          why: repository === 'unreachable' ? 'The TeX Live repository could not be reached.' : ''})),
+      });
+      const planCalls = [];
+      let replyToPlan = async (route, packages) => { await route.fulfill({json: planReply(packages)}); };
+      await page.route('**/settings/api/latex/package-plan', async route => {
+        const packages = route.request().postDataJSON().packages;
+        planCalls.push(packages);
+        await replyToPlan(route, packages);
+      });
       await page.goto(origin + '/settings/latex/');
       await page.waitForSelector('.lx .theme');
       const names = (await page.locator('.lx .theme h3').allTextContents()).map(s => s.split('(')[0].trim());
@@ -252,45 +265,57 @@ async function suite(mode) {
       }));
       assert(desktopCompilerLayout.every(row => row.descriptionLeft > row.termLeft),
              'at desktop width, compiler names and their facts form compact status rows');
-      const planReply = (names, licence = 'lppl1.3c') => ({
-        ok: true, can: true, tex: 'TeX Live test', why: '',
-        packages: names.map((name, at) => ({name, size: 185000 + at * 1000,
-          licence, here: 'missing', repository: 'available', can_get: true, why: ''})),
-      });
-      const planCalls = [];
-      let replyToPlan = async (route, packages) => {
-        await route.fulfill({json: planReply(packages.length ? packages : ['mhchem'])});
+      // L14: what a missing package costs is asked for when the page opens
+      const panel = page.locator('.lx [data-package-panel]');
+      const cardNeeds = await page.locator('.lx [data-install]').evaluateAll(buttons =>
+        buttons.map(button => button.getAttribute('data-install').split(' ')));
+      const everyNeed = [...new Set(cardNeeds.flat())];
+      await until(async () => (await panel.locator('[data-package-get]').count()) >= everyNeed.length,
+                  'every missing package is quoted without anyone asking');
+      eq(planCalls.length, 1, 'opening the page asks once, in one batch, and asks nothing else');
+      eq(JSON.stringify([...planCalls[0]].sort()), JSON.stringify([...everyNeed].sort()),
+         'that ask names exactly the packages the saved themes lack');
+      const readRows = () => panel.locator('[data-package-row]').evaluateAll(rows => rows.map(row => ({
+        name: row.getAttribute('data-package-row'), why: row.children[1].textContent.trim(),
+        cells: [...row.children].slice(2).map(cell => cell.textContent.trim().replace(/\s+/g, ' ')),
+      })));
+      const quoted = await readRows();
+      assert(quoted.length === everyNeed.length && quoted.every(row => row.cells[0] === '○ Not installed'
+             && /^\d+ kB$/.test(row.cells[1]) && row.cells[2] === 'lppl1.3c' && row.cells[3] === 'Get it'),
+             'each row reads Not installed, its size, its licence, Get it: ' + JSON.stringify(quoted[0]));
+      assert(quoted.every(row => /^for the themes? /.test(row.why)), 'and says which theme needs it');
+      assert(/^Get all — /.test(await panel.locator('[data-package-get-all]').textContent()),
+             'Get all shows the total when more than one is ready');
+      assert(/^\d+ packages ready to get\. Nothing has been downloaded\.$/.test(
+             await panel.locator('[data-pkg-said]').textContent()), 'and it says that nothing has been downloaded');
+      const rowText = async name => {
+        const row = panel.locator(`[data-package-row="${name}"]`);
+        return (await row.count()) ? (await row.textContent()).replace(/\s+/g, ' ') : '';
       };
-      await page.route('**/settings/api/latex/package-plan', async route => {
-        const packages = route.request().postDataJSON().packages;
-        planCalls.push(packages);
-        await replyToPlan(route, packages);
-      });
       const reviewPackages = async viewport => {
         const review = page.locator('.lx [data-install]').first();
         eq((await review.textContent()).trim(), 'Review packages…',
-           'the missing-package action truthfully says it reviews packages first');
+           'the missing-package action truthfully says it reviews packages');
         assert(/^Review packages needed by /.test(await review.getAttribute('aria-label')),
                'each repeated Review packages action says which theme it belongs to');
         const expected = (await review.getAttribute('data-install')).split(' ').filter(
           (name, at, all) => name && all.indexOf(name) === at);
-        const panel = page.locator('.lx [data-package-panel]');
         assert(await panel.locator('[data-package-row]').count() >= expected.length,
-               'missing theme packages are persistent rows, before anyone reviews a cost');
+               'missing theme packages are persistent rows');
+        const asked = planCalls.length;
         await page.evaluate(() => window.scrollTo(0, 0));
         await review.focus();
         await page.keyboard.press('Enter');
         const get = panel.locator('[data-package-get]').first();
         await get.waitFor();
         assert(/Nothing has been downloaded/.test(await panel.locator('[data-pkg-said]').textContent()),
-               'the package rows say clearly that reviewing changed nothing yet');
+               'the package rows say clearly that reviewing changed nothing');
+        eq(planCalls.length, asked, 'the review asks nothing again: the quotes are kept for the session');
         assert(await get.evaluate(button => button.classList.contains('go')),
                'Get it is the magenta action that starts an acquisition');
         const getName = await get.getAttribute('data-package-get');
         assert(expected.includes(getName) && (await get.getAttribute('aria-label')).startsWith(`Get ${getName}, `),
            'Get it says its package and quoted cost to a screen reader');
-        eq(JSON.stringify(planCalls[planCalls.length - 1]), JSON.stringify(expected),
-           'the review sends the selected theme\'s missing packages to the planner');
         const getNames = await panel.locator('[data-package-get]').evaluateAll(buttons =>
           buttons.map(button => button.getAttribute('data-package-get')));
         assert(expected.every(name => getNames.includes(name)),
@@ -302,8 +327,8 @@ async function suite(mode) {
           state: row.querySelector('.pkg-state')?.textContent.trim(), action: row.querySelector('.pkg-action')?.textContent.trim(),
         })));
         assert(expected.every(name => rowFacts.some(row => row.name === name && row.scope === 'row'
-               && /To get/.test(row.state) && /Get it/.test(row.action))),
-               'each planned package has semantic table facts, state, and its local action: ' + JSON.stringify(rowFacts));
+               && /Not installed/.test(row.state) && /Get it/.test(row.action))),
+               'each package has semantic table facts, state, and its local action: ' + JSON.stringify(rowFacts));
         await until(() => get.evaluate(button => document.activeElement === button),
                     `the first Get it receives keyboard focus after the ${viewport} review`);
         await until(() => panel.evaluate(el => {
@@ -327,41 +352,109 @@ async function suite(mode) {
         await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
       };
       await reviewPackages('desktop');
-      let staleCalls = 0, releaseOlder, olderDone = false;
+      // an answer that comes late changes its own row and no other
+      let releaseOlder;
       const older = new Promise(resolve => { releaseOlder = resolve; });
       replyToPlan = async (route, packages) => {
-        staleCalls++;
-        if (staleCalls === 1) {
+        if (packages[0] === 'older-quote') {
           await older;
           await route.fulfill({json: planReply(packages, 'older-licence')});
-          olderDone = true;
         } else await route.fulfill({json: planReply(packages, 'newer-licence')});
       };
       const packageName = page.locator('.lx [data-pkgname]');
       await packageName.fill('older-quote');
       await page.locator('.lx [data-package-plan]').click();
-      await until(() => staleCalls === 1, 'the first of two package reviews reaches the planner');
+      await until(() => planCalls.some(call => call[0] === 'older-quote'), 'the first typed package reaches the planner');
       await packageName.fill('newer-quote');
       await page.locator('.lx [data-package-plan]').click();
-      await until(async () => /newer-licence/.test(await page.locator('.lx [data-package-panel]').textContent()),
-                  'the later package review reaches the page');
+      await until(async () => /newer-licence/.test(await rowText('newer-quote')), 'the later ask is answered first');
+      assert(/Asking…/.test(await rowText('older-quote')) && !/older-licence/.test(await panel.textContent()),
+             'the older one is still asking, and its row says so');
+      eq(await packageName.inputValue(), 'newer-quote', 'what was typed in the box is still there');
       releaseOlder();
-      await until(() => olderDone, 'the delayed first package review completes');
-      await sleep(80);
-      assert(/newer-licence/.test(await page.locator('.lx [data-package-panel]').textContent())
-             && !/older-licence/.test(await page.locator('.lx [data-package-panel]').textContent()),
-             'a late quote never replaces the newer review');
+      await until(async () => /older-licence/.test(await rowText('older-quote')), 'the delayed answer arrives in its own row');
+      assert(/newer-licence/.test(await rowText('newer-quote')) && !/newer-licence/.test(await rowText('older-quote')),
+             'and neither answer landed on the other one\'s row');
+      // a failed ask is said, in words, with a way to ask again
       replyToPlan = async route => { await route.abort('failed'); };
       await packageName.fill('failed-quote');
       await page.locator('.lx [data-package-plan]').click();
       const failedPlan = page.locator('.lx [data-pkg-said]');
-      await until(async () => /Could not ask what the packages cost/.test(await failedPlan.textContent()),
+      await until(async () => /Could not ask what failed-quote costs/.test(await failedPlan.textContent()),
                   'a network failure is said beside the package rows');
       assert(await failedPlan.evaluate(out => document.activeElement === out),
                'a failed quote leaves keyboard focus on its explanation');
-      replyToPlan = async (route, packages) => {
-        await route.fulfill({json: planReply(packages.length ? packages : ['mhchem'])});
-      };
+      assert(/Could not ask/.test(await rowText('failed-quote'))
+             && await panel.locator('[data-package-row="failed-quote"] [data-package-review]').count() === 1,
+             'its row says so and offers Ask again');
+      // the repository itself did not answer: the server's own words, and a manual retry
+      replyToPlan = async (route, packages) => { await route.fulfill({json: planReply(packages, 'lppl1.3c', 'unreachable')}); };
+      await panel.locator('[data-package-row="failed-quote"] [data-package-review]').click();
+      await until(async () => /The TeX Live repository could not be reached/.test(await rowText('failed-quote')),
+                  'an unreachable repository is said in plain words on the row');
+      assert(await panel.locator('[data-package-row="failed-quote"] [data-package-get]').count() === 0
+             && /Ask again/.test(await rowText('failed-quote')), 'with no Get it until it is asked again');
+      replyToPlan = async (route, packages) => { await route.fulfill({json: planReply(packages)}); };
+      await panel.locator('[data-package-row="failed-quote"] [data-package-review]').click();
+      await until(async () => /Not installed/.test(await rowText('failed-quote')) && /Get it/.test(await rowText('failed-quote')),
+                  'asked again when the repository answers, it is quoted');
+      // the quotes are kept for the session: a page read again asks for nothing it knows
+      const askedBefore = planCalls.length;
+      await page.reload();
+      await page.waitForSelector('.lx [data-package-get]');
+      await sleep(400);
+      eq(planCalls.length, askedBefore, 'a page read again in the same session asks the repository for nothing it already knows');
+      // the keyboard stays with a package's row while it is got, stopped and removed:
+      // the rows are kept and changed one by one, never rebuilt (found driving the first version)
+      const pk = {jobs: {}, installed: {}, states: {}, available: {}};
+      let polls = 0;
+      const pkStatus = () => ({ok: true, ...pk});
+      await page.route('**/settings/api/latex/package-get', route => {
+        for (const n of route.request().postDataJSON().packages) {
+          pk.jobs[n] = {name: n, state: 'queued', queued: true, running: false, done: 0, total: 0, say: 'waiting'};
+        }
+        route.fulfill({json: pkStatus()});
+      });
+      await page.route('**/settings/api/latex/package-status', route => {
+        polls++;
+        for (const n of Object.keys(pk.jobs)) {
+          if (polls === 1) pk.jobs[n] = {name: n, state: 'running', running: true, done: 1, total: 3, say: 'downloading'};
+          else {
+            pk.jobs[n] = {name: n, state: 'installed', running: false, say: 'installed'};
+            pk.installed[n] = {licence: 'lppl1.3c', size: 30000, at: 'now'};
+            pk.available[n] = true;
+            pk.states[n] = 'installed';
+          }
+        }
+        route.fulfill({json: pkStatus()});
+      });
+      await page.route('**/settings/api/latex/state', async route => {
+        const v = await (await route.fetch()).json();
+        v.packages = pkStatus();
+        for (const n of Object.keys(pk.installed)) for (const c of v.catalogue) if ((c.tl || []).includes(n)) v.files[c.file] = true;
+        route.fulfill({json: v});
+      });
+      await page.route('**/settings/api/latex/package-remove', route => {
+        const n = route.request().postDataJSON().package;
+        for (const key of ['jobs', 'installed', 'available', 'states']) delete pk[key][n];
+        route.fulfill({json: pkStatus()});
+      });
+      const mhchem = panel.locator('[data-package-row="mhchem"]');
+      await mhchem.locator('[data-package-get]').click();
+      await until(async () => (await mhchem.locator('[data-package-stop]').count()) === 1, 'a package being got shows Stop');
+      await mhchem.locator('[data-package-stop]').focus();
+      await until(async () => /Got/.test(await rowText('mhchem')), 'and is Got when it is done');
+      assert(await page.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-remove')),
+             'the keyboard followed the row from Stop to Remove… through every change of the table');
+      await mhchem.locator('[data-remove]').press('Enter');
+      assert(await page.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-remove-no')),
+             'asking to remove puts the keyboard on Cancel, the harmless choice');
+      await page.keyboard.press('Enter');
+      assert(/Got/.test(await rowText('mhchem')) && await mhchem.locator('[data-remove-yes]').count() === 0, 'Cancel leaves it as it was');
+      await mhchem.locator('[data-remove]').click();
+      await mhchem.locator('[data-remove-yes]').click();
+      await until(async () => /Not installed/.test(await rowText('mhchem')), 'Remove takes it out again, and it is offered again');
+      for (const name of ['package-get', 'package-status', 'state', 'package-remove']) await page.unroute(`**/settings/api/latex/${name}`);
       await page.locator('.lx [data-edit="default"]').click();
       eq(await page.locator('.lx .grp h4').first().textContent(), 'Base packages',
          'the public package group does not name Formulae');
@@ -378,12 +471,30 @@ async function suite(mode) {
       assert(actions.length > 8 && actions.every(button => /\b(go|plain|parseh-btn)\b/.test(button.className)),
              'every LaTeX action has the shared affirmative, quiet, or existing link-style control: '
              + JSON.stringify(actions));
-      const exportButton = page.locator('.lx .theme a.parseh-btn').first();
+      const exportButton = page.locator('.lx .theme a.plain').first();
       await page.locator('.lx [data-rename="default"]').focus();
       await page.keyboard.press('Tab');
       assert(await exportButton.evaluate(link => document.activeElement === link
              && link.matches(':focus-visible') && getComputedStyle(link).outlineWidth === '2px'),
-             'Export keeps its established quiet control and has the shared visible keyboard focus');
+             'Export is one of the quiet actions and has the shared visible keyboard focus');
+      // L13: not the top bar's chip -- the very look of Rename, in every theme
+      for (const theme of ['light', 'sepia', 'dark']) {
+        const looks = await page.evaluate(theme => {
+          document.documentElement.dataset.theme = theme;
+          const look = el => {
+            const c = getComputedStyle(el), r = el.getBoundingClientRect();
+            return {tag: el.tagName, size: c.fontSize, weight: c.fontWeight, color: c.color, background: c.backgroundColor,
+                    border: c.borderTopColor + ' ' + c.borderTopWidth, radius: c.borderTopLeftRadius,
+                    padding: c.paddingTop + ' ' + c.paddingRight, height: Math.round(r.height), decoration: c.textDecorationLine};
+          };
+          const link = document.querySelector('.lx .theme a.plain'), peer = document.querySelector('.lx [data-rename]');
+          return {link: look(link), peer: look(peer)};
+        }, theme);
+        const {tag: t1, ...linkLook} = looks.link, {tag: t2, ...peerLook} = looks.peer;
+        eq(JSON.stringify(linkLook), JSON.stringify(peerLook), `Export looks exactly like Rename in ${theme}`);
+        eq(looks.link.decoration, 'none', `and is not underlined in ${theme}`);
+      }
+      await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
       const importButton = page.locator('.lx [data-import-open]');
       eq(await importButton.evaluate(button => button.tagName), 'BUTTON',
          'Import a theme is a keyboard-focusable button, not a file-input label');
@@ -411,9 +522,146 @@ async function suite(mode) {
         await shot(`editor-actions-${theme}`);
       }
       await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
-      await page.locator('.lx [data-cancel]').click();
+      // L14 in the editor: a box ticked is marked where it is ticked, before any Save
+      const line = page.locator('.lx [data-edit-missing]');
+      const lineText = async () => (await line.textContent()).replace(/\s+/g, ' ').trim();
+      assert(!(await line.isHidden()) && /^Not installed here: .+ — see the table$/.test(await lineText()),
+             'a theme being edited says, in one line, what this computer lacks of it: ' + await lineText());
+      assert(!/circuitikz/.test(await lineText()), 'a package that is not ticked is not named');
+      const gates = {};
+      const gate = name => { let open; gates[name] = new Promise(resolve => { open = resolve; }); return open; };
+      replyToPlan = async (route, packages) => {
+        for (const name of packages) if (gates[name]) await gates[name];
+        await route.fulfill({json: planReply(packages, 'gpl,lppl')});
+      };
+      const openCircuit = gate('circuitikz');
+      const preamble = page.locator('.lx [data-preamble]');
+      await preamble.fill('% my unsaved words');
+      await page.locator('.lx [data-pkg="circuitikz"]').check();
+      await until(async () => /circuitikz/.test(await lineText()),
+                  'ticking a missing package names it in the line at once, with no save and no reload');
+      await until(async () => /Asking…/.test(await rowText('circuitikz')), 'and its row is in the table, asking');
+      assert(/for the theme being edited \(unsaved\)/.test(await rowText('circuitikz')), 'saying whom it is for');
+      await preamble.focus();
+      await page.keyboard.type(' and more');
+      openCircuit();
+      await until(async () => /Not installed/.test(await rowText('circuitikz')) && /Get it/.test(await rowText('circuitikz')),
+                  'the quote arrives in its row');
+      eq(await preamble.inputValue(), '% my unsaved words and more', 'a quote arriving leaves what was typed in the editor alone');
+      assert(await preamble.evaluate(el => document.activeElement === el), 'and the keyboard where it was');
+      await page.locator('.lx [data-pkg="circuitikz"]').scrollIntoViewIfNeeded();
+      for (const theme of ['light', 'sepia', 'dark']) {
+        await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+        await shot(`editor-missing-desktop-${theme}`);
+      }
+      await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+      await page.locator('.lx [data-pkg="circuitikz"]').uncheck();
+      await until(async () => !/circuitikz/.test(await lineText()) && (await rowText('circuitikz')) === '',
+                  'unticking takes it off the line and out of the table');
+      const askedTicks = planCalls.length;
+      await page.locator('.lx [data-pkg="circuitikz"]').check();
+      await until(async () => /Not installed/.test(await rowText('circuitikz')) && /Get it/.test(await rowText('circuitikz')),
+                  'ticked again, the kept quote answers at once');
+      eq(planCalls.length, askedTicks, 'and is not asked for twice');
+      // the keyboard in the table stays where it is while another row changes
+      const openForest = gate('forest');
+      await page.locator('.lx [data-pkg="forest"]').check();
+      await until(async () => /Asking…/.test(await rowText('forest')), 'another box ticked: its row asks');
+      const firstGet = panel.locator('[data-package-get]').first();
+      const firstName = await firstGet.getAttribute('data-package-get');
+      await firstGet.focus();
+      openForest();
+      await until(async () => /Not installed/.test(await rowText('forest')), 'and is quoted');
+      assert(await page.evaluate(name => document.activeElement && document.activeElement.getAttribute('data-package-get') === name, firstName),
+             'the keyboard stays on the Get it it was on while another row changed');
+      const openTipa = gate('tipa');
+      await page.locator('.lx [data-pkg="tipa"]').check();
+      await until(async () => /Asking…/.test(await rowText('tipa')), 'a third box ticked: its row asks');
+      await panel.locator('[data-package-get-all]').focus();
+      openTipa();
+      await until(async () => /Not installed/.test(await rowText('tipa')), 'and is quoted');
+      assert(await page.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-package-get-all')),
+             'Get all keeps the keyboard while its total changes');
+      // a Save that leaves packages missing takes the person to the table
+      await page.emulateMedia({reducedMotion: 'no-preference'});
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.locator('.lx [data-save]').click();
+      await until(async () => (await page.locator('.lx [data-package-panel].flash').count()) === 1,
+                  'after a Save that leaves packages missing the table is flashed');
+      eq(await panel.evaluate(el => getComputedStyle(el).animationName), 'lx-plan-flash', 'with its animation');
+      await until(() => panel.evaluate(el => {
+        const r = el.getBoundingClientRect();
+        return r.top <= innerHeight / 2 && r.bottom >= innerHeight / 2;
+      }), 'and scrolled to');
+      assert(/^Saved the theme default\. Not installed here: /.test(await panel.locator('[data-pkg-said]').textContent()),
+             'and it says what was saved and what is still missing');
+      assert(await page.locator('.lx section.edit').count() === 0, 'the editor is closed by the Save');
+      await page.emulateMedia({reducedMotion: 'reduce'});
+      await page.locator('.lx [data-install]').first().click();
+      eq(await panel.evaluate(el => getComputedStyle(el).animationName), 'none', 'a person who asked for reduced motion gets no flash');
+      await page.emulateMedia({reducedMotion: null});
       assert(await page.locator('.lx [data-save-limit]').evaluate(button => button.classList.contains('go')),
              'Save is the magenta commit for the time-limit form');
+      // L15: cleaning the cache shows that it is working
+      let openForget, forgetCalls = 0, stateCalls = 0, forgetReply = {ok: true, drawings: 3, bytes: 4096, forgotten: 3, kept: {drawings: 0, bytes: 0}};
+      const forgetHeld = new Promise(resolve => { openForget = resolve; });
+      page.on('request', request => { if (/\/latex\/state$/.test(request.url())) stateCalls++; });
+      await page.route('**/settings/api/latex/forget', async route => {
+        forgetCalls++;
+        await forgetHeld;
+        await route.fulfill({json: forgetReply});
+      });
+      const forgetButton = page.locator('.lx [data-forget]'), bar = page.locator('.lx [data-forget-bar]');
+      const forgetSaid = page.locator('.lx [data-forget-said]');
+      await forgetButton.scrollIntoViewIfNeeded();
+      assert(await bar.isHidden(), 'no bar while nothing is being done');
+      await forgetButton.click();
+      await until(() => forgetButton.isDisabled(), 'the button is disabled while the cleanup works');
+      assert(await bar.isVisible() && (await bar.getAttribute('role')) === 'progressbar', 'a bar shows that it is working');
+      eq(await bar.locator('i').evaluate(el => getComputedStyle(el).animationName), 'lx-slide',
+         'the loose bar Updating Parseh uses, moving');
+      eq((await forgetSaid.textContent()).trim(), 'Looking through every document, deck and note…', 'and it says what it is doing');
+      await forgetButton.click({force: true, timeout: 1000}).catch(() => {});
+      await sleep(150);
+      eq(forgetCalls, 1, 'pressing it again does not start a second scan');
+      const stateBefore = stateCalls;
+      for (const theme of ['light', 'sepia', 'dark']) {
+        await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+        await forgetButton.scrollIntoViewIfNeeded();
+        if (SHOTS) await page.locator('.lx section').last().screenshot({path: `${SHOTS}/latex-${mode}-forgetting-desktop-${theme}.png`});
+      }
+      await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+      openForget();
+      await until(async () => /^3 drawings forgotten, 4 kB freed\.$/.test((await forgetSaid.textContent()).trim()),
+                  'when it is done it says how many drawings went, and what that freed');
+      assert(await bar.isHidden() && !(await forgetButton.isDisabled()), 'the bar goes and the button is ready again');
+      assert(stateCalls > stateBefore, 'and the count of the drawings kept was read again, not left as it was');
+      await page.unroute('**/settings/api/latex/forget');
+      await page.route('**/settings/api/latex/forget', route => route.fulfill({json: {ok: false, error: 'The library could not be read.'}}));
+      await forgetButton.click();
+      await until(async () => /^The library could not be read\.$/.test((await forgetSaid.textContent()).trim()),
+                  'a refusal is said in the words the server gave');
+      assert(await forgetSaid.evaluate(el => el.classList.contains('bad')) && !(await forgetButton.isDisabled()) && await bar.isHidden(),
+             'as a failure, with the button ready and no bar');
+      await page.unroute('**/settings/api/latex/forget');
+      await page.route('**/settings/api/latex/forget', route => route.fulfill({json: {ok: true, drawings: 0, bytes: 0, forgotten: 0, kept: {drawings: 0, bytes: 0}}}));
+      await forgetButton.click();
+      await until(async () => /^Nothing to forget/.test((await forgetSaid.textContent()).trim()), 'nothing forgotten is said too');
+      await page.unroute('**/settings/api/latex/forget');
+      // a stopped server answers nothing: the cleanup gives up by itself
+      const late = await context.newPage();
+      await late.clock.install();
+      await late.route('**/settings/api/latex/forget', () => new Promise(() => {}));
+      await late.goto(origin + '/settings/latex/');
+      await late.waitForSelector('.lx [data-forget]');
+      await late.locator('.lx [data-forget]').click();
+      await until(async () => await late.locator('.lx [data-forget]').isDisabled(), 'the cleanup of a silent server starts');
+      await late.clock.fastForward(61000);
+      await until(async () => /did not answer/.test(await late.locator('.lx [data-forget-said]').textContent()),
+                  'a server that answers nothing is given up on, in words');
+      assert(!(await late.locator('.lx [data-forget]').isDisabled()) && await late.locator('.lx [data-forget-bar]').isHidden(),
+             'and the button is ready again');
+      await late.close();
       for (const theme of ['light', 'sepia', 'dark']) {
         await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
         await compilerList.scrollIntoViewIfNeeded();
@@ -449,7 +697,7 @@ async function suite(mode) {
                         return {width: row.getBoundingClientRect().width, stacked: description.top > term.bottom};
                       }) : []};
             })(),
-            touch: [...document.querySelectorAll('.lx button.go, .lx button.plain, .lx .parseh-btn')]
+            touch: [...document.querySelectorAll('.lx button.go, .lx button.plain, .lx a.plain')]
               .filter(control => !!(control.offsetWidth || control.offsetHeight))
               .map(control => ({text: control.textContent.trim(), height: Math.round(control.getBoundingClientRect().height)})),
           };
@@ -466,6 +714,60 @@ async function suite(mode) {
       }
       await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
       await shot('settings-phone');
+    }
+
+    /* ---------------- e) the drawings kept, after everything that held one is deleted ---------------- */
+    if (mode === 'parseh' && !settingsOnly) {
+      console.log('e) Settings -> the drawings kept: delete everything that held one, then forget');
+      await page.setViewportSize({width: 1280, height: 900});
+      await page.unroute('**/settings/api/latex/package-plan');
+      const send = async (method, path, body) => {
+        const r = await fetch(origin + path, {method, headers: body ? {'Content-Type': 'application/json'} : {},
+                                              body: body ? JSON.stringify(body) : undefined});
+        return r.json();
+      };
+      const SAVED = `---\ntarget: it\n---\n# Uno\n\n::::latex chemistry\n\\ce{H2O}\n::::\n\nUna [\\ce{CO2}]{latex chemistry} riga.\n`;
+      const EXERCISE = ':::exercise single-choice\nprompt: |\n  Pick.\n  ::::latex chemistry\n  \\ce{NaCl}\n  ::::\n'
+        + '- [x] [\\ce{Na}]{latex chemistry}\n- [ ] [\\ce{Cl}]{latex chemistry}\n:::\n';
+      const doc2 = (await send('POST', '/studio/api/docs', {markdown: SAVED})).meta.id;
+      await (await fetch(url(`/doc/${doc2}`))).text();
+      const deck = (await send('POST', '/exercises/api/decks', {name: 'Geometry', lang: 'it'})).deck;
+      const item = (await send('POST', `/exercises/api/decks/${deck.folder}/${deck.slug}/items`, {markdown: EXERCISE})).item;
+      await (await fetch(`${origin}/exercises/api/decks/${deck.folder}/${deck.slug}/items/${item.id}`)).text();
+      await page.goto(origin + '/settings/latex/');
+      await page.waitForSelector('.lx [data-kept]');
+      const keptNow = async () => (await page.locator('.lx [data-kept]').textContent()).trim();
+      const said = () => page.locator('.lx [data-forget-said]');
+      // what the pencil's edit above left unnamed goes first, so that what follows is only this section's
+      await page.locator('.lx [data-forget]').click();
+      await until(async () => /(forgotten|Nothing to forget)/.test(await said().textContent()), 'the drawings the earlier checks left unnamed are let go');
+      const before = +(await keptNow()).match(/^(\d+) saved drawings?/)[1];
+      assert(before >= 4, `a document and an exercise made ${before} saved drawings, a block and its marks each`);
+      await page.locator('.lx [data-forget]').click();
+      await until(async () => /^Nothing to forget/.test((await said().textContent()).trim()),
+                  'while a document and a deck still name them, nothing is forgotten');
+      eq(+(await keptNow()).match(/^(\d+) saved/)[1], before, 'and every drawing is still kept');
+      eq((await send('DELETE', `/studio/api/docs/${doc2}`)).ok, true, 'the document is deleted');
+      eq((await send('DELETE', `/exercises/api/decks/${deck.folder}/${deck.slug}`)).ok, true, 'the deck is deleted');
+      const trash = info.library.replace(/library$/, 'exercises/.trash');
+      assert((await Deno.stat(trash)).isDirectory, 'a deck is only moved to its trash, where its exercises are still read');
+      await page.reload();
+      await page.waitForSelector('.lx [data-kept]');
+      eq(+(await keptNow()).match(/^(\d+) saved/)[1], before, 'the page still counts what is kept');
+      await page.locator('.lx [data-forget]').click();
+      await until(async () => (await keptNow()) === '0 saved drawings, 0 kB', 'one press, and the page counts none', 30000);
+      eq((await page.locator('.lx [data-forget-said]').textContent()).trim().replace(/, .*/, ''), `${before} drawings forgotten`,
+         'and says how many went');
+      const leftovers = [];
+      const walk = async dir => {
+        for await (const entry of Deno.readDir(dir)) {
+          if (entry.isDirectory) { if (entry.name !== '.preview') await walk(`${dir}/${entry.name}`); }
+          else if (entry.name !== 'owners.json') leftovers.push(`${dir}/${entry.name}`);
+        }
+      };
+      await walk(info.latex_drawn);
+      eq(leftovers.join(', '), '', 'and not one file of a drawing is left on the disk');
+      await shot('forgotten');
     }
     eq(errors.join(' | '), '', 'no script error on any page');
   } finally {

@@ -139,10 +139,17 @@ class SharedControlStyles(unittest.TestCase):
     """Settings' affirmative/quiet controls and native choice colours live once."""
 
     def test_go_plain_and_choice_controls_are_shared(self):
-        self.assertIn(".settings button.go, .settings button.plain", settingspage.STYLE)
+        self.assertIn(".settings :is(button, a).go, .settings :is(button, a).plain", settingspage.STYLE)
         self.assertIn("accent-color: var(--accent)", settingspage.STYLE)
         self.assertIn("input[type=radio]", settingspage.STYLE)
+        # the Network page's buttons are still the top bar's chip
         self.assertIn(".settings .parseh-btn:focus-visible", settingspage.STYLE)
+        # and a link that looks like a quiet action (LaTeX's Export) is one of them
+        self.assertIn(".settings a.plain:focus-visible", settingspage.STYLE)
+        self.assertIn(".settings button.go, .settings button.plain, .settings a.plain, "
+                      ".settings button.danger { min-height: 44px; }", settingspage.STYLE)
+        self.assertIn("text-decoration: none; display: inline-flex; align-items: center;",
+                      settingspage.STYLE)
         read = (ROOT / "lib" / "lookuppage.py").read_text(encoding="utf-8")
         update = (ROOT / "lib" / "updatepage.py").read_text(encoding="utf-8")
         self.assertNotIn(".rh button.go,.rh button.plain", read)
@@ -162,6 +169,10 @@ class SharedControlStyles(unittest.TestCase):
         self.assertIn('class="danger" data-remove-yes=', latex)
         self.assertIn('class="plain" data-import-open', latex)
         self.assertIn("picker.click()", latex, "the keyboard-focusable Import button opens its picker")
+        # L13: Export is a link, and is drawn as the quiet action it is
+        self.assertIn('<a class="plain" href="', latex)
+        self.assertNotIn('<a class="parseh-btn"', latex)
+        self.assertIn('class="plain" data-package-review=', latex)
 
     def test_package_review_is_explicit_and_reaches_its_result(self):
         latex = (ROOT / "lib" / "latexpage.py").read_text(encoding="utf-8")
@@ -172,8 +183,8 @@ class SharedControlStyles(unittest.TestCase):
         self.assertIn("Nothing has been downloaded.", latex)
         self.assertIn("revealPackages(root.querySelector('[data-package-get]')", latex)
         self.assertIn("var packageSerial = 0", latex)
-        self.assertIn("if (serial !== packageSerial) return;", latex)
-        self.assertIn("Could not ask what the packages cost.", latex)
+        self.assertIn("packageRequest[row.name] !== serial", latex, "a late quote never replaces a newer ask")
+        self.assertIn("Could not ask what ", latex)
         self.assertIn('aria-label="Review packages needed by ', latex)
         self.assertIn('aria-label="Get ', latex)
         for label in ('aria-label="Edit theme ', 'aria-label="Rename theme ',
@@ -181,6 +192,29 @@ class SharedControlStyles(unittest.TestCase):
                       'aria-label="Delete theme ', 'aria-label="Remove ',
                       'aria-label="Stop getting '):
             self.assertIn(label, latex, label)
+
+    def test_a_missing_package_is_quoted_by_itself_and_marked_where_it_is_ticked(self):
+        latex = (ROOT / "lib" / "latexpage.py").read_text(encoding="utf-8")
+        # L14: asked when the page opens, after a Save, and as boxes are ticked
+        for piece in ("function askQuotes(", "function wantedQuotes(", "function syncDraft(",
+                      "function scheduleDraft(", "function draftNeeds(", "data-edit-missing",
+                      'data-see-table', "Not installed here:", "for the theme being edited (unsaved)",
+                      'aria-label="Ask again what ', "sessionStorage", "post('package-plan', {packages: names}, ASK_MS)"):
+            self.assertIn(piece, latex, piece)
+        self.assertIn("root.addEventListener('change'", latex)
+        self.assertNotIn(">not installed</span>", latex, "the 12px marker beside each box is gone")
+        self.assertIn("installed_many(", latex, "the page's files are checked by one kpsewhich")
+        # the table is kept and its rows changed one by one, so nothing typed or focused is taken away
+        self.assertIn("data-pkg-rows", latex)
+        self.assertIn("function focusToken(", latex)
+
+    def test_forgetting_drawings_shows_it_is_working(self):
+        latex = (ROOT / "lib" / "latexpage.py").read_text(encoding="utf-8")
+        # L15: the same loose bar as Updating Parseh, a disabled button, a deadline
+        for piece in ('<div class="bar loose" role="progressbar"', "data-forget-bar", ".lx .bar.loose i",
+                      "@keyframes lx-slide", "function forgetDrawings(", "post('forget', {}, 60000)",
+                      "Looking through every document, deck and note", "reload().then(function () { say('[data-forget-said]'"):
+            self.assertIn(piece, latex, piece)
 
     def test_compiler_facts_are_a_status_list_but_packages_stay_a_table(self):
         latex = (ROOT / "lib" / "latexpage.py").read_text(encoding="utf-8")

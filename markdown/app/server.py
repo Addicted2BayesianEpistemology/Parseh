@@ -1301,7 +1301,7 @@ def api_save(h, doc_id):
 
 def _latex_owner(doc_id):
     """An internal stable owner, scoped to this library rather than a title."""
-    return "document:%s:%s" % (os.path.realpath(str(store.LIB)), doc_id)
+    return "document:%s:%s" % (os.path.realpath(str(store.lib())), doc_id)
 
 
 def _adopt(doc_id):
@@ -1647,8 +1647,12 @@ def api_duplicate(h, doc_id):
 
 
 def api_delete(h, doc_id):
+    try:
+        named = latexdraw._source_keys(store.get(doc_id)[1])
+    except Exception:                                        # noqa: BLE001 -- only for the grace
+        named = ()
     store.delete(doc_id)
-    latexdraw.forget_owner(_latex_owner(doc_id))
+    latexdraw.forget_owner(_latex_owner(doc_id), also=named)
     h.send_json({"ok": True})
 
 

@@ -62,6 +62,7 @@ texpackages.TREE = str(tmp / "texmf")
 # page's availability report; it never writes to or changes TeX.
 if FORCE_LATEX_MISSING:
     texpackages.installed = lambda _file: False
+    texpackages.installed_many = lambda files: {f: False for f in files}
 # Settings' compiler list needs both available and unavailable facts without
 # depending on the TeX tools installed on the computer that drives the browser.
 if FORCE_LATEX_COMPILER_STATES:
@@ -120,6 +121,7 @@ try:
     studio.SERVER["instance"] = srv
     print("READY " + json.dumps({"port": srv.server_address[1], "studio": studio.BASE, "mode": MODE,
                                  "library": str(store.LIB), "tray": str(tray),
+                                 "latex_drawn": str(latexdraw.DRAWN),
                                  "rich_doc_id": rich["id"], "rich_doc_dir": str(store.doc_dir(rich["id"])),
                                  "clips": [hello, bye], "audio_accept": audiofile.ACCEPT,
                                  "audio_human": audiofile.HUMAN},
