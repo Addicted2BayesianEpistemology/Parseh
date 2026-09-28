@@ -58,6 +58,13 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //  j) "reach": record again sent further back than the caption would reach
 //  k) the add page's transcript editor: the captions listed, moved a tenth
 //     of a second at a time, and the panel that goes back into the box
+//  l) the timings sheet's "draw the sound" on a YouTube video (the tab is
+//     recorded while the video plays and its shape is kept as waveform.json;
+//     the recorder lives in youtube/lib/tabcapture.js): in real Chrome over
+//     the real tones, and again with the 25 ms tick played by the test over
+//     made-up loudness and clocks, where the numbers posted are checked one
+//     by one against the spec and against the checksum the old code gave
+//     (YT_WAVE_OUT=<file> also saves the real run's posted body)
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
@@ -374,18 +381,76 @@ const browser = await launch(['--auto-accept-this-tab-capture', ...ARGS]);
 let browserNo = null;
 const errors = [];
 // A page of the player.  `query` goes to the fake frame; `init` runs in the
-// page before its own scripts.  Every getDisplayMedia call is counted, and
-// every connection of an audio node to the speakers.
+// page before its own scripts.  Every getDisplayMedia call is counted (and the
+// share it gave kept, in __streams), so is every call for the microphone
+// (__gum), and every connection of an audio node to the speakers.  The
+// intervals a page has running are listed in __intervals (id -> ms), and
+// __virt is a clock the test can turn: while __virt.on, every 25 ms interval
+// -- the waveform recorder's tick, and nothing else here -- is held instead
+// of run, and __virt.run(...) plays the ticks itself, one by one, against
+// levels and player clocks the test made up (section l).
 async function newPage(b, {width = 1280, height = 900, query = 'src=tones.wav', init = null, real = false} = {}) {
   const context = await b.newContext({viewport: {width, height}});
   await context.addInitScript(() => {
     window.__asked = [];
+    window.__streams = [];
+    window.__gum = 0;
     window.__toSpeakers = 0;
     const md = navigator.mediaDevices;
     if (md && md.getDisplayMedia) {
       const ask = md.getDisplayMedia.bind(md);
-      md.getDisplayMedia = o => { window.__asked.push(o); return ask(o); };
+      md.getDisplayMedia = o => { window.__asked.push(o); return ask(o).then(s => { window.__streams.push(s); return s; }); };
     }
+    if (md && md.getUserMedia) {
+      const mic = md.getUserMedia.bind(md);
+      md.getUserMedia = o => { window.__gum++; return mic(o); };
+    }
+    for (const name of ['getUserMedia', 'webkitGetUserMedia', 'mozGetUserMedia'])
+      if (navigator[name]) { const old = navigator[name].bind(navigator); navigator[name] = (...a) => { window.__gum++; return old(...a); }; }
+    window.__intervals = new Map();
+    window.__virt = {on: false, timers: [], n: 0, k: 0, levels: null, clocks: null};
+    const si = window.setInterval.bind(window), ci = window.clearInterval.bind(window);
+    window.setInterval = function (fn, ms, ...rest) {
+      if (window.__virt.on && ms === 25) {
+        const id = 1e9 + ++window.__virt.n;
+        window.__virt.timers.push({id, fn});
+        return id;
+      }
+      const id = si(fn, ms, ...rest);
+      window.__intervals.set(id, ms);
+      return id;
+    };
+    window.clearInterval = function (id) {
+      const at = window.__virt.timers.findIndex(t => t.id === id);
+      if (at >= 0) { window.__virt.timers.splice(at, 1); return; }
+      window.__intervals.delete(id);
+      ci(id);
+    };
+    // what the analyser "hears" while the test plays the ticks: the tick's level
+    // as the loudest sample of the window, one of them negative
+    if (window.AnalyserNode) {
+      const heard = AnalyserNode.prototype.getFloatTimeDomainData;
+      AnalyserNode.prototype.getFloatTimeDomainData = function (buf) {
+        const v = window.__virt;
+        if (!v.on || !v.levels) return heard.call(this, buf);
+        buf.fill(0);
+        const level = v.levels[v.k] || 0;
+        buf[3] = level * 0.25;
+        buf[buf.length >> 1] = -level;
+      };
+    }
+    // play the ticks: each one reads the clock the test made for it
+    window.__virt.run = (max) => {
+      const v = window.__virt, seen = [];
+      let k = 0;
+      for (; k < max && v.timers.length; k++) {
+        v.k = k;
+        v.timers.slice().forEach(t => t.fn());
+        const s = document.querySelector('.tl-stat');
+        if (s && seen[seen.length - 1] !== s.textContent) seen.push(s.textContent);
+      }
+      return {ticks: k, said: seen};
+    };
     if (window.AudioNode) {
       const connect = AudioNode.prototype.connect;
       AudioNode.prototype.connect = function (to, ...rest) {
@@ -1029,6 +1094,227 @@ console.log('k) the transcript edited before the video is added, a tenth of a se
   const said = await pk.textContent('#pinfo');
   assert(/3 captions/.test(said), 'the prompt is built from the edited panel: ' + said);
   await ck.close();
+}
+
+/* ============================ l) the timings sheet draws a YouTube video's sound, from the tab */
+console.log('l) "draw the sound": the tab is recorded while the video plays, and the shape is kept');
+const wavePath = (id = YT) => `${VIDEOS}/italian/${id}/waveform.json`;
+// the timings sheet, opened; a press can land before the captions have
+// loaded and be refused, so it is pressed until the sheet is up
+async function openTimings(page) {
+  await page.waitForSelector('.seg .fa .w');
+  for (let i = 0; i < 30; i++) {
+    await page.click('#captimes');
+    try { await page.waitForSelector('.tl-root', {timeout: 1000}); return; } catch (_) {}
+  }
+  throw Error('FAIL: the timings sheet never opened');
+}
+const tlStat = page => page.evaluate(() => {
+  const s = document.querySelector('.tl-stat');
+  return s ? {text: s.textContent, bad: s.classList.contains('tl-bad')} : null;
+});
+// the sheet's last word on a recording: drawn, or refused
+const tlSettled = (page, what, ms = 90000) => until(async () => {
+  const s = await tlStat(page);
+  return s && (s.text === 'the sound is drawn' || s.bad) ? s : null;
+}, what, ms);
+// the waveforms this section posts, as the page sends them
+function watchPosts(page) {
+  const posts = [];
+  page.on('request', r => {
+    if (r.method() === 'POST' && new URL(r.url()).pathname === '/youtube/api/waveform') posts.push(JSON.parse(r.postData()));
+  });
+  return posts;
+}
+// A number is kept to three decimals, 0 to 1, and one of them is 1
+const threeDecimals = peaks => peaks.every(v => typeof v === 'number' && v >= 0 && v <= 1 && Math.abs(v * 1000 - Math.round(v * 1000)) < 1e-6);
+const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))]
+  .map(b => b.toString(16).padStart(2, '0')).join('');
+{
+  // l0) THE BASELINE, real Chrome, real tones: what the recorder posts
+  const WAVE_OUT = Deno.env.get('YT_WAVE_OUT') || '';
+  const {context: c0, page: p0} = await newPage(browser);
+  const posts = watchPosts(p0);
+  await openVideo(p0);
+  // the person's own speed, which the recording must give back
+  await p0.evaluate(() => __fakeYT[0].setPlaybackRate(1.25));
+  await until(async () => (await childState(p0)).rate === 1.25, 'the speed is set');
+  await openTimings(p0);
+  eq(await p0.evaluate(() => { const b = document.querySelector('[data-x="wave"]'); return b && [b.hidden, b.disabled]; }), [false, false],
+     'the sheet offers "draw the sound", live: this Chrome can record a tab and there is no picture yet');
+  await p0.click('[data-x="wave"]');
+  assert(/sharing this tab|listening/.test((await tlStat(p0)).text), 'the sheet says it is at work: ' + (await tlStat(p0)).text);
+  const done0 = await tlSettled(p0, 'the sound is drawn (real time: it takes as long as the video does)');
+  assert(!done0.bad && done0.text === 'the sound is drawn', 'the sheet says the sound is drawn: ' + done0.text);
+  eq(posts.length, 1, 'one waveform was posted');
+  const w0 = posts[0], dur0 = await p0.evaluate(() => __fakeYT[0].getDuration());
+  eq([w0.video, w0.rate, w0.peaks.length], [YT, 20, Math.ceil(dur0 * 20) + 1],
+     `it is this video's, at 20 numbers a second, one for every 50 ms of its ${dur0} s`);
+  assert(threeDecimals(w0.peaks) && Math.max(...w0.peaks) === 1, 'each number is between 0 and 1 to three decimals, and the loudest is 1');
+  // second k of the tones is a tone over [k, k + .5): the middle of that half
+  // second is tall and the middle of the silence after it is flat
+  const seen0 = [];
+  for (const k of [2, 9, 17, 26, 34, 40]) {
+    const loud = w0.peaks.slice(k * 20 + 3, k * 20 + 8), quiet = w0.peaks.slice(k * 20 + 13, k * 20 + 18);
+    seen0.push(`${k}s tone ${JSON.stringify(loud)} silence ${JSON.stringify(quiet)}`);
+    assert(Math.min(...loud) > 0.5 && Math.max(...quiet) < 0.1, `second ${k}: tall where its tone is (${Math.min(...loud)}+), flat in the silence after it (${Math.max(...quiet)} at most)`);
+  }
+  console.log('     raw: ' + seen0.join('\n          '));
+  console.log('     raw: posted ' + w0.peaks.length + ' numbers, sha256 ' + await sha256(JSON.stringify(w0)));
+  if (WAVE_OUT) await Deno.writeTextFile(WAVE_OUT, JSON.stringify(w0));
+  eq(await p0.evaluate(() => [__asked.map(o => [!!o.audio, o.preferCurrentTab, o.video]), __toSpeakers, __gum]), [[[true, true, true]], 0, 0],
+     'Chrome was asked once, for this tab with its sound; nothing was sent to the speakers; the microphone was never asked');
+  const kept0 = await Deno.readTextFile(wavePath());
+  assert(kept0.startsWith('{"rate": 20.0, "peaks": [') && JSON.stringify((JSON.parse(kept0)).peaks) === JSON.stringify(w0.peaks),
+         'the file beside the video holds exactly what was posted, in the canonical shape: ' + kept0.slice(0, 40));
+  const after0 = await childState(p0);
+  assert(after0.paused && after0.rate === 1.25, 'the video is paused and its speed is given back: ' + JSON.stringify(after0));
+  eq(await p0.evaluate(() => __streams.map(s => s.getTracks().map(t => t.kind + ':' + t.readyState).sort().join())), ['audio:live,video:live'],
+     'the share is left live, as the frame capture and the cut editor find it');
+  await p0.waitForSelector('.tl-strip.tl-drawn');
+  await p0.keyboard.press('Escape');
+  await p0.waitForSelector('.tl-root', {state: 'detached'});
+  await openTimings(p0);
+  eq(await p0.evaluate(() => !document.querySelector('[data-x="wave"]')), true,
+     'the sheet drew it, and on the next opening does not offer to draw what is drawn');
+  await c0.close();
+  await Deno.remove(wavePath());
+}
+
+// l1) THE BASELINE, EXACT.  A real recording's numbers vary with the timing
+// of every tick, so this plays the ticks itself: the page's real code, its
+// real share and audio graph, and the 25 ms tick turned by the test (__virt),
+// with the loudness of every tick and the player's clock made up here.  What
+// the recorder must post is then a function of those two lists alone, written
+// out below from the spec: the number filed under round(t * 20), the loudest
+// of every hearing, the whole thing divided by its loudest, three decimals;
+// it ends at 0.3 s before the end or after 400 ticks of a stopped clock; a
+// reading that is not a time is skipped.  The old code's output is compared
+// to it number for number, and so must the refactored code's be.
+const GOLD_TICKS = 2100;
+const goldLevel = k => Math.fround(k % 97 === 0 ? 0 : 0.02 + 0.95 * Math.abs(Math.sin(k * 0.137)) * (0.4 + 0.6 * Math.abs(Math.cos(k * 0.011))));
+function goldRun(kind) {
+  const levels = [], clocks = [];
+  let pos = 0;
+  for (let k = 0; k < GOLD_TICKS; k++) {
+    levels.push(kind === 'silent' ? 0 : goldLevel(k));
+    if (kind === 'full' && k === 900) clocks.push(null);          // a reading that is not a number
+    else if (kind === 'full' && k === 901) clocks.push('inf');    // nor is this
+    else clocks.push(pos);
+    if (kind === 'frozen') { if (k < 200) pos += 0.025; }         // stops at 4.975 s, for good
+    else {
+      if (!(k >= 400 && k < 480)) pos += 0.025;                   // a stall of two seconds from tick 400 (10 s)
+      if (k === 1200) pos -= 0.5;                                 // a seek back of half a second
+    }
+  }
+  return {levels, clocks};
+}
+function waveOracle({levels, clocks}, dur) {
+  const n = Math.ceil(dur * 20) + 1, peaks = new Array(n).fill(0), said = [];
+  let stalled = 0, last = -1, ticks = 0;
+  for (let k = 0; k < levels.length; k++) {
+    ticks = k + 1;
+    const t = clocks[k] === null ? NaN : clocks[k] === 'inf' ? Infinity : clocks[k];
+    if (!isFinite(t)) continue;
+    const slot = Math.round(t * 20);
+    if (slot >= 0 && slot < n && levels[k] > peaks[slot]) peaks[slot] = levels[k];
+    if (Math.abs(t - last) < 0.01) stalled++; else stalled = 0;
+    last = t;
+    if (slot % 20 === 0) {
+      const s = 'listening… ' + Math.round(Math.max(0, Math.min(1, t / dur)) * 100) + '%';
+      if (said[said.length - 1] !== s) said.push(s);
+    }
+    if (t >= dur - 0.3 || stalled > 400) break;
+  }
+  const top = Math.max(...peaks);
+  return {ticks, said, top, peaks: top ? peaks.map(p => Math.round(p / top * 1000) / 1000) : null};
+}
+// A page whose recorder is played by the test: the share is granted, the
+// recorder is asked, and its tick waits for the test
+async function goldPage(kind, {rate = 1.5} = {}) {
+  const {context, page} = await newPage(browser);
+  const posts = watchPosts(page);
+  await openVideo(page);
+  await page.evaluate(r => __fakeYT[0].setPlaybackRate(r), rate);
+  await until(async () => (await childState(page)).rate === rate, 'the speed is set');
+  await openTimings(page);
+  const g = goldRun(kind), dur = await page.evaluate(() => __fakeYT[0].getDuration());
+  await page.evaluate(({levels, clocks}) => {
+    const v = window.__virt;
+    v.levels = levels;
+    v.clocks = clocks.map(c => c === null ? NaN : c === 'inf' ? Infinity : c);
+    v.on = true;
+    __fakeYT[0].getCurrentTime = () => v.clocks[v.k];
+  }, g);
+  await page.click('[data-x="wave"]');
+  await until(() => page.evaluate(() => __virt.timers.length === 1), 'the recorder is listening (its tick is held)', 30000);
+  return {context, page, posts, g, dur, oracle: waveOracle(g, dur)};
+}
+{
+  console.log('   the numbers it posts, tick by tick, against the spec (a stall, a seek back, readings that are not times)');
+  const {context, page, posts, g, dur, oracle} = await goldPage('full');
+  assert(oracle.top > 0 && oracle.ticks > 1700 && oracle.ticks < GOLD_TICKS, `the made-up recording is played to its end: ${oracle.ticks} ticks, loudest ${oracle.top}`);
+  const r = await page.evaluate(() => __virt.run(2100));
+  eq(r.ticks, oracle.ticks, 'it ended on the same tick as the spec ends it (0.3 s before the end)');
+  eq(r.said, oracle.said, `the sheet's percentages went ${oracle.said.length} times, as the spec says (whole percents of the clock's place in the video)`);
+  const done = await tlSettled(page, 'the drawn sound is kept', 30000);
+  assert(!done.bad, 'the sheet says: ' + done.text);
+  eq(posts.length, 1, 'one waveform was posted');
+  const same = JSON.stringify(posts[0].peaks) === JSON.stringify(oracle.peaks);
+  assert(same, 'every one of the ' + oracle.peaks.length + ' numbers posted is the number the spec gives' +
+         (same ? '' : ': first difference at ' + oracle.peaks.findIndex((p, i) => p !== posts[0].peaks[i])));
+  assert(posts[0].rate === 20 && posts[0].video === YT && posts[0].peaks.length === Math.ceil(dur * 20) + 1, 'at 20 a second, for this video, one number more than the seconds say');
+  // THE NUMBERS THE OLD RECORDER POSTED for these made-up ticks, taken when
+  // the recorder was still in player.js, as a checksum of the body: the
+  // refactor into youtube/lib/tabcapture.js, and the second consumer added
+  // to it, must post the very same bytes
+  const GOLDEN = '9a0057ddfe4d49d0c0b5b0f5e87dbd57e75fd0b463faabd9b669b48ae7c7beb8';
+  const sum = await sha256(JSON.stringify({video: YT, rate: 20, peaks: oracle.peaks}));
+  console.log(`     raw: golden posted body sha256 ${sum} (${oracle.peaks.length} numbers, ${oracle.ticks} ticks)`);
+  eq(sum, GOLDEN, 'the spec\'s numbers are the numbers the recorder posted before it was moved, byte for byte');
+  assert(JSON.stringify(posts[0]) === JSON.stringify({video: YT, rate: 20, peaks: oracle.peaks}), 'and the body posted is exactly that, key order and all');
+  const kept = await readJson(wavePath());
+  assert(kept.rate === 20 && JSON.stringify(kept.peaks) === JSON.stringify(oracle.peaks), 'and the file on disk holds them');
+  const childNow = await childState(page);
+  assert(childNow.paused && childNow.rate === 1.5, 'the video is paused, its speed given back: ' + JSON.stringify(childNow));
+  eq(await page.evaluate(() => [__asked.length, __gum]), [1, 0], 'one share, and the microphone never asked');
+  await context.close();
+  await Deno.remove(wavePath());
+}
+{
+  console.log('   a clock that stops for good ends the recording after ten seconds of it, and what was heard is kept');
+  const {context, page, posts, oracle} = await goldPage('frozen');
+  const r = await page.evaluate(() => __virt.run(2100));
+  eq(r.ticks, oracle.ticks, `ended by the stalled clock on tick ${oracle.ticks} (the clock stood still for 400 ticks, 10 s), as the spec ends it`);
+  assert(oracle.ticks > 590 && oracle.ticks < 620, 'that is 200 ticks of play and a little over 400 of standing still');
+  const done = await tlSettled(page, 'the partial sound is kept', 30000);
+  assert(!done.bad, 'it ends as a success, not an error: ' + done.text);
+  assert(JSON.stringify(posts[0].peaks) === JSON.stringify(oracle.peaks), 'and posts the partial picture, number for number');
+  await context.close();
+  await Deno.remove(wavePath());
+}
+{
+  console.log('   nothing heard: refused in words, and nothing posted');
+  const {context, page, posts} = await goldPage('silent');
+  await page.evaluate(() => __virt.run(2100));
+  const done = await tlSettled(page, 'the silence is said', 30000);
+  eq(done, {text: 'nothing was heard — the tab was shared without its sound, or the video is muted', bad: true}, 'a whole video of silence says so');
+  eq(posts.length, 0, 'and nothing was posted');
+  eq(await exists(wavePath()), false, 'nor kept');
+  await context.close();
+}
+{
+  console.log('   the person stops sharing while it draws');
+  const {context, page, posts} = await goldPage('full');
+  await page.evaluate(() => __virt.run(300));
+  await page.evaluate(() => __streams[0].getAudioTracks()[0].dispatchEvent(new Event('ended')));
+  const done = await tlSettled(page, 'the stop is said', 30000);
+  eq(done, {text: 'the tab stopped being shared while the sound was being drawn', bad: true}, 'the sheet says the share stopped');
+  eq(posts.length, 0, 'and nothing was posted');
+  eq(await page.evaluate(() => __virt.timers.length), 0, 'the tick is stopped');
+  const after = await childState(page);
+  assert(after.paused && after.rate === 1.5, 'the video is paused and its speed given back: ' + JSON.stringify(after));
+  await context.close();
 }
 
 assert(errors.length === 0, 'no page error and no failed request: ' + JSON.stringify(errors));
