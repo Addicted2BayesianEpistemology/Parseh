@@ -713,7 +713,8 @@ async function partNav() {
   let r = await follow('/studio/doc/' + slow);
   assert(!r.offline && r.title.startsWith('Slow to make') && r.workerAnswered === true && r.ms >= 5900 && r.ms < 8500,
          `a computer alive and six seconds slow: the page opens, after ${r.ms} ms, answered by the worker -- ${said(r)}`);
-  eq(r.moves.length, 1, 'the page moved once, and never through the offline page: ' + said(r.moves));
+  assert(r.moves.length === 1 && !r.offline && r.moves[0].startsWith('/studio/doc/slow-to-make'),
+         'the page moved once, straight to the document, and never through the offline page: ' + said(r.moves));
   eq(await asked(slow), 1, 'and the computer was asked for the page once: the worker waited for its own ask');
   await Deno.remove(WORK + '/page-delay');
 

@@ -524,13 +524,15 @@ as your computer is answering** the page you are on, up to half a minute, and
 the page you are on stays as it is while it comes; nothing says *cannot be
 reached* about a computer that is only slow. A computer that answers nothing
 — asleep, or off the network — costs about four seconds, not half a minute,
-and one Parseh has already said is away costs two and a half. Where there is
-no Parseh page for the app to ask, it cannot tell slow from gone and says
-*cannot be reached* after two and a half seconds: a link typed in a new tab
-or opened from another app, and **Try again** on that page itself (a page
-that takes longer to make is not opened from there — **Go back** and follow
-the link again from the page you were on). A tab behind another asks
-nothing either, so keep one Parseh tab in sight.
+and one Parseh has already said is away costs two and a half. A link opened
+where no Parseh page is open at all — typed in a new tab, or opened from
+another app — has nobody to ask, cannot tell slow from gone, and says
+*cannot be reached* after two and a half seconds. Pages that are open but
+cannot answer are asked and stay silent, so they cost the four seconds: a
+tab behind another, and the *cannot be reached* page itself, which is where
+**Try again** is pressed (a page that takes longer to make is not opened from
+there — **Go back** and follow the link again from the page you were on).
+Keep one Parseh tab in sight.
 
 The mobile hub's **As an app** door opens the page that installs it. Its top
 line says where the phone stands, and it has two steps:

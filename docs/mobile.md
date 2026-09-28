@@ -1454,11 +1454,12 @@ cannot be reached" page for them.**
   that was there before, and the button reads "Trying…" while it waits.
   *Go back* is a button of its own for a page the person came from
   (`history.length > 1`, never inside a frame).  Neither makes a page a
-  computer is slow to begin arrive: *Try again* is a link with no Parseh
-  page open to ask (below, *At the deadline the page is asked*), so it waits
-  the deadline and one question — about four seconds — and is the offline
-  page again; *Go back*, and the link followed again from the page the
-  person was on, is what waits for the computer.
+  computer is slow to begin arrive: *Try again* is made from a page that cannot
+  answer the worker's question (this one has no poll of its own, by design:
+  below, *At the deadline the page is asked*), so it waits the deadline and
+  one question — about four seconds — and is the offline page again; *Go
+  back*, and the link followed again from the page the person was on, is what
+  waits for the computer.
 * **At the deadline the page is asked** (the owner's decision of
   2026-09-28, TO-DO §2.28, which overturns the rule of 2026-09-23 in this
   one respect). A navigation to a page nothing kept used to be given
