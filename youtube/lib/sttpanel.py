@@ -148,7 +148,7 @@ def _marks(marks, rate):
             continue
         try:
             f, v = float(f), float(v)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):      # a 400-digit integer is one
             continue
         if not (math.isfinite(f) and math.isfinite(v)) or f < 0 or not 0 <= v <= MAX_VIDEO_SECONDS:
             continue

@@ -59,7 +59,7 @@ def clean(rate, peaks):
         raise ValueError("that waveform is too fine to keep")
     try:
         rate = float(rate)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):          # a 400-digit integer is one
         raise ValueError("a waveform says how many numbers a second it has")
     if not 1 <= rate <= 200:
         raise ValueError("a waveform carries between 1 and 200 numbers a second")
@@ -67,7 +67,7 @@ def clean(rate, peaks):
     for v in peaks:
         try:
             f = float(v)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             f = 0.0
         out.append(round(min(1.0, max(0.0, f)), 3))
     return rate, out

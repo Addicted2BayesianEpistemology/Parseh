@@ -851,6 +851,61 @@ class Served(unittest.TestCase):
                 self.assertEqual((status, got.get("code")), (409, "in-use"), key)
                 self.assertIn("being used", got["error"])
 
+    def test_a_part_is_not_removed_under_a_capture_that_is_still_being_recorded(self):
+        # THE WORKER'S HOLD BEGINS AFTER THE LAST PIECE, and a capture lasts as long as the
+        # video plays: the job itself holds its part from its start (lib/sttjobs.py), and a
+        # device let in that presses Remove meanwhile is told why, and loses nothing.  This is
+        # the real getstt (its own `using` and `remove`) under the real server; only "the
+        # program and the model are there" is said by the test.
+        import getstt
+        import sttjobs
+        import ytpages
+        stt = Path(getstt.STT_DIR)
+        for part in ("runtime/1-cp312", "models/large-v3-turbo", "models/large-v3"):
+            (stt / part).mkdir(parents=True, exist_ok=True)
+            (stt / part / "file").write_bytes(b"x")
+        keep = [patch.object(getstt, "runtime_ready", lambda: True),
+                patch.object(getstt, "model_ready", lambda key: True),
+                patch.object(getstt, "TMP_DIR", str(stt / "tmp")),
+                patch.object(ytpages, "VIDEOS", str(self.tmp / "videos"))] + self.as_phone()
+        for p in keep:
+            p.start()
+        job = None
+        try:
+            with self.speech_ok(), self.no_card():
+                job = sttjobs.start({"kind": "youtube", "id": "dQw4w9WgXcQ"}, "fa",
+                                    "large-v3-turbo", "cpu")["job"]
+                sttjobs.audio(job, 0, b"\0\0" * 16000, False)
+                for key in ("large-v3-turbo", "runtime"):
+                    status, _, got = self.ask("POST", "/lookup/api/dropspeech", {"key": key})
+                    self.assertEqual((status, got.get("code")), (409, "in-use"), key)
+                    self.assertIn("being used", got["error"])
+                self.assertTrue((stt / "models" / "large-v3-turbo" / "file").exists())
+                self.assertTrue((stt / "runtime" / "1-cp312" / "file").exists())
+                # the page's own question says the same: something is using speech to text
+                status, _, got = self.ask("POST", "/lookup/api/speech", {})
+                self.assertTrue(got["busy"], "a recording is a transcription that is under way")
+                # the model it does not use may go
+                status, _, got = self.ask("POST", "/lookup/api/dropspeech", {"key": "large-v3"})
+                self.assertEqual((status, got.get("ok")), (200, True), got)
+                self.assertFalse((stt / "models" / "large-v3").exists())
+                # and once it is over, the removal goes through
+                sttjobs.cancel(job)
+                status, _, got = self.ask("POST", "/lookup/api/speech", {})
+                self.assertFalse(got["busy"])
+                for key in ("large-v3-turbo", "runtime"):
+                    status, _, got = self.ask("POST", "/lookup/api/dropspeech", {"key": key})
+                    self.assertEqual((status, got.get("ok")), (200, True), (key, got))
+                self.assertFalse((stt / "models" / "large-v3-turbo").exists())
+                self.assertFalse((stt / "runtime").exists())
+        finally:
+            if job:
+                sttjobs.cancel(job)
+            sttjobs.JOBS.clear()
+            sttjobs.TOMBS.clear()
+            for p in reversed(keep):
+                p.stop()
+
     def test_stopping_everything_empties_the_queue(self):
         import download
         plan = download.plan(download=1000, measured=True, kept=500)

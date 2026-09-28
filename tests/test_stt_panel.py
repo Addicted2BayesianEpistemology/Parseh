@@ -220,7 +220,8 @@ class Remap(unittest.TestCase):
         good = [[16000 * k, k - 0.4] for k in range(1, 20)]
         hostile = [None, "x", 5, [1], [1, 2, 3], ["a", 2], [1, "b"], [True, 1], [1, False],
                    [float("nan"), 1], [1, float("inf")], [-5, 1], [16000, -1],
-                   [16000, 10 ** 9], {"a": 1}, [[1, 2]], [16000 * 3, 2.6]]
+                   [16000, 10 ** 9], {"a": 1}, [[1, 2]], [16000 * 3, 2.6],
+                   [10 ** 400, 1], [1, 10 ** 400]]        # what no float can hold
         rows = segs((5, 6, " a"))
         clean = sttpanel.remap(rows, good)
         self.assertEqual(sttpanel.remap(rows, good + hostile), clean)

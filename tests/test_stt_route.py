@@ -20,7 +20,8 @@ did:
   * a page on another site cannot start one;
   * a server stopped (SIGTERM) or killed outright (SIGKILL) leaves no worker.
 
-Any device let in may start a job: the requests here carry no device at all.
+Any device let in may start a job: the requests of `Route` carry no device at all (they are this
+computer's own), and `AnotherDevice` sends the same ones as a device let in over the Wi-Fi.
 """
 import http.client
 import json
@@ -59,6 +60,12 @@ prefs.STORE = os.path.join(work, "config", "prefs.json")
 network.STORE = os.path.join(work, "config", "network.json")
 offline.DIGESTS = os.path.join(work, "config", "digests.json")
 offline.WHERES = os.path.join(work, "config", "wheres.json")
+if os.environ.get("STT_ROUTE_DEVICE") == "lan":
+    # every request of this child is another device's, let in over the Wi-Fi: judged the Wi-Fi's,
+    # the door open (what tests/test_settings_risk.py's as_phone() does for the Settings routes)
+    network.where = lambda ip, doc=None: network.LAN
+    network.may_connect = lambda ip, doc=None: True
+    network.let_in = lambda *a, **k: True
 sys.argv = ["serve.py", "--http", "--local", sys.argv[1]]
 runpy.run_path("serve.py", run_name="__main__")
 """
@@ -81,7 +88,7 @@ def alive(pid):
 class Server:
     """serve.py in a child process, with its own working folder `work`."""
 
-    def __init__(self):
+    def __init__(self, device=""):
         self._td = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))
         self.work = self._td.name
         self.fake_root = os.path.join(self.work, "fake")
@@ -91,7 +98,8 @@ class Server:
         self.log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False,
                                                dir=os.environ.get("TMPDIR"))
         stt_fakes.configure(self.fake_root)
-        env = dict(os.environ, PARSEH_TEST_ROOT=ROOT, STT_ROUTE_WORK=self.work)
+        env = dict(os.environ, PARSEH_TEST_ROOT=ROOT, STT_ROUTE_WORK=self.work,
+                   STT_ROUTE_DEVICE=device)
         self.proc = subprocess.Popen([sys.executable, "-u", "-c", BOOT, str(self.port)],
                                      cwd=ROOT, env=env, stdout=self.log, stderr=subprocess.STDOUT)
         deadline = time.time() + 90
@@ -543,6 +551,52 @@ class Route(unittest.TestCase):
         self.assertEqual((code, out["code"]), (409, "no-model"))
         code, out = s.start_film(processing="cuda", model="large-v3")
         self.assertEqual((code, out["code"]), (409, "gpu-unavailable"))
+
+
+class AnotherDevice(unittest.TestCase):
+    """ANY DEVICE THAT HAS BEEN LET IN MAY START, FEED, ASK AFTER AND CANCEL A JOB (the owner: a
+    phone, a tablet, another computer): there is no device gate on these routes.  The server here
+    judges every request to be another device's, and a computer-only route proves it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.s = Server(device="lan")
+        cls.addClassCleanup(cls.s.stop)
+
+    def setUp(self):
+        self.s.fake(segments=PERSIAN)
+        stt_fakes.configure(self.s.fake_root, runtime=True, models=list(stt_fakes.MODELS),
+                            cuda_ready=False)
+        open(os.path.join(self.s.fake_root, "fake.log"), "w").close()
+
+    def test_the_server_really_takes_these_requests_for_another_devices(self):
+        # what only this computer may do is refused: so the requests below are not this computer's
+        code, body = self.s.ask("POST", "/settings/api/network", b'{"lan": true}',
+                                {"Content-Type": "application/json"})
+        self.assertEqual(code, 403, body)
+
+    def test_another_device_may_start_feed_ask_after_and_cancel_a_job(self):
+        s = self.s
+        # a film: named by a path on the computer, whoever names it
+        code, got = s.start_film()
+        self.assertEqual((code, got.get("state")), (200, "queued"), got)
+        fin = s.wait(got["job"], ("done", "failed"))
+        self.assertEqual(fin["state"], "done", fin)
+        code, res = s.post("result", {"job": got["job"]})
+        self.assertEqual((code, res["captions"]), (200, 2), res)
+        # a recording: started, fed in pieces, marked, asked after, cancelled
+        code, got = s.start_yt(duration=10)
+        self.assertEqual((code, got.get("state")), (200, "awaiting-audio"), got)
+        job = got["job"]
+        code, r = s.audio(job, 0, stt_fakes.pcm(2))
+        self.assertEqual((code, r.get("have")), (200, 32000), r)
+        self.assertEqual(s.post("marks", {"job": job, "marks": [[16000, 1.0]]})[0], 200)
+        self.assertEqual(s.post("wave", {"job": job, "rate": 20, "peaks": [0.5, 1.0]})[0], 200)
+        code, st = s.status(job)
+        self.assertEqual((code, st["state"]), (200, "receiving"), st)
+        self.assertEqual(s.post("cancel", {"job": job})[0], 200)
+        code, st = s.status(job)
+        self.assertEqual((code, st["state"]), (200, "cancelled"), st)
 
 
 class Stopped(unittest.TestCase):
