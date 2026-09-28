@@ -7,18 +7,21 @@
 //      both-random card shows either side first, `.ex-card-front` stays the
 //      side shown, it turns and turns back, Enlarge shows the same side
 //      first; forward, reverse and both-repeat never move; a both-repeat
-//      card has its note under it, outside its box, and a click on the note
-//      does not turn the card
+//      card has its note in the exercise's head, right after FLASHCARD and
+//      beside it, off the card, grey and not magenta, and a click on the
+//      note does not turn the card
 //   b) the real draw: real page loads count both outcomes, thousands of
 //      binds come out near half each, and a second bind never draws again
-//   c) an RTL (fa) and two CJK (ja, zh) cards
-//   d) the editor's preview (both sides, nothing drawn, the note), the
-//      exercise form's "Which side appears first" with all four values,
-//      `directions` narrowing it, the form's own preview, and the source it
-//      saves
-//   e) a deck's cram page and study page draw the side each time a card is shown
-//   f) the document exported as one HTML file, and a deck exported as one,
-//      opened as files: the note, the draw, the turn, no network
+//   c) an RTL (fa) and two CJK (ja, zh) cards; the fa note beside FLASHCARD
+//      at 1280 px and on a line of its own under it on a phone
+//   d) the editor's preview (both sides, nothing drawn, the note in the
+//      head), the exercise form's "Which side appears first" with all four
+//      values, `directions` narrowing it, the form's own preview, and the
+//      source it saves
+//   e) a deck's cram page and study page draw the side each time a card is
+//      shown; a both-repeat card put into a deck says nothing of it there
+//   f) the document exported as one HTML file, and decks exported as one,
+//      opened as files: no note, the draw, the turn, no network
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/flashcard_direction.mjs
 //   SHOTS=<dir> saves screenshots
 import {chromium} from 'npm:playwright-core@1.52.0';
@@ -83,12 +86,23 @@ const study = (await (await send('POST', '/exercises/api/decks', JSON.stringify(
     markdown: ':::exercise flashcard\ncard-type: vocab\ntarget: [wound]{tl}\nmeaning: turned a key\ndirection: both-random\n:::'}))).json();
   if (!r.ok) throw Error(JSON.stringify(r));
 }
+// a both-repeat card put into a deck: two cards, asked both ways, and no note
+const repeat = (await (await send('POST', '/exercises/api/decks', JSON.stringify({name: 'Repeat deck', lang: 'en'}))).json()).deck;
+const repeatIds = [];
+{
+  const r = await (await send('POST', `/exercises/api/decks/${repeat.path}/items`, JSON.stringify({
+    markdown: ':::exercise flashcard\ncard-type: vocab\ntarget: [clock]{tl}\nmeaning: a thing that tells the time\ndirection: both-repeat\n:::'}))).json();
+  if (!r.ok || r.items.length !== 2) throw Error(JSON.stringify(r));
+  repeatIds.push(...r.items.map(i => i.id));
+}
 // the exports are made once, as files: no server is needed to open them
-const exportEn = `${TMP}/export-en.html`, exportDeck = `${TMP}/export-deck.html`;
+const exportEn = `${TMP}/export-en.html`, exportDeck = `${TMP}/export-deck.html`, exportRepeat = `${TMP}/export-repeat.html`;
 await Deno.writeFile(exportEn, new Uint8Array(await (await send('GET', `/download/${ids.en}/html`)).arrayBuffer()));
-const rd = await send('POST', `/exercises/api/decks/${deck.path}/export-html`, JSON.stringify({ids: itemIds}));
-if (rd.status !== 200) throw Error('the deck export answered ' + rd.status);
-await Deno.writeFile(exportDeck, new Uint8Array(await rd.arrayBuffer()));
+for (const [d, picked, file] of [[deck, itemIds, exportDeck], [repeat, repeatIds, exportRepeat]]) {
+  const rd = await send('POST', `/exercises/api/decks/${d.path}/export-html`, JSON.stringify({ids: picked}));
+  if (rd.status !== 200) throw Error('the deck export answered ' + rd.status);
+  await Deno.writeFile(file, new Uint8Array(await rd.arrayBuffer()));
+}
 
 const browser = await chromium.launch({executablePath: Deno.env.get('CHROME_BIN') || undefined, headless: true});
 const forced = v => `Math.random = () => ${v};`;
@@ -98,6 +112,29 @@ const sides = card => card.evaluate(c => {
           back: b.textContent, backHidden: b.hidden, order: [...c.children].map(x => x.className)};
 });
 const shot = (page, name, opts = {}) => SHOTS ? page.screenshot({path: `${SHOTS}/${name}.png`, ...opts}) : null;
+// where the page's first both-repeat note is and how it is drawn: in the
+// exercise's head after its kicker, off the card, and in whose style
+const noteHead = () => {
+  const n = document.querySelector('.ex-card-note'), h = n.parentElement, k = h.querySelector(':scope > .ex-kicker');
+  const e = n.closest('.exercise'), c = e.querySelector('.ex-flashcard'), hint = c.querySelector('.ex-card-hint');
+  const N = n.getBoundingClientRect(), K = k.getBoundingClientRect(), C = c.getBoundingClientRect(), E = e.getBoundingClientRect();
+  const ns = getComputedStyle(n), ks = getComputedStyle(k), hs = getComputedStyle(hint);
+  const kids = [...h.children].filter(x => x.offsetParent !== null).map(x => x.getBoundingClientRect());
+  let clear = kids.every(r => r.left >= E.left && r.right <= E.right);
+  for (let i = 0; i < kids.length; i++) for (let j = i + 1; j < kids.length; j++) {
+    const a = kids[i], b = kids[j];
+    if (a.left < b.right - .5 && b.left < a.right - .5 && a.top < b.bottom - .5 && b.top < a.bottom - .5) clear = false;
+  }
+  return {inHead: h.classList.contains('ex-head') && h.parentElement === e, afterKicker: n.previousElementSibling === k,
+          inCard: c.contains(n), aboveCard: N.bottom <= C.top, clear,
+          beside: N.left >= K.right && N.top < K.bottom && N.bottom > K.top,
+          below: N.top >= K.bottom && Math.abs(N.left - K.left) < 1,
+          oneLine: N.height < parseFloat(ns.lineHeight) * 1.5,
+          colour: ns.color, kicker: ks.color, hint: hs.color, family: ns.fontFamily, hintFamily: hs.fontFamily,
+          transform: ns.textTransform, kickerTransform: ks.textTransform,
+          small: parseFloat(ns.fontSize) < parseFloat(getComputedStyle(e).fontSize) * .8,
+          dir: n.getAttribute('dir'), direction: ns.direction, text: n.textContent};
+};
 try {
   /* ---------------- a) a document page, both outcomes forced ---------------- */
   console.log('a) a document page, Math.random forced');
@@ -133,14 +170,12 @@ try {
     assert(await note.count() === 1 && (await note.textContent()) === NOTE, 'one note, in the owner\'s words');
     await note.click();
     assert(!(await cards.nth(0).evaluate(c => c.classList.contains('flipped'))), 'a click on the note does not turn the card');
-    const g = await page.evaluate(() => {
-      const n = document.querySelector('.ex-card-note'), c = n.previousElementSibling, e = n.closest('.exercise');
-      const N = n.getBoundingClientRect(), C = c.getBoundingClientRect(), E = e.getBoundingClientRect();
-      return {gap: N.top - C.bottom, inside: N.bottom <= E.bottom, centred: Math.abs((N.left + N.right) / 2 - (C.left + C.right) / 2) < 3,
-              card: c.classList.contains('ex-flashcard'), inCard: c.contains(n)};
-    });
-    assert(g.card && !g.inCard && g.gap >= 0 && g.gap < 24 && g.inside && g.centred,
-           'the note is under the card, outside its box, centred: ' + JSON.stringify(g));
+    const g = await page.evaluate(noteHead);
+    assert(g.inHead && g.afterKicker && !g.inCard && g.aboveCard && g.beside && g.oneLine && g.clear,
+           'the note is in the head, right after FLASHCARD and beside it on one line, above the card and off it: ' + JSON.stringify(g));
+    assert(g.colour !== g.kicker && g.colour === g.hint && g.family === g.hintFamily && g.transform === 'none'
+           && g.kickerTransform === 'uppercase' && g.small,
+           'in its own small grey sans, the card hint\'s, not the magenta capitals of FLASHCARD: ' + JSON.stringify(g));
     await page.locator('#sheet .exercise:has(.ex-flashcard)').nth(1).locator('.ex-card-zoom').click();
     await page.waitForSelector('.ex-zoom-stage .ex-flashcard');
     await sleep(200);
@@ -209,16 +244,22 @@ try {
       await ctx.close();
     }
   }
-  {
-    const ctx = await browser.newContext({viewport: {width: 1280, height: 900}});
+  for (const [w, mode] of [[1280, 'browser'], [390, 'mobile']]) {
+    const ctx = await browser.newContext({viewport: {width: w, height: 900}});
+    await ctx.addInitScript(m => { try { localStorage.setItem('parseh_mode', m); } catch (e) { /* none */ } }, mode);
     const page = await ctx.newPage();
     await page.goto(`${B}/doc/${ids.fa}`);
     await page.waitForSelector('#sheet .ex-card-note');
-    const rtl = await page.evaluate(() => {
-      const n = document.querySelector('.ex-card-note');
-      return {dir: n.getAttribute('dir'), css: getComputedStyle(n).direction, text: n.textContent};
-    });
-    assert(rtl.dir === 'ltr' && rtl.css === 'ltr' && rtl.text === NOTE, 'under a Persian card the note is still its own left-to-right line');
+    await page.evaluate(() => document.fonts.ready);
+    const g = await page.evaluate(noteHead);
+    assert(g.dir === 'ltr' && g.direction === 'ltr' && g.text === NOTE && g.inHead && g.afterKicker && g.aboveCard && g.clear
+           && (w === 1280 ? g.beside : g.below && g.oneLine),
+           `a Persian card's note at ${w} px (${mode}) is its own left-to-right line in the head, `
+           + (w === 1280 ? 'beside FLASHCARD' : 'under FLASHCARD and the buttons') + ': ' + JSON.stringify(g));
+    if (w === 390) {
+      assert(await page.evaluate(() => document.documentElement.getAttribute('data-mode')) === 'mobile', 'the phone layout');
+      await shot(page, 'note-fa-mobile', {fullPage: true});
+    }
     await ctx.close();
   }
 
@@ -236,7 +277,12 @@ try {
     assert(t1.cls.includes('flipped') && t1.front === 'wound' && !t1.frontHidden && !t1.backHidden,
            'the preview shows both sides of a both-random card, front first, and draws nothing');
     assert((await sides(cards.nth(0))).cls.includes('flipped') && await page.locator('#sheet .ex-card-note').count() === 1,
-           'and the note under a both-repeat card');
+           'and the note of a both-repeat card');
+    const ge = await page.evaluate(noteHead);
+    assert(ge.text === NOTE && ge.inHead && ge.afterKicker && !ge.inCard && ge.aboveCard && ge.clear && (ge.beside || ge.below)
+           && ge.colour === ge.hint && ge.colour !== ge.kicker,
+           'in the preview it is in the head after FLASHCARD, grey, clear of the buttons: ' + JSON.stringify(ge));
+    await shot(page, 'edit-note');
     await page.locator('#sheet .exercise').nth(1).locator('.ex-edit').click();
     await page.waitForSelector('.ex-form-modal');
     const select = page.locator('.ex-form-modal label:has(> span:text-is("Which side appears first")) select');
@@ -248,7 +294,7 @@ try {
     await shot(page, 'form-direction');
     await select.selectOption('both-repeat');
     await sleep(700);
-    const pv = await page.evaluate(() => ({note: !!document.querySelector('.ex-form-preview .ex-card-note'),
+    const pv = await page.evaluate(() => ({note: !!document.querySelector('.ex-form-preview .ex-head > .ex-kicker + .ex-card-note'),
                                            flipped: !!document.querySelector('.ex-form-preview .ex-flashcard.flipped')}));
     assert(pv.note && pv.flipped, 'the form\'s own preview shows the note once Both (repeat) is chosen');
     await page.click('.ex-form-modal [data-x="save"]');
@@ -306,6 +352,23 @@ try {
     await ctx.close();
   }
 
+  {
+    for (const id of repeatIds) {
+      const r = await (await send('GET', `/exercises/api/decks/${repeat.path}/items/${id}`)).json();
+      assert(r.ok && r.html.includes('ex-flashcard') && !r.html.includes('ex-card-note') && !r.html.includes(NOTE),
+             `a deck's own drawing of a both-repeat card's ${r.item.markdown.match(/direction: (\S+)/)[1]} half has no note`);
+    }
+    const ctx = await browser.newContext({viewport: {width: 1100, height: 800}});
+    const page = await ctx.newPage();
+    for (const [name, where] of [['cram', '/cram#all'], ['study', '/study']]) {
+      await page.goto(`${B}/exercises/deck/${repeat.path}${where}`);
+      await page.waitForSelector(`#${name}-stage .ex-flashcard`, {timeout: 8000});
+      assert(await page.locator('.ex-card-note').count() === 0 && !(await page.textContent('body')).includes(NOTE),
+             `the deck's ${name} page says nothing of a deck asking both sides`);
+    }
+    await ctx.close();
+  }
+
   for (const [v, want] of [[0.9, 'turned a key'], [0.1, 'wound']]) {
     const ctx = await browser.newContext({viewport: {width: 1100, height: 800}});
     await ctx.addInitScript(forced(v));
@@ -324,8 +387,12 @@ try {
   console.log('f) exported pages');
   {
     const html = await Deno.readTextFile(exportEn);
-    assert(html.includes('class="ex-card-note"') && html.includes('data-first="random"') && html.includes('function drawFirstSide'),
-           'the exported page carries the note, the marked card, and the draw in its own script');
+    assert(!html.includes('class="ex-card-note"') && !html.includes(NOTE) && html.includes('data-first="random"') && html.includes('function drawFirstSide'),
+           'the exported page carries no note, but the marked card and the draw in its own script');
+    for (const file of [exportDeck, exportRepeat]) {
+      const d = await Deno.readTextFile(file);
+      assert(!/class=\\*"ex-card-note/.test(d) && !d.includes(NOTE) && /class=\\*"ex-flashcard/.test(d), `the exported deck ${file.split('/').pop()} carries no note`);
+    }
     for (const [v, backFirst] of [[0.9, true], [0.1, false]]) {
       const ctx = await browser.newContext({viewport: {width: 1100, height: 900}});
       await ctx.addInitScript(forced(v));
@@ -341,9 +408,10 @@ try {
              `export, random ${v}: ${backFirst ? 'the back' : 'the front'} first`);
       assert((await sides(cards.nth(0))).front === 'clock' && (await sides(cards.nth(2))).front === 'a way in',
              'export: both-repeat front first, reverse back first');
-      assert(await page.locator('.ex-card-note').count() === 1 && (await page.locator('.ex-card-note').textContent()) === NOTE, 'export: the note');
-      await page.locator('.ex-card-note').click();
-      assert(!(await cards.nth(0).evaluate(c => c.classList.contains('flipped'))), 'export: the note turns nothing');
+      const head = await page.locator('.exercise').first().locator('.ex-head').evaluate(h => [...h.children].map(c => c.className));
+      assert(await page.locator('.ex-card-note').count() === 0 && !(await page.textContent('body')).includes(NOTE)
+             && head[0] === 'ex-kicker' && head[1] === 'ex-card-zoom',
+             'export: no note, on the both-repeat card or anywhere: ' + JSON.stringify(head));
       await cards.nth(1).click();
       const t2 = await sides(cards.nth(1));
       assert(t2.cls.includes('flipped') && t2.frontHidden && !t2.backHidden, 'export: the card turns');

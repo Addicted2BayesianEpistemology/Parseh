@@ -354,6 +354,16 @@ class Cleaning(unittest.TestCase):
         self.assertNotIn("data-latex", shown, "neither the caption as written, nor the LaTeX, nor the theme")
         self.assertNotIn("Water forms from *hydrogen*", page)
 
+    def test_a_both_repeat_card_does_not_say_a_deck_will_ask_both_sides(self):
+        md = ("---\ntitle: Both\ntarget: en\n---\n\n:::exercise flashcard\ncard-type: vocab\n"
+              "target: [clock]{tl}\nmeaning: a thing that tells the time\ndirection: both-repeat\n:::\n")
+        self.assertIn("ex-card-note", htmlgen.render_document(md)["html"])
+        _n, data = webexport.document_html("both-0a1b2c", {"title": "Both"}, md, lambda p: None)
+        page = data.decode("utf-8")
+        self.assertIn('class="ex-flashcard"', page)
+        self.assertNotIn("ex-card-note", body_of(page))
+        self.assertNotIn("both sides will be asked", page)
+
     def test_a_missing_file_is_a_placeholder_not_a_request(self):
         md = "---\ntitle: Gone\ntarget: it\n---\n\n![a cat](images/cat.png)\n"
         _n, data = webexport.document_html("gone-0a1b2c", {"title": "Gone"}, md, lambda p: None)

@@ -272,12 +272,17 @@ line `direction must be forward, reverse, both-random or both-repeat`.
   turning, the recordings that play when a side appears and **⤢ Enlarge**
   all follow the side that came first. The editor's preview shows both
   sides at once, so it draws nothing.
-- **Both (repeat).** The card is drawn front first, as `forward`, with a
-  small line of type just under it: *When exported to a deck, both sides
-  will be asked.* The line is beside the card and not on it, so it never
-  touches what the card says, and a click on it does not turn the card. It
-  is on the page, in the editor's preview and in an exported web page —
-  wherever the Markdown card is drawn — and not on paper and not in a deck.
+- **Both (repeat).** The card is drawn front first, as `forward`, and the
+  exercise's head says so in small grey type, right after the magenta
+  *FLASHCARD*: *When exported to a deck, both sides will be asked.* The
+  line is above the card and not on it, so it never touches what the card
+  says, and a click on it does not turn the card. Where the head is too
+  narrow to hold it beside *FLASHCARD* and the buttons — on a phone, in
+  the editor's preview — it has a line of its own under them. It is in the
+  studio's own drawings of the card: a document's page, on a computer or a
+  phone, the editor's preview and this guide. It is not in an [exported web
+  page](../studio/web-page.md), which has no deck to export to, nor on
+  paper, nor in a deck.
 
 ```parseh-example
 ---

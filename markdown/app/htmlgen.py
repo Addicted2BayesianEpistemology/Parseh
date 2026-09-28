@@ -1523,13 +1523,8 @@ def _render_exercise_flashcard(b, preview, ctx, cards=None):
         front, back = back, front
     # `both-random` is drawn where the card is shown (app.js drawFirstSide):
     # a side picked here would be frozen in an export, a study pack and the
-    # cached cram page.  `both-repeat` is asked from both sides in a deck,
-    # and says so beside the card, not in it, so that it cannot cross the
-    # card and a click on it cannot turn the card.
+    # cached cram page.  `both-repeat` says so in the head (_card_note).
     first = ' data-first="random"' if direction == "both-random" else ""
-    note = ('<p class="ex-card-note" dir="ltr">When exported to a deck, both '
-            'sides will be asked.</p>'
-            if direction == "both-repeat" and not ctx.get("in_deck") else "")
     # not a <button>: a side may hold a table, a link, a player -- none of
     # which may sit inside one.  app.js flips it on a click anywhere but
     # on such a control, and on Enter/Space when the card has the focus.
@@ -1537,12 +1532,23 @@ def _render_exercise_flashcard(b, preview, ctx, cards=None):
             'data-card-type="%s"%s aria-label="Flip flashcard" aria-pressed="%s">'
             '<div class="ex-card-front">%s</div>'
             '<div class="ex-card-back"%s>%s</div>'
-            '<small class="ex-card-hint">%s</small></div>%s'
+            '<small class="ex-card-hint">%s</small></div>'
             % (" flipped" if preview else "", esc(kind), first,
                "true" if preview else "false", front,
                "" if preview else " hidden", back,
-               "front and back shown in preview" if preview else "tap to reveal",
-               note))
+               "front and back shown in preview" if preview else "tap to reveal"))
+
+
+def _card_note(b, ctx):
+    """What a `both-repeat` card says beside its kicker: that a deck asks
+    both sides.  Only where the studio draws it: not in a deck, which asks
+    them, nor in an exported page, which has no deck to go to."""
+    if (b["primitive"] != "flashcard" or b["errors"] or ctx.get("in_deck")
+            or ctx.get("export")
+            or (b["fields"].get("direction") or "").strip().lower() != "both-repeat"):
+        return ""
+    return ('<span class="ex-card-note" dir="ltr">When exported to a deck, both '
+            'sides will be asked.</span>')
 
 
 def exercise_drawn(b):
@@ -1638,8 +1644,8 @@ def _draw_exercise(b, ctx):
     drag = ('<button type="button" class="ex-drag-switch" hidden></button>'
             if b["primitive"] == "placement" and b["mode"] == "order"
             and not preview and not b["errors"] else "")
-    head = '<div class="ex-head"><span class="ex-kicker">%s</span>%s%s%s%s%s</div>' % (
-        esc(label), drag, translit, zoom, edit, to_deck)
+    head = '<div class="ex-head"><span class="ex-kicker">%s</span>%s%s%s%s%s%s</div>' % (
+        esc(label), _card_note(b, ctx), drag, translit, zoom, edit, to_deck)
     cards = None
     if b["primitive"] == "flashcard" and (b["fields"].get("card-type") or "").lower() == "jolly":
         # every note written on the card is known before anything on it (or
@@ -2146,7 +2152,7 @@ def _count_images(blocks, kinds=("image", "video")):
 
 def render_document(markdown, colophon=True, asset_base=None, docs=None,
                     editor_preview=False, deck_button=False, latex_preview=None,
-                    in_deck=False):
+                    in_deck=False, export=False):
     """markdown source -> dict with article html, toc html, meta, stats,
     the target code and the language record the page embeds.
 
@@ -2176,6 +2182,8 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
     `in_deck` is a deck's own drawing of an exercise: a card that a document
     says will be asked from both sides does not say so there, where it is
     already being asked so.
+    `export` is a page made to leave the studio (webexport): it does not
+    say so either, since nothing on it goes into a deck.
     """
     fm, blocks = mdparser.parse(markdown)
     L = set_target(fm.get("target"))
@@ -2189,7 +2197,7 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
            "scored": 0, "toc": [], "asset_base": asset_base,
            "editor_preview": bool(editor_preview), "latex_preview": latex_preview,
            "deck_button": bool(deck_button) and not editor_preview,
-           "in_deck": bool(in_deck)}
+           "in_deck": bool(in_deck), "export": bool(export)}
     title = _titleblock(fm)          # rendered first: it comes first in source
     if LATEX.get("draw_all"):
         # every drawing the page needs, made side by side before any is shown

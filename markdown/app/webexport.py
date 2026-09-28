@@ -871,7 +871,7 @@ def document_html(doc_id, meta, markdown, media):
     M = _Media(media)
     try:
         doc = htmlgen.render_document(markdown, colophon=False, asset_base=M.url,
-                                      docs=None, deck_button=False)
+                                      docs=None, deck_button=False, export=True)
         L = languages.get_or_default(doc["target"])
         article = clean(doc["html"], M)
         contents = _contents_html(doc["toc"])

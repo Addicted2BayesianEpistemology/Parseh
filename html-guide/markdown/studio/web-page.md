@@ -88,6 +88,10 @@ change it.
   no **+ Deck**, and none of the code behind them is in the file. The
   cloud's colours and transliterations change the open page and nothing
   else.
+- **No word about decks.** A flashcard set to [**Both
+  (repeat)**](../dialect-exercises/flashcards.md#which-side-comes-first)
+  does not say, as it does in the studio, that a deck will ask both sides:
+  nothing on the page goes into a deck.
 - **No links to your other documents.** A link to another document of the
   library (`[…](doc:Name)`) keeps its words and loses the link, and the
   other document's name goes with it: that document is not on the website.

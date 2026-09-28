@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Which side a flashcard shows first: forward, reverse, both-random and
 both-repeat.  The parser refuses anything else; HTML marks a random card for
-the page to draw and says beside a both-repeat card that a deck will ask both
-sides; paper prints every value but reverse front first and says nothing."""
+the page to draw and says in a both-repeat card's head, beside its kicker, that
+a deck will ask both sides (never in a deck nor in an exported page); paper
+prints every value but reverse front first and says nothing."""
 import re
 import sys
 import unittest
@@ -13,6 +14,7 @@ for folder in (ROOT / "markdown" / "exlex", ROOT / "markdown" / "app",
                ROOT / "lib", ROOT / "youtube" / "lib"):
     sys.path.insert(0, str(folder))
 
+import decks
 import htmlgen
 import mdparser
 import texgen
@@ -92,25 +94,35 @@ class FlashcardDirectionTests(unittest.TestCase):
         self.assertIn('class="ex-flashcard flipped"', preview)
         self.assertIn('data-first="random"', preview)
 
-    def test_both_repeat_says_so_beside_the_card_and_not_in_it(self):
+    def test_both_repeat_says_so_in_the_head_beside_the_kicker_and_not_on_the_card(self):
+        head = ('<div class="ex-head"><span class="ex-kicker">Flashcard</span>'
+                '<span class="ex-card-note" dir="ltr">%s</span><button type="button" class="ex-card-zoom"' % NOTE)
         for target in ("fa", "en", "ja", "zh"):
             for kind in ("vocab", "jolly"):
                 html = htmlgen.render_document(card("both-repeat", target, kind))["html"]
                 self.assertNotIn("data-first", html)
-                self.assertEqual(1, html.count('<p class="ex-card-note" dir="ltr">%s</p>' % NOTE))
-                # after the card's own closing tag, inside the exercise's body
-                card_html = html[html.index('<div class="ex-flashcard'):html.index('<p class="ex-card-note"')]
-                self.assertTrue(card_html.endswith("</small></div>"), card_html[-80:])
-                self.assertNotIn(NOTE, card_html)
-                self.assertRegex(html, r'</div><p class="ex-card-note" dir="ltr">[^<]*</p></div>')
+                self.assertEqual(1, html.count('class="ex-card-note"'))
+                self.assertIn(head, html)
+                self.assertNotIn(NOTE, html[html.index('<div class="ex-body"'):], "neither on the card nor under it")
                 self.assertNotIn(" hidden", self.first_side(html))
         # front first, as forward
         self.assertEqual(self.first_side(htmlgen.render_document(card("both-repeat", "en"))["html"]),
                          self.first_side(htmlgen.render_document(card("forward", "en"))["html"]))
-        # an editor's preview shows it too; a deck's own drawing does not
-        self.assertIn(NOTE, htmlgen.render_document(card("both-repeat"), editor_preview=True)["html"])
+        # an editor's preview shows it too, before its buttons
+        preview = htmlgen.render_document(card("both-repeat"), editor_preview=True)["html"]
+        self.assertRegex(preview, r'<span class="ex-kicker">Flashcard</span><span class="ex-card-note" dir="ltr">'
+                         + re.escape(NOTE) + r'</span><button type="button" class="ex-card-zoom"[^>]*>[^<]*</button>'
+                         r'<button type="button" class="ex-edit"')
+        self.assertIn("ex-card-note", htmlgen.render_document(card("both-repeat"), in_deck=False, export=False)["html"])
+        # a deck's own drawing and an exported page do not
         self.assertNotIn("ex-card-note", htmlgen.render_document(card("both-repeat"), in_deck=True)["html"])
-        self.assertIn("ex-card-note", htmlgen.render_document(card("both-repeat"), in_deck=False)["html"])
+        self.assertNotIn("ex-card-note", htmlgen.render_document(card("both-repeat"), export=True)["html"])
+        self.assertNotIn(NOTE, decks.render_item({"lang": "en"}, {"markdown": card("both-repeat", "en").split("---\n\n", 1)[1]},
+                                                 None))
+        # a card that needs attention says nothing
+        bad = card("both-repeat", "en", "jolly").replace("front-primary: front side\n", "")
+        self.assertTrue(block(bad)["errors"])
+        self.assertNotIn("ex-card-note", htmlgen.render_document(bad)["html"])
 
     def test_paper_prints_every_value_but_reverse_front_first_and_says_nothing(self):
         def body(value, target="en"):

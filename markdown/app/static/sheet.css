@@ -815,9 +815,26 @@ body[data-page="edit"] .ex-flashcard figure.img:hover img { outline: none; }
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .ex-flashcard > small { position: absolute; inset-inline-end: .7em; bottom: .55em; color: var(--graytx); font: .65em var(--sans); }
-/* what a `both-repeat` card says beside it: outside the card's box, so it
-   cannot cross what is written on the card and a click on it turns nothing */
-.ex-card-note { margin: -.4em 0 0; text-align: center; color: var(--graytx); font: .72em var(--sans); }
+/* what a `both-repeat` card says, in its head beside the kicker: off the
+   card, so a click on it turns nothing.  It takes the room the buttons
+   leave and wraps in it; where that room would hold less than half of it
+   (a phone, the editor's preview beside a transliteration switch) it has a
+   line of its own under the kicker and the buttons */
+.ex-head:has(> .ex-card-note) {
+  flex-wrap: wrap; justify-content: flex-end; row-gap: .25em;
+  container: ex-head / inline-size;
+}
+.ex-head:has(> .ex-card-note) > .ex-kicker { margin-right: auto; }
+.ex-card-note {
+  flex: 1 1 0%; min-width: 8em; color: var(--graytx); font: .72em/1.3 var(--sans);
+}
+.ex-card-note ~ * { flex-shrink: 0; }
+@container ex-head (max-width: 23em) {
+  .ex-card-note { order: 1; flex: 0 0 100%; min-width: 0; }
+}
+@container ex-head (max-width: 31em) {
+  .ex-head:has(> .ex-translit-switch) > .ex-card-note { order: 1; flex: 0 0 100%; min-width: 0; }
+}
 /* The card large, over the page (⤢ Enlarge): nearly the whole window, and in
    it the card exactly as it is on the page -- the stage is a sheet with the
    page's typography, .ex-zoom-scale carries the exercise's direction and
