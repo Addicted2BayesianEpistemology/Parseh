@@ -63,6 +63,10 @@ and [Browser and Mobile](https://addicted2bayesianepistemology.github.io/Parseh/
 
 ## License
 
+Copyright © 2026 Bruno Ursino, the author of Parseh —
+[GitHub](https://github.com/Addicted2BayesianEpistemology) ·
+[imbrunoursino.net](https://imbrunoursino.net/).
+
 Parseh is free software under the GNU General Public License, version 3
 or (at your option) any later version — `GPL-3.0-or-later`
 ([`LICENSE`](LICENSE)); every source file says so in its

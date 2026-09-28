@@ -49,6 +49,7 @@ LIB = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.dirname(LIB)
 if LIB not in sys.path:
     sys.path.insert(0, LIB)
+import author                                                  # noqa: E402
 import mobile                                                  # noqa: E402
 import network                                                 # noqa: E402
 
@@ -764,6 +765,15 @@ reaches %(name)s</a>, in the guide.</p>
                  extra_head='<script src="/lib/explain.js" defer></script>', script=script)
 
 
+def signed(main):
+    """`main` with the author's two links (lib/author.py) as a foot line
+    before its closing </main>, in the style every page of Settings gives its
+    own `.foot`.  The hub's alone: the other pages' foots say where their
+    things are kept."""
+    end = main.rindex("</main>")
+    return main[:end] + '<p class="foot">%s</p>\n' % author.links() + main[end:]
+
+
 def hub(reading_tags="", update_tags="", speech_tags=""):
     """/settings/ -- the section itself.  Each door says what is behind it
     rather than only naming it, and who may change it, in the words of the
@@ -819,7 +829,7 @@ def hub(reading_tags="", update_tags="", speech_tags=""):
               "speech_gate": gate(DOORS[4][3]), "speech_tags": speech_tags,
               "net_gate": gate(net),
               "where": esc(doors_said(network.settings())), "port": network.port()}
-    return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", main,
+    return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", signed(main),
                  style="\n.settings .doors { display: grid; gap: 1rem; }\n"
                        ".settings .doors .tags { align-items: center; }\n")
 

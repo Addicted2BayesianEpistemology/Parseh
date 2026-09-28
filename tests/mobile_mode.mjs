@@ -28,7 +28,8 @@
 //      screen, the switch at the top saying so; the doors it shows are noted
 //   b) Mobile, clicked: the mobile layout is the one on the screen and the
 //      browser one is not; everything on it that can be tapped is the home
-//      link, the switch, the theme, the chips, four doors, the guide and the app's --
+//      link, the switch, the theme, the chips, four doors, the guide and the app's,
+//      the licences and the author's two links (a0.4.1) --
 //      no stop button, no Anki, no clip tray, no dictionaries, no address --
 //      each door at least 48px high, inside the screen and reached by a tap
 //      on it, with its counts; the page never scrolls sideways, the chips
@@ -288,7 +289,10 @@ const MOBILE_CLICKABLE = page => page.evaluate(() => ['a:/', 'button:browser', '
   // rest (lib/explain.js); on a phone it is part of every bar
   ...([...document.querySelectorAll('.px-ask')].filter(e => e.getClientRects().length).length ? ['button:explain'] : []),
   ...[...document.querySelectorAll('.m-langs .chip')].map(c => 'button:' + c.getAttribute('data-pick')),
-  'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/', 'a:/m/install/', 'a:/licences/']);
+  'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/', 'a:/m/install/', 'a:/licences/',
+  // the author's two links (lib/author.py), the last line of the hub, the only
+  // ones that leave Parseh: tests/signature.mjs drives what they do
+  'a:https://github.com/Addicted2BayesianEpistemology', 'a:https://imbrunoursino.net/']);
 
 // the temporary toolbox: the tree hub_inbox.mjs boots, plus a note in every
 // language and the book library page
@@ -387,7 +391,7 @@ async function partHub() {
                                        && document.activeElement.closest('.m-bar') !== null),
              'the focus went with the click to the Mobile button now on the screen');
       eq(s.clickable, await MOBILE_CLICKABLE(page),
-         'all there is to tap: home, the switch, the theme, the chips, four doors, the guide, the app\'s and the licences');
+         'all there is to tap: home, the switch, the theme, the chips, four doors, the guide, the app\'s, the licences and the author\'s two links');
       for (const no of ['button:stop', 'a:/anki/sync/', 'a:/clips/', 'a:/lookup/', 'a:/settings/reading-help/'])
         assert(!s.clickable.includes(no), 'no ' + no + ' on the mobile hub');
       assert(!(await page.evaluate(() => [...document.querySelectorAll('.addr, .foot')].some(e => e.getClientRects().length))),
@@ -633,7 +637,9 @@ async function partHub() {
         const ground = el => { for (; el; el = el.parentElement) { const c = rgb(getComputedStyle(el).backgroundColor); if (c && c[3] > 0) return c; } return [255, 255, 255, 1]; };
         const out = [];
         const texts = document.querySelectorAll('.hub-mobile .m-dname, .hub-mobile .m-dwhat, .hub-mobile .m-dfa, .hub-mobile .tag, .hub-mobile .chip .native, ' +
-          '.hub-mobile .chip .n, .hub-mobile .chip[data-pick=all], .m-brand .fa, .m-brand .lat, .m-tagline, .m-bar .home, .m-bar button');
+          '.hub-mobile .chip .n, .hub-mobile .chip[data-pick=all], .m-brand .fa, .m-brand .lat, .m-tagline, .m-bar .home, .m-bar button, ' +
+          // the author's two links, under the version: --dim, since --faint is not AA (lib/mobile.css)
+          '.hub-mobile .m-by a');
         for (const el of texts) {
           if (!el.getClientRects().length) continue;
           const cs = getComputedStyle(el), size = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight, 10) >= 700;

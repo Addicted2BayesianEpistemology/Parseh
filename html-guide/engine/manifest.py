@@ -7,8 +7,11 @@ and nothing imported, so the Parseh server can ask what the guide depends on
 without loading the studio's renderer into its own process.
 """
 
-# the modules the engine imports, by their path in Parseh
+# the modules the engine imports, by their path in Parseh; lib/author.py is
+# the foot's two links (standard library only), so a guide exported with
+# `build.py --export` can still be compiled
 MODULE_FILES = ("lib/languages.py", "lib/languages.json", "lib/latexthemes.py",
+                "lib/author.py",
                 "markdown/exlex/mdparser.py", "markdown/exlex/texgen.py",
                 "markdown/app/htmlgen.py")
 # the licences the fonts travel with (lib/fonts/): copied into

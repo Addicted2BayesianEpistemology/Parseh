@@ -17,6 +17,11 @@ SPDX-License-Identifier: GPL-3.0-or-later
 It comes with no warranty. The source is the Parseh folder itself: the
 server runs from it as it is.
 
+The copyright is **Bruno Ursino's**, who made Parseh: *Copyright © 2026
+Bruno Ursino*, with links to his GitHub account and his website, in the
+`README.md`'s License section and at the head of the Licences page. The
+text of `LICENSE` is the Free Software Foundation's, unchanged.
+
 In Parseh, the foot of the hub leads to **Licences** (`/licences/`), in
 the browser interface and in the mobile one. That page says all of this,
 with a link to each licence's text.

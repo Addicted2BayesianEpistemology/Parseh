@@ -25,6 +25,7 @@ ROOT = os.path.dirname(LIB)
 if LIB not in sys.path:
     sys.path.insert(0, LIB)
 import mobile                                                  # noqa: E402
+import author                                                  # noqa: E402
 
 # Parseh's own licence, as SPDX names it (every source file's header says the
 # same), and the file with its text, at the top of the checkout
@@ -284,7 +285,7 @@ def page():
 fetches, under theirs.</p>
 
 <h2>%(app)s</h2>
-<p>Copyright &copy; the %(app)s authors.</p>
+<p class="by">%(notice)s</p>
 <p>%(app)s is free software: you can redistribute it and/or modify it under the terms
 of the GNU General Public License as published by the Free Software Foundation, either
 version 3 of the License, or (at your option) any later version
@@ -314,7 +315,9 @@ lists &mdash; each under the licence it comes with.</p>
 </main>
 </body></html>
 """ % {"app": mobile.APP_NAME, "apphead": mobile.app_head(), "modes": mobile.mode_switch(),
-       "spdx": LICENCE, "carried": carried(), "fetched": fetched()}
+       "spdx": LICENCE, "carried": carried(), "fetched": fetched(),
+       # whose Parseh is: his name, and where to find him (lib/author.py)
+       "notice": author.notice(mobile.APP_NAME)}
 
 
 def licence_text():

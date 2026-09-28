@@ -72,7 +72,7 @@ and four wide ones under them, for the work around the four:
 | **⇆ Anki** | the card store and its sync with Anki, `/anki/sync/` | how many cards and decks the store holds — one store for every language |
 | **✂ The clip tray** | the recordings and pictures cut for cards, `/clips/` | how many clips wait there, or *the tray is empty* |
 | **🔍 Reading what nobody has glossed** | the dictionaries and the rest, in Settings, `/settings/reading-help/` | how many languages have a dictionary, and which, or *no dictionary yet* |
-| **⚙ Settings** | what this Parseh is set to, `/settings/`: which version it is, and its doors — **Reading help**, **Network**, **Updating Parseh** ([Updating Parseh](updating.md)), **LaTeX drawings** and **Speech to text** ([Speech to text](../lookup-and-languages/speech-to-text.md)) | who may reach it — this computer, a VPN, the Wi-Fi ([From a phone or another computer](other-devices.md)) |
+| **⚙ Settings** | what this Parseh is set to, `/settings/`: which version it is, and its doors — **Reading help**, **Network**, **Updating Parseh** ([Updating Parseh](updating.md)), **LaTeX drawings** and **Speech to text** ([Speech to text](../lookup-and-languages/speech-to-text.md)), and under them the two links of the foot, below | who may reach it — this computer, a VPN, the Wi-Fi ([From a phone or another computer](other-devices.md)) |
 
 A door that says 0, or *no dictionary yet*, is doing its job: it tells you
 there is something there you have not started using.
@@ -90,10 +90,18 @@ At the bottom of the hub:
   its card on the books' library page and a video added from the video
   index — and that **the guide** has the rest;
 - which version of Parseh this is, and that it is free software, with a
-  link to its **licences** ([Licences and credits](../reference/licences.md)).
-  The mobile hub says the same in two lines at its very foot, the version
-  on the second. [What's new](../reference/whats-new.md) says what each
-  version brought.
+  link to its **licences** ([Licences and credits](../reference/licences.md));
+- two links, **GitHub** and **imbrunoursino.net**, to the GitHub account and
+  the website of Bruno Ursino, who made Parseh. They are only links: each
+  opens in a tab of its own when you click it, and nothing is fetched from
+  either address before that, so the foot looks the same with no
+  connection.
+
+The mobile hub says the licence and the version on two lines at its very
+foot, the version on the second, and has the two links on a third.
+[What's new](../reference/whats-new.md) says what each version brought.
+**Settings** ends with the same two links, and so does every page of this
+guide.
 
 ## The theme
 

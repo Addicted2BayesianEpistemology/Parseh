@@ -56,8 +56,8 @@ from .fingerprint import fingerprint
 from .frontmatter import FrontMatterError, split as split_front_matter
 from .inline import Store
 from .manifest import FONT_LICENCES, RUNTIME_DIR
-from .studio import (GUIDE, find_font, htmlgen, inline_seam, languages, source,
-                     texgen)
+from .studio import (GUIDE, author, find_font, htmlgen, inline_seam, languages,
+                     source, texgen)
 
 esc = htmlgen.esc
 ENGINE_VERSION = 1
@@ -765,6 +765,8 @@ class Site:
             "body": body,
             "pager": "".join(pager),
             "source": esc("html-guide/markdown/" + page.rel),
+            # the author's two links, as at the hub's foot (lib/author.py)
+            "made": author.links(),
             "langjson": json.dumps(L.as_json(), ensure_ascii=False).replace("</", "<\\/"),
             "scripts": "\n".join(scripts),
         }
@@ -878,7 +880,7 @@ PAGE = """<!DOCTYPE html>
 </div>
 </article>
 <nav class="g-pager" aria-label="Previous and next page">%(pager)s</nav>
-<footer class="g-foot">Written in <code>%(source)s</code> · compiled by <code>html-guide/build.py</code></footer>
+<footer class="g-foot">Written in <code>%(source)s</code> · compiled by <code>html-guide/build.py</code><br>%(made)s</footer>
 </main>
 </div>
 <script id="doc-lang" type="application/json">%(langjson)s</script>

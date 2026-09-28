@@ -169,6 +169,11 @@ html[data-side=closed] .g-side{display:none}
 .g-article .sheet>:first-child{margin-top:0}
 .g-foot{max-width:840px;margin:0 auto;color:var(--faint);font-size:12px;text-align:center;padding:10px 0 0}
 .g-foot code{font-family:var(--g-mono);font-size:11.5px}
+/* the author's two links (lib/author.py), on the line under the foot's first:
+   --dim and not --faint, so that a link is readable at AA, and padded so that
+   a finger can hit one on a phone */
+.g-foot a{color:var(--dim);display:inline-block;padding:6px 8px}
+.g-foot a:hover,.g-foot a:focus-visible{color:var(--accent)}
 
 /* the contents of the page: a card above the text, or a column beside it */
 .g-toc{max-width:840px;width:100%;margin:1.2rem auto 0;background:var(--card);border:1px solid var(--rule);
