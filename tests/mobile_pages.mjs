@@ -1734,7 +1734,7 @@ async function partDrawings() {
 }
 
 async function partExport() {
-  console.log('\n== a document\'s HTML page, from a phone the worker controls, with the computer slow');
+  console.log('\n== a document\'s HTML page, from a phone the worker controls, with the computer slow -- and the way back from a page that does not arrive');
   // a name of its own: the studio's part has made "A phone lesson" already
   const markdown = LESSON.replace(/A phone lesson/g, 'A page for students');
   const made = await (await fetch(B + '/studio/api/docs', {method: 'POST',
@@ -1743,6 +1743,13 @@ async function partExport() {
   assert(!!id, 'a document to export: ' + JSON.stringify(made.meta ? id : made));
   const page = await newPage(PHONE, 'export');
   const DELAY = WORK + '/export-delay';
+  // one more document, under a name of its own
+  const makeOne = async title => {
+    const m = await (await fetch(B + '/studio/api/docs', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({markdown: LESSON.replace(/A phone lesson/g, title)})})).json();
+    assert(!!(m.meta && m.meta.id), 'a document to open: ' + title);
+    return m.meta.id;
+  };
   try {
     await page.goto(B + '/studio/doc/' + id);
     await setMode(page, 'mobile');
@@ -1820,8 +1827,82 @@ async function partExport() {
            'and it is the page the computer made');
     await stillHere('and never "Parseh cannot be reached": the document is still on the screen');
     eq(moves, [], 'the page never navigated away');
+
+    // c) A PAGE THAT REALLY DOES NOT ARRIVE, and the way back from it (TO-DO
+    // §2.28: "the try again button which doesn't do anything").  A document
+    // nobody has kept, opened while the computer answers only after 8 s --
+    // alive, and slower than the worker waits for a page it has no copy of
+    // (lib/sw.js, DEADLINE, the owner's own choice) -- ends on the offline
+    // page.  What this part asks is only what that page does about it.
+    const other = await makeOne('Never opened before');
+    const third = await makeOne('Not opened either');
+    const SLOW = WORK + '/page-delay';
+    const offlineNow = () => page.evaluate(() => [document.querySelector('h1') && document.querySelector('h1').textContent,
+                                                  location.pathname]);
+    await Deno.writeTextFile(SLOW, '8');
+    const t2 = Date.now();
+    await page.goto(B + '/studio/doc/' + other);
+    eq((await offlineNow())[0], 'Parseh cannot be reached',
+       `a page never kept, from a computer that answers after 8 s, is the offline page (after ${Date.now() - t2} ms)`);
+    // GO BACK is its own button, there because there is a page to go back to
+    assert(await page.locator('#back').isVisible(), 'the page came from another one: Go back is on offer');
+    eq(await page.locator('#back').textContent(), 'Go back', 'and it says what it is');
+    eq(await page.locator('#tried').isVisible(), false, 'nothing is said of a try before one is made');
+    // TRY AGAIN SAYS THAT IT TRIED: at once, and then what it found
+    await shot(page, 'export-phone-offline');
+    // A page whose reload is pending cannot be asked anything from outside
+    // (page.evaluate waits for the page that comes back), so this one keeps a
+    // DIARY of what it shows, every 100 ms, in the tab's own memory -- which
+    // the page that comes back can read
+    await page.evaluate(() => {
+      sessionStorage.setItem('__trace', '[]');
+      setInterval(() => {
+        const a = document.getElementById('again'), t = document.getElementById('tried');
+        const all = JSON.parse(sessionStorage.getItem('__trace') || '[]');
+        all.push([a ? a.textContent : null, a ? a.disabled : null, t && !t.hidden ? t.textContent : '']);
+        sessionStorage.setItem('__trace', JSON.stringify(all.slice(-100)));
+      }, 100);
+    });
+    await sleep(450);
+    await page.locator('#again').tap({noWaitAfter: true});
+    await page.waitForFunction(() => /^Still cannot reach it\. Tried again at /.test((document.getElementById('tried') || {}).textContent || ''),
+                               null, {timeout: 15000});
+    const trace = await page.evaluate(() => { const t = JSON.parse(sessionStorage.getItem('__trace') || '[]'); sessionStorage.removeItem('__trace'); return t; });
+    const trying = trace.filter(x => x[0] === 'Trying…');
+    assert(trying.length >= 10 && trying.every(x => x[1] === true && x[2] === 'Asking the computer…'),
+           `Try again, pressed, says at once that it is trying, and keeps saying it while it waits (${trying.length} looks of ${trace.length})`);
+    eq(trace[0], ['Try again', false, ''], 'and before the press it was an ordinary button with nothing said');
+    const said1 = await page.locator('#tried').textContent();
+    assert(/^Still cannot reach it\. Tried again at \S.*\.$/.test(said1), 'and when it fails again, says when it tried: ' + said1);
+    eq([await page.locator('#again').textContent(), await page.locator('#again').isEnabled(), (await offlineNow())[1]],
+       ['Try again', true, '/studio/doc/' + other], 'the button is ready for another try, on the same address');
+    await shot(page, 'export-phone-tried');
+    // AND IT IS A TRY THAT CAN SUCCEED: the computer quickens, the same
+    // button is pressed, and the page the person wanted is what comes
+    await Deno.remove(SLOW);
+    await tap(page, '#again');
+    await page.waitForFunction(() => !document.getElementById('again'), null, {timeout: 15000});
+    eq(await page.evaluate(() => [location.pathname, /never opened before/i.test(document.title)]),
+       ['/studio/doc/' + other, true], 'Try again, with the computer quick again, opens the page');
+    // A TRY THAT WORKED DOES NOT SPEAK FOR A LATER FAILURE: it left its note
+    // behind, and a new visit to the same address a moment later is not the
+    // answer to any press
+    await page.goto(B + '/studio/doc/' + third);
+    await Deno.writeTextFile(SLOW, '8');
+    await page.goto(B + '/studio/doc/' + other);
+    eq((await offlineNow())[0], 'Parseh cannot be reached', 'the same page again, slow again: the offline page');
+    eq(await page.locator('#tried').isVisible(), false,
+       'and it does not say that anybody tried: the page was opened, not tried again');
+    // GO BACK: from a page that fails, to the one the person was on
+    await Deno.remove(SLOW);
+    await tap(page, '#back');
+    await page.waitForFunction(p => location.pathname === p && !!document.querySelector('article.sheet'),
+                               '/studio/doc/' + third, {timeout: 15000});
+    eq(await page.evaluate(() => /not opened either/i.test(document.title)), true,
+       'Go back returns to the page the person was on, and it opens');
   } finally {
     await Deno.remove(DELAY).catch(() => {});
+    await Deno.remove(WORK + '/page-delay').catch(() => {});
     await page.context().close();
   }
 }

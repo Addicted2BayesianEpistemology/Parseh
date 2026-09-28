@@ -21,7 +21,9 @@ mobile interface (docs/mobile.md).
         book shelf read from the tree as well (the hub's counts, /m/books/);
         a document's HTML page is made that many seconds late while
         <tmp>/export-delay holds a number, and the last one made is kept
-        in <tmp>/export-made.
+        in <tmp>/export-made; a document's own page (what a link to it
+        opens) is answered that many seconds late while <tmp>/page-delay
+        holds one.
 
 Never touches the real books/, exercises/, markdown/library/ or clips/:
 the library page is written into the tree by make_index with its paths
@@ -226,6 +228,24 @@ def serve_it(tmp, port):
             pass
         return compile_(*a, **k)
     latexdraw._compile = slow_drawing
+    # A COMPUTER SLOW TO ANSWER A DOCUMENT'S PAGE (tests/mobile_pages.mjs,
+    # partExport, the offline page's Try again): the seconds <tmp>/page-delay
+    # holds, slept before the studio makes the page of a document.  The
+    # computer is ALIVE and only slow -- which is not the same as switched off
+    # or asleep, and is what a page a phone has not kept meets when it takes
+    # longer than the worker waits for one (lib/sw.js, DEADLINE)
+    import serve
+    studio = serve.studio
+    page_doc = studio.page_doc
+
+    def slow_page(h, *a):
+        try:
+            time.sleep(float((tmp / "page-delay").read_text()))
+        except (OSError, ValueError):
+            pass
+        return page_doc(h, *a)
+    studio.ROUTES[:] = [(m, p, slow_page if f is page_doc else f) for (m, p, f) in studio.ROUTES]
+    studio.PAGES = tuple(slow_page if f is page_doc else f for f in studio.PAGES)
     import cardkit_harness
     cardkit_harness.serve_it(tmp, port, False, "tray")
 
