@@ -232,7 +232,7 @@ def plan(tex, theme_name, theme=None, inline=False, local=True):
         ids = [p for p, _tl in lack]
         return {"ok": False, "kind": "package", "theme": resolved["name"],
                 "said": '%s %s not among Parseh\'s own TeX packages yet: the theme "%s" '
-                        'uses %s, and a theme\'s packages beyond the base are drawn only '
+                        'uses %s, and a theme\'s packages beyond the base are used only '
                         'once Parseh has got them.'
                         % (_and(ids), "is" if len(ids) == 1 else "are", resolved["name"],
                            "it" if len(ids) == 1 else "them"),

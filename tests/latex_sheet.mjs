@@ -304,7 +304,8 @@ async function missingSuite(mode) {
     assert(options.every(t => / — needs .+, not installed$/.test(t)), 'every one is marked in its own words: ' + JSON.stringify(options));
     assert(/^chemistry — needs standalone, .*and \d+ more, not installed$/.test(options[2]),
            'a long lack is three names and a count, not a paragraph in a list: ' + options[2]);
-    await page.selectOption('.latex-modal .lx-theme', 'drawing');
+    // the default theme adds nothing to the base, so TeX itself runs and meets the missing file
+    await page.selectOption('.latex-modal .lx-theme', 'default');
     await page.fill('.latex-modal .lx-src', '\\input{zzmissingpackage}');
     await page.waitForFunction(() => /is not installed on this computer/.test(document.querySelector('.lx-status').textContent),
                                null, {timeout: 60000});

@@ -863,10 +863,10 @@ async function ownPackages() {
     await page.waitForSelector('#sheet figure.latex img', {timeout: 60000});
     const refused = await page.evaluate(() => ({said: document.querySelector('#sheet .latex-fail .latex-said').textContent,
       link: [...document.querySelectorAll('#sheet .latex-fail .latex-fix a')].map(a => [a.textContent, a.getAttribute('href')])}));
-    assert(/mhchem is not among Parseh's own TeX packages yet/.test(refused.said) && /"chemistry"/.test(refused.said),
+    assert(/mhchem and chemfig are not among Parseh's own TeX packages yet/.test(refused.said) && /"chemistry"/.test(refused.said),
            'a chemistry drawing is refused, in words: ' + refused.said);
-    assert(refused.link.length === 1 && refused.link[0][0] === 'Get mhchem, chemgreek…'
-           && /\?install=mhchem,chemgreek$/.test(refused.link[0][1]),
+    assert(refused.link.length === 1 && refused.link[0][0] === 'Get mhchem, chemgreek, chemfig…'
+           && /\?install=mhchem,chemgreek,chemfig$/.test(refused.link[0][1]),
            'with the way to get it: ' + JSON.stringify(refused.link));
     assert(await page.locator('#sheet figure.latex img').count() === 1, 'while a drawing of the default theme, the base alone, is drawn');
     if (SHOTS) await page.screenshot({path: `${SHOTS}/latex-own-refused.png`});
