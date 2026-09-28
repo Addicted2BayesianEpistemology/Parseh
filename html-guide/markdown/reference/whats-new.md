@@ -17,6 +17,91 @@ guide and rebuilds the readers by itself.
 
 ## a0.4.1 — not yet released
 
+### Speech to text
+
+Optional, local, and made on this computer. While you add a video, Parseh can
+write its transcript with Whisper: nothing is sent to a speech-recognition
+service and nothing is installed until you ask. It has a door of its own in
+Settings, [Speech to text](../lookup-and-languages/speech-to-text.md), where
+you get the program and one of two models — faster-whisper / large-v3-turbo
+(recommended: faster and lighter) or large-v3 (higher accuracy, larger and
+slower) — with what each costs said before it starts. The processor is a
+separate choice: the CPU always works, and an NVIDIA graphics card is used
+only when Parseh has proved it can be; the page says exactly what is missing
+when it cannot (for this version of the program, the driver and cuBLAS for
+CUDA 12 — cuDNN is not needed), and a button looks again. Any device that
+has been let in may get, stop or remove it: only files Parseh pins, each
+checked against its hash, can ever be fetched. Everything lives in the new
+`stt/` folder, which updates and going back leave exactly as it is
+([Updating Parseh](../getting-started/updating.md#what-it-keeps)).
+
+On the Add a video page, once it is set up, the transcript step has a block
+that writes the transcript for you: pick the model (only what is installed)
+and how it is processed (Automatic, CPU, or an NVIDIA graphics card once it
+is ready), and press Transcribe. A film on this computer is read straight
+from its file, so nothing is played and any browser or device will do. A
+YouTube video is loaded in a frame on the page and recorded through this tab
+while it plays, in real time, from its beginning (Chrome or Edge on a
+computer; the page says what you need to turn on, and says plainly when your
+browser cannot). The words arrive in the transcript box, timed to the video,
+ready to edit; the video is never added by itself, a transcript you wrote is
+never replaced without asking, and a prompt you had prepared for an LLM is
+taken away because it is out of date. A YouTube video that was recorded keeps
+its waveform when you add it. Nothing is installed or fetched by opening the
+page, pasting a transcript works exactly as it did, and a video already added
+has none of this. See [Adding a video](../videos/adding-a-video.md#speech-to-text)
+and [A film on this machine](../videos/a-film-on-this-machine.md#speech-to-text).
+The recording of the tab is one piece of code now, shared by the waveform and
+the transcript; and, on the way, after a waveform was drawn, stopping the tab
+share no longer pauses the video or puts its speed back.
+
+### Hover ⏸ in a book
+
+A video has long had a switch, **hover ⏸**, that makes it wait while you read
+a gloss. A book read aloud has the same now, in its reader on the computer
+(beside **hover**) and on a phone (under ⋯, **Listening**). Turn it on and
+opening a gloss cloud pauses the narration; it goes on a third of a second
+after the cloud closes, so moving from one word to the next does not make it
+stutter. A narration you paused yourself is never started by it, the
+dictionary's sheet on a phone still waits it out once, and in **loop** the
+silence between repeats waits too. It is off to begin with and remembered on
+that device only. See [Playing and listening](../books/listening.md).
+
+### Edit times by ear, where you are listening
+
+While you listen and hear that the alignment was lost, you no longer have to
+go through the narration panel to fix it. A book's header has a new button,
+**edit times by ear**, right after **edit times**. It opens the sheet that
+moves the boundaries over a picture of the sound, on the recording the text
+is following and at the subparagraph you are on, so the boundary to move is
+already in front of you ([Fixing the timings](../books/timings.md)). A
+video's **the timings** does the same: it now opens at the caption under the
+playhead instead of always at the first ([The timings](../videos/the-timings.md)).
+A book built before needs **rebuild the reader** to get the button (an update
+does it for you). Neither exists in the mobile mode, which never edits.
+
+### Try again, and pages that are only slow
+
+The page that says Parseh cannot be reached no longer looks as if Try again
+did nothing: press it and it says *Trying…* while it waits, and if the computer
+still does not answer it tells you when it tried; if you came from another
+page, **Go back** is there too. And a page Parseh has not kept on this device
+no longer says it cannot be reached just because the computer is slow to make
+it: follow a link to a big document and the page you are on stays as it is
+while the computer works, up to half a minute, for as long as the computer is
+answering; then the new page opens. When the computer really answers nothing,
+the message comes after about four seconds (two and a half when Parseh has
+already said the computer is away), as before. A link opened where no Parseh
+page is open, or from a tab behind another, has nobody to ask and still says
+it early, and Try again on that page cannot wait for a slow computer: go back
+and follow the link again from a Parseh page. Downloads made on demand — a
+document's HTML page, its zip, a book's zip, a backup, an Anki deck, a deck's
+export — were checked from another address with the app's worker in control,
+with the computer made slow on purpose and stopped on purpose: they wait, say
+what is being made, and say in words when the computer cannot be reached
+([Parseh as an app](../getting-started/mobile-mode.md),
+[Troubleshooting](../reference/troubleshooting.md)).
+
 ## a0.4.0 — 28 September 2026
 
 ### LaTeX drawings

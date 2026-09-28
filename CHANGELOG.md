@@ -1,5 +1,21 @@
 ## [a0.4.1] - unreleased
 ### Added
+- Speech to text, optional and local: a transcript made on this computer while adding a video, from a film on this machine or a YouTube video recorded through the tab
+- Settings → Speech to text: the program, two Whisper models and the processor, open to any device let in
+- The graphics card is used only once Parseh has proved it works; the CPU always does
+- A YouTube video recorded for its transcript keeps that recording's waveform when it is added
+- Hover ⏸ in a book's reader, in both interfaces: the narration waits while a gloss is open
+- Edit times by ear in a book's header, and a video's timings, open where the listener is
+
+### Changed
+- An update, and going back, leave the speech program and its models as they are (stt/)
+- Typing in the transcript, the address or the film's path makes a prepared LLM prompt stale
+- The offline page's Try again says that it tried, and Go back is a button of its own
+
+### Fixed
+- A page not kept on the device opens from a computer that is only slow, instead of "Parseh cannot be reached"
+- Stopping the tab share after a waveform was drawn no longer pauses the video or resets its speed
+- The transcript editor saves the draft as it hands the transcript back
 
 ## [a0.4.0] - 2026-09-28
 ### Added

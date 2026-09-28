@@ -141,17 +141,21 @@ is old breakage, anything else is new, and new breakage stops the release.
 
 Measured on 2026-09-25, on the finished a0.3.2 tree before its commit, one
 suite at a time, with `TMPDIR` on the main disk — and again the same day on
-the finished a0.4.0 tree (the same three reds, failing the same way; the
-counts below are the a0.4.0 tree's):
+the finished a0.4.0 tree (the same three reds, failing the same way) — and
+once more on 2026-09-28 on the `a0.4.0` tag in a worktree (the same three
+reds again; `activity` green on a second run alone; the counts below are that
+run's — a worktree lacks the git-ignored fonts and built fixture readers, so
+copy them from the checkout first or six unit tests of `test_mobile_pages` and
+`test_offline_notes` fail for that reason alone):
 
 | Suite | State | How it fails |
 |---|---|---|
-| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 1765 tests … OK (skipped=12)` |
+| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 1919 tests … OK (skipped=13)` |
 | `python3 tests/smoke.py` | green | `1842 passed, 0 failed, 21 skipped` |
 | `tests/decomposition.mjs` | **red** | `TimeoutError: locator.click: Timeout 7000ms exceeded` waiting for `.test-extra [data-character="想"]`: the mode bar's *Choose a kanji in the text.* (with `#novid` and `#captimes`) covers it — `tests/decomposition.mjs:119` |
 | `tests/exercises.mjs` | **red** | `page.evaluate: Error: a line of chunks points its arrows along the line` — `tests/exercises.mjs:91`. A second red hides behind it: the mocked editor page never shows `.ex-edit` (a 30 s timeout). Mending the first will not turn it green. |
 | `tests/studio_narrow.mjs` | **red** | `FAIL: from 280 to 1440 px the editor never scrolls sideways …`: at 730 and 740 px the page is 741 px wide and `ins-br` is off screen; its parts b and c never run |
-| the other 41 `tests/*.mjs` | green | `tests/activity.mjs` among them only on a second run, alone: see *Flaky* below |
+| the other 44 `tests/*.mjs` | green | `tests/activity.mjs` among them only on a second run, alone: see *Flaky* below |
 
 The three reds are old: they failed the same way on a0.3.0, before this
 version's work began (measured again on 2026-09-24).
