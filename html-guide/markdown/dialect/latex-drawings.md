@@ -22,7 +22,7 @@ than a formula's fence, so that a block may also stand in a Jolly card's
 field, where a line of three colons ends the exercise:
 
 ```parseh-example
-::::latex chemistry {width=45 align=center}
+::::latex chemistry {width=45 align=center caption="Water forms from hydrogen and oxygen"}
 \ce{2H2 + O2 -> 2H2O}
 ::::
 ```
@@ -35,6 +35,14 @@ field, where a line of three colons ends the exercise:
   natural size, measured against the text round it: it reads at the size
   of the words beside it and grows with them. With **no align** it is
   centred, as a formula is. On a card there is no offset.
+- **A caption**, `caption="…"` in the braces, is set under the drawing as a
+  picture's caption is, in small grey type. Write it between double quotes
+  and with no `"` inside (the sheet turns a typed one into `”`). It takes
+  inline markup, `*emphasis*` or `[x^2]{math}`, and it belongs to a block:
+  an inline `[…]{latex}` mark has none. It is centred under the drawing, in
+  a box at least 20 ems wide so that a long caption does not wrap into a
+  sliver, and a drawing that could not be made shows none. A Jolly card
+  may take one. Changing a caption never draws the picture again.
 - **The body** is LaTeX, exactly as it would stand between
   `\begin{document}` and `\end{document}`.
 
@@ -55,12 +63,16 @@ field, where a line of three colons ends the exercise:
 ```
 
 In the editor, **LaTeX drawing** opens a sheet: the preview beside the
-LaTeX, made as the computer draws it while you type, with **Fit** and
-**Actual size** to look at it either way. **Size and position** — the
-width, where it sits, a sideways shift — is folded away unless the drawing
-already has one. In the preview, **✎** on a drawing opens it again. In the
-exercise form, **LaTeX drawing…** puts one in the field of a Jolly card you
-were last in.
+LaTeX, made as the computer draws it while you type and always scaled to
+fill its pane (the page shows the drawing at its own size), and under the
+LaTeX a **Caption**. **Size and position** — the width, where it sits, a
+sideways shift — is folded away unless the drawing already has one. The
+**Theme** list marks a theme whose packages this computer lacks (*chemistry
+— needs mhchem, not installed*), and a drawing that fails for a missing
+package offers **Install …**, which opens Settings in another tab so that
+what you wrote is not lost. In the preview, **✎** on a drawing opens it
+again. In the exercise form, **LaTeX drawing…** puts one in the field of a
+Jolly card you were last in.
 
 ### Inline, in the middle of a line
 
@@ -121,8 +133,10 @@ temporary place of its own, gone the next time the server starts; only a
 document, a note or an exercise being **saved** keeps the drawings it
 names, for as long as something still names them. Nothing you saved is
 ever removed for being old — **Settings → LaTeX drawings** says how many
-saved drawings there are, and **Forget drawings nothing uses** clears
-anything left over from a document, deck or note since deleted.
+saved drawings there are, and **Forget drawings nothing uses** clears every
+drawing that no document, deck or note names. Something in a trash counts
+as gone: taken back, it is drawn again. A bar shows that it is working, and
+the page says how many it let go.
 
 ## When it cannot be drawn
 
@@ -173,14 +187,19 @@ be written (a deck taken out on a phone), nothing is renamed.
 
 The same page says which of the three compilers this computer has, and
 lists the **TeX packages** the themes need, gotten into Parseh's own
-folder `texmf/`: every package still missing is a row of its own, with why
-it is needed, its licence and size, and its own **Get it** — reviewed
-before anything is downloaded, one package at a time, truthfully **Got**
-once it really is; **Get all** gets every ready package in one go.
-**Remove…** asks first, in the row itself. **How long a drawing may take**
-is also set here (30 seconds to begin with). **Forget drawings nothing
-uses** clears anything left over from a document, deck or note since
-deleted.
+folder `texmf/`: every package still missing — for a saved theme, or for
+the theme you are editing and have not saved — is a row of its own. It
+reads *Not installed*, its size and its licence, with why it is needed and
+its own **Get it**. Parseh asks the TeX Live repository what each costs as
+soon as the page shows it, and downloads nothing until you press **Get
+it**; if the repository cannot be reached the row says so and offers **Ask
+again**. Packages are gotten one at a time, and a row says **Got** only once
+it really is; **Get all** gets every ready package in one go. **Remove…**
+asks first, in the row itself. Ticking a package this computer lacks in a
+theme's editor says so at once — *Not installed here: circuitikz — see the
+table* — and puts it in the table. **How long a drawing may take** is also
+set here (30 seconds to begin with). **Forget drawings nothing uses** is
+described [above](#drawn-once-the-same-everywhere).
 
 Everything on the page may be changed from any device that has been let in,
 a phone as well as the computer, as on the [reading

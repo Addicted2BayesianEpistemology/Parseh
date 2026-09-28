@@ -423,7 +423,7 @@ await until(() => page.evaluate(() => document.querySelector('#apvframe').conten
 assert(true, 'a click turns the previewed card');
 await shot(page, 'sheet-deck-desktop');
 
-await page.click('#asave');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
 await until(() => page.evaluate(() => /^added ✓/.test(document.querySelector('#astat').textContent)), 'the card goes into the deck', 20000);
 let deckSlug = '';
 for await (const e of Deno.readDir(EXERCISES + '/italian')) if (e.isDirectory && !e.name.startsWith('.')) deckSlug = e.name;
@@ -458,7 +458,7 @@ assert(true, 'and the deck is picked now, with its count: Al mercato (1 exercise
 const dialogs = [];
 const onDialog = d => { dialogs.push(d.message()); d.dismiss(); };
 page.on('dialog', onDialog);
-await page.click('#asave');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
 await until(() => page.evaluate(() => document.querySelector('#asavelab').textContent === 'add it again'), 'the duplicate is asked about');
 await shot(page, 'sheet-deck-duplicate-desktop');
 eq([await text(page, '#astat'), (await names(DECK + '/items', /\.json$/)).length, dialogs],
@@ -467,9 +467,9 @@ eq([await text(page, '#astat'), (await names(DECK + '/items', /\.json$/)).length
 // a change to the card asks again
 await page.click('#akvocab');
 eq(await text(page, '#asavelab'), 'add to deck', 'a click on the card\'s type puts the button back to "add to deck"');
-await page.click('#asave');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
 await until(() => page.evaluate(() => document.querySelector('#asavelab').textContent === 'add it again'), 'asked again');
-await page.click('#asave');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
 await until(async () => (await names(DECK + '/items', /\.json$/)).length === 2, 'a duplicate added when asked for');
 await until(() => page.evaluate(() => /^added ✓/.test(document.querySelector('#astat').textContent)), 'the duplicate says it went in');
 eq([await text(page, '#asavelab'), dialogs], ['add to deck', []], '"add it again" adds the second one, and the button is "add to deck" again');
@@ -509,7 +509,7 @@ await until(() => shown(page, '#apvrow'), 'the Anki preview shows');
          'the Anki preview plays the clip from the tray, in a frame that runs no script: ' + JSON.stringify([sandbox, srcs]));
 }
 await shot(page, 'sheet-anki-clip-desktop');
-await page.click('#asave');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
 await until(async () => !(await shown(page, '#anki')), 'the Anki card is saved and the sheet closes', 20000);
 let ankiSlug = '';
 for await (const e of Deno.readDir(ANKI + '/italian')) if (e.isDirectory) ankiSlug = e.name;
@@ -544,6 +544,7 @@ eq(await page.evaluate(() => [document.querySelector('#atime').textContent, docu
   await page.click('#atdeck');
   await until(() => page.evaluate(() => [...document.querySelector('#adeck').options].filter(o => o.selected).map(o => o.textContent).join() === 'Al mercato (2 exercises)'),
               'the deck used last is picked');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {});
   await page.click('#asave');
   await until(() => page.evaluate(() => /^added ✓/.test(document.querySelector('#astat').textContent)), 'the word goes into the deck', 20000);
   const added = (await names(DECK + '/items', /\.json$/)).filter(n => !before.includes(n));
@@ -560,6 +561,7 @@ const want2 = expected(itAnn, 2, 1, 1, ' ');
 await openCutter(page, want2, 'the word "mele"');
 const clip2 = await cutAndUse(page, 'the word "mele"');
 await shot(page, 'sheet-md-desktop');
+await page.click('#adirboth');   // the deck flows above chose one card: the default is both again
 await page.click('#asave');
 await until(() => page.evaluate(() => /^copied ✓/.test(document.querySelector('#astat').textContent)), 'the markdown is copied');
 eq(await text(page, '#astat'),
@@ -615,7 +617,7 @@ assert(clip3.name !== clip2.name, 'a new clip');
 eq(await jolly(), ['[mele]{tl}', 'le mele\n![](audio/' + clip3.name + ')', 'the apples today', 'le mele oggi'],
    'the new clip goes under the line the cursor was on, in the box it was last in, and the old one leaves the card');
 assert(await exists(`${TRAY}/${clip2.name}`), 'the old clip stays in the tray: the markdown copied before names it');
-await page.click('#asave');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
 await until(async () => /^copied ✓/.test(await text(page, '#astat')) && (await clipboard(page)) !== md1, 'the jolly card is copied');
 const md2 = await clipboard(page);
 const b2 = (await parsed(md2)).filter(b => b.type === 'exercise');
@@ -633,7 +635,7 @@ await shot(page, 'sheet-jolly-preview-desktop');
 // the copy, the fields and the preview go without it, and the sheet says so
 await page.fill('#ajfs', 'le mele');
 eq(await text(page, '#astat'), '', 'the preview left the status line empty');
-await page.click('#asave');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
 await until(async () => /^copied ✓/.test(await text(page, '#astat')), 'the jolly card is copied again');
 const md3 = await clipboard(page);
 eq(await jolly(), ['[mele]{tl}', 'le mele', 'the apples today', 'le mele oggi'], 'a line taken out by hand is not put back by the copy');
@@ -671,7 +673,7 @@ await page.evaluate(() => {
   navigator.clipboard.writeText = () => Promise.reject(new DOMException('not allowed', 'NotAllowedError'));
   document.execCommand = () => false;
 });
-await page.click('#asave');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
 await until(() => page.evaluate(() => /not copied|would not/.test(document.querySelector('#astat').textContent)), 'the copy is refused');
 {
   const got = await page.evaluate(() => { const o = document.querySelector('#amdout');
@@ -821,10 +823,12 @@ await context.close();
   await pg.keyboard.press('Escape');
   await altClick(pg, '.seg[data-i="2"] .w[data-j="1"] .wd >> nth=1');
   const told = await until(toast, 'the answer comes as a toast');
-  eq(told, 'added ✓ — a vocabulary card for “chilo”, with its recording, to “Closed early”', 'the answer to the closed sheet comes as a toast over the page, in the book reader\'s words');
+  eq(told, 'added ✓ — a vocabulary card for “chilo”, with its recording (two linked cards, one each way), to “Closed early”', 'the answer to the closed sheet comes as a toast over the page, in the book reader\'s words');
   const EARLY = `${EXERCISES}/italian/closed-early`, added = await names(EARLY + '/items', /\.json$/);
-  const it = await readJson(`${EARLY}/items/${added[0]}`);
-  assert(added.length === 1 && /target: \[chilo\]\{tl\}/.test(it.markdown) && it.markdown.includes('front-audio: audio/' + outClip.name),
+  // the default is both (repeat): two cards, the front one is the one to read
+  const both = await Promise.all(added.map(a => readJson(`${EARLY}/items/${a}`)));
+  const it = both.find(x => x.markdown.includes('\ndirection: forward\n')) || both[0];
+  assert(added.length === 2 && both.some(x => x.markdown.includes('\ndirection: reverse\n')) && /target: \[chilo\]\{tl\}/.test(it.markdown) && it.markdown.includes('front-audio: audio/' + outClip.name),
          'the deck got the card that was pressed, the first word with its recording, not the word the sheet is open on now:\n' + it.markdown);
   eq({time: it.origin.time, label: it.origin.label}, {time: 15, label: '0:15'}, 'and its origin is the pressed word\'s moment, not the second sheet\'s (0:11)');
   assert(await exists(`${EARLY}/audio/${outClip.name}`) && await exists(`${TRAY}/${outClip.name}`),

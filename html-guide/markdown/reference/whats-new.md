@@ -27,9 +27,14 @@ prose or an exercise's option, sitting on that line's own baseline. Each is
 compiled on its own and becomes one picture: the same drawing on the page,
 in the PDF, in an HTML export and on a phone. One that cannot be made shows
 its source and a line saying why, with the button that mends it. The
-editor has a sheet for writing one — its preview beside the source, the
-drawing made as you type, size and position folded away unless you have set
-them — and **✎** on a drawing opens it again. A drawing kept while you are
+editor has a sheet for writing one — its preview beside the source and
+scaled to fill its pane, the drawing made as you type, a caption for a
+block, size and position folded away unless you have set them — and **✎** on
+a drawing opens it again. A block may carry a caption,
+`caption="…"` in its braces, set under it as a picture's is. The guide
+shows its examples beside what they draw, and the exercises have a page of
+their own for them ([LaTeX in exercises](../dialect-exercises/latex.md)). A
+drawing kept while you are
 only trying it out is not kept for long: it is a document or an exercise
 being saved that keeps a drawing, so trying a few before settling on one
 leaves nothing behind ([LaTeX drawings](../dialect/latex-drawings.md)).
@@ -44,10 +49,29 @@ linguists and poets — syntax trees, dependency arcs, the IPA, pinyin over
 Chinese characters. A theme is exported as a file and imported — its whole
 preamble shown first; a rename says how many blocks name the theme, and
 where, then rewrites every one. The same page gets the TeX packages a theme
-needs into Parseh's own `texmf/` — every one it still needs listed in a
-table, reviewed and gotten one at a time, what each costs said before it is
-gotten — and sets how long a drawing may take
+needs into Parseh's own `texmf/` — every one it still needs, for a saved
+theme or the one you are editing, is a row of a table that says *Not
+installed*, what it costs and its own **Get it**, asked of the TeX Live
+repository by itself and downloaded only when you press **Get it**, one at a
+time. **Forget drawings nothing uses** shows a bar while it works, and no
+longer keeps the drawings of a deck sitting in the trash. The page also
+sets how long a drawing may take
 ([Themes](../dialect/latex-drawings.md#themes)).
+
+### Flashcards that are asked both ways
+
+A flashcard's **Which side appears first** has two more choices beside
+*Front* and *Back*: **Both (random)**, which draws the side each time the
+card is shown — on the page, in an exported page, in a deck — and **Both
+(repeat)**, which shows the front, with a small note under the card that a
+deck will ask both sides, and in a deck becomes two cards, one asking each
+way, linked to each other. Editing or deleting one of the two asks whether to
+change both or only this one, which unlinks them; and once one side has been
+answered the other waits until the next day. On paper both act as *Front*.
+The exercise form, the deck's own forms and the card sheets of books and
+videos offer the four choices, and the sheet's **⇄ both** now makes a real
+pair ([Which side comes first](../dialect-exercises/flashcards.md#which-side-comes-first),
+[a card in a deck](../dialect-exercises/in-a-deck.md)).
 
 ### A deck's exercises, filtered by where they came from
 
@@ -63,7 +87,25 @@ so a source with nothing left to show is not offered
 On a page exported for a website, pointing at a word of the target
 language opens the cloud — its transliteration, the kana, the colours —
 and what is changed there changes the open page only, and is gone with the
-tab ([A page for a website](../studio/web-page.md)).
+tab; the first click says once, at the top of the page, *Changes made here
+are not saved*. The words of this guide that carry a transliteration or a
+reading open the same cloud, each in its own language
+([A page for a website](../studio/web-page.md)).
+
+### The phone's video: the size of the subtitles
+
+On a phone, the subtitles over a video on the whole screen have a text size
+of their own, apart from the transcript's: an **Aa** button in the corner of
+the whole screen opens it, and the subtitles grow or shrink at once while the
+video plays. The size is remembered on that phone; the transcript's own size
+keeps its slider on the first line of the header, where the book reader's
+is ([Browser and Mobile](../getting-started/mobile-mode.md#the-videos)).
+
+### Deleting a document
+
+The library's cross and the document page's **Delete document** ask in
+Parseh's own window, as a deck's delete does, and the document leaves the
+list at once ([The library](../studio/library.md)).
 
 ### Going back
 

@@ -4885,7 +4885,8 @@
       // sheet stays, with a link to the deck and the deck's warnings
       var media = carried(md, 'its', snap.clip, frame), gone = leftOut(md, snap.clip, frame);
       var warnings = res.warnings || [];
-      p.say('added ✓ — ' + (res.items && res.items.length > 1 ? 'two linked cards' : card) + (media.length ? ', with ' + media.join(' and ') : '') +
+      p.say('added ✓ — ' + card + (media.length ? ', with ' + media.join(' and ') : '') +
+            (res.items && res.items.length > 1 ? ' (two linked cards, one each way)' : '') +
             ', to “' + deck.name + '”' + (gone ? ' — ' + gone : ''), warnings.length > 0,
             ['open the deck', '/exercises/deck/' + deck.path + '/', warnings.length ? '\n' + warnings.join('\n') : '']);
       if (p.here()) {

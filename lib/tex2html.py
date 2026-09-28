@@ -6346,7 +6346,7 @@ async function addToDeck() {
     const warnings = res.warnings || [];
     // the sheet stays, with a link to the deck and the deck's warnings; its
     // list is asked for again, for the count
-    p.say('added ✓ — ' + (res.items && res.items.length > 1 ? 'two linked cards' : went) + ', to “' + (deck ? deck.name : path) + '”' + (gone ? ' — ' + gone : ''),
+    p.say('added ✓ — ' + went + (res.items && res.items.length > 1 ? ' (two linked cards, one each way)' : '') + ', to “' + (deck ? deck.name : path) + '”' + (gone ? ' — ' + gone : ''),
           warnings.length > 0,
           ['open the deck', '/exercises/deck/' + path + '/', warnings.length ? '\n' + warnings.join('\n') : '']);
     if (p.here()) { unarm(); if (cardTo === 'deck') loadDecks(); }

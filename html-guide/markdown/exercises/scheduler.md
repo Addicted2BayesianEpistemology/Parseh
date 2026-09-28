@@ -101,6 +101,18 @@ learning would undo the learning. A limit set to 0 holds its exercises back
 every day: a deck with 0 new exercises a day studies only what it already
 knows.
 
+## The two sides of a pair
+
+The two cards a *both (repeat)* flashcard makes
+([in a deck](../dialect-exercises/in-a-deck.md)) are linked, and the
+scheduler will not ask you one right after the other: once you have answered
+one, the other is held back until the next day starts — Anki's *bury
+siblings*. The hold is read from the answers already given, so nothing is
+stored for it; it ends by itself at four in the morning, and at once if the
+other card is deleted, unlinked or set to new. A limit above still counts
+only what was shown, and *cram* ignores the hold, as it ignores the
+schedule.
+
 ## What comes next {#what-comes-next}
 
 Of everything due, the study page shows first a learning step that is due,

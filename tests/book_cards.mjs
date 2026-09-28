@@ -448,7 +448,7 @@ try {
          'on the front: the side of the language');
   await shot('sheet-deck-clip-desktop');
 
-  await page.click('#asave');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
   await page.waitForFunction(() => /added ✓/.test(document.getElementById('astat').textContent), null, {timeout: 10000});
   const said = await status();
   assert(said === 'added ✓ — a vocabulary card for “wind”, with its recording, to “Book cards” — open the deck',
@@ -492,12 +492,12 @@ try {
   await page.waitForFunction(() => document.getElementById('adeck').dataset.of === 'deck' && document.getElementById('adeck').value !== '');
   assert(await page.evaluate(() => document.querySelector('#adeck option:checked').textContent) === 'Book cards (1 exercise)'
          && !(await shown('#asndprev')), 'on the deck it went to, and with no clip on the new card');
-  await page.click('#asave');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
   await page.waitForFunction(() => /added ✓/.test(document.getElementById('astat').textContent), null, {timeout: 10000});
   await page.click('#acancel');
   await altWord(4, 2);
   await page.waitForFunction(() => document.getElementById('adeck').dataset.of === 'deck' && document.getElementById('adeck').value !== '');
-  await page.click('#asave');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
   await page.waitForFunction(() => document.getElementById('asavelab').textContent === 'add it again', null, {timeout: 10000});
   await shot('sheet-deck-duplicate-desktop');
   assert(await status() === 'this exercise is already in "Book cards" — press “add it again” to add a second one'
@@ -507,9 +507,9 @@ try {
   await page.click('#akvocab');
   assert(await page.evaluate(() => document.getElementById('asavelab').textContent) === 'add to deck',
          'a click on the card\'s type puts the button back to "add to deck"');
-  await page.click('#asave');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
   await page.waitForFunction(() => document.getElementById('asavelab').textContent === 'add it again', null, {timeout: 10000});
-  await page.click('#asave');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
   await page.waitForFunction(() => /added ✓/.test(document.getElementById('astat').textContent), null, {timeout: 10000})
     .catch(() => {});
   assert((await files(DECK + '/items', /\.json$/)).length === 3
@@ -538,7 +538,7 @@ try {
   await openCutter('a clip that goes missing');
   const gone = await useClip();
   await (await fetch(`${B}/clips/api/${gone.name}`, {method: 'DELETE'})).body?.cancel();
-  await page.click('#asave');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
   await page.waitForFunction(() => /added ✓/.test(document.getElementById('astat').textContent), null, {timeout: 10000});
   await sleep(1500);
   const warned = await status();
@@ -597,15 +597,17 @@ try {
   });
   assert(toastBox.in && toastBox.over, 'the toast is on screen, over the sheet: ' + JSON.stringify(toastBox));
   await shot('closed-early-toast-desktop');
-  assert(toast === 'added ✓ — a vocabulary card for “outside”, with its recording, to “Closed early”'
+  assert(toast === 'added ✓ — a vocabulary card for “outside”, with its recording (two linked cards, one each way), to “Closed early”'
          && await page.evaluate(() => ankiOpen && document.getElementById('afa').value === 'and'
                                       && !/added/.test(document.getElementById('astat').textContent)),
          'the answer is a toast over the page, not a word on the sheet opened since: ' + toast);
   const early_slug = (await dirs(TMP + '/exercises/english')).find(s => s !== slugs[0]);
   const EARLY = `${TMP}/exercises/english/${early_slug}`;
   const earlyItems = await files(EARLY + '/items', /\.json$/);
-  const earlyMd = earlyItems.length === 1 ? JSON.parse(await Deno.readTextFile(`${EARLY}/items/${earlyItems[0]}`)).markdown : '';
-  assert(early_slug === 'closed-early' && earlyMd.includes('\ntarget: [outside]{tl}\n') && earlyMd.includes('\nfront-audio: audio/' + early.name + '\n')
+  // the sheet's default is both (repeat): the deck made the two cards, the front one is the one to read
+  const earlyMds = await Promise.all(earlyItems.map(async f => JSON.parse(await Deno.readTextFile(`${EARLY}/items/${f}`)).markdown));
+  const earlyMd = earlyItems.length === 2 ? (earlyMds.find(m => m.includes('\ndirection: forward\n')) || '') : '';
+  assert(early_slug === 'closed-early' && earlyMds.some(m => m.includes('\ndirection: reverse\n')) && earlyMd.includes('\ntarget: [outside]{tl}\n') && earlyMd.includes('\nfront-audio: audio/' + early.name + '\n')
          && (await files(EARLY + '/audio')).includes(early.name),
          'the card went in as it was pressed: front-audio: audio/' + early.name + ', and the recording in the deck\'s audio/');
   await sleep(1300);
@@ -621,7 +623,7 @@ try {
   await page.waitForFunction(() => document.getElementById('adeck').dataset.of === 'anki');
   await page.selectOption('#adeck', '');
   await page.fill('#adecknew', 'English::Early');
-  await page.click('#asave');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
   await page.click('#asnd');
   await page.waitForSelector('.pc-root .pc-cut');
   await page.waitForFunction(() => /saved ✓/.test(document.getElementById('astat').textContent), null, {timeout: 10000});
@@ -663,7 +665,7 @@ try {
                                         box: document.getElementById('apvframe').getAttribute('sandbox')}));
   assert(pv.doc.includes(`<audio controls src="/clips/media/${clipB.name}"`) && pv.box === 'allow-same-origin',
          'the Anki preview plays the clip, in a frame with no scripts');
-  await page.click('#asave');
+  await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {}); await page.click('#asave');
   await page.waitForFunction(() => /saved ✓/.test(document.getElementById('astat').textContent), null, {timeout: 10000});
   const ankiDecks = (await dirs(TMP + '/anki')).flatMap(f => [f]);
   let cardFile = null, cardDir = null;
