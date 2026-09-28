@@ -48,6 +48,9 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //       paragraph, and the reader shows them blank beside the glossed ones.
 //  b) VIDEO -- Persian, through /youtube/add/ "From YouTube" + "Nobody -- I
 //     gloss it in the player", with a bare id (no network is asked for):
+//     - the page is whole with NO speech to text installed (it is optional): its
+//       block is the way to set it up and nothing else, and the page asked the
+//       computer what it has and no transcription route, no model's host, no one;
 //     - "Start it empty" writes the video and opens the player; video.json has
 //       NO "draft" key, and the bare id is written as its watch URL; the
 //       player shows no draft badge;
@@ -170,6 +173,9 @@ lookup.DICT_DIR = str(tmp / 'nodict')
 corpus.CORPUS_DIR = str(tmp / 'nocorpus')
 getmt.MT_DIR = str(tmp / 'nomt')
 getmt.ENGINE_DIR = str(tmp / 'nomt' / 'engine')
+# and speech to text (optional, the add page's): none installed, whatever this machine has
+import getstt
+getstt.STT_DIR = str(tmp / 'nostt')
 import books
 shelf = str(tmp / 'root' / 'books')
 books.BOOKS_DIR = shelf
@@ -835,7 +841,12 @@ try {
   console.log('\nb) Persian (fa): a video from its transcript, started empty');
   {
     const vdir = `${B0.root}/youtube/videos/persian/${VIDEO.id}`;
-    const add = await open('/youtube/add/', 'yt-add', p => p.waitForSelector('#q1 .path[data-src="yt"]'));
+    const asked = [];
+    const nAsked = abroad.length;
+    const add = await open(null, 'yt-add');
+    add.on('request', r => { const u = new URL(r.url()); asked.push((u.host === `127.0.0.1:${port}` ? '' : u.host) + u.pathname); });
+    await add.goto(B + '/youtube/add/');
+    await add.waitForSelector('#q1 .path[data-src="yt"]');
     await add.click('#q1 .path[data-src="yt"]');
     await add.click('#q2 .path[data-by="empty"]');
     await add.waitForFunction(() => !document.querySelector('#vbody').hidden && !document.querySelector('#step-empty-3').hidden);
@@ -845,6 +856,15 @@ try {
     await add.fill('#transcript', VIDEO.transcript);
     eq(await add.evaluate(() => [document.querySelector('#empty').textContent, document.querySelector('#how').value]),
        ['Start it empty', 'sentence'], '"From YouTube" with a bare id, "Nobody — I gloss it in the player": "Start it empty", one chunk per sentence');
+    // SPEECH TO TEXT IS OPTIONAL, and here there is none: the block is a way to set it up
+    // and nothing else, and the page asked the computer that one thing and no one anything
+    await add.waitForFunction(() => { const s = document.getElementById('stt'); return s && !s.hidden; });
+    eq(await add.evaluate(() => [document.getElementById('stt').getAttribute('data-state'),
+         [...document.querySelectorAll('#stt button, #stt select, #stt a[href]')].filter(e => e.getClientRects().length && !e.disabled).map(e => e.id)]),
+       ['absent', ['stt_setup']], 'no speech to text: the page offers the way to set it up, and no button or picker that would do nothing');
+    eq(asked.filter(x => /transcribe|huggingface|pypi/.test(x)), [], 'and it touched no transcription route, and fetched nothing of a model');
+    eq(abroad.slice(nAsked), [], 'the add page asked nothing of the network, only the computer what it has');
+    eq(asked.filter(x => /^\/lookup\/api\//.test(x)), ['/lookup/api/speech'], 'and the one thing it asked was that');
     const nAbroad = abroad.length;
     await Promise.all([add.waitForURL(B + `/youtube/v/${VIDEO.id}/`, {timeout: 60000}), add.click('#empty')]);
     const page = add;
