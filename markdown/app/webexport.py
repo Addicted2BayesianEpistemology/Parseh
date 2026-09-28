@@ -17,10 +17,13 @@ is the point:
     block again (the source of a target-language line, the line numbers, the
     occurrence counters) are taken off, a link to another document of the
     library keeps its words and loses everything else, and the pieces of the
-    studio that write -- the ✎ buttons, the layout ⚙, + Deck, the colour
-    palette -- are not in it.  Nor is the code behind them: the script is a
-    slice of app.js, the functions an exercise needs to be answered and
-    marked and nothing that could save anything (_runtime).
+    studio that write -- the ✎ buttons, the layout ⚙, + Deck -- are not in
+    it.  Nor is the code behind them: the script is a slice of app.js, the
+    functions an exercise needs to be answered and marked and nothing that
+    could save anything (_runtime).  The one thing that does change is the
+    cloud a word of the target language opens -- its transliteration, its
+    reading, its colours -- and it changes the open page only: the first
+    click on a word says so, in one line over the screen.
   * IT WRITES NOWHERE.  The page carries its own Content-Security-Policy, so
     no request can leave it (no connect, no form, no worker), and its script
     runs over a storage of its own that is forgotten with the tab -- the
@@ -541,8 +544,9 @@ def _css(text, lang, math):
 # exercise comes to need later is carried without anybody remembering to.
 ROOTS = ("bindExercises", "bindFootnoteClouds", "armClipReplay", "applyTypo",
          # the cloud a word of the target language opens: its transliteration
-         # (and kana), and the colours -- changed on the open page only
-         "bindColorPalette",
+         # (and kana), and the colours -- changed on the open page only, by
+         # appliers that touch the DOM and nothing else (bindPageCloud)
+         "bindPageCloud",
          "loadTypo", "defaultScale", "lang", "langAttrs", "TYPO_DEFAULTS",
          "sharedSheetTheme", "foldCase", "escAttr", "clipWindow", "watchClipEnd",
          "flipCard", "toggleCardAudio", "openCardZoom")

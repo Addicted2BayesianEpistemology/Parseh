@@ -187,6 +187,16 @@ html[data-side=closed] .g-side{display:none}
   .g-article,.g-pager,.g-foot{grid-column:1}
 }
 
+/* the layer the studio's cloud is put in (guide.js bindCloud): a line of no
+   height along the top of the page, so that the cloud's own coordinates are
+   the document's and its width is measured against the window's, inside
+   .pz, which is where the studio's rules for it are written; the layer
+   itself paints nothing and is never a target */
+.g-cloud-layer{position:absolute;top:0;left:0;right:0;height:0;min-height:0;margin:0;padding:0;
+  background:none;pointer-events:none}
+.g-cloud-layer .fapal{pointer-events:auto}
+@media print{.g-cloud-layer{display:none}}
+
 /* the way on */
 .g-pager{max-width:840px;width:100%;margin:0 auto;display:flex;gap:12px}
 .g-pager a{flex:1;display:block;padding:10px 14px;background:var(--card);border:1px solid var(--rule);

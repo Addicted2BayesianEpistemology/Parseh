@@ -221,7 +221,15 @@ there was an error. The same sources always give the same bytes.
   and `bindExercises` is called on the article. `app.css` is rewritten at
   compile time so that every rule applies inside the article only
   (`engine/cssscope.py`), with the studio's themes following the toolbox's.
-  MathJax, the language font tokens and the fonts go beside them.
+  MathJax, the language font tokens and the fonts go beside them. A page
+  loads the script when it has an exercise, and also when it has a word with
+  a `translit:` or `kana:` mark (`CLOUD_MARK` in `engine/site.py`): then
+  `guide.js` calls `bindPageCloud`, which opens the studio's own cloud on
+  those words — the mark, the kana, the colours — and changes the open page
+  only. The page embeds the records of the languages its words are set in as
+  `#langs-json`, because each word names its own language and a page may mix
+  them; the cloud is put in a layer of its own inside the `.pz` scope, where
+  the studio's rules for it apply.
 - **The palette is lib/parseh.css's**, copied into `assets/guide.css`
   (`tests/test_html_guide.py` holds them together), and the ◐ button shares
   the whole toolbox's `parseh_theme` setting.

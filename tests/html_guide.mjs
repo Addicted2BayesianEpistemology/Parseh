@@ -15,7 +15,9 @@ import jsQR from 'npm:jsqr@1.4.0';
 //      (decoded), a picture opened large, a term's two definitions, and the
 //      YouTube video, which plays in the page only when it was served: a
 //      card that opens it on YouTube in its place, its words whole on a
-//      phone;
+//      phone; and the studio's cloud on every word that carries a
+//      transliteration or a reading, in each of the eleven languages, on a
+//      page that mixes them, in the three themes -- pointed at and tapped;
 //   2. through the Parseh server (serve.main, plain http, the guide's own
 //      directory pointed at a second copy that has never been compiled): the
 //      hub's guide button, the front page's "Compile the guide" button driven
@@ -145,6 +147,59 @@ const inkOf = async (page, locator) => {
     return {ink, lightest, darkest, bg, w: c.width, h: c.height};
   }, png);
 };
+// THE CLOUD, AS DRAWN: whose it is, what it holds, how it is painted and where
+// it stands.  (The studio's own cloud: bindPageCloud, app.js, in a layer of the
+// guide's that sits inside the scope the studio's rules are written under.)
+const SHOTS = Deno.env.get('SHOTS') || '';
+const cloudFacts = page => page.evaluate(() => {
+  const p = document.querySelector('.fapal');
+  if (!p) return null;
+  const cs = getComputedStyle(p), r = p.getBoundingClientRect();
+  const field = b => {
+    const v = b.querySelector('.tr-val');
+    return {kind: b.dataset.kind, value: v.hidden ? null : v.textContent, add: !b.querySelector('.tr-add').hidden,
+            label: b.querySelector('.tr-in').placeholder, face: getComputedStyle(v).fontFamily};
+  };
+  return {shown: cs.display !== 'none' && cs.visibility !== 'hidden', inPz: !!p.closest('.pz'),
+          inLayer: !!p.closest('.g-cloud-layer'), lang: p.dataset.lang, bg: cs.backgroundColor,
+          ink: getComputedStyle(p.querySelector('.lbl')).color, radius: cs.borderTopLeftRadius,
+          x: r.left + r.width / 2, top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width,
+          fields: [...p.querySelectorAll('.tr-edit')].map(field), text: p.innerText.replace(/\s+/g, ' ').trim(),
+          here: !!p.querySelector('.fapal-here'), sideways: document.documentElement.scrollWidth > innerWidth};
+});
+const wordBox = loc => loc.evaluate(w => { const r = w.getBoundingClientRect(); return {x: r.left + r.width / 2, top: r.top, bottom: r.bottom}; });
+const cloudShown = () => { const p = document.querySelector('.fapal'); if (!p) return false;
+  const cs = getComputedStyle(p); return cs.display !== 'none' && cs.visibility === 'visible'; };
+// point at a word (or tap it) and wait for the cloud; two frames after the
+// scroll, whose own event would otherwise put the cloud away again
+async function openCloud(page, loc, tap = false) {
+  await loc.scrollIntoViewIfNeeded();
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  if (tap) await loc.tap(); else await loc.hover();
+  await page.waitForFunction(cloudShown, null, {timeout: 5000});
+  return {cloud: await cloudFacts(page), word: await wordBox(loc)};
+}
+// the cloud stands over its word (or under it, at the top of the window),
+// centred on it unless the window's edge is in the way
+const standsOn = ({cloud, word}, width) => {
+  const over = cloud.bottom <= word.top + 1 && word.top - cloud.bottom <= 12;
+  const under = cloud.top >= word.bottom - 1 && cloud.top - word.bottom <= 12;
+  const centred = Math.abs(cloud.x - word.x) <= 3 || cloud.left <= 9 || cloud.right >= width - 9;
+  return (over || under) && centred;
+};
+async function leaveCloud(page, tap = false) {
+  if (tap) await page.touchscreen.tap(2, 300); else await page.mouse.move(2, 2);
+  await page.waitForFunction(() => { const p = document.querySelector('.fapal'); return !p || getComputedStyle(p).display === 'none'; },
+                             null, {timeout: 5000});
+}
+async function* htmlFiles(dir) {
+  for await (const e of Deno.readDir(dir)) {
+    if (e.isDirectory) yield* htmlFiles(`${dir}/${e.name}`);
+    else if (e.name.endsWith('.html')) yield `${dir}/${e.name}`;
+  }
+}
+const PAPER = {light: 'rgb(255, 255, 255)', sepia: 'rgb(248, 243, 230)', dark: 'rgb(33, 26, 29)'};
+
 function freePort() {
   const l = Deno.listen({hostname: '127.0.0.1', port: 0});
   const p = l.addr.port;
@@ -359,6 +414,160 @@ try {
             at: [dt, a, b].map(q => [Math.round(q.left), Math.round(q.top)])};
   });
   assert(defs.below && defs.under, 'two definitions of a term stand on lines of their own, under it: ' + JSON.stringify(defs.at));
+  // ---- the studio's cloud on the words that carry a transliteration or a reading
+  {
+    const REG = Object.fromEntries(Object.entries(JSON.parse(await Deno.readTextFile(`${root}/lib/languages.json`)))
+                                   .filter(([k, v]) => v && typeof v === 'object' && v.translit_label));
+    const CODES = Object.keys(REG);
+    const MIXED = FILE + '/site/dialect/colours-and-pronunciation.html';
+    const INK = {light: 'rgb(99, 83, 88)', sepia: 'rgb(122, 112, 87)', dark: 'rgb(172, 155, 161)'};
+    const setTheme = async t => { await page.evaluate(t => { localStorage.setItem('parseh_theme', t); Guide.theme.apply(); }, t); };
+    await page.goto(MIXED);
+    await page.evaluate(() => document.fonts.ready);
+    await setTheme('light');
+    const facts = await page.evaluate(() => ({layer: document.querySelectorAll('.g-cloud-layer').length,
+      langs: JSON.parse(document.getElementById('langs-json').textContent).map(l => l.code),
+      furniture: !!document.querySelector('.xp-bar, .xp-unsaved, .xp-foot, #toast')}));
+    assert(facts.layer === 1 && ['fa', 'ja', 'it'].every(c => facts.langs.includes(c)) && !facts.furniture,
+           'a page of marked words has its cloud\'s layer, the records of the languages it is set in, and none of the export\'s furniture: ' + JSON.stringify(facts));
+
+    // pointing at a Persian word that carries a transliteration
+    const tond = page.locator('.fa[data-fa="تند"]').first();
+    let got = await openCloud(page, tond);
+    let c = got.cloud;
+    assert(c.shown && c.inPz && c.inLayer && c.radius === '99px', 'pointing at it opens the cloud, in the studio\'s scope, as a pill: ' + c.text);
+    assert(c.fields.length === 1 && c.fields[0].kind === 'translit' && c.fields[0].value === 'tond' && c.fields[0].label === 'transliteration' && !c.fields[0].add,
+           'it shows the transliteration, labelled as the language labels it: ' + JSON.stringify(c.fields));
+    assert(c.lang === 'fa' && c.bg === PAPER.light, `it is painted as the studio paints it (${c.bg}), not as bare text`);
+    assert(!c.here && !/saved|this page only/i.test(c.text) && (await page.locator('.xp-unsaved, .fapal-here').count()) === 0,
+           'it says nothing of saving, and the guide has no notice for it either: ' + c.text);
+    assert(standsOn(got, 1280) && !c.sideways, 'and it stands over its word, in the document\'s own coordinates, with the sidebar open: ' + JSON.stringify([c.x, c.top, got.word]));
+    if (SHOTS) await page.screenshot({path: `${SHOTS}/guide-cloud-persian-light-1280.png`});
+    // the same with the sidebar put away: the word moves, the cloud goes with it
+    await leaveCloud(page);
+    await page.click('[data-guide-side]');
+    await sleep(120);
+    got = await openCloud(page, tond);
+    assert(standsOn(got, 1280), 'with the sidebar shut the cloud goes with the word: ' + JSON.stringify([got.cloud.x, got.word.x]));
+    await leaveCloud(page);
+    await page.click('[data-guide-side]');
+    // a colour chosen there colours the word on this open page, and the page keeps nothing
+    got = await openCloud(page, tond);
+    await page.locator('.fapal button[data-color="teal"]').click();
+    assert(await tond.evaluate(w => w.parentElement.classList.contains('fac-teal') && w.parentElement.dataset.translit === 'tond'),
+           'a colour chosen in it colours the word on the page and leaves its transliteration');
+    await leaveCloud(page);
+    await openCloud(page, tond);
+    await page.locator('.fapal .none').click();
+    assert(await tond.evaluate(w => w.parentElement.classList.contains('fac') && w.parentElement.dataset.translit === 'tond' && !w.parentElement.dataset.color),
+           'and taking the colour away keeps the transliteration, which is what the cloud shows next');
+    got = await openCloud(page, tond);
+    assert(got.cloud.fields[0].value === 'tond', 'so the cloud still opens on it, showing it');
+    assert((await page.locator('.xp-unsaved').count()) === 0, 'nothing about saving was put over the page by any of it');
+    await leaveCloud(page);
+
+    // a word that carries nothing opens nothing
+    const bare = await page.evaluate(() => [...document.querySelectorAll('.fa[data-fa]')].findIndex(s =>
+      !s.dataset.translit && !s.dataset.kana && !(s.parentElement.dataset.translit || s.parentElement.dataset.kana) &&
+      s.getClientRects().length && !s.closest('.g-code')));
+    assert(bare >= 0, 'the page has a Persian word without a mark');
+    const bareWord = page.locator('.fa[data-fa]').nth(bare);
+    await bareWord.scrollIntoViewIfNeeded();
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await bareWord.hover();
+    await sleep(500);
+    assert(await page.evaluate(() => { const p = document.querySelector('.fapal'); return !p || getComputedStyle(p).display === 'none'; }),
+           'a word with no transliteration and no reading opens no cloud');
+    await page.mouse.move(2, 2);
+
+    // a Japanese example inside a Persian page: its own fields, its own labels, its own face
+    const kanji = await openCloud(page, page.locator('.fa[data-fa="漢字"]').first());
+    c = kanji.cloud;
+    assert(c.lang === 'ja' && c.fields.map(f => f.kind).join() === 'kana,translit' && c.fields[0].value === 'かんじ' && c.fields[0].label === 'kana' &&
+           c.fields[1].value === null && c.fields[1].add && c.fields[1].label === 'rōmaji',
+           'a Japanese word on a Persian page opens the Japanese cloud: kana above rōmaji, the reading given, the rōmaji to be added: ' + JSON.stringify(c.fields));
+    assert(/CJK JP|Serif JP|Mincho/.test(c.fields[0].face) && standsOn(kanji, 1280), 'the reading is set in the Japanese face, over its word: ' + c.fields[0].face);
+    if (SHOTS) await page.screenshot({path: `${SHOTS}/guide-cloud-japanese-light-1280.png`});
+    const both = await openCloud(page, page.locator('.fa[data-fa="日本語"]').first());
+    assert(both.cloud.fields.map(f => f.value).join() === 'にほんご,nihongo', 'a word with both shows both: ' + JSON.stringify(both.cloud.fields.map(f => f.value)));
+    const casa = await openCloud(page, page.locator('.fa[data-fa="la casa"]').first());
+    assert(casa.cloud.lang === 'it' && casa.cloud.fields.length === 1 && casa.cloud.fields[0].label === 'pronunciation' && casa.cloud.fields[0].value === 'la càṡa',
+           'and an Italian one, on the same page, the pronunciation, with no reading field: ' + JSON.stringify(casa.cloud.fields));
+    const back = await openCloud(page, tond);
+    assert(back.cloud.lang === 'fa' && back.cloud.fields.length === 1 && back.cloud.fields[0].label === 'transliteration',
+           'and back on the Persian word the cloud is the Persian one again');
+    await leaveCloud(page);
+
+    // the three themes: the cloud is painted in each theme's own colours
+    for (const theme of ['light', 'sepia', 'dark']) {
+      await setTheme(theme);
+      const g = await openCloud(page, tond);
+      const now = await page.evaluate(() => document.documentElement.dataset.theme);
+      assert(now === theme && g.cloud.bg === PAPER[theme] && g.cloud.ink === INK[theme],
+             `in ${theme} the cloud is ${g.cloud.bg}, its label ${g.cloud.ink}`);
+      if (SHOTS) await page.screenshot({path: `${SHOTS}/guide-cloud-persian-${theme}-1280.png`});
+      await leaveCloud(page);
+    }
+    await setTheme('light');
+
+    // a reload puts the page back as it was compiled
+    await page.reload();
+    await page.evaluate(() => document.fonts.ready);
+    assert(await page.locator('.fa[data-fa="تند"]').first().evaluate(w => !w.parentElement.classList.contains('fac-teal')),
+           'and a reload forgets what was chosen in the cloud');
+
+    // EVERY PAGE THAT HAS SUCH A WORD, EVERY LANGUAGE ON IT: the cloud is that language's
+    const marked = /<span class="fac[^"]*"[^>]*\sdata-(?:translit|kana)=[^>]*><span class="fa[^"]*"[^>]*\sdata-fa=/;
+    const pages = [];
+    for await (const f of htmlFiles(`${DISK}/site`)) if (marked.test(await Deno.readTextFile(f))) pages.push(f);
+    pages.sort();
+    const covered = new Set(), wrong = [];
+    for (const f of pages) {
+      const pe = [];
+      const onPage = f.slice(`${DISK}/site/`.length);
+      const handler = e => pe.push(e.message);
+      page.on('pageerror', handler);
+      await page.goto('file://' + f);
+      await page.evaluate(() => document.fonts.ready);
+      const byLang = await page.evaluate(() => {
+        const out = {};
+        [...document.querySelectorAll('.fa[data-fa]')].forEach((s, i) => {
+          const w = s.parentElement;
+          if ((s.dataset.translit || s.dataset.kana || (w && (w.dataset.translit || w.dataset.kana))) && s.getClientRects().length &&
+              !s.closest('.exercise, details:not([open])')) (out[s.lang] = out[s.lang] || []).push(i);
+        });
+        return out;
+      });
+      const usesApp = await page.evaluate(() => !!document.querySelector('script[src$="_parseh/app.js"]'));
+      if (!usesApp) wrong.push(onPage + ': no studio script');
+      for (const [lang, at] of Object.entries(byLang)) {
+        try {
+          const g = await openCloud(page, page.locator('.fa[data-fa]').nth(at[0]));
+          const R = REG[lang], fs = g.cloud.fields;
+          const ok = g.cloud.lang === lang && g.cloud.inPz && g.cloud.bg === PAPER.light &&
+            fs.map(x => x.kind).join() === (R.reading ? 'kana,translit' : 'translit') &&
+            fs.find(x => x.kind === 'translit').label === R.translit_label &&
+            (!R.reading || fs.find(x => x.kind === 'kana').label === R.reading_label) &&
+            fs.some(x => x.value) && standsOn(g, 1280);
+          if (!ok) wrong.push(`${onPage} ${lang}: ${JSON.stringify(fs)} ${g.cloud.lang} ${g.cloud.bg}`);
+          else covered.add(lang);
+          await leaveCloud(page);
+        } catch (e) { wrong.push(`${onPage} ${lang}: ${e.message.split('\n')[0]}`); }
+      }
+      page.off('pageerror', handler);
+      if (pe.length) wrong.push(onPage + ': ' + pe.join('; '));
+    }
+    assert(pages.length >= 20 && wrong.length === 0,
+           `on each of the ${pages.length} pages that have a marked word, the cloud opens on each language's word with that language's labels: ` + wrong.join(' || '));
+    assert(CODES.length === 11 && CODES.every(c => covered.has(c)),
+           `all eleven languages were driven (${[...covered].sort().join(' ')} of ${CODES.length})`);
+
+    // and a page with no such word carries no studio script and no layer
+    await page.goto(FILE + '/site/getting-started/installing.html');
+    assert(await page.evaluate(() => !document.querySelector('script[src$="_parseh/app.js"]') && !document.querySelector('.g-cloud-layer') &&
+                                     !document.getElementById('langs-json')),
+           'a page without one loads nothing for it');
+  }
   assert(errors.length === 0, 'no script error and no missing file off the disk: ' + errors.join('; '));
   await ctx.close();
 
@@ -416,6 +625,35 @@ try {
       const l = await ytLabel(pp);
       assert(l.needs <= l.shown && l.oneLine && l.inCard && l.clear && !!l.start && l.say.includes(l.start),
              `on a ${width}px phone the card on ${pg} shows its label whole, with the start: ` + JSON.stringify(l));
+    }
+  }
+  // the studio's cloud, TAPPED: a tap on a word that carries a transliteration or
+  // a reading opens it (a phone has no pointing), whole inside the window, in
+  // the theme's colours, and a tap elsewhere puts it away
+  {
+    await pp.setViewportSize({width: 390, height: 844});
+    await pp.goto(FILE + '/site/dialect/colours-and-pronunciation.html');
+    await pp.evaluate(() => document.fonts.ready);
+    for (const [name, sel, lang, values] of [['Persian', '.fa[data-fa="تند"]', 'fa', 'tond'],
+                                             ['Japanese', '.fa[data-fa="日本語"]', 'ja', 'にほんご,nihongo'],
+                                             ['Italian', '.fa[data-fa="la casa"]', 'it', 'la càṡa']]) {
+      const g = await openCloud(pp, pp.locator(sel).first(), true);
+      const c = g.cloud;
+      assert(c.lang === lang && c.fields.map(f => f.value).filter(Boolean).join() === values && c.inPz && c.left >= 0 && c.right <= 390 &&
+             standsOn(g, 390) && !c.sideways && (await pp.locator('.xp-unsaved').count()) === 0,
+             `a tap on a ${name} word opens its cloud, whole in the window, with nothing about saving: ` + JSON.stringify([c.lang, c.fields.map(f => f.value), c.left, c.right]));
+      if (SHOTS) await pp.screenshot({path: `${SHOTS}/guide-cloud-${name.toLowerCase()}-light-390.png`});
+      await leaveCloud(pp, true);
+    }
+    for (const theme of ['sepia', 'dark']) {
+      await pp.evaluate(t => { localStorage.setItem('parseh_theme', t); Guide.theme.apply(); }, theme);
+      const g = await openCloud(pp, pp.locator('.fa[data-fa="تند"]').first(), true);
+      assert(g.cloud.bg === PAPER[theme], `on a phone in ${theme} the cloud is ${g.cloud.bg}`);
+      if (SHOTS) await pp.screenshot({path: `${SHOTS}/guide-cloud-persian-${theme}-390.png`});
+      await pp.locator('.fapal button[data-color="indigo"]').tap();
+      assert(await pp.locator('.fa[data-fa="تند"]').first().evaluate(w => w.parentElement.classList.contains('fac-indigo')),
+             `and a tap on a colour colours the word on the phone, in ${theme} too`);
+      await leaveCloud(pp, true);
     }
   }
   await phone.close();
@@ -763,6 +1001,12 @@ serve.main()
     const v = await youtube(sp);
     assert(v.player && !v.card && !v.note, 'served, the YouTube player is kept: ' + JSON.stringify(v));
   }
+  {
+    await sp.goto(B + '/guide/site/dialect/colours-and-pronunciation.html');
+    const g = await openCloud(sp, sp.locator('.fa[data-fa="漢字"]').first());
+    assert(g.cloud.inPz && g.cloud.lang === 'ja' && g.cloud.fields[0].value === 'かんじ' && standsOn(g, 1280),
+           'served by Parseh, a Japanese word on a Persian page opens the Japanese cloud: ' + JSON.stringify(g.cloud.fields));
+  }
   // the theme is the toolbox's: chosen in the guide, the hub has it too
   await sp.evaluate(() => localStorage.setItem('parseh_theme', 'light'));
   await sp.reload();
@@ -835,6 +1079,12 @@ serve.main()
   await gp.waitForLoadState();
   assert(/\/Parseh\//.test(gp.url()), 'and the way back stays under /Parseh/: ' + gp.url());
   assert(bad.length === 0, 'no address the pages ask for is missing: ' + bad.join('; '));
+  {
+    await gp.goto(G + 'site/dialect/colours-and-pronunciation.html');
+    const g = await openCloud(gp, gp.locator('.fa[data-fa="تند"]').first());
+    assert(g.cloud.inPz && g.cloud.bg === PAPER.light && g.cloud.fields[0].value === 'tond' && standsOn(g, 1280),
+           'under /Parseh/ a word with a transliteration opens the cloud, styled: ' + JSON.stringify([g.cloud.bg, g.cloud.fields]));
+  }
   // the same site under /guide/, where a website would put it: the address
   // alone once made the pages take this host for Parseh
   await Deno.symlink(`${GH}/Parseh`, `${GH}/guide`);

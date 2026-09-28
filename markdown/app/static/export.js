@@ -223,33 +223,47 @@ function xpDocument(place) {
    the target language opens the studio's own cloud -- its transliteration,
    the kana for Japanese, the colours -- and what is changed in it is changed
    ON THIS OPEN PAGE ONLY.  Nothing is sent anywhere or kept anywhere: no
-   server, no file, no storage that outlives the tab; the cloud says so. */
+   server, no file, no storage that outlives the tab (bindPageCloud, app.js).
+
+   The cloud itself is exactly the studio's, and says nothing of that.  The
+   page says it once instead, over the screen and not inside the cloud (the
+   owner, 2026-09-28): the first time a word or the cloud is clicked -- a tap
+   on a phone is that click; a word of an exercise, answered with, is not --
+   a line names it for a few seconds.  Whether it was said is a flag of this
+   closure and not a stored one: a reload is a first time again, and nothing
+   is written down.  The line takes no pointer, so it can never swallow the
+   click that follows. */
 function xpCloud(sheet) {
-  const colour = (body, span) => {
-    let wrap = span.parentElement && span.parentElement.classList.contains("fac") ? span.parentElement : null;
-    if (!body.color) {
-      if (wrap) { wrap.replaceWith(...wrap.childNodes); }
-      return;
-    }
-    if (!wrap) {
-      wrap = document.createElement("span");
-      span.replaceWith(wrap);
-      wrap.appendChild(span);
-    }
-    wrap.className = "fac";
-    wrap.style.color = "";
-    if (body.color.startsWith("#")) wrap.style.color = body.color;
-    else wrap.classList.add("fac-" + body.color);
-    wrap.dataset.color = body.color;
-  };
-  const mark = kind => (body, span) => {
-    const v = (body[kind] || "").trim();
-    if (v) span.dataset[kind] = v;
-    else delete span.dataset[kind];
-    if (span.parentElement && span.parentElement.dataset[kind] && !v) delete span.parentElement.dataset[kind];
-  };
-  bindColorPalette(sheet, {apply: colour, applyTranslit: mark("translit"), applyKana: mark("kana"),
-                           onlyHere: true});
+  bindPageCloud(sheet);
+  let told = false, timer = null, notice = null;
+  function dismiss() {
+    clearTimeout(timer);
+    if (!notice) return;
+    const gone = notice;
+    notice = null;
+    gone.classList.remove("xp-unsaved-on");
+    setTimeout(() => gone.remove(), 300);
+  }
+  document.addEventListener("click", e => {
+    if (told || !e.target.closest) return;
+    const hit = e.target.closest(".fapal, .fa[data-fa], .voce-fa[data-fa]");
+    // a word of an exercise is answered with, not asked about: only the
+    // cloud itself, opened over one, is a click that changes the page
+    if (!hit || (!hit.matches(".fapal") && hit.closest(".exercise"))) return;
+    told = true;
+    notice = document.createElement("div");
+    notice.className = "xp-unsaved";
+    notice.setAttribute("role", "status");
+    notice.setAttribute("aria-live", "polite");
+    document.body.appendChild(notice);
+    const mine = notice;
+    requestAnimationFrame(() => {
+      mine.textContent = "Changes made here are not saved";
+      mine.classList.add("xp-unsaved-on");
+    });
+    timer = setTimeout(dismiss, 4000);
+  }, true);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") dismiss(); });
 }
 
 /* ---------------------------------------------------------------- a deck: cram */

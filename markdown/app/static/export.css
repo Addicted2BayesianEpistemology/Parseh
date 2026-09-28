@@ -57,6 +57,22 @@
 .xp-gl-filter { width: 100%; margin-bottom: .5rem; }
 .xp-main > .sheet { margin: 0 auto; }
 
+/* the one line the first click on a word or its cloud brings, over the
+   screen and under the bar: what is changed on the page is not kept
+   (export.js, xpCloud).  Dark like the toast, which is at the bottom; above
+   it; and never a target for the pointer */
+.xp-unsaved {
+  position: fixed; top: 3.7rem; left: 50%; transform: translateX(-50%);
+  z-index: 130; width: max-content; max-width: 80vw; text-align: center;
+  padding: .5rem 1.1rem; border-radius: 99px;
+  background: #241e21; color: #fff; font-size: .86rem;
+  border: 1px solid rgba(255, 255, 255, .16);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .3);
+  opacity: 0; transition: opacity .25s; pointer-events: none;
+}
+.xp-unsaved.xp-unsaved-on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .xp-unsaved { transition: none; } }
+
 /* a link to another document of the library: its words, nothing more */
 .doclink-plain { color: inherit; }
 
@@ -82,7 +98,7 @@
 .xp-foot a:hover, .xp-foot a:focus-visible { color: var(--accent); }
 
 @media print {
-  .xp-bar, .xp-panel, .xp-cram .dk-study-actions, .xp-video-note { display: none !important; }
+  .xp-bar, .xp-panel, .xp-cram .dk-study-actions, .xp-video-note, .xp-unsaved { display: none !important; }
   /* on paper a link is its address */
   .xp-foot a::after { content: " (" attr(href) ")"; }
 }

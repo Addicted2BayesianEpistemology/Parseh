@@ -287,10 +287,11 @@ class Starters(unittest.TestCase):
     def test_the_script_is_the_exercises_and_nothing_that_saves(self):
         js = webexport._runtime()
         # the transliteration cloud travels too (the owner, 2026-09-25), with
-        # appliers of the page's own that keep nothing (export.js, xpCloud)
+        # appliers that touch the DOM and keep nothing (bindPageCloud), and
+        # the export's own notice of the first click is in the page's script
         for needed in ("function bindExercises", "function applyTypo", "function clipWindow",
                        "function bindFootnoteClouds", "function armClipReplay",
-                       "function bindColorPalette"):
+                       "function bindColorPalette", "function bindPageCloud"):
             self.assertIn(needed, js)
         for never in ("function initDoc", "function initIndex", "function docColorApplier",
                       "function docMarkApplier", "function bindImageLayout", "function api(", "fetch(", "XMLHttpRequest",
@@ -309,6 +310,24 @@ class Starters(unittest.TestCase):
                 run = subprocess.run([deno, "eval", "new Function(Deno.readTextFileSync(%r))" % str(f)],
                                      capture_output=True, text=True, timeout=120)
                 self.assertEqual(run.returncode, 0, run.stderr[-800:])
+
+    def test_the_cloud_is_the_studios_and_the_page_says_it_keeps_nothing_once(self):
+        # the owner, 2026-09-28: no line about saving inside the cloud, which
+        # looks as it does in the studio; the first click on a word says it,
+        # over the screen, in the page's own words and never on the guide's
+        script = webexport._script(False)
+        self.assertEqual(script.count("Changes made here are not saved"), 1)
+        self.assertIn("xp-unsaved", script)
+        for gone in ("fapal-here", "nothing is saved", "on this page only", "On this page only"):
+            self.assertNotIn(gone, script, gone)
+        _md, _name, page = self.pages["fa"]
+        css = re.search(r"<style>(.*?)</style>", page, re.S).group(1)
+        self.assertIn(".xp-unsaved {", css)
+        self.assertIn("pointer-events: none", re.search(r"\.xp-unsaved \{[^}]*\}", css).group(0),
+                      "the line takes no click")
+        self.assertNotIn("fapal-here", css)
+        self.assertRegex(css, r"@media print \{[^}]*\.xp-unsaved")
+        self.assertNotIn('class="xp-unsaved"', body_of(page), "it is made by the first click, not written in")
 
 
 class Cleaning(unittest.TestCase):

@@ -66,6 +66,14 @@ DEFAULT_TARGET = languages.DEFAULT       # fa, as the studio: see README.md
 DEFAULT_PROSE = "en"
 
 
+# a word the cloud can open on: the wrapper that carries a transliteration or
+# a reading as data (htmlgen "colt"), around a run that says which word it is
+# (data-fa).  A mark in a footnote's own cloud has no data-fa: nothing opens
+# there, and a page whose only marks are such is loaded with nothing for them
+CLOUD_MARK = re.compile(r'<span class="fac[^"]*"[^>]*\sdata-(?:translit|kana)=[^>]*>'
+                        r'<span class="fa[^"]*"[^>]*\sdata-fa=')
+
+
 class NotOurs(Exception):
     """The folder a compile was asked to replace holds something a compile
     did not make: nothing was touched."""
@@ -722,9 +730,27 @@ class Site:
             pager.append('<a class="g-next" href="%s"><span>Next</span>%s</a>'
                          % (esc(rel_url(here, next_page.out)), esc(next_page.title)))
         scripts = ['<script src="%s"></script>' % esc(rel_url(here, "nav.js"))]
+        # A WORD THAT CARRIES A TRANSLITERATION OR A READING opens the studio's
+        # cloud (app.js bindPageCloud, which guide.js binds), so the script
+        # that makes it is loaded, with the records of the languages the
+        # page's words are set in: each word names its own (lang="ja" in a
+        # page whose target is Persian), and the cloud's labels and fields
+        # are that language's
+        cloud = bool(CLOUD_MARK.search(body))
+        if cloud:
+            ctx.uses.add("cloud")
         if "math" in ctx.uses or "exercise" in ctx.uses:
             scripts.append('<script src="%smathjax.js"></script>' % run)
-        if "exercise" in ctx.uses:
+        if cloud:
+            codes = {L.code}
+            for tag in re.findall(r"<[^>]*\sdata-fa=[^>]*>", body):
+                named = re.search(r'\slang="([a-z]{2,3})"', tag)
+                if named:
+                    codes.add(named.group(1))
+            records = [l.as_json() for l in languages.LANGS.values() if l.code in codes]
+            scripts.append('<script id="langs-json" type="application/json">%s</script>'
+                           % json.dumps(records, ensure_ascii=False).replace("</", "<\\/"))
+        if "exercise" in ctx.uses or cloud:
             scripts.append('<script src="%sapp.js"></script>' % run)
         desc = str(page.fm.get("description") or "")
         return PAGE % {

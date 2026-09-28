@@ -1799,7 +1799,11 @@ function bindFootnoteClouds(container) {
    rewrites its (possibly unsaved) buffer.  `opts.applyTranslit` and
    `opts.applyKana` do the same for the transliteration and, for a
    language with a reading, the kana -- two independent halves of the
-   same mark, each with its own field at the head of the cloud. */
+   same mark, each with its own field at the head of the cloud.
+   `opts.only(span)`, when given, says which runs open the cloud at all;
+   `opts.host` is the element the cloud is put in instead of <body>; and
+   `opts.onlyHere` marks a page that keeps nothing, which only changes what
+   the toasts say -- the cloud itself is the same. */
 function bindColorPalette(container, opts) {
   if (!opts || !opts.apply) return;
   let pal = null, target = null, hideTimer = null;
@@ -1813,6 +1817,16 @@ function bindColorPalette(container, opts) {
   // swaps the language live as the preview reports another `target:`,
   // and show() rebuilds the cloud when that has happened.
   let MARKS = [];
+  // A RUN NAMES ITS OWN LANGUAGE (lang="…" on the span, from the record the
+  // page embeds in #langs-json): a page may hold examples of several, and the
+  // cloud's fields, labels and face are those of the word it opens on.  A run
+  // of the page's own language, or one whose language the page has no full
+  // record of, takes the page's -- which is every run of a studio document.
+  function langOf(span) {
+    const code = span && span.getAttribute && span.getAttribute("lang");
+    if (!code || code === lang().code) return lang();
+    return LANGS.find(l => l.code === code && l.translit_label) || lang();
+  }
   function markFields(L) {
     const out = [];
     if (L.reading && opts.applyKana)
@@ -1825,8 +1839,7 @@ function bindColorPalette(container, opts) {
   const PAL_HEX = {crimson: "#8E2B34", indigo: "#2F3E8F", teal: "#13605C",
                    violet: "#5C2E7E", amber: "#8A5A0B"};
 
-  function build() {
-    const L = lang();
+  function build(L) {
     MARKS = markFields(L);
     pal = document.createElement("div");
     pal.className = "fapal";
@@ -1844,14 +1857,6 @@ function bindColorPalette(container, opts) {
         `${m.kind === "kana" ? ` lang="${L.code}"` : ""}>` +
       `</span>`).join("") +
       `<span class="lbl">colour</span>`;
-    if (opts.onlyHere) {
-      // AN EXPORTED PAGE KEEPS NOTHING: what is changed in the cloud is
-      // changed on this open page, and gone when the tab closes
-      const note = document.createElement("span");
-      note.className = "fapal-here";
-      note.textContent = "On this page only: nothing is saved.";
-      pal.appendChild(note);
-    }
     for (const c of colors) {
       const b = document.createElement("button");
       b.type = "button";
@@ -1889,13 +1894,13 @@ function bindColorPalette(container, opts) {
     MARKS.forEach(bindMarkEditor);
     pal.addEventListener("mouseenter", () => clearTimeout(hideTimer));
     pal.addEventListener("mouseleave", scheduleHide);
-    document.body.appendChild(pal);
+    (opts.host || document.body).appendChild(pal);
   }
 
   // the reading applier is gated on the language at the moment of use: a
   // buffer switched away from Japanese has no reading field to write
-  const applier = kind => kind === "kana"
-    ? (lang().reading ? opts.applyKana : null) : opts.applyTranslit;
+  const applier = (kind, span) => kind === "kana"
+    ? (langOf(span).reading ? opts.applyKana : null) : opts.applyTranslit;
 
   /* A mark control: a label that turns into a text field on click, or a
      + when the run carries no annotation yet.  Writing it back is the
@@ -1969,7 +1974,7 @@ function bindColorPalette(container, opts) {
       // in the heading itself (`## فارسی | translit | …`); a second,
       // marked-up copy would be a competing source of truth, so the
       // editor is offered only on ordinary runs
-      const editable = !!applier(m.kind) && span
+      const editable = !!applier(m.kind, span) && span
         && span.classList.contains("fa");
       val.hidden = !v;
       add.hidden = !!v || !editable;
@@ -1980,7 +1985,7 @@ function bindColorPalette(container, opts) {
 
   async function applyMark(m, value) {
     const span = trSpan;
-    const fn = applier(m.kind);
+    const fn = applier(m.kind, span);
     if (!span || !fn) return;
     const v = value.trim(), before = currentMark(span, m.kind);
     if (v === before) { showMarks(span); return scheduleHide(); }
@@ -1991,7 +1996,7 @@ function bindColorPalette(container, opts) {
       await fn(body, span);
       showMarks(span);
       toast(opts.onlyHere
-        ? (v ? `${what}: ${v} — on this page only, nothing is saved` : `${what} removed on this page only`)
+        ? (v ? `${what}: ${v}` : `${what} removed`)
         : (v ? `${what} saved: ${v}` : `${what} removed`));
       hide();
     } catch (e) {
@@ -2010,11 +2015,12 @@ function bindColorPalette(container, opts) {
   function show(span) {
     // a cloud built for another language is thrown away: its fields, face
     // and labels are that language's (never while a field is open in it)
-    if (pal && pal.dataset.lang !== lang().code && !editPinned && !pickerPinned) {
+    const L = langOf(span);
+    if (pal && pal.dataset.lang !== L.code && !editPinned && !pickerPinned) {
       pal.remove();
       pal = null;
     }
-    if (!pal) build();
+    if (!pal) build(L);
     target = span;
     showMarks(span);
     const cur = currentColor(span);
@@ -2056,7 +2062,7 @@ function bindColorPalette(container, opts) {
       await opts.apply(body, span);
       hide();
       toast(opts.onlyHere
-        ? (color ? `Marked ${color} — on this page only, nothing is saved` : "Colour removed on this page only")
+        ? (color ? `Marked ${color}` : "Colour removed")
         : (color ? `Marked ${color} — saved in the markdown` : "Colour removed"));
     } catch (e) {
       toast("Could not set the colour: " + e.message, true);
@@ -2066,6 +2072,7 @@ function bindColorPalette(container, opts) {
   container.addEventListener("mouseover", e => {
     const span = e.target.closest(".fa[data-fa], .voce-fa[data-fa]");
     if (!span || !container.contains(span)) return;
+    if (opts.only && !opts.only(span)) return;
     clearTimeout(hideTimer);
     if (span !== target) show(span);
   });
@@ -2073,6 +2080,50 @@ function bindColorPalette(container, opts) {
     if (e.target.closest(".fa[data-fa], .voce-fa[data-fa]")) scheduleHide();
   });
   window.addEventListener("scroll", hide, {passive: true});
+}
+
+/* THE CLOUD ON A PAGE THAT KEEPS NOTHING -- an exported page, and the guide
+   (the owner, 2026-09-25 and 2026-09-28): the studio's own cloud, whose
+   colours and marks are written onto this open page and nowhere else.  No
+   server is asked and nothing is stored: the appliers below touch the DOM
+   and are gone with the tab.  `only(span)` picks the runs that open it (the
+   guide's: those that carry a transliteration or a reading) and `host` is
+   where the cloud is put (the guide's layer, inside the scope its rules
+   are written under). */
+function bindPageCloud(container, opts) {
+  opts = opts || {};
+  const colour = (body, span) => {
+    let wrap = span.parentElement && span.parentElement.classList.contains("fac")
+      ? span.parentElement : null;
+    if (!body.color) {
+      if (!wrap) return;
+      wrap.className = "fac";
+      wrap.style.color = "";
+      delete wrap.dataset.color;
+      if (!wrap.dataset.translit && !wrap.dataset.kana) wrap.replaceWith(...wrap.childNodes);
+      return;
+    }
+    if (!wrap) {
+      wrap = document.createElement("span");
+      span.replaceWith(wrap);
+      wrap.appendChild(span);
+    }
+    wrap.className = "fac";
+    wrap.style.color = "";
+    if (body.color.startsWith("#")) wrap.style.color = body.color;
+    else wrap.classList.add("fac-" + body.color);
+    wrap.dataset.color = body.color;
+  };
+  const mark = kind => (body, span) => {
+    const v = (body[kind] || "").trim();
+    if (v) span.dataset[kind] = v;
+    else delete span.dataset[kind];
+    if (span.parentElement && span.parentElement.dataset[kind] && !v)
+      delete span.parentElement.dataset[kind];
+  };
+  bindColorPalette(container, {apply: colour, applyTranslit: mark("translit"),
+                               applyKana: mark("kana"), onlyHere: true,
+                               only: opts.only, host: opts.host});
 }
 
 /* The reading view's appliers: save on the server, then patch the DOM in

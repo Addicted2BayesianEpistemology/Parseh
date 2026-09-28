@@ -576,7 +576,28 @@
     if (article) {
       if (typeof window.bindExercises === 'function') window.bindExercises(article);
       else if (window.ParsehMath) window.ParsehMath.typeset(article);
+      bindCloud(article);
     }
+  }
+
+  // THE STUDIO'S CLOUD ON A WORD THAT CARRIES A TRANSLITERATION OR A READING
+  // (app.js bindPageCloud, loaded by the pages that have such a word): the
+  // same cloud, and what is changed in it is changed on the open page and
+  // nowhere else.  It is put in a layer of its own at the top of the page,
+  // inside the scope the studio's rules are written under (engine/cssscope.py:
+  // a cloud in <body> would have no rule), where the document's own
+  // coordinates place it.  A word with no mark opens nothing.
+  function bindCloud(article) {
+    if (typeof window.bindPageCloud !== 'function') return;
+    var layer = document.createElement('div');
+    layer.className = 'pz g-cloud-layer';
+    document.body.appendChild(layer);
+    var marked = function (span) {
+      var wrap = span.parentElement;
+      return !!(span.dataset.translit || span.dataset.kana ||
+                (wrap && (wrap.dataset.translit || wrap.dataset.kana)));
+    };
+    window.bindPageCloud(article, {only: marked, host: layer});
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

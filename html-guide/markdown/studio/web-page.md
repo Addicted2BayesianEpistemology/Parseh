@@ -53,8 +53,11 @@ A deck's exercises can be a page too, one that crams them: see
 - **The transliteration cloud.** Pointing at a word of the target
   language opens the studio's own cloud: its transliteration, the kana of
   a Japanese word, the colours. What is changed in it is changed **on the
-  open page only** — the cloud says so — and is gone when the tab is
-  closed or reloaded.
+  open page only**, and is gone when the tab is closed or reloaded. The
+  first time a word or the cloud is clicked (or tapped, on a phone), a
+  line over the screen says so once: *Changes made here are not saved*.
+  It stays a few seconds, takes no click of its own, and does not come
+  back until the page is opened again.
 - **Its LaTeX drawings**, inside the file as pictures
   ([LaTeX drawings](../dialect/latex-drawings.md)); one that could not be
   made stands as its frame, and the studio says how many.

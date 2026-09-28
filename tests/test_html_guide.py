@@ -442,7 +442,129 @@ class ParsehDialect(Tree):
         page = self.page("ja.html")
         self.assertIn('<div class="sheet" lang="en" data-lang="ja" style="--fa-scale:1.20">', page)
         self.assertIn('data-kana="ねこ"', sheet(page))
-        self.assertNotIn("app.js", page, "no exercises, no studio script")
+        self.assertIn("_parseh/app.js", page, "a word with a reading opens the studio's cloud, so its script loads")
+        self.assertNotIn("_parseh/mathjax.js", page, "and no exercise or formula brings MathJax with it")
+
+
+# ------------------------------------------------------------------ the studio's cloud
+class TheStudiosCloud(Tree):
+    """A word that carries a transliteration or a reading opens the studio's
+    cloud on the guide's pages (app.js bindPageCloud, bound by guide.js).  What
+    the compiler owes it: the studio's script on the pages that have such a
+    word and on no other, and the records of the languages the page's words
+    are set in -- each word names its own, and a page may mix them."""
+    FILES = {
+        "mixed.md": '''
+            ---
+            title: Mixed
+            ---
+            A Persian word [تند]{translit:tond}, and a colour alone [کتاب]{teal}.
+
+            ```parseh-example
+            ---
+            target: ja
+            ---
+            [漢字]{kana:かんじ} and [東京]{translit:Tōkyō}
+            ```
+
+            ```parseh-example
+            ---
+            target: it
+            ---
+            [la casa]{translit:la càṡa}
+            ```
+        ''',
+        "colour.md": '''
+            ---
+            title: Colour only
+            ---
+            A word [کتاب]{teal} and a run کتاب, [تند]{tl}.
+        ''',
+        "ja.md": '''
+            ---
+            title: Japanese
+            target: ja
+            ---
+            [猫]{kana:ねこ translit:neko} = *cat*
+        ''',
+        "exercise.md": '''
+            ---
+            title: With an exercise and a mark
+            ---
+            [تند]{translit:tond}
+
+            :::exercise single-choice
+            prompt: Choose.
+            - [x] right
+            - [ ] wrong
+            :::
+        ''',
+        "none.md": '''
+            ---
+            title: None
+            ---
+            Words only.
+        ''',
+        "footnote.md": '''
+            ---
+            title: A mark in a footnote
+            ---
+            In everyday speech it shrinks^[to [می‌رم]{translit:mi-ram}.].
+        ''',
+    }
+
+    def records(self, rel):
+        m = re.findall(r'<script id="langs-json" type="application/json">(.*?)</script>', self.page(rel), re.S)
+        self.assertLessEqual(len(m), 1, "one record list, not several")
+        return json.loads(m[0].replace("<\\/", "</")) if m else None
+
+    def test_a_page_with_a_marked_word_loads_the_script(self):
+        for rel in ("mixed.html", "ja.html", "exercise.html"):
+            with self.subTest(rel):
+                page = self.page(rel)
+                self.assertEqual(page.count("_parseh/app.js"), 1, "the studio's script, once")
+                self.assertLess(page.index('id="langs-json"'), page.index("_parseh/app.js"),
+                                "its records are there before it reads them")
+
+    def test_a_page_without_one_loads_nothing_for_it(self):
+        # (a mark inside a footnote's own cloud has no data-fa: nothing opens there)
+        self.assertIn('data-translit="mi-ram"', self.page("footnote.html"))
+        for rel in ("colour.html", "none.html", "footnote.html"):
+            with self.subTest(rel):
+                page = self.page(rel)
+                self.assertNotIn("app.js", page, "a colour is not a mark the cloud shows: no script")
+                self.assertNotIn("langs-json", page)
+
+    def test_the_records_are_the_languages_the_words_are_set_in(self):
+        got = {r["code"]: r for r in self.records("mixed.html")}
+        self.assertEqual(sorted(got), ["fa", "it", "ja"], "the page's own language and those of its examples")
+        self.assertEqual(got["ja"]["reading"], True)
+        self.assertEqual(got["ja"]["reading_label"], "kana")
+        self.assertEqual(got["ja"]["translit_label"], "rōmaji")
+        self.assertEqual(got["it"]["translit_label"], "pronunciation")
+        self.assertEqual(got["fa"]["translit_label"], "transliteration")
+        self.assertEqual([r["code"] for r in self.records("ja.html")], ["ja"], "a page of one language holds one record")
+
+    def test_each_word_names_its_own_language(self):
+        b = self.body("mixed.html")
+        self.assertRegex(b, r'<span class="fac" data-translit="tond"><span class="fa" dir="rtl" lang="fa"')
+        self.assertRegex(b, r'<span class="fac" data-kana="かんじ"><span class="fa" dir="ltr" lang="ja"')
+        self.assertRegex(b, r'<span class="fac" data-translit="la càṡa"><span class="fa" dir="ltr" lang="it"')
+
+    def test_a_record_cannot_end_the_script_early(self):
+        for rel in ("mixed.html", "ja.html"):
+            page = self.page(rel)
+            data = re.search(r'<script id="langs-json" type="application/json">(.*?)</script>', page, re.S).group(1)
+            self.assertNotIn("</", data)
+            json.loads(data.replace("<\\/", "</"))
+
+    def test_the_script_the_guide_loads_has_the_cloud(self):
+        js = (self.site / "_parseh" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("function bindPageCloud(", js)
+        self.assertNotIn("fapal-here", js, "the cloud is the studio's, with no line of its own about saving")
+        guide = (GUIDE / "assets" / "guide.js").read_text(encoding="utf-8")
+        self.assertIn("bindPageCloud", guide)
+        self.assertNotIn("xp-unsaved", guide, "the notice of the first click is the export's, never the guide's")
 
 
 # ------------------------------------------------------------------ where Parseh wins

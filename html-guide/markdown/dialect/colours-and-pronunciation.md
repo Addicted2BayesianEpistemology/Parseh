@@ -72,7 +72,10 @@ black.
 `translit:` in the braces gives a word — or a group of two or three words
 — its transliteration. It is not printed: the word looks exactly as if it
 were unmarked, and the transliteration appears when you point at it, in
-the reading view and in the editor's preview.
+the reading view and in the editor's preview — and in this guide: point
+at the words of the examples on this page, and on the pages of
+[each language](languages/_index.md), that carry one. What you change in
+the guide's cloud is changed on the open page only.
 
 ```parseh-example
 [تند]{translit:tond} *fast* looks like plain Persian, and so does the group
