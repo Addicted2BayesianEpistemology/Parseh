@@ -119,6 +119,28 @@ async function suite(mode) {
            'the Cancel and Insert footer is outside the scrolling body and stays in the dialog');
     if (shots) await page.screenshot({path: `${shots}/latex-sheet-${mode}-desktop.png`});
 
+    // A drawing is black ink on nothing: read its real pixels through the
+    // filter the page applies, on the paper sheet and on the dark one.
+    const ink = () => page.evaluate(async () => {
+      const img = document.querySelector('.lx-preview-image');
+      const c = document.createElement('canvas');
+      c.width = 200; c.height = Math.max(1, Math.round(200 * img.naturalHeight / img.naturalWidth));
+      const ctx = c.getContext('2d');
+      ctx.filter = getComputedStyle(img).filter;
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const px = ctx.getImageData(0, 0, c.width, c.height).data;
+      let sum = 0, n = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 200) { sum += (px[i] + px[i + 1] + px[i + 2]) / 3; n++; }
+      return {n, mean: n ? sum / n : -1};
+    });
+    const paperInk = await ink();
+    await page.evaluate(() => { document.body.dataset.theme = 'dark'; });
+    const darkInk = await ink();
+    if (shots) await page.screenshot({path: `${shots}/latex-sheet-${mode}-dark.png`});
+    await page.evaluate(() => { document.body.dataset.theme = 'paper'; });
+    assert(paperInk.n > 50 && paperInk.mean < 60, `on the paper sheet a drawing's ink is dark (mean ${Math.round(paperInk.mean)})`);
+    assert(darkInk.n > 50 && darkInk.mean > 180, `on the dark sheet a drawing's ink is light, not black on dark (mean ${Math.round(darkInk.mean)})`);
+
     // Reopening a block that already has a non-default shape reveals the
     // placement controls rather than concealing why it lands where it does.
     await page.click('.latex-modal [data-x="cancel"]');

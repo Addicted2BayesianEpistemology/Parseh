@@ -1332,6 +1332,12 @@ figure.latex figcaption > span { display: block; font-size: .78em; color: var(--
 figure.latex.align-left figcaption { text-align: left; }
 figure.latex.align-right figcaption { text-align: right; }
 .ex-flashcard figure.latex { margin-top: .5em; margin-bottom: .5em; }
+/* a drawing is black on nothing (lib/latexdraw.py): on the dark sheet it would
+   all but vanish, so it is turned to the sheet's own ink, and the hue turn
+   keeps a coloured drawing's colours where they were */
+body[data-theme="dark"] figure.latex img,
+body[data-theme="dark"] img.latex-inline,
+body[data-theme="dark"] .lx-preview-image { filter: invert(.9) hue-rotate(180deg); }
 .latex-fail { border: 1px dashed var(--rule, #8888); border-radius: 6px; padding: .6em .8em;
   margin: 1em 0; font-size: .9em; }
 .latex-fail .latex-said { margin: 0 0 .4em; }
