@@ -127,7 +127,9 @@ import lookup              # noqa: E402  the dictionary behind an unglossed chun
 import decomposition      # local optional component trees
 import corpus             # noqa: E402  and the sentences somebody translated
 import getmt              # noqa: E402  and the model that runs in the page
+import getstt             # noqa: E402  speech to text: its program, its models, its processor
 import lookuppage         # noqa: E402  the page that sets the dictionaries up
+import speechpage         # noqa: E402  Settings -> Speech to text (§7.23)
 import latexpage          # noqa: E402  Settings -> LaTeX drawings (§8.39)
 import latexthemes        # noqa: E402  the themes a latex block is drawn with
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
@@ -1531,10 +1533,17 @@ MT_JOBS = {}
 # the synonym table is ONE file, not one per language or pair, so this is
 # a single job {running, say, error}, not a dict of them
 SYN_JOB = {}
+# and speech to text's: the program and each of the two models, keyed
+# "runtime", "large-v3-turbo", "large-v3" -- run by the same runner as the
+# reading help's downloads, and shown on a page of its own
+STT_JOBS = {}
 # WHERE THE READING HELP LIVES: a page of Settings since TO-DO §11.10, beside
 # Network.  Every link Parseh writes points here, and /lookup/ answers with a
 # redirect to it; its API stays at /lookup/api/ (see the router).
 READING_HELP = "/settings/reading-help/"
+# ...AND SPEECH TO TEXT'S, a door of its own since the owner said so on
+# 2026-09-28 (lib/speechpage.py draws it); its API is /lookup/api/'s too
+SPEECH_PAGE = "/settings/speech/"
 
 # UPDATING PARSEH IN PLACE (TO-DO §13.16): a page of Settings, and its routes.
 # lib/updater.py does the work and lib/updatepage.py draws the page; who may
@@ -1703,7 +1712,7 @@ def update_daily():
 #   stopped              True when the person stopped it (not a failure)
 #   queue                the language whose "get everything" it is a step of
 #   waiting              True while it waits its turn in that queue
-READING_KINDS = ("dict", "components", "corpus", "model", "synonyms")
+READING_KINDS = ("dict", "components", "corpus", "model", "synonyms", "speech")
 CANCELS = {}                    # (kind, key) -> the Event its Stop button sets
 PLANS = {}                      # (kind, key) -> (when, plan): what it was said to cost
 PLAN_FOR = 600                  # seconds a plan is believed before it is asked again
@@ -1719,7 +1728,7 @@ def reading_table(kind):
     if kind == "synonyms":
         return {"": SYN_JOB} if SYN_JOB else {}
     return {"dict": DICT_JOBS, "corpus": CORPUS_JOBS, "model": MT_JOBS,
-            "components": DECOMPOSITION_JOBS}[kind]
+            "components": DECOMPOSITION_JOBS, "speech": STT_JOBS}[kind]
 
 
 def reading_job(kind, key):
@@ -1765,6 +1774,10 @@ def reading_check(kind, key):
         if code == gloss:
             return (("a language translated into itself is a copy" if kind == "model" else
                      "a language glossed in itself has nothing to translate"), 400)
+    elif kind == "speech":
+        # a part is one of three exact names: nothing else is ever a path
+        if key not in getstt.PARTS:
+            return "no such part of speech to text", 400
     elif key:
         return "there is one synonym table, not one per language", 400
     return "", 200
@@ -1795,7 +1808,8 @@ def reading_plan(kind, key, fresh=False):
 def reading_folder(kind):
     """Where a kind's files go, for the room left on that disk."""
     return {"dict": lookup.DICT_DIR, "corpus": corpus.CORPUS_DIR, "model": getmt.MT_DIR,
-            "synonyms": getmt.MT_DIR, "components": str(decomposition.DATA_DIR)}[kind]
+            "synonyms": getmt.MT_DIR, "components": str(decomposition.DATA_DIR),
+            "speech": getstt.STT_DIR}[kind]
 
 
 disk_free = lookuppage.disk_free
@@ -1827,6 +1841,8 @@ def reading_named(kind, key):
         return "the %s component pack" % decomposition.PACKS.get(key, {}).get("name", key)
     if kind == "synonyms":
         return "the synonym table"
+    if kind == "speech":
+        return getstt.part_name(key)
     what = {"dict": "dictionary", "corpus": "translated sentences",
             "model": "translation model"}[kind]
     return "the %s %s" % (_lang_pair(key), what)
@@ -1856,6 +1872,9 @@ def reading_start(kind, key, queue=None, wait=False):
             return {"ok": False, "error": "%s is written without spaces between its words, "
                     "so its dictionary comes first: the sentences are cut into words "
                     "with it" % languages.LANGS[code].name}, 409
+    if kind == "speech" and getstt.unavailable_reason():
+        # NO BUTTON WAS OFFERED, and a route asked anyway is told why
+        return {"ok": False, "error": getstt.unavailable_reason()}, 409
     try:
         plan = reading_plan(kind, key)
     except Exception as e:
@@ -1901,6 +1920,10 @@ def reading_start(kind, key, queue=None, wait=False):
             state["error"] = "%s: %s" % (type(e).__name__, e)
         finally:
             PLANS.pop((kind, key), None)       # what is on disk has changed
+            if kind == "speech":
+                # ...and a model's plan counts the program when it is not there
+                for part in getstt.PARTS:
+                    PLANS.pop((kind, part), None)
             CANCELS.pop((kind, key), None)
             state["finished"] = time.time()
             state["running"] = False
@@ -2310,6 +2333,7 @@ LOOKUP_WORK = (
     ("model", lambda: MT_JOBS, "Getting the %s translation model"),
     ("components", lambda: DECOMPOSITION_JOBS, "Getting the %s component pack"),
     ("synonyms", lambda: {"": SYN_JOB} if SYN_JOB else {}, "Getting the synonym table"),
+    ("speech", lambda: STT_JOBS, "Getting %s"),
 )
 
 
@@ -2409,13 +2433,15 @@ def activity_now():
             if job.get("queue"):
                 continue                # "get everything" is one entry, below
             what = (decomposition.PACKS.get(key, {}).get("name", key)
-                    if name == "components" else _lang_pair(key))
+                    if name == "components" else
+                    getstt.part_name(key) if name == "speech" else _lang_pair(key))
             extra.append(activity.entry(
                 "lookup:%s:%s@%.3f" % (name, key, job["started"]), "lookup",
                 say % what if "%s" in say else say, job["started"],
                 done=job.get("done") if running else None,
                 total=job.get("total") if running else None,
-                stage=job.get("say") or None, page=READING_HELP,
+                stage=job.get("say") or None,
+                page=SPEECH_PAGE if name == "speech" else READING_HELP,
                 finished=None if running else job.get("finished"),
                 # a download the person stopped did not fail, and did not
                 # finish either: not "Done"
@@ -3777,6 +3803,23 @@ class Handler(SimpleHTTPRequestHandler):
                                                        queues_now()), ok=True))
         if what == "plan":
             return self._reading_plan(body)
+        if what == "speech":
+            # the slim slice the add page reads; {"full": true} is its own door's read
+            if body.get("full"):
+                return self.send_json(speechpage.view(reading_jobs()["speech"], self._where(),
+                                                      self._whose_device()))
+            return self.send_json(getstt.summary(self._where()))
+        if what == "speechcheck":
+            # "check again": the graphics card looked at anew, by a child, no model loaded
+            getstt.hardware(refresh=True)
+            return self.send_json(speechpage.view(reading_jobs()["speech"], self._where(),
+                                                  self._whose_device()))
+        if what == "stopspeech":
+            key = str(body.get("key") or "")
+            bad, status = reading_check("speech", key)
+            if bad:
+                return self.send_json({"ok": False, "error": bad}, status)
+            return self.send_json({"ok": True, "stopped": reading_stop("speech", key)})
         if what == "getall":
             answer, status = queue_start(str(body.get("code") or ""),
                                          str(body.get("gloss") or "en"))
@@ -3788,6 +3831,10 @@ class Handler(SimpleHTTPRequestHandler):
             kind, key = str(body.get("kind") or ""), str(body.get("key") or "")
             if kind not in READING_KINDS:
                 return self.send_json({"ok": False, "error": "no such kind of download"}, 404)
+            if kind == "speech":
+                # ITS OWN ROUTE, ITS OWN SETTING: this one is reading.stop's
+                return self.send_json({"ok": False, "error": "speech to text is stopped from "
+                                       "its own page"}, 400)
             return self.send_json({"ok": True, "stopped": reading_stop(kind, key)})
         if what == "decompositions":
             with DECOMPOSITION_LOCK:
@@ -3836,8 +3883,12 @@ class Handler(SimpleHTTPRequestHandler):
                                 ("corpus", "getcorpus", "dropcorpus"),
                                 ("model", "getmodel", "dropmodel"),
                                 ("components", "getdecomposition", "dropdecomposition"),
-                                ("synonyms", "getsyn", "dropsyn")):
+                                ("synonyms", "getsyn", "dropsyn"),
+                                ("speech", "getspeech", "dropspeech")):
             if what in (get, drop):
+                if kind == "speech":
+                    part = body.get("key")
+                    return kind, part if isinstance(part, str) else ""
                 if kind == "dict":
                     return kind, code
                 if kind == "components":
@@ -3906,6 +3957,16 @@ class Handler(SimpleHTTPRequestHandler):
                     os.rmdir(d)
             elif kind == "components":
                 decomposition.path_for(key).unlink(missing_ok=True)
+            elif kind == "speech":
+                if key == "runtime" and any(j.get("running") for j in STT_JOBS.values()):
+                    # a model being fetched may be installing the program
+                    return self.send_json({"ok": False, "error": "a part of speech to text is "
+                                           "being fetched, and that may be installing the "
+                                           "program: stop it first"}, 409)
+                try:
+                    getstt.remove(key)
+                except getstt.SpeechError as e:
+                    return self.send_json({"ok": False, "error": e.say, "code": e.code}, 409)
             else:
                 import getsyn
                 getsyn.remove()
@@ -3913,6 +3974,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": False, "error": str(e)}, 500)
         _reading_drop(kind, key)
         PLANS.pop((kind, key), None)
+        if kind == "speech":
+            for part in getstt.PARTS:
+                PLANS.pop((kind, part), None)
         return self.send_json({"ok": True})
 
     # ---- the notes beside a book or a video, under their own prefix
@@ -6160,7 +6224,8 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/settings/":
             if method != "GET":
                 return self._method_not_allowed()
-            return self.send_html(settingspage.hub(dict_tags(), updatepage.door_tags(ROOT)))
+            return self.send_html(settingspage.hub(dict_tags(), updatepage.door_tags(ROOT),
+                                                   speechpage.door_tags()))
         if path in ("/settings/network", "/settings/network/index.html"):
             return self._redirect("/settings/network/")
         if path == "/settings/network/":
@@ -6182,6 +6247,13 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_html(updatepage.page(updater.plan(ROOT), updater.settings(ROOT),
                                                   updater.state(ROOT), self._where(),
                                                   update_fetch_now()))
+        if path in ("/settings/speech", "/settings/speech/index.html"):
+            return self._redirect(SPEECH_PAGE)
+        if path == SPEECH_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(speechpage.page(reading_jobs()["speech"], self._where(),
+                                                  self._whose_device()))
         if path == LATEX_PAGE.rstrip("/"):
             return self._redirect(LATEX_PAGE)
         if path == LATEX_PAGE:
@@ -7116,12 +7188,21 @@ def main():
         latexdraw.repair_owners(latex_used(), force=True)
         latexdraw.prune()
     threading.Thread(target=_repair_latex_cache, daemon=True).start()
+    # WHAT A SERVER THAT WAS KILLED LEFT IN stt/ (temporary audio, a program
+    # half installed), cleared off the way in -- here, never at import
+    threading.Thread(target=getstt.sweep, daemon=True).start()
 
     def _stop_drawings(*_a):
         latexdraw.stop_all()
         try:
             import texpackages
             texpackages.stop()
+        except Exception:                                     # noqa: BLE001
+            pass
+        # a pip that is installing the speech program, a transcription, a
+        # look at the graphics card: none of them may outlive the server
+        try:
+            getstt.stop_all()
         except Exception:                                     # noqa: BLE001
             pass
     import atexit

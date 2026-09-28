@@ -93,6 +93,8 @@ LICENCE_URLS = {
     "WordNet": "https://wordnet.princeton.edu/license-and-commercial-use",
     "LGPL-3.0-or-later": "https://www.gnu.org/licenses/lgpl-3.0.html",
     "GPL-2.0": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
+    # PyAV, which speech to text's program carries (lib/getstt.py)
+    "BSD-3-Clause": "https://opensource.org/license/bsd-3-clause",
 }
 
 
@@ -165,11 +167,34 @@ def carried():
     return "".join(out)
 
 
+def speech_credits():
+    """Whose work speech to text is: {"speech:runtime": (whose, the licences as
+    HTML), "speech:<model>": ...} for the program and for each of its two
+    models.  Read from lib/getstt.py's constants, so the licence beside a part
+    on its page is the one named on the Licences page.
+
+    THE PROGRAM CARRIES SEVERAL LICENCES, and each is said with what carries
+    it: faster-whisper, CTranslate2 and onnxruntime are MIT, PyAV is
+    BSD-3-Clause, and the FFmpeg libraries inside PyAV's wheels report
+    LGPL-3.0-or-later while the codec libraries beside them keep their own.
+    None of it is in Parseh's folder: a person's own press of a button fetches
+    it from PyPI, under a hash Parseh ships."""
+    import getstt
+    also = ["%s (%s)" % (licence_link(lic), esc(what)) for what, lic in getstt.RUNTIME_LICENCES]
+    licence = (licence_link(getstt.LICENCE) + ", " + (", ".join(also[:-1]) + " and " if len(also) > 1 else "")
+               + also[-1] + "; the codecs inside those libraries keep their own")
+    out = {"speech:runtime": (esc(getstt.SOURCE), licence)}
+    for model in getstt.MODELS:
+        out["speech:" + model] = (esc(getstt.MODEL_SOURCE), licence_link(getstt.MODEL_LICENCE))
+    return out
+
+
 def credits():
     """Whose work each download of the reading help is, and under which
     licence: {what: (whose, the licence as HTML)} -- "dict", "corpus",
     "model", "engine", "synonyms", and "components:<pack>" for each component
-    pack.  Read from the downloaders themselves, and used twice: by this
+    pack, and speech to text's parts (speech_credits).  Read from the
+    downloaders themselves, and used twice: by this
     page, and on each row of the reading help (lib/lookuppage.py), so that
     the licence beside a download is the licence named here."""
     import getdict
@@ -185,6 +210,7 @@ def credits():
            "synonyms": (esc(getsyn.SOURCE), licence_link(getsyn.LICENCE, "WordNet"))}
     for key, pack in decomposition.PACKS.items():
         out["components:" + key] = (esc(pack["attribution"]), licence_link(pack["licence"]))
+    out.update(speech_credits())
     return out
 
 
@@ -209,6 +235,18 @@ def fetched():
             "In <code>components/</code>: how a %s character is built from its parts." % " or ".join(
                 {"ja": "Japanese", "zh": "Chinese"}.get(c, c) for c in pack["languages"]),
             *who["components:" + key]))
+    out.append(work(
+        "Speech to text: the program",
+        "In <code>stt/runtime/</code>: what runs the speech models &mdash; faster-whisper, "
+        "CTranslate2, PyAV and what they need &mdash; installed by pip from PyPI when you ask for "
+        "it under <a href=\"/settings/speech/\">Speech to text</a>, in Settings. Every package "
+        "is checked against a hash that travels with Parseh.", *who["speech:runtime"]))
+    out.append(work(
+        "Speech to text: the models",
+        "In <code>stt/models/</code>: OpenAI&rsquo;s Whisper large-v3-turbo and large-v3 in "
+        "CTranslate2&rsquo;s format, fetched from Hugging Face at a fixed version when you ask "
+        "for them under <a href=\"/settings/speech/\">Speech to text</a>. Every file is checked "
+        "against its own hash.", *who["speech:large-v3-turbo"]))
     return "".join(out)
 
 
@@ -264,7 +302,8 @@ its own licence, which travels with it.</p>
 %(carried)s
 <h2>What it fetches when you ask</h2>
 <p class="intro">Not in the %(app)s folder: each is downloaded from its source when you
-ask for it (<a href="/settings/reading-help/">reading help</a>, in Settings), and keeps its own
+ask for it (<a href="/settings/reading-help/">reading help</a> and <a
+href="/settings/speech/">speech to text</a>, in Settings), and keeps its own
 licence, which %(app)s writes into the file it builds from it. So do the programs the
 installer fetches &mdash; micromamba, Python and the packages <code>environment.yml</code>
 lists &mdash; each under the licence it comes with.</p>

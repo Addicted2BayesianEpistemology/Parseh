@@ -564,6 +564,8 @@ def model_info(key):
             meta = json.load(f)
     except (OSError, ValueError):
         meta = {}
+    if not isinstance(meta, dict):
+        meta = {}                       # a meta.json somebody wrote by hand: not a record
     sizes = {}
     for name in pin["files"]:
         try:
@@ -574,7 +576,10 @@ def model_info(key):
                revision=meta.get("revision", ""))
     revision = meta.get("revision")
     if revision and revision != pin["revision"]:
-        newer = int(meta.get("pin") or 0) > PIN["generation"]
+        try:
+            newer = int(meta.get("pin") or 0) > PIN["generation"]
+        except (TypeError, ValueError):
+            newer = False
         row.update(state="newer" if newer else "older",
                    why="It was fetched by %s Parseh, at another version of the model."
                        % ("a newer" if newer else "an older"))
@@ -1240,6 +1245,7 @@ def _install_runtime(say, progress, cancel, base=0, whole=None):
             if proc.poll() is None:
                 _terminate(proc, hard=True)
                 proc.wait()
+            proc.stdout.close()
             untrack(proc)
         _rmtree(stage)
         _rmtree(scratch)
