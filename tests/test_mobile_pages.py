@@ -583,7 +583,7 @@ class RegistryTests(unittest.TestCase):
         keep = re.search(r"html\.m-reader\[data-mode=mobile\] header > \.hrow > :not\(([^)]*)\)", css)
         self.assertIsNotNone(keep)
         kept = {s.strip() for s in keep.group(1).split(',')}
-        for gone in ('#bookinfo', '#buildbook', '#buildhtml', '#narr', '#fold', '#editmode', '#stopsrv',
+        for gone in ('#bookinfo', '#buildbook', '#buildhtml', '#narr', '#fold', '#editmode', '#editbyear', '#stopsrv',
                      '.dl', '#lookupset', '#build'):
             self.assertNotIn(gone, kept)
         for there in ('#toc', '#typo', '#theme', '.pgrp', '[data-toggle=nogloss]'):

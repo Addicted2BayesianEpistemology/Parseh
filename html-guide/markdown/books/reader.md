@@ -49,6 +49,7 @@ reading-help switches only where something is installed for the language.
 | **fold** | folds a run of paragraphs away: [Contents, sections and folding](doc:Contents, sections and folding) |
 | **gloss with an LLM** | copies a prompt that has an LLM gloss a stretch of the book, and fills in its answer — where nobody has glossed, unless you tick a box to widen it: [Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM) |
 | **edit times**, **save times (N)**, **discard edits** | fixing the timings by hand: [Fixing the timings](doc:Fixing the timings). Only in a book with a recording. |
+| **edit times by ear** | the sheet that moves the boundaries over a picture of the sound, opened on the recording the text is following and at the subparagraph you are on — for when you hear the alignment lost: [Fixing the timings](doc:Fixing the timings). Only in a book with a recording. |
 | **download** | the book as one zip: [Taking a book away](doc:Taking a book away) |
 | **stop server** | stops Parseh. It turns into **really stop?** for four seconds, and a second click stops it — after naming anything still running (a build, an upload) that stopping would cut off. Your place and your speed are saved first. |
 | **⌃ bars** | puts the header away (below) |

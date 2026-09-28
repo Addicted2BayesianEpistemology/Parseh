@@ -85,7 +85,7 @@ says why. The four buttons:
 |---|---|
 | **align** | works this recording's times out from its **own transcript** (below). Needs a transcript with timestamps. |
 | **estimate times** | shares the recording out over the stretch it covers, in proportion to the length of each subparagraph: a first guess, no transcript needed. Needs to know how long the file is — ffmpeg, or a `.wav`. |
-| **by ear** | opens the boundaries between one subparagraph and the next over a picture of the sound: [Fixing the timings](doc:Fixing the timings). Needs times to move. |
+| **by ear** | opens the boundaries between one subparagraph and the next over a picture of the sound: [Fixing the timings](doc:Fixing the timings). Needs times to move. It opens on the recording's first subparagraph; **edit times by ear**, in the reader's header, opens the same sheet at the subparagraph you are on. |
 | **remove** | takes the recording off the book. The file itself stays. |
 
 A click on the row's name opens its drawer:
