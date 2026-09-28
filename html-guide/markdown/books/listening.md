@@ -32,6 +32,22 @@ Opening a sheet over the page — the chunk sheet, the card sheet, book info,
 the narration panel, the fold sheet — pauses the recording; closing it
 plays on where that makes sense.
 
+## Waiting while you read a gloss
+
+**hover ⏸**, in the first row beside **hover**, makes the recording wait
+while a gloss cloud is open. It is off to begin with. On, pointing at a
+chunk (or tapping it) pauses a playing recording, and closing the cloud lets
+it go on a third of a second later — so moving from one chunk to its
+neighbour is one pause, not a stutter. A recording you paused yourself stays
+paused. In **loop**, where the recording is silent between two repeats, the
+cloud takes the wait too, and the repeat starts a third of a second after
+the cloud closes. In **continuous** the wait between two subparagraphs is a
+tenth of a second, and is left alone.
+
+It is remembered on this device only, and is not drawn in a book with no
+recording. On a phone it is under **⋯**, **Listening**
+([Browser and Mobile](../getting-started/mobile-mode.md#the-books)).
+
 ## Listening rather than reading
 
 **listen** puts the recording on and leaves the text alone: nothing is

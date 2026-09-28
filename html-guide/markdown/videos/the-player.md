@@ -115,6 +115,10 @@ the page into something you read at your own pace without touching the
 keyboard. The video does not start again underneath a card sheet, and if
 you press play yourself in the meantime, it leaves that alone.
 
+A book read aloud has the same switch in its reader, worded the same, in the
+browser interface and on a phone
+([Playing and listening](doc:Playing and listening)).
+
 ### pin, and the grip
 
 With **pin** on (the default), the video stays stuck under the bar while

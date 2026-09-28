@@ -137,8 +137,9 @@ as well, since a hold is not something you can see.
 
 Under **⋯**: the **passes** (and **gloss** and **hover** — in hover mode a
 tap on a chunk opens its gloss), the **listening** (continuous, loop, stop
-at a change, how far ↺ and ↻ move, where the narration has got to — *0:12 /
-3:40* —, listening without following the text), **looking a word up** where a
+at a change, **hover ⏸** — the narration waits while a gloss is open —, how
+far ↺ and ↻ move, where the narration has got to — *0:12 / 3:40* —, listening
+without following the text), **looking a word up** where a
 dictionary is installed, and **this page**: the theme, putting the bars away,
 and the **Browser | Mobile** switch.
 
@@ -161,6 +162,17 @@ book opens where *this* device left it, and a line at the foot says "On the
 computer you were at 2.1, a moment ago" with **Go there** and **Stay here**.
 What is *shown* — which passes are open, the size of the text, the margins —
 stays with the device showing it, because a phone is not a desk.
+
+**Hover ⏸ makes a narration wait while you read a gloss.** Under **⋯**,
+**Listening**, the switch is worded and drawn as the video's. With it on, a tap
+that opens a chunk's cloud pauses a playing narration, and closing the cloud
+lets it go on a third of a second later — so tapping the next chunk straight
+away is one pause, not a stutter. A narration you paused yourself is never
+started by it, and the dictionary's sheet on top is still one pause and one
+go-on. In **loop**, the silence between repeats is waited out under the cloud
+too. It is off to begin with, and kept on **this device only**: a habit of
+the finger that touches is not something the computer's choice should flip
+([the same switch, in the browser interface](../books/reader.md#hover-mode-and-the-gloss-cloud)).
 
 **A finger held on a word** for half a second opens a small menu: *Copy “the
 chunk”* and *Copy the sentence* — and, in the browser interface, *Card for
@@ -399,7 +411,8 @@ inside the page, over the very word it was about.
   the phone's back gesture or button. Nothing is left open: the sheet and
   the chunk's cloud both close, and one going back undoes one thing.
 - **In a video, or a book read aloud.** The video, or the book's narration,
-  waits, paused, while the sheet is up, and goes on when it closes. On the
+  waits, paused, while the sheet is up, and goes on when it closes — with
+  **hover ⏸** on, a third of a second after, as it does after a cloud. On the
   whole screen the sheet covers the subtitles, and going back closes the
   sheet and leaves the video on the whole screen. On an Android phone in a
   browser tab, going back also makes the browser give up its own full
