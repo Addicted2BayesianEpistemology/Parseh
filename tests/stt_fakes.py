@@ -86,6 +86,23 @@ def records(root, kind=None):
     return [r for r in out if kind is None or r["kind"] == kind]
 
 
+_REAL = []
+
+
+def _real():
+    """lib/getstt.py loaded under a name of its own, once: `getstt` in
+    sys.modules may already be the fake."""
+    if not _REAL:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "getstt_real", os.path.join(os.path.dirname(HERE), "lib", "getstt.py"))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules.setdefault("getstt_real", mod)
+        spec.loader.exec_module(mod)
+        _REAL.append(mod)
+    return _REAL[0]
+
+
 def make(root):
     """A module standing in for lib/getstt.py, working under `root`."""
     root = os.path.abspath(root)
@@ -215,6 +232,13 @@ def make(root):
               resolve, cpu_threads, whisper_code, speech_languages, track, untrack,
               stop_all, using, in_use, sweep):
         setattr(mod, f.__name__, f)
+    # EVERYTHING ELSE THE REAL MODULE NAMES (its constants above all: GUIDE, PIN,
+    # GPU_NEEDS...), so that a server which imports speechpage, lookuppage or
+    # notices on top of the fake still starts.  The names above stay the fake's.
+    real = _real()
+    for name in dir(real):
+        if not name.startswith("__") and not hasattr(mod, name):
+            setattr(mod, name, getattr(real, name))
     return mod
 
 

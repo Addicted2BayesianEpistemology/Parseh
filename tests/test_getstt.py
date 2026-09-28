@@ -915,13 +915,21 @@ class Keeping(Tree):
         self.assertTrue((self.stt / "tmp").is_dir(), "the folder itself stays (a job may be about to use it)")
 
     def test_the_sweep_is_not_run_by_importing_serve(self):
+        # serve.main() starts sttjobs.startup on a thread, and that is what
+        # calls getstt.sweep (then the held waveforms'): one start-up call, in
+        # main(), never at import
         src = (ROOT / "serve.py").read_text(encoding="utf-8")
         tree = ast.parse(src)
-        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Attribute) and n.attr == "sweep"
-                 and isinstance(n.value, ast.Name) and n.value.id == "getstt"]
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Attribute) and n.attr == "startup"
+                 and isinstance(n.value, ast.Name) and n.value.id == "sttjobs"]
         self.assertEqual(len(calls), 1)
         main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
         self.assertIn(calls[0], list(ast.walk(main)), "in main(), never at import")
+        jobs = ast.parse((ROOT / "lib" / "sttjobs.py").read_text(encoding="utf-8"))
+        startup = next(n for n in jobs.body if isinstance(n, ast.FunctionDef) and n.name == "startup")
+        self.assertIn("sweep", {n.value for n in ast.walk(startup)
+                                if isinstance(n, ast.Constant) and isinstance(n.value, str)},
+                      "and startup() sweeps stt/ through getstt")
 
     def test_a_child_is_ended_when_the_server_stops(self):
         proc = subprocess.Popen([PY, "-c", "import time; time.sleep(60)"], stdin=subprocess.DEVNULL,
