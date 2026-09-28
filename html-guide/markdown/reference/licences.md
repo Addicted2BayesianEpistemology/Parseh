@@ -68,6 +68,13 @@ it shows what the file says.
 [Whose work it is](../lookup-and-languages/reading-help.md#whose-work-it-is)
 lists every source and its licence.
 
+**Speech to text**, which has a page of its own,
+[Settings → Speech to text](../lookup-and-languages/speech-to-text.md#whose-work-it-is),
+is fetched the same way: its program (faster-whisper, CTranslate2 and
+onnxruntime under the MIT licence, PyAV under BSD-3-Clause with the
+FFmpeg libraries and codecs it carries under their own) from PyPI, and its
+two models (OpenAI's Whisper, under the MIT licence) from Hugging Face.
+
 The installer fetches micromamba, Python and the packages
 `environment.yml` lists. Each of them is under the licence it comes with.
 

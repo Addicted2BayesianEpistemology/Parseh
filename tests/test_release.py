@@ -365,6 +365,11 @@ class WhatABuildRefuses(unittest.TestCase):
         files[".tls/key.pem"] = "secret\n"
         self.refused(files, ".tls/key.pem must never ship",
                      forced=("dist/parseh-old.zip", ".tls/key.pem"))
+        # speech to text's program and models: somebody else's gigabytes, and git ignores them
+        files = miniature()
+        files["stt/models/large-v3/model.bin"] = "x\n"
+        self.refused(files, "stt/models/large-v3/model.bin is somebody's content",
+                     forced=("dist/parseh-old.zip", "stt/models/large-v3/model.bin"))
 
     def test_a_bat_with_bare_lf(self):
         files = miniature()

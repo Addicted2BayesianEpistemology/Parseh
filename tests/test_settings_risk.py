@@ -113,6 +113,42 @@ class Table(unittest.TestCase):
             self.assertIsNone(S[key][0], key)
         self.assertEqual(settingspage.ROUTES["/settings/api/latex/export"], settingspage.READ)
         self.assertEqual(settingspage.ROUTES["/settings/api/latex/state"], settingspage.READ)
+        # SPEECH TO TEXT (TO-DO §7.23, a0.4.1) is NOT risky either, and the OWNER decided it
+        # on 2026-09-28 -- against the brief's own draft, which had the program's install as
+        # the computer's alone (RUN): getting it, taking it away and stopping either are open
+        # to any device that has been let in, and it has a door of its own.  Nothing a device
+        # sends becomes anything that is fetched: the only bytes that can arrive are the
+        # hash-checked wheels of lib/stt-requirements.txt and the files of two models at a
+        # pinned revision (lib/getstt.py), so whoever presses the button gets the same files.
+        for key in ("speech.get", "speech.remove", "speech.stop"):
+            self.assertIsNone(S[key][0], key)
+        for route in ("speech", "speechcheck"):
+            self.assertEqual(settingspage.ROUTES["/lookup/api/" + route], settingspage.READ)
+        for route, key in (("getspeech", "speech.get"), ("dropspeech", "speech.remove"),
+                           ("stopspeech", "speech.stop")):
+            self.assertEqual(settingspage.ROUTES["/lookup/api/" + route], (key,))
+
+    def test_speech_to_text_is_a_door_of_its_own_and_the_only_one_that_lists_its_keys(self):
+        doors = {d[0]: d for d in settingspage.DOORS}
+        self.assertEqual(len(settingspage.DOORS), 5)
+        href, name, what, keys = doors["/settings/speech/"]
+        self.assertEqual((name, keys), ("Speech to text", ("speech.get", "speech.remove", "speech.stop")))
+        self.assertTrue(settingspage.open_to_all(keys))
+        self.assertIn("any device let in", settingspage.gate(keys))
+        # ...and it is NOT on the reading help's door (the owner: not a section of that page)
+        self.assertFalse([k for k in doors["/settings/reading-help/"][3] if k.startswith("speech")])
+        listed = [k for d in settingspage.DOORS for k in d[3]]
+        self.assertEqual(len(listed), len(set(listed)), "a key is on one door")
+        self.assertEqual(sorted(set(settingspage.SETTINGS) - set(listed)), [],
+                         "every setting is on some door")
+        row = settingspage.settings_doors("/settings/speech/")
+        self.assertEqual(row.count('<a class="sdoor'), 5)
+        self.assertIn('class="sdoor on" href="/settings/speech/" aria-current="page"', row)
+
+    def test_the_route_finder_sees_every_speech_route(self):
+        found = routes_in_serve()
+        for route in ("speech", "speechcheck", "getspeech", "dropspeech", "stopspeech"):
+            self.assertIn("/lookup/api/" + route, found)
 
     def test_a_phone_may_what_is_not_risky_and_the_computer_everything(self):
         for key in settingspage.SETTINGS:
@@ -285,6 +321,7 @@ class Served(unittest.TestCase):
         import lookup
         import corpus
         import getmt
+        import getstt
         import decomposition
         cls.serve = serve
         cls._td = tempfile.TemporaryDirectory()
@@ -298,6 +335,7 @@ class Served(unittest.TestCase):
             patch.object(getmt, "MT_DIR", str(tmp / "mt")),
             patch.object(getmt, "ENGINE_DIR", str(tmp / "mt" / "engine")),
             patch.object(decomposition, "DATA_DIR", tmp / "components"),
+            patch.object(getstt, "STT_DIR", str(tmp / "stt")),
         ]
         for p in cls.patches:
             p.start()
@@ -317,7 +355,7 @@ class Served(unittest.TestCase):
     def setUp(self):
         s = self.serve
         for table in (s.DICT_JOBS, s.CORPUS_JOBS, s.MT_JOBS, s.DECOMPOSITION_JOBS, s.SYN_JOB,
-                      s.PLANS, s.QUEUES, s.CANCELS):
+                      s.STT_JOBS, s.PLANS, s.QUEUES, s.CANCELS):
             table.clear()
         del s.QUEUE[:]
 
@@ -553,6 +591,265 @@ class Served(unittest.TestCase):
         for before, after in zip(ends, starts[1:]):
             self.assertLessEqual(before[3], after[3])
         self.assertFalse(self.serve.QUEUES["ja"]["running"])
+
+
+    # ---- SPEECH TO TEXT: a door of its own, open to any device let in (the owner, 2026-09-28)
+    def stt_fake(self, plan=None, steps=20, pause=0.02, write=None, log=None):
+        import download
+        return fake_downloader("getstt", plan or download.plan(download=2000, measured=True, kept=100),
+                               steps=steps, pause=pause, write=write, log=log)
+
+    def no_card(self):
+        """A look at the graphics card that finds none, so that asking never starts a child here."""
+        return patch.object(self.serve.getstt, "_run_probe",
+                            lambda timeout=30: {"ct2": None, "cublas": {"loads": False}, "smi": None})
+
+    def speech_ok(self):
+        """The computer's own machine may run the program: what a test of this door needs to be true anywhere."""
+        return patch.object(self.serve.getstt, "unavailable_reason", lambda: "")
+
+    def test_speech_to_text_is_open_to_the_computer_and_to_any_device_let_in(self):
+        import getstt
+        made = []
+        fake = self.stt_fake(steps=3, write=lambda key: made.append(key))
+        for phone in (False, True):
+            ps = self.as_phone() if phone else []
+            for p in ps:
+                p.start()
+            try:
+                with self.stubbed(getstt=fake), self.speech_ok(), self.no_card():
+                    for key in getstt.PARTS:
+                        status, _, got = self.ask("POST", "/lookup/api/getspeech", {"key": key})
+                        self.assertEqual((status, got.get("ok")), (200, True), (phone, key, got))
+                        self.wait(lambda: not self.serve.STT_JOBS[key].get("running"), "the install of " + key)
+                        self.assertEqual(self.serve.STT_JOBS[key]["error"], "")
+                    self.assertEqual(sorted(made), sorted(getstt.PARTS * (2 if phone else 1)))
+                    for key in getstt.PARTS:
+                        # nothing to remove was made (the stand-in makes no files): a refusal would be 403
+                        status, _, got = self.ask("POST", "/lookup/api/dropspeech", {"key": key})
+                        self.assertEqual(status, 200, (phone, key, got))
+                    status, _, got = self.ask("POST", "/lookup/api/stopspeech", {"key": "runtime"})
+                    self.assertEqual((status, got["ok"]), (200, True))
+                    for what in ("speech", "speechcheck"):
+                        status, _, got = self.ask("POST", "/lookup/api/" + what, {})
+                        self.assertEqual((status, got.get("ok")), (200, True), (what, phone))
+            finally:
+                for p in reversed(ps):
+                    p.stop()
+
+    def test_the_table_says_the_same_and_says_who_decided(self):
+        S = settingspage.SETTINGS
+        for key in ("speech.get", "speech.remove", "speech.stop"):
+            self.assertIsNone(S[key][0], key)
+            for where in (network.SELF, network.LAN, network.VPN):
+                self.assertTrue(settingspage.may(key, where), (key, where))
+        for route, key in (("getspeech", "speech.get"), ("dropspeech", "speech.remove"),
+                           ("stopspeech", "speech.stop")):
+            self.assertEqual(settingspage.ROUTES["/lookup/api/" + route], (key,))
+        for route in ("speech", "speechcheck"):
+            self.assertEqual(settingspage.ROUTES["/lookup/api/" + route], settingspage.READ)
+        # the sentence says what makes it safe for any device: only what Parseh pins can be fetched
+        said = S["speech.get"][1]
+        self.assertIn("Whoever presses the button", said)
+        self.assertIn("pins", said)
+        self.assertIn("hash", said)
+        # and the source records who decided it, and why, as the LaTeX drawings' does
+        src = (ROOT / "lib" / "settingspage.py").read_text(encoding="utf-8")
+        self.assertIn("SPEECH TO TEXT IS NOT RISKY (the owner, 2026-09-28", src)
+
+    def test_a_phone_is_given_no_lock_line_and_no_dead_button_on_the_speech_door(self):
+        status, _, page = self.ask("GET", "/settings/speech/")
+        self.assertEqual(status, 200)
+        ps = self.as_phone()
+        for p in ps:
+            p.start()
+        try:
+            status2, _, phone = self.ask("GET", "/settings/speech/")
+            _, _, hub = self.ask("GET", "/settings/")
+        finally:
+            for p in reversed(ps):
+                p.stop()
+        self.assertEqual(status2, 200)
+        for text in (page, phone):
+            self.assertIn('id="sp-state"', text)
+            self.assertIn("any device let in", text, "the door's pill says so")
+            self.assertNotIn("data-lock=", text, "no lock line: nothing on it is the computer's alone")
+            self.assertNotIn("changed on the computer only", text.split('<div id="sp">')[0].split("</nav>")[1],
+                             "and no pill of that kind on the page itself")
+            self.assertIn('data-mobile-page', text)
+            self.assertIn('href="/settings/reading-help/"', text, "Settings' doors, in a row")
+            self.assertIn('aria-current="page"', text)
+        state = json.loads(phone.split('<script id="sp-state" type="application/json">', 1)[1].split("</script>", 1)[0])
+        self.assertEqual(state["may"], {"speech.get": True, "speech.remove": True, "speech.stop": True})
+        self.assertEqual(state["where"], network.LAN)
+        card = hub.split('href="/settings/speech/"', 1)[1].split("</a>", 1)[0]
+        self.assertIn("Speech to text", card)
+        self.assertIn('gate open', card, "the hub's card says any device let in")
+
+    def test_the_reading_help_points_to_the_door_and_does_not_carry_the_section(self):
+        _, _, page = self.ask("GET", "/settings/reading-help/")
+        self.assertIn('<a href="/settings/speech/">speech to text</a> has a page of its own', page)
+        self.assertNotIn('data-get="speech', page)
+        self.assertNotIn("Speech to text</h2>", page)
+        status, to, _ = self.ask("GET", "/settings/speech")
+        self.assertEqual((status, to.rsplit(":%d" % self.srv.server_address[1], 1)[-1]), (302, "/settings/speech/"))
+        self.assertEqual(self.ask("POST", "/settings/speech/", {})[0], 405, "a page is not posted to")
+
+    def test_the_status_carries_speech_its_jobs_its_sizes_and_its_credits(self):
+        status, _, got = self.ask("POST", "/lookup/api/status", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(got["speech"]["runtime"]["state"], "absent")
+        self.assertEqual(sorted(got["speech"]["models"]), ["large-v3", "large-v3-turbo"])
+        self.assertEqual(got["jobs"]["speech"], {})
+        for part in ("runtime", "large-v3-turbo", "large-v3"):
+            self.assertIn("speech:" + part, got["sizes"])
+            self.assertIn("speech:" + part, got["credits"])
+        self.assertTrue(got["sizes"]["speech:large-v3-turbo"]["measured"])
+        self.assertEqual({"speech.get", "speech.remove", "speech.stop"} - set(got["may"]), set())
+        self.assertIn("MIT", got["credits"]["speech:large-v3-turbo"]["licence"])
+        self.assertIn("BSD-3-Clause", got["credits"]["speech:runtime"]["licence"])
+
+    def test_the_slim_slice_and_the_doors_own_read(self):
+        with self.no_card():
+            status, _, got = self.ask("POST", "/lookup/api/speech", {})
+        self.assertEqual(status, 200)
+        self.assertEqual({"ok", "installed", "runtime", "models", "default_model", "processing", "languages",
+                          "busy", "settings"} - set(got), set())
+        self.assertFalse(got["installed"])
+        self.assertEqual(got["settings"], "/settings/speech/")
+        self.assertEqual([m["id"] for m in got["models"]], ["large-v3-turbo", "large-v3"])
+        self.assertEqual([m["id"] for m in got["processing"]], ["auto", "cpu", "cuda"])
+        status, _, full = self.ask("POST", "/lookup/api/speech", {"full": True})
+        self.assertEqual({"ok", "speech", "jobs", "sizes", "credits", "languages", "kept", "free", "may"}
+                         - set(full), set())
+        self.assertEqual(len(full["languages"]), len(__import__("languages").LANGS))
+        fa = [l for l in full["languages"] if l["code"] == "fa"][0]
+        self.assertEqual((fa["rtl"], fa["whisper"]), (True, True))
+
+    def test_the_card_is_looked_at_again_on_request_and_never_by_asking_the_status(self):
+        import getstt
+        with patch.object(getstt, "platform_key", return_value="linux x86_64"), \
+                patch.object(getstt, "_run_probe", return_value={
+                    "ct2": "4.8.2", "cuda_devices": 1, "cuda_types": ["float16", "int8_float16"],
+                    "cublas": {"loads": False, "name": "libcublas.so.12"},
+                    "smi": {"name": "NVIDIA GeForce GTX 1650", "memory": 4294967296, "driver": "1"}}) as probe:
+            getstt.forget_hardware()
+            self.ask("POST", "/lookup/api/status", {})
+            self.ask("POST", "/lookup/api/speech", {"full": True})
+            probe.assert_not_called()
+            status, _, got = self.ask("POST", "/lookup/api/speechcheck", {})
+            self.assertEqual(status, 200)
+            cuda = got["speech"]["hardware"]["cuda"]
+            self.assertEqual((cuda["state"], cuda["ready"]), ("found-not-ready", False))
+            self.assertIn("cuBLAS for CUDA 12", cuda["missing"][0])
+            self.assertTrue(got["speech"]["hardware"]["checked"])
+            self.assertEqual(probe.call_count, 1)
+        getstt.forget_hardware()
+
+    def test_a_speech_install_says_how_far_it_has_got_and_can_be_stopped(self):
+        import getstt
+        fake = self.stt_fake(steps=400, pause=0.01)
+        with self.stubbed(getstt=fake), self.speech_ok():
+            self.assertEqual(self.ask("POST", "/lookup/api/getspeech", {"key": "large-v3"})[0], 200)
+            job = self.serve.STT_JOBS["large-v3"]
+            self.wait(lambda: job.get("done", 0) >= 500, "some progress")
+            self.assertEqual((job["phase"], job["total"]), ("download", 40000))
+            _, _, got = self.ask("POST", "/lookup/api/status", {})
+            self.assertTrue(got["jobs"]["speech"]["large-v3"]["running"])
+            _, _, door = self.ask("POST", "/lookup/api/speech", {"full": True})
+            self.assertTrue(door["jobs"]["speech"]["large-v3"]["running"], "the door reads it too")
+            entry = [e for e in self.serve.activity_now()["running"] if e["id"].startswith("lookup:speech:large-v3@")]
+            self.assertEqual(len(entry), 1)
+            self.assertEqual(entry[0]["label"], "Getting the large-v3 speech model")
+            self.assertEqual(entry[0]["page"], "/settings/speech/", "the list links to the door, not the reading help")
+            self.assertEqual(entry[0]["total"], 40000)
+            # the generic stop is the reading help's, and refuses speech: its own route is its own setting
+            status, _, got = self.ask("POST", "/lookup/api/stop", {"kind": "speech", "key": "large-v3"})
+            self.assertEqual(status, 400)
+            self.assertTrue(job["running"])
+            status, _, got = self.ask("POST", "/lookup/api/stopspeech", {"key": "large-v3"})
+            self.assertEqual((status, got["stopped"]), (200, True))
+            self.wait(lambda: not job.get("running"), "the stop")
+        self.assertTrue(job["stopped"])
+        self.assertEqual(job["error"], "", "stopping is not failing")
+        self.assertLess(job["done"], 40000)
+        self.assertEqual([k for k in self.serve.CANCELS if k[0] == "speech"], [])
+
+    def test_what_a_speech_part_costs_is_said_before_it_starts(self):
+        import download
+        fake = self.stt_fake(plan=download.plan(download=1_749_545_921, measured=True, kept=2_041_665_983))
+        with self.stubbed(getstt=fake):
+            status, _, got = self.ask("POST", "/lookup/api/plan", {"kind": "speech", "key": "large-v3-turbo"})
+        self.assertEqual(status, 200, got)
+        self.assertEqual((got["download"], got["kept"]), (1_749_545_921, 2_041_665_983))
+        self.assertTrue(got["measured"])
+        self.assertEqual(got["room"], "")
+        self.assertEqual(got["named"], "the large-v3-turbo speech model")
+        status, _, got = self.ask("POST", "/lookup/api/plan", {"kind": "speech", "key": "small"})
+        self.assertEqual(status, 400)
+
+    def test_no_speech_part_starts_that_the_disk_has_no_room_for(self):
+        import download
+        fake = self.stt_fake(plan=download.plan(download=10, measured=True, kept=10, peak=10 ** 18))
+        with self.stubbed(getstt=fake), self.speech_ok():
+            status, _, got = self.ask("POST", "/lookup/api/getspeech", {"key": "large-v3"})
+        self.assertEqual(status, 507)
+        self.assertIn("not enough room", got["error"])
+        self.assertIn("the large-v3 speech model", got["error"])
+        self.assertNotIn("large-v3", self.serve.STT_JOBS, "nothing was started")
+
+    def test_a_computer_that_cannot_run_the_program_is_told_why_and_nothing_starts(self):
+        import getstt
+        with patch.object(getstt, "unavailable_reason", lambda: "This Parseh runs on Python 3.11, and the "
+                                                                "speech program is built for Python 3.12 only."):
+            status, _, got = self.ask("POST", "/lookup/api/getspeech", {"key": "runtime"})
+        self.assertEqual(status, 409)
+        self.assertIn("Python 3.12", got["error"])
+        self.assertEqual(self.serve.STT_JOBS, {})
+
+    def test_a_name_that_is_not_a_part_never_reaches_a_folder(self):
+        import getstt
+        keep = Path(getstt.STT_DIR) / "models" / "sentinel"
+        keep.mkdir(parents=True, exist_ok=True)
+        (keep / "x").write_bytes(b"still here")
+        outside = self.tmp / "dict"
+        outside.mkdir(exist_ok=True)
+        (outside / "fa.db").write_bytes(b"a dictionary")
+        bad = ["../dict", "large-v3/../../dict", "..", "", "large-v3 ", "LARGE-V3", "sentinel", "/etc",
+               "runtime/..", 5, None, ["large-v3"], {"large-v3": 1}, "large-v3\x00"]
+        with self.speech_ok():
+            for key in bad:
+                body = {} if key is None else {"key": key}
+                for route in ("getspeech", "dropspeech", "stopspeech"):
+                    status, _, got = self.ask("POST", "/lookup/api/" + route, body)
+                    self.assertEqual(status, 400, (route, key, got))
+                    self.assertFalse(got["ok"])
+                status, _, got = self.ask("POST", "/lookup/api/plan", {"kind": "speech", "key": key})
+                self.assertEqual(status, 400, ("plan", key))
+        self.assertEqual((keep / "x").read_bytes(), b"still here")
+        self.assertEqual((outside / "fa.db").read_bytes(), b"a dictionary")
+        self.assertEqual(self.serve.STT_JOBS, {})
+
+    def test_a_part_cannot_be_removed_while_it_is_being_fetched_or_used(self):
+        import getstt
+        fake = self.stt_fake(steps=300, pause=0.01)
+        with self.stubbed(getstt=fake), self.speech_ok():
+            self.assertEqual(self.ask("POST", "/lookup/api/getspeech", {"key": "large-v3"})[0], 200)
+            self.wait(lambda: self.serve.STT_JOBS["large-v3"].get("done", 0) > 0, "it has started")
+            status, _, got = self.ask("POST", "/lookup/api/dropspeech", {"key": "large-v3"})
+            self.assertEqual(status, 409)
+            self.assertIn("being fetched", got["error"])
+            # a model being fetched may be installing the program: the program is not removed either
+            status, _, got = self.ask("POST", "/lookup/api/dropspeech", {"key": "runtime"})
+            self.assertEqual(status, 409)
+            self.ask("POST", "/lookup/api/stopspeech", {"key": "large-v3"})
+            self.wait(lambda: not self.serve.STT_JOBS["large-v3"].get("running"), "the stop")
+        # and what a transcription holds
+        with getstt.using("large-v3-turbo"):
+            for key in ("large-v3-turbo", "runtime"):
+                status, _, got = self.ask("POST", "/lookup/api/dropspeech", {"key": key})
+                self.assertEqual((status, got.get("code")), (409, "in-use"), key)
+                self.assertIn("being used", got["error"])
 
     def test_stopping_everything_empties_the_queue(self):
         import download

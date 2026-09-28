@@ -222,22 +222,35 @@ class Page(unittest.TestCase):
         import getcorpus
         import getdict
         import getmt
+        import getstt
         import getsyn
         import notices
         text = html.unescape(self.html)
         for source, licence in ((getdict.SOURCE, getdict.LICENCE), (getcorpus.SOURCE, getcorpus.LICENCE),
                                 (getmt.MODEL_SOURCE, getmt.MODEL_LICENCE),
                                 ("bergamot-translator " + getmt.ENGINE_VERSION, getmt.ENGINE_LICENCE),
-                                (getsyn.SOURCE, getsyn.LICENCE)):
+                                (getsyn.SOURCE, getsyn.LICENCE),
+                                # speech to text: the program, and the two models
+                                (getstt.SOURCE, getstt.LICENCE),
+                                (getstt.MODEL_SOURCE, getstt.MODEL_LICENCE)):
             self.assertIn(source, text)
             self.assertIn(licence, text)
+        # the program carries more than one licence, each said with what carries it
+        for what, licence in getstt.RUNTIME_LICENCES:
+            self.assertIn(what, text)
+            self.assertIn(licence, text)
+            self.assertIn(licence, notices.LICENCE_URLS)
+        self.assertIn("the codecs inside those libraries keep their own", text)
+        for said in ("Speech to text: the program", "Speech to text: the models", "stt/runtime/", "stt/models/"):
+            self.assertIn(said, text)
         self.assertIn(getmt.ENGINE_LICENCE, getmt.ENGINE_SOURCE)
         for pack in decomposition.PACKS.values():
             self.assertIn(pack["name"], text)
             self.assertIn(pack["attribution"], text)
             self.assertIn(pack["licence"], text)
         # and every licence named has somewhere to be read
-        named = [getdict.LICENCE, getcorpus.LICENCE, getmt.MODEL_LICENCE, getmt.ENGINE_LICENCE]
+        named = [getdict.LICENCE, getcorpus.LICENCE, getmt.MODEL_LICENCE, getmt.ENGINE_LICENCE,
+                 getstt.LICENCE, getstt.MODEL_LICENCE]
         named += [p["licence"] for p in decomposition.PACKS.values()]
         for licence in named:
             self.assertIn(licence, notices.LICENCE_URLS, licence)
@@ -301,7 +314,7 @@ class Served(unittest.TestCase):
         local = sorted(set(re.findall(r'href="(/[^"]*)"', main)))
         self.assertEqual(local, ["/lib/fonts/GUST-FONT-LICENSE.txt", "/lib/fonts/OFL.txt",
                                  "/lib/mathjax/LICENSE", "/licences/LICENSE",
-                                 "/settings/reading-help/"])
+                                 "/settings/reading-help/", "/settings/speech/"])
         for href in local:
             self.assertEqual(self.get(href)[0], 200, href)
         # and the ones to the licences' own pages are the web's, opened apart

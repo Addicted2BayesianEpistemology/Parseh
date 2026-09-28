@@ -23,7 +23,9 @@ refuse a HEAD, give no validator, or lie about which file a range came from:
   PROBES      a size is read from a HEAD, or from a one-byte GET where HEAD
               is refused, and None where the server does not say.
 
-And each of the five downloaders is held to the interface the Settings page
+And each of the five downloaders -- and speech to text's manager, lib/getstt.py, a
+sixth, whose program is installed by pip (a fake one here) and whose models come
+through download.fetch -- is held to the interface the Settings page
 builds on: plan() answers in the one shape, from the MEASURED table where it
 has the size and from a probe where it does not; its build entry passes
 `progress` and `cancel` through to the download AND reports its own build
@@ -993,6 +995,462 @@ class GetdecompositionTests(DownloaderCase):
         self.assertEqual(self.g.plan("makemeahanzi")["have"], 9)
         self.assertEqual(self.g.discard("makemeahanzi"), 9)
         self.assertEqual(list(folder.iterdir()), [])
+
+
+# ---------------------------------------------------------- speech to text
+# A FAKE PIP: a child that says what pip says, in pip's order, and makes what pip
+# makes -- so the manager's real command, its real reading of the lines and its real
+# Stop are driven, and nothing is downloaded.  argv: the folder pip was told to install
+# into (--target), a mode, the distributions to leave in it, a file to note its pid in.
+FAKE_PIP = r"""
+import json, os, sys, time
+stage, mode, required, note = sys.argv[1:5]
+with open(note, "a") as f:
+    f.write("%d started\n" % os.getpid())
+older = os.environ.get("FAKE_PIP_OLDER")
+if older:
+    with open(note, "a") as f:
+        f.write("older %s\n" % os.path.isdir(older))
+for n in ("faster-whisper==1.2.1", "ctranslate2==4.8.2"):
+    print("Collecting %s (from -r stt-requirements.txt (line 1))" % n, flush=True)
+    print("  Downloading %s-1-py3-none-any.whl (0.5 kB)" % n.split("==")[0], flush=True)
+    for done in (0, 250, 500):
+        print("Progress %d of 500" % done, flush=True)
+        if mode == "sleep":
+            time.sleep(30)
+    time.sleep(0.05)
+print("Installing collected packages: faster-whisper, ctranslate2", flush=True)
+if mode == "fail":
+    print("ERROR: THESE PACKAGES DO NOT MATCH THE HASHES FROM THE REQUIREMENTS FILE. If you have updated", flush=True)
+    sys.exit(1)
+if mode == "slow":
+    time.sleep(0.6)
+dists = json.loads(required)
+if mode == "incomplete":
+    dists = dists[:1]
+for d, v in dists:
+    os.makedirs(os.path.join(stage, "%s-%s.dist-info" % (d, v or "1.0")))
+print("Successfully installed faster-whisper-1.2.1 ctranslate2-4.8.2", flush=True)
+"""
+
+
+class GetsttTests(DownloaderCase):
+    """lib/getstt.py's fetching: the program by pip (a fake one), a model by download.fetch (a
+    fake one), each through the interface the Settings page and its runner build on."""
+
+    def setUp(self):
+        super().setUp()
+        import getstt
+        self.g = getstt
+        self.stt = self.dir / "stt"
+        self.note = self.dir / "pip.log"
+        self.mode = "ok"
+        self.probe = {"ct2": "4.8.2", "cuda_devices": 0, "cuda_types": [], "cublas": {"loads": False},
+                      "smi": None}
+        self.pins, self.made = {}, {}
+        for key in getstt.MODELS:
+            self.made[key] = {n: (key + "/" + n).encode() * 3 for n in getstt.MODEL_PINS[key]["files"]}
+            self.pins[key] = {"repo": "example/" + key, "revision": "d" * 40,
+                              "files": {n: (sha(b), len(b)) for n, b in self.made[key].items()}}
+        self.patches = [
+            patch.object(getstt, "STT_DIR", str(self.stt)),
+            patch.object(getstt, "MODEL_PINS", self.pins),
+            patch.dict(getstt.MEASURED, {k: sum(len(b) for b in self.made[k].values()) for k in getstt.MODELS}),
+            patch.object(getstt, "_runtime_plan", lambda: (1000, 3000)),
+            patch.object(getstt, "pip_command", self.pip_command),
+            patch.object(getstt, "_run_probe", lambda timeout=30: dict(self.probe)),
+            patch.object(getstt, "unavailable_reason", lambda: ""),
+        ]
+        for p in self.patches:
+            p.start()
+        getstt._SIZES.clear()
+        getstt.forget_hardware()
+
+    def tearDown(self):
+        for p in reversed(self.patches):
+            p.stop()
+        self.g.forget_hardware()
+        super().tearDown()
+
+    def pip_command(self, stage, requirements=None):
+        return [sys.executable, "-c", FAKE_PIP, stage, self.mode, json.dumps(list(self.g.REQUIRED)),
+                str(self.note)]
+
+    def runtime_folder(self):
+        return self.stt / "runtime" / ("%d-%s" % (self.g.PIN["generation"], self.g.PYTAG))
+
+    def installed_program(self, generation=None):
+        g = self.g.PIN["generation"] if generation is None else generation
+        folder = self.stt / "runtime" / ("%d-%s" % (g, self.g.PYTAG))
+        for d, v in self.g.REQUIRED:
+            (folder / ("%s-%s.dist-info" % (d, v or "1.0"))).mkdir(parents=True)
+        return folder
+
+    def fetcher(self, key, stop_after=None):
+        """download.fetch, faked: writes what the pin's digest is of, and remembers each call."""
+        body = {n: b for n, b in self.made[key].items()}
+        rec = Recorder({})
+        real = rec.__call__
+
+        def fetch(url, dest, **kw):
+            rec.calls.append((url, dest, kw))
+            download.check(kw.get("cancel"))
+            name = os.path.basename(dest)
+            data = body[name]
+            if kw.get("progress"):
+                kw["progress"](len(data) // 2, len(data), "download")
+                kw["progress"](len(data), len(data), "download")
+            with open(dest, "wb") as f:
+                f.write(data)
+            return dest
+        rec.fetch = fetch
+        return rec
+
+    # ---- the plan
+    def test_plan_counts_the_program_until_it_is_there(self):
+        g = self.g
+        p = g.plan("runtime")
+        self.assertPlan(p)
+        self.assertEqual((p["download"], p["kept"], p["measured"], p["have"]), (1000, 3000, True, 0))
+        model = g.MEASURED["large-v3"]
+        p = g.plan("large-v3")
+        self.assertEqual((p["download"], p["kept"]), (1000 + model, 3000 + model))
+        self.assertEqual(p["disk_peak"], max(1000 + 3000, 3000 + model), "the larger of the two moments")
+        self.installed_program()
+        p = g.plan("large-v3")
+        self.assertEqual((p["download"], p["kept"], p["disk_peak"]), (model, model, model))
+        self.assertEqual(g.plan("large-v3", probe=False), p, "asks nobody, either way")
+
+    # ---- the program: pip, a bar, Stop, a staged folder
+    def test_the_program_is_one_bar_a_build_and_a_folder_made_whole(self):
+        older = self.installed_program(generation=self.g.PIN["generation"] - 1)
+        w = Watch()
+        said = []
+        with patch.dict(os.environ, {"FAKE_PIP_OLDER": str(older)}):
+            self.g.build("runtime", say=said.append, progress=w.progress, cancel=w.cancel)
+        self.assertEqual(w.phases(), ["download", "build", "download"])
+        dl = [c for c in w.calls if c[2] == "download"]
+        self.assertEqual({t for _d, t, _p in w.calls}, {1000}, "one bar, counted in bytes")
+        self.assertEqual([d for d, _t, _p in w.calls], sorted(d for d, _t, _p in w.calls), "it never goes back")
+        self.assertEqual(w.calls[0][0], 0)
+        self.assertEqual(dl[-1][0], 1000, "and ends full")
+        self.assertTrue(any(c[2] == "build" and c[0] == 1000 for c in w.calls),
+                        "the unpacking is a phase of its own, at the end of the download")
+        self.assertTrue(self.runtime_folder().is_dir())
+        self.assertEqual(self.g.runtime()["state"], "ready")
+        # the older folder was there while pip ran, and gone only afterwards
+        self.assertIn("older True", self.note.read_text())
+        self.assertFalse(older.exists())
+        self.assertEqual(sorted(p.name for p in (self.stt / "runtime").iterdir()),
+                         [self.runtime_folder().name])
+        self.assertEqual([p.name for p in self.stt.iterdir() if p.name.startswith("runtime.part")], [],
+                         "no staging folder left")
+        self.assertEqual(list((self.stt / "tmp").iterdir()), [], "and no scratch of pip's")
+        self.assertTrue(any("faster-whisper" in s for s in said))
+        self.assertEqual(self.g.in_use(), False)
+        self.assertEqual(self.g._CHILDREN, set())
+
+    def test_it_is_installed_by_the_real_command_line(self):
+        # the shape of what is run, held: hashes required, nothing resolved, wheels only, into the stage
+        cmd = self.g.pip_command.__wrapped__("STAGE") if hasattr(self.g.pip_command, "__wrapped__") else None
+        for p in self.patches:
+            if getattr(p, "attribute", "") == "pip_command":
+                p.stop()
+        try:
+            cmd = self.g.pip_command("STAGE")
+        finally:
+            for p in self.patches:
+                if getattr(p, "attribute", "") == "pip_command":
+                    p.start()
+        for flag in ("--require-hashes", "--no-deps", "--only-binary=:all:", "--isolated", "--no-cache-dir",
+                     "--progress-bar", "raw", "--no-input"):
+            self.assertIn(flag, cmd)
+        self.assertEqual(cmd[cmd.index("--target") + 1], "STAGE")
+        self.assertEqual(cmd[cmd.index("-r") + 1], str(ROOT / "lib" / "stt-requirements.txt"))
+        self.assertEqual(cmd[1:4], ["-u", "-m", "pip"])
+        self.assertNotIn("--user", cmd)
+        self.assertNotIn("nvidia", " ".join(cmd).lower())
+        env = self.g._pip_env(str(self.dir / "scratch"))
+        self.assertEqual(env["PIP_USER_AGENT_USER_DATA"], self.g.UA)
+        self.assertEqual({env[k] for k in ("TMPDIR", "TEMP", "TMP")}, {str(self.dir / "scratch")})
+        self.assertEqual(env["PYTHONNOUSERSITE"], "1")
+        self.assertNotIn("PYTHONPATH", env)
+
+    def test_stop_ends_pip_at_once_and_leaves_nothing(self):
+        self.mode = "sleep"
+        state = {"pid": None}
+
+        def cancel():
+            if state["pid"] is None and self.note.exists():
+                state["pid"] = int(self.note.read_text().split()[0])
+            return state["pid"] is not None
+        started = time.time()
+        with self.assertRaises(download.Cancelled):
+            self.g.build("runtime", say=lambda m: None, progress=None, cancel=cancel)
+        self.assertLess(time.time() - started, 15, "pip was told to sleep for a minute: Stop did not wait")
+        end = time.time() + 5
+        while time.time() < end:
+            try:
+                os.kill(state["pid"], 0)
+            except OSError:
+                break
+            time.sleep(0.05)
+        with self.assertRaises(OSError, msg="the pip is gone: no orphan"):
+            os.kill(state["pid"], 0)
+        self.assertFalse(self.runtime_folder().exists())
+        self.assertEqual([p.name for p in self.stt.iterdir() if p.name.startswith("runtime.part")], [])
+        self.assertEqual(self.g.runtime()["state"], "absent")
+        self.assertEqual(self.g._CHILDREN, set())
+        self.assertFalse(self.g.in_use())
+
+    def test_a_failing_pip_says_why_in_a_sentence_and_installs_nothing(self):
+        self.mode = "fail"
+        with self.assertRaises(SystemExit) as caught:
+            self.g.build("runtime", say=lambda m: None)
+        said = str(caught.exception)
+        self.assertTrue(said.startswith("getstt: "))
+        self.assertIn("not the one Parseh expects", said)
+        self.assertNotIn("ERROR", said)
+        self.assertFalse(self.runtime_folder().exists())
+        self.assertEqual([p.name for p in self.stt.iterdir() if p.name.startswith("runtime.part")], [])
+
+    def test_pips_words_are_turned_into_the_ones_a_person_can_act_on(self):
+        words = self.g._pip_words
+        self.assertIn("not the one Parseh expects",
+                      words(["ERROR: THESE PACKAGES DO NOT MATCH THE HASHES FROM THE REQUIREMENTS FILE."]))
+        self.assertIn("could not reach the package server",
+                      words(["WARNING: Retrying (Retry(total=4)) after connection broken by 'NewConnectionError'",
+                             "ERROR: Could not fetch URL https://pypi.org/simple/av/: Max retries exceeded"]))
+        with patch.object(self.g, "platform_key", return_value="macOS arm64"):
+            said = words(["ERROR: Could not find a version that satisfies the requirement av==18.1.0",
+                          "ERROR: No matching distribution found for av==18.1.0"])
+        self.assertIn("macOS 14", said)
+        self.assertIn("av==18.1.0", said)
+        with patch.object(self.g, "platform_key", return_value="linux x86_64"):
+            said = words(["ERROR: No matching distribution found for onnxruntime==1.30.0"])
+        self.assertIn("no build of", said)
+        self.assertIn("this kind of computer", said)
+        self.assertIn("no pip", words(["/usr/bin/python3: No module named pip"]))
+        self.assertIn("disk filled up", words(["OSError: [Errno 28] No space left on device"]))
+        self.assertIn("may not write", words(["PermissionError: [Errno 13] Permission denied"]))
+        self.assertIn("pip stopped: ", words(["ERROR: something unforeseen"]))
+        self.assertIn("without saying why", words([]))
+
+    def test_a_program_that_is_not_whole_is_not_kept(self):
+        self.mode = "incomplete"
+        with self.assertRaises(SystemExit) as caught:
+            self.g.build("runtime", say=lambda m: None)
+        self.assertIn("is not there", str(caught.exception))
+        self.assertFalse(self.runtime_folder().exists())
+        self.assertEqual([p.name for p in self.stt.iterdir() if p.name.startswith("runtime.part")], [])
+
+    def test_only_one_program_is_installed_at_a_time_and_the_second_finds_it_there(self):
+        self.mode = "slow"
+        errors = []
+
+        def run():
+            try:
+                self.g.build("runtime", say=lambda m: None)
+            except BaseException as e:                    # noqa: BLE001
+                errors.append(e)
+        threads = [threading.Thread(target=run) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(60)
+        self.assertEqual(errors, [])
+        self.assertEqual(self.note.read_text().count("started"), 1, "one pip, not two")
+        self.assertEqual(self.g.runtime()["state"], "ready")
+
+    def test_stop_is_heard_while_a_job_waits_behind_another_ones_install(self):
+        held, release_it = threading.Event(), threading.Event()
+
+        def hold():
+            with self.g._INSTALL:
+                held.set()
+                release_it.wait(30)
+        t = threading.Thread(target=hold)
+        t.start()
+        held.wait(5)
+        said = []
+        stop = threading.Event()
+        threading.Timer(0.4, stop.set).start()
+        started = time.time()
+        try:
+            with self.assertRaises(download.Cancelled):
+                self.g.build("runtime", say=said.append, cancel=stop)
+        finally:
+            release_it.set()
+            t.join(10)
+        self.assertLess(time.time() - started, 10)
+        self.assertTrue(any("waiting for the speech program" in m for m in said))
+        self.assertFalse(self.note.exists(), "it never started a pip of its own")
+
+    def test_a_program_that_is_already_there_is_not_installed_again(self):
+        self.installed_program()
+        said = []
+        self.g.build("runtime", say=said.append)
+        self.assertFalse(self.note.exists(), "no pip was started")
+        self.assertTrue(any("already installed" in s for s in said))
+
+    def test_where_the_program_cannot_be_installed_nothing_is_started(self):
+        with patch.object(self.g, "unavailable_reason", lambda: "There is no speech program for this kind of computer."), \
+                patch.object(subprocess_module(), "Popen", side_effect=AssertionError("a child was started")):
+            with self.assertRaises(SystemExit) as caught:
+                self.g.build("runtime", say=lambda m: None)
+            with self.assertRaises(SystemExit):
+                self.g.build("large-v3", say=lambda m: None)
+        self.assertIn("no speech program for this kind of computer", str(caught.exception))
+        self.assertFalse(self.stt.exists())
+
+    # ---- a model: one bar, every file checked, resumed, kept whole
+    def test_a_model_is_one_bar_checked_file_by_file_and_put_in_place_by_one_rename(self):
+        self.installed_program()
+        fake = self.fetcher("large-v3")
+        w = Watch()
+        held = []
+
+        def fetch(url, dest, **kw):
+            held.append(self.g.in_use("large-v3"))
+            return fake.fetch(url, dest, **kw)
+        with patch.object(download, "fetch", fetch):
+            size = self.g.build("large-v3", say=lambda m: None, progress=w.progress, cancel=w.cancel)
+        whole = sum(len(b) for b in self.made["large-v3"].values())
+        self.assertEqual(size, whole)
+        self.assertEqual(len(fake.calls), 5)
+        pin = self.pins["large-v3"]
+        for url, dest, kw in fake.calls:
+            name = os.path.basename(dest)
+            self.assertEqual(kw["sha256"], pin["files"][name][0], "every file against its own digest")
+            self.assertEqual(kw["size"], pin["files"][name][1])
+            self.assertEqual(kw["headers"], {"User-Agent": self.g.UA})
+            self.assertEqual(url, "https://huggingface.co/example/large-v3/resolve/%s/%s" % ("d" * 40, name),
+                             "the commit, never main")
+            self.assertEqual(kw["cancel"], w.cancel)
+        self.assertEqual({t for _d, t, _p in w.calls}, {whole}, "one bar, five files")
+        self.assertEqual(w.calls[-1][0], whole)
+        self.assertEqual(held, [True] * 5, "the part is held while it is fetched: nothing may remove it")
+        folder = self.stt / "models" / "large-v3"
+        self.assertEqual(sorted(p.name for p in folder.iterdir()),
+                         sorted(list(pin["files"]) + ["meta.json"]))
+        meta = json.loads((folder / "meta.json").read_text())
+        self.assertEqual((meta["revision"], meta["licence"], meta["model"]), ("d" * 40, "MIT", "large-v3"))
+        self.assertFalse((self.stt / "models" / "large-v3.part").exists())
+        self.assertTrue(self.g.model_ready("large-v3"))
+        self.assertFalse(self.g.in_use())
+
+    def test_a_stopped_model_keeps_what_came_and_the_next_press_carries_on(self):
+        self.installed_program()
+        fake = self.fetcher("large-v3")
+        stop = {"after": 2}
+
+        def cancel():
+            return len(fake.calls) > stop["after"]
+        with patch.object(download, "fetch", fake.fetch), self.assertRaises(download.Cancelled):
+            self.g.build("large-v3", say=lambda m: None, cancel=cancel)
+        part = self.stt / "models" / "large-v3.part"
+        self.assertEqual(len([p for p in part.iterdir() if not p.name.endswith(".part.json")]), 2, "two files kept")
+        self.assertFalse(self.g.model_ready("large-v3"))
+        self.assertEqual(self.g.plan("large-v3")["have"], sum(p.stat().st_size for p in part.iterdir()))
+        fake.calls.clear()
+        with patch.object(download, "fetch", fake.fetch):
+            self.g.build("large-v3", say=lambda m: None)
+        self.assertEqual(len(fake.calls), 3, "the two whole files are not fetched again")
+        self.assertTrue(self.g.model_ready("large-v3"))
+        self.assertFalse(part.exists())
+
+    def test_a_file_that_arrives_short_is_not_kept_as_a_model(self):
+        self.installed_program()
+        fake = self.fetcher("large-v3")
+        real = fake.fetch
+
+        def short(url, dest, **kw):
+            real(url, dest, **kw)
+            if dest.endswith("tokenizer.json"):
+                with open(dest, "r+b") as f:
+                    f.truncate(3)
+            return dest
+        with patch.object(download, "fetch", short), self.assertRaises(SystemExit) as caught:
+            self.g.build("large-v3", say=lambda m: None)
+        self.assertIn("tokenizer.json did not arrive whole", str(caught.exception))
+        self.assertFalse((self.stt / "models" / "large-v3").exists(),
+                         "without tokenizer.json faster-whisper would reach for the network: not installed")
+
+    def test_a_refused_and_a_dropped_download_are_said_in_words(self):
+        self.installed_program()
+
+        def mismatch(url, dest, **kw):
+            raise download.Mismatch("model.bin is not the file Parseh expects: its SHA-256 is x, not y.  "
+                                    "Nothing was installed.")
+        with patch.object(download, "fetch", mismatch), self.assertRaises(SystemExit) as caught:
+            self.g.build("large-v3", say=lambda m: None)
+        self.assertIn("is not the file Parseh expects", str(caught.exception))
+        self.assertIn("getstt: ", str(caught.exception))
+
+        def dropped(url, dest, **kw):
+            raise download.Incomplete("the connection closed at 1 MB of 3 MB")
+        with patch.object(download, "fetch", dropped), self.assertRaises(SystemExit) as caught:
+            self.g.build("large-v3", say=lambda m: None)
+        self.assertIn("What came is kept", str(caught.exception))
+        self.assertFalse((self.stt / "models" / "large-v3").exists())
+
+    def test_a_models_get_installs_the_program_first_under_one_bar(self):
+        fake = self.fetcher("large-v3-turbo")
+        seen = []
+
+        def fetch(url, dest, **kw):
+            seen.append(self.runtime_folder().is_dir())
+            return fake.fetch(url, dest, **kw)
+        w = Watch()
+        with patch.object(download, "fetch", fetch):
+            self.g.build("large-v3-turbo", say=lambda m: None, progress=w.progress, cancel=w.cancel)
+        model = self.g.MEASURED["large-v3-turbo"]
+        self.assertEqual({t for _d, t, _p in w.calls}, {1000 + model}, "the program's bytes and the model's, one bar")
+        self.assertEqual([d for d, _t, _p in w.calls], sorted(d for d, _t, _p in w.calls), "monotonic")
+        self.assertEqual(w.calls[-1][0], 1000 + model)
+        self.assertEqual(w.phases(), ["download", "build", "download"])
+        self.assertEqual(seen, [True] * 5, "the program is whole before the first model file is asked for")
+        self.assertEqual(self.g.installed(), ["large-v3-turbo"])
+        self.assertEqual(self.note.read_text().count("started"), 1)
+
+    def test_a_models_get_does_not_reinstall_a_program_that_is_there(self):
+        self.installed_program()
+        fake = self.fetcher("large-v3-turbo")
+        with patch.object(download, "fetch", fake.fetch):
+            self.g.build("large-v3-turbo", say=lambda m: None)
+        self.assertFalse(self.note.exists(), "no pip")
+
+    def test_stopping_a_models_get_while_it_installs_the_program_leaves_no_model_part(self):
+        self.mode = "sleep"
+        fake = self.fetcher("large-v3-turbo")
+
+        def cancel():
+            return self.note.exists()
+        with patch.object(download, "fetch", fake.fetch), self.assertRaises(download.Cancelled):
+            self.g.build("large-v3-turbo", say=lambda m: None, cancel=cancel)
+        self.assertEqual(fake.calls, [], "no model file was asked for")
+        self.assertFalse(self.runtime_folder().exists())
+
+    def test_discard(self):
+        self.installed_program()
+        part = self.stt / "models" / "large-v3.part"
+        part.mkdir(parents=True)
+        (part / "model.bin.part").write_bytes(b"x" * 10)
+        (part / "model.bin.part.json").write_text("{}")
+        self.assertEqual(self.g.plan("large-v3")["have"], 10)
+        self.assertEqual(self.g.discard("large-v3"), 10)
+        self.assertFalse(part.exists())
+        self.assertTrue(self.runtime_folder().is_dir(), "the program is not a download in progress")
+        stage = self.stt / ("runtime.part-%d" % os.getpid())
+        stage.mkdir()
+        (stage / "x").write_bytes(b"y" * 4)
+        self.assertEqual(self.g.discard("runtime"), 4)
+        self.assertFalse(stage.exists())
+
+
+def subprocess_module():
+    import subprocess
+    return subprocess
 
 
 if __name__ == "__main__":

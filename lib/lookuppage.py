@@ -45,6 +45,13 @@ in the guide now ("How the reading help works"), linked from the foot.
 Nothing here is required: Parseh gains no dependency and sends nothing
 anywhere but the downloads themselves, and a language with nothing installed
 is read exactly as it always was.
+
+SPEECH TO TEXT IS NOT HERE (the owner, 2026-09-28): it has a door of its own,
+/settings/speech/ (lib/speechpage.py), and this page carries one line pointing
+at it.  It is drawn with this page's rows -- ROW_JS and STYLE below -- because
+a row is a row, and its downloads run through the same runner, so the status
+this page reads (/lookup/api/status) also carries its `speech`, its sizes and
+its jobs; nothing on this page draws them.
 """
 import io
 import json
@@ -59,6 +66,7 @@ import languages                                               # noqa: E402
 import decomposition                                           # noqa: E402
 import corpus                                                  # noqa: E402
 import getmt                                                   # noqa: E402
+import getstt                                                  # noqa: E402
 import getsyn                                                  # noqa: E402
 import lookup                                                  # noqa: E402
 
@@ -227,7 +235,7 @@ def glosses():
 # downloader's arguments -- the same for its build() and its plan()
 # (lib/download.py's interface).  serve.py starts them through these.
 MODULES = {"dict": "getdict", "components": "getdecomposition", "corpus": "getcorpus",
-           "model": "getmt", "synonyms": "getsyn"}
+           "model": "getmt", "synonyms": "getsyn", "speech": "getstt"}
 
 
 def module_for(kind):
@@ -277,6 +285,10 @@ def sizes():
     for pack in decomposition.PACKS:
         out["components:" + pack] = known_plan("components", pack)
     out["synonyms:"] = known_plan("synonyms", "")
+    # speech to text's three parts: the plan says what a model costs WITH the program
+    # when it is not there (its page, /settings/speech/, draws them)
+    for part in getstt.PARTS:
+        out["speech:" + part] = known_plan("speech", part)
     return out
 
 
@@ -384,6 +396,7 @@ def view(state=None, jobs=None, queues=None):
         free = None
     who = notices.credits()
     return {"languages": langs, "packs": packs, "syn": syn, "engine": eng,
+            "speech": getstt.status(),
             "glosses": glosses(), "examples": examples(),
             "parts": PARTS, "synonym": SYNONYM,
             "credits": {k: {"who": v[0], "licence": v[1]} for k, v in who.items()},
@@ -404,6 +417,8 @@ def page(state=None, jobs=None, queues=None):
             '<p class="sub">What this computer has fetched to help you read what nobody '
             'has glossed.</p>\n<div id="rh-band" class="band"></div>\n'
             '<div id="rh"><p class="rh-wait">Reading what is here&hellip;</p></div>\n'
+            '<p class="foot pointer">Turning a video\'s sound into a transcript is not here: '
+            '<a href="/settings/speech/">speech to text</a> has a page of its own.</p>\n'
             '<p class="foot">What is fetched here lives in the %s folder &mdash; '
             '<code>dict/</code>, <code>corpus/</code>, <code>mt/</code>, '
             '<code>components/</code> &mdash; and nothing else of %s depends on it: a '
@@ -527,18 +542,12 @@ body.index main.settings.rh{max-width:60rem;padding:22px 16px 60px}
 }
 """
 
-SCRIPT = r"""
-(function () {
-  'use strict';
-  var S = JSON.parse(document.getElementById('rh-state').textContent);
-  var root = document.getElementById('rh');
-  var band = document.getElementById('rh-band');
-  var gloss = {};          // the pair each card shows, as its picker says
-  var opened = {};         // the other languages opened from their one line
-  var asking = {};         // a row's or a card's question: {kind: 'get'|'remove'|'all', ...}
+# THE ROW HELPERS both pages' scripts share: the time left (worked out from how fast the
+# bytes have been coming), a state's pill, sizes, escaping.  A row is drawn on this page
+# (the dictionaries, the corpora, the models) and on Settings -> Speech to text
+# (lib/speechpage.py) the same way, and a person reads one as the other.
+ROW_JS = r"""
   var samples = {};        // how far each job was, and when: the time left is worked out from these
-  var polling = null;
-
   var esc = function (s) { return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
     return {'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'}[c]; }); };
   function MB(n) {
@@ -546,22 +555,6 @@ SCRIPT = r"""
     if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
     return Math.max(1, Math.round(n / 1e6)) + ' MB';
   }
-  function num(n) { return Number(n || 0).toLocaleString('en'); }
-  function built(s) {
-    if (!s) return '';
-    var d = new Date(String(s).slice(0, 10) + 'T12:00:00');
-    return 'built ' + (isNaN(d) ? esc(s) : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'long', year: 'numeric'}));
-  }
-  // an example's <m>word</m> is the word it shares; everything else is text
-  function marked(s) { return esc(s).replace(/&lt;m&gt;/g, '<mark>').replace(/&lt;\/m&gt;/g, '</mark>')
-                                    .replace(/&lt;i&gt;/g, '<i>').replace(/&lt;\/i&gt;/g, '</i>'); }
-  function langOf(code) { return S.languages.filter(function (l) { return l.code === code; })[0]; }
-  function nameOf(code) { var l = langOf(code); return l ? l.name : code; }
-  function dirOf(code) { var l = langOf(code); return l && l.rtl ? ' dir="rtl"' : ''; }
-  function job(kind, key) { return ((S.jobs || {})[kind] || {})[key] || null; }
-  function size(kind, key) { return (S.sizes || {})[kind + ':' + key] || {}; }
-  function may(setting) { return !S.may || S.may[setting] !== false; }
-
   /* ---- the time left: from how fast the bytes have been coming, smoothed,
      rounded so it does not jitter, and not said until there is a rate */
   function sample(id, j) {
@@ -586,10 +579,41 @@ SCRIPT = r"""
     return 'about ' + (t / 3600).toFixed(1).replace(/\.0$/, '') + ' hours left';
   }
 
-  /* ---- a row's state: a glyph, a word and a colour, never the colour alone */
   function pill(cls, glyph, word) {
     return '<span class="st ' + cls + '"><i>' + glyph + '</i> ' + esc(word) + '</span>';
   }
+"""
+
+
+SCRIPT = r"""
+(function () {
+  'use strict';
+  var S = JSON.parse(document.getElementById('rh-state').textContent);
+  var root = document.getElementById('rh');
+  var band = document.getElementById('rh-band');
+  var gloss = {};          // the pair each card shows, as its picker says
+  var opened = {};         // the other languages opened from their one line
+  var asking = {};         // a row's or a card's question: {kind: 'get'|'remove'|'all', ...}
+  var polling = null;
+  /*ROW_JS*/
+
+  function num(n) { return Number(n || 0).toLocaleString('en'); }
+  function built(s) {
+    if (!s) return '';
+    var d = new Date(String(s).slice(0, 10) + 'T12:00:00');
+    return 'built ' + (isNaN(d) ? esc(s) : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'long', year: 'numeric'}));
+  }
+  // an example's <m>word</m> is the word it shares; everything else is text
+  function marked(s) { return esc(s).replace(/&lt;m&gt;/g, '<mark>').replace(/&lt;\/m&gt;/g, '</mark>')
+                                    .replace(/&lt;i&gt;/g, '<i>').replace(/&lt;\/i&gt;/g, '</i>'); }
+  function langOf(code) { return S.languages.filter(function (l) { return l.code === code; })[0]; }
+  function nameOf(code) { var l = langOf(code); return l ? l.name : code; }
+  function dirOf(code) { var l = langOf(code); return l && l.rtl ? ' dir="rtl"' : ''; }
+  function job(kind, key) { return ((S.jobs || {})[kind] || {})[key] || null; }
+  function size(kind, key) { return (S.sizes || {})[kind + ':' + key] || {}; }
+  function may(setting) { return !S.may || S.may[setting] !== false; }
+
+  /* ---- a row's state: a glyph, a word and a colour, never the colour alone */
   function stateOf(r) {
     var j = r.job;
     if (j && j.running) {
@@ -1098,4 +1122,4 @@ SCRIPT = r"""
   }
   if (busy()) schedule(1000);
 })();
-"""
+""".replace("/*ROW_JS*/", ROW_JS)

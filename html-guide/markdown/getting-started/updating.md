@@ -123,6 +123,12 @@ afterwards:
   decks' schedules, `youtube/anki/` and `clips/`.
 - **The reading help.** `dict/`, `corpus/`, `mt/` and `components/` —
   gigabytes, perhaps, and nothing is downloaded again.
+- **Speech to text.** `stt/`, the program and the models fetched on
+  **Settings → Speech to text**: more gigabytes, and no update, forward or
+  back, opens a file in it. **Going back to a0.4.0 leaves `stt/` exactly as
+  it is**: that version has no page to remove it, so if you do not want the
+  gigabytes while you are on it, take the folder off by hand — and fetch
+  speech to text again on a version that has the page.
 - **The TeX packages** Parseh got for its drawings, `texmf/`, and the
   drawings themselves, `markdown/latex/`.
 - **Your settings.** `config/`: the preferences that follow you from
@@ -176,6 +182,7 @@ few minutes and downloads nothing of yours again.
      `exercises/` and `clips/`: your content;
    - `dict/`, `corpus/`, `mt/` and `components/`: the reading help's
      downloads;
+   - `stt/`: speech to text's program and models;
    - `texmf/`: the TeX packages Parseh got for its drawings;
    - `config/`: your settings and the devices you let in;
    - `.tls/`: the certificate, so that no browser and no phone is asked to

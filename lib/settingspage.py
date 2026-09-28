@@ -2,15 +2,17 @@
 """The Settings section, and the page a device that has not been let in sees.
 
 Settings opens from the hub, says which Parseh this is (its version), and
-holds three pages: **Network** -- who may reach this Parseh, on which port,
+holds five pages: **Network** -- who may reach this Parseh, on which port,
 with which certificate (lib/network.py keeps the answers; TO-DO §1.1, §3.3,
 §3.4, and the owner's decisions of 2026-09-23) -- **Reading help**, the
 dictionaries, corpora, models and component packs this computer has fetched
 (lib/lookuppage.py draws it; TO-DO §11.10) -- and **Updating Parseh**, another
 version in place of this one (lib/updatepage.py draws it, lib/updater.py does
-it; TO-DO §13.16).  The section was a section rather
-than a page from the start because the next settings to come out of the pages
-were always going to live beside the first.
+it; TO-DO §13.16), **LaTeX drawings** (lib/latexpage.py) and **Speech to
+text**, the program and the two models that turn a video's sound into a
+transcript (lib/speechpage.py draws it, lib/getstt.py does it; TO-DO §7.23).
+The section was a section rather than a page from the start because the next
+settings to come out of the pages were always going to live beside the first.
 
 WHO MAY CHANGE WHAT is written below, once, as a table: every setting, and
 for each risky one the part of the owner's sentence it trips.  Both routers
@@ -119,6 +121,25 @@ SETTINGS = {
     # changes nothing any drawing will be: each is made again from its
     # source when it is needed
     "latex.forget": (None, "It frees the space drawings nothing uses took."),
+    # SPEECH TO TEXT IS NOT RISKY (the owner, 2026-09-28, in answer to the
+    # question the brief of a0.4.1 asked).  The brief had drafted the program's
+    # install as RUN -- it does put a program on the computer, and the computer
+    # runs it -- and he decided otherwise, for all three keys, and for a door of
+    # its own: nothing a device sends becomes anything that is fetched.  The
+    # only bytes that can ever arrive are the wheels named in
+    # lib/stt-requirements.txt, each checked against a hash Parseh ships, and
+    # the files of two models at a pinned revision, each checked against its
+    # own (lib/getstt.py); a model is one of two exact names and a way of
+    # running it one of three.  So whoever presses the button -- the computer,
+    # a phone, another computer that has been let in -- gets the same
+    # program Parseh already chose, and getting it, taking it away and
+    # stopping either are open to any device let in.  Removing is refused in
+    # code while an install or a transcription uses the part.
+    "speech.get": (None, "It puts the speech program and two models on this computer's disk. "
+                         "Whoever presses the button gets the same files: only the ones Parseh "
+                         "pins can be fetched, each checked against its hash."),
+    "speech.remove": (None, "It frees the space the program or a model took."),
+    "speech.stop": (None, "It stops an install this page started."),
 }
 
 # Asking how things stand is not a setting: open to every device let in, and
@@ -164,6 +185,14 @@ ROUTES = {
     "/lookup/api/dropsyn": ("reading.remove",),
     "/lookup/api/dropdecomposition": ("reading.remove",),
     "/lookup/api/stop": ("reading.stop",),
+    # speech to text (lib/getstt.py, its own door: lib/speechpage.py): how it
+    # stands, and looking at the graphics card again, open; getting, removing and
+    # stopping, open to any device let in (SETTINGS says why)
+    "/lookup/api/speech": READ,
+    "/lookup/api/speechcheck": READ,
+    "/lookup/api/getspeech": ("speech.get",),
+    "/lookup/api/dropspeech": ("speech.remove",),
+    "/lookup/api/stopspeech": ("speech.stop",),
     # updating Parseh (lib/updater.py): what is waiting and how far an update
     # has got, open; asking GitHub, open; everything that brings a version in
     # or puts one in place, the computer's alone
@@ -386,6 +415,9 @@ DOORS = (
      "Themes for drawings LaTeX makes, its packages, how long a drawing may take",
      ("latex.theme", "latex.rename", "latex.import", "latex.packages", "latex.limit",
       "latex.forget")),
+    ("/settings/speech/", "Speech to text",
+     "A transcript made on this computer, while adding a video: the program, two models",
+     ("speech.get", "speech.remove", "speech.stop")),
 )
 
 
@@ -732,12 +764,13 @@ reaches %(name)s</a>, in the guide.</p>
                  extra_head='<script src="/lib/explain.js" defer></script>', script=script)
 
 
-def hub(reading_tags="", update_tags=""):
+def hub(reading_tags="", update_tags="", speech_tags=""):
     """/settings/ -- the section itself.  Each door says what is behind it
     rather than only naming it, and who may change it, in the words of the
     table above; `reading_tags` is what the reading help has (serve.py knows
-    it: the hub's own door says the same).  And which Parseh this is: the
-    version, from the one file that holds it."""
+    it: the hub's own door says the same; `speech_tags` is what speech to text
+    has).  And which Parseh this is: the version, from the one file that holds
+    it."""
     net = DOORS[1][3]
     main = """<main class="settings">
 <h1 class="idx">settings</h1>
@@ -771,11 +804,19 @@ def hub(reading_tags="", update_tags=""):
     how long a drawing may take.</div>
     <div class="tags">%(latex_gate)s</div>
   </a>
+  <a class="door" href="/settings/speech/">
+    <div class="dname">Speech to text</div>
+    <div class="dwhat">A transcript made on this computer while you add a video: the program and the
+    two Whisper models it reads, on the processor or the NVIDIA graphics card &mdash; fetched
+    once, kept on this computer, nothing sent anywhere.</div>
+    <div class="tags">%(speech_gate)s%(speech_tags)s</div>
+  </a>
 </div>
 </main>""" % {"name": NAME, "version": esc(parseh_version()),
               "reading_gate": gate(DOORS[0][3]), "reading_tags": reading_tags,
               "update_gate": gate(DOORS[2][3]), "update_tags": update_tags,
               "latex_gate": gate(DOORS[3][3]),
+              "speech_gate": gate(DOORS[4][3]), "speech_tags": speech_tags,
               "net_gate": gate(net),
               "where": esc(doors_said(network.settings())), "port": network.port()}
     return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", main,
