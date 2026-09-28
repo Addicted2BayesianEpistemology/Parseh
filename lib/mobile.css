@@ -147,6 +147,12 @@ a.m-door.m-guide{min-height:72px;margin-top:22px;background:none;border-style:da
 .m-foot a{color:var(--dim);display:inline-flex;align-items:center;min-height:48px;padding:0 6px}
 /* the version, under the licence line (serve.py's hub) */
 .m-ver{margin:0 0 8px;text-align:center;color:var(--faint);font-size:12.5px}
+/* the author's two links, under the version (lib/author.py): small, and each
+   a finger's height.  --dim and not --faint, the licence line's and the
+   version's colour: --faint is 2.5:1 against the page in the light and the
+   sepia palettes, and a link has to be readable at AA */
+.m-by{margin:0 0 8px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;font-size:12.5px}
+.m-by a{color:var(--dim);display:inline-flex;align-items:center;min-height:48px;padding:0 10px}
 
 /* The licences page (/licences/, lib/notices.py) carries both layouts in
    one column: in the mobile mode, the mobile column. */
