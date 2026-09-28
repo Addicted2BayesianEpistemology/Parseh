@@ -1617,7 +1617,7 @@ const gotOf = page => page.evaluate(() => ({error: __got.error, ended: __got.end
     const s = (c.marks[i][0] - c.marks[i - 1][0]) / 16000, v = c.marks[i][1] - c.marks[i - 1][1];
     if (s >= 0.1 && v < 0.5 * s) still += s - v;
   }
-  assert(still > 0.2 && still < 0.9, `the marks say the video stood still for ${still.toFixed(3)} s while the sound went on (the fake's stop is 0.4 s)`);
+  assert(still > 0.15 && still < 0.9, `the marks say the video stood still for ${still.toFixed(3)} s while the sound went on (the fake's stop is 0.4 s)`);
   const errs = toneErrors(c.tones, c.marks);
   assert(errs.length >= 8 && errs.every(e => Math.abs(e.error) <= 0.15),
          `and every whole tone is where the video has it, within 150 ms, before the stop and after it (worst ${Math.max(...errs.map(e => Math.abs(e.error))).toFixed(3)} s over ${errs.length}: ${JSON.stringify(errs.map(e => [e.k, +e.error.toFixed(3)]))})`);

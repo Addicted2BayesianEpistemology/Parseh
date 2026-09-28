@@ -54,7 +54,7 @@ The page has four parts, one under the other.
 **What it is** says in five lines what is written here: it is optional, it
 happens on this computer and nothing is sent to a speech-recognition
 service, it works with no graphics card, the models are large, and it is
-offered only while adding a video.
+offered only while adding a video ([how the page uses it](../videos/adding-a-video.md#speech-to-text)).
 
 **Processor** says what the transcript will be made on — [below](#the-processor).
 
