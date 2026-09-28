@@ -321,6 +321,20 @@ class Cleaning(unittest.TestCase):
         self.assertNotIn("Secret Other Doc", data.decode("utf-8"))
         self.assertRegex(shown, r'<a class="lnk" href="https://example.org"')
 
+    def test_a_drawings_caption_travels_as_words_and_its_source_does_not(self):
+        md = ("---\ntitle: Drawn\ntarget: it\n---\n\n"
+              "::::latex chemistry {caption=\"Water forms from *hydrogen*\"}\n\\ce{H2O}\n::::\n")
+
+        def drawn(tex, theme, **kw):
+            return {"ok": True, "key": "d" * 64, "url": "/latex/%s.svg" % ("d" * 64), "w": 40, "h": 10}
+        with mock.patch.dict(htmlgen.LATEX, {"draw": drawn, "draw_all": None}):
+            _n, data = webexport.document_html("drawn-0a1b2c", {"title": "Drawn"}, md, lambda p: None)
+        page = data.decode("utf-8")
+        shown = body_of(page)
+        self.assertRegex(shown, r"<figcaption[^>]*><span>Water forms from <em>hydrogen</em></span></figcaption>")
+        self.assertNotIn("data-latex", shown, "neither the caption as written, nor the LaTeX, nor the theme")
+        self.assertNotIn("Water forms from *hydrogen*", page)
+
     def test_a_missing_file_is_a_placeholder_not_a_request(self):
         md = "---\ntitle: Gone\ntarget: it\n---\n\n![a cat](images/cat.png)\n"
         _n, data = webexport.document_html("gone-0a1b2c", {"title": "Gone"}, md, lambda p: None)

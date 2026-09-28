@@ -1333,9 +1333,26 @@ def api_meta(h, doc_id):
 
 
 def api_latex_themes(h):
+    """The sheet's themes, each with what this computer lacks of it (the files
+    Settings checks, or the compiler), and where Settings is when this Parseh
+    has one: the sheet marks the theme and offers to install."""
     import latexthemes
+    import texpackages
     doc = latexthemes.all_of()
-    h.send_json({"themes": [t["name"] for t in doc["themes"]], "default": doc["default"]})
+    seen, missing = {}, {}
+    for t in doc["themes"]:
+        gone = []
+        if latexdraw.compiler(t["compiler"]) is None:
+            gone.append({"id": t["compiler"], "install": None})
+        for pid, file, tl, _licence in latexthemes.files_needed(t):
+            if file not in seen:
+                seen[file] = texpackages.installed(file)
+            if seen[file] is False:
+                gone.append({"id": pid, "install": tl[0] if tl else pid})
+        if gone:
+            missing[t["name"]] = gone
+    h.send_json({"themes": [t["name"] for t in doc["themes"]], "default": doc["default"],
+                 "missing": missing, "settings": htmlgen.LATEX.get("settings")})
 
 
 def api_latex_preview(h):

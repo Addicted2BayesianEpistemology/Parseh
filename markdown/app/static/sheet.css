@@ -1326,6 +1326,11 @@ figure.audio.img-editing audio { outline: 2px solid var(--accent); outline-offse
 /* ---------- LaTeX drawings (TO-DO §8.39) --------------------------- */
 figure.latex { margin: 1.2em 0; display: block; max-width: 100%; }
 figure.latex img { display: block; width: 100%; height: auto; }
+/* a figure's caption (figure.img figcaption), a box of its own under the drawing (htmlgen._latex_captioned) */
+figure.latex figcaption { margin-top: .35em; text-align: center; }
+figure.latex figcaption > span { display: block; font-size: .78em; color: var(--graytx); line-height: 1.45; }
+figure.latex.align-left figcaption { text-align: left; }
+figure.latex.align-right figcaption { text-align: right; }
 .ex-flashcard figure.latex { margin-top: .5em; margin-bottom: .5em; }
 .latex-fail { border: 1px dashed var(--rule, #8888); border-radius: 6px; padding: .6em .8em;
   margin: 1em 0; font-size: .9em; }

@@ -558,11 +558,8 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 }
 .lx-preview-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
 .lx-preview-head > b { font-size: .82rem; }
-.lx-preview-size { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
-.lx-preview-size .btn[aria-pressed="true"] {
-  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--chrome-panel)); color: var(--accent);
-}
 .latex-modal .lx-status { display: block; min-height: 1.1em; margin: 0; }
+.latex-modal .lx-status a { color: var(--accent); font-weight: 600; white-space: nowrap; }
 /* This is a small piece of the page, rather than the white browser card the
    first sheet used: the author sees how a transparent drawing meets paper. */
 .latex-modal .lx-stage {
@@ -572,9 +569,13 @@ body.links-open .linkspane { transform: none; visibility: visible; }
   box-shadow: none; background: var(--sheet-bg);
 }
 .latex-modal .lx-stage:empty::after { content: "The drawing will appear here."; color: var(--chrome-mut); font: .82rem var(--sans); }
-.lx-preview-image { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; }
-.lx-stage[data-lx-preview-mode="actual"] { align-items: flex-start; justify-content: flex-start; }
-.lx-stage[data-lx-preview-mode="actual"] .lx-preview-image { max-width: none; max-height: none; }
+/* The preview is scaled to fill its pane, small drawings up as much as large ones down: the page
+   itself shows the drawing at its own size.  --lx-w is the drawing's width in points (a point read
+   as a pixel), so that a drawing of one glyph is not blown up past 12 times. */
+.lx-preview-image {
+  display: block; width: 100%; height: auto; max-width: calc(var(--lx-w, 100000) * 12px); max-height: 100%;
+  object-fit: contain;
+}
 .lx-preview-detail { width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, Menlo, monospace; }
 .lx-editor-pane {
   grid-area: editor; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .85rem;
@@ -582,7 +583,8 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 }
 .lx-field { display: flex; flex-direction: column; gap: .28rem; color: var(--chrome-mut); font-size: .82rem; }
 .lx-field > span { color: var(--chrome-fg); font-weight: 600; }
-.lx-field select, .lx-layout select, .lx-layout input[type="number"] {
+.lx-field > span small { color: var(--chrome-mut); font-weight: 400; }
+.lx-field select, .lx-field input[type="text"], .lx-layout select, .lx-layout input[type="number"] {
   border: 1px solid var(--chrome-line); border-radius: 7px; background: var(--chrome-bg); color: var(--chrome-fg);
   padding: .42rem .55rem; font: inherit;
 }
@@ -608,11 +610,15 @@ body.links-open .linkspane { transform: none; visibility: visible; }
     width: 100%; height: calc(100vh - 1rem); height: calc(100dvh - 1rem); max-height: none; border-radius: 10px;
   }
   .latex-modal-head { padding: .85rem 1rem .7rem; }
-  .latex-modal-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "editor" "preview"; overflow: auto; }
+  /* max-content rows: the panes' own height, never squeezed into the dialog's (the body scrolls) --
+     the caption field made the source pane taller than the phone had left, and the two overlapped */
+  .latex-modal-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: max-content max-content;
+    grid-template-areas: "editor" "preview"; overflow: auto; }
   .lx-editor-pane, .lx-preview-pane { overflow: visible; padding: .85rem 1rem; }
   .lx-preview-pane { min-height: 0; border-right: 0; border-top: 1px solid var(--chrome-line); }
   .latex-modal .lx-src { min-height: 11rem; flex: none; }
   .latex-modal .lx-stage { min-height: 15rem; flex: none; }
+  .lx-preview-image { max-height: 70vh; }
   .lx-layout-fields { grid-template-columns: minmax(0, 1fr); }
   .lx-layout-fields .lx-natural-field { grid-column: 1; }
   .latex-modal-actions { padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom)); }

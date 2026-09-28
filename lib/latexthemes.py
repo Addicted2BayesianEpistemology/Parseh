@@ -6,7 +6,7 @@ where a `:::math` formula is drawn by MathJax on the screen and set by the
 document's own TeX on paper.  It is written between a line `::::latex` and a
 line `::::`:
 
-    ::::latex chemistry {width=45 align=center}
+    ::::latex chemistry {width=45 align=center caption="Water forms from hydrogen"}
     \\ce{2H2 + O2 -> 2H2O}
     ::::
 
@@ -23,7 +23,9 @@ layout words and mean what they mean for a figure (mdparser.IMAGE_RE): `width`
 a percentage of the column, 5 to 100, `align` left, center or right, `offset`
 a sideways shift -- with two defaults of the block's own, decided by the owner:
 no width is the drawing's NATURAL size, as TeX set it and measured against
-the text round it, and no align is CENTRED, as a formula is.
+the text round it, and no align is CENTRED, as a formula is.  A block, not an
+inline mark, may also take a `caption="…"` in double quotes, set under the
+drawing as a figure's is.
 
 A THEME is a named preamble, as many as wanted, kept in config/latex.json,
 made and edited in Settings -> LaTeX drawings on the computer alone
@@ -71,7 +73,7 @@ BORDER_PT = 2.0
 # ------------------------------------------------------------------ the fence
 FENCE_OPEN_RE = re.compile(r"^::::latex\b(.*)$", re.I)
 FENCE_CLOSE = "::::"
-_OPENING_RE = re.compile(r"^\s*([^\s{}]+)?\s*(?:\{([^{}]*)\})?\s*$")
+_OPENING_RE = re.compile(r'^\s*([^\s{}]+)?\s*(?:\{((?:"[^"]*"|[^{}"])*)\})?\s*$')
 NAME_MAX = 40
 
 
@@ -113,6 +115,9 @@ def opening(line):
                              "::::latex chemistry {width=45 align=center}")
         return out
     name, attrs = mm.group(1) or "", mm.group(2) or ""
+    if re.search(r'\bcaption\s*=\s*(?!")', re.sub(r'"[^"]*"', '""', attrs)):
+        out["errors"].append('a caption goes in double quotes: caption="Water forms from '
+                             'hydrogen and oxygen"')
     if name and not name_ok(name):
         out["errors"].append("%r is not a theme's name: %s" % (name, NAME_RULE))
     out["theme"], out["attrs"] = name, attrs
@@ -120,15 +125,23 @@ def opening(line):
 
 
 def parse_attrs(raw, card=False):
-    """`width=45 align=center offset=-10` -> {"width": 45 or None, "align",
-    "offset"}.  The words and their ranges are a figure's
-    (mdparser.parse_image_attrs); the defaults are the block's own: no width
-    is its natural size, no align is centred.  On a card there is no offset,
-    as an exercise's picture has none."""
-    out = {"width": None, "align": "center", "offset": 0}
-    for m in re.finditer(r"([a-z]+)\s*=\s*(-?[\w.:]+)", raw or ""):
-        k, v = m.group(1), m.group(2)
-        if k in ("width", "offset"):
+    """`width=45 align=center offset=-10 caption="Water"` -> {"width": 45 or
+    None, "align", "offset", "caption"}.  The words and their ranges are a
+    figure's (mdparser.parse_image_attrs); the defaults are the block's own: no
+    width is its natural size, no align is centred, no caption is none.  On a
+    card there is no offset, as an exercise's picture has none.  A caption is
+    inline markup in double quotes, with no escapes, on the one line: a
+    figure's own (`![caption](path)`).  It is never part of the drawing's key
+    (lib/latexdraw.py): a caption edited draws nothing again."""
+    out = {"width": None, "align": "center", "offset": 0, "caption": ""}
+    for m in re.finditer(r'([a-z]+)\s*=\s*(?:"([^"]*)"|(-?[\w.:]+))', raw or ""):
+        k, v = m.group(1), m.group(3)
+        if k == "caption":
+            if m.group(2) is not None:
+                out["caption"] = re.sub(r"\s+", " ", m.group(2)).strip()
+        elif v is None:
+            continue
+        elif k in ("width", "offset"):
             try:
                 n = int(round(float(v)))
             except ValueError:

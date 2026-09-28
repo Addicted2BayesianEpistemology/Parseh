@@ -1071,7 +1071,8 @@ function initEdit() {
       openLatexOverlay({backTo: src, okLabel: "Save", tex: el.dataset.latexSrc,
                         theme: el.dataset.latexTheme,
                         layout: {width: w, align: el.dataset.align || "center",
-                                 offset: +el.dataset.offset || 0},
+                                 offset: +el.dataset.offset || 0,
+                                 caption: el.dataset.latexCaption || ""},
                         onSave: text => {
                           pushHistory(true);
                           const cur = src.value.split("\n");

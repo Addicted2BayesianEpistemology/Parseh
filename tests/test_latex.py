@@ -77,6 +77,132 @@ class TheFence(unittest.TestCase):
         self.assertEqual((b["theme"], b["tex"], b["closed"]), ("drawing", "x", True))
 
 
+def _drawn(calls=None, w=99.0):
+    def draw(tex, theme, **kw):
+        if calls is not None:
+            calls.append((tex, theme, sorted(kw)))
+        return {"ok": True, "key": "c" * 64, "url": "/latex/%s.svg" % ("c" * 64), "w": w, "h": 20,
+                "pdf": "/nowhere/%s.pdf" % ("c" * 64)}
+    return draw
+
+
+def _figure(md, **kw):
+    with mock.patch.dict(htmlgen.LATEX, {"draw": _drawn(), "draw_all": None}):
+        return htmlgen.render_document(md, **kw)["html"]
+
+
+class Caption(unittest.TestCase):
+    """A latex BLOCK (never the inline mark) may take `caption="…"` in its braces:
+    inline markup in double quotes, set under the drawing as a figure's caption is."""
+
+    def blocks(self, md):
+        return [b for b in mdparser.parse(md)[1] if b["type"] == "latex"]
+
+    def test_the_braces_take_a_quoted_caption(self):
+        b, = self.blocks('::::latex chemistry {width=45 align=left caption="Water forms from hydrogen"}\nx\n::::\n')
+        self.assertEqual((b["caption"], b["width"], b["align"], b["theme"]),
+                         ("Water forms from hydrogen", 45, "left", "chemistry"))
+        self.assertFalse(b["errors"])
+
+    def test_no_caption_is_none_and_the_theme_is_optional(self):
+        b, = self.blocks("::::latex {width=45}\nx\n::::\n")
+        self.assertEqual(b["caption"], "")
+        b, = self.blocks('::::latex {caption="A"}\nx\n::::\n')
+        self.assertEqual((b["caption"], b["theme"], b["width"]), ("A", "", None))
+
+    def test_a_caption_may_hold_braces_brackets_and_the_layout_words(self):
+        b, = self.blocks('::::latex chem {caption="[x^2]{math} and width=9, a } too" width=30}\nx\n::::\n')
+        self.assertEqual(b["caption"], "[x^2]{math} and width=9, a } too")
+        self.assertEqual(b["width"], 30, "the words outside the quotes still read")
+        self.assertFalse(b["errors"])
+
+    def test_whitespace_is_one_space(self):
+        b, = self.blocks('::::latex {caption="  two   words "}\nx\n::::\n')
+        self.assertEqual(b["caption"], "two words")
+
+    def test_a_caption_without_quotes_or_with_an_open_one_is_said_not_dropped(self):
+        b, = self.blocks("::::latex chem {caption=Water}\nx\n::::\n")
+        self.assertTrue(any("double quotes" in e for e in b["errors"]), b["errors"])
+        b, = self.blocks('::::latex chem {caption="Water}\nx\n::::\n')
+        self.assertTrue(b["errors"], "an open quote is a bad opening line")
+
+    def test_a_caption_on_a_card(self):
+        md = (":::exercise flashcard\ntype: jolly\nfront: |\n  ::::latex {caption=\"Water\"}\n  \\ce{H2O}\n  ::::\n"
+              "back: water\n:::\n")
+        self.assertEqual(latexthemes.blocks_in(md)[0]["attrs"], 'caption="Water"')
+
+    def test_a_caption_never_changes_the_drawing_asked_for(self):
+        calls = []
+        plain = '::::latex chemistry {width=45}\n\\ce{H2O}\n::::\n'
+        said = '::::latex chemistry {width=45 caption="Water"}\n\\ce{H2O}\n::::\n'
+        with mock.patch.dict(htmlgen.LATEX, {"draw": _drawn(calls), "draw_all": None}):
+            htmlgen.render_document(plain)
+            htmlgen.render_document(said)
+        self.assertEqual(calls[0], calls[1], "the same (tex, theme) is asked of the drawer, nothing more")
+        self.assertEqual(calls[0][:2], ("\\ce{H2O}", "chemistry"))
+        # and the key is made of what latexdraw.key_of is given, which has no room for one
+        import inspect
+        self.assertEqual(list(inspect.signature(latexdraw.key_of).parameters),
+                         ["tex", "resolved", "state", "inline"])
+
+    def test_the_html_is_a_figures_caption_below_a_natural_size_drawing(self):
+        html = _figure('::::latex chemistry {caption="Water with *care* and [x^2]{math}"}\nx\n::::\n')
+        self.assertIn('<figure class="latex has-caption align-center"', html)
+        self.assertRegex(html, r"<figcaption[^>]*><span>Water with <em>care</em> and .*</span></figcaption>")
+        self.assertIn('data-latex-caption="Water with *care* and [x^2]{math}"', html,
+                      "the source, for the editor's pencil")
+        self.assertLess(html.index("<img"), html.index("<figcaption"))
+        # the drawing keeps its natural width (9.9 ems); the caption's box is never narrower than 20em
+        self.assertIn("width:9.90em", html)
+        self.assertIn("min(100%,20em)", html)
+
+    def test_the_html_of_a_drawing_with_a_width(self):
+        html = _figure('::::latex chemistry {width=45 align=right caption="Water"}\nx\n::::\n')
+        self.assertIn("width:45%", html)
+        self.assertIn("margin-left:55.00%", html, "where an uncaptioned drawing of that width would stand")
+        self.assertIn("<figcaption", html)
+        self.assertIn('data-width="45" data-align="right"', html)
+
+    def test_a_drawing_without_a_caption_is_the_figure_it_always_was(self):
+        html = _figure("::::latex chemistry {width=45}\nx\n::::\n")
+        self.assertNotIn("figcaption", html)
+        self.assertNotIn("has-caption", html)
+        self.assertIn('style="width:45%;margin-left:27.50%"', html)
+        self.assertIn('data-latex-caption=""', html)
+
+    def test_a_drawing_that_could_not_be_made_shows_no_caption_but_keeps_it_for_the_pencil(self):
+        def broken(tex, theme, **kw):
+            return {"ok": False, "kind": "latex", "said": "LaTeX stopped."}
+        with mock.patch.dict(htmlgen.LATEX, {"draw": broken, "draw_all": None}):
+            html = htmlgen.render_document('::::latex {caption="Kept"}\nx\n::::\n')["html"]
+        self.assertIn("latex-fail", html)
+        self.assertNotIn("<figcaption", html)
+        self.assertIn('data-latex-caption="Kept"', html)
+
+    def test_a_card_shows_it_and_has_no_pencil(self):
+        md = ("---\ntarget: it\n---\n\n:::exercise flashcard\ncard-type: jolly\nfront-primary: |\n"
+              "  ::::latex {caption=\"On a card\"}\n  x\n  ::::\nback-primary: y\n:::\n")
+        html = _figure(md)
+        self.assertRegex(html, r"<figcaption[^>]*><span>On a card</span></figcaption>")
+        self.assertNotIn("data-latex-caption", html)
+
+    def test_the_paper_sets_it_under_the_drawing_in_small_grey_type(self):
+        block = self.blocks('::::latex chemistry {caption="Water & *care*"}\nx\n::::\n')[0]
+        with mock.patch.dict(texgen.LATEX, {"draw": _drawn()}):
+            tex = texgen._render_latex(block)
+        self.assertIn(r"{\footnotesize\color{graytx} Water \& \emph{care}\par}", tex)
+        self.assertIn(r"\includegraphics[scale=", tex, "the drawing at its natural size")
+        self.assertIn(r"\dimen1=20em", tex, "and the caption's box no narrower than 20em or the line")
+        sized = self.blocks('::::latex chemistry {width=45 align=left caption="W"}\nx\n::::\n')[0]
+        with mock.patch.dict(texgen.LATEX, {"draw": _drawn()}):
+            tex = texgen._render_latex(sized)
+        self.assertIn(r"\includegraphics[width=0.450\linewidth]", tex)
+        self.assertIn(r"\raggedright", tex)
+        plain = self.blocks("::::latex chemistry {width=45}\nx\n::::\n")[0]
+        with mock.patch.dict(texgen.LATEX, {"draw": _drawn()}):
+            self.assertNotIn(r"\footnotesize", texgen._render_latex(plain))
+
+
 class Names(unittest.TestCase):
     def test_one_word_any_script(self):
         for good in ("chemistry", "شیمی", "化学", "my-theme_2"):
@@ -162,6 +288,43 @@ class Themes(Store):
             latexthemes.import_theme(theme, "drawing")
         latexthemes.import_theme(theme, "chem2")
         self.assertIsNotNone(latexthemes.find("CHEM2"))
+
+
+class SheetThemes(Store):
+    """What the drawing sheet's Theme list is told: a theme's missing packages, and where Settings is."""
+
+    class Reply:
+        def send_json(self, obj, status=200):
+            self.obj = obj
+
+    def ask(self, gone, settings):
+        import server
+        import texpackages
+        h = self.Reply()
+        with mock.patch.object(texpackages, "installed", lambda f: (False if f in gone else True)), \
+                mock.patch.dict(htmlgen.LATEX, {"settings": settings}):
+            server.api_latex_themes(h)
+        return h.obj
+
+    def test_a_theme_says_which_of_its_packages_this_computer_lacks(self):
+        got = self.ask({"mhchem.sty"}, "/settings/latex/")
+        self.assertEqual(got["themes"], ["default", "chemistry", "drawing"])
+        self.assertEqual(got["missing"], {"chemistry": [{"id": "mhchem", "install": "mhchem"}]},
+                         "only the theme that loads it, by the TeX Live package to install")
+        self.assertEqual(got["settings"], "/settings/latex/")
+
+    def test_nothing_missing_and_no_settings_page(self):
+        got = self.ask(set(), None)
+        self.assertEqual(got["missing"], {})
+        self.assertIsNone(got["settings"], "the studio alone has no Settings to send anyone to")
+
+    def test_a_compiler_this_computer_lacks_is_missing_too(self):
+        import server
+        h = self.Reply()
+        with mock.patch.object(latexdraw, "compiler", lambda name, fresh=False: None):
+            server.api_latex_themes(h)
+        self.assertTrue(h.obj["missing"]["default"][0]["install"] is None
+                        and h.obj["missing"]["default"][0]["id"] == latexthemes.find("default")["compiler"])
 
 
 class InlineMark(unittest.TestCase):

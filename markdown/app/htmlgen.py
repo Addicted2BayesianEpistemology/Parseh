@@ -875,8 +875,8 @@ def _inline_latex(tex, theme):
 def _latex_src(b, ctx):
     if ctx.get("in_card"):
         return ""
-    return (' data-latex-src="%s" data-latex-theme="%s"'
-            % (esc(b.get("tex", "")), esc(b.get("theme") or "")))
+    return (' data-latex-src="%s" data-latex-theme="%s" data-latex-caption="%s"'
+            % (esc(b.get("tex", "")), esc(b.get("theme") or ""), esc(b.get("caption") or "")))
 
 
 def _latex_frame(b, r, ctx):
@@ -908,6 +908,32 @@ def _latex_frame(b, r, ctx):
     return "".join(out)
 
 
+def _latex_captioned(b, r, ctx, align, offset, caption):
+    """A drawing with a caption: the figure is the column wide, the drawing
+    keeps the width and place it would have had, and the caption is a box
+    centred under it, never narrower than 20em (or the column) so that it does
+    not wrap into a sliver, and kept inside the column.  Its small type is the
+    span's (sheet.css), so that the box's ems are the drawing's."""
+    if b.get("width"):
+        left = "%.2f%%" % (image_indent({"width": b["width"], "align": align, "offset": offset}) * 100)
+        width = "%d%%" % b["width"]
+        pic = "width:%s;margin-left:%s" % (width, left)
+    else:
+        width = "min(%.2fem,100%%)" % ((r.get("w") or 0) / 10.0)
+        shift = "%d%%" % offset
+        left = {"left": shift, "right": "calc(100%% - %s + %s)" % (width, shift)
+                }.get(align, "calc((100%% - %s)/2 + %s)" % (width, shift))
+        pic = "width:%.2fem;max-width:100%%;margin-left:%s" % ((r.get("w") or 0) / 10.0, left)
+    box = "max(%s,min(100%%,20em))" % width
+    cap = ("width:%s;margin-left:clamp(0px,calc(%s + (%s - %s)/2),calc(100%% - %s))"
+           % (box, left, width, box, box))
+    return ('<figure class="latex has-caption align-%s" data-latex-key="%s" data-width="%s" '
+            'data-align="%s" data-offset="%d"%s><img src="%s" alt="%s" style="%s;margin-right:auto">'
+            '<figcaption style="%s;margin-right:auto"><span>%s</span></figcaption></figure>'
+            % (align, esc(r["key"]), b.get("width") or "", align, offset, _latex_src(b, ctx),
+               esc(URL_BASE + r["url"]), esc("A drawing made by LaTeX"), pic, cap, inline(caption)))
+
+
 def _render_latex(b, ctx):
     """A latex block: the drawing lib/latexdraw.py made of it, laid out as a
     figure is -- `width` a percentage of the column, `align`, `offset` -- and
@@ -933,6 +959,9 @@ def _render_latex(b, ctx):
     if not r.get("ok"):
         return _latex_frame(b, r, ctx)
     align, offset = b.get("align") or "center", 0 if ctx.get("in_card") else b.get("offset") or 0
+    caption = (b.get("caption") or "").strip()
+    if caption:
+        return _latex_captioned(b, r, ctx, align, offset, caption)
     if b.get("width"):
         ml = image_indent({"width": b["width"], "align": align, "offset": offset}) * 100
         style = "width:%d%%;margin-left:%.2f%%" % (b["width"], ml)

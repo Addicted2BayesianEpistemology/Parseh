@@ -113,9 +113,10 @@ SOURCE_ATTRS = frozenset((
     "data-src-line", "data-src-end", "data-occ", "data-tl-occ",
     "data-name", "data-tl-kind", "data-rtl-kind", "data-math-kind",
     "data-editor-preview", "data-idx",
-    # a latex block's own LaTeX, and its theme's name: the source, which
-    # never travels (a drawing does, as a picture)
-    "data-latex-src", "data-latex-theme", "data-latex-key"))
+    # a latex block's own LaTeX, its theme's name and its caption as written:
+    # the source, which never travels (a drawing does, as a picture, and the
+    # caption as the words under it)
+    "data-latex-src", "data-latex-theme", "data-latex-key", "data-latex-caption"))
 
 # the pieces of the studio's page that write, or edit: never shipped -- and,
 # of a latex block that could not be drawn, its LaTeX, LaTeX's log and the

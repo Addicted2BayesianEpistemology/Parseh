@@ -2739,6 +2739,40 @@ def _latex_note(said):
             r"{\small\textbf{LaTeX drawing.} %s}}\par\medskip" % escape_latin(said))
 
 
+def _latex_captioned(b, f, align, offset):
+    """A drawing with a caption, set as the screen sets it (htmlgen's
+    _latex_captioned), in one minipage so that a page never parts the two.
+    The dimens are local: \\dimen0 the drawing, 1 the caption's box, 2 and 3
+    their left edges."""
+    if b.get("width"):
+        left = r"\dimen2=%.3f\linewidth" % image_indent({"width": b["width"], "align": align,
+                                                        "offset": offset})
+        scale = (r"\setbox0\hbox{\includegraphics[width=%.3f\linewidth]{%s}}\dimen0=\wd0"
+                 % (b["width"] / 100.0, f))
+    else:
+        scale = (r"\setbox0\hbox{\includegraphics[scale=%.3f]{%s}}"
+                 r"\ifdim\wd0>\linewidth\setbox0\hbox{\includegraphics[width=\linewidth]{%s}}\fi"
+                 r"\dimen0=\wd0" % (print_size() / 10.0, f, f))
+        left = {"left": r"\dimen2=%.3f\linewidth" % (offset / 100.0),
+                "right": r"\dimen2=\dimexpr\linewidth-\dimen0+%.3f\linewidth\relax" % (offset / 100.0)
+                }.get(align, r"\dimen2=\dimexpr(\linewidth-\dimen0)/2+%.3f\linewidth\relax" % (offset / 100.0))
+    return (r"\par\medskip\noindent\begingroup%s%s"
+            r"\dimen1=20em\relax\ifdim\dimen1>\linewidth\dimen1=\linewidth\fi"
+            r"\ifdim\dimen1<\dimen0\dimen1=\dimen0\fi"
+            r"\dimen3=\dimexpr\dimen2+(\dimen0-\dimen1)/2\relax"
+            r"\ifdim\dimen3<0pt\dimen3=0pt\fi"
+            r"\ifdim\dimen3>\dimexpr\linewidth-\dimen1\relax\dimen3=\dimexpr\linewidth-\dimen1\relax\fi"
+            r"\edef\lxpic{\the\dimen0}\edef\lxbox{\the\dimen1}"
+            r"\edef\lxleft{\the\dimen2}\edef\lxcap{\the\dimen3}"
+            r"\begin{minipage}{\linewidth}\noindent\hspace*{\lxleft}\includegraphics[width=\lxpic]{%s}\par"
+            r"\vspace{0.4ex}\noindent\hspace*{\lxcap}\begin{minipage}{\lxbox}\%s\noindent"
+            r"{\footnotesize\color{graytx} %s\par}\end{minipage}\end{minipage}"
+            r"\endgroup\par\medskip"
+            % (scale, left, f,
+               {"left": "raggedright", "right": "raggedleft"}.get(align, "centering"),
+               inline(b["caption"])))
+
+
 def _render_latex(b):
     if b.get("errors"):
         return _latex_note("; ".join(b["errors"]).capitalize() + ".")
@@ -2752,6 +2786,8 @@ def _render_latex(b):
     f = "latex/%s.pdf" % r["key"]
     align = b.get("align") or "center"
     offset = 0 if _CARD["on"] else (b.get("offset") or 0)
+    if (b.get("caption") or "").strip():
+        return _latex_captioned(b, f, align, offset)
     if b.get("width"):
         w = b["width"] / 100.0
         ml = image_indent({"width": b["width"], "align": align, "offset": offset})

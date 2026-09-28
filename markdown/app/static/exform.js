@@ -1393,6 +1393,9 @@ function latexMarkup(tex, theme, layout) {
   if (layout && layout.width) parts.push("width=" + layout.width);
   if (layout && layout.align && layout.align !== "center") parts.push("align=" + layout.align);
   if (layout && layout.offset) parts.push("offset=" + layout.offset);
+  // the dialect has no escape inside the quotes: a typed " becomes ”, a newline a space
+  const caption = layout && layout.caption ? String(layout.caption).replace(/"/g, "”").replace(/\s+/g, " ").trim() : "";
+  if (caption) parts.push('caption="' + caption + '"');
   return "::::latex" + (theme ? " " + theme : "") + (parts.length ? " {" + parts.join(" ") + "}" : "")
     + "\n" + String(tex || "").replace(/\s+$/, "") + "\n::::";
 }
@@ -1417,17 +1420,17 @@ function openLatexOverlay(opts) {
     </header>
     <div class="latex-modal-body">
       <section class="lx-preview-pane" aria-label="Preview">
-        <div class="lx-preview-head"><b>Preview</b><div class="lx-preview-size" role="group" aria-label="Preview size">
-          <button type="button" class="btn small" data-lx-preview="fit" aria-pressed="true">Fit</button>
-          <button type="button" class="btn small" data-lx-preview="actual" aria-pressed="false">Actual size</button>
-        </div></div>
+        <div class="lx-preview-head"><b>Preview</b></div>
         <small class="pv-status lx-status" aria-live="polite"></small>
-        <div class="sheet lx-stage" data-lx-preview-mode="fit" aria-label="Drawing preview"></div>
+        <div class="sheet lx-stage" aria-label="Drawing preview"></div>
       </section>
       <section class="lx-editor-pane">
         <label class="lx-field"><span>Theme</span><select class="lx-theme"></select></label>
         <label class="lx-field lx-source-field"><span>LaTeX</span><textarea class="lx-src" rows="7" spellcheck="false" dir="ltr"
           placeholder="\\ce{2H2 + O2 -> 2H2O}"></textarea></label>
+        <label class="lx-field lx-caption-field"><span>Caption <small>(optional)</small></span>
+          <input type="text" class="lx-caption" maxlength="400" autocomplete="off"
+          placeholder="A line under the drawing, as under a picture"></label>
         <details class="lx-layout"${hasLayout ? " open" : ""}>
           <summary>Size and position</summary>
           <p>Leave this at its natural size unless the drawing needs a particular place in the page.</p>
@@ -1450,13 +1453,37 @@ function openLatexOverlay(opts) {
   q(".lx-wv").textContent = lay.width || 60;
   q(".lx-align").value = lay.align || "center";
   q(".lx-offset").value = lay.offset || 0;
+  q(".lx-caption").value = lay.caption || "";
+  q(".lx-caption").addEventListener("input", e => {
+    const cap = e.target, at = cap.selectionStart, plain = cap.value.replace(/"/g, "”");
+    if (plain !== cap.value) { cap.value = plain; cap.setSelectionRange(at, at); }
+  });
   if (opts.offset === false) q(".lx-off").hidden = true;
+  // the Install link opens Settings in a new tab: the drawing being written is not left behind
+  let missing = {}, settings = null;
+  const installLink = pkg => settings && pkg
+    ? ` <a href="${escAttr(settings)}?install=${encodeURIComponent(pkg)}" target="_blank" rel="noopener">Install ${escAttr(pkg)}…</a>` : "";
+  const say = (text, fix) => {
+    status.innerHTML = escAttr(text) + (fix && fix.kind === "install" ? installLink(fix.package) : "");
+  };
+  const needs = name => {
+    const ids = (missing[name] || []).map(m => m.id);
+    return ids.slice(0, 3).join(", ") + (ids.length > 3 ? ` and ${ids.length - 3} more` : "");
+  };
+  // the block's own theme is chosen before the list arrives, so that a save before it keeps it
+  sel.innerHTML = `<option value="">the default</option>` +
+    (opts.theme ? `<option value="${escAttr(opts.theme)}">${escAttr(opts.theme)}</option>` : "");
+  sel.value = opts.theme || "";
   fetch(LATEX_BASE + "/api/latex/themes").then(r => r.json()).then(j => {
-    sel.innerHTML = `<option value="">the default (${escAttr(j.default)})</option>` +
-      j.themes.map(n => `<option value="${escAttr(n)}">${escAttr(n)}</option>`).join("");
+    missing = j.missing || {};
+    settings = j.settings || null;
+    const chosen = sel.value;
+    const lack = n => needs(n) ? ` — needs ${needs(n)}, not installed` : "";
+    sel.innerHTML = `<option value="">${escAttr(`the default (${j.default})${lack(j.default)}`)}</option>` +
+      j.themes.map(n => `<option value="${escAttr(n)}">${escAttr(n + lack(n))}</option>`).join("");
     if (opts.theme && !j.themes.some(n => n.toLowerCase() === opts.theme.toLowerCase()))
       sel.insertAdjacentHTML("beforeend", `<option value="${escAttr(opts.theme)}">${escAttr(opts.theme)} (not on this Parseh)</option>`);
-    sel.value = opts.theme || "";
+    sel.value = (chosen && j.themes.find(n => n.toLowerCase() === chosen.toLowerCase())) || chosen;
     draw();
   }).catch(() => { status.textContent = "The themes could not be read."; });
   let asked = 0;
@@ -1471,9 +1498,10 @@ function openLatexOverlay(opts) {
       if (mine !== asked) return;
       if (j.ok) {
         status.textContent = "";
-        stage.innerHTML = `<img class="lx-preview-image" src="${escAttr(j.url)}" alt="the drawing">`;
+        // scaled to fill the pane, never past 12 times the drawing's own size (a point read as a pixel)
+        stage.innerHTML = `<img class="lx-preview-image" src="${escAttr(j.url)}" alt="the drawing"${j.w ? ` style="--lx-w:${+j.w}"` : ""}>`;
       } else {
-        status.textContent = j.said || j.error || "It could not be drawn.";
+        say(j.said || j.error || "It could not be drawn.", j.fix);
         stage.innerHTML = j.detail ? `<pre class="lx-preview-detail">${escAttr(j.detail)}</pre>` : "";
       }
     } catch (e) { if (mine === asked) status.textContent = "The computer did not answer."; }
@@ -1482,12 +1510,6 @@ function openLatexOverlay(opts) {
   ta.addEventListener("input", later);
   sel.addEventListener("change", draw);
   q(".lx-width").addEventListener("input", () => { q(".lx-wv").textContent = q(".lx-width").value; q(".lx-natural").checked = false; });
-  const previewButtons = $$("[data-lx-preview]", ov);
-  const setPreviewSize = size => {
-    stage.dataset.lxPreviewMode = size;
-    previewButtons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lxPreview === size)));
-  };
-  previewButtons.forEach(b => b.addEventListener("click", () => setPreviewSize(b.dataset.lxPreview)));
   const close = () => { ov.remove(); if (opts.backTo && opts.backTo.focus) opts.backTo.focus(); };
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   ov.addEventListener("keydown", e => {
@@ -1500,7 +1522,8 @@ function openLatexOverlay(opts) {
     if (!tex) { close(); return; }
     const layout = {width: q(".lx-natural").checked ? null : +q(".lx-width").value,
                     align: q(".lx-align").value,
-                    offset: opts.offset === false ? 0 : (+q(".lx-offset").value || 0)};
+                    offset: opts.offset === false ? 0 : (+q(".lx-offset").value || 0),
+                    caption: q(".lx-caption").value};
     opts.onSave(latexMarkup(tex, sel.value, layout));
     close();
   });
