@@ -6,7 +6,7 @@
 - The sheet that draws a block: its preview filling its pane beside the source, a caption, size and position folded away
 - Settings → LaTeX drawings, styled like the rest of Settings: named themes of packages, languages, a font, a preamble and a compiler
 - Themes exported and imported as files; a rename rewrites every block that names the theme
-- Missing packages asked about by themselves, and gotten one at a time in a table, what they cost said first
+- A theme's packages beyond the base kept in Parseh's own folder, listed with the base, asked about and gotten one at a time
 - More packages to pick from: syntax trees and dependency arcs, the IPA, pinyin over Chinese characters
 - A deck's exercises filtered by where they came from, beside its text and tag filters
 - Flashcards that are asked both ways: both (random) and both (repeat), the second two linked cards in a deck

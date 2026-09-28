@@ -49,11 +49,14 @@ linguists and poets — syntax trees, dependency arcs, the IPA, pinyin over
 Chinese characters. A theme is exported as a file and imported — its whole
 preamble shown first; a rename says how many blocks name the theme, and
 where, then rewrites every one. The same page gets the TeX packages a theme
-needs into Parseh's own `texmf/` — every one it still needs, for a saved
-theme or the one you are editing, is a row of a table that says *Not
-installed*, what it costs and its own **Get it**, asked of the TeX Live
-repository by itself and downloaded only when you press **Get it**, one at a
-time. **Forget drawings nothing uses** shows a bar while it works, and no
+needs into Parseh's own `texmf/`. A package a theme uses beyond the base is
+Parseh's own even on a computer whose TeX has every package: a drawing uses
+it only once Parseh has got it, and **Remove…** really takes it away. The
+table lists every package the themes use — Parseh's own, each missing one
+saying *Not installed*, what it costs and its own **Get it**, asked of the
+TeX Live repository by itself and downloaded only when you press it, one at
+a time; and the base, marked as coming with the computer's TeX, with
+nothing to get or remove. **Edit** on a theme takes the page to its editor. **Forget drawings nothing uses** shows a bar while it works, and no
 longer keeps the drawings of a deck sitting in the trash. The page also
 sets how long a drawing may take
 ([Themes](../dialect/latex-drawings.md#themes)).

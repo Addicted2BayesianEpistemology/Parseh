@@ -362,10 +362,11 @@ through, and to prove that what is theirs survives it.
      **Settings → Network**;
    - a LaTeX theme of your own on **Settings → LaTeX drawings**, a document
      with a `::::latex` block drawn with it, and one TeX package got there
-     into `texmf/` (from a0.4.0 on). A computer whose TeX has every package
-     the page lists has none missing to get: type `tikzmark` (9 kB) in the
-     page's *a TeX Live package* box, press **What it costs…**, then **Get
-     it**: a few seconds. (The main repository is a year ahead of a
+     into `texmf/` (from a0.4.0 on). A theme's packages beyond the base are
+     Parseh's own even where the computer's TeX has them all, so the
+     *chemistry* theme's are always there to get: press **Get it** on
+     `chemgreek` (7 kB), a few seconds, and draw with a theme that ticks
+     `mhchem` only once `mhchem` is got too. (The main repository is a year ahead of a
      distribution's TeX Live, and tlmgr refuses it; Parseh then falls back,
      by itself, to the archive of the installed TeX Live's own year.)
 3. **Fingerprint what is yours**, in Parseh-test's folder (the readers, the

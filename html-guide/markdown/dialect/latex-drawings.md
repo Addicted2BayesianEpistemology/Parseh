@@ -143,14 +143,15 @@ the page says how many it let go.
 A block that cannot be drawn shows **its source**, in a frame, and **one
 line saying why**, in plain words and with the line of the block where
 LaTeX says one: a command a package would give (*\ce is not a command the
-theme "default" knows… tick mhchem*), a brace missing, a package not
-installed, a theme this Parseh does not have, a compiler this computer
+theme "default" knows… tick mhchem*), a brace missing, a package of its
+theme that Parseh has not got yet (*mhchem is not among Parseh's own TeX
+packages yet*), a theme this Parseh does not have, a compiler this computer
 lacks, a drawing that took too long. An inline mark that cannot be drawn
 shows its own LaTeX where it sits instead, without a frame — nothing that
 small belongs in a box in the middle of a sentence. The rest of the page is
 drawn. On the computer the frame has the button that mends it — the theme,
-**Review packages…**, or **Import a theme…** and **Make a theme called
-…** for a theme that is not here. In the PDF and in an export the frame
+**Get mhchem…** for a package, or **Import a theme…** and **Make a theme
+called …** for a theme that is not here. In the PDF and in an export the frame
 stands where the drawing would, and the PDF's badge says how many could
 not be made.
 
@@ -160,7 +161,8 @@ not be made.
 with a name of one word:
 
 - **Packages** as checkboxes, each with a line and an example, in groups:
-  **Base packages** — the basics every drawing uses — `amsmath`,
+  **Base packages** — the basics every drawing uses, which come with the
+  computer's TeX — `amsmath`,
   `amssymb`, `amsfonts`, `mathtools`, `bm`, `xcolor`, `siunitx`,
   `physics`; then letters and symbols (`mathrsfs`, `dsfont`, `esvect`,
   `stmaryrd`, `wasysym`, `marvosym`), operations and theorems (`cancel`,
@@ -186,11 +188,24 @@ notes* — then rewrites the name in every one of them; if one of them cannot
 be written (a deck taken out on a phone), nothing is renamed.
 
 The same page says which of the three compilers this computer has, and
-lists the **TeX packages** the themes need, gotten into Parseh's own
-folder `texmf/`: every package still missing — for a saved theme, or for
-the theme you are editing and have not saved — is a row of its own. It
-reads *Not installed*, its size and its licence, with why it is needed and
-its own **Get it**. Parseh asks the TeX Live repository what each costs as
+lists every **TeX package** the themes use, in two groups:
+
+- **Parseh's own.** Every package a theme uses beyond the base — ticked,
+  or loaded by name in its own preamble — is used by a drawing only once
+  Parseh has got it into its own folder, `texmf/`, **even when the computer's TeX
+  has it too**: what a drawing needs travels with Parseh, and **Remove…**
+  really takes it away. A drawing that needs one Parseh has not got is not
+  made: it says which, and offers to get it.
+- **With this computer's TeX.** The base packages, and what every drawing
+  loads (`standalone`, and `fontspec` for a font or the languages), come
+  with the TeX this computer has. They are listed so that nothing is left
+  out, marked as the computer's, with nothing to get or remove. One the
+  computer's TeX lacks is listed with Parseh's own instead, to get into
+  `texmf/`.
+
+A package still missing — for a saved theme, or for the theme you are
+editing and have not saved — reads *Not installed*, its size and its
+licence, with why it is needed and its own **Get it**. Parseh asks the TeX Live repository what each costs as
 soon as the page shows it, and downloads nothing until you press **Get
 it**; if the repository cannot be reached the row says so and offers **Ask
 again**. Packages are gotten one at a time, and a row says **Got** only once
