@@ -624,6 +624,26 @@ await section('c4', 'the box that changed while it ran is asked about again', as
   await context.close();
 });
 
+await section('c5', 'the other source card breaks the tie, and leaves the words', async () => {
+  await setFake({delay: 0.7, load_delay: 0.7});
+  const {context, page} = await newPage();
+  await openAdd(page, {by: 'llm'});
+  await blockReady(page);
+  await chooseFilm(page);
+  await page.click('#stt_go');
+  await until(async () => (await inBox(page)) === PANEL_FA, 'the transcript is in the box', 40000);
+  await inPhase(page, 'idle');
+  assert(await shown(page, '#stt_tied'), 'the box is tied to the film');
+  await page.click('.path[data-src="yt"]');
+  eq(await shown(page, '#stt_tied'), false, 'the YouTube card: no longer tied');
+  assert(/no longer tied to speech to text: the video changed/.test(await text(page, '#stt_note')), await text(page, '#stt_note'));
+  eq(await inBox(page), PANEL_FA, 'and the words stay, as the page has always kept a transcript when the source changed');
+  await page.fill('#url', 'aB3dE5fG7hJ');
+  eq(await phase(page), 'idle', 'on YouTube the block is drawn for it (and the tie is not back)');
+  eq(await shown(page, '#stt_tied'), false, 'not tied to that either');
+  await context.close();
+});
+
 /* ================================================================ d) the words of a failure */
 await section('d', 'failures are sentences, and nothing is left stuck', async () => {
   const {context, page} = await newPage();

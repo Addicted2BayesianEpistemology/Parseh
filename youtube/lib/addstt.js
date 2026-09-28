@@ -384,8 +384,10 @@
         langNote.textContent = '';
         // the language's own name is set apart (<bdi>), and the dash stays out of
         // it: inside, a right-to-left name would take the dash to its far side
-        langNote.appendChild(document.createTextNode('Listens for ' + lang.name + (lang.native ? ' — ' : '')));
-        if (lang.native) langNote.appendChild(el('bdi', null, lang.native));
+        // (English is "English — English" in the selector; here it is said once)
+        var own = lang.native && lang.native !== lang.name ? lang.native : '';
+        langNote.appendChild(document.createTextNode('Listens for ' + lang.name + (own ? ' — ' : '')));
+        if (own) langNote.appendChild(el('bdi', null, own));
         langNote.appendChild(document.createTextNode(', the language chosen above.'));
         how.textContent = film ? SAY_FILM : S.phase === 'ready' ? SAY_READY
           : (S.phase === 'recording' || S.phase === 'sending') ? SAY_KEEP : SAY_YOUTUBE;
