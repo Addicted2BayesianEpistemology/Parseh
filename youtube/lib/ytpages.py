@@ -66,6 +66,7 @@ import check_annotations as CA  # noqa: E402  the transcript parser and the chec
 import tidy as tidier          # noqa: E402  an automatic transcript, cut into sentences
 import texwrite      # noqa: E402  NOT_TEXT and Refused -- edit_meta reuses both rather
                      # than restating them (its own docstring says why)
+import wavefile      # noqa: E402  the shape of a sound a transcription held for a video
 
 APP_NAME = "Parseh"
 
@@ -2028,6 +2029,7 @@ def api_add(h):
     # correction made since, with no word said.  One source of truth for a
     # video's annotation, and it is annotations.json.
     os.makedirs(VIDEOS, exist_ok=True)
+    waveform = None              # what the door says of the sound's shape, if it was asked
     stage = tempfile.mkdtemp(prefix=".staging-", dir=VIDEOS)
     sdir = os.path.join(stage, vid)
     os.makedirs(os.path.join(sdir, "parts"))
@@ -2063,6 +2065,13 @@ def api_add(h):
                                         "good, but the film could not be put "
                                         "beside it (%s) -- nothing was written"
                                         % e}, 400)
+            # THE SHAPE OF THE SOUND its transcription recorded goes in beside
+            # the rest, still staged, so it moves onto the shelf with the video
+            # and is never on the shelf without one.  Only a YouTube video has
+            # one to take (a film's is drawn from the film itself), and a
+            # token that names nothing is no reason to refuse the video.
+            if "wave" in data and not film:
+                waveform = wavefile.adopt(data.get("wave"), sdir) or {"kept": False}
             for p in olds:
                 trash_video(p)
             os.makedirs(os.path.dirname(vdir), exist_ok=True)
@@ -2071,17 +2080,21 @@ def api_add(h):
         shutil.rmtree(stage, ignore_errors=True)
     # the tools were shown the staging path; the reader is told the real one
     out1, out2 = out1.replace(srel, rel), out2.replace(srel, rel)
-    return h.send_json({"ok": rc1 == 0 and rc2 == 0, "id": vid,
-                        "lang": L.code, "gloss": G.code, "dir": rel,
-                        "href": "%s/v/%s/" % (BASE, vid),
-                        "captions": len(captions), "glossed": len(parts),
-                        "proposed": proposed, "blank": blank,
-                        # how many batches the answer was cut into is not
-                        # said any more: the batches are gone by now, and a
-                        # number counting a folder nobody will find only
-                        # sends people looking for it
-                        "merge": out1.strip(), "check": out2.strip(),
-                        "problems": problems, "warnings": warnings, "video": meta})
+    answer = {"ok": rc1 == 0 and rc2 == 0, "id": vid,
+              "lang": L.code, "gloss": G.code, "dir": rel,
+              "href": "%s/v/%s/" % (BASE, vid),
+              "captions": len(captions), "glossed": len(parts),
+              "proposed": proposed, "blank": blank,
+              # how many batches the answer was cut into is not
+              # said any more: the batches are gone by now, and a
+              # number counting a folder nobody will find only
+              # sends people looking for it
+              "merge": out1.strip(), "check": out2.strip(),
+              "problems": problems, "warnings": warnings, "video": meta}
+    # said only where it was asked for, as the two other doors that make a video say it
+    if waveform is not None:
+        answer["waveform"] = waveform if answer["ok"] else {"kept": False}
+    return h.send_json(answer)
 
 
 ADD_PAGE_HEAD = r'''
@@ -2188,6 +2201,12 @@ ADD_PAGE_HEAD = r'''
   <span class="fieldnote">On YouTube: <i>&hellip;more &rarr; Show transcript</i>, select the whole
     panel, copy. Paste it verbatim, timestamps included.<span id="subline" hidden> <b>Or</b>
     paste a <code>.srt</code> or <code>.vtt</code> file whole.</span></span>
+
+  <!-- Speech to text is OPTIONAL and is drawn by /youtube/lib/addstt.js from what
+       the computer says it has: this is only the place it goes.  Empty and
+       hidden until then, so a page with no speech to text has no control for it
+       at all -- and nothing dead in it. -->
+  <div id="stt" class="stt" hidden></div>
 
   <div class="row">
     <button type="button" class="wbtn" id="subedit">Edit the transcript&hellip;</button>
@@ -2488,6 +2507,14 @@ ADD_PAGE_JS = r'''
   function forgetPrompt() {
     PROMPT = ''; $('pshow').hidden = true; $('pshow').open = false;
   }
+  // The prompt is built FROM the transcript, the video and the language, so
+  // anything that changes one of them makes it stale -- typing in the box, an
+  // edit made in the editor, a transcript made by speech to text.  What it said
+  // about itself goes too (how many captions, "prepared").  ONE place, so no
+  // road that changes the box can forget it.
+  function invalidatePrepared() { forgetPrompt(); $('pinfo').hidden = true; }
+  // the speech block (youtube/lib/addstt.js), once it is mounted at the end
+  var stt = null;
 
   /* ---------------- the two questions ---------------- */
   function choose(src, by, push, focusIt) {
@@ -2499,6 +2526,7 @@ ADD_PAGE_JS = r'''
       if (SRC === 'yt') val('url', '');
       if (SRC === 'film') val('path', '');
       SRC = src; LOCALID = ''; forgetPrompt();
+      if (stt) stt.sourceChanged();
     }
     if (by !== undefined && by !== null) BY = by;
     Array.prototype.forEach.call(document.querySelectorAll('#q1 .path'), function (b) {
@@ -2590,12 +2618,19 @@ ADD_PAGE_JS = r'''
     if (L.dir === 'rtl') $('ov_title_native').setAttribute('dir', 'rtl');
     else $('ov_title_native').removeAttribute('dir');
     forgetPrompt();          // the prompt was prepared for the previous language
+    if (stt) stt.langChanged();
   }
   $('lang').addEventListener('change', langChanged);
   // the prompt names the gloss language and asks for the meanings in it,
   // so a prepared one is out of date the moment that changes
   $('gloss').addEventListener('change', forgetPrompt);
-  $('path').addEventListener('input', function () { LOCALID = ''; });
+  // a prompt is prepared for one source, one transcript and one word list: a
+  // change to any of them, made by typing, makes it stale (these used to be
+  // forgotten only when the source CARD was changed)
+  $('path').addEventListener('input', function () { LOCALID = ''; invalidatePrepared(); if (stt) stt.sourceChanged(); });
+  $('url').addEventListener('input', function () { invalidatePrepared(); if (stt) stt.sourceChanged(); });
+  $('transcript').addEventListener('input', function () { invalidatePrepared(); if (stt) stt.redraw(); });
+  $('glossary').addEventListener('change', invalidatePrepared);
 
   /* ---------------- the chosen source, and nothing else ---------------- */
   function source() { return SRC === 'film' ? val('path') : val('url'); }
@@ -2631,9 +2666,11 @@ ADD_PAGE_JS = r'''
   /* ---- the transcript, edited before anything is built from it ----
      The panel goes to the editor and comes back a panel, so every road out
      of this page reads it as it always did; the box is the only thing that
-     changed.  A YouTube video is handed its id, and the editor plays it and
-     records this tab for the waveform ("by ear"); a film on this machine is
-     not in the player yet, so it is edited by eye and by typing. */
+     changed.  A YouTube video is handed its id, and the editor plays it so a
+     nudge can be answered by ear (it records nothing: the picture of the
+     sound is the player's, and speech to text's recording is the block
+     above the button); a film on this machine is not in the player yet, so it
+     is edited by eye and by typing. */
   function ytId(u) {
     var m = /(?:youtube\.com\/(?:watch\?(?:[^&]*&)*v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/.exec(u || '');
     if (m) return m[1];
@@ -2642,6 +2679,9 @@ ADD_PAGE_JS = r'''
   $('subedit').onclick = function () {
     if (!needTranscript()) return;
     if (!window.ParsehSubedit) { Parseh.toast('the transcript editor did not load', true); return; }
+    // the editor plays its own copy of the video: not while another is being recorded
+    var busy = stt && stt.guardEdit();
+    if (busy) { Parseh.toast(busy, true); return; }
     var was = val('transcript');
     $('sestat').textContent = '';
     ParsehSubedit.open({
@@ -2653,7 +2693,9 @@ ADD_PAGE_JS = r'''
       val('transcript', text);
       $('sestat').textContent = text === was ? 'unchanged' : 'the transcript was edited';
       // whatever was prepared was prepared from the old panel
-      PROMPT = ''; $('pshow').hidden = true; $('pinfo').hidden = true;
+      invalidatePrepared();
+      save(); ticks();
+      if (stt) stt.redraw();
     }, function (err) {
       Parseh.toast((err && err.message) || String(err), true);
     });
@@ -2710,7 +2752,9 @@ ADD_PAGE_JS = r'''
     }
     if (!removed) { Parseh.toast('no pasted line sits at that position', true); return; }
     val('transcript', kept.join('\n'));
+    invalidatePrepared();
     save();
+    if (stt) stt.redraw();
     Parseh.toast(removed + ' line' + (removed === 1 ? '' : 's') + ' removed');
   };
   // No prompt and no answer: the transcript as it stands, cut into blank
@@ -2724,13 +2768,16 @@ ADD_PAGE_JS = r'''
     var ov = overrides();
     $('estat').textContent = 'drafting…'; $('empty').disabled = true;
     var res = $('eresult'); res.hidden = true;
-    post(SRC === 'film' ? '/api/local' : '/api/empty',
-                       {url: w.url, path: w.path, id: w.id,
-                        lang: val('lang'), gloss: val('gloss'),
-                        transcript: val('transcript'),
-                        title: ov.title, title_native: ov.title_native,
-                        channel: ov.channel, level: ov.level, blurb: ov.blurb,
-                        how: val('how')})
+    var body = {url: w.url, path: w.path, id: w.id,
+                lang: val('lang'), gloss: val('gloss'),
+                transcript: val('transcript'),
+                title: ov.title, title_native: ov.title_native,
+                channel: ov.channel, level: ov.level, blurb: ov.blurb,
+                how: val('how')};
+    // the shape of the sound a transcription held for THIS video comes with it
+    var held = stt && stt.wave();
+    if (held) body.wave = held;
+    post(SRC === 'film' ? '/api/local' : '/api/empty', body)
       .then(function (j) {
         $('empty').disabled = false; $('estat').textContent = ''; res.hidden = false;
         if (!j.ok) {
@@ -2753,6 +2800,7 @@ ADD_PAGE_JS = r'''
           esc(j.folder) + '/' + esc(j.id) + '/</code>.' + esc(film) + ' <a href="' + esc(href) +
           '"><b>Open the player &rarr;</b></a></div>';
         try { localStorage.removeItem(KEY); } catch (e) {}
+        if (stt) stt.videoAdded();
         location.href = href;          // the glossing is done there, not here
       }).catch(function (e) { $('empty').disabled = false; $('estat').textContent = '';
         Parseh.toast(String(e), true); });
@@ -2764,11 +2812,14 @@ ADD_PAGE_JS = r'''
     if (!val('answer').trim()) { Parseh.toast('paste the answer first', true); $('answer').focus(); return; }
     $('astat').textContent = 'checking…'; $('add').disabled = true;
     var res = $('result'); res.hidden = true;
-    post('/api/add', {url: w.url, path: w.path, id: w.id,
-                      transcript: val('transcript'), answer: val('answer'),
-                      replace: $('replace').checked,
-                      overrides: overrides(), lang: val('lang'),
-                      gloss: val('gloss')})
+    var body = {url: w.url, path: w.path, id: w.id,
+                transcript: val('transcript'), answer: val('answer'),
+                replace: $('replace').checked,
+                overrides: overrides(), lang: val('lang'),
+                gloss: val('gloss')};
+    var held = stt && stt.wave();
+    if (held) body.wave = held;
+    post('/api/add', body)
       .then(function (j) {
         $('add').disabled = false; $('astat').textContent = '';
         res.hidden = false;
@@ -2782,8 +2833,11 @@ ADD_PAGE_JS = r'''
             // the word lines the answer left out, which the server proposed
             (j.proposed ? j.proposed + ' chunk' + (j.proposed === 1 ? '' : 's') +
               ' had the words proposed by machine, to correct in the player. ' : '') +
+            // the shape of the sound recorded while the transcript was made
+            (j.waveform && j.waveform.kept ? 'Its waveform came with it. ' : '') +
             '<a href="' + esc(j.href) + '"><b>Open the video &rarr;</b></a></div>';
           try { localStorage.removeItem(KEY); } catch (e) {}
+          if (stt) stt.videoAdded();
         } else {
           h += '<div class="note bad"><b>' + esc(why(j)) + '</b></div>';
           if (j.exists) { $('replacerow').hidden = false;
@@ -2828,6 +2882,26 @@ ADD_PAGE_JS = r'''
   // restored draft's own url/path is not cleared on the way in
   SRC = qs; BY = qb;
   choose(SRC, BY, false, false);
+  // SPEECH TO TEXT, if this computer has it (youtube/lib/addstt.js draws the
+  // block, asks the computer and does all of it): this page only tells it what
+  // the chosen video, language and box are, and takes what it writes.  Mounted
+  // last, so that the draft above has already put back what the person left.
+  if (window.ParsehAddStt) {
+    stt = ParsehAddStt.mount({
+      root: $('stt'), base: BASE, toast: Parseh.toast,
+      source: function () { return {kind: SRC, value: source().trim()}; },
+      lang: function () {
+        var c = val('lang'), L = LANGS[c] || {name: c, native: ''};
+        return {code: c, name: L.name, native: L.native};
+      },
+      transcript: function () { return val('transcript'); },
+      setTranscript: function (text) { val('transcript', text); save(); ticks(); },
+      invalidate: invalidatePrepared,
+      focusSource: function () { $(SRC === 'film' ? 'path' : 'url').focus(); },
+      // what may not change while a job runs: the video, its language
+      lock: ['#q1', '#url', '#path', '#lang']
+    });
+  }
 })();
 </script>
 '''
@@ -2876,13 +2950,19 @@ def add_page():
                               ensure_ascii=False)
     # "index wizard", so this page and /books/add/ are one width
     # The transcript editor: the only page of this door that edits a panel,
-    # and the only one that asks for it.
+    # and the only one that asks for it.  And speech to text, optional and
+    # this page's alone: its block (addstt.js) is drawn from what the computer
+    # says it has, and records a tab through tabcapture.js -- the page never
+    # loads the card kit, which is the player's.
     head = page_head("Add a video", "Add a video",
                      "A video is glossed caption by caption, in the player.",
                      '<a href="%s/">videos</a> &rsaquo; add' % BASE,
                      "index wizard",
                      '<link rel="stylesheet" href="%s/lib/subedit.css">\n'
-                     '<script src="%s/lib/subedit.js"></script>\n' % (BASE, BASE))
+                     '<link rel="stylesheet" href="%s/lib/addstt.css">\n'
+                     '<script src="%s/lib/subedit.js"></script>\n'
+                     '<script src="%s/lib/tabcapture.js"></script>\n'
+                     '<script src="%s/lib/addstt.js"></script>\n' % ((BASE,) * 5))
     return (head + ADD_PAGE_HEAD.replace("__GLOSSARIES__", gl)
                 .replace("__HOWS__", hows).replace("__LANGS__", langs)
                                 .replace("__GLOSSES__", glosses)
