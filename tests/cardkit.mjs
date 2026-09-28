@@ -700,7 +700,8 @@ print(json.dumps(out))
          '/clips/api/preview: both (repeat) carries its note as a document draws it, and none as a deck\'s preview');
 
   // decks
-  const dk = await page.evaluate(async md => {
+  const dk = await page.evaluate(async mds => {
+    const md = mds.forward;
     const deck = await ParsehCards.newDeck('Cardkit test', 'en');
     const list = await ParsehCards.decks('en');
     const origin = {book: '/books/english/mini-en', label: '1.1', url: '/books/english/mini-en/reader/#p1', title: 'The Clock and the Wind'};
@@ -708,10 +709,12 @@ print(json.dumps(out))
     const again = await ParsehCards.add(deck.path, md, origin);
     const forced = await ParsehCards.add(deck.path, md, origin, true);
     const bad = await ParsehCards.add(deck.path, ':::exercise flashcard\ncard-type: jolly\n:::\n', null);
+    const pairDeck = await ParsehCards.newDeck('Cardkit pair', 'en');
+    const pair = await ParsehCards.add(pairDeck.path, mds.repeat, origin);
     let err = '';
     try { await ParsehCards.newDeck('', 'en'); } catch (e) { err = e.message; }
-    return {deck, list: list.map(d => d.path), one, again, forced, bad, err};
-  }, md.vocab);
+    return {deck, list: list.map(d => d.path), one, again, forced, bad, pair, err};
+  }, {forward: md.forward, repeat: md.repeat});
   assert(dk.deck && dk.deck.path === 'english/cardkit-test' && dk.list.includes(dk.deck.path),
          `newDeck makes a deck and decks lists it (${dk.deck && dk.deck.path})`);
   assert(dk.one.ok === true && dk.one.item && Array.isArray(dk.one.warnings), 'add puts the card in the deck');
@@ -720,6 +723,9 @@ print(json.dumps(out))
   assert(dk.forced.ok === true && dk.forced.item.id !== dk.one.item.id, 'add with force adds it anyway');
   assert(dk.bad.ok === false && !dk.bad.conflict && dk.bad.error, `add of a broken card answers why: ${dk.bad.error}`);
   assert(dk.err !== '', `newDeck refuses a deck with no name: ${dk.err}`);
+  assert(dk.one.items.length === 1 && dk.pair.ok === true && dk.pair.items.length === 2
+         && dk.pair.items[0].id !== dk.pair.items[1].id,
+         'add hands back every card the deck made: one for a card, two for a both (repeat) one, so a sheet can say so');
   const items = [];
   for await (const e of Deno.readDir(`${TMP}/exercises/english/cardkit-test/items`)) items.push(e.name);
   assert(items.length === 2, `the deck on disk holds the two cards (${items.length})`);

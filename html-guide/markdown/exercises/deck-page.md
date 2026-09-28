@@ -69,6 +69,10 @@ Each exercise is a row, in the order they were added:
   added on this page; and a copy made with **Duplicate** says so, *(a
   duplicate)*.
 - **Its tags**: `Tags: food, lesson-1`.
+- **Whether it is one side of a pair**: a flashcard added as **Both
+  (repeat)** goes in as two cards, and each row says `↔ linked · front
+  first` or `↔ linked · back first` — the two rows read alike, and this is
+  what tells them apart. See [A card with another side](#linked-cards).
 
 **Click a row** to see the exercise drawn **solved** under it — the right
 answers marked, the explanations shown, a flashcard's front and back side by
@@ -110,11 +114,11 @@ at all is listed under the type **Unreadable**.
 
 | Button | What it does |
 |---|---|
-| **Edit** | Opens the exercise in the form, as the editor does; **Save exercise** saves it. |
-| **Duplicate** | Adds a copy of it, which starts as new: *Duplicated: the copy starts as new*. |
+| **Edit** | Opens the exercise in the form, as the editor does; **Save exercise** saves it. On one side of a pair it may ask about the other ([below](#linked-cards)). |
+| **Duplicate** | Adds a copy of it, which starts as new: *Duplicated: the copy starts as new*. The copy is linked with nothing, whatever the original is. |
 | **Copy to deck…** | Copies it into another deck of the same language ([more](selecting.md#copying-and-moving-to-another-deck)). |
 | **Move to deck…** | Moves it there, with its schedule. |
-| **Delete** | Removes it, and its history, for good. |
+| **Delete** | Removes it, and its history, for good. On one side of a pair it asks about the other ([below](#linked-cards)). |
 
 **Edit keeps the schedule.** Correcting a typo does not make an exercise new
 again, and does not change where it came from: the schedule belongs to
@@ -127,6 +131,40 @@ same, and the message says which file is missing.
 **Delete** asks first — *“Match the words.” and its scheduling (1 review)
 leave the deck for good* — and then **Delete exercise**. Unlike a
 deck, a deleted exercise does not go to the trash.
+
+## A card with another side {#linked-cards}
+
+A flashcard whose **Which side appears first** is **Both (repeat)** goes
+into a deck as **two cards**: one that shows the front first and one that
+shows the back first, so each direction is learned and scheduled on its
+own. The two are **linked**, and Browse marks both rows (`↔ linked · front
+first`, `↔ linked · back first`). The front-first card is listed before the
+back-first one.
+
+Linking has one rule: **you are asked before a change or a deletion leaves
+the other side as it was.** Saving a change to one of the two puts this
+question over the form:
+
+- **Change both cards** writes the change to the other side too. Each card
+  keeps the side it shows first, and neither one's schedule is touched.
+- **Change only this one (unlink them)** changes this card alone, and the
+  two are linked no more.
+- **Cancel** leaves both as they were, and the form stays open.
+
+**Delete** asks the same way — **Delete both**, **Delete only this (the
+other stays, unlinked)** or **Cancel** — and so does **Delete** on a
+[selection](selecting.md#delete) that holds one side of a pair without the
+other. A save that changes nothing — the same words, written differently —
+asks nothing, and neither does a change to a card that has no other side.
+
+A few things are never shared between the two: **tags**, **schedules**
+and **Set to new** are each card's own, and the side a card shows first is
+what makes the pair, so in the form of one of two linked cards that choice
+is fixed (*This card is one side of a pair: its side is fixed.*); unlink
+them with **Change only this one**, and it can be changed. **Both
+(repeat)** is how a card is added, so it is not offered when editing a card
+that is already in the deck; **Both (random)**, which draws a face each
+time the card comes up, can be chosen there.
 
 ## An empty deck
 

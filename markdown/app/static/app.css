@@ -1105,6 +1105,15 @@ body[data-page="edit"] figure.img:hover img { outline: none; }
    Persian or Japanese, and each line takes its own direction */
 .dk-modal .dk-running { margin: 0; padding-left: 1.2rem; color: var(--chrome-fg); font-size: .86rem; }
 .dk-modal .dk-running li { unicode-bidi: plaintext; overflow-wrap: anywhere; margin: .15rem 0; }
+/* the question a linked card asks (decks.js askLinked): its other sides, and
+   answers long enough to wrap, in a column of their own so none is cut */
+.dk-ask .dk-others { margin: 0 0 .9rem; padding-left: 1.2rem; color: var(--chrome-fg); font-size: .9rem; }
+.dk-ask .dk-others li { margin: .2rem 0; overflow-wrap: anywhere; }
+.dk-ask .dk-others small { margin-inline-start: .3rem; }
+.dk-ask .dk-others small { color: var(--chrome-mut); font-size: .76rem; }
+.dk-ask .row { flex-wrap: wrap; }
+.badge.dk-linked { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.ex-author-field .dk-fixed-side { color: var(--chrome-mut); font-size: .74rem; line-height: 1.35; }
 .dk-options-modal { width: min(680px, 96vw); }
 .dk-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem 1rem; overflow-y: auto; }
 .dk-raw-modal { width: min(760px, 96vw); }

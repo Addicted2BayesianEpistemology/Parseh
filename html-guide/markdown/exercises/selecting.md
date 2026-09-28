@@ -66,6 +66,13 @@ checked against what the other deck already holds. In the other deck they
 count as just added, so a new one waits after the new exercises already
 there.
 
+**A pair travels whole.** When both sides of a [linked
+pair](deck-page.md#linked-cards) are among the selected exercises, they
+arrive as a linked pair in the other deck, front first. A side chosen
+without the other arrives linked with nothing — a link never crosses from
+one deck to another — and a **move** of one side leaves the other, in this
+deck, linked with nothing too.
+
 **After a move of the selection** you are taken to the other deck, with the
 moved exercises selected there, and told how many moved — so you can go on
 working on them where they now are. Each row also has its own **Copy to
@@ -101,6 +108,15 @@ added in). Use it to start a chapter over after a long break.
 
 **Delete** asks *Delete 3 exercises?* — *Their scheduling will be deleted
 too.* — and **Delete selected** removes them and their histories for good.
+
+When a selected exercise is one side of a [linked
+pair](deck-page.md#linked-cards) whose other side is **not** selected, the
+question is asked **once**, for the whole selection: *3 picked exercises are
+one side of a pair whose other side is not picked*, with the other sides
+listed. **Delete their other sides too** takes them with the selection;
+**Delete only the selected** leaves them, each linked with nothing from then
+on; **Cancel** does nothing. Select both sides of a pair, and there is
+nothing to ask.
 
 ### Cram
 

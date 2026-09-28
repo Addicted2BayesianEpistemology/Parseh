@@ -112,6 +112,7 @@ async function call(path, opts = {}) {
     const err = new Error(data.error || (r.status + " " + r.statusText));
     err.status = r.status;
     err.conflict = data.conflict || "";
+    err.detail = data.detail || null;       // what a "linked" conflict names: the other sides
     // the worker's own refusal for a door it has no copy of: 503, and it
     // says so in the body (lib/sw.js, refused)
     err.away = data.offline === true || r.status === 503;
@@ -345,6 +346,57 @@ function confirmDialog({title, hint, ok = "OK", danger = false, stack = false}) 
   return dialog({title, hint, stack,
                  buttons: [CANCEL, {label: ok, primary: !danger, danger, value: true}]})
     .then(v => v === true);
+}
+
+/* A LINKED CARD IS ONE SIDE OF A PAIR (a both-repeat flashcard, added to a
+   deck as two cards).  Changing or deleting one asks what becomes of the
+   other -- the server refuses to do either without an answer (409 "linked",
+   decks.py) -- and this is the question, asked the same way whichever
+   button, page or selection led here.  Each answer is a button that DOES
+   the thing (`act("both" | "alone")`, an ask of the server), so the dialog
+   is the confirmation and a refusal keeps it open; it resolves to
+   {choice, data}, or null for Cancel.  `others` are the rows that name the
+   other sides: the deck's own summaries, or what the refusal carried
+   ({excerpt, side}). */
+function sideOf(row) { return row.direction === "reverse" || row.side === "back" ? "back" : "front"; }
+function askLinked({title, hint, others, both, alone, act, danger = false, stack = false}) {
+  const body = el("ul", "dk-others");
+  for (const row of others.slice(0, 3)) {
+    const li = el("li");
+    // a card's text may run the other way: <bdi> keeps it from taking the quotes with it
+    li.append("“", el("bdi", "dk-other-text", row.excerpt || row.label || "(no text)"), "”",
+              el("small", "", `shows the ${sideOf(row)} first`));
+    body.appendChild(li);
+  }
+  const answer = choice => async () => ({choice, data: await act(choice)});
+  return dialog({title, hint, body, stack, cls: "dk-ask", buttons: [
+    CANCEL,
+    {label: alone, run: answer("alone")},
+    {label: both, primary: !danger, danger, run: answer("both")}]});
+}
+const LINKED_HINT = "The two are linked: they are the front and the back of one card. " +
+  "Their scheduling is never shared.";
+const mateRows = (list, it) => (it.mates || []).map(id => list.find(x => x.id === id)).filter(Boolean);
+
+/* Every edit of a card goes through here (Browse, and the study page): saved
+   as it is, or -- for a card with another side -- after the question above
+   has been answered.  A Cancel throws, as "Add again" does, so the form stays
+   open and the card stays as it was. */
+async function saveEdited(deck, item, markdown) {
+  const put = linked => call(`${deckApi(deck)}/items/${item.id}`,
+                             {method: "PUT", json: linked ? {markdown, linked} : {markdown}});
+  try {
+    return await put();
+  } catch (e) {
+    if (e.conflict !== "linked") throw e;
+    const done = await askLinked({
+      stack: true, title: "This card has another side",
+      hint: LINKED_HINT + " Is this change for both cards?",
+      others: (e.detail && e.detail.mates) || [],
+      both: "Change both cards", alone: "Change only this one (unlink them)", act: put});
+    if (!done) throw new Error("Not saved: the card is left as it was");
+    return done.data;
+  }
 }
 
 function field(label, input, help) {
@@ -602,13 +654,37 @@ function savedToast(what, data) {
   toast(`${what}, but ${warnings.join("; ")}`, true);
 }
 
+/* WHICH SIDE A FLASHCARD SHOWS FIRST, in a deck's edit form.  A card that is
+   one of no pair may show its front, its back, or either at random each time
+   (Both (random)); "Both (repeat)" is a way to ADD a card -- it makes two --
+   so it is not offered for one that is already here, unless a hand-written
+   card already says it.  The side of a card that is one of a pair is what
+   makes the pair: its choice is fixed (fixSide, once the form is open). */
+const SIDES = ["forward", "reverse", "both-random", "both-repeat"];
+function editDirections(item) {
+  if ((item.mates || []).length) return [item.direction || "forward"];
+  return item.direction === "both-repeat" ? SIDES : SIDES.slice(0, 3);
+}
+function fixSide() {
+  for (const select of $$("#modal-root .ex-form-modal select")) {
+    const values = [...select.options].map(o => o.value);
+    if (!values.length || !values.every(v => SIDES.includes(v))) continue;
+    select.disabled = true;
+    select.closest("label").appendChild(
+      el("small", "dk-fixed-side", "This card is one side of a pair: its side is fixed."));
+  }
+}
+
 /* Open an exercise in the form; a shape the form cannot show (an exercise
    saved with errors, say) opens as its markdown instead, so it can still be
    put right from here. */
 function editExercise(deck, item, onSave) {
-  const opts = Object.assign({preview: formPreview(deck, item.id), onSave, saveLabel: "Save exercise"},
-                             uploads(deck));
-  if (openExerciseMarkdown(item.markdown, opts)) return;
+  const opts = Object.assign({preview: formPreview(deck, item.id), onSave, saveLabel: "Save exercise",
+                              directions: editDirections(item)}, uploads(deck));
+  if (openExerciseMarkdown(item.markdown, opts)) {
+    if ((item.mates || []).length) fixSide();
+    return;
+  }
   const ta = el("textarea", "dk-raw");
   ta.value = item.markdown;
   ta.spellcheck = false;
@@ -1353,6 +1429,13 @@ function initDeck() {
       </div>
       <div class="dk-row-preview" hidden></div>`;
     $(".ex-kicker", row).textContent = it.label || it.subtype || "Exercise";
+    if ((it.mates || []).length) {
+      // the two sides of a pair look alike: this says which one a row is
+      const pair = el("span", "badge dk-linked", `↔ linked · ${sideOf(it)} first`);
+      pair.title = "One side of a pair: the front and the back of one card. " +
+                   "Editing or deleting it asks about the other side.";
+      $(".dk-kickers", row).appendChild(pair);
+    }
     if ((it.errors || []).length) {
       const bad = el("span", "badge err", "needs attention");
       bad.title = it.errors.join("\n");
@@ -1417,7 +1500,7 @@ function initDeck() {
     });
     $('[data-x="edit"]', row).addEventListener("click", () =>
       editExercise(deck, it, async markdown => {
-        savedToast("Exercise saved", await call(`${base}/items/${it.id}`, {method: "PUT", json: {markdown}}));
+        savedToast("Exercise saved", await saveEdited(deck, it, markdown));
         reload();
       }));
     $('[data-x="duplicate"]', row).addEventListener("click", async e => {
@@ -1432,16 +1515,33 @@ function initDeck() {
     $('[data-x="copy"]', row).addEventListener("click", () => transfer("copy", [it.id]));
     $('[data-x="move"]', row).addEventListener("click", () => transfer("move", [it.id], selected.has(it.id)));
     $('[data-x="delete"]', row).addEventListener("click", async () => {
-      const gone = await dialog({
+      const del = linked => call(`${base}/items/${it.id}` + (linked ? `?linked=${linked}` : ""),
+                                 {method: "DELETE"});
+      const ask = (others, stack) => askLinked({
+        stack, others, title: "This card has another side", danger: true, act: del,
+        hint: LINKED_HINT + " Delete the other side too?",
+        both: "Delete both", alone: "Delete only this (the other stays, unlinked)"});
+      // a card the list knows is one side of a pair is asked about at once;
+      // one that became so meanwhile is refused by the server, and asked then
+      const linked = mateRows(items, it);
+      const done = linked.length ? await ask(linked, false) : await dialog({
         title: "Delete this exercise?",
         hint: `“${it.excerpt || it.label}” and its scheduling (${plural(it.reps || 0, "review")}) ` +
               "leave the deck for good.",
-        buttons: [CANCEL, {label: "Delete exercise", danger: true,
-                           run: () => call(`${base}/items/${it.id}`, {method: "DELETE"})}],
+        buttons: [CANCEL, {label: "Delete exercise", danger: true, run: async () => {
+          try {
+            return {choice: "", data: await del()};
+          } catch (e) {
+            if (e.conflict !== "linked") throw e;
+            const asked = await ask((e.detail && e.detail.mates) || [], true);
+            if (!asked) throw new Error("Not deleted");
+            return asked;
+          }
+        }}],
       });
-      if (!gone) return;
+      if (!done) return;
       openIds.delete(it.id);
-      toast("Exercise deleted");
+      toast(done.choice === "both" ? "Both cards deleted" : "Exercise deleted");
       reload();
     });
     if (openIds.has(it.id)) togglePreview(row, it, true);
@@ -1587,13 +1687,37 @@ function initDeck() {
   $("#btn-bulk-delete").addEventListener("click", async () => {
     const ids = [...selected];
     if (!ids.length) return;
-    const okay = await confirmDialog({title: `Delete ${plural(ids.length, "exercise")}?`,
-      hint: "Their scheduling will be deleted too.", ok: "Delete selected", danger: true});
-    if (!okay) return;
+    const del = linked => call(base + "/items/bulk", {method: "POST", json:
+      linked ? {action: "delete", ids, linked} : {action: "delete", ids}});
+    // asked ONCE, for the whole selection, when a picked card is one side of
+    // a pair whose other side is not picked: the other sides go too, or stay
+    const ask = (others, count, stack) => askLinked({
+      stack, others, danger: true, act: del,
+      title: `Delete ${plural(ids.length, "exercise")}?`,
+      hint: `${plural(count, "picked exercise")} ${count === 1 ? "is" : "are"} one side of a pair ` +
+            "whose other side is not picked (shown here). Their scheduling will be deleted too.",
+      both: "Delete their other sides too", alone: "Delete only the selected"});
+    const picked = items.filter(it => selected.has(it.id));
+    const outside = [...new Set(picked.flatMap(it => it.mates || []).filter(id => !selected.has(id)))];
     try {
-      await call(base + "/items/bulk", {method: "POST", json: {action: "delete", ids}});
+      let done;
+      if (outside.length) {
+        done = await ask(outside.map(id => items.find(x => x.id === id)).filter(Boolean),
+                         picked.filter(it => (it.mates || []).some(id => !selected.has(id))).length, false);
+      } else {
+        const okay = await confirmDialog({title: `Delete ${plural(ids.length, "exercise")}?`,
+          hint: "Their scheduling will be deleted too.", ok: "Delete selected", danger: true});
+        if (!okay) return;
+        try { done = {choice: "", data: await del()}; }
+        catch (e) {
+          if (e.conflict !== "linked") throw e;
+          const d = e.detail || {};
+          done = await ask(d.mates || [], d.count || 1, false);
+        }
+      }
+      if (!done) return;
       selected.clear();
-      toast(`${plural(ids.length, "exercise")} deleted`);
+      toast(`${plural(done.data.count, "exercise")} deleted`);
       reload();
     } catch (e) { toast(e.message, true); }
   });
@@ -1712,7 +1836,9 @@ function initDeck() {
       if (!again) throw new Error("Not added: the same exercise is already in this deck");
       data = await call(base + "/items", {method: "POST", json: {markdown, force: true}});
     }
-    savedToast(`Added to “${deck.name}”`, data);
+    // a both-repeat card went in as two, the front first and the back first
+    savedToast((data.items || []).length > 1 ? `Added two linked cards to “${deck.name}”`
+                                             : `Added to “${deck.name}”`, data);
     reload();
   }
 
@@ -2075,6 +2201,12 @@ function initStudy() {
       const left = $(".dk-skipped", done), again = $(".dk-unskip", done);
       left.hidden = again.hidden = skipped.size === 0;
       left.textContent = skipped.size ? `${plural(skipped.size, "exercise")} skipped this time.` : "";
+      // the other side of a card answered today waits for the next day
+      const held = $(".dk-held", done);
+      held.hidden = !next.buried;
+      held.textContent = next.buried
+        ? `${plural(next.buried, "card")} held back until tomorrow: the other side of a card answered today.`
+        : "";
       $("#btn-back-deck").focus();
       // a learning step that ends soon brings the next exercise by itself
       const t = Date.parse(next.next_due || "");
@@ -2271,7 +2403,7 @@ function initStudy() {
     const item = card.item;
     editExercise(deck, item, async markdown => {
       savedToast("Exercise saved: its scheduling is unchanged",
-                 await call(`${base}/items/${item.id}`, {method: "PUT", json: {markdown}}));
+                 await saveEdited(deck, item, markdown));
       load();                    // the queue has not moved: the same exercise, as edited
     });
   });

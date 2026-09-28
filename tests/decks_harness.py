@@ -203,7 +203,7 @@ try:
     studio.SERVER["instance"] = srv
     print("READY " + json.dumps({"port": srv.server_address[1], "doc_id": meta["id"],
                                  "notes_doc_id": note["id"], "notes_source": NOTES_SOURCE,
-                                 "studio": studio.BASE, "mode": MODE}), flush=True)
+                                 "studio": studio.BASE, "mode": MODE, "tmp": str(tmp)}), flush=True)
     srv.serve_forever()
 finally:
     shutil.rmtree(tmp, ignore_errors=True)

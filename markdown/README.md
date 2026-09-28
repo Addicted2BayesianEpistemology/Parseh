@@ -1106,19 +1106,27 @@ not the exercise decks below.
 
 The exercise decks answer under `/exercises` (`app/deckroutes.py`; the paths
 below follow that prefix). Every JSON answer carries `"ok"`; a 409 also
-carries `"conflict"`: `exists`, `duplicate`, `stale` or `reviewed` (an
-answer to an exercise that has been answered since it was shown).
+carries `"conflict"`: `exists`, `duplicate`, `stale`, `reviewed` (an
+answer to an exercise that has been answered since it was shown) or
+`linked` (the exercise is one side of a linked pair -- a `both-repeat`
+flashcard is two exercises in a deck -- and what was asked would leave the
+other side as it was: send `linked: "both"` or `"alone"`; `detail.mates`
+names the other sides).
 
 ```
 GET    /api/decks?lang=                          POST /api/decks  {name, lang}
 GET    /api/decks/<folder>/<slug>                the deck and its exercises
 PATCH  /api/decks/<folder>/<slug>                {name?, settings?}
 DELETE /api/decks/<folder>/<slug>                (moved to exercises/.trash/)
-POST   /api/decks/<folder>/<slug>/items          {markdown, force?, origin?} → {item, warnings}
+POST   /api/decks/<folder>/<slug>/items          {markdown, force?, origin?} → {item, items, warnings}
                                                  (origin: a card made in a book or a video --
-                                                 book, video, label, time, url, title)
+                                                 book, video, label, time, url, title; `items`
+                                                 holds both cards of a both-repeat flashcard)
 GET    /api/decks/<folder>/<slug>/items/<id>     the exercise and its solved html
-PUT    /api/decks/<folder>/<slug>/items/<id>     {markdown} → {item, warnings}   DELETE … /items/<id>
+PUT    /api/decks/<folder>/<slug>/items/<id>     {markdown, linked?} → {item, warnings}
+DELETE /api/decks/<folder>/<slug>/items/<id>?linked=both|alone
+POST   /api/decks/<folder>/<slug>/items/bulk     {action: delete|set-new|add-tag|remove-tag|copy|move,
+                                                 ids, tag?, target?, linked?}   (linked: for delete)
 POST   /api/decks/<folder>/<slug>/items/<id>/duplicate
 POST   /api/decks/<folder>/<slug>/items/<id>/to-doc  {doc_id, source?}
                                      the other direction: the exercise as markdown for a
@@ -1128,9 +1136,12 @@ POST   /api/decks/<folder>/<slug>/items/<id>/to-doc  {doc_id, source?}
 POST   /api/decks/<folder>/<slug>/images?name=   a picture as the raw body → {name, path, url}
 POST   /api/decks/<folder>/<slug>/audio?name=    a recording as the raw body → 201 {name, path, url}
 POST   /api/decks/<folder>/<slug>/copy           {doc_id, ordinal, subtype, updated, force?, source?}
+                                                 → {item, items, warnings, deck}
                                                  (source: a note's mount, /books/…/notes)
 POST   /api/decks/<folder>/<slug>/preview        {markdown, item?} → solved html
 GET    /api/decks/<folder>/<slug>/next?skip=a,b  the exercise to study now and its four intervals
+                                                 (`buried`: how many cards wait for the next day
+                                                 because their other side was answered today)
 POST   /api/decks/<folder>/<slug>/review         {item, rating, result, reps?, skip?} → the next one
                                                  (next is null when it cannot be built)
 GET    /api/decks/<folder>/<slug>/export?scheduling=1|0      zip

@@ -484,6 +484,42 @@ def parse_exercise(lines, start):
             min(end + 1, len(lines)))
 
 
+_DIRECTION_WORD_RE = re.compile(r"[a-z][a-z0-9-]*")
+
+
+def set_block_direction(source, value):
+    """`source` -- the text of one exercise, as a block's "source" reads --
+    with its `direction:` field set to `value`.
+
+    The line is found where the PARSER read the field (`_field_lines`), never
+    by a search of the text: a line that starts `direction:` is the field
+    wherever it stands, even under a card's own field, and a search that
+    disagreed with the parser would rewrite the wrong line.  A field written
+    as `direction: |` and its lines under it becomes one line; an exercise
+    with no `direction:` gets one, right under its `:::exercise` line.  The
+    line's own indentation is kept.  Everything else is left as written.
+
+    The first exercise of the text is the one changed (a text of one exercise
+    is what it is for).  ValueError for a value that is not a lower-case
+    word, and for a text with no exercise in it."""
+    if not isinstance(value, str) or not _DIRECTION_WORD_RE.fullmatch(value):
+        raise ValueError("a direction is a lower-case word, such as forward or reverse")
+    text = source.replace("\r\n", "\n")
+    block = next((b for b in parse(text)[1] if b["type"] == "exercise"), None)
+    if block is None:
+        raise ValueError("this is not an exercise")
+    lines = text.split("\n")
+    at = block["_field_lines"].get("direction")
+    if at is None:
+        lines.insert(block["_line"] + 1, "direction: " + value)
+    else:
+        # a `key: |` block's lines are the ones under the key; the key is above
+        key = at[0] - 1 if "direction" in block["raw_fields"] else at[0]
+        indent = lines[key][:len(lines[key]) - len(lines[key].lstrip())]
+        lines[key:max(at[1], key) + 1] = [indent + "direction: " + value]
+    return "\n".join(lines)
+
+
 def _holds_exercise(blocks):
     return any(b["type"] == "exercise"
                or (b["type"] == "box" and _holds_exercise(b["blocks"]))

@@ -481,35 +481,55 @@ def _created_key(created):
     return (0, _utc(moment)) if moment else (1, None)
 
 
-def queue(entries, now, cfg, done_today=None):
-    """What to study next: {"next": item_id|None, "counts": {...}, "next_due": iso|None}.
+def queue(entries, now, cfg, done_today=None, buried=None):
+    """What to study next: {"next": item_id|None, "counts": {...},
+    "next_due": iso|None, "buried": n}.
 
     entries: (item_id, created_iso, state) triples; done_today: the answers
-    already given today, {"new": n, "review": n} (today_counts())."""
+    already given today, {"new": n, "review": n} (today_counts()).
+
+    buried: the ids held back until the next day starts -- the other side of
+    a card that was answered today (buried_today()).  A held card that would
+    have been offered today (new, or due) is not, and comes back with the
+    next day; one that is not due today is left as it is.  "buried" counts
+    the cards that were held back."""
     _aware(now)
     cfg = _conf(cfg)
     done = done_today if isinstance(done_today, dict) else {}
+    held = set(buried or ())
     today = day_number(now, cfg)
     stamp = _utc(now)
     ahead = stamp + timedelta(minutes=cfg["learn_ahead_minutes"])
+    tomorrow = day_start(today + 1, now.tzinfo, cfg)
     learning, reviews, new, later = [], [], [], []
+    buried_n = 0
     for item_id, created, state in entries:
         card = _normal(state)
         born = _created_key(created)
         if card["state"] == "new":
-            new.append((born, str(item_id), item_id))
+            if item_id in held:
+                buried_n += 1
+                later.append(tomorrow)
+            else:
+                new.append((born, str(item_id), item_id))
             continue
         # A due that cannot be read must not hide the card: it is due now.
         due = due_at(card) or now
         when = _utc(due)
         if card["state"] in ("learning", "relearning"):
-            if when <= ahead:
-                learning.append((when, born, str(item_id), item_id))
-            else:
+            if when > ahead:
                 later.append(due)
+            elif item_id in held:
+                buried_n += 1
+                later.append(tomorrow)
+            else:
+                learning.append((when, born, str(item_id), item_id))
             continue
         day = _due_day(due, now, cfg)
-        if day <= today:
+        if day <= today and item_id in held:
+            buried_n += 1
+            later.append(tomorrow)
+        elif day <= today:
             reviews.append((when, born, str(item_id), item_id))
         else:
             # it is counted from the start of its day, whatever its stored time
@@ -522,7 +542,6 @@ def queue(entries, now, cfg, done_today=None):
     new_room = max(0, cfg["new_per_day"] - _count(done.get("new")))
     # Cards held back only by today's limit come back when the next day starts
     # (unless the limit is zero, which holds them back every day).
-    tomorrow = day_start(today + 1, now.tzinfo, cfg)
     if len(reviews) > review_room and cfg["reviews_per_day"] > 0:
         later.append(tomorrow)
     if len(new) > new_room and cfg["new_per_day"] > 0:
@@ -543,7 +562,8 @@ def queue(entries, now, cfg, done_today=None):
     soonest = min(later, key=_utc) if later else None
     return {"next": nxt,
             "counts": {"new": len(new), "learning": len(learning), "review": len(reviews)},
-            "next_due": _local(soonest, now).isoformat() if soonest else None}
+            "next_due": _local(soonest, now).isoformat() if soonest else None,
+            "buried": buried_n}
 
 
 def today_counts(histories, now, cfg):
@@ -561,3 +581,41 @@ def today_counts(histories, now, cfg):
             if at is not None and day_number(_local(at, now), cfg) == today:
                 counts[entry["before"]] += 1
     return counts
+
+
+def answered_today(history, now, cfg):
+    """Whether a schedule history holds an answer given today -- any answer:
+    a new card's first, a learning step, a review.  today_counts() counts
+    only the ones that use up a day's new cards and reviews."""
+    _aware(now)
+    cfg = _conf(cfg)
+    today = day_number(now, cfg)
+    for entry in history if isinstance(history, list) else ():
+        if not isinstance(entry, dict):
+            continue
+        at = _parse(entry.get("at"))
+        if at is not None and day_number(_local(at, now), cfg) == today:
+            return True
+    return False
+
+
+def buried_today(groups, histories, now, cfg):
+    """The ids to hold back until the next day starts, as Anki buries the
+    siblings of a card it has just shown: those of a group of linked cards
+    (`groups`, a list of id lists) of which ANOTHER was answered today.
+    `histories` maps an id to its schedule history.
+
+    Nothing is stored for it: the answer already written today is the whole
+    reason, so the hold lapses by itself when the next day starts, and stops
+    at once when the other card is deleted, unlinked or set to new (its
+    answers go with it).  It is queue()'s to apply, and only to a card that
+    would be offered today: a card that is not due is not touched."""
+    _aware(now)
+    cfg = _conf(cfg)
+    held = set()
+    for ids in groups:
+        answered = [i for i in ids if answered_today(histories.get(i), now, cfg)]
+        for i in ids:
+            if any(a != i for a in answered):
+                held.add(i)
+    return held

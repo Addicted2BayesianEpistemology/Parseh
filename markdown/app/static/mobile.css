@@ -207,6 +207,7 @@ html[data-mode=mobile] .dk-row .dk-select:focus-visible{outline:2px solid var(--
 html[data-mode=mobile] .modal.dk-modal .modal-field select{min-height:48px;font-size:16px}
 html[data-mode=mobile] .modal.dk-modal .row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 html[data-mode=mobile] .modal.dk-modal .row .btn{min-height:48px;justify-content:center;font-size:1rem}
+html[data-mode=mobile] .modal.dk-ask .row{grid-template-columns:1fr}
 /* Cram, over the list while anything is picked: the list can be long, and
    what is picked is crammed from wherever the thumb is (decks.js) */
 html[data-mode=mobile] .btn.m-cramgo{position:fixed;z-index:30;bottom:calc(12px + env(safe-area-inset-bottom));

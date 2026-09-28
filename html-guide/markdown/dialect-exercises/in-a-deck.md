@@ -43,6 +43,22 @@ the *Exercises* door's, described in its own section of this guide.
 - **From a book or a video.** A word met in a book or a video goes into
   a deck as a flashcard: see [where cards come from](flashcards.md#where-cards-come-from).
 
+- **A flashcard's side.** A flashcard's `direction:` says [which side
+  appears first](flashcards.md#which-side-comes-first), and a deck reads it
+  as a document does — with two more values. **Both (random)** is copied as
+  it is, and the study page draws a face for the card each time it comes
+  up. **Both (repeat)** becomes **two linked cards**: one front first, one
+  back first, each written out with its own `direction:`, each scheduled
+  on its own, and asked about together when one is edited or deleted
+  ([more](../exercises/deck-page.md#linked-cards)).
+
+The deck's copy is a **snapshot**: it is made once, at the moment of
+copying, and changing the document afterwards — its words, or a card's
+`direction:` — changes nothing in the deck, as changing the deck's card
+changes nothing in the document. That is also why the two cards of a
+**Both (repeat)** exercise exist only in the deck: the document keeps the
+one exercise it always had.
+
 An exercise that [needs attention](container.md#needs-attention) has no
 **+ Deck** button and is not offered by **+ Add all exercises**: a deck
 always refuses it. Nor does the editor's preview have the button, nor this
@@ -79,6 +95,10 @@ exercise's answer is locked, so the explanations stay beside what was
 answered.
 
 What else the study page does with each kind:
+
+- **The other side of a pair waits a day.** When one of two linked cards is
+  answered, the other is not offered until the next day begins — as Anki
+  does with the cards of one note. Cramming ignores it.
 
 - **Recordings.** A flashcard plays the first recording of its front when
   it appears and the first of its back when it is turned, as Anki plays a

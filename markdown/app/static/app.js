@@ -4316,6 +4316,7 @@ function initDoc() {
         close();
         const warnings = result.warnings || [];
         toast(`Copied into “${(result.deck || {}).name || deckName}”`
+          + ((result.items || []).length > 1 ? " as two linked cards" : "")
           + (warnings.length ? " — " + warnings.join(" · ") : ""), warnings.length > 0);
       } catch (err) {
         toast(err.message, true);
@@ -4459,7 +4460,7 @@ function initDoc() {
           if (again.checked) payload.force = true;
           try {
             const result = await decksFetch(deckUrl(path) + "/copy", {method: "POST", json: payload});
-            added++;
+            added += (result.items || []).length || 1;      // a both-repeat card is two
             if ((result.deck || {}).name) deckName = result.deck.name;
             for (const w of result.warnings || []) if (!warnings.includes(w)) warnings.push(w);
           } catch (err) {

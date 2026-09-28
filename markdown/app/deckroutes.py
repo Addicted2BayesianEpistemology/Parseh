@@ -394,7 +394,9 @@ def _study_pack(folder, slug, cap=200):
             break
         cards.append({"item": item, "intervals": card.get("intervals"),
                       "html": _render(folder, slug, item, preview=False)})
-        skip.append(item["id"])
+        # the phone has no scheduler to bury the other side of a pair once
+        # this one is answered, so it is not sent: it comes with the next pack
+        skip += [item["id"]] + [m for m in item.get("mates", []) if m not in skip]
     return {"cards": cards, "counts": decks.next_card(folder, slug)["counts"]}
 
 
@@ -440,11 +442,15 @@ def api_item_add(h, folder, slug):
     body = _obj(h)
     item = decks.add_item(folder, slug, body.get("markdown"), origin=body.get("origin"),
                           force=body.get("force") is True, tags=body.get("tags"))
-    _own_item_latex(folder, slug, decks.get_item(folder, slug, item["id"]))
+    # a both-repeat flashcard went in as two: `item` is the first, `items` both
+    items = item.pop("items", None) or [item]
+    for made in items:
+        _own_item_latex(folder, slug, decks.get_item(folder, slug, made["id"]))
     # beside the item, as the copy answers them: a picture or a recording
     # the exercise names and the deck does not have, even from the clip
     # tray (the page says so, the item is saved)
-    h.send_json({"ok": True, "item": item, "warnings": item.get("warnings") or []}, 201)
+    h.send_json({"ok": True, "item": item, "items": items,
+                 "warnings": item.get("warnings") or []}, 201)
 
 
 def api_item_get(h, folder, slug, item_id):
@@ -455,15 +461,19 @@ def api_item_get(h, folder, slug, item_id):
 def api_item_update(h, folder, slug, item_id):
     _here(folder, slug)
     body = _obj(h)
-    item = decks.update_item(folder, slug, item_id, body.get("markdown"))
-    _own_item_latex(folder, slug, decks.get_item(folder, slug, item_id))
+    item = decks.update_item(folder, slug, item_id, body.get("markdown"),
+                             linked=body.get("linked"))
+    # the other side of a pair went with it when the change was for both
+    for changed in [item_id] + item.get("mates", []):
+        _own_item_latex(folder, slug, decks.get_item(folder, slug, changed))
     h.send_json({"ok": True, "item": item, "warnings": item.get("warnings") or []})
 
 
 def api_item_delete(h, folder, slug, item_id):
     _here(folder, slug)
-    decks.delete_item(folder, slug, item_id)
-    latexdraw.forget_owner(_latex_owner(folder, slug, item_id))
+    # ?linked=both|alone: a DELETE has no body a server is bound to read
+    for gone in decks.delete_item(folder, slug, item_id, linked=_q1(h, "linked", "") or None):
+        latexdraw.forget_owner(_latex_owner(folder, slug, gone))
     h.send_json({"ok": True})
 
 
@@ -484,10 +494,23 @@ def api_items_bulk(h, folder, slug):
             raise decks.DeckError("choose a destination deck")
         out = decks.transfer_items(folder, slug, ids, target.get("folder"),
                                    target.get("slug"), move=action == "move")
+        # what arrived is owned where it is now, and a moved exercise no longer here
+        for made in out["ids"]:
+            _own_item_latex(target.get("folder"), target.get("slug"),
+                            decks.get_item(target.get("folder"), target.get("slug"), made))
+        if action == "move":
+            for moved in ids:
+                latexdraw.forget_owner(_latex_owner(folder, slug, moved))
         h.send_json({"ok": True, "count": len(out["ids"]), "ids": out["ids"],
                      "warnings": out["warnings"]})
     else:
-        count = decks.bulk_items(folder, slug, ids, action, body.get("tag"))
+        # whatever a deletion took, the other sides that went with it too
+        before = set(decks._item_ids(decks.deck_dir(folder, slug)))
+        count = decks.bulk_items(folder, slug, ids, action, body.get("tag"),
+                                 linked=body.get("linked"))
+        if action == "delete":
+            for gone in before - set(decks._item_ids(decks.deck_dir(folder, slug))):
+                latexdraw.forget_owner(_latex_owner(folder, slug, gone))
         h.send_json({"ok": True, "count": count})
 
 
@@ -562,8 +585,11 @@ def api_copy(h, folder, slug):
     out = decks.copy_from_doc(folder, slug, doc_id, body.get("ordinal"), subtype, updated,
                               force=body.get("force") is True,
                               library=library, source=source)
-    h.send_json({"ok": True, "item": out["item"], "warnings": out["warnings"],
-                 "deck": decks.get_deck(folder, slug)}, 201)
+    # a both-repeat flashcard went in as two: `item` is the first, `items` both
+    for made in out["items"]:
+        _own_item_latex(folder, slug, decks.get_item(folder, slug, made["id"]))
+    h.send_json({"ok": True, "item": out["item"], "items": out["items"],
+                 "warnings": out["warnings"], "deck": decks.get_deck(folder, slug)}, 201)
 
 
 def api_item_to_doc(h, folder, slug, item_id):
@@ -622,7 +648,7 @@ def _next(folder, slug, skip):
     card = decks.next_card(folder, slug, skip=skip)
     out = {"done": card["done"], "item": card["item"], "html": None,
            "intervals": card["intervals"], "counts": card["counts"],
-           "next_due": card["next_due"]}
+           "next_due": card["next_due"], "buried": card["buried"]}
     if card["item"] is not None:
         out["html"] = _render(folder, slug, card["item"], preview=False)
     return out
@@ -871,7 +897,10 @@ def dispatch(h, method, sub):
             return fn(h, *match.groups())
         # the subclasses first: a Conflict and a NotFound are DeckErrors too
         except decks.Conflict as e:
-            return h.send_json({"ok": False, "error": str(e), "conflict": e.kind}, 409)
+            answer = {"ok": False, "error": str(e), "conflict": e.kind}
+            if e.detail:
+                answer["detail"] = e.detail
+            return h.send_json(answer, 409)
         except decks.NotFound as e:
             return h.send_json({"ok": False, "error": str(e) or "not found"}, 404)
         except decks.DeckError as e:

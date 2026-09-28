@@ -1181,5 +1181,151 @@ class MountTests(Base):
         self.assertEqual("", deckroutes.STUDIO)
 
 
+PAIR = ":::exercise flashcard\nfront: [گربه]{tl}\nback: cat\ndirection: both-repeat\n:::"
+
+
+class LinkedRouteTests(Base):
+    """A both-repeat flashcard is two linked cards in a deck (TO-DO L17), over
+    HTTP: what an add or a copy answers, the "linked" refusal of an edit or a
+    delete that says nothing of the other side (409, naming it), and the
+    drawings' owners of every card made or lost -- both sides of a pair,
+    a copy, a move and a selection."""
+
+    def setUp(self):
+        super().setUp()
+        self.deck()
+        self.base = "/api/decks/persian/greetings"
+        # the owners of a card's LaTeX drawings, recorded and not written
+        own = mock.patch.object(deckroutes.latexdraw, "own_source")
+        forget = mock.patch.object(deckroutes.latexdraw, "forget_owner")
+        self.own, self.forget = own.start(), forget.start()
+        self.addCleanup(own.stop)
+        self.addCleanup(forget.stop)
+
+    def owner(self, item_id, deck="greetings"):
+        return deckroutes._latex_owner("persian", deck, item_id)
+
+    def pair(self, markdown=PAIR, base=None):
+        out = self.ok(call("POST", (base or self.base) + "/items", {"markdown": markdown}), 201)
+        return out
+
+    def test_an_add_answers_the_first_and_both_and_owns_each(self):
+        out = self.pair()
+        a, b = out["items"]
+        self.assertEqual(a["id"], out["item"]["id"])
+        self.assertEqual(("forward", "reverse", [b["id"]], [a["id"]]),
+                         (a["direction"], b["direction"], a["mates"], b["mates"]))
+        self.assertEqual({self.owner(a["id"]), self.owner(b["id"])},
+                         {c.args[0] for c in self.own.call_args_list})
+        # a card that is one exercise still answers `items`
+        single = self.ok(call("POST", self.base + "/items", {"markdown": CHOICE}), 201)
+        self.assertEqual([single["item"]["id"]], [i["id"] for i in single["items"]])
+        self.assertEqual(3, self.own.call_count)
+        self.refused(call("POST", self.base + "/items", {"markdown": PAIR}), 409, "duplicate")
+        self.assertEqual(3, self.ok(call("GET", self.base))["deck"]["counts"]["total"])
+
+    def test_a_copy_from_a_page_answers_both_and_owns_each(self):
+        doc = store.create("---\ntitle: T\ntarget: fa\n---\n\n" + PAIR + "\n")
+        out = self.ok(call("POST", self.base + "/copy", {
+            "doc_id": doc["id"], "ordinal": 1, "subtype": "flashcard", "updated": doc["updated"]}), 201)
+        a, b = out["items"]
+        self.assertEqual((a["id"], 2, out["deck"]["counts"]["total"]), (out["item"]["id"], len(out["items"]), 2))
+        self.assertEqual({self.owner(a["id"]), self.owner(b["id"])},
+                         {c.args[0] for c in self.own.call_args_list})
+
+    def test_an_edit_and_a_delete_that_say_nothing_of_the_other_side_are_refused(self):
+        a, b = self.pair()["items"]
+        item = self.base + "/items/" + a["id"]
+        changed = a["markdown"].replace("back: cat", "back: kitten")
+        refused = self.refused(call("PUT", item, {"markdown": changed}), 409, "linked")
+        self.assertEqual([{"id": b["id"], "excerpt": "گربه", "side": "back"}], refused["detail"]["mates"])
+        refused = self.refused(call("DELETE", item), 409, "linked")
+        self.assertEqual("back", refused["detail"]["mates"][0]["side"])
+        self.assertEqual(2, self.ok(call("GET", self.base))["deck"]["counts"]["total"])
+        # nothing else says "detail"
+        dup = self.refused(call("POST", self.base + "/items", {"markdown": PAIR}), 409, "duplicate")
+        self.assertNotIn("detail", dup)
+        self.refused(call("PUT", item, {"markdown": changed, "linked": "everyone"}), 400)
+        self.refused(call("DELETE", item + "?linked=everyone"), 400)
+        self.forget.assert_not_called()
+
+    def test_change_both_and_change_only_this_one(self):
+        a, b = self.pair()["items"]
+        self.own.reset_mock()
+        got = self.ok(call("PUT", self.base + "/items/" + a["id"],
+                           {"markdown": a["markdown"].replace("back: cat", "back: kitten"), "linked": "both"}))
+        self.assertEqual([b["id"]], got["item"]["mates"])
+        self.assertIn("back: kitten", self.ok(call("GET", self.base + "/items/" + b["id"]))["item"]["markdown"])
+        self.assertEqual({self.owner(a["id"]), self.owner(b["id"])},
+                         {c.args[0] for c in self.own.call_args_list})
+        alone = self.ok(call("PUT", self.base + "/items/" + b["id"],
+                             {"markdown": b["markdown"].replace("kitten", "lion"), "linked": "alone"}))
+        self.assertEqual(([], None), (alone["item"]["mates"], alone["item"]["link"]))
+        self.assertIn("kitten", self.ok(call("GET", self.base + "/items/" + a["id"]))["item"]["markdown"])
+        self.assertEqual([], self.ok(call("GET", self.base + "/items/" + a["id"]))["item"]["mates"])
+
+    def test_delete_one_or_both_and_forget_the_owners_of_what_went(self):
+        a, b = self.pair()["items"]
+        self.ok(call("DELETE", self.base + "/items/" + a["id"] + "?linked=alone"))
+        self.assertEqual([self.owner(a["id"])], [c.args[0] for c in self.forget.call_args_list])
+        self.assertEqual([], self.ok(call("GET", self.base + "/items/" + b["id"]))["item"]["mates"])
+        c, d = self.pair(PAIR.replace("cat", "dog"))["items"]
+        self.forget.reset_mock()
+        self.ok(call("DELETE", self.base + "/items/" + d["id"] + "?linked=both"))
+        self.assertEqual({self.owner(c["id"]), self.owner(d["id"])}, {x.args[0] for x in self.forget.call_args_list})
+        self.assertEqual(1, self.ok(call("GET", self.base))["deck"]["counts"]["total"])
+
+    def test_a_selection_is_asked_once_and_every_deleted_card_is_forgotten(self):
+        a, b = self.pair()["items"]
+        c, d = self.pair(PAIR.replace("cat", "dog"))["items"]
+        plain = self.item(self.ok(call("GET", self.base))["deck"], CHOICE)
+        refused = self.refused(call("POST", self.base + "/items/bulk",
+                                    {"action": "delete", "ids": [a["id"], c["id"], plain["id"]]}), 409, "linked")
+        self.assertEqual(2, refused["detail"]["count"])
+        self.forget.assert_not_called()
+        out = self.ok(call("POST", self.base + "/items/bulk", {
+            "action": "delete", "ids": [a["id"], c["id"], plain["id"]], "linked": "both"}))
+        self.assertEqual(5, out["count"])
+        self.assertEqual({self.owner(x) for x in (a["id"], b["id"], c["id"], d["id"], plain["id"])},
+                         {x.args[0] for x in self.forget.call_args_list})
+        # tags and the like are never asked about
+        e, f = self.pair(PAIR.replace("cat", "cow"))["items"]
+        self.ok(call("POST", self.base + "/items/bulk", {"action": "add-tag", "ids": [e["id"]], "tag": "x"}))
+        out = self.ok(call("POST", self.base + "/items/bulk", {"action": "delete", "ids": [e["id"]], "linked": "alone"}))
+        self.assertEqual(1, out["count"])
+        self.assertEqual([], self.ok(call("GET", self.base + "/items/" + f["id"]))["item"]["mates"])
+
+    def test_a_copy_to_another_deck_owns_what_arrived_and_a_move_forgets_what_left(self):
+        a, b = self.pair()["items"]
+        self.deck("Other")
+        theirs = "/api/decks/persian/other"
+        target = {"folder": "persian", "slug": "other"}
+        self.own.reset_mock()
+        out = self.ok(call("POST", self.base + "/items/bulk",
+                           {"action": "copy", "ids": [a["id"], b["id"]], "target": target}))
+        self.assertEqual({self.owner(i, "other") for i in out["ids"]}, {c.args[0] for c in self.own.call_args_list})
+        self.assertEqual(2, len(out["ids"]))
+        arrived = self.ok(call("GET", theirs + "/items/" + out["ids"][0]))["item"]
+        self.assertEqual(1, len(arrived["mates"]))
+        self.forget.assert_not_called()
+        self.ok(call("POST", self.base + "/items/bulk", {"action": "move", "ids": [b["id"]], "target": target}))
+        self.assertEqual([self.owner(b["id"])], [c.args[0] for c in self.forget.call_args_list])
+        self.assertEqual([], self.ok(call("GET", self.base + "/items/" + a["id"]))["item"]["mates"])
+
+    def test_the_study_page_holds_the_other_side_back_and_says_so(self):
+        a, b = self.pair()["items"]
+        first = self.ok(call("GET", self.base + "/next"))
+        self.assertEqual((a["id"], [b["id"]], 0), (first["item"]["id"], first["item"]["mates"], first["buried"]))
+        out = self.ok(call("POST", self.base + "/review", {"item": a["id"], "rating": "easy", "result": None}))
+        self.assertEqual((True, 1, None), (out["next"]["done"], out["next"]["buried"], out["next"]["item"]))
+        self.assertEqual(1, self.ok(call("GET", self.base + "/next"))["buried"])
+
+    def test_a_phone_is_sent_one_side_of_a_pair_and_the_other_comes_with_the_next_pack(self):
+        a, b = self.pair()["items"]
+        plain = self.item(self.ok(call("GET", self.base))["deck"], CHOICE)
+        pack = self.ok(call("POST", self.base + "/checkout", {"device": "phone", "id": "p1"}))["pack"]
+        self.assertEqual([a["id"], plain["id"]], [c["item"]["id"] for c in pack["cards"]])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -629,7 +629,8 @@ def learning_due(due):
 class QueueTests(unittest.TestCase):
     def test_empty(self):
         self.assertEqual({"next": None, "counts": {"new": 0, "learning": 0, "review": 0},
-                          "next_due": None}, srs.queue([], NOW, CFG, {"new": 0, "review": 0}))
+                          "next_due": None, "buried": 0},
+                         srs.queue([], NOW, CFG, {"new": 0, "review": 0}))
 
     def test_priority_learning_then_review_then_new(self):
         old = at(2026, 1, 1)
@@ -938,6 +939,99 @@ class FlowTests(unittest.TestCase):
         self.assertEqual("c", srs.queue([("c", NOW.isoformat(), state)], now, CFG)["next"])
         state = srs.answer(state, "good", now, CFG, seed)
         self.assertEqual(("review", 1), (state["state"], state["interval"]))
+
+
+def gave(when):
+    return {"at": when.isoformat(), "before": "new"}
+
+
+class BuryTests(unittest.TestCase):
+    """The other side of a linked pair is held back until the next day when one
+    side is answered (Anki's bury): read from the answers themselves, applied
+    by queue() to a card that would be offered today, with the day the
+    scheduler always uses (04:00 local to 04:00)."""
+
+    def test_any_answer_today_counts_and_the_day_starts_at_the_rollover(self):
+        # unlike today_counts(): a learning step or a relearning step is an answer too
+        steps = [{"at": NOW.isoformat(), "before": "learning"}]
+        self.assertTrue(srs.answered_today(steps, NOW, CFG))
+        self.assertTrue(srs.answered_today([{"at": NOW.isoformat(), "before": "relearning"}], NOW, CFG))
+        self.assertFalse(srs.answered_today([], NOW, CFG))
+        yesterday = [gave(at(2026, 9, 14, 3, 59))]
+        self.assertFalse(srs.answered_today(yesterday, at(2026, 9, 14, 4, 0), CFG))
+        self.assertTrue(srs.answered_today(yesterday, at(2026, 9, 14, 3, 59, 59), CFG))
+        self.assertTrue(srs.answered_today([gave(at(2026, 9, 14, 4, 0))], at(2026, 9, 15, 3, 59), CFG))
+        self.assertFalse(srs.answered_today([gave(at(2026, 9, 14, 4, 0))], at(2026, 9, 15, 4, 0), CFG))
+        # the answer's own offset is read: 03:00Z on the 15th is 22:00 on the 14th in New York
+        evening = at(2026, 9, 14, 23, 0, tz=NEW_YORK)
+        self.assertTrue(srs.answered_today([{"at": "2026-09-15T03:00:00+00:00"}], evening, CFG))
+        late = [gave(at(2026, 9, 13, 23, 30))]
+        self.assertTrue(srs.answered_today(late, at(2026, 9, 14, 3, 0), CFG))       # still the 13th
+        self.assertFalse(srs.answered_today(late, at(2026, 9, 14, 3, 0), cfg(rollover_hour=0)))
+        for junk in (None, "x", 5, [{"at": "garbage"}, {"before": "new"}, "oops", {"at": None}]):
+            self.assertFalse(srs.answered_today(junk, NOW, CFG))
+
+    def test_a_card_is_buried_by_an_answer_to_another_of_its_group_never_by_its_own(self):
+        histories = {"a": [gave(NOW)], "b": [], "c": [], "d": [gave(NOW)], "e": [gave(NOW)],
+                     "solo": [gave(NOW)]}
+        held = srs.buried_today([["a", "b"], ["c", "d", "e"], ["solo"]], histories, NOW, CFG)
+        self.assertEqual({"b", "c", "d", "e"}, held)        # d and e bury each other
+        self.assertEqual(set(), srs.buried_today([["a", "b"]], {"a": [], "b": []}, NOW, CFG))
+        self.assertEqual(set(), srs.buried_today([["a", "b"]], {}, NOW, CFG))
+        self.assertEqual(set(), srs.buried_today([], histories, NOW, CFG))
+        self.assertEqual({"b"}, srs.buried_today([["a", "b"]], {"a": [gave(NOW)]}, NOW, CFG))
+        # an answer of yesterday buries nothing today
+        old = {"a": [gave(NOW - timedelta(days=1))]}
+        self.assertEqual(set(), srs.buried_today([["a", "b"]], old, NOW, CFG))
+        with self.assertRaises(ValueError):
+            srs.buried_today([["a", "b"]], histories, datetime(2026, 9, 14), CFG)
+
+    def test_a_held_card_that_would_be_offered_is_not_and_comes_back_tomorrow(self):
+        t0 = at(2026, 1, 1)
+        rows = [entry("new", t0, srs.new_state()),
+                entry("due", t0, review_card()),
+                entry("step", t0, learning_due(NOW - timedelta(minutes=1)))]
+        got = srs.queue(rows, NOW, CFG)
+        self.assertEqual(({"new": 1, "learning": 1, "review": 1}, 0), (got["counts"], got["buried"]))
+        for held, others in (("new", {"new": 0, "learning": 1, "review": 1}),
+                             ("due", {"new": 1, "learning": 1, "review": 0}),
+                             ("step", {"new": 1, "learning": 0, "review": 1})):
+            got = srs.queue(rows, NOW, CFG, {"new": 0, "review": 0}, {held})
+            self.assertEqual((others, 1), (got["counts"], got["buried"]), held)
+            self.assertNotEqual(held, got["next"])
+        alone = srs.queue(rows[:1], NOW, CFG, None, ["new"])
+        self.assertEqual((None, 1, "2026-09-15T04:00:00+03:30"), (alone["next"], alone["buried"], alone["next_due"]))
+        self.assertEqual("new", srs.queue(rows[:1], at(2026, 9, 15, 4, 0), CFG, None, [])["next"])
+
+    def test_a_card_that_is_not_due_today_is_left_as_it_is(self):
+        t0 = at(2026, 1, 1)
+        later = review_card(due=srs.day_start(TODAY + 3, TEHRAN, CFG))
+        far = learning_due(NOW + timedelta(hours=3))            # beyond the learn-ahead window
+        rows = [entry("later", t0, later), entry("far", t0, far)]
+        held = srs.queue(rows, NOW, CFG, None, {"later", "far"})
+        plain = srs.queue(rows, NOW, CFG)
+        self.assertEqual(plain, held)
+        self.assertEqual(0, held["buried"])
+        self.assertEqual(NOW + timedelta(hours=3), datetime.fromisoformat(held["next_due"]))
+
+    def test_the_hold_takes_nothing_from_the_days_limits(self):
+        t0 = at(2026, 1, 1)
+        rows = [entry("held", t0, srs.new_state()),
+                entry("n2", t0 + timedelta(seconds=1), srs.new_state()),
+                entry("n3", t0 + timedelta(seconds=2), srs.new_state())]
+        got = srs.queue(rows, NOW, cfg(new_per_day=2), {"new": 0, "review": 0}, {"held"})
+        self.assertEqual(({"new": 2, "learning": 0, "review": 0}, 1, "n2"),
+                         (got["counts"], got["buried"], got["next"]))
+        got = srs.queue(rows, NOW, cfg(new_per_day=2), {"new": 1, "review": 0}, {"held"})
+        self.assertEqual(({"new": 1, "learning": 0, "review": 0}, "n2"), (got["counts"], got["next"]))
+
+    def test_no_hold_changes_nothing(self):
+        t0 = at(2026, 1, 1)
+        rows = [entry("a", t0, srs.new_state()), entry("b", t0, review_card())]
+        base = srs.queue(rows, NOW, CFG, {"new": 0, "review": 0})
+        for none in (None, (), set(), []):
+            self.assertEqual(base, srs.queue(rows, NOW, CFG, {"new": 0, "review": 0}, none))
+        self.assertEqual(base, srs.queue(rows, NOW, CFG, {"new": 0, "review": 0}, {"nobody"}))
 
 
 if __name__ == "__main__":

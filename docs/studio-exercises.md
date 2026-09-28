@@ -383,10 +383,27 @@ Each deck is a directory, `exercises/<language>/<slug>/`, at the root of Parseh:
 
 ```
 deck.json            name, language, the options that differ from the defaults
-items/<id>.json      one exercise: its markdown, its footnotes, where it came from
+items/<id>.json      one exercise: its markdown, its footnotes, where it came from; a
+                     `link` (12 hex) when it is one side of a linked pair
 schedule/<id>.json   its state and every answer (no file while it is new)
 images/              the pictures its exercises and flashcards use
 audio/               the recordings its flashcards play
 ```
+
+**Linked pairs.** A flashcard written `direction: both-repeat` goes into a deck as two items,
+`direction: forward` and `direction: reverse`, that share one `link` (the second is made a
+microsecond after the first, so the queue keeps their order). The link is a group id, not a
+pointer: a card whose other side is gone is a group of one, which is not linked, and a group id
+needs no partner to be valid. It travels in an export, an import and a backup; a copy or a move to
+another deck makes a new one for the pair; **Duplicate** links the copy with nothing. Changing or
+deleting one side is refused by the store (`Conflict("linked")`, HTTP 409) until the caller says
+`linked: "both"` or `"alone"`: it is the server that owns the rule, so no page can forget it.
+`both-random` needs no expansion: the card is stored as it is, and the page draws a face.
+
+**Burying.** When one side of a linked pair is answered, the other is not offered until the next
+day starts (Anki's bury-until-next-day). Nothing is stored for it: `srs.buried_today` reads the
+answers already written in the schedule histories (`decks._buried`), so the hold lapses by itself
+at the rollover, ends at once when the other side is deleted, unlinked or set to new, and is
+carried by a phone's replayed answers by the day each was given. Cramming ignores it.
 
 Decks are personal study state. Git ignores everything under `exercises/` except `exercises/README.md`, so a deck moves between machines by its export. The pages, the store and the scheduler are `markdown/app/deckroutes.py`, `markdown/app/decks.py` and `markdown/app/srs.py`.

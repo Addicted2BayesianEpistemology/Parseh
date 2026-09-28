@@ -564,6 +564,372 @@ async function studyEdgesFlow(t) {
   assert(!(await edges()).some(h => h[0].startsWith('zoom:') && h[1] === 'play'), 'no copy in a window played at any time');
 }
 
+/* A BOTH-REPEAT FLASHCARD IS TWO LINKED CARDS IN A DECK (TO-DO L17, the deck
+   half): made by "+ Deck" (and the API's add), told apart in Browse by a
+   badge, asked about whenever an edit or a delete would leave the other side
+   as it was -- from Browse, from the study page and from a selection -- and
+   buried until the next day when the other side is answered (Anki's way);
+   cramming ignores the burying.  `t`: {page, browser, request, url, assert,
+   toast(page, re, what), studio, tmp, mode}; SHOTS=<dir> saves the dialogs and the
+   badge on the three themes, wide and narrow. */
+async function linkedCardsFlow(t) {
+  const {page, browser, url, assert} = t;
+  const S = t.studio;
+  const shots = Deno.env.get('SHOTS');
+  const {fieldOf, clearToast} = formKit(page, assert);
+  const card = (word, extra = '') => `:::exercise flashcard\ncard-type: vocab\ntarget: [${word}]{tl}\n`
+    + `meaning: the ${word}\ndirection: both-repeat\n${extra}:::`;
+  const post = (path, data) => t.request.post(url(path), {data});
+  const mk = async name => (await (await post('/exercises/api/decks', {name, lang: 'fa'})).json()).deck;
+  const itemsOf = async d => (await (await t.request.get(url(`/exercises/api/decks/${d.path}`))).json()).items;
+  const addPair = async (d, md) => {
+    const r = await post(`/exercises/api/decks/${d.path}/items`, {markdown: md});
+    assert(r.status() === 201, `a both-repeat card added over the API: 201 (${r.status()})`);
+    return r.json();
+  };
+  // what the edit form is told it may offer (opts.directions), kept from the moment a page is opened
+  const spy = () => page.evaluate(() => {
+    window.__forms = [];
+    const open = window.openExerciseMarkdown;
+    window.openExerciseMarkdown = (markdown, opts) => { window.__forms.push(opts.directions || null); return open(markdown, opts); };
+  });
+  const open = async d => {
+    await page.goto(url(`/exercises/deck/${d.path}/`));
+    await page.waitForSelector('.dk-row');
+    await spy();
+  };
+  const rowOf = (id) => page.locator(`.dk-row[data-id="${id}"]`);
+  const ask = () => page.locator('.dk-ask');
+  const askButtons = () => page.locator('.dk-ask .row .btn').allTextContents();
+  const nothingOpen = async what => assert(await page.locator('#modal-root > .modal-overlay').count() === 0, what);
+  const shoot = async (name, frame, mobile = false) => {
+    if (!shots) return;
+    for (const [width, height, label] of mobile ? [[390, 800, 'phone']] : [[1280, 800, 'wide'], [390, 800, 'narrow']]) {
+      for (const theme of ['light', 'sepia', 'dark']) {
+        const ctx = await browser.newContext({viewport: {width, height}});
+        try {
+          await ctx.addInitScript(([th, m]) => {
+            try { localStorage.setItem('parseh_theme', th); if (m) localStorage.setItem('parseh_mode', 'mobile'); } catch (_) {}
+          }, [theme, mobile]);
+          const p = await ctx.newPage();
+          await frame(p);
+          await p.screenshot({path: `${shots}/linked-${name}-${label}-${theme}-${t.mode}.png`});
+        } finally { await ctx.close(); }
+      }
+    }
+  };
+  const deckPage = async (p, d) => {
+    await p.goto(url(`/exercises/deck/${d.path}/`));
+    await p.waitForSelector('.dk-row');
+  };
+
+  /* ---- made by "+ Deck" from a studio page: two cards, front first ---- */
+  const deck = await mk('Linked pairs');
+  const doc = await (await post(`${S}/api/docs`, {markdown: `---\ntitle: A pair\ntarget: fa\n---\n\n${card('گربه')}\n`})).json();
+  await page.goto(url(`${S}/doc/${doc.meta.id}`));
+  await page.waitForSelector('#sheet .exercise[data-subtype="flashcard"] .ex-to-deck');
+  await page.locator('#sheet .exercise[data-subtype="flashcard"] .ex-to-deck').click();
+  await page.waitForSelector(`.ex-to-deck-modal select option[value="${deck.path}"]`, {state: 'attached'});
+  await page.locator('.ex-to-deck-modal select').selectOption(deck.path);
+  await page.locator('.ex-to-deck-modal [data-x="copy"]').click();
+  await t.toast(page, /Copied into “Linked pairs” as two linked cards/, '+ Deck on a both-repeat card says it made two');
+  let items = await itemsOf(deck);
+  assert(items.length === 2 && items[0].link && items[0].link === items[1].link
+         && items[0].direction === 'forward' && items[1].direction === 'reverse'
+         && items[0].mates[0] === items[1].id && items[1].mates[0] === items[0].id
+         && items[0].created < items[1].created,      // microseconds: a Date cannot tell them apart
+         'two items, front first and back first, sharing one link, the back made a moment after the front');
+  assert(items[0].markdown.includes('\ndirection: forward\n') && items[1].markdown.includes('\ndirection: reverse\n')
+         && !/both-repeat/.test(items[0].markdown + items[1].markdown),
+         'each writes its direction out, and neither keeps "both-repeat"');
+  assert(items[0].origin.doc_id === doc.meta.id && items[1].origin.ordinal === 1, 'both name the page they came from');
+  const again = await post('/exercises/api/decks/' + deck.path + '/copy',
+    {doc_id: doc.meta.id, ordinal: 1, subtype: 'flashcard'});
+  assert(again.status() === 409 && (await again.json()).conflict === 'duplicate',
+         'the same card again is refused as a duplicate: one of its sides is already in the deck');
+
+  /* ---- Browse: the badge tells the two rows apart ---- */
+  await open(deck);
+  assert(await page.locator('.dk-row').count() === 2, 'Browse lists two rows');
+  const badges = await page.locator('.dk-row .dk-linked').allTextContents();
+  assert(JSON.stringify(badges) === JSON.stringify(['↔ linked · front first', '↔ linked · back first']),
+         `each row wears its side (${JSON.stringify(badges)})`);
+  await shoot('badge', async p => { await deckPage(p, deck); });
+  await shoot('badge-mobile', async p => {
+    await deckPage(p, deck);
+    await p.evaluate(() => document.querySelector('.dk-row').scrollIntoView({block: 'start'}));
+  }, true);
+
+  /* ---- edit: the server asks, the page shows the question ---- */
+  const [front, back] = items;
+  await rowOf(front.id).locator('[data-x="edit"]').click();
+  await page.waitForSelector('.ex-form-modal');
+  const fixed = () => page.evaluate(() => [...document.querySelectorAll('.ex-form-modal select')]
+    .filter(s => [...s.options].every(o => /^(forward|reverse|both-random|both-repeat)$/.test(o.value)))
+    .map(s => ({disabled: s.disabled, note: s.closest('label').querySelector('.dk-fixed-side')?.textContent || ''})));
+  let sides = await fixed();
+  assert(sides.length === 1 && sides[0].disabled && sides[0].note === 'This card is one side of a pair: its side is fixed.',
+         `a linked card's side select is fixed, and says why (${JSON.stringify(sides)})`);
+  assert(JSON.stringify(await page.evaluate(() => window.__forms)) === '[["forward"]]',
+         'the form is told the one side this card may show');
+  await fieldOf('Meaning').locator('textarea').fill('the kitten');
+  await clearToast();
+  await page.click('.ex-form-modal [data-x="save"]');
+  await ask().waitFor();
+  assert(await ask().locator('h3').textContent() === 'This card has another side'
+         && JSON.stringify(await askButtons()) === JSON.stringify(['Cancel', 'Change only this one (unlink them)', 'Change both cards']),
+         `the edit asks: change both, change only this one, or cancel (${JSON.stringify(await askButtons())})`);
+  assert((await ask().locator('p').first().textContent()).includes('Is this change for both cards?')
+         && (await ask().locator('li').allTextContents()).join('|').includes('گربه')
+         && (await ask().locator('li').textContent()).includes('shows the back first'),
+         'and names the other side: its text and which face it shows first');
+  assert(await page.locator('.ex-form-modal').count() === 1, 'the form stays open under the question');
+  await shoot('edit-ask', async p => {
+    await deckPage(p, deck);
+    await p.locator(`.dk-row[data-id="${front.id}"] [data-x="edit"]`).click();
+    await p.waitForSelector('.ex-form-modal');
+    await p.locator('.ex-form-modal .ex-author-field:has(> span:text-is("Meaning")) textarea').fill('the kitten');
+    await p.click('.ex-form-modal [data-x="save"]');
+    await p.waitForSelector('.dk-ask');
+  });
+  await ask().locator('[data-x="cancel"]').click();
+  await page.waitForFunction(() => !document.querySelector('.dk-ask'));
+  await t.toast(page, /^Not saved: the card is left as it was$/, 'Cancel leaves the card as it was, and says so');
+  assert(await page.locator('.ex-form-modal').count() === 1, 'the form is still open after Cancel');
+  items = await itemsOf(deck);
+  assert(items[0].markdown.includes('meaning: the گربه') && items[1].markdown.includes('meaning: the گربه'),
+         'nothing was written to either card');
+  await clearToast();
+  await page.click('.ex-form-modal [data-x="save"]');
+  await ask().waitFor();
+  await ask().locator('button', {hasText: 'Change both cards'}).click();
+  await t.toast(page, /^Exercise saved$/, 'Change both cards saves');
+  await page.waitForFunction(() => !document.querySelector('.ex-form-modal') && !document.querySelector('.dk-ask'));
+  items = await itemsOf(deck);
+  assert(items.every(i => i.markdown.includes('meaning: the kitten')) && items[0].direction === 'forward'
+         && items[1].direction === 'reverse' && items[0].link === items[1].link && items[0].mates.length === 1,
+         'both cards took the change, each kept its own side, and they are still linked');
+  assert(items.every(i => i.schedule.state === 'new' && i.reps === 0), 'and no schedule was touched');
+
+  // a save that changes nothing asks nothing
+  await open(deck);
+  await rowOf(items[0].id).locator('[data-x="edit"]').click();
+  await page.waitForSelector('.ex-form-modal');
+  await clearToast();
+  await page.click('.ex-form-modal [data-x="save"]');
+  await t.toast(page, /^Exercise saved$/, 'saving a linked card with no change asks nothing');
+  await nothingOpen('and closes the form');
+
+  // Change only this one: unlinked, the change is this card's alone
+  await rowOf(items[1].id).locator('[data-x="edit"]').click();
+  await page.waitForSelector('.ex-form-modal');
+  assert(JSON.stringify(await page.evaluate(() => window.__forms.slice(-1))) === '[["reverse"]]',
+         'the back-first card may show the back first only');
+  await fieldOf('Meaning').locator('textarea').fill('the lion');
+  await clearToast();
+  await page.click('.ex-form-modal [data-x="save"]');
+  await ask().waitFor();
+  await ask().locator('button', {hasText: 'Change only this one (unlink them)'}).click();
+  await t.toast(page, /^Exercise saved$/, 'Change only this one saves');
+  await page.waitForFunction(() => !document.querySelector('.ex-form-modal'));
+  items = await itemsOf(deck);
+  assert(items[0].markdown.includes('the kitten') && items[1].markdown.includes('the lion')
+         && !items[0].link && !items[1].link && !items[0].mates.length && !items[1].mates.length,
+         'only that card changed, and the two are linked no more');
+  await open(deck);
+  assert(await page.locator('.dk-linked').count() === 0, 'Browse shows no badge on either');
+  await rowOf(items[0].id).locator('[data-x="edit"]').click();
+  await page.waitForSelector('.ex-form-modal');
+  assert(JSON.stringify(await page.evaluate(() => window.__forms.slice(-1)))
+         === JSON.stringify([['forward', 'reverse', 'both-random']])
+         && JSON.stringify(await fixed()) === JSON.stringify([{disabled: false, note: ''}]),
+         'an unlinked card may show front, back or either at random -- but Both (repeat) is how a card is ADDED');
+  await page.click('.ex-form-modal [data-x="cancel"]');
+
+  /* ---- delete, one card ---- */
+  const two = await addPair(deck, card('سگ'));
+  await open(deck);
+  const [dogFront, dogBack] = two.items.map(i => i.id);
+  await rowOf(dogFront).locator('[data-x="delete"]').click();
+  await ask().waitFor();
+  assert(JSON.stringify(await askButtons()) === JSON.stringify(['Cancel', 'Delete only this (the other stays, unlinked)', 'Delete both'])
+         && (await ask().locator('p').first().textContent()).includes('Delete the other side too?'),
+         `deleting a linked card asks: both, only this one, or cancel (${JSON.stringify(await askButtons())})`);
+  await shoot('delete-ask', async p => {
+    await deckPage(p, deck);
+    await p.locator(`.dk-row[data-id="${dogFront}"] [data-x="delete"]`).click();
+    await p.waitForSelector('.dk-ask');
+  });
+  await ask().locator('[data-x="cancel"]').click();
+  await nothingOpen('Cancel closes the question');
+  assert((await itemsOf(deck)).length === 4, 'and nothing was deleted');
+  await rowOf(dogFront).locator('[data-x="delete"]').click();
+  await ask().locator('button', {hasText: 'Delete only this'}).click();
+  await t.toast(page, /^Exercise deleted$/, 'Delete only this');
+  await page.waitForFunction(id => !document.querySelector(`.dk-row[data-id="${id}"]`), dogFront);
+  items = await itemsOf(deck);
+  assert(items.length === 3 && items.find(i => i.id === dogBack) && !items.find(i => i.id === dogBack).link
+         && !items.find(i => i.id === dogBack).mates.length,
+         'the other side stays, and is linked with nothing');
+  assert(await page.locator(`.dk-row[data-id="${dogBack}"] .dk-linked`).count() === 0, 'its badge is gone');
+
+  const third = await addPair(deck, card('کتاب'));
+  await open(deck);
+  await rowOf(third.items[1].id).locator('[data-x="delete"]').click();
+  await ask().locator('button', {hasText: 'Delete both'}).click();
+  await t.toast(page, /^Both cards deleted$/, 'Delete both');
+  await page.waitForFunction(() => document.querySelectorAll('.dk-row').length === 3);
+  assert((await itemsOf(deck)).length === 3, 'both sides of the third pair are gone');
+  const raw = await t.request.delete(url(`/exercises/api/decks/${deck.path}/items/${items[0].id}`));
+  assert(raw.status() === 200, 'an unlinked card is deleted as it always was');
+  const lone = await addPair(deck, card('مداد'));
+  const refused = await t.request.delete(url(`/exercises/api/decks/${deck.path}/items/${lone.item.id}`));
+  const answer = await refused.json();
+  assert(refused.status() === 409 && answer.conflict === 'linked' && answer.detail.mates.length === 1
+         && answer.detail.mates[0].side === 'back' && (await itemsOf(deck)).length === 4,
+         'the server refuses a delete that does not say what becomes of the other side: 409 "linked", naming it');
+
+  /* ---- delete, a selection ---- */
+  const pairs = [lone, await addPair(deck, card('میز')), await addPair(deck, card('خانه'))];
+  await open(deck);
+  const picked = () => page.locator('.dk-row .dk-select:checked').count();
+  for (const p of pairs) await rowOf(p.item.id).locator('.dk-select').check();
+  await page.click('#btn-bulk-delete');
+  await ask().waitFor();
+  assert(JSON.stringify(await askButtons()) === JSON.stringify(['Cancel', 'Delete only the selected', 'Delete their other sides too']),
+         `three front sides picked, none of their backs: ONE question (${JSON.stringify(await askButtons())})`);
+  assert((await ask().locator('p').first().textContent()).startsWith('3 picked exercises are one side of a pair')
+         && await ask().locator('li').count() === 3, 'it counts them, and lists the other sides');
+  await shoot('bulk-ask', async p => {
+    await deckPage(p, deck);
+    for (const q of pairs) await p.locator(`.dk-row[data-id="${q.item.id}"] .dk-select`).check();
+    await p.click('#btn-bulk-delete');
+    await p.waitForSelector('.dk-ask');
+  });
+  await ask().locator('button', {hasText: 'Delete only the selected'}).click();
+  await t.toast(page, /^3 exercises deleted$/, 'Delete only the selected');
+  await page.waitForFunction(() => document.querySelectorAll('.dk-row').length === 5);
+  items = await itemsOf(deck);
+  assert(items.filter(i => pairs.some(p => p.items[1].id === i.id)).length === 3
+         && items.every(i => !i.link && !i.mates.length), 'the three backs stay, each linked with nothing');
+  await open(deck);
+  // both sides picked: nothing to ask
+  const whole = await addPair(deck, card('پنجره'));
+  await open(deck);
+  for (const i of whole.items) await rowOf(i.id).locator('.dk-select').check();
+  await page.click('#btn-bulk-delete');
+  await page.waitForSelector('.dk-modal');
+  assert(await ask().count() === 0 && (await page.locator('.dk-modal h3').textContent()) === 'Delete 2 exercises?',
+         'both sides of a pair picked: the plain question, nothing about links');
+  await page.locator('.dk-modal button', {hasText: 'Delete selected'}).click();
+  await t.toast(page, /^2 exercises deleted$/, 'both sides deleted');
+  const last = await addPair(deck, card('درخت'));
+  await open(deck);
+  await rowOf(last.items[0].id).locator('.dk-select').check();
+  await page.click('#btn-bulk-delete');
+  await ask().waitFor();
+  await ask().locator('button', {hasText: 'Delete their other sides too'}).click();
+  await t.toast(page, /^2 exercises deleted$/, 'the other sides go with them: the count says both');
+  items = await itemsOf(deck);
+  assert(!items.some(i => last.items.some(x => x.id === i.id)), 'neither side of that pair is left');
+
+  /* ---- studying: the other side is buried until the next day ---- */
+  const study = await mk('Pair study');
+  const studied = (await addPair(study, card('ماهی'))).items;
+  await page.goto(url(`/exercises/deck/${study.path}/study`));
+  await page.waitForSelector('#study-stage .ex-flashcard');
+  // editing from the study page asks the same question, over the form
+  await page.click('#btn-edit-card');
+  await page.waitForSelector('.ex-form-modal');
+  await fieldOf('Meaning').locator('textarea').fill('the fish');
+  await page.click('.ex-form-modal [data-x="save"]');
+  await ask().waitFor();
+  await shoot('study-edit-ask', async p => {
+    await p.goto(url(`/exercises/deck/${study.path}/study`));
+    await p.waitForSelector('#study-stage .ex-flashcard');
+    await p.click('#btn-edit-card');
+    await p.waitForSelector('.ex-form-modal');
+    await p.locator('.ex-form-modal .ex-author-field:has(> span:text-is("Meaning")) textarea').fill('the fish');
+    await p.click('.ex-form-modal [data-x="save"]');
+    await p.waitForSelector('.dk-ask');
+  });
+  await ask().locator('button', {hasText: 'Change both cards'}).click();
+  await t.toast(page, /^Exercise saved: its scheduling is unchanged$/, 'the study page asks the same, and saves');
+  await page.waitForFunction(() => document.querySelector('#study-stage')?.textContent.includes('fish'));
+  assert((await itemsOf(study)).every(i => i.markdown.includes('meaning: the fish')), 'both sides were changed from the study page');
+
+  const shown = () => page.evaluate(() => document.querySelector('#study-stage .ex-flashcard')?.className || '');
+  await page.click('#btn-show');
+  await page.waitForSelector('#rating-bar:not([hidden])');
+  await page.click('[data-rating="easy"]');
+  await page.waitForSelector('#study-done:not([hidden])');
+  assert(await page.locator('#study-done .dk-held').textContent()
+         === '1 card held back until tomorrow: the other side of a card answered today.',
+         'the front answered: the back is not offered in this session, and the page says it is held back');
+  let next = await (await t.request.get(url(`/exercises/api/decks/${study.path}/next`))).json();
+  assert(next.done === true && next.item === null && next.buried === 1, 'the queue agrees: nothing, one buried');
+  const listed = (await (await t.request.get(url('/exercises/api/decks?lang=fa'))).json()).decks.find(d => d.path === study.path);
+  assert(listed.study.new === 0 && listed.counts.new === 1, 'the deck counts it as new, and as nothing to study today');
+  await shoot('study-held', async p => {
+    await p.goto(url(`/exercises/deck/${study.path}/study`));
+    await p.waitForSelector('#study-done:not([hidden])');
+  });
+  const cram = await (await post(`/exercises/api/decks/${study.path}/cram`, {ids: studied.map(i => i.id)})).json();
+  assert(cram.cards.length === 2, 'cramming both sides offers both: it never schedules, so it never buries');
+
+  // the day passes: every stored time moves a day back
+  const shift = await new Deno.Command(python, {args: ['-c', `
+import json, sys
+from datetime import datetime, timedelta
+for path in sys.argv[2:]:
+    doc = json.load(open(path))
+    def back(x): return (datetime.fromisoformat(x) - timedelta(days=int(sys.argv[1]))).isoformat() if x else x
+    doc['state']['due'] = back(doc['state']['due']); doc['state']['last_review'] = back(doc['state']['last_review'])
+    for h in doc['history']: h['at'] = back(h['at']); h['due'] = back(h['due'])
+    json.dump(doc, open(path, 'w'))`, '1', `${t.tmp}/exercises/${study.path}/schedule/${studied[0].id}.json`],
+    stdout: 'piped', stderr: 'piped'}).output();
+  assert(shift.success, 'a day passes over the answered card (its stored times move back a day)');
+  next = await (await t.request.get(url(`/exercises/api/decks/${study.path}/next`))).json();
+  assert(next.done === false && next.item.id === studied[1].id && next.buried === 0,
+         'the next day the back is offered, and it is the card that shows the back first');
+  await page.reload();
+  await page.waitForSelector('#study-stage .ex-flashcard');
+  assert(await page.locator('#study-stage .ex-card-front').textContent().then(x => x.includes('the fish')),
+         'the study page shows it, back first');
+  await page.click('#btn-show');
+  await page.waitForSelector('#rating-bar:not([hidden])');
+  await page.click('[data-rating="easy"]');
+  await page.waitForSelector('#study-done:not([hidden])');
+  assert(await page.locator('#study-done .dk-held').isHidden() || (await page.locator('#study-done .dk-held').textContent()) === '',
+         'and answered, nothing is held back: the front is not due for days');
+
+  /* ---- the deck's own Add form: Both (repeat) is chosen where the side is ---- */
+  const added = await mk('Added by the form');
+  await page.goto(url(`/exercises/deck/${added.path}/`));
+  await page.waitForSelector('#browse-empty:not([hidden])');
+  await page.click('#btn-add-exercise');
+  await page.locator('.ex-type', {hasText: 'Embedded vocabulary flashcard'}).click();
+  await page.waitForSelector('.ex-form-modal');
+  await fieldOf('Word or expression').locator('textarea').fill('[کتاب]{tl}');
+  await fieldOf('Meaning').locator('textarea').fill('book');
+  const side = fieldOf('Which side appears first').locator('select');
+  const offered = await side.locator('option').evaluateAll(os => os.map(o => o.value));
+  // the form's own select, however many values it offers; one that does not yet offer both-repeat is given it
+  if (!offered.includes('both-repeat'))
+    await side.evaluate(s => { const o = document.createElement('option'); o.value = 'both-repeat'; o.textContent = 'Both (repeat)'; s.appendChild(o); });
+  await side.selectOption('both-repeat');
+  await clearToast();
+  await page.click('.ex-form-modal [data-x="save"]');
+  await t.toast(page, /^Added two linked cards to “Added by the form”$/, 'the Add form with Both (repeat) says it added two linked cards');
+  await page.waitForFunction(() => document.querySelectorAll('.dk-row').length === 2);
+  const formed = await itemsOf(added);
+  assert(formed.length === 2 && formed[0].direction === 'forward' && formed[1].direction === 'reverse'
+         && formed[0].link === formed[1].link && formed[0].markdown.includes('meaning: book'),
+         'two cards in the deck, front first and back first, linked, as the form wrote them');
+  assert(JSON.stringify(await page.locator('.dk-row .dk-linked').allTextContents())
+         === JSON.stringify(['↔ linked · front first', '↔ linked · back first']), 'and Browse marks them');
+}
+
 async function suite(browser, mode) {
   const {proc, info} = await startHarness(mode);
   const S = info.studio;                 // "" or "/studio"
@@ -1435,6 +1801,14 @@ async function suite(browser, mode) {
       watch(ep, 'study edges');
       await studyEdgesFlow({page: ep, request: ctx.request, url, assert, toast: (pg, re, what) => waitToast(pg, re, what)});
       await ep.close();
+    }
+    console.log('a both-repeat card is two linked cards: badge, the question on edit and delete, buried on study');
+    {
+      const lp = await ctx.newPage();
+      watch(lp, 'linked cards');
+      await linkedCardsFlow({page: lp, browser, request: ctx.request, url, assert, studio: S, tmp: info.tmp, mode,
+                             toast: (pg, re, what) => waitToast(pg, re, what)});
+      await lp.close();
     }
 
     /* ---------------- where a card made in a book or a video came from ---------------- */
@@ -2646,6 +3020,9 @@ async function endToEnd(browser) {
     await jollyRecordingsFlow({page, request: ctx.request, url, assert, toast: (_page, re, what) => waitToast(re, what)});
     console.log('j) a clip past the end of its recording, and a window left open while an answer was saved');
     await studyEdgesFlow({page, request: ctx.request, url, assert, toast: (_page, re, what) => waitToast(re, what)});
+    console.log('j2) a both-repeat card is two linked cards: badge, the question on edit and delete, buried on study');
+    await linkedCardsFlow({page, browser, request: ctx.request, url, assert, studio: '/studio', tmp, mode,
+                           toast: (_page, re, what) => waitToast(re, what)});
 
     /* ---------------- k) a card copied as markdown, pasted into Add exercise ---------------- */
     console.log('k) a card copied as markdown on a card sheet, pasted into the deck’s Add exercise');

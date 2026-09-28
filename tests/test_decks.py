@@ -301,7 +301,8 @@ class DeckTests(Base):
 
 class ItemTests(Base):
     KEYS = {"id", "subtype", "primitive", "label", "excerpt", "markdown", "footnotes",
-            "errors", "created", "updated", "origin", "schedule", "reps", "lapses", "tags"}
+            "errors", "created", "updated", "origin", "schedule", "reps", "lapses", "tags",
+            "direction", "link", "mates"}
 
     def test_validation_refusals(self):
         _, fs = self.deck()
@@ -1742,6 +1743,516 @@ class ShelfBackupTests(Base):
         with self.assertRaises(decks.DeckError) as e:
             decks.restore_zip(one)
         self.assertIn("unexpected entry", str(e.exception))
+
+PAIR = ":::exercise flashcard\nfront: [گربه]{tl}\nback: cat\ndirection: both-repeat\n:::"
+RANDOM_FACE = ":::exercise flashcard\nfront: [گربه]{tl}\nback: cat\ndirection: both-random\n:::"
+FRONT_FIRST = ":::exercise flashcard\nfront: [گربه]{tl}\nback: cat\ndirection: forward\n:::"
+BACK_FIRST = ":::exercise flashcard\nfront: [گربه]{tl}\nback: cat\ndirection: reverse\n:::"
+LATER = datetime(2026, 9, 15, 9, 0, tzinfo=TEHRAN)         # the next day, after its rollover
+LINK_RE = re.compile(r"^[0-9a-f]{12}$")
+
+
+class LinkedTests(Base):
+    """A both-repeat flashcard is TWO linked cards in a deck (TO-DO L17): made
+    together, one link, front first; asked about whenever an edit or a
+    delete would leave the other side as it was; held back for a day when
+    the other side is answered.  Nothing here is stored beyond the one
+    `link` field: the burying is read from the answers."""
+
+    def setUp(self):
+        super().setUp()
+        self.s, self.fs = self.deck("Pairs")
+
+    def pair(self, markdown=PAIR, now=NOW, **kw):
+        return decks.add_item(*self.fs, markdown, now=now, **kw)["items"]
+
+    def on_disk(self, item_id, fs=None):
+        return json.loads((decks.deck_dir(*(fs or self.fs)) / "items" / (item_id + ".json"))
+                          .read_text("utf-8"))
+
+    def by_id(self, item_id, fs=None):
+        return next(i for i in decks.list_items(*(fs or self.fs)) if i["id"] == item_id)
+
+    def test_add_makes_two_linked_cards_front_first(self):
+        made = decks.add_item(*self.fs, PAIR, origin={"doc_id": "d-123456", "title": "T"},
+                              tags=["Animals"], now=NOW)
+        a, b = made["items"]
+        self.assertEqual(a["id"], made["id"])
+        self.assertEqual(("forward", "reverse"), (a["direction"], b["direction"]))
+        self.assertEqual(FRONT_FIRST, a["markdown"])
+        self.assertEqual(BACK_FIRST, b["markdown"])
+        self.assertRegex(a["link"], LINK_RE)
+        self.assertEqual(a["link"], b["link"])
+        self.assertEqual(([b["id"]], [a["id"]]), (a["mates"], b["mates"]))
+        self.assertEqual((NOW.isoformat(timespec="microseconds"),
+                          (NOW + timedelta(microseconds=1)).isoformat(timespec="microseconds")),
+                         (a["created"], b["created"]))
+        self.assertEqual([a["id"], b["id"]], [i["id"] for i in decks.list_items(*self.fs)])
+        # the same origin, tags and footnotes: they are one card
+        self.assertEqual(({"doc_id": "d-123456", "title": "T"}, ["animals"]),
+                         (a["origin"], a["tags"]))
+        self.assertEqual((a["origin"], a["tags"], a["footnotes"]),
+                         (b["origin"], b["tags"], b["footnotes"]))
+        self.assertEqual([b["id"]], decks.get_item(*self.fs, a["id"])["mates"])
+        self.assertEqual(2, decks.get_deck(*self.fs, now=NOW)["counts"]["total"])
+        self.assertNotIn("both-repeat", a["markdown"] + b["markdown"])
+        # only a linked card's file carries the key
+        self.assertEqual(a["link"], self.on_disk(a["id"])["link"])
+        plain = decks.add_item(*self.fs, CHOICE, now=NOW)
+        self.assertNotIn("link", self.on_disk(plain["id"]))
+        self.assertEqual(([], None), (plain["mates"], plain["link"]))
+        self.assertNotIn("items", plain)
+
+    def test_the_queue_of_new_cards_keeps_front_before_back(self):
+        # made at one instant: a microsecond apart, else their random ids would order them
+        for n in range(5):
+            _s, fs = self.deck("Order %d" % n)
+            a, b = decks.add_item(*fs, PAIR, now=NOW)["items"]
+            self.assertEqual(a["id"], decks.next_card(*fs, now=NOW)["item"]["id"])
+
+    def test_both_random_is_stored_as_it_is(self):
+        made = decks.add_item(*self.fs, RANDOM_FACE, now=NOW)
+        self.assertNotIn("items", made)
+        self.assertEqual((RANDOM_FACE, "both-random", None, []),
+                         (made["markdown"], made["direction"], made["link"], made["mates"]))
+        self.assertEqual(1, len(decks.list_items(*self.fs)))
+
+    def test_a_pair_needs_no_second_look_at_a_card_that_is_not_a_flashcard(self):
+        made = decks.add_item(*self.fs, CHOICE.replace("prompt:", "direction: both-repeat\nprompt:"),
+                              now=NOW)
+        self.assertNotIn("items", made)
+        self.assertEqual(1, len(decks.list_items(*self.fs)))
+
+    def test_either_side_already_there_is_a_duplicate_unless_forced(self):
+        a, b = self.pair()
+        for markdown in (PAIR, FRONT_FIRST, BACK_FIRST):
+            with self.assertRaises(decks.Conflict) as e:
+                decks.add_item(*self.fs, markdown, now=NOW)
+            self.assertEqual("duplicate", e.exception.kind)
+        # one side left: the pair is still refused, for the side that is there
+        decks.delete_item(*self.fs, b["id"], linked="alone")
+        with self.assertRaises(decks.Conflict):
+            decks.add_item(*self.fs, PAIR, now=NOW)
+        forced = decks.add_item(*self.fs, PAIR, force=True, now=NOW)["items"]
+        self.assertEqual(3, len(decks.list_items(*self.fs)))
+        self.assertNotIn(forced[0]["link"], (a["link"], None))
+        self.assertEqual(forced[0]["link"], forced[1]["link"])
+        self.assertEqual([], self.by_id(a["id"])["mates"])
+
+    def test_copy_from_a_document_makes_the_pair_and_brings_its_picture_once(self):
+        meta = self.doc(PAIR.replace("back: cat", "back: cat\nfront-image: images/cat.png"),
+                        images={"cat.png": PNG})
+        out = decks.copy_from_doc(*self.fs, meta["id"], 1, "flashcard", meta["updated"], now=NOW)
+        a, b = out["items"]
+        self.assertEqual(a["id"], out["item"]["id"])
+        self.assertEqual([], out["warnings"])
+        self.assertEqual(("forward", "reverse"), (a["direction"], b["direction"]))
+        self.assertEqual(a["link"], b["link"])
+        self.assertEqual(({"doc_id": meta["id"], "doc_uid": meta["uid"], "title": "Doc", "ordinal": 1},) * 2,
+                         (a["origin"], b["origin"]))
+        self.assertEqual(["cat.png"], self.deck_images(self.fs))
+        with self.assertRaises(decks.Conflict) as e:
+            decks.copy_from_doc(*self.fs, meta["id"], 1, "flashcard", meta["updated"], now=NOW)
+        self.assertEqual("duplicate", e.exception.kind)
+        self.assertEqual(2, len(decks.list_items(*self.fs)))
+        again = decks.copy_from_doc(*self.fs, meta["id"], 1, "flashcard", meta["updated"],
+                                    force=True, now=NOW)
+        self.assertEqual(4, len(decks.list_items(*self.fs)))
+        self.assertNotEqual(a["link"], again["items"][0]["link"])
+        # a document's own card is one exercise, whatever it says
+        self.assertEqual(1, len(decks.exercise_blocks(store.get(meta["id"])[1])[1]))
+        # one exercise is still one item, with the same answer shape
+        plain = self.doc(CHOICE)
+        got = decks.copy_from_doc(*self.fs, plain["id"], 1, "single-choice", None, now=NOW)
+        self.assertEqual(([got["item"]["id"]], []), ([i["id"] for i in got["items"]], got["item"]["mates"]))
+
+    def test_pictures_from_the_clip_tray_come_in_once_for_both_sides(self):
+        self.in_tray({"cat.png": PNG})
+        a, b = self.pair(PAIR.replace("back: cat", "back: cat\nfront-image: images/cat.png"))
+        self.assertEqual(["cat.png"], self.deck_images(self.fs))
+        self.assertTrue(all("front-image: images/cat.png" in i["markdown"] for i in (a, b)))
+
+    def test_a_hand_written_both_repeat_item_is_kept_and_studied_front_first(self):
+        d = decks.deck_dir(*self.fs)
+        (d / "items").mkdir()
+        (d / "items" / ("a" * 12 + ".json")).write_text(json.dumps({
+            "id": "a" * 12, "created": NOW.isoformat(), "updated": NOW.isoformat(),
+            "markdown": PAIR, "footnotes": "", "origin": None}), encoding="utf-8")
+        item = decks.list_items(*self.fs)[0]
+        self.assertEqual(("both-repeat", []), (item["direction"], item["mates"]))
+        self.assertEqual("a" * 12, decks.next_card(*self.fs, now=NOW)["item"]["id"])
+        html = decks.render_item({"lang": "fa"}, item, "/media/", preview=False)
+        self.assertLess(html.index("گربه"), html.index("cat"))       # the front is the first face
+        # nothing but a deck's own add expands it: saving it leaves it whole
+        decks.update_item(*self.fs, "a" * 12, PAIR.replace("cat", "kitten"))
+        self.assertEqual(1, len(decks.list_items(*self.fs)))
+
+    def test_the_link_travels_in_an_export_a_backup_and_an_import(self):
+        a, b = self.pair()
+        plain = decks.add_item(*self.fs, CHOICE, now=NOW)["id"]
+        data, _name = decks.export_zip(*self.fs, True)
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            self.assertEqual(a["link"], json.loads(zf.read("items/%s.json" % a["id"]))["link"])
+            self.assertNotIn("link", json.loads(zf.read("items/%s.json" % plain)))
+        imported = decks.import_zip(data, mode="copy")["deck"]
+        copy_fs = (imported["folder"], imported["slug"])
+        got = decks.list_items(*copy_fs)
+        self.assertEqual({a["link"]}, {i["link"] for i in got if i["id"] in (a["id"], b["id"])})
+        self.assertEqual(3, len(got))
+        self.assertEqual(([b["id"]], [a["id"]]), tuple(next(i["mates"] for i in got if i["id"] == x)
+                                                       for x in (a["id"], b["id"])))
+        self.assertEqual([], next(i["mates"] for i in got if i["id"] == plain))
+        # a shelf backup put back over the deck
+        backup, _n = decks.backup_zip()
+        decks.delete_item(*self.fs, a["id"], linked="both")
+        self.assertEqual(1, len(decks.list_items(*self.fs)))
+        decks.restore_zip(backup, replace=True)
+        restored = decks.list_items(*self.fs)
+        self.assertEqual(([b["id"]], [a["id"]], []),
+                         tuple(next(i["mates"] for i in restored if i["id"] == x)
+                               for x in (a["id"], b["id"], plain)))
+        # a link that is not one is dropped, and a card left alone with it is not linked
+        bad = decks.export_zip(*self.fs, False)[0]
+        src = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(bad)) as zin, zipfile.ZipFile(src, "w") as zout:
+            for info in zin.infolist():
+                body = zin.read(info)
+                if info.filename == "items/%s.json" % a["id"]:
+                    body = json.dumps(dict(json.loads(body), link="not-a-link")).encode("utf-8")
+                zout.writestr(info.filename, body)
+        again = decks.import_zip(src.getvalue(), mode="copy")["deck"]
+        self.assertEqual([[], [], []], [i["mates"] for i in decks.list_items(again["folder"], again["slug"])])
+
+    def test_duplicate_gives_an_unlinked_copy(self):
+        a, b = self.pair()
+        copy = decks.duplicate_item(*self.fs, a["id"], now=NOW)
+        self.assertEqual(([], None, a["id"]), (copy["mates"], copy["link"], copy["origin"]["duplicate_of"]))
+        self.assertEqual([b["id"]], self.by_id(a["id"])["mates"])
+
+    def test_copy_and_move_carry_a_pair_whole_and_a_single_side_alone(self):
+        a, b = self.pair()
+        other, ofs = self.deck("Other")
+        # both sides, the back named first: they arrive in order, linked under a link of their own
+        out = decks.transfer_items(*self.fs, [b["id"], a["id"]], *ofs)
+        got = decks.list_items(*ofs)
+        self.assertEqual(["forward", "reverse"], [i["direction"] for i in got])
+        self.assertEqual(2, len(out["ids"]))
+        self.assertEqual(got[0]["link"], got[1]["link"])
+        self.assertNotEqual(a["link"], got[0]["link"])
+        self.assertEqual([[got[1]["id"]], [got[0]["id"]]], [i["mates"] for i in got])
+        self.assertEqual([b["id"]], self.by_id(a["id"])["mates"])               # the source is as it was
+        # one side: linked with nothing there, and still linked here
+        third, tfs = self.deck("Third")
+        decks.transfer_items(*self.fs, [a["id"]], *tfs)
+        (only,) = decks.list_items(*tfs)
+        self.assertEqual(([], None), (only["mates"], only["link"]))
+        self.assertEqual([b["id"]], self.by_id(a["id"])["mates"])
+        # a move of one side leaves the other, alone
+        fourth, ffs = self.deck("Fourth")
+        decks.transfer_items(*self.fs, [b["id"]], *ffs, move=True)
+        self.assertEqual([], self.by_id(a["id"])["mates"])
+        self.assertNotIn("link", self.on_disk(a["id"]))
+        # a move of both keeps them together, with their answers
+        _s, fs2 = self.deck("Five")
+        c, d = decks.add_item(*fs2, PAIR, now=NOW)["items"]
+        decks.review(*fs2, c["id"], "good", None, now=NOW)
+        _t, fs3 = self.deck("Six")
+        decks.transfer_items(*fs2, [c["id"], d["id"]], *fs3, move=True)
+        moved = decks.list_items(*fs3)
+        self.assertEqual((0, ["learning", "new"]), (len(decks.list_items(*fs2)),
+                                                    sorted(i["schedule"]["state"] for i in moved)))
+        self.assertEqual(moved[0]["link"], moved[1]["link"])
+
+    # ------------------------------------------------------------ editing
+
+    def test_an_edit_that_changes_a_linked_card_must_say_what_becomes_of_the_other(self):
+        a, b = self.pair()
+        changed = a["markdown"].replace("back: cat", "back: kitten")
+        with self.assertRaises(decks.Conflict) as e:
+            decks.update_item(*self.fs, a["id"], changed, now=NOW)
+        self.assertEqual("linked", e.exception.kind)
+        self.assertEqual({"mates": [{"id": b["id"], "excerpt": "گربه", "side": "back"}]},
+                         e.exception.detail)
+        self.assertEqual(a["markdown"], self.by_id(a["id"])["markdown"])
+        for bad in ("both ", "yes", True):
+            with self.assertRaises(decks.DeckError):
+                decks.update_item(*self.fs, a["id"], changed, linked=bad)
+        # written differently, but the same card: nothing to ask, nothing to spread
+        same = a["markdown"] + "\n\n"
+        decks.update_item(*self.fs, a["id"], same.replace("back: cat", "back:   cat"), now=NOW)
+        self.assertEqual([b["id"]], self.by_id(a["id"])["mates"])
+        self.assertEqual(BACK_FIRST, self.by_id(b["id"])["markdown"])
+
+    def test_change_both_writes_it_to_the_other_side_which_keeps_its_own_side(self):
+        a, b = self.pair()
+        decks.review(*self.fs, a["id"], "good", None, now=NOW)
+        schedule = (decks.deck_dir(*self.fs) / "schedule" / (a["id"] + ".json")).read_bytes()
+        later = NOW + timedelta(hours=1)
+        got = decks.update_item(*self.fs, a["id"], a["markdown"].replace("back: cat", "back: kitten"),
+                                now=later, linked="both")
+        self.assertEqual([b["id"]], got["mates"])
+        now_a, now_b = self.by_id(a["id"]), self.by_id(b["id"])
+        self.assertEqual(FRONT_FIRST.replace("cat", "kitten"), now_a["markdown"])
+        self.assertEqual(BACK_FIRST.replace("cat", "kitten"), now_b["markdown"])
+        self.assertEqual(later.isoformat(timespec="microseconds"), now_b["updated"])
+        self.assertEqual(a["link"], now_b["link"])
+        # nobody's answers moved
+        self.assertEqual(schedule, (decks.deck_dir(*self.fs) / "schedule" / (a["id"] + ".json")).read_bytes())
+        self.assertFalse((decks.deck_dir(*self.fs) / "schedule" / (b["id"] + ".json")).exists())
+        # which side a linked card shows is what makes the pair: an edit cannot turn one round
+        decks.update_item(*self.fs, a["id"], BACK_FIRST.replace("cat", "lion"), now=later, linked="both")
+        self.assertEqual(("forward", "reverse"), (self.by_id(a["id"])["direction"], self.by_id(b["id"])["direction"]))
+        self.assertIn("back: lion", self.by_id(b["id"])["markdown"])
+
+    def test_change_only_this_one_unlinks_the_two(self):
+        a, b = self.pair()
+        got = decks.update_item(*self.fs, b["id"], b["markdown"].replace("back: cat", "back: lion"),
+                                now=NOW, linked="alone")
+        self.assertEqual(([], None), (got["mates"], got["link"]))
+        self.assertIn("back: lion", self.by_id(b["id"])["markdown"])
+        self.assertIn("back: cat", self.by_id(a["id"])["markdown"])
+        self.assertEqual(([], []), (self.by_id(a["id"])["mates"], self.by_id(b["id"])["mates"]))
+        self.assertNotIn("link", self.on_disk(a["id"]))
+        self.assertNotIn("link", self.on_disk(b["id"]))
+        # and now an edit asks nothing
+        decks.update_item(*self.fs, a["id"], a["markdown"].replace("cat", "tiger"), now=NOW)
+        # turning a card round is a change too: allowed once it is alone
+        c, d = self.pair(PAIR.replace("cat", "dog"))
+        with self.assertRaises(decks.Conflict):
+            decks.update_item(*self.fs, c["id"], c["markdown"].replace("forward", "reverse"))
+        turned = decks.update_item(*self.fs, c["id"], c["markdown"].replace("forward", "reverse"),
+                                   linked="alone")
+        self.assertEqual("reverse", turned["direction"])
+
+    def test_three_linked_cards_lose_one_and_stay_two(self):
+        a, b = self.pair()
+        c = decks.add_item(*self.fs, BACK_FIRST.replace("cat", "cow"), now=NOW)
+        path = decks.deck_dir(*self.fs) / "items" / (c["id"] + ".json")
+        item = json.loads(path.read_text("utf-8"))
+        item["link"] = a["link"]
+        path.write_text(json.dumps(item), encoding="utf-8")
+        self.assertEqual(2, len(self.by_id(a["id"])["mates"]))
+        decks.update_item(*self.fs, c["id"], item["markdown"].replace("cow", "calf"), linked="alone")
+        self.assertEqual([b["id"]], self.by_id(a["id"])["mates"])
+        decks.update_item(*self.fs, a["id"], a["markdown"].replace("back: cat", "back: dog"), linked="both")
+        self.assertIn("back: dog", self.by_id(b["id"])["markdown"])
+        self.assertIn("calf", self.by_id(c["id"])["markdown"])
+
+    # ------------------------------------------------------------ deleting
+
+    def test_deleting_a_linked_card_asks_what_becomes_of_the_other(self):
+        a, b = self.pair()
+        with self.assertRaises(decks.Conflict) as e:
+            decks.delete_item(*self.fs, a["id"])
+        self.assertEqual(("linked", "back"), (e.exception.kind, e.exception.detail["mates"][0]["side"]))
+        self.assertEqual(2, len(decks.list_items(*self.fs)))
+        with self.assertRaises(decks.DeckError):
+            decks.delete_item(*self.fs, a["id"], linked="all")
+        self.assertEqual([a["id"]], decks.delete_item(*self.fs, a["id"], linked="alone"))
+        (left,) = decks.list_items(*self.fs)
+        self.assertEqual((b["id"], [], None), (left["id"], left["mates"], left["link"]))
+        self.assertNotIn("link", self.on_disk(b["id"]))
+        # an unlinked card is deleted as it always was
+        self.assertEqual([b["id"]], decks.delete_item(*self.fs, b["id"]))
+
+    def test_delete_both_takes_the_other_side_and_both_schedules(self):
+        a, b = self.pair()
+        decks.review(*self.fs, a["id"], "good", None, now=NOW)
+        decks.review(*self.fs, b["id"], "good", None, now=NOW)
+        gone = decks.delete_item(*self.fs, b["id"], linked="both")
+        self.assertEqual({a["id"], b["id"]}, set(gone))
+        d = decks.deck_dir(*self.fs)
+        self.assertEqual(([], []), (os.listdir(d / "items"), os.listdir(d / "schedule")))
+
+    def test_a_selection_asks_once_for_the_sides_it_leaves_behind(self):
+        a, b = self.pair()
+        c, e = self.pair(PAIR.replace("cat", "dog"))
+        with self.assertRaises(decks.Conflict) as caught:
+            decks.bulk_items(*self.fs, [a["id"], c["id"]], "delete")
+        self.assertEqual(("linked", 2, {b["id"], e["id"]}),
+                         (caught.exception.kind, caught.exception.detail["count"],
+                          {m["id"] for m in caught.exception.detail["mates"]}))
+        self.assertEqual(4, len(decks.list_items(*self.fs)))
+        # both sides of one pair, and nothing of the other: the whole selection is decided at once
+        with self.assertRaises(decks.Conflict):
+            decks.bulk_items(*self.fs, [a["id"], b["id"], c["id"]], "delete")
+        self.assertEqual(2, decks.bulk_items(*self.fs, [a["id"], b["id"]], "delete"))
+        self.assertEqual(2, decks.bulk_items(*self.fs, [c["id"]], "delete", linked="both"))
+        self.assertEqual([], decks.list_items(*self.fs))
+        p, q = self.pair(PAIR.replace("cat", "cow"))
+        r, s = self.pair(PAIR.replace("cat", "ox"))
+        self.assertEqual(2, decks.bulk_items(*self.fs, [p["id"], r["id"]], "delete", linked="alone"))
+        self.assertEqual([([], None), ([], None)], [(i["mates"], i["link"]) for i in decks.list_items(*self.fs)])
+
+    def test_tags_and_schedules_are_never_shared_between_the_sides(self):
+        a, b = self.pair()
+        decks.bulk_items(*self.fs, [a["id"]], "add-tag", "verbs")
+        self.assertEqual(([b["id"]], ["verbs"], []),
+                         (self.by_id(a["id"])["mates"], self.by_id(a["id"])["tags"], self.by_id(b["id"])["tags"]))
+        decks.review(*self.fs, a["id"], "good", None, now=NOW)
+        self.assertEqual(("new", "learning"), (self.by_id(b["id"])["schedule"]["state"],
+                                               self.by_id(a["id"])["schedule"]["state"]))
+        decks.bulk_items(*self.fs, [a["id"]], "set-new")
+        self.assertEqual([b["id"]], self.by_id(a["id"])["mates"])
+
+    # ------------------------------------------------------------ burying
+
+    def test_answering_one_side_buries_the_other_until_the_next_day(self):
+        a, b = self.pair()
+        self.assertEqual(({"new": 2, "learning": 0, "review": 0}, 0),
+                         (lambda n: (n["counts"], n["buried"]))(decks.next_card(*self.fs, now=NOW)))
+        decks.review(*self.fs, a["id"], "easy", None, now=NOW)
+        n = decks.next_card(*self.fs, now=NOW + timedelta(minutes=5))
+        self.assertEqual((True, None, 1, {"new": 0, "learning": 0, "review": 0}, TOMORROW_ROLLOVER),
+                         (n["done"], n["item"], n["buried"], n["counts"], n["next_due"]))
+        summary = decks.get_deck(*self.fs, now=NOW + timedelta(minutes=5))
+        self.assertEqual(({"new": 0, "learning": 0, "review": 0}, 1),
+                         (summary["study"], summary["counts"]["new"]))
+        # the day starts at the rollover, not at midnight
+        self.assertTrue(decks.next_card(*self.fs, now=datetime(2026, 9, 15, 3, 59, tzinfo=TEHRAN))["done"])
+        n = decks.next_card(*self.fs, now=LATER)
+        self.assertEqual((b["id"], 0), (n["item"]["id"], n["buried"]))
+        # ... and answering it buries nothing: the front is not due for days
+        decks.review(*self.fs, b["id"], "easy", None, now=LATER)
+        self.assertTrue(decks.next_card(*self.fs, now=LATER)["done"])
+        self.assertEqual(0, decks.next_card(*self.fs, now=LATER)["buried"])
+
+    def test_a_learning_step_buries_too_and_the_card_itself_comes_back(self):
+        a, b = self.pair()
+        decks.review(*self.fs, a["id"], "again", None, now=NOW)
+        n = decks.next_card(*self.fs, now=NOW + timedelta(minutes=2))
+        self.assertEqual((a["id"], 1), (n["item"]["id"], n["buried"]))
+        decks.review(*self.fs, a["id"], "good", None, now=NOW + timedelta(minutes=2))
+        n = decks.next_card(*self.fs, now=NOW + timedelta(minutes=13))
+        self.assertEqual((a["id"], 1), (n["item"]["id"], n["buried"]))
+
+    def test_a_side_that_is_not_due_is_not_touched(self):
+        a, b = self.pair()
+        decks.review(*self.fs, b["id"], "easy", None, now=NOW - timedelta(days=1))
+        decks.review(*self.fs, a["id"], "easy", None, now=NOW)
+        n = decks.next_card(*self.fs, now=NOW)
+        self.assertEqual((True, 0), (n["done"], n["buried"]))                # b is due in days anyway
+
+    def test_unlinked_cards_are_never_buried(self):
+        x = decks.add_item(*self.fs, CHOICE, now=NOW)["id"]
+        y = decks.add_item(*self.fs, FLASH, now=NOW + timedelta(seconds=1))["id"]
+        decks.review(*self.fs, x, "easy", None, now=NOW)
+        n = decks.next_card(*self.fs, now=NOW)
+        self.assertEqual((y, 0), (n["item"]["id"], n["buried"]))
+
+    def test_the_hold_ends_when_the_other_side_is_unlinked_deleted_or_set_new(self):
+        for how in ("edited alone", "deleted alone", "set new", "deleted both"):
+            _s, fs = self.deck("Hold %s" % how)
+            a, b = decks.add_item(*fs, PAIR, now=NOW)["items"]
+            decks.review(*fs, a["id"], "easy", None, now=NOW)
+            self.assertTrue(decks.next_card(*fs, now=NOW)["done"], how)
+            if how == "edited alone":
+                decks.update_item(*fs, b["id"], b["markdown"].replace("cat", "dog"), linked="alone")
+            elif how == "deleted alone":
+                decks.delete_item(*fs, a["id"], linked="alone")
+            elif how == "set new":
+                decks.bulk_items(*fs, [a["id"]], "set-new")
+            else:
+                decks.delete_item(*fs, a["id"], linked="both")
+            n = decks.next_card(*fs, now=NOW)
+            self.assertEqual(how == "deleted both", n["done"], how)
+            # set new: the front is new again, and comes first; the back is offered with it
+            if how != "deleted both":
+                self.assertEqual(a["id"] if how == "set new" else b["id"], n["item"]["id"], how)
+                self.assertEqual(0, n["buried"], how)
+
+    def test_the_hold_does_not_use_up_a_days_new_cards(self):
+        decks.update_deck(*self.fs, settings={"new_per_day": 2})
+        a, b = self.pair()
+        c = decks.add_item(*self.fs, CHOICE, now=NOW + timedelta(seconds=1))["id"]
+        decks.review(*self.fs, a["id"], "easy", None, now=NOW)
+        n = decks.next_card(*self.fs, now=NOW)
+        self.assertEqual((c, {"new": 1, "learning": 0, "review": 0}, 1), (n["item"]["id"], n["counts"], n["buried"]))
+        decks.review(*self.fs, c, "easy", None, now=NOW)
+        self.assertTrue(decks.next_card(*self.fs, now=NOW)["done"])
+        # tomorrow: the limit is fresh, and the back is the one new card
+        self.assertEqual(b["id"], decks.next_card(*self.fs, now=LATER)["item"]["id"])
+
+    def test_skipping_a_side_does_not_bury_the_other(self):
+        a, b = self.pair()
+        n = decks.next_card(*self.fs, now=NOW, skip=[a["id"]])
+        self.assertEqual((b["id"], 0), (n["item"]["id"], n["buried"]))
+
+    def test_cramming_ignores_the_hold(self):
+        a, b = self.pair()
+        decks.review(*self.fs, a["id"], "easy", None, now=NOW)
+        self.assertEqual([a["id"], b["id"]], [i["id"] for i in decks.cram_items(*self.fs, [a["id"], b["id"]])])
+
+    def test_an_answer_replayed_from_a_phone_buries_by_the_day_it_was_given(self):
+        a, b = self.pair()
+        decks.review(*self.fs, a["id"], "easy", None, now=NOW - timedelta(days=1), by="phone")
+        self.assertEqual(b["id"], decks.next_card(*self.fs, now=NOW)["item"]["id"])
+        decks.review(*self.fs, b["id"], "easy", None, now=NOW, by="phone")
+        self.assertEqual(0, decks.next_card(*self.fs, now=NOW)["buried"])
+
+
+class DirectionLineTests(unittest.TestCase):
+    """mdparser.set_block_direction: the line the PARSER read as the
+    `direction` field is the one rewritten -- never one a search of the text
+    finds, for the two can disagree."""
+
+    def check(self, source, want_line=None, value="reverse"):
+        import mdparser
+        out = mdparser.set_block_direction(source, value)
+        _fm, blocks = mdparser.parse(out)
+        self.assertEqual(1, len(blocks))
+        self.assertEqual(([], value), (blocks[0]["errors"], blocks[0]["fields"]["direction"]))
+        if want_line is not None:
+            self.assertEqual(want_line, out)
+        return out
+
+    def test_a_line_is_replaced_in_place_a_missing_one_goes_under_the_opening(self):
+        self.check(":::exercise flashcard\nfront: a\ndirection: both-repeat\nback: b\n:::",
+                   ":::exercise flashcard\nfront: a\ndirection: reverse\nback: b\n:::")
+        self.check(":::exercise flashcard\nfront: a\nback: b\n:::",
+                   ":::exercise flashcard\ndirection: reverse\nfront: a\nback: b\n:::")
+        self.check(":::exercise flashcard\nfront: a\ndirection:     forward   \nback: b\n:::",
+                   ":::exercise flashcard\nfront: a\ndirection: reverse\nback: b\n:::")
+        # around it, as written: blank lines, an indented line, CRLF
+        self.check("\n\n:::exercise flashcard\n  direction: both-repeat\nfront: a\nback: b\n:::\n",
+                   "\n\n:::exercise flashcard\n  direction: reverse\nfront: a\nback: b\n:::\n")
+        self.check(":::exercise flashcard\r\nfront: a\r\ndirection: both-repeat\r\nback: b\r\n:::",
+                   ":::exercise flashcard\nfront: a\ndirection: reverse\nback: b\n:::")
+
+    def test_a_block_written_direction_pipe_becomes_one_line(self):
+        self.check(":::exercise flashcard\nfront: a\ndirection: |\n  both-repeat\nback: b\n:::",
+                   ":::exercise flashcard\nfront: a\ndirection: reverse\nback: b\n:::")
+        self.check(":::exercise flashcard\nfront: a\nback: b\ndirection: |\n:::",
+                   ":::exercise flashcard\nfront: a\nback: b\ndirection: reverse\n:::")
+
+    def test_the_line_the_parser_reads_is_the_one_rewritten(self):
+        # the parser takes an unindented `direction:` under a card's own field as the field
+        # (it is a line that starts with a key), so that is the line to change -- and a
+        # `direction:` that only looks like one, inside another field's block, is left alone
+        jolly = ":::exercise flashcard\ncard-type: jolly\nfront-primary: a\n  direction: x\nback-primary: b\n:::"
+        self.check(jolly, jolly.replace("direction: x", "direction: reverse"))
+        inside = (":::exercise flashcard\ncard-type: jolly\nfront-primary: |\n  the word direction: here\n"
+                  "  is text\nback-primary: b\n:::")
+        self.check(inside, inside.replace(":::exercise flashcard\n",
+                                          ":::exercise flashcard\ndirection: reverse\n", 1))
+        # the last of two is the one the parser keeps
+        twice = ":::exercise flashcard\ndirection: forward\nfront: a\ndirection: both-repeat\nback: b\n:::"
+        self.assertEqual(":::exercise flashcard\ndirection: forward\nfront: a\ndirection: reverse\nback: b\n:::",
+                         self.check(twice))
+
+    def test_what_it_refuses(self):
+        import mdparser
+        for value in ("Reverse", "", "two words", "-x", None, 3):
+            with self.assertRaises(ValueError):
+                mdparser.set_block_direction(":::exercise flashcard\nfront: a\nback: b\n:::", value)
+        for text in ("just words", "", "# heading\n\n> :::exercise flashcard\n> front: a\n> back: b\n> :::"):
+            with self.assertRaises(ValueError):
+                mdparser.set_block_direction(text, "reverse")
+        # the first exercise of a text, wherever it stands
+        text = "# heading\n\n:::exercise flashcard\nfront: a\nback: b\n:::\n"
+        self.assertEqual("# heading\n\n:::exercise flashcard\ndirection: reverse\nfront: a\nback: b\n:::\n",
+                         mdparser.set_block_direction(text, "reverse"))
+
 
 if __name__ == "__main__":
     unittest.main()

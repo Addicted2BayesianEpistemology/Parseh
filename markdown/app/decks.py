@@ -10,7 +10,7 @@ being written and a deck can be read and repaired by hand:
         deck.json            {"format", "id", "name", "lang", "created",
                               "updated", "settings": only what differs}
         items/<id>.json      {"id", "created", "updated", "markdown",
-                              "footnotes", "origin"}
+                              "footnotes", "origin", "tags", "link"?}
         schedule/<id>.json   {"state": srs state, "history": [...]}
                              (missing: the exercise is new)
         images/<name>        flashcard pictures, a PDF's .pdf.svg twin
@@ -35,7 +35,7 @@ import threading
 import unicodedata
 import zipfile
 import zlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import htmlgen          # first: it puts exlex/ (mdparser, texgen) and lib/ on sys.path
@@ -116,11 +116,18 @@ class Conflict(DeckError):
     kind: "exists" (an imported deck is already here), "duplicate" (the
     exercise is already in the deck), "stale" (the page copied from is out
     of date), "reviewed" (the answer is for a state the exercise has left:
-    it was answered already, in another tab or by a retried request)."""
+    it was answered already, in another tab or by a retried request),
+    "linked" (the exercise is one side of a linked pair, and what was asked
+    changes it: say whether the other side goes with it -- `linked`, "both"
+    or "alone").
 
-    def __init__(self, message, kind):
+    detail: what the page may need to ask the question well, sent beside the
+    kind (a "linked" conflict names the other sides)."""
+
+    def __init__(self, message, kind, detail=None):
         super().__init__(message)
         self.kind = kind
+        self.detail = detail
 
 
 def set_dir(path):
@@ -409,13 +416,25 @@ def _read_item(d, item_id):
     item = _read_json(d / "items" / (item_id + ".json"))
     if item is None or not isinstance(item.get("markdown"), str):
         return None
-    return {"id": item_id,
-            "created": item["created"] if isinstance(item.get("created"), str) else "",
-            "updated": item["updated"] if isinstance(item.get("updated"), str) else "",
-            "markdown": item["markdown"],
-            "footnotes": item["footnotes"] if isinstance(item.get("footnotes"), str) else "",
-            "origin": item["origin"] if isinstance(item.get("origin"), dict) else None,
-            "tags": _clean_tags(item.get("tags"))}
+    out = {"id": item_id,
+           "created": item["created"] if isinstance(item.get("created"), str) else "",
+           "updated": item["updated"] if isinstance(item.get("updated"), str) else "",
+           "markdown": item["markdown"],
+           "footnotes": item["footnotes"] if isinstance(item.get("footnotes"), str) else "",
+           "origin": item["origin"] if isinstance(item.get("origin"), dict) else None,
+           "tags": _clean_tags(item.get("tags"))}
+    link = _clean_link(item.get("link"))
+    if link:                # only a linked card carries the key: the files of the rest are as they were
+        out["link"] = link
+    return out
+
+
+def _clean_link(value):
+    """The id two linked cards share (a both-repeat flashcard's front-first
+    and back-first sides), or None.  A group id needs no partner to be
+    valid: a card whose other side is gone is a group of one, which is not
+    linked at all (_group_of)."""
+    return value if isinstance(value, str) and ITEM_RE.fullmatch(value) else None
 
 
 def _clean_tags(value):
@@ -445,6 +464,45 @@ def _load_items(d):
     items = [i for i in (_read_item(d, x) for x in _item_ids(d)) if i is not None]
     items.sort(key=_created_key)
     return items
+
+
+def _groups(items):
+    """{link id: the ids sharing it, in the order the items are given} for
+    every link that more than one exercise holds."""
+    found = {}
+    for item in items:
+        if item.get("link"):
+            found.setdefault(item["link"], []).append(item["id"])
+    return {link: ids for link, ids in found.items() if len(ids) > 1}
+
+
+def _group_of(d, item):
+    """The OTHER exercises linked with `item`, as items (oldest first);
+    none for an exercise no other holds the link of."""
+    link = item.get("link")
+    if not link:
+        return []
+    found = [i for i in (_read_item(d, x) for x in _item_ids(d))
+             if i is not None and i.get("link") == link and i["id"] != item["id"]]
+    found.sort(key=_created_key)
+    return found
+
+
+def _unlink_lonely(d, links):
+    """A group of one is no group: the last exercise still holding one of
+    `links` lets go of it (its `updated` stays: it was not edited)."""
+    links = set(x for x in links if x)
+    if not links:
+        return
+    held = {}
+    for x in _item_ids(d):
+        item = _read_item(d, x)
+        if item is not None and item.get("link") in links:
+            held.setdefault(item["link"], []).append(item)
+    for members in held.values():
+        if len(members) == 1:
+            members[0].pop("link", None)
+            _write_json(d / "items" / (members[0]["id"] + ".json"), members[0])
 
 
 def _read_schedule(d, item_id):
@@ -700,7 +758,20 @@ def _excerpt(block):
     return ""
 
 
-def _item_summary(item, sched, code):
+def _side(block):
+    """The side a flashcard shows first, as it is written: "reverse",
+    "both-random", "both-repeat", "forward" -- "" for an exercise that is
+    not a flashcard or says nothing."""
+    if block is None or block["primitive"] != "flashcard":
+        return ""
+    return (block["fields"].get("direction") or "").strip().lower()
+
+
+def _item_summary(item, sched, code, mates=()):
+    """`mates`: the ids of the exercises linked with this one.  A summary
+    carries `link` only when there are some (a card whose other side is gone
+    is not linked), and `direction`, the side written on a flashcard, for
+    the badge that tells the two sides apart."""
     try:
         _md, block, errors, _problem = _examine(item["markdown"], code)
     except DeckError as e:
@@ -709,6 +780,8 @@ def _item_summary(item, sched, code):
     state = sched["state"]
     return {"id": item["id"], "subtype": subtype,
             "primitive": block["primitive"] if block else "",
+            "direction": _side(block),
+            "link": item.get("link") if mates else None, "mates": list(mates),
             "label": htmlgen.EXERCISE_LABELS.get(subtype, subtype or "Exercise"),
             "excerpt": _excerpt(block), "markdown": item["markdown"],
             "footnotes": item["footnotes"], "errors": errors,
@@ -720,11 +793,21 @@ def _item_summary(item, sched, code):
 
 # ---------------------------------------------------------------- decks
 
+def _buried(items, scheds, now, cfg):
+    """The ids held back until the next day starts: the other side of a
+    linked pair, when one side was answered today (srs.buried_today).  Read
+    from the answers themselves, so a deck holds nothing more for it."""
+    groups = list(_groups(items).values())
+    if not groups:
+        return set()
+    return srs.buried_today(groups, {i: s["history"] for i, s in scheds.items()}, now, cfg)
+
+
 def _deck_summary(d, meta, now):
     L = _deck_language(d)
     cfg = _settings(meta)
     counts = {"total": 0, "new": 0, "learning": 0, "review": 0}
-    entries, histories = [], []
+    entries, histories, items, scheds = [], [], [], {}
     for item in _load_items(d):
         sched = _read_schedule(d, item["id"])
         name = _state_name(sched["state"])
@@ -732,7 +815,10 @@ def _deck_summary(d, meta, now):
         counts["learning" if name == "relearning" else name] += 1
         entries.append((item["id"], item["created"], sched["state"]))
         histories.append(sched["history"])
-    q = srs.queue(entries, now, cfg, srs.today_counts(histories, now, cfg))
+        items.append(item)
+        scheds[item["id"]] = sched
+    q = srs.queue(entries, now, cfg, srs.today_counts(histories, now, cfg),
+                  _buried(items, scheds, now, cfg))
     return {"id": meta["id"], "name": meta["name"], "lang": L.code, "language": L.name,
             "folder": L.folder, "slug": d.name, "path": "%s/%s" % (L.folder, d.name),
             "created": meta.get("created", ""), "updated": meta.get("updated", ""),
@@ -834,31 +920,73 @@ def list_items(folder, slug):
     d = deck_dir(folder, slug)
     _need_deck(d)
     code = _deck_language(d).code
-    return [_item_summary(item, _read_schedule(d, item["id"]), code)
-            for item in _load_items(d)]
+    items = _load_items(d)
+    groups = _groups(items)
+    return [_item_summary(item, _read_schedule(d, item["id"]), code,
+                          [x for x in groups.get(item.get("link"), ()) if x != item["id"]])
+            for item in items]
 
 
 def get_item(folder, slug, item_id):
     d = deck_dir(folder, slug)
     _need_deck(d)
     item = _need_item(d, item_id)
-    return _item_summary(item, _read_schedule(d, item["id"]), _deck_language(d).code)
+    return _item_summary(item, _read_schedule(d, item["id"]), _deck_language(d).code,
+                         [x["id"] for x in _group_of(d, item)])
 
 
-def _refuse_duplicate(d, meta, markdown):
-    key = _dup_key(markdown)
-    if any(_dup_key(item["markdown"]) == key for item in _load_items(d)):
+def _refuse_duplicate(d, meta, *markdowns):
+    keys = set(_dup_key(m) for m in markdowns)
+    if any(_dup_key(item["markdown"]) in keys for item in _load_items(d)):
         raise Conflict('this exercise is already in "%s"' % meta["name"], "duplicate")
 
 
-def _insert(d, meta, md, notes, origin, now, tags=None):
-    item_id = _new_item_id(d)
+def _faces(md, block, code):
+    """The markdown that goes into the deck for one exercise: itself, or --
+    a flashcard written `direction: both-repeat` -- its two sides, the one
+    that shows the front first and the one that shows the back first, each
+    with the line written out.  Only a deck expands it: an exercise in a
+    studio document is one exercise, whatever it says."""
+    if _side(block) != "both-repeat":
+        return [md]
+    faces = []
+    for side in ("forward", "reverse"):
+        face, _block, _errors, problem = _examine(mdparser.set_block_direction(md, side), code)
+        if problem:
+            raise DeckError(problem)
+        faces.append(face)
+    return faces
+
+
+def _insert(d, meta, md, notes, origin, now, tags=None, link=None, mates=(), item_id=None):
+    item_id = item_id or _new_item_id(d)
     stamp = _stamp(now)
     item = {"id": item_id, "created": stamp, "updated": stamp, "markdown": md,
             "footnotes": notes, "origin": _clean_origin(origin), "tags": _clean_tags(tags)}
+    if link:
+        item["link"] = link
     _write_json(d / "items" / (item_id + ".json"), item)
     _touch(d, meta, now)
-    return _item_summary(item, _read_schedule(d, item_id), _deck_language(d).code)
+    return _item_summary(item, _read_schedule(d, item_id), _deck_language(d).code, mates)
+
+
+def _insert_all(d, meta, faces, notes, origin, now, tags=None):
+    """Every exercise goes into a deck through here: -> its summaries, one
+    for an exercise, two -- linked, the front-first side before the
+    back-first -- for a both-repeat flashcard (_faces).  The second is made
+    one microsecond after the first, so Browse and the queue of new cards,
+    which sort by that time, keep their order (two of one time would sort by
+    their random ids)."""
+    if len(faces) == 1:
+        return [_insert(d, meta, faces[0], notes, origin, now, tags)]
+    link, first_id = secrets.token_hex(6), _new_item_id(d)
+    second_id = _new_item_id(d)
+    while second_id == first_id:
+        second_id = _new_item_id(d)
+    first = _insert(d, meta, faces[0], notes, origin, now, tags, link, [second_id], first_id)
+    second = _insert(d, meta, faces[1], notes, origin, now + timedelta(microseconds=1), tags,
+                     link, [first_id], second_id)
+    return [first, second]
 
 
 def add_item(folder, slug, markdown, footnotes="", origin=None, force=False, now=None,
@@ -868,7 +996,11 @@ def add_item(folder, slug, markdown, footnotes="", origin=None, force=False, now
 
     The pictures and recordings it names that the deck lacks come in from the
     clip tray when they are there (_adopt); the answer's "warnings" name what
-    is still missing."""
+    is still missing.
+
+    A flashcard written `direction: both-repeat` goes in as TWO exercises
+    (_insert_all), linked: the answer is the first, with both under "items"
+    (a key only such an answer has)."""
     if tags is not None and (not isinstance(tags, list) or
                              any(not isinstance(tag, str) or not _text_ok(tag)
                                  for tag in tags)):
@@ -878,15 +1010,18 @@ def add_item(folder, slug, markdown, footnotes="", origin=None, force=False, now
     with _lock(d):
         meta = _need_deck(d)
         code = _deck_language(d).code
-        md, _block, _errors, problem = _examine(markdown, code)
+        md, block, _errors, problem = _examine(markdown, code)
         if problem:
             raise DeckError(problem)
         md, notes, copies = _adopt(d, md, _clean_footnotes(footnotes, md), code)
+        faces = _faces(md, block, code)
         if not force:
-            _refuse_duplicate(d, meta, md)
+            _refuse_duplicate(d, meta, *faces)
         _make_copies(d, copies)
-        summary = _insert(d, meta, md, notes, origin, now, tags)
-        summary["warnings"] = _missing_media(d, md, notes)
+        made = _insert_all(d, meta, faces, notes, origin, now, tags)
+        summary = dict(made[0], warnings=_missing_media(d, md, notes))
+        if len(made) > 1:
+            summary["items"] = made
         return summary
 
 
@@ -1033,32 +1168,102 @@ def _adopt(d, md, notes, code):
     return new_md, new_notes, copies
 
 
-def update_item(folder, slug, item_id, markdown, now=None):
+def _card_key(block):
+    """What makes an exercise the card it is, but for the side it shows
+    first: its type, its fields and its answers as the parser read them."""
+    if block is None:
+        return None
+    return (block["subtype"],
+            {k: v for k, v in block["fields"].items() if k != "direction"},
+            {k: v for k, v in block["raw_fields"].items() if k != "direction"},
+            block["items"])
+
+
+def _mates_detail(mates, code):
+    """What a "linked" conflict tells the page about the other sides."""
+    rows = []
+    for mate in mates:
+        try:
+            _md, block, _errors, _problem = _examine(mate["markdown"], code)
+        except DeckError:
+            block = None
+        rows.append({"id": mate["id"], "excerpt": _excerpt(block),
+                     "side": "back" if _side(block) == "reverse" else "front"})
+    return {"mates": rows}
+
+
+def _keep_side(md, side, code):
+    """`md`, an exercise, showing `side` first ("" for a card that says
+    nothing, which is the front)."""
+    _md, block, _errors, _problem = _examine(md, code)
+    if _side(block) == side:
+        return md
+    kept, _block, _errors, problem = _examine(
+        mdparser.set_block_direction(md, side or "forward"), code)
+    if problem:
+        raise DeckError(problem)
+    return kept
+
+
+def _need_linked(linked):
+    if linked not in (None, "both", "alone"):
+        raise DeckError('linked must be "both" or "alone"')
+
+
+def update_item(folder, slug, item_id, markdown, now=None, linked=None):
     """New markdown for an exercise.  Its origin and its schedule stay; the
     footnote definitions it no longer refers to go.  What it names and the
-    deck lacks comes in from the clip tray, as on add_item."""
+    deck lacks comes in from the clip tray, as on add_item.
+
+    An exercise that is one side of a linked pair may not be changed without
+    saying what becomes of the other: Conflict("linked") when the card
+    itself changes and `linked` is not given.  "both" writes the change to
+    the other side too -- each keeps the side it shows first; "alone"
+    changes this one only, and the two are linked no more.  Formatting is not
+    a change, and saves as it always did."""
+    _need_linked(linked)
     now = _clock(now)
     d = deck_dir(folder, slug)
     with _lock(d):
         meta = _need_deck(d)
         code = _deck_language(d).code
         item = _need_item(d, item_id)
-        md, _block, _errors, problem = _examine(markdown, code)
+        md, block, _errors, problem = _examine(markdown, code)
         if problem:
             raise DeckError(problem)
-        md, notes, copies = _adopt(d, md, _footnotes_for(md, _footnote_defs(item["footnotes"])),
-                                   code)
-        _make_copies(d, copies)
-        item.update(markdown=md, updated=_stamp(now), footnotes=notes)
-        _write_json(d / "items" / (item["id"] + ".json"), item)
+        mates = _group_of(d, item)
+        was = _examine(item["markdown"], code)[1]
+        if mates and linked is None and (_card_key(was) != _card_key(block)
+                                         or _side(was) != _side(block)):
+            raise Conflict("this exercise is linked with another: is the change "
+                           "for both of them?", "linked", _mates_detail(mates, code))
+        both, alone = bool(mates) and linked == "both", bool(mates) and linked == "alone"
+        defs = {}
+        for x in (mates if both else []) + [item]:
+            defs.update(_footnote_defs(x["footnotes"]))
+        targets = [(item, _keep_side(md, _side(was), code) if both else md)]
+        if both:
+            targets += [(m, _keep_side(md, _side(_examine(m["markdown"], code)[1]), code))
+                        for m in mates]
+        for target, text in targets:
+            text, notes, copies = _adopt(d, text, _footnotes_for(text, defs), code)
+            _make_copies(d, copies)
+            target.update(markdown=text, updated=_stamp(now), footnotes=notes)
+            if alone and target is item:
+                target.pop("link", None)
+            _write_json(d / "items" / (target["id"] + ".json"), target)
+        if alone:
+            _unlink_lonely(d, [mates[0].get("link")])
         _touch(d, meta, now)
-        summary = _item_summary(item, _read_schedule(d, item["id"]), code)
-        summary["warnings"] = _missing_media(d, md, notes)
+        summary = _item_summary(item, _read_schedule(d, item["id"]), code,
+                                [m["id"] for m in mates] if not alone else [])
+        summary["warnings"] = _missing_media(d, item["markdown"], item["footnotes"])
         return summary
 
 
 def duplicate_item(folder, slug, item_id, now=None):
-    """A copy with a new id and a fresh schedule; origin says what it copies."""
+    """A copy with a new id and a fresh schedule; origin says what it copies.
+    The copy is linked with nothing, whatever the original is."""
     now = _clock(now)
     d = deck_dir(folder, slug)
     with _lock(d):
@@ -1069,17 +1274,30 @@ def duplicate_item(folder, slug, item_id, now=None):
                        src["tags"])
 
 
-def delete_item(folder, slug, item_id):
+def _remove(d, item):
+    (d / "items" / (item["id"] + ".json")).unlink()
+    (d / "schedule" / (item["id"] + ".json")).unlink(missing_ok=True)
+
+
+def delete_item(folder, slug, item_id, linked=None):
+    """Delete one exercise -> the ids that went.  An exercise with another
+    side is a Conflict("linked") until `linked` says whether that goes too
+    ("both") or stays, linked with nothing ("alone")."""
+    _need_linked(linked)
     d = deck_dir(folder, slug)
     with _lock(d):
         meta = _need_deck(d)
         item = _need_item(d, item_id)
-        (d / "items" / (item["id"] + ".json")).unlink()
-        try:
-            (d / "schedule" / (item["id"] + ".json")).unlink()
-        except FileNotFoundError:
-            pass
+        mates = _group_of(d, item)
+        if mates and linked is None:
+            raise Conflict("this exercise is linked with another: delete both?",
+                           "linked", _mates_detail(mates, _deck_language(d).code))
+        gone = [item] + (mates if linked == "both" else [])
+        for x in gone:
+            _remove(d, x)
+        _unlink_lonely(d, [item.get("link")])
         _touch(d, meta, _clock())
+        return [x["id"] for x in gone]
 
 
 def _selected_items(d, ids):
@@ -1090,20 +1308,53 @@ def _selected_items(d, ids):
     return [_need_item(d, item_id) for item_id in ids]
 
 
-def bulk_items(folder, slug, ids, action, tag=None):
-    """Delete, reset scheduling, or change tags on selected exercises."""
+def _with_other_sides(d, chosen, linked):
+    """`chosen`, for a deletion: an exercise picked while its other side is
+    not is a Conflict("linked") -- once, for the whole selection -- until
+    `linked` says the other sides go too ("both") or stay ("alone")."""
+    if not any(item.get("link") for item in chosen):
+        return chosen
+    everything = {i["id"]: i for i in _load_items(d)}
+    groups = _groups(everything.values())
+    picked = set(i["id"] for i in chosen)
+    outside = []
+    for item in chosen:
+        for x in groups.get(item.get("link"), ()):
+            if x not in picked:
+                picked.add(x)
+                outside.append(everything[x])
+    if not outside:
+        return chosen
+    if linked is None:
+        # the page names a few of them, and says how many there are
+        detail = _mates_detail(outside[:5], _deck_language(d).code)
+        detail["count"] = len(outside)
+        raise Conflict("the other side of %d of the selected exercises is not selected"
+                       % len(outside), "linked", detail)
+    return chosen + outside if linked == "both" else chosen
+
+
+def bulk_items(folder, slug, ids, action, tag=None, linked=None):
+    """Delete, reset scheduling, or change tags on selected exercises -> how
+    many were changed (a deletion counts the other sides that went too).
+
+    A deletion that would leave the other side of a linked pair behind is
+    a Conflict("linked") until `linked` says ("both" or "alone") what
+    becomes of them; only a deletion asks."""
     if action not in ("delete", "set-new", "add-tag", "remove-tag"):
         raise DeckError("unknown bulk exercise action")
+    _need_linked(linked)
     cleaned = _one_tag(tag) if action in ("add-tag", "remove-tag") else None
     d = deck_dir(folder, slug)
     with _lock(d):
         meta = _need_deck(d)
         chosen = _selected_items(d, ids)
+        if action == "delete":
+            chosen = _with_other_sides(d, chosen, linked)
         for item in chosen:
             path = d / "items" / (item["id"] + ".json")
             if action == "delete":
-                path.unlink()
-                (d / "schedule" / (item["id"] + ".json")).unlink(missing_ok=True)
+                _remove(d, item)
             elif action == "set-new":
                 (d / "schedule" / (item["id"] + ".json")).unlink(missing_ok=True)
             else:
@@ -1114,6 +1365,8 @@ def bulk_items(folder, slug, ids, action, tag=None):
                     tags.discard(cleaned)
                 item["tags"] = sorted(tags)
                 _write_json(path, item)
+        if action == "delete":
+            _unlink_lonely(d, [item.get("link") for item in chosen])
         _touch(d, meta, _clock())
         return len(chosen)
 
@@ -1134,7 +1387,12 @@ def _from_deck(d):
 
 
 def transfer_items(folder, slug, ids, target_folder, target_slug, move=False):
-    """Copy selected exercises to another deck; a move retains scheduling."""
+    """Copy selected exercises to another deck; a move retains scheduling.
+
+    Both sides of a linked pair among them arrive as a linked pair (under a
+    link of their own: a link never crosses decks); a side chosen without
+    the other arrives linked with nothing, and a move leaves the side it did
+    not take unlinked."""
     src, dst = deck_dir(folder, slug), deck_dir(target_folder, target_slug)
     if src == dst:
         raise DeckError("choose another deck")
@@ -1147,11 +1405,16 @@ def transfer_items(folder, slug, ids, target_folder, target_slug, move=False):
         now = _clock()
         copied, warnings = [], []
         fetch = _from_deck(src)
-        for item in chosen:
+        pairs = _groups(chosen)
+        links = {link: secrets.token_hex(6) for link in pairs}
+        for n, item in enumerate(sorted(chosen, key=_created_key) if pairs else chosen):
             (md, notes), media, warn = _plan_media(
                 dst, (item["markdown"], item["footnotes"]), fetch)
             _make_copies(dst, media)
-            made = _insert(dst, dst_meta, md, notes, item["origin"], now, item["tags"])
+            # one microsecond apart when sides are carried: they keep their order
+            made = _insert(dst, dst_meta, md, notes, item["origin"],
+                           now + timedelta(microseconds=n) if pairs else now, item["tags"],
+                           links.get(item.get("link")))
             if move:
                 schedule = src / "schedule" / (item["id"] + ".json")
                 if schedule.is_file():
@@ -1162,6 +1425,7 @@ def transfer_items(folder, slug, ids, target_folder, target_slug, move=False):
             copied.append(made["id"])
             warnings.extend(warn)
         if move:
+            _unlink_lonely(src, [item.get("link") for item in chosen])
             _touch(src, src_meta, now)
         return {"ids": copied, "warnings": warnings}
 
@@ -1470,7 +1734,9 @@ def copy_from_doc(folder, slug, doc_id, ordinal, subtype, updated, force=False, 
                   library=None, source=None):
     """Copy the `ordinal`-th exercise (1-based, render order) of a studio
     document into the deck, with the footnotes it refers to and the pictures
-    and recordings they name.
+    and recordings they name.  A flashcard written `direction: both-repeat`
+    goes in as two linked exercises (_insert_all): "items" holds every one
+    that went in, "item" the first.
 
     KeyError (unknown document) propagates.  Conflict("stale") when the page
     the request came from no longer matches the document.
@@ -1529,8 +1795,8 @@ def _copy(d, doc_id, ordinal, subtype, updated, force, now, prefix):
                       "title": meta.get("title", ""), "label": "Gloss: " + gloss["fa"]}
             if prefix is not None:
                 origin["source"] = prefix
-            return {"item": _insert(d, deck, md, "", origin, now, meta.get("tags")),
-                    "warnings": []}
+            made = _insert_all(d, deck, [md], "", origin, now, meta.get("tags"))
+            return {"item": made[0], "items": made, "warnings": []}
     if not 1 <= n <= len(blocks) or blocks[n - 1]["subtype"] != subtype:
         raise Conflict(stale, "stale")
     block = blocks[n - 1]
@@ -1545,27 +1811,30 @@ def _copy(d, doc_id, ordinal, subtype, updated, force, now, prefix):
         notes = _footnotes_for(block["source"], fm.get("_footnotes") or {})
         (source, notes), copies, warnings = _plan_media(d, (block["source"], notes),
                                                         _from_doc(doc_id))
-        md, _b, _e, problem = _examine(source, L.code)
+        md, made_block, _e, problem = _examine(source, L.code)
         if problem:
             raise DeckError(problem)
         notes = _clean_footnotes(notes, md)
+        faces = _faces(md, made_block, L.code)
         if not force:
-            _refuse_duplicate(d, deck, md)
+            _refuse_duplicate(d, deck, *faces)
         _make_copies(d, copies)
         origin = {"doc_id": meta.get("id", doc_id), "doc_uid": meta.get("uid"),
                   "title": meta.get("title", ""), "ordinal": n}
         if prefix is not None:
             origin["source"] = prefix
-        return {"item": _insert(d, deck, md, notes, origin, now, meta.get("tags")),
-                "warnings": warnings}
+        made = _insert_all(d, deck, faces, notes, origin, now, meta.get("tags"))
+        return {"item": made[0], "items": made, "warnings": warnings}
 
 
 # ---------------------------------------------------------------- studying
 
 def render_item(deck, item, asset_base, preview=False, docs=None, report=None,
                 latex_preview=False):
-    """The exercise as document html (no colophon), in the deck's language.
-    `report`, a dict, is given "latex_failed": how many of its LaTeX drawings
+    """The exercise as document html (no colophon), in the deck's language,
+    drawn as a deck's own card, so a both-repeat flashcard carries no note
+    that a deck will ask both sides (htmlgen's `in_deck`).  `report`, a dict,
+    is given "latex_failed": how many of its LaTeX drawings
     could not be made, counted by the renderer that tried (TO-DO §8.39)."""
     md = _front(languages.get(deck["lang"]).code) + item["markdown"]
     if item.get("footnotes"):
@@ -1579,7 +1848,8 @@ def render_item(deck, item, asset_base, preview=False, docs=None, report=None,
     # conflating them into one flag silently stopped a solved exercise from
     # ever showing solved.
     out = htmlgen.render_document(md, colophon=False, asset_base=asset_base, docs=docs,
-                                  editor_preview=preview, latex_preview=latex_preview)
+                                  editor_preview=preview, latex_preview=latex_preview,
+                                  in_deck=True)
     if report is not None:
         report["latex_failed"] = out.get("latex_failed", 0)
     return out["html"]
@@ -1594,20 +1864,25 @@ def next_card(folder, slug, now=None, skip=None):
     code = _deck_language(d).code
     cfg = _settings(meta)
     skip = set(skip or ())
-    entries, histories, known = [], [], {}
+    entries, histories, known, items, scheds = [], [], {}, [], {}
     for item in _load_items(d):
         sched = _read_schedule(d, item["id"])
         histories.append(sched["history"])
+        items.append(item)
+        scheds[item["id"]] = sched
         if item["id"] in skip:
             continue
         known[item["id"]] = (item, sched)
         entries.append((item["id"], item["created"], sched["state"]))
-    q = srs.queue(entries, now, cfg, srs.today_counts(histories, now, cfg))
+    q = srs.queue(entries, now, cfg, srs.today_counts(histories, now, cfg),
+                  _buried(items, scheds, now, cfg))
     out = {"done": q["next"] is None, "item": None, "counts": q["counts"],
-           "next_due": q["next_due"], "intervals": None}
+           "next_due": q["next_due"], "intervals": None, "buried": q["buried"]}
     if q["next"] is not None:
         item, sched = known[q["next"]]
-        out["item"] = _item_summary(item, sched, code)
+        out["item"] = _item_summary(item, sched, code,
+                                    [x for x in _groups(items).get(item.get("link"), ())
+                                     if x != item["id"]])
         shown = srs.preview(sched["state"], now, cfg, seed=item["id"])
         out["intervals"] = {rating: v["label"] for rating, v in shown.items()}
     return out
@@ -1648,7 +1923,8 @@ def review(folder, slug, item_id, rating, result=None, now=None, reps=None, by=N
             "ease": state["ease"], "due": state["due"]}]
         sched = {"state": state, "history": history}
         _write_json(d / "schedule" / (item["id"] + ".json"), sched)
-        return _item_summary(item, sched, _deck_language(d).code)
+        return _item_summary(item, sched, _deck_language(d).code,
+                             [x["id"] for x in _group_of(d, item)])
 
 
 # ---------------------------------------------------------------- checked out
@@ -2147,10 +2423,12 @@ def _fill(stage, reader, entries, code, scheduling, now):
             continue
         stamp = _stamp(now)
         created = _iso_or(raw.get("created"), stamp)
-        _write_json(stage / "items" / (item_id + ".json"), {
-            "id": item_id, "created": created, "updated": _iso_or(raw.get("updated"), created),
-            "markdown": md, "footnotes": notes, "origin": _clean_origin(raw.get("origin")),
-            "tags": _clean_tags(raw.get("tags"))})
+        kept = {"id": item_id, "created": created, "updated": _iso_or(raw.get("updated"), created),
+                "markdown": md, "footnotes": notes, "origin": _clean_origin(raw.get("origin")),
+                "tags": _clean_tags(raw.get("tags"))}
+        if _clean_link(raw.get("link")):
+            kept["link"] = raw["link"]
+        _write_json(stage / "items" / (item_id + ".json"), kept)
         imported += 1
         info = entries.get("schedule/%s.json" % item_id)
         if scheduling and info is not None:
