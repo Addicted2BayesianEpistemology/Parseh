@@ -89,6 +89,8 @@ back as the same deck, with every file it had and every answer.
   drawings**, and **Import a theme…** on the other computer.
 - The TeX packages Parseh got, `texmf/`: get them again on **Settings →
   LaTeX drawings**.
+- Speech to text's program and models, `stt/`: gigabytes of other people's
+  work; get them again on **Settings → Speech to text**.
 - What each browser remembers: the theme, the language, where you are in a
   book.
 - What can be built again: the readers, the library page, the PDFs of the

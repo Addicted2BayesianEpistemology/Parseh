@@ -148,6 +148,11 @@ WRITES = (
     ("POST", "/__shutdown"),
     ("POST", "/lookup/api/getdict"),
     ("POST", "/lookup/api/dropdict"),
+    # speech to text is open to any device let in, and to no OTHER SITE: a page somewhere else
+    # must not be able to start a 1.7 GB install, or take one away
+    ("POST", "/lookup/api/getspeech"),
+    ("POST", "/lookup/api/dropspeech"),
+    ("POST", "/lookup/api/stopspeech"),
     ("POST", "/books/english/mini-en/__edit/chunk"),
     ("POST", "/books/__delete"),
     ("POST", "/books/__upload"),
@@ -182,6 +187,7 @@ class Served(unittest.TestCase):
         import lookup
         import corpus
         import getmt
+        import getstt
         import decomposition
         cls.serve = serve
         cls._td = tempfile.TemporaryDirectory()
@@ -198,6 +204,7 @@ class Served(unittest.TestCase):
             patch.object(getmt, "MT_DIR", str(tmp / "mt")),
             patch.object(getmt, "ENGINE_DIR", str(tmp / "mt" / "engine")),
             patch.object(decomposition, "DATA_DIR", tmp / "components"),
+            patch.object(getstt, "STT_DIR", str(tmp / "stt")),
         ]
         for p in cls.patches:
             p.start()

@@ -369,12 +369,23 @@ through, and to prove that what is theirs survives it.
      `mhchem` only once `mhchem` is got too. (The main repository is a year ahead of a
      distribution's TeX Live, and tlmgr refuses it; Parseh then falls back,
      by itself, to the archive of the installed TeX Live's own year.)
+   - speech to text — the program and `large-v3-turbo` on **Settings →
+     Speech to text** (from a0.4.1 on; a 1.7 GB download, a minute or two).
+     **a0.4.1 only:** Parseh-test runs a0.4.0 at step 1, which has no such page,
+     so this one is done at the end of step 5, on the rehearsal, once that
+     step's comparison has passed. Step 6's fingerprint, taken fresh, then holds
+     `stt/`, and steps 6 and 7 prove that going back and going forward leave it.
+     From a0.4.2 on it can be installed here, at the start, with the rest.
 3. **Fingerprint what is yours**, in Parseh-test's folder (the readers, the
    library page and the phone's checksums are left out: an update rebuilds
    the first two and the server rewrites the others as it pleases):
 
+   `stt/` is gigabytes once speech to text is installed: allow a minute for its
+   line. Nothing may be in `stt/tmp/`: a transcription that is running holds
+   audio there.
+
    ```bash
-   find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components texmf config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-before.txt
+   find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components texmf stt config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-before.txt
    ```
 
 4. **Update to the rehearsal.** **Settings → Updating Parseh → A zip of
@@ -384,7 +395,9 @@ through, and to prove that what is theirs survives it.
    - *Changed by hand since they were installed* lists nothing — the guide's
      compiled pages are listed apart, and are expected;
    - the environment line says what it will add, if `environment.yml`
-     changed, and nothing otherwise;
+     changed, and nothing otherwise (a0.4.1 leaves `environment.yml` alone:
+     speech to text is installed by its own page into `stt/`, and is in no
+     environment);
    - no *What may not survive going back* (that is only for going back).
 
    Press **Update to <version>-rc1**, then **Yes**. The page shows each
@@ -396,7 +409,7 @@ through, and to prove that what is theirs survives it.
    - the fingerprint again, and compare — **no line may differ**:
 
      ```bash
-     find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components texmf config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-after.txt; diff ../parseh-test-before.txt ../parseh-test-after.txt && echo "all yours, untouched"
+     find books youtube/videos youtube/anki markdown/library exercises clips dict corpus mt components texmf stt config .tls -type f -not -path '*/reader/*' -not -name index.html -not -name .reader-key -not -name digests.json -not -name wheres.json -not -name updates.json -print0 2>/dev/null | sort -z | xargs -0 sha256sum > ../parseh-test-after.txt; diff ../parseh-test-before.txt ../parseh-test-after.txt && echo "all yours, untouched"
      ```
 
      **a0.4.0 only.** a0.3.3 has no `texmf/`, and a0.4.0 ships one, holding
@@ -415,7 +428,21 @@ through, and to prove that what is theirs survives it.
      port 7655 and lists every device you let in;
    - the browser did not warn about the certificate again;
    - the document's latex block shows its drawing, and **Settings → LaTeX
-     drawings** lists your theme and the package you got.
+     drawings** lists your theme and the package you got;
+   - **Settings → Speech to text**, a page a0.4.0 does not have, opens and says
+     **Not yet** of everything: it is the place the speech program and the
+     models are got, and Parseh-test has none yet. Press **Get it** on
+     **faster-whisper / large-v3-turbo** — it installs the program first, under
+     one bar — and wait for **Installed**. Then **Add a video** offers to
+     transcribe a short local film with it.
+
+     **a0.4.1 only.** a0.4.0 has no `stt/` and a0.4.1 ships none, so this step's
+     comparison has no `stt` line at all. What it installs now is what steps 6 and
+     7 keep an eye on: step 6's fingerprint holds it, and **going back to a0.4.0
+     leaves it as it is** (that version has no page to remove it), and so does
+     going forward again. After step 7, **Settings → Speech to text** still says
+     **Installed** for the program and the model — not *Built by an older
+     Parseh* — and the short film still transcribes.
 6. **Go back.** Take the fingerprint again first, into
    `../parseh-test-before.txt` as in 5.3 — opening the book moved its
    reading place in `config/prefs.json`. Then choose
@@ -426,7 +453,8 @@ through, and to prove that what is theirs survives it.
    understand*: that is expected exactly when this version's changelog says
    it changed how something is stored, and a fault otherwise (a0.4.0 raised
    the documents, the decks, the bundles and the shelves: going back to
-   a0.3.3 says so). Go back, and
+   a0.3.3 says so; speech to text adds no data-format row, so it never causes
+   that box, and going back to a0.4.0 leaves `stt/` exactly as it is). Go back, and
    compare the fingerprint as in 5.5, before opening anything: no line may
    differ.
 7. **Forward again, then the same version twice.** Choose

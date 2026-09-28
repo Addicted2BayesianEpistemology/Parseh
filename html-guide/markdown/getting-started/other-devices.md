@@ -42,7 +42,10 @@ dictionary is not, so a phone that has been let in may get and remove
 anything on the [reading-help page](../lookup-and-languages/reading-help.md).
 Nor is a [LaTeX theme](../dialect/latex-drawings.md#themes): a phone that has
 been let in may make, change and import themes, and get the TeX packages they
-need.
+need. Nor is [speech to text](../lookup-and-languages/speech-to-text.md#who-may-use-it):
+any device that has been let in — a phone, a tablet, another computer — may get,
+stop and remove its program and its models, because the only files that can
+ever arrive are the ones Parseh pins, each checked against its hash.
 Installing another version of Parseh changes what it runs: a phone may look
 for a new version, but only the computer installs one
 ([Updating Parseh](updating.md#from-a-phone)).

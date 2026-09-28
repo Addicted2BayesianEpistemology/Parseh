@@ -33,7 +33,6 @@ The routes are serve.py's (`/lookup/api/speech`, `speechcheck`, `getspeech`,
 `dropspeech`, `stopspeech`, each in lib/settingspage.py ROUTES).
 """
 import html
-import json
 import os
 import sys
 

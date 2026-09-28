@@ -1,7 +1,7 @@
 ---
 title: Lookup and languages
 weight: 80
-description: Reading what nobody has glossed yet — dictionaries, character components, translated sentences, a translation model — and the eleven languages Parseh teaches.
+description: Reading what nobody has glossed yet — dictionaries, character components, translated sentences, a translation model — the eleven languages Parseh teaches, and speech to text, an optional transcript made on this computer.
 ---
 
 This section has two halves, and they meet in the same place: the
@@ -57,6 +57,15 @@ its script, its fonts, its passes, its transliteration.
 11. [Adding a language](adding-a-language.md) — for whoever maintains
     Parseh: the one command that adds a twelfth, and what is left to write
     by hand.
+
+## Speech to text
+
+12. [Speech to text](speech-to-text.md) — an optional program and two Whisper
+    models that make a transcript on this computer while you add a video:
+    the CPU that always works, an NVIDIA graphics card when Parseh can prove
+    it is usable, what each part costs, who may get it, and where the files
+    are. It has a door of its own in Settings, and is not a part of Reading
+    help.
 
 > **Nothing here is required.** A reader with no dictionary, no corpus and
 > no model is exactly the reader it always was: it asks the server once

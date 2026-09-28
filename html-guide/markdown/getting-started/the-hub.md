@@ -72,7 +72,7 @@ and four wide ones under them, for the work around the four:
 | **⇆ Anki** | the card store and its sync with Anki, `/anki/sync/` | how many cards and decks the store holds — one store for every language |
 | **✂ The clip tray** | the recordings and pictures cut for cards, `/clips/` | how many clips wait there, or *the tray is empty* |
 | **🔍 Reading what nobody has glossed** | the dictionaries and the rest, in Settings, `/settings/reading-help/` | how many languages have a dictionary, and which, or *no dictionary yet* |
-| **⚙ Settings** | what this Parseh is set to, `/settings/`: which version it is, **Reading help**, **Network** and **Updating Parseh** ([Updating Parseh](updating.md)) | who may reach it — this computer, a VPN, the Wi-Fi ([From a phone or another computer](other-devices.md)) |
+| **⚙ Settings** | what this Parseh is set to, `/settings/`: which version it is, and its doors — **Reading help**, **Network**, **Updating Parseh** ([Updating Parseh](updating.md)), **LaTeX drawings** and **Speech to text** ([Speech to text](../lookup-and-languages/speech-to-text.md)) | who may reach it — this computer, a VPN, the Wi-Fi ([From a phone or another computer](other-devices.md)) |
 
 A door that says 0, or *no dictionary yet*, is doing its job: it tells you
 there is something there you have not started using.

@@ -761,9 +761,11 @@ def _take_away(path):
 
 
 # ---------------------------------------------------------------- the processor
+@functools.lru_cache(maxsize=1)
 def physical_cores():
     """Physical cores where the system says (Linux's cpuinfo, macOS's sysctl),
-    else None.  Never guessed from the logical count here."""
+    else None.  Never guessed from the logical count here.  Asked once: the
+    count does not change while Parseh runs, and a status is read every second."""
     try:
         if sys.platform.startswith("linux"):
             pairs, cur = set(), {}
@@ -1419,12 +1421,6 @@ def worker_env():
         var = "PATH" if os.name == "nt" else "LD_LIBRARY_PATH"
         env[var] = os.pathsep.join([found] + [p for p in os.environ.get(var, "").split(os.pathsep) if p])
     return env
-
-
-def _what_now(cuda):
-    if cuda["ready"]:
-        return "cuda"
-    return "cpu"
 
 
 def processing(hw=None):

@@ -49,6 +49,11 @@ device you are on and what you may do. The **Network** settings are the
 other kind: each of them decides who may reach Parseh, and a phone sees them
 but may not change them ([From a phone or another computer](../getting-started/other-devices.md)).
 
+**Speech to text is not here.** Turning a video's sound into a transcript
+is a tool of the page a video is added on, and it has a page of its own in
+Settings, a door beside this one: [Speech to text](speech-to-text.md). This
+page carries one line pointing to it, and nothing else of it.
+
 ## A card per language
 
 **Your languages** come first: every language you have a book or a video

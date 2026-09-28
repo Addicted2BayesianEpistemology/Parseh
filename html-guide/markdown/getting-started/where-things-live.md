@@ -32,6 +32,7 @@ Parseh/
   clips/                 the clip tray
   dict/  corpus/  mt/  components/
                          what the reading help fetches
+  stt/                   speech to text: its program and its two models
   texmf/                 the TeX packages Parseh got for its drawings
   markdown/latex/        the LaTeX drawings, made again when missing
   config/                your settings, the devices let in
@@ -64,6 +65,10 @@ Parseh/
 - `dict/`, `corpus/`, `mt/`, `components/` — **what the reading help
   fetches** (**Settings → Reading help**): dictionaries, translated
   sentences, translation models, character packs.
+- `stt/` — **speech to text**, fetched on **Settings → Speech to text**:
+  `runtime/` (the program, in a folder named for the pinned list and the
+  Python it was made for), `models/` (the two Whisper models) and `tmp/` (the
+  sound of a video while it is being transcribed, deleted afterwards).
 - `texmf/` — **the TeX packages Parseh got** on **Settings → LaTeX
   drawings**, for the [latex blocks](../dialect/latex-drawings.md) of a
   theme, with `parseh-packages.json`, the list of them.
@@ -141,6 +146,8 @@ it — a download, a backup, a book kept on your phone:
   somebody else's work, under somebody else's licence: `dict/`, `corpus/`,
   `mt/`, `components/`;
 - the TeX packages Parseh got for its drawings: `texmf/`;
+- speech to text's program and models — somebody else's work, and gigabytes:
+  `stt/`;
 - your settings and the devices you let in: `config/`;
 - the environment, the certificate, the log: `.runtime/`, `.tls/`,
   `serve.log`;
