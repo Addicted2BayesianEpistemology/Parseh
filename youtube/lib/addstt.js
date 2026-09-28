@@ -639,7 +639,9 @@
     }
     // One piece of the sound, sent and answered before the next is handed over.
     // A piece sent twice is written once by the computer, so one that timed out
-    // is simply sent again; a gap asks to be sent from where the computer is.
+    // is simply sent again.  A gap -- the computer holding LESS than this piece
+    // starts at -- means an earlier piece is missing, and only the piece in hand
+    // is kept here: it is said, and the recording stopped.
     function sendPiece(run, pcm, offset, signal) {
       var tries = 0;
       function once(data, at) {
@@ -672,10 +674,22 @@
       frame.textContent = '';
       S.phase = 'sending';
       say('Sending the end of the recording…', null);
+      // what is asked again where the computer said nothing (each of these can be
+      // said twice: the marks replace what was sent, and a last piece sent again
+      // is taken), until it has been three times
+      function again(fn) {
+        var n = 0;
+        return (function go() {
+          return fn().then(null, function (e) {
+            if (++n >= PIECE_TRIES || ctl.signal.aborted) throw e;
+            return new Promise(function (ok) { setTimeout(ok, 600 * n); }).then(go);
+          });
+        })();
+      }
       // a refusal is thrown as its sentence; a computer that says nothing, as
       // that; `needed: false` is for what nothing depends on
       function step(name, body, needed, ms) {
-        return post(name, body, ms, ctl.signal).then(function (r) {
+        return again(function () { return post(name, body, ms, ctl.signal); }).then(function (r) {
           if (r.j.ok || !needed) return r;
           throw new Error(r.j.error || 'The recording could not be sent.');
         }, function () {
@@ -690,7 +704,7 @@
         return peaks ? step('wave', {job: job, rate: peaks.rate, peaks: peaks.peaks}, false, 4 * DEADLINE_MS) : null;
       }).then(function () {
         var url = route('audio') + '?job=' + encodeURIComponent(job) + '&offset=' + S.sent + '&last=1';
-        return ask(url, new Uint8Array(0), DEADLINE_MS * 2, ctl.signal);
+        return again(function () { return ask(url, new Uint8Array(0), DEADLINE_MS * 2, ctl.signal); });
       }).then(function (r) {
         if (run !== S.run) return;
         if (!r.j.ok) { fail(run, r.j.error || 'The recording could not be sealed.'); return; }
@@ -728,14 +742,18 @@
         });
       })();
     }
-    function finishJob(run) {
+    // The words are asked for once the job says it is done.  A computer that says
+    // nothing THEN is waited for, not given up on: the job is done, and pressing
+    // Transcribe again would make a recording of an hour for nothing.
+    function finishJob(run, misses) {
       post('result', {job: S.job}).then(function (r) {
         if (run !== S.run) return;
         if (!r.j.ok) { fail(run, r.j.error || 'The transcript could not be read.', false); return; }
         deliver(run, r.j);
       }, function () {
         if (run !== S.run) return;
-        fail(run, 'Parseh did not answer when the transcript was asked for. Press Transcribe to try again.', false);
+        if ((misses || 0) + 1 >= 3) note(SAY_SILENT, 'warn');
+        S.timer = setTimeout(function () { finishJob(run, (misses || 0) + 1); }, POLL_MS * 2);
       });
     }
     // The transcript arrives.  If the box was changed while this ran it is not

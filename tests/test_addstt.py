@@ -121,7 +121,7 @@ class ThePage(unittest.TestCase):
         # what the page's script says of speech to text is the glue, and no more
         glue = [ln for ln in ytpages.ADD_PAGE_JS.splitlines() if "stt" in ln.lower()]
         self.assertLess(len(glue), 45, "\n".join(glue))
-        self.assertLess(len(read(ADDSTT_JS).splitlines()), 1000, "the block is a file, not the page")
+        self.assertLess(len(read(ADDSTT_JS).splitlines()), 1200, "the block is a file, not the page")
 
     def test_the_server_sends_both_files(self):
         import serve

@@ -725,6 +725,19 @@ await section('d', 'failures are sentences, and nothing is left stuck', async ()
   eq(await inBox(page), PANEL_FA, 'the transcript arrives');
   eq(await shown(page, '#stt_note') && !/has not answered/.test(await text(page, '#stt_note')), true, 'and the silence is no longer said');
 
+  // …and one that says nothing exactly when the words are asked for: the job is done, so
+  // the page asks again (and never starts another, which would be an hour of sound for nothing)
+  await setFake({delay: 0.7, load_delay: 0.7});
+  await page.fill('#transcript', '');
+  let asks = 0;
+  const startsBefore = seen(page, /transcribe\/start/);
+  await page.route('**/transcribe/result', r => (++asks <= 2 ? r.abort() : r.continue()));
+  await page.click('#stt_go');
+  await inPhase(page, 'idle', 'the words arrive after all', 60000);
+  eq([await inBox(page), asks, seen(page, /transcribe\/start/) - startsBefore], [PANEL_FA, 3, 1],
+     'asked three times, answered the third, and only one job was ever started for it');
+  await page.unroute('**/transcribe/result');
+
   // installed a moment ago, gone now: the page finds out when it asks
   await setState({runtime: false, models: []});
   await page.fill('#transcript', '');

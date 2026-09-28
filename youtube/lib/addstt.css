@@ -20,6 +20,7 @@
 .addvid .stt select{width:auto;max-width:100%;min-width:0;text-overflow:ellipsis}
 /* on a narrow page the picker takes a line of its own, so that what it says is not cut */
 .addvid .stt label.inline select{flex:1 1 15rem}
+@media (max-width:620px){.addvid .stt label.inline select{flex-basis:100%}}
 /* a control that is held while a job runs still looks like itself, greyed */
 .addvid .stt-locked{opacity:.55;cursor:not-allowed}
 .addvid input.stt-locked{cursor:not-allowed}
