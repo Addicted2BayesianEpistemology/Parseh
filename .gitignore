@@ -219,6 +219,13 @@ corpus/_dl/
 # are downloaded on request and neither belongs in the repository.
 mt/
 
+# Speech to text (lib/getstt.py): the program that runs the models (a pip
+# tree of about 400 MB, made under stt/runtime/), the two Whisper models
+# (1.6 and 3.1 GB, under stt/models/) and the temporary audio of a job
+# (stt/tmp/).  All of it is somebody else's work, downloaded on request and
+# made on demand; none of it belongs in the repository.
+stt/
+
 # Optional, locally installed character component packs (licences stored in each pack).
 components/*.db
 components/.build-*/
