@@ -65,6 +65,13 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     made-up loudness and clocks, where the numbers posted are checked one
 //     by one against the spec and against the checksum the old code gave
 //     (YT_WAVE_OUT=<file> also saves the real run's posted body)
+//  m) the same recording as the add page will use it, on a page that has
+//     youtube/lib/tabcapture.js and nothing else of Parseh's: one share for
+//     both consumers (the shape, and the sound as 16 kHz samples in chunks
+//     with marks that say where the video was), a stop to buffer and a late
+//     start, no sound in the share, a share of the screen, a browser that
+//     cannot, an ad, a cancel in the middle, an hour through the chunk
+//     pipeline, the picture of the share dropped
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
@@ -115,6 +122,8 @@ const FAKE = TMP + '/fake';
 await Deno.mkdir(FAKE, {recursive: true});
 await ff('-f', 'lavfi', '-i', "aevalsrc='if(lt(mod(t\\,1)\\,0.5)\\,0.5*sin(2*PI*(300+50*floor(t))*t)\\,0)':s=48000:d=42",
          '-ac', '1', '-c:a', 'pcm_s16le', FAKE + '/tones.wav');
+// and its first 12 s, for the checks that only need a video to end
+await ff('-i', FAKE + '/tones.wav', '-t', '12', '-c:a', 'pcm_s16le', FAKE + '/short.wav');
 // A clip's tones, measured: decoded by ffmpeg, the loudness (RMS) of every
 // 5 ms, a tone where it passes 0.1; each run's frequency from the zero
 // crossings of its middle (its edges hold the codec's noise of the silence
@@ -272,8 +281,8 @@ const TYPES = {html: 'text/html; charset=utf-8', wav: 'audio/wav'};
 async function serveFake(req) {
   const u = new URL(req.url), name = u.pathname.replace(/^\/+/, '');
   if (name === 'child.html') return new Response(CHILD_HTML, {headers: {'content-type': TYPES.html}});
-  if (name !== 'tones.wav') return new Response('404', {status: 404});
-  const data = await Deno.readFile(FAKE + '/tones.wav');
+  if (name !== 'tones.wav' && name !== 'short.wav') return new Response('404', {status: 404});
+  const data = await Deno.readFile(FAKE + '/' + name);
   const h = new Headers({'content-type': TYPES.wav, 'accept-ranges': 'bytes', 'cache-control': 'no-store'});
   const m = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
   if (m) {
@@ -471,7 +480,7 @@ async function newPage(b, {width = 1280, height = 900, query = 'src=tones.wav', 
       };
     }
   });
-  if (init) await context.addInitScript(init);
+  for (const f of [].concat(init || [])) await context.addInitScript(f);
   const page = await context.newPage();
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|youtube\.com/.test(m.text())) errors.push('console: ' + m.text()); });
@@ -1111,6 +1120,7 @@ console.log('k) the transcript edited before the video is added, a tenth of a se
 /* ============================ l) the timings sheet draws a YouTube video's sound, from the tab */
 console.log('l) "draw the sound": the tab is recorded while the video plays, and the shape is kept');
 const wavePath = (id = YT) => `${VIDEOS}/italian/${id}/waveform.json`;
+let realWave = null;      // the numbers the first real recording posted, for section m
 // the timings sheet, opened; a press can land before the captions have
 // loaded and be refused, so it is pressed until the sheet is up
 async function openTimings(page) {
@@ -1173,6 +1183,7 @@ const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256
   }
   console.log('     raw: ' + seen0.join('\n          '));
   console.log('     raw: posted ' + w0.peaks.length + ' numbers, sha256 ' + await sha256(JSON.stringify(w0)));
+  realWave = w0.peaks;
   if (WAVE_OUT) await Deno.writeTextFile(WAVE_OUT, JSON.stringify(w0));
   eq(await p0.evaluate(() => [__asked.map(o => [!!o.audio, o.preferCurrentTab, o.video]), __toSpeakers, __gum]), [[[true, true, true]], 0, 0],
      'Chrome was asked once, for this tab with its sound; nothing was sent to the speakers; the microphone was never asked');
@@ -1410,6 +1421,486 @@ async function goldPage(kind, {rate = 1.5} = {}) {
      ['done', ['cancelled'], ['ok', 'cancelled'], false, 2, 'audio:live,video:live', 'closed,closed'],
      'a second recording works; kept share stays live when asked to, both contexts closed');
   await cc.close();
+}
+
+/* ====================== m) one share, two consumers: the shape and the sound of the tab */
+console.log('m) the tab recorded once, for the shape AND for the transcript (youtube/lib/tabcapture.js, as the add page uses it)');
+// A page that has the module and nothing else of Parseh's -- no player, no card
+// kit: what the add page is -- with a YouTube player of the fake's put in it by
+// the module's own embed().  `wake` says what the screen's wake lock was asked.
+// It is sent by a small server of its own, not made up by the browser's routing:
+// a page the test invents has no address, Chrome takes it for a page of the
+// internet, and refuses it a frame on this machine (local network access).
+const TC_PAGE = `<!doctype html><meta charset="utf-8"><title>tab capture</title>
+<div id="box" style="width:320px;height:180px"></div><script src="${BASE}/youtube/lib/tabcapture.js"></script>`;
+const P3 = freePort();
+Deno.serve({hostname: '127.0.0.1', port: P3, signal: fakeServers.signal, onListen() {}}, req =>
+  new URL(req.url).pathname === '/blank.html'
+    ? new Response(TC_PAGE, {headers: {'content-type': 'text/html; charset=utf-8'}}) : new Response('404', {status: 404}));
+const WAKE = () => {
+  window.__wake = {asked: [], released: 0};
+  Object.defineProperty(navigator, 'wakeLock', {configurable: true, value: {request: async type => {
+    window.__wake.asked.push(type);
+    return {release: async () => { window.__wake.released++; }, addEventListener() {}};
+  }}});
+};
+async function tcPage({query = 'src=tones.wav', init = null, embed = true} = {}) {
+  const {context, page} = await newPage(browser, {query, init: init ? [WAKE, init] : [WAKE]});
+  await page.goto(`http://127.0.0.1:${P3}/blank.html`);
+  if (embed) {
+    const bad = await page.evaluate(id => ParsehTabCapture.embed(document.getElementById('box'), id, {})
+      .then(p => { window.__p = p; return ''; }, e => e.message), YT);
+    if (bad) throw Error('FAIL: the embedded player did not come: ' + bad);
+    await until(() => page.evaluate(() => __p.getDuration() > 10), 'the embedded player knows its length');
+  }
+  return {context, page};
+}
+// a recording, started in the page; what it reports is collected in __got
+const startRec = (page, opts = {}) => page.evaluate(o => {
+  window.__got = {chunks: [], marks: [], prog: [], peaks: null, ended: [], result: null, error: null, started: 0};
+  window.__rec = ParsehTabCapture.record(Object.assign({
+    player: __p, wave: true, pcm: true, keepShare: false,
+    onStart: () => { __got.started++; },
+    onProgress: (t, d) => __got.prog.push([t, d]),
+    onPeaks: (p, r) => { __got.peaks = {peaks: p, rate: r}; },
+    onChunk: (pcm, off, sig) => { __got.chunks.push({off, pcm, sig}); },
+    onMark: (f, t) => __got.marks.push([f, t]),
+    onEnd: r => __got.ended.push(r)
+  }, o));
+  __rec.promise.then(r => { __got.result = r; }, e => { __got.error = {message: e.message, reason: e.reason}; });
+}, opts);
+const recOver = (page, what, ms = 90000) => until(() => page.evaluate(() => !!(__got.result || __got.error)), what, ms);
+// the sound as the page collected it: 16-bit samples, and where each chunk began
+async function collected(page) {
+  const r = await page.evaluate(() => {
+    const cs = __got.chunks, all = new Int16Array(cs.reduce((a, c) => a + c.pcm.length, 0));
+    let at = 0;
+    for (const c of cs) { all.set(c.pcm, at); at += c.pcm.length; }
+    const bytes = new Uint8Array(all.buffer);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return {b64: btoa(bin), chunks: cs.map(c => [c.off, c.pcm.length]), marks: __got.marks};
+  });
+  const pcm = Uint8Array.from(atob(r.b64), c => c.charCodeAt(0));
+  const wav = new Uint8Array(44 + pcm.length), v = new DataView(wav.buffer);
+  const put = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  put(0, 'RIFF'); v.setUint32(4, 36 + pcm.length, true); put(8, 'WAVE'); put(12, 'fmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 16000, true); v.setUint32(28, 32000, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); put(36, 'data'); v.setUint32(40, pcm.length, true);
+  wav.set(pcm, 44);
+  const path = `${TMP}/collected-${Math.random().toString(36).slice(2)}.wav`;
+  await Deno.writeFile(path, wav);
+  return {path, samples: pcm.length / 2, chunks: r.chunks, marks: r.marks, tones: (await measure(path))};
+}
+// Where the video was at sample f of the sound, from the marks alone: on from the
+// last mark at the speed of the sound -- unless the mark after it says the video
+// stood still over that stretch (a stop to buffer)
+function videoAt(marks, f) {
+  let i = 0;
+  for (let j = 0; j < marks.length; j++) { if (marks[j][0] <= f) i = j; else break; }
+  const m = marks[i], next = marks[i + 1];
+  if (next && f > m[0]) {
+    const sound = (next[0] - m[0]) / 16000, video = next[1] - m[1];
+    if (sound >= 0.1 && video < 0.5 * sound) return m[1];
+  }
+  return m[1] + (f - m[0]) / 16000;
+}
+// each whole tone of the sound, where the marks put it in the video against
+// where the video has it: second k of the pattern starts at k.000
+function toneErrors(tones, marks) {
+  return tones.runs.filter(r => r[1] - r[0] >= 0.4 && r[0] > 0.05).map(r => {
+    const k = Math.round((r[2] - 300) / 50);
+    return {k, hz: r[2], atStream: r[0], error: videoAt(marks, Math.round(r[0] * 16000)) - k};
+  });
+}
+const median = a => { const b = [...a].sort((x, y) => x - y); return b.length ? b[b.length >> 1] : NaN; };
+const shape = peaks => {
+  const bad = [];
+  for (const k of [2, 9, 17, 26, 34, 40]) {
+    const loud = peaks.slice(k * 20 + 3, k * 20 + 8), quiet = peaks.slice(k * 20 + 13, k * 20 + 18);
+    if (!(Math.min(...loud) > 0.5 && Math.max(...quiet) < 0.1)) bad.push(k);
+  }
+  return bad;
+};
+const gotOf = page => page.evaluate(() => ({error: __got.error, ended: __got.ended, started: __got.started,
+  result: __got.result && {reason: __got.result.reason, rate: __got.result.rate, samples: __got.result.samples,
+                           reached: __got.result.reached, duration: __got.result.duration,
+                           peaks: __got.result.peaks && __got.result.peaks.slice()},
+  peaksSaid: __got.peaks && [__got.peaks.rate, __got.peaks.peaks.length], prog: __got.prog}));
+
+{
+  console.log('   m1) the whole video, both consumers, one share');
+  const {context, page} = await tcPage();
+  assert(await page.evaluate(() => [typeof window.ParsehCards, typeof window.ParsehTimeline, typeof window.ParsehTabCapture].join()) === 'undefined,undefined,object',
+         'the page has the module and neither the card kit nor the timeline: the module stands alone');
+  await startRec(page);
+  await recOver(page, 'the whole video is recorded (real time, 42 s)');
+  const g = await gotOf(page);
+  eq(g.error, null, 'it was recorded without an error');
+  eq([g.result.reason, g.ended, g.started], ['ended', ['ended'], 1], 'it ended because the video did: once, and started once');
+  eq(await page.evaluate(() => [__asked.length, __gum, __toSpeakers]), [1, 0, 0],
+     'Chrome was asked ONCE for both consumers; the microphone was never asked; nothing went to the speakers');
+  const ctxs = await page.evaluate(() => __contexts.map(c => [c.sampleRate, c.state]));
+  assert(ctxs.length === 2 && ctxs[0][0] >= 44100 && ctxs[1][0] === 16000 && ctxs.every(c => c[1] === 'closed'),
+         'two audio contexts: the browser\'s own rate for the shape, 16000 for the sound; both closed: ' + JSON.stringify(ctxs));
+  eq(await page.evaluate(() => [__streams.map(s => s.getTracks().map(t => t.readyState).join()), __clones.map(c => c.readyState)]),
+     [['ended,ended'], ['ended']], 'every track of the share is stopped, and so is the clone the sound read');
+  const c = await collected(page);
+  assert(c.chunks[0][0] === 0 && c.chunks.every((x, i) => i === 0 || x[0] === c.chunks[i - 1][0] + c.chunks[i - 1][1]),
+         `the ${c.chunks.length} chunks are contiguous: each begins where the last ended, the first at 0`);
+  assert(c.chunks.slice(0, -1).every(x => x[1] === 80000) && c.chunks.at(-1)[1] > 0 && c.chunks.at(-1)[1] <= 80000,
+         'each is five seconds of 16 kHz but the last, which is what was left: ' + JSON.stringify(c.chunks.map(x => x[1])));
+  eq(g.result.samples, c.samples, 'and the result says how many samples there were: ' + c.samples);
+  assert(c.samples / 16000 > 42 && c.samples / 16000 < 43.5, `42 s of video is ${(c.samples / 16000).toFixed(3)} s of sound`);
+  const tones = c.tones.runs.filter(r => r[1] - r[0] >= 0.4);
+  assert(tones.length >= 41 && tones.length <= 42, `${tones.length} tones in the sound: the video's 42`);
+  const hz = tones.map(r => Math.abs(r[2] - (300 + 50 * Math.round((r[2] - 300) / 50))));
+  assert(Math.max(...hz) <= 25, 'each at its own frequency, 300 Hz + 50 Hz a second, within 25 Hz (16 kHz reached the worklet intact): ' +
+         JSON.stringify(tones.slice(0, 6).map(r => r[2])) + '…');
+  console.log('     raw: first tones in the sound ' + JSON.stringify(tones.slice(0, 5).map(r => [+r[0].toFixed(3), +r[1].toFixed(3), r[2]])) +
+              ', the sound ' + (c.samples / 16000).toFixed(3) + ' s, ' + c.marks.length + ' marks ' + JSON.stringify(c.marks.slice(0, 4)));
+  const errs = toneErrors(c.tones, c.marks);
+  assert(errs.length >= 40 && errs.every(e => Math.abs(e.error) <= 0.15),
+         `the marks put every tone where the video has it, within 150 ms (worst ${Math.max(...errs.map(e => Math.abs(e.error))).toFixed(3)} s, median ${median(errs.map(e => e.error)).toFixed(3)} s over ${errs.length})`);
+  assert(c.marks.length >= 1 && c.marks[0][0] >= 0 && c.marks[0][0] < 16000, 'the first mark is made as the sound begins: ' + JSON.stringify(c.marks[0]));
+  assert(c.marks.every((m, i) => i === 0 || (m[0] > c.marks[i - 1][0] && m[1] >= c.marks[i - 1][1] - 0.001)), 'the marks are in order, in the sound and in the video');
+  eq(g.peaksSaid, [20, 841], 'the shape came too, from the same recording: 20 numbers a second, 841 of them');
+  eq(shape(g.result.peaks), [], 'tall where the tones are and flat in the silences, as when the shape is drawn alone');
+  assert(g.result.peaks.every(v => v >= 0 && v <= 1) && Math.max(...g.result.peaks) === 1, 'between 0 and 1, the loudest 1');
+  assert(shape(realWave).length === 0, '(and the shape drawn alone, for comparison, is that shape)');
+  const back = g.prog.findIndex((p, i) => i > 0 && p[0] < g.prog[i - 1][0] - 0.001);
+  if (back >= 0) console.log('     raw: the clock read backwards in progress: ' + JSON.stringify(g.prog.slice(Math.max(0, back - 2), back + 3)));
+  assert(g.prog.length >= 40 && g.prog.at(-1)[0] >= 41 && g.prog.every(p => p[1] === 42) && back < 0,
+         `progress is the video's clock over its length, ${g.prog.length} times (twice at every whole second), the last at ${g.prog.at(-1)[0].toFixed(2)} of 42`);
+  eq(await page.evaluate(() => [__wake.asked, __wake.released, ParsehTabCapture.busy()]), [['screen'], 1, false],
+     'the screen was kept awake while it recorded, and let go; not busy any more');
+  await context.close();
+}
+{
+  console.log('   m2) a video that stops to buffer, and one that is muted');
+  const {context, page} = await tcPage({query: 'src=short.wav&stall=1'});
+  await page.evaluate(() => { __p.mute(); __p.setVolume(40); });
+  await until(async () => { const s = await childState(page); return s.muted && near(s.volume, 0.4, 0.01); }, 'the player is muted and turned down');
+  await startRec(page, {unmute: true});
+  const during = await until(async () => { const s = await childState(page); return !s.muted && s.volume === 1 && !s.paused && s.t > 0.3 ? s : null; },
+                             'the muted video is unmuted and turned up while it records');
+  assert(during, 'unmuted, at full volume, while it records: ' + JSON.stringify(during));
+  await recOver(page, 'the short video is recorded', 40000);
+  const g = await gotOf(page);
+  eq([g.error, g.result.reason], [null, 'ended'], 'a video that stopped to load ends as any other');
+  const after = await childState(page);
+  assert(after.muted && near(after.volume, 0.4, 0.01) && after.paused, 'muted again and turned down again, and paused: ' + JSON.stringify(after));
+  const c = await collected(page);
+  const sound = c.samples / 16000;
+  assert(sound > 12.2 && sound < 13.5, `12 s of video and a stop of 0.4 s is ${sound.toFixed(3)} s of sound: the recording is longer than the video by the stop`);
+  // a stretch of the marks in which the video stood still while the sound went on
+  let still = 0;
+  for (let i = 1; i < c.marks.length; i++) {
+    const s = (c.marks[i][0] - c.marks[i - 1][0]) / 16000, v = c.marks[i][1] - c.marks[i - 1][1];
+    if (s >= 0.1 && v < 0.5 * s) still += s - v;
+  }
+  assert(still > 0.2 && still < 0.9, `the marks say the video stood still for ${still.toFixed(3)} s while the sound went on (the fake's stop is 0.4 s)`);
+  const errs = toneErrors(c.tones, c.marks);
+  assert(errs.length >= 8 && errs.every(e => Math.abs(e.error) <= 0.15),
+         `and every whole tone is where the video has it, within 150 ms, before the stop and after it (worst ${Math.max(...errs.map(e => Math.abs(e.error))).toFixed(3)} s over ${errs.length}: ${JSON.stringify(errs.map(e => [e.k, +e.error.toFixed(3)]))})`);
+  console.log('     raw: marks ' + JSON.stringify(c.marks));
+  await context.close();
+}
+{
+  console.log('   m3) a video that says it is playing 0.18 s late');
+  const {context, page} = await tcPage({query: 'src=short.wav&late=1'});
+  await startRec(page);
+  await recOver(page, 'the short video is recorded', 40000);
+  const g = await gotOf(page);
+  eq([g.error, g.result.reason], [null, 'ended'], 'recorded to its end');
+  const c = await collected(page);
+  const errs = toneErrors(c.tones, c.marks);
+  assert(errs.length >= 8 && errs.every(e => Math.abs(e.error) <= 0.15),
+         `every whole tone is where the video has it, within 150 ms (worst ${Math.max(...errs.map(e => Math.abs(e.error))).toFixed(3)} s over ${errs.length})`);
+  console.log('     raw: first tone at ' + c.tones.runs[0][0].toFixed(3) + ' s of the sound, marks ' + JSON.stringify(c.marks.slice(0, 6)));
+  await context.close();
+}
+{
+  console.log('   m4) no sound in the share: said at once, before anything plays');
+  const noSound = () => {
+    navigator.mediaDevices.getDisplayMedia = () => {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 36;
+      c.getContext('2d').fillRect(0, 0, 64, 36);
+      return Promise.resolve(c.captureStream(5));
+    };
+  };
+  const {context, page} = await tcPage({init: noSound});
+  await page.evaluate(() => {
+    window.__calls = [];
+    for (const m of ['playVideo', 'seekTo', 'pauseVideo', 'setPlaybackRate']) { const f = __p[m]; __p[m] = (...a) => { __calls.push(m); return f.apply(__p, a); }; }
+  });
+  const t0 = Date.now();
+  await startRec(page);
+  await recOver(page, 'the missing sound is said', 5000);
+  const took = Date.now() - t0;
+  const g = await gotOf(page);
+  eq(g.error, {message: 'the share came without its sound — share this tab again and turn on “Share tab audio”', reason: 'error'},
+     'the sentence tells the person to turn on “Share tab audio”');
+  assert(took < 3000, `and it says so at once (${took} ms), not after the video`);
+  eq(await page.evaluate(() => [__calls, __got.chunks.length, __got.marks.length, __got.ended, __contexts.length, ParsehTabCapture.busy(), __gum]),
+     [[], 0, 0, ['error'], 0, false, 0], 'the video was never played, nothing was recorded, no context was made, and not busy');
+  eq((await childState(page)).t, 0, 'the video is where it was: at its start');
+  await startRec(page, {pcm: false});
+  await recOver(page, 'the missing sound is said, for the shape alone too', 5000);
+  eq((await gotOf(page)).error, {message: 'the share came without its sound — share this tab again and leave “Also allow tab audio” turned on', reason: 'error'},
+     'for the shape alone it is the words it always was');
+  await context.close();
+}
+{
+  console.log('   m5) a window or the whole screen is not this tab');
+  const window_ = () => {
+    const ask = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getDisplayMedia = o => ask(o).then(s => {
+      const v = s.getVideoTracks()[0], was = v.getSettings.bind(v);
+      v.getSettings = () => Object.assign(was(), {displaySurface: 'monitor'});
+      return s;
+    });
+  };
+  const {context, page} = await tcPage({init: window_});
+  await page.evaluate(() => {
+    window.__calls = [];
+    for (const m of ['playVideo', 'seekTo']) { const f = __p[m]; __p[m] = (...a) => { __calls.push(m); return f.apply(__p, a); }; }
+  });
+  await startRec(page);
+  await recOver(page, 'the wrong share is refused', 8000);
+  eq((await gotOf(page)).error, {message: 'a window or the whole screen was shared, not this tab — share this tab again, with “Share tab audio” turned on', reason: 'error'},
+     'a share of the whole screen is refused, in words');
+  eq(await page.evaluate(() => [__calls, __streams.map(s => s.getTracks().map(t => t.readyState).join()), __got.chunks.length, ParsehTabCapture.busy()]),
+     [[], ['ended,ended'], 0, false], 'nothing played, the share was let go so that the next press asks again, and not busy');
+  // for the shape alone nothing has changed: it never looked
+  await startRec(page, {pcm: false});
+  await until(() => page.evaluate(() => __rec.state === 'listening'), 'the shape alone is not refused for it', 8000);
+  await page.evaluate(() => __rec.cancel());
+  await context.close();
+}
+{
+  console.log('   m6) a browser that cannot: capability() says why, in the card kit\'s words');
+  const said = async (init, what) => {
+    const {context, page} = await tcPage({init, embed: false});
+    const r = await page.evaluate(async () => {
+      const cap = ParsehTabCapture.capability();
+      let err = '';
+      if (!cap.ok) err = await ParsehTabCapture.record({player: {getDuration: () => 42}, pcm: true}).promise.then(() => '', e => e.message);
+      return [cap, ParsehTabCapture.problem(), ParsehTabCapture.capability({pcm: false}), __asked.length, err];
+    });
+    await context.close();
+    eq(r[0], {ok: r[1] === '', why: r[1]}, `${what}: capability() is problem(), as {ok, why}`);
+    return r;
+  };
+  eq((await said(() => {}, 'Chrome'))[0], {ok: true, why: ''}, 'this Chrome can');
+  for (const [init, what, sentence] of [
+    [() => { Object.defineProperty(Navigator.prototype, 'userAgentData', {get: () => undefined}); }, 'Firefox or Safari',
+     'only Chrome and Edge, on a computer, can record the sound of a tab'],
+    [() => { Object.defineProperty(window, 'isSecureContext', {get: () => false}); }, 'a page that is not https',
+     'recording this tab needs the page opened at the toolbox’s https address, in Chrome or Edge'],
+    [() => { const ua = navigator.userAgentData; Object.defineProperty(Navigator.prototype, 'userAgentData', {get: () => ({brands: ua.brands, mobile: true})}); }, 'a phone',
+     'only Chrome and Edge, on a computer, can record the sound of a tab'],
+    [() => { delete window.AudioWorkletNode; }, 'a browser with no AudioWorklet', 'this browser cannot read the sound of a shared tab']]) {
+    const r = await said(init, what);
+    eq(r[0], {ok: false, why: sentence}, `${what}: the exact sentence`);
+    eq(r[4], sentence, `${what}: record() refuses with it`);
+    eq(r[3], 0, `${what}: and never asks Chrome to share anything`);
+  }
+  const noWorklet = await said(() => { delete window.AudioWorkletNode; }, 'no AudioWorklet');
+  eq(noWorklet[2], {ok: true, why: ''}, 'without the worklet the shape alone can still be drawn: capability({pcm: false}) is the card kit\'s test');
+}
+{
+  console.log('   m7) YouTube plays an ad');
+  for (const [what, hook] of [
+    ['the length changes under the recording', () => { window.__ad = () => { __p.getDuration = () => 15; }; }],
+    ['the clock runs backwards', () => { window.__ad = () => { const g = __p.getCurrentTime; __p.getCurrentTime = () => g.call(__p) - 4; }; }]]) {
+    const {context, page} = await tcPage({query: 'src=tones.wav'});
+    await page.evaluate(hook);
+    await startRec(page);
+    await until(async () => (await childState(page)).t > 3.3, 'the video plays', 20000);
+    await page.evaluate(() => __ad());
+    await recOver(page, 'the ad is noticed', 8000);
+    const g = await gotOf(page);
+    eq(g.error, {message: 'YouTube played an ad, so the recording was stopped — an ad’s sound would end up in the transcript', reason: 'ad'},
+       `${what}: the recording stops, in words`);
+    eq(await page.evaluate(() => [__got.ended, ParsehTabCapture.busy(), __contexts.map(c => c.state).join(),
+                                  __streams.map(s => s.getTracks().map(t => t.readyState).join())]),
+       [['ad'], false, 'closed,closed', ['ended,ended']], `${what}: ended once, not busy, both contexts closed, the share let go`);
+    const c = await childState(page);
+    assert(c.paused, `${what}: and the video is paused`);
+    await context.close();
+  }
+}
+{
+  console.log('   m8) cancelled mid-way: the sound stops, everything is let go, a second recording works');
+  const {context, page} = await tcPage({query: 'src=short.wav'});
+  await page.evaluate(() => __p.setPlaybackRate(1.25));
+  await until(async () => (await childState(page)).rate === 1.25, 'the speed is set');
+  const before = await page.evaluate(() => [...__intervals.keys()]);
+  await startRec(page, {pcm: {chunkSeconds: 1}});
+  await until(() => page.evaluate(() => __got.chunks.length >= 2 && __got.marks.length >= 1), 'two chunks and a mark have come', 20000);
+  eq(await page.evaluate(() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; }), true,
+     'while it records, leaving the page is asked about');
+  const beforeCancel = await page.evaluate(() => __got.chunks.length);
+  await page.evaluate(() => __rec.cancel());
+  const g = await page.evaluate(() => ({ended: __got.ended, result: __got.result && __got.result.reason, error: __got.error,
+    state: __rec.state, busy: ParsehTabCapture.busy(), aborted: __got.chunks.map(c => c.sig.aborted), n: __got.chunks.length,
+    contexts: __contexts.map(c => c.state), tracks: __streams.map(s => s.getTracks().map(t => t.readyState).join()),
+    clones: __clones.map(c => c.readyState), intervals: [...__intervals.keys()], wake: [__wake.asked, __wake.released], gum: __gum}));
+  eq([g.ended, g.result, g.error, g.state, g.busy], [['cancelled'], 'cancelled', null, 'done', false], 'ended once as cancelled, and not busy');
+  eq([g.contexts, g.tracks, g.clones], [['closed', 'closed'], ['ended,ended'], ['ended']], 'both contexts closed, the share and the clone stopped');
+  eq(g.intervals, before, 'no timer of its own is left running');
+  eq(g.wake, [['screen'], 1], 'the screen\'s wake lock was given back');
+  assert(g.aborted.every(x => x === true) && g.n >= beforeCancel, 'what onChunk was sent is told to abort (its signal): ' + JSON.stringify(g.aborted));
+  eq(await page.evaluate(() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; }), false,
+     'and leaving the page is not asked about any more');
+  const after = await childState(page);
+  assert(after.paused && after.rate === 1.25, 'the video is paused and its speed given back: ' + JSON.stringify(after));
+  await sleep(1500);
+  eq(await page.evaluate(() => __got.chunks.length), g.n, 'no chunk arrives after the cancel');
+  eq(g.gum, 0, 'the microphone was never asked');
+  // and again, to the end
+  await startRec(page);
+  await recOver(page, 'the second recording ends', 40000);
+  const h = await gotOf(page);
+  eq([h.error, h.result.reason, h.ended], [null, 'ended', ['ended']], 'the second recording runs to the video\'s end: nothing was left behind');
+  eq(await page.evaluate(() => [__asked.length, __contexts.map(c => c.state).join(), __wake.released]), [2, 'closed,closed,closed,closed', 2],
+     'Chrome asked once for each, and everything of both is closed');
+  await context.close();
+}
+{
+  console.log('   m9) an hour of sound through the pipeline: nothing piles up');
+  const {context, page} = await tcPage({embed: false});
+  const r = await page.evaluate(async () => {
+    // 3600 s of 16 kHz sound in the worklet's quarter-second blocks, handed
+    // over as fast as the page can, to a send that takes a moment each time
+    const CHUNK = 80000, BLOCK = 4000, BLOCKS = 3600 * 4;
+    let sent = 0, next = 0, gaps = 0, most = 0, aborted = 0, failed = null;
+    const ctl = new AbortController();
+    const line = ParsehTabCapture._pipeline(CHUNK, (pcm, off) => {
+      if (off !== next) gaps++;
+      next = off + pcm.length; sent += pcm.length;
+      return new Promise(ok => setTimeout(ok, 0));
+    }, ctl.signal, e => { failed = e.message; });
+    for (let i = 0; i < BLOCKS; i++) {
+      line.push(new Int16Array(BLOCK));
+      most = Math.max(most, line.held() + line.queued());
+      if (i % 20 === 19) await new Promise(ok => setTimeout(ok, 2));   // a chunk's worth, and the send gets its turn
+    }
+    await line.end();
+    const easy = {sent, gaps, most, held: line.held(), queued: line.queued(), failed};
+    // and a send that never answers: what piles up is held for five minutes of
+    // sound and no more, and then the recording gives up, in words
+    let stuck = null, stuckMost = 0, said = null;
+    const jam = ParsehTabCapture._pipeline(CHUNK, () => new Promise(() => {}), ctl.signal, e => { said = e.message; });
+    for (let i = 0; i < BLOCKS && !said; i++) { jam.push(new Int16Array(BLOCK)); stuckMost = Math.max(stuckMost, jam.held() + jam.queued()); }
+    stuck = {said, most: stuckMost, held: jam.held(), queued: jam.queued()};
+    // and a send that fails is the recording's failure, not a silent hole
+    let boom = null;
+    const bad = ParsehTabCapture._pipeline(CHUNK, () => Promise.reject(new Error('the server said no')), ctl.signal, e => { boom = e.message; });
+    bad.push(new Int16Array(CHUNK));
+    await new Promise(ok => setTimeout(ok, 50));
+    return {easy, stuck, boom};
+  });
+  eq([r.easy.sent, r.easy.gaps, r.easy.failed], [3600 * 16000, 0, null], 'an hour of sound went through, in order, with no gap and no failure');
+  assert(r.easy.most <= 2 * 80000 + 4000, `at no moment did more than two chunks' worth wait (${r.easy.most} samples, an hour is 57 600 000)`);
+  eq([r.easy.held, r.easy.queued], [0, 0], 'and nothing is held at the end');
+  assert(r.stuck.said === 'the sound could not be sent as fast as it was recorded, so the recording was stopped' && r.stuck.most <= 300 * 16000 + 80000 + 4000,
+         `a send that never answers is given up on after five minutes of sound (${(r.stuck.most / 16000).toFixed(0)} s held at the most), in words`);
+  eq([r.stuck.held, r.stuck.queued], [0, 0], 'and what waited is let go');
+  eq(r.boom, 'the server said no', 'a send that fails ends the recording with what it said');
+  await context.close();
+}
+{
+  console.log('   m9b) a video whose sound is off: only the end says nothing was heard');
+  const {context, page} = await tcPage({query: 'src=short.wav&deaf=1'});
+  await startRec(page, {unmute: true});
+  await recOver(page, 'the silence is said', 40000);
+  const g = await gotOf(page);
+  eq(g.error, {message: 'nothing was heard — the tab was shared without its sound, or the video is muted', reason: 'error'},
+     'a whole video of silence says so (the share has its sound; the video has none): at the end, not before');
+  eq(await page.evaluate(() => [__got.ended, ParsehTabCapture.busy(), __contexts.map(c => c.state).join(), __streams.map(s => s.getTracks().map(t => t.readyState).join())]),
+     [['error'], false, 'closed,closed', ['ended,ended']], 'and everything is let go');
+  await context.close();
+}
+{
+  console.log('   m10) the picture of the share stopped (dropVideo): the sound goes on');
+  const {context, page} = await tcPage({query: 'src=short.wav'});
+  await startRec(page, {dropVideo: true});
+  const during = await until(() => page.evaluate(() => __rec.state === 'listening' ? __streams[0].getTracks().map(t => t.kind + ':' + t.readyState).sort().join() : null),
+                             'the recording listens');
+  eq(during, 'audio:live,video:ended', 'while it records, the picture is stopped and the sound is live');
+  await recOver(page, 'the short video is recorded', 40000);
+  const g = await gotOf(page);
+  eq([g.error, g.result.reason], [null, 'ended'], 'recorded to the end without the picture');
+  const c = await collected(page);
+  const tones = c.tones.runs.filter(r => r[1] - r[0] >= 0.4);
+  assert(tones.length === 12 && Math.max(...tones.map(r => Math.abs(r[2] - (300 + 50 * Math.round((r[2] - 300) / 50))))) <= 25,
+         `all 12 tones are in the sound, at their frequencies: ${tones.length}`);
+  const flat = [2, 5, 9].filter(k => !(Math.min(...g.result.peaks.slice(k * 20 + 3, k * 20 + 8)) > 0.5 && Math.max(...g.result.peaks.slice(k * 20 + 13, k * 20 + 18)) < 0.1));
+  eq([g.result.peaks.length, flat], [241, []], 'and the shape of the 12 seconds is as with the picture: tall at the tones, flat between');
+  const errs = toneErrors(c.tones, c.marks);
+  assert(errs.length >= 8 && errs.every(e => Math.abs(e.error) <= 0.15), `and the marks put every tone where the video has it (worst ${Math.max(...errs.map(e => Math.abs(e.error))).toFixed(3)} s)`);
+  // kept, the share's picture is not touched: the player's frame capture needs it
+  await startRec(page, {dropVideo: true, keepShare: true});
+  await until(() => page.evaluate(() => __rec.state === 'listening'), 'the second recording listens');
+  eq(await page.evaluate(() => __streams.at(-1).getTracks().map(t => t.kind + ':' + t.readyState).sort().join()), 'audio:live,video:live',
+     'a share that is kept keeps its picture: dropVideo is for a share that will be let go');
+  await page.evaluate(() => __rec.cancel());
+  // and a kept share is what the next recording finds: Chrome is not asked again
+  const askedBefore = await page.evaluate(() => __asked.length);
+  await startRec(page, {keepShare: true});
+  await until(() => page.evaluate(() => __rec.state === 'listening'), 'the third recording listens');
+  await page.evaluate(() => __rec.cancel());
+  eq(await page.evaluate(() => [__asked.length, __streams.length]), [askedBefore, askedBefore], 'a kept share serves the next recording: Chrome is not asked again');
+  await context.close();
+}
+{
+  console.log('   m10b) the YouTube player for the recording: what it says when it cannot come');
+  const {context, page} = await tcPage({embed: false});
+  const r = await page.evaluate(async () => {
+    const out = {};
+    for (const code of [2, 5, 100, 101, 150, 7]) {
+      window.YT = {Player: function (id, opts) { setTimeout(() => opts.events.onError({data: code}), 5); }};
+      let said = null;
+      out[code] = await ParsehTabCapture.embed(document.getElementById('box'), 'kL9mN1oP3qR', {onError: (c, w) => { said = [c, w]; }})
+        .then(() => 'ready', e => [e.message, e.code, said]);
+    }
+    window.YT = {Player: function () {}};
+    out.never = await ParsehTabCapture.embed(document.getElementById('box'), 'kL9mN1oP3qR', {timeout: 300}).then(() => 'ready', e => e.message);
+    const took = async (length) => {
+      window.YT = {Player: function (id, opts) { this.getDuration = () => length; setTimeout(() => opts.events.onReady({}), 5); }};
+      const t0 = performance.now();
+      const p = await ParsehTabCapture.embed(document.getElementById('box'), 'kL9mN1oP3qR', {lengthWait: 400});
+      return [typeof p.getDuration, Math.round(performance.now() - t0)];
+    };
+    out.knowing = await took(42);
+    out.notknowing = await took(0);
+    return out;
+  });
+  const words = {2: 'YouTube does not know this address', 5: 'YouTube will not play this video in this browser',
+    100: 'this video is gone from YouTube — it was taken down, or it was made private',
+    101: 'the owner of this video does not allow it to be played outside YouTube',
+    150: 'the owner of this video does not allow it to be played outside YouTube', 7: 'YouTube would not play this video (error 7)'};
+  for (const code of [2, 5, 100, 101, 150, 7])
+    eq(r[code], [words[code], code, [code, words[code]]], `YouTube's error ${code}: the promise says it in words, and so does onError`);
+  eq(r.never, 'YouTube’s player did not start', 'a player that never says it is ready is given up on, in words');
+  assert(r.knowing[0] === 'function' && r.knowing[1] < 300, `a player that knows the video's length is ready at once (${r.knowing[1]} ms)`);
+  assert(r.notknowing[0] === 'function' && r.notknowing[1] >= 380 && r.notknowing[1] < 1500, `one that does not say it is waited for, for a moment and no longer (${r.notknowing[1]} ms)`);
+  // the API script that cannot be fetched
+  const {context: c2, page: p2} = await tcPage({embed: false});
+  await c2.route('https://www.youtube.com/iframe_api', route => route.abort());
+  eq(await p2.evaluate(() => ParsehTabCapture.embed(document.getElementById('box'), 'kL9mN1oP3qR', {}).then(() => 'ready', e => e.message)),
+     'YouTube’s player could not be fetched — Parseh itself is answering, so it is YouTube this computer cannot reach',
+     'YouTube\'s script that cannot be fetched is said to be YouTube\'s, not Parseh\'s');
+  await c2.close();
+  await context.close();
+}
+{
+  console.log('   m11) the pages the worklet is built in set no policy against it');
+  for (const path of ['/youtube/add/', `/youtube/v/${YT}/`])
+    eq((await fetch(BASE + path)).headers.get('content-security-policy'), null, `${path} sends no Content-Security-Policy: a Blob URL worklet is allowed`);
 }
 
 assert(errors.length === 0, 'no page error and no failed request: ' + JSON.stringify(errors));

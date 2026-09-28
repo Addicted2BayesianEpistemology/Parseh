@@ -159,6 +159,17 @@ class WhatTheModuleSaysTests(unittest.TestCase):
         code = re.sub(r"(?m)//.*$", "", code)
         self.assertNotIn(".destination", code)
 
+    def test_the_worklet_is_a_string_made_into_a_blob_and_not_a_file(self):
+        # so that a kept video needs nothing but tabcapture.js for the sound
+        # (lib/offline.py PLAYER_FILES has no second file), and no policy the
+        # pages do not set could refuse it
+        import offline
+        source = TABCAPTURE.read_text(encoding="utf-8")
+        self.assertIn("registerProcessor(", source)
+        self.assertIn("URL.createObjectURL(new Blob([WORKLET]", source)
+        self.assertIn("audioWorklet.addModule(url)", source)
+        self.assertEqual([f for f in offline.PLAYER_FILES if "worklet" in f.lower()], [])
+
     def test_it_is_a_classic_script(self):
         # the phone's copy of the player loads it with a plain <script src>
         source = TABCAPTURE.read_text(encoding="utf-8")

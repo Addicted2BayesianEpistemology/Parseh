@@ -129,10 +129,10 @@ card on the videos page. No Claude Code, no access to the project:
    (`lib/timeline.js`), except that a caption has one number per boundary
    and so no *split*. A film on this machine draws its waveform from the
    server (ffmpeg, as for a book); a YouTube video has none unless you press
-   *● draw the sound*, which plays it once while recording this tab and
-   keeps the shape — one number every 50 ms, as `waveform.json` beside the
-   video, so it is done once. Chrome and Edge only; without it the six steps
-   and ▶ still move a caption by ear. **,** and **.** take up the caption
+   *● draw the sound*, which plays it once while recording this tab
+   (`lib/tabcapture.js`) and keeps the shape — one number every 50 ms, as
+   `waveform.json` beside the video, so it is done once. Chrome and Edge
+   only; without it the six steps and ▶ still move a caption by ear. **,** and **.** take up the caption
    before and after (so do `[` `]` and PageUp/PageDown), **F** brings the
    view back onto the one being timed, **S** drops the line the arrows would
    move into the middle of the nearest stretch where the sound falls away
@@ -571,6 +571,7 @@ youtube/
 │   ├── ytpages.py          # the pages + Anki endpoints ../serve.py mounts at /youtube/
 │   ├── style.css           # the player's own styles (the palette is ../lib/parseh.css)
 │   ├── player.js           # YouTube sync, highlighting, the gloss cloud
+│   ├── tabcapture.js       # this tab's share and the recording of its sound: the waveform's, and the add page's transcript
 │   ├── player.html         # page template (__ID__, __TITLE__, __BASE__, ...)
 │   ├── import_old_video.py # a video from the older watching-edition format
 │   ├── slice_part.py       # the captions one batch is responsible for
