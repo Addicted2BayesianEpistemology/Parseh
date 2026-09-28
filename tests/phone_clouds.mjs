@@ -3,8 +3,9 @@
 // a0.3.2 (the owner, 2026-09-24; TO-DO §4.18), against the REAL hub over a
 // temporary toolbox (tests/mobile_harness.py's tree, served here with
 // dictionaries of its own -- English, Persian and Arabic -- a book and a
-// video with few glosses, two books of two chapters, a Persian video, and a
-// video on YouTube whose player is faked):
+// video with few glosses, two books of two chapters, a Persian video, a
+// Japanese one and a Chinese one, and a video on YouTube whose player is
+// faked):
 //
 // lines -- a video on the whole screen (lib/mobileplayer.js):
 //   a) beside the way out, a switch for the lines around the one being said;
@@ -71,6 +72,15 @@
 //   l) the video's transcript on a phone has no + between its captions (it
 //      writes a note into the video); the browser interface keeps it
 //   k) the toast still stands over the sheet
+//   m) the size of the words (L12; tests/mobile_pages.mjs e1 drives the same
+//      panel on the English film): on a Persian video and a Japanese and a
+//      Chinese one, in the three themes -- upright, Aa on the header's first
+//      line opens the panel with the transcript's size and no subtitles'
+//      slider; held sideways on the whole screen, the Aa in the corner opens
+//      it over the picture with the subtitles' slider and the glosses', the
+//      subtitle the size the slider says and in the language's direction,
+//      the lines around it in proportion at 40px and clear of the corner;
+//      and in English at 36px the proportions of a plain line
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/phone_clouds.mjs
 //   SHOTS=<dir> also saves a screenshot of each
 import {chromium} from 'npm:playwright-core@1.52.0';
@@ -113,6 +123,35 @@ const FA_CAPTIONS = [
   {start: 2, text: 'مِثلِ ایران با هَم نِمی سوزانَند.', chunks: [['مِثلِ ایران با هَم'], ['نِمی سوزانَند.', 'do they burn']]},
   {start: 4, text: 'پَس اَز پَنج سال', chunks: [['پَس اَز', '', '', 'pas az'], ['پَنج سال']]},
   {start: 6, text: 'سالِ نو در ایران', chunks: [['سالِ نو'], ['در ایران']]},
+];
+// A JAPANESE VIDEO AND A CHINESE ONE, the same film again, for the size of the
+// words (m): the language's own face, a reading over the characters, and a
+// line as tall as a subtitle can be.  A chunk is [text, meaning, vocabulary,
+// transliteration, kana]
+const JA_VIDEO = 'japanese-lines-d1e2f3';
+const JA_CAPTIONS = [
+  {start: 0, text: 'Hello everyone, welcome to today\'s lesson', plain: true, chunks: []},
+  {start: 2, text: 'こんにちは、みなさん', chunks: [
+    ['こんにちは、', 'hello,', 'こんにちは konnichiwa hello, good afternoon', 'konnichiwa,', 'こんにちは、'],
+    ['みなさん', 'everyone', '皆さん みなさん minasan everyone (polite)', 'minasan', 'みなさん']]},
+  {start: 4, text: '今日は 天気が いいですね', chunks: [
+    ['今日は', 'today', '今日 きょう kyō today', 'kyō wa', 'きょうは'],
+    ['天気が', 'the weather', '天気 てんき tenki weather', 'tenki ga', 'てんきが'],
+    ['いいですね', 'is nice, isn\'t it', 'いい ii good', 'ii desu ne', 'いいですね']]},
+  {start: 6, text: '私は毎朝コーヒーを飲みます', chunks: [
+    ['私は', 'I', '私 わたし watashi I', 'watashi wa', 'わたしは'],
+    ['毎朝', 'every morning', '毎朝 まいあさ maiasa every morning', 'maiasa', 'まいあさ'],
+    ['コーヒーを飲みます', 'I drink coffee', '', '', 'コーヒーをのみます']]},
+];
+const ZH_VIDEO = 'chinese-lines-e4f5a6';
+const ZH_CAPTIONS = [
+  {start: 0, text: 'Welcome back to the channel, today we learn Chinese at the tea house', plain: true, chunks: []},
+  {start: 2, text: '你好，我想要一杯茶', chunks: [
+    ['你好，', 'hello,', '你 nǐ you; 好 hǎo good', 'nǐ hǎo'], ['我想要一杯茶', 'I would like a cup of tea', '茶 chá tea', 'wǒ xiǎng yào yì bēi chá']]},
+  {start: 4, text: '好的，你要什么茶', chunks: [
+    ['好的，', 'all right,', '好的 hǎo de all right', 'hǎo de'], ['你要什么茶', 'what tea do you want', '什么 shénme what', 'nǐ yào shénme chá']]},
+  {start: 6, text: '绿茶，谢谢', chunks: [
+    ['绿茶，', 'green tea,', '绿茶 lǜchá green tea', 'lǜchá'], ['谢谢', 'thank you', '谢谢 xièxie thanks', 'xièxie']]},
 ];
 // what the dictionaries hold.  English's senses are English definitions,
 // which an entry shows only with the header's "definitions" on; it always
@@ -254,7 +293,7 @@ def video(folder, vid, title, lang, caps, film=True):
             # [text, meaning, vocabulary, transliteration]: a line nobody
             # wrote is not written at all
             ch = {'fa': c[0]}
-            for k, f in ((1, 'en'), (2, 'voc'), (3, 'tr')):
+            for k, f in ((1, 'en'), (2, 'voc'), (3, 'tr'), (4, 'kana')):
                 if len(c) > k and c[k]: ch[f] = c[k]
             chunks.append(ch)
         segs.append({'start': s['start'], 'text': s['text'], 'chunks': chunks})
@@ -262,6 +301,8 @@ def video(folder, vid, title, lang, caps, film=True):
         {'video': vid, 'language': lang, 'segments': segs}, ensure_ascii=False), encoding='utf-8')
 video('english', sys.argv[5], 'Four lines', 'en', json.loads(sys.argv[6]))
 video('persian', sys.argv[7], 'Persian lines', 'fa', json.loads(sys.argv[8]))
+video('japanese', sys.argv[12], 'Japanese lines', 'ja', json.loads(sys.argv[13]))
+video('chinese', sys.argv[14], 'Chinese lines', 'zh', json.loads(sys.argv[15]))
 video('english', sys.argv[11], 'On YouTube', 'en', json.loads(sys.argv[6]), film=False)
 # Persian books with few glosses, the fixture edition's: one of one short
 # chapter, and two of two chapters each -- the fixture's main.tex inputs
@@ -296,7 +337,8 @@ const log = [];
 const hub = new Deno.Command(PY, {args: ['-c', SERVE, WORK, String(port), JSON.stringify(DICTS),
                                          MADE.video, VIDEO, JSON.stringify(CAPTIONS),
                                          FA_VIDEO, JSON.stringify(FA_CAPTIONS), SPARSE_TEX,
-                                         JSON.stringify(CHAPTERS), YT_VIDEO],
+                                         JSON.stringify(CHAPTERS), YT_VIDEO,
+                                         JA_VIDEO, JSON.stringify(JA_CAPTIONS), ZH_VIDEO, JSON.stringify(ZH_CAPTIONS)],
                                   cwd: root, stdout: 'piped', stderr: 'piped'}).spawn();
 for (const s of [hub.stdout, hub.stderr])
   (async () => { for await (const c of s.pipeThrough(new TextDecoderStream())) log.push(c); })();
@@ -1528,6 +1570,140 @@ try {
      'the subtitles over the whole screen: every phrase keeps its line, the glossed one\'s near white against the black');
   await shot(fsv, 'video-fa-fullscreen-sparse');
   await fsv.context().close();
+
+  // ---- m) THE SIZE OF THE WORDS (L12; the owner, 2026-09-25 and -28): the
+  // transcript keeps its size, the subtitles over a video on the whole
+  // screen get their own, Aa in the corner opens the same panel there.  Driven
+  // on a right-to-left video and on two CJK ones, in the three themes,
+  // upright (the transcript's size, from the header) and sideways (the
+  // subtitles', from the whole screen)
+  console.log('the size of the words: the transcript\'s, and the subtitles\' on the whole screen');
+  const setTheme = (p, t) => p.evaluate(t => Parseh.theme.set(t), t);
+  const slideTo = (p, id, v) => p.evaluate(([id, v]) => {
+    const i = document.getElementById(id);
+    i.value = v;
+    i.dispatchEvent(new Event('input', {bubbles: true}));
+  }, [id, v]);
+  const panelNow = p => p.evaluate(() => {
+    const el = document.querySelector('.parseh-typo'), r = el.getBoundingClientRect();
+    const hd = el.querySelector('.thead').getBoundingClientRect();
+    const at = document.elementFromPoint(hd.left + hd.width / 2, hd.top + hd.height / 2);
+    const probe = document.createElement('span');
+    probe.style.background = 'var(--card)';
+    document.body.appendChild(probe);
+    const card = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return {up: !el.hidden, onTop: !!at && el.contains(at), t: r.top, b: r.bottom, l: r.left, r: r.right,
+            W: innerWidth, H: innerHeight, bg: getComputedStyle(el).backgroundColor, card,
+            header: document.querySelector('header').getBoundingClientRect().height,
+            rows: [...el.querySelectorAll('.trow')].filter(t => getComputedStyle(t).display !== 'none')
+                    .map(t => t.querySelector('input').id.replace('st-', ''))};
+  });
+  const CJK_ROWS = {fa: [], ja: ['cjkSpace', 'kanaContrast', 'kanaSize'], zh: ['cjkSpace']};
+  for (const [lang, vid, dir] of [['fa', FA_VIDEO, 'rtl'], ['ja', JA_VIDEO, 'ltr'], ['zh', ZH_VIDEO, 'ltr']]) {
+    // sideways, on the whole screen
+    const p = await pageFor(LAND, 'mobile', 'size ' + lang);
+    await openVideo(p, vid, 4);
+    await videoAt(p, 1);
+    await tap(p, '.m-vfull');
+    await p.waitForFunction(() => document.documentElement.classList.contains('m-vfullon'));
+    await sleep(500);
+    const paper = [];
+    for (const theme of ['light', 'dark', 'sepia']) {
+      await setTheme(p, theme);
+      await sleep(150);
+      await tap(p, '.m-vtxt');
+      await sleep(250);
+      await slideTo(p, 'st-sub', 34);
+      await sleep(150);
+      const f = await panelNow(p);
+      const got = await lines(p);
+      const fa = await p.evaluate(() => { const e = document.querySelector('.m-subs .m-subline .fa'), r = e.getBoundingClientRect();
+        return {dir: getComputedStyle(e).direction, l: r.left, r: r.right, t: r.top, b: r.bottom, W: innerWidth, H: innerHeight}; });
+      paper.push(f.bg);
+      eq([f.up, f.onTop, f.rows], [true, true, ['sub', 'gl']],
+         `${lang}, ${theme}: Aa opens the panel over the picture, on top, with the subtitles' size and the glosses'`);
+      assert(f.bg === f.card && f.t >= 0 && f.b <= f.H && f.r <= f.W, `${lang}, ${theme}: in the theme's own card, on the screen`);
+      eq([got.length, got[0].size, fa.dir], [1, 34, dir],
+         `${lang}, ${theme}: the subtitle is 34px, in the language's own direction`);
+      assert(fa.l >= 0 && fa.r <= fa.W && fa.b <= fa.H, `${lang}, ${theme}: and lies on the screen`);
+      await shot(p, `size-${lang}-${theme}-full`);
+      await tap(p, '.m-vtxt');
+      await sleep(150);
+    }
+    assert(new Set(paper).size === 3, `${lang}: the three themes draw the panel in three colours (${paper.join(' | ')})`);
+    // the lines around it at the largest size: in proportion, on the screen, clear of the corner
+    await videoAt(p, 2);
+    await tap(p, '.m-vtxt');
+    await slideTo(p, 'st-sub', 40);
+    await tap(p, '.m-vctx');
+    await sleep(350);
+    got = await lines(p);
+    const [pv, nw, nx] = got;
+    assert(got.length === 3 && nw.size === 40 && Math.abs(pv.size - 32.8) < 0.3 && Math.abs(nx.size - 32.8) < 0.3,
+           `${lang}: at 40px the lines around are .82 of it, as at 20 (${got.map(l => l.size).join(', ')}px)`);
+    const room = await p.evaluate(() => {
+      const c = document.querySelector('.m-subs .m-subctx').getBoundingClientRect();
+      const t = document.querySelector('.m-vtxt').getBoundingClientRect();
+      return {t: c.top, b: c.bottom, r: c.right, H: innerHeight, clear: c.top >= t.bottom || c.right <= t.left};
+    });
+    assert(room.b <= room.H && room.clear, `${lang}: on the screen and clear of the buttons in the corner ${JSON.stringify(room)}`);
+    await shot(p, `size-${lang}-ctx-40`);
+    await p.context().close();
+
+    // upright: the transcript's own size from the header, and no subtitles' slider where
+    // there is no whole screen
+    const u = await pageFor(PHONE, 'mobile', 'size upright ' + lang);
+    await openVideo(u, vid, 4);
+    for (const theme of ['light', 'dark', 'sepia']) {
+      await setTheme(u, theme);
+      await sleep(150);
+      await tap(u, '#typo');
+      await sleep(250);
+      const f = await panelNow(u);
+      eq([f.up, f.onTop, f.rows, f.header < 70], [true, true, ['fa', 'gl', 'width', 'lead', ...CJK_ROWS[lang]], true],
+         `${lang}, ${theme}, upright: Aa on the header's first line opens the panel, on top; no subtitles' slider`);
+      assert(f.t >= 0 && f.b <= f.H && f.l >= 0 && f.r <= f.W, `${lang}, ${theme}, upright: on the screen`);
+      const before = await u.evaluate(() => parseFloat(getComputedStyle([...document.querySelectorAll('#segs .seg .fa')]
+                                                                        .find(e => e.querySelector('.w'))).fontSize));
+      await slideTo(u, 'st-fa', 32);
+      await sleep(150);
+      const after = await u.evaluate(() => [parseFloat(getComputedStyle([...document.querySelectorAll('#segs .seg .fa')]
+                                                                        .find(e => e.querySelector('.w'))).fontSize),
+                                             getComputedStyle(document.documentElement).getPropertyValue('--yt-sub').trim()]);
+      // (a phone's width takes 1px off, style.css)
+      eq(after, [31, '20px'], `${lang}, ${theme}, upright: the transcript's words ${before} → 32px (31 at a phone's width) and the subtitles' size untouched`);
+      if (theme !== 'sepia') await shot(u, `size-${lang}-${theme}-upright`);
+      await slideTo(u, 'st-fa', 20);
+      await tap(u, '.parseh-typo .tclose');
+    }
+    await u.context().close();
+  }
+  // and the subtitles over an English video, in proportion at a large size
+  const big = await pageFor(LAND, 'mobile', 'size near');
+  await big.addInitScript(() => {
+    localStorage.setItem('yt_typo', JSON.stringify({sub: 36}));
+    localStorage.setItem('vd_subctx', '1');
+  });
+  await openVideo(big);
+  await videoAt(big, 2);
+  await tap(big, '.m-vfull');
+  await big.waitForFunction(() => document.documentElement.classList.contains('m-vfullon'));
+  await sleep(500);
+  got = await lines(big);
+  assert(got.length === 3 && got[1].size === 36 && got.every(l => l.near || l.size === 36) &&
+         Math.abs(got[0].size - 36 * .82) < 0.2 && Math.abs(got[2].size - 36 * .82) < 0.2,
+         `English at 36px: the line being said 36, the two beside it .82 of that (${got.map(l => l.size).join(', ')}px)`);
+  await videoAt(big, 0);
+  got = await lines(big);
+  assert(Math.abs(got[0].size - 36 * .775) < 0.2 && Math.abs(got[1].size - 36 * .82) < 0.2,
+         `and the video's own English framing (a plain line) follows it in its transcript proportion, .775 (${got.map(l => l.size).join(', ')}px)`);
+  await videoAt(big, 1);
+  got = await lines(big);
+  assert(Math.abs(got[0].size - 36 * .64) < 0.2 && got[1].size === 36 && Math.abs(got[2].size - 36 * .82) < 0.2,
+         `and the plain line before the one being said, .64 of it (${got.map(l => l.size).join(', ')}px)`);
+  await shot(big, 'size-en-plain-36');
+  await big.context().close();
 
   // ---- h) not in the browser interface
   console.log('the browser interface');

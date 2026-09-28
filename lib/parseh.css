@@ -466,6 +466,7 @@ html[data-lang="zh"] :is(.p1,.seg .fa) .wd[data-w] rt{
 .ws-note .ws-empty{color:var(--faint)}
 mark.pair-match{background:transparent;color:var(--accent);font-weight:600}
 .parseh-typo{max-height:calc(100vh - 90px);overflow-y:auto}
+html:not([data-mode=mobile]) .parseh-typo .trow:has(#st-sub){display:none}
 
 /* ---------------- the narration's controls ----------------
    lib/narrctl.js puts these on every reader, in either mode: ↺ and ↻ (the

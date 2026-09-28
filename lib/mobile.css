@@ -703,12 +703,14 @@ html.m-player[data-mode=mobile] header button{min-width:48px}
 html.m-player[data-mode=mobile] header a.home{display:inline-flex;align-items:center;
   justify-content:center;min-width:48px}
 html.m-player[data-mode=mobile] header a.home.glyph{font-size:19px;padding:0 12px 8px}
-/* the first line: the hub, the channel, what this video is, ⛶ and ⋯ */
+/* the first line: the hub, the channel, what this video is, Aa, ⛶ and ⋯ */
 html.m-player[data-mode=mobile] header a.home.glyph{order:1}
 html.m-player[data-mode=mobile] header a.home:not(.glyph){order:2}
-html.m-player[data-mode=mobile] header .ttl{order:3;flex:1 1 40%;min-width:0;font-size:14px;
+html.m-player[data-mode=mobile] header .ttl{order:3;flex:1 1 0;min-width:0;font-size:14px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 html.m-player[data-mode=mobile] header .ttl .lat{display:none}
+@media (max-width:340px){html.m-player[data-mode=mobile] header .ttl{display:none}}
+html.m-player[data-mode=mobile] header #typo{order:4}
 html.m-player[data-mode=mobile] header .m-vfull{order:4}
 html.m-player[data-mode=mobile] header .px-ask{order:5}
 html.m-player[data-mode=mobile] header :is(.kp-off,.kp-again,.kp-wait){order:7}
@@ -730,7 +732,6 @@ html.m-player[data-mode=mobile] header #defmode{order:32}
 html.m-player[data-mode=mobile] header #defmt{order:33}
 html.m-player[data-mode=mobile] header .m-rlab[data-g=page]{order:40}
 html.m-player[data-mode=mobile] header #theme{order:41}
-html.m-player[data-mode=mobile] header #typo{order:42}
 html.m-player[data-mode=mobile] header .parseh-mode{order:43}
 html.m-player[data-mode=mobile] header .kp-btn{order:44;flex:1 0 100%}
 html.m-player[data-mode=mobile] header .parseh-mode button{border-radius:0;min-width:0;
@@ -740,7 +741,7 @@ html.m-player[data-mode=mobile] header .parseh-mode button:first-child{
 html.m-player[data-mode=mobile] header .parseh-mode button:last-child{
   border-start-end-radius:9px;border-end-end-radius:9px}
 html.m-player[data-mode=mobile] header:not(.m-more) :is(.m-rlab,#follow,#hoverpause,#aloud,
-  #pin,#dictmode,#defmode,#defmt,#theme,#typo,.parseh-mode,.kp-btn){display:none!important}
+  #pin,#dictmode,#defmode,#defmt,#theme,.parseh-mode,.kp-btn){display:none!important}
 html.m-player[data-mode=mobile] header.m-more{max-height:100vh;max-height:100dvh;
   overflow-y:auto;overscroll-behavior:contain}
 /* the page's long explanation of the mouse's gestures is not for a phone:
@@ -831,12 +832,36 @@ html.m-player[data-mode=mobile] .m-vctx{position:absolute;z-index:6;
   justify-content:center;transition:opacity .35s ease}
 html.m-player[data-mode=mobile] .m-vctx.nc-idle{opacity:.33}
 html.m-player[data-mode=mobile] .m-vctx[aria-pressed=true]{background:rgba(255,255,255,.2);border-color:#fff}
+/* and beside that, the size of the subtitles: Aa, the header's own word for
+   the text size, opening the same panel over the picture */
+html.m-player[data-mode=mobile] .m-vtxt{position:absolute;z-index:6;
+  top:calc(10px + env(safe-area-inset-top));right:calc(122px + env(safe-area-inset-right));
+  min-width:48px;min-height:48px;padding:0;border-radius:12px;font-size:17px;line-height:1;
+  background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.4);color:#fff;
+  -webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;
+  justify-content:center;transition:opacity .35s ease}
+html.m-player[data-mode=mobile] .m-vtxt.nc-idle{opacity:.33}
+html.m-player[data-mode=mobile] .m-vtxt[aria-expanded=true]{background:rgba(255,255,255,.2);border-color:#fff}
 html.m-player[data-mode=mobile] .m-vctx-ico{display:flex;flex-direction:column;align-items:center;gap:4px}
 html.m-player[data-mode=mobile] .m-vctx-ico i{display:block;width:14px;height:2px;border-radius:1px;
   background:rgba(255,255,255,.3)}
 html.m-player[data-mode=mobile] .m-vctx-ico i:nth-child(2){width:20px;height:3px;background:#fff}
 html.m-player[data-mode=mobile] .m-vctx[aria-pressed=true] .m-vctx-ico i{background:rgba(255,255,255,.75)}
 html.m-player[data-mode=mobile] .m-vctx[aria-pressed=true] .m-vctx-ico i:nth-child(2){background:#fff}
+/* THE PANEL OVER THE PICTURE shows what the picture wears: the subtitles'
+   size and the glosses' (the cloud opens over the subtitles), not the
+   transcript's rows -- and so no reset, which would put the hidden ones
+   back, and no foot, which is that button's -- and it is as small as that
+   leaves it, since it lies over the very words being sized */
+html.m-vfullon .parseh-typo .trow:not(:has(#st-sub,#st-gl)){display:none}
+html.m-vfullon .parseh-typo .tfoot{display:none}
+/* a slider a finger can take hold of, in either layer's panel */
+html:is(.m-reader,.m-player)[data-mode=mobile] .parseh-typo input[type=range]{height:34px}
+html:is(.m-reader,.m-player)[data-mode=mobile] .parseh-typo .trow{margin:3px 0}
+html:is(.m-reader,.m-player)[data-mode=mobile] .parseh-typo button{min-width:40px;min-height:40px}
+/* upright there is no whole screen to have subtitles on */
+@media not all and (orientation:landscape) and (min-width:600px){
+  html.m-player[data-mode=mobile] .parseh-typo .trow:has(#st-sub){display:none}}
 /* The dock keeps its two corners at this same foot -- ↺ on the left, ⏯ and ↻
    on the right -- and it must stay reachable with the video on the whole
    screen, so the line keeps to the middle and clear of both columns: 56px of
@@ -846,8 +871,20 @@ html.m-player[data-mode=mobile] .m-subs{position:absolute;left:0;right:0;
   padding:0 152px;pointer-events:none}
 html.m-player[data-mode=mobile] .m-subs .m-subline{pointer-events:auto;max-width:min(900px,94vw);
   padding:10px 14px;border-radius:12px;background:rgba(0,0,0,.62);color:#fff;
-  font-size:19px;line-height:1.5;text-align:center;backdrop-filter:blur(2px);
+  line-height:1.5;text-align:center;backdrop-filter:blur(2px);
   box-shadow:none;margin:0}
+/* THE SUBTITLES' OWN SIZE (--yt-sub, the panel's "subtitles"): the words are
+   the copy's .fa, which the transcript's rule sizes by --yt-fa, so the
+   size is stated on them -- and on what the line carries in the
+   transcript's proportions: the English run inside it, and a caption of
+   the video's own framing.  A long line at a large size scrolls in its own
+   box, under the corner's buttons, as the three lines around it do */
+html.m-player[data-mode=mobile] .m-subs > .m-subline{max-height:calc(100vh - 88px);
+  max-height:calc(100dvh - 88px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y:auto;overscroll-behavior:contain}
+html.m-player[data-mode=mobile] .m-subs .m-subline .fa{font-size:var(--yt-sub,20px)}
+html.m-player[data-mode=mobile] .m-subs .m-subline .fa .bare:not(.tl){font-size:calc(var(--yt-sub,20px) * .8)}
+html.m-player[data-mode=mobile] .m-subs .m-subline .en-line{font-size:calc(var(--yt-sub,20px) * .775)}
 /* THE COPY IS STILL THE CAPTION BEING SAID, .on-air and all, and in the
    transcript that means a pale highlight with the words in full ink.  Over
    the picture it would mean a pale block with dark words on a dark pill --
@@ -871,10 +908,10 @@ html.m-player[data-mode=mobile] .m-subs .m-subctx{pointer-events:auto;max-width:
 html.m-player[data-mode=mobile] .m-subs .m-subctx .m-subline{padding:0;border-radius:0;
   background:none;backdrop-filter:none}
 html.m-player[data-mode=mobile] .m-subs .m-subnear{margin:0;padding:0;border-radius:0;
-  background:none;box-shadow:none;font-size:16px;line-height:1.45;text-align:center}
-html.m-player[data-mode=mobile] .m-subs .m-subnear .fa{font-size:calc(var(--yt-fa,20px) * .82);text-align:center}
-html.m-player[data-mode=mobile] .m-subs .m-subnear .fa .bare:not(.tl){font-size:calc(var(--yt-fa,20px) * .66)}
-html.m-player[data-mode=mobile] .m-subs .m-subnear .en-line{font-size:calc(var(--yt-fa,20px) * .64);
+  background:none;box-shadow:none;line-height:1.45;text-align:center}
+html.m-player[data-mode=mobile] .m-subs .m-subnear .fa{font-size:calc(var(--yt-sub,20px) * .82);text-align:center}
+html.m-player[data-mode=mobile] .m-subs .m-subnear .fa .bare:not(.tl){font-size:calc(var(--yt-sub,20px) * .66)}
+html.m-player[data-mode=mobile] .m-subs .m-subnear .en-line{font-size:calc(var(--yt-sub,20px) * .64);
   text-align:center}
 html.m-player[data-mode=mobile] .m-subs .m-subnear :is(.fa,.w,.wd,.bare,.tl,.en-line){color:rgba(255,255,255,.7)}
 html.m-player[data-mode=mobile] .m-subs .m-subnear .w:is(:hover,.hot){

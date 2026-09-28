@@ -1314,6 +1314,218 @@ async function partVideo() {
     document.getElementById('playerwrap').click();
     return document.documentElement.classList.contains('m-vfullon');
   }), false, 'and a tap on the black beside the picture leaves it too — three ways out, so nobody is trapped');
+
+  // ---- e1) THE SIZE OF THE WORDS, off the whole screen and on it (L12; the
+  // owner, 2026-09-25 and -28: "resizing of text in mobile version of videos
+  // interface working both in standard and full-screen mode" -- ONE SIZE
+  // EACH: the transcript keeps its own, the subtitles get one of theirs).
+  // Nothing made the words larger or smaller from the whole screen: the
+  // header is under the black box there, and Aa was under ⋯.
+  const words = () => page.evaluate(() => {
+    const px = s => { const e = document.querySelector(s); return e ? parseFloat(getComputedStyle(e).fontSize) : null; };
+    const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    return {seg: px('#segs .seg:not(.plain) .fa'), sub: px('.m-subs .m-subline .fa'),
+            near: px('.m-subs .m-subnear .fa'), yt: {fa: tok('--yt-fa'), sub: tok('--yt-sub')}};
+  });
+  const panelFacts = () => page.evaluate(() => {
+    const p = document.querySelector('.parseh-typo'), r = p.getBoundingClientRect();
+    const hd = p.querySelector('.thead').getBoundingClientRect();
+    const at = document.elementFromPoint(hd.left + hd.width / 2, hd.top + hd.height / 2);
+    return {up: !p.hidden, l: r.left, t: r.top, r: r.right, b: r.bottom, W: innerWidth, H: innerHeight,
+            onTop: !!at && p.contains(at),
+            rows: [...p.querySelectorAll('.trow')].filter(t => getComputedStyle(t).display !== 'none')
+                    .map(t => t.querySelector('input').id.replace('st-', '')),
+            reset: p.querySelector('.treset').getClientRects().length > 0};
+  });
+  const slide = (id, v) => page.evaluate(([id, v]) => {
+    const i = document.getElementById(id);
+    i.value = v;
+    i.dispatchEvent(new Event('input', {bubbles: true}));
+  }, [id, v]);
+  const yt = () => page.evaluate(() => JSON.parse(localStorage.getItem('yt_typo') || '{}'));
+  const enterFull = async () => {
+    await page.evaluate(() => {
+      const seg = [...document.querySelectorAll('#segs .seg')].find(s => s.querySelector('.fa .w'));
+      seg.querySelector('.lab').click();
+    });
+    await sleep(500);
+    await page.evaluate(() => ParsehPlayer.pause());
+    await tap(page, '.m-vfull');
+    await sleep(600);
+  };
+  const fullOn = () => page.evaluate(() => document.documentElement.classList.contains('m-vfullon'));
+  const panelUp = () => page.evaluate(() => !document.querySelector('.parseh-typo').hidden);
+  const ready = async () => {
+    await page.waitForFunction(() => window.ParsehPlayer && ParsehPlayer.ready() && !!window.ParsehMobilePlayer,
+                               null, {timeout: 20000});
+    await page.waitForFunction(() => document.querySelectorAll('#segs .seg').length > 0);
+    await sleep(400);
+  };
+
+  // the ordinary view: Aa on the header's first line, a target a thumb
+  // reaches, the header still one line
+  allFit(await targets(page, '#typo'), 'the text size, Aa, stands on the header\'s first line: 48px, on the screen, reached by a tap');
+  eq(await page.evaluate(() => [document.querySelector('#typo').getBoundingClientRect().top < 60,
+                                document.querySelector('header').getBoundingClientRect().height < 70,
+                                !document.querySelector('header').classList.contains('m-more')]),
+     [true, true, true], 'without opening ⋯, and the header is still one line');
+  await tap(page, '#typo');
+  await sleep(300);
+  let pf = await panelFacts();
+  eq([pf.up, pf.onTop, pf.rows], [true, true, ['fa', 'sub', 'gl', 'width', 'lead']],
+     'Aa opens the panel over the page, the transcript\'s size and the subtitles\' and the rest, each its own slider');
+  assert(pf.t >= 0 && pf.b <= pf.H && pf.l >= 0 && pf.r <= pf.W,
+         `held sideways it is on the screen (${Math.round(pf.t)}-${Math.round(pf.b)} of ${pf.H})`);
+  await shot(page, 'video-size-panel-ordinary');
+  const w0 = await words();
+  await slide('st-fa', 30);
+  const w1 = await words();
+  eq([w0.seg, w1.seg, w1.yt.fa, w1.yt.sub], [20, 30, '30px', w0.yt.sub],
+     'the transcript\'s own slider moves the transcript\'s words (20 → 30px) and not the subtitles\' size, --yt-sub as it was');
+  await tap(page, '.parseh-typo .tclose');
+  eq(await panelUp(), false, '✕ closes it');
+  // where a panel opened LOW in the screen goes: the clamp (a panel opened
+  // from ⋯ in a phone held sideways ran 69px off the foot).  Aa is on the
+  // first line now, so the low anchor is made here, of a button of the test's
+  const low = await page.evaluate(() => {
+    const b = document.createElement('button');
+    b.style.cssText = 'position:fixed;left:24px;top:' + (innerHeight - 56) + 'px;width:48px;height:48px;z-index:1';
+    document.body.appendChild(b);
+    ParsehPlayer.typo.open(b);
+    const r = document.querySelector('.parseh-typo').getBoundingClientRect();
+    ParsehPlayer.typo.close();
+    b.remove();
+    return {t: r.top, b: r.bottom, H: innerHeight};
+  });
+  assert(low.t >= 8 && low.b <= low.H - 8 + 0.5,
+         `opened from a button at the foot of a 390px screen the panel is pulled up to fit (${Math.round(low.t)}-${Math.round(low.b)})`);
+
+  // the whole screen: a button of its own for the subtitles' size, beside the other two
+  await enterFull();
+  assert(await fullOn(), 'on the whole screen');
+  const corner = await page.evaluate(() => {
+    const q = s => { const e = document.querySelector(s), r = e && e.getBoundingClientRect(); return r && {l: r.left, r: r.right, t: r.top, w: r.width, h: r.height}; };
+    const b = document.querySelector('.m-vtxt');
+    return {txt: q('.m-vtxt'), ctx: q('.m-vctx'), out: q('.m-vout'), name: b && b.getAttribute('aria-label'),
+            text: b && b.textContent, expanded: b && b.getAttribute('aria-expanded'),
+            inBox: !!(b && b.parentNode.id === 'playerwrap')};
+  });
+  eq([corner.text, corner.inBox, corner.expanded, /subtitles/.test(corner.name || '')], ['Aa', true, 'false', true],
+     'Aa, in the corner, says what it is (' + corner.name + ') and is not pressed');
+  assert(corner.txt.w >= 48 && corner.txt.h >= 48 && corner.txt.r <= corner.ctx.l && corner.txt.t === corner.ctx.t &&
+         corner.ctx.r <= corner.out.l,
+         'a 48px button of its own beside the lines-around switch and ⛶, none on top of another: ' + JSON.stringify(corner));
+  await tap(page, '.m-vtxt');
+  await sleep(300);
+  pf = await panelFacts();
+  eq([pf.up, pf.onTop, pf.rows, pf.reset], [true, true, ['sub', 'gl'], false],
+     'it opens the panel over the picture -- drawn on top of the black box -- with the subtitles\' slider and the glosses\', ' +
+     'and no reset that would put back the transcript\'s rows it does not show');
+  assert(pf.t >= 0 && pf.b <= pf.H && pf.r <= pf.W, 'on the screen');
+  eq(await page.evaluate(() => document.querySelector('.m-vtxt').getAttribute('aria-expanded')), 'true', 'and Aa says it is open');
+  await shot(page, 'video-size-panel-full');
+  // the subtitles change LIVE, under the finger, while the video plays
+  await page.evaluate(() => { ParsehPlayer.setRate(1); ParsehPlayer.seek(2.05); ParsehPlayer.play(); });
+  await sleep(300);
+  const s0 = await words();
+  const sl = await page.evaluate(() => { const i = document.getElementById('st-sub'), r = i.getBoundingClientRect();
+    return {x: r.left, y: r.top + r.height / 2, w: r.width, v: +i.value, min: +i.min, max: +i.max}; });
+  const sx = Math.round(sl.x + 8 + (sl.v - sl.min) / (sl.max - sl.min) * (sl.w - 16)), sy = Math.round(sl.y);
+  await page.touch.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: pt(sx, sy)});
+  for (let k = 1; k <= 8; k++) {
+    await page.touch.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: pt(sx + k * 12, sy)});
+    await sleep(25);
+  }
+  const mid = await words();
+  await page.touch.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
+  await sleep(200);
+  const s1 = await words();
+  const playing = await page.evaluate(() => !ParsehPlayer.paused());
+  assert(s0.sub === 20 && mid.sub > 20 && s1.sub > 20 && Math.abs(s1.sub - parseFloat(s1.yt.sub)) < 0.01,
+         `dragged by a finger, the subtitle grows as it goes (${s0.sub} → ${mid.sub} → ${s1.sub}px) and is the size the slider says`);
+  eq([playing, await panelUp(), s1.seg, s1.yt.fa], [true, true, 30, '30px'],
+     'the video went on playing, the panel stayed open under the finger, and the transcript\'s words are the size they were (30px)');
+  eq((await yt()).sub, parseFloat(s1.yt.sub), 'the size is kept for this device (yt_typo)');
+  await page.evaluate(() => ParsehPlayer.pause());
+  // the lines around the one being said follow the size, in their own proportion
+  await tap(page, '.m-vctx');
+  await sleep(300);
+  const ctxSizes = await words();
+  assert(ctxSizes.near === null || Math.abs(ctxSizes.near - ctxSizes.sub * 0.82) < 0.6,
+         `the caption beside keeps its .82 of the line being said (${ctxSizes.near} of ${ctxSizes.sub}px)`);
+  assert(await panelUp(), 'the lines-around switch, pressed, leaves the panel open: the change is seen with it there');
+  await tap(page, '.m-vctx');
+  await sleep(200);
+  // Aa again closes it; a second press opens it
+  await tap(page, '.m-vtxt');
+  eq([await panelUp(), await page.evaluate(() => document.querySelector('.m-vtxt').getAttribute('aria-expanded'))],
+     [false, 'false'], 'Aa again closes the panel');
+  await tap(page, '.m-vtxt');
+  eq(await panelUp(), true, 'and again opens it');
+  // a tap on the black beside the picture closes the panel first -- the
+  // whole screen stays; the next one leaves
+  assert(await page.evaluate(() => document.elementFromPoint(24, 200) === document.getElementById('playerwrap')),
+         'the black beside the picture is at the edge of the screen');
+  await page.touchscreen.tap(24, 200);
+  await sleep(300);
+  eq([await panelUp(), await fullOn()], [false, true], 'a tap on the black closes the panel and leaves the video on the whole screen');
+  // a tap on a phrase of the subtitle: the panel is out of the cloud's way
+  await tap(page, '.m-vtxt');
+  await page.waitForSelector('.m-subs .m-subline .w');
+  await tap(page, '.m-subs .m-subline .w');
+  await sleep(400);
+  eq([await panelUp(), await page.evaluate(() => !document.getElementById('cloud').hidden)], [false, true],
+     'a tap on a word of the subtitle closes the panel and opens the gloss');
+  await tap(page, '.m-subs .m-subline .w');
+  // ⛶ with the panel open: the panel goes with the whole screen, and so does the button
+  await tap(page, '.m-vtxt');
+  await tap(page, '#playerwrap .m-vout');
+  await sleep(500);
+  eq(await page.evaluate(() => [document.documentElement.classList.contains('m-vfullon'), !!document.querySelector('.m-vtxt'),
+                                document.querySelector('.parseh-typo').hidden]),
+     [false, false, true], '⛶ with the panel open leaves the whole screen, and the panel and Aa go with it');
+  // the back gesture too
+  await enterFull();
+  await tap(page, '.m-vtxt');
+  assert(await panelUp(), 'in again, the panel open');
+  await page.goBack();
+  await sleep(500);
+  eq([await fullOn(), await panelUp()], [false, false], 'the phone\'s back gesture leaves the whole screen and the panel with it');
+  // remembered: after a reload the subtitles are the size they were left,
+  // the transcript its own
+  const kept = await yt();
+  await page.reload();
+  await ready();
+  await enterFull();
+  const back = await words();
+  eq([back.sub, back.yt.sub, back.seg], [kept.sub, kept.sub + 'px', 30],
+     `after a reload the subtitles are the size they were left (${kept.sub}px) and the transcript's its own (30px)`);
+  await tap(page, '#playerwrap .m-vout');
+  await sleep(400);
+  // a store written before the subtitles had a size of their own: the subtitles
+  // at their default, the rest as it was kept
+  await page.evaluate(() => localStorage.setItem('yt_typo', JSON.stringify({fa: 26, gl: 14})));
+  await page.reload();
+  await ready();
+  const old = await words();
+  eq([old.yt.fa, old.yt.sub], ['26px', '20px'],
+     'a device that had set only the transcript\'s size gets the subtitles\' at their default (20px) and keeps its 26px');
+  await page.evaluate(() => { ParsehPlayer.typo.reset(); ParsehPlayer.setRate(1.5); });
+  eq((await words()).yt, {fa: '20px', sub: '20px'}, 'reset puts every size back');
+  // and a screen only 320px wide: the first line still holds the hub, the
+  // shelf, Aa, ? and ⋯ in one line, the title given up for them
+  const tiny = await newPage({viewport: {width: 320, height: 568}, isMobile: true, hasTouch: true}, 'tiny');
+  await tiny.goto(B + '/');
+  await setMode(tiny, 'mobile');
+  await tiny.goto(B + `/youtube/v/${V}/`);
+  await tiny.waitForFunction(() => !!window.ParsehMobilePlayer && document.querySelectorAll('#segs .seg').length > 0);
+  await settle(tiny);
+  eq(await tiny.evaluate(() => [document.querySelector('header').getBoundingClientRect().height < 70,
+                                getComputedStyle(document.querySelector('header .ttl')).display]),
+     [true, 'none'], 'at 320px the header is one line, with the title left out');
+  allFit(await targets(tiny, 'header a[href], header button'), 'its header at 320px: Aa, ? and ⋯ 48px, on the screen, reached by a tap');
+  await shot(tiny, 'video-320');
+  await tiny.context().close();
   // YouTube's own ⛶ is not offered on a phone: there is one whole screen,
   // Parseh's, and it carries the subtitles
   eq(await page.evaluate(() => (window.YTFRANK && window.ParsehPlayer &&
@@ -1361,6 +1573,11 @@ async function partVideo() {
                                 document.getElementById('dl').offsetParent !== null]),
      [false, false, true], 'in the browser mode the player is the page it always was');
   assert(await isDrawn(page, '#segs .gap .plus'), 'the + between the captions there, to write a note with');
+  await page.locator('#typo').click();
+  eq(await page.evaluate(() => [...document.querySelectorAll('.parseh-typo .trow')]
+       .filter(t => getComputedStyle(t).display !== 'none').map(t => t.querySelector('input').id.replace('st-', ''))),
+     ['fa', 'gl', 'width', 'lead'], 'and the panel of its Aa has no subtitles slider: a desktop has no subtitles');
+  await page.locator('.parseh-typo .tclose').click();
   await ctx.close();
 }
 

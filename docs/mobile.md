@@ -541,10 +541,13 @@ phone really holds.
 (`lib/mobileplayer.js`, `html.m-player` in `lib/mobile.css`), exactly as a
 book's reader has one:
 
-* the header is **one line** — the hub, the channel, what this video is, ⛶, ?
-  and ⋯ — and ⋯ opens the rest under it, a group to a line: *Following the
-  video* (follow, hover ‖, the reading, pin), *Looking a word up*, *This page*
-  (the theme, the text size, the switch). What writes the video or administers
+* the header is **one line** — the hub, the channel, what this video is, Aa, ⛶,
+  ? and ⋯ (the title has no room at 320px and is left out there; it is the
+  title that gives way, `flex:1 1 0`, so the line stays one line down to 320) —
+  and ⋯ opens the rest under it, a group to a line: *Following the video*
+  (follow, hover ‖, the reading, pin), *Looking a word up*, *This page* (the
+  theme, the switch). **Aa**, the text size, is on the first line as it is in a
+  book's reader, one tap (a0.4.0; it was under ⋯). What writes the video or administers
   it is not there at all: its details, the caption timings, the download, the
   dictionary setup, stop, and the cloud's card, edit and colour marks
   (`#cloud .colrow` and its status line `.cstat` -- the rule once named them
@@ -623,6 +626,31 @@ book's reader has one:
   `.en-line`) is white over the picture too: it used to take the
   transcript's ink, dark on the black in the light theme
   (`tests/phone_clouds.mjs`).
+* **The size of the words** (a0.4.0, the owner's L12: "one size each"). The
+  transcript has its own size and the subtitles have theirs, both remembered
+  by the device under `yt_typo` (`fa`, and the new `sub`, a store from before
+  it has the subtitles at 20px), and both are sliders of the ONE panel the
+  player already had (`Parseh.typo`, `--yt-fa`, `--yt-sub`, `--yt-gl`).
+  On the header's first line Aa opens it with every row; **on the whole screen
+  the header is under the picture** (the black box, z-index 55, covers it),
+  so a button of its own, `.m-vtxt`, sits in the corner beside the lines-around
+  switch (three 48px buttons, at 122, 66 and 10px from the right) and opens the
+  same panel over the picture (z-index 120) with the subtitles' row and the
+  glosses' row only (`html.m-vfullon .parseh-typo .trow:not(:has(#st-sub,#st-gl))`;
+  the transcript's rows are not what the picture wears, and *reset* would put
+  them back, so it is not there either). The subtitles' slider is not there
+  upright (no whole screen), nor in the browser mode (no subtitles). The
+  sliders are 34px tall in the mobile mode, for a finger. The panel is kept on
+  the screen (`place()` clamps at the foot as well as at the sides, which a
+  panel opened low in a phone held sideways used to run off), it closes at a
+  tap on the black beside the picture (the whole screen stays; the next tap
+  leaves it), at a tap on a word of the subtitle (which opens the gloss), at
+  ⛶, at the back gesture and at a turn upright; the lines-around switch
+  leaves it open, so a size is judged with the lines around it there. The line being said is `--yt-sub`; the lines around it are .82 of it
+  (.64 for a plain line of the video's own English, .775 when it is the one
+  being said, .66 and .8 for an English run inside a phrase line), all in
+  `lib/mobile.css`; the dictionary's sheet is fixed-size, as the book reader's
+  is. (`tests/mobile_pages.mjs` e1, `tests/phone_clouds.mjs` m.)
 
 ### The exercise decks, `/exercises/`
 

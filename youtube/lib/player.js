@@ -352,12 +352,17 @@
   });
 
   /* ---------------- text size and margins ----------------
-     The Aa button opens the toolbox's panel (Parseh.typo): four sliders
-     setting the --yt-* tokens the stylesheet is written against, remembered
-     per browser under yt_typo like the other settings. */
+     The Aa button opens the toolbox's panel (Parseh.typo): sliders setting
+     the --yt-* tokens the stylesheet is written against, remembered per
+     browser under yt_typo like the other settings.  `sub` is the size of the
+     subtitles over a video on a phone's whole screen (lib/mobileplayer.js,
+     which opens this same panel from a button of its own there); the
+     transcript keeps the size `fa` gives it. */
+  var typoApi = null;
   if (window.Parseh && Parseh.typo) {
-    Parseh.typo({key: 'yt_typo', button: $('#typo'), fields: [
+    typoApi = Parseh.typo({key: 'yt_typo', button: $('#typo'), fields: [
       {name: 'fa',    label: L.name,    min: 14,  max: 36,   step: 0.5,  unit: 'px', def: 20,   prop: '--yt-fa'},
+      {name: 'sub',   label: 'subtitles', min: 14, max: 40,  step: 0.5,  unit: 'px', def: 20,   prop: '--yt-sub'},
       {name: 'gl',    label: 'glosses', min: 10,  max: 20,   step: 0.5,  unit: 'px', def: 12.5, prop: '--yt-gl'},
       {name: 'width', label: 'width',   min: 480, max: 1400, step: 10,   unit: 'px', def: 760,  prop: '--yt-width'},
       {name: 'lead',  label: 'leading', min: 0.7, max: 1.6,  step: 0.05, unit: '×',  def: 1,    prop: '--yt-lead'}
@@ -6224,6 +6229,7 @@
   }
   window.ParsehPlayer = {
     kind: function () { return CFG.media ? 'film' : 'youtube'; },
+    typo: typoApi,
     ready: function () { return !!(player && ready); },
     paused: function () {
       try { return !player || !ready || player.getPlayerState() !== 1; } catch (e) { return true; }

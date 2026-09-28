@@ -349,6 +349,16 @@ greyer than the line being said, and every phrase in them opens its own
 gloss at a tap (with a mouse, as the pointer rests on it). Press it again
 for the one line. The choice is kept for every video on this phone.
 
+**The size of the words.** The transcript and the subtitles each have a size
+of their own. **Aa** on the header's first line opens the panel with the
+transcript's size, the glosses', the width and the leading — and, held
+sideways, the subtitles'. On the whole screen the header is under the
+picture, so the same panel has an **Aa** of its own in the corner, beside the
+lines-around button, and shows only the subtitles' slider and the glosses':
+drag it and the subtitle grows as the video goes on playing, and the lines
+around it keep their proportion. A tap on the black beside the picture puts
+the panel away first. Both sizes are remembered on this phone.
+
 With the computer away, the shelf still opens and shows the channels it last
 knew. A channel Parseh has not had a chance to put on this phone is drawn but
 cannot be tapped, and says so.
