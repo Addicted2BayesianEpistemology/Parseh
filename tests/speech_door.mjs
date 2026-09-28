@@ -10,21 +10,26 @@
 //   d) an error is said in a sentence and Try again works
 //   e) installed, then Remove… asks first, Keep it keeps, Remove frees it
 //   f) the states of a program made by another Parseh or another Python, with ONE button
+//   f2) an installed program that cannot run here can still be removed; f3) no build of it: no size said
 //   g) the graphics card: none, found but not ready (what is missing, what it needs, the guide,
 //      Check again), ready, and a look that failed
 //   h) 1280 and 390, light, dark and sepia: never a sideways scroll, targets big enough,
 //      words readable against their ground, nothing wider than the screen
 //   i) the Settings hub's card and the reading help's one line pointing here
+//   j) one failed poll (a dropped connection, a 502) does not end the polling
+//   k) the keyboard stays on the control it was on, through every redraw
+//   l) a press whose request never arrives says so, and its button comes back
 // Run once from the computer and once as a device that has been let in over the Wi-Fi:
 // BOTH are fully working (the owner, 2026-09-28: no lock anywhere on this door).
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/speech_door.mjs
-//   SPEECH_DOOR_WHO=computer (or phone) runs one; SHOTS=<dir> saves the screenshots.
+//   SPEECH_DOOR_WHO=computer (or phone) runs one; SECTIONS=jkl runs only those; SHOTS=<dir> saves the screenshots.
 import {chromium} from 'npm:playwright-core@1.52.0';
 
 const root = await Deno.realPath(new URL('..', import.meta.url));
 const python = Deno.env.get('PARSEH_PYTHON') || 'python3';
 const SHOTS = Deno.env.get('SHOTS') || '';
 const who = (Deno.env.get('SPEECH_DOOR_WHO') || 'computer,phone').split(',');
+const only = (Deno.env.get('SECTIONS') || '').toLowerCase();
 let passed = 0;
 const failures = [];
 const assert = (v, m) => { if (!v) throw Error('FAIL: ' + m); passed++; console.log('  ok', m); };
@@ -101,15 +106,24 @@ async function suite(phone) {
     page.on('pageerror', e => errors.push(e.message));
     page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text()); });
     // a resource the page asked for and the server did not have is named (the browser's own line does not say which)
-    page.on('response', r => { if (r.status() >= 400 && !/favicon/.test(r.url())) errors.push(`http ${r.status()} ${r.url()}`); });
+    // (a 502 is the one a test makes itself: section j answers a poll with one, as a proxy would)
+    page.on('response', r => { if (r.status() >= 400 && r.status() !== 502 && !/favicon/.test(r.url())) errors.push(`http ${r.status()} ${r.url()}`); });
     const tag = phone ? 'phone' : 'computer';
     // a section that fails is said, and the rest still run (one run per turn at the shared lock)
+    // SECTIONS=jkl runs only those (by their letters)
     const section = async (title, fn) => {
+      if (only && !only.includes(title[0])) return;
       console.log(title);
       try { await fn(); } catch (e) { failures.push(`${name}: ${title}: ${e.message}`); console.log('  ' + e.message); }
     };
     const shot = async n => { if (SHOTS) await page.screenshot({path: `${SHOTS}/speech-${tag}-${n}.png`, fullPage: true}); };
-    const world = async (runtime, models) => { await h.send({cmd: 'clear'}); await h.send({cmd: 'state', runtime, models: models || {}}); };
+    // (a new world is a computer that can have the program: a section that says otherwise says so after)
+    const world = async (runtime, models) => {
+      await h.send({cmd: 'clear'});
+      await h.send({cmd: 'unavailable', why: ''});
+      await h.send({cmd: 'wheel', has: true});
+      await h.send({cmd: 'state', runtime, models: models || {}});
+    };
     const door = async () => {
       await page.goto(origin + '/settings/speech/');
       await page.waitForSelector('#sp .it');
@@ -152,6 +166,13 @@ async function suite(phone) {
       has(big, 'Higher accuracy · larger and slower', 'and its trade-off');
       has(big, '3.2 GB', 'its download');
       eq(await page.locator('[data-row] [data-get]').count(), 3, 'a Get it on each part');
+      // LABEL IN NAME (WCAG 2.5.3): a person who says "click Get it" reaches all three, and each
+      // still says which part it is for
+      eq(await page.getByRole('button', {name: 'Get it'}).count(), 3, 'each "Get it" is named by the words it shows');
+      eq((await page.locator('[data-row="runtime"] [data-get]').getAttribute('aria-label')), 'Get it: the speech program',
+         'and names its part after them');
+      eq((await page.locator('[data-row="large-v3"] [data-get]').getAttribute('aria-label')), 'Get it: faster-whisper / large-v3',
+         'each one');
       // the processor, said the way the brief says it: the CPU already works
       const cpu = await text('cpu');
       has(cpu, 'CPU · ready', 'the CPU is ready');
@@ -292,6 +313,46 @@ async function suite(phone) {
       has(await text('runtime'), 'Not available', 'a computer that cannot have it says so');
       has(await text('runtime'), 'built for Python 3.12 only', 'and why');
       eq(await page.locator('#sp [data-get]').count(), 0, 'and offers no button that cannot work');
+      // THE PROCESSOR PROMISES NOTHING where the program cannot run: it said "CPU · ready" and that
+      // speech to text "will work on this computer" beside a program row that said Not available
+      const cpuNa = await text('cpu');
+      lacks(cpuNa, 'CPU · ready', 'the processor is not called ready where the program cannot run');
+      lacks(cpuNa, 'will work', 'and is not promised to work');
+      has(cpuNa, 'CPU · not usable here', 'it says so');
+      has(cpuNa, 'built for Python 3.12 only', 'and why, in the program row\'s own words');
+      has((await page.locator('.modes').innerText()).replace(/\s+/g, ' '), 'Not usable on this computer', 'the modes say it too');
+      lacks((await page.locator('.modes').innerText()).replace(/\s+/g, ' '), 'Works on every computer', 'and not that it works everywhere');
+      await h.send({cmd: 'unavailable', why: ''});
+
+    });
+
+    await section('f2) a program that is installed and cannot run here', async () => {
+      // A PROGRAM THAT IS HERE AND CANNOT RUN is still the person's to take away: no button to get it,
+      // one to remove it, and the question says how much room it gives back
+      await world('ready', {});
+      await h.send({cmd: 'unavailable', why: 'This Parseh runs on Python 3.11, and the speech program is built for Python 3.12 only.'});
+      await door();
+      has(await text('runtime'), 'Not available', 'an installed program that cannot run says so');
+      eq(await row('runtime').locator('[data-get]').count(), 0, 'and offers nothing to get');
+      eq(await row('runtime').locator('[data-remove]').count(), 1, 'but can be removed');
+      await row('runtime').locator('[data-remove]').click();
+      assert(/It frees \d+ MB/.test(await text('runtime')), 'and says how much room that gives back: ' + (await text('runtime')).slice(0, 200));
+      await row('runtime').locator('[data-yes]').click();
+      await until(async () => !(await api('speech')).runtime.have, 'the program is taken away', 15000);
+      await h.send({cmd: 'unavailable', why: ''});
+
+    });
+
+    await section('f3) a computer that has no build of the program', async () => {
+      // the size of a download nobody can make is not said
+      await world(NONE);
+      await h.send({cmd: 'wheel', has: false});
+      await h.send({cmd: 'unavailable', why: 'There is no speech program for this kind of computer (freebsd14, amd64).'});
+      await door();
+      const about = (await page.locator('#sp .about').innerText()).replace(/\s+/g, ' ');
+      has(about, 'The models are large: 1.6 GB and 3.1 GB.', 'the sizes of what can be got are said, and the sentence ends there');
+      lacks(about, 'the program is', 'and no size of a program that has no build');
+      await h.send({cmd: 'wheel', has: true});
       await h.send({cmd: 'unavailable', why: ''});
 
     });
@@ -346,7 +407,11 @@ async function suite(phone) {
         const lum = c => { const v = c.match(/[\d.]+/g).slice(0, 3).map(Number).map(x => { x /= 255; return x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]; };
         const ground = el => { for (let e = el; e; e = e.parentElement) { const b = getComputedStyle(e).backgroundColor; const m = b.match(/[\d.]+/g); if (m && (m.length < 4 || Number(m[3]) > .9)) return b; } return 'rgb(255,255,255)'; };
         const worst = [];
-        for (const sel of ['.it-name', '.it-for', '.it-facts', '.whomay span', '.lang-chip span:not(.nat)']) {
+        // the technical details are folded, and a folded label has no box to measure: they are opened
+        // first, so that what a person reads when the card is "found, not ready" is held to the same 4.5:1
+        document.querySelectorAll('#sp details.tech').forEach(d => { d.open = true; });
+        for (const sel of ['.it-name', '.it-for', '.it-facts', '.whomay span', '.lang-chip span:not(.nat)',
+                           'details.tech dt', 'details.tech dd']) {
           for (const el of document.querySelectorAll('#sp ' + sel + ', main ' + sel)) {
             if (!el.offsetParent || !el.textContent.trim()) continue;
             const a = lum(getComputedStyle(el).color), b = lum(ground(el));
@@ -421,6 +486,107 @@ async function suite(phone) {
       const doors = await page.locator('.sdoor').evaluateAll(els => els.map(e => e.getAttribute('href')));
       assert(doors.includes('/settings/speech/'), "and Settings' row of doors has it");
 
+    });
+
+    await section('j) a poll that fails does not end the polling', async () => {
+      // a phone that loses the Wi-Fi for a moment, a 502 with a page for a body: one failed answer is
+      // never a verdict, and the bar goes on (it stopped for good, and said "Downloading" for ever)
+      await world(NONE);
+      await h.send({cmd: 'build', steps: 300, pause: 0.15, fail: null});
+      await door();
+      await page.click('[data-row="large-v3-turbo"] [data-get]');
+      await page.waitForSelector('[data-row="large-v3-turbo"] [role=progressbar]');
+      const bar = async () => Number(await page.locator('[data-row="large-v3-turbo"] [role=progressbar]').getAttribute('aria-valuenow'));
+      await until(async () => (await bar()) >= 3, 'the bar has begun');
+      let failed = 0;
+      await page.route('**/lookup/api/speech', route => {
+        failed++;
+        if (failed === 1) return route.abort('connectionreset');
+        if (failed === 2) return route.fulfill({status: 502, contentType: 'text/html', body: '<html><body>Bad gateway</body></html>'});
+        return route.continue();
+      });
+      await until(async () => failed >= 2, 'two polls were made to fail', 15000);
+      const at = await bar();
+      await until(async () => (await bar()) >= at + 2, `the bar goes on after two polls that failed (was ${at}%)`, 30000);
+      assert(failed >= 3, 'the polling went on');
+      await page.unroute('**/lookup/api/speech');
+      await page.click('[data-row="large-v3-turbo"] [data-stop]');
+      await until(async () => (await text('large-v3-turbo')).includes('You stopped it'), 'and Stop still works', 15000);
+    });
+
+    await section('k) the keyboard stays where it is', async () => {
+      // the page is drawn again every second while something is fetched, and after every press: the
+      // control that had the keyboard is put back (a keyboard user could not reach Stop in time)
+      const active = () => page.evaluate(() => {
+        const a = document.activeElement;
+        return a && a.attributes ? [...a.attributes].map(x => x.name + '=' + x.value).filter(x => x.startsWith('data-')).join(' ') : '';
+      });
+      await world(NONE);
+      await h.send({cmd: 'build', steps: 300, pause: 0.1, fail: null});
+      await door();
+      await row('large-v3-turbo').locator('[data-get]').focus();
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('[data-row="large-v3-turbo"] [data-stop]');
+      await until(async () => (await active()) === 'data-stop=large-v3-turbo', 'the keyboard is on Stop, which is where the pressed button went', 6000);
+      // ...and stays there through redraws (there is one a second)
+      await sleep(3500);
+      eq(await active(), 'data-stop=large-v3-turbo', 'three redraws later the keyboard is still on Stop');
+      await page.keyboard.press('Enter');
+      await until(async () => (await text('large-v3-turbo')).includes('You stopped it'), 'Enter on it stops the job', 15000);
+      // a question that is asked is asked with the safe answer under the keyboard
+      await world('ready', {'large-v3-turbo': 'ready'});
+      await door();
+      await row('large-v3-turbo').locator('[data-remove]').focus();
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('[data-row="large-v3-turbo"] .ask');
+      await until(async () => (await active()) === 'data-cancel=large-v3-turbo', 'Remove… asks, and the keyboard is on "Keep it"', 4000);
+      await page.keyboard.press('Enter');
+      await until(async () => (await active()) === 'data-remove=large-v3-turbo', 'Keep it puts it back on Remove…', 4000);
+      // Check again is drawn as "Looking…" and back, and keeps the keyboard
+      await until(async () => (await text('gpu')).includes('No NVIDIA graphics card'), 'the card is looked at, on opening');
+      await row('gpu').locator('[data-check]').focus();
+      await page.keyboard.press('Enter');
+      await sleep(600);
+      eq(await active(), 'data-check=', 'Check again keeps the keyboard, though its button is gone while the card is looked at');
+    });
+
+    await section('l) a request that does not arrive is said, and the button comes back', async () => {
+      const lost = 'The server did not answer.';
+      // Get it
+      await world(NONE);
+      await door();
+      await page.route('**/lookup/api/getspeech', route => route.abort('connectionreset'));
+      await page.click('[data-row="large-v3"] [data-get]');
+      await until(async () => (await text('large-v3')).includes(lost), 'a Get it that did not arrive says so');
+      eq(await row('large-v3').locator('[data-cancel]').innerText(), 'All right', 'with a way to go on');
+      await row('large-v3').locator('[data-cancel]').click();
+      eq(await row('large-v3').locator('[data-get]:not([disabled])').count(), 1, 'and Get it is there to press again');
+      await page.unroute('**/lookup/api/getspeech');
+      // Remove
+      await world('ready', {'large-v3-turbo': 'ready'});
+      await door();
+      await page.route('**/lookup/api/dropspeech', route => route.abort('connectionreset'));
+      await row('large-v3-turbo').locator('[data-remove]').click();
+      await row('large-v3-turbo').locator('[data-yes]').click();
+      await until(async () => (await text('large-v3-turbo')).includes(lost), 'a Remove that did not arrive says so');
+      await row('large-v3-turbo').locator('[data-cancel]').click();
+      eq(await row('large-v3-turbo').locator('[data-remove]:not([disabled])').count(), 1, 'and Remove… is there again');
+      eq((await api('speech')).models[0].have, true, 'and the model is still here');
+      await page.unroute('**/lookup/api/dropspeech');
+      // Stop
+      await world(NONE);
+      await h.send({cmd: 'build', steps: 300, pause: 0.1, fail: null});
+      await door();
+      await page.click('[data-row="large-v3"] [data-get]');
+      await page.waitForSelector('[data-row="large-v3"] [data-stop]');
+      await page.route('**/lookup/api/stopspeech', route => route.abort('connectionreset'));
+      await page.click('[data-row="large-v3"] [data-stop]');
+      await until(async () => (await text('large-v3')).includes(lost), 'a Stop that did not arrive says so');
+      await page.unroute('**/lookup/api/stopspeech');
+      await row('large-v3').locator('[data-cancel]').click();
+      await until(async () => (await row('large-v3').locator('[data-stop]:not([disabled])').count()) === 1, 'and Stop is there to press again');
+      await row('large-v3').locator('[data-stop]').click();
+      await until(async () => (await text('large-v3')).includes('You stopped it'), 'and it works', 15000);
     });
 
     if (errors.length) failures.push(`${name}: page errors: ` + errors.join(' | '));
