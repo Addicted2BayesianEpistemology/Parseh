@@ -127,6 +127,13 @@ it looks like changes: the block, its theme's packages, preamble or
 compiler, the TeX installation, or Parseh's way of drawing. Renaming a
 theme redraws nothing.
 
+**A page never waits for its drawings.** A document or a note opens at
+once: a drawing already made is there, and one not made yet stands as its
+LaTeX while a bar at the top says how many are being made — *Making the
+LaTeX drawings: 3 of 12* — and each comes into the page as it is made. On a
+phone the page opens as quickly as any other, however many drawings it
+holds.
+
 **A drawing you are only trying is not kept for long.** While you are
 typing, or trying a theme in the sheet, what is drawn lives in a small,
 temporary place of its own, gone the next time the server starts; only a

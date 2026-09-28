@@ -214,6 +214,18 @@ def serve_it(tmp, port):
         (tmp / "export-made").write_bytes(data)
         return name, data
     webexport.document_html = slow
+    # A COMPUTER SLOW TO MAKE A LaTeX DRAWING (partDrawings): the seconds
+    # <tmp>/latex-delay holds, slept before each drawing is compiled
+    import latexdraw
+    compile_ = latexdraw._compile
+
+    def slow_drawing(*a, **k):
+        try:
+            time.sleep(float((tmp / "latex-delay").read_text()))
+        except (OSError, ValueError):
+            pass
+        return compile_(*a, **k)
+    latexdraw._compile = slow_drawing
     import cardkit_harness
     cardkit_harness.serve_it(tmp, port, False, "tray")
 

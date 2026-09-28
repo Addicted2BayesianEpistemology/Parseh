@@ -129,6 +129,26 @@ class NotePage(unittest.TestCase):
         # and no script of its own either: what it runs is inline
         self.assertEqual([u for u in got if u.endswith(".js")], [], got)
 
+    def test_a_note_with_drawings_not_made_yet_opens_at_once_and_has_them_made(self):
+        """It waits for no drawing (the owner, 2026-09-28): one not made yet is
+        its source, and the script that has them made is written into the
+        page -- still nothing fetched -- and only when there are some."""
+        from unittest import mock
+        import htmlgen
+        md = PLAIN + "\n::::latex\n$x^2$\n::::\n"
+
+        def draw(*a, **k):
+            raise AssertionError("the note page compiles nothing")
+        with mock.patch.dict(htmlgen.LATEX, {"draw": draw, "draw_all": draw,
+                                             "peek": lambda tex, theme=None, inline=False: {"ok": None, "key": "k"}}):
+            _meta, html = self.html(md)
+            _meta, plain = self.html(PLAIN)
+        self.assertIn('data-latex-pending="1"', html)
+        self.assertIn('data-drawings="', html)
+        self.assertIn("Making the LaTeX drawings", html, "the script is in the page")
+        self.assertEqual([u for u in self.loads(html) if u.endswith(".js")], [], "and nothing is fetched for it")
+        self.assertNotIn("Making the LaTeX drawings", plain, "a note with nothing to make carries none of it")
+
     def test_the_sheet_is_the_studios_one_copy_not_this_mounts(self):
         """Canonical assets (the owner's ask): the notes of two books point
         at the same file, so the phone and the browser cache it once."""

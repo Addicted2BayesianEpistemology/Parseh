@@ -163,7 +163,7 @@ def reset_state(defs=None):
     _FN.update({"n": 0, "defs": dict(defs or {}), "notes": [], "muted": False, "open": ()})
     _OCC.clear()
     _EX_ORDER.update({"on": False, "at": (0, 0), "runs": [], "block": None})
-    _LATEX_INLINE_RUN.update({"failed": 0, "preview": False})
+    _LATEX_INLINE_RUN.update({"failed": 0, "preview": False, "defer": False, "idx": 0, "pending": 0})
 
 
 def _next_occ(key):
@@ -796,11 +796,48 @@ def _render_audio(b, ctx):
 # TeX -- never draws one live, and shows the block as what it is instead.
 # `settings` is where the computer's Settings -> LaTeX drawings is, for the
 # buttons under a block that cannot be drawn: none where there is no such page.
-LATEX = {"draw": None, "draw_all": None, "settings": None}
+LATEX = {"draw": None, "draw_all": None, "settings": None, "peek": None}
 
 
-def set_latex(draw, draw_all=None, settings=None):
-    LATEX.update(draw=draw, draw_all=draw_all, settings=settings)
+def set_latex(draw, draw_all=None, settings=None, peek=None):
+    LATEX.update(draw=draw, draw_all=draw_all, settings=settings, peek=peek)
+
+
+# A PAGE THAT WAITS FOR NO DRAWING (the owner, 2026-09-28).  A document with
+# many drawings not made yet took as long to open as they took to compile,
+# and a phone gave up on it ("Parseh cannot be reached").  Rendered with
+# `latex_defer`, a page shows the drawings already made and, for each other
+# one, a placeholder; the page then has them made (the studio's drawings
+# route) and swaps each in.  Every drawing carries its number in the page,
+# data-latex-idx, the same in every render of the same text.
+def _latex_idx():
+    # a caption's own marks are part of its figure, which is swapped whole:
+    # they take no number, so that a block drawn, waiting or refused numbers
+    # the drawings after it alike
+    if _LATEX_INLINE_RUN.get("noidx"):
+        return ""
+    _LATEX_INLINE_RUN["idx"] = _LATEX_INLINE_RUN.get("idx", 0) + 1
+    return ' data-latex-idx="%d"' % _LATEX_INLINE_RUN["idx"]
+
+
+def _latex_ready(tex, theme):
+    """A deferred page's drawing: what peek has, or None when it is not made."""
+    r = LATEX["peek"](tex, theme)
+    return None if r.get("ok") is None else r
+
+
+def _latex_ready_inline(tex, theme):
+    r = LATEX["peek"](tex, theme, inline=True)
+    return None if r.get("ok") is None else r
+
+
+def latex_wanted(markdown):
+    """Every drawing a page of `markdown` shows -> [(tex, theme, inline)]:
+    render_document's own two lists, blocks then inline marks."""
+    fm, blocks = mdparser.parse(markdown)
+    code = languages.get_or_default(fm.get("target")).code
+    return ([(t, th, False) for t, th in latex_pairs(blocks, code)] +
+            [(t, th, True) for t, th in inline_latex_pairs(markdown)])
 
 
 def latex_pairs(blocks, target=None):
@@ -848,35 +885,44 @@ def _inline_latex(tex, theme):
     made, exactly as a block's own failure frame promises, just without one
     (nothing this small belongs in a box in the middle of a sentence)."""
     draw = LATEX.get("draw")
+    idx = _latex_idx()
     if draw is None:
         _LATEX_INLINE_RUN["failed"] += 1
-        return ('<code class="latex-inline-src" data-latex-src="%s" data-latex-theme="%s">%s'
-                '</code>' % (esc(tex), esc(theme or ""), esc(tex)))
+        return ('<code class="latex-inline-src"%s data-latex-src="%s" data-latex-theme="%s">%s'
+                '</code>' % (idx, esc(tex), esc(theme or ""), esc(tex)))
+    if _LATEX_INLINE_RUN.get("defer") and LATEX.get("peek"):
+        r = _latex_ready_inline(tex, theme)
+        if r is None:
+            _LATEX_INLINE_RUN["pending"] += 1
+            return ('<code class="latex-inline-src latex-pending"%s data-latex-pending="1" '
+                    'data-latex-src="%s" data-latex-theme="%s" title="Being drawn">%s</code>'
+                    % (idx, esc(tex), esc(theme or ""), esc(tex)))
     # Do not add a false-valued keyword: integrations have long supplied the
     # two/three-argument drawing callable, and only the editor needs preview
     # storage in the first place.
-    if _LATEX_INLINE_RUN.get("preview"):
+    elif _LATEX_INLINE_RUN.get("preview"):
         r = draw(tex, theme, inline=True, preview=True)
     else:
         r = draw(tex, theme, inline=True)
     if not r.get("ok"):
         _LATEX_INLINE_RUN["failed"] += 1
         said = r.get("said") or "This drawing could not be made."
-        return ('<code class="latex-inline-src latex-inline-fail" title="%s" '
+        return ('<code class="latex-inline-src latex-inline-fail" title="%s"%s '
                 'data-latex-src="%s" data-latex-theme="%s">%s</code>'
-                % (esc(said), esc(tex), esc(theme or ""), esc(tex)))
+                % (esc(said), idx, esc(tex), esc(theme or ""), esc(tex)))
     w_em, h_em, d_em = _inline_latex_sizing(r.get("w"), r.get("h"), r.get("d"))
     return ('<img class="latex-inline" src="%s" alt="A drawing made by LaTeX" '
-            'data-latex-key="%s" data-latex-src="%s" data-latex-theme="%s" '
+            'data-latex-key="%s" data-latex-src="%s" data-latex-theme="%s"%s '
             'style="width:%.3fem;height:%.3fem;vertical-align:%.3fem">'
-            % (esc(URL_BASE + r["url"]), esc(r["key"]), esc(tex), esc(theme or ""),
+            % (esc(URL_BASE + r["url"]), esc(r["key"]), esc(tex), esc(theme or ""), idx,
                w_em, h_em, -d_em))
 
 
 def _latex_src(b, ctx):
+    idx = ctx.get("latex_idx") or ""
     if ctx.get("in_card"):
-        return ""
-    return (' data-latex-src="%s" data-latex-theme="%s" data-latex-caption="%s"'
+        return idx
+    return (idx + ' data-latex-src="%s" data-latex-theme="%s" data-latex-caption="%s"'
             % (esc(b.get("tex", "")), esc(b.get("theme") or ""), esc(b.get("caption") or "")))
 
 
@@ -930,11 +976,16 @@ def _latex_captioned(b, r, ctx, align, offset, caption):
     box = "max(%s,min(100%%,20em))" % width
     cap = ("width:%s;margin-left:clamp(0px,calc(%s + (%s - %s)/2),calc(100%% - %s))"
            % (box, left, width, box, box))
+    _LATEX_INLINE_RUN["noidx"] = True
+    try:
+        said = inline(caption)
+    finally:
+        _LATEX_INLINE_RUN["noidx"] = False
     return ('<figure class="latex has-caption align-%s" data-latex-key="%s" data-width="%s" '
             'data-align="%s" data-offset="%d"%s><img src="%s" alt="%s" style="%s;margin-right:auto">'
             '<figcaption style="%s;margin-right:auto"><span>%s</span></figcaption></figure>'
             % (align, esc(r["key"]), b.get("width") or "", align, offset, _latex_src(b, ctx),
-               esc(URL_BASE + r["url"]), esc("A drawing made by LaTeX"), pic, cap, inline(caption)))
+               esc(URL_BASE + r["url"]), esc("A drawing made by LaTeX"), pic, cap, said))
 
 
 def _render_latex(b, ctx):
@@ -943,6 +994,7 @@ def _render_latex(b, ctx):
     at its natural size when it gives no width: its width in points over
     the ten points it was set at, in ems, so it reads at the size of the
     text round it and grows with it."""
+    ctx["latex_idx"] = _latex_idx()
     if b.get("errors"):
         return _latex_frame(b, {"kind": "dialect",
                                 "said": "; ".join(b["errors"]).capitalize() + "."}, ctx)
@@ -950,12 +1002,20 @@ def _render_latex(b, ctx):
     if draw is None:
         return _latex_frame(b, {"kind": "here", "said": "It is drawn by LaTeX where Parseh "
                                 "can compile it, and shown here as it is written."}, ctx)
+    if _LATEX_INLINE_RUN.get("defer") and LATEX.get("peek"):
+        r = _latex_ready(b.get("tex", ""), b.get("theme") or None)
+        if r is None:
+            _LATEX_INLINE_RUN["pending"] += 1
+            return ('<figure class="latex-pending-block" data-latex-pending="1"%s>'
+                    '<span class="latex-wait">Being drawn…</span>'
+                    '<pre class="latex-code" dir="ltr">%s</pre></figure>'
+                    % (_latex_src(b, ctx), esc(b.get("tex", ""))))
     # latex_preview, not editor_preview: a deck's solved study/cram view sets
     # the latter alone (show the answer) and its drawings must still be kept,
     # not treated as an unsaved editor's ephemeral preview (TO-DO §8.39's L9).
     # The kwarg is passed only when true, as every other LATEX["draw"] call
     # here does, so a test's simpler (tex, theme) stand-in keeps working.
-    if ctx.get("latex_preview"):
+    elif ctx.get("latex_preview"):
         r = draw(b.get("tex", ""), b.get("theme") or None, preview=True)
     else:
         r = draw(b.get("tex", ""), b.get("theme") or None)
@@ -2152,7 +2212,7 @@ def _count_images(blocks, kinds=("image", "video")):
 
 def render_document(markdown, colophon=True, asset_base=None, docs=None,
                     editor_preview=False, deck_button=False, latex_preview=None,
-                    in_deck=False, export=False):
+                    in_deck=False, export=False, latex_defer=False):
     """markdown source -> dict with article html, toc html, meta, stats,
     the target code and the language record the page embeds.
 
@@ -2184,6 +2244,8 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
     already being asked so.
     `export` is a page made to leave the studio (webexport): it does not
     say so either, since nothing on it goes into a deck.
+    `latex_defer` makes no drawing: one not made yet is a placeholder the
+    page has made afterwards (see _latex_idx), and "latex_pending" counts them.
     """
     fm, blocks = mdparser.parse(markdown)
     L = set_target(fm.get("target"))
@@ -2192,6 +2254,8 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
         latex_preview = editor_preview
     latex_preview = bool(latex_preview)
     _LATEX_INLINE_RUN["preview"] = latex_preview
+    defer = bool(latex_defer) and bool(LATEX.get("peek")) and not latex_preview
+    _LATEX_INLINE_RUN["defer"] = defer
     set_doc_index(docs)
     ctx = {"sec": 0, "sub": 0, "voce": 0, "img": 0, "exercise": 0,
            "scored": 0, "toc": [], "asset_base": asset_base,
@@ -2199,7 +2263,7 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
            "deck_button": bool(deck_button) and not editor_preview,
            "in_deck": bool(in_deck), "export": bool(export)}
     title = _titleblock(fm)          # rendered first: it comes first in source
-    if LATEX.get("draw_all"):
+    if LATEX.get("draw_all") and not defer:
         # every drawing the page needs, made side by side before any is shown
         pairs = latex_pairs(blocks, L.code)
         if pairs:
@@ -2234,6 +2298,7 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
         # the latex blocks that could not be drawn: the PDF and the export
         # say how many (the owner, 2026-09-25)
         "latex_failed": ctx.get("latex_failed", 0) + _LATEX_INLINE_RUN["failed"],
+        "latex_pending": _LATEX_INLINE_RUN.get("pending", 0),
         "title": fm.get("title", ""),
         "subtitle": fm.get("subtitle", ""),
         "note": fm.get("note", ""),

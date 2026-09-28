@@ -735,7 +735,11 @@ async function suite(mode) {
         + '- [x] [\\ce{Na}]{latex chemistry}\n- [ ] [\\ce{Cl}]{latex chemistry}\n:::\n';
       const doc2 = (await send('POST', '/studio/api/docs', {markdown: SAVED})).meta.id;
       await (await fetch(url(`/doc/${doc2}`))).text();
-      const deck = (await send('POST', '/exercises/api/decks', {name: 'Geometry', lang: 'it'})).deck;
+      // the page opens without waiting for its drawings; its script has them made, as this does
+      for (let left = 1, round = 0; left && round < 10; round++) {
+        left = (await send('POST', `/studio/api/docs/${doc2}/drawings`, {batch: 8})).left;
+      }
+      const deck =(await send('POST', '/exercises/api/decks', {name: 'Geometry', lang: 'it'})).deck;
       const item = (await send('POST', `/exercises/api/decks/${deck.folder}/${deck.slug}/items`, {markdown: EXERCISE})).item;
       await (await fetch(`${origin}/exercises/api/decks/${deck.folder}/${deck.slug}/items/${item.id}`)).text();
       await page.goto(origin + '/settings/latex/');

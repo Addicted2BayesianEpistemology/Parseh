@@ -107,7 +107,7 @@ _MOUNT = threading.local()
 # A LATEX BLOCK IS DRAWN BY lib/latexdraw.py (TO-DO §8.39).  The studio alone
 # has no Settings, so a block that cannot be drawn names no page to mend it
 # in; serve.py hands in its own Settings page's address.
-htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings=None)
+htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings=None, peek=latexdraw.peek)
 texgen.set_latex(latexdraw.draw)
 
 
@@ -877,7 +877,7 @@ def page_doc(h, doc_id):
     doc = htmlgen.render_document(markdown,
                                   asset_base=base() + "/media/%s/" % doc_id,
                                   docs=store.doc_index(),
-                                  deck_button=decks_here)
+                                  deck_button=decks_here, latex_defer=True)
     m = _lang_mapping(doc["target"])
     m.update({
         "DECKS_BASE": DECKS_BASE if decks_here else "",
@@ -925,7 +925,7 @@ def page_note(h, doc_id):
     doc = htmlgen.render_document(markdown,
                                   asset_base=base() + "/media/%s/" % doc_id,
                                   docs=store.doc_index(),
-                                  deck_button=False)
+                                  deck_button=False, latex_defer=True)
     if doc["exercises"]:
         return h.send_bytes(b"", "text/plain; charset=utf-8", 302,
                             {"Location": "%s/doc/%s" % (base(), doc_id)})
@@ -959,6 +959,10 @@ def page_note(h, doc_id):
                       '<script>window.ParsehMath && '
                       'ParsehMath.typeset(document.getElementById("sheet"));'
                       '</script>' % BASE) if maths else "",
+        # the drawings it opened without, made afterwards -- written into the
+        # page, as everything it runs is, and only when there are some
+        "LATEX_FOOT": ("<script>%s</script>" % (STATIC / "latexwait.js").read_text(encoding="utf-8")
+                       if doc.get("latex_pending") else ""),
     }
     h.send_html(render_template("note.html", m))
 
@@ -1645,6 +1649,33 @@ def api_duplicate(h, doc_id):
     h.send_json({"meta": meta}, 201)
 
 
+def api_doc_drawings(h, doc_id):
+    """A page opened before its drawings were made (htmlgen's latex_defer)
+    has them made here, a few at a time, each answer carrying the page's
+    article as it now renders: the page swaps in the drawings that are
+    there, and asks again while some are left.  Only the saved document's own
+    drawings are made, so nothing the page sends is ever compiled."""
+    meta, markdown = store.get(doc_id)
+    body = h._json_body() or {}
+    try:
+        batch = max(1, min(8, int(body.get("batch") or 4)))
+    except (TypeError, ValueError):
+        batch = 4
+    missing = [(t, th, i) for t, th, i in htmlgen.latex_wanted(markdown)
+               if latexdraw.peek(t, th, inline=i).get("ok") is None]
+    todo = missing[:batch]
+    blocks = [(t, th) for t, th, i in todo if not i]
+    marks = [(t, th) for t, th, i in todo if i]
+    if blocks:
+        latexdraw.draw_all(blocks)
+    if marks:
+        latexdraw.draw_all(marks, inline=True)
+    doc = htmlgen.render_document(markdown, asset_base=base() + "/media/%s/" % doc_id,
+                                  docs=store.doc_index(), deck_button=False, latex_defer=True)
+    h.send_json({"html": doc["html"], "drawn": len(todo), "left": len(missing) - len(todo),
+                 "pending": doc.get("latex_pending", 0)})
+
+
 def api_delete(h, doc_id):
     try:
         named = latexdraw._source_keys(store.get(doc_id)[1])
@@ -2245,6 +2276,7 @@ ROUTES = [
     ("PUT",    r"^/api/docs/([a-z0-9\-]+)$",              api_save),
     ("PATCH",  r"^/api/docs/([a-z0-9\-]+)/meta$",         api_meta),
     ("POST",   r"^/api/docs/([a-z0-9\-]+)/color$",        api_color),
+    ("POST",   r"^/api/docs/([a-z0-9\-]+)/drawings$",     api_doc_drawings),
     ("POST",   r"^/api/docs/([a-z0-9\-]+)/translit$",     api_translit),
     ("POST",   r"^/api/docs/([a-z0-9\-]+)/kana$",         api_kana),
     ("POST",   r"^/api/docs/([a-z0-9\-]+)/duplicate$",    api_duplicate),

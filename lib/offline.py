@@ -876,7 +876,10 @@ STUDIO_FILES = ("/static/app.css", "/static/langs.css", "/static/mobile.css",
                 # markup.  /static/app.css still answers with both files
                 # joined, so naming this one costs a second small file and
                 # buys every note its typography.
-                "/static/sheet.css")
+                "/static/sheet.css",
+                # the drawings a document or a note opened without, made
+                # afterwards (the owner, 2026-09-28): both pages load it
+                "/static/latexwait.js")
 
 # The bare note page loads exactly two of the above, and neither of them is
 # the studio's chrome: a note is the sheet and the language tokens, and the

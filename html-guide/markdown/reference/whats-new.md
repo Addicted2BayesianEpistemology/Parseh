@@ -25,7 +25,8 @@ between `::::latex` and `::::`, four colons, so that it may stand in a
 Jolly card's field too, or inline, `[...]{latex}`, right inside a line of
 prose or an exercise's option, sitting on that line's own baseline. Each is
 compiled on its own and becomes one picture: the same drawing on the page,
-in the PDF, in an HTML export and on a phone. One that cannot be made shows
+in the PDF, in an HTML export and on a phone. A page never waits for them:
+it opens at once, and the drawings not made yet come in under a bar. One that cannot be made shows
 its source and a line saying why, with the button that mends it. The
 editor has a sheet for writing one — its preview beside the source and
 scaled to fill its pane, the drawing made as you type, a caption for a

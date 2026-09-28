@@ -1352,6 +1352,26 @@ figure.latex figcaption > span { display: block; font-size: .78em; color: var(--
 figure.latex.align-left figcaption { text-align: left; }
 figure.latex.align-right figcaption { text-align: right; }
 .ex-flashcard figure.latex { margin-top: .5em; margin-bottom: .5em; }
+/* a drawing not made yet when its page was (htmlgen's latex_defer): its source,
+   quiet, until static/latexwait.js swaps the drawing in */
+.latex-pending-block { margin: 1.2em 0; padding: .5em .8em; border: 1px dashed var(--rulec); border-radius: 6px; }
+.latex-pending-block .latex-wait { display: block; font: .78em var(--sans); color: var(--graytx); margin-bottom: .3em; }
+.latex-pending-block .latex-code { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85em; color: var(--graytx); }
+code.latex-pending { color: var(--graytx); }
+.latex-waiting { position: fixed; left: 50%; top: .6rem; transform: translateX(-50%); z-index: 70;
+  box-sizing: border-box; width: min(22rem, calc(100vw - 1.5rem)); padding: .55rem .75rem .6rem;
+  border-radius: 8px; border: 1px solid var(--rulec); border-left: 3px solid var(--accent);
+  background: var(--boxbg); color: var(--ink); font: .85rem/1.4 var(--sans);
+  box-shadow: 0 8px 26px rgba(0,0,0,.16); transition: opacity .5s; }
+.latex-waiting.gone { opacity: 0; pointer-events: none; }
+.latex-waiting.err { border-left-color: var(--danger); }
+.latex-waiting-say { margin: 0; overflow-wrap: anywhere; }
+.latex-waiting-bar { height: 6px; margin: .45rem 0 0; border-radius: 3px; overflow: hidden; background: var(--rulec); }
+.latex-waiting-bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width .4s; }
+.latex-waiting-again { margin-top: .45rem; font: inherit; padding: .25rem .7rem; border-radius: 6px;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .latex-waiting, .latex-waiting-bar i { transition: none; } }
+@media print { .latex-waiting { display: none; } }
 /* a drawing is black on nothing (lib/latexdraw.py): on the dark sheet it would
    all but vanish, so it is turned to the sheet's own ink, and the hue turn
    keeps a coloured drawing's colours where they were */

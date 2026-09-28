@@ -266,12 +266,16 @@ def _lacks(resolved):
     return out
 
 
-def peek(tex, theme_name):
-    """A block's drawing if it is kept, without compiling anything -> the
-    result draw() would give, or {"ok": None, "key"} when it is not drawn yet."""
-    p = plan(tex, theme_name)
+def peek(tex, theme_name, inline=False):
+    """A block's drawing (or an inline mark's) if it is kept, without
+    compiling anything -> the result draw() would give, or {"ok": None,
+    "key"} when it is not drawn yet.  A saved page's peek promotes the
+    editor's preview of the same drawing, as draw() does."""
+    p = plan(tex, theme_name, inline=inline)
     if not p["ok"]:
         return p
+    if _promote(p["key"]):
+        _mark_unowned(p["key"])
     meta = cached(p["key"])
     if meta:
         return _ok(p["key"], meta)

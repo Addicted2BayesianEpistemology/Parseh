@@ -178,7 +178,7 @@
     {{BACKLINKS}}
   </aside>
   <main class="readpane" id="readpane">
-    <article id="sheet" class="sheet" lang="{{LANG}}" data-lang="{{TARGET}}">
+    <article id="sheet" class="sheet" lang="{{LANG}}" data-lang="{{TARGET}}" data-drawings="{{BASE}}/api/docs/{{DOC_ID}}/drawings">
 {{ARTICLE}}
     </article>
     <iframe id="pdfframe" class="pdfframe" hidden title="PDF"></iframe>
@@ -208,5 +208,6 @@
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
 <script src="{{STUDIO}}/static/app.js"></script>
+<script src="{{STUDIO}}/static/latexwait.js" defer></script>
 </body>
 </html>

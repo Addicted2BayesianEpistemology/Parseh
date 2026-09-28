@@ -193,7 +193,8 @@ studio.set_base(STUDIO_BASE)
 # a latex block that cannot be drawn names the page that mends it: this
 # server's Settings -> LaTeX drawings (the studio alone has none)
 import latexdraw                                               # noqa: E402
-studio.htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings="/settings/latex/")
+studio.htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings="/settings/latex/",
+                         peek=latexdraw.peek)
 
 
 class _AtRoot(object):

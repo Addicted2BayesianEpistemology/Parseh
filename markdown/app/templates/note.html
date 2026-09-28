@@ -133,7 +133,7 @@
   <a class="nfull" id="nfull" href="{{STUDIO_DOC}}"
      title="Open this note on the studio's own document page — the editor, the glosses, the downloads">open in the studio</a>
 </header>
-<article id="sheet" class="sheet" lang="{{LANG}}" data-lang="{{TARGET}}">
+<article id="sheet" class="sheet" lang="{{LANG}}" data-lang="{{TARGET}}" data-drawings="{{BASE}}/api/docs/{{DOC_ID}}/drawings">
 {{ARTICLE}}
 </article>
 <script>
@@ -211,6 +211,7 @@
   });
 })();
 </script>
+{{LATEX_FOOT}}
 {{MATH_FOOT}}
 </body>
 </html>

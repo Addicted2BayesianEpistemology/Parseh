@@ -6,6 +6,7 @@ store is redirected to a temporary folder, so config/ is never written."""
 import json
 import contextlib
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -461,6 +462,88 @@ class InlineMark(unittest.TestCase):
         self.assertEqual(latexthemes.inline_latex_pairs(source),
                          [("a", None), ("$2 + 2$", None), ("1", None), ("\\ce{H2O}", "chemistry"),
                           ("$x$", None)])
+
+
+class APageWaitsForNoDrawing(Store):
+    """A document or a note page is made at once, whatever it holds: a drawing
+    not made yet is a numbered placeholder, and the page has it made
+    afterwards through the studio's drawings route (the owner, 2026-09-28:
+    a document with many drawings to make took as long to open as they took,
+    and a phone gave up on it)."""
+
+    DOC = ("---\ntitle: T\nlang: en\ntarget: it\n---\n\n::::latex {caption=\"with [a]{latex} in it\"}\n$x$\n::::\n\n"
+           "One [$y$]{latex}, two [$z$]{latex}.\n\n::::latex\n$w$\n::::\n\n"
+           ":::exercise choose-all\nprompt: Pick.\n- [x] [$1$]{latex}\n- [ ] [$2$]{latex}\n:::\n")
+
+    def stubs(self, made):
+        def peek(tex, theme=None, inline=False):
+            if (tex, bool(inline)) in made:
+                return {"ok": True, "key": "k" * 64, "url": "/latex/x.svg", "w": 10.0, "h": 5.0, "d": 1.0}
+            return {"ok": None, "key": "k" * 64}
+
+        def draw(*a, **k):
+            raise AssertionError("a deferred page compiles nothing")
+        return {"draw": draw, "draw_all": draw, "peek": peek}
+
+    def idx(self, html):
+        return re.findall(r'<(\w+)[^>]*?data-latex-idx="(\d+)"', html)
+
+    def test_a_deferred_page_compiles_nothing_and_numbers_every_drawing(self):
+        with mock.patch.dict(htmlgen.LATEX, self.stubs(set())):
+            out = htmlgen.render_document(self.DOC, latex_defer=True)
+        html = out["html"]
+        self.assertEqual(out["latex_pending"], 6, "two blocks and four marks; the caption's mark is its block's")
+        self.assertEqual(html.count('data-latex-pending="1"'), 6)
+        self.assertEqual([n for _t, n in self.idx(html)], [str(i) for i in range(1, 7)])
+        self.assertIn('class="latex-pending-block"', html)
+        self.assertIn("$w$", html, "a waiting block shows its source")
+
+    def test_the_numbers_are_the_same_waiting_or_drawn(self):
+        with mock.patch.dict(htmlgen.LATEX, self.stubs(set())):
+            waiting = self.idx(htmlgen.render_document(self.DOC, latex_defer=True)["html"])
+        made = {("$x$", False), ("$y$", True), ("$z$", True), ("$w$", False), ("$1$", True), ("$2$", True),
+                ("a", True)}
+        with mock.patch.dict(htmlgen.LATEX, self.stubs(made)):
+            out = htmlgen.render_document(self.DOC, latex_defer=True)
+        self.assertEqual(out["latex_pending"], 0)
+        drawn = self.idx(out["html"])
+        self.assertEqual([n for _t, n in waiting], [n for _t, n in drawn])
+        self.assertEqual([t for t, _n in drawn], ["figure", "img", "img", "figure", "img", "img"])
+
+    def test_the_drawings_route_makes_a_few_and_says_how_many_are_left(self):
+        import server
+        import store
+        store.LIB = type(store.LIB)(self.tmp.name) / "library"
+        store.LIB.mkdir(parents=True, exist_ok=True)
+        was = store.use_library(store.LIB)
+        self.addCleanup(store.use_library, was)
+        meta = store.create(self.DOC)
+        made = set()
+
+        def peek(tex, theme=None, inline=False):
+            return ({"ok": True, "key": "k" * 64, "url": "/latex/x.svg", "w": 1.0, "h": 1.0, "d": 0.0}
+                    if (tex, bool(inline)) in made else {"ok": None, "key": "k" * 64})
+
+        def draw_all(pairs, inline=False, preview=False):
+            made.update((t, bool(inline)) for t, _th in pairs)
+            return [{"ok": True} for _ in pairs]
+
+        class H:
+            def _json_body(self):
+                return {"batch": 3}
+
+            def send_json(self, obj, status=200):
+                self.sent = (status, obj)
+        rounds = []
+        with mock.patch.object(latexdraw, "peek", peek), mock.patch.object(latexdraw, "draw_all", draw_all), \
+                mock.patch.dict(htmlgen.LATEX, {"peek": peek, "draw": lambda *a, **k: {"ok": False}}):
+            for _ in range(4):
+                h = H()
+                server.api_doc_drawings(h, meta["id"])
+                rounds.append((h.sent[1]["drawn"], h.sent[1]["left"], h.sent[1]["pending"]))
+                if not h.sent[1]["left"]:
+                    break
+        self.assertEqual(rounds, [(3, 4, 4), (3, 1, 1), (1, 0, 0)])
 
 
 class WhatIsCountedIsWhatIsDrawn(Store):

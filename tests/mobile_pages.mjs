@@ -100,7 +100,7 @@ const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
 const SHOTS = Deno.env.get('SHOTS') || '';
-const PARTS = (Deno.env.get('MOBILE_PARTS') || 'shelf,reader,touch,prefs,video,studio,export,decks,offline,checkout,background,app,update').split(',');
+const PARTS = (Deno.env.get('MOBILE_PARTS') || 'shelf,reader,touch,prefs,video,studio,export,drawings,decks,offline,checkout,background,app,update').split(',');
 const td = new TextDecoder();
 let passed = 0;
 const assert = (v, m) => { if (!v) throw Error('FAIL: ' + m); passed++; console.log('  ok', m); };
@@ -1673,6 +1673,66 @@ async function partStudio() {
 // fell to /m/offline/, while the computer was still making the page.  Driven
 // here with the computer really slow (tests/mobile_harness.py: the page made
 // <tmp>/export-delay seconds late): pressed, and as a plain link.
+// A DOCUMENT WHOSE DRAWINGS ARE NOT MADE YET, opened from a phone the worker
+// controls, with the computer two seconds on every drawing (the owner,
+// 2026-09-28: such a page took as long to open as its drawings took to make,
+// and the phone gave up on it -- "Parseh cannot be reached").  It opens at
+// once, each drawing its source until it is made, a bar counting them; they
+// come into the page one by one, and a second opening waits for nothing.
+async function partDrawings() {
+  console.log('\n== a document with LaTeX drawings not made yet, from a phone the worker controls');
+  const stamp = String(Date.now() % 100000);
+  const blocks = [1, 2, 3, 4].map(n => `::::latex\n$\\displaystyle\\sum_{k=1}^{${n}${stamp}} k$\n::::`).join('\n\n');
+  const markdown = `---\ntitle: Drawn late\nlang: en\ntarget: it\n---\n\nTwo in a line: [$a_{${stamp}}$]{latex} and [$b_{${stamp}}$]{latex}.\n\n${blocks}\n`;
+  const made = await (await fetch(B + '/studio/api/docs', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({markdown})})).json();
+  const id = made.meta && made.meta.id;
+  assert(!!id, 'a document with six drawings: ' + JSON.stringify(made.meta ? id : made));
+  const page = await newPage(PHONE, 'drawings');
+  const DELAY = WORK + '/latex-delay';
+  try {
+    // the worker takes the page over on another document first, one with no drawing
+    const plain = await (await fetch(B + '/studio/api/docs', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({markdown: '---\ntitle: Plain\nlang: en\ntarget: it\n---\n\nNothing drawn.\n'})})).json();
+    await page.goto(B + '/studio/doc/' + plain.meta.id);
+    await setMode(page, 'mobile');
+    await page.reload();
+    for (let i = 0; i < 3 && !(await page.evaluate(() => !!navigator.serviceWorker.controller)); i++) {
+      await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+      await page.reload();
+    }
+    eq(await page.evaluate(() => !!navigator.serviceWorker.controller), true, 'the worker controls the page');
+    await Deno.writeTextFile(DELAY, '2');
+    const t0 = Date.now();
+    await page.goto(B + '/studio/doc/' + id);
+    await page.waitForSelector('#sheet [data-latex-pending]', {state: 'attached', timeout: 10000});
+    const opened = Date.now() - t0;
+    const first = await page.evaluate(() => ({title: document.title, pending: document.querySelectorAll('#sheet [data-latex-pending]').length,
+      say: (document.querySelector('.latex-waiting-say') || {}).textContent || ''}));
+    assert(opened < 2500 && !/cannot be reached/i.test(first.title) && first.pending === 6,
+           `the page opens at once (${opened} ms), its six drawings still to make: ${JSON.stringify(first)}`);
+    assert(/^Making the LaTeX drawings: \d of 6$/.test(first.say), 'a bar says how many are made: ' + first.say);
+    await shot(page, 'drawings-phone-waiting');
+    await page.waitForFunction(() => !document.querySelector('#sheet [data-latex-pending]'), null, {timeout: 90000});
+    const drawn = await page.evaluate(() => ({
+      blocks: [...document.querySelectorAll('#sheet figure.latex img')].filter(i => i.complete && i.naturalWidth > 0).length,
+      marks: [...document.querySelectorAll('#sheet img.latex-inline')].length,
+      say: document.querySelector('.latex-waiting-say').textContent, url: location.href, title: document.title}));
+    eq([drawn.blocks, drawn.marks, drawn.say], [4, 2, 'The 6 LaTeX drawings are made.'],
+       'they come into the page as they are made, and the bar says so');
+    assert(drawn.url.endsWith('/studio/doc/' + id) && !/cannot be reached/i.test(drawn.title), 'and the page never left the document');
+    await shot(page, 'drawings-phone-made');
+    const t1 = Date.now();
+    await page.reload();
+    await page.waitForSelector('#sheet figure.latex img');
+    eq([await page.locator('#sheet [data-latex-pending]').count(), await page.locator('.latex-waiting').count()], [0, 0],
+       `opened again (${Date.now() - t1} ms), every drawing is there and nothing waits`);
+  } finally {
+    await Deno.remove(DELAY).catch(() => {});
+    await page.close();
+  }
+}
+
 async function partExport() {
   console.log('\n== a document\'s HTML page, from a phone the worker controls, with the computer slow');
   // a name of its own: the studio's part has made "A phone lesson" already
@@ -4610,6 +4670,7 @@ try {
   if (PARTS.includes('video')) await partVideo();
   if (PARTS.includes('studio')) await partStudio();
   if (PARTS.includes('export')) await partExport();
+  if (PARTS.includes('drawings')) await partDrawings();
   if (PARTS.includes('decks')) await partDecks();
   // last: it stops the server
   if (PARTS.includes('offline')) await partOffline();
