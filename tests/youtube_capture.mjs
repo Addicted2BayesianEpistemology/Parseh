@@ -407,6 +407,18 @@ async function newPage(b, {width = 1280, height = 900, query = 'src=tones.wav', 
     }
     for (const name of ['getUserMedia', 'webkitGetUserMedia', 'mozGetUserMedia'])
       if (navigator[name]) { const old = navigator[name].bind(navigator); navigator[name] = (...a) => { window.__gum++; return old(...a); }; }
+    // every AudioContext made, and every track cloned, to be found closed and
+    // stopped afterwards
+    window.__contexts = [];
+    window.__clones = [];
+    if (window.AudioContext) {
+      const Made = window.AudioContext;
+      window.AudioContext = class extends Made { constructor(...a) { super(...a); window.__contexts.push(this); } };
+    }
+    if (window.MediaStreamTrack) {
+      const clone = MediaStreamTrack.prototype.clone;
+      MediaStreamTrack.prototype.clone = function (...a) { const c = clone.apply(this, a); window.__clones.push(c); return c; };
+    }
     window.__intervals = new Map();
     window.__virt = {on: false, timers: [], n: 0, k: 0, levels: null, clocks: null};
     const si = window.setInterval.bind(window), ci = window.clearInterval.bind(window);
@@ -1278,6 +1290,17 @@ async function goldPage(kind, {rate = 1.5} = {}) {
   const childNow = await childState(page);
   assert(childNow.paused && childNow.rate === 1.5, 'the video is paused, its speed given back: ' + JSON.stringify(childNow));
   eq(await page.evaluate(() => [__asked.length, __gum]), [1, 0], 'one share, and the microphone never asked');
+  // THE LISTENER THAT USED TO STAY.  The recorder listened for the share to end
+  // and never stopped listening: once the drawing was kept, Chrome's "Stop
+  // sharing" ran its stop again -- paused whatever was playing then, and put
+  // the video's speed back.  It is taken off at the end of the recording.
+  const stale = await page.evaluate(() => {
+    const p = __fakeYT[0], calls = [];
+    for (const m of ['pauseVideo', 'setPlaybackRate', 'playVideo']) { const f = p[m]; p[m] = (...a) => { calls.push(m); return f.apply(p, a); }; }
+    __streams[0].getAudioTracks()[0].dispatchEvent(new Event('ended'));
+    return calls;
+  });
+  eq(stale, [], 'after the recording, the share ending touches the player no more');
   await context.close();
   await Deno.remove(wavePath());
 }
@@ -1315,6 +1338,78 @@ async function goldPage(kind, {rate = 1.5} = {}) {
   const after = await childState(page);
   assert(after.paused && after.rate === 1.5, 'the video is paused and its speed given back: ' + JSON.stringify(after));
   await context.close();
+}
+
+{
+  console.log('   why a tab cannot be recorded: the card kit\'s words, and the module\'s, the same');
+  // The card kit says it for the sheets that cut a clip; the module says it for
+  // the add page, which never loads the card kit.  In every browser that
+  // cannot, they must say the same thing.
+  const both = async (init, what) => {
+    const {context: cx, page: px} = await newPage(browser, {init});
+    await openVideo(px);
+    const r = await px.evaluate(() => [ParsehCards.tabProblem(), ParsehTabCapture.problem(), ParsehTabCapture.capability()]);
+    await cx.close();
+    eq(r[0], r[1], `${what}: the card kit and the module say the same: ${JSON.stringify(r[1])}`);
+    eq(r[2], {ok: r[1] === '', why: r[1]}, `${what}: capability() is that, as {ok, why}`);
+    return r[1];
+  };
+  eq(await both(() => {}, 'Chrome'), '', 'this Chrome can record a tab');
+  eq(await both(() => { Object.defineProperty(Navigator.prototype, 'userAgentData', {get: () => undefined}); }, 'not Chromium'),
+     'only Chrome and Edge, on a computer, can record the sound of a tab', 'Firefox and Safari have no userAgentData');
+  eq(await both(() => { Object.defineProperty(window, 'isSecureContext', {get: () => false}); }, 'not https'),
+     'recording this tab needs the page opened at the toolbox’s https address, in Chrome or Edge', 'a page that is not https');
+  eq(await both(() => { const ua = navigator.userAgentData; Object.defineProperty(Navigator.prototype, 'userAgentData', {get: () => ({brands: ua.brands, mobile: true})}); }, 'a phone'),
+     'only Chrome and Edge, on a computer, can record the sound of a tab', 'a phone');
+  eq(await both(() => { navigator.mediaDevices.getDisplayMedia = undefined; }, 'no getDisplayMedia'),
+     'only Chrome and Edge, on a computer, can record the sound of a tab', 'no way to share a tab');
+  eq(await both(() => { delete window.AudioContext; delete window.webkitAudioContext; delete window.MediaStreamTrackProcessor; }, 'no Web Audio'),
+     'this browser cannot read the sound of a shared tab', 'nothing to read the sound with');
+}
+{
+  console.log('   cancelled mid-way: everything let go, and a second recording works');
+  const {context: cc, page: pc} = await newPage(browser);
+  await openVideo(pc);
+  await pc.evaluate(() => __fakeYT[0].setPlaybackRate(1.25));
+  await until(async () => (await childState(pc)).rate === 1.25, 'the speed is set');
+  const before = await pc.evaluate(() => [...__intervals.keys()]);
+  const start = keep => pc.evaluate(keep => {
+    window.__ended = [];
+    window.__rec = ParsehTabCapture.record({player: __fakeYT[0], keepShare: keep, onEnd: r => __ended.push(r)});
+    window.__settled = null;
+    __rec.promise.then(r => { __settled = ['ok', r.reason]; }, e => { __settled = ['no', e.message]; });
+  }, keep);
+  const playing = async what => until(async () => { const c = await childState(pc); return !c.paused && c.t > 0.4 && await pc.evaluate(() => __rec.state) === 'listening'; }, what);
+  await start(false);
+  eq(await pc.evaluate(() => [['sharing', 'listening'].includes(__rec.state), ParsehTabCapture.busy()]), [true, true],
+     'asked for the share, and busy');
+  await playing('the video plays and the recording listens');
+  eq(await pc.evaluate(() => ParsehTabCapture.record({player: __fakeYT[0], onEnd: () => {}}).promise.then(() => 'started', e => e.message)),
+     'a recording is already under way in this page', 'a second recording is refused while one is under way');
+  await pc.evaluate(() => __rec.cancel());
+  const after = await pc.evaluate(() => ({
+    state: __rec.state, busy: ParsehTabCapture.busy(), ended: __ended, settled: __settled,
+    contexts: __contexts.map(c => [c.sampleRate > 0, c.state]),
+    tracks: __streams.map(s => s.getTracks().map(t => t.kind + ':' + t.readyState).sort().join()),
+    intervals: [...__intervals.keys()], gum: __gum, asked: __asked.length}));
+  eq([after.state, after.busy, after.ended, after.settled], ['done', false, ['cancelled'], ['ok', 'cancelled']],
+     'cancelled: done, not busy, ended once with the reason, and the promise kept with it');
+  eq(after.contexts, [[true, 'closed']], 'the audio context is closed');
+  eq(after.tracks, ['audio:ended,video:ended'], 'every track of the share is stopped');
+  eq(after.intervals, before, 'no timer of its own is left running');
+  const c1 = await childState(pc);
+  assert(c1.paused && c1.rate === 1.25, 'the player is paused and its speed given back: ' + JSON.stringify(c1));
+  eq([after.gum, after.asked], [0, 1], 'the microphone was never asked, and Chrome once');
+  // and again: no state was left behind, the share is asked for anew
+  await start(true);
+  await playing('the second recording plays');
+  await pc.evaluate(() => __rec.cancel());
+  eq(await pc.evaluate(() => [__rec.state, __ended, __settled, ParsehTabCapture.busy(), __asked.length,
+                              __streams[1].getTracks().map(t => t.kind + ':' + t.readyState).sort().join(),
+                              __contexts.map(c => c.state).join()]),
+     ['done', ['cancelled'], ['ok', 'cancelled'], false, 2, 'audio:live,video:live', 'closed,closed'],
+     'a second recording works; kept share stays live when asked to, both contexts closed');
+  await cc.close();
 }
 
 assert(errors.length === 0, 'no page error and no failed request: ' + JSON.stringify(errors));

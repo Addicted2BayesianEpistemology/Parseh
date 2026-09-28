@@ -3742,6 +3742,10 @@
   // said wherever the kit is needed and is not there (the book reader's
   // sheet says the same)
   var KIT_GONE = 'the card kit (lib/cardkit.js) did not load: reload the page';
+  // the tab's share and the recording of its sound (youtube/lib/tabcapture.js),
+  // which the add page uses too
+  var TC = window.ParsehTabCapture || null;
+  var TC_GONE = 'the tab capture (youtube/lib/tabcapture.js) did not load: reload the page';
   // the sheet's head and its button, per destination
   var TARGET_TITLE = { anki: 'anki card', deck: 'exercise card', md: 'card markdown' };
   var SAVE_LABEL = { anki: 'save card', deck: 'add to deck', md: 'copy markdown' };
@@ -4248,59 +4252,18 @@
      the moment and rolls in muted: the overlay has just faded when the
      wanted frame goes by, and the player freezes back on it. -- */
   /* -- SHARING THIS TAB.  One share, asked for once, serves the frame
-     capture (its pictures) and the cut editor on a YouTube video (its sound,
-     which lib/cardkit.js records while the stretch plays): one question from
-     Chrome for both, however many frames and clips follow.  It is asked for
-     with its sound wherever the browser can record that (Chrome, Edge); a
-     share given without the sound still serves the pictures, and the sound
-     asks again, for a share that takes its place.  A share the person stops
-     (Chrome's "Stop sharing") is asked for anew next time.  `want.audio`:
-     the share must carry live sound. -- */
-  var tabShare = null;
-  function tabShared(sound) {
-    var s = tabShare;
-    var live = function (kind) {
-      return s.getTracks().some(function (t) {
-        return t.kind === kind && t.readyState === 'live';
-      });
-    };
-    return s && live('video') && (!sound || live('audio')) ? s : null;
-  }
-  function shareTab(want) {
-    var sound = !!(want && want.audio), have = tabShared(sound);
-    if (have) return Promise.resolve(have);
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia)
-      return Promise.reject(new Error(
-        'capture needs a secure page — open the toolbox over its https address'));
-    var withSound = !!(KIT && KIT.canCaptureTab && KIT.canCaptureTab());
-    // A share still live but without its sound is let go before asking
-    // again: Chrome does not share this tab a second time while the first
-    // share's picture is cropped to the video, as the frame capture's is
-    // ("Could not start video source", however often it is asked).  Refused,
-    // the next frame asks too.
-    if (tabShare) {
-      tabShare.getTracks().forEach(function (t) { t.stop(); });
-      tabShare = null;
-    }
-    // preferCurrentTab and the rest are Chrome's; Firefox ignores unknown members
-    return navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: withSound ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
-      preferCurrentTab: true, selfBrowserSurface: 'include', systemAudio: 'exclude'
-    }).then(function (s) {
-      var old = tabShare;
-      tabShare = s;
-      if (old && old !== s) old.getTracks().forEach(function (t) { t.stop(); });
-      return s;
-    });
-  }
-  // the share as it stands, without asking: what the cut editor reads to know
-  // whether Chrome is about to ask
-  shareTab.live = function (want) { return tabShared(!!(want && want.audio)); };
+     capture (its pictures), the cut editor on a YouTube video (its sound,
+     which lib/cardkit.js records while the stretch plays) and the waveform
+     (below): one question from Chrome for all of them, however many frames
+     and clips follow.  It is youtube/lib/tabcapture.js that holds it -- the
+     add page records this tab too, and one share serves whoever asks.
+     `want.audio`: the share must carry live sound. -- */
+  var shareTab = TC ? TC.share : function () { return Promise.reject(new Error(TC_GONE)); };
+  if (!TC) shareTab.live = function () { return null; };
 
   function ensureCapture() {
-    if (capVideo && capFor && capFor === tabShared(false)) return Promise.resolve();
-    if (!tabShared(false)) A.hint.hidden = false;
+    if (capVideo && capFor && capFor === shareTab.live()) return Promise.resolve();
+    if (!shareTab.live()) A.hint.hidden = false;
     return shareTab().then(function (s) {
       var track = s.getVideoTracks()[0];
       var st = track.getSettings ? track.getSettings() : {};
@@ -5176,81 +5139,24 @@
      page, and a copy of somebody else's recording besides.  Nothing here
      needs the audio: the player can play any second of the video itself.
 
-     EACH NUMBER IS FILED UNDER THE VIDEO'S OWN CLOCK, not under how long
-     the recording has been running.  That is the whole trick: if the video
-     stops to buffer, the clock stops with it, and what was heard goes on
-     being filed where it belongs instead of sliding everything after it.
-     The card kit's own recorder cannot do that -- it is cutting a clip, and
-     a clip has to be continuous -- which is why it throws a take away when
-     the clock and the wall disagree, and why this does not. */
-  var WAVE_RATE = 20;                  // numbers a second: one every 50 ms
-
+     The recording itself -- the share, the Analyser, the clock loop that files
+     each number under the VIDEO'S OWN clock and not under how long the
+     recording has been running -- is youtube/lib/tabcapture.js, which the add
+     page records from as well.  What stays here is what only this page does
+     with it: the words the sheet shows, and keeping the shape beside the video. */
   function capRecordWave(onTick) {
     if (!player || !ready) return Promise.reject(new Error('the player has not loaded'));
     var why = KIT && KIT.tabProblem ? KIT.tabProblem() : '';
     if (why) return Promise.reject(new Error(why));
-    var dur = 0;
-    try { dur = player.getDuration ? player.getDuration() : 0; } catch (e) {}
-    if (!(dur > 0)) return Promise.reject(new Error('the video has not said how long it is yet'));
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return Promise.reject(new Error('this browser has no Web Audio'));
-    return shareTab({audio: true}).then(function (st) {
-      if (!st.getAudioTracks().length)
-        throw new Error('the share came without its sound — share this tab again and ' +
-                        'leave “Also allow tab audio” turned on');
-      var ac = new AC();
-      var src = ac.createMediaStreamSource(st);
-      var an = ac.createAnalyser();
-      an.fftSize = 2048;
-      an.smoothingTimeConstant = 0;
-      src.connect(an);               // and to nothing else: it is not played again
-      var buf = new Float32Array(an.fftSize);
-      var peaks = [];
-      for (var i = 0, n = Math.ceil(dur * WAVE_RATE) + 1; i < n; i++) peaks.push(0);
-      var track = st.getAudioTracks()[0];
-      var was = 1;
-      try { was = player.getPlaybackRate ? player.getPlaybackRate() : 1; } catch (e) {}
-      try { if (player.setPlaybackRate) player.setPlaybackRate(1); } catch (e) {}
-      try { player.seekTo(0, true); player.playVideo(); } catch (e) {}
-      if (onTick) onTick(0, 'listening… the video plays once, the whole way through');
-      return new Promise(function (done, fail) {
-        var timer = 0, stalled = 0, last = -1;
-        function stop(err) {
-          clearInterval(timer);
-          try { player.pauseVideo(); } catch (e) {}
-          try { if (player.setPlaybackRate) player.setPlaybackRate(was); } catch (e) {}
-          try { ac.close(); } catch (e) {}
-          if (err) return fail(err);
-          var top = 0, k;
-          for (k = 0; k < peaks.length; k++) if (peaks[k] > top) top = peaks[k];
-          if (!top) return fail(new Error(
-            'nothing was heard — the tab was shared without its sound, or the video is muted'));
-          for (k = 0; k < peaks.length; k++) peaks[k] = Math.round(peaks[k] / top * 1000) / 1000;
-          done({rate: WAVE_RATE, peaks: peaks});
-        }
-        track.addEventListener('ended', function () { stop(new Error(
-          'the tab stopped being shared while the sound was being drawn')); }, {once: true});
-        timer = setInterval(function () {
-          an.getFloatTimeDomainData(buf);
-          var v = 0;
-          for (var j = 0; j < buf.length; j++) {
-            var a = buf[j] < 0 ? -buf[j] : buf[j];
-            if (a > v) v = a;
-          }
-          var t = 0;
-          try { t = player.getCurrentTime(); } catch (e) {}
-          if (!isFinite(t)) return;
-          var slot = Math.round(t * WAVE_RATE);
-          if (slot >= 0 && slot < peaks.length && v > peaks[slot]) peaks[slot] = v;
-          // a video that has stopped moving for a good while has ended, or
-          // has stalled past helping: either way there is no more to hear
-          if (Math.abs(t - last) < 0.01) stalled++; else stalled = 0;
-          last = t;
-          if (onTick && (slot % 20 === 0)) onTick(t / dur);
-          if (t >= dur - 0.3 || stalled > 400) stop(null);
-        }, 25);
-      });
-    }).then(function (w) {
+    if (!TC) return Promise.reject(new Error(TC_GONE));
+    return TC.record({
+      player: player, wave: true, keepShare: true,
+      onStart: function () {
+        if (onTick) onTick(0, 'listening… the video plays once, the whole way through');
+      },
+      onProgress: function (t, dur) { if (onTick) onTick(t / dur); }
+    }).promise.then(function (w) {
+      if (!w || !w.peaks) return w;
       if (onTick) onTick(1, 'keeping it…');
       return fetch('/youtube/api/waveform', {
         method: 'POST', headers: {'Content-Type': 'application/json'},

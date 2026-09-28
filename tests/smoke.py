@@ -205,6 +205,7 @@ def test_js():
         "lib/decomposition.js": open(os.path.join(LIB, "decomposition.js"), encoding="utf-8").read(),
         "lib/cardkit.js": open(os.path.join(LIB, "cardkit.js"), encoding="utf-8").read(),
         "youtube/lib/player.js": open(os.path.join(YT_LIB, "player.js"), encoding="utf-8").read(),
+        "youtube/lib/tabcapture.js": open(os.path.join(YT_LIB, "tabcapture.js"), encoding="utf-8").read(),
         "studio app.js": open(os.path.join(STUDIO, "app", "static", "app.js"), encoding="utf-8").read(),
     }
     # the exercise decks' pages: loaded after app.js, whose globals it uses
