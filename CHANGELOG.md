@@ -1,4 +1,4 @@
-## [a0.4.0] - unreleased
+## [a0.4.0] - 2026-09-28
 ### Added
 - LaTeX drawings: a ::::latex block, or [...]{latex} inline, compiled by LaTeX itself, beside the formulas MathJax draws
 - The same drawing on screen, in the PDF, in an HTML export and on a phone; a live preview kept only once it is saved
