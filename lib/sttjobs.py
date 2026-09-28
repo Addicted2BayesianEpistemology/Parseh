@@ -24,6 +24,10 @@ ONE AT A TIME (a second start is 409 `busy`).  A multi-gigabyte model is
 never loaded twice, a YouTube capture is real time and holds the person's
 tab, and the slot is given up the moment a job ends or is cancelled.
 
+THE MODEL IS HELD FROM start() TO THE END (getstt.using), the whole capture
+included, so that Settings refuses to take the model or the program away under a
+recording that has an hour of a person's time in it -- and says why.
+
 ANY DEVICE THE NETWORK DOOR LET IN MAY START ONE (the owner): a phone, a
 tablet, another computer.  Nothing here asks where the caller is, and
 nothing may assume it is the machine the server runs on -- a remote
@@ -254,10 +258,21 @@ def _remove(*paths):
 
 
 def _using(gs, key):
-    """The model is in use for as long as the job runs, so the Reading help
-    page will not remove it under it (getstt.using)."""
+    """The model is in use for as long as the job lives, from start() to its
+    end, so that Settings will not remove it under it (getstt.using)."""
     f = getattr(gs, "using", None)
     return f(key) if callable(f) else contextlib.nullcontext()
+
+
+def _unhold(job):
+    """The part start() took for the job, let go.  Every end of a job asks
+    (done, failed, cancelled, abandoned, a stopping server) and the first
+    one frees it: a second is nothing, so a part an install holds as well is
+    not let go early, and one that is never let go could not be removed again."""
+    with LOCK:
+        hold = job.pop("hold", None)
+    if hold is not None:
+        hold.close()
 
 
 def _job(token, missing=True):
@@ -325,6 +340,7 @@ def stop_all():
     for job in jobs:
         job["cancelled"] = True
         _clean_files(job)
+        _unhold(job)
 
 
 atexit.register(stop_all)
@@ -356,6 +372,7 @@ def _end(job, state, code=None, say=None):
         job["finished"] = _now()
         if state == FAILED:
             job["error"] = {"code": code or "failed", "say": say or "Transcription failed."}
+        _unhold(job)                     # in the breath that says it is over
     _clean_files(job)
     if state == FAILED and job["kind"] == "youtube" and not job["sealed"]:
         # A PARTIAL CAPTURE HOLDS NOTHING: the waveform is the whole video's or
@@ -422,8 +439,10 @@ def start(source, lang, model, processing, duration=None):
                       "from a film on this machine.")
     hint = None
     if duration is not None:
+        # (one comparison refuses nan, inf and a 400-digit integer alike, without
+        # ever turning the number into a float, which an integer that big cannot be)
         if isinstance(duration, bool) or not isinstance(duration, (int, float)) \
-                or not math.isfinite(duration) or not 0 < duration <= MAX_SAMPLES / SAMPLE_RATE:
+                or not 0 < duration <= MAX_SAMPLES / SAMPLE_RATE:
             raise Refusal("bad-duration", "That is not how long a video can be.")
         hint = float(duration)
 
@@ -476,6 +495,11 @@ def start(source, lang, model, processing, duration=None):
                "pcm": _named(token, ".pcm"), "spec": _named(token, ".spec.json"),
                "log": _named(token, ".log")}
         JOBS[token] = job
+        # THE JOB HOLDS ITS MODEL, AND WITH IT THE PROGRAM, FROM HERE TO ITS END: a
+        # capture is real time and takes as long as the video plays, and Settings
+        # must not take the part away under a recording (nothing else notices it)
+        job["hold"] = contextlib.ExitStack()
+        job["hold"].enter_context(_using(gs, model))
         # the answer is made BEFORE the worker's thread can move the state on
         answer = _started(job)
     if kind == "film":
@@ -716,6 +740,7 @@ def cancel(token):
             pass
     with job["lock"]:                    # after a piece being written, not in it
         _clean_files(job)
+    _unhold(job)                         # with the worker dead, the part may go
     wavefile.drop(token)
     with LOCK:
         JOBS.pop(token, None)
@@ -816,19 +841,19 @@ def _run(job):
     gs = None
     try:
         gs = _getstt()
-        with _using(gs, job["model"]):
-            with LOCK:
-                if job["cancelled"]:
-                    return
-                job["state"], job["started"] = PREPARING, _now()
-            spec = _spec(gs, job)
-            with open(job["spec"], "w", encoding="utf-8") as f:
-                json.dump(spec, f)
-            proc = _spawn(gs, job, job["spec"])
-            if proc is None:
+        # (the model is held already: start() took it for the whole of the job)
+        with LOCK:
+            if job["cancelled"]:
                 return
-            got = _listen(job, proc)
-            rc = proc.wait()
+            job["state"], job["started"] = PREPARING, _now()
+        spec = _spec(gs, job)
+        with open(job["spec"], "w", encoding="utf-8") as f:
+            json.dump(spec, f)
+        proc = _spawn(gs, job, job["spec"])
+        if proc is None:
+            return
+        got = _listen(job, proc)
+        rc = proc.wait()
         # THE WORKER HAS ENDED: its own words go to the log, and the recording
         # -- which has done its work, and is not to be kept merely because
         # Whisper needed it -- is deleted BEFORE the job says it is done, so
@@ -865,6 +890,7 @@ def _run(job):
         # went wrong before its worker ended)
         _show_log(job)
         _clean_files(job)
+        _unhold(job)                     # whatever way this thread ended, the part goes
 
 
 def _show_log(job):
@@ -974,6 +1000,7 @@ def _finish(job, msg):
         job["text"], job["notes"], job["facts"], job["warning"] = text, notes, facts, warning
         job["done"], job["segments"] = job["total"] or job["done"], None
         job["state"], job["finished"] = DONE, _now()
+        _unhold(job)                     # in the breath that says it is done
 
 
 # ------------------------------------------------------------------ the server

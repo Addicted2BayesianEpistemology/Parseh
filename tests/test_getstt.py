@@ -183,7 +183,7 @@ class Pins(unittest.TestCase):
         # and the one kind that needs the older onnxruntime, and what it brings
         intel = {"sys_platform": "darwin", "platform_machine": "x86_64"}
         got = {n: v for n, v, m, _h in rows if not m or Marker(m).evaluate(dict(intel, python_version="3.12"))}
-        self.assertEqual(got["onnxruntime"], "1.23.2")
+        self.assertEqual(got["onnxruntime"], getstt.ONNXRUNTIME_INTEL_MAC)
         for extra in ("coloredlogs", "humanfriendly", "sympy", "mpmath"):
             self.assertIn(extra, got)
 
@@ -273,20 +273,59 @@ class NormalParseh(unittest.TestCase):
         yml = (ROOT / "environment.yml").read_text(encoding="utf-8")
         self.assertIn("python=3.12", yml, "a changed Python would make every update refuse")
 
+    BANNED = {"faster_whisper", "ctranslate2", "av", "onnxruntime"}
+
+    def imports_of_the_program(self, source):
+        """The lines of a module's source that import the program, at any depth: an `import`
+        inside a function counts, and so does importlib.import_module / __import__ of one of
+        the four names as a string.  (A name that is a variable is not judged: the server has a
+        few such, for its own modules.)"""
+        found = []
+        for node in ast.walk(ast.parse(source)):
+            mods = []
+            if isinstance(node, ast.Import):
+                mods = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                mods = [node.module.split(".")[0]]
+            elif isinstance(node, ast.Call):
+                f = node.func
+                called = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+                first = node.args[0] if node.args else None
+                if called in ("import_module", "__import__") and isinstance(first, ast.Constant) \
+                        and isinstance(first.value, str):
+                    mods = [first.value.split(".")[0]]
+            if set(mods) & self.BANNED:
+                found.append(node.lineno)
+        return found
+
+    def test_the_guard_sees_a_lazy_and_a_dynamic_import_too(self):
+        # a guard that is only a list of six files, read for top-of-file imports, passes these
+        for source in ("import faster_whisper", "def f():\n    import ctranslate2\n",
+                       "def f():\n    from av import open\n", "class A:\n    def f(self):\n        import onnxruntime as o\n",
+                       "import importlib\nimportlib.import_module('ctranslate2')",
+                       "from importlib import import_module\nimport_module('faster_whisper.transcribe')",
+                       "__import__('onnxruntime')"):
+            self.assertTrue(self.imports_of_the_program(source), source)
+        for source in ("import json", "def f(name):\n    return __import__(name)",
+                       "import importlib\nimportlib.import_module('languages')", "avoid = 'av'"):
+            self.assertEqual(self.imports_of_the_program(source), [], source)
+
     def test_nothing_the_server_imports_imports_the_program(self):
         # AN IMPORT OF faster_whisper, ctranslate2, av OR onnxruntime WOULD PUT A SECOND
-        # numpy IN THE SERVER: only the two children (the probe and the worker) may
-        banned = {"faster_whisper", "ctranslate2", "av", "onnxruntime"}
-        for name in ("lib/getstt.py", "lib/speechpage.py", "lib/lookuppage.py", "lib/notices.py",
-                     "lib/settingspage.py", "serve.py"):
-            tree = ast.parse((ROOT / name).read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                mods = []
-                if isinstance(node, ast.Import):
-                    mods = [a.name.split(".")[0] for a in node.names]
-                elif isinstance(node, ast.ImportFrom) and node.module:
-                    mods = [node.module.split(".")[0]]
-                self.assertEqual(sorted(set(mods) & banned), [], "%s imports the program" % name)
+        # numpy IN THE SERVER: only the two children (the probe and the worker) may.  Every
+        # module the server can load is read, and not a list of the few it is known to load
+        children = {ROOT / "lib" / "sttworker.py", ROOT / "lib" / "sttprobe.py"}
+        files = [ROOT / "serve.py"] + [p for d in ("lib", "youtube/lib", "markdown", "html-guide/engine")
+                                       for p in sorted((ROOT / d).rglob("*.py"))]
+        self.assertGreater(len(files), 100, "the scan found the server's modules")
+        for path in files:
+            if path in children:
+                continue
+            self.assertEqual(self.imports_of_the_program(path.read_text(encoding="utf-8")), [],
+                             "%s imports the program" % path.relative_to(ROOT))
+        for path in children:
+            self.assertTrue(self.imports_of_the_program(path.read_text(encoding="utf-8")),
+                            "%s is where the program is imported, and the scan sees it" % path.name)
 
     def test_the_server_imports_and_serves_with_the_program_absent(self):
         # a child whose import of the four names FAILS, importing everything the server does
@@ -504,14 +543,20 @@ class StatusFromTheDisk(Tree):
         self.assertEqual(getstt.runtime()["state"], "broken")
         shutil.rmtree(self.stt)
         # and a computer that cannot run it at all
-        self.make_runtime()
+        folder = self.make_runtime()
+        (folder / "libctranslate2.so").write_bytes(b"x" * 5000)
+        getstt._SIZES.clear()
         with mock.patch.object(getstt, "cannot_run", return_value="This Parseh runs on Python 3.11."):
             rt = getstt.runtime()
             self.assertEqual((rt["state"], rt["ready"], rt["can_install"]), ("unavailable", False, False))
             self.assertEqual(rt["why"], "This Parseh runs on Python 3.11.")
+            # what is here still takes room, and the page says how much taking it away gives back
+            self.assertEqual((rt["have"], rt["size"]), (True, 5000))
         with mock.patch.object(getstt, "cannot_run", return_value=""), \
                 mock.patch.object(getstt, "has_pip", return_value=False):
             self.assertIn("no pip", getstt.runtime()["why"] or getstt.unavailable_reason())
+            for said in ("install.bat", "Parseh.command", "install.sh", "then start Parseh again"):
+                self.assertIn(said, getstt.unavailable_reason())
             self.assertTrue(getstt.runtime()["ready"], "no pip stops an INSTALL, not a program that is here")
             self.assertFalse(getstt.runtime()["can_install"])
 
@@ -519,6 +564,9 @@ class StatusFromTheDisk(Tree):
         with mock.patch.object(sys, "version_info", (3, 11, 4, "final", 0)):
             self.assertIn("Python 3.11", getstt.cannot_run())
             self.assertIn("Python 3.12", getstt.cannot_run())
+            # a person without a terminal is told what to do, and by which file of Parseh's own
+            for said in ("install.bat", "Parseh.command", "install.sh", "then start Parseh again"):
+                self.assertIn(said, getstt.cannot_run())
         with mock.patch.object(getstt, "platform_key", return_value=None):
             self.assertIn("no speech program for this kind of computer", getstt.cannot_run())
         with mock.patch.object(getstt, "platform_key", return_value="macOS arm64"), \
@@ -541,6 +589,7 @@ class StatusFromTheDisk(Tree):
             why = getstt._too_deep()
             self.assertIn("too deep for Windows", why)
             self.assertIn(str(getstt.LONGEST_TREE_PATH), why)
+            self.assertIn("turn on long paths in Windows (the guide's page on speech to text shows how)", why)
         with mock.patch.object(getstt.os, "name", "nt"), mock.patch.object(getstt, "STT_DIR", deep), \
                 mock.patch.object(getstt, "_long_paths_on", return_value=True):
             self.assertEqual(getstt._too_deep(), "", "long paths turned on: no such limit")
@@ -674,6 +723,8 @@ class TheGraphicsCard(Tree):
         self.assertEqual((c["state"], c["detected"], c["ready"]), ("none", False, False))
         self.assertIn("No NVIDIA graphics card", c["why"])
         self.assertEqual(hw["auto"], "cpu")
+        with mock.patch.object(getstt, "platform_key", return_value="linux x86_64"):
+            self.assertEqual(getstt.resolve("auto"), ("cpu", "Automatic: on the CPU."))
 
     def test_found_not_ready_names_the_piece_that_is_missing(self):
         # the real state of the owner's machine: a GTX 1650, a driver, no cuBLAS
@@ -689,6 +740,11 @@ class TheGraphicsCard(Tree):
         self.assertEqual(hw["auto"], "cpu", "Automatic never picks a card that is not proved")
         # a counted device, a listed type -- and still not ready: that was the trap
         self.assertEqual(hw["cuda"]["ready"], False)
+        # and the rule is the one a JOB is planned by (sttjobs asks resolve, not the record): a
+        # resolve that went by "detected" would start it on the owner's card, unproved
+        with mock.patch.object(getstt, "platform_key", return_value="linux x86_64"):
+            self.assertEqual(getstt.resolve("auto"), ("cpu", "Automatic: on the CPU."),
+                             "Automatic never picks a card that is found but not proved")
 
     def test_found_not_ready_for_every_other_reason_too(self):
         hw, _ = self.look(probe_answer(ct2=None, cuda_devices=None, cuda_types=None,
@@ -702,6 +758,24 @@ class TheGraphicsCard(Tree):
         self.assertIn("int8_float32", hw["cuda"]["missing"][0])
         hw, _ = self.look(probe_answer(cuda_types=["float32"], cublas={"loads": False, "name": "libcublas.so.12"}))
         self.assertEqual(len(hw["cuda"]["missing"]), 2, "both things that are missing are said")
+
+    def test_a_program_that_is_installed_and_will_not_load_is_not_sent_to_be_got_above(self):
+        # on Windows a library the program needs and the computer lacks is an OSError when it
+        # is imported: the probe keeps the words, and the page must not say "get it above"
+        # about a program its own row says is installed
+        answer = probe_answer(ct2=None, ct2_error="OSError: [WinError 126] The specified module "
+                              "could not be found: ctranslate2.dll", cuda_devices=None,
+                              cuda_types=None)
+        self.make_runtime()
+        hw, _ = self.look(answer)
+        missing = hw["cuda"]["missing"][0]
+        self.assertIn("installed but does not start on this computer", missing)
+        self.assertNotIn("get it above", missing)
+        self.assertEqual(hw["cuda"]["state"], "found-not-ready")
+        # where the program is not there, "get it above" is the truth
+        shutil.rmtree(self.stt / "runtime")
+        hw, _ = self.look(answer)
+        self.assertIn("get it above", hw["cuda"]["missing"][0])
 
     def test_ready_only_when_everything_is_proved_and_the_compute_type_is_chosen(self):
         hw, _ = self.look(probe_answer())
@@ -739,6 +813,8 @@ class TheGraphicsCard(Tree):
 
     def test_explicit_gpu_says_why_when_it_is_not_ready(self):
         self.look(probe_answer(cublas={"loads": False, "name": "libcublas.so.12"}))
+        with mock.patch.object(getstt, "platform_key", return_value="linux x86_64"):
+            self.assertEqual(getstt.resolve("auto")[0], "cpu", "found, not ready: not the card")
         with mock.patch.object(getstt, "platform_key", return_value="linux x86_64"), \
                 self.assertRaises(getstt.SpeechError) as caught:
             getstt.resolve("cuda")
@@ -785,7 +861,8 @@ class TheGraphicsCard(Tree):
         self.assertEqual(hw["auto"], "cpu")
 
     def test_the_cpu_is_always_there_and_its_threads_are_bounded(self):
-        cpu = getstt.cached_hardware()["cpu"]
+        with mock.patch.object(getstt, "cannot_run", return_value=""):    # (whatever Python runs this)
+            cpu = getstt.cached_hardware()["cpu"]
         self.assertTrue(cpu["available"])
         self.assertEqual(cpu["compute"], "int8")
         self.assertIn("Speech to text will work here", cpu["said"])
@@ -796,6 +873,52 @@ class TheGraphicsCard(Tree):
                 self.assertEqual(getstt.cpu_threads(), want, (phys, logical))
         self.assertGreaterEqual(getstt.cpu_threads(), 1)
         self.assertLessEqual(getstt.cpu_threads(), 8)
+
+    def test_the_cpu_promises_nothing_where_the_program_cannot_run(self):
+        with mock.patch.object(getstt, "cannot_run", return_value=""):
+            cpu = getstt._cpu()
+        self.assertTrue(cpu["available"])
+        self.assertIn("Speech to text will work here", cpu["said"])
+        # the page draws the program's row "Not available" from the same reason: the
+        # processor's row beside it must not say that speech to text will work
+        why = "This Parseh runs on Python 3.13, and the speech program is built for Python 3.12 only."
+        with mock.patch.object(getstt, "cannot_run", return_value=why):
+            cpu = getstt._cpu()
+        self.assertFalse(cpu["available"])
+        self.assertNotIn("will work", cpu["said"])
+        self.assertRegex(cpu["said"], r"^\d+ cores? available\.$")
+
+    def test_windows_says_its_physical_cores_and_not_its_logical_processors(self):
+        import struct
+        # GetLogicalProcessorInformation: a record for each core (relationship 0), each cache
+        # (2), each NUMA node (1) and each package (3); a pointer-sized mask, a 4-byte
+        # relationship and 16 bytes more, padded to 32 bytes where a pointer is 8 (24 where 4)
+        def records(pointer):
+            pad = b"\0\0\0\0" if pointer == 8 else b""
+            fmt = "<Q" if pointer == 8 else "<I"
+            out = b""
+            for rel in [0] * 8 + [2] * 16 + [1, 3]:
+                out += struct.pack(fmt, 0xFF) + struct.pack("<I", rel) + pad + b"\0" * 16
+            return out
+        for pointer in (8, 4):
+            self.assertEqual(getstt._cores_in(records(pointer), pointer), 8, pointer)
+        self.assertEqual(getstt._cores_in(b"", 8), 0)
+        self.assertEqual(getstt._cores_in(records(8)[:-5], 8), 8, "a short tail is not a record")
+        # and a Windows computer that has said 8 of 16 is 8 cores, and its threads agree
+        getstt.physical_cores.cache_clear()
+        self.addCleanup(getstt.physical_cores.cache_clear)
+        with mock.patch.object(sys, "platform", "win32"), \
+                mock.patch.object(getstt, "_windows_cores", return_value=8), \
+                mock.patch.object(getstt, "_logical_cores", return_value=16):
+            cpu = getstt._cpu()
+            getstt.physical_cores.cache_clear()
+        self.assertEqual((cpu["cores"], cpu["logical"], cpu["threads"]), (8, 16, 8))
+        # a reader that could not say is no reason for a made-up number
+        getstt.physical_cores.cache_clear()
+        with mock.patch.object(sys, "platform", "win32"), \
+                mock.patch.object(getstt, "_windows_cores", return_value=0):
+            self.assertIsNone(getstt.physical_cores())
+        getstt.physical_cores.cache_clear()
 
 
 class TheProbeChild(unittest.TestCase):

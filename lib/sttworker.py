@@ -71,7 +71,7 @@ SAYS = {
                  "Choose Automatic or CPU to use the processor instead.",
     "gpu-memory": "The graphics card ran out of memory for this model. "
                   "Choose Automatic or CPU to use the processor instead.",
-    "broken": "Speech to text could not start. Reinstall it in Settings, under Reading help.",
+    "broken": "Speech to text could not start. Reinstall it in Settings, under Speech to text.",
     "failed": "Transcription failed.",
 }
 
@@ -332,7 +332,10 @@ def run(spec):
     try:
         import numpy as np
         from faster_whisper import WhisperModel
-    except ImportError as e:
+    except (ImportError, OSError) as e:
+        # (OSError too: on Windows a library that cannot be loaded -- a DLL the
+        # program needs and the computer lacks -- is the loader's own error, not
+        # an ImportError; the person is told the same, the log has the words)
         log("the speech runtime could not be imported", e)
         raise Refused("broken")
 

@@ -93,6 +93,10 @@ PROBE = os.path.join(HERE, "sttprobe.py")
 # the pin list changes: the folder a Parseh made under the old number is then
 # "installed by an older Parseh", with one button to make the new one.
 RUNTIME_PYTHON = "3.12"                     # the wheels are cp312
+# WHAT A PERSON WITHOUT A TERMINAL DOES about a Python that cannot have the program: Parseh's own
+# environment (environment.yml) has the right Python and pip, and an installer makes it
+MAKE_ENVIRONMENT = ("make it once with install.bat (Windows), Parseh.command (Mac) or install.sh "
+                    "(Linux), then start Parseh again.")
 PYTAG = "cp%d%d" % sys.version_info[:2]     # the Python running this Parseh
 PIN = {
     "generation": 1,
@@ -102,8 +106,9 @@ PIN = {
     "av": "18.1.0",
     "tokenizers": "0.23.2",
     "huggingface-hub": "1.33.0",
-    "onnxruntime": "1.30.0",                # 1.23.2 on an Intel Mac: nothing newer is built for it
+    "onnxruntime": "1.30.0",                # ONNXRUNTIME_INTEL_MAC on an Intel Mac
 }
+ONNXRUNTIME_INTEL_MAC = "1.23.2"            # nothing newer is built for that kind of computer
 # what has to be in a finished program's folder: (distribution, exact version or
 # None for "any").  The names are those of the *.dist-info folders pip writes.
 REQUIRED = (("faster_whisper", PIN["faster-whisper"]), ("ctranslate2", PIN["ctranslate2"]),
@@ -220,12 +225,18 @@ WINDOWS_PATH_LIMIT = 259
 
 # who says what, for lib/notices.py: the program (one line naming what it is
 # made of, and each licence its parts carry) and the models
-SOURCE = ("faster-whisper %s, CTranslate2 %s, PyAV %s and onnxruntime %s, from PyPI"
-          % (PIN["faster-whisper"], PIN["ctranslate2"], PIN["av"], PIN["onnxruntime"]))
+SOURCE = ("faster-whisper %s, CTranslate2 %s, PyAV %s and onnxruntime %s (%s on an Intel Mac), "
+          "from PyPI" % (PIN["faster-whisper"], PIN["ctranslate2"], PIN["av"], PIN["onnxruntime"],
+                         ONNXRUNTIME_INTEL_MAC))
 LICENCE = "MIT"                              # faster-whisper, CTranslate2, onnxruntime
 # and the ones that come with it, each said with what carries it
 RUNTIME_LICENCES = (("PyAV", "BSD-3-Clause"),
                     ("the FFmpeg libraries inside PyAV", "LGPL-3.0-or-later"))
+# and the rest, in one sentence: the other packages the list names, and what CTranslate2's
+# own wheels bundle (its README says the Linux x86_64 one carries Intel's MKL and oneDNN)
+RUNTIME_REST = ("the rest of the packages the list names, and the backends CTranslate2's wheels "
+                "bundle (Intel MKL and oneDNN in the Linux x86_64 one), each under the licence it "
+                "comes with")
 MODEL_SOURCE = ("OpenAI Whisper large-v3 and large-v3-turbo, converted to CTranslate2 "
                 "(Systran; Mobius Labs)")
 MODEL_LICENCE = "MIT"
@@ -282,6 +293,11 @@ def runtime_folder():
 
 def _stage_folder():
     return os.path.join(STT_DIR, "runtime.part-%d" % os.getpid())
+
+
+def _scratch_folder():
+    """Where pip unpacks the wheels, before they are moved into the stage."""
+    return os.path.join(tmp_dir(), "pip-%d" % os.getpid())
 
 
 def _model_part(key):
@@ -364,7 +380,9 @@ def cannot_run():
     and built for five kinds of computer."""
     if sys.version_info[:2] != tuple(int(n) for n in RUNTIME_PYTHON.split(".")):
         return ("This Parseh runs on Python %d.%d, and the speech program is built for Python "
-                "%s only." % (sys.version_info[0], sys.version_info[1], RUNTIME_PYTHON))
+                "%s only. Parseh's own environment has Python %s: %s"
+                % (sys.version_info[0], sys.version_info[1], RUNTIME_PYTHON, RUNTIME_PYTHON,
+                   MAKE_ENVIRONMENT))
     key = platform_key()
     if key is None:
         return ("There is no speech program for this kind of computer (%s, %s)."
@@ -409,7 +427,8 @@ def _too_deep():
     return ("Parseh's folder is too deep for Windows: some of the speech program's files "
             "have names %d characters long, and with Parseh where it is they would pass "
             "the %d Windows allows. Move Parseh's folder nearer the top of a drive, or turn "
-            "on long paths in Windows, then come back." % (LONGEST_TREE_PATH, WINDOWS_PATH_LIMIT))
+            "on long paths in Windows (the guide's page on speech to text shows how), then "
+            "come back." % (LONGEST_TREE_PATH, WINDOWS_PATH_LIMIT))
 
 
 def unavailable_reason():
@@ -418,7 +437,8 @@ def unavailable_reason():
     button where this speaks."""
     return cannot_run() or ("" if has_pip() else
                             "This Python has no pip, and pip is what installs the speech "
-                            "program. Parseh's own environment has it.") or _too_deep()
+                            "program. Parseh's own environment has it: %s" % MAKE_ENVIRONMENT
+                            ) or _too_deep()
 
 
 def _dists(folder):
@@ -507,7 +527,8 @@ def runtime():
                        why="The speech program's folder is incomplete (%s is missing or is not the "
                            "version this Parseh names). Install it again." % missing[0].replace("_", "-"))
         elif reason:
-            row.update(state="unavailable", why=reason)
+            # (its size too: what Remove gives back is said, and counted with what is kept)
+            row.update(state="unavailable", why=reason, size=_kept(path))
         else:
             row.update(state="ready", ready=True, size=_kept(path))
         return row
@@ -671,8 +692,9 @@ def _terminate(proc, hard=False):
 
 
 def stop_all(wait=2.0):
-    """Every child ended: the server is stopping.  Asked to stop first, and
-    killed if it has not gone in `wait` seconds."""
+    """Every child ended, and an install's staging folder with them: the server
+    is stopping.  Asked to stop first, and killed if it has not gone in
+    `wait` seconds."""
     with _LOCK:
         procs = list(_CHILDREN)
     for p in procs:
@@ -683,6 +705,12 @@ def stop_all(wait=2.0):
             time.sleep(0.05)
         if p.poll() is None:
             _terminate(p, hard=True)
+    # WHAT AN INSTALL LEFT, cleared here, on the thread that is stopping the server: the
+    # install's own clean-up is on a daemon thread that the exiting interpreter can outrun,
+    # and pip's scratch is hundreds of MB that only the next sweep would take -- which
+    # a Parseh from before speech to text never makes
+    _rmtree(_stage_folder())
+    _rmtree(_scratch_folder())
 
 
 @contextlib.contextmanager
@@ -763,9 +791,10 @@ def _take_away(path):
 # ---------------------------------------------------------------- the processor
 @functools.lru_cache(maxsize=1)
 def physical_cores():
-    """Physical cores where the system says (Linux's cpuinfo, macOS's sysctl),
-    else None.  Never guessed from the logical count here.  Asked once: the
-    count does not change while Parseh runs, and a status is read every second."""
+    """Physical cores where the system says (Linux's cpuinfo, macOS's sysctl,
+    Windows' processor information), else None.  Never guessed from the logical
+    count here.  Asked once: the count does not change while Parseh runs, and a
+    status is read every second."""
     try:
         if sys.platform.startswith("linux"):
             pairs, cur = set(), {}
@@ -785,9 +814,41 @@ def physical_cores():
             out = subprocess.run(["sysctl", "-n", "hw.physicalcpu"], capture_output=True,
                                  text=True, timeout=5).stdout.strip()
             return int(out) if out.isdigit() else None
-    except (OSError, ValueError, subprocess.SubprocessError):
+        if sys.platform == "win32":
+            return _windows_cores() or None
+    except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
         return None
     return None
+
+
+def _cores_in(buf, pointer):
+    """The physical cores among the records GetLogicalProcessorInformation
+    gives (one for each core, cache, NUMA node and package): a mask as wide as a
+    pointer, a four-byte relationship (0 is a processor core) and sixteen bytes
+    more -- 32 bytes where a pointer is 8, 24 where it is 4."""
+    step = 2 * pointer + 16
+    return sum(1 for at in range(0, len(buf) - step + 1, step)
+               if int.from_bytes(buf[at + pointer:at + pointer + 4], "little") == 0)
+
+
+def _windows_cores():
+    """Windows' own count of physical cores (0 where it will not say): Windows
+    names logical processors, which is twice the cores where a core has two
+    threads, and a page that said "16 cores" for eight would be wrong."""
+    import ctypes
+    from ctypes import wintypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    ask = kernel32.GetLogicalProcessorInformation
+    ask.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.DWORD)]
+    ask.restype = wintypes.BOOL
+    size = wintypes.DWORD(0)
+    ask(None, ctypes.byref(size))            # too small a buffer, on purpose: it says how big
+    if not size.value:
+        return 0
+    buf = ctypes.create_string_buffer(size.value)
+    if not ask(buf, ctypes.byref(size)):
+        return 0
+    return _cores_in(buf.raw[:size.value], ctypes.sizeof(ctypes.c_void_p))
 
 
 def _logical_cores():
@@ -813,10 +874,15 @@ def _cpu():
     logical = _logical_cores()
     phys = physical_cores()
     cores = phys or logical
-    return {"available": True, "cores": cores, "logical": logical, "threads": cpu_threads(),
-            "compute": COMPUTE["cpu"],
-            "said": "%d core%s available. Speech to text will work here. Long videos may take "
-                    "some time." % (cores, "" if cores == 1 else "s")}
+    # THE PROMISE IS THE PROGRAM'S: where it cannot run (another Python, an old Mac, a kind
+    # of computer with no wheel) the page says so in the program's own row, and the
+    # processor's must not say that speech to text will work
+    works = not cannot_run()
+    said = "%d core%s available." % (cores, "" if cores == 1 else "s")
+    if works:
+        said += " Speech to text will work here. Long videos may take some time."
+    return {"available": works, "cores": cores, "logical": logical, "threads": cpu_threads(),
+            "compute": COMPUTE["cpu"], "said": said}
 
 
 _HW = {"at": None, "data": None}
@@ -906,7 +972,12 @@ def _cuda_from(probe):
         return out
     out["detected"] = True
     missing = []
-    if not probe.get("ct2"):
+    if not probe.get("ct2") and probe.get("ct2_error") and runtime_ready():
+        # THE PROGRAM IS HERE AND WILL NOT LOAD (on Windows, a library it needs that the
+        # computer lacks): "get it above" would send a person to a button that is not there
+        missing.append("the speech program itself, which is installed but does not start on "
+                       "this computer")
+    elif not probe.get("ct2"):
         missing.append("the speech program itself, which is what checks the card: get it above "
                        "and then check again")
     else:
@@ -1170,7 +1241,7 @@ def _install_runtime(say, progress, cancel, base=0, whole=None):
     dl, _kept = _runtime_plan()
     whole = whole or dl
     stage = _stage_folder()
-    scratch = os.path.join(tmp_dir(), "pip-%d" % os.getpid())
+    scratch = _scratch_folder()
     final = runtime_folder()
     lines = []
     proc = None
@@ -1278,8 +1349,10 @@ def _fetch_all(files, say, progress, cancel, base=0, whole=None):
             try:
                 download.fetch(url, dest, say=say, progress=download.shifted(progress, base + before, whole),
                                cancel=cancel, sha256=sha, size=size, headers={"User-Agent": UA},
-                               timeout=180)
-            except download.Mismatch as e:
+                               timeout=180, limit=size)
+            except (download.Mismatch, ValueError) as e:
+                # (ValueError: a body past the pinned size -- which the digest fixes
+                # exactly, so no good file is ever cut short by the limit)
                 raise SystemExit("getstt: %s" % e)
             except urllib.error.HTTPError as e:
                 raise SystemExit("getstt: could not download %s (%s)" % (url, e))
@@ -1369,6 +1442,12 @@ def build(key, say=print, progress=None, cancel=None):
                     return runtime()["size"]
                 _install_runtime(say, progress, cancel)
             return runtime()["size"]
+        if model_ready(key):
+            # as the program's guard above: a press on a page that is out of date is not
+            # gigabytes fetched again to replace the same bytes (an older, newer or broken
+            # model is not `ready`, and is still got again)
+            say("  the %s model is already installed" % key)
+            return model_info(key)["size"]
         total = MEASURED[key]
         with _install_turn(say, cancel):
             # another job may have installed it while this one waited

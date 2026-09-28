@@ -138,8 +138,8 @@ STYLE = r"""
 .sp details.tech{margin-top:8px;font-size:12.5px;color:var(--dim)}
 .sp details.tech summary{cursor:pointer;color:var(--dim);width:max-content;max-width:100%}
 .sp details.tech dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 14px;margin:6px 0 0}
-.sp details.tech dt{color:var(--faint)}
-.sp details.tech dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.sp details.tech dt{color:var(--dim)}
+.sp details.tech dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;color:var(--ink)}
 .sp .modes{margin:0;padding:12px 16px 14px;border-top:1px solid var(--rule);font-size:13.5px}
 .sp .modes dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;margin:.3rem 0 0}
 .sp .modes dt{font-weight:600}
@@ -186,6 +186,8 @@ SCRIPT = r"""
   // an error is the sentence the manager gave, without its own name in front of it
   function said(e) { return String(e || '').replace(/^getstt:\s*/, ''); }
   function GB(n) { return n == null ? '' : (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : MB(n)); }
+
+  function lower(s) { s = String(s || ''); return s.charAt(0).toLowerCase() + s.slice(1); }
 
   /* ---- what each state of a part is called, in words a person reads */
   var OLD = {older: 'Built by an older Parseh', newer: 'Built by a newer Parseh', other_python: 'Built for another Python',
@@ -265,6 +267,9 @@ SCRIPT = r"""
       note = '<div class="note">It is installed first, as part of getting ' + esc(r.withModel) + ': see the bar below.</div>';
     } else if (r.na) {
       note = '<div class="note">' + esc(r.why || r.naWhy || 'Not available on this computer.') + '</div>';
+      // a program that is here and cannot run (a folder brought to another kind of computer) is still
+      // the person's to take away: nothing to get, but the room it holds can be given back
+      if (r.have && may('speech.remove')) act += '<button class="plain" type="button" data-remove="' + esc(id) + '" aria-label="Remove ' + esc(r.name) + '">Remove…</button>';
     } else if (r.have) {
       facts = r.facts;
       if (!r.usable && !OLD[r.state]) note = '<div class="note">It cannot be used until the speech program is installed again.</div>';
@@ -288,7 +293,8 @@ SCRIPT = r"""
         note = '<div class="note bad">' + esc(said(j.error)) + '</div>';
         act = '<button class="go" type="button" data-get="' + esc(id) + '">Try again</button>';
       } else {
-        act = '<button class="go" type="button" data-get="' + esc(id) + '" aria-label="Get ' + esc(r.name) + '">Get it</button>';
+        // (the name begins with the words the button shows: a voice that says "click Get it" finds it)
+        act = '<button class="go" type="button" data-get="' + esc(id) + '" aria-label="Get it: ' + esc(lower(r.name)) + '">Get it</button>';
       }
       if (!may('speech.get')) act = '';
     }
@@ -331,9 +337,13 @@ SCRIPT = r"""
   }
   function processor() {
     var sp = S.speech, hw = sp.hardware, c = hw.cuda, cpu = hw.cpu, guide = esc(sp.pin.help);
+    // WHERE THE PROGRAM CANNOT RUN the processor promises nothing: the program's own row, just
+    // below, says Not available and why, and this one gives the reason too and not "ready"
+    var na = sp.runtime.state === 'unavailable';
     var cpuRow = '<div class="it" data-row="cpu"><div class="it-main"><div class="it-head"><span class="it-name">Processor</span>' +
-      pill('ok', '✓', 'CPU · ready') + '</div>' +
-      '<div class="it-for">Speech to text will work on this computer. A compatible NVIDIA graphics card can make it considerably faster, but one is not required.</div>' +
+      (na ? pill('na', '–', 'CPU · not usable here') : pill('ok', '✓', 'CPU · ready')) + '</div>' +
+      '<div class="it-for">' + (na ? 'Speech to text cannot run on this computer: ' + esc(sp.runtime.why) :
+        'Speech to text will work on this computer. A compatible NVIDIA graphics card can make it considerably faster, but one is not required.') + '</div>' +
       '<div class="it-facts">' + esc(cpu.said) + '</div></div><span></span><div class="it-act"></div></div>';
     var st, body = '', name = 'Graphics card', act = '';
     var check = '<button class="plain" type="button" data-check title="Look at the graphics card again, for after you have installed something it needed">' +
@@ -367,19 +377,22 @@ SCRIPT = r"""
     var modes = '<div class="modes"><b>Processing</b>, chosen when you add a video:<dl>' +
       '<dt>Automatic — recommended</dt><dd>Uses the graphics card when Parseh can prove it is usable, and the CPU otherwise. Right now: <b>' +
         (c.ready ? esc(c.name || 'the NVIDIA graphics card') : 'the CPU') + '</b>.</dd>' +
-      '<dt>CPU</dt><dd>Always the CPU, int8. Works on every computer, with or without a card.</dd>' +
+      '<dt>CPU</dt><dd>' + (na ? 'Not usable on this computer: the speech program cannot run here.' :
+        'Always the CPU, int8. Works on every computer, with or without a card.') + '</dd>' +
       '<dt>NVIDIA GPU</dt><dd>Offered only where the card is ready' + (c.ready ? '' : ' — not on this computer yet') + '.</dd></dl></div>';
     return '<h2 class="part">Processor</h2><section class="shared">' + cpuRow + gpuRow + modes + '</section>';
   }
 
   function about() {
     var sp = S.speech, t = sp.models['large-v3-turbo'].download, l = sp.models['large-v3'].download;
+    // (a kind of computer with no build of the program has no size of it to say)
+    var rtDl = (S.sizes['speech:runtime'] || {}).download;
     return '<section class="shared about"><p><b>What it is.</b> Whisper, a speech-recognition model, run on this computer by faster-whisper. ' +
       'It turns the sound of a video you are adding into a timed transcript, which you can edit before the video is added.</p><ul>' +
       '<li>It is optional. Until you get it here, nothing is fetched and nothing changes.</li>' +
       '<li>It happens on this computer: no sound and no transcript is sent to a speech-recognition service.</li>' +
       '<li>It works on a computer with no graphics card. Long videos take a while on the CPU.</li>' +
-      '<li>The models are large: ' + GB(t) + ' and ' + GB(l) + ', and the program is ' + GB((S.sizes['speech:runtime'] || {}).download) + ' more.</li>' +
+      '<li>The models are large: ' + GB(t) + ' and ' + GB(l) + (rtDl != null ? ', and the program is ' + GB(rtDl) + ' more' : '') + '.</li>' +
       '<li>It is offered only on the page a video is added on, <a href="/youtube/add/">Add a video</a>: not on a video already in your library.</li></ul></section>';
   }
   function languages() {
@@ -394,13 +407,54 @@ SCRIPT = r"""
   }
 
   var ROWS = {};
+  var drawn = null;        // what was drawn last: an answer that changes nothing is not drawn again
+  var held = null;         // the control that had the keyboard when a press began (see draw)
+  // WHICH CONTROL HAS THE KEYBOARD: its first data-… attribute names it, and the row it is in
+  function focusToken(el) {
+    if (!el || !el.attributes) return null;
+    var at = el.closest && el.closest('[data-row]');
+    for (var i = 0; i < el.attributes.length; i++) {
+      if (el.attributes[i].name.indexOf('data-') === 0)
+        return {name: el.attributes[i].name, value: el.attributes[i].value, row: at && at.getAttribute('data-row')};
+    }
+    return null;
+  }
+  // ...and where it goes when the page is drawn again: the same control if it is still there, else
+  // the safe answer of the row's question ("Keep it", never "Remove"), else the row's first button
+  function refocus(tok) {
+    var found = null, at = null;
+    Array.prototype.forEach.call(root.querySelectorAll('[' + tok.name + ']'), function (el) {
+      if (!found && el.getAttribute(tok.name) === tok.value) found = el;
+    });
+    if (!found && tok.row) {
+      Array.prototype.forEach.call(root.querySelectorAll('[data-row]'), function (el) { if (el.getAttribute('data-row') === tok.row) at = el; });
+      if (at) {
+        found = at.querySelector('.ask [data-cancel]') || at.querySelector('button');
+        // a row with nothing to press for a moment (the card is being looked at) keeps the keyboard's
+        // place, and gives it back to the button when the button is drawn again
+        if (!found) { held = tok; return; }
+      }
+    }
+    found = found || root.querySelector('button');
+    try { if (found) found.focus({preventScroll: true}); } catch (e) {}
+  }
   function draw() {
     ROWS = {};
     var rows = parts();
     rows.forEach(function (r) { ROWS[r.id] = r; });
-    root.innerHTML = about() + processor() +
+    var html = about() + processor() +
       '<h2 class="part">The program and the models</h2><section class="shared">' + rows.map(row).join('') + '</section>' + languages();
     drawBand();
+    if (html === drawn) return;
+    drawn = html;
+    // THE KEYBOARD STAYS WHERE IT WAS: drawing replaces every control, once a second while
+    // something is fetched and after every press, and a keyboard user would lose the button they
+    // were on (a pressed button is disabled at once, which takes the keyboard from it: `held`)
+    var now = document.activeElement, inside = now && root.contains(now) && now !== root;
+    var tok = inside ? focusToken(now) : (!now || now === document.body ? held : null);
+    held = null;
+    root.innerHTML = html;
+    if (tok) refocus(tok);
   }
   function drawBand() {
     var who = S.where === 'self' ? 'You are on <b>the computer Parseh runs on</b>.' :
@@ -427,8 +481,12 @@ SCRIPT = r"""
       draw();
       if (busy() || was) schedule(busy() ? 1000 : 0);
       if (was && !busy() && window.ParsehActivity) ParsehActivity.poke(200);
-    }).catch(function () {});
+    // ONE FAILED ANSWER IS NEVER A VERDICT (a phone's Wi-Fi for a moment, a 502): while something was
+    // being fetched the next look is asked for all the same, or the bar would stop and say Downloading for ever
+    }).catch(function () { if (busy()) schedule(2000); });
   }
+  // a request that did not arrive: said, and the row drawn again, which gives its button back
+  function lost(id) { asking[id] = {kind: 'bad', said: 'The server did not answer.'}; drawn = null; draw(); }
   function schedule(ms) { clearTimeout(polling); if (ms) polling = setTimeout(refresh, ms); }
   function kick() {
     if (window.ParsehActivity) ParsehActivity.poke(200);
@@ -445,13 +503,16 @@ SCRIPT = r"""
     var b = e.target.closest('button');
     if (!b || b.disabled) return;
     var id;
+    // (a pressed button is disabled by hand, which takes the keyboard from it, and the next
+    // drawing must not be skipped as "nothing changed": it is what gives the button back)
+    function press() { held = document.activeElement === b ? focusToken(b) : null; drawn = null; b.disabled = true; }
     if (b.hasAttribute('data-check')) { check(); return; }
     if ((id = b.getAttribute('data-get'))) {
-      b.disabled = true; delete asking[id];
+      press(); delete asking[id];
       post('getspeech', {key: id}).then(function (j) {
         if (!j.ok) { asking[id] = {kind: 'bad', said: j.error || 'That was refused.'}; draw(); return; }
         kick();
-      });
+      }).catch(function () { lost(id); });
       return;
     }
     if ((id = b.getAttribute('data-remove'))) {
@@ -463,16 +524,16 @@ SCRIPT = r"""
     }
     if ((id = b.getAttribute('data-cancel'))) { delete asking[id]; draw(); return; }
     if ((id = b.getAttribute('data-stop'))) {
-      b.disabled = true;
-      post('stopspeech', {key: id}).then(kick);
+      press();
+      post('stopspeech', {key: id}).then(kick, function () { lost(id); });
       return;
     }
     if ((id = b.getAttribute('data-yes'))) {
-      b.disabled = true; delete asking[id];
+      press(); delete asking[id];
       post('dropspeech', {key: id}).then(function (j) {
         if (!j.ok) { asking[id] = {kind: 'bad', said: j.error || 'That was refused.'}; draw(); return; }
         refresh();
-      });
+      }).catch(function () { lost(id); });
     }
   });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });

@@ -36,6 +36,19 @@ sys.path.insert(0, HERE)
 import stt_fakes                                              # noqa: E402
 
 WORKER = os.path.join(ROOT, "lib", "sttworker.py")
+
+
+def _worker():
+    """The worker's own module, read for its sentences (it is stdlib only, and
+    nothing at import runs; everything else here is the child, run for real)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("sttworker_read", WORKER)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+worker = _worker()
 ELEVEN = "fa ar it ja fr de tr en hi es zh".split()
 LAZY = "Library libcublas.so.12 is not found or cannot be loaded"
 OOM = "CUDA failed with error out of memory"
@@ -236,7 +249,31 @@ class Devices(Worker):
         msgs = [json.loads(line) for line in p.stdout.splitlines() if line.strip()]
         self.assertEqual(p.returncode, 2)
         self.assertEqual(self.last(msgs, "error")["code"], "broken")
-        self.assertIn("Reinstall it in Settings", self.last(msgs, "error")["say"])
+        # speech to text has a door of its own in Settings, and is not under Reading help
+        self.assertEqual(self.last(msgs, "error")["say"],
+                         "Speech to text could not start. Reinstall it in Settings, under Speech to text.")
+        for code, say in worker.SAYS.items():
+            self.assertNotIn("Reading help", say, code)
+
+    def test_a_program_that_is_there_but_will_not_load_is_the_same_sentence(self):
+        # on Windows a DLL that cannot be loaded is an OSError when the program is imported (the
+        # loader's own, WinError 126), and not an ImportError: it is "broken", not "failed"
+        rt = os.path.join(self.root, "brokenrt")
+        os.makedirs(os.path.join(rt, "faster_whisper"))
+        with open(os.path.join(rt, "faster_whisper", "__init__.py"), "w") as f:
+            f.write("raise OSError('[WinError 126] The specified module could not be found')\n")
+        path = os.path.join(self.root, "spec.json")
+        with open(path, "w") as f:
+            json.dump(self.spec(), f)
+        env = dict(os.environ, PYTHONPATH=rt, PYTHONSAFEPATH="1")
+        p = subprocess.run([sys.executable, "-B", WORKER, path], env=env,
+                           capture_output=True, text=True, timeout=60)
+        msgs = [json.loads(line) for line in p.stdout.splitlines() if line.strip()]
+        self.assertEqual(p.returncode, 2)
+        e = self.last(msgs, "error")
+        self.assertEqual((e["code"], e["say"]), ("broken", worker.SAYS["broken"]))
+        self.assertNotIn("WinError", p.stdout, "the loader's words are for the server's log")
+        self.assertIn("WinError 126", p.stderr)
 
 
 class Words(Worker):
@@ -425,12 +462,12 @@ class Hostile(Worker):
             self.assertEqual(json.loads(p.stdout.splitlines()[-1])["code"], "bad-spec")
         self.assertEqual(stt_fakes.records(self.root), [])
 
-    def test_the_worker_sources_name_no_other_device_precision_or_language(self):
+    # (which precisions and devices can reach CTranslate2 is read off what the worker does, in the
+    # table above and in the built() assertions: a scan of its text for `compute_type="..."` saw none
+    # of the forms the worker is written in, and passed for a mutant that used another quote)
+    def test_nothing_heavy_is_imported_until_a_job_is_run(self):
         with open(WORKER, encoding="utf-8") as f:
             src = f.read()
-        for word in ("bfloat16", "float32", "int8_float32", "int16", '"auto"'):
-            # only the lists and the messages: never something a spec could pick
-            self.assertNotIn('compute_type="%s"' % word.strip('"'), src)
         self.assertNotIn("import faster_whisper", src.split("def run(spec)")[0],
                          "nothing heavy is imported until a job is run")
 

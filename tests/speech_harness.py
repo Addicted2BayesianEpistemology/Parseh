@@ -29,6 +29,7 @@ after each, so that a browser test can change the world under an open page:
     {"cmd": "probe", "answer": "none|found-not-ready|ready|error"}
     {"cmd": "build", "steps": 30, "pause": 0.05, "fail": null | "a sentence"}
     {"cmd": "unavailable", "why": "" | "a sentence"}
+    {"cmd": "wheel", "has": true | false}  a kind of computer the program is built for, or one it is not
     {"cmd": "clear"}                      forget every job and every look at the card
 
 Prints `READY {json}` once listening.  SIGTERM or SIGINT removes the temp tree."""
@@ -59,7 +60,7 @@ network.STORE = str(tmp / "config" / "network.json")
 STT = Path(REAL) if REAL else tmp / "stt"
 getstt.STT_DIR = str(STT)
 if not REAL:
-    getstt.platform_key = lambda: "linux x86_64"    # so the card can be driven on any computer
+    getstt.platform_key = lambda: WORLD["key"]      # so the card can be driven on any computer
     getstt.unavailable_reason = lambda: WORLD["why"]
     getstt.cannot_run = lambda: WORLD["why"]
 serve.Handler.log_request = lambda self, *a, **k: None
@@ -70,7 +71,8 @@ if AS_PHONE:
                     mock.patch.object(network, "let_in", lambda *a, **k: True)):
         patched.start()
 
-WORLD = {"why": "", "probe": "none", "build": {"steps": 30, "pause": 0.05, "fail": None}}
+WORLD = {"why": "", "probe": "none", "key": "linux x86_64",
+         "build": {"steps": 30, "pause": 0.05, "fail": None}}
 
 PROBES = {
     "none": {"python": "3.12", "ct2": "4.8.2", "cuda_devices": 0, "cuda_types": [], "cpu_types": ["int8"],
@@ -169,6 +171,10 @@ def command(line):
         WORLD["build"].update({k: c[k] for k in ("steps", "pause", "fail") if k in c})
     elif what == "unavailable":
         WORLD["why"] = c.get("why") or ""
+    elif what == "wheel":
+        # a kind of computer that has a build of the program, or one that has none (its size is not known)
+        WORLD["key"] = "linux x86_64" if c.get("has", True) else None
+        getstt.forget_hardware()
     elif what == "clear":
         for table in (serve.STT_JOBS, serve.PLANS, serve.CANCELS):
             table.clear()

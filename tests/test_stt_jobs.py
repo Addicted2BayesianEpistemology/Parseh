@@ -22,6 +22,7 @@ asks who calls, and a film's waveform is never written.  Needs numpy, as the
 worker does.
 """
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -266,7 +267,9 @@ class Start(Base):
         self.assertFalse(sttjobs.CHILDREN)
 
     def test_a_hostile_duration_is_refused(self):
-        for d in (0, -5, True, "600", [1], float("nan"), float("inf"), 10 ** 9):
+        # (10 ** 400 is JSON's way of writing a number no float can hold: it is refused
+        # like the rest, and is not a 500 with a traceback in the log)
+        for d in (0, -5, True, "600", [1], float("nan"), float("inf"), 10 ** 9, 10 ** 400):
             with self.subTest(duration=d):
                 status, body = self.refused(self.start_yt, duration=d)
                 self.assertEqual((status, body["code"]), (400, "bad-duration"))
@@ -583,6 +586,55 @@ class Films(Base):
                 self.assertEqual((status, body["code"]), (409, "wrong-state"))
         self.done(got["job"])
 
+    def test_a_film_survives_every_end_of_a_job(self):
+        # THE PERSON'S FILM IS NEVER MODIFIED OR DELETED: what a job tidies away is its own temporary
+        # files.  Said for each way a job ends, since each tidies up in a place of its own -- a
+        # list of what to delete that ever named the film would take it in all four
+        def stamp(path):
+            try:
+                st = os.stat(path)
+                with open(path, "rb") as f:
+                    return (st.st_size, st.st_mtime_ns, hashlib.sha256(f.read()).hexdigest())
+            except OSError:
+                return "the film is gone"
+
+        def alone(seconds=3):
+            path = self.film(seconds)
+            return path, stamp(path)
+        slow = dict(load_delay=0.3, delay=1.0, segments=[[0, 1, " a"], [1, 2, " b"], [2, 3, " c"],
+                                                          [3, 4, " d"], [4, 5, " e"]])
+        # done
+        path, before = alone()
+        self.assertEqual(self.done(sttjobs.start({"kind": "film", "path": path}, "fa", TURBO, "cpu")["job"])["state"], "done")
+        self.settled()
+        self.assertEqual(stamp(path), before, "a film that was transcribed")
+        # failed
+        self.fake(segments=[])
+        path, before = alone()
+        self.assertEqual(self.done(sttjobs.start({"kind": "film", "path": path}, "fa", TURBO, "cpu")["job"])["state"], "failed")
+        self.settled()
+        self.assertEqual(stamp(path), before, "a film whose transcription failed")
+        # cancelled
+        self.fake(**slow)
+        open(os.path.join(self.root, "fake.log"), "w").close()
+        path, before = alone(5)
+        job = sttjobs.start({"kind": "film", "path": path}, "fa", TURBO, "cpu")["job"]
+        self.until(lambda: self.records("construct"), "the worker built its model")
+        self.assertEqual(sttjobs.cancel(job), {"cancelled": True})
+        self.settled()
+        self.assertEqual(stamp(path), before, "a film whose job was cancelled")
+        # a server that is stopping
+        open(os.path.join(self.root, "fake.log"), "w").close()
+        path, before = alone(5)
+        sttjobs.start({"kind": "film", "path": path}, "fa", TURBO, "cpu")
+        self.until(lambda: self.records("construct"), "the worker built its model")
+        sttjobs.stop_all()
+        self.settled()
+        self.assertEqual(stamp(path), before, "a film whose job was stopped with the server")
+        # and what a job does list to delete is its own
+        for job in sttjobs.JOBS.values():
+            self.assertNotIn(job["source"]["path"], sttjobs._files(job))
+
     def test_a_film_gets_no_waveform_written(self):
         # the owner: nothing is written for a film, and a film's job holds nothing
         got = self.start_film()
@@ -610,7 +662,8 @@ class Films(Base):
         self.assertEqual(self.tmp(), [])
         self.assertEqual(sttjobs.status(got["job"])["state"], "done")
         self.assertIn("text", sttjobs.result(got["job"]), "and the answer can be read again")
-        self.assertEqual(sttjobs.result(got["job"])["text"], sttjobs.result(got["job"])["text"])
+        # (that it is the SAME text, read again, is tests/test_stt_route.py's: it holds the first
+        # answer, a known Persian string, beside the second)
 
     def test_a_finished_job_is_forgotten_after_a_while(self):
         got = self.start_film()
@@ -796,10 +849,21 @@ class Recording(Base):
         job = self.job()
         for rate, peaks, said in [(20, [], "no waveform was sent"),
                                   (0, [0.5], "a waveform carries between 1 and 200 numbers a second"),
-                                  ("x", [0.5], "a waveform says how many numbers a second it has")]:
+                                  ("x", [0.5], "a waveform says how many numbers a second it has"),
+                                  (10 ** 400, [0.5], "a waveform says how many numbers a second it has")]:
             status, body = self.refused(sttjobs.wave, job, rate, peaks)
             self.assertEqual((status, body["code"], body["error"]), (400, "bad-wave", said))
         self.assertFalse(wavefile.held(job))
+
+    def test_a_number_no_float_can_hold_is_a_number_that_is_not_believed(self):
+        # a peak that is one is like any other peak that is not a number: nothing, and not a 500
+        job = self.job()
+        self.assertEqual(sttjobs.wave(job, 20, [0.5, 10 ** 400, 1.0])["buckets"], 3)
+        held = os.path.join(self.videos, ".waveforms", job + ".json")
+        with open(held, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["peaks"], [0.5, 0.0, 1.0])
+        self.assertEqual(sttjobs.marks(job, [[10 ** 400, 1], [1, 10 ** 400], [16000, 1]]),
+                         {"marks": 1})
 
     def test_a_recording_that_stops_arriving_is_given_up_and_its_audio_deleted(self):
         job = self.job()
@@ -952,6 +1016,92 @@ class Cancel(Base):
         sttjobs.stop_all()
         self.until(lambda: not alive(pid), "the worker gone")
         self.until(lambda: not self.tmp(), "the files gone")
+
+
+# ================================================================ the part a job holds
+class Holds(Base):
+    """A JOB HOLDS ITS MODEL, AND WITH IT THE PROGRAM, FROM start() TO ITS END.
+    The hold was once taken only inside the worker's own thread, which begins
+    after the last piece: for the whole of a capture (as long as the video
+    plays) Settings could take the model away, and the recording was lost to a
+    failure that named nothing.  getstt.remove is refused while `using` is held
+    (tests/test_getstt.py); what is pinned here is that a job holds it, at
+    every moment it is alive, and lets it go at every end."""
+
+    def held(self):
+        return list(self.gs._using)
+
+    def test_a_capture_holds_its_model_from_start_through_every_piece_to_its_end(self):
+        got = self.start_yt(model=LARGE)
+        job = got["job"]
+        self.assertEqual(self.held(), [LARGE], "held before a piece has come: nothing has run yet")
+        sttjobs.audio(job, 0, self.pcm(1), False)
+        self.assertEqual(self.held(), [LARGE], "and while it is being recorded")
+        sttjobs.audio(job, 16000, self.pcm(1), False)
+        self.assertEqual(self.held(), [LARGE])
+        sttjobs.audio(job, 32000, self.pcm(1), True)
+        self.until(lambda: sttjobs.status(job)["state"] != "queued", "the worker began")
+        self.assertEqual(self.held(), [LARGE], "and while the worker has it")
+        self.assertEqual(self.done(job)["state"], "done")
+        self.assertEqual(self.held(), [], "and it is let go in the same breath as `done` is said")
+
+    def test_it_holds_one_model_and_not_the_other(self):
+        self.start_yt(model=TURBO)
+        self.assertEqual(self.held(), [TURBO])
+        self.assertNotIn(LARGE, self.held(), "the model it does not use may be taken away")
+
+    def test_every_end_of_a_job_lets_its_part_go(self):
+        # cancelled
+        job = self.start_yt()["job"]
+        sttjobs.audio(job, 0, self.pcm(1), False)
+        self.assertEqual(self.held(), [TURBO])
+        sttjobs.cancel(job)
+        self.assertEqual(self.held(), [], "cancelled")
+        # a recording too short to be one
+        job = self.start_yt()["job"]
+        self.assertEqual(self.held(), [TURBO])
+        sttjobs.audio(job, 0, self.pcm(0.2), False)
+        self.refused(sttjobs.audio, job, 3200, b"", True)
+        self.assertEqual(self.held(), [], "no sound")
+        # a capture that stopped arriving
+        job = self.start_yt()["job"]
+        sttjobs.audio(job, 0, self.pcm(1), False)
+        self.assertEqual(self.held(), [TURBO])
+        sttjobs.JOBS[job]["touched"] -= sttjobs.IDLE + 1
+        self.assertEqual(sttjobs.status(job)["state"], "failed")
+        self.assertEqual(self.held(), [], "abandoned")
+        # a worker that could not load the model
+        self.fake(cpu_load_error="cannot open model.bin")
+        job = self.start_yt()["job"]
+        sttjobs.audio(job, 0, self.pcm(1), True)
+        self.assertEqual(self.done(job)["state"], "failed")
+        self.assertEqual(self.held(), [], "failed")
+        # a film that is transcribed
+        self.fake()
+        job = self.start_film()["job"]
+        self.assertEqual(self.done(job)["state"], "done")
+        self.assertEqual(self.held(), [], "a film, done")
+        # a server that is stopping
+        job = self.start_yt()["job"]
+        sttjobs.audio(job, 0, self.pcm(1), False)
+        self.assertEqual(self.held(), [TURBO])
+        sttjobs.stop_all()
+        self.assertEqual(self.held(), [], "stopped")
+
+    def test_a_job_lets_go_of_its_own_hold_only_and_only_once(self):
+        # an install holds the same model while it fetches it (getstt.build): the end
+        # of a job, or a second look at an ended one, must not undo THAT hold
+        with self.gs.using(TURBO):
+            job = self.start_yt()["job"]
+            self.assertEqual(self.held(), [TURBO, TURBO])
+            sttjobs.audio(job, 0, self.pcm(1), False)
+            sttjobs.JOBS[job]["touched"] -= sttjobs.IDLE + 1
+            self.assertEqual(sttjobs.status(job)["state"], "failed")
+            self.assertEqual(self.held(), [TURBO])
+            sttjobs.stop_all()                    # the ended job is still in the table
+            sttjobs.cancel(job)
+            self.assertEqual(self.held(), [TURBO], "the install's hold is the install's")
+        self.assertEqual(self.held(), [])
 
 
 # ================================================================= tokens and answers

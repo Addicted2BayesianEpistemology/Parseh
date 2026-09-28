@@ -1937,7 +1937,47 @@ const gotOf = page => page.evaluate(() => ({error: __got.error, ended: __got.end
      'YouTube’s player could not be fetched — Parseh itself is answering, so it is YouTube this computer cannot reach',
      'YouTube\'s script that cannot be fetched is said to be YouTube\'s, not Parseh\'s');
   await c2.close();
+  // ...and once the network is back the next try gets a player: the script that failed is not left
+  // in the page to stop every later try adding its own (it waited the whole time, then said "did not start")
+  const {context: c3, page: p3} = await tcPage({embed: false});
+  let fetches = 0;
+  await c3.route('https://www.youtube.com/iframe_api', route => fetches++ === 0 ? route.abort() : route.fallback());
+  const again = await p3.evaluate(async () => {
+    const first = await ParsehTabCapture.embed(document.getElementById('box'), 'kL9mN1oP3qR', {})
+      .then(() => 'ready', e => e.message);
+    const t0 = performance.now();
+    const second = await ParsehTabCapture.embed(document.getElementById('box'), 'kL9mN1oP3qR', {timeout: 8000})
+      .then(p => typeof p.getDuration, e => e.message);
+    return {first, second, took: Math.round(performance.now() - t0),
+            tags: document.querySelectorAll('script[data-tc-yt]').length};
+  });
+  eq(again.first, 'YouTube’s player could not be fetched — Parseh itself is answering, so it is YouTube this computer cannot reach',
+     'the first try, with the network away, says it could not fetch');
+  eq([again.second, again.tags, fetches], ['function', 1, 2],
+     'and the second, with it back, fetches the script again and gets a player, not "did not start" after the whole wait');
+  assert(again.took < 7000, `at once, and not after its timeout (${again.took} ms)`);
+  await c3.close();
   await context.close();
+}
+{
+  console.log('   m10c) a video that never starts is said not to have started, and nothing of the tab is kept');
+  // playVideo ignored -- an age or consent screen, a slow start, autoplay refused in the frame: the
+  // clock stays at 0 for ten seconds.  It was "nothing was heard — shared without its sound, or the
+  // video is muted" (the share and the mute were fine), and with a sound in the tab it was a success
+  for (const loud of [false, true]) {
+    const {context, page} = await tcPage({query: 'src=short.wav'});
+    await page.evaluate(() => { __p.playVideo = function () {}; });
+    if (loud) await page.evaluate(src => { window.__beep = new Audio(src); window.__beep.loop = true; return window.__beep.play(); }, CHILD + '/tones.wav');
+    await startRec(page);
+    await recOver(page, 'the clock that never moves ends the recording', 40000);
+    const g = await gotOf(page);
+    eq([g.result, g.error, g.ended, g.peaksSaid],
+       [null, {message: 'the video did not start playing — its clock never moved. Check that it plays in the player (it may be unavailable, or slow to start), then try again', reason: 'error'}, ['error'], null],
+       `${loud ? 'with a sound in the tab' : 'in silence'}: said in words, no recording is handed on and no waveform is posted`);
+    eq(await page.evaluate(() => [ParsehTabCapture.busy(), __contexts.map(c => c.state).filter(s => s !== 'closed').length]),
+       [false, 0], 'and the recording is let go');
+    await context.close();
+  }
 }
 {
   console.log('   m11) the pages the worklet is built in set no policy against it');

@@ -252,6 +252,12 @@ class Page(unittest.TestCase):
             self.assertIn(licence, text)
             self.assertIn(licence, notices.LICENCE_URLS)
         self.assertIn("the codecs inside those libraries keep their own", text)
+        # the packages the list names besides, and what CTranslate2's wheels bundle, in one sentence:
+        # the guide's page on speech to text says the same
+        self.assertIn(getstt.RUNTIME_REST, text)
+        self.assertIn("Intel MKL and oneDNN", text)
+        self.assertIn("on an Intel Mac", text, "the older onnxruntime that computer takes")
+        self.assertIn(getstt.ONNXRUNTIME_INTEL_MAC, text)
         for said in ("Speech to text: the program", "Speech to text: the models", "stt/runtime/", "stt/models/"):
             self.assertIn(said, text)
         self.assertIn(getmt.ENGINE_LICENCE, getmt.ENGINE_SOURCE)
