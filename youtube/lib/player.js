@@ -3811,6 +3811,16 @@
     });
     var anki = t === 'anki';
     $('#akjolly').hidden = anki;
+    // the direction, per destination: Anki's "both" is two cards; an
+    // exercise asks both sides once (repeat) or draws one each time it is
+    // shown (random)
+    var both = $('#adirboth');
+    $('#adirrnd').hidden = anki;
+    if (anki && ankiDir === 'both-random') setDir('both');
+    both.textContent = both.textContent.replace(/ both.*/, anki ? ' both' : ' both (repeat)');
+    both.title = anki
+      ? 'two cards: ' + L.name + ' \u2192 ' + G.name + ' and ' + G.name + ' \u2192 ' + L.name
+      : 'both (repeat): shown ' + L.name + ' first, and in a deck two linked cards, one asked from each side';
     if (anki && ankiKind === 'jolly') setKind('vocab');
     A.deckRow.hidden = t === 'md';
     $('#atagsrow').hidden = !anki;
@@ -5850,7 +5860,7 @@
       try { snap = snapCard(); } catch (e) { A.stat.textContent = e.message; return; }
       A.stat.textContent = 'rendering…';
       snapMarkdown(snap, function () { return ankiOpen && seq === sheetSeq; }).then(function (r) {
-        return KIT.preview(r.md, L.code, A.pvFrame);
+        return KIT.preview(r.md, L.code, A.pvFrame, t === 'deck');
       }).then(function () {
         if (ankiOpen && seq === sheetSeq && ankiTarget === t)
           showPreview('drawn as a deck and a studio document draw it — click the card to turn it');

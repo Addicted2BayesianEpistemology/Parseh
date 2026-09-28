@@ -571,6 +571,29 @@ eq(b1.map(b => [b.subtype, b.errors, b.fields['front-audio'], b.fields.target, b
    [['flashcard', [], 'audio/' + clip2.name, '[mele]{tl}', 'the apples today',
      `[Italian at the market: a short dialogue for beginners — 0:11](${BASE}/youtube/v/${IT}/#t=11)`]],
    'the clipboard holds one flashcard the parser reads with no error, the recording on its front, its source linking the caption\'s moment');
+// the direction row: the sheet's "both" is a deck's both (repeat), both (random) a choice of its own, and Anki has no random
+const dirRow = () => page.evaluate(() => ({both: document.querySelector('#adirboth').textContent, rndHidden: document.querySelector('#adirrnd').hidden,
+                                           rnd: document.querySelector('#adirrnd').textContent,
+                                           on: [...document.querySelectorAll('#adir .dbtn.on')].map(b => b.dataset.dir).join()}));
+eq([b1[0].fields.direction, 'bidirectional' in b1[0].fields, md1.includes('\ndirection: both-repeat\n'), await dirRow()],
+   ['both-repeat', false, true, {both: '⇄ both (repeat)', rndHidden: false, rnd: '⇄ both (random)', on: 'both'}],
+   'markdown: the default ⇄ both writes direction: both-repeat, reads "both (repeat)", and ⇄ both (random) is offered');
+await page.click('#adirrnd');
+await page.click('#asave');
+await until(async () => (await clipboard(page)) !== md1, 'the both (random) card is copied');
+const mdR = await clipboard(page);
+eq([mdR.includes('\ndirection: both-random\n'), (await parsed(mdR)).filter(b => b.type === 'exercise').map(b => b.errors), (await dirRow()).on],
+   [true, [[]], 'both-random'], 'markdown: ⇄ both (random) writes direction: both-random, which the parser reads with no error');
+await page.click('#atanki');
+eq(await dirRow(), {both: '⇄ both', rndHidden: true, rnd: '⇄ both (random)', on: 'both'},
+   'Anki: ⇄ both is two cards again, ⇄ both (random) is not offered, and the random pick fell back to both');
+await page.click('#atdeck');
+eq((await dirRow()).both + '|' + (await dirRow()).rndHidden, '⇄ both (repeat)|false', 'an exercise deck: ⇄ both (repeat) and ⇄ both (random)');
+await shot(page, 'sheet-direction-deck-desktop');
+await page.click('#atmd');
+await page.click('#adirboth');
+await page.click('#asave');
+await until(async () => (await clipboard(page)) === md1, 'both (repeat) is copied again, as it was');
 
 // jolly: prefilled from the word, the clip a line of the back's main text
 await page.click('#akjolly');

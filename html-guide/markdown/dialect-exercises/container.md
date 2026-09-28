@@ -267,6 +267,7 @@ What each message means, and what to do about it:
 | `image must name a file under images/ (e.g. images/map.png)` | and the same for `image-answer` |
 | `audio must name a file under audio/ (e.g. audio/word.mp3)` | and the same for `audio-answer`, `front-audio`, `back-audio` |
 | `unknown flashcard card-type: …` | a `card-type` other than `vocab`, `opposites` and `jolly` |
+| `direction must be forward, reverse, both-random or both-repeat` | anything else in a flashcard's `direction:` |
 | `a vocab flashcard needs front or target` | a vocabulary card with no word on its front |
 | `an opposites flashcard needs target and opposite` | one of the two words is missing |
 | `a Jolly flashcard needs a front field and a back field` | a side with neither of its two fields |

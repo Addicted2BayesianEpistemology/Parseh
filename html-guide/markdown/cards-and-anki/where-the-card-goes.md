@@ -21,6 +21,12 @@ Your choice is remembered from one card to the next — separately in the
 books and in the videos. **Ctrl+Enter** presses whichever button is
 showing.
 
+**The direction buttons change with the choice, too.** For Anki **⇄ both**
+is a note that makes two cards. For an exercise deck and for markdown it
+reads **⇄ both (repeat)**, and a fourth button, **⇄ both (random)**,
+appears: Anki has nothing like it, so choosing Anki again puts the sheet
+back on **⇄ both**.
+
 ## An exercise deck
 
 The picker lists the exercise decks **of the book's or the video's
@@ -39,7 +45,12 @@ go in with it*.
 
 **add to deck** writes the card as a studio flashcard — the word, its
 reading and transliteration, the meaning, the context, the notes and the
-source, with the direction kept as a preference — and adds it. The sheet
+source, with the direction it says — and adds it: **⇄ both (repeat)**
+becomes two linked cards in the deck, one asked from each side, and
+**⇄ both (random)** one card that draws which side is shown first each time
+([Which side comes first](../dialect-exercises/flashcards.md#which-side-comes-first)).
+A card in the deck is a copy made at that moment: a later change to the
+document's card, or to the sheet, never reaches it. The sheet
 then says what went in and where, with a link to the deck, and stays
 open:
 
@@ -93,7 +104,7 @@ meaning: the thing on a wall that tells the time
 context: wound the clock
 source: [The Clock and the Wind — 1.1](https://…/books/english/mini-en/reader/#par-1-1)
 front-audio: audio/clock-710aea.mp3
-bidirectional: true
+direction: both-repeat
 :::
 ```
 
@@ -112,8 +123,11 @@ front-audio: audio/clock-710aea.mp3
   target's, `[clock]{tl}`, since its letters alone cannot say which
   language it is in; a Persian, Japanese or Hindi word needs no mark.
 - A field of several lines is written as `key: |` with its lines under it.
-- The direction is `bidirectional: true` for **both**, `direction:
-  reverse` for the reverse-only card, and nothing for the forward one.
+- The direction is `direction: both-repeat` for **⇄ both (repeat)** (the
+  button that reads **⇄ both** for Anki), `direction: both-random` for
+  **⇄ both (random)**, `direction: reverse` for the reverse-only card, and
+  nothing for the forward one. What each means for a flashcard is in
+  [Which side comes first](../dialect-exercises/flashcards.md#which-side-comes-first).
 - The recording and the frame (from a video only: a book has no frame
   to capture) are named by their names in the [clip tray](clip-tray.md),
   `audio/…` and `images/…`; a document or a deck the block is pasted into
@@ -129,7 +143,7 @@ transliteration: sib
 meaning: apple
 context: سیب چند است
 notes: سیب sib apple · چند čand how much, how many
-bidirectional: true
+direction: both-repeat
 :::
 ```
 

@@ -722,6 +722,32 @@ try {
          && rd.fields['back-audio'] === 'audio/' + clipC.name && !('front-audio' in rd.fields)
          && rd.fields.target === '[wind]{tl}' && rd.html.includes(`src="/clips/media/audio/${clipC.name}"`),
          'the real parser reads one flashcard with no error, back-audio: audio/' + clipC.name);
+  // the direction row: the sheet's "both" is a deck's both (repeat), both (random) a choice of its own
+  const dirRow = () => page.evaluate(() => ({both: document.getElementById('adirboth').textContent,
+    rnd: document.getElementById('adirrnd').textContent, rndHidden: document.getElementById('adirrnd').hidden,
+    on: [...document.querySelectorAll('#adir .dbtn.on')].map(b => b.dataset.dir)}));
+  const mdNow = () => page.evaluate(() => kitMarkdown());
+  let dr = await dirRow();
+  assert(rd.fields.direction === 'both-repeat' && !('bidirectional' in rd.fields) && copied.includes('\ndirection: both-repeat\n')
+         && /both \(repeat\)$/.test(dr.both) && !dr.rndHidden && /both \(random\)$/.test(dr.rnd) && dr.on.join() === 'both',
+         'markdown: the default ⇆ both writes direction: both-repeat (no bidirectional), reads "both (repeat)", and ⇆ both (random) is offered: ' + JSON.stringify(dr));
+  await page.click('#adirrnd');
+  const rndMd = await mdNow();
+  assert(rndMd.includes('\ndirection: both-random\n') && !rndMd.includes('bidirectional')
+         && JSON.parse(await py(READ, rndMd, 'en')).errors.length === 0 && (await dirRow()).on.join() === 'both-random',
+         'markdown: ⇆ both (random) writes direction: both-random, which the real parser reads without an error');
+  await page.click('#adirfwd');
+  assert(!(await mdNow()).includes('direction'), 'markdown: → forward writes no direction');
+  await page.click('#adirrnd');
+  await page.click('#atanki');
+  dr = await dirRow();
+  assert(dr.rndHidden && /both$/.test(dr.both) && dr.on.join() === 'both',
+         'Anki: ⇆ both is two cards again, ⇆ both (random) is not offered, and a random pick fell back to both: ' + JSON.stringify(dr));
+  await page.click('#atdeck');
+  dr = await dirRow();
+  assert(!dr.rndHidden && /both \(repeat\)$/.test(dr.both), 'exercise deck: ⇆ both (repeat) and ⇆ both (random) are offered: ' + JSON.stringify(dr));
+  await shot('sheet-direction-deck-desktop');
+  await page.click('#atmd');
   await page.click('#apreview');
   await page.waitForFunction(() => !document.getElementById('apvrow').hidden, null, {timeout: 15000});
   await page.waitForFunction(n => {

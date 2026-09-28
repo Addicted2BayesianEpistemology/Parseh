@@ -815,6 +815,9 @@ body[data-page="edit"] .ex-flashcard figure.img:hover img { outline: none; }
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .ex-flashcard > small { position: absolute; inset-inline-end: .7em; bottom: .55em; color: var(--graytx); font: .65em var(--sans); }
+/* what a `both-repeat` card says beside it: outside the card's box, so it
+   cannot cross what is written on the card and a click on it turns nothing */
+.ex-card-note { margin: -.4em 0 0; text-align: center; color: var(--graytx); font: .72em var(--sans); }
 /* The card large, over the page (⤢ Enlarge): nearly the whole window, and in
    it the card exactly as it is on the page -- the stage is a sheet with the
    page's typography, .ex-zoom-scale carries the exercise's direction and

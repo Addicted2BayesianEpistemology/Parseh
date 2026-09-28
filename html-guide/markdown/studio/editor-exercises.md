@@ -84,7 +84,9 @@ The form is in sections, from the top:
     **Text appearance**: its **Text size (%)**, from 50 to 250, and its
     **Color treatment** — **Primary text**, **Subdued**, **Muted**,
     **Accent color** or **Custom color**. **Which side appears first**
-    turns the card round.
+    is **Front**, **Back** (which turns the card round), **Both (random)**
+    (the front or the back, drawn each time the card is shown) or **Both
+    (repeat)** (the front first; a deck asks both sides).
 
   Every row has **↑** and **↓** to move it and **Delete** to take it away.
 - **Pictures (optional)** and **Recordings (optional)** (every kind but a

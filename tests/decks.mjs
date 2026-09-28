@@ -2663,10 +2663,10 @@ async function endToEnd(browser) {
         jolly: ParsehCards.markdown({latin: true, jolly: {
           'front-primary': '[wound]{tl}\n![](' + path + ')', 'front-secondary': 'waʊnd',
           'back-primary': '| tense | form |\n|---|---|\n| past | wound |', 'back-secondary': 'wound the clock'}}, 'jolly'),
-        vocab: ParsehCards.markdown({latin: true, fa: 'wound', en: 'past of wind', dir: 'both',
+        vocab: ParsehCards.markdown({latin: true, fa: 'wound', en: 'past of wind', dir: 'both-random',
                                      audio: {side: 'front', path}}, 'vocab')}), clip.path);
-      assert(cards.jolly.includes(`  ![](${clip.path})\n`) && cards.vocab.includes(`front-audio: ${clip.path}\n`) && cards.vocab.includes('bidirectional: true'),
-             'the card kit writes a jolly card with the clip in a field, and a vocabulary card both ways with it as its front recording');
+      assert(cards.jolly.includes(`  ![](${clip.path})\n`) && cards.vocab.includes(`front-audio: ${clip.path}\n`) && cards.vocab.includes('direction: both-random\n'),
+             'the card kit writes a jolly card with the clip in a field, and a vocabulary card that draws its first side, with the clip as its front recording');
       const writeClipboard = text => page.evaluate(t => navigator.clipboard.writeText(t), text);
       const form = () => page.evaluate(() => ({
         title: document.querySelector('.ex-form-modal h3').textContent,
@@ -2723,7 +2723,7 @@ async function endToEnd(browser) {
       await waitToast(/^Added to “Clock deck”$/, 'the pasted vocabulary card added');
       items = (await http('GET', `/exercises/api/decks/${clock.path}`)).data.items;
       assert(items.length === 2 && items.some(i => i.markdown === cards.vocab.trim()),
-             'saved through the form it is the card as copied, both ways (bidirectional) and all ' + JSON.stringify(items.map(i => i.markdown)));
+             'saved through the form it is the card as copied, its first side drawn (both (random)) and all ' + JSON.stringify(items.map(i => i.markdown)));
 
       // what is not one exercise is said, and the box keeps the text
       await page.click('#btn-add-exercise');

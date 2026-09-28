@@ -70,6 +70,9 @@ function dedentBlock(lines, keepEdges) {
 /* the four fields of a jolly card, which hold blocks of the page's markdown
    (mdparser.JOLLY_FIELDS) */
 const JOLLY_KEYS = ["front-primary", "front-secondary", "back-primary", "back-secondary"];
+/* which side a flashcard shows first (mdparser.FLASHCARD_DIRECTIONS) */
+const CARD_DIRECTIONS = [["forward", "Front"], ["reverse", "Back"],
+                         ["both-random", "Both (random)"], ["both-repeat", "Both (repeat)"]];
 
 function parseExerciseSource(source) {
   const lines = String(source || "").replaceAll("\r\n", "\n").split("\n");
@@ -499,7 +502,7 @@ async function defaultExercisePreview(markdown) {
    a jolly card's fields "Image…" and "Recording…" buttons that put the
    line in at the cursor.  Without them the fields are paths. */
 function openExerciseForm({model, def, mode = "add", onSave, preview, title, saveLabel,
-                           uploadImage: upload, uploadAudio}) {
+                           uploadImage: upload, uploadAudio, directions}) {
   const adding = mode !== "edit";
   const renderPreview = preview || defaultExercisePreview;
   const root = $("#modal-root"); root.innerHTML = "";
@@ -865,8 +868,13 @@ function openExerciseForm({model, def, mode = "add", onSave, preview, title, sav
         lab.appendChild(style);
       }
     });
-    select(card, "Which side appears first", model.fields.direction || "forward",
-      [["forward", "Front"], ["reverse", "Back"]], v => model.fields.direction = v);
+    // `directions` (an array of values) narrows what the form offers: a
+    // deck's card is asked from one side or drawn, never "both (repeat)"; a
+    // value the card already has stays offered, so opening it changes nothing
+    let now = String(model.fields.direction || "forward").trim().toLowerCase();
+    if (!CARD_DIRECTIONS.some(([v]) => v === now)) now = model.fields.direction = "forward";
+    const sides = CARD_DIRECTIONS.filter(([v]) => v === now || !directions || directions.includes(v));
+    select(card, "Which side appears first", now, sides, v => model.fields.direction = v);
   }
 
   if (model.subtype !== "flashcard") {

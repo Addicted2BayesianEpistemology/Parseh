@@ -19,7 +19,7 @@ It comes in three kinds, set by `card-type:`:
 :::exercise flashcard
 card-type: vocab | opposites | jolly
 …the card's fields…
-direction: forward | reverse          (optional)
+direction: forward | reverse | both-random | both-repeat          (optional)
 :::
 ```
 
@@ -250,12 +250,67 @@ uploaded into it.
 
 ## Which side comes first {#which-side-comes-first}
 
-`direction: forward` (the default) shows the front first; `direction:
-reverse` shows the back first, which is how one card drills both ways: the
-word from its meaning as well as the meaning from its word. In the form it
-is *Which side appears first*: **Front** or **Back**. A `bidirectional:`
-field, which a card sheet may write, is kept as a note of the Anki
-preference it came with, and changes nothing here.
+`direction:` says which side the card shows first, and whether a deck asks
+the other side too. In the form it is *Which side appears first*:
+
+| `direction:` | In the form | The card |
+|---|---|---|
+| `forward` (the default) | **Front** | shows the front first |
+| `reverse` | **Back** | shows the back first: the word from its meaning, where the front is the word |
+| `both-random` | **Both (random)** | shows the front or the back first, drawn afresh each time the card is shown |
+| `both-repeat` | **Both (repeat)** | shows the front first, and in a deck is asked from both sides |
+
+The value is read in any case (`Both-Repeat` is `both-repeat`); a card whose
+`direction:` is anything else shows *Exercise needs attention* and the
+line `direction must be forward, reverse, both-random or both-repeat`.
+
+- **Both (random).** The page decides when the card is drawn, not when the
+  document is saved: every time a page with the card opens, and every time
+  a practice brings the card up, the front or the back is first, half the
+  time each. It works the same in a document, on the study page, in a
+  cram, on a phone's study pack and in an exported page, and the
+  turning, the recordings that play when a side appears and **⤢ Enlarge**
+  all follow the side that came first. The editor's preview shows both
+  sides at once, so it draws nothing.
+- **Both (repeat).** The card is drawn front first, as `forward`, with a
+  small line of type just under it: *When exported to a deck, both sides
+  will be asked.* The line is beside the card and not on it, so it never
+  touches what the card says, and a click on it does not turn the card. It
+  is on the page, in the editor's preview and in an exported web page —
+  wherever the Markdown card is drawn — and not on paper and not in a deck.
+
+```parseh-example
+---
+target: ar
+---
+:::exercise flashcard
+card-type: vocab
+target: كتاب
+transliteration: kitāb
+meaning: a book
+direction: both-repeat
+:::
+```
+
+**In a deck** the two are kept as they say, and what is kept is a **snapshot
+taken when the card is added**. A card put into a deck with `both-random`
+is one card of the deck, and the study page and the cram draw which side
+comes first each time it is asked. A card put into a deck with `both-repeat`
+becomes **two cards**, one that shows the front first and one
+that shows the back first, each scheduled and rated on its own — and the
+deck keeps the two **linked**. When you edit or delete one of the two, the
+deck asks whether to do the same to both (they stay linked, or both are
+deleted) or to unlink them and change only the one. A card sheet in a book
+or a video writes **⇄ both** as `both-repeat`; [where the
+card goes](../cards-and-anki/where-the-card-goes.md) has the sheet.
+
+Because a deck's card is a snapshot, **editing the card in the document
+afterwards never changes the deck's cards**, nor the deck's the document's:
+they are copies of each other from the moment of adding, and a change is
+made in the place that holds the card.
+
+A `bidirectional:` field, which older card sheets wrote, is kept as it is
+and changes nothing here.
 
 ## In the form
 
@@ -268,8 +323,9 @@ context*, *Notes*, *Source*, *Custom front (replaces the word fields)*,
 rest on a vocabulary card; *Opposite*, *Opposite reading* and *Opposite
 transliteration* on an opposites card; *Front — primary text* to *Back —
 secondary text* on a Jolly card, each a box of several lines that takes
-any studio Markdown. Then *Which side appears first*. A card has no
-prompt, pictures of the question or explanations in the form.
+any studio Markdown. Then *Which side appears first*: **Front**, **Back**,
+**Both (random)** or **Both (repeat)**. A card has no prompt, pictures of
+the question or explanations in the form.
 
 ## On the page
 
@@ -330,7 +386,9 @@ answer is on the paper.
   out from the start of the line, at the page's size, and a table too wide
   for its half is made to fit it.
 - **`direction: reverse` turns the card round on paper too.** The side the
-  card shows first is the left half.
+  card shows first is the left half. `both-random` and `both-repeat` print
+  as `forward`, the front in the left half, and the paper says nothing of
+  decks.
 - **Nothing crosses the fold**, at any print size: a long word is
   hyphenated inside its half, a phrase of the target language wraps, and
   what cannot break is set smaller until it fits.

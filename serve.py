@@ -4293,7 +4293,8 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             doc = studio.htmlgen.render_document(md, colophon=False, asset_base=clips.URL,
                                                  docs=studio.store.doc_index(),
-                                                 editor_preview=False)
+                                                 editor_preview=False,
+                                                 in_deck=body.get("in_deck") is True)
         except Exception as e:           # a half-written card is not a server fault
             return self.send_json({"ok": False, "error": "%s: %s" % (type(e).__name__, e)}, 400)
         self.send_json({"ok": True, "html": doc["html"]})

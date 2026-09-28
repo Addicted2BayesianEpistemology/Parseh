@@ -626,13 +626,15 @@ print(r.stdout.strip().splitlines()[-1])
       'back-primary': '| form | sound |\n|---|---|\n| wind | waɪnd |\n| wound | waʊnd |',
       'back-secondary': '- the past of *wind*\n- not the noun\n\n> a box on the card'}, latin: true}, 'jolly'),
     forward: ParsehCards.markdown({fa: 'clock', en: 'a thing that tells the time', dir: 'forward'}, 'vocab'),
+    random: ParsehCards.markdown({fa: 'clock', en: 'a thing that tells the time', dir: 'both-random'}, 'vocab'),
+    repeat: ParsehCards.markdown({fa: 'clock', en: 'a thing that tells the time', dir: 'both-repeat'}, 'vocab'),
   }), [clipName, A]);
   assert(md.vocab.startsWith(':::exercise flashcard\ncard-type: vocab\ntarget: [wound]{tl}\n') && md.vocab.endsWith('\n:::\n')
          && md.vocab.includes('\ncontext: |\n  The old man\n  wound the clock\n')
          && md.vocab.includes(`\nsource: [The Clock and the Wind — 1.1](${A}/books/english/mini-en/reader/#p1)\n`)
-         && md.vocab.includes(`\nfront-audio: audio/${clipName}\n`) && md.vocab.includes('\nbidirectional: true\n')
-         && !md.vocab.includes('reading:') && !md.vocab.includes('direction:'),
-         'markdown(vocab): a Latin target marked {tl}, a block for two lines, the source a link, the recording, both ways');
+         && md.vocab.includes(`\nfront-audio: audio/${clipName}\n`) && md.vocab.includes('\ndirection: both-repeat\n')
+         && !md.vocab.includes('reading:') && !md.vocab.includes('bidirectional'),
+         'markdown(vocab): a Latin target marked {tl}, a block for two lines, the source a link, the recording, both (repeat)');
   assert(md.opposites.includes('\nopposite: [young]{tl}\n') && md.opposites.includes('\nnotes: |\n  |\n')
          && md.opposites.includes('\nsource: no link here\n') && md.opposites.includes(`\nback-audio: audio/${clipName}\n`)
          && md.opposites.includes('\ndirection: reverse\n') && !md.opposites.includes('bidirectional'),
@@ -641,6 +643,9 @@ print(r.stdout.strip().splitlines()[-1])
          && md.jolly.includes('\nback-primary: |\n  | form | sound |\n  |---|---|\n'),
          'markdown(jolly): the four fields verbatim, a block where there are lines');
   assert(!md.forward.includes('direction') && !md.forward.includes('bidirectional'), 'markdown: forward writes no direction');
+  assert(md.random.includes('\ndirection: both-random\n') && md.repeat.includes('\ndirection: both-repeat\n')
+         && !md.random.includes('bidirectional') && !md.repeat.includes('bidirectional'),
+         'markdown: both (random) and both (repeat) are written as their own values, and the sheet\'s old "both" is both (repeat)');
   const parsed = JSON.parse(await py(`
 import json, sys
 sys.path[:0] = ['markdown/exlex', 'markdown/app', 'lib']
@@ -665,7 +670,7 @@ print(json.dumps(out))
            && !p.html.includes('ex-invalid') && p.html.includes('class="ex-flashcard'),
            `markdown(${k}) is one sound exercise to mdparser, decks.validate_markdown and htmlgen ${p.errors.join('; ')}${p.deck === true ? '' : p.deck}`);
   }
-  assert(parsed.vocab.fields.target === '[wound]{tl}' && parsed.vocab.fields.bidirectional === 'true'
+  assert(parsed.vocab.fields.target === '[wound]{tl}' && parsed.vocab.fields.direction === 'both-repeat'
          && parsed.vocab.fields['front-audio'] === 'audio/' + clipName && parsed.vocab.raw.context === 'The old man\nwound the clock'
          && parsed.vocab.html.includes(`src="/clips/media/audio/${clipName}"`) && parsed.vocab.html.includes('ex-card-play'),
          'the vocab card reads back field for field and draws its recording from the tray');
@@ -685,6 +690,14 @@ print(json.dumps(out))
                                                             body: JSON.stringify({markdown: md.vocab, lang: 'en'})})).json();
   assert(pv2.ok && !pv2.html.includes('ex-invalid') && pv2.html.includes(`/clips/media/audio/${clipName}`),
          '/clips/api/preview renders the vocab card with its recording');
+  // a both (repeat) card says so beside it; a deck's preview of it does not, it is being asked both ways there
+  const pvNote = await (await fetch(A + '/clips/api/preview', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                               body: JSON.stringify({markdown: md.repeat, lang: 'en', in_deck: true})})).json();
+  const pvNoteDoc = await (await fetch(A + '/clips/api/preview', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                                  body: JSON.stringify({markdown: md.repeat, lang: 'en'})})).json();
+  assert(pv2.html.includes('class="ex-card-note"') && pvNoteDoc.html.includes('class="ex-card-note"')
+         && pvNote.ok && !pvNote.html.includes('ex-card-note') && pvNote.html.includes('ex-flashcard'),
+         '/clips/api/preview: both (repeat) carries its note as a document draws it, and none as a deck\'s preview');
 
   // decks
   const dk = await page.evaluate(async md => {

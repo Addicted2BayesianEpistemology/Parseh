@@ -207,6 +207,9 @@ MATH_OPEN_RE = re.compile(r"^:::math\s*$", re.I)
 # a jolly card's four fields, each one line or a `key: |` block of any
 # block content (htmlgen/texgen render them through parse())
 JOLLY_FIELDS = ("front-primary", "front-secondary", "back-primary", "back-secondary")
+# which side a flashcard shows first; only a flashcard's `direction` says
+# this (a matching exercise's is another field with other values)
+FLASHCARD_DIRECTIONS = ("forward", "reverse", "both-random", "both-repeat")
 _EX_FIELD_RE = re.compile(r"^([a-z][a-z0-9-]*):\s*(.*)$", re.I)
 _EX_MARKED_RE = re.compile(r"^-\s*\[([^\]]*)\]\s*(.*)$")
 
@@ -441,6 +444,10 @@ def parse_exercise(lines, start):
             errors.append("an opposites flashcard needs target and opposite")
         elif kind == "vocab" and not (fields.get("front") or fields.get("target")):
             errors.append("a vocab flashcard needs front or target")
+        if fields.get("direction") and \
+                fields["direction"].strip().lower() not in FLASHCARD_DIRECTIONS:
+            errors.append("direction must be forward, reverse, both-random "
+                          "or both-repeat")
         for key in ("front-audio", "back-audio"):
             if fields.get(key) and not AUDIO_PATH_RE.match(fields[key]):
                 errors.append(AUDIO_FIELD_ERROR % key)

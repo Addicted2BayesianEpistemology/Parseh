@@ -5661,6 +5661,15 @@ function setTarget(t) {
   $('#apvrow').hidden = true;
   $('#amdrow').hidden = true;
   $('#akjolly').hidden = t === 'anki';
+  // the direction, per destination: Anki's "both" is two cards; an exercise
+  // asks both sides once (repeat) or draws one each time it is shown (random)
+  const dir = $('#adir').dataset, both = $('#adirboth');
+  $('#adirrnd').hidden = t === 'anki';
+  if (t === 'anki' && ankiDir === 'both-random') setDir('both');
+  both.textContent = both.textContent.replace(/ both.*/, t === 'anki' ? ' both' : ' both (repeat)');
+  both.title = t === 'anki'
+    ? 'two cards: ' + dir.from + ' \u2192 ' + dir.to + ' and ' + dir.to + ' \u2192 ' + dir.from
+    : 'both (repeat): shown ' + dir.from + ' first, and in a deck two linked cards, one asked from each side';
   AN.deckRow.hidden = t === 'md';
   $('#abuild').hidden = t !== 'anki';
   // a jolly card is not a note Anki has: back to vocabulary there
@@ -6506,7 +6515,7 @@ $('#apreview').onclick = () => {
   if (cardTo !== 'anki') {
     if (!window.ParsehCards) { AN.stat.textContent = KIT_GONE; return; }
     AN.stat.textContent = 'rendering…';
-    ParsehCards.preview(kitMarkdown(), LANG.code, frame)
+    ParsehCards.preview(kitMarkdown(), LANG.code, frame, cardTo === 'deck')
       .then(showPreview, e => { AN.stat.textContent = e.message; });
     return;
   }
@@ -10635,7 +10644,8 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
     <div class="actl"><input id="asrc"></div></div>
   <div class="arow" id="adirrow"><span class="alab">direction</span>
     <div class="actl adir" id="adir" data-from="%(A)s" data-to="%(B)s">
-      <button type="button" class="dbtn on" data-dir="both" title="two cards: %(A)s &rarr; %(B)s and %(B)s &rarr; %(A)s">&#8646; both</button>
+      <button type="button" class="dbtn on" data-dir="both" id="adirboth" title="two cards: %(A)s &rarr; %(B)s and %(B)s &rarr; %(A)s">&#8646; both</button>
+      <button type="button" class="dbtn" data-dir="both-random" id="adirrnd" hidden title="one card that shows %(A)s first or %(B)s first, drawn each time it is shown">&#8646; both (random)</button>
       <button type="button" class="dbtn" data-dir="forward" id="adirfwd" title="one card: %(A)s &rarr; %(B)s">&rarr; %(A)s &rarr; %(B)s</button>
       <button type="button" class="dbtn" data-dir="reverse" id="adirrev" title="one card: %(B)s &rarr; %(A)s &mdash; for a meaning whose %(A)s side lists several words, each asked separately by its own forward-only card">&larr; %(B)s &rarr; %(A)s only</button>
     </div></div>

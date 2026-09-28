@@ -1049,6 +1049,23 @@ function flipCard(card) {
   if (hint) hint.textContent = flipped ? "tap to see front" : "tap to reveal";
 }
 
+/* A `both-random` card (data-first="random") shows either side first, drawn
+   each time it is shown -- here, where it is drawn, and not on the server,
+   which would freeze the draw into an export, a study pack and the cached
+   cram page.  The two sides swap names, so `.ex-card-front` is still the
+   side shown first for everything that reads it (flipCard, the recording
+   played first, the enlarged copy).  A card already turned (a preview shows
+   both sides) is left as it is, and one drawn once is not drawn again. */
+function drawFirstSide(card) {
+  if (card.dataset.first !== "random" || card.dataset.drawn || card.classList.contains("flipped")) return;
+  card.dataset.drawn = "1";
+  const front = $(":scope > .ex-card-front", card), back = $(":scope > .ex-card-back", card);
+  if (!front || !back || Math.random() < 0.5) return;
+  front.className = "ex-card-back"; back.className = "ex-card-front";
+  front.hidden = true; back.hidden = false;
+  card.insertBefore(back, front);
+}
+
 function escAttr(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
@@ -2738,6 +2755,7 @@ function bindExercises(container, opts = {}) {
   const preview = !!opts.preview;
   const exercises = $$(".exercise", container);
   if (!exercises.length) return {judge: () => false, exercises: []};
+  $$(".ex-flashcard[data-first]", container).forEach(drawFirstSide);
 
   function showTransliterationChoice() {
     document.body.classList.toggle("ex-hide-transliteration", hideExerciseTransliterations);

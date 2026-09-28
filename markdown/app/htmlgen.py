@@ -1515,21 +1515,31 @@ def _render_exercise_flashcard(b, preview, ctx, cards=None):
                  + _card_field(f, "notes", ctx) + _card_field(f, "source", ctx)))
         front = _card_image(f, "front-image", ctx) + _card_audio(f, "front-audio", ctx) + front
         back = _card_image(f, "back-image", ctx) + _card_audio(f, "back-audio", ctx) + back
-    direction = (f.get("direction") or "forward").lower()
+    direction = (f.get("direction") or "forward").strip().lower()
     if direction == "reverse":
         front, back = back, front
+    # `both-random` is drawn where the card is shown (app.js drawFirstSide):
+    # a side picked here would be frozen in an export, a study pack and the
+    # cached cram page.  `both-repeat` is asked from both sides in a deck,
+    # and says so beside the card, not in it, so that it cannot cross the
+    # card and a click on it cannot turn the card.
+    first = ' data-first="random"' if direction == "both-random" else ""
+    note = ('<p class="ex-card-note" dir="ltr">When exported to a deck, both '
+            'sides will be asked.</p>'
+            if direction == "both-repeat" and not ctx.get("in_deck") else "")
     # not a <button>: a side may hold a table, a link, a player -- none of
     # which may sit inside one.  app.js flips it on a click anywhere but
     # on such a control, and on Enter/Space when the card has the focus.
     return ('<div class="ex-flashcard%s" role="button" tabindex="0" '
-            'data-card-type="%s" aria-label="Flip flashcard" aria-pressed="%s">'
+            'data-card-type="%s"%s aria-label="Flip flashcard" aria-pressed="%s">'
             '<div class="ex-card-front">%s</div>'
             '<div class="ex-card-back"%s>%s</div>'
-            '<small class="ex-card-hint">%s</small></div>'
-            % (" flipped" if preview else "", esc(kind),
+            '<small class="ex-card-hint">%s</small></div>%s'
+            % (" flipped" if preview else "", esc(kind), first,
                "true" if preview else "false", front,
                "" if preview else " hidden", back,
-               "front and back shown in preview" if preview else "tap to reveal"))
+               "front and back shown in preview" if preview else "tap to reveal",
+               note))
 
 
 def exercise_drawn(b):
@@ -2132,7 +2142,8 @@ def _count_images(blocks, kinds=("image", "video")):
 
 
 def render_document(markdown, colophon=True, asset_base=None, docs=None,
-                    editor_preview=False, deck_button=False, latex_preview=None):
+                    editor_preview=False, deck_button=False, latex_preview=None,
+                    in_deck=False):
     """markdown source -> dict with article html, toc html, meta, stats,
     the target code and the language record the page embeds.
 
@@ -2159,6 +2170,9 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
     way they briefly were (found reviewing this: `render_item(preview=True)`
     stopped showing the solved exercise at all, because `editor_preview`
     had silently become this flag's alone).
+    `in_deck` is a deck's own drawing of an exercise: a card that a document
+    says will be asked from both sides does not say so there, where it is
+    already being asked so.
     """
     fm, blocks = mdparser.parse(markdown)
     L = set_target(fm.get("target"))
@@ -2171,7 +2185,8 @@ def render_document(markdown, colophon=True, asset_base=None, docs=None,
     ctx = {"sec": 0, "sub": 0, "voce": 0, "img": 0, "exercise": 0,
            "scored": 0, "toc": [], "asset_base": asset_base,
            "editor_preview": bool(editor_preview), "latex_preview": latex_preview,
-           "deck_button": bool(deck_button) and not editor_preview}
+           "deck_button": bool(deck_button) and not editor_preview,
+           "in_deck": bool(in_deck)}
     title = _titleblock(fm)          # rendered first: it comes first in source
     if LATEX.get("draw_all"):
         # every drawing the page needs, made side by side before any is shown
