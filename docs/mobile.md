@@ -1403,7 +1403,16 @@ cannot be reached" page for them.**
   nobody should act on go. A page marks its own with `data-clock-count`.
 * **`/m/offline/` is left for a navigation that is neither kept nor part of
   the way in** ("Parseh cannot be reached", and *Try again* — a page that
-  stands alone, no stylesheet or script from anywhere).
+  stands alone, no stylesheet or script from anywhere).  *Try again* loads
+  the address again, which can succeed the moment the computer is back; the
+  press is written down in the tab (`sessionStorage`, read once, good for one
+  load), so a page that fails again says so and when — "Still cannot reach
+  it. Tried again at 14:02:11." — instead of being word for word the page
+  that was there before, and the button reads "Trying…" while it waits.
+  *Go back* is a button of its own for a page the person came from
+  (`history.length > 1`, never inside a frame): a computer that answers too
+  slowly for a page the phone has not kept (`DEADLINE`) is not mended by
+  either.
 * **A file made on demand is not the worker's at all** (TO-DO §2.28): a
   document's **Download ▾** (`/download/<id>/md|tex|pdf|zip|html`), a book or
   a video packed to download, a backup, a deck's zip, an Anki deck
