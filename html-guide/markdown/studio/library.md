@@ -29,11 +29,13 @@ Each card shows, from the top:
 - **When it was updated and created.**
 
 A click anywhere on the card opens [the document page](document-page.md).
-The **✕** in its corner deletes the document, after asking — *Delete
-“…” and its builds? This cannot be undone.* It really cannot: the
-document's folder, with its pictures, recordings and PDF, is removed, and
-there is no bin to take it back from. The links other documents have to it
-are not touched: they wait, drawn as links to a missing document, until a
+The **✕** in its corner deletes the document, after asking in a window of
+Parseh's own — *Delete “…”? Its builds are deleted too. This cannot be
+undone.* Escape cancels (see
+[Duplicate and Delete](document-page.md#duplicate-and-delete)). It really
+cannot be undone: the document's folder, with its pictures, recordings and
+PDF, is removed, and there is no bin to take it back from. The links other
+documents have to it are not touched: they wait, drawn as links to a missing document, until a
 document of that name exists again (see [Names and links](names-and-links.md)).
 
 Under the cards, a line says how many documents there are, whether XeLaTeX

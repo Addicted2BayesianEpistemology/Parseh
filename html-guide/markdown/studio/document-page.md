@@ -137,11 +137,20 @@ original: *Verbs of motion (copy)*, or *(copy 2)* when that is taken, in its
 front matter as in the library, so the two never share a name. It has no
 PDF of its own yet.
 
-**⋯ → Delete document** deletes it, after asking — *Delete “…” and its
-builds? This cannot be undone.* — and goes back to the library. The
+**⋯ → Delete document** deletes it, after asking — *Delete “…”? Its builds
+are deleted too. This cannot be undone.* — and goes back to the library. The
 document's folder goes, with its pictures, recordings and PDF; there is no
 bin. Links to it from other documents stay as they are, waiting for a
 document of that name (see [Names and links](names-and-links.md#deleting-a-document)).
+
+The question is asked in a window in Parseh's own colours — the same one the
+exercise decks ask in, in paper, sepia and dark alike — and never in the
+browser's grey box. **Cancel** has the focus, so Enter does no harm; **Escape**
+or a click beside the window cancels, and nothing is deleted. If the delete
+fails, the window stays open and says why, and **Delete document** can be
+pressed again. Deleting from the library's **✕** asks the same question, and
+the card goes from the shelf the moment the document is gone, with no need to
+leave the page and come back.
 
 ## On a phone
 

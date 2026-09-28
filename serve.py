@@ -3978,6 +3978,8 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 return fn(self, *match.groups())
             except KeyError:
+                if fn in studio.PAGES:
+                    return self.send_html(studio.render_template("404.html", {}), 404)
                 return self.send_json({"error": "document not found"}, 404)
             except json.JSONDecodeError:
                 return self.send_json({"error": "bad JSON body"}, 400)

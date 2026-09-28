@@ -302,6 +302,17 @@ class RouteTests(LibraryCase):
                          "the library's own answer: the route must not fail after the delete")
         self.assertEqual(self.made(), [])
 
+    def test_a_document_that_is_not_there_is_the_404_page_where_the_route_is_a_page(self):
+        # _dispatch answers a KeyError with the studio's 404 page when the
+        # route is in PAGES, and with JSON otherwise (an API call, a download)
+        for page in (server.page_doc, server.page_note, server.page_edit):
+            self.assertIn(page, server.PAGES)
+            with self.assertRaises(KeyError):
+                page(Fake(), "no-such-document")
+        for other in (server.api_get, server.api_delete, server.serve_download):
+            self.assertNotIn(other, server.PAGES)
+        self.assertIn('href="/"', server.render_template("404.html", {}))
+
     def test_create_asks_for_the_header_and_makes_nothing_until_it_has_it(self):
         h = Fake({"markdown": "# Owls\n\nhoot\n", "check_header": True, "name": "owls.md"})
         server.api_create(h)

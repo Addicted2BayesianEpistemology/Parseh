@@ -708,6 +708,8 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     return fn(self, *match.groups())
                 except KeyError:
+                    if fn in PAGES:
+                        return self.send_html(render_template("404.html", {}), 404)
                     return self.send_json({"error": "document not found"}, 404)
                 except json.JSONDecodeError:
                     return self.send_json({"error": "bad JSON body"}, 400)
@@ -2248,6 +2250,11 @@ ROUTES = [
     ("POST",   r"^/api/download$",                        api_download),
     ("POST",   r"^/api/shutdown$",                        api_shutdown),
 ]
+
+# The routes that are a page the browser goes to: a document that is not
+# there (deleted, its address kept on a page still open) is answered with the
+# studio's own 404 page, not the JSON an API call gets.
+PAGES = (page_doc, page_note, page_edit)
 
 
 def main():

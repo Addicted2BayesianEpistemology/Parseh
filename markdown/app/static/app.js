@@ -488,6 +488,94 @@ function toast(msg, isErr) {
   }, isErr ? 4200 : 2200);
 }
 
+/* A QUESTION IN THE STUDIO'S OWN WINDOW, where the browser's confirm() would
+   be a box in another theme.  The same window the exercise decks ask in
+   (decks.js `dialog`): Cancel is the first button and has the focus, Escape
+   and a click beside the box answer no, and the answer is a promise -- true
+   for the main button, false for anything else.  `run`, when there is one,
+   is what the main button does, and it does it INSIDE the window: both
+   buttons are off while it works, and when it throws the message is toasted
+   and the window stays, so a refusal is said where the question was asked
+   and the button can be pressed again.  Focus goes back to `opener` (or to
+   what had it) when the window closes. */
+function confirmDialog({title, hint = "", ok = "OK", danger = false, run = null, opener = null}) {
+  const root = $("#modal-root");
+  const back = opener || document.activeElement;
+  root.innerHTML = "";
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  const box = document.createElement("div");
+  box.className = "modal dk-modal";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  box.setAttribute("aria-label", title);
+  const h = document.createElement("h3");
+  h.textContent = title;
+  box.appendChild(h);
+  if (hint) {
+    const p = document.createElement("p");
+    p.textContent = hint;
+    box.appendChild(p);
+  }
+  const row = document.createElement("div");
+  row.className = "row";
+  const noBtn = document.createElement("button");
+  noBtn.type = "button";
+  noBtn.className = "btn";
+  noBtn.dataset.x = "cancel";
+  noBtn.textContent = "Cancel";
+  const yesBtn = document.createElement("button");
+  yesBtn.type = "button";
+  yesBtn.className = "btn " + (danger ? "danger" : "primary");
+  yesBtn.dataset.x = "ok";
+  yesBtn.textContent = ok;
+  row.append(noBtn, yesBtn);
+  box.appendChild(row);
+  ov.appendChild(box);
+  return new Promise(resolve => {
+    let busy = false, settled = false;
+    const close = value => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKey, true);
+      ov.remove();
+      if (back && back.isConnected && typeof back.focus === "function") back.focus();
+      resolve(value);
+    };
+    const hold = on => { busy = on; noBtn.disabled = yesBtn.disabled = on; };
+    function onKey(e) {
+      if (e.key === "Escape") {
+        e.preventDefault(); e.stopPropagation();
+        if (!busy) close(false);
+      } else if (e.key === "Tab") {
+        e.preventDefault();               // the page beneath is not reachable
+        const live = [noBtn, yesBtn].filter(b => !b.disabled);
+        if (!live.length) return;
+        const i = live.indexOf(document.activeElement);
+        live[(i + (e.shiftKey ? live.length - 1 : 1)) % live.length].focus();
+      }
+    }
+    document.addEventListener("keydown", onKey, true);
+    noBtn.addEventListener("click", () => { if (!busy) close(false); });
+    ov.addEventListener("click", e => { if (e.target === ov && !busy) close(false); });
+    yesBtn.addEventListener("click", async () => {
+      if (busy) return;                   // one request per click, however fast
+      hold(true);
+      try {
+        if (run) await run();
+      } catch (e) {
+        toast(e.message, true);
+        hold(false);
+        noBtn.focus();
+        return;
+      }
+      close(true);
+    });
+    root.appendChild(ov);
+    (danger ? noBtn : yesBtn).focus();
+  });
+}
+
 /* A FLASHCARD, LARGE, OVER THE PAGE.  A card on the page is a column wide,
    and a picture on it is shrunk to fit -- which is what makes a picture card
    hard to see.  So every flashcard has ⤢ Enlarge: the same card in a window
@@ -3580,10 +3668,26 @@ function initIndex() {
       }
       $(".card-del", el).addEventListener("click", async e => {
         e.preventDefault(); e.stopPropagation();
-        if (!confirm(`Delete “${d.title}” and its builds? This cannot be undone.`)) return;
-        await api("/api/docs/" + d.id, {method: "DELETE"});
-        toast("Deleted " + d.title);
-        loadDocs(); loadTags();
+        const gone = await confirmDialog({
+          title: `Delete “${d.title}”?`,
+          hint: "Its builds are deleted too. This cannot be undone.",
+          ok: "Delete document", danger: true, opener: e.currentTarget,
+          run: async () => {
+            // the card by its id: a list drawn again since the question was
+            // asked (after a refusal) made this one a copy nobody sees
+            const drop = () => $$(".card", cards).forEach(c => { if (c.dataset.id === d.id) c.remove(); });
+            try {
+              await api("/api/docs/" + d.id, {method: "DELETE"});
+              drop();
+            } catch (err) {
+              if (err.status === 404) drop();          // already gone: what was asked for
+              else { err.message = "Delete failed: " + err.message; throw err; }
+            } finally {
+              loadDocs(); loadTags();     // the server may have done part of it either way
+            }
+          },
+        });
+        if (gone) toast("Deleted " + d.title);
       });
       cards.appendChild(el);
     }
@@ -4505,12 +4609,23 @@ function initDoc() {
     } catch (e) { toast("Duplicate failed: " + e.message, true); }
   });
 
-  $("#btn-delete").addEventListener("click", async () => {
-    if (!confirm(`Delete “${meta.title}” and its builds? This cannot be undone.`)) return;
-    try {
-      await api("/api/docs/" + DOC_ID, {method: "DELETE"});
-      location.href = BASE + "/";
-    } catch (e) { toast("Delete failed: " + e.message, true); }
+  $("#btn-delete").addEventListener("click", async e => {
+    const menu = e.currentTarget.closest("details");
+    if (menu) menu.open = false;
+    const gone = await confirmDialog({
+      title: `Delete “${meta.title}”?`,
+      hint: "Its builds are deleted too. This cannot be undone.",
+      ok: "Delete document", danger: true,
+      opener: menu ? $("summary", menu) : null,
+      run: async () => {
+        try {
+          await api("/api/docs/" + DOC_ID, {method: "DELETE"});
+        } catch (err) {
+          if (err.status !== 404) { err.message = "Delete failed: " + err.message; throw err; }
+        }                                 // 404: already gone, which is what was asked for
+      },
+    });
+    if (gone) location.href = BASE + "/";
   });
 
   const btnPrint = $("#btn-print");

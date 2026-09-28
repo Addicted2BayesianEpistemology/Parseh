@@ -380,7 +380,7 @@ try {
 
   // a backup holding a document whose name another document has taken since
   const backup = Buffer.from(await (await fetch(`${origin}${S}/api/export`)).arrayBuffer());
-  await api('DELETE', `${S}/api/docs/${D.lonely}`);
+  assert((await api('DELETE', `${S}/api/docs/${D.lonely}`)).status === 200, 'a document deleted through the API is answered OK');
   const impostor = (await api('POST', `${S}/api/docs`, {markdown: '---\ntitle: Lonely\ntarget: en\n---\n\nAnother one.\n'})).data.meta;
   assert(impostor && impostor.title === 'Lonely', 'a new document takes the deleted one\'s name');
   await page.goto(`${origin}${S}/`);
@@ -440,7 +440,7 @@ try {
   const rbBackup = Buffer.from(await (await fetch(`${origin}${S}/api/export`)).arrayBuffer());
   await api('PUT', `${S}/api/docs/${alpha.id}`,
             {markdown: (await get(alpha.id)).markdown.replace('title: RB Alpha', 'title: RB Gamma')});
-  await api('DELETE', `${S}/api/docs/${delta.id}`);
+  assert((await api('DELETE', `${S}/api/docs/${delta.id}`)).status === 200, 'so is another');
   const newer = await mk('RB Delta', 'A newer one.');
   await page.goto(`${origin}${S}/`);
   await page.waitForSelector('#backup-file', {state: 'attached'});
