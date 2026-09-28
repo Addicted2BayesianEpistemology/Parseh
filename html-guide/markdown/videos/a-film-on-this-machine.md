@@ -70,6 +70,33 @@ di pomodori                            Quanto costano le mele oggi
 A file with no cue it could read is refused: *that subtitle file holds no
 cues this could read*.
 
+## Or its transcript, made by speech to text {#speech-to-text}
+
+A film with no subtitles can have its transcript **made on this computer**
+if speech to text is set up ([Speech to
+text](../lookup-and-languages/speech-to-text.md), in Settings; it is
+optional, and a pasted transcript or a subtitle file needs none of it). With
+the film's path in step 1, the block under the transcript box offers
+**Transcribe**: [Adding a
+video](adding-a-video.md#speech-to-text) says what it asks and does.
+
+For a film it is the simple case:
+
+- **nothing is played.** The computer opens the file and listens to it
+  itself, so the film's format does not matter to your browser, and neither
+  does the browser: **any browser on any device that has been let in will
+  do**, a phone's included;
+- **the path is a path on the computer's own disk.** When you are using the
+  page from another device, name the file where the computer keeps it, not
+  where you are;
+- **the transcript goes into the box**, timed from the film's own start,
+  ready to be corrected in [the editor](mending-the-transcript.md) — and
+  the film is not added until you go on;
+- the film is read where it is, never copied, and the audio is processed on
+  this computer;
+- **no waveform is written**: as always, a film's is drawn from the film
+  itself when the timings sheet wants it.
+
 ## What happens to the film
 
 The film goes **beside the transcript**, in the video's own folder, as

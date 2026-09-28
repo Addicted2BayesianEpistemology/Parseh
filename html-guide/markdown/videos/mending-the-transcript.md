@@ -6,7 +6,9 @@ description: The add page's small subtitle editor — timings to a tenth of a se
 ---
 
 A pasted transcript is what YouTube **heard**, cut where YouTube chose to
-cut it. Both are often wrong: a name misheard, a sentence split across two
+cut it — and one made by [speech to
+text](adding-a-video.md#speech-to-text) is what Whisper heard, cut where
+Whisper chose to. Both are often wrong: a name misheard, a sentence split across two
 captions, a caption that begins three seconds late, two words glued to the
 caption before. Every road out of the add page — the prompt, the blank
 draft, the checker — reads the panel as it stands, so a panel that is wrong
@@ -152,9 +154,22 @@ is worse. It also refuses a transcript whose every caption is empty.
 
 **Cancel**, **✕** or Esc leave the box as it was (*left as it was*).
 
+**A transcript made by speech to text is edited by this same editor**, and
+Whisper is nowhere in it: the editor opens on what is in the box, whoever put
+it there, and gives the box back a panel. A generated transcript is always
+yours to correct before the video is added — a misheard name, a caption
+cut in the wrong place, a start a tenth late — and what you write over it is
+what the video is made of. The block that made it does not touch the box
+again unless you press **Transcribe** again, and then it asks first. While a
+YouTube video is being recorded there, the editor says it must wait: it would
+play a second copy of the same video.
+
 ## Only while the video is being added
 
-There is no such editor in the player. Once a video is added, its
+There is no such editor in the player, and no speech to text either: a video
+already in the library has no *transcribe*, no *transcribe again* and no
+Whisper model to choose in its player — what a person adds is corrected with
+the tools every transcript has. Once a video is added, its
 transcript is what its glosses were checked against, and a door that could
 rewrite what a caption **says** would quietly unmake that check. The one
 thing that may still move afterwards is where a caption **starts** —

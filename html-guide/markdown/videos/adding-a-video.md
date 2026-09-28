@@ -1,7 +1,7 @@
 ---
 title: Adding a video
 weight: 4
-description: The add page's two questions, the prompt for any LLM and the check of its answer, and a video started empty to gloss by hand.
+description: The add page's two questions, a transcript pasted or made on this computer by speech to text, the prompt for any LLM and the check of its answer, and a video started empty to gloss by hand.
 ---
 
 The **＋ Add a video** card on the videos page opens `/youtube/add/`. It
@@ -98,10 +98,16 @@ dropped. The box also takes a whole `.srt` or `.vtt` subtitle file — the
 page says so when the video is a film, and reads one on either road
 ([A film on this machine](a-film-on-this-machine.md#its-transcript-a-panel-or-a-subtitle-file)).
 
+If there is no transcript to paste, the box can be **filled by speech to
+text, on this computer**, if you have set that up: see
+[Or have this computer write it](#speech-to-text) below. Pasting is never
+taken away and never needs it.
+
 **Edit the transcript…** opens a small subtitle editor over the panel, to
 mend what YouTube heard and where it cut before anything is built from it:
 see [Mending the transcript first](mending-the-transcript.md). It is the
-one moment the transcript can be changed.
+one moment the transcript can be changed — and it opens on a transcript
+speech to text made just as it opens on one you pasted.
 
 ### A stray line on every caption
 
@@ -113,6 +119,124 @@ and **Remove those lines**. The first pasted line counts as 0, so a panel
 that repeats *time, duration, caption* has its durations at 1, 4, 7… —
 mod 3, remainder 1. It rewrites the box in place and says how many lines
 went; look at the result before going on.
+
+## Or have this computer write it: speech to text {#speech-to-text}
+
+Under the transcript box there is one more block, **Speech to text —
+optional**. It makes the transcript for you, **on the computer Parseh runs
+on**: a speech-recognition model called Whisper listens to the video, and the
+words it hears, with their times, go into the box in the panel format above.
+The audio is processed there and nowhere else, and nothing is sent to a
+speech-recognition service.
+
+It is optional in every sense. The manual road — a pasted transcript, a
+`.srt` or a `.vtt` — is exactly what it was, and needs none of this. And it is
+offered **only here, while a video is being added**: a video already in the
+library has no such button, no *transcribe again* and no model to pick in its
+player, on purpose. What you add is corrected with the tools every transcript
+has.
+
+**Where you install it.** In Settings, the door
+[Speech to text](../lookup-and-languages/speech-to-text.md) — a program and
+two models, fetched only when you press a button there. Until then the block
+is one sentence and a link, **Set up speech to text**, which opens that page
+in a tab of its own; opening the add page never downloads anything. Once it
+is installed, this page notices the next time you come back to it, with no
+reload. Any device that has been let in may use it, a phone or another
+computer, and the transcript is still made on the computer Parseh runs on.
+
+**What you choose.**
+
+- **Model.** Only what is installed is offered, never more than two:
+  *faster-whisper / large-v3-turbo* (*Recommended · faster and lighter*, and
+  the one chosen first) and *faster-whisper / large-v3* (*Higher accuracy ·
+  larger and slower*). A short line says what the trade is.
+- **Processing.** *Automatic — recommended*, *CPU*, or *NVIDIA GPU*, a choice
+  of its own, not another model. It says what it means in words: *Processing:
+  Automatic · currently CPU*. **The CPU works on an ordinary computer, needs
+  nothing, computes in INT8 and is the way it always works.** An NVIDIA
+  graphics card can be much faster, and *NVIDIA GPU* appears only when the
+  computer has shown that the card is ready — for this version of the program
+  that is a driver and cuBLAS for CUDA 12 (cuDNN is not needed; the [Speech to
+  text page](../lookup-and-languages/speech-to-text.md#how-to-enable-gpu-acceleration)
+  says exactly what and where to get it). A card that is there but is not
+  ready is said, with what is missing, and the CPU is used. Not having CUDA
+  never stops a transcription. *Automatic* uses the card when it is ready and
+  the CPU when it is not; if the card fails to start the model it goes on on
+  the CPU and says so, once. *NVIDIA GPU*, chosen and failing, says why and
+  does not quietly switch.
+- **The language** is the **Language** of step 1 — Whisper is told it, so
+  choose the one that is spoken. All eleven of the toolbox's languages are
+  offered (and a language you added, if Whisper knows it; where it does not
+  the block says so and offers nothing).
+
+What you chose is remembered in this browser, for the next video.
+
+**A film on this machine.** Press **Transcribe**. The computer reads the file
+itself, so **nothing is played and any browser will do** — a phone's too. The
+path in step 1 is a path on **the computer's** disk, even when you are using
+the page from another device. A line says where it is — *Loading
+large-v3-turbo…*, *Transcribing on CPU… 39%* — and **Cancel** stops it. No
+sound is recorded and no waveform is made: a film's is drawn from the film
+itself ([A film on this machine](a-film-on-this-machine.md)).
+
+**A YouTube video.** Nobody can read a YouTube video's sound but the tab it
+plays in, so it has to be **played, and recorded, in real time**: a 47-minute
+video takes 47 minutes. That needs **Chrome or Edge on a computer** (the tab's
+sound can be recorded there); in any other browser, on a phone, or on a page
+not opened at the server's https address, the block says which of these is
+missing, in one sentence, and the rest of the page works.
+
+1. Press **Transcribe**. The page loads the video in a frame on the page.
+2. Read what the block says, and press **Start recording**. The browser asks
+   which tab to share: **choose this tab, and turn on “Share tab audio”**.
+   The video plays from its beginning.
+3. **Keep this tab in front** until it is done. The page counts the recording
+   against the video's length, and leaving the page asks first.
+4. When the video ends, the computer listens to what was recorded —
+   *Loading…*, *Transcribing…* — and the words arrive.
+
+If the share comes without its sound, is refused, or the video is one YouTube
+will not play here, the page says so at once, before anything is recorded, and
+you can press again. If YouTube plays an ad, or the video stops moving, the
+recording is stopped and nothing is written. **Cancel** stops the video and
+the recording, throws away what was sent and leaves the transcript box
+exactly as it was. The recording is kept only while it is made: **it is
+deleted as soon as the transcript is**, and the same when you cancel or leave
+the page.
+
+**What arrives.** The words go into **Transcript**, in the panel format,
+timed to the video's own clock (a stop to buffer does not shift what follows),
+and the box is at once yours to edit, by hand or in
+[the editor](mending-the-transcript.md). Then:
+
+- **the video is not added.** You read it, correct it, and go on by the road
+  you chose, exactly as with a pasted transcript;
+- **a prompt you prepared before is out of date**, and is taken away; it is
+  prepared again from the new transcript;
+- **it never writes over your words unasked.** If the box holds something
+  when you press **Transcribe**, the page asks first; and if the box changed
+  while it was running, it asks again when the words arrive — and if you say
+  no, they are offered again under the button until you leave the page;
+- **the box is tied to what made it**: this video, this language, this model.
+  Change one of them and the page says, quietly, that the box is no longer
+  tied to speech to text; it stays as it is, and a new transcription will ask
+  first. Changing *Processing* alone changes nothing about the words, so it
+  changes nothing here;
+- **while it runs** the video, its language and the model are held — the
+  page says *a transcription is running — cancel it first* — because a
+  transcript is made for one of each;
+- a reload finds a running job again — a film's, or a YouTube video's once
+  its recording was all sent. A recording itself cannot outlive the page it
+  was made in: it is stopped when the page is left, and **Transcribe** starts
+  it again.
+
+**A recorded YouTube video keeps its waveform.** The shape of the sound is
+drawn from the same recording, so when you add the video it comes with its
+waveform, and [the timings sheet](the-timings.md) has nothing to record.
+
+Only one transcription runs at a time, on the whole computer: a second one is
+refused, *Another transcription is running.*
 
 ## With an LLM: the prompt
 
@@ -277,10 +401,14 @@ road can replace.
 
 Every field — the address or the path, the transcript, the answer, the
 language, the details — is kept in this browser as you type, so a reload,
-or a day away, loses nothing. It is cleared once the video is added.
+or a day away, loses nothing. It is cleared once the video is added. So is
+what ties the box to the speech to text that made it, and the token of the
+waveform held for it; the **model** and the **processing** you chose are
+kept for the next video.
 
-While the prompt is prepared, an answer is checked and added, or a film is
-added, the **Working** pill of every page, and the hub's list, say so.
+While the prompt is prepared, an answer is checked and added, a film is
+added, or a transcript is being made, the **Working** pill of every page, and
+the hub's list, say so.
 
 > **For the command line.** `youtube/PROMPT.md` is the same job for a
 > Claude Code session opened in the project — for a long video that wants a

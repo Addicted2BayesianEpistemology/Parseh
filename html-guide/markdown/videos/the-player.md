@@ -98,6 +98,12 @@ Every control, left to right:
 A button that is lit (filled with the accent colour) is on. Every one of
 these switches is remembered in this browser and holds for every video.
 
+**There is no speech to text here.** The player has no *transcribe* button,
+no *transcribe again* and no speech model to choose, and none of it is
+loaded on this page: a transcript that speech to text made was made on the
+[add page](adding-a-video.md#speech-to-text), before the video was added, and
+is edited from then on like any other.
+
 ### follow
 
 With **follow** on, the page scrolls as the video plays so that the spoken
