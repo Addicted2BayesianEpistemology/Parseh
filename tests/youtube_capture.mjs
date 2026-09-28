@@ -72,6 +72,16 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     start, no sound in the share, a share of the screen, a browser that
 //     cannot, an ad, a cancel in the middle, an hour through the chunk
 //     pipeline, the picture of the share dropped
+//  n) the add page's speech to text for a YouTube video, on the fake YouTube
+//     and a real tab capture, against the real transcription job (its worker a
+//     stand-in for faster-whisper, lib/getstt.py a file: tests/addstt_fakes.py):
+//     what the page says before anything is recorded, the video loaded in a
+//     frame on screen, the tab shared only in answer to the second press, the
+//     recording to its end and the words in the transcript box, the shape of
+//     the sound held and put beside the video when it is added; no sound in the
+//     share, a share refused, Cancel in the middle (playback, tracks, upload,
+//     the temporary sound, the box), a second start refused, and the same in a
+//     right-to-left language on a phone's width
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
@@ -330,9 +340,15 @@ const BOOT = `
 import os, sys
 from pathlib import Path
 REPO = Path(sys.argv[1]); tmp = Path(sys.argv[2]); port = sys.argv[3]
-for folder in ("markdown/exlex", "markdown/app", "youtube/lib", "lib", "."):
+for folder in ("tests", "markdown/exlex", "markdown/app", "youtube/lib", "lib", "."):   # tests LAST on the path
     sys.path.insert(0, str(REPO / folder))
 os.chdir(str(REPO))
+# SPEECH TO TEXT (section n): the computer's state is a file the suite edits,
+# and lib/getstt.py is tests/addstt_fakes.py's stand-in -- so that what this
+# machine has installed never matters, and nothing is fetched
+if os.environ.get("ADD_STT_FAKE"):
+    import addstt_fakes
+    sys.modules["getstt"] = addstt_fakes.make(os.environ["ADD_STT_FAKE"])
 import audiofile, clips, decks, store
 clips.set_dir(tmp / "tray")
 import serve, ytpages
@@ -367,8 +383,10 @@ sys.argv = ["serve.py", "--http", "--local", port]
 serve.main()
 `;
 const port = freePort(), log = [];
+const STTF = TMP + '/sttfake';               // the computer's speech to text, as files (section n)
+await Deno.mkdir(STTF, {recursive: true});
 const hub = new Deno.Command(PY, {args: ['-c', BOOT, root, TMP, String(port)], cwd: root,
-                                  stdout: 'piped', stderr: 'piped'}).spawn();
+                                  env: {ADD_STT_FAKE: STTF}, stdout: 'piped', stderr: 'piped'}).spawn();
 for (const s of [hub.stdout, hub.stderr])
   (async () => { for await (const chunk of s.pipeThrough(new TextDecoderStream())) log.push(chunk); })();
 const BASE = `http://127.0.0.1:${port}`;
@@ -1925,6 +1943,321 @@ const gotOf = page => page.evaluate(() => ({error: __got.error, ended: __got.end
   console.log('   m11) the pages the worklet is built in set no policy against it');
   for (const path of ['/youtube/add/', `/youtube/v/${YT}/`])
     eq((await fetch(BASE + path)).headers.get('content-security-policy'), null, `${path} sends no Content-Security-Policy: a Blob URL worklet is allowed`);
+}
+
+/* ================================================================ n) the add page's speech to text, for a YouTube video */
+console.log('n) the add page: a YouTube video recorded through the tab, and transcribed on this computer');
+{
+  const TMPAUDIO = STTF + '/stt/tmp';
+  const HOLD = `${VIDEOS}/.waveforms`;
+  const NID = 'zA1bC2dE3fG';
+  const setSttState = patch => Deno.writeTextFile(STTF + '/state.json', JSON.stringify(Object.assign(
+    {runtime: true, models: ['large-v3-turbo', 'large-v3'], cuda: {ready: false, name: '', why: ''}, no_lang: [], busy: false}, patch)));
+  const setSttFake = cfg => Deno.writeTextFile(STTF + '/fake.json', JSON.stringify(cfg));
+  const ITALIAN = [[0.0, 2.0, ' Buongiorno a tutti'], [2.5, 4.5, ' oggi andiamo al mercato'], [6.0, 8.0, ' compriamo la frutta']];
+  const PERSIAN = [[0.0, 2.0, ' سلام دنیا'], [2.5, 4.5, ' امروز به بازار می‌رویم'], [6.0, 8.0, ' میوه می‌خریم']];
+  await setSttState({});
+  await setSttFake({segments: ITALIAN});
+  const shotN = async (page, name) => {
+    const dir = Deno.env.get('YOUTUBE_CAPTURE_SHOTS');
+    if (!dir) return;
+    await Deno.mkdir(dir, {recursive: true});
+    await page.screenshot({path: `${dir}/${name}.png`, fullPage: true});
+  };
+  const ph = page => page.evaluate(() => document.getElementById('stt').getAttribute('data-state'));
+  const inPh = (page, want, what, ms = 30000) => until(async () => (await ph(page)) === want, what, ms);
+  // refusals the page is MEANT to be given are not errors of the page: the hook that
+  // counts every 4xx of the job's routes is told which of them it may forget
+  const forgive = (before, re, what) => {
+    const got = errors.splice(before);
+    assert(got.every(e => re.test(e)), `${what}: only refusals that were meant (${JSON.stringify(got)})`);
+    return got.length;
+  };
+  const fakeLog = () => Deno.readTextFile(STTF + '/fake.log').then(t => t.split('\n').filter(Boolean).map(l => JSON.parse(l)), () => []);
+  const status = (page, job) => page.request.post(`${BASE}/youtube/api/transcribe/status`, {data: {job}}).then(r => r.json());
+  // the add page on a YouTube video, with a transcript in the box or not
+  async function addPage({lang = 'it', width = 1280, init = null, box = ''} = {}) {
+    const {context, page} = await newPage(browser, {width, query: 'src=short.wav', init});
+    page.calls = [];
+    page.hosts = [];
+    page.dialogs = [];
+    page.on('request', r => {
+      const u = new URL(r.url());
+      if (/\/api\/transcribe\//.test(u.pathname)) page.calls.push(u.pathname.replace(/^.*\/transcribe\//, '') + u.search);
+      if (u.host !== `127.0.0.1:${port}`) page.hosts.push(u.host);
+    });
+    page.on('dialog', d => { page.dialogs.push(d.message()); d.accept(); });
+    await page.goto(`${BASE}/youtube/add/?src=yt&by=empty`);
+    await page.waitForSelector('#transcript', {state: 'visible'});
+    await page.fill('#url', `https://www.youtube.com/watch?v=${NID}`);
+    await page.selectOption('#lang', lang);
+    if (box) await page.fill('#transcript', box);
+    await page.waitForFunction(() => { const s = document.getElementById('stt'); return s && !s.hidden; });
+    return {context, page};
+  }
+  // press Transcribe, and wait for the video to be loaded in its frame
+  async function toReady(page) {
+    const start = page.waitForResponse(r => /transcribe\/start$/.test(r.url()));
+    await page.click('#stt_go');
+    const j = await (await start).json();
+    await inPh(page, 'ready', 'the video is loaded and waits for the second press');
+    // the player's calls, kept, to see what was done to it
+    await page.evaluate(() => {
+      window.__calls = [];
+      const p = __fakeYT[__fakeYT.length - 1];
+      for (const m of ['playVideo', 'pauseVideo', 'seekTo']) { const f = p[m]; p[m] = (...a) => { __calls.push(m); return f.apply(p, a); }; }
+    });
+    return j;
+  }
+  const fits = page => page.evaluate(() => {
+    const s = document.getElementById('stt'), r = s.getBoundingClientRect(), bad = [];
+    const vw = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth > vw + 1) bad.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + vw);
+    for (const e of s.querySelectorAll('*')) {
+      if (!e.getClientRects().length || e.closest('[hidden]')) continue;
+      const b = e.getBoundingClientRect();
+      if (b.width && (b.left < r.left - 1 || b.right > r.right + 1)) bad.push((e.id || e.tagName) + ' sticks out');
+    }
+    return bad;
+  });
+  const captured = page => page.evaluate(() => ({
+    tracks: __streams.map(s => s.getTracks().map(t => t.readyState)),
+    contexts: __contexts.map(c => c.state), busy: ParsehTabCapture.busy(), asked: __asked.length,
+    frames: document.querySelectorAll('#stt_frame iframe').length, calls: window.__calls || []}));
+  const panelStarts = async (page, lang = 'it') => {
+    const r = await (await page.request.post(`${BASE}/youtube/api/transcript`, {data: {transcript: await page.inputValue('#transcript'), lang}})).json();
+    return r.captions.map(c => [c.start, c.text]);
+  };
+  const BOX = '0:01\nCiao a tutti\n0:05\nA presto\n';
+
+  {
+    console.log('   n1) the whole road: what is said first, the video loaded, the tab shared on the second press, the words, the video added');
+    const {context, page} = await addPage({box: BOX});
+    const how = await text(page, '#stt_how');
+    for (const w of [/real time/, /from its beginning/, /this tab/, /Share tab audio/, /in front/])
+      assert(w.test(how), `before anything is recorded the page says ${w}: ${how}`);
+    eq(await page.evaluate(() => [__asked.length, document.querySelectorAll('#stt_frame iframe').length]), [0, 0], 'nothing is shared yet and no video is loaded');
+    eq(page.hosts, [], 'and nothing was asked of YouTube, or of anyone, because the page was opened');
+    eq(await page.evaluate(() => [document.getElementById('stt_rec').hidden, document.getElementById('stt_go').hidden]), [true, false], 'the one action is Transcribe');
+    const started = await toReady(page);
+    eq(started.video_id, NID, 'the computer said which video it is (the page did not guess)');
+    eq(page.dialogs.length, 1, 'a box with a transcript in it was asked about, once, before anything began');
+    const frame = await page.$eval('#stt_frame iframe', f => { const r = f.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), getComputedStyle(f).display, !f.closest('[hidden]')]; });
+    assert(frame[0] >= 200 && frame[1] >= 200 && frame[2] !== 'none' && frame[3], `the video is in a frame on screen, ${frame[0]} x ${frame[1]}`);
+    eq((await captured(page)).asked, 0, 'the tab is still not shared: the browser asks only in answer to a press');
+    const how2 = await text(page, '#stt_how');
+    assert(/Start recording/.test(how2) && /Share tab audio/.test(how2) && /in front/.test(how2), 'and the page says what the press will do: ' + how2);
+    // the editor would play a second copy of the video: not while this one waits
+    await page.click('#subedit');
+    eq([await page.locator('.se-box').count(), await page.evaluate(() => document.getElementById('parseh-toast').textContent)],
+       [0, 'the video in the frame above is being recorded — finish or cancel that first'], '"Edit the transcript…" is put off while the video is loaded here');
+    await shotN(page, 'n1-ready');
+    await page.click('#stt_rec');
+    eq((await captured(page)).asked, 1, 'the browser was asked to share the tab, in answer to that press');
+    await inPh(page, 'recording', 'recording');
+    await until(async () => /^Recording \d+:\d\d \/ 0:12…$/.test(await text(page, '#stt_say')), 'the page counts the recording against the video\'s length', 40000);
+    const bar1 = +(await page.getAttribute('#stt_bar', 'aria-valuenow'));
+    await sleep(2500);
+    const bar2 = +(await page.getAttribute('#stt_bar', 'aria-valuenow'));
+    assert(bar2 > bar1, `the bar moves with the video (${bar1} -> ${bar2})`);
+    eq(await page.evaluate(() => [document.getElementById('stt_go').hidden, document.getElementById('stt_cancel').hidden]), [true, false], 'no second start from here; Cancel is there');
+    const sz = await page.$eval('#stt_frame iframe', f => { const r = f.getBoundingClientRect(); return [r.width, r.height]; });
+    assert(sz[0] >= 200 && sz[1] >= 200, 'the frame stays on screen while it records');
+    await shotN(page, 'n1-recording');
+    await inPh(page, 'idle', 'the recording ends and the words arrive', 90000);
+    const read = await panelStarts(page);
+    eq(read.map(r => r[1]), ['Buongiorno a tutti', 'oggi andiamo al mercato', 'compriamo la frutta'], 'the words are in the transcript box, one caption each');
+    assert(read.every((r, i) => Math.abs(r[0] - [0, 2.5, 6][i]) < 0.75), `on the video's own clock, within the start of the recording: ${JSON.stringify(read.map(r => r[0]))}`);
+    assert(/The transcript is in the box: 3 captions/.test(await text(page, '#stt_note')), await text(page, '#stt_note'));
+    eq(page.dialogs.length, 1, 'and it asked no second time: the box did not change while it ran');
+    const c = await captured(page);
+    eq([c.frames, c.busy, c.contexts.every(x => x === 'closed'), c.tracks.every(t => t.every(x => x === 'ended'))], [0, false, true, true],
+       'the video is out of its frame, and the tab, both contexts and every track are let go');
+    const rec = (await fakeLog()).filter(r => r.kind === 'transcribe').pop();
+    assert(rec && rec.samples >= 12 * 16000 && rec.samples <= 13.6 * 16000 && rec.peak > 0.3 && rec.language === 'it' && rec.device === 'cpu',
+           `the sound the tab gave reached the worker: ${JSON.stringify(rec && {samples: rec.samples, peak: rec.peak, language: rec.language, device: rec.device})}`);
+    eq(await names(TMPAUDIO), [], 'the temporary sound is deleted');
+    const held = await names(HOLD, /\.json$/);
+    eq(held.length, 1, 'the shape of the sound is held for the video: ' + held);
+    const wave = await readJson(`${HOLD}/${held[0]}`);
+    assert(wave.rate === 20 && wave.peaks.length >= 241 && wave.peaks.length <= 243 && Math.max(...wave.peaks) === 1, `in the canonical shape: rate ${wave.rate}, ${wave.peaks.length} numbers`);
+    assert(!(await exists(`${VIDEOS}/italian/${NID}`)), 'the video was NOT added');
+    // the order of what was sent: the pieces in order from 0, the marks and the shape before the last piece
+    const calls = page.calls, lastAt = calls.findIndex(x => /^audio\?.*last=1/.test(x));
+    const offsets = calls.filter(x => /^audio\?/.test(x) && !/last=1/.test(x)).map(x => +/offset=(\d+)/.exec(x)[1]);
+    assert(offsets[0] === 0 && offsets.every((o, i) => i === 0 || o > offsets[i - 1]) && offsets.length >= 2, `the sound went in pieces, in order, from sample 0: ${offsets}`);
+    assert(calls.indexOf('marks') > -1 && calls.indexOf('marks') < lastAt && calls.indexOf('wave') > -1 && calls.indexOf('wave') < lastAt,
+           `the marks and the shape went before the last piece: ${JSON.stringify(calls.filter(x => !/^status/.test(x)))}`);
+    assert(lastAt > -1 && calls.indexOf('result') > lastAt, 'and the words were asked for after it');
+    // and now the video, the way a pasted transcript adds one
+    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url()));
+    await page.click('#empty');
+    const made = await (await empty).json();
+    eq([made.ok, made.waveform], [true, {kept: true, buckets: wave.peaks.length}], 'the door that made the video was given the token and kept the waveform');
+    await page.waitForURL(new RegExp(`/youtube/v/${NID}/$`), {timeout: 30000});
+    const beside = await readJson(`${VIDEOS}/italian/${NID}/waveform.json`);
+    eq(beside, wave, 'waveform.json lands beside the video, as the player\'s own door writes it');
+    eq(Object.keys(beside), ['rate', 'peaks'], 'in the shape it has always had');
+    eq(await names(HOLD, /\.json$/), [], 'and the hold is spent');
+    await context.close();
+  }
+
+  {
+    console.log('   n2) a share without its sound: said at once, the video never plays, and the button can be pressed again');
+    const noSound = () => {
+      navigator.mediaDevices.getDisplayMedia = () => {
+        const c = document.createElement('canvas');
+        c.width = 64; c.height = 36;
+        c.getContext('2d').fillRect(0, 0, 64, 36);
+        return Promise.resolve(c.captureStream(5));
+      };
+    };
+    const {context, page} = await addPage({init: noSound});
+    const j = await toReady(page);
+    const t0 = Date.now();
+    await page.click('#stt_rec');
+    await until(async () => /came without its sound/.test(await text(page, '#stt_note')), 'the missing sound is said', 8000);
+    assert(Date.now() - t0 < 4000, `at once (${Date.now() - t0} ms), not after the video`);
+    eq(await text(page, '#stt_note'), 'The share came without its sound — share this tab again and turn on “Share tab audio”.', 'in a sentence that says what to turn on');
+    const c = await captured(page);
+    eq(c.calls, [], 'the video was never played, sought or paused');
+    eq([await ph(page), await page.evaluate(() => !document.getElementById('stt_rec').hidden)], ['ready', true], 'the job and the video are still good: the button can be pressed again');
+    eq(page.calls.filter(x => /^(audio|marks|wave)/.test(x)), [], 'nothing was sent to the computer');
+    eq((await status(page, j.job)).state, 'awaiting-audio', 'the computer still waits for it');
+    await page.click('#stt_cancel');
+    await inPh(page, 'idle', 'Cancel');
+    eq([(await status(page, j.job)).state, await names(TMPAUDIO), await names(HOLD, /\.json$/)], ['cancelled', [], []], 'cancelled, and nothing of it left');
+    await context.close();
+  }
+
+  {
+    console.log('   n3) a share that is refused: said, and the button can be pressed again');
+    const refuse = () => { navigator.mediaDevices.getDisplayMedia = () => Promise.reject(new DOMException('Permission denied', 'NotAllowedError')); };
+    const {context, page} = await addPage({init: refuse});
+    await toReady(page);
+    await page.click('#stt_rec');
+    await until(async () => /not allowed to record this tab/.test(await text(page, '#stt_note')), 'the refusal is said', 8000);
+    eq(await text(page, '#stt_note'), 'The browser was not allowed to record this tab. Press Start recording again, choose this tab, and press “Share”.', 'in the person\'s words');
+    eq([await ph(page), (await captured(page)).calls], ['ready', []], 'and the video is untouched and waits');
+    await page.click('#stt_cancel');
+    await inPh(page, 'idle', 'Cancel');
+    await context.close();
+  }
+
+  {
+    console.log('   n4) Cancel in the middle of the recording: playback, tracks, upload, the temporary sound, and the box');
+    const {context, page} = await addPage({box: 'my own words'});
+    const j = await toReady(page);
+    await page.click('#stt_rec');
+    await inPh(page, 'recording', 'recording');
+    await until(async () => (await names(TMPAUDIO, /\.pcm$/)).length === 1, 'the first piece of the sound has reached the computer', 40000);
+    const before = errors.length;
+    await page.click('#stt_cancel');
+    await inPh(page, 'idle', 'Cancel ends it');
+    await sleep(600);
+    const c = await captured(page);
+    assert(c.calls.includes('playVideo') && c.calls.includes('pauseVideo'), 'the video was played and then stopped: ' + c.calls);
+    eq([c.frames, c.busy, c.contexts.every(x => x === 'closed'), c.tracks.every(t => t.every(x => x === 'ended'))], [0, false, true, true], 'the frame, the tab, both contexts and every track are gone');
+    eq(await page.inputValue('#transcript'), 'my own words', 'the box is exactly as it was');
+    const st = await status(page, j.job);
+    eq([st.state, st.stopped], ['cancelled', true], 'the computer agrees');
+    eq([await names(TMPAUDIO), await names(HOLD, /\.json$/)], [[], []], 'no temporary sound, no held waveform');
+    assert(page.calls.includes('cancel') && !page.calls.some(x => /^wave/.test(x) || /last=1/.test(x)),
+           'it told the computer, and sent neither the shape nor a last piece: ' + JSON.stringify(page.calls.filter(x => !/^status/.test(x))));
+    forgive(before, /^(409|404) POST \/youtube\/api\/transcribe\/(audio|marks|wave)$/, 'a piece that was on its way when it was cancelled');
+    // nothing is stuck: it can be started again, and cancelled again
+    await page.click('#stt_go');
+    await inPh(page, 'ready', 'a second start after Cancel works');
+    await page.click('#stt_cancel');
+    await inPh(page, 'idle', 'and can be cancelled');
+    await context.close();
+  }
+
+  {
+    console.log('   n5) a second start while one records is refused, on this page and on another');
+    const a = await addPage({box: 'a'});
+    await toReady(a.page);
+    await a.page.click('#stt_rec');
+    await inPh(a.page, 'recording', 'the first is recording');
+    const b = await addPage();
+    const before = errors.length;
+    await b.page.click('#stt_go');
+    await until(async () => /Another transcription is running/.test(await text(b.page, '#stt_note')), 'the second is refused, in words');
+    eq(await text(b.page, '#stt_note'), 'Another transcription is running. Wait for it to finish, or stop it from the page that started it.', 'in these words');
+    const cb = await captured(b.page);
+    eq([await ph(b.page), cb.asked, cb.frames, await b.page.evaluate(() => !document.getElementById('stt_go').hidden)],
+       ['idle', 0, 0, true], 'and it loaded no video, shared nothing, and is not stuck');
+    eq(forgive(before, /^409 POST \/youtube\/api\/transcribe\/start$/, 'the refusal'), 1, 'one refusal of the computer');
+    await b.context.close();
+    const mark = errors.length;
+    await a.page.click('#stt_cancel');
+    await inPh(a.page, 'idle', 'the first is cancelled');
+    await sleep(600);
+    forgive(mark, /^(409|404) POST \/youtube\/api\/transcribe\//, 'what was on its way');
+    await a.context.close();
+  }
+
+  {
+    console.log('   n6) the same road in Persian, on a phone\'s width, on a page turned right to left');
+    await setSttFake({segments: PERSIAN});
+    const {context, page} = await addPage({lang: 'fa', width: 390});
+    await page.evaluate(() => { document.documentElement.dir = 'rtl'; });
+    eq(await fits(page), [], 'idle: the block fits');
+    assert(/Persian/.test(await text(page, '#stt_lang')) && /فارسی/.test(await text(page, '#stt_lang')), 'the language names itself: ' + await text(page, '#stt_lang'));
+    await toReady(page);
+    eq(await fits(page), [], 'the video is loaded: it fits, on 390 px');
+    const frame = await page.$eval('#stt_frame iframe', f => { const r = f.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+    assert(frame[0] >= 200 && frame[1] >= 200, `and the frame is ${frame[0]} x ${frame[1]}: no smaller than YouTube plays`);
+    await shotN(page, 'n6-ready-390-rtl');
+    await page.click('#stt_rec');
+    await inPh(page, 'recording', 'recording');
+    await until(async () => /^Recording \d+:\d\d \/ 0:12…$/.test(await text(page, '#stt_say')), 'counting', 40000);
+    eq(await fits(page), [], 'recording: it fits');
+    await shotN(page, 'n6-recording-390-rtl');
+    await inPh(page, 'idle', 'the words arrive', 90000);
+    const box = await page.inputValue('#transcript');
+    assert(/سلام دنیا/.test(box) && /میوه/.test(box), 'the Persian text is in the box, as Whisper wrote it: ' + JSON.stringify(box));
+    eq(await fits(page), [], 'done: it fits');
+    await shotN(page, 'n6-done-390-rtl');
+    await context.close();
+    await setSttFake({segments: ITALIAN});
+    // the shape of that run's sound is still held: let it go, so the next section starts clean
+    for (const n of await names(HOLD, /\.json$/)) await Deno.remove(`${HOLD}/${n}`);
+  }
+
+  {
+    console.log('   n7) leaving the page ends a recording: the browser asks first, and the computer is told');
+    const {context, page} = await addPage({box: BOX});
+    const j = await toReady(page);
+    await page.click('#stt_rec');
+    await inPh(page, 'recording', 'recording');
+    await until(async () => (await names(TMPAUDIO, /\.pcm$/)).length === 1, 'the first piece of the sound is on the computer', 40000);
+    eq(await page.evaluate(() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; }),
+       true, 'the browser is asked before the page is left while it records');
+    const before = errors.length;
+    await page.goto('about:blank');          // leaving the page (the browser's own question is answered yes by addPage)
+    const stateOf = job => fetch(`${BASE}/youtube/api/transcribe/status`, {method: 'POST', headers: {'content-type': 'application/json'},
+                                                                          body: JSON.stringify({job})}).then(r => r.json()).then(j => j.state);
+    await until(async () => (await stateOf(j.job)) === 'cancelled', 'the computer was told (a beacon at pagehide)', 15000);
+    eq(await names(TMPAUDIO), [], 'and the temporary sound is gone');
+    forgive(before, /^(409|404) POST \/youtube\/api\/transcribe\/(audio|marks|wave)$/, 'a piece that was on its way');
+    await context.close();
+  }
+
+  {
+    console.log('   n8) YouTube that cannot be reached: said, the computer let go, nothing stuck');
+    const {context, page} = await addPage();
+    await context.route('https://www.youtube.com/iframe_api', route => route.abort());
+    const start = page.waitForResponse(r => /transcribe\/start$/.test(r.url()));
+    await page.click('#stt_go');
+    const j = await (await start).json();
+    await until(async () => /could not be fetched/.test(await text(page, '#stt_note')), 'the video that cannot be loaded is said', 30000);
+    eq(await text(page, '#stt_note'), 'YouTube’s player could not be fetched — Parseh itself is answering, so it is YouTube this computer cannot reach.', 'in a sentence that says whose fault it is');
+    await inPh(page, 'idle', 'and it is idle again');
+    await until(async () => (await status(page, j.job)).state === 'cancelled', 'the computer was told to let the job go');
+    eq([await names(TMPAUDIO), (await captured(page)).frames, await page.evaluate(() => !document.getElementById('stt_go').hidden)], [[], 0, true], 'nothing is left, and Transcribe is there');
+    await context.close();
+  }
 }
 
 assert(errors.length === 0, 'no page error and no failed request: ' + JSON.stringify(errors));
