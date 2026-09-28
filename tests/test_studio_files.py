@@ -293,6 +293,15 @@ class BackupTests(LibraryCase):
 
 
 class RouteTests(LibraryCase):
+    def test_deleting_a_document_answers_ok_once_it_is_really_gone(self):
+        meta = store.create(FULL)
+        self.assertEqual(self.made(), [meta["id"]])
+        h = Fake()
+        server.api_delete(h, meta["id"])
+        self.assertEqual(h.sent, (200, {"ok": True}),
+                         "the library's own answer: the route must not fail after the delete")
+        self.assertEqual(self.made(), [])
+
     def test_create_asks_for_the_header_and_makes_nothing_until_it_has_it(self):
         h = Fake({"markdown": "# Owls\n\nhoot\n", "check_header": True, "name": "owls.md"})
         server.api_create(h)
