@@ -401,8 +401,8 @@ a.kept{display:flex;align-items:center;min-height:56px;padding:10px 14px;margin-
 <main>
   <span class="glyph" lang="fa" aria-hidden="true">&#x67E;</span>
   <h1>%(app)s cannot be reached</h1>
-  <p>%(app)s runs on your computer, and this phone cannot reach it now: the
-  computer may be asleep or off, or the phone away from its network (and
+  <p>%(app)s runs on your computer, and this device cannot reach it now: the
+  computer may be asleep or off, or this device away from its network (and
   from Tailscale, if that is how it reaches it).</p>
   <p>Once the computer is on and %(app)s is started there, try again.</p>
   <!-- TRY AGAIN SAYS THAT IT TRIED (TO-DO §2.28: "the try again button which
