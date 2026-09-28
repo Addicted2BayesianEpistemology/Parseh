@@ -95,7 +95,7 @@ class TheModule(unittest.TestCase):
         self.assertEqual((author.NAME, author.GITHUB_URL, author.SITE_URL), (NAME, GITHUB, SITE))
         self.assertEqual((author.GITHUB_TEXT, author.SITE_TEXT), ("GitHub", "imbrunoursino.net"))
         self.assertEqual((author.GITHUB_LABEL, author.SITE_LABEL),
-                         ("Bruno Ursino on GitHub", "Bruno Ursino's website"))
+                         ("Bruno Ursino on GitHub", "imbrunoursino.net, Bruno Ursino's website"))
         self.assertEqual(author.YEAR, 2026)
 
     def test_the_github_address_is_the_account_parseh_lives_under(self):
@@ -109,7 +109,7 @@ class TheModule(unittest.TestCase):
 
     def test_a_link_opens_apart_tells_the_site_nothing_and_names_the_person(self):
         for a, url, text, label in ((author.github_link(), GITHUB, "GitHub", "Bruno Ursino on GitHub"),
-                                    (author.site_link(), SITE, "imbrunoursino.net", "Bruno Ursino&#x27;s website")):
+                                    (author.site_link(), SITE, "imbrunoursino.net", "imbrunoursino.net, Bruno Ursino&#x27;s website")):
             self.assertEqual(a, '<a href="%s" target="_blank" rel="noopener noreferrer" aria-label="%s" '
                                 'title="%s">%s</a>' % (url, label, label, text))
         two = read(author.links()).links
@@ -118,7 +118,7 @@ class TheModule(unittest.TestCase):
         for a in two:
             self.assertEqual((a["target"], a["rel"]), ("_blank", "noopener noreferrer"))
             self.assertEqual(a["aria-label"], a["title"])
-        self.assertEqual([a["title"] for a in two], ["Bruno Ursino on GitHub", "Bruno Ursino's website"])
+        self.assertEqual([a["title"] for a in two], ["Bruno Ursino on GitHub", "imbrunoursino.net, Bruno Ursino's website"])
         # the words a foot SHOWS are the two names and the dot between them
         self.assertEqual("".join(read(author.links()).text), "GitHub · imbrunoursino.net")
 
@@ -181,7 +181,7 @@ class TheFoots(unittest.TestCase):
         for a in links:
             self.assertEqual((a["target"], a["rel"]), ("_blank", "noopener noreferrer"), where)
         self.assertEqual([a["aria-label"] for a in links],
-                         ["Bruno Ursino on GitHub", "Bruno Ursino's website"], where)
+                         ["Bruno Ursino on GitHub", "imbrunoursino.net, Bruno Ursino's website"], where)
         return read(fragment)
 
     def test_the_browser_hub_s_foot_says_the_two_words_and_nothing_of_the_name(self):

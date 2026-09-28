@@ -37,11 +37,13 @@ GITHUB_URL = "https://github.com/Addicted2BayesianEpistemology"
 SITE_URL = "https://imbrunoursino.net/"
 
 # What a link SAYS.  The two words are all a foot shows; what a screen reader
-# announces and a hover shows is the label, which names the person.
+# announces and a hover shows is the label, which names the person.  The label
+# always CONTAINS the words the link shows (WCAG 2.5.3, label in name), so a
+# person who speaks to the page and says what they see hits the right link.
 GITHUB_TEXT = "GitHub"
 SITE_TEXT = "imbrunoursino.net"
-GITHUB_LABEL = NAME + " on GitHub"
-SITE_LABEL = NAME + "'s website"
+GITHUB_LABEL = NAME + " on " + GITHUB_TEXT
+SITE_LABEL = SITE_TEXT + ", " + NAME + "'s website"
 
 # the year of the copyright line: the year of the first release
 YEAR = 2026
