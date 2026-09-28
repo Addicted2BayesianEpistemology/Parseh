@@ -1505,6 +1505,48 @@ class AppTests(unittest.TestCase):
         self.assertIn('location.reload()', html)
         self.assertIn("localStorage.getItem('parseh_kept')", html)
 
+    def test_the_offline_page_tries_again_and_says_that_it_tried(self):
+        """TO-DO §2.28: "the try again button which doesn't do anything".  A
+        reload of an address that fails again put this very page up again,
+        word for word, and nobody could tell a press that was heard from one
+        that was not.  Now the press is written down for the page that comes
+        back, which says when it tried -- and GO BACK is a button of its own,
+        for a page the person came from.  Driven end to end in
+        tests/mobile_pages.mjs (partExport); this holds the parts that must
+        not drift apart from it."""
+        import mobile
+        html = mobile.offline_page()
+        # the press: written down, then the address is loaded again (which
+        # CAN succeed), the button saying it is trying meanwhile
+        self.assertIn('id="again"', html)
+        self.assertIn('onclick="tryAgain()"', html)
+        press = html.split('function tryAgain()')[1].split('\n  }\n')[0]
+        self.assertIn("sessionStorage.setItem(TRIED", press)
+        self.assertIn('b.disabled = true', press)
+        self.assertIn("Trying\\u2026", press)
+        self.assertIn('location.reload()', press)
+        # the page that comes back says so, once, and only for a try as young
+        # as one load and for this address -- and never on /m/offline/ itself
+        self.assertIn("Still cannot reach it. Tried again at ", html)
+        self.assertIn("sessionStorage.removeItem(TRIED)", html)
+        self.assertIn("note.page === location.href", html)
+        self.assertIn("&& reloaded() &&", html)
+        self.assertIn("n.type === 'reload'", html)
+        self.assertIn("location.pathname !== '/m/offline/'", html)
+        self.assertIn('id="tried" role="status" aria-live="polite" hidden', html)
+        # GO BACK: its own button, hidden until there is somewhere to go back
+        # to, and never inside a frame (where it would take the whole page)
+        self.assertIn('id="back" class="plain" onclick="history.back()" hidden>Go back</button>', html)
+        self.assertIn("window.top === window && history.length > 1", html)
+        # an address that answers with a FILE does not replace this page, and
+        # the button must not stay "Trying…" over it for ever
+        self.assertIn("}, TRIED_WAIT);", press)
+        self.assertIn("b.disabled = false", press)
+        # still one page that stands alone, whatever it now does
+        self.assertNotIn('<link', html)
+        self.assertNotIn('<script src', html)
+        self.assertNotIn('%(', html)
+
     def test_what_a_thing_is_made_of_is_one_answer(self):
         """§19.3: one answer per thing, said as addresses, with the sizes and
         a version -- and the heavy parts apart from the small ones."""
