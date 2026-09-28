@@ -281,7 +281,7 @@ async function suite(mode) {
 // Parseh has a Settings page to install it from.
 async function missingSuite(mode) {
   console.log(`\n== ${mode}: packages missing ==`);
-  const {proc, info, log} = await startHarness(mode, ['--latex-missing']);
+  const {proc, info, log} = await startHarness(mode, ['--latex-missing', '--latex-own-missing']);
   const origin = `http://127.0.0.1:${info.port}`, base = info.studio;
   const browser = await chromium.launch({executablePath: Deno.env.get('CHROME_BIN'), headless: true});
   try {
@@ -295,7 +295,7 @@ async function missingSuite(mode) {
     await page.waitForSelector('.latex-modal .lx-theme option[value="drawing"]', {state: 'attached'});
     const said = await page.evaluate(() => fetch(LATEX_BASE + '/api/latex/themes').then(r => r.json()));
     eq(Object.keys(said.missing).join(','), 'default,chemistry,drawing', 'the server says which themes lack files');
-    assert(said.missing.chemistry.some(m => m.id === 'mhchem' && m.install === 'mhchem'),
+    assert(said.missing.chemistry.some(m => m.id === 'mhchem' && m.install === 'mhchem,chemgreek'),
            'a theme names what it lacks and the TeX Live package that brings it: ' + JSON.stringify(said.missing.chemistry.slice(-2)));
     if (mode === 'parseh') eq(said.settings, '/settings/latex/', 'and, where Parseh has one, its Settings page');
     else eq(said.settings, null, 'and none where the studio stands alone');
@@ -315,7 +315,7 @@ async function missingSuite(mode) {
     });
     if (mode === 'parseh') {
       eq(status.href, '/settings/latex/?install=zzmissingpackage', 'the sheet offers to install it, at Settings');
-      eq(status.label, 'Install zzmissingpackage…', 'in words');
+      eq(status.label, 'Get zzmissingpackage…', 'in words');
       assert(status.target === '_blank' && /noopener/.test(status.rel), 'in a new tab, so the drawing being written is not left behind');
     } else {
       assert(status.href === null, 'the studio alone has no Settings: it says what is missing and links nowhere');

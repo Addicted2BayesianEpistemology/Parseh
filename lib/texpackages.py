@@ -134,6 +134,55 @@ def distribution():
     return {"kind": None, "year": None, "tool": None, "said": "no TeX on this computer"}
 
 
+_KIND = []
+
+
+def local_rule():
+    """Whether a theme's packages beyond the base must be Parseh's own
+    (latexthemes.own_packages): on TeX Live, whose user tree Parseh fills.
+    MiKTeX puts what it gets in its own tree, so there a package is simply
+    there or not.  The TeX a computer has is asked once."""
+    if not _KIND:
+        _KIND.append(distribution()["kind"])
+    return _KIND[0] == "texlive"
+
+
+def _base_names():
+    return ({n for p in latexthemes.BASE for n in latexthemes.PACKAGES[p]["tl"]} |
+            {n for tl, _file, _lic in latexthemes.ALWAYS.values() for n in tl})
+
+
+def own(name):
+    """Is a TeX Live package one of a theme's own (not the base's), so that
+    only Parseh's copy of it counts?"""
+    return name in ({n for p in latexthemes.ORDER if p not in latexthemes.BASE
+                     for n in latexthemes.PACKAGES[p]["tl"]} - _base_names())
+
+
+def missing_for(theme, doc=None, found=None):
+    """What a theme lacks -> [(id, [TeX Live names])]: a package of its own
+    that Parseh has not got (local_rule), or a file of the base the
+    computer's TeX cannot find.  `found` is installed_many's answer, when the
+    caller has one."""
+    doc = manifest() if doc is None else doc
+    got = doc.get("packages", {})
+    mine = set(latexthemes.own_packages(theme)) if local_rule() else set()
+    needs = latexthemes.files_needed(theme)
+    if found is None:
+        found = installed_many([f for p, f, _tl, _lic in needs if p not in mine])
+    out = []
+    for p, file, tl, _lic in needs:
+        if p in mine:
+            want = [n for n in tl if n not in got]
+        elif found.get(file) is False:
+            want = [n for n in tl if n not in got] or list(tl)
+        else:
+            want = []
+        if want:
+            out.append((p, want))
+    return out
+
+
 def env():
     e = dict(os.environ)
     if os.path.isdir(TREE):
@@ -202,6 +251,8 @@ def availability(name, doc=None):
     doc = manifest() if doc is None else doc
     if name in doc.get("packages", {}):
         return {"here": "parseh", "file": None}
+    if own(name) and local_rule():
+        return {"here": "missing", "file": _representative_file(name)}
     file = _representative_file(name)
     if not file:
         return {"here": "unknown", "file": None}

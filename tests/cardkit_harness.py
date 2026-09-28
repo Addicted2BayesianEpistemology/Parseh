@@ -150,6 +150,8 @@ def serve_it(tmp, port, no_ffmpeg, tray):
     latexthemes.STORE = str(tmp / "config" / "latex.json")
     latexdraw.DRAWN = str(tmp / "latex-drawn")
     texpackages.TREE = str(tmp / "texmf")
+    import texmf_fixture  # what the themes add to the base, as if Parseh had got it
+    texmf_fixture.pretend_got(texpackages, latexthemes)
     # and the two memories of what a phone may keep (lib/offline.py): the
     # checksums of files by absolute path, and where each kept thing lives.
     # Left pointing at the checkout's config/, every suite booted through

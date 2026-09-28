@@ -63,6 +63,15 @@ def view(where):
     # ticked in an open editor is marked missing at once, from one kpsewhich
     checks = texpackages.installed_many([row["file"] for row in latexthemes.PACKAGES.values()] +
                                         [row[1] for row in latexthemes.ALWAYS.values()])
+    # a theme's own package is there only when Parseh has got it, whatever the
+    # computer's TeX holds (latexthemes.own_packages)
+    local = texpackages.local_rule()
+    if local:
+        got = texpackages.manifest()["packages"]
+        for p in latexthemes.ORDER:
+            if p not in latexthemes.BASE:
+                row = latexthemes.PACKAGES[p]
+                checks[row["file"]] = all(n in got for n in row["tl"])
     return {
         "themes": doc["themes"], "default": doc["default"], "timeout": doc["timeout"],
         "limits": [latexthemes.TIMEOUT_MIN, latexthemes.TIMEOUT_MAX],
@@ -70,6 +79,7 @@ def view(where):
         "catalogue": [latexthemes.PACKAGES[p] for p in latexthemes.ORDER],
         "groups": latexthemes.GROUPS,
         "files": checks,
+        "local": local,
         "always": {k: [list(v[0]), v[1], v[2]] for k, v in latexthemes.ALWAYS.items()},
         "unicode": list(latexthemes.UNICODE),
         "needs": {t["name"]: [list(x[:2]) + [list(x[2]), x[3]] for x in latexthemes.files_needed(t)]
@@ -224,8 +234,10 @@ STYLE = r"""
 .lx table{border-collapse:collapse;width:100%}
 .lx td,.lx th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--rule);font-size:13px}
 .lx [data-package-panel]{scroll-margin-block:2rem}
-.lx [data-package-panel].flash{animation:lx-plan-flash 1.1s ease-out}
-@media (prefers-reduced-motion:reduce){.lx [data-package-panel].flash{animation:none}}
+.lx [data-package-panel].flash,.lx section.edit.flash{animation:lx-plan-flash 1.1s ease-out}
+.lx section.edit{scroll-margin-top:12px}
+.lx section.edit h2:focus{outline:none}
+@media (prefers-reduced-motion:reduce){.lx [data-package-panel].flash,.lx section.edit.flash{animation:none}}
 .lx .pkg-intro{margin:.35rem 0 .65rem;color:var(--dim);font-size:13px}
 .lx .pkg-live{min-height:1.35em;margin:.35rem 0;font-size:13px}
 .lx .pkg-table{margin:.45rem 0}
@@ -240,12 +252,24 @@ STYLE = r"""
 .lx .pkg-confirm{font-size:12px;color:var(--danger);margin-bottom:4px}
 .lx .pkg-empty{color:var(--dim);font-size:13px}
 .lx .pkg-bulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:.65rem 0}
+.lx .pkg-table tr.pkg-group th{padding:14px 6px 5px;font-size:13px;font-weight:700;text-align:start;white-space:normal;
+  border-bottom:2px solid var(--rule)}
+.lx .pkg-table tr.pkg-group small{display:block;margin-top:2px;font-size:12px;font-weight:400;color:var(--dim)}
+.lx .pkg-table tbody:first-of-type tr.pkg-group th{padding-top:6px}
+.lx .st.sys{color:var(--ink);border-color:var(--rule);background:none}
+.lx .pkg-table tr.pkg-sys td{color:var(--dim)}
+.lx .pkg-none{color:var(--dim)}
+.lx .vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media (max-width:40rem){
   .lx .pkg-table,.lx .pkg-table tbody,.lx .pkg-table tr,.lx .pkg-table th,.lx .pkg-table td{display:block;width:100%}
   .lx .pkg-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .lx .pkg-table tr{border:1px solid var(--rule);border-radius:8px;background:var(--boxbg);padding:6px 8px;margin:8px 0}
   .lx .pkg-table th,.lx .pkg-table td{border:0;padding:4px 0;display:grid;grid-template-columns:7rem minmax(0,1fr);gap:5px 10px}
   .lx .pkg-table th::before,.lx .pkg-table td::before{content:attr(data-label);font-size:12px;color:var(--dim);font-weight:400}
+  .lx .pkg-table tr.pkg-group{border:0;background:none;padding:0;margin:18px 0 2px}
+  .lx .pkg-table tr.pkg-group th{display:block;padding:0 0 4px}
+  .lx .pkg-table tr.pkg-group th::before{content:none}
+  .lx .pkg-table tr.pkg-sys .pkg-action{display:none}
   .lx .pkg-table .pkg-action{display:block}
   .lx .pkg-table .pkg-action::before{display:block;margin-bottom:4px}
   .lx .pkg-table .pkg-state{min-width:0}
@@ -352,6 +376,25 @@ SCRIPT = r"""
     });
     return rows;
   }
+  // What comes with this computer's TeX: a package a theme needs that TeX
+  // finds, and that is not a copy Parseh got -- listed, with nothing to do.
+  function systemRows(own) {
+    var rows = {}, installed = (S.packages || {}).installed || {};
+    function add(t, needs, isDraft) {
+      needs.forEach(function (need) {
+        if (S.files[need[1]] !== true) return;
+        (need[2] || []).forEach(function (name) {
+          if (installed[name] || own[name]) return;
+          var row = rows[name] || (rows[name] = {name: name, themes: [], licence: need[3] || '', system: true});
+          if (isDraft) row.draft = true;
+          else if (row.themes.indexOf(t.name) < 0) row.themes.push(t.name);
+        });
+      });
+    }
+    S.themes.forEach(function (t) { add(t, S.needs[t.name] || []); });
+    if (editing && draft.need && draft.need.length) add(null, draft.need, true);
+    return rows;
+  }
   function packageRows() {
     var rows = requiredPackages(), installed = (S.packages || {}).installed || {}, jobs = (S.packages || {}).jobs || {};
     Object.keys(installed).forEach(function (name) {
@@ -367,7 +410,8 @@ SCRIPT = r"""
   }
   function packageWhy(row) {
     var why = [];
-    if (row.themes.length) why.push('for the theme' + (row.themes.length === 1 ? ' ' : 's ') + row.themes.map(esc).join(', '));
+    if (row.themes.length > 1 && row.themes.length === S.themes.length) why.push('for every theme');
+    else if (row.themes.length) why.push('for the theme' + (row.themes.length === 1 ? ' ' : 's ') + row.themes.map(esc).join(', '));
     if (row.draft) why.push('for the theme being edited (unsaved)');
     if (!why.length && row.asked) why.push('you asked for it');
     return why.join('; ');
@@ -382,6 +426,10 @@ SCRIPT = r"""
       '" aria-label="Try getting ' + esc(name) + ' again"' + dis('latex.packages') + '>Try again</button>';
     var stop = '<button type="button" class="plain" data-package-stop="' + esc(name) +
       '" aria-label="Stop getting ' + esc(name) + '"' + dis('latex.packages') + '>Stop</button>';
+    var none = '<span class="pkg-none" aria-hidden="true">—</span><span class="vh">Nothing to get or remove</span>';
+    var busy = state === 'queued' || state === 'waiting' || state === 'running';
+    if (row.system && !row.installed && !busy) return {kind: 'system',
+      text: '<span class="st sys"><i aria-hidden="true">✓</i> With this computer\'s TeX</span>', detail: '', action: none};
     if (row.installed) {
       if (removing === name) return {kind: 'got', text: '<span class="st ok"><i aria-hidden="true">✓</i> Got</span>',
         detail: 'Remove only the copy Parseh got.', action: '<div class="pkg-confirm">Remove ' + esc(name) +
@@ -402,7 +450,7 @@ SCRIPT = r"""
     if (state === 'stopped') return {kind: 'stopped',
       text: '<span class="st not"><i aria-hidden="true">—</i> Stopped</span>', detail: '', action: retry};
     if (state === 'available' || packageAvailable(name) || plan.here === 'available') return {kind: 'available',
-      text: '<span class="st ok"><i aria-hidden="true">✓</i> Available to this TeX</span>', detail: 'Parseh will not add a second copy.', action: ''};
+      text: '<span class="st sys"><i aria-hidden="true">✓</i> With this computer\'s TeX</span>', detail: 'Parseh will not add a second copy.', action: none};
     if (plan.state === 'asking') return {kind: 'asking',
       text: '<span class="st wait"><i aria-hidden="true">○</i> Asking…</span>', detail: '', action: ''};
     if (plan.state === 'unreachable') return {kind: 'unreachable',
@@ -423,10 +471,11 @@ SCRIPT = r"""
   function packageRow(row, state) {
     var plan = row.plan || {}, licence = plan.licence || (row.installed || {}).licence || row.licence || '';
     var size = plan.size != null ? MB(plan.size) : ((row.installed || {}).size != null ? MB(row.installed.size) : '');
-    return '<tr data-package-row="' + esc(row.name) + '"><th scope="row" data-label="Package"><code>' + esc(row.name) +
+    var sys = state.kind === 'system' || state.kind === 'available';
+    return '<tr data-package-row="' + esc(row.name) + '"' + (sys ? ' class="pkg-sys"' : '') + '><th scope="row" data-label="Package"><code>' + esc(row.name) +
       '</code></th><td data-label="Needed for">' + packageWhy(row) + '</td><td class="pkg-state" data-label="State" aria-live="polite">' +
       state.text + (state.detail ? '<span class="pkg-detail' + (state.kind === 'failed' || state.kind === 'unavailable' || state.kind === 'unreachable' ? ' bad' : '') +
-      '">' + state.detail + '</span>' : '') + '</td><td data-label="Size">' + esc(size || 'Not known yet') +
+      '">' + state.detail + '</span>' : '') + '</td><td data-label="Size">' + (sys ? '<span aria-hidden="true">—</span><span class="vh">not downloaded by Parseh</span>' : esc(size || 'Not known yet')) +
       '</td><td data-label="Licence">' + esc(licence) + '</td><td class="pkg-action" data-label="Action">' + state.action + '</td></tr>';
   }
   function rowFromHtml(html) {
@@ -457,13 +506,26 @@ SCRIPT = r"""
     var panel = root.querySelector('[data-package-panel]');
     if (!panel) return;
     if (!panel.querySelector('[data-pkg-rows]')) {
-      panel.innerHTML = '<h3 id="tex-packages">TeX packages</h3><p class="pkg-intro">Packages a theme needs, and this computer lacks, are listed here with what each costs: Parseh asks the TeX Live repository, and downloads nothing until you press Get. It gets them one at a time.</p>' +
+      var texName = esc(S.tex.said || 'this computer\'s TeX');
+      panel.innerHTML = '<h3 id="tex-packages">TeX packages</h3><p class="pkg-intro">' + (S.local
+        ? 'Every package the themes use. A theme\'s packages beyond the base are Parseh\'s own: a drawing uses them only once Parseh has got them into its <code>texmf/</code> folder, even when this computer\'s TeX has them too. What each missing one costs is asked of the TeX Live repository, and nothing is downloaded until you press Get it; they are got one at a time. The base comes with ' + texName + ': it is listed below them, and there is nothing to get or remove.'
+        : 'Every package the themes use. One this computer lacks says what it costs, and nothing is downloaded until you press Get it; they are got one at a time. What this computer\'s TeX already has is listed below them, with nothing to get or remove.') + '</p>' +
         '<div class="pkg-live" data-pkg-said aria-live="polite" aria-atomic="true" tabindex="-1"></div><div data-pkg-bulk></div>' +
-        '<table class="pkg-table"><thead><tr><th scope="col">Package</th><th scope="col">Needed for</th><th scope="col">State</th><th scope="col">Size</th><th scope="col">Licence</th><th scope="col">Action</th></tr></thead><tbody data-pkg-rows></tbody></table>' +
+        '<table class="pkg-table"><thead><tr><th scope="col">Package</th><th scope="col">Needed for</th><th scope="col">State</th><th scope="col">Size</th><th scope="col">Licence</th><th scope="col">Action</th></tr></thead>' +
+        '<tbody><tr class="pkg-group"><th colspan="6" scope="colgroup" id="pkg-own">Parseh\'s own <small>' + (S.local ? 'in its <code>texmf/</code> folder: got and removed here' : 'got and removed here') + '</small></th></tr></tbody>' +
+        '<tbody data-pkg-rows></tbody>' +
+        '<tbody data-pkg-sys-head hidden><tr class="pkg-group"><th colspan="6" scope="colgroup" id="pkg-sys">With this computer\'s TeX <small>' + texName + (S.local ? ' — LaTeX\'s base, which every drawing uses: nothing to get or remove' : ' — nothing to get or remove') + '</small></th></tr></tbody>' +
+        '<tbody data-pkg-sys></tbody></table>' +
         '<div class="row"><input type="text" data-pkgname placeholder="a TeX Live package, e.g. chemfig"' + dis('latex.packages') +
         '><button type="button" class="plain" data-package-plan' + dis('latex.packages') + '>What it costs…</button></div>' + lock('latex.packages');
     }
-    var rows = packageRows().map(function (row) { return {row: row, state: packageState(row)}; });
+    var all = packageRows().map(function (row) { return {row: row, state: packageState(row)}; });
+    var rows = all.filter(function (x) { return x.state.kind !== 'available'; }), ownNames = {};
+    all.forEach(function (x) { ownNames[x.row.name] = true; });
+    var sysMap = systemRows(ownNames);
+    var sysRows = all.filter(function (x) { return x.state.kind === 'available'; }).concat(Object.keys(sysMap).map(function (n) {
+      return {row: sysMap[n], state: packageState(sysMap[n])};
+    })).sort(function (a, b) { return a.row.name < b.row.name ? -1 : a.row.name > b.row.name ? 1 : 0; });
     var ready = rows.filter(function (x) { return x.state.ready; });
     var total = ready.reduce(function (n, x) { return n + (+x.state.size || 0); }, 0);
     var bulk = ready.length > 1 ? '<div class="pkg-bulk"><button type="button" class="go" data-package-get-all="' +
@@ -496,13 +558,27 @@ SCRIPT = r"""
     });
     while (body.children.length > at) body.removeChild(body.lastChild);
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="6" class="pkg-empty">No package needs attention.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="pkg-empty">' + (S.local ? 'None: no theme uses a package beyond the base.' : 'None needed.') + '</td></tr>';
     }
+    var sysHtml = sysRows.map(function (x) { return packageRow(x.row, x.state); }).join('');
+    var sysBody = panel.querySelector('[data-pkg-sys]');
+    if (sysBody._sig !== sysHtml) { sysBody._sig = sysHtml; sysBody.innerHTML = sysHtml; }
+    panel.querySelector('[data-pkg-sys-head]').hidden = !sysRows.length;
   }
   function flashPackages() {
     var panel = root.querySelector('[data-package-panel]');
     if (!panel) return;
     panel.classList.remove('flash'); void panel.offsetWidth; panel.classList.add('flash');
+  }
+  // the editor opens below every theme: take the person to it, and say it is there
+  function revealEditor() {
+    var box = root.querySelector('section.edit');
+    if (!box) return;
+    var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    box.scrollIntoView({block: 'start', behavior: reduced ? 'auto' : 'smooth'});
+    var h = box.querySelector('h2');
+    if (h) { h.setAttribute('tabindex', '-1'); try { h.focus({preventScroll: true}); } catch (e) {} }
+    box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
   }
   function revealPackages(focus) {
     var panel = root.querySelector('[data-package-panel]');
@@ -743,8 +819,8 @@ SCRIPT = r"""
     if (!b) return;
     var a = function (n) { return b.getAttribute(n); };
     if (a('data-import-open') !== null) { var picker = root.querySelector('[data-import]'); if (picker) picker.click(); return; }
-    if (a('data-new') !== null) { editing = {was: null, theme: {name: q.get('make') || '', compiler: 'xelatex', packages: S.themes[0] ? S.themes[0].packages.slice() : [], languages: false, font: '', preamble: ''}}; draw(); return; }
-    if (a('data-edit')) { var t = S.themes.filter(function (x) { return x.name === a('data-edit'); })[0]; editing = {was: t.name, theme: JSON.parse(JSON.stringify(t))}; draw(); return; }
+    if (a('data-new') !== null) { editing = {was: null, theme: {name: q.get('make') || '', compiler: 'xelatex', packages: S.themes[0] ? S.themes[0].packages.slice() : [], languages: false, font: '', preamble: ''}}; draw(); revealEditor(); return; }
+    if (a('data-edit')) { var t = S.themes.filter(function (x) { return x.name === a('data-edit'); })[0]; editing = {was: t.name, theme: JSON.parse(JSON.stringify(t))}; draw(); revealEditor(); return; }
     if (a('data-cancel') !== null) { editing = null; draw(); return; }
     if (a('data-draw-sample') !== null) {
       say('[data-edit-said]', 'Drawing…');
@@ -934,8 +1010,12 @@ SCRIPT = r"""
 
   loadQuotes();
   draw();
-  if (q.get('theme')) { var t0 = S.themes.filter(function (x) { return x.name.toLowerCase() === q.get('theme').toLowerCase(); })[0]; if (t0 && may('latex.theme')) { editing = {was: t0.name, theme: JSON.parse(JSON.stringify(t0))}; draw(); } }
+  if (q.get('theme')) { var t0 = S.themes.filter(function (x) { return x.name.toLowerCase() === q.get('theme').toLowerCase(); })[0]; if (t0 && may('latex.theme')) { editing = {was: t0.name, theme: JSON.parse(JSON.stringify(t0))}; draw(); revealEditor(); } }
   if (q.get('make') && may('latex.theme')) { root.querySelector('[data-new]').click(); }
-  if (q.get('install') && may('latex.packages')) { packageAsked[q.get('install')] = true; reviewPackages([q.get('install')]); }
+  if (q.get('install') && may('latex.packages')) {
+    var asked0 = q.get('install').split(/[\s,]+/).filter(Boolean);
+    asked0.forEach(function (n) { packageAsked[n] = true; });
+    reviewPackages(asked0);
+  }
 })();
 """

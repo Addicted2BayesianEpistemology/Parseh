@@ -216,6 +216,9 @@ async function suite(mode) {
     /* ---------------- d) Settings ---------------- */
     if (mode === 'parseh') {
       console.log('d) Settings -> LaTeX drawings');
+      // nothing got by Parseh yet: the list the harness filled is emptied for this part, and written back after it
+      const gotList = await Deno.readTextFile(info.texmf_list);
+      await Deno.writeTextFile(info.texmf_list, JSON.stringify({format: 1, packages: {}}));
       const planReply = (names, licence = 'lppl1.3c', repository = 'available') => ({
         ok: true, can: true, tex: 'TeX Live test', why: '',
         packages: names.map((name, at) => ({name, size: repository === 'unreachable' ? null : 185000 + at * 1000,
@@ -283,7 +286,7 @@ async function suite(mode) {
       assert(quoted.length === everyNeed.length && quoted.every(row => row.cells[0] === '○ Not installed'
              && /^\d+ kB$/.test(row.cells[1]) && row.cells[2] === 'lppl1.3c' && row.cells[3] === 'Get it'),
              'each row reads Not installed, its size, its licence, Get it: ' + JSON.stringify(quoted[0]));
-      assert(quoted.every(row => /^for the themes? /.test(row.why)), 'and says which theme needs it');
+      assert(quoted.every(row => /^for (the themes? |every theme$)/.test(row.why)), 'and says which theme needs it');
       assert(/^Get all — /.test(await panel.locator('[data-package-get-all]').textContent()),
              'Get all shows the total when more than one is ready');
       assert(/^\d+ packages ready to get\. Nothing has been downloaded\.$/.test(
@@ -714,6 +717,7 @@ async function suite(mode) {
       }
       await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
       await shot('settings-phone');
+      await Deno.writeTextFile(info.texmf_list, gotList);
     }
 
     /* ---------------- e) the drawings kept, after everything that held one is deleted ---------------- */
@@ -778,6 +782,107 @@ async function suite(mode) {
   return passed;
 }
 
+// f) A COMPUTER WHOSE TeX HAS EVERY PACKAGE, AND A PARSEH THAT HAS GOT NONE
+// (the owner, 2026-09-28): a theme's packages beyond the base are Parseh's own,
+// so they are missing whatever the computer's TeX holds, and a drawing that
+// needs one is refused with the way to get it; the base comes with the
+// computer's TeX and is listed with nothing to get or remove.  Real TeX, the
+// real kpsewhich; only the repository's quote is answered here.
+async function ownPackages() {
+  console.log('\n== f) a full TeX, and Parseh\'s own packages not got ==');
+  const proc = new Deno.Command(python, {args: [root + '/tests/studio_harness.py', 'parseh', '--latex-own-missing'],
+                                         cwd: root, stdout: 'piped', stderr: 'piped'}).spawn();
+  (async () => { const r = proc.stderr.pipeThrough(new TextDecoderStream()).getReader(); for (;;) { if ((await r.read()).done) break; } })();
+  const reader = proc.stdout.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = '', info = null;
+  while (!info) {
+    const {value, done} = await reader.read();
+    if (done) throw Error('harness (own) exited before READY:\n' + buf);
+    buf += value;
+    const m = buf.match(/READY (\{.*\})\n/);
+    if (m) info = JSON.parse(m[1]);
+  }
+  (async () => { for (;;) { if ((await reader.read()).done) break; } })();
+  const origin = `http://127.0.0.1:${info.port}`;
+  const browser = await chromium.launch({executablePath: Deno.env.get('CHROME_BIN'), headless: true});
+  try {
+    const page = await browser.newPage({viewport: {width: 1280, height: 900}});
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.route('**/settings/api/latex/package-plan', async route => {
+      const names = route.request().postDataJSON().packages;
+      await route.fulfill({json: {ok: true, can: true, tex: 'TeX Live test', why: '',
+        packages: names.map((name, at) => ({name, size: 20000 + at * 1000, licence: 'lppl1.3c', here: 'missing',
+                                             repository: 'available', can_get: true, why: ''}))}});
+    });
+    await page.goto(origin + '/settings/latex/');
+    await page.waitForSelector('[data-pkg-rows] [data-package-get]');
+    const table = await page.evaluate(() => ({
+      own: [...document.querySelectorAll('[data-pkg-rows] tr[data-package-row]')].map(tr => tr.dataset.packageRow),
+      ownGet: [...document.querySelectorAll('[data-pkg-rows] tr[data-package-row]')].every(tr => tr.querySelector('[data-package-get]')),
+      sysShown: !document.querySelector('[data-pkg-sys-head]').hidden,
+      sys: [...document.querySelectorAll('[data-pkg-sys] tr[data-package-row]')].map(tr => tr.dataset.packageRow),
+      sysSaid: [...document.querySelectorAll('[data-pkg-sys] .pkg-state')].map(td => td.textContent.trim()),
+      sysButtons: document.querySelectorAll('[data-pkg-sys] button').length,
+      cards: Object.fromEntries([...document.querySelectorAll('[data-theme-missing]')].map(d => [d.dataset.themeMissing, d.textContent.trim()])),
+    }));
+    eq(table.own.join(','), 'chemfig,chemgreek,mhchem,pgf,pgfplots',
+       'with every package on the computer, a theme\'s own packages are still missing: only Parseh\'s copy counts');
+    assert(table.ownGet, 'each of them offers Get it');
+    assert(table.sysShown && ['amsmath', 'standalone', 'xcolor'].every(n => table.sys.includes(n))
+           && !table.sys.some(n => table.own.includes(n)),
+           'the base is listed apart, as the computer\'s: ' + table.sys.join(', '));
+    assert(table.sysSaid.every(t => /With this computer's TeX/.test(t)) && table.sysButtons === 0,
+           'and says so, with nothing to get or remove');
+    eq(table.cards.default, '', 'the default theme lacks nothing');
+    assert(/Not installed here: mhchem, chemfig/.test(table.cards.chemistry) && /Not installed here: tikz, pgfplots/.test(table.cards.drawing),
+           'the theme cards say what is not got: ' + JSON.stringify(table.cards));
+    for (const [w, h] of [[1280, 900], [390, 844]]) {
+      await page.setViewportSize({width: w, height: h});
+      for (const theme of ['light', 'sepia', 'dark']) {
+        await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
+        await page.locator('[data-pkg-sys-head]').scrollIntoViewIfNeeded();
+        if (SHOTS) await page.screenshot({path: `${SHOTS}/latex-own-table-${w}-${theme}.png`});
+      }
+      // Edit takes the page to the theme being edited, and says it is there
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.click('[data-edit="chemistry"]');
+      await page.waitForFunction(() => { const e = document.querySelector('section.edit');
+        if (!e) return false; const r = e.getBoundingClientRect(); return r.top >= -2 && r.top < 40; }, null, {timeout: 5000});
+      eq(await page.evaluate(() => document.activeElement.textContent), 'The theme chemistry',
+         `Edit brings the theme's editor into view and gives it the keyboard (${w} px)`);
+      if (SHOTS) await page.screenshot({path: `${SHOTS}/latex-own-edit-${w}.png`});
+      await page.click('[data-cancel]');
+    }
+    // a drawing that needs one of them is refused, and says how to mend it
+    const doc = await (await fetch(origin + '/studio/api/docs', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({markdown: '---\ntitle: Own\nlang: en\ntarget: it\n---\n\n::::latex chemistry\n\\ce{H2O}\n::::\n\n::::latex\n$x^2$\n::::\n'})})).json();
+    await page.setViewportSize({width: 1280, height: 900});
+    await page.goto(origin + `/studio/doc/${doc.meta.id}`);
+    await page.waitForSelector('#sheet .latex-fail', {timeout: 60000});
+    await page.waitForSelector('#sheet figure.latex img', {timeout: 60000});
+    const refused = await page.evaluate(() => ({said: document.querySelector('#sheet .latex-fail .latex-said').textContent,
+      link: [...document.querySelectorAll('#sheet .latex-fail .latex-fix a')].map(a => [a.textContent, a.getAttribute('href')])}));
+    assert(/mhchem is not among Parseh's own TeX packages yet/.test(refused.said) && /"chemistry"/.test(refused.said),
+           'a chemistry drawing is refused, in words: ' + refused.said);
+    assert(refused.link.length === 1 && refused.link[0][0] === 'Get mhchem, chemgreek…'
+           && /\?install=mhchem,chemgreek$/.test(refused.link[0][1]),
+           'with the way to get it: ' + JSON.stringify(refused.link));
+    assert(await page.locator('#sheet figure.latex img').count() === 1, 'while a drawing of the default theme, the base alone, is drawn');
+    if (SHOTS) await page.screenshot({path: `${SHOTS}/latex-own-refused.png`});
+    // the link opens the table on what it asked for
+    await page.goto(origin + refused.link[0][1]);
+    await page.waitForFunction(() => /Not installed/.test((document.querySelector('[data-package-row="mhchem"] .pkg-state') || {}).textContent || ''));
+    assert(true, 'the link opens Settings on the rows it names');
+    eq(errors.join(' | '), '', 'no script error');
+  } finally {
+    await browser.close();
+    proc.kill('SIGTERM');
+    await proc.status.catch(() => {});
+  }
+}
+
 let total = 0;
 for (const mode of modes) total += await suite(mode);
+await ownPackages();
 console.log(`LaTeX drawings passed (${modes.join(' + ')}: ${passed} checks)`);

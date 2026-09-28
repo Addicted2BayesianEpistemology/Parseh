@@ -207,10 +207,13 @@ def file_of(name):
 
 
 # ------------------------------------------------------------------ drawing
-def plan(tex, theme_name, theme=None, inline=False):
+def plan(tex, theme_name, theme=None, inline=False, local=True):
     """What drawing a block would be -> {"key", "resolved", "compiler"} or a
-    failure ({"ok": False, ...}) that no compile can mend: no such theme, or
-    no such compiler on this computer."""
+    failure ({"ok": False, ...}) that no compile can mend: no such theme, no
+    such compiler on this computer, or a package of the theme's own that
+    Parseh has not got (texpackages.local_rule; `local=False` lets the
+    computer's TeX answer for it, for a drawing made beforehand elsewhere,
+    as the guide's are)."""
     if theme is not None:
         resolved = {"name": theme.get("name") or "", "compiler": theme["compiler"],
                     "preamble": latexthemes.preamble(theme), "theme": theme,
@@ -223,6 +226,17 @@ def plan(tex, theme_name, theme=None, inline=False):
                 "said": 'This drawing asks for the theme "%s", which this Parseh does not have.'
                         % name,
                 "fix": {"kind": "theme-missing", "theme": name}}
+    lack = _lacks(resolved) if local else []
+    if lack:
+        names = [n for _p, tl in lack for n in tl]
+        ids = [p for p, _tl in lack]
+        return {"ok": False, "kind": "package", "theme": resolved["name"],
+                "said": '%s %s not among Parseh\'s own TeX packages yet: the theme "%s" '
+                        'uses %s, and a theme\'s packages beyond the base are drawn only '
+                        'once Parseh has got them.'
+                        % (_and(ids), "is" if len(ids) == 1 else "are", resolved["name"],
+                           "it" if len(ids) == 1 else "them"),
+                "fix": {"kind": "install", "package": ",".join(dict.fromkeys(names))}}
     info = compiler(resolved["compiler"])
     if info is None:
         return {"ok": False, "kind": "compiler", "theme": resolved["name"],
@@ -232,6 +246,24 @@ def plan(tex, theme_name, theme=None, inline=False):
     state = tex_state(resolved["compiler"])
     return {"ok": True, "key": key_of(tex, resolved, state, inline), "resolved": resolved,
             "compiler": info}
+
+
+def _and(words):
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def _lacks(resolved):
+    import texpackages
+    theme = resolved.get("theme")
+    if not theme or not texpackages.local_rule():
+        return []
+    got = texpackages.manifest()["packages"]
+    out = []
+    for p in latexthemes.own_packages(theme):
+        want = [n for n in latexthemes.PACKAGES[p]["tl"] if n not in got]
+        if want:
+            out.append((p, want))
+    return out
 
 
 def peek(tex, theme_name):
@@ -292,7 +324,7 @@ def _promote(key):
         return False
 
 
-def draw(tex, theme_name, theme=None, limit=None, inline=False, preview=False):
+def draw(tex, theme_name, theme=None, limit=None, inline=False, preview=False, local=True):
     """A block drawn -- from the cache when it is there, compiled when not ->
     {"ok": True, "key", "url", "w", "h", "d", "pdf", "svg"} or {"ok": False,
     "kind", "said", "line"?, "detail"?, "fix"?}.  `inline=True` (TO-DO
@@ -301,7 +333,7 @@ def draw(tex, theme_name, theme=None, limit=None, inline=False, preview=False):
     `\\raisebox`), measured by a second, small compile of the same content
     boxed rather than typeset -- so a block's own compile, and everything a
     block already promises, are exactly as they were."""
-    p = plan(tex, theme_name, theme, inline)
+    p = plan(tex, theme_name, theme, inline, local)
     if not p["ok"]:
         return p
     key = p["key"]

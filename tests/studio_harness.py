@@ -57,6 +57,12 @@ import latexthemes, latexdraw, texpackages
 latexthemes.STORE = str(tmp / "config" / "latex.json")
 latexdraw.DRAWN = str(tmp / "latex-drawn")
 texpackages.TREE = str(tmp / "texmf")
+# what the themes add to the base, as if Parseh had got it: unless the suite is
+# about the packages themselves (tests/texmf_fixture.py); a suite may empty the
+# list at "texmf_list" for a while, and write it back
+if "--latex-own-missing" not in sys.argv[2:]:
+    import texmf_fixture
+    texmf_fixture.pretend_got(texpackages, latexthemes)
 # The LaTeX Settings browser pass needs a stable missing-package card even on
 # a computer with a complete TeX installation. This changes only the test
 # page's availability report; it never writes to or changes TeX.
@@ -122,6 +128,7 @@ try:
     print("READY " + json.dumps({"port": srv.server_address[1], "studio": studio.BASE, "mode": MODE,
                                  "library": str(store.LIB), "tray": str(tray),
                                  "latex_drawn": str(latexdraw.DRAWN),
+                                 "texmf_list": texpackages.manifest_path(),
                                  "rich_doc_id": rich["id"], "rich_doc_dir": str(store.doc_dir(rich["id"])),
                                  "clips": [hello, bye], "audio_accept": audiofile.ACCEPT,
                                  "audio_human": audiofile.HUMAN},

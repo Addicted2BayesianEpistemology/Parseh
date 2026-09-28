@@ -4,6 +4,7 @@ rewrite of the text, and the key a drawing is kept under.  No TeX is run:
 what a compile makes is checked by hand (docs/releasing.md).  The themes'
 store is redirected to a temporary folder, so config/ is never written."""
 import json
+import contextlib
 import os
 import shutil
 import sys
@@ -298,26 +299,42 @@ class SheetThemes(Store):
         def send_json(self, obj, status=200):
             self.obj = obj
 
-    def ask(self, gone, settings):
+    def ask(self, gone, settings, got=(), kind="texlive"):
         import server
         import texpackages
         h = self.Reply()
-        with mock.patch.object(texpackages, "installed", lambda f: (False if f in gone else True)), \
+        with mock.patch.object(texpackages, "installed_many",
+                               lambda files: {f: f not in gone for f in files}), \
+                mock.patch.object(texpackages, "manifest",
+                                  lambda: {"packages": {n: {} for n in got}}), \
+                mock.patch.object(texpackages, "_KIND", [kind]), \
                 mock.patch.dict(htmlgen.LATEX, {"settings": settings}):
             server.api_latex_themes(h)
         return h.obj
 
-    def test_a_theme_says_which_of_its_packages_this_computer_lacks(self):
-        got = self.ask({"mhchem.sty"}, "/settings/latex/")
+    def test_a_theme_s_own_packages_are_missing_until_parseh_has_them(self):
+        # the computer's TeX has everything (a full TeX Live): only Parseh's own copy counts
+        got = self.ask(set(), "/settings/latex/")
         self.assertEqual(got["themes"], ["default", "chemistry", "drawing"])
-        self.assertEqual(got["missing"], {"chemistry": [{"id": "mhchem", "install": "mhchem"}]},
-                         "only the theme that loads it, by the TeX Live package to install")
+        self.assertEqual(got["missing"], {
+            "chemistry": [{"id": "mhchem", "install": "mhchem,chemgreek"}, {"id": "chemfig", "install": "chemfig"}],
+            "drawing": [{"id": "tikz", "install": "pgf"}, {"id": "pgfplots", "install": "pgfplots"}]},
+            "the base is the computer's; what a theme adds is Parseh's own")
         self.assertEqual(got["settings"], "/settings/latex/")
 
-    def test_nothing_missing_and_no_settings_page(self):
-        got = self.ask(set(), None)
+    def test_nothing_missing_once_got_and_no_settings_page(self):
+        got = self.ask(set(), None, got=("mhchem", "chemgreek", "chemfig", "pgf", "pgfplots"))
         self.assertEqual(got["missing"], {})
         self.assertIsNone(got["settings"], "the studio alone has no Settings to send anyone to")
+
+    def test_a_base_file_the_computer_lacks_is_missing_for_every_theme(self):
+        got = self.ask({"amsmath.sty"}, None, got=("mhchem", "chemgreek", "chemfig", "pgf", "pgfplots"))
+        self.assertEqual({k: [x["install"] for x in v] for k, v in got["missing"].items()},
+                         {"default": ["amsmath"], "chemistry": ["amsmath"], "drawing": ["amsmath"]})
+
+    def test_on_miktex_a_package_is_there_or_not(self):
+        got = self.ask({"mhchem.sty"}, None, kind="miktex")
+        self.assertEqual(got["missing"], {"chemistry": [{"id": "mhchem", "install": "mhchem,chemgreek"}]})
 
     def test_a_compiler_this_computer_lacks_is_missing_too(self):
         import server
@@ -326,6 +343,75 @@ class SheetThemes(Store):
             server.api_latex_themes(h)
         self.assertTrue(h.obj["missing"]["default"][0]["install"] is None
                         and h.obj["missing"]["default"][0]["id"] == latexthemes.find("default")["compiler"])
+
+
+class ParsehsOwnPackages(Store):
+    """A theme's packages beyond the base are Parseh's own (the owner, 2026-09-28):
+    a drawing uses one only once Parseh has got it into texmf/, whatever the
+    computer's TeX has; the base comes with the computer's TeX."""
+
+    def rule(self, got=(), kind="texlive"):
+        import texpackages
+        stack = contextlib.ExitStack()
+        stack.enter_context(mock.patch.object(texpackages, "_KIND", [kind]))
+        stack.enter_context(mock.patch.object(texpackages, "manifest",
+                                              lambda: {"packages": {n: {} for n in got}}))
+        self.addCleanup(stack.close)
+        return texpackages
+
+    def test_what_is_own_and_what_is_the_base(self):
+        tp = self.rule()
+        self.assertTrue(tp.own("mhchem") and tp.own("pgf") and tp.own("chemgreek"))
+        self.assertFalse(tp.own("amsmath") or tp.own("tools") or tp.own("standalone") or tp.own("lm-math"))
+        self.assertEqual(latexthemes.own_packages(latexthemes.find("chemistry")), ["mhchem", "chemfig"])
+        self.assertEqual(latexthemes.own_packages(latexthemes.find("default")), [])
+
+    def test_a_preamble_that_loads_a_catalogue_package_makes_it_the_theme_s_own(self):
+        t = dict(latexthemes.find("default"), preamble="\\usepackage[version=4]{mhchem}\n\\usepackage{tikz,zzmine}")
+        self.assertEqual(latexthemes.own_packages(t), ["tikz", "mhchem"])
+        self.assertIn("mhchem", [x[0] for x in latexthemes.files_needed(t)])
+
+    def test_a_drawing_is_refused_until_parseh_has_the_theme_s_own_packages(self):
+        self.rule()
+        p = latexdraw.plan("\\ce{H2O}", "chemistry")
+        self.assertFalse(p["ok"])
+        self.assertEqual(p["kind"], "package")
+        self.assertEqual(p["fix"], {"kind": "install", "package": "mhchem,chemgreek,chemfig"})
+        self.assertIn("mhchem and chemfig are not among Parseh's own TeX packages", p["said"])
+        self.assertIn('"chemistry"', p["said"])
+
+    def test_once_got_it_is_drawn_and_the_base_never_asks(self):
+        self.rule(got=("mhchem", "chemgreek", "chemfig"))
+        with mock.patch.object(latexdraw, "compiler", lambda name, fresh=False: {"path": "/x", "version": "v"}), \
+                mock.patch.object(latexdraw, "tex_state", lambda c: "s"):
+            self.assertTrue(latexdraw.plan("\\ce{H2O}", "chemistry")["ok"])
+            self.assertTrue(latexdraw.plan("x", "default")["ok"], "the base is the computer's")
+
+    def test_a_drawing_made_beforehand_elsewhere_may_use_the_computer_s_tex(self):
+        self.rule()
+        with mock.patch.object(latexdraw, "compiler", lambda name, fresh=False: {"path": "/x", "version": "v"}), \
+                mock.patch.object(latexdraw, "tex_state", lambda c: "s"):
+            self.assertTrue(latexdraw.plan("\\ce{H2O}", "chemistry", local=False)["ok"])
+
+    def test_on_miktex_the_computer_s_tree_answers(self):
+        self.rule(kind="miktex")
+        with mock.patch.object(latexdraw, "compiler", lambda name, fresh=False: {"path": "/x", "version": "v"}), \
+                mock.patch.object(latexdraw, "tex_state", lambda c: "s"):
+            self.assertTrue(latexdraw.plan("\\ce{H2O}", "chemistry")["ok"])
+
+    def test_the_page_calls_a_theme_s_own_package_there_only_when_parseh_has_it(self):
+        import latexpage
+        tp = self.rule(got=("mhchem", "chemgreek"))
+        with mock.patch.object(tp, "installed_many", lambda files: {f: True for f in files}), \
+                mock.patch.object(tp, "distribution", lambda: {"kind": "texlive", "year": 2026, "tool": None,
+                                                                "said": "TeX Live 2026"}), \
+                mock.patch.object(tp, "status", lambda: {"installed": {}, "jobs": {}, "available": {}}), \
+                mock.patch.object(latexdraw, "compilers", lambda: {}):
+            v = latexpage.view("computer")
+        self.assertTrue(v["local"])
+        self.assertIs(v["files"]["mhchem.sty"], True, "got by Parseh")
+        self.assertIs(v["files"]["chemfig.sty"], False, "the computer has it, Parseh has not")
+        self.assertIs(v["files"]["amsmath.sty"], True, "the base: the computer's")
 
 
 class InlineMark(unittest.TestCase):

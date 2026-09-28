@@ -1339,16 +1339,15 @@ def api_latex_themes(h):
     import latexthemes
     import texpackages
     doc = latexthemes.all_of()
-    seen, missing = {}, {}
+    found = texpackages.installed_many(sorted({f for t in doc["themes"]
+                                               for _p, f, _tl, _l in latexthemes.files_needed(t)}))
+    got, missing = texpackages.manifest(), {}
     for t in doc["themes"]:
         gone = []
         if latexdraw.compiler(t["compiler"]) is None:
             gone.append({"id": t["compiler"], "install": None})
-        for pid, file, tl, _licence in latexthemes.files_needed(t):
-            if file not in seen:
-                seen[file] = texpackages.installed(file)
-            if seen[file] is False:
-                gone.append({"id": pid, "install": tl[0] if tl else pid})
+        for pid, names in texpackages.missing_for(t, got, found):
+            gone.append({"id": pid, "install": ",".join(names)})
         if gone:
             missing[t["name"]] = gone
     h.send_json({"themes": [t["name"] for t in doc["themes"]], "default": doc["default"],

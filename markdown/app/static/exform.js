@@ -1467,10 +1467,10 @@ function openLatexOverlay(opts) {
     if (plain !== cap.value) { cap.value = plain; cap.setSelectionRange(at, at); }
   });
   if (opts.offset === false) q(".lx-off").hidden = true;
-  // the Install link opens Settings in a new tab: the drawing being written is not left behind
+  // the Get link opens Settings in a new tab: the drawing being written is not left behind
   let missing = {}, settings = null;
   const installLink = pkg => settings && pkg
-    ? ` <a href="${escAttr(settings)}?install=${encodeURIComponent(pkg)}" target="_blank" rel="noopener">Install ${escAttr(pkg)}…</a>` : "";
+    ? ` <a href="${escAttr(settings)}?install=${encodeURIComponent(pkg)}" target="_blank" rel="noopener">Get ${escAttr(pkg.split(",").filter(Boolean).join(", "))}…</a>` : "";
   const say = (text, fix) => {
     status.innerHTML = escAttr(text) + (fix && fix.kind === "install" ? installLink(fix.package) : "");
   };

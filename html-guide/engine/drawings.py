@@ -211,7 +211,7 @@ def main(guide, check=False, quiet=False):
             def one(key):
                 item = wanted[key]
                 return key, latexdraw.draw(item["tex"], None, theme=starter(item["theme"]),
-                                           limit=120, inline=item["inline"])
+                                           limit=120, inline=item["inline"], local=False)
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
                 for key, result in pool.map(one, missing):
                     item = wanted[key]

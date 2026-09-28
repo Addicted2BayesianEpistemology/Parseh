@@ -35,6 +35,7 @@ import re
 import sys
 import threading
 import unicodedata
+import urllib.parse
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -894,8 +895,10 @@ def _latex_frame(b, r, ctx):
         links.append('<a class="btn" href="%s?make=%s">Make a theme called “%s”</a>'
                      % (esc(url), esc(fix.get("theme") or ""), esc(fix.get("theme") or "")))
     elif url and fix.get("kind") == "install":
-        links.append('<a class="btn" href="%s?install=%s">Install %s…</a>'
-                     % (esc(url), esc(fix.get("package") or ""), esc(fix.get("package") or "")))
+        pkg = fix.get("package") or ""
+        links.append('<a class="btn" href="%s?install=%s">Get %s…</a>'
+                     % (esc(url), esc(urllib.parse.quote(pkg, safe=",")),
+                        esc(", ".join(n for n in pkg.split(",") if n))))
     elif url and fix.get("kind") == "theme" and fix.get("theme"):
         links.append('<a class="btn" href="%s?theme=%s">Open the theme “%s”</a>'
                      % (esc(url), esc(fix["theme"]), esc(fix["theme"])))

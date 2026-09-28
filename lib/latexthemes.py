@@ -369,7 +369,8 @@ CATALOGUE = (
 # The first line is the group heading a person sees in Settings.  The optional
 # third value is its plain-language explanation there; it is deliberately
 # independent of the application this catalogue originally came from.
-GROUPS = (("base", "Base packages", "The basics every drawing uses: mathematics, colour, units and scientific notation."),
+GROUPS = (("base", "Base packages", "The basics every drawing uses: mathematics, colour, units and scientific notation. "
+                                    "They come with this computer's TeX: Parseh neither gets nor removes them."),
           ("letters", "Letters and symbols"),
           ("operations", "Operations and theorems"), ("drawings", "Drawings and plots"),
           ("chemistry", "Chemistry"), ("code", "Code and algorithms"),
@@ -741,15 +742,41 @@ def resolve(name):
             "languages": t.get("languages"), "theme": t}
 
 
+_USES = re.compile(r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}")
+
+
+def uses(theme):
+    """The catalogue's packages a theme uses, in the catalogue's order: those
+    it ticks, and those its own preamble loads by name."""
+    ids = [p for p in ORDER if p in theme.get("packages", ())]
+    by_name = {}
+    for p in ORDER:
+        by_name.setdefault(p, p)
+        by_name.setdefault(PACKAGES[p]["file"].rsplit(".", 1)[0], p)
+    for m in _USES.finditer(theme.get("preamble") or ""):
+        for name in m.group(1).split(","):
+            p = by_name.get(name.strip())
+            if p and p not in ids:
+                ids.append(p)
+    return sorted(ids, key=ORDER.index)
+
+
+def own_packages(theme):
+    """The packages a theme uses beyond the base.  They are Parseh's own (the
+    owner, 2026-09-28): drawn only once Parseh has got them into its texmf/,
+    even where the computer's TeX has them too; the base, and what every
+    drawing loads (ALWAYS), come with the computer's TeX."""
+    return [p for p in uses(theme) if PACKAGES[p]["group"] != "base"]
+
+
 def files_needed(theme):
     """The TeX files a theme's drawing reads, by the package that has them ->
     [(id, file, tl packages, licence)] -- what Settings checks is installed."""
     out = [("standalone",) + (ALWAYS["standalone"][1], ALWAYS["standalone"][0],
                               ALWAYS["standalone"][2])]
-    for p in ORDER:
-        if p in theme.get("packages", ()):
-            r = PACKAGES[p]
-            out.append((p, r["file"], r["tl"], r["licence"]))
+    for p in uses(theme):
+        r = PACKAGES[p]
+        out.append((p, r["file"], r["tl"], r["licence"]))
     if theme.get("compiler") in UNICODE and (theme.get("font") or theme.get("languages")):
         out.append(("fontspec", ALWAYS["fontspec"][1], ALWAYS["fontspec"][0],
                     ALWAYS["fontspec"][2]))

@@ -5885,6 +5885,8 @@ import latexthemes, latexdraw, texpackages
 latexthemes.STORE = os.path.join(config, "latex.json")
 latexdraw.DRAWN = os.path.join(os.path.dirname(config), "latex-drawn")
 texpackages.TREE = os.path.join(os.path.dirname(config), "texmf")
+import texmf_fixture  # noqa: E402  what the themes add to the base, as if Parseh had got it
+texmf_fixture.pretend_got(texpackages, latexthemes)
 offline.DIGESTS = os.path.join(config, "digests.json")
 offline.WHERES = os.path.join(config, "wheres.json")
 sys.argv = ["serve.py"] + sys.argv[2:]
