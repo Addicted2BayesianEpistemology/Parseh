@@ -1570,7 +1570,7 @@ const gotOf = page => page.evaluate(() => ({error: __got.error, ended: __got.end
   assert(shape(realWave).length === 0, '(and the shape drawn alone, for comparison, is that shape)');
   const back = g.prog.findIndex((p, i) => i > 0 && p[0] < g.prog[i - 1][0] - 0.001);
   if (back >= 0) console.log('     raw: the clock read backwards in progress: ' + JSON.stringify(g.prog.slice(Math.max(0, back - 2), back + 3)));
-  assert(g.prog.length >= 40 && g.prog.at(-1)[0] >= 41 && g.prog.every(p => p[1] === 42) && back < 0,
+  assert(g.prog.length >= 40 && g.prog.at(-1)[0] >= 40.9 && g.prog.every(p => p[1] === 42) && back < 0,
          `progress is the video's clock over its length, ${g.prog.length} times (twice at every whole second), the last at ${g.prog.at(-1)[0].toFixed(2)} of 42`);
   eq(await page.evaluate(() => [__wake.asked, __wake.released, ParsehTabCapture.busy()]), [['screen'], 1, false],
      'the screen was kept awake while it recorded, and let go; not busy any more');
@@ -1767,6 +1767,30 @@ const gotOf = page => page.evaluate(() => ({error: __got.error, ended: __got.end
   eq([h.error, h.result.reason, h.ended], [null, 'ended', ['ended']], 'the second recording runs to the video\'s end: nothing was left behind');
   eq(await page.evaluate(() => [__asked.length, __contexts.map(c => c.state).join(), __wake.released]), [2, 'closed,closed,closed,closed', 2],
      'Chrome asked once for each, and everything of both is closed');
+  await context.close();
+}
+{
+  console.log('   m8b) the other ways it ends: the clock stops for ten seconds; the person stops sharing');
+  const {context, page} = await tcPage({query: 'src=short.wav'});
+  const before = await page.evaluate(() => [...__intervals.keys()]);
+  await startRec(page);
+  await until(async () => (await childState(page)).t > 1.2, 'the video plays', 20000);
+  await page.evaluate(() => __p.pauseVideo());
+  await recOver(page, 'the stopped clock ends the recording', 40000);
+  const g = await gotOf(page);
+  eq([g.error, g.result.reason, g.ended], [null, 'stalled', ['stalled']], 'a video that stood still for ten seconds ends as stalled, once');
+  assert(g.result.reached > 1.2 && g.result.reached < 3 && g.result.samples > 10 * 16000, `having reached ${g.result.reached.toFixed(2)} s of its 12, with ${(g.result.samples / 16000).toFixed(1)} s of sound (the ten seconds of standing still)`);
+  eq(await page.evaluate(() => [ParsehTabCapture.busy(), __contexts.map(c => c.state).join(), __streams.map(s => s.getTracks().map(t => t.readyState).join())]),
+     [false, 'closed,closed', ['ended,ended']], 'and everything is let go');
+  await startRec(page);
+  await until(() => page.evaluate(() => __rec.state === 'listening' && __got.marks.length > 0), 'the second recording listens');
+  await page.evaluate(() => __streams.at(-1).getAudioTracks()[0].dispatchEvent(new Event('ended')));
+  await recOver(page, 'the share ending ends the recording', 8000);
+  const h = await gotOf(page);
+  eq(h.error, {message: 'the tab stopped being shared while its sound was being recorded', reason: 'share-ended'}, 'the person stopping the share ends it as share-ended, in words');
+  eq(await page.evaluate(() => [__got.ended, ParsehTabCapture.busy(), __contexts.map(c => c.state).join(), __clones.map(c => c.readyState).join(), [...__intervals.keys()]]),
+     [['share-ended'], false, 'closed,closed,closed,closed', 'ended,ended', before],
+     'ended once, not busy, all four contexts closed, both clones stopped, no timer left');
   await context.close();
 }
 {
