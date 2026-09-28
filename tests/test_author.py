@@ -283,6 +283,59 @@ class NotInWhatAPersonMakes(unittest.TestCase):
             if path.is_file():
                 self.assertEqual(self.has(path.read_text(encoding="utf-8")), [], rel)
 
+    # THE FILES THAT MAY IMPORT lib/author.py, and no others: Parseh's own chrome (the hub, the
+    # Settings hub, the Licences page) and the guide's compiler.  The signature's words live in that
+    # one module, so a writer of what a person keeps -- a shelf's backup, a bundle, a PDF's source, a
+    # deck -- could add it by importing it, and contain none of the words the list above looks for.
+    # Widening this list is the owner's decision.
+    IMPORTERS = {"serve.py", "lib/notices.py", "lib/settingspage.py",
+                 "html-guide/engine/studio.py", "html-guide/engine/site.py"}
+
+    @staticmethod
+    def imports_author(source):
+        """Does a module's source import `author`: `import author`, `from author import x`, a name
+        `author` taken from another module, or importlib's import_module("author")?"""
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import) and any(a.name.split(".")[-1] == "author" for a in node.names):
+                return True
+            if isinstance(node, ast.ImportFrom) and ((node.module or "").split(".")[-1] == "author"
+                                                     or any(a.name == "author" for a in node.names)):
+                return True
+            if isinstance(node, ast.Call):
+                f = node.func
+                called = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+                first = node.args[0] if node.args else None
+                if called in ("import_module", "__import__") and isinstance(first, ast.Constant) \
+                        and first.value == "author":
+                    return True
+        return False
+
+    def test_the_scan_for_who_imports_the_signature_sees_every_way_to(self):
+        for source in ("import author", "def f():\n    import author as a\n", "from author import links",
+                       "from .studio import GUIDE, author, find_font",
+                       "import importlib\nimportlib.import_module('author')",
+                       "from importlib import import_module\nimport_module(\"author\")", "__import__('author')"):
+            self.assertTrue(self.imports_author(source), source)
+        for source in ("import authors", "from authorship import links", "import json",
+                       "def f(name):\n    return __import__(name)", "author = 'the person'"):
+            self.assertFalse(self.imports_author(source), source)
+
+    def test_only_parsehs_own_chrome_and_the_guides_compiler_import_the_signature(self):
+        found = set()
+        for path in sorted(ROOT.rglob("*.py")):
+            rel = path.relative_to(ROOT).as_posix()
+            if rel.startswith(("tests/", ".claude/", "html-guide/site/", ".git/")) or rel == "lib/author.py":
+                continue
+            try:
+                source = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            if self.imports_author(source):
+                found.add(rel)
+        self.assertEqual(found, self.IMPORTERS,
+                         "a module that writes what a person keeps may not carry the author's signature: "
+                         "if the owner has widened where it goes, this list is where that is said")
+
     def test_an_exported_document_carries_none_of_it(self):
         import webexport
         _n, data = webexport.document_html("plain-0a1b2c", {"title": "Plain"},
