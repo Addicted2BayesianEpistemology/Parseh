@@ -1,0 +1,7 @@
+{
+ "h": 65.04,
+ "inline": false,
+ "tex": "\\begin{tikzpicture}\n\\draw[->] (0,0) -- (2,0) node[right] {$x$};\n\\draw[->] (0,0) -- (0,1.5) node[above] {$y$};\n\\draw[thick,domain=0:1.8] plot (\\x,{0.4*\\x*\\x});\n\\end{tikzpicture}",
+ "theme": "drawing",
+ "w": 79.15
+}

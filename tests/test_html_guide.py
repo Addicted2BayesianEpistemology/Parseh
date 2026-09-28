@@ -1085,6 +1085,19 @@ class LatexDrawingsAreDrawnBeforehand(unittest.TestCase):
                 raise RuntimeError("a page that cannot be drawn")
         self.assertIs(self.htmlgen.LATEX["draw"], marker)
 
+    def test_a_studio_served_under_a_prefix_never_reaches_the_guide_s_pictures(self):
+        # Parseh sets htmlgen.URL_BASE to "/studio" for its own pages; a picture's
+        # url in the guide is already the page's, and must come out as it is
+        from engine import drawings
+        self.htmlgen.URL_BASE = "/studio"
+        self.addCleanup(setattr, self.htmlgen, "URL_BASE", "")
+        site, report = self.compile({"drawn.md": LATEX_PAGE}, LATEX_DRAWN)
+        html = (site / "drawn.html").read_text(encoding="utf-8")
+        block = drawings.key_of(LATEX_DRAWN[1][0], drawings.starter("chemistry"), False)
+        self.assertIn('src="drawings/%s.svg"' % block, html)
+        self.assertNotIn('src="/studio', html, "no prefix in front of a picture")
+        self.assertEqual(self.htmlgen.URL_BASE, "/studio", "and the studio's own prefix is put back")
+
     def test_the_guide_asks_for_no_drawing_it_has_not_got(self):
         before = snapshot(GUIDE / "markdown" / "drawings")
         r = subprocess.run([sys.executable, str(GUIDE / "build.py"), "--draw", "--check"],

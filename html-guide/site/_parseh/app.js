@@ -488,6 +488,94 @@ function toast(msg, isErr) {
   }, isErr ? 4200 : 2200);
 }
 
+/* A QUESTION IN THE STUDIO'S OWN WINDOW, where the browser's confirm() would
+   be a box in another theme.  The same window the exercise decks ask in
+   (decks.js `dialog`): Cancel is the first button and has the focus, Escape
+   and a click beside the box answer no, and the answer is a promise -- true
+   for the main button, false for anything else.  `run`, when there is one,
+   is what the main button does, and it does it INSIDE the window: both
+   buttons are off while it works, and when it throws the message is toasted
+   and the window stays, so a refusal is said where the question was asked
+   and the button can be pressed again.  Focus goes back to `opener` (or to
+   what had it) when the window closes. */
+function confirmDialog({title, hint = "", ok = "OK", danger = false, run = null, opener = null}) {
+  const root = $("#modal-root");
+  const back = opener || document.activeElement;
+  root.innerHTML = "";
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  const box = document.createElement("div");
+  box.className = "modal dk-modal";
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  box.setAttribute("aria-label", title);
+  const h = document.createElement("h3");
+  h.textContent = title;
+  box.appendChild(h);
+  if (hint) {
+    const p = document.createElement("p");
+    p.textContent = hint;
+    box.appendChild(p);
+  }
+  const row = document.createElement("div");
+  row.className = "row";
+  const noBtn = document.createElement("button");
+  noBtn.type = "button";
+  noBtn.className = "btn";
+  noBtn.dataset.x = "cancel";
+  noBtn.textContent = "Cancel";
+  const yesBtn = document.createElement("button");
+  yesBtn.type = "button";
+  yesBtn.className = "btn " + (danger ? "danger" : "primary");
+  yesBtn.dataset.x = "ok";
+  yesBtn.textContent = ok;
+  row.append(noBtn, yesBtn);
+  box.appendChild(row);
+  ov.appendChild(box);
+  return new Promise(resolve => {
+    let busy = false, settled = false;
+    const close = value => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKey, true);
+      ov.remove();
+      if (back && back.isConnected && typeof back.focus === "function") back.focus();
+      resolve(value);
+    };
+    const hold = on => { busy = on; noBtn.disabled = yesBtn.disabled = on; };
+    function onKey(e) {
+      if (e.key === "Escape") {
+        e.preventDefault(); e.stopPropagation();
+        if (!busy) close(false);
+      } else if (e.key === "Tab") {
+        e.preventDefault();               // the page beneath is not reachable
+        const live = [noBtn, yesBtn].filter(b => !b.disabled);
+        if (!live.length) return;
+        const i = live.indexOf(document.activeElement);
+        live[(i + (e.shiftKey ? live.length - 1 : 1)) % live.length].focus();
+      }
+    }
+    document.addEventListener("keydown", onKey, true);
+    noBtn.addEventListener("click", () => { if (!busy) close(false); });
+    ov.addEventListener("click", e => { if (e.target === ov && !busy) close(false); });
+    yesBtn.addEventListener("click", async () => {
+      if (busy) return;                   // one request per click, however fast
+      hold(true);
+      try {
+        if (run) await run();
+      } catch (e) {
+        toast(e.message, true);
+        hold(false);
+        noBtn.focus();
+        return;
+      }
+      close(true);
+    });
+    root.appendChild(ov);
+    (danger ? noBtn : yesBtn).focus();
+  });
+}
+
 /* A FLASHCARD, LARGE, OVER THE PAGE.  A card on the page is a column wide,
    and a picture on it is shrunk to fit -- which is what makes a picture card
    hard to see.  So every flashcard has ⤢ Enlarge: the same card in a window
@@ -959,6 +1047,23 @@ function flipCard(card) {
   card.setAttribute("aria-pressed", flipped ? "true" : "false");
   const hint = $(":scope > .ex-card-hint", card) || $(":scope > small", card);
   if (hint) hint.textContent = flipped ? "tap to see front" : "tap to reveal";
+}
+
+/* A `both-random` card (data-first="random") shows either side first, drawn
+   each time it is shown -- here, where it is drawn, and not on the server,
+   which would freeze the draw into an export, a study pack and the cached
+   cram page.  The two sides swap names, so `.ex-card-front` is still the
+   side shown first for everything that reads it (flipCard, the recording
+   played first, the enlarged copy).  A card already turned (a preview shows
+   both sides) is left as it is, and one drawn once is not drawn again. */
+function drawFirstSide(card) {
+  if (card.dataset.first !== "random" || card.dataset.drawn || card.classList.contains("flipped")) return;
+  card.dataset.drawn = "1";
+  const front = $(":scope > .ex-card-front", card), back = $(":scope > .ex-card-back", card);
+  if (!front || !back || Math.random() < 0.5) return;
+  front.className = "ex-card-back"; back.className = "ex-card-front";
+  front.hidden = true; back.hidden = false;
+  card.insertBefore(back, front);
 }
 
 function escAttr(s) {
@@ -1711,7 +1816,11 @@ function bindFootnoteClouds(container) {
    rewrites its (possibly unsaved) buffer.  `opts.applyTranslit` and
    `opts.applyKana` do the same for the transliteration and, for a
    language with a reading, the kana -- two independent halves of the
-   same mark, each with its own field at the head of the cloud. */
+   same mark, each with its own field at the head of the cloud.
+   `opts.only(span)`, when given, says which runs open the cloud at all;
+   `opts.host` is the element the cloud is put in instead of <body>; and
+   `opts.onlyHere` marks a page that keeps nothing, which only changes what
+   the toasts say -- the cloud itself is the same. */
 function bindColorPalette(container, opts) {
   if (!opts || !opts.apply) return;
   let pal = null, target = null, hideTimer = null;
@@ -1725,6 +1834,16 @@ function bindColorPalette(container, opts) {
   // swaps the language live as the preview reports another `target:`,
   // and show() rebuilds the cloud when that has happened.
   let MARKS = [];
+  // A RUN NAMES ITS OWN LANGUAGE (lang="…" on the span, from the record the
+  // page embeds in #langs-json): a page may hold examples of several, and the
+  // cloud's fields, labels and face are those of the word it opens on.  A run
+  // of the page's own language, or one whose language the page has no full
+  // record of, takes the page's -- which is every run of a studio document.
+  function langOf(span) {
+    const code = span && span.getAttribute && span.getAttribute("lang");
+    if (!code || code === lang().code) return lang();
+    return LANGS.find(l => l.code === code && l.translit_label) || lang();
+  }
   function markFields(L) {
     const out = [];
     if (L.reading && opts.applyKana)
@@ -1737,8 +1856,7 @@ function bindColorPalette(container, opts) {
   const PAL_HEX = {crimson: "#8E2B34", indigo: "#2F3E8F", teal: "#13605C",
                    violet: "#5C2E7E", amber: "#8A5A0B"};
 
-  function build() {
-    const L = lang();
+  function build(L) {
     MARKS = markFields(L);
     pal = document.createElement("div");
     pal.className = "fapal";
@@ -1756,14 +1874,6 @@ function bindColorPalette(container, opts) {
         `${m.kind === "kana" ? ` lang="${L.code}"` : ""}>` +
       `</span>`).join("") +
       `<span class="lbl">colour</span>`;
-    if (opts.onlyHere) {
-      // AN EXPORTED PAGE KEEPS NOTHING: what is changed in the cloud is
-      // changed on this open page, and gone when the tab closes
-      const note = document.createElement("span");
-      note.className = "fapal-here";
-      note.textContent = "On this page only: nothing is saved.";
-      pal.appendChild(note);
-    }
     for (const c of colors) {
       const b = document.createElement("button");
       b.type = "button";
@@ -1801,13 +1911,13 @@ function bindColorPalette(container, opts) {
     MARKS.forEach(bindMarkEditor);
     pal.addEventListener("mouseenter", () => clearTimeout(hideTimer));
     pal.addEventListener("mouseleave", scheduleHide);
-    document.body.appendChild(pal);
+    (opts.host || document.body).appendChild(pal);
   }
 
   // the reading applier is gated on the language at the moment of use: a
   // buffer switched away from Japanese has no reading field to write
-  const applier = kind => kind === "kana"
-    ? (lang().reading ? opts.applyKana : null) : opts.applyTranslit;
+  const applier = (kind, span) => kind === "kana"
+    ? (langOf(span).reading ? opts.applyKana : null) : opts.applyTranslit;
 
   /* A mark control: a label that turns into a text field on click, or a
      + when the run carries no annotation yet.  Writing it back is the
@@ -1881,7 +1991,7 @@ function bindColorPalette(container, opts) {
       // in the heading itself (`## فارسی | translit | …`); a second,
       // marked-up copy would be a competing source of truth, so the
       // editor is offered only on ordinary runs
-      const editable = !!applier(m.kind) && span
+      const editable = !!applier(m.kind, span) && span
         && span.classList.contains("fa");
       val.hidden = !v;
       add.hidden = !!v || !editable;
@@ -1892,7 +2002,7 @@ function bindColorPalette(container, opts) {
 
   async function applyMark(m, value) {
     const span = trSpan;
-    const fn = applier(m.kind);
+    const fn = applier(m.kind, span);
     if (!span || !fn) return;
     const v = value.trim(), before = currentMark(span, m.kind);
     if (v === before) { showMarks(span); return scheduleHide(); }
@@ -1903,7 +2013,7 @@ function bindColorPalette(container, opts) {
       await fn(body, span);
       showMarks(span);
       toast(opts.onlyHere
-        ? (v ? `${what}: ${v} — on this page only, nothing is saved` : `${what} removed on this page only`)
+        ? (v ? `${what}: ${v}` : `${what} removed`)
         : (v ? `${what} saved: ${v}` : `${what} removed`));
       hide();
     } catch (e) {
@@ -1922,11 +2032,12 @@ function bindColorPalette(container, opts) {
   function show(span) {
     // a cloud built for another language is thrown away: its fields, face
     // and labels are that language's (never while a field is open in it)
-    if (pal && pal.dataset.lang !== lang().code && !editPinned && !pickerPinned) {
+    const L = langOf(span);
+    if (pal && pal.dataset.lang !== L.code && !editPinned && !pickerPinned) {
       pal.remove();
       pal = null;
     }
-    if (!pal) build();
+    if (!pal) build(L);
     target = span;
     showMarks(span);
     const cur = currentColor(span);
@@ -1968,7 +2079,7 @@ function bindColorPalette(container, opts) {
       await opts.apply(body, span);
       hide();
       toast(opts.onlyHere
-        ? (color ? `Marked ${color} — on this page only, nothing is saved` : "Colour removed on this page only")
+        ? (color ? `Marked ${color}` : "Colour removed")
         : (color ? `Marked ${color} — saved in the markdown` : "Colour removed"));
     } catch (e) {
       toast("Could not set the colour: " + e.message, true);
@@ -1978,6 +2089,7 @@ function bindColorPalette(container, opts) {
   container.addEventListener("mouseover", e => {
     const span = e.target.closest(".fa[data-fa], .voce-fa[data-fa]");
     if (!span || !container.contains(span)) return;
+    if (opts.only && !opts.only(span)) return;
     clearTimeout(hideTimer);
     if (span !== target) show(span);
   });
@@ -1985,6 +2097,50 @@ function bindColorPalette(container, opts) {
     if (e.target.closest(".fa[data-fa], .voce-fa[data-fa]")) scheduleHide();
   });
   window.addEventListener("scroll", hide, {passive: true});
+}
+
+/* THE CLOUD ON A PAGE THAT KEEPS NOTHING -- an exported page, and the guide
+   (the owner, 2026-09-25 and 2026-09-28): the studio's own cloud, whose
+   colours and marks are written onto this open page and nowhere else.  No
+   server is asked and nothing is stored: the appliers below touch the DOM
+   and are gone with the tab.  `only(span)` picks the runs that open it (the
+   guide's: those that carry a transliteration or a reading) and `host` is
+   where the cloud is put (the guide's layer, inside the scope its rules
+   are written under). */
+function bindPageCloud(container, opts) {
+  opts = opts || {};
+  const colour = (body, span) => {
+    let wrap = span.parentElement && span.parentElement.classList.contains("fac")
+      ? span.parentElement : null;
+    if (!body.color) {
+      if (!wrap) return;
+      wrap.className = "fac";
+      wrap.style.color = "";
+      delete wrap.dataset.color;
+      if (!wrap.dataset.translit && !wrap.dataset.kana) wrap.replaceWith(...wrap.childNodes);
+      return;
+    }
+    if (!wrap) {
+      wrap = document.createElement("span");
+      span.replaceWith(wrap);
+      wrap.appendChild(span);
+    }
+    wrap.className = "fac";
+    wrap.style.color = "";
+    if (body.color.startsWith("#")) wrap.style.color = body.color;
+    else wrap.classList.add("fac-" + body.color);
+    wrap.dataset.color = body.color;
+  };
+  const mark = kind => (body, span) => {
+    const v = (body[kind] || "").trim();
+    if (v) span.dataset[kind] = v;
+    else delete span.dataset[kind];
+    if (span.parentElement && span.parentElement.dataset[kind] && !v)
+      delete span.parentElement.dataset[kind];
+  };
+  bindColorPalette(container, {apply: colour, applyTranslit: mark("translit"),
+                               applyKana: mark("kana"), onlyHere: true,
+                               only: opts.only, host: opts.host});
 }
 
 /* The reading view's appliers: save on the server, then patch the DOM in
@@ -2599,6 +2755,7 @@ function bindExercises(container, opts = {}) {
   const preview = !!opts.preview;
   const exercises = $$(".exercise", container);
   if (!exercises.length) return {judge: () => false, exercises: []};
+  $$(".ex-flashcard[data-first]", container).forEach(drawFirstSide);
 
   function showTransliterationChoice() {
     document.body.classList.toggle("ex-hide-transliteration", hideExerciseTransliterations);
@@ -3580,10 +3737,26 @@ function initIndex() {
       }
       $(".card-del", el).addEventListener("click", async e => {
         e.preventDefault(); e.stopPropagation();
-        if (!confirm(`Delete “${d.title}” and its builds? This cannot be undone.`)) return;
-        await api("/api/docs/" + d.id, {method: "DELETE"});
-        toast("Deleted " + d.title);
-        loadDocs(); loadTags();
+        const gone = await confirmDialog({
+          title: `Delete “${d.title}”?`,
+          hint: "Its builds are deleted too. This cannot be undone.",
+          ok: "Delete document", danger: true, opener: e.currentTarget,
+          run: async () => {
+            // the card by its id: a list drawn again since the question was
+            // asked (after a refusal) made this one a copy nobody sees
+            const drop = () => $$(".card", cards).forEach(c => { if (c.dataset.id === d.id) c.remove(); });
+            try {
+              await api("/api/docs/" + d.id, {method: "DELETE"});
+              drop();
+            } catch (err) {
+              if (err.status === 404) drop();          // already gone: what was asked for
+              else { err.message = "Delete failed: " + err.message; throw err; }
+            } finally {
+              loadDocs(); loadTags();     // the server may have done part of it either way
+            }
+          },
+        });
+        if (gone) toast("Deleted " + d.title);
       });
       cards.appendChild(el);
     }
@@ -4143,6 +4316,7 @@ function initDoc() {
         close();
         const warnings = result.warnings || [];
         toast(`Copied into “${(result.deck || {}).name || deckName}”`
+          + ((result.items || []).length > 1 ? " as two linked cards" : "")
           + (warnings.length ? " — " + warnings.join(" · ") : ""), warnings.length > 0);
       } catch (err) {
         toast(err.message, true);
@@ -4286,7 +4460,7 @@ function initDoc() {
           if (again.checked) payload.force = true;
           try {
             const result = await decksFetch(deckUrl(path) + "/copy", {method: "POST", json: payload});
-            added++;
+            added += (result.items || []).length || 1;      // a both-repeat card is two
             if ((result.deck || {}).name) deckName = result.deck.name;
             for (const w of result.warnings || []) if (!warnings.includes(w)) warnings.push(w);
           } catch (err) {
@@ -4505,12 +4679,23 @@ function initDoc() {
     } catch (e) { toast("Duplicate failed: " + e.message, true); }
   });
 
-  $("#btn-delete").addEventListener("click", async () => {
-    if (!confirm(`Delete “${meta.title}” and its builds? This cannot be undone.`)) return;
-    try {
-      await api("/api/docs/" + DOC_ID, {method: "DELETE"});
-      location.href = BASE + "/";
-    } catch (e) { toast("Delete failed: " + e.message, true); }
+  $("#btn-delete").addEventListener("click", async e => {
+    const menu = e.currentTarget.closest("details");
+    if (menu) menu.open = false;
+    const gone = await confirmDialog({
+      title: `Delete “${meta.title}”?`,
+      hint: "Its builds are deleted too. This cannot be undone.",
+      ok: "Delete document", danger: true,
+      opener: menu ? $("summary", menu) : null,
+      run: async () => {
+        try {
+          await api("/api/docs/" + DOC_ID, {method: "DELETE"});
+        } catch (err) {
+          if (err.status !== 404) { err.message = "Delete failed: " + err.message; throw err; }
+        }                                 // 404: already gone, which is what was asked for
+      },
+    });
+    if (gone) location.href = BASE + "/";
   });
 
   const btnPrint = $("#btn-print");

@@ -121,14 +121,18 @@ class Drawings:
     @contextlib.contextmanager
     def installed(self, ctx_of):
         """For the length of the block the studio draws from this folder; what
-        was set before is put back."""
-        saved = dict(htmlgen.LATEX)
+        was set before is put back.  A picture's url is already the page's own,
+        so the prefix a running studio is served under (htmlgen.URL_BASE) must
+        not be put in front of it."""
+        saved, base = dict(htmlgen.LATEX), htmlgen.URL_BASE
         htmlgen.set_latex(self.drawer(ctx_of), None, None)
+        htmlgen.URL_BASE = ""
         try:
             yield self
         finally:
             htmlgen.LATEX.clear()
             htmlgen.LATEX.update(saved)
+            htmlgen.URL_BASE = base
 
 
 def _shorten(tex):

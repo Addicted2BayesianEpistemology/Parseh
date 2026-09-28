@@ -470,6 +470,7 @@ body[data-page="doc"] :is(.pz,.modal-overlay) .ex-flashcard figure.img:hover img
   background: color-mix(in srgb, var(--accent) 12%, var(--sheet-bg));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);}
 :is(.pz,.modal-overlay) .ex-flashcard > small{position: absolute; inset-inline-end: .7em; bottom: .55em; color: var(--graytx); font: .65em var(--sans);}
+:is(.pz,.modal-overlay) .ex-card-note{margin: -.4em 0 0; text-align: center; color: var(--graytx); font: .72em var(--sans);}
 .modal-overlay.ex-zoom-overlay{z-index: 110; padding: 2vh 2vw;}
 :is(.pz,.modal-overlay) .modal.ex-zoom-modal{width: 96vw; height: 94vh; max-height: none; padding: .7rem .9rem 1rem; gap: .6rem;}
 :is(.pz,.modal-overlay) .ex-zoom-modal:focus{outline: none;}
@@ -770,7 +771,12 @@ body[data-page="edit"] :is(.pz,.modal-overlay) .video-edit,body[data-page="edit"
   font-size: .72em; color: var(--graytx); line-height: 1.5;}
 :is(.pz,.modal-overlay) figure.latex{margin: 1.2em 0; display: block; max-width: 100%;}
 :is(.pz,.modal-overlay) figure.latex img{display: block; width: 100%; height: auto;}
+:is(.pz,.modal-overlay) figure.latex figcaption{margin-top: .35em; text-align: center;}
+:is(.pz,.modal-overlay) figure.latex figcaption > span{display: block; font-size: .78em; color: var(--graytx); line-height: 1.45;}
+:is(.pz,.modal-overlay) figure.latex.align-left figcaption{text-align: left;}
+:is(.pz,.modal-overlay) figure.latex.align-right figcaption{text-align: right;}
 :is(.pz,.modal-overlay) .ex-flashcard figure.latex{margin-top: .5em; margin-bottom: .5em;}
+html[data-sheet="dark"] :is(.pz,.modal-overlay) figure.latex img,html[data-sheet="dark"] :is(.pz,.modal-overlay) img.latex-inline,html[data-sheet="dark"] :is(.pz,.modal-overlay) .lx-preview-image{filter: invert(.9) hue-rotate(180deg);}
 :is(.pz,.modal-overlay) .latex-fail{border: 1px dashed var(--rule, #8888); border-radius: 6px; padding: .6em .8em;
   margin: 1em 0; font-size: .9em;}
 :is(.pz,.modal-overlay) .latex-fail .latex-said{margin: 0 0 .4em;}
@@ -778,7 +784,6 @@ body[data-page="edit"] :is(.pz,.modal-overlay) .video-edit,body[data-page="edit"
 :is(.pz,.modal-overlay) .latex-fail pre{white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85em; margin: .4em 0 0;
   direction: ltr; text-align: left;}
 :is(.pz,.modal-overlay) .latex-fail .latex-log summary{cursor: pointer; font-size: .9em;}
-:is(.pz,.modal-overlay) .fapal .fapal-here{flex-basis: 100%; font-size: .72rem; color: var(--graytx, #777); margin-top: 2px;}
 :is(.pz,.modal-overlay) .topbar{position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: .6rem;
   padding: .5rem .9rem;
@@ -1101,23 +1106,22 @@ body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .dropdown .menu{right: .9
   padding: 1rem 1.1rem; overflow: auto; background: var(--chrome-bg); border-right: 1px solid var(--chrome-line);}
 :is(.pz,.modal-overlay) .lx-preview-head{display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap;}
 :is(.pz,.modal-overlay) .lx-preview-head > b{font-size: .82rem;}
-:is(.pz,.modal-overlay) .lx-preview-size{display: inline-flex; gap: .3rem; flex-wrap: wrap;}
-:is(.pz,.modal-overlay) .lx-preview-size .btn[aria-pressed="true"]{border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--chrome-panel)); color: var(--accent);}
 :is(.pz,.modal-overlay) .latex-modal .lx-status{display: block; min-height: 1.1em; margin: 0;}
+:is(.pz,.modal-overlay) .latex-modal .lx-status a{color: var(--accent); font-weight: 600; white-space: nowrap;}
 :is(.pz,.modal-overlay) .latex-modal .lx-stage{margin: 0; max-width: none; min-height: 21rem; flex: 1 1 auto;
   display: flex; align-items: center; justify-content: center; overflow: auto;
   padding: clamp(.8rem, 2vw, 1.6rem); border: 1px solid var(--chrome-line); border-radius: 9px;
   box-shadow: none; background: var(--sheet-bg);}
 :is(.pz,.modal-overlay) .latex-modal .lx-stage:empty::after{content: "The drawing will appear here."; color: var(--chrome-mut); font: .82rem var(--sans);}
-:is(.pz,.modal-overlay) .lx-preview-image{display: block; width: auto; height: auto; max-width: 100%; max-height: 100%;}
-:is(.pz,.modal-overlay) .lx-stage[data-lx-preview-mode="actual"]{align-items: flex-start; justify-content: flex-start;}
-:is(.pz,.modal-overlay) .lx-stage[data-lx-preview-mode="actual"] .lx-preview-image{max-width: none; max-height: none;}
+:is(.pz,.modal-overlay) .lx-preview-image{display: block; width: 100%; height: auto; max-width: calc(var(--lx-w, 100000) * 12px); max-height: 100%;
+  object-fit: contain;}
 :is(.pz,.modal-overlay) .lx-preview-detail{width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, Menlo, monospace;}
 :is(.pz,.modal-overlay) .lx-editor-pane{grid-area: editor; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .85rem;
   padding: 1rem 1.2rem; overflow: auto;}
 :is(.pz,.modal-overlay) .lx-field{display: flex; flex-direction: column; gap: .28rem; color: var(--chrome-mut); font-size: .82rem;}
 :is(.pz,.modal-overlay) .lx-field > span{color: var(--chrome-fg); font-weight: 600;}
-:is(.pz,.modal-overlay) .lx-field select,:is(.pz,.modal-overlay) .lx-layout select,:is(.pz,.modal-overlay) .lx-layout input[type="number"]{border: 1px solid var(--chrome-line); border-radius: 7px; background: var(--chrome-bg); color: var(--chrome-fg);
+:is(.pz,.modal-overlay) .lx-field > span small{color: var(--chrome-mut); font-weight: 400;}
+:is(.pz,.modal-overlay) .lx-field select,:is(.pz,.modal-overlay) .lx-field input[type="text"],:is(.pz,.modal-overlay) .lx-layout select,:is(.pz,.modal-overlay) .lx-layout input[type="number"]{border: 1px solid var(--chrome-line); border-radius: 7px; background: var(--chrome-bg); color: var(--chrome-fg);
   padding: .42rem .55rem; font: inherit;}
 :is(.pz,.modal-overlay) .latex-modal .lx-src{min-height: 15rem; flex: 1 1 18rem; font-size: .88rem;}
 :is(.pz,.modal-overlay) .lx-layout{flex: none; border: 1px solid var(--chrome-line); border-radius: 8px; background: var(--chrome-bg);}
@@ -1137,11 +1141,13 @@ body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .dropdown .menu{right: .9
 .modal-overlay.latex-overlay{align-items: stretch; padding: .5rem;}
 :is(.pz,.modal-overlay) .modal.latex-modal{width: 100%; height: calc(100vh - 1rem); height: calc(100dvh - 1rem); max-height: none; border-radius: 10px;}
 :is(.pz,.modal-overlay) .latex-modal-head{padding: .85rem 1rem .7rem;}
-:is(.pz,.modal-overlay) .latex-modal-body{grid-template-columns: minmax(0, 1fr); grid-template-areas: "editor" "preview"; overflow: auto;}
+:is(.pz,.modal-overlay) .latex-modal-body{grid-template-columns: minmax(0, 1fr); grid-template-rows: max-content max-content;
+    grid-template-areas: "editor" "preview"; overflow: auto;}
 :is(.pz,.modal-overlay) .lx-editor-pane,:is(.pz,.modal-overlay) .lx-preview-pane{overflow: visible; padding: .85rem 1rem;}
 :is(.pz,.modal-overlay) .lx-preview-pane{min-height: 0; border-right: 0; border-top: 1px solid var(--chrome-line);}
 :is(.pz,.modal-overlay) .latex-modal .lx-src{min-height: 11rem; flex: none;}
 :is(.pz,.modal-overlay) .latex-modal .lx-stage{min-height: 15rem; flex: none;}
+:is(.pz,.modal-overlay) .lx-preview-image{max-height: 70vh;}
 :is(.pz,.modal-overlay) .lx-layout-fields{grid-template-columns: minmax(0, 1fr);}
 :is(.pz,.modal-overlay) .lx-layout-fields .lx-natural-field{grid-column: 1;}
 :is(.pz,.modal-overlay) .latex-modal-actions{padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom));}
@@ -1443,6 +1449,13 @@ body[data-page="doc"] :is(.pz,.modal-overlay) figure.img:hover img,body[data-pag
 :is(.pz,.modal-overlay) .dk-modal .dk-check{color: var(--chrome-fg); font-size: .9rem;}
 :is(.pz,.modal-overlay) .dk-modal .dk-running{margin: 0; padding-left: 1.2rem; color: var(--chrome-fg); font-size: .86rem;}
 :is(.pz,.modal-overlay) .dk-modal .dk-running li{unicode-bidi: plaintext; overflow-wrap: anywhere; margin: .15rem 0;}
+:is(.pz,.modal-overlay) .dk-ask .dk-others{margin: 0 0 .9rem; padding-left: 1.2rem; color: var(--chrome-fg); font-size: .9rem;}
+:is(.pz,.modal-overlay) .dk-ask .dk-others li{margin: .2rem 0; overflow-wrap: anywhere;}
+:is(.pz,.modal-overlay) .dk-ask .dk-others small{margin-inline-start: .3rem;}
+:is(.pz,.modal-overlay) .dk-ask .dk-others small{color: var(--chrome-mut); font-size: .76rem;}
+:is(.pz,.modal-overlay) .dk-ask .row{flex-wrap: wrap;}
+:is(.pz,.modal-overlay) .badge.dk-linked{color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent);}
+:is(.pz,.modal-overlay) .ex-author-field .dk-fixed-side{color: var(--chrome-mut); font-size: .74rem; line-height: 1.35;}
 :is(.pz,.modal-overlay) .dk-options-modal{width: min(680px, 96vw);}
 :is(.pz,.modal-overlay) .dk-options{display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem 1rem; overflow-y: auto;}
 :is(.pz,.modal-overlay) .dk-raw-modal{width: min(760px, 96vw);}
