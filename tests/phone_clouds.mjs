@@ -81,6 +81,24 @@
 //      subtitle the size the slider says and in the language's direction,
 //      the lines around it in proportion at 48px and clear of the corner;
 //      and in English at 36px the proportions of a plain line
+// hover ⏸ in a book (a0.4.1; the owner, 2026-09-25 and 2026-09-28; TO-DO §4.20 and §7.21):
+//   n) the video's switch in a book's reader, in BOTH modes, remembered on
+//      this device only (bk_hoverpause; never in the prefs the computer keeps):
+//      under ⋯ -> Listening on a phone, worded and drawn as the video's,
+//      beside hover in the browser interface, and not drawn in a book with no
+//      narration.  Off, nothing changes; on, a cloud opened over a playing
+//      narration (a tap, a mouse at rest) pauses it, once, the cloud still
+//      open, and it goes on 350 ms after the cloud shuts; from one word to
+//      the next within that, one pause and no play; paused by hand, or played
+//      and paused by hand under the cloud, it is never started; the
+//      dictionary's sheet on top, and a row's tap with nothing written: one
+//      pause and one resume, after the grace; the reader opening its own cloud
+//      again is no new open; the loop's wait between repeats is taken and given
+//      back; the switch turned off under an open cloud gives back what it took;
+//      and in the browser interface each of the reader's own sheets (cards, the
+//      chunk's editor, the fold, the LLM gloss, the narration's) is left
+//      alone.  What is read is the audio element's own play and pause events
+//      with the page's clock, printed raw, not a boolean.
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/phone_clouds.mjs
 //   SHOTS=<dir> also saves a screenshot of each
 import {chromium} from 'npm:playwright-core@1.52.0';
@@ -1704,6 +1722,568 @@ try {
          `and the plain line before the one being said, .64 of it (${got.map(l => l.size).join(', ')}px)`);
   await shot(big, 'size-en-plain-36');
   await big.context().close();
+
+  // ---- n) HOVER ⏸ IN A BOOK (a0.4.1; the owner, 2026-09-25 and 2026-09-28;
+  // TO-DO §4.20 and §7.21).  The video's switch, in a book's reader, in both
+  // modes and remembered on this device only: while a gloss cloud is open the
+  // narration waits, and it goes on 350 ms after the cloud shuts.  What is
+  // read is the audio element's OWN play and pause events, with the page's
+  // clock, printed raw -- a boolean that says "it paused" is not what this
+  // proves; the sequence of events, and how long after the cloud shut the
+  // last of them came, is.  The narration is the fixture's real 8-second
+  // mp3, its first subparagraph 0.8-3.9 s: every phase starts it again a
+  // little after its start, and none is allowed to run to the end.
+  const HP_ON_VIDEO = (await Deno.readTextFile(`${root}/youtube/lib/player.html`))
+    .match(/<button id="hoverpause"[^>]*>([^<]*)<\/button>/)[1].replace(/&nbsp;/g, '\u00a0');
+  // the audio's own events, the cloud's own comings and goings, and every
+  // click's time -- all in the page's clock, which is the only one that
+  // can say how long after the cloud shut the narration went on
+  const hpWatch = page => page.evaluate(() => {
+    cont = false; loop = false;
+    const a = document.getElementById('audio');
+    window.__ev = []; window.__cl = []; window.__clk = [];
+    ['play', 'pause'].forEach(n => a.addEventListener(n, () => __ev.push([n, Math.round(performance.now())])));
+    new MutationObserver(() => {
+      __cl.push([document.getElementById('cloud').hidden ? 'shut' : 'open', Math.round(performance.now())]);
+    }).observe(document.getElementById('cloud'), {attributes: true, attributeFilter: ['hidden']});
+    addEventListener('click', () => __clk.push(Math.round(performance.now())), true);
+  });
+  const hpRaw = page => page.evaluate(() => __ev.map(e => e.slice()));
+  const hpSeq = async page => (await hpRaw(page)).map(e => e[0]).join(',');
+  const hpClear = page => page.evaluate(() => { __ev.length = 0; __cl.length = 0; __clk.length = 0; });
+  const hpNote = async (page, what) => {
+    const ev = await hpRaw(page);
+    console.log(`  raw play/pause events, ${what}: ${JSON.stringify(ev)}`);
+    return ev;
+  };
+  const hpAudio = page => page.evaluate(() => [document.getElementById('audio').paused,
+                                               document.getElementById('audio').currentTime]);
+  const hpNow = page => page.evaluate(() => Math.round(performance.now()));
+  const hpCloud = page => page.evaluate(() => {
+    const c = document.getElementById('cloud'), h = document.querySelector('.p1 .w.hot');
+    return [!c.hidden, h ? +h.dataset.c : null];
+  });
+  const hpPlaying = (page, what, ms = 4000) =>
+    until(page, () => !document.getElementById('audio').paused, null, what, ms);
+  // the narration started again from just inside the first subparagraph, by
+  // hand, and its own events forgotten
+  async function hpStart(page, press) {
+    await page.evaluate(() => { document.getElementById('audio').currentTime = 0.85; });
+    await press();
+    await hpPlaying(page, 'the narration playing');
+    await sleep(150);
+    await hpClear(page);
+  }
+  // paused by hand, the events forgotten
+  async function hpStop(page, press) {
+    if (!(await hpAudio(page))[0]) await press();
+    await until(page, () => document.getElementById('audio').paused, null, 'the narration paused by hand', 4000);
+    await sleep(150);
+    await hpClear(page);
+  }
+  // the cloud's opening after `at` (a closure that opens it) has landed
+  const hpOpenCloud = async (page, at) => {
+    await at();
+    await until(page, () => !document.getElementById('cloud').hidden && !!document.querySelector('.p1 .w.hot'), null, 'the cloud open');
+  };
+  const hpCloudShut = page => until(page, () => document.getElementById('cloud').hidden, null, 'the cloud shut', 4000);
+  // the switch's state as the page keeps it and draws it
+  const hpSwitch = page => page.evaluate(() => {
+    const b = document.getElementById('hoverpause');
+    return [localStorage.getItem('bk_hoverpause'), b.classList.contains('on'), b.getAttribute('aria-pressed')];
+  });
+  // what one phase proves about a cloud that opened over a playing narration
+  // and shut: paused once, held open, frozen; then the grace, then playing
+  async function hpPhaseOpenShut(page, press, open, shut, label) {
+    await hpStart(page, press);
+    await hpOpenCloud(page, open);
+    eq(await hpSeq(page), 'pause', `${label}: a cloud opened over the playing narration: paused, once`);
+    const [p1, t1] = await hpAudio(page);
+    await sleep(500);
+    const [p2, t2] = await hpAudio(page);
+    eq([p1, p2, t1 === t2, await hpCloud(page)], [true, true, true, [true, 0]],
+       `${label}: paused and frozen for as long as the cloud is open -- and the cloud still open (the press of ▶ did not bubble into "a click outside shuts it")`);
+    const t0 = await hpNow(page);
+    await shut();
+    await hpCloudShut(page);
+    await sleep(120);
+    eq((await hpAudio(page))[0], true, `${label}: the cloud shut, the narration still waits (the grace)`);
+    await hpPlaying(page, 'the narration going on');
+    const ev = await hpNote(page, label);
+    eq(ev.map(e => e[0]), ['pause', 'play'], `${label}: one pause, one play`);
+    const shutAt = await page.evaluate(() => __cl.filter(c => c[0] === 'shut').pop()[1]);
+    assert(ev[1][1] - shutAt >= 300 && ev[1][1] - t0 >= 300 && ev[1][1] - shutAt < 1500,
+           `${label}: the play came ${ev[1][1] - shutAt} ms after the cloud shut (300 and more, the video's 350 ms grace)`);
+  }
+
+  console.log('hover ⏸: a book\'s narration waits while a gloss is open, on a phone');
+  const hp = await pageFor(PHONE, 'mobile', 'hover pause');
+  await openReader(hp, '/books/english/mini-en/reader/', true);
+  const hpPress = () => tap(hp, '.nc-dock .nc-play');
+  const hpWord = i => hp.locator('main .p1 .w').nth(i);
+  const hpTapWord = i => hpOpenCloud(hp, () => hpWord(i).tap());
+  const hpWordIn = async () => { await hpWord(0).evaluate(e => e.scrollIntoView({block: 'center'})); await sleep(400); };
+  // the header goes on the way down a page and comes back on the way up: ⋯
+  // is pressed from the top, and the words are brought back into the screen
+  const hpTop = async () => { await hp.evaluate(() => scrollTo(0, 0)); await sleep(600); };
+  const hpMore = async fn => {
+    await hpTop();
+    await tap(hp, '.m-rmore');
+    await fn();
+    await tap(hp, '.m-rmore');
+    await sleep(300);
+    await hpWordIn();
+  };
+  await hpWordIn();
+  await hpWatch(hp);
+
+  // ---- the switch, under ⋯ -> Listening, worded and drawn as the video's
+  await hpTop();
+  await tap(hp, '.m-rmore');
+  await hp.waitForSelector('#hoverpause', {state: 'visible'});
+  const sw0 = await hp.evaluate(() => {
+    const b = document.getElementById('hoverpause'), r = b.getBoundingClientRect();
+    const order = id => +getComputedStyle(document.getElementById(id) || document.querySelector(id)).order;
+    const lab = document.querySelector('.m-rlab[data-g=listening]');
+    return {text: b.textContent, title: b.title, h: Math.round(r.height), w: Math.round(r.width),
+            onScreen: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+            layout: b.getAttribute('data-layout'), tag: b.tagName + '#' + b.id, inRow: b.parentNode === document.querySelector('header .hrow'),
+            order: [order('.m-rlab[data-g=listening]'), order('stopbnd'), order('hoverpause'), order('pos')],
+            label: !!lab && lab.getClientRects().length > 0 && !lab.classList.contains('m-empty-g'),
+            listening: getComputedStyle(b).display !== 'none'};
+  });
+  eq(sw0.text, HP_ON_VIDEO, `the switch is worded as the video's (${JSON.stringify(HP_ON_VIDEO)}), the same string and the same glyph`);
+  eq([sw0.tag, sw0.inRow, sw0.layout, sw0.title], ['BUTTON#hoverpause', true, null, 'pause the narration while a gloss is open'],
+     'a button in the header\'s first row, with no data-layout (both modes draw it), saying what it does');
+  assert(sw0.h >= 48 && sw0.w >= 48 && sw0.onScreen, `under ⋯, a finger's size and on the screen (${sw0.w} x ${sw0.h})`);
+  assert(sw0.label && sw0.order[0] < sw0.order[1] && sw0.order[1] < sw0.order[2] && sw0.order[2] < sw0.order[3],
+         `in the Listening group: after the group's line and stop-at-a-change, before where it is (order ${JSON.stringify(sw0.order)})`);
+  eq(await hpSwitch(hp), [null, false, 'false'], 'off until it is turned on: nothing stored, not pressed');
+  await tap(hp, '.m-rmore');
+  await sleep(250);
+  assert(!(await drawn(hp, '#hoverpause')), '⋯ shut: it is not on the first line');
+  await hpWordIn();
+
+  // ---- switch OFF: nothing changes
+  await hpStart(hp, hpPress);
+  await hpTapWord(0);
+  await sleep(500);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0], (await hpCloud(hp))[0]], ['', false, true],
+     'switch off: a tap opens the cloud and the narration plays on');
+  await hpWord(0).tap();
+  await hpCloudShut(hp);
+  await sleep(800);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0]], ['', false], 'and it plays on when the cloud shuts: nothing paused it, nothing started it');
+  await hpNote(hp, 'switch off');
+  await hpStop(hp, hpPress);
+
+  // ---- turned on, under ⋯, kept on this device only
+  await hpMore(() => tap(hp, '#hoverpause'));
+  eq(await hpSwitch(hp), ['1', true, 'true'], 'turned on: stored \'1\', pressed, aria-pressed true');
+  const kept = await hp.evaluate(async () => {
+    const r = await fetch('/__prefs'); const j = await r.json();
+    return [JSON.stringify(j).includes('bk_hoverpause'), typeof ParsehPrefs === 'object' ? ParsehPrefs.keys.includes('bk_hoverpause') : null];
+  });
+  eq(kept, [false, false], 'and nothing of it is on the computer: not in the prefs the server keeps, not in the page\'s KEYS');
+  await openReader(hp, '/books/english/mini-en/reader/', true);
+  eq(await hpSwitch(hp), ['1', true, 'true'], 'a reload: still on, and drawn on');
+  await hpWordIn();
+  await hpWatch(hp);
+
+  // ---- ON: playing -> a tap opens a cloud -> paused -> the cloud shuts -> playing after the grace
+  await hpPhaseOpenShut(hp, hpPress, () => hpWord(0).tap(), () => hpWord(0).tap(), 'a tap');
+  await hpStop(hp, hpPress);
+
+  // ---- the next word straight away: no stutter
+  await hpStart(hp, hpPress);
+  await hpTapWord(0);
+  await hp.evaluate(() => { __cl.length = 0; });     // the cloud's own comings and goings from here on
+  await hpWord(0).tap();          // the open word again: shuts its cloud ...
+  await hpWord(1).tap();          // ... and the next one, at once
+  await until(hp, () => !document.getElementById('cloud').hidden && +document.querySelector('.p1 .w.hot').dataset.c === 1, null, 'the cloud on the next word');
+  await sleep(900);
+  const gapMs = await hp.evaluate(() => {
+    const shut = __cl.filter(c => c[0] === 'shut')[0], open = __cl.filter(c => c[0] === 'open').pop();
+    return shut && open ? open[1] - shut[1] : null;
+  });
+  const nx = await hpNote(hp, 'A shut, B opened');
+  assert(gapMs !== null && gapMs < 350, `the cloud shut and the next word's opened ${gapMs} ms later, inside the grace`);
+  eq([nx.map(e => e[0]), (await hpAudio(hp))[0], await hpCloud(hp)], [['pause'], true, [true, 1]],
+     'A then B within 350 ms: exactly one pause, no play, no second pause -- waiting on B\'s cloud');
+  await hpWord(1).tap();
+  await hpCloudShut(hp);
+  await hpPlaying(hp, 'the narration going on after B');
+  eq(await hpSeq(hp), 'pause,play', 'B shut: it goes on, once');
+  await hpStop(hp, hpPress);
+  // ... and a plain tap on another word while one is open: no close between
+  await hpStart(hp, hpPress);
+  await hpTapWord(0);
+  await hpWord(1).tap();
+  await until(hp, () => +document.querySelector('.p1 .w.hot').dataset.c === 1, null, 'the cloud moved to the next word');
+  await sleep(900);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0], await hpCloud(hp)], ['pause', true, [true, 1]],
+     'a tap on another word while a cloud is open: one pause still, no play');
+  await hpWord(1).tap();
+  await hpCloudShut(hp);
+  await hpPlaying(hp, 'the narration going on');
+  eq(await hpSeq(hp), 'pause,play', 'and it goes on once when the last cloud shuts');
+  await hpStop(hp, hpPress);
+
+  // ---- a narration the person paused is never started by it
+  await hpStart(hp, hpPress);
+  await hpPress();
+  await until(hp, () => document.getElementById('audio').paused, null, 'paused by hand');
+  await hpTapWord(0);
+  await hpWord(0).tap();
+  await hpCloudShut(hp);
+  await sleep(900);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0]], ['pause', true],
+     'paused by hand, a cloud opened and shut: nothing but the hand\'s own pause, and it stays paused');
+  await hpNote(hp, 'paused by hand');
+  await hpClear(hp);
+  // ... and playing under an open cloud, then paused by hand, is the person's too
+  await hpStart(hp, hpPress);
+  await hpTapWord(0);
+  await hp.evaluate(() => document.getElementById('audio').play());
+  await hpPlaying(hp, 'the narration playing under the open cloud');
+  await sleep(250);
+  await hp.evaluate(() => document.getElementById('audio').pause());
+  await sleep(100);
+  await hpWord(0).tap();
+  await hpCloudShut(hp);
+  await sleep(900);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0]], ['pause,play,pause', true],
+     'paused by the cloud, played by hand under it, paused by hand: the cloud shuts and nothing is started');
+  await hpNote(hp, 'play then pause by hand under an open cloud');
+  await hpClear(hp);
+
+  // ---- the dictionary's sheet on top: one pause, one resume, after the grace
+  await hpStart(hp, hpPress);
+  await hpTapWord(0);
+  await tap(hp, '#cloud .mkdict');
+  await hp.waitForSelector('.m-dsheet');
+  await sleep(700);
+  const [sp1, st1] = await hpAudio(hp);
+  await sleep(400);
+  const [sp2, st2] = await hpAudio(hp);
+  eq([await hpSeq(hp), sp1, sp2, st1 === st2], ['pause', true, true, true], 'the sheet over the cloud: still the one pause, and frozen');
+  const tSheet = await hpNow(hp);
+  await hp.touchscreen.tap(20, 20);
+  await hpPlaying(hp, 'the narration going on after the sheet');
+  const sh = await hpNote(hp, 'the sheet over the cloud');
+  eq(sh.map(e => e[0]), ['pause', 'play'], 'the sheet closed: one resume, and no pause of its own');
+  assert(sh[1][1] - tSheet >= 300, `the play ${sh[1][1] - tSheet} ms after the sheet was closed: the grace, not the sheet's immediate go-on`);
+  eq(await nothingOpen(hp), CLOSED, 'and the sheet, the cloud and the mark are gone');
+  await hpStop(hp, hpPress);
+  // paused by hand, the sheet on top: never started by it
+  await hpStart(hp, hpPress);
+  await hpPress();
+  await until(hp, () => document.getElementById('audio').paused, null, 'paused by hand');
+  await hpTapWord(0);
+  await tap(hp, '#cloud .mkdict');
+  await hp.waitForSelector('.m-dsheet');
+  await sleep(400);
+  await hp.touchscreen.tap(20, 20);
+  await sleep(900);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0]], ['pause', true], 'paused by hand, the sheet opened and closed: stays paused');
+  await hpClear(hp);
+
+  // ---- the reader's own re-open of its cloud (a late model) is not a new open
+  await hpStart(hp, hpPress);
+  await hpTapWord(0);
+  await hp.evaluate(() => document.getElementById('audio').play());
+  await hpPlaying(hp, 'the narration played by hand under the cloud');
+  await hp.evaluate(() => { const sp = cloudFor; cloudFor = null; openCloud(sp); });
+  await sleep(500);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0], (await hpCloud(hp))[0]], ['pause,play', false, true],
+     'the reader opening its own cloud again (cloudFor emptied, openCloud) is not a new open: still playing');
+  await hpStop(hp, hpPress);
+
+  // ---- the loop's wait between two repeats: the reader's own timer, taken and given back
+  await hpMore(async () => { await tap(hp, '#loop'); await hp.selectOption('#gap', '3'); });
+  await hp.evaluate(() => { document.getElementById('audio').currentTime = 3.3; });
+  await hpClear(hp);
+  await hpPress();
+  await until(hp, () => document.getElementById('audio').paused && waiting != null, null, 'the loop\'s wait between two repeats');
+  await hpClear(hp);
+  await hpTapWord(0);
+  await sleep(3700);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0], (await hpCloud(hp))[0]], ['', true, true],
+     'in the loop\'s 3-second wait a cloud opens: the wait is taken, and the repeat does not start under the cloud');
+  const tLoop = await hpNow(hp);
+  await hpWord(0).tap();
+  await hpCloudShut(hp);
+  await hpPlaying(hp, 'the repeat starting');
+  const lp = await hpNote(hp, 'the loop\'s wait');
+  eq(lp.map(e => e[0]), ['play'], 'the cloud shut: the repeat starts, once');
+  assert(lp[0][1] - tLoop >= 300, `the repeat ${lp[0][1] - tLoop} ms after the cloud shut: the grace`);
+  assert((await hpAudio(hp))[1] < 2.5, `and it is the subparagraph from its start again (${(await hpAudio(hp))[1].toFixed(2)} s)`);
+  await hpStop(hp, hpPress);
+  await hpMore(() => tap(hp, '#loop'));
+
+  // ---- the switch turned off under an open cloud: what it took it gives back
+  await hpStart(hp, hpPress);
+  await hpTapWord(0);
+  await hp.evaluate(() => document.getElementById('hoverpause').dispatchEvent(new MouseEvent('click', {bubbles: false})));
+  eq([await hpSwitch(hp), (await hpCloud(hp))[0], (await hpAudio(hp))[0]], [['0', false, 'false'], true, true],
+     'the switch turned off under an open cloud: stored \'0\', the cloud still open, the narration still waiting');
+  await hpWord(0).tap();
+  await hpCloudShut(hp);
+  await hpPlaying(hp, 'the narration going on');
+  eq(await hpSeq(hp), 'pause,play', 'the cloud shut: it went on all the same (what was taken is given back)');
+  await hpTapWord(0);
+  await sleep(600);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0]], ['pause,play', false], 'and with the switch off a new cloud leaves the narration playing');
+  await hpStop(hp, hpPress);
+  // on again, for the last one
+  await hpMore(() => tap(hp, '#hoverpause'));
+  eq((await hpSwitch(hp))[0], '1', 'turned on again');
+
+  // ---- a row's tap on a chunk nobody has glossed: the sheet at once, the
+  // cloud's pause first, one pause and one resume.  The fixture's chunks are
+  // all glossed, so one is emptied here -- its row and the reader's own
+  // record of it -- and the dictionary switched on
+  await hpTop();
+  await switchDict(hp);
+  await hpWordIn();
+  await hp.evaluate(() => {
+    const n = 2;
+    document.querySelectorAll(`.row[data-c="${n}"] .gl > *`).forEach(e => { e.textContent = ''; });
+    SRC[n] = [SRC[n][0], SRC[n][1], '', '', '', '', SRC[n][6]];
+  });
+  await hpStart(hp, hpPress);
+  await hpWord(2).tap();
+  await hp.waitForSelector('.m-dsheet');
+  await sleep(700);
+  eq([await hpSeq(hp), (await hpAudio(hp))[0], await hp.evaluate(() => document.getElementById('cloud').hidden)], ['pause', true, true],
+     'an unglossed chunk tapped, the dictionary on: the sheet at once, no cloud -- and the narration paused, once');
+  const tRow = await hpNow(hp);
+  await hp.touchscreen.tap(20, 20);
+  await hpPlaying(hp, 'the narration going on after the sheet');
+  const rw = await hpNote(hp, 'the row\'s tap and its sheet');
+  eq(rw.map(e => e[0]), ['pause', 'play'], 'the sheet closed: one resume');
+  assert(rw[1][1] - tRow >= 300, `${rw[1][1] - tRow} ms after the sheet closed: the grace`);
+  await hpStop(hp, hpPress);
+  await hp.context().close();
+
+  // ================= the browser interface: the same switch, beside hover, with a mouse
+  console.log('hover ⏸: the same in the browser interface, with a mouse');
+  const bd = await pageFor(DESK, 'browser', 'hover pause, browser');
+  await bd.goto(B + '/books/english/mini-en/reader/');
+  await bd.waitForFunction(() => document.querySelector('#hoverpause') && document.querySelector('#hovermode'));
+  await sleep(400);
+  if (await bd.$('.pf-bar')) await bd.click('.pf-stay');
+  const bsw = await bd.evaluate(() => {
+    const b = document.getElementById('hoverpause'), hm = document.getElementById('hovermode');
+    return {beside: hm.nextElementSibling === b, drawn: b.getClientRects().length > 0, text: b.textContent,
+            layout: b.getAttribute('data-layout'), mode: document.documentElement.getAttribute('data-mode'),
+            more: !!document.querySelector('.m-rmore') && document.querySelector('.m-rmore').getClientRects().length > 0,
+            state: [localStorage.getItem('bk_hoverpause'), b.classList.contains('on')], title: b.title};
+  });
+  eq([bsw.beside, bsw.drawn, bsw.text === HP_ON_VIDEO, bsw.layout, bsw.mode, bsw.more, bsw.state],
+     [true, true, true, null, 'browser', false, [null, false]],
+     'the browser interface: the switch drawn beside hover, worded as the video\'s, off; and no ⋯');
+  await bd.click('#hovermode');
+  const press = () => bd.click('#play');
+  const word = i => bd.locator('main .p1 .w').nth(i);
+  const away = () => bd.mouse.move(2, 2);
+  const openB = i => hpOpenCloud(bd, () => word(i).hover());
+  await hpWatch(bd);
+  // off: nothing changes
+  await hpStart(bd, press);
+  await openB(0);
+  await sleep(500);
+  eq([await hpSeq(bd), (await hpAudio(bd))[0]], ['', false], 'browser, switch off: a mouse at rest on a word opens its cloud and the narration plays on');
+  await away();
+  await hpCloudShut(bd);
+  await sleep(800);
+  eq([await hpSeq(bd), (await hpAudio(bd))[0]], ['', false], 'and plays on when the mouse leaves');
+  await hpStop(bd, press);
+  // turned on, with the mouse
+  await bd.click('#hoverpause');
+  eq(await hpSwitch(bd), ['1', true, 'true'], 'browser: turned on with a click: stored, pressed');
+  await hpPhaseOpenShut(bd, press, () => word(0).hover(), away, 'browser, a mouse at rest');
+  await hpStop(bd, press);
+  // the next word: straight across (no close between), and with a gap of a
+  // moment between them (the cloud shuts, then the next word's opens: inside the grace)
+  await hpStart(bd, press);
+  await openB(0);
+  await word(1).hover();
+  await until(bd, () => +document.querySelector('.p1 .w.hot').dataset.c === 1, null, 'the cloud moved to the next word');
+  await sleep(900);
+  eq([await hpSeq(bd), (await hpAudio(bd))[0], await hpCloud(bd)], ['pause', true, [true, 1]],
+     'browser: from one word straight to the next: one pause, no play');
+  await away();
+  await hpCloudShut(bd);
+  await hpPlaying(bd, 'the narration going on');
+  eq(await hpSeq(bd), 'pause,play', 'and one play when the mouse leaves');
+  await hpStop(bd, press);
+  await hpStart(bd, press);
+  await openB(0);
+  await away();
+  await hpCloudShut(bd);
+  await hpOpenCloud(bd, () => word(1).hover());
+  await sleep(900);
+  const bgap = await bd.evaluate(() => {
+    const shut = __cl.filter(c => c[0] === 'shut')[0], open = __cl.filter(c => c[0] === 'open').pop();
+    return shut && open ? open[1] - shut[1] : null;
+  });
+  const bx = await hpNote(bd, 'A shut, B opened');
+  assert(bgap !== null && bgap < 350, `browser: the cloud shut and the next word's opened ${bgap} ms later, inside the grace`);
+  eq([bx.map(e => e[0]), (await hpAudio(bd))[0], await hpCloud(bd)], [['pause'], true, [true, 1]],
+     'browser: A then B within 350 ms: exactly one pause, waiting on B\'s cloud');
+  await away();
+  await hpCloudShut(bd);
+  await hpPlaying(bd, 'the narration going on after B');
+  eq(await hpSeq(bd), 'pause,play', 'and one play, when B\'s cloud is gone');
+  await hpStop(bd, press);
+  // paused by hand
+  await hpStart(bd, press);
+  await press();
+  await until(bd, () => document.getElementById('audio').paused, null, 'paused by hand');
+  await openB(0);
+  await away();
+  await hpCloudShut(bd);
+  await sleep(900);
+  eq([await hpSeq(bd), (await hpAudio(bd))[0]], ['pause', true], 'browser: paused by hand, a cloud opened and shut: it stays paused');
+  await hpClear(bd);
+  await hpStart(bd, press);
+  await openB(0);
+  await bd.evaluate(() => document.getElementById('audio').play());
+  await hpPlaying(bd, 'played by hand under the cloud');
+  await sleep(250);
+  await bd.evaluate(() => document.getElementById('audio').pause());
+  await sleep(100);
+  await away();
+  await hpCloudShut(bd);
+  await sleep(900);
+  eq([await hpSeq(bd), (await hpAudio(bd))[0]], ['pause,play,pause', true],
+     'browser: played by hand under the cloud, then paused by hand: not started when the cloud shuts');
+  await hpNote(bd, 'browser, play then pause by hand under an open cloud');
+  await hpClear(bd);
+  // the reader's own re-open
+  await hpStart(bd, press);
+  await openB(0);
+  await bd.evaluate(() => document.getElementById('audio').play());
+  await hpPlaying(bd, 'played by hand under the cloud');
+  await bd.evaluate(() => { const sp = cloudFor; cloudFor = null; openCloud(sp); });
+  await sleep(500);
+  eq([await hpSeq(bd), (await hpAudio(bd))[0]], ['pause,play', false], 'browser: the reader\'s own re-open is not a new open');
+  await away();
+  await hpCloudShut(bd);
+  await hpStop(bd, press);
+  // the loop's wait
+  await bd.click('#loop');
+  await bd.selectOption('#gap', '3');
+  await bd.evaluate(() => { document.getElementById('audio').currentTime = 3.3; });
+  await hpClear(bd);
+  await press();
+  await until(bd, () => document.getElementById('audio').paused && waiting != null, null, 'the loop\'s wait');
+  await hpClear(bd);
+  await openB(0);
+  await sleep(3700);
+  eq([await hpSeq(bd), (await hpAudio(bd))[0]], ['', true], 'browser: a cloud in the loop\'s wait: the repeat does not start under it');
+  const tbl = await hpNow(bd);
+  await away();
+  await hpCloudShut(bd);
+  await hpPlaying(bd, 'the repeat starting');
+  const bl = await hpNote(bd, 'browser, the loop\'s wait');
+  eq(bl.map(e => e[0]), ['play'], 'browser: the mouse gone, the repeat starts once');
+  assert(bl[0][1] - tbl >= 300, `browser: ${bl[0][1] - tbl} ms after the mouse left: the cloud's own 120 ms and the grace`);
+  await hpStop(bd, press);
+  await bd.click('#loop');
+  // the switch turned off under an open cloud
+  await hpStart(bd, press);
+  await openB(0);
+  await bd.evaluate(() => document.getElementById('hoverpause').dispatchEvent(new MouseEvent('click', {bubbles: false})));
+  eq([(await hpSwitch(bd))[0], (await hpCloud(bd))[0], (await hpAudio(bd))[0]], ['0', true, true],
+     'browser: the switch turned off under an open cloud: the narration still waits');
+  await away();
+  await hpCloudShut(bd);
+  await hpPlaying(bd, 'the narration going on');
+  eq(await hpSeq(bd), 'pause,play', 'browser: the cloud gone, it goes on (what was taken is given back)');
+  await hpStop(bd, press);
+  await bd.click('#hoverpause');
+
+  // ---- the reader's OWN sheets (the browser interface's alone): each puts
+  // the narration back itself, and hover ⏸ must not fight it.  a) under a
+  // cloud the narration is paused by the cloud: the sheet takes over, so the
+  // debt is dropped and nothing plays under it, nor after; b) with no cloud
+  // the sheet's own pause and go-on are exactly what they are with the
+  // switch off (the reader's own behaviour, whatever it is)
+  const SHEETS = [
+    ['the card dashboard', 'ankiOpen', () => bd.locator('#cloud .mkcard').click(), () => bd.locator('#acancel').click(),
+     () => bd.locator('main .p1 .wd').first().click({modifiers: ['Alt']})],
+    ['the chunk\'s editor', 'chOpen', () => bd.locator('#cloud .mkedit').click(), () => bd.locator('#chcancel').click(), null],
+    ['the fold', 'fdShown', () => bd.locator('#fold').click(), () => bd.locator('#fdcancel').click(), () => bd.locator('#fold').click()],
+    ['the LLM gloss', 'rgShown', () => bd.locator('#rgn').click(), () => bd.locator('#rgcancel').click(), () => bd.locator('#rgn').click()],
+    ['the narration\'s sheet', 'narrOpen', () => bd.locator('#narr').click(), () => bd.locator('#ncancel').click(), () => bd.locator('#narr').click()],
+  ];
+  const flagOf = (page, flag) => page.evaluate(f => ({ankiOpen, chOpen, fdShown, rgShown, narrOpen})[f], flag);
+  const flagIs = (page, flag, want) => until(page, ([f, w]) => ({ankiOpen, chOpen, fdShown, rgShown, narrOpen})[f] === w, [flag, want],
+                                              `${flag} ${want}`, 4000);
+  for (const [name, flag, open, shut, plain] of SHEETS) {
+    eq((await hpSwitch(bd))[0], '1', `(${name}: the switch is on)`);
+    await hpStart(bd, press);
+    await openB(0);
+    await open();
+    await flagIs(bd, flag, true);
+    await sleep(1300);
+    eq([await hpSeq(bd), (await hpAudio(bd))[0], await flagOf(bd, flag)], ['pause', true, true],
+       `browser, ${name} opened from a cloud that paused the narration: it stays paused under the sheet (one pause, no play)`);
+    await shut();
+    await flagIs(bd, flag, false);
+    await sleep(900);
+    eq([await hpSeq(bd), (await hpAudio(bd))[0]], ['pause', true], `and paused after it: the person's ▶ is the only way on`);
+    await hpNote(bd, `browser, ${name} from a cloud`);
+    await hpClear(bd);
+    if (!plain) continue;
+    // b) no cloud (hover mode off, or the mouse arriving over a word would
+    // open one): the same with the switch on and off
+    await bd.click('#hovermode');
+    const runs = [];
+    for (const on of ['1', '0']) {
+      await bd.evaluate(v => localStorage.setItem('bk_hoverpause', v), on);
+      await away();
+      await hpStart(bd, press);
+      await plain();
+      await flagIs(bd, flag, true);
+      await sleep(700);
+      await shut();
+      await flagIs(bd, flag, false);
+      await sleep(900);
+      runs.push(await hpSeq(bd));
+      await hpNote(bd, `browser, ${name}, no cloud, switch ${on === '1' ? 'on' : 'off'}`);
+      await hpStop(bd, press);
+    }
+    eq(runs[0], runs[1], `browser, ${name} with no cloud: the sheet's own pause and go-on are the same with the switch on and off (${JSON.stringify(runs[0])})`);
+    // (the last run had the switch off: on again, for the next sheet)
+    await bd.evaluate(() => localStorage.setItem('bk_hoverpause', '1'));
+    await bd.click('#hovermode');
+  }
+
+  // ---- a book with no narration has no such switch, in either mode
+  await bd.goto(B + '/books/persian/mini-fa/reader/');
+  await bd.waitForFunction(() => document.querySelector('#hovermode'));
+  await sleep(400);
+  eq([await bd.evaluate(() => !!document.getElementById('hoverpause')), await drawn(bd, '#hoverpause')], [true, false],
+     'a book with no narration (Persian): the switch is there for the layer and not drawn');
+  await bd.context().close();
+
+  // ---- a mouse in the MOBILE mode (a desk with the phone's layout): no pointer
+  // filter, as the video's has none -- what opens the cloud pauses, mouse or finger
+  console.log('hover ⏸: a mouse over the mobile interface');
+  const md = await pageFor(DESK, 'mobile', 'hover pause, mouse in the mobile mode');
+  await md.addInitScript(() => { localStorage.setItem('bk_hover', '1'); localStorage.setItem('bk_hoverpause', '1'); });
+  await md.goto(B + '/books/english/mini-en/reader/');
+  await md.waitForFunction(() => document.querySelector('.m-rmore') && document.getElementById('hoverpause'));
+  await sleep(400);
+  if (await md.$('.pf-bar')) await md.click('.pf-stay');
+  await hpWatch(md);
+  await hpPhaseOpenShut(md, () => md.locator('.nc-dock .nc-play').click(), () => md.locator('main .p1 .w').first().hover(),
+                        () => md.mouse.move(2, 400), 'mobile mode, a mouse at rest');
+  await hpStop(md, () => md.locator('.nc-dock .nc-play').click());
+  await md.context().close();
 
   // ---- h) not in the browser interface
   console.log('the browser interface');
