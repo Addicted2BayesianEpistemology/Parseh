@@ -1084,7 +1084,21 @@ class AppTests(unittest.TestCase):
         self.assertEqual(act.count("fetch('/__activity'"), 1)
         self.assertIn('ctl.abort()', act)
         sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
-        self.assertIn("if (url.pathname === '/__activity') return;", sw)
+        self.assertRegex(sw, r"if \(url\.pathname === '/__activity'( \|\| [^)]*\))?\) return;")
+
+    def test_a_download_made_on_demand_is_left_to_the_browser(self):
+        """TO-DO §2.28: the worker gave a navigation to a document's HTML export
+        2.5 s and then served the page that says Parseh cannot be reached.  An
+        export is made while it is asked for, however long that takes: the
+        worker leaves every such download to the browser."""
+        import re
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        self.assertIn("MADE_ON_DEMAND.test(url.pathname)) return;", sw)
+        made = re.search(r"const MADE_ON_DEMAND = /(.+)/;", sw).group(1)
+        for path in ("/studio/download/cats-1a2b3c/html", "/studio/download/cats-1a2b3c/pdf",
+                     "/exercises/api/decks/italian/verbi/export"):
+            self.assertTrue(re.search(made, path), path)
+        self.assertFalse(re.search(made, "/studio/doc/cats-1a2b3c"), "a page is still the worker's")
 
     def test_the_hub_has_the_door_and_the_app_not(self):
         import test_mobile_mode
