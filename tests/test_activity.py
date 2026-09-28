@@ -229,6 +229,11 @@ class LongWork(unittest.TestCase):
                 ("GET", "/youtube/"), ("GET", "/youtube/v/abc/"),
                 ("GET", "/youtube/videos/english/abc/media.mp4"),
                 ("POST", "/youtube/api/edit"), ("POST", "/anki/cards"),
+                # a transcription is one entry for the whole job (merged in, below),
+                # not one for each of the many short requests that drive it
+                ("POST", "/youtube/api/transcribe/start"),
+                ("POST", "/youtube/api/transcribe/audio"),
+                ("POST", "/youtube/api/transcribe/status"),
                 ("GET", "/studio/"), ("GET", "/studio/download/note-abc123/md"),
                 ("PUT", "/studio/api/docs/note-abc123"),
                 ("GET", "/exercises/"), ("POST", "/exercises/api/decks/italian/casa/review"),
@@ -553,6 +558,43 @@ class OverHttp(unittest.TestCase):
         self.assertEqual(run["lookup:synonyms:"]["label"], "Getting the synonym table")
         self.assertEqual([e["id"] for e in j["finished"]], ["lookup:dict:it@%.3f" % (now - 60)])
         self.assertNotIn("lookup:dict:ja", run, "a job with no start time is from before")
+
+    def test_a_transcription_is_merged_in_while_it_waits_runs_and_after(self):
+        import sttjobs
+        now = time.time()
+        token = "SECRETtoken12345"
+
+        def job(state, kind="youtube", **kw):
+            return dict({"id": token, "kind": kind, "state": state, "created": now - 30,
+                         "finished": None, "model": "large-v3-turbo", "hint": 600.0,
+                         "have": 16000 * 2, "fell_back": False, "device": "cpu",
+                         "device_name": "", "total": 100.0, "done": 39.0, "facts": None,
+                         "error": None}, **kw)
+        with mock.patch.dict(sttjobs.JOBS, {token: job("receiving")}, clear=True):
+            j = self.now()
+        (e,) = [e for e in j["running"] if e["id"].startswith("stt:")]
+        # kind `narration` (what estimating by the sound already is), the page it
+        # belongs to, what it is doing -- and NOT the token, which every page reads
+        self.assertEqual((e["kind"], e["label"], e["page"], e["stage"]),
+                         ("narration", "Transcribing a YouTube video", "/youtube/add/",
+                          "Recording 0:02 / 10:00…"))
+        self.assertNotIn(token, json.dumps(j))
+        self.assertIsNone(e["job"])
+        with mock.patch.dict(sttjobs.JOBS, {token: job("transcribing", "film")}, clear=True):
+            j = self.now()
+        (e,) = [e for e in j["running"] if e["id"].startswith("stt:film")]
+        self.assertEqual((e["label"], e["stage"]),
+                         ("Transcribing a film on this machine", "Transcribing on CPU… 39%"))
+        done = job("done", "film", finished=now - 1, facts={"captions": 426}, done=100.0)
+        with mock.patch.dict(sttjobs.JOBS, {token: done}, clear=True):
+            j = self.now()
+        self.assertEqual([x["id"].split("@")[0] for x in j["finished"]], ["stt:film"])
+        self.assertTrue(j["finished"][0]["ok"])
+        self.assertEqual(j["running"], [])
+        old = job("failed", finished=now - activity.KEEP - 5,
+                  error={"code": "failed", "say": "Transcription failed."})
+        with mock.patch.dict(sttjobs.JOBS, {token: old}, clear=True):
+            self.assertEqual(self.now()["finished"], [], "not kept beyond what the list keeps")
 
     def test_the_script_is_served(self):
         status, msg, raw = self.http("GET", "/lib/activity.js")

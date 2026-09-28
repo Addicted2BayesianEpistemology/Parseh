@@ -162,6 +162,8 @@ import words               # noqa: E402  and one proposed, where the analyzers a
 import audiofile           # noqa: E402  what a recording is, and ffmpeg's three jobs on one
 import clips               # noqa: E402  the tray a card's recording is cut into
 import guidebuild          # noqa: E402  the HTML guide: its files, and its compile as a job
+import sttjobs             # noqa: E402  the transcription job of the add page (needs no speech runtime to import)
+import wavefile            # noqa: E402  waveform.json: one cleaner, one writer, and the hold
 import version             # noqa: E402  which Parseh this is: VERSION, read once (§16.1)
 
 ANKI = ytpages.ANKI
@@ -2437,6 +2439,11 @@ def activity_now():
                    if running else None),
             page=READING_HELP, finished=None if running else q.get("finished"),
             ok=not q.get("error") and not q.get("stopped")))
+    # A TRANSCRIPTION of the add page (lib/sttjobs.py), while it waits for its
+    # recording, listens or has just finished: kind `narration`, like
+    # estimating by the sound, so every page's pill and the stop button's
+    # question know the computer is busy
+    extra.extend(sttjobs.activity_entries(activity.entry, activity.KEEP, now))
     return dict(activity.snapshot(extra), ok=True)
 
 
@@ -4040,6 +4047,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._video_times()
             if sub == "/api/waveform":
                 return self._video_waveform()
+            if sub.startswith("/api/transcribe/"):
+                return self._transcribe(sub[len("/api/transcribe/"):])
             if sub == "/api/delete":
                 return self._video_delete()
             if sub == "/api/clip":
@@ -5168,7 +5177,17 @@ class Handler(SimpleHTTPRequestHandler):
                 how=chunk_way(body))
         except ValueError as e:
             return self.send_json({"ok": False, "error": str(e)}, 400)
-        self.send_json(dict(r, ok=True))
+        self.send_json(dict(r, ok=True, **self._adopt_wave(body, r["dir"])))
+
+    def _adopt_wave(self, body, video_dir):
+        """A video was just made: the waveform its transcription held for it
+        (`wave` is the job's token) is moved in beside it -> what to add to
+        the answer, {} when the request named none.  A token that is not one,
+        or a job that held nothing, is ignored: the video is made either way
+        and the player can still draw the sound."""
+        if "wave" not in body:
+            return {}
+        return {"waveform": wavefile.adopt(body.get("wave"), video_dir) or {"kept": False}}
 
     def _video_local(self):
         """A video that is a FILE ON THIS MACHINE, drafted from its subtitles.
@@ -5211,8 +5230,10 @@ class Handler(SimpleHTTPRequestHandler):
             shutil.rmtree(r["dir"], ignore_errors=True)
             return self.send_json({"ok": False, "error": "the film could not be put "
                                    "beside the transcript (%s)" % e}, 400)
+        # the video is on the shelf: what its transcription held is put beside it
+        adopted = self._adopt_wave(body, r["dir"])
         return self.send_json(dict(r, ok=True, id=vid,
-                                   where=ytpages.BASE + "/v/%s/" % vid, **got))
+                                   where=ytpages.BASE + "/v/%s/" % vid, **got, **adopted))
 
     def _video_times(self):
         """Where some captions of an added video start.
@@ -5261,33 +5282,62 @@ class Handler(SimpleHTTPRequestHandler):
         d = self._video_dir(body.get("video") or "")
         if not d:
             return self.send_json({"ok": False, "error": "no such video"}, 404)
-        peaks, rate = body.get("peaks"), body.get("rate")
-        if not isinstance(peaks, list) or not peaks:
-            return self.send_json({"ok": False, "error": "no waveform was sent"}, 400)
-        if len(peaks) > 2000000:
-            return self.send_json({"ok": False,
-                                   "error": "that waveform is too fine to keep"}, 400)
+        # THE CLEANER IS wavefile.clean, the one a held waveform is adopted
+        # through as well (youtube/lib/wavefile.py): the limits and the
+        # sentences are the ones this door has always had
         try:
-            rate = float(rate)
-        except (TypeError, ValueError):
-            return self.send_json({"ok": False,
-                                   "error": "a waveform says how many numbers a second it has"}, 400)
-        if not 1 <= rate <= 200:
-            return self.send_json({"ok": False,
-                                   "error": "a waveform carries between 1 and 200 numbers a second"}, 400)
-        out = []
-        for v in peaks:
-            try:
-                f = float(v)
-            except (TypeError, ValueError):
-                f = 0.0
-            out.append(round(min(1.0, max(0.0, f)), 3))
-        path = os.path.join(d, "waveform.json")
-        tmp = path + ".tmp"
-        with io.open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"rate": rate, "peaks": out}, f, ensure_ascii=False)
-        os.replace(tmp, path)
+            rate, out = wavefile.clean(body.get("rate"), body.get("peaks"))
+        except ValueError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 400)
+        wavefile.write(d, rate, out)
         self.send_json({"ok": True, "rate": rate, "buckets": len(out)})
+
+    def _transcribe(self, what):
+        """The transcription job of the add page (lib/sttjobs.py), by its seven
+        POST routes under /youtube/api/transcribe/:
+
+            start   {source, url|path, lang, model, processing}  -> {job, state, need}
+            audio   ?job=&offset=[&last=1], a raw PCM16 body     -> {have}
+            marks   {job, marks}       wave  {job, rate, peaks}
+            status  {job}     cancel  {job}     result  {job}
+
+        The source goes through the add flow's own validators (sttjobs.source_of
+        is ytpages.one_source / video_id / local_target / posted_lang); every
+        other route takes only the token the job made.  Every answer is
+        {"ok": true, ...} or {"ok": false, "error": <a sentence>, "code": <a
+        slug>}, and none of them is a traceback."""
+        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result"):
+            return self.send_json({"ok": False, "error": "nothing to POST here",
+                                   "code": "no-such-route"}, 404)
+
+        def go():
+            if what == "audio":
+                q = self.query
+                offset = (q.get("offset") or [""])[0]
+                if not re.match(r"^[0-9]{1,15}$", offset):
+                    raise sttjobs.Refusal("bad-offset", "The recording says where its piece "
+                                          "belongs, and that is not a place.")
+                return sttjobs.audio((q.get("job") or [""])[0], int(offset), self._body(),
+                                     (q.get("last") or [""])[0] in ("1", "true"))
+            try:
+                body = self._json_body()
+            except ValueError as e:        # not JSON, not UTF-8, not an object
+                raise sttjobs.Refusal("bad-request", getattr(e, "said", None)
+                                      or "The request could not be read.")
+            token = body.get("job")
+            if what == "start":
+                # ANY DEVICE LET IN may start one (the owner): the bound is the one
+                # slot, and Cancel
+                source, lang = sttjobs.source_of(body)
+                return sttjobs.start(source, lang, body.get("model"), body.get("processing"),
+                                     body.get("duration"))
+            if what == "marks":
+                return sttjobs.marks(token, body.get("marks"))
+            if what == "wave":
+                return sttjobs.wave(token, body.get("rate"), body.get("peaks"))
+            return getattr(sttjobs, what)(token)
+        obj, code = sttjobs.call(go)
+        self.send_json(obj, code)
 
     def _video_edit_chunk(self):
         """One chunk of one segment of annotations.json.
@@ -7116,6 +7166,9 @@ def main():
         latexdraw.repair_owners(latex_used(), force=True)
         latexdraw.prune()
     threading.Thread(target=_repair_latex_cache, daemon=True).start()
+    # the recordings and the half-written files a server that was killed left
+    # (stt/tmp/), and the held waveforms nobody adopted -- off the way in
+    threading.Thread(target=sttjobs.startup, daemon=True).start()
 
     def _stop_drawings(*_a):
         latexdraw.stop_all()
