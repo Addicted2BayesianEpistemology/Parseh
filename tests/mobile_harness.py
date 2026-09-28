@@ -23,7 +23,7 @@ mobile interface (docs/mobile.md).
         <tmp>/export-delay holds a number, and the last one made is kept
         in <tmp>/export-made; a document's own page (what a link to it
         opens) is answered that many seconds late while <tmp>/page-delay
-        holds one.
+        holds one, and every ask for one is written down in <tmp>/page-asked.
 
 Never touches the real books/, exercises/, markdown/library/ or clips/:
 the library page is written into the tree by make_index with its paths
@@ -229,16 +229,22 @@ def serve_it(tmp, port):
         return compile_(*a, **k)
     latexdraw._compile = slow_drawing
     # A COMPUTER SLOW TO ANSWER A DOCUMENT'S PAGE (tests/mobile_pages.mjs,
-    # partExport, the offline page's Try again): the seconds <tmp>/page-delay
+    # partExport; tests/reach.mjs, partNav): the seconds <tmp>/page-delay
     # holds, slept before the studio makes the page of a document.  The
     # computer is ALIVE and only slow -- which is not the same as switched off
     # or asleep, and is what a page a phone has not kept meets when it takes
-    # longer than the worker waits for one (lib/sw.js, DEADLINE)
+    # longer than the worker waits for one (lib/sw.js, DEADLINE).  And the
+    # times it was ASKED for a page, one line each -- the document and the
+    # moment -- in <tmp>/page-asked, so that a test can say that a page slow
+    # to make was asked for once and not again (the worker waits for the ask it
+    # made; it never makes another)
     import serve
     studio = serve.studio
     page_doc = studio.page_doc
 
     def slow_page(h, *a):
+        with open(str(tmp / "page-asked"), "a") as asked:
+            asked.write("%s %.3f\n" % (a[0] if a else "", time.time()))
         try:
             time.sleep(float((tmp / "page-delay").read_text()))
         except (OSError, ValueError):
