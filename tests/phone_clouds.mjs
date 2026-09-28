@@ -79,7 +79,7 @@
 //      slider; held sideways on the whole screen, the Aa in the corner opens
 //      it over the picture with the subtitles' slider and the glosses', the
 //      subtitle the size the slider says and in the language's direction,
-//      the lines around it in proportion at 40px and clear of the corner;
+//      the lines around it in proportion at 48px and clear of the corner;
 //      and in English at 36px the proportions of a plain line
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/phone_clouds.mjs
 //   SHOTS=<dir> also saves a screenshot of each
@@ -1635,20 +1635,20 @@ try {
     // the lines around it at the largest size: in proportion, on the screen, clear of the corner
     await videoAt(p, 2);
     await tap(p, '.m-vtxt');
-    await slideTo(p, 'st-sub', 40);
+    await slideTo(p, 'st-sub', 48);
     await tap(p, '.m-vctx');
     await sleep(350);
     got = await lines(p);
     const [pv, nw, nx] = got;
-    assert(got.length === 3 && nw.size === 40 && Math.abs(pv.size - 32.8) < 0.3 && Math.abs(nx.size - 32.8) < 0.3,
-           `${lang}: at 40px the lines around are .82 of it, as at 20 (${got.map(l => l.size).join(', ')}px)`);
+    assert(got.length === 3 && nw.size === 48 && Math.abs(pv.size - 39.36) < 0.3 && Math.abs(nx.size - 39.36) < 0.3,
+           `${lang}: at 48px, the slider's largest, the lines around are .82 of it, as at 20 (${got.map(l => l.size).join(', ')}px)`);
     const room = await p.evaluate(() => {
       const c = document.querySelector('.m-subs .m-subctx').getBoundingClientRect();
       const t = document.querySelector('.m-vtxt').getBoundingClientRect();
       return {t: c.top, b: c.bottom, r: c.right, H: innerHeight, clear: c.top >= t.bottom || c.right <= t.left};
     });
     assert(room.b <= room.H && room.clear, `${lang}: on the screen and clear of the buttons in the corner ${JSON.stringify(room)}`);
-    await shot(p, `size-${lang}-ctx-40`);
+    await shot(p, `size-${lang}-ctx-48`);
     await p.context().close();
 
     // upright: the transcript's own size from the header, and no subtitles' slider where

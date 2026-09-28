@@ -50,11 +50,11 @@ console.log(await page.evaluate(async () => {
  typo.set('kanaSize',200); typo.set('cjkSpace',0.25); typo.set('kanaContrast',100);
  assert(getComputedStyle(text).letterSpacing==='4px','spacing applied');
  assert(getComputedStyle(text.querySelector('rt')).fontSize==='32px','200% relative size');
- typo.set('kanaSize',250);
- assert(typo.get().kanaSize===200,'size cap');
+ typo.set('kanaSize',400);
+ assert(typo.get().kanaSize===310,'size cap');
  const chinese=Parseh.typo({key:'test_typo',fields:Parseh.readingFields('zh')});
  chinese.set('cjkSpace',0.5);
- assert(JSON.parse(localStorage.getItem('test_typo')).kanaSize===200,'other languages preserve kana preferences');
+ assert(JSON.parse(localStorage.getItem('test_typo')).kanaSize===310,'other languages preserve kana preferences');
  typo.reset();
  assert(document.documentElement.style.getPropertyValue('--kana-size')==='50%','default size');
  const result={words:[{word:'本',hits:[{headword:'本',senses:['book']}]}]};

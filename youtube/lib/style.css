@@ -116,7 +116,7 @@ body.resizing #vid iframe,body.resizing #vid video{pointer-events:none}
 /* the Aa panel in the header sets --yt-fa (the target text), --yt-gl (the
    gloss cloud), --yt-width (the column) and --yt-lead (a line-height
    multiplier) on <html>; the fallbacks are the page as it always was */
-main{max-width:var(--yt-width,760px);margin:0 auto;padding:14px 14px 60vh}
+main{max-width:var(--yt-width,760px);margin:0 auto;padding:14px 14px 60vh;overflow-x:clip}
 .hint{color:var(--faint);font-size:12.5px;margin:2px 0 18px}
 .seg{padding:6px 8px 8px;border-radius:6px;margin-bottom:4px;
   scroll-margin-top:calc(var(--headh,52px) + var(--vidh,0px) + 14px)}

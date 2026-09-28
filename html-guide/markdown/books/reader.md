@@ -136,14 +136,14 @@ back the printed edition's proportions, and **✕** or **Esc** closes it.
 
 | Slider | Range | What it sets |
 |---|---|---|
-| ***the language*** (Persian, Japanese…) | 14–36 px, 20 to begin with | the size of the text |
-| **glosses** | 10–20 px, 12.5 | the size of the glosses |
-| **width** | 480–1400 px, 760 | the width of the column |
-| **leading** | 0.7–1.6×, 1 | the space between the lines |
-| **columns height** | 10–40 em, 22 | Japanese and Chinese: the height of the columns of the vertical pass |
-| **character spacing** | 0–1 em, 0 | Japanese and Chinese: space between the characters of the running text |
-| **reading contrast** | 0–100 %, 0 | Japanese: how dark the furigana are, from the faint grey of the page's secondary text to the full ink of the text |
-| **reading / kanji size** | 10–200 %, 50 | Japanese: the size of the furigana against the characters under them |
+| ***the language*** (Persian, Japanese…) | 7–43 px, 20 to begin with | the size of the text |
+| **glosses** | 7–23 px, 12.5 | the size of the glosses |
+| **width** | 200–1680 px, 760 | the width of the column; on a screen narrower than that, the column is the screen's width |
+| **leading** | 0.5–1.9×, 1 | the space between the lines |
+| **columns height** | 6–54 em, 22 | Japanese and Chinese: the height of the columns of the vertical pass |
+| **character spacing** | −0.1 to 1.5 em, 0 | Japanese and Chinese: space between the characters of the running text; below 0 they are set closer, until they touch |
+| **reading contrast** | −60 to 100 %, 0 | Japanese: how dark the furigana are, from the faint grey of the page's secondary text (0) to the full ink of the text (100); below 0 the grey fades further, to less than half at −60 |
+| **reading / kanji size** | 10–310 %, 50 | Japanese: the size of the furigana against the characters under them |
 
 The three Japanese and Chinese sliders act on the running text; the cloud
 always keeps the full reading.

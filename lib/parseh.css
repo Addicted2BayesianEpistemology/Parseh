@@ -391,7 +391,8 @@ html[data-lang="ja"] :is(.p1,.p3,.p4,.row .fa,.seg .fa),
 html[data-lang="zh"] :is(.p1,.p3,.p4,.row .fa,.seg .fa){letter-spacing:var(--cjk-space,0em)}
 html[data-lang="ja"] :is(.p1,.seg .fa) rt{
   font-size:var(--kana-size,50%);letter-spacing:0;line-height:1.2;
-  color:var(--dim);color:color-mix(in srgb,var(--ink) var(--kana-contrast,0%),var(--dim));
+  color:var(--dim);color:color-mix(in srgb,var(--ink) max(0%,var(--kana-contrast,0%)),
+    color-mix(in srgb,var(--dim),transparent max(0%,calc(0% - var(--kana-contrast,0%)))));
   font-family:var(--tl-font,serif);user-select:none}
 html[data-lang="ja"] :is(.p1,.seg .fa) ruby{ruby-position:over}
 html[data-lang="ja"] :is(.p1,.seg .fa) ruby.reading-known rt{visibility:hidden}

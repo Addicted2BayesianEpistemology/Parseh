@@ -151,13 +151,14 @@ once and are remembered in this browser:
 
 | Slider | Range | Starts at |
 |---|---|---|
-| the language's name (**Persian**, **Japanese**…) — the transcript's text | 14–36 px | 20 px |
-| **glosses** — the text of the cloud | 10–20 px | 12.5 px |
-| **width** — the transcript's column | 480–1400 px | 760 px |
-| **leading** — the space between lines | 0.7–1.6 × | 1 × |
-| **character spacing** (Japanese and Chinese) | 0–1 em | 0 |
-| **reading contrast** (Japanese) — how dark the kana over the kanji are, from the quiet grey (0) to full ink (100) | 0–100 % | 0 |
-| **reading / kanji size** (Japanese) — the kana's size against the kanji's | 10–200 % | 50 % |
+| the language's name (**Persian**, **Japanese**…) — the transcript's text | 7–43 px | 20 px |
+| **subtitles** (a phone held sideways, in the mobile mode) — the words over the video on the whole screen | 6–48 px | 20 px |
+| **glosses** — the text of the cloud | 7–23 px | 12.5 px |
+| **width** — the transcript's column, never wider than the screen | 200–1680 px | 760 px |
+| **leading** — the space between lines | 0.5–1.9 × | 1 × |
+| **character spacing** (Japanese and Chinese) — below 0 the characters are set closer, until they touch | −0.1 to 1.5 em | 0 |
+| **reading contrast** (Japanese) — how dark the kana over the kanji are, from the quiet grey (0) to full ink (100); below 0 the grey fades further | −60 to 100 % | 0 |
+| **reading / kanji size** (Japanese) — the kana's size against the kanji's | 10–310 % | 50 % |
 
 **reset** puts every slider back; **✕** or Esc closes the panel.
 

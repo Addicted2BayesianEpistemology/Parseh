@@ -862,7 +862,7 @@ header .sp{flex:1}
    glosses), --rd-width (the column), --rd-lead (a line-height multiplier) and,
    for a vertical language, --rd-vh (the column height of pass 4, in em) on
    <html>; without it the fallbacks below are the page as it always was */
-main{max-width:var(--rd-width,760px);margin:0 auto;padding:16px 14px 60vh}
+main{max-width:var(--rd-width,760px);margin:0 auto;padding:16px 14px 60vh;overflow-x:clip}
 .chapter{margin-bottom:8px}
 /* A CHANGE OF CHAPTER, SAID IN THE TEXT.  The PDF prints the number centred
    between two rules and the chapter's name under it (\chapopen, \chapname);
@@ -949,7 +949,8 @@ section.chapter[data-part]{min-height:70vh}
    the same Aa sliders -- and pinyin, which is Latin letters with tone
    marks, as lib/parseh.css sets it over pass 1: upright, small, unspaced */
 .row .wd[data-w] rt{font-size:var(--kana-size,50%);letter-spacing:0;line-height:1.2;
-  color:var(--dim);color:color-mix(in srgb,var(--ink) var(--kana-contrast,0%),var(--dim));
+  color:var(--dim);color:color-mix(in srgb,var(--ink) max(0%,var(--kana-contrast,0%)),
+    color-mix(in srgb,var(--dim),transparent max(0%,calc(0% - var(--kana-contrast,0%)))));
   font-family:var(--tl-font,serif);ruby-align:center}
 html[data-lang=zh] .row .wd[data-w] rt{
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
@@ -3751,13 +3752,13 @@ $$('[data-toggle]').forEach(b => { const cls = b.dataset.toggle;
 // the first slider is the text itself, named after its language; a vertical
 // language gets one more, the column height of its tategaki pass (em)
 const TYPO_FIELDS = [
-  {name: 'fa',    label: LANG.name, min: 14,  max: 36,   step: 0.5,  unit: 'px', def: 20,   prop: '--rd-fa'},
-  {name: 'gl',    label: 'glosses', min: 10,  max: 20,   step: 0.5,  unit: 'px', def: 12.5, prop: '--rd-gl'},
-  {name: 'width', label: 'width',   min: 480, max: 1400, step: 10,   unit: 'px', def: 760,  prop: '--rd-width'},
-  {name: 'lead',  label: 'leading', min: 0.7, max: 1.6,  step: 0.05, unit: '×',  def: 1,    prop: '--rd-lead'}
+  {name: 'fa',    label: LANG.name, min: 7,    max: 43,   step: 0.5,  unit: 'px', def: 20,   prop: '--rd-fa'},
+  {name: 'gl',    label: 'glosses', min: 7,    max: 23,   step: 0.5,  unit: 'px', def: 12.5, prop: '--rd-gl'},
+  {name: 'width', label: 'width',   min: 200,  max: 1680, step: 10,   unit: 'px', def: 760,  prop: '--rd-width'},
+  {name: 'lead',  label: 'leading', min: 0.5,  max: 1.9,  step: 0.05, unit: '×',  def: 1,    prop: '--rd-lead'}
 ];
 if (LANG.vertical)
-  TYPO_FIELDS.push({name: 'vh', label: 'columns height', min: 10, max: 40, step: 1, unit: 'em', def: 22, prop: '--rd-vh'});
+  TYPO_FIELDS.push({name: 'vh', label: 'columns height', min: 6, max: 54, step: 1, unit: 'em', def: 22, prop: '--rd-vh'});
 Parseh.CharacterDecomposition.mount({lang: LANG.code, toolbar: $('#typo').parentNode,
   scope: 'main .p1,main .p3,main .p4,main .row .fa', observe: document.querySelector('main'),
   onModeChange: on => { if (on) closeCloud(); }, onOpen: () => A.pause()
