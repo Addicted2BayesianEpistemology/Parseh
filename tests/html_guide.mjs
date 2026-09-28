@@ -116,6 +116,35 @@ const ytLabel = async page => {
                    rs.bottom <= rm.top || rs.top >= rm.bottom};
   });
 };
+// What a LaTeX drawing puts on the sheet, as the screen shows it: a screenshot
+// of the element, read back through a canvas -> how many of its pixels stand
+// apart from the sheet's own colour, and the lightest and the darkest of
+// them.  (A drawing is black on nothing: on the dark sheet it is turned to
+// the ink, or it is not there.)
+const inkOf = async (page, locator) => {
+  await locator.scrollIntoViewIfNeeded();
+  const png = (await locator.screenshot()).toString('base64');
+  return page.evaluate(async b64 => {
+    const img = new Image();
+    img.src = 'data:image/png;base64,' + b64;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d');
+    x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height).data;
+    const bg = [d[0], d[1], d[2]];
+    let ink = 0, lightest = 0, darkest = 255;
+    for (let i = 0; i < d.length; i += 4) {
+      const diff = Math.max(Math.abs(d[i] - bg[0]), Math.abs(d[i + 1] - bg[1]), Math.abs(d[i + 2] - bg[2]));
+      if (diff < 90) continue;
+      ink++;
+      const l = (d[i] + d[i + 1] + d[i + 2]) / 3;
+      lightest = Math.max(lightest, l); darkest = Math.min(darkest, l);
+    }
+    return {ink, lightest, darkest, bg, w: c.width, h: c.height};
+  }, png);
+};
 function freePort() {
   const l = Deno.listen({hostname: '127.0.0.1', port: 0});
   const p = l.addr.port;
@@ -390,6 +419,155 @@ try {
     }
   }
   await phone.close();
+
+  // ------------------------------------------------------------ LaTeX drawings
+  // The guide has no TeX while it compiles: its latex blocks and marks are
+  // pictures made beforehand (build.py --draw).  Each is read as a reader
+  // sees it -- drawn, in a box with the source beside it as every other
+  // example is, and visible on all three sheets (a drawing is black on
+  // nothing, and on the dark sheet it once was not there).
+  console.log('the LaTeX drawings, off the disk: three themes, a desktop and a phone');
+  {
+    const PAGES = ['dialect/latex-drawings.html', 'dialect-exercises/latex.html'];
+    const loadAll = p => p.evaluate(async () => {
+      const imgs = [...document.images];
+      imgs.forEach(i => { i.loading = 'eager'; });
+      await Promise.all(imgs.map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+    });
+    const facts = p => p.evaluate(() => {
+      const r = e => { const q = e.getBoundingClientRect(); return [q.left, q.top, q.right, q.bottom]; };
+      const pics = [...document.querySelectorAll('.g-article figure.latex img, .g-article img.latex-inline')];
+      const looks = e => { const s = getComputedStyle(e); return [s.borderTopWidth, s.borderTopStyle, s.borderTopLeftRadius,
+                                                                  s.backgroundColor, s.overflow]; };
+      const examples = [...document.querySelectorAll('.g-article .g-example')].filter(e => e.querySelector('.g-example-out figure.latex, .g-example-out img.latex-inline'));
+      const pair = e => {
+        const [ex, code, out] = [r(e), r(e.querySelector('.g-code')), r(e.querySelector('.g-example-out'))];
+        const pic = r(e.querySelector('.g-example-out figure.latex img, .g-example-out img.latex-inline'));
+        const tol = 1.5;
+        return {codeAbove: code[3] <= out[1] + tol, picInOut: pic[0] >= out[0] - tol && pic[2] <= out[2] + tol && pic[1] >= out[1] - tol && pic[3] <= out[3] + tol,
+                outInBox: out[0] >= ex[0] - tol && out[2] <= ex[2] + tol && out[3] <= ex[3] + tol,
+                label: e.querySelector('.g-example-label').textContent, room: ex[3] - pic[3],
+                source: e.querySelector('.g-code').dataset.code, looks: looks(e), outPad: getComputedStyle(e.querySelector('.g-example-out')).padding};
+      };
+      const chips = [...document.querySelectorAll('.g-article .exercise .ex-item, .g-article .exercise .ex-option, .g-article .exercise .ex-match-drop')];
+      return {
+        loaded: pics.every(i => i.complete && i.naturalWidth > 0 && (!i.offsetParent || i.getBoundingClientRect().height > 0)), pics: pics.length,
+        blocks: examples.filter(e => e.querySelector('.g-example-out figure.latex')).length,
+        marks: examples.filter(e => e.querySelector('.g-example-out img.latex-inline')).length,
+        loose: [...document.querySelectorAll('figure.latex')].filter(f => !f.closest('.g-example-out')).length,
+        pairs: examples.map(pair),
+        frames: document.querySelectorAll('.latex-fail, .latex-inline-src').length,
+        saysNotDrawn: /shown here as it is written/.test(document.body.innerText),
+        rawInChips: chips.filter(c => /[$\\]/.test(c.innerText)).length, chips: chips.length,
+        wide: document.documentElement.scrollWidth,
+      };
+    });
+    for (const [device, viewport] of [['desktop', {width: 1280, height: 900}], ['phone', {width: 390, height: 844}]]) {
+      for (const theme of ['light', 'sepia', 'dark']) {
+        const c = await browser.newContext({viewport});
+        await c.addInitScript(t => { try { localStorage.setItem('parseh_theme', t); localStorage.setItem('parseh_guide_side', 'closed'); } catch (_) {} }, theme);
+        const lp = await c.newPage();
+        const errs = [];
+        lp.on('pageerror', e => errs.push(e.message));
+        lp.on('requestfailed', r => { if (r.url().startsWith('file:')) errs.push('missing ' + r.url()); });
+        const tag = `${device}, ${theme}`;
+        await lp.goto(FILE + '/site/dialect/mathematics.html');
+        const mathLooks = await lp.evaluate(() => { const e = document.querySelector('.g-article .g-example'), s = getComputedStyle(e);
+          return [[s.borderTopWidth, s.borderTopStyle, s.borderTopLeftRadius, s.backgroundColor, s.overflow],
+                  getComputedStyle(e.querySelector('.g-example-out')).padding]; });
+        for (const pg of PAGES) {
+          await lp.goto(FILE + '/site/' + pg);
+          await loadAll(lp);
+          assert(await lp.evaluate(() => document.documentElement.dataset.theme) === theme, `${tag}: ${pg} is read on the ${theme} sheet`);
+          const f = await facts(lp);
+          assert(f.loaded && f.pics >= 5 && f.frames === 0 && !f.saysNotDrawn,
+                 `${tag}: ${pg} shows its ${f.pics} drawings as pictures, none as a frame or as its LaTeX ("shown here as it is written")`);
+          assert(f.wide <= viewport.width, `${tag}: ${pg} does not scroll sideways: ${f.wide}`);
+          assert(f.rawInChips === 0, `${tag}: ${pg}: no chip, option or pair shows raw LaTeX (${f.chips} looked at)`);
+          assert(f.pairs.length > 0 && f.pairs.every(x => x.codeAbove && x.picInOut && x.outInBox && x.label === 'Result' && x.source === 'parseh' && x.room > 3),
+                 `${tag}: ${pg}: each of its ${f.pairs.length} examples is the source above and the enlarged box round the result: ` +
+                 JSON.stringify(f.pairs.filter(x => !(x.codeAbove && x.picInOut && x.outInBox && x.room > 3)).slice(0, 2)));
+          assert(f.pairs.every(x => JSON.stringify(x.looks) === JSON.stringify(mathLooks[0]) && x.outPad === mathLooks[1]),
+                 `${tag}: ${pg}: the box is the one the mathematics page's pairs have: ` + JSON.stringify([f.pairs[0].looks, f.pairs[0].outPad]));
+          if (pg.startsWith('dialect/')) {
+            assert(f.blocks === 3 && f.marks === 2 && f.loose === 0,
+                   `${tag}: the dialect page has its three blocks and two marks as pairs, and no picture loose beside them: ${f.blocks}/${f.marks}/${f.loose}`);
+          }
+        }
+        // pixels: the drawings are there on this sheet, as the screen draws them
+        await lp.goto(FILE + '/site/dialect/latex-drawings.html');
+        await loadAll(lp);
+        const block = await inkOf(lp, lp.locator('.g-example-out figure.latex').first());
+        const mark = await inkOf(lp, lp.locator('.g-example-out img.latex-inline').first());
+        const seen = x => x.ink > 20 && (theme === 'dark' ? x.lightest > 150 : x.darkest < 90);
+        assert(seen(block) && seen(mark),
+               `${tag}: a block and a mark are visible on the ${theme} sheet (${theme === 'dark' ? 'light' : 'dark'} ink on ${block.bg}): ` +
+               JSON.stringify([block.ink, block.lightest, block.darkest, mark.ink, mark.lightest, mark.darkest]));
+        // the exercises, driven: a two-blank fill-in, by drag, by cloud and by keyboard
+        if (device === 'desktop' && theme !== 'sepia') {
+          await lp.goto(FILE + '/site/dialect-exercises/latex.html');
+          await loadAll(lp);
+          const fill = lp.locator('.exercise[data-subtype="fill-blanks"]').first();
+          await fill.scrollIntoViewIfNeeded();
+          const item = src => fill.locator(`.ex-bank .ex-item:has(img[data-latex-src="${src}"])`);
+          const blank = n => fill.locator(`.ex-blank[data-slot="${n}"]`);
+          assert(await fill.locator('.ex-blank').count() === 2 && await fill.locator('.ex-bank .ex-item').count() === 4,
+                 `${tag}: the fill-in has two blanks and four blocks, all drawings`);
+          await item('$1$').dragTo(blank('first'));
+          await blank('second').click();
+          await fill.locator('.ex-cloud-pick:has(img[data-latex-src="$0$"])').click();
+          assert(await blank('first').locator('img').count() === 1 && await blank('second').locator('img').count() === 1 &&
+                 await fill.locator('.ex-bank .ex-item').count() === 2,
+                 `${tag}: a block dragged into the first blank, another chosen from the second blank's cloud`);
+          await lp.click('.ex-correct-all');
+          const good = await fill.evaluate(e => e.className);
+          assert(/\bcorrect\b/.test(good) && await blank('first').evaluate(e => e.classList.contains('answer-correct')) &&
+                 await blank('second').evaluate(e => e.classList.contains('answer-correct')),
+                 `${tag}: Check exercises marks both blanks right, by what was written and not by the pictures: ` + good);
+          await lp.reload();
+          await loadAll(lp);
+          const again = lp.locator('.exercise[data-subtype="fill-blanks"]').first();
+          const two = again.locator('.ex-bank .ex-item:has(img[data-latex-src="$2$"])');
+          await again.scrollIntoViewIfNeeded();
+          await two.focus();
+          await lp.keyboard.press('Enter');
+          const picked = await two.evaluate(e => e.classList.contains('picked'));
+          await again.locator('.ex-blank[data-slot="first"]').focus();
+          await lp.keyboard.press('Enter');
+          assert(picked && await again.locator('.ex-blank[data-slot="first"] .ex-item').count() === 1,
+                 `${tag}: from the keyboard, Enter picks a block and Enter on a blank puts it there`);
+          await lp.click('.ex-correct-all');
+          assert(await again.evaluate(e => e.classList.contains('incorrect')) &&
+                 await again.locator('.ex-blank[data-slot="first"]').evaluate(e => e.classList.contains('answer-wrong')),
+                 `${tag}: and a wrong block is marked wrong`);
+          // a Jolly card holding a block turns over, its back drawn too
+          const card = lp.locator('.ex-flashcard').nth(1);
+          await card.scrollIntoViewIfNeeded();
+          const shown = await card.locator('figure.latex img').first().evaluate(i => i.complete && i.naturalWidth > 0);
+          await card.click();
+          const backText = await card.locator('.ex-card-back').innerText();
+          assert(shown && /aspirin/.test(backText) && await card.locator('.ex-card-back img.latex-inline').count() === 1,
+                 `${tag}: a Jolly card with a drawing on its front turns over to "aspirin" and a drawn formula: ` + backText.trim().replace(/\s+/g, ' '));
+        }
+        assert(errs.length === 0, `${tag}: no script error and no missing file: ` + errs.join('; '));
+        await c.close();
+      }
+    }
+    // a computer that is set to dark and a reader who has not chosen: the
+    // same, by the system's own word
+    {
+      const c = await browser.newContext({viewport: {width: 1280, height: 900}, colorScheme: 'dark'});
+      const lp = await c.newPage();
+      await lp.goto(FILE + '/site/dialect/latex-drawings.html');
+      await loadAll(lp);
+      const auto = await lp.evaluate(() => [document.documentElement.dataset.theme || 'auto', document.documentElement.dataset.sheet]);
+      const block = await inkOf(lp, lp.locator('.g-example-out figure.latex').first());
+      const mark = await inkOf(lp, lp.locator('.g-example-out img.latex-inline').first());
+      assert(auto.join() === 'auto,dark' && block.ink > 20 && block.lightest > 150 && mark.ink > 20 && mark.lightest > 150,
+             'with the system set to dark and no theme chosen, the drawings are visible too: ' + JSON.stringify([auto, block.ink, block.lightest, mark.ink, mark.lightest]));
+      await c.close();
+    }
+  }
 
   // ========================================================== 2. through Parseh
   console.log('through the Parseh server');

@@ -21,13 +21,11 @@ Between a line `::::latex` and a line `::::` — **four colons**, one more
 than a formula's fence, so that a block may also stand in a Jolly card's
 field, where a line of three colons ends the exercise:
 
-```markdown
+```parseh-example
 ::::latex chemistry {width=45 align=center}
 \ce{2H2 + O2 -> 2H2O}
 ::::
 ```
-
-![The reaction, as LaTeX draws it](images/latex-reaction.svg){width=45 align=center}
 
 - **The word after `latex`** names a [theme](#themes): the packages the
   drawing is compiled with. No word, the default theme.
@@ -40,15 +38,13 @@ field, where a line of three colons ends the exercise:
 - **The body** is LaTeX, exactly as it would stand between
   `\begin{document}` and `\end{document}`.
 
-```markdown
+```parseh-example
 ::::latex chemistry
 \chemfig{H-[:30]O-[:-30]H}
 ::::
 ```
 
-![Water, drawn with chemfig](images/latex-water.svg)
-
-```markdown
+```parseh-example
 ::::latex drawing {width=50}
 \begin{tikzpicture}
 \draw[->] (0,0) -- (2,0) node[right] {$x$};
@@ -57,8 +53,6 @@ field, where a line of three colons ends the exercise:
 \end{tikzpicture}
 ::::
 ```
-
-![A parabola, drawn with TikZ](images/latex-tikz.svg){width=50 align=center}
 
 In the editor, **LaTeX drawing** opens a sheet: the preview beside the
 LaTeX, made as the computer draws it while you type, with **Fit** and
@@ -75,12 +69,20 @@ in a sentence, in an exercise's prompt or one of its options, wherever text
 already goes — sized to the words round it and set on their baseline, the
 same way `[...]{math}` is:
 
-```markdown
+```parseh-example
 The limit [$\displaystyle\lim_{x\rightarrow 0}\frac{\sin(x)}{x}$]{latex} is 1.
 ```
 
 A word after `latex`, the same as a block's, names a theme:
-`[\ce{H2O}]{latex chemistry}`. No word, the default theme. A tall drawing —
+`[\ce{H2O}]{latex chemistry}` is drawn with the chemistry theme, and no word
+is the default theme.
+
+```parseh-example
+Water, [\ce{H2O}]{latex chemistry}, is made by burning hydrogen:
+[\ce{2H2 + O2 -> 2H2O}]{latex chemistry}.
+```
+
+A tall drawing —
 a big fraction, a stack — is shrunk to a height that will not push its own
 line apart from the ones round it; whatever it draws stays in proportion.
 An inline mark that cannot be drawn shows its own LaTeX in its place, in
@@ -93,7 +95,9 @@ note in a book or a video — and in the four fields of a Jolly card, in a
 document and in a deck; a whole exercise **prompt** may also be one, on its
 own. An **inline** mark goes wherever prose already does: a document's
 paragraphs, lists, tables, headings and captions, a note, and any exercise
-field or option — the lines of prose a block alone could not reach.
+field or option — the lines of prose a block alone could not reach. The
+[exercises' page](../dialect-exercises/latex.md) shows both in a prompt, in
+the blanks and options of a fill-in, and on a Jolly card.
 
 ## Drawn once, the same everywhere
 

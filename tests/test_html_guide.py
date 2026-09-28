@@ -780,6 +780,249 @@ class TheSearchIndexHoldsEveryWord(Tree):
         self.assertTrue(page["x"].endswith("The very last word is zymurgy."), page["x"][-60:])
 
 
+# ------------------------------------------------------------------ LaTeX drawings, drawn beforehand
+LATEX_PAGE = r'''
+    ---
+    title: Drawn
+    ---
+    A mark [\ce{H2O}]{latex chemistry} in a line.
+
+    ::::latex chemistry {width=45}
+    \ce{2H2 + O2 -> 2H2O}
+
+    \ce{H2O}
+    ::::
+
+    ```parseh-example
+    ::::latex drawing
+    \draw (0,0) -- (1,1);
+    ::::
+    ```
+'''
+LATEX_DRAWN = [(r"\ce{H2O}", "chemistry", True),
+               ("\\ce{2H2 + O2 -> 2H2O}\n\n\\ce{H2O}", "chemistry", False),
+               (r"\draw (0,0) -- (1,1);", "drawing", False)]
+
+
+def latex_tree(files, drawn=()):
+    """Pages written into a scratch markdown/ with the pictures `drawn` --
+    [(tex, theme, inline)] -- already in its drawings/ -> (site, report, td)."""
+    from engine import drawings
+    td = tempfile.mkdtemp(prefix="guide-test-")
+    write_tree(Path(td) / "markdown", files)
+    folder = Path(td) / "markdown" / "drawings"
+    for tex, theme, inline in drawn:
+        folder.mkdir(exist_ok=True)
+        key = drawings.key_of(tex, drawings.starter(theme), inline)
+        (folder / (key + ".svg")).write_text('<svg xmlns="http://www.w3.org/2000/svg" width="23.67" '
+                                             'height="12.5"><path d="M0 0h20v10z"/></svg>')
+        (folder / (key + ".json")).write_text(json.dumps({"w": 23.67, "h": 12.5, "d": 3.5} if inline
+                                                         else {"w": 80.0, "h": 40.0}))
+    report = Site(GUIDE, src=Path(td) / "markdown").build(Path(td) / "site")
+    return Path(td) / "site", report, td
+
+
+class LatexDrawingsAreDrawnBeforehand(unittest.TestCase):
+    """The guide's compile has no TeX and stays standard library only, so
+    a latex block or mark is a picture made beforehand (`build.py --draw`)
+    and read from markdown/drawings/; a picture that is not there is the
+    studio's own frame, and a warning."""
+
+    def setUp(self):
+        from engine.studio import htmlgen
+        self.htmlgen = htmlgen
+        self.was = dict(htmlgen.LATEX)
+        self.dirs = []
+
+    def tearDown(self):
+        self.htmlgen.LATEX.clear()
+        self.htmlgen.LATEX.update(self.was)
+        for td in self.dirs:
+            shutil.rmtree(td, ignore_errors=True)
+
+    def compile(self, files, drawn=()):
+        site, report, td = latex_tree(files, drawn)
+        self.dirs.append(td)
+        return site, report
+
+    def test_the_block_parser_knows_a_latex_block(self):
+        nodes, _f, _d, problems = blocks.parse(
+            ["Before", "::::latex chemistry {width=45}", r"\ce{H2O}", "", "still the block", "::::",
+             "After"], 1)
+        self.assertEqual([n["kind"] for n in nodes], ["para", "latex", "para"])
+        self.assertEqual(nodes[1]["source"][0], "::::latex chemistry {width=45}")
+        self.assertEqual(nodes[1]["source"][-1], "::::")
+        self.assertEqual(len(nodes[1]["source"]), 5, "a blank line does not end it")
+        self.assertEqual((nodes[1]["line"], nodes[1]["closed"], problems), (2, True, []))
+        # a line of three colons is an exercise's, and a math block's: it does not close this one
+        nodes, _f, _d, problems = blocks.parse(["::::latex", "a", ":::", "b", "::::"], 1)
+        self.assertEqual([n["kind"] for n in nodes], ["latex"])
+        self.assertEqual(len(nodes[0]["source"]), 5)
+
+    def test_a_latex_block_never_closed_says_so(self):
+        nodes, _f, _d, problems = blocks.parse(["::::latex", "a", "b"], 5)
+        self.assertEqual([(n["kind"], n["closed"]) for n in nodes], [("latex", False)])
+        self.assertEqual(len(problems), 1)
+        self.assertEqual(problems[0][0], 5)
+        self.assertIn("::::", problems[0][1])
+
+    def test_the_fence_inside_a_code_block_is_only_code(self):
+        nodes, _f, _d, problems = blocks.parse(["```markdown", "::::latex", "a", "::::", "```"], 1)
+        self.assertEqual([n["kind"] for n in nodes], ["code"])
+        self.assertEqual(problems, [])
+
+    def test_a_key_is_of_the_drawing_and_of_nothing_else(self):
+        from engine import drawings
+        chem = drawings.starter("chemistry")
+        key = drawings.key_of("a", chem, False)
+        self.assertRegex(key, r"^[0-9a-f]{24}$")
+        self.assertEqual(key, drawings.key_of("a", drawings.starter("Chemistry"), False),
+                         "a theme's name is read ignoring case")
+        self.assertEqual(key, drawings.key_of("a", chem, False), "the same, every time")
+        for other in (drawings.key_of("b", chem, False), drawings.key_of("a", chem, True),
+                      drawings.key_of("a", drawings.starter("drawing"), False),
+                      drawings.key_of("a", dict(chem, packages=chem["packages"] + ["tikz"]), False)):
+            self.assertNotEqual(key, other)
+        self.assertEqual(drawings.starter(None)["name"], "default")
+        self.assertEqual(drawings.starter("")["name"], "default")
+        self.assertIsNone(drawings.starter("nosuchtheme"))
+        for name in drawings.THE_STARTERS:
+            self.assertIsNotNone(drawings.starter(name), "the three starters are the guide's themes")
+
+    def test_no_picture_is_a_warning_and_the_studio_s_frame(self):
+        site, report = self.compile({"drawn.md": LATEX_PAGE})
+        said = [str(p) for p in report.warnings]
+        self.assertEqual(len(said), 3, said)
+        for line in said:
+            self.assertIn("no pre-drawn picture", line)
+            self.assertIn("build.py --draw", line)
+        self.assertEqual(report.errors, [])
+        html = (site / "drawn.html").read_text(encoding="utf-8")
+        self.assertEqual(html.count('class="latex-fail"'), 2, "the block, and the block in the example")
+        self.assertIn("shown here as it is written", html)
+        self.assertRegex(html, r'<code class="latex-inline-src[^>]*>\\ce\{H2O\}</code>')
+        self.assertNotIn("<figure", html.replace('<figure class="video', ""))
+        self.assertIn('data-latex-src="\\draw (0,0) -- (1,1);"', html, "the frame keeps the LaTeX")
+        # the source of a block never reaches the page as a paragraph of text
+        self.assertNotIn("<p>::::latex", html)
+        self.assertNotIn(">::::latex", html.split('<div class="g-code"', 1)[0])
+
+    def test_a_picture_made_beforehand_is_drawn_where_the_page_is(self):
+        from engine import drawings
+        site, report = self.compile({"sec/drawn.md": LATEX_PAGE.replace("Drawn", "Nested"), "drawn.md": LATEX_PAGE}, LATEX_DRAWN)
+        self.assertEqual([str(p) for p in report.problems], [])
+        for rel, up in (("drawn.html", ""), ("sec/drawn.html", "../")):
+            html = (site / rel).read_text(encoding="utf-8")
+            block = drawings.key_of(LATEX_DRAWN[1][0], drawings.starter("chemistry"), False)
+            mark = drawings.key_of(LATEX_DRAWN[0][0], drawings.starter("chemistry"), True)
+            self.assertNotIn("latex-fail", html)
+            self.assertNotIn("shown here as it is written", html)
+            self.assertRegex(html, r'<figure class="latex align-center" data-latex-key="%s"[^>]*'
+                                   r'style="width:45%%;margin-left:27\.50%%"><img [^>]*src="%s"'
+                             % (block, re.escape("%sdrawings/%s.svg" % (up, block))))
+            self.assertRegex(html, r'<img [^>]*class="latex-inline" src="%s"[^>]*style="width:2\.367em;'
+                                   r'height:1\.250em;vertical-align:-0\.350em"'
+                             % re.escape("%sdrawings/%s.svg" % (up, mark)))
+            self.assertEqual(html.count("<figure class=\"latex"), 2, "the block and the one in the example")
+        # and the pictures travel with the site, like any other file under markdown/
+        for tex, theme, inline in LATEX_DRAWN:
+            key = drawings.key_of(tex, drawings.starter(theme), inline)
+            self.assertTrue((site / "drawings" / (key + ".svg")).is_file(), key)
+            self.assertTrue((site / "drawings" / (key + ".json")).is_file(), key)
+
+    def test_an_example_shows_the_source_and_its_result_in_one_box(self):
+        site, report = self.compile({"drawn.md": LATEX_PAGE}, LATEX_DRAWN)
+        html = (site / "drawn.html").read_text(encoding="utf-8")
+        box = re.search(r'<div class="g-example">(.*?)</figure></div></div>', html, re.S)
+        self.assertIsNotNone(box)
+        self.assertIn('data-code="parseh"', box.group(1))
+        self.assertIn("::::latex drawing", re.sub(r"<[^>]+>", "", box.group(1)))
+        out = box.group(1).split('class="g-example-out"', 1)[1]
+        self.assertIn(">Result<", out)
+        self.assertIn('<figure class="latex', out)
+
+    def test_a_theme_that_is_not_a_starter_is_not_drawn_and_said(self):
+        site, report = self.compile({"t.md": "---\ntitle: T\n---\nA [x]{latex nosuch} mark.\n"})
+        said = [str(p) for p in report.warnings]
+        self.assertEqual(len(said), 1, said)
+        self.assertIn("starter themes", said[0])
+        self.assertIn("nosuch", said[0])
+        self.assertIn("latex-inline-src", (site / "t.html").read_text(encoding="utf-8"))
+
+    def test_the_studio_s_drawer_is_put_back(self):
+        from engine import drawings
+        marker = lambda tex, theme=None, **_k: {"ok": False}          # noqa: E731
+        self.htmlgen.set_latex(marker, None, "/settings")
+        self.compile({"drawn.md": LATEX_PAGE}, LATEX_DRAWN)
+        self.assertIs(self.htmlgen.LATEX["draw"], marker)
+        self.assertEqual(self.htmlgen.LATEX["settings"], "/settings")
+        # even when what is drawn under it goes wrong
+        with self.assertRaises(RuntimeError):
+            with drawings.Drawings(Path(tempfile.gettempdir())).installed(lambda: None):
+                self.assertIsNot(self.htmlgen.LATEX["draw"], marker)
+                raise RuntimeError("a page that cannot be drawn")
+        self.assertIs(self.htmlgen.LATEX["draw"], marker)
+
+    def test_the_guide_asks_for_no_drawing_it_has_not_got(self):
+        before = snapshot(GUIDE / "markdown" / "drawings")
+        r = subprocess.run([sys.executable, str(GUIDE / "build.py"), "--draw", "--check"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertRegex(r.stdout, r"asks for (\d+) drawings: \1 there, 0 to draw, 0 nobody asks for")
+        self.assertEqual(snapshot(GUIDE / "markdown" / "drawings"), before, "--check writes nothing")
+        r = subprocess.run([sys.executable, str(GUIDE / "build.py"), "--draw", "--strict"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 2, "--draw draws and stops")
+
+    def test_every_drawing_in_the_guide_is_a_picture_with_its_measures(self):
+        folder = GUIDE / "markdown" / "drawings"
+        svgs = sorted(p.stem for p in folder.glob("*.svg"))
+        self.assertGreater(len(svgs), 10)
+        self.assertEqual(svgs, sorted(p.stem for p in folder.glob("*.json")))
+        for key in svgs:
+            meta = json.loads((folder / (key + ".json")).read_text(encoding="utf-8"))
+            self.assertGreater(meta["w"], 0)
+            self.assertGreater(meta["h"], 0)
+            self.assertIn(meta["theme"], ("default", "chemistry", "drawing"))
+            self.assertEqual(("d" in meta), meta["inline"], "only a mark in a line has a depth")
+            self.assertTrue((folder / (key + ".svg")).read_text(encoding="utf-8").lstrip().startswith("<svg"))
+
+    def test_the_guide_shows_a_latex_example_as_source_and_result(self):
+        """The owner's 2026-09-28 rounds: an example of a latex block or mark
+        is a `parseh-example`, source and result in one box -- never a
+        Markdown fence with a picture beneath it -- and the pages of the
+        exercises say the same."""
+        for path in sorted((GUIDE / "markdown").rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            for fence in re.finditer(r"(?ms)^```(\w[\w-]*)[^\n]*\n(.*?)^```", text):
+                if fence.group(1) in ("markdown", "text", "md") and re.search(r"^::::latex\b|\]\{latex", fence.group(2), re.M):
+                    self.fail("%s shows a latex example as a %s fence: make it a parseh-example"
+                              % (path.relative_to(GUIDE), fence.group(1)))
+            self.assertNotRegex(text, r"!\[[^\]]*\]\(images/latex-", path.name)
+        page = (GUIDE / "markdown" / "dialect-exercises" / "latex.md").read_text(encoding="utf-8")
+        self.assertRegex(page, r"(?m)^description: \S")
+        self.assertIn("(latex.md)", (GUIDE / "markdown" / "dialect-exercises" / "_index.md").read_text(encoding="utf-8"))
+        self.assertIn("dialect-exercises/latex.md",
+                      (GUIDE / "markdown" / "dialect" / "latex-drawings.md").read_text(encoding="utf-8"))
+
+    def test_the_exercises_page_shows_drawings_not_their_source(self):
+        with tempfile.TemporaryDirectory() as td:
+            report = Site(GUIDE).build(Path(td) / "site")
+            self.assertEqual([str(p) for p in report.problems], [])
+            for rel in ("dialect-exercises/latex.html", "dialect/latex-drawings.html"):
+                html = (Path(td) / "site" / rel).read_text(encoding="utf-8")
+                self.assertNotIn("latex-fail", html, rel)
+                self.assertNotIn("latex-inline-src", html, rel)
+                self.assertNotIn("shown here as it is written", html, rel)
+                self.assertGreater(html.count("<figure class=\"latex"), 2, rel)
+                self.assertGreater(html.count('class="latex-inline"'), 2, rel)
+            html = (Path(td) / "site" / "dialect-exercises" / "latex.html").read_text(encoding="utf-8")
+            chips = re.findall(r'<(?:button|span)[^>]*class="ex-(?:item|option)[^"]*"[^>]*>(.*?)</(?:button|span)>', html, re.S)
+            self.assertGreater(len(chips), 10)
+            for chip in chips:
+                self.assertNotIn("$", re.sub(r"<img[^>]*>", "", chip), "a chip shows a picture, not its LaTeX")
+
+
 # ------------------------------------------------------------------ the parts
 class Parts(unittest.TestCase):
     def test_front_matter_yaml_toml_json(self):

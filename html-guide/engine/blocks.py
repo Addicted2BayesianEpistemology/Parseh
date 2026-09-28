@@ -63,6 +63,10 @@ LINKDEF_RE = re.compile(r"^ {0,3}\[((?:[^\[\]\\]|\\.)+)\]:[ \t]*(<[^<>\n]*>|\S+)
 TABLE_DELIM_RE = re.compile(r"^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
 EXERCISE_RE = re.compile(r"^:::exercise(?:\s+[a-z][a-z0-9-]*)?\s*$", re.I)
 MATH_RE = re.compile(r"^:::math\s*$", re.I)
+# a drawing made by LaTeX itself (lib/latexthemes.py's fence): four colons, so
+# that it may also stand inside an exercise, which three colons would end
+LATEX_RE = re.compile(r"^::::latex\b", re.I)
+LATEX_CLOSE = "::::"
 IMAGE_LINE_RE = re.compile(r"^!\[([^\[\]]*)\]\(\s*([^()\s]+)\s*\)(?:\{([^{}]*)\})?$")
 VIDEO_LINE_RE = re.compile(r"^@\[([^\[\]]*)\]\(\s*([^()\s]+)\s*\)(?:\{([^{}]*)\})?$")
 # one tag alone on its line: its arguments never run past the first `>}}`,
@@ -264,18 +268,20 @@ class Parser:
                 i = self._shortcode(i, m)
                 continue
 
-            if EXERCISE_RE.match(t) or MATH_RE.match(t):
+            if EXERCISE_RE.match(t) or MATH_RE.match(t) or LATEX_RE.match(t):
                 flush()
+                latex = bool(LATEX_RE.match(t))
+                close = LATEX_CLOSE if latex else ":::"
                 j = i + 1
-                while j < self.n and self.lines[j].strip() != ":::":
+                while j < self.n and self.lines[j].strip() != close:
                     j += 1
-                kind = "exercise" if EXERCISE_RE.match(t) else "math"
+                kind = "latex" if latex else "exercise" if EXERCISE_RE.match(t) else "math"
                 nodes.append({"kind": kind, "line": self.at(i),
                               "source": self.lines[i:j + 1],
                               "closed": j < self.n})
                 if j >= self.n:
                     self.problems.append((self.at(i), "%s opened here is never closed "
-                                                      "with a line `:::`" % t))
+                                                      "with a line `%s`" % (t, close)))
                 i = j + 1
                 continue
 

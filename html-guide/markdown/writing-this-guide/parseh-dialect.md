@@ -133,6 +133,23 @@ The area of a circle is [\pi r^2]{math}.
 :::
 ```
 
+## LaTeX drawings
+
+What MathJax cannot draw — a reaction, a molecule, a plot — LaTeX draws: in
+a line with `[…]{latex}`, or on lines of their own between `::::latex` and
+`::::`, four colons. The guide is compiled where there may be no TeX, so
+these are pictures made beforehand and kept in `markdown/drawings/`: a new
+one is made with `build.py --draw`, and a compile that finds one missing
+says so ([Compiling and publishing](compiling.md#latex-drawings)).
+
+```parseh-example
+Water, [\ce{H2O}]{latex chemistry}, from hydrogen and oxygen:
+
+::::latex chemistry {width=45 align=center}
+\ce{2H2 + O2 -> 2H2O}
+::::
+```
+
 ## Exercises
 
 `:::exercise <type>` … `:::` is one of the studio's thirteen exercises,

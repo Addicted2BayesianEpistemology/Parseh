@@ -145,6 +145,7 @@ studio's reading wins:
 | `->` | `->` | → |
 | `✗` `✅` `⏎`, `x = *gloss*` | text | the dialect's marks |
 | `:::exercise`, `:::math` | text | an exercise, a formula |
+| `::::latex` … `::::`, `[…]{latex}` | text | a LaTeX drawing: a picture made beforehand by `build.py --draw`, kept in `markdown/drawings/` (a compile never draws) |
 | `[l](doc:Title)` | a link | a link to the page titled so |
 | raw HTML | left out | shown as text, as in the studio; `<!-- comments -->` left out |
 | four-space indentation | a code block | text: code is always fenced |
@@ -170,6 +171,7 @@ python3 html-guide/build.py --check     # compile into a scratch folder, keep no
 python3 html-guide/build.py --strict    # warnings fail too
 python3 html-guide/build.py --out DIR   # somewhere else
 python3 html-guide/build.py --clean     # remove site/
+python3 html-guide/build.py --draw      # draw the LaTeX drawings markdown/drawings/ lacks (needs TeX), then stop
 ```
 
 A compile replaces its folder whole, so `--out`, `--pages` and `--export`

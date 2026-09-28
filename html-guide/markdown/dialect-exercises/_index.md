@@ -129,6 +129,9 @@ Keep the exercises you need and delete the rest.
   how it is checked, what the PDF shows and how it goes into a deck:
   [placement](placement.md), [matching](matching.md), [choice](choice.md)
   and [flashcards](flashcards.md).
+- [LaTeX drawings in the exercises](latex.md): a limit, a reaction or a
+  molecule drawn by LaTeX in a prompt, in the blanks and options, and on a
+  Jolly card.
 - [Exercises on paper](on-paper.md): the PDF, its print sizes for readers
   with low vision, black and white for the photocopier, and the layouts a
   student writes on.

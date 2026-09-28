@@ -51,6 +51,7 @@ from pathlib import Path
 from . import render as R
 from . import shortcodes
 from .cssscope import scope as scope_css
+from .drawings import Drawings
 from .fingerprint import fingerprint
 from .frontmatter import FrontMatterError, split as split_front_matter
 from .inline import Store
@@ -372,6 +373,7 @@ class Site:
         self.by_rel = {}
         self.root_fm = {}
         self._titles = {}
+        self.drawings = Drawings(self.src / "drawings")
 
     # ------------------------------------------------------------ reading
     def discover(self):
@@ -544,7 +546,8 @@ class Site:
         search = []
         nav_tree = self._nav_data(root)
         self._runtime(out)
-        with inline_seam(self._prepare_inline):
+        with inline_seam(self._prepare_inline), \
+                self.drawings.installed(lambda: self._current.ctx):
             for k, page in enumerate(order):
                 prev_page = order[k - 1] if k else None
                 next_page = order[k + 1] if k + 1 < len(order) else None

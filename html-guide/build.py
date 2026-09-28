@@ -14,9 +14,17 @@
                                                 the studio it needs, into a
                                                 project of its own
     python3 html-guide/build.py --strict        warnings fail the build too
+    python3 html-guide/build.py --draw          draw the LaTeX drawings the pages
+                                                ask for and markdown/drawings/ has
+                                                not got yet, and stop (a developer
+                                                step: needs TeX and the checkout's
+                                                environment); with --check, only
+                                                say what it would draw
 
 Standard library only: any Python 3.8 or newer builds it, the checkout's
-environment or not.  The installers run it (lib/runtime.py, the `guide`
+environment or not -- and it never draws: a page's LaTeX drawings are the
+pictures in markdown/drawings/, made beforehand by --draw and committed, so
+that a machine with no TeX compiles the same guide.  The installers run it (lib/runtime.py, the `guide`
 step; ./install.sh --guide does only this), and so does the front page's
 "Compile the guide" button when Parseh serves it.  README.md beside this file
 says how a page is written.
@@ -102,8 +110,19 @@ def main(argv=None):
     ap.add_argument("--pages", metavar="DIR", help="assemble a deployable site in DIR")
     ap.add_argument("--export", metavar="DIR", help="copy the guide into a project of its own")
     ap.add_argument("--strict", action="store_true", help="warnings fail the build too")
+    ap.add_argument("--draw", action="store_true",
+                    help="draw the LaTeX drawings markdown/drawings/ lacks (needs TeX), then stop; "
+                         "with --check, only say which")
     ap.add_argument("--quiet", "-q", action="store_true", help="say only what is wrong")
     args = ap.parse_args(argv)
+
+    if args.draw:
+        if args.out or args.pages or args.export or args.clean or args.strict:
+            print("error: --draw draws and stops; it goes with --check and --quiet alone",
+                  file=sys.stderr)
+            return 2
+        from engine import drawings
+        return drawings.main(HERE, check=args.check, quiet=args.quiet)
 
     if args.clean:
         site = HERE / "site"

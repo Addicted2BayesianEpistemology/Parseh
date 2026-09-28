@@ -45,10 +45,43 @@ python3 html-guide/build.py             # compile into html-guide/site/
 python3 html-guide/build.py --check     # compile into a scratch folder and only say what is wrong
 python3 html-guide/build.py --strict    # warnings fail it too
 python3 html-guide/build.py --clean     # remove html-guide/site/
+python3 html-guide/build.py --draw      # draw the LaTeX drawings the pages ask for, and stop
+python3 html-guide/build.py --draw --check   # only say which it would draw
 ```
 
 A compile takes a second or two for the whole guide, and gives the same
 files for the same pages every time: nothing in them depends on the day.
+
+## LaTeX drawings {#latex-drawings}
+
+A page may hold a [LaTeX drawing](../dialect/latex-drawings.md), a
+`::::latex` block or a `[…]{latex}` mark. **A compile never draws one**:
+it needs nothing but the standard library, and no TeX. Every drawing a
+page shows is a picture made beforehand and kept in
+`html-guide/markdown/drawings/` — `<name>.svg`, and its size in
+`<name>.json` — which the compile copies to the site with the other
+pictures, so a machine with no TeX, or GitHub's, builds the same pages.
+
+- **`--draw` makes them.** It compiles the guide into a scratch folder to
+  learn which drawings the pages ask for, draws the ones the folder does not
+  hold yet, and removes the ones no page asks for any more. It is a
+  developer's step, run from the Parseh checkout on a computer that has
+  TeX (xelatex) and the checkout's environment (PyMuPDF); a guide exported
+  out of Parseh has no drawer, and carries the pictures it has. Commit the
+  pictures with the page.
+- **The three starter themes only.** The guide draws with `default`,
+  `chemistry` and `drawing`, as a fresh Parseh has them, never with the
+  themes in this computer's Settings, so that it is the same on every
+  computer. A block or a mark naming another theme is not drawn, and the
+  compile says so.
+- **The name is what the picture is made of.** It comes from the LaTeX, the
+  theme's packages and whether it is a mark in a line, and from nothing of
+  the computer. A changed LaTeX is a new picture, and the old one goes at
+  the next `--draw`.
+- **A drawing that is not there** is shown as the studio shows one it
+  cannot make — its LaTeX in a frame, or in code where it stands — and the
+  compile warns, *no pre-drawn picture … run html-guide/build.py --draw*.
+  `--strict` makes that a failure.
 
 ## Reading it
 

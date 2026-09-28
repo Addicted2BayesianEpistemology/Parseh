@@ -234,7 +234,7 @@ class Renderer:
             return self.figure(node)
         if kind == "video":
             return self.video(node)
-        if kind in ("exercise", "math"):
+        if kind in ("exercise", "math", "latex"):
             return self.parseh_block(node, in_box)
         if kind == "shortcode":
             return shortcodes.block(self, node)
@@ -389,6 +389,8 @@ class Renderer:
                 out.append(self.studio(b, in_box))
             elif b["type"] == "math":
                 self.ctx.uses.add("math")
+                out.append(self.studio(b, in_box))
+            elif b["type"] == "latex":
                 out.append(self.studio(b, in_box))
         return "\n".join(out)
 

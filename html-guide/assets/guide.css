@@ -314,6 +314,17 @@ html[data-side=closed] .g-side{display:none}
 .g-example-out>.titleblock{margin-bottom:1.1em}
 .g-example-out .footnotes{font-size:.9em}
 
+/* a LaTeX drawing is black on nothing (lib/latexdraw.py): on the dark sheet it
+   would vanish, so it is turned to the sheet's own ink; the hue turn keeps a
+   coloured drawing's colours where they were */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]):not([data-theme=sepia]) .g-article figure.latex img,
+  :root:not([data-theme=light]):not([data-theme=sepia]) .g-article img.latex-inline{
+    filter:invert(.9) hue-rotate(180deg)}
+}
+:root[data-theme=dark] .g-article figure.latex img,
+:root[data-theme=dark] .g-article img.latex-inline{filter:invert(.9) hue-rotate(180deg)}
+
 /* ---------------- a picture, large ---------------- */
 .g-lightbox{position:fixed;inset:0;z-index:90;background:rgba(10,6,8,.86);display:flex;
   align-items:center;justify-content:center;padding:24px;cursor:zoom-out}

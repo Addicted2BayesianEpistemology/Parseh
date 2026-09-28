@@ -1,0 +1,8 @@
+{
+ "d": 9.18,
+ "h": 25.35,
+ "inline": true,
+ "tex": "$\\displaystyle\\lim_{x\\rightarrow 0}\\frac{\\sin(x)}{x} = $",
+ "theme": "default",
+ "w": 60.66
+}
