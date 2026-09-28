@@ -432,7 +432,8 @@ class Route(unittest.TestCase):
                          [(2, "این زال است."), (6.5, "من سارا هستم.")])
 
     def test_the_editor_is_served(self):
-        for path in ("/youtube/lib/subedit.js", "/youtube/lib/subedit.css"):
+        for path in ("/youtube/lib/subedit.js", "/youtube/lib/subedit.css",
+                     "/youtube/lib/addstt.js", "/youtube/lib/addstt.css"):
             c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
             c.request("GET", path)
             r = c.getresponse()
@@ -452,6 +453,12 @@ class Route(unittest.TestCase):
             self.assertIn(want, page, want)
         self.assertNotIn("cardkit", page,
                          "the editor records nothing: the card kit is the player's, not this page's")
+        # and speech to text, which is optional: its module and its place, and the one
+        # recording of a tab's sound that the player's waveform is made from too
+        for want in ('/youtube/lib/addstt.js', '/youtube/lib/addstt.css',
+                     '/youtube/lib/tabcapture.js', '<div id="stt" class="stt" hidden></div>'):
+            self.assertIn(want, page, want)
+        self.assertNotIn("/api/transcribe", page, "the page names no endpoint of it: the module does")
 
     def test_no_traceback(self):
         self.assertNotIn("Traceback", self._log())
