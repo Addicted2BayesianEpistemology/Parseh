@@ -1303,7 +1303,7 @@ class AppTests(unittest.TestCase):
         self.assertIn('new MessageChannel()', ask)
         self.assertIn('page.postMessage({reachAsk: true}, [line.port2]);', ask)
         self.assertIn("said(!!e.data && e.data.state === 'there')", ask)
-        self.assertIn('setTimeout(() => done(false), ASKED)', ask)
+        self.assertIn('setTimeout(() => end(false), ASKED)', ask)
         self.assertIn('const ASKED = 1500;', sw)
         act = (ROOT / 'lib' / 'activity.js').read_text(encoding='utf-8')
         # the page: one poll, still -- nothing here asks the computer a second way

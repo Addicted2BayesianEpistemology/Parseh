@@ -1766,7 +1766,7 @@ async function partExport() {
   assert(!!id, 'a document to export: ' + JSON.stringify(made.meta ? id : made));
   const page = await newPage(PHONE, 'export');
   const DELAY = WORK + '/export-delay';
-  // the computer suspended (SIGSTOP: a phone meets silence, not refusal), and let go again
+  // the computer suspended (SIGSTOP: a device away from it meets silence, not refusal), and let go again
   const freeze = () => Deno.kill(hub.pid, 'SIGSTOP');
   const thaw = () => { try { Deno.kill(hub.pid, 'SIGCONT'); } catch (_) { /* gone */ } };
   // one more document, under a name of its own
@@ -1864,7 +1864,7 @@ async function partExport() {
     // 2026-09-28; tests/reach.mjs, partNav, drives every other end of it).
     // It used to end on the offline page.  The offline page, and the way back
     // from it, is reached here by a computer that answers nothing at all
-    // (suspended: a phone meets silence, not refusal) -- which is what still
+    // (suspended: a device away from it meets silence, not refusal) -- which is what still
     // ends there, after the deadline and one question.
     const slowdoc = await makeOne('Eight seconds slow');
     const other = await makeOne('Never opened before');
