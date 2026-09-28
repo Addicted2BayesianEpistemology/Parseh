@@ -177,13 +177,16 @@ def speech_credits():
     THE PROGRAM CARRIES SEVERAL LICENCES, and each is said with what carries
     it: faster-whisper, CTranslate2 and onnxruntime are MIT, PyAV is
     BSD-3-Clause, and the FFmpeg libraries inside PyAV's wheels report
-    LGPL-3.0-or-later while the codec libraries beside them keep their own.
+    LGPL-3.0-or-later while the codec libraries beside them keep their own;
+    the other packages of the list, and the Intel MKL and oneDNN in
+    CTranslate2's Linux wheel, are said in one sentence (getstt.RUNTIME_REST).
     None of it is in Parseh's folder: a person's own press of a button fetches
     it from PyPI, under a hash Parseh ships."""
     import getstt
     also = ["%s (%s)" % (licence_link(lic), esc(what)) for what, lic in getstt.RUNTIME_LICENCES]
     licence = (licence_link(getstt.LICENCE) + ", " + (", ".join(also[:-1]) + " and " if len(also) > 1 else "")
-               + also[-1] + "; the codecs inside those libraries keep their own")
+               + also[-1] + "; the codecs inside those libraries keep their own; "
+               + esc(getstt.RUNTIME_REST))
     out = {"speech:runtime": (esc(getstt.SOURCE), licence)}
     for model in getstt.MODELS:
         out["speech:" + model] = (esc(getstt.MODEL_SOURCE), licence_link(getstt.MODEL_LICENCE))

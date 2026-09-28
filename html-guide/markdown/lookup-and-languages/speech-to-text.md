@@ -45,7 +45,9 @@ against a SHA-256 Parseh ships with, and the files of two models at one
 fixed version of their repository, each checked against its own. A model is
 one of two names and a way of running it one of three. Whoever presses the
 button gets the same files. Removing a part is refused while an install or
-a transcription is using it.
+a transcription is using it — and a transcription of a YouTube video is using
+it from the moment it starts, for as long as the video plays, and not only
+once all its sound has arrived.
 
 ## What is on the page
 
@@ -200,6 +202,17 @@ and offer no button. On Windows, the program's files have names up to 125
 characters long, so a Parseh folder nested deeper than about a hundred
 characters is refused with a sentence, unless Windows has long paths turned on.
 
+- **Another Python, or a Python with no pip.** Parseh's own environment has
+  Python 3.12 and pip: make it once by double-clicking **install.bat** on
+  Windows or **Parseh.command** on a Mac (or running `install.sh` on Linux),
+  then start Parseh again.
+- **A folder too deep on Windows.** Either move Parseh's folder nearer the top
+  of a drive, or turn long paths on: open the Registry Editor, go to
+  `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem`, set the
+  value **LongPathsEnabled** to `1` (or turn on *Enable Win32 long paths* in
+  the Group Policy Editor), and restart Windows. Microsoft's page on it is
+  [Maximum Path Length Limitation](https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation).
+
 ## Where the files live
 
 | Path | What it is |
@@ -232,7 +245,8 @@ Each row says whose work it is and its licence, linked, and
   under the MIT licence; **PyAV** is under BSD-3-Clause, and the FFmpeg
   libraries inside its packages report LGPL-3.0-or-later, while the codec
   libraries beside them keep their own licences; the rest of what the list
-  names is under the licence each package comes with. Parseh, which is
+  names, and the backends CTranslate2's packages bundle (Intel MKL and oneDNN
+  in the Linux one), are under the licence each comes with. Parseh, which is
   GPL-3.0-or-later, ships none of it: your own press of **Get it** fetches it
   from PyPI.
 - The models: OpenAI's Whisper large-v3 and large-v3-turbo, converted to

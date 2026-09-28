@@ -1203,6 +1203,23 @@ class GetsttTests(DownloaderCase):
         self.assertEqual(self.g._CHILDREN, set())
         self.assertFalse(self.g.in_use())
 
+    def test_stopping_the_server_clears_what_an_install_left_and_touches_nothing_else(self):
+        # the install's own clean-up is on a daemon thread that an exiting interpreter can
+        # outrun (with pip's real unpacking, hundreds of MB stayed): the server's stop clears
+        # the stage and pip's scratch itself, on its own thread
+        stage = Path(self.g._stage_folder())
+        scratch = self.stt / "tmp" / ("pip-%d" % os.getpid())
+        other = self.stt / "tmp" / "pip-1"                    # (not this server's: not ours to clear)
+        for folder in (stage, scratch, other):
+            (folder / "pkg").mkdir(parents=True)
+            (folder / "pkg" / "file").write_bytes(b"x" * 100)
+        program = self.installed_program()
+        self.g.stop_all()
+        self.assertFalse(stage.exists(), "the staging folder")
+        self.assertFalse(scratch.exists(), "and pip's scratch")
+        self.assertTrue(other.exists())
+        self.assertTrue(program.is_dir(), "a program that is installed stays")
+
     def test_a_failing_pip_says_why_in_a_sentence_and_installs_nothing(self):
         self.mode = "fail"
         with self.assertRaises(SystemExit) as caught:
@@ -1338,6 +1355,69 @@ class GetsttTests(DownloaderCase):
         self.assertFalse((self.stt / "models" / "large-v3.part").exists())
         self.assertTrue(self.g.model_ready("large-v3"))
         self.assertFalse(self.g.in_use())
+
+    def test_a_stream_longer_than_the_pinned_size_is_cut_off_and_not_written_out(self):
+        # the digest pins the exact size, so a body of any other length can never pass it:
+        # it is refused as it grows past the pin, and not after it has filled the disk
+        srv = Server()
+        self.addCleanup(srv.close)
+        good = b"the bytes the pin is the digest of"
+        url = srv.serve("/config.json", Served(good * 30000, length=False, etag=None, ranges=False))
+        folder = self.stt / "models" / "x.part"
+        folder.mkdir(parents=True)
+        written = []
+        with self.assertRaises(SystemExit) as caught:
+            self.g._fetch_all([(url, str(folder / "config.json"), sha(good), len(good))],
+                              say=lambda m: None, progress=lambda done, total, phase: written.append(done),
+                              cancel=None)
+        self.assertTrue(str(caught.exception).startswith("getstt: "), caught.exception)
+        self.assertIn("grew past", str(caught.exception))
+        self.assertEqual(list(folder.iterdir()), [], "nothing of it is kept")
+        self.assertLess(max(written or [0]), 1 << 20, "and not a megabyte of it was written first")
+        # the same when the server says at the start how long it is
+        url = srv.serve("/config2.json", Served(good * 30000))
+        with self.assertRaises(SystemExit) as caught:
+            self.g._fetch_all([(url, str(folder / "config.json"), sha(good), len(good))],
+                              say=lambda m: None, progress=None, cancel=None)
+        self.assertIn("more than", str(caught.exception))
+        self.assertEqual(list(folder.iterdir()), [])
+        # and a file that is the size the pin says is fetched, as before
+        url = srv.serve("/config3.json", Served(good))
+        self.g._fetch_all([(url, str(folder / "config.json"), sha(good), len(good))],
+                          say=lambda m: None, progress=None, cancel=None)
+        self.assertEqual((folder / "config.json").read_bytes(), good)
+
+    def test_a_model_that_is_already_there_is_not_fetched_again(self):
+        # a Settings page loaded before another device finished the install still draws
+        # "Get it", and so may a caller of the API: the press must not swap a ready
+        # model for a new copy of the same bytes (gigabytes, and a moment in which the
+        # folder is not there for a transcription that starts in it)
+        self.installed_program()
+        with patch.object(download, "fetch", self.fetcher("large-v3").fetch):
+            self.g.build("large-v3", say=lambda m: None)
+        self.assertTrue(self.g.model_ready("large-v3"))
+        folder = self.stt / "models" / "large-v3"
+        before = (folder.stat().st_ino, (folder / "model.bin").stat().st_ino)
+        again = self.fetcher("large-v3")
+        said = []
+        with patch.object(download, "fetch", again.fetch):
+            size = self.g.build("large-v3", say=said.append)
+        self.assertEqual(again.calls, [], "nothing was fetched")
+        self.assertTrue(any("already installed" in s for s in said), said)
+        self.assertEqual(size, self.g.model_info("large-v3")["size"])
+        self.assertEqual((folder.stat().st_ino, (folder / "model.bin").stat().st_ino), before,
+                         "and the folder was not swapped for another")
+        self.assertFalse(self.g.in_use())
+        # a model that is older, newer or incomplete is still got again: that is what
+        # "Get it again" is for
+        meta = json.loads((folder / "meta.json").read_text())
+        (folder / "meta.json").write_text(json.dumps(dict(meta, revision="0" * 40)))
+        self.assertEqual(self.g.model_info("large-v3")["state"], "older")
+        fetched = self.fetcher("large-v3")
+        with patch.object(download, "fetch", fetched.fetch):
+            self.g.build("large-v3", say=lambda m: None)
+        self.assertEqual(len(fetched.calls), 5)
+        self.assertTrue(self.g.model_ready("large-v3"))
 
     def test_a_stopped_model_keeps_what_came_and_the_next_press_carries_on(self):
         self.installed_program()
