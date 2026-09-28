@@ -215,6 +215,18 @@ LATEX_INLINE_RE = re.compile(
     % (_LATEX_SLOT, _LATEX_GROUP, _LATEX_GROUP, _LATEX_END, _LATEX_END))
 
 
+# A list item's own bracket -- a checkbox, "- [x] ", or a blank's name,
+# "- [blank1] " -- is not the start of a mark, but the body rule above (a "]"
+# may stand inside one, as in "[0,1)") would read "- [x] [a]{latex}" as the
+# body "x] [a".  The raw source is swept with those brackets blanked, kept as
+# long, so that an option's mark is the one the page draws.
+_ITEM_BRACKET = re.compile(r"(?m)^([ \t>]*(?:[-*+]|\d+[.)])[ \t]+)\[([^\[\]\n]*)\](?=[ \t])")
+
+
+def _items_unmarked(source):
+    return _ITEM_BRACKET.sub(lambda m: m.group(1) + " " * (len(m.group(2)) + 2), source)
+
+
 def inline_latex_pairs(source):
     """Every distinct (tex, theme name or None) an inline `[…]{latex …}`
     mark names in `source` (the WHOLE raw markdown, frontmatter and all --
@@ -224,7 +236,7 @@ def inline_latex_pairs(source):
     block's own pre-compile exists (a screen calls `draw_all` on the result;
     a paper document compiles each in turn, as it already does for blocks)."""
     seen, out = set(), []
-    for m in LATEX_INLINE_RE.finditer(source):
+    for m in LATEX_INLINE_RE.finditer(_items_unmarked(source)):
         pair = (m.group(1), m.group(3) or None)
         if pair not in seen:
             seen.add(pair)

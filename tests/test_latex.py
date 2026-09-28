@@ -452,17 +452,48 @@ class InlineMark(unittest.TestCase):
         self.assertEqual(
             {t for t, _ in latexthemes.inline_latex_pairs(source)}, {"p", "a", "b", "c"})
 
-    def test_a_mark_right_after_an_exercise_s_own_checkbox_is_a_known_limit(self):
-        # inherited from MATH_RE, which this mirrors exactly (both are a raw
-        # sweep of UNPARSED source, before the parser strips "- [x] "): the
-        # mark's own body is swallowed with the checkbox before it, when
-        # nothing separates the two.  Harmless where it is used -- a page's
-        # pre-warm only wastes one compile of nonsense text, and the block
-        # tree the real render reads from is never touched by this sweep --
-        # but real, and worth a name rather than a silent surprise.
-        source = "- [x] [a]{latex}\n"
-        got = [t for t, _ in latexthemes.inline_latex_pairs(source)]
-        self.assertEqual(got, ["x] [a"])
+    def test_a_mark_right_after_an_exercise_s_own_checkbox_is_the_option_s_own(self):
+        # the raw sweep once read "- [x] [a]{latex}" as the body "x] [a", and
+        # an option's drawing was let go by "Forget drawings nothing uses"
+        # while the page still showed it (the owner, 2026-09-28)
+        source = ("- [x] [a]{latex}\n- [ ] [$2 + 2$]{latex}\n- [blank1] [1]{latex}\n"
+                  "  - [first] [\\ce{H2O}]{latex chemistry}\n- [$x$]{latex} a mark first\n")
+        self.assertEqual(latexthemes.inline_latex_pairs(source),
+                         [("a", None), ("$2 + 2$", None), ("1", None), ("\\ce{H2O}", "chemistry"),
+                          ("$x$", None)])
+
+
+class WhatIsCountedIsWhatIsDrawn(Store):
+    """"Forget drawings nothing uses", the day of grace and a phone's kept list
+    count a document's drawings from its raw text; a page draws them from the
+    parsed one.  Both must name the same drawings."""
+
+    DOC = ("---\ntitle: T\nlang: en\ntarget: it\n---\n\n::::latex\n$x$\n::::\n\n"
+           "In a line [$\\frac{1}{2}$]{latex}.\n\n"
+           ":::exercise fill-blanks\nprompt: Drag.\ntext: |\n  [$1 = $]{latex} [[blank1]]\n"
+           "- [blank1] [1]{latex}\n- [ ] [2]{latex}\n:::\n\n"
+           ":::exercise choose-all\nprompt: Choose.\n- [x] [$4 \\cdot 0.25$]{latex}\n- [ ] [$2 + 2$]{latex}\n:::\n\n"
+           ":::exercise single-choice\nprompt: |\n  Choose.\n  ::::latex\n  $y$\n  ::::\n- [x] 1\n- [ ] 2\n:::\n\n"
+           ":::exercise flashcard\ncard-type: jolly\nfront-primary: |\n  ::::latex {caption=\"c\"}\n  $z$\n  ::::\n"
+           "back-primary: 1\n:::\n")
+
+    def test_every_drawing_a_page_draws_is_counted(self):
+        import texpackages
+        drawn = []
+
+        def draw(tex, theme=None, **kw):
+            drawn.append((tex, theme or None, bool(kw.get("inline"))))
+            return {"ok": False, "kind": "here", "said": "not here"}
+        with mock.patch.dict(htmlgen.LATEX, {"draw": draw, "draw_all": None}), \
+                mock.patch.object(latexdraw, "compiler", lambda name, fresh=False: {"path": "/x", "version": "v"}), \
+                mock.patch.object(latexdraw, "tex_state", lambda c: "s"), \
+                mock.patch.object(texpackages, "_KIND", ["miktex"]):
+            htmlgen.render_document(self.DOC)
+            asked = {latexdraw.plan(t, th, inline=i)["key"] for t, th, i in drawn}
+            counted = latexdraw._source_keys(self.DOC)
+        self.assertEqual(len(set(drawn)), 9, drawn)
+        self.assertEqual(asked - counted, set(), "a drawing the page draws that nothing counts is let go")
+        self.assertEqual(counted - asked, set(), "and nothing is counted that the page never draws")
 
 
 class KeptDrawings(Store):
