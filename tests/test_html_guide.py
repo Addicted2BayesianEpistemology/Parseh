@@ -859,7 +859,9 @@ class TheSite(Tree):
         the two links and nothing else."""
         import author
         pages = [p for p in sorted(self.site.rglob("*.html")) if 'class="g-foot"' in p.read_text(encoding="utf-8")]
-        self.assertGreaterEqual(len(pages), 6)
+        # the five pages this tree has (its front page draws none); a redirect for an alias has no foot
+        self.assertEqual([p.relative_to(self.site).as_posix() for p in pages],
+                         ['a.html', 'b.html', 'sec/deep/leaf.html', 'sec/index.html', 'z.html'])
         for p in pages:
             text = p.read_text(encoding="utf-8")
             foot = re.findall(r'<footer class="g-foot">(.*?)</footer>', text, re.S)
