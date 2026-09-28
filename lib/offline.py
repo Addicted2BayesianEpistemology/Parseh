@@ -763,19 +763,23 @@ def _a_run(chs):
 
 
 # WHAT THE PLAYER'S PAGE LOADS FROM ITS OWN MOUNT.  youtube/lib/player.html
-# links exactly two files that are not the toolbox's: the player's stylesheet,
-# in the head, and the player itself, the last tag of the body.  Named
-# relative to the video mount for the same reason STUDIO_FILES is named
-# relative to the studio's -- serve.py decides where the videos answer, and a
-# "/youtube" written out here would be a second copy of that decision.
-PLAYER_FILES = ("/lib/style.css", "/lib/player.js")
+# links exactly three files that are not the toolbox's: the player's
+# stylesheet and the tab-capture script (the share of this tab and the
+# recording of its sound, which the add page uses too), both in the head, and
+# the player itself, the last tag of the body.  A fourth would be missing from
+# a kept video the same way: tests/test_tabcapture.py holds this list to what
+# the page links.  Named relative to the video mount for the same reason
+# STUDIO_FILES is named relative to the studio's -- serve.py decides where the
+# videos answer, and a "/youtube" written out here would be a second copy of
+# that decision.
+PLAYER_FILES = ("/lib/style.css", "/lib/tabcapture.js", "/lib/player.js")
 
 
 def _player_entry(url_base, rel):
     """One of the player's own files, weighed.
 
     The address is the mount's, and the file behind it is found the way the
-    server finds it: serve.py serves these two straight off the disk at the
+    server finds it: serve.py serves these straight off the disk at the
     path their address spells under the toolbox's directory (its STATIC_FILES
     and `directory=ROOT`), so what lands in the phone's cache is these bytes
     and the digest is worth carrying.
@@ -809,7 +813,7 @@ def video(video_dir, vid, url_base, notes=None, studio_base="/studio"):
     small = [_door(page, _size(os.path.join(video_dir, "annotations.json")))]
     # AND WHAT THAT PAGE ASKS FOR THAT IS NOT UNDER /lib/.  Everything else
     # the player links is the toolbox's own and is in SHARED already; these
-    # two are the player's, they live under the video mount, and they were in
+    # are the player's, they live under the video mount, and they were in
     # no list at all -- so a kept video opened away from the computer waited
     # on a stylesheet and a script that were never there and stopped at
     # "loading the annotations…", which is the line the page shows before

@@ -488,6 +488,9 @@ STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js"
                 # that turns out to have a formula on it
                 "/lib/mathjax.js", "/lib/mathjax.css",
                 "/youtube/lib/style.css", "/youtube/lib/player.js",
+                # the tab's share and the recording of its sound, which the
+                # player draws its waveform from and the add page will too
+                "/youtube/lib/tabcapture.js",
                 # the add page's transcript editor, which opens the cut
                 # editor over the video it is about to add
                 "/youtube/lib/subedit.js", "/youtube/lib/subedit.css"}
