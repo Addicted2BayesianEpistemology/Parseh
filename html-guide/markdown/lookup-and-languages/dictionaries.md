@@ -43,7 +43,7 @@ then deletes the file.
 
 **dictionary** sits in the header of every book reader and every video
 player — after **gloss** and **hover** in a book, after **follow** and
-**hover ‖** in the player. Three rules govern it:
+**hover ⏸** in the player. Three rules govern it:
 
 - **It is there only when something is behind it.** A reader asks the
   server once, when it opens, whether this language has a dictionary or a

@@ -537,6 +537,15 @@ async function partReader() {
          `${code}: ⋯ opens the groups this book has`);
       eq(await page.evaluate(() => document.querySelector('.m-rmore').getAttribute('aria-expanded')), 'true',
          `${code}: and says it is open`);
+      // hover ⏸ (a0.4.1, lib/mobilereader.js): the narration waits while a gloss is open.  In the
+      // Listening group of the one narrated book -- and so nowhere in a book with no recording, in
+      // whatever language it is set (the header is an LTR island, right to left included), which
+      // is also what keeps a Listening line off that book's ⋯ (the labels just above)
+      eq(await page.evaluate(() => {
+        const b = document.getElementById('hoverpause');
+        return b && b.getClientRects().length > 0 ? [b.textContent, b.getBoundingClientRect().height >= 48] : null;
+      }), code === 'en' ? ['hover\u00a0⏸', true] : null,
+         `${code}: hover ⏸ ${code === 'en' ? 'is under ⋯, in Listening, a finger high' : 'is not drawn: no narration to wait'}`);
       if (tag === 'landscape')
         assert(await page.evaluate(() => document.querySelector('header').getBoundingClientRect().height <= innerHeight + 0.5),
                `${code}: sideways, open, the header is never taller than the screen`);
@@ -634,11 +643,15 @@ async function partReader() {
   await setMode(page, 'browser');
   const en = B + MADE.readers.en;
   await page.goto(en);
-  await page.waitForFunction(() => window.ParsehMobileReader);
+  await page.waitForFunction(() => window.ParsehMobileReader && document.getElementById('hoverpause'));
   const before = await headerDrawn(page);
   assert(before.includes('bookinfo') && before.includes('buildbook') && before.includes('narr'),
          'the browser mode: the header as the reader builds it ' + JSON.stringify(before));
   assert(!(await isDrawn(page, '.m-rmore, .m-rlab, .nc-dock, .m-rskip')), 'with nothing of the mobile layer drawn');
+  // ... but for hover ⏸, which both modes draw (a0.4.1), beside the reader's own hover
+  // (tests/phone_clouds.mjs, n, asks that it is the very next control)
+  assert(before.includes('hoverpause') && before.includes('hovermode'),
+         'and hover ⏸, drawn in the browser mode too ' + JSON.stringify(before));
   assert(await isDrawn(page, 'header .nc-skip[data-skip="-1"]') && await isDrawn(page, 'header .nc-chip'),
          'and the recording moved from the header instead: ↺ ↻ beside ▶, the speed as a chip (§4.15)');
   const word = 'main .p1 .wd';
@@ -688,6 +701,14 @@ async function partReader() {
      'and nothing holds its bars any more');
   assert(await card(), 'and alt-click makes a card again');
   await page.locator('#acancel').click();
+  // hover ⏸ in the browser mode of every language's reader: drawn beside hover in the narrated
+  // one, and there but not drawn where there is no recording to wait
+  for (const code of ['en', 'fa', 'ar', 'ja', 'hi', 'zh']) {
+    await page.goto(B + MADE.readers[code]);
+    await page.waitForFunction(() => document.getElementById('hoverpause'));
+    eq(await isDrawn(page, '#hoverpause'), code === 'en',
+       `browser mode, ${code}: hover ⏸ ${code === 'en' ? 'drawn' : 'not drawn, no narration'}`);
+  }
   await page.context().close();
 }
 

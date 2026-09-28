@@ -28,6 +28,7 @@ reading-help switches only where something is installed for the language.
 | **1 2 3 4** … *which passes you see* | one button per pass; each shows or hides its pass, and its tooltip says which pass it is. The choice is remembered for every book. |
 | **gloss** (**G**) | shows or hides the glosses beside the chunks, leaving the chunks themselves |
 | **hover** (**H**) | hover mode: the text alone, and a chunk's gloss in a cloud when you point at it (below) |
+| **hover ⏸** | the narration waits while a gloss cloud is open, and goes on a third of a second after it closes (below). Only in a book with a recording; off until you turn it on. |
 | **dictionary**, **definitions**, **in *english*** | reading help where nothing is glossed: [Reading a book nobody has glossed](doc:Reading a book nobody has glossed). Shown only when a dictionary, a corpus or a translation model is installed for the language. |
 | **reading help** | opens the reading help in Settings (`/settings/reading-help/`), where dictionaries, corpora and models are installed |
 | the time | in a book with a recording: where it is, `0:42 / 12:05`, and which recording when there are several |
@@ -101,6 +102,21 @@ its vocabulary line and its meaning, and under them three buttons:
 The cloud stays open while the pointer moves into it, and goes when the
 pointer leaves or you click elsewhere. On a touch screen, a **tap** on a
 chunk opens its cloud and a second tap closes it.
+
+**hover ⏸** makes a narration wait for you to read. With it on, opening a
+cloud — pointing at a chunk, or tapping it — pauses a playing narration, and
+closing the cloud lets it go on a third of a second later, so that moving
+from one chunk to the next does not make it stutter. A narration you paused
+yourself is never started by it, and if you press play under an open cloud it
+leaves that alone. The card sheet, the chunk sheet, the fold sheet, the LLM
+gloss and the narration panel each look after the recording themselves, and
+**hover ⏸** does not go on under any of them: when one is open the narration
+stays paused until you press **▶**. It is the video's switch, worded the same
+([The player](../videos/the-player.md)), and like it is remembered on this device only:
+it is not one of the settings the computer keeps for you, and it is not drawn
+in a book with no recording. Like ↺ and ↻ beside ▶, it comes from Parseh's
+own server: a reader opened off the disk, or an exported copy, does not have
+it.
 
 A chunk that nobody has glossed yet has no vocabulary line, and where
 nothing is installed for reading such chunks the cloud says *nothing glossed

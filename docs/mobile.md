@@ -272,7 +272,7 @@ mobile mode:
   below does the moving.
   ⋯ opens the rest under it, a group to a line, each with a line saying what
   it is: *Passes* (the pass buttons, gloss, hover), *Listening* (continuous,
-  loop and its gap, stop at a change, how far ↺ and ↻ move, where the
+  loop and its gap, stop at a change, hover ⏸, how far ↺ and ↻ move, where the
   recording is (0:12 / 3:40), listen and its follow and scroll, the seek),
   *Looking a word up* (the dictionary and its definitions, where a dictionary
   is installed), *This page* (the theme, putting the bars away, the switch). A
@@ -310,6 +310,48 @@ mobile mode:
   script, which every classic script on the page shares; a reader built before
   one of them existed has the recording moved, and follows as it can. Paused,
   it stays paused. A book with no narration has no dock and no row.
+* **hover ⏸: the narration waits while a gloss is open** (a0.4.1; the owner,
+  2026-09-25 and 2026-09-28; `lib/mobilereader.js`, "pause on touch"). The
+  video's switch (`#hoverpause`, the same words and glyph as
+  `youtube/lib/player.html`, whose 350 ms grace it keeps), in the header's
+  first row of BOTH modes -- beside the reader's own *hover* in the browser
+  mode, under ⋯ in *Listening* here (`order:35`, after stop at a change) -- and
+  not drawn in a book with no narration (`body.noaudio`, so a Persian, Arabic,
+  Japanese, Hindi or Chinese book with no recording grows no *Listening* line
+  for it; the header is an LTR island, so nothing else differs by language).
+  **Off until it is turned on, and kept on THIS device only**: `bk_hoverpause`,
+  '1' or '0', in `localStorage` -- never in `prefs.KEYS`, so nothing on the
+  computer changes, and one device's choice cannot flip another's. With it on, the reader's
+  own `openCloud` (wrapped, once, by its bare name: every caller resolves it so)
+  presses ▶ if the narration is playing and remembers that *it* paused it
+  (`hpHeld`); the wrapper of `closeCloud` starts the 350 ms grace, and when it
+  ends ▶ is pressed again unless a cloud is open again. **The press is a click
+  that does not bubble** (`dispatchEvent(new MouseEvent('click', {bubbles:
+  false}))`): a bubbling one reaches the page's "a click outside the cloud
+  closes it" and shuts the very cloud the tap just opened -- `narrHold`'s
+  `b.click()` gets away with it only because it hides the cloud first. It
+  cannot fight the dictionary's sheet because each owner pauses only what it
+  sees playing and resumes only what it paused: with the cloud's pause standing
+  the sheet's `narrHold` finds the narration paused, and the sheet's close
+  (which shuts the cloud, then asks for the grace again) is the one resume.
+  The audio's own *play* gives the debt up, so a narration the person paused, or
+  played and paused under the cloud, is never started; a tap on another word
+  has no close between and so no resume; the reader opening its cloud again for
+  a late model (`cloudFor` emptied, `cloudC` still set) is not a new open.
+  **Loop's wait** (the audio paused, playback in the reader's `waiting` timer,
+  up to five seconds): the cloud takes the timer and the grace gives it back
+  as `playSub(cur, false)`; continuous mode's tenth of a second is left alone.
+  **The reader's own sheets** (browser mode: cards, the chunk's editor, the
+  fold, the LLM gloss, the narration's, the sections', the downloads') each
+  record whether the narration was playing and put it back themselves; one up
+  when the grace ends means the narration is theirs, so the debt is dropped and
+  nothing is started -- the narration stays paused until ▶ is pressed. On a
+  real touch device the resume is a timer, not inside a touch (Chrome allows
+  it, the element having been started by one; the sheet's `narrGoOn` takes the
+  same risk), and ⏸ may be drawn as a coloured emoji on Android
+  (`lib/narrctl.js`, the owner's report of 2026-09-23) -- `HP_LABEL` is the one
+  place to change. Not driven headless: both are on the owner's Parseh-test
+  checklist.
 * **The speed is a chip**, saying 1.5×, and a tap opens the row: 0.5 · 0.6 ·
   0.75 · 0.9 · 1 · 1.1 · 1.25 · 1.5 · 1.75 · 2 — the reader's own menu, with
   the two speeds the owner asked for added to it. The chip *is* that menu: it
@@ -331,7 +373,8 @@ mobile mode:
   subparagraph, said in words, how far in, by which device and when — and the
   settings that follow a person: the narration's speed, the gap, the seconds ↺
   and ↻ carry, stop-at-a-change, and the theme. **What is shown stays with the
-  device that shows it**: the passes, the text size, the margins. For the
+  device that shows it**: the passes, the text size, the margins -- and the
+  touch habit of hover ⏸ (above), which is not in `prefs.KEYS` on purpose. For the
   settings the last change wins. For the place nothing is overruled: a book
   opens where THIS device left it, and a line over the text asks — "On the
   computer you were at 2.1, a moment ago. Go there?" — with *Go there* and
@@ -545,7 +588,7 @@ book's reader has one:
   ? and ⋯ (the title has no room at 320px and is left out there; it is the
   title that gives way, `flex:1 1 0`, so the line stays one line down to 320) —
   and ⋯ opens the rest under it, a group to a line: *Following the video*
-  (follow, hover ‖, the reading, pin), *Looking a word up*, *This page* (the
+  (follow, hover ⏸, the reading, pin), *Looking a word up*, *This page* (the
   theme, the switch). **Aa**, the text size, is on the first line as it is in a
   book's reader, one tap (a0.4.0; it was under ⋯). What writes the video or administers
   it is not there at all: its details, the caption timings, the download, the
