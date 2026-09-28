@@ -563,6 +563,7 @@ await page.click('.pc-cut [data-e="e+"]');
 eq([await value(page, '.pc-cut input.e0'), await value(page, '.pc-cut input.e1')], ['17.12', '18.93'], 'the edges moved');
 const clipA = await saveAndUse(page, '"chilo"');
 await clipIsExact(`${TRAY}/${clipA.name}`, clipA.s, clipA.e, '"chilo"');
+await page.locator('#adirfwd:visible').click({timeout: 1500}).catch(() => {});   // the sheet's default is a pair; this is about the recording
 await page.click('#asave');
 await until(() => page.evaluate(() => /^added ✓/.test(document.querySelector('#astat').textContent)), 'the card goes into the deck', 20000);
 {
