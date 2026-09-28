@@ -1404,6 +1404,22 @@ cannot be reached" page for them.**
 * **`/m/offline/` is left for a navigation that is neither kept nor part of
   the way in** ("Parseh cannot be reached", and *Try again* — a page that
   stands alone, no stylesheet or script from anywhere).
+* **A file made on demand is not the worker's at all** (TO-DO §2.28): a
+  document's **Download ▾** (`/download/<id>/md|tex|pdf|zip|html`), a book or
+  a video packed to download, a backup, a deck's zip, an Anki deck
+  (`MADE_ON_DEMAND` in `lib/sw.js`, the same list `lib/activity.js` follows
+  plus the document's own downloads). None is ever kept, and each is honestly
+  slow: the computer makes the file before the first byte leaves. Raced
+  against `DEADLINE`, a navigation to one fell to `/m/offline/` while the
+  computer was still making it — "Parseh cannot be reached" for a computer
+  that was busy, with a *Try again* that met the same race. Left to the
+  browser, as `/__activity` is, a link waits for its file with the page still
+  on the screen, and a page's fetch hears the network itself. The two HTML
+  exports are fetched under a bar besides (`madeDownload` in
+  `markdown/app/static/app.js`): the bar where the press was, and a deadline
+  of its own — five minutes for the answer to begin, a minute of nothing more
+  once it has; the page's offline verdict ends it too, a slow answer never
+  does, and whatever ends it is said in place of the bar, with *Try again*.
 
 | Kind | Kept | Works offline | Still needs the computer |
 |---|---|---|---|

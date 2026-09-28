@@ -288,6 +288,9 @@ select {
 }
 body[data-page="doc"] .topbar,
 body[data-page="doc"] .metabar { position: static; }
+@media (min-width: 561px) {
+  body[data-page="doc"] .topbar { position: relative; z-index: auto; }
+}
 /* Anchor jumps must clear the sticky toolbar, whose height depends on how
    many rows its controls wrap into; --sticky-h is measured at runtime and
    the literal is only the fallback for pages that have no toolbar. */
@@ -875,6 +878,29 @@ body.links-open .linkspane { transform: none; visibility: visible; }
   animation: spin .8s linear infinite; display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.made-work {
+  box-sizing: border-box; width: 23rem; max-width: 100%; margin: .6rem 0 0;
+  padding: .6rem .75rem .55rem; border-radius: 8px;
+  background: var(--chrome-panel); color: var(--chrome-fg);
+  border: 1px solid var(--chrome-line); border-left: 3px solid var(--accent);
+  font-size: .86rem; line-height: 1.4;
+}
+.made-work.hang {
+  position: absolute; right: .9rem; top: calc(100% + 4px); z-index: 59; margin: 0;
+  max-width: calc(100vw - 1.8rem); box-shadow: 0 8px 26px rgba(0,0,0,.18);
+}
+.made-work.err { border-left-color: var(--danger); }
+.made-work.err .made-say { color: var(--danger); }
+.made-say { margin: 0; overflow-wrap: anywhere; }
+.made-work .bar { height: 6px; margin: .5rem 0 .45rem; border-radius: 3px; overflow: hidden; background: var(--chrome-line); }
+.made-work .bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .4s; }
+.made-work .bar.loose i { width: 30%; animation: made-slide 1.4s ease-in-out infinite; }
+@keyframes made-slide { 0% { margin-inline-start: -30%; } 100% { margin-inline-start: 100%; } }
+@media (prefers-reduced-motion: reduce) { .made-work .bar.loose i { width: 100%; opacity: .45; animation: none; } }
+.made-row { display: flex; align-items: center; gap: .4rem; }
+.made-work.err .made-row { margin-top: .5rem; }
+.made-when { margin-right: auto; color: var(--chrome-mut); font-size: .8rem; font-variant-numeric: tabular-nums; }
 
 /* ---------- responsive & print ------------------------------------- */
 @media (max-width: 900px) {

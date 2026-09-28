@@ -47,6 +47,11 @@
 //      says, and the reading place with it; the field keeps its number for
 //      every book, and refuses nonsense; sideways, the header goes on the
 //      way down and comes back on the way up, and stays while ⋯ is open
+// export -- a document's HTML page from a phone the worker controls, switched
+//   to Browser, with the computer slow to make it (TO-DO §2.28): Download ▾ →
+//   HTML page shows the bar and, 35 s on, gives the computer's own bytes as a
+//   download; the bare link, followed, waits 20 s and downloads too; neither
+//   ever leaves the document for "Parseh cannot be reached"
 // decks -- the exercise decks, /exercises/ (markdown/app, static/mobile.css):
 //   a) the mobile hub's Exercises door lands on the decks' mobile layout, the
 //      browser bar display:none; all there is to tap: home, the switch, the
@@ -87,7 +92,7 @@
 //   "updated" and never "no longer whole" for them, and still catches a copy
 //   really broken; both still open with the computer away
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/mobile_pages.mjs
-//   MOBILE_PARTS=shelf,reader,touch,prefs,video,studio,decks,offline,checkout,background,app,update runs some of it
+//   MOBILE_PARTS=shelf,reader,touch,prefs,video,studio,export,decks,offline,checkout,background,app,update runs some of it
 //   (MOBILE_KEEP_WAY=worker: keeping the iPad's way only; see WAY below)
 import { chromium } from 'npm:playwright-core@1.52.0';
 
@@ -95,7 +100,7 @@ const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
 const SHOTS = Deno.env.get('SHOTS') || '';
-const PARTS = (Deno.env.get('MOBILE_PARTS') || 'shelf,reader,touch,prefs,video,studio,decks,offline,checkout,background,app,update').split(',');
+const PARTS = (Deno.env.get('MOBILE_PARTS') || 'shelf,reader,touch,prefs,video,studio,export,decks,offline,checkout,background,app,update').split(',');
 const td = new TextDecoder();
 let passed = 0;
 const assert = (v, m) => { if (!v) throw Error('FAIL: ' + m); passed++; console.log('  ok', m); };
@@ -1658,6 +1663,107 @@ async function partStudio() {
   });
   eq(ex, [true, true], 'its exercise is a finger\'s size and answers a tap (answering writes nothing)');
   await page.context().close();
+}
+
+// ======== a document's HTML page, from a device the worker controls (TO-DO §2.28)
+// The owner, from another device: Download ▾ → HTML page landed on "Parseh
+// cannot be reached", and Try again did the same.  The worker controls the
+// whole address once the mobile mode has registered it, the browser mode
+// included; a navigation it had no copy of was raced against DEADLINE and
+// fell to /m/offline/, while the computer was still making the page.  Driven
+// here with the computer really slow (tests/mobile_harness.py: the page made
+// <tmp>/export-delay seconds late): pressed, and as a plain link.
+async function partExport() {
+  console.log('\n== a document\'s HTML page, from a phone the worker controls, with the computer slow');
+  // a name of its own: the studio's part has made "A phone lesson" already
+  const markdown = LESSON.replace(/A phone lesson/g, 'A page for students');
+  const made = await (await fetch(B + '/studio/api/docs', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({markdown})})).json();
+  const id = made.meta && made.meta.id;
+  assert(!!id, 'a document to export: ' + JSON.stringify(made.meta ? id : made));
+  const page = await newPage(PHONE, 'export');
+  const DELAY = WORK + '/export-delay';
+  try {
+    await page.goto(B + '/studio/doc/' + id);
+    await setMode(page, 'mobile');
+    await page.reload();
+    for (let i = 0; i < 3 && !(await page.evaluate(() => !!navigator.serviceWorker.controller)); i++) {
+      await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+      await page.reload();
+    }
+    eq(await page.evaluate(() => !!navigator.serviceWorker.controller), true, 'the worker controls the document');
+    await tap(page, '.m-topbar [data-parseh-mode=browser]');
+    await page.waitForFunction(() => document.documentElement.dataset.mode === 'browser');
+    await page.waitForSelector('header.topbar #dl-html', {state: 'attached'});
+    eq(await page.evaluate(() => !!navigator.serviceWorker.controller), true,
+       'Browser, pressed: the browser header with Download ▾, and the worker still controls the page');
+    const at = page.url();
+    const moves = [];
+    page.on('framenavigated', f => { if (f === page.mainFrame()) moves.push(f.url()); });
+    // what the computer made for that very ask (no two exports are the same bytes)
+    const direct = async () => new Uint8Array(await Deno.readFile(WORK + '/export-made'));
+    const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+    const stillHere = async what => {
+      const now = await page.evaluate(() => [location.href, document.title,
+        !!document.querySelector('article.sheet') && /page for students/i.test(document.querySelector('article.sheet').textContent)]);
+      eq([now[0], /cannot be reached|not reachable/i.test(now[1]), now[2]], [at, false, true], what);
+    };
+
+    // a) pressed, with the computer 35 s making the page: longer than the
+    // worker's patience with anything it has no copy of (lib/sw.js, PATIENT)
+    await Deno.writeTextFile(DELAY, '35');
+    const t0 = Date.now();
+    await tap(page, 'details.dropdown > summary:text-is("Download ▾")');
+    const refused = page.waitForSelector('.made-work.err', {timeout: 120000})
+      .then(async e => { throw Error('FAIL: the page gave up: ' + await e.textContent()); }, () => {});
+    const [dl] = await Promise.all([
+      Promise.race([page.waitForEvent('download', {timeout: 120000}), refused]),
+      (async () => {
+        await tap(page, '#dl-html');
+        await page.waitForSelector('header.topbar .made-work .bar.loose', {state: 'visible', timeout: 5000});
+        eq(await page.locator('header.topbar .made-work .made-say').textContent(), 'Making the HTML page of “A page for students”…',
+           'the press shows the bar at once, under the header, saying what it is making');
+        await shot(page, 'export-phone-working');
+        await sleep(8000);
+        assert(await page.locator('header.topbar .made-work .bar.loose').isVisible(),
+               'eight seconds on -- past the worker\'s DEADLINE -- the bar is still there');
+        await stillHere('and the page is still the document');
+      })()]);
+    const took = Date.now() - t0;
+    const file = new Uint8Array(await Deno.readFile(await dl.path()));
+    await Deno.remove(DELAY);
+    assert(took >= 35000, `the page arrived when the computer had made it (${took} ms), as a download`);
+    assert(same(file, await direct()), `its bytes are the ones the computer made (${file.length} bytes)`);
+    await page.waitForFunction(() => !document.querySelector('.made-work'), null, {timeout: 5000});
+    await stillHere('the bar is gone, and the page never left the document');
+
+    // b) the plain link, as a browser that runs no script follows it
+    await Deno.writeTextFile(DELAY, '20');
+    const t1 = Date.now();
+    const href = await page.getAttribute('#dl-html', 'href');
+    let over = false;
+    const landed = (async () => {
+      while (!over) {
+        await sleep(250);
+        const t = await page.title().catch(() => '');
+        if (/cannot be reached|not reachable/i.test(t)) throw Error(`FAIL: the link, followed, landed on “${t}”`);
+      }
+    })();
+    const [dl2] = await Promise.all([Promise.race([page.waitForEvent('download', {timeout: 90000}), landed]),
+                                     page.evaluate(h => { location.href = h; }, href)]);
+    over = true;
+    await sleep(500);
+    await Deno.remove(DELAY);
+    const took2 = Date.now() - t1;
+    assert(took2 >= 20000, `the link, followed, waited for the computer (${took2} ms) and gave a download`);
+    assert(same(new Uint8Array(await Deno.readFile(await dl2.path())), await direct()),
+           'and it is the page the computer made');
+    await stillHere('and never "Parseh cannot be reached": the document is still on the screen');
+    eq(moves, [], 'the page never navigated away');
+  } finally {
+    await Deno.remove(DELAY).catch(() => {});
+    await page.context().close();
+  }
 }
 
 
@@ -4503,6 +4609,7 @@ try {
   if (PARTS.includes('prefs')) await partPrefs();
   if (PARTS.includes('video')) await partVideo();
   if (PARTS.includes('studio')) await partStudio();
+  if (PARTS.includes('export')) await partExport();
   if (PARTS.includes('decks')) await partDecks();
   // last: it stops the server
   if (PARTS.includes('offline')) await partOffline();

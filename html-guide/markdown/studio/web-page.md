@@ -20,6 +20,13 @@ named after the document: `verbs-of-motion.html` for
 `/studio/doc/verbs-of-motion-3f9a1c`. Nothing has to be built first, and
 the document itself is not touched.
 
+Making the page can take a while on a long document, or from a phone
+reaching your computer over a slow link. Until the file comes, a bar under
+the page's header says what Parseh is making and counts the seconds, and
+the page stays where it is: you can go on reading. If the file cannot come
+— Parseh does not answer, or says why it could not make it — the bar says
+so, with **Try again**.
+
 The page is made from the document **as it is saved**: save in the editor
 first.
 

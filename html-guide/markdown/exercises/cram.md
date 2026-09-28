@@ -101,9 +101,11 @@ the evening before you need them.
 makes the selected exercises **one HTML file that crams them**, for
 students who have no Parseh: put it on your class's website, or send it.
 Select the exercises (the button is dimmed while nothing is selected) and
-press it. The file downloads, named after the deck
+press it. A bar under the row of buttons says what is being exported until
+the file comes; the file downloads, named after the deck
 (`persian-practice.html`), and a message says how many went: *12 exercises
-exported: persian-practice.html*.
+exported: persian-practice.html*. If it cannot come, the bar says why, with
+**Try again**.
 
 The page is this cram page, less the way back to a deck that is not there:
 

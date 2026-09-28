@@ -192,11 +192,13 @@ class LongWork(unittest.TestCase):
                 ("POST", st + "/api/download", "download"),
                 ("GET", st + "/download/note-abc123/zip", "download"),
                 ("GET", st + "/download/note-abc123/pdf", "download"),
+                ("GET", st + "/download/note-abc123/html", "download"),
                 ("POST", st + "/api/docs/zip", "upload"),
                 ("POST", st + "/api/library/zip", "restore"),
                 ("POST", st + "/api/docs/note-abc123/build", "compile"),
                 ("GET", dk + "/api/backup", "backup"),
                 ("GET", dk + "/api/decks/italian/casa/export", "download"),
+                ("POST", dk + "/api/decks/italian/casa/export-html", "download"),
                 ("POST", dk + "/api/import", "upload"),
                 ("POST", dk + "/api/restore", "restore"),
                 # the notes of a book and of a video are the studio's routes
@@ -612,13 +614,37 @@ class Pages(unittest.TestCase):
                      "/youtube/api/backup", "/youtube/v/abc/__download",
                      "/books/english/mini-en/reader/__narration/export",
                      "/studio/api/export", "/studio/download/note-abc123/zip",
-                     "/studio/download/note-abc123/pdf",
+                     "/studio/download/note-abc123/pdf", "/studio/download/note-abc123/html",
                      "/exercises/api/backup", "/exercises/api/decks/italian/casa/export",
                      "/books/english/mini-en/notes/api/export",
                      "/anki/build/italian/casa.apkg"):
             self.assertTrue(rx.search(path), path)
             self.assertIsNotNone(serve.long_work("GET", path, {}), path)
         for path in ("/studio/download/note-abc123/md", "/books/english/mini-en/reader/"):
+            self.assertFalse(rx.search(path), path)
+
+    def test_the_worker_leaves_every_download_to_the_browser(self):
+        """TO-DO §2.28: a download made on demand, raced by lib/sw.js against
+        its DEADLINE, fell to "Parseh cannot be reached" while the computer
+        was still making it.  Every download the client follows, and the
+        document's own Download ▾, is left to the browser; a page, a door
+        and a kept file are not."""
+        import re
+        sw = (ROOT / "lib" / "sw.js").read_text(encoding="utf-8")
+        rx = re.compile(re.search(r"const MADE_ON_DEMAND = /(.+)/;", sw).group(1).replace("\\/", "/"))
+        for path in ("/books/english/mini-en/__download", "/books/__backup",
+                     "/youtube/api/backup", "/youtube/v/abc/__download",
+                     "/books/english/mini-en/reader/__narration/export",
+                     "/studio/api/export", "/exercises/api/backup",
+                     "/exercises/api/decks/italian/casa/export",
+                     "/books/english/mini-en/notes/api/export",
+                     "/anki/build/italian/casa.apkg",
+                     "/books/english/mini-en/notes/download/note-abc123/html",
+                     *("/studio/download/note-abc123/" + k for k in ("md", "tex", "pdf", "zip", "html"))):
+            self.assertTrue(rx.search(path), path)
+        for path in ("/studio/doc/note-abc123", "/studio/api/docs", "/books/english/mini-en/reader/",
+                     "/exercises/api/decks/italian/casa", "/studio/static/app.js",
+                     "/books/english/mini-en/audio/part1.mp3", "/studio/download/"):
             self.assertFalse(rx.search(path), path)
 
 

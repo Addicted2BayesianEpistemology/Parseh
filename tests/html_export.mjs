@@ -4,7 +4,11 @@
 // (.html)" and a deck's "Export selected to HTML", each clicked on its real
 // page (tests/decks_harness.py: the studio's own server, then Parseh's), and
 // the two files they give opened FROM DISK, as a student without Parseh
-// opens them, with every request the browser makes recorded:
+// opens them, with every request the browser makes recorded.  Each press is
+// a fetch under a bar and never a navigation (TO-DO §2.28): the bar shows
+// where the press was, a computer held 20 s is waited out, the file is the
+// computer's own bytes under its own name, and a refused or failed export is
+// said plainly with Try again.  The files:
 //   * nothing is asked of any server: the one request that leaves a file is
 //     the YouTube player the document embeds (answered here by a stand-in),
 //     which -- served from a website -- is told the site and no more, as
@@ -185,6 +189,95 @@ async function answerChoice(ex, wrong = false) {
   for (let i = 0; i < n; i++) await options.nth(i).click();
 }
 
+/* FETCHED UNDER A BAR, AND THE DOCUMENT NEVER LEAVES THE SCREEN (TO-DO
+   §2.28).  The owner, from another device, pressed HTML page and landed on
+   "Parseh cannot be reached".  Here the computer's answer is held for `hold`
+   ms, then refused, then refused with a reason: each press shows the bar
+   where the menu was and ends in the file -- the computer's own bytes -- or
+   in a sentence with Try again, and never in a navigation. */
+async function underABar(page, t, {doc, href, hold}) {
+  const {assert, eq} = t;
+  const link = page.locator('#dl-html');
+  eq(new URL(await link.evaluate(a => a.href)).pathname, href,
+     'the entry is still a plain link to the page, for a browser that runs no script');
+  const at = page.url(), moves = [], served = [];
+  const onNav = f => { if (f === page.mainFrame()) moves.push(f.url()); };
+  page.on('framenavigated', onNav);
+  let how = {hold: 0, fail: ''};
+  const route = new RegExp(`/download/${doc.id}/html(\\?|$)`);
+  await page.route(route, async r => {
+    if (how.fail === 'refused') return r.abort('connectionrefused');
+    if (how.fail === 'refusal')
+      return r.fulfill({status: 500, contentType: 'application/json',
+                        body: JSON.stringify({ok: false, error: 'the page could not be made'})});
+    const res = await r.fetch();
+    const body = await res.body();
+    served.push(body);
+    if (how.hold) await new Promise(ok => setTimeout(ok, how.hold));
+    await r.fulfill({response: res, body});
+  });
+  const panel = page.locator('header.topbar .made-work');
+  const failed = page.locator('header.topbar .made-work.err');
+  const press = async () => {
+    await page.click('details.dropdown > summary:text-is("Download ▾")');
+    await link.click();
+  };
+  const theirs = async download => Buffer.from(await Deno.readFile(await download.path())).equals(served[served.length - 1]);
+  const offline = async () => /cannot be reached|not reachable/i.test(await page.title());
+  try {
+    how = {hold, fail: ''};
+    const t0 = Date.now();
+    const [download] = await Promise.all([page.waitForEvent('download', {timeout: hold + 60000}), (async () => {
+      await press();
+      await panel.locator('.bar.loose').waitFor({state: 'visible', timeout: 3000});
+      eq(await panel.locator('.made-say').textContent(), `Making the HTML page of “${doc.title}”…`,
+         'the press shows the bar at once, where the menu was, saying what it makes');
+      eq(await page.evaluate(() => [...document.querySelectorAll('header.topbar details.dropdown')].some(d => d.open)), false,
+         'and the menu has closed');
+      assert(await link.evaluate(a => a.classList.contains('disabled')), 'the entry rests while the page is made');
+      await page.waitForTimeout(hold - 2000);
+      const when = await panel.locator('.made-when').textContent();
+      assert(await panel.locator('.bar.loose').isVisible() && parseInt(when, 10) >= Math.floor((hold - 3000) / 1000),
+             `${(hold - 2000) / 1000} s on, the bar is still there, counting: ${when}`);
+      eq([page.url(), await offline()], [at, false], 'and the page is still the document');
+    })()]);
+    const took = Date.now() - t0;
+    assert(took >= hold, `the page arrived when the computer answered (${took} ms), as a download`);
+    eq(download.suggestedFilename(), doc.id.replace(/-[0-9a-f]{6}$/, '') + '.html', 'under the name the computer gave it');
+    assert(await theirs(download), `byte for byte what the computer sent (${served[served.length - 1].length} bytes)`);
+    await panel.waitFor({state: 'detached', timeout: 5000});
+    await page.waitForFunction(n => document.querySelector('#toast').textContent === n,
+                               `HTML page exported: ${download.suggestedFilename()}`, {timeout: 5000});
+    assert(!(await link.evaluate(a => a.classList.contains('disabled'))), 'the bar is gone, the toast says where it went, and the entry is back');
+
+    how = {hold: 0, fail: 'refused'};
+    await press();
+    await failed.waitFor({state: 'visible', timeout: 5000});
+    eq(await failed.locator('.made-say').textContent(),
+       'The HTML page was not saved: the connection to Parseh failed before it arrived.',
+       'a connection refused is said where the bar was');
+    eq(await failed.evaluate(b => [!b.querySelector('[data-x="again"]').hidden, b.querySelector('[data-x="stop"]').textContent,
+                                   b.querySelector('.bar').hidden]),
+       [true, 'Close', true], 'with Try again and Close, and no bar');
+    how = {hold: 0, fail: ''};
+    const [again] = await Promise.all([page.waitForEvent('download'), failed.locator('[data-x="again"]').click()]);
+    assert(await theirs(again), 'Try again, with the computer answering, gives the page');
+    await panel.waitFor({state: 'detached', timeout: 5000});
+
+    how = {hold: 0, fail: 'refusal'};
+    await press();
+    await failed.waitFor({state: 'visible', timeout: 5000});
+    eq(await failed.locator('.made-say').textContent(), 'The HTML page was not saved: the page could not be made.',
+       'a refusal is said in the computer\'s own words');
+    await failed.locator('[data-x="stop"]').click();
+    await panel.waitFor({state: 'detached', timeout: 5000});
+    eq([moves, page.url(), await offline()], [[], at, false], 'through all of it the page never navigated');
+  } finally {
+    page.off('framenavigated', onNav);
+    await page.unroute(route);
+  }
+}
+
 async function suite(browser, mode, tmp) {
   const {proc, info} = await startHarness(mode);
   const S = info.studio;                 // "" or "/studio"
@@ -234,6 +327,8 @@ async function suite(browser, mode, tmp) {
     const docPath = `${tmp}/${mode}-${docName}`;
     await download.saveAs(docPath);
     eq(await held(), before, 'the document is as it was');
+    await underABar(page, {assert, eq}, {doc, href: `${S}/download/${doc.id}/html`,
+                                         hold: mode === 'parseh' ? 20000 : 3000});
 
     /* ---------------- the deck: Export selected to HTML ---------------- */
     console.log(`the deck's page (${mode})`);
@@ -267,7 +362,24 @@ async function suite(browser, mode, tmp) {
     eq(await deckPage.locator('#browse-selected').textContent(), `${picked} selected`, `${picked} selected`);
     assert(await exportButton.isEnabled(), 'the button wakes with a selection');
     const deckBefore = await (await request.get(url(api))).text();
-    const [deckDownload] = await Promise.all([deckPage.waitForEvent('download'), exportButton.click()]);
+    // held a moment, so the bar can be seen: under the row of buttons it was asked from
+    const exportRoute = /\/export-html(\?|$)/;
+    await deckPage.route(exportRoute, async r => {
+      const res = await r.fetch();
+      await new Promise(ok => setTimeout(ok, 2500));
+      await r.fulfill({response: res});
+    });
+    const [deckDownload] = await Promise.all([deckPage.waitForEvent('download'), (async () => {
+      await exportButton.click();
+      const bar = deckPage.locator('.dk-bulkbar + .made-work');
+      await bar.locator('.bar.loose').waitFor({state: 'visible', timeout: 2000});
+      eq(await bar.locator('.made-say').textContent(), `Exporting ${picked} exercises of “Esercizi di prova” to HTML…`,
+         'the click shows the bar under the row it was pressed in, saying what it exports');
+      eq([(await exportButton.textContent()).trim(), await exportButton.isDisabled()], ['Exporting…', true],
+         'and the button rests, saying so');
+    })()]);
+    await deckPage.unroute(exportRoute);
+    await deckPage.locator('.made-work').waitFor({state: 'detached', timeout: 5000});
     const deckName = deckDownload.suggestedFilename();
     eq(deckName, `${deck.slug}.html`, 'the file is named after the deck');
     await deckPage.waitForFunction(t => document.querySelector('#toast').textContent === t,

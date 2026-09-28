@@ -1774,51 +1774,33 @@ function initDeck() {
      cram page asks, and saved as the file the answer names.  Nothing about
      the deck changes; webexport.py says what the page holds and what it
      never does (the exercises' Markdown among it). */
-  function savedName(r, fallback) {
-    const cd = r.headers.get("Content-Disposition") || "";
-    const star = /filename\*=UTF-8''([^;]+)/i.exec(cd);
-    if (star) { try { return decodeURIComponent(star[1]); } catch (e) { /* the plain one */ } }
-    const plain = /filename="([^"]+)"/i.exec(cd);
-    return plain ? plain[1] : fallback;
-  }
-  async function exportSelected() {
-    const ids = items.filter(it => selected.has(it.id)).map(it => it.id);
-    const button = $("#btn-export-html");
-    if (!ids.length || !button || button.dataset.busy) return;
-    const label = button.textContent;
-    button.dataset.busy = "1";
-    button.disabled = true;
-    button.textContent = "Exporting…";
-    try {
-      const r = await fetch(BASE + base + "/export-html", {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ids})});
-      if (!r.ok) {
-        let said = r.statusText;
-        try { said = (await r.json()).error || said; } catch (e) { /* not JSON */ }
-        throw new Error(said);
-      }
-      const name = savedName(r, (deck.slug || "exercises") + ".html");
-      const url = URL.createObjectURL(await r.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+  const exportButton = $("#btn-export-html");
+  const exportLabel = exportButton ? exportButton.textContent : "";
+  const exporter = exportButton && madeDownload({
+    place: el => exportButton.closest(".dk-bulkbar").after(el),
+    busy: on => {
+      if (on) exportButton.dataset.busy = "1";
+      else delete exportButton.dataset.busy;
+      exportButton.textContent = on ? "Exporting…" : exportLabel;
+      exportButton.disabled = on || selected.size === 0;
+    },
+    done: (r, name, req) => {
       // a latex block that could not be drawn travels as a frame saying so
       const failed = +(r.headers.get("X-Parseh-Drawings-Failed") || 0);
-      toast(`${plural(ids.length, "exercise")} exported: ${name}` +
+      toast(`${plural(req.count, "exercise")} exported: ${name}` +
             (failed ? ` — ${plural(failed, "drawing")} could not be made` : ""));
-    } catch (e) {
-      toast("Could not export: " + e.message, true);
-    } finally {
-      delete button.dataset.busy;
-      button.textContent = label;
-      button.disabled = selected.size === 0;
-    }
+    },
+  });
+  function exportSelected() {
+    const ids = items.filter(it => selected.has(it.id)).map(it => it.id);
+    if (!ids.length || !exporter || exportButton.dataset.busy) return;
+    exporter.start({url: BASE + base + "/export-html", count: ids.length,
+                    init: {method: "POST", headers: {"Content-Type": "application/json"},
+                           body: JSON.stringify({ids})},
+                    label: `Exporting ${plural(ids.length, "exercise")} of “${deck.name}” to HTML`,
+                    failed: "The exercises were not exported",
+                    fallback: (deck.slug || "exercises") + ".html"});
   }
-  const exportButton = $("#btn-export-html");
   if (exportButton) exportButton.addEventListener("click", exportSelected);
 
   /* ---- adding, the deck's own buttons ---- */

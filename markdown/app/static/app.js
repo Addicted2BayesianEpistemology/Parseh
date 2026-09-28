@@ -473,6 +473,157 @@ function working(label, fn) {
 // same line the server draws (serve.py's BIG_BODY)
 const BIG_UPLOAD = 4 * 1024 * 1024;
 
+// a file made on demand (the HTML exports), fetched under a bar rather than
+// navigated to: slow is waited for, and only the page's verdict or its own
+// deadline gives up, saying so with Try again (TO-DO §2.28)
+const MADE_PATIENCE = 5 * 60 * 1000;
+const MADE_STALL = 60 * 1000;
+function madeName(r, fallback) {
+  const cd = r.headers.get("Content-Disposition") || "";
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+  if (star) { try { return decodeURIComponent(star[1]); } catch (e) { /* the plain one */ } }
+  const plain = /filename="([^"]+)"/i.exec(cd);
+  return plain ? plain[1] : fallback;
+}
+function madeSize(n) {
+  return n >= 1e6 ? (n / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1e3)) + " kB";
+}
+function madeClock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return s < 60 ? s + " s" : Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+function madeReason(why) {
+  return {
+    away: "Parseh's computer cannot be reached from this device",
+    patience: "Parseh gave no answer in five minutes, so this page stopped waiting",
+    stall: "it stopped arriving: nothing more came for a minute",
+    cut: "it arrived cut short",
+  }[why] || "the connection to Parseh failed before it arrived";
+}
+function madeSave(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.hidden = true;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 30000);
+}
+function madeDownload({place, busy = () => {}, done = () => {}}) {
+  let box = null, ask = null, running = null;
+  function close() {
+    if (running) running("cancel");
+    if (box) box.remove();
+    box = null;
+  }
+  function panel() {
+    if (box && box.isConnected) return box;
+    box = document.createElement("div");
+    box.className = "made-work";
+    box.innerHTML = `<p class="made-say" role="status" aria-live="polite"></p>
+      <div class="bar loose" role="progressbar"><i></i></div>
+      <div class="made-row"><span class="made-when"></span>
+        <button type="button" class="btn small primary" data-x="again" hidden>Try again</button>
+        <button type="button" class="btn small" data-x="stop">Cancel</button></div>`;
+    $('[data-x="again"]', box).addEventListener("click", () => { if (ask) start(ask); });
+    $('[data-x="stop"]', box).addEventListener("click", close);
+    place(box);
+    return box;
+  }
+  async function start(req) {
+    if (running) return;
+    ask = req;
+    const b = panel();
+    const say = $(".made-say", b), when = $(".made-when", b), bar = $(".bar", b);
+    const again = $('[data-x="again"]', b), stop = $('[data-x="stop"]', b);
+    b.classList.remove("err");
+    say.textContent = req.label + "…";
+    bar.hidden = false;
+    bar.className = "bar loose";
+    bar.setAttribute("aria-label", req.label);
+    bar.removeAttribute("aria-valuenow");
+    bar.firstChild.style.width = "";
+    again.hidden = true;
+    stop.textContent = "Cancel";
+    const began = Date.now();
+    let got = 0, total = 0;
+    const clock = () => {
+      when.textContent = (total ? `${Math.min(100, Math.floor(100 * got / total))}% of ${madeSize(total)} · `
+                                : got ? madeSize(got) + " · " : "") + madeClock(Date.now() - began);
+    };
+    clock();
+    const tick = setInterval(clock, 1000);
+    const ctl = new AbortController();
+    let why = "", timer = null;
+    const quit = w => { if (!why) { why = w; ctl.abort(); } };
+    const wait = (ms, w) => { clearTimeout(timer); timer = setTimeout(() => quit(w), ms); };
+    const heard = e => { if (e.detail && e.detail.state === "away") quit("away"); };
+    running = quit;
+    busy(true);
+    document.addEventListener("parseh:reach", heard);
+    wait(MADE_PATIENCE, "patience");
+    try {
+      const out = await working(req.label, async act => {
+        let r;
+        try {
+          r = await fetch(act.url(req.url), Object.assign({cache: "no-store", credentials: "same-origin"},
+                                                          req.init || {}, {signal: ctl.signal}));
+        } catch (e) {
+          throw new Error(madeReason(why));
+        }
+        if (!r.ok) {
+          let data = {};
+          try { data = await r.json(); } catch (e) { /* not JSON */ }
+          throw new Error(serverSaid(data, r));
+        }
+        total = +(r.headers.get("Content-Length") || 0);
+        const parts = [];
+        const rd = r.body.getReader();
+        wait(MADE_STALL, "stall");
+        for (;;) {
+          let step;
+          try { step = await rd.read(); } catch (e) { throw new Error(madeReason(why || "cut")); }
+          if (step.done) break;
+          parts.push(step.value);
+          got += step.value.length;
+          wait(MADE_STALL, "stall");
+          if (total) {
+            const pc = Math.min(100, 100 * got / total);
+            bar.className = "bar";
+            bar.firstChild.style.width = pc + "%";
+            bar.setAttribute("aria-valuenow", String(Math.floor(pc)));
+            act.progress(got, total);
+          }
+        }
+        if (total && got < total) throw new Error(madeReason("cut"));
+        const name = madeName(r, req.fallback);
+        madeSave(new Blob(parts, {type: r.headers.get("Content-Type") || "application/octet-stream"}), name);
+        return {r, name};
+      });
+      if (box === b) { b.remove(); box = null; }
+      done(out.r, out.name, req);
+    } catch (e) {
+      if (why === "cancel" || box !== b) return;
+      b.classList.add("err");
+      say.textContent = `${req.failed}: ${String(e.message).replace(/[.\s]+$/, "")}.`;
+      bar.hidden = true;
+      when.textContent = "";
+      again.hidden = false;
+      stop.textContent = "Close";
+      const seen = b.getBoundingClientRect();
+      if (seen.bottom <= 0 || seen.top >= innerHeight) toast(say.textContent, true);
+    } finally {
+      clearInterval(tick);
+      clearTimeout(timer);
+      document.removeEventListener("parseh:reach", heard);
+      running = null;
+      busy(false);
+    }
+  }
+  return {start, close};
+}
+
 let toastTimer = null;
 function toast(msg, isErr) {
   const t = $("#toast");
@@ -4710,6 +4861,28 @@ function initDoc() {
       if (a.classList.contains("disabled")) { e.preventDefault(); e.stopPropagation(); }
     });
   });
+
+  const dlHtml = $("#dl-html"), topbar = $("header.topbar");
+  if (dlHtml && topbar) {
+    const exporter = madeDownload({
+      place: el => { el.classList.add("hang"); topbar.appendChild(el); },
+      busy: on => {
+        dlHtml.classList.toggle("disabled", on);
+        dlHtml.setAttribute("aria-disabled", String(on));
+      },
+      done: (r, name) => toast(`HTML page exported: ${name}`),
+    });
+    dlHtml.addEventListener("click", e => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const menu = dlHtml.closest("details");
+      if (menu) menu.open = false;
+      exporter.start({url: dlHtml.getAttribute("href"),
+                      label: `Making the HTML page of “${meta.title || DOC_ID}”`,
+                      failed: "The HTML page was not saved",
+                      fallback: (DOC_ID.replace(/-[0-9a-f]{6}$/, "") || "document") + ".html"});
+    });
+  }
 
   /* tags editor */
   const chips = $("#tag-chips"), input = $("#tag-input");

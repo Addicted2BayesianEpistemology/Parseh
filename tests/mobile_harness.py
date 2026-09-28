@@ -18,7 +18,10 @@ mobile interface (docs/mobile.md).
         serve.main() on 127.0.0.1:<port> over <tmp>/root -- the books, the
         studio library, the exercise decks, the Anki store and the clip tray
         all inside <tmp>, as tests/cardkit_harness.py serves it, and the
-        book shelf read from the tree as well (the hub's counts, /m/books/).
+        book shelf read from the tree as well (the hub's counts, /m/books/);
+        a document's HTML page is made that many seconds late while
+        <tmp>/export-delay holds a number, and the last one made is kept
+        in <tmp>/export-made.
 
 Never touches the real books/, exercises/, markdown/library/ or clips/:
 the library page is written into the tree by make_index with its paths
@@ -193,6 +196,24 @@ def serve_it(tmp, port):
     books.all_books = lambda root=None, language=None: whole(root or here, language)
     books.BOOKS_DIR = here                  # what a book's address is relative to
     make_index.all_books = lambda: whole(here)
+    # A COMPUTER SLOW TO MAKE A DOCUMENT'S HTML PAGE (tests/mobile_pages.mjs,
+    # partExport): the seconds <tmp>/export-delay holds, slept before the page
+    # is made, for as long as the file is there; and the page it made, in
+    # <tmp>/export-made, since no two exports are the same bytes (the faces
+    # are cut again each time)
+    import time
+    import webexport
+    make = webexport.document_html
+
+    def slow(*a, **k):
+        try:
+            time.sleep(float((tmp / "export-delay").read_text()))
+        except (OSError, ValueError):
+            pass
+        name, data = make(*a, **k)
+        (tmp / "export-made").write_bytes(data)
+        return name, data
+    webexport.document_html = slow
     import cardkit_harness
     cardkit_harness.serve_it(tmp, port, False, "tray")
 
