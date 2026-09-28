@@ -1,0 +1,49 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* The add page's speech to text (youtube/lib/addstt.js), in the page's own
+   tokens, so the three themes carry it and nothing here names a colour.  Every
+   side is a LOGICAL one (start and end, not left and right): the block reads the
+   same on a page turned right to left, and the language names in it are set
+   apart (<bdi>) so a Persian name in an English line does not scramble it. */
+.addvid .stt{margin-top:16px;padding:12px 14px 14px;border:1px solid var(--rule);
+  border-radius:10px;background:var(--boxbg);min-width:0}
+.addvid .stt [hidden]{display:none !important}
+.addvid .stt-title{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 6px;
+  font-size:14px;color:var(--ink)}
+.addvid .stt-title b{font-weight:600}
+.addvid .stt-opt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.addvid .stt .fieldnote{margin-top:6px;overflow-wrap:anywhere;color:var(--dim)}
+.addvid .stt .fieldnote.warn{color:var(--warn)}
+.addvid .stt p.fieldnote{margin:6px 0 0}
+.addvid .stt .row{margin-top:10px}
+.addvid .stt label.inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;
+  max-width:100%;min-width:0}
+.addvid .stt select{width:auto;max-width:100%;min-width:0;text-overflow:ellipsis}
+/* on a narrow page the picker takes a line of its own, so that what it says is not cut */
+.addvid .stt label.inline select{flex:1 1 15rem}
+/* a control that is held while a job runs still looks like itself, greyed */
+.addvid .stt-locked{opacity:.55;cursor:not-allowed}
+.addvid input.stt-locked{cursor:not-allowed}
+.addvid #stt_setup{display:inline-block;text-decoration:none}
+.addvid .stt-say{margin:10px 0 0;font-size:13px;line-height:1.5;color:var(--ink);overflow-wrap:anywhere}
+.addvid .stt-say:empty{display:none}
+
+/* the video that is recorded: on screen, and no smaller than what YouTube
+   plays (200 x 200), whatever the width of the page */
+.addvid .stt-frame{width:100%;max-width:480px;aspect-ratio:16/9;min-height:200px;margin-top:12px;
+  background:#0b0b0b;border-radius:8px;overflow:hidden}
+.addvid .stt-frame iframe{display:block;width:100%;height:100%;border:0}
+
+.addvid .stt-bar{height:8px;margin-top:10px;border-radius:4px;background:var(--rule);overflow:hidden}
+.addvid .stt-bar i{display:block;height:100%;width:0;background:var(--accent);
+  border-radius:4px;transition:width .4s ease}
+.addvid .stt-bar.wait i{width:34%;animation:stt-wait 1.3s ease-in-out infinite alternate}
+@keyframes stt-wait{from{margin-inline-start:0}to{margin-inline-start:66%}}
+@media (prefers-reduced-motion:reduce){
+  .addvid .stt-bar i{transition:none}
+  .addvid .stt-bar.wait i{animation:none;width:100%;opacity:.5}
+}
+
+/* what happened last, in the page's own kind of note */
+.addvid .stt .note{margin-top:12px}
+.addvid .stt .note:empty{display:none}
+.addvid #stt_tied{margin-top:10px}

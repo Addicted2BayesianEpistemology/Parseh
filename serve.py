@@ -489,11 +489,15 @@ STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js"
                 "/lib/mathjax.js", "/lib/mathjax.css",
                 "/youtube/lib/style.css", "/youtube/lib/player.js",
                 # the tab's share and the recording of its sound, which the
-                # player draws its waveform from and the add page will too
+                # player draws its waveform from and the add page turns into
+                # a transcript
                 "/youtube/lib/tabcapture.js",
                 # the add page's transcript editor, which opens the cut
                 # editor over the video it is about to add
-                "/youtube/lib/subedit.js", "/youtube/lib/subedit.css"}
+                "/youtube/lib/subedit.js", "/youtube/lib/subedit.css",
+                # and its speech to text (optional: drawn only where the
+                # computer has it, and the only page that has it)
+                "/youtube/lib/addstt.js", "/youtube/lib/addstt.css"}
 BODY_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 MAX_BODY = 32 * 1024 * 1024             # a JSON body: an edit, a chunk, an answer
 
