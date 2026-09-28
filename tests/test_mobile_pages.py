@@ -1244,8 +1244,19 @@ class AppTests(unittest.TestCase):
         """The app used to stall on its own splash: with a network up and the
         computer unreachable -- asleep, or a Tailscale peer down -- the socket
         never settled, respondWith never resolved, and nothing was ever drawn
-        (the owner's 1 and 2, 2026-09-23).  A navigation now waits about two
-        and a half seconds and then falls where a refused one falls."""
+        (the owner's 1 and 2, 2026-09-23).  A navigation waits about two and a
+        half seconds and then does not hang.
+
+        WHAT THE DEADLINE MEANS FOR A PAGE NOBODY KEPT CHANGED ON 2026-09-28
+        (TO-DO §2.28), by the owner's own decision, which overturns the rule
+        of 2026-09-23 in this one respect: the deadline used to be the point
+        where the computer was called gone, and a computer that was alive and
+        took longer than that to begin a page was answered with "Parseh
+        cannot be reached" -- again on Try again, every time.  It is now the
+        point where the PAGES ARE ASKED whether the computer is answering
+        (`navigate`, `computerAnswers`): the worker waits for the fetch it
+        made, up to PATIENT, while one of them says so, and falls where a
+        refused socket falls when none does."""
         sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
         self.assertIn('const DEADLINE = 2500;', sw)
         self.assertIn('function reach(request, ms)', sw)
@@ -1256,9 +1267,57 @@ class AppTests(unittest.TestCase):
         # loads -- held every book open for ever in airplane mode, half drawn
         # (the owner, 2026-09-23).  A page with a broken picture is a page; a
         # page that never parses is nothing.
-        self.assertIn('return await reach(r, nav ? DEADLINE : PATIENT);', sw)
+        self.assertIn('return await (nav ? navigate(r) : reach(r, PATIENT));', sw)
         self.assertNotIn('fetch(r))', sw.split('async function answer')[1].split('self.addEventListener')[0],
                          'nothing in answer() may fetch without a deadline')
+        # A NAVIGATION IS GIVEN THE DEADLINE, AND THE PAGE IS ASKED AT IT.  One
+        # fetch, waited for twice: a second one would be a second question put
+        # to the computer, and a page that is slow to make would be made twice.
+        nav = sw.split('async function navigate(request)')[1].split('async function computerAnswers')[0]
+        self.assertEqual(nav.count('fetch('), 1, 'the worker asks the computer for a page once')
+        self.assertIn('const coming = fetch(request);', nav)
+        self.assertIn('return await within(coming, DEADLINE);', nav)
+        self.assertIn('if (!err.late || !(await computerAnswers())) throw err;', nav)
+        self.assertIn('return await within(coming, began + PATIENT - Date.now());', nav)
+        self.assertIn('const PATIENT = 30000;', sw)
+
+    def test_at_the_deadline_the_pages_are_asked_and_the_computer_is_not(self):
+        """The owner's decision of 2026-09-28: "ask the page's own verdict".
+        The page's poll (lib/activity.js) stays the ONE asker of the computer,
+        so the worker asks it nothing -- it sends the open pages one message
+        with a port, and a page answers that the computer answers when ITS
+        OWN question, put after this one, has been answered by it, or that it
+        is away at once when it has judged it gone.  What a page said earlier
+        is never the answer (a computer suspended a moment ago is just what
+        a page cannot tell from a slow one for forty-five seconds), so
+        nothing is read from its memory; a page that cannot answer, and no
+        page at all, is a silence, and a silence is the offline page at the
+        deadline and one short wait more."""
+        sw = (ROOT / 'lib' / 'sw.js').read_text(encoding='utf-8')
+        ask = sw.split('async function computerAnswers()')[1].split('\n}\n')[0]
+        self.assertNotIn('fetch(', ask, 'the worker asks the pages, and the computer nothing')
+        self.assertNotRegex(sw, r"fetch\([^)]*__activity",
+                            'the worker has no question of its own to put to the computer')
+        self.assertIn("self.clients.matchAll({type: 'window', includeUncontrolled: true})", ask)
+        self.assertIn('if (!pages.length) return false;', ask)
+        self.assertIn('new MessageChannel()', ask)
+        self.assertIn('page.postMessage({reachAsk: true}, [line.port2]);', ask)
+        self.assertIn("said(!!e.data && e.data.state === 'there')", ask)
+        self.assertIn('setTimeout(() => end(false), ASKED)', ask)
+        self.assertIn('const ASKED = 1500;', sw)
+        act = (ROOT / 'lib' / 'activity.js').read_text(encoding='utf-8')
+        # the page: one poll, still -- nothing here asks the computer a second way
+        self.assertEqual(act.count("fetch('/__activity'"), 1)
+        heard = act.split('function questioned(e) {')[1].split('\n  }\n')[0]
+        self.assertIn('var port = e.data && e.data.reachAsk && e.ports && e.ports[0];', heard)
+        self.assertIn("if (reach.state === 'away') { port.postMessage({state: 'away'}); return; }", heard)
+        self.assertIn('waiting.push(port);', heard)
+        self.assertIn('poke(0);', heard)
+        self.assertNotIn('postMessage({state: reach.state', heard, 'never the verdict it held')
+        self.assertIn("waiting.splice(0).forEach(function (port) { port.postMessage({state: 'there'}); });", act)
+        self.assertIn("navigator.serviceWorker.addEventListener('message', questioned);", act)
+        # and an ask that ended just before the question came must not cost the answer
+        self.assertIn('return waiting.length ? 0 : busy() ? FAST : SLOW;', act)
 
     def test_the_app_shell_is_kept_with_the_worker(self):
         """The start address of the app -- /?mode=mobile, which the manifest

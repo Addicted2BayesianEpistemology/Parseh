@@ -33,15 +33,25 @@
    chip -- and a page that has confirmed the computer away stays the offline
    version while it is open (§19).
 
+   AND WHAT THE WORKER DOES WITH A PAGE NOBODY KEPT (the owner, 2026-09-28, TO-DO
+   §2.28): a link followed to it, from a page that is open, is given the
+   worker's short deadline, and at the deadline the worker asks the page
+   whether the computer is answering, rather than deciding by itself.  A
+   computer that is alive and merely slow is waited for, up to the long
+   deadline; one that is silent, one the page has judged away, one that
+   refuses, and a page that cannot answer (nobody open, or hidden) end on the
+   offline page where they always did -- the same link from the same page,
+   and only what is at the other end of the wire differs (the `nav` part).
+
    Run: CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/reach.mjs
-     REACH_PARTS=refused,silent,slow,nonet,writes,refresh,drag runs some of it */
+     REACH_PARTS=refused,silent,slow,nonet,writes,refresh,drag,nav runs some of it */
 import { chromium } from 'npm:playwright-core@1.52.0';
 
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
 const CHROME = Deno.env.get('CHROME_BIN');
-const PARTS = (Deno.env.get('REACH_PARTS') || 'refused,silent,slow,nonet,writes,refresh,drag').split(',');
+const PARTS = (Deno.env.get('REACH_PARTS') || 'refused,silent,slow,nonet,writes,refresh,drag,nav').split(',');
 const td = new TextDecoder();
 let passed = 0;
 const assert = (v, m) => { if (!v) throw Error('FAIL: ' + m); passed++; console.log('  ok', m); };
@@ -602,8 +612,226 @@ async function partDrag() {
   } finally { await pull.close(); }
 }
 
+// ======== nav: a page nobody kept, followed while the computer is slow, silent, away or gone ========
+/* Every case is the same link from the same page -- the hub, with a live
+   verdict, the worker in control -- to a document nobody has kept, and only
+   what is at the other end of the wire changes.  What is measured is when
+   the new page COMMITS and which page it is: the document, or the one that
+   says Parseh cannot be reached.  `fromServiceWorker` says that the worker
+   was the one that answered, so a page the browser fetched by itself is never
+   mistaken for one the worker let through.
+
+   The worker's constants are read from lib/sw.js, so that a test of its
+   deadlines follows them. */
+async function partNav() {
+  console.log('\n== A PAGE NOBODY KEPT, followed from a page that is open: at its deadline the worker asks the page');
+  const sw = await Deno.readTextFile('lib/sw.js');
+  const k = name => +new RegExp('const ' + name + ' = (\\d+);').exec(sw)[1];
+  const DEADLINE = k('DEADLINE'), PATIENT = k('PATIENT'), ASKED = k('ASKED');
+  const stamp = String(Date.now() % 100000);
+  const doc = async title => {
+    const m = await (await fetch(B + '/studio/api/docs', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({markdown: `---\ntitle: ${title} ${stamp}\nlang: en\ntarget: it\n---\n\nA page nobody kept.\n`})})).json();
+    if (!(m.meta && m.meta.id)) throw Error('FAIL: no document made: ' + JSON.stringify(m));
+    return m.meta.id;
+  };
+  // how often the computer was asked for that document's page (the harness writes each ask down)
+  const asked = async id => (await Deno.readTextFile(WORK + '/page-asked').catch(() => ''))
+    .split('\n').filter(l => l.startsWith(id + ' ')).length;
+  const page = await phone();
+  /* HOW MANY ASKS OF THE QUESTION WERE OUT AT ONCE, counted in each page itself:
+     the page's poll must stay the one asker, one ask at a time, whoever is
+     waiting for its answer.  (Counted from out here, an ask that a page
+     abandons by being navigated away would stay "open" for ever.) */
+  const most = {n: 0};
+  await page.exposeFunction('__concurrent', n => { most.n = Math.max(most.n, n); });
+  await page.context().addInitScript(() => {
+    let out = 0;
+    const real = window.fetch;
+    window.fetch = function (input) {
+      if (!/\/__activity/.test(String((input && input.url) || input || ''))) return real.apply(this, arguments);
+      out++;
+      try { window.__concurrent(out); } catch (e) { /* not bound yet */ }
+      const done = () => { out--; };
+      const asking = real.apply(this, arguments);
+      asking.then(done, done);
+      return asking;
+    };
+  });
+  await app(page);
+  const worker = page.context().serviceWorkers()[0];
+  const home = async () => { await page.goto(B + '/?mode=mobile'); await until(page, there, null, 20000); };
+  // the worker's own question, asked directly: what the pages say, and how soon
+  const probe = () => worker.evaluate(async () => {
+    const t = performance.now();
+    const answering = await computerAnswers();
+    return {answering, ms: Math.round(performance.now() - t)};
+  });
+  /* THE LINK, FOLLOWED FROM THE PAGE (`link`) -- the page itself moves, as a
+     link does -- or typed where no page of Parseh's is open (`typed`).  A page
+     whose navigation is pending cannot be asked anything from outside, so
+     nothing is asked of it until the new page has committed. */
+  const follow = async (path, how = 'link') => {
+    const moves = [];
+    let workerAnswered = null;
+    const moved = f => { if (f === page.mainFrame()) moves.push(f.url().slice(B.length)); };
+    const responded = r => {
+      if (workerAnswered === null && r.request().isNavigationRequest() && r.frame() === page.mainFrame())
+        workerAnswered = r.fromServiceWorker();
+    };
+    page.on('framenavigated', moved);
+    page.on('response', responded);
+    const arrived = page.waitForEvent('framenavigated', {timeout: 90000});
+    const t0 = Date.now();
+    if (how === 'link') await page.evaluate(p => { location.href = p; }, path);
+    else page.goto(B + path, {waitUntil: 'commit', timeout: 90000}).catch(() => {});
+    await arrived;
+    const ms = Date.now() - t0;
+    await page.waitForLoadState('domcontentloaded');
+    const here = await page.evaluate(() => ({title: document.title, h1: (document.querySelector('h1') || {}).textContent || ''}));
+    page.off('framenavigated', moved);
+    page.off('response', responded);
+    return {ms, offline: here.h1 === 'Parseh cannot be reached', title: here.title, moves, workerAnswered};
+  };
+  // a socket that accepts and never answers, on the port the computer had: silence, from a
+  // computer the page has already judged gone
+  const silentSocket = () => {
+    const held = [];
+    const listener = Deno.listen({hostname: '127.0.0.1', port});
+    (async () => { try { for await (const c of listener) held.push(c); } catch (_) { /* closed */ } })();
+    return () => { listener.close(); held.forEach(c => { try { c.close(); } catch (_) { /* gone */ } }); };
+  };
+  const said = r => JSON.stringify(r);
+
+  // ---- a) ALIVE, AND SIX SECONDS SLOW: the page opens -- once, and with no offline page on the way
+  const slow = await doc('Slow to make');
+  await home();
+  const live = await probe();
+  assert(live.answering && live.ms < ASKED,
+         `the worker asks the open page whether the computer answers, and it says so: ${live.ms} ms`);
+  await Deno.writeTextFile(WORK + '/page-delay', '6');
+  let r = await follow('/studio/doc/' + slow);
+  assert(!r.offline && r.title.startsWith('Slow to make') && r.workerAnswered === true && r.ms >= 5900 && r.ms < 8500,
+         `a computer alive and six seconds slow: the page opens, after ${r.ms} ms, answered by the worker -- ${said(r)}`);
+  assert(r.moves.length === 1 && !r.offline && r.moves[0].startsWith('/studio/doc/slow-to-make'),
+         'the page moved once, straight to the document, and never through the offline page: ' + said(r.moves));
+  eq(await asked(slow), 1, 'and the computer was asked for the page once: the worker waited for its own ask');
+  await Deno.remove(WORK + '/page-delay');
+
+  // ---- b) THE PAGE HAS JUDGED THE COMPUTER AWAY, and what answers is silence: the deadline, no more
+  const away = await doc('Away');
+  await home();
+  await hubStop();
+  const judged = await until(page, confirmed, null, 30000);
+  eq(judged.why, 'refused', 'the computer switched off: the page has judged it away');
+  const stopSilent = silentSocket();
+  try {
+    const told = await probe();
+    assert(!told.answering && told.ms < 500, `asked, the page says away at once: ${told.ms} ms`);
+    r = await follow('/studio/doc/' + away);
+    assert(r.offline && r.workerAnswered === true && r.ms >= DEADLINE - 50 && r.ms < DEADLINE + 900,
+           `the page away, the socket silent: the offline page at the deadline (${r.ms} ms)`);
+  } finally { stopSilent(); }
+  await hubStart();
+
+  // ---- c) SILENT: suspended, the port open and nothing answered, the page still thinking it is there
+  const silent = await doc('Silent');
+  await home();
+  freeze();
+  try {
+    const told = await probe();
+    assert(!told.answering && told.ms >= ASKED - 100 && told.ms < ASKED + 700,
+           `asked, the page hears nothing from a computer suspended a moment ago, and says no after ${told.ms} ms`);
+    r = await follow('/studio/doc/' + silent);
+    assert(r.offline && r.workerAnswered === true && r.ms >= DEADLINE + ASKED - 100 && r.ms < DEADLINE + ASKED + 900,
+           `the computer suspended: the offline page after the deadline and one question (${r.ms} ms), ` +
+           `far below the long deadline of ${PATIENT} ms`);
+  } finally { thaw(); }
+
+  // ---- d) REFUSED: at once, as ever
+  const refused = await doc('Refused');
+  await home();
+  await hubStop();
+  r = await follow('/studio/doc/' + refused);
+  assert(r.offline && r.workerAnswered === true && r.ms < 1000,
+         `the computer switched off: the offline page at once (${r.ms} ms), the page still saying it is there`);
+  await hubStart();
+
+  // ---- e) NO PAGE OF PARSEH'S IS OPEN: nobody to ask, the offline page at the deadline, as it was
+  const fresh = await doc('Fresh tab');
+  await Deno.writeTextFile(WORK + '/page-delay', '6');
+  await page.goto('about:blank');
+  r = await follow('/studio/doc/' + fresh, 'typed');
+  assert(r.offline && r.workerAnswered === true && r.ms >= DEADLINE - 50 && r.ms < DEADLINE + 900,
+         `a link typed where no page of Parseh's is open, a computer six seconds slow: the offline page at the ` +
+         `deadline (${r.ms} ms)`);
+  // ... but another tab of Parseh that is in sight answers for it
+  const other = await doc('Another tab');
+  await home();
+  const tab = await page.context().newPage();
+  const t1 = Date.now();
+  await tab.goto(B + '/studio/doc/' + other, {waitUntil: 'commit', timeout: 90000});
+  await tab.waitForLoadState('domcontentloaded');
+  const second = await tab.evaluate(() => ({title: document.title, h1: (document.querySelector('h1') || {}).textContent || ''}));
+  assert(second.title.startsWith('Another tab') && Date.now() - t1 >= 5900,
+         `and with another tab of Parseh open, in sight, the same link opens (${Date.now() - t1} ms): ${second.title}`);
+  await tab.close();
+  await Deno.remove(WORK + '/page-delay');
+
+  // ---- f) A STALE VERDICT IS NOT ONE: the page says there, and cannot say it now
+  const stale = await doc('Stale');
+  await home();
+  await Deno.writeTextFile(WORK + '/page-delay', '6');
+  // headless Chromium keeps every tab in sight, so what a tab behind another gives its page is given
+  // to it: the page's own code then stops asking, and what it last found stays what it says it found
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  eq(await page.evaluate(() => window.ParsehActivity.reach().state), 'there', 'the page holds the verdict it had: there');
+  const hidden = await probe();
+  assert(!hidden.answering && hidden.ms >= ASKED - 100,
+         `a page that has stopped asking cannot say that the computer answers now: no, after ${hidden.ms} ms`);
+  r = await follow('/studio/doc/' + stale);
+  assert(r.offline && r.workerAnswered === true && r.ms >= DEADLINE + ASKED - 100 && r.ms < DEADLINE + ASKED + 900,
+         `a computer alive and slow, a page whose verdict is only old: the offline page after the deadline and ` +
+         `one question (${r.ms} ms)`);
+  await Deno.remove(WORK + '/page-delay');
+
+  // ---- h) A DOWNLOAD MADE ON DEMAND is still not the worker's: the browser waits for it, the page stays
+  const made = await doc('Made on demand');
+  await home();
+  await Deno.writeTextFile(WORK + '/export-delay', '4');
+  let served = null;
+  const onDownload = res => { if (/\/download\//.test(res.url())) served = res.fromServiceWorker(); };
+  page.on('response', onDownload);
+  const t2 = Date.now();
+  const [file] = await Promise.all([page.waitForEvent('download', {timeout: 60000}),
+                                    page.evaluate(p => { location.href = p; }, '/studio/download/' + made + '/html')]);
+  const took = Date.now() - t2;
+  page.off('response', onDownload);
+  await Deno.remove(WORK + '/export-delay');
+  assert(took >= 3900 && served === false && /\.html$/.test(file.suggestedFilename()),
+         `a document's HTML page, followed as a link, is made and given after ${took} ms by the browser, ` +
+         `not the worker (${file.suggestedFilename()})`);
+  eq(await page.evaluate(() => location.pathname), '/', 'and the page the person was on never left');
+
+  // ---- g) A COMPUTER THAT ANSWERS AFTER THE LONG DEADLINE is given up on at it
+  const late = await doc('Too late');
+  await home();
+  await Deno.writeTextFile(WORK + '/page-delay', String(PATIENT / 1000 + 4));
+  r = await follow('/studio/doc/' + late);
+  assert(r.offline && r.workerAnswered === true && r.ms >= PATIENT - 100 && r.ms < PATIENT + 1500,
+         `a computer alive and ${PATIENT / 1000 + 4} seconds slow: the offline page at the long deadline (${r.ms} ms)`);
+  eq(await asked(late), 1, 'and the computer was asked for the page once, in all those seconds');
+  await Deno.remove(WORK + '/page-delay');
+  assert(most.n === 1, `the page's poll stayed the one asker, one ask at a time, whoever was waiting for its answer: ` +
+                       `at most ${most.n} out at once in any page`);
+  await page.context().close();
+}
+
 const RUN = {refused: partRefused, silent: partSilent, slow: partSlow, nonet: partNoNetwork,
-             writes: partWrites, refresh: partRefresh, drag: partDrag};
+             writes: partWrites, refresh: partRefresh, drag: partDrag, nav: partNav};
 let failed = null;
 try {
   for (const p of PARTS) {

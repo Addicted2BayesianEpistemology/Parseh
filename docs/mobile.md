@@ -1453,9 +1453,46 @@ cannot be reached" page for them.**
   it. Tried again at 14:02:11." — instead of being word for word the page
   that was there before, and the button reads "Trying…" while it waits.
   *Go back* is a button of its own for a page the person came from
-  (`history.length > 1`, never inside a frame): a computer that answers too
-  slowly for a page the phone has not kept (`DEADLINE`) is not mended by
-  either.
+  (`history.length > 1`, never inside a frame).  Neither makes a page a
+  computer is slow to begin arrive: *Try again* is made from a page that cannot
+  answer the worker's question (this one has no poll of its own, by design:
+  below, *At the deadline the page is asked*), so it waits the deadline and
+  one question — about four seconds — and is the offline page again; *Go
+  back*, and the link followed again from the page the person was on, is what
+  waits for the computer.
+* **At the deadline the page is asked** (the owner's decision of
+  2026-09-28, TO-DO §2.28, which overturns the rule of 2026-09-23 in this
+  one respect). A navigation to a page nothing kept used to be given
+  `DEADLINE` (2.5 s) and then answered with `/m/offline/`: a computer that
+  was **alive** and took longer than that to begin — a big document, a
+  tunnel in a slow hour — was called unreachable, and *Try again* met the
+  same race. The deadline is now **where the pages are asked, not where the
+  computer is called gone** (`navigate`, `computerAnswers` in `lib/sw.js`):
+  * the worker makes **one** fetch and waits for it twice — never a second
+    ask of the computer, so a page slow to make is made once;
+  * at `DEADLINE` it sends every open window one message with a port
+    (`{reachAsk: true}`) and gives them `ASKED` (1.5 s) to answer. The page's
+    poll (`lib/activity.js`) is **still the one asker of the computer**: a
+    page only brings its next ask forward and answers `{state: 'there'}` when
+    the computer's answer to it comes — never from memory, since what a page
+    heard a few seconds ago says nothing of a computer suspended since — or
+    `{state: 'away'}` at once when it has already judged it gone;
+  * while a page says `there` the worker goes on waiting for the fetch, up to
+    `PATIENT` (30 s) from the start; when every page says `away`, or none
+    answers within `ASKED`, it answers with `/m/offline/` as it always did;
+  * so: a computer **alive and slow** is waited for, from a page that is
+    open; a **refusing** one still ends at once (the fetch fails before the
+    deadline and no page is asked); one **silent** (suspended, asleep) ends at
+    `DEADLINE + ASKED` — four seconds, far from `PATIENT` — because an
+    unanswered question is the answer; one the page has judged **away** ends
+    at `DEADLINE`; and a link followed where **no page of Parseh's is open**
+    (typed in a new tab, opened from another app) has nobody to ask and ends
+    at `DEADLINE`, as before. Nor does a page **in a tab behind another**
+    answer: a hidden page does not ask anything (lib/activity.js), so it is a
+    silence too — one tab in sight is enough;
+  * a computer that answers after `PATIENT` is given up on at it.
+  Downloads made on demand are unchanged, and are not the worker's at all
+  (next bullet).
 * **A file made on demand is not the worker's at all** (TO-DO §2.28): a
   document's **Download ▾** (`/download/<id>/md|tex|pdf|zip|html`), a book or
   a video packed to download, a backup, a deck's zip, an Anki deck
@@ -1589,8 +1626,9 @@ phone trusts. Here:
   the computer away*). An install event that fetched the whole shell is what
   stopped the app installing at all. And **every navigation has a deadline** of about 2.5 seconds, so
   that a computer which is unreachable rather than refusing does not leave the
-  app on its splash for ever. A new `APP`/`SHELL` name in it lets the old
-  copies go.
+  app on its splash for ever (at it, a page nothing kept asks the open pages
+  whether the computer answers — *At the deadline the page is asked*, above).
+  A new `APP`/`SHELL` name in it lets the old copies go.
 * **Every release is a new worker, and says so** (TO-DO §13.16). A browser
   installs a new worker only when `/sw.js` is new bytes, so the server writes
   the release into it as it serves it (`mobile.worker()`: the version from
