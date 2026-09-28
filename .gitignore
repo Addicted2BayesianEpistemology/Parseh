@@ -137,6 +137,7 @@ clips/*
 !clips/README.md
 books/.trash/
 youtube/videos/.trash/
+youtube/videos/.waveforms/
 youtube/videos/*/.trash/
 # A VIDEO'S OWN FILM.  A video that is a file on this machine keeps it as
 # media.<ext> beside the transcript, and it is content the way a book's
