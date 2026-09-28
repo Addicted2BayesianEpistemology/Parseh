@@ -470,7 +470,17 @@ body[data-page="doc"] :is(.pz,.modal-overlay) .ex-flashcard figure.img:hover img
   background: color-mix(in srgb, var(--accent) 12%, var(--sheet-bg));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);}
 :is(.pz,.modal-overlay) .ex-flashcard > small{position: absolute; inset-inline-end: .7em; bottom: .55em; color: var(--graytx); font: .65em var(--sans);}
-:is(.pz,.modal-overlay) .ex-card-note{margin: -.4em 0 0; text-align: center; color: var(--graytx); font: .72em var(--sans);}
+:is(.pz,.modal-overlay) .ex-head:has(> .ex-card-note){flex-wrap: wrap; justify-content: flex-end; row-gap: .25em;
+  container: ex-head / inline-size;}
+:is(.pz,.modal-overlay) .ex-head:has(> .ex-card-note) > .ex-kicker{margin-right: auto;}
+:is(.pz,.modal-overlay) .ex-card-note{flex: 1 1 0%; min-width: 8em; color: var(--graytx); font: .72em/1.3 var(--sans);}
+:is(.pz,.modal-overlay) .ex-card-note ~ *{flex-shrink: 0;}
+@container ex-head (max-width: 23em){
+:is(.pz,.modal-overlay) .ex-card-note{order: 1; flex: 0 0 100%; min-width: 0;}
+}
+@container ex-head (max-width: 31em){
+:is(.pz,.modal-overlay) .ex-head:has(> .ex-translit-switch) > .ex-card-note{order: 1; flex: 0 0 100%; min-width: 0;}
+}
 .modal-overlay.ex-zoom-overlay{z-index: 110; padding: 2vh 2vw;}
 :is(.pz,.modal-overlay) .modal.ex-zoom-modal{width: 96vw; height: 94vh; max-height: none; padding: .7rem .9rem 1rem; gap: .6rem;}
 :is(.pz,.modal-overlay) .ex-zoom-modal:focus{outline: none;}
@@ -958,6 +968,9 @@ html[data-sheet="dark"] :is(.pz,.modal-overlay) .btn:hover{color: var(--accent);
   border-bottom: 1px solid var(--chrome-line);
   position: sticky; top: 0; z-index: 30; font-size: .82rem;}
 body[data-page="doc"] :is(.pz,.modal-overlay) .topbar,body[data-page="doc"] :is(.pz,.modal-overlay) .metabar{position: static;}
+@media (min-width: 561px){
+body[data-page="doc"] :is(.pz,.modal-overlay) .topbar{position: relative; z-index: auto;}
+}
 :is(.pz,.modal-overlay) .sheet h2,:is(.pz,.modal-overlay) .sheet h3,:is(.pz,.modal-overlay) .voce{scroll-margin-top: var(--sticky-h, 4.6rem);}
 :is(.pz,.modal-overlay) .typo-group{display: flex; flex-direction: column; gap: .05rem; min-width: 130px;}
 :is(.pz,.modal-overlay) .typo-group label{display: flex; justify-content: space-between; color: var(--chrome-mut); font-size: .74rem;}
@@ -1297,6 +1310,26 @@ body[data-page="doc"] :is(.pz,.modal-overlay) .metabar input{scroll-margin-top: 
   border: 2px solid currentColor; border-top-color: transparent;
   animation: spin .8s linear infinite; display: inline-block;}
 @keyframes spin{to { transform: rotate(360deg); }}
+:is(.pz,.modal-overlay) .made-work{box-sizing: border-box; width: 23rem; max-width: 100%; margin: .6rem 0 0;
+  padding: .6rem .75rem .55rem; border-radius: 8px;
+  background: var(--chrome-panel); color: var(--chrome-fg);
+  border: 1px solid var(--chrome-line); border-left: 3px solid var(--accent);
+  font-size: .86rem; line-height: 1.4;}
+:is(.pz,.modal-overlay) .made-work.hang{position: absolute; right: .9rem; top: calc(100% + 4px); z-index: 59; margin: 0;
+  max-width: calc(100vw - 1.8rem); box-shadow: 0 8px 26px rgba(0,0,0,.18);}
+:is(.pz,.modal-overlay) .made-work.err{border-left-color: var(--danger);}
+:is(.pz,.modal-overlay) .made-work.err .made-say{color: var(--danger);}
+:is(.pz,.modal-overlay) .made-say{margin: 0; overflow-wrap: anywhere;}
+:is(.pz,.modal-overlay) .made-work .bar{height: 6px; margin: .5rem 0 .45rem; border-radius: 3px; overflow: hidden; background: var(--chrome-line);}
+:is(.pz,.modal-overlay) .made-work .bar i{display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .4s;}
+:is(.pz,.modal-overlay) .made-work .bar.loose i{width: 30%; animation: made-slide 1.4s ease-in-out infinite;}
+@keyframes made-slide{0% { margin-inline-start: -30%; } 100% { margin-inline-start: 100%; }}
+@media (prefers-reduced-motion: reduce){
+:is(.pz,.modal-overlay) .made-work .bar.loose i{width: 100%; opacity: .45; animation: none;}
+}
+:is(.pz,.modal-overlay) .made-row{display: flex; align-items: center; gap: .4rem;}
+:is(.pz,.modal-overlay) .made-work.err .made-row{margin-top: .5rem;}
+:is(.pz,.modal-overlay) .made-when{margin-right: auto; color: var(--chrome-mut); font-size: .8rem; font-variant-numeric: tabular-nums;}
 @media (max-width: 900px){
 :is(.pz,.modal-overlay) .split{grid-template-columns: 1fr; grid-template-rows: 45vh minmax(0, 1fr);}
 :is(.pz,.modal-overlay) .editor-pane{border-right: 0; border-bottom: 1px solid var(--chrome-line);}
