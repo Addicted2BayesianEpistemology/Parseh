@@ -17,6 +17,10 @@
 - Every Settings page starts with the bar of its doors, Network included
 - Deleting a document asks in the studio's own window, and the card leaves the list at once
 - Documents, decks, bundles and shelves are stored in a new shape: going back to a0.3.3 says so first
+- The size sliders of books and videos reach further, at both ends
+
+### Fixed
+- Exporting a page to HTML from another device could land on "Parseh cannot be reached": it shows a bar now
 
 ## [a0.3.3] - 2026-09-25
 ### Added

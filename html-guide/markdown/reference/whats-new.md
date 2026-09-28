@@ -104,6 +104,24 @@ video plays. The size is remembered on that phone; the transcript's own size
 keeps its slider on the first line of the header, where the book reader's
 is ([Browser and Mobile](../getting-started/mobile-mode.md#the-videos)).
 
+### Wider sliders for books and videos
+
+The **Aa** sliders of a book and of a video reach about half as far again as
+they did, at both ends: larger and smaller text and glosses, a narrower or a
+much wider column, tighter and looser lines, and a reading from far smaller to
+three times its size. Where one end would stop being readable, the extra
+went to the other end ([The reader](../books/reader.md),
+[The player](../videos/the-player.md)).
+
+### An export to HTML, with a bar
+
+**Download → HTML page, for a website (.html)**, and a deck's **Export selected
+to HTML**, show a bar while the page is being made, however long it takes,
+and save the file when it is ready. From another device the export could
+land on *Parseh cannot be reached* if it was slow; it never does now, and a
+failure is said in words with **Try again**
+([A page for a website](../studio/web-page.md)).
+
 ### Deleting a document
 
 The library's cross and the document page's **Delete document** ask in
