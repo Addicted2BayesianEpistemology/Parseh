@@ -140,6 +140,8 @@
   var SAY_SURFACE = 'a window or the whole screen was shared, not this tab — share this tab ' +
                     'again, with “Share tab audio” turned on';
   var SAY_NOTHING = 'nothing was heard — the tab was shared without its sound, or the video is muted';
+  var SAY_NOT_STARTED = 'the video did not start playing — its clock never moved. Check that it plays ' +
+                        'in the player (it may be unavailable, or slow to start), then try again';
   var SAY_SHARE_ENDED = 'the tab stopped being shared while the sound was being drawn';
   var SAY_SHARE_ENDED_PCM = 'the tab stopped being shared while its sound was being recorded';
   var SAY_AD = 'YouTube played an ad, so the recording was stopped — an ad’s sound would end ' +
@@ -496,7 +498,14 @@
         // that could not be sent: neither is a recording that completed
         if (complete && lateCancel) { complete = false; reason = 'cancelled'; }
         else if (complete && sendFailure) { complete = false; err = sendFailure; reason = 'error'; }
-        if (complete) {
+        if (complete && reason === 'stalled' && reached < 1) {
+          // THE VIDEO NEVER STARTED (playVideo ignored: an age or consent screen, autoplay refused in
+          // the frame, a start slower than ten seconds): nothing was heard because nothing played, and
+          // a sound the tab made meanwhile is not the video's -- it is neither "the share has no sound"
+          // nor a recording to hand on
+          err = new Error(SAY_NOT_STARTED);
+          err.reason = reason = 'error';
+        } else if (complete) {
           var top = 0, k;
           if (wave) {
             for (k = 0; k < peaks.length; k++) if (peaks[k] > top) top = peaks[k];
@@ -772,6 +781,10 @@
           tag.setAttribute('data-tc-yt', '1');
           // the script itself failing is the one thing that IS a network answer
           tag.onerror = function () {
+            // a dead tag left in <head> would stop every later try adding a script of its own, and
+            // each would wait its whole time and blame the wrong thing: gone first, so that it is
+            // gone even when this try has already timed out
+            try { tag.parentNode.removeChild(tag); } catch (x) {}
             refuse(new Error('YouTube’s player could not be fetched — Parseh itself is answering, ' +
                              'so it is YouTube this computer cannot reach'));
           };

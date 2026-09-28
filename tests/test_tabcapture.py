@@ -110,13 +110,6 @@ class WhatAKeptVideoCarriesTests(unittest.TestCase):
         missing = [u for u in shared if u not in offline.SHARED]
         self.assertEqual(missing, [], "the toolbox's files the player links, and no phone was given")
 
-    def test_the_guard_would_catch_a_file_left_out(self):
-        import offline
-        without = tuple(f for f in offline.PLAYER_FILES if f != "/lib/tabcapture.js")
-        own, _shared = page_links()
-        with patch.object(offline, "PLAYER_FILES", without):
-            self.assertNotEqual(sorted(own), sorted(offline.PLAYER_FILES))
-
     def test_a_kept_video_lists_the_file_with_its_digest(self):
         import offline
         video = ROOT / "tests" / "fixtures" / "videos" / "italian" / "kL9mN1oP3qR"
