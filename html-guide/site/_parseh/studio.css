@@ -786,6 +786,28 @@ body[data-page="edit"] :is(.pz,.modal-overlay) .video-edit,body[data-page="edit"
 :is(.pz,.modal-overlay) figure.latex.align-left figcaption{text-align: left;}
 :is(.pz,.modal-overlay) figure.latex.align-right figcaption{text-align: right;}
 :is(.pz,.modal-overlay) .ex-flashcard figure.latex{margin-top: .5em; margin-bottom: .5em;}
+:is(.pz,.modal-overlay) .latex-pending-block{margin: 1.2em 0; padding: .5em .8em; border: 1px dashed var(--rulec); border-radius: 6px;}
+:is(.pz,.modal-overlay) .latex-pending-block .latex-wait{display: block; font: .78em var(--sans); color: var(--graytx); margin-bottom: .3em;}
+:is(.pz,.modal-overlay) .latex-pending-block .latex-code{margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85em; color: var(--graytx);}
+:is(.pz,.modal-overlay) code.latex-pending{color: var(--graytx);}
+:is(.pz,.modal-overlay) .latex-waiting{position: fixed; left: 50%; top: .6rem; transform: translateX(-50%); z-index: 70;
+  box-sizing: border-box; width: min(22rem, calc(100vw - 1.5rem)); padding: .55rem .75rem .6rem;
+  border-radius: 8px; border: 1px solid var(--rulec); border-left: 3px solid var(--accent);
+  background: var(--boxbg); color: var(--ink); font: .85rem/1.4 var(--sans);
+  box-shadow: 0 8px 26px rgba(0,0,0,.16); transition: opacity .5s;}
+:is(.pz,.modal-overlay) .latex-waiting.gone{opacity: 0; pointer-events: none;}
+:is(.pz,.modal-overlay) .latex-waiting.err{border-left-color: var(--danger);}
+:is(.pz,.modal-overlay) .latex-waiting-say{margin: 0; overflow-wrap: anywhere;}
+:is(.pz,.modal-overlay) .latex-waiting-bar{height: 6px; margin: .45rem 0 0; border-radius: 3px; overflow: hidden; background: var(--rulec);}
+:is(.pz,.modal-overlay) .latex-waiting-bar i{display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width .4s;}
+:is(.pz,.modal-overlay) .latex-waiting-again{margin-top: .45rem; font: inherit; padding: .25rem .7rem; border-radius: 6px;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer;}
+@media (prefers-reduced-motion: reduce){
+:is(.pz,.modal-overlay) .latex-waiting,:is(.pz,.modal-overlay) .latex-waiting-bar i{transition: none;}
+}
+@media print{
+:is(.pz,.modal-overlay) .latex-waiting{display: none;}
+}
 html[data-sheet="dark"] :is(.pz,.modal-overlay) figure.latex img,html[data-sheet="dark"] :is(.pz,.modal-overlay) img.latex-inline,html[data-sheet="dark"] :is(.pz,.modal-overlay) .lx-preview-image{filter: invert(.9) hue-rotate(180deg);}
 :is(.pz,.modal-overlay) .latex-fail{border: 1px dashed var(--rule, #8888); border-radius: 6px; padding: .6em .8em;
   margin: 1em 0; font-size: .9em;}
