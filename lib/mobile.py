@@ -386,6 +386,11 @@ h1{font-size:22px;line-height:1.3;margin:18px 0 8px}
 p{margin:0 0 12px;color:var(--dim)}
 button{font:inherit;font-size:17px;min-height:52px;width:100%%;margin-top:14px;border:0;
   border-radius:12px;background:var(--accent);color:var(--fg);cursor:pointer}
+button:disabled{opacity:.6;cursor:progress}
+button.plain{background:transparent;color:var(--ink);border:1px solid var(--dim)}
+button[hidden],#tried[hidden]{display:none}
+#tried{margin:14px 0 0;padding:10px 14px;border:1px solid var(--accent);border-radius:12px;
+  color:var(--ink);background:var(--card)}
 h2{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:28px 0 8px}
 a.kept{display:flex;align-items:center;min-height:56px;padding:10px 14px;margin-bottom:8px;
   background:var(--card);border-radius:12px;color:var(--ink);text-decoration:none;font-size:17px}
@@ -400,7 +405,17 @@ a.kept{display:flex;align-items:center;min-height:56px;padding:10px 14px;margin-
   computer may be asleep or off, or the phone away from its network (and
   from Tailscale, if that is how it reaches it).</p>
   <p>Once the computer is on and %(app)s is started there, try again.</p>
-  <button type="button" onclick="location.reload()">Try again</button>
+  <!-- TRY AGAIN SAYS THAT IT TRIED (TO-DO §2.28: "the try again button which
+       doesn't do anything").  A reload of an address that fails again puts
+       up this very page again, word for word, and a person cannot tell a
+       press that was heard from one that was not: so the press is written
+       down for the page that comes back (tryAgain, below), which says when
+       it tried.  GO BACK is a button of its own, for a page the person came
+       here FROM: it is not the same thing as trying again, and a computer
+       that answers too slowly for this page is not mended by either. -->
+  <button type="button" id="again" onclick="tryAgain()">Try again</button>
+  <p id="tried" role="status" aria-live="polite" hidden></p>
+  <button type="button" id="back" class="plain" onclick="history.back()" hidden>Go back</button>
   <!-- WHAT IS KEPT ON THIS PHONE still works (TO-DO §19.5): this page is
        kept by the worker and stands alone, so the list is written here from
        the phone's own registry rather than asked of anybody. -->
@@ -433,6 +448,59 @@ a.kept{display:flex;align-items:center;min-height:56px;padding:10px 14px;margin-
       box.appendChild(a);
     });
   });
+  </script>
+  <script>
+  /* TRY AGAIN TRIES, AND SAYS SO.  The press is written down (this tab's
+     own memory, gone with it), the address is loaded again -- which CAN
+     succeed, the moment the computer is back, and is the one thing that can
+     -- and the page that comes back if it fails again reads the note and
+     says when it tried.  Without that a failed try is word for word the page
+     that was there before.  Only a note as young as one load counts, and
+     only for a page that a reload brought (below): a try that worked leaves
+     its note behind, and must not speak for a later failure. */
+  var TRIED = 'parseh_tried', TRIED_FOR = 15000, TRIED_WAIT = 8000;
+  function tryAgain() {
+    var b = document.getElementById('again'), t = document.getElementById('tried');
+    try { sessionStorage.setItem(TRIED, JSON.stringify({page: location.href, at: Date.now()})); } catch (e) {}
+    b.disabled = true;
+    b.textContent = 'Trying\\u2026';
+    t.hidden = false;
+    t.textContent = 'Asking the computer\\u2026';
+    location.reload();
+    /* A load that fails puts this page up again within seconds (lib/sw.js,
+       DEADLINE), so a page still here after longer than that was not
+       replaced -- the address answered with a file, which the browser saves
+       and this page stays under.  The button must not stay "Trying…" for
+       ever over that. */
+    setTimeout(function () {
+      b.disabled = false;
+      b.textContent = 'Try again';
+      t.textContent = 'Tried again at ' + new Date().toLocaleTimeString() + '.';
+    }, TRIED_WAIT);
+  }
+  /* WAS THIS PAGE LOADED BY A RELOAD?  A try that worked leaves its note
+     behind, and a NEW visit to the same address a moment later must not be
+     told that somebody tried: only a reload can be the answer to a press. */
+  function reloaded() {
+    try { var n = performance.getEntriesByType('navigation')[0]; if (n) return n.type === 'reload'; } catch (e) {}
+    try { return performance.navigation.type === 1; } catch (e) {}
+    return true;
+  }
+  (function () {
+    try {
+      var note = JSON.parse(sessionStorage.getItem(TRIED) || 'null');
+      sessionStorage.removeItem(TRIED);
+      if (note && note.page === location.href && Date.now() - note.at < TRIED_FOR && reloaded() &&
+          location.pathname !== '/m/offline/') {
+        var t = document.getElementById('tried');
+        t.hidden = false;
+        t.textContent = 'Still cannot reach it. Tried again at ' + new Date().toLocaleTimeString() + '.';
+      }
+    } catch (e) {}
+    /* GO BACK only where there is somewhere to go back to, and never from
+       inside a frame, where it would take the whole page back with it */
+    if (window.top === window && history.length > 1) document.getElementById('back').hidden = false;
+  })();
   </script>
 </main>
 </body></html>

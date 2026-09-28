@@ -513,7 +513,10 @@ home screen, on the whole screen: no address bar over the page, no browser
 around it. It is still Parseh on your computer — the app opens wherever the
 computer can be reached, at home or anywhere over Tailscale, and says
 **Parseh cannot be reached** when it cannot (the computer asleep or off),
-with **Try again**.
+with **Try again**. **Try again** says so while it tries (*Trying…*), and if
+the computer still does not answer it says when it tried (*Still cannot reach
+it. Tried again at 14:02:11.*); **Go back** is there too, when the page you
+were on is still behind it.
 
 The mobile hub's **As an app** door opens the page that installs it. Its top
 line says where the phone stands, and it has two steps:
