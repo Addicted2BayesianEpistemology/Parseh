@@ -96,6 +96,12 @@ class Spdx(unittest.TestCase):
     def test_the_readmes_say_the_same(self):
         top = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("GPL-3.0-or-later", top)
+        # the copyright line, and the author's two links, in the License section
+        import author
+        licence = top[top.index("\n## License"):]
+        self.assertIn("Copyright © 2026 Bruno Ursino, the author of Parseh", licence)
+        self.assertIn("[GitHub](%s)" % author.GITHUB_URL, licence)
+        self.assertIn("[imbrunoursino.net](%s)" % author.SITE_URL, licence)
         studio = (ROOT / "markdown" / "README.md").read_text(encoding="utf-8")
         self.assertIn("GPL-3.0-or-later", studio)
         self.assertNotIn("Code: MIT", studio)
@@ -190,7 +196,12 @@ class Page(unittest.TestCase):
 
     def test_the_notices_the_gpl_asks_for(self):
         self.assertIn("GPL-3.0-or-later", self.html)
-        self.assertIn("Copyright &copy; the Parseh authors", self.html)
+        # the copyright is the author's, by name (the owner, 2026-09-28: the
+        # page said "the Parseh authors" before); his two links are lib/author.py's
+        import author
+        self.assertIn("<p>Copyright &copy; 2026 Bruno Ursino, the author of Parseh &mdash; %s</p>"
+                      % author.links(), self.html)
+        self.assertNotIn("the Parseh authors", self.html)
         self.assertIn("either\nversion 3 of the License, or (at your option) any later version", self.html)
         self.assertIn("without any\nwarranty", self.html)
         self.assertIn('href="/licences/LICENSE"', self.html)
@@ -304,9 +315,22 @@ class Served(unittest.TestCase):
                                  "/settings/reading-help/"])
         for href in local:
             self.assertEqual(self.get(href)[0], 200, href)
-        # and the ones to the licences' own pages are the web's, opened apart
+        # and the ones to the licences' own pages are the web's, opened apart.
+        # WIDENED for the author's two links (a0.4.1, lib/author.py), which are
+        # written the way the exports' footer and the guide write theirs:
+        # target first, and `noreferrer` too, so that a Parseh reached by a
+        # LAN or VPN address does not tell GitHub or his site where it lives.
+        # The licences' own links keep `rel="noopener" target="_blank"`.
+        import author
+        theirs = [author.GITHUB_URL, author.SITE_URL]
         for a in re.findall(r'<a href="https?://[^"]*"[^>]*>', main):
-            self.assertIn('rel="noopener" target="_blank"', a)
+            if re.match(r'<a href="(%s)"' % "|".join(re.escape(u) for u in theirs), a):
+                self.assertIn('target="_blank" rel="noopener noreferrer"', a)
+            else:
+                self.assertIn('rel="noopener" target="_blank"', a)
+        self.assertEqual([re.search(r'href="([^"]*)"', a).group(1)
+                          for a in re.findall(r'<a href="https?://[^"]*"[^>]*>', main)
+                          if 'rel="noopener noreferrer"' in a], theirs)
 
     def test_the_licence_files_are_read_not_downloaded(self):
         for path in ("/lib/fonts/OFL.txt", "/lib/fonts/GUST-FONT-LICENSE.txt", "/lib/mathjax/LICENSE"):
