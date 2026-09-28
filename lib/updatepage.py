@@ -268,8 +268,9 @@ def _plan_section(p, may_update):
         facts.append("<li>%d whose permissions are put right.</li>" % p["modes"])
     facts.append("<li>%s</li>" % esc(p["environment"]["said"]))
     facts.append("<li>Your books, videos, documents, decks, Anki cards and clips, the "
-                 "dictionaries and models, your settings, the certificate and the devices let in "
-                 "are not touched: only the files the two releases list are.</li>")
+                 "dictionaries and models, speech to text's program and models, your settings, the "
+                 "certificate and the devices let in are not touched: only the files the two "
+                 "releases list are.</li>")
     fm = p.get("formats") or {}
     warn = ""
     if d == "older":

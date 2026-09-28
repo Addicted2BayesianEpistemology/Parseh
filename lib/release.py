@@ -91,8 +91,8 @@ in somebody's install (audit() below; tests/test_release.py holds
   - a .bat with a bare LF, or a launcher that lost its executable bit;
   - anything personal and any content (TO-DO §18: Parseh ships none): .tls/,
     and in config/, books/, youtube/videos/, markdown/library/, exercises/,
-    clips/, youtube/anki/, dict/, corpus/, mt/ and components/ anything but
-    a .gitkeep or a README.md;
+    clips/, youtube/anki/, dict/, corpus/, mt/, components/ and stt/ anything
+    but a .gitkeep or a README.md;
   - tests/, or a GIF in docs/, which export-ignore keeps out;
   - a link (Windows unpacks one as a small text file), or a committed
     .parseh-release.json.
@@ -165,7 +165,8 @@ MUST_SHIP = ("LICENSE", VERSION_FILE, "environment.yml", "install.sh", "install.
 RUNNABLE = ("install.sh", "serve.sh", "build.sh", "Parseh.command", "serve.py")
 # where a person's own things live: a release carries only the scaffolding
 CONTENT = ("books/", "youtube/videos/", "markdown/library/", "exercises/", "clips/",
-           "youtube/anki/", "config/", "dict/", "corpus/", "mt/", "components/", "texmf/")
+           "youtube/anki/", "config/", "dict/", "corpus/", "mt/", "components/", "texmf/",
+           "stt/")
 SCAFFOLDING = (".gitkeep", "README.md")
 # never in a release, whatever .gitattributes says
 NEVER = (".tls/", "tests/", ".github/", ".runtime/", ".parseh-update/", "dist/",

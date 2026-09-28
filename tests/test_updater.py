@@ -84,6 +84,12 @@ MINE = {"books/english/x/book.json": b'{"slug": "x"}',
         "exercises/english/d/schedule/0123456789ab.json": b'{"history": [{"grade": 4}]}',
         "dict/xx.db": b"SQLite format 3\x00" + b"\x02" * 3000,
         "mt/fa-en/model.bin": b"\x03" * 4000,
+        # speech to text (a0.4.1): the program's folder, a model and a job's temporary audio
+        "stt/models/large-v3-turbo/model.bin": b"\x04" * 4000,
+        "stt/models/large-v3-turbo/meta.json": b'{"model": "large-v3-turbo", "revision": "0a363e91"}',
+        "stt/runtime/1-cp312/ctranslate2/_ext.so": b"\x7fELF" + b"\x05" * 3000,
+        "stt/runtime/1-cp312/faster_whisper-1.2.1.dist-info/METADATA": b"Name: faster-whisper\n",
+        "stt/tmp/job.pcm": b"\x06" * 500,
         "config/prefs.json": b'{"settings": {"parseh_theme": {"v": "dark"}}}',
         "config/network.json": b'{"port": 7961, "devices": {"tok": {"name": "Pixel"}}}',
         ".tls/key.pem": b"-----BEGIN PRIVATE KEY-----\nxyz\n",
@@ -189,6 +195,8 @@ class Rules(unittest.TestCase):
                     ".runtime/env/bin/python3", ".git/config", ".parseh-update/helper.py",
                     "config/network.json", "books/english/x/book.json", "dict/fa.db",
                     "mt/fa-en/model.bin", "youtube/videos/en/v/video.json", updater.MANIFEST,
+                    "stt/models/large-v3/model.bin", "stt/runtime/1-cp312/ctranslate2/_ext.so",
+                    "stt/tmp/job.pcm",
                     "serve.log", ".serve.pid", ""):
             self.assertTrue(updater.guard(rel), rel)
         for rel in ("lib/a.py", "books/.gitkeep", "config/.gitkeep", "clips/README.md",
@@ -355,6 +363,12 @@ class Candidate(Case):
         with self.assertRaises(updater.Refused) as e:
             updater.take(self.root, self.sent(data), "zip", "x.zip")
         self.assertIn("config/network.json", str(e.exception))
+        # and into speech to text's gigabytes
+        bad = dict(B, **{"stt/models/large-v3/model.bin": (b"not a model", 0o644)})
+        data, _m = make(bad, "a0.3.3")
+        with self.assertRaises(updater.Refused) as e:
+            updater.take(self.root, self.sent(data), "zip", "x.zip")
+        self.assertIn("stt/models/large-v3/model.bin", str(e.exception))
 
     def test_a_good_zip_becomes_the_candidate(self):
         m = self.candidate(B, "a0.3.3")
@@ -708,9 +722,53 @@ class Helper(Case):
                          MINE["exercises/english/d/schedule/0123456789ab.json"])
         self.assertTrue((content / "config/prefs.json").is_file())
         self.assertFalse((content / "books/english/x/narration.mp3").exists(), "no narration")
+        self.assertFalse((content / "stt").exists(), "and no speech model: gigabytes, and no format of Parseh's in them")
         journal = Path(self.root, updater.WORK, "jobs", job["id"], "journal.jsonl").read_text()
         self.assertLess(journal.index('"content"'), journal.index('"backup"'),
                         "the content is copied before anything else is done")
+
+    def test_speech_to_text_is_left_as_it_is_both_ways(self):
+        # WHAT AN UPDATE INTO a0.4.1, AND THE STEP BACK, DO TO SPEECH TO TEXT (the brief's
+        # item 13, driven with the real helper): nothing.  stt/ is in no release's manifest,
+        # so neither direction ever opens a file in it -- the program, a model and a job's
+        # temporary audio stay byte for byte, with their modes and their times.
+        install(self.root, A, "a0.3.2")
+        put_mine(self.root)
+        speech = sorted(rel for rel in MINE if rel.startswith("stt/"))
+        self.assertGreaterEqual(len(speech), 5)
+        for n, rel in enumerate(speech):
+            os.utime(Path(self.root, rel), (1700000000 + n, 1700000000 + n))
+        before = {rel: (Path(self.root, rel).stat().st_mtime_ns, Path(self.root, rel).stat().st_mode)
+                  for rel in speech}
+
+        def untouched(where):
+            for rel in speech:
+                p = Path(self.root, rel)
+                self.assertEqual(p.read_bytes(), MINE[rel], where + ": " + rel)
+                st = p.stat()
+                self.assertEqual((st.st_mtime_ns, st.st_mode), before[rel], where + ": " + rel + " was not opened")
+            self.assertEqual(sorted(str(p.relative_to(self.root)) for p in Path(self.root, "stt").rglob("*")
+                                    if p.is_file()), speech, where + ": nothing added, nothing taken")
+        # INTO the next version
+        up, r = self.update_to(B, "a0.3.3")
+        self.assertTrue(r["ok"], r)
+        untouched("after the update")
+        self.assertNotIn("stt/", json.dumps(r), "and the report of the update does not name it")
+        # and BACK, as the plan puts it: no box, no small files copied
+        self.candidate(A, "a0.3.2")
+        plan = updater.plan(self.root)
+        self.assertFalse(plan["needs_insist"], "nothing about speech to text has to be understood first")
+        self.assertNotIn("stt/", json.dumps(plan))
+        job = updater.begin(self.root)
+        rc, out = self.run_helper()
+        self.assertEqual(rc, 0, out)
+        untouched("after the step back")
+        r = self.report()
+        self.assertTrue(r["ok"], r)
+        self.assertNotIn("stt/", json.dumps(r))
+        # and forward again
+        self.update_to(B, "a0.3.3")
+        untouched("and forward again")
 
     def kill_half_way(self):
         install(self.root, A, "a0.3.2")

@@ -210,8 +210,9 @@ class EverythingSaysIt(unittest.TestCase):
         import getcorpus
         import getdecomposition
         import getmt
+        import getstt
         import getsyn
-        for mod in (getmt, getsyn, getcorpus, getdecomposition):
+        for mod in (getmt, getsyn, getcorpus, getdecomposition, getstt):
             self.assertTrue(mod.UA.startswith("Parseh/%s (" % V), (mod.__name__, mod.UA))
 
     def test_the_hub_says_it_in_both_layouts(self):
@@ -370,7 +371,13 @@ class DataFormats(unittest.TestCase):
             "dict/": ("parseh-dictionary",),
             "corpus/": ("parseh-corpus",),
             "mt/": ("parseh-synonyms",),
-            "components/": ("parseh-components",)}
+            "components/": ("parseh-components",),
+            # speech to text's program and models keep no store of Parseh's: the
+            # program's folder is named by the pin it was made for, a model's has a
+            # meta.json of the kind mt/'s have, and lib/getstt.py judges both (older,
+            # newer, another Python) -- so there is no row, and a step back to a
+            # version that lacks the folder has nothing to warn about
+            "stt/": ()}
     # the rows that are not a store but a file made to travel: each is read
     # back by its own stamp, whatever wrote it
     TRAVEL = {"parseh-bundle", "parseh-shelf", "parseh-narration", "parseh-exercise-shelf",
@@ -383,6 +390,19 @@ class DataFormats(unittest.TestCase):
         placed = {fmt for fmts in self.KEPT.values() for fmt in fmts}
         self.assertEqual(placed - rows, set(), "named here, with no row")
         self.assertEqual(rows - placed - self.TRAVEL, set(), "a row kept nowhere this test knows")
+
+    def test_the_two_lists_of_a_persons_things_are_one_list(self):
+        # lib/updater.py PERSONAL (what no manifest may touch) and lib/release.py CONTENT
+        # (what a release ships empty) name the same folders -- in a different order,
+        # which is why this is a comparison of sets -- and nothing held them together
+        import release
+        import updater
+        self.assertEqual(set(updater.PERSONAL), set(release.CONTENT))
+        self.assertIn("stt/", updater.PERSONAL)
+        # updater.CONTENT is a third, different list: the folders whose SMALL files are
+        # copied before a step back.  Speech to text's program and models are gigabytes
+        # and no data format of Parseh's is kept in them
+        self.assertNotIn("stt/", updater.CONTENT)
 
     def test_the_stores_the_owner_named_have_their_rows(self):
         # the owner, 2026-09-25: the studio's library and the Anki store; a
