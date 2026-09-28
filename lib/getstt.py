@@ -1334,6 +1334,21 @@ def _install_model(key, say, progress, cancel, base=0, whole=None):
     say("  %s: %s" % (key, _mb(model_info(key)["size"])))
 
 
+@contextlib.contextmanager
+def _install_turn(say, cancel):
+    """The right to install the program, waited for -- and Stop is heard while
+    waiting: a model's Get that is behind another job's install must be
+    stoppable too, and not left holding its button until that one ends."""
+    if not _INSTALL.acquire(blocking=False):
+        say("  waiting for the speech program, which another job is installing")
+        while not _INSTALL.acquire(timeout=0.2):
+            download.check(cancel)
+    try:
+        yield
+    finally:
+        _INSTALL.release()
+
+
 def build(key, say=print, progress=None, cancel=None):
     """Get one part: the program (`runtime`), or a model -- which gets the
     program first if it is not there, under ONE bar.  `progress(done,
@@ -1348,14 +1363,14 @@ def build(key, say=print, progress=None, cancel=None):
     rt_dl, _kept = _runtime_plan()
     with using(key):
         if key == "runtime":
-            with _INSTALL:
+            with _install_turn(say, cancel):
                 if runtime_ready():
                     say("  the speech program is already installed")
                     return runtime()["size"]
                 _install_runtime(say, progress, cancel)
             return runtime()["size"]
         total = MEASURED[key]
-        with _INSTALL:
+        with _install_turn(say, cancel):
             # another job may have installed it while this one waited
             base = 0
             if not runtime_ready():

@@ -124,7 +124,8 @@ in the guide.</p>
 STYLE = r"""
 .sp .whomay{display:flex;gap:8px 10px;align-items:baseline;flex-wrap:wrap;margin:.2rem 0 1rem;font-size:13.5px;color:var(--dim)}
 .sp .whomay .gate{flex:none}
-.sp .about{padding:14px 16px}
+.sp section.about{padding:14px 16px}
+.sp .about a{color:var(--accent)}
 .sp .about p{margin:.35rem 0;font-size:14px}
 .sp .about ul{margin:.4rem 0 .2rem;padding-inline-start:1.25rem;font-size:14px}
 .sp .about li{margin:.15rem 0}

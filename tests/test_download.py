@@ -1262,6 +1262,30 @@ class GetsttTests(DownloaderCase):
         self.assertEqual(self.note.read_text().count("started"), 1, "one pip, not two")
         self.assertEqual(self.g.runtime()["state"], "ready")
 
+    def test_stop_is_heard_while_a_job_waits_behind_another_ones_install(self):
+        held, release_it = threading.Event(), threading.Event()
+
+        def hold():
+            with self.g._INSTALL:
+                held.set()
+                release_it.wait(30)
+        t = threading.Thread(target=hold)
+        t.start()
+        held.wait(5)
+        said = []
+        stop = threading.Event()
+        threading.Timer(0.4, stop.set).start()
+        started = time.time()
+        try:
+            with self.assertRaises(download.Cancelled):
+                self.g.build("runtime", say=said.append, cancel=stop)
+        finally:
+            release_it.set()
+            t.join(10)
+        self.assertLess(time.time() - started, 10)
+        self.assertTrue(any("waiting for the speech program" in m for m in said))
+        self.assertFalse(self.note.exists(), "it never started a pip of its own")
+
     def test_a_program_that_is_already_there_is_not_installed_again(self):
         self.installed_program()
         said = []
