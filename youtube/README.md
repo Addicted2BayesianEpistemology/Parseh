@@ -314,6 +314,24 @@ writes `"reorders": true` into `video.json`. `../docs/lang/ja.md` and
 
 ## Write it yourself
 
+**Speech to text, optional.** Under the transcript box the add page has one
+block (`lib/addstt.js`) that can make the transcript on this computer with
+Whisper instead of pasting it: the models and the processor are picked in the
+block, from what `POST /lookup/api/speech` says is installed (`../lib/getstt.py`;
+installed in Settings → Speech to text), and the job is `../lib/sttjobs.py`'s
+seven routes under `/youtube/api/transcribe/`. A film is read by the computer
+itself, no playback, any browser; a YouTube video is played from its frame on the
+page while `lib/tabcapture.js` records this tab's sound and sends it, in
+pieces, with the marks that put it on the video's own clock, and the shape of
+the sound, which `wavefile.py` holds until the video is added — `api_add`,
+`/api/empty` and `/api/local` take a `wave` token and put it beside the video as
+`waveform.json`. The result goes into the box the page already has, in the
+panel format (`sttpanel.py`), never adds the video, and makes a prepared
+prompt stale. There is nothing of it in `player.js` or on `/youtube/v/<id>/`, and
+`tests/test_addstt.py` says so. The page itself only says what the video, the
+language and the box are (`ParsehAddStt.mount`); tests: `tests/add_stt.mjs`,
+and section n of `tests/youtube_capture.mjs`.
+
 **Start it empty.** Below the prompt on the add page is a second lane that
 uses no model at all: the transcript as it stands, every caption cut into
 sentences, one chunk per sentence, every `tr`, `voc` and `en` blank. Where a
@@ -572,6 +590,9 @@ youtube/
 │   ├── style.css           # the player's own styles (the palette is ../lib/parseh.css)
 │   ├── player.js           # YouTube sync, highlighting, the gloss cloud
 │   ├── tabcapture.js       # this tab's share and the recording of its sound: the waveform's, and the add page's transcript
+│   ├── addstt.js, addstt.css # the add page's optional speech to text: the one block, drawn from what the computer says it has
+│   ├── sttpanel.py         # a transcription's segments -> the panel the add page reads (the job's own routes are ../lib/sttjobs.py)
+│   ├── wavefile.py         # the one cleaner and writer of waveform.json, and the hold a transcription keeps for a video
 │   ├── player.html         # page template (__ID__, __TITLE__, __BASE__, ...)
 │   ├── import_old_video.py # a video from the older watching-edition format
 │   ├── slice_part.py       # the captions one batch is responsible for
