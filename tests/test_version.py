@@ -236,7 +236,7 @@ class EverythingSaysIt(unittest.TestCase):
         import author
         self.assertIn('<a href="/licences/">licences</a>.<br>\n    %s\n  </div>' % author.links(), foot)
         self.assertLess(mobile.index('<p class="m-ver">'), mobile.index('<p class="m-by">'))
-        self.assertIn('<p class="m-by">%s%s</p>\n' % (author.github_link(), author.site_link()), mobile)
+        self.assertIn('<p class="m-by">%s</p>\n' % author.row(), mobile)
 
     def test_no_source_writes_a_version_into_a_stamp_by_hand(self):
         # "Parseh/1.0" was written in seven places, and each said a number no

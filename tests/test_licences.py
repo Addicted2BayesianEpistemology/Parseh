@@ -199,7 +199,7 @@ class Page(unittest.TestCase):
         # the copyright is the author's, by name (the owner, 2026-09-28: the
         # page said "the Parseh authors" before); his two links are lib/author.py's
         import author
-        self.assertIn("<p>Copyright &copy; 2026 Bruno Ursino, the author of Parseh &mdash; %s</p>"
+        self.assertIn('<p class="by">Copyright &copy; 2026 Bruno Ursino, the author of Parseh &mdash; %s</p>'
                       % author.links(), self.html)
         self.assertNotIn("the Parseh authors", self.html)
         self.assertIn("either\nversion 3 of the License, or (at your option) any later version", self.html)

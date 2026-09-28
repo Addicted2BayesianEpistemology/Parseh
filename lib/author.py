@@ -75,6 +75,13 @@ def links():
     return github_link() + SEP + site_link()
 
 
+def row():
+    """The same two links as the items of a flex row (the mobile hub's last
+    line), the dot between them an item of its own and hidden from a screen
+    reader, which reads two links and no punctuation."""
+    return github_link() + '<span aria-hidden="true">&middot;</span>' + site_link()
+
+
 def copyright_line():
     """The copyright line the Licences page and the README carry, in HTML."""
     return "Copyright &copy; %d %s" % (YEAR, html.escape(NAME))

@@ -1280,7 +1280,7 @@ def hub_page():
        "dicttags": dict_tags(), "nclips": clip_tags(),
        # who made it: the two links, on the browser foot's last line and,
        # each a finger's height, under the mobile hub's version
-       "made": author.links(), "mby": author.github_link() + author.site_link()}
+       "made": author.links(), "mby": author.row()}
 
 
 def clip_tags():
