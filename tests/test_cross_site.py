@@ -160,6 +160,15 @@ WRITES = (
     ("POST", "/anki/sync/upload"),
     ("POST", "/exercises/api/import"),
     ("POST", "/youtube/api/upload"),
+    # the transcription job of the add page: a page on another site must not
+    # start a model on this computer, feed it a recording or stop it
+    ("POST", "/youtube/api/transcribe/start"),
+    ("POST", "/youtube/api/transcribe/audio?job=x&offset=0"),
+    ("POST", "/youtube/api/transcribe/marks"),
+    ("POST", "/youtube/api/transcribe/wave"),
+    ("POST", "/youtube/api/transcribe/status"),
+    ("POST", "/youtube/api/transcribe/cancel"),
+    ("POST", "/youtube/api/transcribe/result"),
     ("POST", "/clips/api/upload"),
     ("DELETE", "/clips/api/some-clip.wav"),
     ("POST", "/studio/api/docs/zip"),

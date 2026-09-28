@@ -63,6 +63,16 @@ whole worth is that an older Parseh wrote them.
 - `persiano/`: a studio note in Italian on four Persian words for slow and
   fast. Where it was written is not recorded.
 
+## A stand-in speech runtime: `stt_runtime/`
+
+`faster_whisper/` is NOT faster-whisper. It is a few dozen lines written for
+the tests of the transcription job (`tests/test_stt_worker.py`,
+`test_stt_jobs.py`, `test_stt_route.py`), put on the worker's `PYTHONPATH` by
+`tests/stt_fakes.py` where the real runtime (`stt/runtime/`) would be. It
+records how the worker built and called it and can be told to fail the ways a
+graphics card fails, so that no test needs a model, CUDA or PyAV. Its "film"
+is a 16-bit WAV under any name; the real decoder is PyAV's.
+
 ## Cases: `verbs/`, `align/`, `wordline.json`
 
 - `verbs/<code>.json`: conjugation rows cut from Wiktionary, through the
