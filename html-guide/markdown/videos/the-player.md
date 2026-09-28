@@ -79,7 +79,7 @@ Every control, left to right:
 | **⤓** | download the video as one zip another Parseh can install — its tooltip gives the size when the zip carries a film ([Taking videos away](downloads-and-backups.md)) |
 | the title | the title in the video's language, then in Latin letters, and the channel |
 | **video info** | the title, the channel, the level and the blurb, edited ([Video info](video-info-and-drafts.md)) |
-| **the timings** | moves where each caption starts ([The timings](the-timings.md)) |
+| **the timings** | moves where each caption starts, opening at the caption you are on ([The timings](the-timings.md)) |
 | **gloss with an LLM** | a panel that copies a prompt for a run of captions you pick, and fills in the answer where nobody has glossed ([Glossing captions with an LLM](glossing-with-an-llm.md)) |
 | `0:14 / 0:40` | where the video is, and how long it is |
 | **follow** | keeps the spoken line in view (on until you turn it off) |

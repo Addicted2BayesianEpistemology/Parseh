@@ -46,7 +46,13 @@ would break, in the checker's words.
 ![The timings sheet: the caption being timed with its neighbours, the six steps, the row of estimate the next 10 seconds with its box and its by the text / by the sound switch, and the picture of the sound](shots/timings.png)
 
 The button opens a sheet, **the timings —** and the video's id, over the
-player. From the top:
+player, **at the caption you are on**: the one under the playhead, whether
+the video is playing or paused, so that a caption heard to be misplaced is one
+press away — press it while the video is still saying the wrong thing, and
+that caption is the one in hand, with the picture fitted around it. A video
+not yet begun opens on its first caption. (A video has no second button for
+this: **the timings** is already the sheet that a book's **edit times by ear**
+opens.) From the top:
 
 - **before**, **here**, **after** — the caption being timed and its two
   neighbours, with their times, so you can see what you are placing;

@@ -5,8 +5,10 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 // THE TIMELINE (lib/timeline.js): where one piece of text stops being said
 // and the next starts, moved by hand over a picture of the sound.  One editor
 // shared by the book reader and the video player, as the card kit is, opened
-// from a fourth button on a narration row ("by ear") and from the player's
-// header ("the timings").
+// from a fourth button on a narration row ("by ear"), from the reader's
+// header ("edit times by ear", on the recording and at the subparagraph the
+// mark is on) and from the player's header ("the timings", at the caption
+// under the playhead).
 //
 // What has to hold, and is covered nowhere else:
 //
@@ -142,6 +144,25 @@ try {
   });
   await page.goto(`${BASE}/books/english/mini-en/reader/`);
   await page.waitForFunction(() => typeof SUBS !== 'undefined' && document.querySelector('.sub'));
+
+  console.log('j) edit times by ear, in the header: the same sheet, at the subparagraph the mark is on');
+  // the mark is on the last subparagraph; the header button opens the sheet
+  // there, over the real recording's real sound, without the panel at all
+  await page.locator('.sub').nth(3).click();
+  await page.waitForFunction(() => document.querySelector('.sub[data-s="3"].on-air'));
+  await page.click('#editbyear');
+  await page.waitForSelector('.tl-root');
+  await page.waitForFunction(() => document.querySelectorAll('.tl-band').length > 0);
+  await page.waitForFunction(() => document.querySelector('.tl-strip.tl-drawn'), null, {timeout: 20000});
+  const earOn = await page.evaluate(() => ({
+    title: document.querySelector('.tl-title').textContent,
+    here: document.querySelector('.tl-now .tl-say').textContent.split(' ')[0],
+    after: document.getElementById('editbyear').previousElementSibling.id}));
+  assert(/^by ear — /.test(earOn.title) && earOn.here === '2.2' && earOn.after === 'editmode',
+         'it opens the by-ear sheet on 2.2, the fourth, and not on the first: ' + JSON.stringify(earOn));
+  if (Deno.env.get('TIMINGS_SHOTS')) await page.screenshot({path: Deno.env.get('TIMINGS_SHOTS') + '/byear-book-real.png'});
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('.tl-root'));
 
   console.log('a) the fourth button on a narration row');
   await page.click('#narr');
@@ -1704,6 +1725,39 @@ for name in os.listdir(out):
   assert(await vp.evaluate(() => document.querySelectorAll('.tl-gap').length) === 0,
          'no silence was opened: a caption has one number and there is nothing to split');
   await vp.keyboard.press('Escape');
+
+  console.log('j) the timings open at the caption the viewer is at');
+  // no second button: the one that opens the sheet opens it on the caption
+  // under the playhead -- what is heard when the alignment is noticed lost --
+  // and on the first for a video not begun
+  const starts1 = await labs();
+  const labText = i => vp.evaluate(n => document.querySelectorAll('.seg .lab')[n].textContent.trim(), i);
+  const whereOpen = async tag => {
+    await openSheet(vp, '#captimes');
+    const here = await vp.evaluate(() => document.querySelector('.tl-now .tl-say').textContent);
+    if (Deno.env.get('TIMINGS_SHOTS')) await vp.screenshot({path: Deno.env.get('TIMINGS_SHOTS') + '/byear-video-' + tag + '.png'});
+    await vp.keyboard.press('Escape');
+    await vp.waitForFunction(() => !document.querySelector('.tl-root'));
+    return here;
+  };
+  await vp.evaluate(t => { document.querySelector('#film').currentTime = t; }, starts1[2] + 0.3);
+  await vp.waitForFunction(() => document.querySelectorAll('.seg')[2].classList.contains('on-air'));
+  const at3 = await whereOpen('third');
+  assert(at3.startsWith(await labText(2)) && !at3.startsWith(await labText(0)),
+         'with the playhead in the third caption the sheet opens on the third: ' + at3.slice(0, 30));
+  await vp.evaluate(t => { document.querySelector('#film').currentTime = t; }, starts1[1] + 0.3);
+  await vp.waitForFunction(() => document.querySelectorAll('.seg')[1].classList.contains('on-air'));
+  const at2 = await whereOpen('second');
+  assert(at2.startsWith(await labText(1)),
+         'moved to the second caption it opens on the second: ' + at2.slice(0, 30));
+  await vp.evaluate(() => { document.querySelector('#film').currentTime = 0; });
+  await vp.waitForFunction(() => document.querySelectorAll('.seg')[0].classList.contains('on-air'));
+  const at1 = await whereOpen('first');
+  assert(at1.startsWith(await labText(0)),
+         'and with the playhead at the start it opens on the first, as it always did: '
+         + at1.slice(0, 30));
+  assert(/it opens at the caption you are on/.test(await vp.evaluate(() => document.getElementById('captimes').title)),
+         'and the button says so');
 
   console.log('i) a film estimates by the sound too, its captions one number each');
   // the answer is routed and made up, as for the book: what is tested is
