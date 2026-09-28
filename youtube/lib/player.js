@@ -5209,11 +5209,17 @@
     });
     var dur = 0;
     try { dur = player.getDuration ? player.getDuration() : 0; } catch (e) {}
+    // OPENS AT THE CAPTION THE VIEWER IS AT: the one under the playhead,
+    // playing or paused -- which is what is heard when the alignment is
+    // noticed to be lost, and the first caption for a video not yet begun.
+    // Read before capStop, though a pause moves nothing.
+    var now = capNow(), at = now == null ? 0 : Math.max(0, findSeg(now));
     capStop();
     ParsehTimeline.open({
       title: 'the timings — ' + (CFG.title || CFG.id),
       kind: 'point',
       marks: marks,
+      at: at,
       duration: isFinite(dur) ? dur : 0,
       dir: L.dir, lang: L.code,
       peaks: capPeaks,
@@ -5274,7 +5280,8 @@
             : !window.ParsehTimeline ? 'the timeline (lib/timeline.js) did not load: reload the page'
             : '';
     b.disabled = !!why;
-    b.title = why || ('move where each caption starts, by ear, over a picture of the sound'
+    b.title = why || ('move where each caption starts, by ear, over a picture of the sound: '
+      + 'it opens at the caption you are on'
       + (capWhyNoWave() ? ' (no waveform here: ' + capWhyNoWave() + ')' : ''));
   }
   $('#captimes').onclick = openCapTimes;

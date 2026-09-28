@@ -60,6 +60,30 @@ question from **align**: not *where is each subparagraph*, for the whole
 recording at once, but *where does this one stop and the next begin*, for
 the one boundary that came out wrong.
 
+### From the header, where you are listening
+
+**edit times by ear**, in the header right after **edit times**, opens the
+same sheet without the panel: on **the recording the text is following** — the
+one the mark on the text belongs to, which in a book of several recordings is
+the one playing — and **at the subparagraph the mark is on**, with the picture
+fitted around it and its neighbours either side. It is for the moment you
+hear that the alignment was lost: press it while the narration is still
+saying the wrong words, and the boundary to move is already in front of you,
+instead of the first subparagraph of a recording of three hundred.
+
+- With nothing marked yet, or a mark no recording covers, it opens on the
+  recording loaded, at its first timed subparagraph. On a subparagraph with
+  no time it opens at the nearest one that has.
+- What was playing stops, as it does for **by ear** in the panel.
+- It is greyed, with the reason in its tooltip, wherever the panel's **by
+  ear** is: the recording's file is not on the shelf, or nothing it covers
+  has a time yet (**align** it or **estimate times** first).
+- Like **edit times**, it is absent from a book with no recording and from
+  the mobile mode, which never edits.
+- A reader built before this button has neither it nor the sheet's opening on
+  a subparagraph: **rebuild the reader** in the header (an update does it by
+  itself).
+
 ![By ear: the three subparagraphs around the boundary, its two times and six steps, the row of estimate the next 30 seconds with its box and its by the text / by the sound switch, and the waveform with every boundary on it](shots/by-ear.png)
 
 The sheet, from the top:

@@ -176,6 +176,66 @@ try {
   assert(!(await page.evaluate(() => document.querySelector('#warn').style.display === 'inline')),
          'a six-second part is not called unseekable');
 
+  console.log('b2) edit times by ear: the sheet, on the recording playing, at the paragraph the mark is on');
+  // it is in the header next to edit times, and is the by-ear sheet the
+  // narration panel's row opens -- here without opening the panel at all
+  const hdrBtn = await page.evaluate(() => {
+    const b = document.getElementById('editbyear');
+    return {text: b.textContent, off: b.disabled, after: b.previousElementSibling.id,
+            title: b.title, shown: b.getClientRects().length > 0};
+  });
+  assert(hdrBtn.text === 'edit times by ear' && hdrBtn.after === 'editmode' && hdrBtn.shown,
+         'the button sits right after edit times: ' + JSON.stringify([hdrBtn.text, hdrBtn.after]));
+  assert(!hdrBtn.off && /it opens at the subparagraph you are on/.test(hdrBtn.title)
+         && /\bn2\b/.test(hdrBtn.title),
+         'it is live, and its tooltip names the recording playing and what it does: ' + hdrBtn.title);
+  const sheetOn = async () => {
+    await page.waitForSelector('.tl-root');
+    await page.waitForFunction(() => document.querySelectorAll('.tl-band').length > 0);
+    return page.evaluate(() => ({
+      title: document.querySelector('.tl-title').textContent,
+      bands: [...document.querySelectorAll('.tl-band .tl-blab')].map(b => b.textContent),
+      here: document.querySelector('.tl-now .tl-say').textContent.split(' ')[0]}));
+  };
+  const shut = async () => {
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.tl-root'));
+  };
+  // the mark is on the LAST subparagraph of the second recording, playing
+  await page.locator('.sub').nth(info.labels.length - 1).click();
+  await page.waitForFunction(() => document.querySelector('.sub.on-air') !== null
+    && /part2\.wav$/.test(document.querySelector('#audio').src));
+  await page.click('#editbyear');
+  const s2 = await sheetOn();
+  assert(/n2 · part2\.wav/.test(s2.title) && s2.here === info.labels[info.labels.length - 1]
+         && s2.bands.length === info.labels.length - half,
+         'it opens on the recording the mark is in, at the subparagraph it is on, and not at ' +
+         'the first: ' + JSON.stringify(s2));
+  // NARRATION_SHOTS=<dir> keeps the sheet's picture, to look at
+  if (Deno.env.get('NARRATION_SHOTS')) await page.screenshot({path: Deno.env.get('NARRATION_SHOTS') + '/byear-book.png'});
+  await shut();
+  // and on the first recording, at the LAST subparagraph of it -- the other
+  // recording's, a click away, opened before
+  await page.locator('.sub').nth(half - 1).click();
+  await page.waitForFunction(() => /part1\.wav$/.test(document.querySelector('#audio').src));
+  await page.click('#editbyear');
+  const s1 = await sheetOn();
+  assert(/n1 · part1\.wav/.test(s1.title) && s1.here === info.labels[half - 1]
+         && s1.bands.length === half,
+         'moved to the other recording it opens on that one, at that subparagraph: ' + JSON.stringify(s1));
+  await shut();
+  // no time to open on: the button says why, and the panel's own row would
+  await page.evaluate(() => {
+    for (let k = 0; k < SUBS.length; k++) if (SUBS[k][3] === 'n1') { SUBS[k][0] = null; SUBS[k][1] = null; }
+    earPaint();
+  });
+  const dead = await page.evaluate(() => {
+    const b = document.getElementById('editbyear'); return {off: b.disabled, title: b.title}; });
+  assert(dead.off && /has a time yet — align it/.test(dead.title),
+         'a recording with nothing timed greys it, with the reason: ' + dead.title);
+  await page.reload({waitUntil: 'domcontentloaded'});
+  await page.waitForSelector('.sub');
+
   console.log('c) the narration panel');
   STATUS = {
     ok: true, slug: 'mini-en', title_latin: 'mini-en',

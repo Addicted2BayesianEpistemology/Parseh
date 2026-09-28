@@ -481,7 +481,7 @@ const headerDrawn = page => page.evaluate(sel => [...document.querySelectorAll(s
     : e.getAttribute('data-toggle') || e.getAttribute('data-parseh-mode') || e.className)}))
   .sort((a, b) => (Math.abs(a.r.top - b.r.top) > 6 ? a.r.top - b.r.top : a.r.left - b.r.left))
   .map(x => x.name), HEADER_SEL);
-const WRITES = ['#bookinfo', '#buildbook', '#buildhtml', '#narr', '#fold', '#editmode', '#savetimes', '#droptimes',
+const WRITES = ['#bookinfo', '#buildbook', '#buildhtml', '#narr', '#fold', '#editmode', '#editbyear', '#savetimes', '#droptimes',
                 '#stopsrv', 'header .dl', '#lookupset', '#build', '#pdfstale', '#chpen', '.gap .plus', '#editmsg'];
 
 // What the header holds: one line, whatever the book and whichever way the

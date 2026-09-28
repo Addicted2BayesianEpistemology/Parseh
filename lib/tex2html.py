@@ -1026,7 +1026,7 @@ body.noaudio #play,body.noaudio #cont,body.noaudio #loop,body.noaudio #stopbnd,
 body.noaudio #gapwrap,body.noaudio #listen,body.noaudio #seekwrap,
 body.noaudio #listenfollow,body.noaudio #listenscroll,
 body.noaudio #speed,body.noaudio #pos,body.noaudio #warn,body.noaudio .edit,
-body.noaudio #editmode,body.noaudio #savetimes,body.noaudio #droptimes{display:none!important}
+body.noaudio #editmode,body.noaudio #editbyear,body.noaudio #savetimes,body.noaudio #droptimes{display:none!important}
 body.noaudio .lab{cursor:pointer}
 /* the narration with its own controls: shown while editing the times, and
    whenever there is audio but not one time yet -- the audio-only case, where
@@ -3379,6 +3379,7 @@ function hl(i, mayScroll) {
     return;
   }
   el.classList.add('on-air');
+  if (earLive) earPaint();
   // Only ever scroll when the reader did NOT put it there itself.  Scrolling
   // under a finger that has just pressed a button moves the next button out
   // from under it, which is what made editing unusable.
@@ -7137,6 +7138,7 @@ function narrDraw(row, n, open) {
    data-off remembers what each button's own state was.                     */
 function narrLock(on) {
   NBUSY = on;
+  earPaint();
   NR.box.classList.toggle('working', on);
   $$('#narrbox .nitem button:not(.ntog),#narrbox .ndraw select,' +
      '#narrbox .ndraw textarea,#narrbox .nheadacts button:not(#nhowbtn)').forEach(x => {
@@ -7238,8 +7240,13 @@ async function narrSpread(n) {
 
    THE TEXT IS ON THE PAGE, and a chapter still in its own file has none, so
    the chapters this recording covers are fetched before the sheet opens --
-   the same needChapters the reading place uses to jump into one. */
-async function narrByEar(n) {
+   the same needChapters the reading place uses to jump into one.
+
+   WHERE IT OPENS: on the first piece, or -- `where`, a subparagraph's index --
+   on that one, or on the nearest that has a time when it has none.  The
+   narration panel's button asks for no place; the header's `edit times by
+   ear` asks for the reading place (editByEar, below). */
+async function narrByEar(n, where) {
   if (!window.ParsehTimeline) {
     ntoast('the timeline (lib/timeline.js) did not load: reload the page', true);
     return;
@@ -7275,6 +7282,15 @@ async function narrByEar(n) {
     ntoast('the text of this recording’s stretch could not be fetched', true);
     return;
   }
+  // the piece to open on: the one asked for, else the closest timed one,
+  // the earlier of two that are as close
+  let start = 0;
+  if (where != null && where >= 0) {
+    let best = Infinity;
+    at.forEach((i, k) => {
+      if (Math.abs(i - where) < best) { best = Math.abs(i - where); start = k; }
+    });
+  }
   const play = ParsehTimeline.media(rec && rec.src ? rec.src : '');
   // the reading place is not a preview: whatever the page was playing stops
   try { A.pause(); } catch (_) {}
@@ -7294,6 +7310,7 @@ async function narrByEar(n) {
       title: 'by ear — ' + n.id + (n.audio ? ' · ' + n.audio.split('/').pop() : ''),
       kind: 'span',
       marks: marks,
+      at: start,
       duration: seconds,
       dir: (typeof LANG !== 'undefined' && LANG.dir) || '',
       lang: (typeof LANG !== 'undefined' && LANG.code) || '',
@@ -7355,6 +7372,70 @@ async function narrByEar(n) {
   ntoast(nplural(saved.length, 'boundary', 'boundaries') + ' moved and saved');
   narrStatus();
 }
+/* EDIT TIMES BY EAR, from the header: the by-ear sheet on the recording the
+   text is following, at the subparagraph the reading place is on.  It is for
+   the moment the alignment is heard to have been lost -- a line said over
+   the wrong text -- when the road through the narration panel (open it, find
+   the row, press by ear) lands on the FIRST piece of whichever recording was
+   picked, and the piece wanted is somewhere in three hundred.
+
+   THE RECORDING IS THE ONE THE MARK IS IN, not the one loaded: they are the
+   same while a subparagraph plays (playSub loads the file it is in), and only
+   the mark says where the reading is when nothing plays or a listening has
+   gone on past it.  With no mark, or a mark no recording covers, it is the
+   recording loaded, else the first that has any time.  The sheet then finds
+   the piece itself, or the nearest one that has a time (narrByEar).      */
+function earTimed(r) {
+  for (let k = 0; k < N; k++) {
+    const f = narrFor(k);
+    if (f && f.id === r.id && SUBS[k][0] != null && SUBS[k][1] != null) return true;
+  }
+  return false;
+}
+function earTarget() {
+  const i = (typeof cur === 'number' && cur >= 0 && cur < N) ? cur : -1;
+  let n = i >= 0 ? narrFor(i) : null;
+  if (!n) n = NARR.find(r => r.src === loadedSrc && earTimed(r)) || NARR.find(earTimed) || NARR[0] || null;
+  const why = !window.ParsehTimeline
+    ? 'the timeline (lib/timeline.js) did not load: reload the page'
+    : !n ? 'this book has no recording to move times in'
+    : NBUSY ? 'a recording is being worked on: wait for it to finish'
+    : !earTimed(n)
+    ? 'nothing this recording covers has a time yet — align it, or give it a first guess ' +
+      'with estimate times (in narration), and the boundaries can then be moved by ear'
+    : '';
+  return {n: n, i: i, why: why};
+}
+// the button says what it will open, or why it will not: read again wherever
+// the mark or the times move
+function earPaint() {
+  const b = $('#editbyear');
+  if (!b) return;
+  const t = earTarget();
+  b.disabled = !!t.why;
+  b.title = t.why || 'move where each subparagraph starts, by ear, over a picture of the sound: ' +
+    'it opens at the subparagraph you are on' +
+    (NARRN > 1 ? ', in the recording the text is following (' + t.n.id + ')' : '');
+}
+let earOpening = false;
+async function editByEar() {
+  const t = earTarget();
+  if (t.why) { ntoast(t.why, true); return; }
+  if (earOpening) return;
+  earOpening = true;
+  try {
+    await narrByEar({id: t.n.id, audio: t.n.src}, t.i);
+  } finally {
+    earOpening = false;
+    earPaint();
+  }
+}
+$('#editbyear').onclick = editByEar;
+// a var, and read by hl() above: the reading place is restored while this
+// script is still running, before the lets this button reads are set
+var earLive = true;
+earPaint();
+
 // the door `save times` has always used, so both hands write the same way
 async function narrSaveTimes(changed) {
   const body = {};
@@ -10575,6 +10656,7 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
   <button id="fold" title="fold a run of paragraphs away: the text is not shown, and the narration skips it">fold</button>
   <button id="rgn" title="copy a prompt that has an LLM gloss a stretch of the book, and fill in its answer">gloss with an LLM</button>
   <button id="editmode" title="edit the subparagraph timings">edit times</button>
+  <button id="editbyear" title="move where each subparagraph starts, by ear, over a picture of the sound">edit times by ear</button>
   <button id="savetimes" style="display:none">save times</button>
   <button id="droptimes" style="display:none" title="throw away every unsaved timing edit">discard edits</button>
   <span id="editmsg" style="font-size:12px;color:var(--dim)"></span>
