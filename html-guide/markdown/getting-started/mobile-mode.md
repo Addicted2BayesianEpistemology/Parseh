@@ -518,6 +518,20 @@ the computer still does not answer it says when it tried (*Still cannot reach
 it. Tried again at 14:02:11.*); **Go back** is there too, when the page you
 were on is still behind it.
 
+A page you have not kept is made by the computer when you ask for it, and a
+big one can take more than a few seconds. The app **waits for it for as long
+as your computer is answering** the page you are on, up to half a minute, and
+the page you are on stays as it is while it comes; nothing says *cannot be
+reached* about a computer that is only slow. A computer that answers nothing
+— asleep, or off the network — costs about four seconds, not half a minute,
+and one Parseh has already said is away costs two and a half. Where there is
+no Parseh page for the app to ask, it cannot tell slow from gone and says
+*cannot be reached* after two and a half seconds: a link typed in a new tab
+or opened from another app, and **Try again** on that page itself (a page
+that takes longer to make is not opened from there — **Go back** and follow
+the link again from the page you were on). A tab behind another asks
+nothing either, so keep one Parseh tab in sight.
+
 The mobile hub's **As an app** door opens the page that installs it. Its top
 line says where the phone stands, and it has two steps:
 
