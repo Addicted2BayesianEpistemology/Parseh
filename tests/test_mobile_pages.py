@@ -365,9 +365,16 @@ class RegistryTests(unittest.TestCase):
         # the reader pours into the cloud of a chunk with no vocabulary line,
         # where the chunk has a meaning or a reading written all the same
         # (a0.3.2: on a phone a gloss is any line of one), and so opens its
-        # cloud with the button instead
+        # cloud with the button instead.  a0.4.1 adds one more control of its
+        # own to the header's first row, in BOTH modes: hover ⏸, put beside
+        # the reader's own hover with row.insertBefore -- the same receiver,
+        # so the set below does not grow, and the count says it is only that
         receivers = re.findall(r'(\w+)\.(?:appendChild|insertBefore|replaceWith|replaceChildren|remove)\(', js)
         self.assertEqual(set(receivers) - {'classList'}, {'row', 'sw', 'none', 'box', 'auto'})
+        # (the other row.insertBefore is the dictionary's button, in the CLOUD's
+        # row of buttons; this one is the header's)
+        hp = js[js.index('/* ---- pause on touch: hover'):js.index('/* ---- a book with few glosses')]
+        self.assertEqual(hp.count('row.insertBefore('), 1, 'hover ⏸ is the one thing put beside a reader control')
         self.assertEqual(js.count('auto.remove();'), 1)
         self.assertEqual(re.findall(r"\.classList\.(?:add|remove)\('([\w-]+)'\)", js), ['m-gl', 'm-gl'])
         self.assertIn("var sw = el('span', 'parseh-mode');", js)
@@ -586,6 +593,96 @@ class RegistryTests(unittest.TestCase):
         # button stays on the page, unshown, as the one the dock presses
         self.assertNotIn('#play', kept)
         self.assertIn('html.m-reader[data-mode=mobile] header #play{display:none!important}', css)
+
+    def test_the_narration_waits_for_a_touched_words_cloud_when_asked(self):
+        # HOVER ⏸ IN A BOOK (a0.4.1; the owner, 2026-09-25 and 2026-09-28;
+        # TO-DO §4.20 and §7.21): the video's switch in a reader, in BOTH
+        # modes, kept on this device only.  What it DOES is driven, with the
+        # audio's own events, by tests/phone_clouds.mjs section n; what is
+        # pinned here is the text that drive rests on.
+        js = (ROOT / 'lib' / 'mobilereader.js').read_text(encoding='utf-8')
+        css = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
+        start = js.index('/* ---- pause on touch: hover')
+        end = js.index('/* ---- a book with few glosses')
+        hp = js[start:end]
+        # THIS DEVICE ONLY: a key of its own, never one the computer keeps (the
+        # owner, 2026-09-28) -- neither the server's whitelist nor the page's
+        self.assertIn("var HP_KEY = 'bk_hoverpause';", hp)
+        import prefs
+        self.assertNotIn('bk_hoverpause', prefs.KEYS)
+        pjs = (ROOT / 'lib' / 'prefs.js').read_text(encoding='utf-8')
+        self.assertNotIn('bk_hoverpause', pjs)
+        # THE VIDEO'S OWN WORDS AND GLYPH (decision D15), and its grace: read
+        # off the video's page, so the two cannot drift apart
+        player = (ROOT / 'youtube' / 'lib' / 'player.html').read_text(encoding='utf-8')
+        video = re.search(r'<button id="hoverpause"[^>]*>([^<]*)</button>', player).group(1)
+        self.assertIn("var HP_LABEL = '%s';" % video.replace('&nbsp;', '\\u00a0'), hp)
+        self.assertIn('var HP_GRACE = 350;', hp)
+        pl = (ROOT / 'youtube' / 'lib' / 'player.js').read_text(encoding='utf-8')
+        self.assertIn('}, 350);', pl[pl.index('function closeCloud()'):])
+        # NOT ASKED OF THE MODE: the button and the wrapper are put up at the
+        # start, mobile or not, and nothing between them asks mobile()
+        self.assertNotIn('mobile()', hp)
+        self.assertLess(js.index('    hpBuild();\n    hpInstall();\n'), js.index('if (p && p.mode && p.mode.onChange)'))
+        # the button is drawn by both modes: beside the reader's own hover in
+        # the header's first row, with no data-layout (which would hide it in
+        # the browser mode) and the video's own id
+        self.assertIn("hpBtn = el('button', 'm-hoverpause', HP_LABEL);", hp)
+        self.assertIn("hpBtn.id = 'hoverpause';", hp)
+        self.assertNotIn('data-layout', hp)
+        self.assertIn("row.insertBefore(hpBtn, hm && hm.parentNode === row ? hm.nextSibling : null);", hp)
+        # ... and hidden in a book with no narration -- every language's
+        # book without a recording, right to left included -- which is what
+        # keeps the Listening line off such a book's ⋯
+        self.assertIn("hpBtn.hidden = document.body.classList.contains('noaudio');", hp)
+        # the reader's own open and close are wrapped by their bare names
+        # (every caller in the reader resolves them so), and the wrapper of
+        # the close is the only thing that ever lets go
+        self.assertIn('window.openCloud = function () {', hp)
+        self.assertIn('window.closeCloud = function () {', hp)
+        self.assertIn('again = cloudC >= 0 && !cloudFor;', hp)
+        # THE ▶ IS PRESSED WITHOUT THE CLICK BUBBLING: a bubbling one reaches
+        # "a click outside the cloud shuts it" and shuts the cloud just opened
+        self.assertIn("new MouseEvent('click', {bubbles: false, cancelable: true})", hp)
+        self.assertIn("var b = document.getElementById('play');", hp)
+        # what it owes is its own: the audio's play gives the debt up, and the
+        # dictionary's sheet, when it closes, only asks for the grace again
+        self.assertIn("a.addEventListener('play', function () {", hp)
+        self.assertIn('hpHeld = false; hpGap = false;', hp)
+        toSheet = js[js.index('function toSheet(box) {'):js.index('function openDict(b) {')]
+        self.assertIn('if (held && how !== \'again\') narrGoOn();', toSheet)
+        self.assertLess(toSheet.index('narrGoOn();'), toSheet.index('hpRelease();'))
+        # the reader's own sheets are left in peace: every flag, each asked on
+        # its own, for a reader built before a sheet existed lacks its binding
+        for flag in ('ankiOpen', 'chOpen', 'fdShown', 'rgShown', 'narrOpen', 'secShown', 'dlOpen'):
+            self.assertIn("(typeof %s !== 'undefined' && %s)" % (flag, flag), hp)
+        # the loop's wait is the reader's `waiting`, taken and given back as
+        # the reader's own play of that subparagraph
+        self.assertIn('return loop === true && waiting != null && typeof playSub', hp)
+        self.assertIn('playSub(cur, false)', hp)
+        # the switch sits in the Listening group, after stop-at-a-change and
+        # before where the recording is; kept by the header's list, hidden with
+        # ⋯ shut like the rest of the group
+        listening = re.search(r"g: 'listening', words: 'Listening',\s+sel: '([^']*)'", js).group(1)
+        self.assertLess(listening.index('#stopbnd'), listening.index('#hoverpause'))
+        self.assertIn('#hoverpause', listening)
+        keep = re.search(r"html\.m-reader\[data-mode=mobile\] header > \.hrow > :not\(([^)]*)\)", css)
+        self.assertIn('#hoverpause', {s.strip() for s in keep.group(1).split(',')})
+        closed = re.search(r"header:not\(\.m-more\) :is\(\.m-rlab,\.m-rskip,([^)]*)\)\{", css)
+        self.assertIn('#hoverpause', {s.strip() for s in closed.group(1).split(',')})
+        order = lambda sel: int(re.search(r'html\.m-reader\[data-mode=mobile\] header %s\{order:(\d+)' % re.escape(sel), css).group(1))
+        self.assertLess(order('#stopbnd'), order('#hoverpause'))
+        self.assertLess(order('#hoverpause'), order('#pos'))
+        self.assertLess(order('#pos'), order('.m-rskip'))
+        # every language: the header is an island that reads left to right
+        # whatever the book's language, so the button and its place are the
+        # same in Persian, Arabic, Japanese, Hindi and Chinese as in English.
+        # (Only the English fixture is narrated: no fixture has the switch
+        # to press in another language; tests/mobile_pages.mjs asserts it is
+        # not drawn for them, which is the rule a book with no recording gets.)
+        tex = (ROOT / 'lib' / 'tex2html.py').read_text(encoding='utf-8')
+        self.assertIn('<header lang="en" dir="ltr"><div class="hrow">', tex)
+        self.assertIn('body.noaudio #play,body.noaudio #cont,body.noaudio #loop', tex)
 
 
 # ------------------------------------------------------------ the decks

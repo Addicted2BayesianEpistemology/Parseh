@@ -287,7 +287,7 @@ html.m-reader[data-mode=mobile] header{flex-direction:row;flex-wrap:wrap;align-i
   gap:6px;padding:6px 10px}
 html.m-reader[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
 html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#toc,#typo,#theme,.pgrp,.px-ask,.kp-btn,.kp-off,.kp-again,.kp-wait,
-  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#listen,#listenfollow,
+  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#hoverpause,#listen,#listenfollow,
   #listenscroll,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#bars,
   #audio,[data-layout=mobile]){display:none!important}
 /* what stays is for a finger: 48px at the least, the text a size to read;
@@ -329,7 +329,7 @@ html.m-reader[data-mode=mobile] header #typo{order:7}
    goes with the rest of the listening, under ⋯.  The first line is five
    targets and nothing else, which a phone 320px wide holds on one line; the
    reading place itself is shown by the mark moving through the text. */
-html.m-reader[data-mode=mobile] header #pos{order:35;font-size:14px;color:var(--dim);
+html.m-reader[data-mode=mobile] header #pos{order:36;font-size:14px;color:var(--dim);
   font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   max-width:14em;padding-inline:2px}
 html.m-reader[data-mode=mobile] header .m-rmore{order:9;margin-inline-start:auto;font-size:20px;
@@ -359,6 +359,9 @@ html.m-reader[data-mode=mobile] header #cont{order:31}
 html.m-reader[data-mode=mobile] header #loop{order:32}
 html.m-reader[data-mode=mobile] header #gapwrap{order:33}
 html.m-reader[data-mode=mobile] header #stopbnd{order:34}
+/* hover ⏸ (lib/mobilereader.js): the narration waits while a gloss is open.
+   Beside the other switches of the listening, ahead of where it is. */
+html.m-reader[data-mode=mobile] header #hoverpause{order:35}
 /* HOW FAR ↺ AND ↻ MOVE, in the open.  Holding either button opens the same
    row over the dock, but a hold cannot be seen, so the group says it too
    (lib/narrctl.js builds both; the speed is the dock's chip and is not
@@ -393,7 +396,7 @@ html.m-reader[data-mode=mobile] header #audio{order:90;flex:1 1 100%;min-width:0
   height:40px;margin:2px 0}
 /* ⋯ closed: the first line alone (with the recording's line, upright) */
 html.m-reader[data-mode=mobile] header:not(.m-more) :is(.m-rlab,.m-rskip,.kp-btn,.pgrp,
-  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#listen,#listenfollow,
+  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#hoverpause,#listen,#listenfollow,
   #listenscroll,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#theme,#bars,.parseh-mode){
   display:none!important}
 /* Open, the controls may be more than a phone held sideways has height for:
