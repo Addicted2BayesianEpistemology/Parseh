@@ -1974,7 +1974,8 @@ def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length
                 "\t".join(x.replace("\t", " ").replace("\n", " ") for x in row)
                 for row in rows),
         ])
-    data.append("Here is the complete Markdown page to augment:\n```markdown\n%s\n```" % markdown.rstrip())
+    data.append("Here is the complete Markdown page to augment. Add the exercises now, and answer with the "
+                "whole page:\n```markdown\n%s\n```" % markdown.rstrip())
     a = promptkit.assemble("studio-exercises", target,
                            flags=promptboxes.flags(target, on_boxes, on_types, exercising=True),
                            extras=extras, data="\n\n".join(x for x in data if x))
