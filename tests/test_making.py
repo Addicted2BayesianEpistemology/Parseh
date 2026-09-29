@@ -352,6 +352,32 @@ class TheRecord(unittest.TestCase):
         self.assertEqual(got["to_come"], [3, 4])
         self.assertEqual(making.chapter_inputs(d), ["ch1", "ch1b", "ch2"])
 
+    def test_a_reader_older_than_what_the_agent_wrote_is_said_to_be_behind(self):
+        # by the files' own times: the page the person looks at is the reader's, and a
+        # batch that landed after it was built is not in it
+        d = self.folder({"stage": "batch"})
+        main = Path(d, "main.tex")
+        main.write_text(main.read_text(encoding="utf-8").replace(
+            "\\end{document}", "\\input{ch1.tex}\n\\end{document}"), encoding="utf-8")
+        ch1 = Path(d, "ch1.tex")
+        ch1.write_text("% x\n", encoding="utf-8")
+        now = time.time()
+
+        def age(path, seconds_ago):
+            os.utime(path, (now - seconds_ago, now - seconds_ago))
+        for p in (main, ch1):
+            age(p, 100)
+        self.assertTrue(making.describe(d)["stale"], "no reader at all is behind everything written")
+        reader = Path(d, "reader", "index.html")
+        reader.parent.mkdir()
+        reader.write_text("<html></html>", encoding="utf-8")
+        age(reader, 50)
+        self.assertFalse(making.describe(d)["stale"], "a reader built after the last write is not behind")
+        age(ch1, 10)
+        self.assertTrue(making.describe(d)["stale"], "a batch written after the reader was built is")
+        age(reader, 5)
+        self.assertFalse(making.describe(d)["stale"])
+
     def test_parseh_updated_during_the_making_is_said_when_the_versions_differ(self):
         self.assertFalse(making.describe(self.folder())["updated_by_parseh"])
         d = self.folder({"state": "making", "parseh": "a0.1.0"})
@@ -470,6 +496,53 @@ class TheToolsTakeAGrowingBook(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("0 paragraphs built", out)
 
+    def test_the_same_road_in_every_language_of_the_registry(self):
+        # the make route builds the reader the moment the folder is made: a language whose
+        # skeleton had no reader with no chapter would fail there, in front of the person
+        import languages
+        for code in languages.CODES:
+            with self.subTest(code=code):
+                into = os.path.join(tmpdir(self), "books")
+                os.makedirs(into)
+                r = making.make({"lang": code, "gloss": "en", "title": "Book " + code, "title_latin": "Book " + code},
+                                {"name": "a.txt", "data": TEXT}, into=into)
+                d = r["path"]
+                code_, out = self.run_tool("lib/tex2html.py", "--book", d)
+                self.assertEqual(code_, 0, out)
+                self.assertTrue(os.path.isfile(os.path.join(d, "reader", "index.html")))
+                code_, out = self.run_tool("lib/verify_book.py", "--book", d)
+                self.assertEqual(code_, 0, out)
+                self.assertEqual(making.describe(d)["words"], "not started yet")
+                self.assertIn(languages.get(code).name, Path(d, "AGENTS.md").read_text(encoding="utf-8"))
+
+    def test_a_book_grows_batch_by_batch_in_every_language_of_the_registry(self):
+        # the scripted stand-in (tests/making_agent.py) does what an agent is told to do, by calling
+        # Parseh's own tools: at every rest point the book must read, and at the end it must verify
+        import languages
+        for code in languages.CODES:
+            with self.subTest(code=code):
+                L = languages.get(code)
+                model = os.path.join(str(ROOT), "tests", "fixtures", "books", L.folder, "mini-" + code)
+                original = os.path.join(tmpdir(self), "original.txt")
+                self.assertEqual(self.run_tool("tests/making_agent.py", "original", model, original)[0], 0)
+                into = os.path.join(tmpdir(self), "books")
+                os.makedirs(into)
+                r = making.make({"lang": code, "gloss": "en", "title": "Book " + code, "title_latin": "Book " + code},
+                                {"name": "original.txt", "path": original}, into=into)
+                d, seen = r["path"], []
+                for _ in range(5):
+                    got, out = self.run_tool("tests/making_agent.py", "step", d, model)
+                    self.assertEqual(got, 0, out)
+                    seen.append(making.describe(d)["words"])
+                    got, out = self.run_tool("lib/tex2html.py", "--book", d)
+                    self.assertEqual(got, 0, "the reader must build at every rest point: " + out)
+                self.assertEqual(seen, ["source recovered", "chapter table", "batch 2 of 2", "all batches in", "all batches in"])
+                self.assertNotIn("subparagraphs: 0", out, "the reader of the whole book has its chunks")
+                self.assertEqual(making.describe(d)["to_come"], [])
+                got, out = self.run_tool("lib/verify_book.py", "--book", d)
+                self.assertEqual(got, 0, out)
+                self.assertIn("2 reproduce their source exactly", out)
+
     def test_the_library_lists_it_with_a_reader_and_with_none(self):
         into, r = made(self)
         import make_index
@@ -478,6 +551,28 @@ class TheToolsTakeAGrowingBook(unittest.TestCase):
                 self.run_tool("lib/tex2html.py", "--book", r["path"])
             card = make_index.card(booklib.Book(r["path"]))
             self.assertIn("Il gatto", card)
+
+    def test_the_card_of_a_book_being_made_says_where_the_making_stands_and_only_then(self):
+        into, r = made(self)
+        d = r["path"]
+        import make_index
+        patcher = patch.object(booklib, "BOOKS_DIR", into)          # the card's address is relative to the shelf
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        card = make_index.card(booklib.Book(d))
+        self.assertIn('data-making="italian/il-gatto"', card)
+        self.assertIn("being made &middot; not started yet", card)
+        Path(d, "making.json").write_text(json.dumps({"state": "making", "stage": "batch",
+                                                      "batches": {"done": 1, "of": 6}}), encoding="utf-8")
+        self.assertIn("being made &middot; batch 2 of 6", make_index.card(booklib.Book(d)))
+        # a half-written record is still a book being made, and the card says so
+        Path(d, "making.json").write_text('{"state": "maki', encoding="utf-8")
+        self.assertIn('data-making="italian/il-gatto"', make_index.card(booklib.Book(d)))
+        # the making over, or a book nobody made this way: nothing on the card says it
+        Path(d, "making.json").write_text(json.dumps({"state": "finished"}), encoding="utf-8")
+        self.assertNotIn("data-making", make_index.card(booklib.Book(d)))
+        os.unlink(os.path.join(d, "making.json"))
+        self.assertNotIn("being made", make_index.card(booklib.Book(d)))
 
     def test_the_files_an_agent_leaves_beside_the_book_break_nothing(self):
         into, r = made(self)
@@ -517,9 +612,9 @@ class TheToolsTakeAGrowingBook(unittest.TestCase):
         with patch.object(bookbuild.shutil, "which", lambda name: None):
             ok, why = bookbuild.available("draft")
             self.assertFalse(ok)
-            self.assertIn("not available here", why)
-            self.assertIn("The reader is", why)
-            with self.assertRaisesRegex(ValueError, "not available here"):
+            self.assertIn("not available on this computer", why)
+            self.assertIn("The reader is available", why)
+            with self.assertRaisesRegex(ValueError, "not available on this computer"):
                 bookbuild.start(d, "draft", chapters=["ch1"])
             self.assertFalse(making.draft_state(d)["can"])
         with patch.object(bookbuild.runtime, "WIN", True):

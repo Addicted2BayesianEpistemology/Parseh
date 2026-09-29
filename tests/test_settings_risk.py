@@ -515,6 +515,10 @@ class Served(unittest.TestCase):
             status, _, got = self.ask("GET", book + "/__making")
             self.assertEqual((status, got["making"], got["may"], "path" in got),
                              (200, True, {"folder": False, "finish": False}, False))
+            self.assertEqual(got["said"], {"folder": settingspage.refusal("making.folder"),
+                                           "finish": settingspage.refusal("making.finish")},
+                             "the panel is told the reason in the table's own words, and draws no button that would only fail")
+            self.assertEqual(got["name"], "Il gatto")
             status, _, got = self.ask("GET", book + "/reader/__making")
             self.assertEqual((status, got["making"]), (200, True), "the reader asks relative to itself")
             status, _, got = self.ask("POST", book + "/__making/ask", {"line": "shorter glosses"})
@@ -531,7 +535,7 @@ class Served(unittest.TestCase):
             status, _, got = self.ask(method, path, body)
             self.assertEqual(status, want, (path, got))
         status, _, got = self.ask("GET", book + "/__making")
-        self.assertEqual((got["may"], got["path"]), ({"folder": True, "finish": True}, made["path"]))
+        self.assertEqual((got["may"], got["path"], got["said"]), ({"folder": True, "finish": True}, made["path"], {}))
         self.assertEqual(sorted(os.listdir(root / "books" / "italian")), shelf_before,
                          "nothing was made by a refusal, or by a request that went on and asked for more")
         self.assertIn("shorter glosses", (Path(made["path"]) / "ASKS.md").read_text(encoding="utf-8"))
