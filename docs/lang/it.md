@@ -77,10 +77,11 @@ unambiguous.
 meaning, with the grammar a learner needs to recognise the form.
 
 - A **verb** is given as the infinitive, the first person present and the
-  past participle, and its auxiliary when that is *essere*: `andare · pres.
-  vado · p.p. andato · to go (aux. essere)`. No conjugation class: the
-  infinitive's own ending and the first person (`finisco`, `dormo`) already
-  say it. An **irregular form** in the text is tied to its infinitive:
+  past participle, and its auxiliary when that is *essere*, as a `\vb` prints
+  it: `andare · pres. vado · p.p. andato · to go (aux. essere)`. No
+  conjugation class: the infinitive's own ending and the first person
+  (`finisco`, `dormo`) already say it. An **irregular form** in the text is
+  tied to its infinitive:
   `vado · andare, 1sg pres.`; `fatto · fare, past participle`; `andrò ·
   andare, fut.`.
 - A **noun** carries its **gender** and, when it is not regular, its
