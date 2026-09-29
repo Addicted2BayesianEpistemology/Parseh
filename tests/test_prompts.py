@@ -59,7 +59,7 @@ import ytpages                                                  # noqa: E402
 # person's own text or a language they added adds is theirs; these are Parseh's.
 SIZES = {
     #        studio-doc     studio-exercises  video-new      video-region   book-region    transcript-tidy  book-new
-    "fa": ((21274, 24500), (33749, 38900), (30695, 35300), (20604, 23700), (21276, 24500), (2696, 3200), (32808, 37800)),
+    "fa": ((21274, 24500), (33749, 38900), (30695, 35300), (20604, 23700), (19730, 22700), (2696, 3200), (32808, 37800)),
     "ar": ((21945, 25300), (34419, 39600), (30569, 35200), (21027, 24200), (20705, 23900), (2687, 3100), (32685, 37600)),
     "it": ((22104, 25500), (30335, 34900), (30602, 35200), (21032, 24200), (20710, 23900), (2747, 3200), (32652, 37600)),
     "ja": ((22748, 26200), (30978, 35700), (33877, 39000), (24592, 28300), (24866, 28600), (2636, 3100), (34581, 39800)),
@@ -183,6 +183,16 @@ def has_no_harakat_rule(a, c):
             if re.search(p, a.text, re.I)]
 
 
+def says_a_videos_line_is_plain_text(a, c):
+    """A video's `voc` is written with the books' macros (brief 6.5), and a line with none is
+    only ALSO ACCEPTED: the sentence that says so is the one place "plain text" may stand
+    beside the vocabulary (a caption's own text is plain text too, and is not this)."""
+    return ["says a video's `voc` is plain text: %s" % s[:100]
+            for s in re.split(r"(?<=[.!?])\s+", _flat(a.text))
+            if "plain text" in s and re.search(r"\bvoc\b|vocabulary|\bline\b|\bentry\b", s)
+            and not re.search(r"no macro|also accepted", s)]
+
+
 def has_no_continuous_prose(a, c):
     return ["says \"continuous prose\""] if "continuous prose" in a.text else []
 
@@ -231,6 +241,12 @@ CHECKS = (
           "the TeX specials are a book's: a video never reaches LaTeX (brief 3.8, 4.3)",
           ("video-region", "video-new"), {}, has_no_tex_specials_rule),
     # --- rows that wait for the lane that rewrites the words they are about ---
+    Check("says_no_video_line_is_plain_text",
+          "a video's vocabulary line is written with the books' macros and a line with none is only "
+          "also accepted (brief 6.5); the language files of it, fr, de, tr, en and es still say "
+          "\"plain text\" in the paragraph for a video, which lane V rewrites",
+          ("video-region", "video-new"), {"video-region": "V", "video-new": "V"},
+          says_a_videos_line_is_plain_text),
     Check("has_no_harakat_rule_of_a_reading_edition_in_a_video",
           "a reading edition's harakat are a book's (brief 3.8); the language files still say them in "
           "unmarked paragraphs (the text field, the sources sidebar's) which D marks {{?book}} or moves",
@@ -795,13 +811,17 @@ class LanguageCut(unittest.TestCase):
     def test_the_cuts_take_out_what_the_brief_expects_of_them(self):
         # the studio prompt loses 10 - 15 K of the language file (9.8 K in Italian, 18 K in Chinese:
         # the files differ); a region prompt loses Chunking and most of The text field -- what
-        # D's marking of the sources sidebar's paragraph and the opening adds is D's
+        # D's marking of the sources sidebar's paragraph and the opening adds is D's.  `whole`
+        # is a book's file, which holds no sentence that only a video's line needs, and a region
+        # prompt is measured against the whole of its own surface's file for the same reason.
         for code in self.CODES:
             whole = len(K.language_text("book-new", code))
-            self.assertGreater(whole - len(K.language_text("studio-doc", code)), 9500, code)
+            self.assertGreater(whole - len(K.language_text("studio-doc", code)), 9000, code)
             self.assertLess(whole - len(K.language_text("studio-doc", code)), 18500, code)
-            self.assertGreater(whole - len(K.language_text("video-region", code)), 500, code)
-            self.assertGreater(whole - len(K.language_text("video-region", code)), 0.04 * whole, code)
+            for who in ("book", "video"):
+                own = len(K.language_text(who + "-new", code))
+                self.assertGreater(own - len(K.language_text(who + "-region", code)), 500, code)
+                self.assertGreater(own - len(K.language_text(who + "-region", code)), 0.04 * own, code)
 
     def test_the_flags_of_a_language_file_are_resolved_per_surface(self):
         with tempfile.TemporaryDirectory() as td:

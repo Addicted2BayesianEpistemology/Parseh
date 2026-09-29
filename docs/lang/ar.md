@@ -87,8 +87,9 @@ with it.
 `voc` is written in the voice of the books' gloss blocks: headword +
 transliteration + meaning.
 
-- A **noun** gives the singular with its plural (`كِتَاب kitāb, pl. كُتُب
-  kutub · book`) and the **root in parentheses** (`(ك ت ب)`).
+- A **noun** gives the singular with its plural (`{{?book}}\dw{كِتَاب}{kitāb} book, pl.
+  \pw{كُتُب} \textit{kutub}{{/book}}{{?video}}\dw{كتاب}{kitāb} book, pl. \pw{كتب}
+  \textit{kutub}{{/video}}`) and the **root in parentheses** (`(\pw{ك ت ب})`).
 - A **verb** is given as the perfect with its form, the imperfect and the
   masdar: `كَتَبَ kataba (I) · impf. يَكْتُبُ yaktubu · masdar كِتَابَة kitāba ·
   to write`; a derived form names its number the same way (`عَلَّمَ ʿallama
@@ -100,19 +101,15 @@ transliteration + meaning.
   verb or singular, not glossed as a word of its own.
 - Name what was stripped from the form in the text: the pronoun suffix, the
   case ending, the dual, the sound plural, the feminine ending.
-- In a video the line is plain text; Arabic script inside it is fine — the
-  player isolates it. A verb is `أراد arāda (IV) · impf. يريد yurīdu · masdar
-  إرادة irāda · to want`, and a form of it in the chunk comes first with that
-  entry in brackets after it (`يريد yurīdu wants (أراد arāda (IV) · impf. …)`).
-  In a book the line uses the four macros `\dw` `\vb` `\bw` `\pw` (plus
-  `\textit`, `\emph`, `\nobreak`), as the Persian editions do: `\vb` for
-  every verb, `\dw` for every other headword. The seven slots of `\vb` are,
-  in this order, **perfect, imperfect, masdar**, each with its
-  transliteration, then the meaning —
-  `\vb{كَتَبَ}{kataba (I)}{يَكْتُبُ}{yaktubu}{كِتَابَة}{kitāba}{to write}` — and
+- The line uses the four macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`,
+  `\emph`, `\nobreak`), as the Persian editions do, and its entries are
+  parted by `; `: `\vb` for every verb, `\dw` for every other headword. The
+  seven slots of `\vb` are, in this order, **perfect, imperfect, masdar**,
+  each with its transliteration, then the meaning —
+  `{{?book}}\vb{كَتَبَ}{kataba (I)}{يَكْتُبُ}{yaktubu}{كِتَابَة}{kitāba}{to write}{{/book}}{{?video}}\vb{كتب}{kataba (I)}{يكتب}{yaktubu}{كتابة}{kitāba}{to write}{{/video}}` — and
   the edition prints its own label before the second and third forms, so
   never put another form into those slots:
-  - the **perfect** is the third person masculine singular, fully vowelled,
+  - the **perfect** is the third person masculine singular, {{?book}}fully vowelled{{/book}}{{?video}}written bare{{/video}},
     and its transliteration carries the verb's **form** in brackets, Roman
     numerals I–X (Iq–IVq for a four-letter root): `kataba (I)`, `arāda (IV)`,
     `ištarā (VIII)`, `tarjama (Iq)`. The number is what makes the other two
@@ -127,10 +124,19 @@ transliteration + meaning.
     `masdar رَأَى raʾā` and teaches something false. A verb with no masdar in
     use leaves the pair empty, `{}{}`, and the edition prints nothing there,
     label and all.
-- What the three forms cannot say goes in **one parenthesis after the
+{{?video}}- A video's line is written exactly as a book's; a line with no macro at
+  all is plain text, and is also accepted. Its Arabic is written as the caption
+  has it, **without vowel marks**: the transliteration carries the vowels and
+  the case endings, and Arabic script is fine, the player isolates it. What a
+  video adds is the form its chunk has, where it is none of the three the `\vb`
+  prints, nor one its parenthesis names: it is named after the entry, outside
+  it, with its sound,
+  `\vb{أراد}{arāda (IV)}{يريد}{yurīdu}{إرادة}{irāda}{to want}; here \pw{يريدون}
+  \textit{yurīdūna}, sound plural`.
+{{/video}}- What the three forms cannot say goes in **one parenthesis after the
   meaning**, items parted by `; `. Arabic has one such item: the
   **preposition the verb governs**, where the verb does not simply take a
-  direct object — `+ \pw{إِلَى}` in a book, `+ إلى` in a video:
+  direct object — `+ \pw{إِلَى}` in a book, `+ \pw{إلى}` in a video:
   `\vb{وَصَلَ}{waṣala (I)}{يَصِلُ}{yaṣilu}{وُصُول}{wuṣūl}{to arrive (+
   \pw{إِلَى})}`; so `رَغِبَ … (+ \pw{فِي})`, `بَحَثَ … (+ \pw{عَنْ})`. Two
   prepositions that are alternatives take one `+` and a slash (`بَعُدَ … (+
@@ -153,10 +159,9 @@ transliteration + meaning.
   hit reached through an unvowelled word may be the wrong verb altogether.
   Fix it before it is saved; where it could not fill a slot — a masdar the
   dictionary does not know, which it does not tell apart from a verb that
-  has none — the pair goes in blank and the button says which. In a video
-  the draft keeps the dictionary's tashkil, and a video's vocabulary line is
-  written without it (`أراد arāda (IV) · impf. يريد yurīdu …`, above): take
-  the marks off as you correct it.
+  has none — the pair goes in blank and the button says which.{{?video}} In a video
+  the draft comes without the vowel marks, as a video's line is written
+  (above); the transliterations keep the vowels.{{/video}}
 
 One equivalent in the gloss language rather than a string of synonyms; no
 etymologies; **an empty `voc` is the right answer** for a chunk needing

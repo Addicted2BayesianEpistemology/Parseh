@@ -189,12 +189,13 @@ nothing. The meaning is what the gloss language is for; the labels around it
 registry — are not, and stay as this file writes them whatever the glosses
 are in.
 
-In a **video** the line is plain text; Chinese characters inside it are fine,
-the player shows them in the target font. In a **book** it uses four macros
-and nothing else: `\dw{fa}{rom} gloss` ·
+The line uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
 `\vb{verb}{rom}{A了B}{rom}{A不B}{rom}{meaning}` · `\bw{base}{rom}{meaning}` ·
-`\pw{fa}` — plus `\textit`, `\emph`, `\nobreak`. Of the four, **`\vb` is for
-two kinds of verb only**, for the reason two paragraphs down.
+`\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted by
+`; `. Of the four, **`\vb` is for two kinds of verb only**, for the reason two
+paragraphs down.{{?video}} A video's line is written exactly as a book's; a line
+with no macro at all is plain text, and is also accepted. Chinese characters
+inside it are fine, the player shows them in the target font.{{/video}}
 
 **A character is not a word.** 中国 is one word written with two characters,
 and it is glossed once, as a word: `\dw{中国}{Zhōngguó} China`. Never gloss
