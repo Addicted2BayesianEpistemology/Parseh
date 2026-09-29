@@ -1908,8 +1908,15 @@ answer needs a different flow from the target language. This is separate from
 
 def api_exercise_prompt(h):
     body = h._json_body()
-    markdown = str(body.get("markdown") or "")
-    rows = _deck_vocabulary(body.get("decks") or [])
+    a, rows = exercise_prompt(str(body.get("markdown") or ""), body.get("decks") or [])
+    h.send_json({"prompt": a.text, "vocabulary": len(rows)})
+
+
+def exercise_prompt(markdown, decks=()):
+    """The prompt that has a model add exercises to a page, in its three
+    parts (lib/promptkit.py), and the known words from the Anki decks it
+    carries.  -> (promptkit.Assembled, rows)"""
+    rows = _deck_vocabulary(decks)
     fm, _blocks = mdparser.parse(markdown)
     target = languages.get_or_default(fm["target"])
     extras = []
@@ -1941,8 +1948,8 @@ def api_exercise_prompt(h):
                 for row in rows),
         ])
     data.append("Here is the complete Markdown page to augment:\n```markdown\n%s\n```" % markdown.rstrip())
-    a = promptkit.assemble("studio-exercises", target, extras=extras, data="\n\n".join(data))
-    h.send_json({"prompt": a.text, "vocabulary": len(rows)})
+    return promptkit.assemble("studio-exercises", target, extras=extras,
+                              data="\n\n".join(data)), rows
 
 
 def lang_block(code):
@@ -1957,6 +1964,35 @@ def _target_line(L):
     the document is about."""
     return ("target: %s — this document is about %s: write `target: %s` in the "
             "front matter." % (L.code, L.name, L.code))
+
+
+def _prompt_tail(L, text, custom):
+    """What follows the instructions on the prompt page: the language's
+    conventions and, where the text lacks it, the rule for the boxes of a
+    right-to-left target."""
+    blocks = [lang_block(L.code)]
+    # The shipped prompt contains this rule itself so it also works when
+    # copied directly from disk. Add it here for every custom override (and
+    # for an older shipped prompt that lacks it), preserving the guarantee
+    # without repeating the full section in the normal copied prompt.
+    has_box_rule = ("Mixed-direction sequences:" in text or
+                    "Mixed-direction sequences for" in text)
+    if L.dir == "rtl" and (custom or not has_box_rule):
+        blocks.append(_rtl_markdown_guidance(L))
+    return "\n\n".join(x for x in blocks if x)
+
+
+def studio_prompt(L, custom_text=None):
+    """The authoring prompt for a target language, in its three parts
+    (lib/promptkit.py): the instructions -- Parseh's, or the text of a custom
+    prompt -- with the language's conventions after them, then the answer
+    contract.  The question is the data, and is added by whoever copies.
+    -> promptkit.Assembled"""
+    custom = custom_text is not None
+    text = custom_text if custom else promptkit.flat(store.default_prompt())
+    return promptkit.assemble("studio-doc", L, custom=custom, lead=_target_line(L),
+                              instructions=custom_text,
+                              extras=[_prompt_tail(L, text, custom)])
 
 
 def api_prompt_get(h):
@@ -1976,20 +2012,9 @@ def api_prompt_get(h):
     custom = bool(out.get("custom"))
     if not custom:
         out["text"] = promptkit.flat(out["text"])
-    blocks = [lang_block(L.code)]
-    # The shipped prompt contains this rule itself so it also works when
-    # copied directly from disk. Add it here for every custom override (and
-    # for an older shipped prompt that lacks it), preserving the guarantee
-    # without repeating the full section in the normal copied prompt.
-    has_box_rule = ("Mixed-direction sequences:" in out["text"] or
-                    "Mixed-direction sequences for" in out["text"])
-    if L.dir == "rtl" and (custom or not has_box_rule):
-        blocks.append(_rtl_markdown_guidance(L))
-    out["lang_block"] = "\n\n".join(x for x in blocks if x)
+    out["lang_block"] = _prompt_tail(L, out["text"], custom)
     try:
-        a = promptkit.assemble("studio-doc", L, custom=custom, lead=_target_line(L),
-                               instructions=out["text"] if custom else None,
-                               extras=[out["lang_block"]])
+        a = studio_prompt(L, out["text"] if custom else None)
         out.update(prompt=a.text, header=a.header, contract=a.contract)
     except promptkit.PromptError as e:
         # a custom prompt from before the kit may say what the kit refuses; the

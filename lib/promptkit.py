@@ -503,7 +503,7 @@ def _cut(text, kind, keep_title):
                     if not any(a <= i < b for a, b in own)]
             piece = re.sub(r"\n{3,}", "\n\n", "\n".join(lines[i] for i in kept)).strip()
             if piece and piece != (lines[head] if head is not None else ""):
-                out.append((name, piece))
+                out.append((name or "(opening)", piece))
     if kind == "studio" and notes and not any(n == FIELD for n, _ in out):
         # a file with no "The text field" of its own has the note all the same
         after_title = 1 if out and out[0][0] == "(title)" else 0

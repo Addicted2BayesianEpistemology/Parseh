@@ -803,7 +803,7 @@ try {
     }
     let {prompt, sum} = await copyPrompt(page);
     assert(prompt !== SENTINEL && prompt.length > 1000, `${key}: "copy the prompt" put the prompt on the clipboard (${prompt.length} characters)`);
-    assert(new RegExp(`^# Gloss part of an? ${V.name} video, in English, for Parseh`).test(prompt),
+    assert(new RegExp(`^Parseh prompt · [^\\n]+\\n\\n# Gloss part of an? ${V.name} video, in English, for Parseh`).test(prompt),
            `${key}: the prompt is for ${/^[AEIOU]/.test(V.name) ? 'an' : 'a'} ${V.name} video glossed in English: ${JSON.stringify(prompt.split('\n')[0])}`);
     let data = dataOf(prompt);
     eq(data.captions.map(c => c.i), run, `${key}: the clipboard's data holds the captions of the run, ${r0} to ${r1}`);
@@ -941,7 +941,7 @@ try {
       await page.click('#rgcopy');
       await page.waitForFunction(() => !document.querySelector('#rgpromptrow').hidden, null, {timeout: 20000});
       const byHand = await page.evaluate(() => document.querySelector('#rgprompt').value);
-      assert(/^# Gloss part of/.test(byHand) && /the prompt is below/.test(await text(page, '#rgsum')) && (await clip(page)) === SENTINEL,
+      assert(/^Parseh prompt · [^\n]+\n\n# Gloss part of/.test(byHand) && /the prompt is below/.test(await text(page, '#rgsum')) && (await clip(page)) === SENTINEL,
              `${key}: a browser that refuses the clipboard: the prompt is shown in the panel to copy by hand, and the panel says so`);
       await page.evaluate(() => { navigator.clipboard.writeText = window.__write; document.execCommand = window.__exec; });
       ({prompt, sum} = await copyPrompt(page));
