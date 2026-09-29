@@ -40,8 +40,9 @@ import {chromium} from 'npm:playwright-core@1.52.0';
 //     the .tex, its card says nothing), its bundle carries the original and annot/ and none of the
 //     agent's files, and the format number is 3
 //  i) A RIGHT-TO-LEFT BOOK: Persian, made from the page (its title box reads right to left, the folder
-//     is on the Persian shelf, book.json keeps the letters), worked by the stand-in, watched in the
-//     panel, its chunk shut with the ask offered, and an ask in Persian reaches ASKS.md as written
+//     is on the Persian shelf, book.json keeps the letters), read on a phone before it has a chapter
+//     at all, worked by the stand-in, watched in the panel, its chunk shut with the ask offered, and
+//     an ask in Persian reaches ASKS.md as written
 //  j) and last: no page threw, and the owner's books/ and config/ are as they were
 // and every view it looks at (1280 and 390 px, light and dark) is measured too: the page does not
 // scroll sideways and the making panel lies inside the window
@@ -649,6 +650,21 @@ await lib.waitForSelector('a.book[data-making*="persian"]');
 eq(await lib.$eval('a.book[data-making*="persian"] [data-making-tag]', e => e.textContent.replace(/ · (just now|\d+ minutes? ago)$/, '')),
    'being made · not started yet', 'the Persian book is on the library at once, marked being made');
 await views(lib, 'C-fa-library');
+// a book with no chapter at all, on a phone in the mobile interface: nothing throws (the errors of this page
+// are counted at the end), the panel reads, and the page says there is nothing to read yet
+const zctx = await context(PHONE, {viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
+await zctx.addInitScript(() => { try { localStorage.setItem('parseh_mode', 'mobile'); } catch (e) { /* refused */ } });
+const zero = await zctx.newPage();
+watch(zero, 'phone');
+await zero.goto(PHONE + '/books/persian/farsi-shekar-ast/reader/');
+await zero.waitForSelector('.mk-btn[data-layout=mobile]');
+await zero.click('.mk-btn[data-layout=mobile]');
+await zero.waitForSelector('#mkbox:not([hidden])');
+assert(/not started yet/.test(await zero.$eval('#mkbox', e => e.textContent)) && await inView(zero, '#mkbox'),
+       'a book with no chapter yet reads on a phone: the panel says the agent has not started');
+assert(/Nothing to read yet/.test(await zero.$eval('#mktocome', e => e.textContent)), '... and the page says there is nothing to read yet');
+await shot(zero, 'C-fa-phone-390-not-started-light');
+await zctx.close();
 assert(/source recovered/.test(await agent('step', FA, MODEL_FA)), 'the stand-in recovers the Persian source');
 assert(/chapter table/.test(await agent('step', FA, MODEL_FA)), '... writes its chapter table');
 assert(/batch 1 of 2: chapter 1 assembled/.test(await agent('step', FA, MODEL_FA)), '... and assembles a batch');
@@ -663,7 +679,9 @@ assert(await inView(page, '.mk-btn[data-layout=browser]') && await onTop(page, '
        'the making button and the panel of a right-to-left book lie inside the window, and nothing over them');
 eq(await page.$eval('.mk-btn[data-layout=browser] .mk-txt', e => e.textContent), 'being made · batch 2 of 2', 'the button says where it is');
 await views(page, 'C-fa-panel');
-await page.click('#mkbox button.mk-x');
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => document.querySelector('#mkbox').hidden);
+assert(true, 'Escape closes the panel');
 await page.hover('.row[data-c="0"]');
 await page.waitForSelector('#chpen:not([hidden])');
 await page.click('#chpen');
