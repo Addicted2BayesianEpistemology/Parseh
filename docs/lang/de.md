@@ -235,7 +235,7 @@ at all; elsewhere they are left empty.
   is plain text, and is also accepted. What a video adds is the form its chunk
   has, where it is none of the three the `\vb` prints, nor one its parenthesis
   names: it is named after the entry, outside it,
-  `\vb{geben}{}{gab}{}{gegeben}{}{to give (er gibt)}; here \pw{gaben}, plural`.
+  `\vb{geben}{}{gab}{}{gegeben}{}{to give (er gibt)}; here \pw{gaben}, pret. plural`.
 {{/video}}
 The gloss editor's sources sidebar, in the reader and in the player, now
 proposes the `\vb` from the dictionary for a verb it recognises: the three

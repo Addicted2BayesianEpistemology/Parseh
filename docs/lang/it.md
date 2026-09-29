@@ -136,7 +136,7 @@ meaning, with the grammar a learner needs to recognise the form.
   is plain text, and is also accepted. What a video adds is the form its chunk
   has, where it is none of the three the `\vb` prints, nor one its parenthesis
   names: it is named after the entry, outside it,
-  `\vb{parlare}{}{parlo}{}{parlato}{}{to speak}; here \pw{parlavo}, imperfect`.
+  `\vb{parlare}{}{parlo}{}{parlato}{}{to speak}; here \pw{parlavo}, 1sg imperfect`.
 {{/video}}- The gloss editor's sources sidebar, in the reader and in the player, now
   proposes this entry from the dictionary for a verb it recognises, the
   auxiliary and an irregular passato remoto included, and for a form the

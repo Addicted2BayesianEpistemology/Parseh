@@ -316,7 +316,7 @@ book's; a line with no macro at all is plain text, and is also accepted. What
 a video adds is the form its chunk has, where it is none of the three the
 `\vb` prints, nor one its parenthesis names: it is named after the entry,
 outside it, with its sound,
-`\vb{go}{goʊ}{went}{wɛnt}{gone}{gɔn}{to move from here to there}; here \pw{going} \textit{ˈgoʊɪŋ}`.{{/video}}
+`\vb{go}{goʊ}{went}{wɛnt}{gone}{gɔn}{to move from here to there}; here \pw{going} \textit{ˈgoʊɪŋ}, -ing form`.{{/video}}
 `\pw` quotes a word of the text inside the meaning — it is what `\dw`, `\vb`
 and `\bw` set their headwords with — and how much it does depends on the
 gloss language: in an edition glossed in another language it is what tells

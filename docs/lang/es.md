@@ -239,7 +239,7 @@ at all; elsewhere they are left empty.
   is plain text, and is also accepted. What a video adds is the form its chunk
   has, where it is none of the three the `\vb` prints, nor one its parenthesis
   names: it is named after the entry, outside it,
-  `\vb{hablar}{}{hablo}{}{habló}{}{to speak}; here \pw{hablaba}, imperfect`.
+  `\vb{hablar}{}{hablo}{}{habló}{}{to speak}; here \pw{hablaba}, 1/3sg imperf.`.
 {{/video}}- The gloss editor's sources sidebar, in the reader and in the player, now
   proposes the `\vb` from the dictionary for a verb it recognises — the two
   forms, and an irregular participle or future, read off the dictionary's
