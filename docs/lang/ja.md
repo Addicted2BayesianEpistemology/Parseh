@@ -149,9 +149,9 @@ reading + meaning.
   stem 書き kaki · -te 書いて kaite · to write (godan; tr.)`; `食べる たべる
   taberu · stem 食べ tabe · -te 食べて tabete · to eat (ichidan; tr.)`; `する`
   and `来る くる` are `irregular`; a **-suru** compound is whole in every slot,
-  `勉強する · stem 勉強し · -te 勉強して · to study (suru)`. The form in the
+  `勉強する · stem 勉強し · -te 勉強して · to study (suru)`.{{?book}} The form in the
   text is tied to it: `書いて · 書く, te-form`; `食べました · 食べる, past
-  polite`.
+  polite`.{{/book}}
 - An **adjective** names its class: `高い たかい (i-adj.) · high, expensive`;
   `静か しずか (na-adj.) · quiet`.
 - A **noun** is `漢字 かんじ · Chinese character`; a counter is named as such
@@ -162,11 +162,16 @@ reading + meaning.
 - Name what was stripped: the honorific `お`/`ご`, the plural `たち`, the
   nominaliser `の`/`こと`, the copula, the sentence-final particles (`ね`,
   `よ`).
-- In a video the line is plain text; Japanese script inside it is fine —
-  the player shows it in the target font. A verb is `書く かく kaku · stem 書き
-  kaki · -te 書いて kaite · to write (godan; tr.)` — the kana of a kanji
-  headword after it, as for every word — and a form of it in the chunk
-  comes first with the entry in brackets after it. In a book the line uses
+{{?video}}- In a video the line is written exactly as in a book, with the macros
+  below and entries parted by `; `; a line with no macro at all is plain text,
+  and is also accepted. Japanese script inside it is fine — the player shows it
+  in the target font — and, as in a book, a headword takes its rōmaji and never
+  its kana, unlike the plain entries above: the chunk's `kana` and `words` carry
+  the reading. A form of the verb in the chunk that is none of its three is
+  named after the entry, not inside it, with its sound and then what it is —
+  `\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}; here
+  \pw{食べました} \textit{tabemashita}, past polite`.
+{{/video}}- {{?book}}In a book the line{{/book}}{{?video}}The line{{/video}} uses
   the four macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`, `\emph`,
   `\nobreak`), as the Persian editions do: `\vb` for every verb, `\dw` for
   every other headword. The seven slots of `\vb` are, in this order,
@@ -206,8 +211,7 @@ reading + meaning.
   sense, which is often a definition rather than the one equivalent wanted
   here, or not the sense of the passage; an auxiliary after the -te form
   (いる in 書いている, しまう, みる) is proposed as a verb of its own, and is
-  glossed instead as the construction, `\textit{-te iru}`; and in a video,
-  check that the kana of a kanji headword follows it. Where it could not
+  glossed instead as the construction, `\textit{-te iru}`. Where it could not
   fill a slot, the button says which.
 
 One equivalent in the gloss language rather than a string of synonyms; no
