@@ -449,6 +449,13 @@ DOORS = (
 )
 
 
+def door_keys(href):
+    """The settings behind the door at `href`: a card on the hub asks for its own
+    by its address, so that a door added between two of them never gives a card
+    another's pill."""
+    return next(d[3] for d in DOORS if d[0] == href)
+
+
 def gate(settings):
     """The pill that says who may change these settings."""
     if open_to_all(settings):
@@ -861,7 +868,7 @@ def hub(reading_tags="", update_tags="", speech_tags=""):
               "update_gate": gate(DOORS[2][3]), "update_tags": update_tags,
               "latex_gate": gate(DOORS[3][3]),
               "speech_gate": gate(DOORS[4][3]), "speech_tags": speech_tags,
-              "prompts_gate": gate(DOORS[5][3]),
+              "prompts_gate": gate(door_keys("/settings/prompts/")),
               "net_gate": gate(net),
               "where": esc(doors_said(network.settings())), "port": network.port()}
     return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", signed(main),

@@ -31,6 +31,7 @@ import ast
 import http.client
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -146,8 +147,10 @@ class Table(unittest.TestCase):
         self.assertIn("any device let in", settingspage.gate(keys))
         self.assertIn('href="/settings/prompts/"', settingspage.settings_doors("/settings/"))
         hub = settingspage.hub()
-        self.assertIn('<a class="door" href="/settings/prompts/">', hub)
-        self.assertIn("Your prompts", hub)
+        card = re.search(r'<a class="door" href="/settings/prompts/">.*?</a>', hub, re.S).group(0)
+        self.assertIn("Your prompts", card)
+        self.assertIn("any device let in", card, "the card's pill is its own door's, found by its address")
+        self.assertEqual(settingspage.door_keys("/settings/prompts/"), ("prompts.save", "prompts.delete"))
 
     def test_speech_to_text_is_a_door_of_its_own_and_the_only_one_that_lists_its_keys(self):
         doors = {d[0]: d for d in settingspage.DOORS}
