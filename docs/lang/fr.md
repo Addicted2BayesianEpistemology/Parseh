@@ -210,11 +210,11 @@ the gloss language rather than a string of synonyms, no etymologies, and
   \pw{prenons} \textit{prenõ})}`,
   `\vb{regarder}{regardé}{regarde}{regard}{regardé}{regardé}{to look at}` —
   the last with nothing in brackets, because nothing about it is irregular.
-- A form in the text that is **none of the three** is named at the end of the
-  meaning, after the parenthesis, with its sound: `\vb{venir}{venir}{viens}
-  {vyẽ}{venu}{venü}{to come (aux. être; fut. \pw{viendrai} \textit{vyẽdré});
-  here \pw{vint} \textit{vẽ}, past historic}`. The past historic a book
-  narrates in and a subjunctive (`qu'il vienne`) both need this.
+- A form in the text that is **none of the three** is named after the entry,
+  outside it, with its sound: `\vb{venir}{venir}{viens}{vyẽ}{venu}{venü}{to
+  come (aux. être; fut. \pw{viendrai} \textit{vyẽdré})}; here \pw{vint}
+  \textit{vẽ}, past historic`. The past historic a book narrates in and a
+  subjunctive (`qu'il vienne`) both need this.
 - A **verbal locution** — a verb welded to a bare noun with no article
   (`avoir peur`, `faire attention`, `prendre garde`, `rendre visite`) — is a
   `\vb` for the verb with an **empty seventh argument**, then a `\bw` for the
@@ -231,15 +231,12 @@ the gloss language rather than a string of synonyms, no etymologies, and
   blanche`) and with the form it takes before a vowel (`bel homme`, `vieil
   ami`, `nouvel an`).
 
-In a **video** the line is plain text: `venir venir · pres. viens vyẽ ·
-p.p. venu venü · to come (aux. être; fut. viendrai vyẽdré)`, and a form of
-the verb in the chunk first, with the entry in brackets after it — `vint vẽ
-came (venir venir · pres. viens vyẽ · …)`; a noun as `livre livr book, m.`;
-entries separated by `;`. French inside `voc` is fine. In a **book** the line
-uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
+The line uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
 `\vb{inf}{rom}{pres}{rom}{p.p.}{rom}{meaning}` · `\bw{base}{rom}{meaning}` ·
-`\pw{fa}` — plus `\textit`, `\emph`, `\nobreak`. **Every** verb gets a `\vb`,
-no exceptions.
+`\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted by
+`; `. **Every** verb gets a `\vb`, no exceptions.{{?video}} A video's line is
+written exactly as a book's; a line with no macro at all is plain text, and is
+also accepted.{{/video}}
 
 The gloss editor's sources sidebar, in the reader and in the player, now
 proposes this entry from the dictionary for a verb it recognises — the
@@ -265,10 +262,8 @@ empty**, the row names the `\bw` still to add (*bw for peur after it: to be
 afraid*), and a **button of its own**, headed *verbal locution*, puts the
 pair in as the one entry this file asks for —
 `\vb{avoir}{avwar}{ai}{é}{eu}{ü}{}\bw{peur}{peur}{to be afraid}`, the `\bw`
-run straight onto the `\vb`, and in a video the locution whole, `avoir peur
-avwar peur to be afraid (avoir avwar · pres. ai é · p.p. eu ü)`. The noun's
-sound is the noun's own pronunciation respelt, and the whole one is the two
-said in a row; where either is missing the slot stays empty. It is found
+run straight onto the `\vb`. The noun's sound is the noun's own
+pronunciation respelt; where it is missing the slot stays empty. It is found
 only where the noun stands right after the verb in the same chunk and the
 dictionary has the pair as a verb page of its own; a locution it has not got
 comes as the plain verb with its own meaning, and emptying that is yours.
