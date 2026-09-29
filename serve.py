@@ -446,6 +446,9 @@ STATIC_PREFIXES = ("/lib/fonts/", "/lib/mathjax/", "/audiobook/", "/books/",
                    # reader's own worker, never written through the server
                    "/mt/")
 STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js",
+                # the row of controls every page that hands out a prompt draws:
+                # copy, the size, the reminder (lib/llmrow.js, a0.4.2)
+                "/lib/llmrow.js",
                 # what the server is working on, drawn on every page (loaded
                 # by parseh.js, and by its own tag on the studio's pages)
                 "/lib/activity.js",
@@ -3128,6 +3131,13 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_json(activity_now())
+        if path == "/__version":
+            # WHICH PARSEH THIS IS, for a page that writes the first line of a
+            # prompt itself (lib/llm.js: Ask LLM's).  Read from VERSION here so
+            # that no script carries the number.
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_json({"version": version.VERSION})
         if path == "/guide":
             return self._redirect("/guide/")
         if path.startswith("/guide/"):

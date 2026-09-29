@@ -1003,6 +1003,23 @@ def serve_app_js(h):
                  {"Cache-Control": "no-cache"})
 
 
+def serve_llmrow_js(h):
+    """The row of controls every page that hands out a prompt draws
+    (lib/llmrow.js): copy, the size, the reminder.
+
+    The studio's pages link it as /lib/llmrow.js, which is the toolbox's own
+    when the studio is mounted in it.  Run on its own the studio has no /lib/
+    at all -- the scripts it links there (explain.js, keep.js) are simply not
+    found, and the pages do without them -- so this one file, which the
+    prompt page cannot do without, is answered for here."""
+    try:
+        data = (LIB / "llmrow.js").read_bytes()
+    except OSError:
+        return h.send_json({"error": "not found"}, 404)
+    h.send_bytes(data, "text/javascript; charset=utf-8", 200,
+                 {"Cache-Control": "no-cache"})
+
+
 def serve_app_css(h):
     """The studio's sheet, and the chrome around it, under the one name.
 
@@ -2245,6 +2262,7 @@ ROUTES = [
     # the general static route below, for the bare note page
     ("GET",    r"^/static/app\.css$",                     serve_app_css),
     ("GET",    r"^/static/app\.js$",                      serve_app_js),
+    ("GET",    r"^/lib/llmrow\.js$",                      serve_llmrow_js),
     ("GET",    r"^/static/mathjax\.js$",                  serve_math_js),
     ("GET",    r"^/static/mathjax\.css$",                 serve_math_css),
     ("GET",    r"^/static/mathjax/(.+)$",                  serve_math_lib),

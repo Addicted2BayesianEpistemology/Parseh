@@ -89,7 +89,7 @@ SHARED = (
     # keeping, and the chip that says the computer cannot be reached: without
     # it a kept page would open offline and say nothing about being offline
     "/lib/keep.js",
-    "/lib/wordline.js", "/lib/llm.js",
+    "/lib/wordline.js", "/lib/llm.js", "/lib/llmrow.js",
     # THE TRANSLATION HELPER, AND WHY IT IS NAMED HERE.  Every reader loads
     # /lib/mt.js as a PARSER-BLOCKING script in its head (lib/tex2html.py),
     # and it was in no list: offline the request missed every cache, the
