@@ -590,7 +590,8 @@ try {
     }, null, {timeout: 20000});
     const prompt = await clip(page);
     if (prompt !== SENTINEL) await keepPrompt(name, prompt);
-    return {prompt, sum: await text(page, '#rgsum')};
+    // `said` is the LLM row's own line (lib/llmrow.js): that it reached the clipboard is its to say
+    return {prompt, sum: await text(page, '#rgsum'), said: await text(page, '#rgcopysay')};
   }
   async function fillBook(page) {
     await page.click('#rgfill');
@@ -737,7 +738,7 @@ try {
     await clickSentence(page, S[0][0], S[0][1], false);
     await clickSentence(page, S[S.length - 1][0], S[S.length - 1][1], true);
     eq(await pick(page), {lo: 0, hi: S.length - 1}, `${bk.code}: the header's "gloss with an LLM", a click on ${S[0][1]} and a shift-click on ${S[S.length - 1][1]}: the whole book picked`);
-    const {prompt, sum} = await copyBookPrompt(page, bk.code + '-book');
+    const {prompt, sum, said} = await copyBookPrompt(page, bk.code + '-book');
     assert(prompt !== SENTINEL && prompt.length > 1000, `${bk.code}: "copy the prompt" put the prompt on the clipboard (${prompt.length} characters)`);
     assert(prompt.includes(`- language: ${bk.name} (\`${bk.code}\`)`) && prompt.includes('- gloss language: **English** (`en`)') &&
            new RegExp(`^# Gloss part of an? ${bk.name} book, in English, for Parseh`).test(prompt),
@@ -748,7 +749,7 @@ try {
     eq(all.map(c => c.todo), sentences.map(() => true), `${bk.code}: every one of them todo`);
     assert(all.every(c => !c.en && !c.voc), `${bk.code}: none carrying a meaning or a vocabulary line`);
     if (words) assert(all.every((c, k) => c.words === recs[k].words), `${bk.code}: each with its word line, read-only`);
-    assert(new RegExp(`${sentences.length} chunks, ${sentences.length} to gloss(?!, [1-9])`).test(sum) && /on the clipboard/.test(sum),
+    assert(new RegExp(`${sentences.length} chunks, ${sentences.length} to gloss(?!, [1-9])`).test(sum) && /^copied/.test(said),
            `${bk.code}: the sheet says what it copied: ${JSON.stringify(sum.replace(/\s*\n\s*/g, ' | '))}`);
 
     /* the answer, as an LLM writes it */
@@ -1027,6 +1028,7 @@ try {
     }, null, {timeout: 20000});
     const prompt = await clip(page);
     const sum = await text(page, '#rgsum');
+    const said = await text(page, '#rgcopysay');
     assert(prompt !== SENTINEL && prompt.length > 1000, `"copy the prompt" put the prompt on the clipboard (${prompt.length} characters)`);
     await keepPrompt('fa-video', prompt);
     assert(/^# Gloss part of a Persian video, in English, for Parseh/.test(prompt),
@@ -1036,7 +1038,7 @@ try {
        ['plain', [['سلام، حال شما چطور است؟', true]], [['من خوبم، ممنون.', true], ['شما چطورید؟', true]], [[VIDEO.hand.fa, false]]],
        'its data: every caption, the plain one as context, every blank chunk todo, the one glossed by hand not');
     eq(data.captions[last].chunks[0].en, VIDEO.hand.en, 'the one glossed by hand sent with the meaning somebody wrote');
-    assert(/4 chunks, 3 to gloss, 1 glossed sent as context/.test(sum) && /on the clipboard/.test(sum),
+    assert(/4 chunks, 3 to gloss, 1 glossed sent as context/.test(sum) && /^copied/.test(said),
            `the panel says what it copied: ${JSON.stringify(sum.split('\n').slice(0, 2).join(' | '))}`);
     const answer = structuredClone(data);
     for (const c of answer.captions) for (const ch of c.chunks || []) {

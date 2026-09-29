@@ -8512,7 +8512,7 @@ const rgN = (k, one, many) => k + ' ' + (k === 1 ? one : many);
 // as context with its old words -- and an answer that echoes them back would
 // write the deleted gloss in again.  A page without the row's script has no
 // copy button and says so.
-let rgMade = null, rgByHand = false;
+let rgMade = [], rgByHand = false;
 const rgRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('#rgrow'), {
   surface: 'book-region', cls: {copy: 'primary'},
   ids: {copy: 'rgcopy', size: 'rgsize', say: 'rgcopysay', hand: 'rgout', handRow: 'rgoutrow'},
@@ -8529,7 +8529,7 @@ const rgRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('#rgrow'), {
   return {update: no, forget: no, invalidate: no, disable: no, enable: no};
 })();
 function rgDrop() {
-  rgMade = null;
+  rgMade = [];
   rgRow.invalidate();
   if (!rgByHand) return;
   rgByHand = false;
@@ -8613,14 +8613,18 @@ async function rgText() {
                   : {ok: false, error: 'what is picked holds no chunk to send'};
   // a refusal is the server's sentence, shown as it came
   if (!j.ok) throw new Error(j.error || 'the prompt was refused');
-  rgMade = {j, text: j.fill ? j.prompt : ''};
-  return rgMade.text;
+  const text = j.fill ? j.prompt : '';
+  // by its text, since two askings can overlap and be answered out of order
+  rgMade.push({j, text});
+  if (rgMade.length > 4) rgMade.shift();
+  return text;
 }
-// after a press: what was made, and whether it reached the clipboard
+// after a press: what was made of the text that was copied, and whether it reached the clipboard
 function rgCopied(ok, text) {
-  if (!rgMade || rgMade.text !== text) return;
+  const made = rgMade.filter(m => m.text === text).pop();
+  if (!made) return;
   rgByHand = ok === false;
-  rgSummary(rgMade.j);
+  rgSummary(made.j);
 }
 /* THE CONFIRMATION, for a re-gloss that would replace what somebody wrote.
    The server counts first and writes nothing; the button then says how many

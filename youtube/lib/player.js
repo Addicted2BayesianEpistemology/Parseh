@@ -5373,7 +5373,7 @@
      pick, a box, a write to the video, the panel opening or closing) drops it
      -- see rgForget.  Without the row's script there is no copy button, and
      the panel says so; the rest of the player goes on. */
-  var rgMade = null;           // the server's account of the prompt the row holds
+  var rgMade = [];             // the server's account of each prompt made lately: {j, text}
   var rgByHand = false;        // the summary points at the box under the row
   var rgRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('#rgrow'), {
     surface: 'video-region',
@@ -5477,7 +5477,7 @@
     // called from inside the writes' success paths, where a throw would be
     // caught and shown as a refusal of an edit that was in fact written
     if (!RG || !rgRow) return;
-    rgMade = null;
+    rgMade = [];
     rgRow.invalidate();
     if (!rgByHand) return;
     rgByHand = false;
@@ -5591,15 +5591,19 @@
     if (rgFrom === null) return '';
     return rgAsk('prompt', rgBody()).then(function (j) {
       if (!j || !j.ok) throw new Error((j && j.error) || 'the prompt could not be made');
-      rgMade = {j: j, text: j.fill ? j.prompt : ''};
-      return rgMade.text;
+      var text = j.fill ? j.prompt : '';
+      // by its text, since two askings can overlap and be answered out of order
+      rgMade.push({j: j, text: text});
+      if (rgMade.length > 4) rgMade.shift();
+      return text;
     }, function (e) { throw new Error(rgWhy(e, false)); });
   }
-  // after a press: what was made, and whether it reached the clipboard
+  // after a press: what was made of the text that was copied, and whether it reached the clipboard
   function rgCopied(ok, text) {
-    if (!rgMade || rgMade.text !== text) return;
+    var made = rgMade.filter(function (m) { return m.text === text; }).pop();
+    if (!made) return;
     rgByHand = ok === false;
-    rgSummary(rgMade.j);
+    rgSummary(made.j);
   }
   function rgSummary(j) {
     RG.sum.textContent = '';
