@@ -257,12 +257,17 @@ def chapter_inputs(book_dir):
         return []
     out = []
     for line in text.split("\n"):
+        # THE READER'S OWN RULE (lib/texparse.py parse_book), so that what this says is written is
+        # what the reader shows: a line that starts with % is a comment, and the first \input on
+        # a line is the one that counts
         if line.lstrip().startswith("%"):
             continue
-        for arg in re.findall(r"\\input\{(ch[^}\\]*)\}", line):
-            name = arg[:-4] if arg.endswith(".tex") else arg
-            if os.path.isfile(path_of(book_dir, name + ".tex")) and name not in out:
-                out.append(name)
+        m = re.search(r"\\input\{([^}]+)\}", line)
+        if not m or not re.match(r"ch[^\\]*$", m.group(1)):
+            continue
+        name = m.group(1)[:-4] if m.group(1).endswith(".tex") else m.group(1)
+        if os.path.isfile(path_of(book_dir, name + ".tex")) and name not in out:
+            out.append(name)
     return out
 
 

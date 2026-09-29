@@ -222,11 +222,24 @@ class ReferenceAndExamples(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(into, "italian", "il-gatto", "farsi")))
 
     def test_a_reference_cannot_climb_out_of_the_shelf(self):
-        into = self.shelf_with()
-        for bad in ("../etc", "italian/../../x", "/etc", ".trash/x", "a/b/c"):
+        # REAL BOOKS, in the places a reference must not reach: beside the shelf, in its trash, three deep.
+        # A path that names nothing is refused whatever the rules are; these are refused by them.
+        into = self.shelf_with((".trash", "il-gatto-old", "it", {}))
+        outside = Path(into).parent / "outside"
+        outside.mkdir()
+        (outside / "book.json").write_text('{"slug": "outside", "language": "it", "title": "x"}', encoding="utf-8")
+        deep = Path(into, "italian", "a", "b")
+        deep.mkdir(parents=True)
+        (deep / "book.json").write_text('{"slug": "b", "language": "it", "title": "x"}', encoding="utf-8")
+        for bad in ("../outside", "italian/../../outside", str(outside), ".trash/il-gatto-old", "italian/a/b",
+                    "../etc", "/etc"):
             with self.subTest(bad=bad):
-                with self.assertRaises(ValueError):
+                with self.assertRaisesRegex(ValueError, "is not a book on the shelf|no book called"):
                     making.make(FIELDS, {"name": "a.txt", "data": TEXT}, {"reference": bad}, into=into)
+        for bad in ("../outside", ".trash/il-gatto-old", "italian/a/b"):
+            with self.subTest(refused_as_a_path=bad):
+                with self.assertRaisesRegex(ValueError, "is not a book on the shelf"):
+                    making._shelf_book(bad, into)
 
     def test_the_box_names_this_languages_finished_books_and_no_other_language_and_no_book_still_being_made(self):
         into = self.shelf_with(("italian", "done-it", "it", {}), ("italian", "half-it", "it",
@@ -340,16 +353,18 @@ class TheRecord(unittest.TestCase):
         self.assertEqual(making.state(self.folder({"stage": "done"})), "making")
 
     def test_chapters_still_to_come_are_the_table_less_the_chapters_main_tex_inputs(self):
-        d = self.folder({"stage": "batch", "chapters": [{"chapter": n, "paragraphs": 4} for n in (1, 2, 3, 4)]})
-        for name in ("ch1", "ch1b", "ch2"):
+        d = self.folder({"stage": "batch", "chapters": [{"chapter": n, "paragraphs": 4} for n in (1, 2, 3, 4, 5, 6)]})
+        # ch3 and ch5 are on the disk, so that only the rule about comments and about lines keeps them out
+        for name in ("ch1", "ch1b", "ch2", "ch3", "ch5", "preamble"):
             Path(d, name + ".tex").write_text("% x\n", encoding="utf-8")
         main = Path(d, "main.tex")
         main.write_text(main.read_text(encoding="utf-8").replace(
             "\\end{document}", "\\input{ch1.tex}\n\\input{ch1b}\n\\input{ch2.tex}\n% \\input{ch3.tex}\n"
-                              "\\input{ch4.tex}\n\\end{document}"), encoding="utf-8")
+                              "\\input{ch4.tex}\n   %\\input{ch5.tex}\n\\input{preamble}\n\\end{document}"),
+            encoding="utf-8")
         got = making.describe(d)
-        self.assertEqual(got["present"], [1, 2])          # ch3 is a comment, ch4 has no file
-        self.assertEqual(got["to_come"], [3, 4])
+        self.assertEqual(got["present"], [1, 2])          # ch3 and ch5 are comments, ch4 has no file, preamble is no chapter
+        self.assertEqual(got["to_come"], [3, 4, 5, 6])
         self.assertEqual(making.chapter_inputs(d), ["ch1", "ch1b", "ch2"])
 
     def test_a_reader_older_than_what_the_agent_wrote_is_said_to_be_behind(self):
