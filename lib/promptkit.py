@@ -547,9 +547,21 @@ def language_sections(surface, lang, flags=None):
                 KIND[surface], LAYOUT[surface][0])
 
 
-def language_text(surface, lang, flags=None):
-    """The language's conventions as this surface takes them; where the file is
-    not there, the one line the prompt has always said instead."""
+def _common(L, G):
+    """The placeholders the kit fills in every prompt of a language (and of a
+    gloss language, where the prompt has one)."""
+    values = {"LANGUAGE": L.name, "LANGUAGE_NATIVE": L.native, "LANGUAGE_CODE": L.code,
+              "TR_LABEL": L.translit_label}
+    if G is not None:
+        values.update(GLOSS_LANGUAGE=G.name, GLOSS_CODE=G.code)
+    return values
+
+
+def language_text(surface, lang, flags=None, gloss=None):
+    """The language's conventions as this surface takes them, with the names
+    the kit knows (LANGUAGE, and GLOSS_LANGUAGE where a gloss is given) filled
+    in; where the file is not there, the one line the prompt has always said
+    instead."""
     L = _language(lang)
     secs = language_sections(surface, L, flags)
     if secs is None:
@@ -561,7 +573,8 @@ def language_text(surface, lang, flags=None):
         elif down and not fenced and re.match(r"#{2,5} ", line):
             line = "#" * down + line
         out.append(line)
-    return "\n".join(out).strip()
+    known = _common(L, _gloss(gloss))
+    return _PLACEHOLDER.sub(lambda m: known.get(m.group(1), m.group(0)), "\n".join(out).strip())
 
 
 # --- the version line ---------------------------------------------------
@@ -634,8 +647,10 @@ class _Fill(object):
         return _HELD_AT.sub(lambda m: self.held[int(m.group(1))], text)
 
 
-def _refuse_leftover(text, surface):
-    """The kit's promise: nothing that still holds a `{{` is handed out."""
+def check(text, surface):
+    """The kit's promise -- nothing that still holds a `{{` is handed out -- for
+    whoever puts a piece of Parseh's own text into a prompt by hand: assemble()
+    keeps it for the parts it makes."""
     if "{{" in text:
         left = sorted(set(re.findall(r"\{\{[?/]?\w*\}?\}?", text)))
         raise PromptError(
@@ -671,10 +686,7 @@ def assemble(surface, lang=None, gloss=None, *, flags=None, values=None, verbati
         raise PromptError("instructions cannot carry the answer contract or the data: "
                           "Parseh adds those itself, after them")
     given = parts(surface, template)
-    values = dict({"LANGUAGE": L.name, "LANGUAGE_NATIVE": L.native, "LANGUAGE_CODE": L.code,
-                   "TR_LABEL": L.translit_label}, **(values or {}))
-    if G is not None:
-        values.update(GLOSS_LANGUAGE=G.name, GLOSS_CODE=G.code)
+    values = dict(_common(L, G), **(values or {}))
     includes = dict(includes or {})
     if surface in KIND:
         includes.setdefault("LANG_CONVENTIONS", lambda: language_text(surface, L, flags))
@@ -683,7 +695,7 @@ def assemble(surface, lang=None, gloss=None, *, flags=None, values=None, verbati
     for raw in (given.instructions if instructions is None else instructions,
                 given.contract, given.data):
         text = _spaces(fill.render(raw)).strip()
-        _refuse_leftover(text, surface)
+        check(text, surface)
         made.append(text)
     # only the template's own text is searched for what was held aside: a
     # caption that happens to hold the mark of one is data and stays as it is

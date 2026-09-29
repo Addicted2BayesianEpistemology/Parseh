@@ -1908,7 +1908,10 @@ answer needs a different flow from the target language. This is separate from
 
 def api_exercise_prompt(h):
     body = h._json_body()
-    a, rows = exercise_prompt(str(body.get("markdown") or ""), body.get("decks") or [])
+    try:
+        a, rows = exercise_prompt(str(body.get("markdown") or ""), body.get("decks") or [])
+    except promptkit.PromptError as e:
+        return h.send_json({"error": "the prompt could not be made: %s" % e}, 400)
     h.send_json({"prompt": a.text, "vocabulary": len(rows)})
 
 
@@ -1931,7 +1934,9 @@ def exercise_prompt(markdown, decks=()):
     authoring = store.get_prompt()
     authoring = (authoring["text"] if authoring.get("custom")
                  else promptkit.instructions_of(authoring["text"])).strip()
-    dialect = [authoring, promptkit.language_text("studio-exercises", target)]
+    conventions = promptkit.language_text("studio-exercises", target)
+    promptkit.check("\n".join(extras + [conventions]), "studio-exercises")  # Parseh's own
+    dialect = [authoring, conventions]
     extras.append("## The page's Markdown dialect\n\n"
                   "What follows is the complete description of the Markdown dialect "
                   "the page is written in; where it differs from the output "
@@ -2000,9 +2005,10 @@ def studio_prompt(L, custom_text=None):
     -> promptkit.Assembled"""
     custom = custom_text is not None
     text = custom_text if custom else promptkit.flat(store.default_prompt())
+    tail = _prompt_tail(L, text, custom)
+    promptkit.check(tail, "studio-doc")         # Parseh's own, put in by hand
     return promptkit.assemble("studio-doc", L, custom=custom, lead=_target_line(L),
-                              instructions=custom_text,
-                              extras=[_prompt_tail(L, text, custom)])
+                              instructions=custom_text, extras=[tail])
 
 
 def api_prompt_get(h):

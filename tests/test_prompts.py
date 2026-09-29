@@ -20,7 +20,8 @@ A CHECK THAT CANNOT PASS YET is a row marked PENDING("D") or PENDING("E"): the
 lane that rewrites the words it is about (D: the gloss prompts and the
 language files, E: the studio's) makes it true and takes the mark off.  A row
 never silently disappears: while it is pending it is a skipped test that names
-its lane and says why.
+its lane, says why and says how many prompts still fail it -- and the day it
+passes on all of them it fails, until the mark is taken off.
 """
 import collections
 import contextlib
@@ -104,7 +105,7 @@ def _says(surface, L, G):
     if surface == "studio-doc":
         return [r"this document is about %s:" % name]
     if surface == "studio-exercises":
-        return [r"^# %s . the annotation conventions" % name]
+        return [r"^# %s — the annotation conventions" % name]
     if surface in REGIONS or surface == "video-new":
         return [r"^- language: %s \(`%s`\)" % (name, code),
                 r"^- gloss language: \*\*%s\*\* \(`%s`\)" % (re.escape(G.name), re.escape(G.code))]
@@ -227,10 +228,10 @@ CHECKS = (
           "the meaning lines are a gloss, not \"continuous prose\" (brief 3.8, 6.1): youtube/PROMPT.md "
           "still says it, which D rewrites",
           ALL_SURFACES + (PROJECT,), {PROJECT: "D"}, has_no_continuous_prose),
-    # --- rows that wait for the lane that rewrites the words they are about ---
     Check("has_no_tex_specials_rule_in_a_video",
           "the TeX specials are a book's: a video never reaches LaTeX (brief 3.8, 4.3)",
           ("video-region", "video-new"), {}, has_no_tex_specials_rule),
+    # --- rows that wait for the lane that rewrites the words they are about ---
     Check("has_no_harakat_rule_of_a_reading_edition_in_a_video",
           "a reading edition's harakat are a book's (brief 3.8); the language files still say them in "
           "unmarked paragraphs (the text field, the sources sidebar's) which D marks {{?book}} or moves",
@@ -251,10 +252,6 @@ CHECKS = (
           "the studio's rule 14 no longer says to avoid math (brief 7.3)",
           STUDIO, {s: "E" for s in STUDIO}, has_no_avoid_math),
 )
-
-
-def _name(check):
-    return check.name
 
 
 def build_everything(codes=None, gloss=None):
@@ -366,6 +363,7 @@ class AddedLanguage(ControlledMachine):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp(prefix="promptkit-eo-")
+        cls.addClassCleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
         shipped = os.path.join(cls.tmp, "lib", "languages.json")
         personal = os.path.join(cls.tmp, "config", "languages.json")
         lang_tex = os.path.join(cls.tmp, "lib", "lang")
@@ -390,21 +388,15 @@ class AddedLanguage(ControlledMachine):
         assert rc == 0, "newlang could not add the language: %s" % out.getvalue()[-400:]
         langs, problems = languages._load(shipped, personal)
         assert "eo" in langs and not problems, problems
-        cls.patches = [mock.patch.dict(languages.LANGS, {"eo": langs["eo"]}),
-                       mock.patch.dict(languages.FOLDERS, {langs["eo"].folder: "eo"}),
-                       mock.patch.object(K, "LANG_DOCS", lang_docs)] + machine_patches()
-        for p in cls.patches:
+        for p in [mock.patch.dict(languages.LANGS, {"eo": langs["eo"]}),
+                  mock.patch.dict(languages.FOLDERS, {langs["eo"].folder: "eo"}),
+                  mock.patch.object(K, "LANG_DOCS", lang_docs)] + machine_patches():
             p.start()
+            cls.addClassCleanup(p.stop)
         cls.built = [(Ctx(s, "eo", m, languages.get("eo"), languages.gloss_or_default(None)),
                       promptlab.build(s, "eo", m))
                      for s in ALL_SURFACES
                      for m in ((None, "perfield", "regloss") if s in REGIONS else (None,))]
-
-    @classmethod
-    def tearDownClass(cls):
-        for p in cls.patches:
-            p.stop()
-        shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def test_every_prompt_is_made_for_it(self):
         self.assertEqual(len(self.built), len(ALL_SURFACES) + 4)
@@ -926,6 +918,29 @@ class Assemblers(ControlledMachine):
                 f.write(text.replace("Il pezzo di legno", "Il {{DATA}} e {{LANGUAGE}}"))
             r = glossregion.book_prompt(copy, 0, 5)
         self.assertIn("- title: Il {{DATA}} e {{LANGUAGE}}", r["prompt"])
+
+    def test_a_language_file_that_names_what_nothing_fills_is_refused_by_every_route_in_words(self):
+        # a language file whose text says {{GLOSS_LANGUAGE}} where no gloss language is known
+        # (the studio's, or the new-book page's, which fills the rest in a browser)
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, "fa.md"), "w", encoding="utf-8") as f:
+                f.write("# Persian\n\n## Reading\n\nGloss it in {{GLOSS_LANGUAGE}}, for {{LANGUAGE}}.\n")
+            with mock.patch.object(K, "LANG_DOCS", td):
+                self.assertEqual(K.language_text("studio-doc", "fa").splitlines()[-1],
+                                 "Gloss it in {{GLOSS_LANGUAGE}}, for Persian.")
+                self.assertIn("in English, for Persian", K.language_text("video-new", "fa", gloss="en"))
+                h = Handler({"markdown": "---\ntitle: T\ntarget: fa\n---\n\nx", "decks": []})
+                studio_server.api_exercise_prompt(h)
+                self.assertIn("GLOSS_LANGUAGE", h.answer["error"])
+                h = Handler(query={"target": ["fa"]})
+                studio_server.api_prompt_get(h)
+                self.assertIn("GLOSS_LANGUAGE", h.answer["prompt_error"])
+                self.assertNotIn("prompt", h.answer)
+
+    def test_the_conventions_the_new_book_page_embeds_have_no_placeholder_left(self):
+        # the page fills its template in a browser and never looks into what it embeds
+        for code in languages.CODES:
+            self.assertNotIn("{{", newbook.conventions(languages.get(code)), code)
 
     def test_the_video_prompt_before_and_with_its_captions(self):
         before = ytpages.chat_prompt(None, "fa")
