@@ -4,6 +4,8 @@
 
     bookbuild.start(book_dir, "pdf")    the PDF and the reader, as ./build.sh <folder>/<slug>
     bookbuild.start(book_dir, "html")   the reader alone, as ./build.sh --html <folder>/<slug>
+    bookbuild.start(book_dir, "draft", chapters=["ch1", "ch1b"])
+                                        the PDF of those chapters alone, as ./build.sh <folder>/<slug> --draft ch1 ch1b
     bookbuild.status(book_dir)          {"state", "what", "log", "started", "finished", "ok", "code"}
 
     python3 lib/bookbuild.py <book dir> [--html]    the same build, in Python, where there is no sh
@@ -38,7 +40,10 @@ if LIB not in sys.path:
     sys.path.insert(0, LIB)
 import runtime  # noqa: E402
 
-WAYS = {"pdf": "the PDF and the reader", "html": "the reader"}
+WAYS = {"pdf": "the PDF and the reader", "html": "the reader",
+        # a book being made by an agent, looked at while it grows (lib/making.py):
+        # only the chapters so far, under a jobname of their own
+        "draft": "the PDF of these chapters"}
 KEEP = 400                      # lines of a build's output a job keeps
 JOBS = {}                       # the book's directory -> its job
 LOCK = threading.Lock()
@@ -51,8 +56,22 @@ def book_arg(book_dir):
                            os.path.realpath(os.path.join(ROOT, "books"))).replace(os.sep, "/")
 
 
-def command(book_dir, what):
+def available(what):
+    """Whether this way can be run on this machine -> (True, "") or (False,
+    why, in words).  Only the draft can be missing: it is build.sh's own
+    --draft, and build.sh is a shell script.  Where there is no sh -- Windows
+    above all -- the reader can still be built (the Python build below does it),
+    the PDF of a few chapters cannot, and the page says so plainly."""
+    if what == "draft" and (runtime.WIN or not shutil.which("sh")):
+        return False, ("the PDF of these chapters is made by a shell script, and this computer has "
+                       "none: it is not available here. The reader is -- look at it now")
+    return True, ""
+
+
+def command(book_dir, what, chapters=()):
     """The command that builds this book this way on this machine."""
+    if what == "draft":
+        return ["sh", os.path.join(ROOT, "build.sh"), book_arg(book_dir), "--draft"] + list(chapters)
     if not runtime.WIN and shutil.which("sh"):
         return (["sh", os.path.join(ROOT, "build.sh")] + (["--html"] if what == "html" else [])
                 + [book_arg(book_dir)])
@@ -113,12 +132,20 @@ def _run(job, cmd, runner):
                    finished=time.time())
 
 
-def start(book_dir, what="pdf", runner=None):
+def start(book_dir, what="pdf", runner=None, chapters=()):
     """Start building this book -> (job, True), or (the build already
     running, False).  `runner(cmd, say) -> exit status` stands in for the
-    subprocess, for a test."""
+    subprocess, for a test.  A refusal to start is a ValueError with the
+    sentence to show; only the draft can be refused, for `chapters` it has not
+    got or a machine that cannot make it."""
     if what not in WAYS:
         raise ValueError("no such build: %r (%s)" % (what, ", ".join(WAYS)))
+    if what == "draft":
+        ok, why = available(what)
+        if not ok and runner is None:
+            raise ValueError(why)
+        if not chapters:
+            raise ValueError("there is no chapter in the book yet: nothing to typeset")
     key = os.path.realpath(book_dir)
     with LOCK:
         job = JOBS.get(key)
@@ -128,7 +155,7 @@ def start(book_dir, what="pdf", runner=None):
                "finished": None, "ok": None, "code": None}
         JOBS[key] = job
         view = _view(job)
-    threading.Thread(target=_run, args=(job, command(book_dir, what), runner),
+    threading.Thread(target=_run, args=(job, command(book_dir, what, chapters), runner),
                      daemon=True).start()
     return view, True
 
