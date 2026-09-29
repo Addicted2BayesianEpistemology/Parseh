@@ -19,6 +19,7 @@ One folder named after the book's slug, holding what the book is *made of*:
 | every `.tex` at the top of the folder | `main.tex` and the chapters — but not `frankdraft.tex`, which a draft PDF build leaves behind |
 | `NOTES.md` | where an edition keeps the account of how it was made |
 | `source/` | the original paragraphs the text is checked against |
+| `original/`, `annot/` | for a book made by an agent: the text it was made from, and the annotation its chapters were assembled from — the record of how it was made ([A book made by an agent](doc:A book made by an agent)) |
 | `markdown/` | the notes in the seams ([Notes in the seam](notes.md)) |
 | `reading.json` | what you folded away, and the paragraphs you took charge of |
 | *the narration* | as much of it as you ask for (below) |
@@ -29,8 +30,11 @@ and — for a narrated book — its shape. It is what makes the zip something a
 toolbox can reason about instead of guess at; only its format is believed on
 its word, and everything else in it is checked against the files inside.
 
-**Never in a bundle**: `main.pdf`, `reader/`, LaTeX's `.aux`, `.log` and
-`.toc`, and the build keys by which a build knows the book has changed.
+**Never in a bundle**: the files an agent keeps beside a book it makes —
+`AGENTS.md`, `CLAUDE.md`, `.claude/`, `ASKS.md`, `making.json`, which are
+about one making on one computer — and `main.pdf`, `reader/`, LaTeX's `.aux`,
+`.log` and `.toc`, and the build keys by which a build knows the book has
+changed.
 They are made from the text, so they would carry the same text twice — and,
 carried back in stale, they would show text the chapters no longer say. The
 alignment's review page, `review.html`, is not carried either: a bundle may

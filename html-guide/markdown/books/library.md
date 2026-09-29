@@ -31,6 +31,7 @@ transliterated title and author, the one-sentence blurb, and a row of tags:
 | **audio · 12/57 timed** | the book has a recording, and how many subparagraphs have a time in it |
 | **no audio yet** | the book has no recording |
 | **not built yet** | the book has no reader: nothing has built it |
+| **being made · batch 2 of 6 · 3 minutes ago** | an agent is still making the book: where the making stands and when it last wrote, moving by itself while the page is open ([A book made by an agent](doc:A book made by an agent)) |
 
 A click on a built card opens its reader. A card whose book has **not been
 built yet** is all one button: clicking anywhere on it builds the book (its
@@ -79,7 +80,8 @@ manager: nothing in Parseh ever does it.
 
 The **＋ Add a book** card opens `/books/add/`, which offers three ways to
 begin a book: writing it here by hand, adding text to a book already on the
-shelf, or handing the work to an LLM outside Parseh.
+shelf, or having an agent you choose make it in a folder Parseh prepares, while
+the book grows on this page ([A book made by an agent](doc:A book made by an agent)).
 [Adding a book](doc:Adding a book) walks through all three.
 
 ## ⇩ Bring a book back

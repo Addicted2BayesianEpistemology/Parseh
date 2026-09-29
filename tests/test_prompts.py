@@ -1017,8 +1017,8 @@ class Assemblers(ControlledMachine):
         self.assertLess(p.index("WHAT TO GIVE BACK"), p.index("THE TRANSCRIPT:"))
         self.assertLess(p.index("THE RULES"), p.index("WHAT TO GIVE BACK"), "the contract comes after the rules")
 
-    def test_the_new_book_page_fills_a_template_that_has_no_marks(self):
-        tpl = newbook.prompt_template()
+    def test_the_new_book_template_has_no_marks_once_its_parts_are_taken_out(self):
+        tpl = K.flat(K._template("book-new"))
         self.assertNotIn("{{?", tpl)
         self.assertNotIn("{{/", tpl)
         self.assertIn("{{WORDS_STEP}}", tpl)

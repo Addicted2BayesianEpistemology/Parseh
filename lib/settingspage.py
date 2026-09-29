@@ -141,7 +141,25 @@ SETTINGS = {
                          "pins can be fetched, each checked against its hash."),
     "speech.remove": (None, "It frees the space the program or a model took."),
     "speech.stop": (None, "It stops an install this page started."),
+    # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) puts two things
+    # under the computer's roof.  Making the book's folder writes a folder
+    # under books/ in which an agent will be told to run Parseh's own tools
+    # -- so what it makes is what Parseh will run -- and opening that folder
+    # starts the system's file manager on this computer's own screen.  Finish
+    # runs the book's checks and its full build on this computer, and hands
+    # the book to the reader's doors.  Reading the making panel, looking at
+    # the reader (a build of it), the draft PDF and writing an ask are not
+    # here: any device that has been let in may.
+    "making.folder": (RUN, "An agent opened in the folder it makes runs %s's own tools there, "
+                           "and the folder is opened on this computer's own screen." % NAME),
+    "making.finish": (RUN, "Finish runs the book's checks and its full build on this computer, "
+                           "and ends the making."),
 }
+
+# SETTINGS WHOSE CONTROL IS NOT ON A PAGE OF SETTINGS, because it sits on the
+# page of the thing it acts on (the add-a-book page, a book's reader): no door
+# lists them, and tests/test_settings_risk.py says so instead of losing them.
+ELSEWHERE = ("making.folder", "making.finish")
 
 # Asking how things stand is not a setting: open to every device let in, and
 # a phone may always SEE what it may not change.

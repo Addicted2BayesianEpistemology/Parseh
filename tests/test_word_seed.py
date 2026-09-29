@@ -306,11 +306,13 @@ class PromptTests(unittest.TestCase):
             self.assertNotIn('{{WORDS_RECEIVED}}', t)
 
     def test_the_book_prompt_has_the_words_step(self):
-        import newbook
+        # THE ADD PAGE NO LONGER FILLS THE PROMPT IN THE BROWSER (a0.4.2, a book made by an agent, in
+        # place): the instructions an agent reads are written by the server.  The prompt keeps the step's
+        # place, and the instructions carry the step for a language that has words
+        import making
         self.assertIn('{{WORDS_STEP}}', (ROOT / 'docs/new-book-prompt.md').read_text(encoding='utf-8'))
-        page = newbook.page()
-        self.assertIn('WORDS_STEP: wordsStep', page)
-        self.assertIn('lib/fill_words.py --lang', page)
+        text = making.instructions_for({'lang': 'ja', 'gloss': 'en', 'title': 'x', 'title_latin': 'x'})
+        self.assertIn('lib/fill_words.py --lang ja --json', text.replace('\\', '/'))
 
 
 class HubTests(unittest.TestCase):

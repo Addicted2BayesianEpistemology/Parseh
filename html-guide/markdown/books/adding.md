@@ -1,7 +1,7 @@
 ---
 title: Adding a book
 weight: 2
-description: Three ways to begin a book — by hand, onto a book already here, or with an LLM outside — and a book whose glosses are still to write.
+description: Three ways to begin a book — by hand, onto a book already here, or made by an agent you choose — and a book whose glosses are still to write.
 ---
 
 A reading edition is not one answer from a model. It is made paragraph by
@@ -14,11 +14,10 @@ cards answer it:
 |---|---|---|
 | **Write it here, by hand** | cuts a chapter you paste into paragraphs and sentences, with every gloss left blank, and opens the reader on it | the book's facts, and a chapter |
 | **Add to a book already here** | puts more text onto the end of a book on the shelf; nothing already written is touched or re-cut | a book, and the text |
-| **Let an LLM do it outside** | gives you three things to copy: a script that builds a working folder, the prompt, and a script that brings the finished book back | the facts, the original file, a folder — and a terminal |
+| **Let an agent make it** | makes the book's folder on the shelf, with your original in it and the instructions for an agent; the agent you use fills it in, batch by batch, while you watch the book grow in the library | the facts, the original file — and an agent that works in a folder |
 
-The first two write to the shelf the moment you press their button; the
-third only hands you things to copy. The second card is not offered while
-the shelf is empty. A book you exported earlier, a `<slug>-book.zip`, is
+All three write to the shelf the moment you press their button. The
+second card is not offered while the shelf is empty. A book you exported earlier, a `<slug>-book.zip`, is
 not added here at all: bring it back from the library page's **⇩ Bring a
 book back** panel ([The library](doc:The library)).
 
@@ -42,7 +41,7 @@ in the reader.
 | **Glosses in** | the language the meanings are written *in* — an Italian learning Persian wants them in Italian. English unless you choose otherwise. The list has two groups: *taught here* and *written in, not taught*. A right-to-left gloss of a left-to-right text (Persian or Arabic meanings for a German book, say) is greyed out, because its vocabulary lines could not be set in order. The note under the select says what your pair means. |
 | **Slug (directory name, ascii)** | the name of the book's folder. Left empty it is made from the transliterated title (or the title). |
 | **Year** | kept in `book.json`, and editable later in the reader's **book info**. Nothing prints it yet: neither the title page nor the library card shows it, whatever the box's tooltip says. |
-| **Title, *in the language*** and **Title, transliterated** | the title in its own script, and its Latin spelling. The title page sets both: the title large, and the transliteration under it **as you type it** — capitalise it yourself if you want it in capitals. (The note under the box says *in capitals*; that is true only of the **Let an LLM do it outside** way, whose `main.tex` the page writes in capitals.) |
+| **Title, *in the language*** and **Title, transliterated** | the title in its own script, and its Latin spelling. The title page sets both: the title large, and the transliteration under it **as you type it** — capitalise it yourself if you want it in capitals. (The note under the box says *in capitals*; that is true only of the **Let an agent make it** way, whose `main.tex` the page writes in capitals.) |
 | **Title, in *the gloss language*** | the title as the gloss language says it — kept in `book.json`, and shown as the **English** row of **book info**; neither the library card nor the PDF prints it |
 | **Author, *in the language*** and **Author, transliterated** | the same for the author; the transliteration is the byline under the transliterated title |
 | **One-sentence blurb** | the line under the title on the library card |
@@ -137,55 +136,90 @@ to be numbered on from. The reader is rebuilt at once. The new chunks
 arrive blank, for you to fill, in a book finished or not: a blank gloss is
 legal anywhere (below).
 
-## Let an LLM do it outside
+## Let an agent make it
 
-The third way is the method the first editions were made with: an AI coding
-assistant (Claude Code, as the page is written) working in a folder of its
-own **outside** the toolbox, with the tools, one finished edition to learn
-from, and a prompt that sets it to work ten paragraphs at a time, with a
-checker after every batch. It is the one way into Parseh that needs a
-terminal, and its card says so before you have filled in anything. Nothing
-on this page is sent anywhere: the three scripts are yours to copy and run.
+The third way is the method the first editions were made with: an agent —
+an AI coding assistant working in a folder — recovers the text of your
+original, decides the chapters and annotates the book ten paragraphs at a
+time, with a checker after every batch. Parseh does not start an agent and
+does not choose one for you: **you** open the agent you use on the book's
+folder, whichever it is. What Parseh does is everything around it — it makes
+the folder, tells the agent what to do, shows you the book as it grows and
+carries what you ask for to the agent. There is no script to copy, nothing to
+install and nothing to bring back: the agent works on the book where it will
+live.
 
 **1. The book.** The same facts as above, and four more in a box marked
-*only for the outside folder*:
+*only for a book an agent makes*:
 
-- **Learn from** — a finished, built edition whose method and notes are
-  copied beside your book. The page picks one in the same language where
-  there is one, else the Persian one — the method is the same and the
-  conventions differ, and the prompt carries your language's own
-  conventions (`docs/lang/<code>.md`) in place of the Persian rules.
-- **The original** — the path of the book to annotate: a PDF with a text
-  layer, an epub or a text file. Until it is named, the page warns **Name
-  the original first** and the copy buttons stay disabled: the scripts would
-  otherwise hold a placeholder path.
-- **PDF pages, first–last** — optional, 0-based, written `13-21`.
-- **Working folder** — where the LLM works; `$HOME/frank-<slug>` unless you
-  say otherwise.
+- **The original** — a file you choose with the file picker: a PDF with a
+  text layer, an epub or a plain text file. It is uploaded — so it works from
+  any computer, Windows included, and no path is typed on the server — and
+  copied into the book's own folder, in `original/`. Nothing leaves your
+  computer. Until a file is chosen, **make the book's folder** stays shut and
+  says *choose the original first*.
+- **PDF pages, first–last** — optional, counted from 0 and written `13-21`;
+  for a PDF only. A range that is not a range is said to be ignored.
+- **Learn from** — optional, and **none** unless you choose: a finished,
+  built edition on this computer that the agent is shown as an example of the
+  method. It reads it where it lies and never changes it. The instructions
+  carry your language's own conventions (`docs/lang/<code>.md`) whichever
+  edition you pick.
+- **let the agent look at my finished books in this language, as examples**
+  — a box, off unless you tick it. Ticked, the instructions name where your
+  finished books *in the same language* are, as examples only, and the agent
+  never writes there; unticked, the agent is shown none of your books. A book
+  still being made is never offered.
 
-**2. Set the folder up.** **copy the setup script** copies a script to run
-once in a terminal. It makes the folder and copies into it the tools
-(`lib/`, `build.sh`, `environment.yml`, `docs/`), the reference edition with
-its notes and its annotation files, your original, a `book.json` and a
-`main.tex` skeleton, and the prompt as `PROMPT.md`.
+**2. Make the book's folder.** **make the book's folder** stays shut until
+there is a title and an original, and says why (*the title comes first*,
+*choose the original first*). It is the computer's alone: on a phone or on
+another computer let in, the button is shut and the page says why, in the
+words the server refuses with ([who may do what](doc:A book made by an agent)).
+Pressed, it says *making the folder…*, and then:
 
-**3. Set Claude Code to work.** Go into the folder, start the assistant and
-paste the prompt (**copy the prompt**; the page shows how many characters it
-is, and it is also in the folder as `PROMPT.md`). The prompt prescribes the
-whole method: the source recovered and divided first, the chapter table
-shown to you before anything is annotated, then ten paragraphs a batch with
-a checker run until it reports no errors, a proof-reader, a sceptic before
-any fix, and a draft PDF. Between batches, read a paragraph or two of the
-draft PDF yourself: the tools prove the text is faithful, but they cannot
-judge a gloss.
+> **The folder is made**, and the book is on the library page, marked
+> **being made**.
+> `/home/you/Parseh/books/english/the-clock`
 
-**4. Bring it back.** When every chapter is done and the book's checker is
-clean, **copy the return script** copies the script that copies the finished
-book into `books/<language>/<slug>/` in the toolbox, builds its PDF and its
-reader, and checks it once more. The book then appears on the library page.
+with **copy the path**, **open the folder** (your system's own file manager)
+and **open the reader →**, and one sentence: *Open this folder in the agent
+you use, and tell it: **read AGENTS.md and begin**.* A second press names the
+slug that is now taken instead of being refused.
 
-The prompt lives in `docs/new-book-prompt.md`; the page only fills in its
-blanks, so an edit to that file changes what the page gives.
+What it writes, in `books/<language>/<slug>/`: `book.json`, the `main.tex`
+skeleton (with no chapter in it yet), your original in `original/`, `NOTES.md`
+(the book's journal, started), an empty `ASKS.md` (what you will ask of the
+agent), `making.json` (where the making stands) and the instructions,
+`AGENTS.md`, with a one-line `CLAUDE.md` pointing at it. The book is on the
+library page at once and its reader is built, empty, so that you can open it
+before the agent has written a word. What happens next — the panel that shows
+how far the agent has got, the asks, Finish — is on its own page: [A book made
+by an agent](doc:A book made by an agent).
+
+**3. The instructions.** Under the button, **the instructions, as they will
+be written** shows the text of `AGENTS.md` for the form as it stands, and
+**copy the instructions** copies exactly what is shown. You do not need it
+for an agent that reads `AGENTS.md` by itself — several do — but an agent
+that does not can be given the text.
+
+### What it refuses
+
+| It says | Which means |
+|---|---|
+| *a book needs a title in Persian* | the title box is empty |
+| *no directory name could be made from '…'* | the title is all in its own script and leaves no ASCII letters for a folder name: give a slug, or a transliterated title |
+| *the title cannot hold the character % : TeX reads it as an instruction* | the title, the author or their transliterations hold one of `\ { } $ % & # _ ^ ~`, which the title page would read as LaTeX: write it out in words |
+| *a book is already at books/…/ — choose another slug, or move that one out of the way* | a book, built or not, being made or not, already has that folder; nothing is written over it |
+| *the original has to be a PDF with a text layer, an epub or a plain text file* | the file chosen is none of the three (a Word document, a picture…) |
+| *… does not look like a PDF* (or *an epub*, *a text file*) | the file's name and its contents disagree: choose the right file |
+| *the original is empty: choose the file again* | the file has no bytes |
+| *the page range is two numbers, the first not after the last: 13-21* | the range is written some other way |
+| *there is no book called … on the shelf to learn from* | the edition chosen under **Learn from** has gone since the page was opened: reload it |
+| *That is changed on the computer Parseh runs on and nowhere else, because it changes what Parseh will run.* | you pressed it from a phone, or another computer let in: making the folder is done on the computer |
+
+Nothing is left behind by a refusal: the folder is built beside its place and
+renamed into it only when it is whole.
 
 ## Glosses still to write
 

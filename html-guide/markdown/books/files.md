@@ -144,6 +144,17 @@ shows how to take a paragraph out of the check). A paragraph with no source
 file is not checked at all, and the chunk sheet's answer to a save says so:
 *not checked: no source paragraph at source/paras/ch1_p04.txt*.
 
+## A book made by an agent
+
+A book an agent makes ([A book made by an agent](doc:A book made by an agent))
+keeps its working files in the same folder. `original/` holds the text it was
+made from and `annot/` the annotation JSON (`ch1_p00.json`, one paragraph
+each, and a batch's `ch1_batchA.json`) its chapters were assembled from: while
+the book is made that JSON is the truth and the `.tex` is output, and once it
+is finished the `.tex` is the truth and `annot/` stays as the record. The rest
+of the agent's files — `NOTES.md`, `ASKS.md`, `making.json`, `AGENTS.md` — are
+described on that page.
+
 ## The comments
 
 A chapter's comments are yours, and nothing touches them — with one

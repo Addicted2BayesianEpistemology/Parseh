@@ -16,7 +16,10 @@ refusing anything it cannot vouch for.
 WHAT A BUNDLE CARRIES -- the authored files, and nothing else:
 
     a book     book.json, every top-level .tex but frankdraft.tex, NOTES.md,
-               source/** (the .txt and .json the pipeline writes there) and
+               source/** (the .txt and .json the pipeline writes there),
+               annot/** (the annotation JSON a book made by an agent was
+               assembled from -- the record of how it was made), original/**
+               (the text it was made from: a PDF, an epub or a text file) and
                markdown/** (the notes written into its seams -- in every
                shape, because they are part of the content), plus as much of
                the narration as the shape below asks for
@@ -72,6 +75,14 @@ is what the download button asks for, `text` leaves it behind for somebody
 who only wants the words.  A book without its recording is still the book; a
 video without its film is a transcript of something the person unpacking it
 cannot watch.
+
+THE AGENT'S OWN FILES NEVER TRAVEL.  A book made by an agent in place
+(lib/making.py) has AGENTS.md and CLAUDE.md, the asks in ASKS.md and the record
+of the making in making.json beside it, and perhaps a .claude/ the agent keeps
+its own settings in: they are about one making on one machine, not about the
+book, and the allowlist leaves them out on the way out and drops them on the
+way in.  The original does travel -- the person's own source, in the book's own
+folder, and not in others/, which no update keeps.
 
 WHAT IS LEFT OUT, and why -- main.pdf has all three reasons at once.  It is
 DERIVED (main.tex and the chapters make it, so a bundle holding it would
@@ -214,8 +225,9 @@ except ImportError:
     import check_annotations as CA          # noqa: E402
 
 MANIFEST = "parseh-bundle.json"
-FORMAT = "parseh-bundle/2"      # bumped only when a reader of /1 would get it wrong
+FORMAT = "parseh-bundle/3"      # bumped only when a reader of /1 would get it wrong
 # (2: a0.4.0, a note may hold a latex block, TO-DO §8.39)
+# (3: a0.4.2, a book made by an agent carries its original and annot/, TO-DO §8.40)
 # who wrote a bundle, exactly as the server announces itself (serve.py's
 # server_version): the name and the version of the Parseh doing the writing.
 # Bundles written before the version was kept in one place say "Parseh/1.0",
@@ -335,6 +347,16 @@ NOTES_DIR = "markdown"
 NOTES_EXTS = (".md", ".json", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf") \
     + tuple("." + e for e in audiofile.EXTS)
 
+# THE TWO DIRECTORIES OF A BOOK MADE BY AN AGENT (lib/making.py): the annotation
+# JSON its chapters were assembled from, and the original it was made from.  The
+# original's kinds are the tools' own -- a PDF with a text layer, an epub, plain
+# text -- and are the list making.ORIGINAL_EXTS keeps (tests/test_making.py reads
+# the two against each other).  It is the person's own file on their own machine,
+# so it has no ceiling of its own, as a recording has none (MAX_MEDIA).
+ANNOT_DIR = "annot"
+ORIGINAL_DIR = "original"
+ORIGINAL_EXTS = (".pdf", ".epub", ".txt")
+
 SHAPE = {
     "book": {
         "name": "slug",
@@ -344,7 +366,8 @@ SHAPE = {
         # about one machine, and the allowlist is read both ways -- a file not
         # named here is dropped on the way out and refused on the way in.
         "files": ("book.json", "NOTES.md", "reading.json"),
-        "dirs": {"source": (".txt", ".json"), NOTES_DIR: NOTES_EXTS},
+        "dirs": {"source": (".txt", ".json"), ANNOT_DIR: (".json",),
+                 ORIGINAL_DIR: ORIGINAL_EXTS, NOTES_DIR: NOTES_EXTS},
     },
     "video": {
         "name": "id",
@@ -444,6 +467,12 @@ def _is_media(rel):
     if rel.startswith(NARR_DIR + "/"):
         return os.path.splitext(rel)[1].lower() in AUDIO_EXTS
     return "/" not in rel and is_media_name(rel)
+
+
+def _is_original(rel):
+    """A book's original: stored in the zip as it is (a PDF and an epub are
+    compressed already), counted apart from the text, and given no ceiling."""
+    return rel.startswith(ORIGINAL_DIR + "/")
 
 
 def _narration(directory, meta):
@@ -746,7 +775,7 @@ def _pack(kind, directory, name, language, gloss, mode, shaped):
                 z.writestr(zi, b"")
                 continue
             src = os.path.join(directory, rel.replace("/", os.sep))
-            if _is_media(rel):
+            if _is_media(rel) or _is_original(rel):
                 z.write(src, arc, compress_type=zipfile.ZIP_STORED)
                 continue
             if not clean:
@@ -994,6 +1023,8 @@ def payload(kind, directory, mode):
                 n = os.path.getsize(path)
                 out["media"] += 1
                 out["media_bytes"] += n
+            elif _is_original(rel):
+                n = os.path.getsize(path)           # stored: it counts byte for byte, and is no recording
             else:
                 n = _deflated(path, rel, clean)
         except OSError:
@@ -1136,7 +1167,7 @@ def _entries(z, kind, name, mode):
     about what lands rather than a label on the zip.  What was dropped is
     reported, never silent.
     """
-    files, dirs, dropped, total, media = [], [], [], 0, 0
+    files, dirs, dropped, total, media, original = [], [], [], 0, 0, 0
     exts = _dir_exts(kind, mode)
     if len(z.infolist()) > MAX_ENTRIES:
         raise BundleError("this bundle holds more than %d entries -- refused unread"
@@ -1202,13 +1233,15 @@ def _entries(z, kind, name, mode):
             if MAX_MEDIA is not None and media > MAX_MEDIA:
                 raise BundleError("the recording in this bundle is more than %s "
                                   "-- refused unread" % _size(MAX_MEDIA))
+        elif _is_original(rel):
+            original += zi.file_size
         else:
             total += zi.file_size
             if total > MAX_UNPACKED:
                 raise BundleError("this bundle unpacks to more than %s of text "
                                   "-- refused unread" % _size(MAX_UNPACKED))
         files.append((entry, rel))
-    return files, dirs, dropped, total + media
+    return files, dirs, dropped, total + media + original
 
 
 def _destination(kind, folder, name, root):
@@ -1647,6 +1680,13 @@ def _put(tree, dest, kind, mode):
             if entry == "waveform.json" and not os.path.exists(
                     os.path.join(dest, "waveform.json")):
                 pass                          # keep the one that is here
+            elif kind == "book" and entry in (ANNOT_DIR, ORIGINAL_DIR) and not os.path.exists(
+                    os.path.join(dest, entry)):
+                # THE RECORD OF HOW A BOOK WAS MADE, AND WHAT IT WAS MADE FROM,
+                # are given up only to another.  A bundle from before a0.4.2, or
+                # a zip somebody made by hand, carries neither, and a replace
+                # by it must not throw a book's annot/ and original/ away
+                pass
             elif not (is_media_name(entry) and not film_at(dest)):
                 continue                      # the bundle's version has won
         if _is_derived(entry):
@@ -1722,6 +1762,8 @@ def _unpack(z, files, dirs, tree):
                     if MAX_MEDIA is not None and media > MAX_MEDIA:
                         raise BundleError("the recording in this bundle is more than "
                                           "%s -- stopped" % _size(MAX_MEDIA))
+                elif _is_original(rel):
+                    pass                            # the person's own file: written as it is read
                 else:
                     total += len(chunk)
                     if total > MAX_UNPACKED:

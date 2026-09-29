@@ -157,6 +157,14 @@ WRITES = (
     ("POST", "/books/__delete"),
     ("POST", "/books/__upload"),
     ("POST", "/books/__restore"),
+    # a book made by an agent (a0.4.2): a page on another site must not make a folder on this
+    # computer for an agent to run Parseh's tools in, put a line in the file that agent obeys, open
+    # the folder, or finish the book (which runs a build)
+    ("POST", "/books/__make?name=a.txt&book=%7B%7D"),
+    ("POST", "/books/__making/instructions"),
+    ("POST", "/books/english/mini-en/__making/ask"),
+    ("POST", "/books/english/mini-en/__making/open"),
+    ("POST", "/books/english/mini-en/__making/finish"),
     ("POST", "/anki/sync/upload"),
     ("POST", "/exercises/api/import"),
     ("POST", "/youtube/api/upload"),
