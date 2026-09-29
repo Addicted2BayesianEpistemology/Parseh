@@ -165,7 +165,7 @@ SCRIPT = r"""
     var a = function (n) { return b.getAttribute(n); };
     if (a('data-import-open') !== null) { var picker = root.querySelector('[data-import]'); if (picker) picker.click(); return; }
     if (a('data-delete')) {
-      asking = a('data-delete'); draw(); focusOn('[data-keep]'); return;
+      told = {text: '', bad: false}; asking = a('data-delete'); draw(); focusOn('[data-keep]'); return;
     }
     if (a('data-keep') !== null) {
       var was = asking; asking = null; draw();
@@ -174,10 +174,13 @@ SCRIPT = r"""
     if (a('data-delete-yes')) {
       var id = a('data-delete-yes');
       var p = S.prompts.filter(function (x) { return x.id === id; })[0];
+      // the page is read again either way: a prompt another device took away is gone from it too
       post('delete', {id: id}).then(function (r) {
         asking = null;
-        if (!r.ok) { draw(); said(r.error || 'Parseh could not do that.', true); return; }
-        reload().then(function () { said('Deleted “' + (p ? p.name : 'the prompt') + '”.'); });
+        return reload().then(function () {
+          if (r.ok) said('Deleted “' + (p ? p.name : 'the prompt') + '”.');
+          else said(r.error || 'Parseh could not do that.', true);
+        });
       }, function () { said('The delete could not be sent: this computer did not answer.', true); });
     }
   });
