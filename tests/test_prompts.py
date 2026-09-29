@@ -342,7 +342,7 @@ def _make_tests():
 _make_tests()
 
 
-class Budgets(unittest.TestCase):
+class Budgets(ControlledMachine):
     def test_the_budgets_keep_to_their_rule(self):
         # measured beside budget, so that a lane changing a size does it on purpose
         for code, row in SIZES.items():
@@ -352,6 +352,21 @@ class Budgets(unittest.TestCase):
 
     def test_every_language_of_the_registry_has_its_row(self):
         self.assertEqual(sorted(SIZES), sorted(languages.CODES))
+
+    def test_the_measured_numbers_are_the_sizes_of_today_within_five_percent(self):
+        # else a prompt that shrank or grew on purpose leaves a budget that says nothing (or forbids
+        # what was meant): 5 % is what a machine without a word segmenter changes a Japanese or
+        # Chinese prompt by, and less than any change a lane makes on purpose
+        largest = {}
+        for ctx, a in build_everything():
+            key = (ctx.code, ctx.surface)
+            largest[key] = max(largest.get(key, 0), len(a.text))
+        for code, row in SIZES.items():
+            for surface, (measured, _budget) in zip(MEASURED, row):
+                today = largest[(code, surface)]
+                self.assertLessEqual(abs(today - measured), 0.05 * measured,
+                                     "%s %s is %d characters today, the table says %d: "
+                                     "change the measured number and its budget together" % (code, surface, today, measured))
 
 
 # --- a language added with newlang.py, in a temporary store ---------------
