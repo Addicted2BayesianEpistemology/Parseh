@@ -1,4 +1,4 @@
-## [a0.4.1] - unreleased
+## [a0.4.1] - 2026-09-29
 ### Added
 - Speech to text, optional and local: a transcript made on this computer while adding a video, from a film on this machine or a YouTube video recorded through the tab
 - Settings → Speech to text: the program, two Whisper models and the processor, open to any device let in
