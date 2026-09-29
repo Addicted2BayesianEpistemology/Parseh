@@ -125,12 +125,13 @@ transliteration + meaning. Name what was stripped from the form in the text.
 One equivalent in the gloss language rather than a string of synonyms, and
 **an empty `voc` is the right answer** for a chunk that needs nothing.
 
-In a **video** the line is plain text: a verb as `करना karnā · stem कर kar ·
-perf. किया kiyā · to do (+ ने)` — the book's `\vb` read out, which is where
-the space after the `+` comes from — and a form of it in the chunk first with
-that entry in brackets after it (`किया kiyā did (करना karnā · stem कर kar ·
-…)`).
-In a **book** it uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
+{{?video}}In a **video** the line is written exactly as in a book, with the macros
+below and entries parted by `; `; a line with no macro at all is plain text, and
+is also accepted. A form of the verb in the chunk that is none of its three is
+named after the entry, not inside it, with its sound and then what it is —
+`\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\pw{ने})}; here \pw{करेगा}
+\textit{karegā}, will do`.
+{{/video}}{{?book}}In a **book** it{{/book}}{{?video}}The line{{/video}} uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
 `\vb{inf}{rom}{stem}{rom}{perf}{rom}{meaning}` · `\bw{base}{rom}{meaning}` ·
 `\pw{fa}` — plus `\textit`, `\emph`, `\nobreak`.
 
@@ -229,8 +230,7 @@ A conjunct also gets a **button of its own**, headed *conjunct verb* — the
 word this file uses, so that it is never confused with the compound, which
 gets no `\vb` — and it puts the pair in as the one entry it is:
 `\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{(+\pw{ने})}\bw{काम}{kām}{to work}`,
-the `\bw` run straight onto the `\vb`, and in a video the conjunct whole,
-`काम करना kām karnā to work (करना karnā · stem कर kar · perf. किया kiyā)`.
+the `\bw` run straight onto the `\vb`{{?video}}, in a video as in a book{{/video}}.
 The noun's romanisation is the head of the conjunct's own (*kām karnā* gives
 *kām*), and its gloss is the **conjunct's** meaning, the one the row names;
 the noun's own gender and sense (`m. work`, as above) are yours to put in
