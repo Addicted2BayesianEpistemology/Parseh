@@ -245,6 +245,10 @@ FORMATS = {
     "parseh-texmf": ("lib/texpackages.py", "MANIFEST_FORMAT",
                      "the TeX packages Parseh got for the LaTeX drawings, and their list "
                      "(texmf/)"),
+    # a book made by an agent, in place (TO-DO §8.40, a0.4.2)
+    "parseh-annot": ("lib/making.py", "ANNOT_FORMAT",
+                     "the annotation JSON a book made by an agent was assembled from "
+                     "(a book's annot/*.json)"),
     # a book's narration, as the aligner leaves it beside the book
     "parseh-timings": ("lib/timestamp.py", "TIMINGS_FORMAT",
                        "where each sentence of a book's narration begins and ends "

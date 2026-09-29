@@ -296,6 +296,7 @@ class DataFormats(unittest.TestCase):
         import store
         import timestamp
         import latexthemes
+        import making
         import texpackages
         got = version.formats()
         self.assertEqual(set(got), set(version.FORMATS))
@@ -318,7 +319,8 @@ class DataFormats(unittest.TestCase):
                 "parseh-updates": updater.STORE_FORMAT,
                 "parseh-latex": latexthemes.STORE_FORMAT,
                 "parseh-latex-theme": latexthemes.EXPORT_FORMAT,
-                "parseh-texmf": texpackages.MANIFEST_FORMAT}
+                "parseh-texmf": texpackages.MANIFEST_FORMAT,
+                "parseh-annot": making.ANNOT_FORMAT}
         self.assertEqual(set(held) - set(got), set(), "held here, with no row")
         self.assertEqual(set(got) - set(held), set(), "a row this test does not hold")
         for fmt, value in held.items():
@@ -364,7 +366,8 @@ class DataFormats(unittest.TestCase):
     # rows that number what Parseh writes in each.  A folder added to that
     # list with no rows here fails: an update going back could not say what
     # in it may not survive.
-    KEPT = {"books/": ("parseh-book", "parseh-reading", "parseh-timings", "parseh-review"),
+    KEPT = {"books/": ("parseh-book", "parseh-reading", "parseh-timings", "parseh-review",
+                       "parseh-annot"),
             "youtube/videos/": ("parseh-video", "parseh-annotations", "parseh-parts",
                                 "parseh-waveform"),
             "markdown/library/": ("parseh-library",),
@@ -457,11 +460,11 @@ class DataFormats(unittest.TestCase):
             prefs.write_text(prefs.read_text(encoding="utf-8").replace("STORE_FORMAT = 1", "STORE_FORMAT = 2"),
                              encoding="utf-8")
             bundle = Path(td, "lib", "bundle.py")
-            bundle.write_text(bundle.read_text(encoding="utf-8").replace('"parseh-bundle/2"',
-                                                                         '"parseh-bundle/3"'),
+            bundle.write_text(bundle.read_text(encoding="utf-8").replace('"parseh-bundle/3"',
+                                                                         '"parseh-bundle/4"'),
                               encoding="utf-8")
             theirs = version.formats(td)
-            self.assertEqual((theirs["parseh-prefs"], theirs["parseh-bundle"]), (2, 3))
+            self.assertEqual((theirs["parseh-prefs"], theirs["parseh-bundle"]), (2, 4))
             ours = version.formats()
             self.assertEqual(version.lowered(theirs, ours), ["parseh-bundle", "parseh-prefs"])
             self.assertEqual(version.lowered(ours, theirs), [])
@@ -473,8 +476,8 @@ class DataFormats(unittest.TestCase):
                              encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "no STORE_FORMAT at its top level"):
                 version.formats(td)
-            bundle.write_text(bundle.read_text(encoding="utf-8").replace('"parseh-bundle/3"',
-                                                                         '"parseh-bundel/3"'),
+            bundle.write_text(bundle.read_text(encoding="utf-8").replace('"parseh-bundle/4"',
+                                                                         '"parseh-bundel/4"'),
                               encoding="utf-8")
             prefs.write_text(prefs.read_text(encoding="utf-8").replace("X = 2", "STORE_FORMAT = 2"),
                              encoding="utf-8")
