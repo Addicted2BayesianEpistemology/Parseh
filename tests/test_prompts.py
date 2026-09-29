@@ -1445,7 +1445,7 @@ class StudioBoxes(ControlledMachine):
                  ("boxes", "lists", "it", "A bullet list inside the box is allowed"),
                  ("gloss", "blocks", "fa", "keep the usual pattern"),
                  ("punct", "blocks", "fa", "typically inside a `[…]{tl}` block"),
-                 ("translit", "vocab", "fa", "Skip `##` entries too"),
+                 ("translit", "vocab", "fa", "Leave the mark out of `##` entries"),
                  ("exercises", "math", "it", "A blank may not sit inside a formula"))
         for a, b, code, words in pairs:
             with self.subTest(pair=(a, b)):

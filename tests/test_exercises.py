@@ -873,7 +873,7 @@ class PromptTests(unittest.TestCase):
         self.assertIn("**Tables.**", prompt)
         self.assertNotIn("**Colour marks.**", prompt)
         self.assertNotIn("**LaTeX drawings.**", prompt)
-        self.assertIn("`{crimson}`", prompt[prompt.index("**Reserved marks.**"):])
+        self.assertIn("`[word]{crimson}`", prompt[prompt.index("**Reserved marks.**"):])
         conventions = studio_server.lang_block("fa")
         self.assertTrue(conventions, "docs/lang/fa.md is there to be appended")
         dialect = studio_server.promptboxes.dialect_text(
