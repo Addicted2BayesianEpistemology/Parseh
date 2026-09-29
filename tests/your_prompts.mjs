@@ -129,6 +129,7 @@ async function suite(h) {
     const stored = () => h.send({cmd: 'stored'});
     const names = async () => ((await stored()) || {prompts: []}).prompts.map(p => p.name).sort();
     const card = (s, name) => s.page.locator('.pk', {has: s.page.locator('h3', {hasText: name})});
+    const cardText = async (s, name) => (await card(s, name).first().innerText()).replace(/\s+/g, ' ');
     const world = async (...made) => {
       await h.send({cmd: 'clear'});
       await h.send({cmd: 'parseh', changed: false});
@@ -177,12 +178,12 @@ async function suite(h) {
            ["the studio's prompt for a new document 1", 'a stretch of a video, glossed by an LLM 2', 'a stretch of a book, glossed by an LLM 1',
             'Ask LLM, one sentence in the sources 1', 'Import a prompt'],
            `${s.name}: a section for each place that has one, in the kit's order, with how many`);
-        const brit = await text(s, '.pk:has(h3:text("British spellings"))');
+        const brit = await cardText(s, 'British spellings');
         has(brit, `added after Parseh’s instructions · for every language · ${BRIT.text.length} characters · changed a moment ago`, `${s.name}: what a prompt is, in one line`);
-        const own = await text(s, '.pk:has(h3:text("Persian own rules"))');
+        const own = await cardText(s, 'Persian own rules');
         has(own, 'in place of Parseh’s instructions · for Persian only', `${s.name}: a prompt in place of Parseh's, and the language it is for`);
         has(own, `${OWN.text.length} characters`, `${s.name}: its size`);
-        const rtl = await s.page.locator('.pk:has(h3:text("قواعد من"))');
+        const rtl = card(s, 'قواعد من');
         eq(await rtl.locator('h3').evaluate(e => getComputedStyle(e).direction), 'rtl', `${s.name}: a right-to-left name is laid out right to left`);
         eq(await rtl.locator('pre').evaluate(e => getComputedStyle(e).direction), 'rtl', `${s.name}: and so is its text`);
         eq(await s.page.locator('details[open]').count(), 0, `${s.name}: the text is folded until it is asked for`);
@@ -310,7 +311,7 @@ async function suite(h) {
         eq(await s.page.locator('[data-old]').count(), 1, `${s.name}: one prompt says Parseh's own changed`);
         has(await text(s, '.pk:has([data-old])'), 'Persian own rules', `${s.name}: the one in place of Parseh's`);
         has(await text(s, '[data-old]'), 'Parseh’s own prompt has changed since you started from this one.', `${s.name}: in those words`);
-        eq(await s.page.locator('.pk:has(h3:text("British spellings")) [data-old]').count(), 0, `${s.name}: a prompt added after Parseh's never does`);
+        eq(await card(s, 'British spellings').locator('[data-old]').count(), 0, `${s.name}: a prompt added after Parseh's never does`);
         await shot(s, 'f-old');
         const said = await api(s, 'uptodate', {id: replaced});
         eq(said.ok, true, `${s.name}: "mine stands" is a route`);
