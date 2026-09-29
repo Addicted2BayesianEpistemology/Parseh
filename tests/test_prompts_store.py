@@ -1253,5 +1253,72 @@ class TheRoutes(unittest.TestCase):
         self.assertEqual((status, got["ok"]), (200, True))
 
 
+class TheStudioOnItsOwn(Stored):
+    """The studio run by itself (markdown/app/server.py's own handler and its own check of
+    another site): the same routes, over real HTTP, on the same store."""
+
+    def setUp(self):
+        super().setUp()
+        import http.server
+        quiet = mock.patch.object(studio_server.Handler, "log_message", lambda *a, **k: None)
+        quiet.start()
+        self.addCleanup(quiet.stop)
+        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), studio_server.Handler)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.addCleanup(self.srv.server_close)
+        self.addCleanup(self.srv.shutdown)
+
+    def ask(self, method, path, body=None, headers=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.srv.server_address[1], timeout=60)
+        data = None if body is None else json.dumps(body).encode("utf-8")
+        c.request(method, path, body=data, headers=dict({"Content-Type": "application/json"} if data else {},
+                                                        **(headers or {})))
+        r = c.getresponse()
+        raw = r.read()
+        c.close()
+        try:
+            return r.status, json.loads(raw.decode("utf-8")), r
+        except ValueError:
+            return r.status, raw.decode("utf-8", "replace"), r
+
+    def test_the_routes_answer_and_share_the_store_with_the_toolbox(self):
+        status, got, _ = self.ask("POST", "/api/prompts/save", mine("studio-doc", name="from the studio alone"))
+        self.assertEqual((status, got["ok"]), (200, True), got)
+        pid = got["prompt"]["id"]
+        self.assertEqual([p["id"] for p in P.all_of()], [pid], "the store the toolbox reads")
+        status, got, _ = self.ask("POST", "/api/prompts/list", {"surface": "studio-doc", "lang": "fa"})
+        self.assertEqual([p["name"] for p in got["prompts"]], ["from the studio alone"])
+        status, got, _ = self.ask("POST", "/api/prompts/parseh", {"surface": "studio-doc"})
+        self.assertEqual((status, got["surface"], got["locked"]), (200, "studio-doc", True))
+        status, got, r = self.ask("GET", "/api/prompts/export?id=" + pid)
+        self.assertEqual((status, got["format"]), (200, P.EXPORT_FORMAT))
+        self.assertIn("from-the-studio-alone.parseh-prompt.json", r.getheader("Content-Disposition"))
+        status, got, _ = self.ask("POST", "/api/prompts/import", {"data": json.dumps(got)})
+        self.assertEqual((status, got["renamed_from"]), (200, "from the studio alone"))
+        status, got, _ = self.ask("POST", "/api/prompts/delete", {"id": pid})
+        self.assertEqual((status, got["ok"], len(P.all_of())), (200, True, 1))
+        self.assertEqual(self.ask("POST", "/api/prompts/delete", {"id": pid})[0], 404)
+        self.assertEqual(self.ask("POST", "/api/prompts/nothing", {})[0], 404)
+
+    def test_the_studios_own_check_refuses_another_site_and_nothing_is_written(self):
+        made = P.save(mine("studio-doc", name="mine"))
+        before = Path(P.STORE).read_bytes()
+        for what, body in (("save", mine("ask", name="planted")), ("delete", {"id": made["id"]}),
+                           ("uptodate", {"id": made["id"]}), ("import", {"data": "{}"})):
+            for headers in ({"Sec-Fetch-Site": "cross-site"}, {"Origin": "https://evil.example"}):
+                status, got, _ = self.ask("POST", "/api/prompts/" + what, body, headers)
+                self.assertEqual((status, got["ok"]), (403, False), (what, headers))
+        self.assertEqual(Path(P.STORE).read_bytes(), before)
+        status, got, _ = self.ask("POST", "/api/prompts/list", {"surface": "studio-doc"}, {"Sec-Fetch-Site": "same-origin"})
+        self.assertEqual((status, got["ok"]), (200, True), "and Parseh's own page is let through")
+
+    def test_the_old_prompt_route_answers_from_the_store(self):
+        with mock.patch.object(store, "LIB", self.tmp / "library"):
+            (self.tmp / "library").mkdir()
+            P.set_studio_text("Kept in the store.")
+            status, got, _ = self.ask("GET", "/api/prompt?target=fa")
+            self.assertEqual((status, got["custom"], got["text"]), (200, True, "Kept in the store."))
+
+
 if __name__ == "__main__":
     unittest.main()
