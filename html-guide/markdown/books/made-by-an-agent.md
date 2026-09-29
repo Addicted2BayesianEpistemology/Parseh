@@ -13,10 +13,11 @@ about what happens after **make the book's folder** on the add page ([Adding a
 book](doc:Adding a book)): opening the folder in an agent, watching the book
 grow, steering it, and finishing it.
 
-**Parseh never starts an agent.** You use whichever you like — Claude Code in
-its desktop app or in a terminal, or any other that works in a folder — and
-Parseh does not name one as *the* way. It writes the folder and the
-instructions, shows you where they are, and reads what the agent writes.
+**Parseh never starts an agent.** You use whichever you like — a coding
+assistant in its own app, in a terminal or in an editor: anything that works
+inside a folder — and Parseh does not name one as *the* way. It writes the
+folder and the instructions, shows you where they are, and reads what the
+agent writes.
 
 ## What is in the folder
 

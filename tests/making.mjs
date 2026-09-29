@@ -39,7 +39,12 @@ import {chromium} from 'npm:playwright-core@1.52.0';
 //     goes on; then, both clean, the making ends: the book is an ordinary book (its pencil edits
 //     the .tex, its card says nothing), its bundle carries the original and annot/ and none of the
 //     agent's files, and the format number is 3
-//  i) and last: no page threw, and the owner's books/ and config/ are as they were
+//  i) A RIGHT-TO-LEFT BOOK: Persian, made from the page (its title box reads right to left, the folder
+//     is on the Persian shelf, book.json keeps the letters), worked by the stand-in, watched in the
+//     panel, its chunk shut with the ask offered, and an ask in Persian reaches ASKS.md as written
+//  j) and last: no page threw, and the owner's books/ and config/ are as they were
+// and every view it looks at (1280 and 390 px, light and dark) is measured too: the page does not
+// scroll sideways and the making panel lies inside the window
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
@@ -92,9 +97,11 @@ async function openPanel(pg, layout = 'browser') {
   if (!(await pg.$('#mkbox:not([hidden])'))) await pg.click(`.mk-btn[data-layout=${layout}]`);
   await pg.waitForSelector('#mkbox:not([hidden])');
 }
-// a view in the widths and themes the work is looked at in: 1280 and 390 px, light and dark
+// a view in the widths and themes the work is looked at in: 1280 and 390 px, light and dark.
+// In each of them the page must not scroll sideways, and the making panel, where it is open,
+// must lie inside the window: a phone's screen is the one nobody can resize.  The screenshots
+// are taken only when SHOTS says where to put them.
 async function views(pg, name, {full = false} = {}) {
-  if (!SHOTS) return;
   // a tab that is not in front is not drawn, and a screenshot of it waits for a frame that never comes
   await pg.bringToFront();
   const was = pg.viewportSize();
@@ -103,6 +110,23 @@ async function views(pg, name, {full = false} = {}) {
       await pg.setViewportSize({width: w, height: h});
       await pg.evaluate(t => Parseh.theme.set(t), theme);
       await sleep(350);
+      const fit = await pg.evaluate(() => {
+        const de = document.documentElement, out = {sw: de.scrollWidth, cw: de.clientWidth, past: []};
+        if (out.sw > out.cw + 1)
+          for (const e of document.querySelectorAll('body *')) {
+            const r = e.getBoundingClientRect(), st = getComputedStyle(e);
+            if (r.width && r.right > out.cw + 1 && st.position !== 'fixed' && st.visibility !== 'hidden' && st.display !== 'none')
+              out.past.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + Math.round(r.right));
+            if (out.past.length > 4) break;
+          }
+        const box = document.querySelector('#mkbox:not([hidden])');
+        out.panel = box ? Math.round(box.getBoundingClientRect().right) : null;
+        return out;
+      });
+      assert(fit.sw <= fit.cw + 1 && (fit.panel === null || fit.panel <= fit.cw + 1),
+             `${name} at ${w} px, ${theme}: the page does not scroll sideways ` +
+             `(${fit.sw} wide in ${fit.cw}${fit.past.length ? ', past the edge: ' + fit.past.join(' ') : ''}${fit.panel === null ? '' : ', panel to ' + fit.panel})`);
+      if (!SHOTS) continue;
       try {
         await pg.screenshot({path: `${SHOTS}/${name}-${w}-${theme}.png`, fullPage: full, timeout: 20000});
       } catch (e) {
@@ -588,8 +612,64 @@ for (const never of ['AGENTS.md', 'CLAUDE.md', 'ASKS.md', 'making.json', 'frankd
 eq(names[1], 'parseh-bundle/3', 'the bundle\'s format number is 3');
 await views(page, 'C-finished-reader');
 
-/* ================= i) last ================= */
-console.log('i) nothing broke, nothing of the owner\'s was touched');
+/* ================= i) a right-to-left book ================= */
+console.log('i) Persian: a book that is read the other way, made from the page');
+const MODEL_FA = root + '/tests/fixtures/books/persian/mini-fa';
+await agent('original', MODEL_FA, TMP + '/farsi.txt');
+const FA = INSTALL + '/books/persian/farsi-shekar-ast';
+await page.goto(B + '/books/add/');
+await page.click('.path[data-path="llm"]');
+await page.waitForSelector('#lane-llm:not([hidden])');
+await page.selectOption('#lang', 'fa');
+await page.fill('#title', 'فارسی شکر است');
+await page.fill('#title_latin', 'Farsi shekar ast');
+await page.fill('#author', 'محمدعلی جمال‌زاده');
+await page.fill('#author_latin', 'Mohammad-Ali Jamalzadeh');
+eq(await page.$eval('#title', e => getComputedStyle(e).direction), 'rtl', 'the title box reads right to left');
+await page.setInputFiles('#original', TMP + '/farsi.txt');
+await page.waitForFunction(() => !document.querySelector('#mkfolder').disabled);
+await page.click('#mkfolder');
+await page.waitForSelector('#mkcopy', {timeout: 60000});
+eq(await page.$eval('.bigpath', e => e.textContent), FA, 'the folder is on the Persian shelf, named from the transliterated title');
+const faJson = JSON.parse(await Deno.readTextFile(FA + '/book.json'));
+eq([faJson.language, faJson.title, faJson.author], ['fa', 'فارسی شکر است', 'محمدعلی جمال‌زاده'], 'book.json keeps the Persian, letter for letter');
+assert(/Persian/.test(await Deno.readTextFile(FA + '/AGENTS.md')), 'the instructions say it is a Persian book');
+await views(page, 'C-fa-add-made', {full: true});
+await lib.goto(B + '/books/');
+await lib.waitForSelector('a.book[data-making*="persian"]');
+eq(await lib.$eval('a.book[data-making*="persian"] [data-making-tag]', e => e.textContent.replace(/ · (just now|\d+ minutes? ago)$/, '')),
+   'being made · not started yet', 'the Persian book is on the library at once, marked being made');
+await views(lib, 'C-fa-library');
+assert(/source recovered/.test(await agent('step', FA, MODEL_FA)), 'the stand-in recovers the Persian source');
+assert(/chapter table/.test(await agent('step', FA, MODEL_FA)), '... writes its chapter table');
+assert(/batch 1 of 2: chapter 1 assembled/.test(await agent('step', FA, MODEL_FA)), '... and assembles a batch');
+await page.goto(B + '/books/persian/farsi-shekar-ast/reader/');
+await page.waitForSelector('.mk-btn[data-layout=browser]');
+await page.click('.mk-btn[data-layout=browser]');
+await page.waitForSelector('#mkbox:not([hidden])');
+await page.click('#mkbox button:has-text("look at it now")');
+await page.waitForFunction(() => document.querySelector('.row[data-c]'), null, {timeout: 90000});
+await page.waitForFunction(() => document.querySelector('#mkbox') && !document.querySelector('#mkbox').hidden, null, {timeout: 20000});
+assert(await inView(page, '.mk-btn[data-layout=browser]') && await onTop(page, '.mk-btn[data-layout=browser]') && await inView(page, '#mkbox'),
+       'the making button and the panel of a right-to-left book lie inside the window, and nothing over them');
+eq(await page.$eval('.mk-btn[data-layout=browser] .mk-txt', e => e.textContent), 'being made · batch 2 of 2', 'the button says where it is');
+await views(page, 'C-fa-panel');
+await page.click('#mkbox button.mk-x');
+await page.hover('.row[data-c="0"]');
+await page.waitForSelector('#chpen:not([hidden])');
+await page.click('#chpen');
+await page.waitForSelector('#chbox .mk-ask');
+eq(await page.$$eval('#chfa, #chtr, #chvoc, #chen', els => els.map(e => e.readOnly)), [true, true, true, true],
+   'the Persian chunk is shown and cannot be typed in');
+assert(await inView(page, '#mkchask') && await onTop(page, '#mkchask'), 'ask about this chunk is in the window in a right-to-left book too');
+await page.fill('#chbox .mk-ask textarea', 'معنی را تحت‌اللفظی بنویس');
+await page.click('#mkchask');
+await waitText(page, '#chbox .mk-said', /written to ASKS\.md/);
+assert((await Deno.readTextFile(FA + '/ASKS.md')).includes('معنی را تحت‌اللفظی بنویس'), 'an ask in Persian reaches ASKS.md letter for letter');
+await views(page, 'C-fa-chunk-sheet');
+
+/* ================= j) last ================= */
+console.log('j) nothing broke, nothing of the owner\'s was touched');
 const rest = [...errors];
 for (const [label, status, url] of DELIBERATE) {
   const at = rest.findIndex(e => e.label === label && e.text.includes('status of ' + status) && url.test(e.url));
