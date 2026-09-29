@@ -191,6 +191,18 @@ async function suite(h) {
         eq(await card(s, 'British spellings').locator('pre').isVisible(), true, `${s.name}: and shows them`);
         await shot(s, 'b-listed');
       }
+      // what a person wrote is text, whatever it holds: no tag of theirs is ever drawn as one
+      await h.send({cmd: 'save', prompt: {surface: 'ask', name: 'a & <b>bold</b> <img src=x onerror=alert(1)>', kind: 'added',
+                                          text: 'Say "hi" & </script><script>alert(1)</script> <img src=x onerror=alert(2)> {{LANGUAGE}}'}});
+      for (const s of Object.values(seat)) {
+        await door(s);
+        const nasty = s.page.locator('.pk', {has: s.page.locator('h3', {hasText: 'bold'})});
+        eq(await nasty.locator('h3').innerText(), 'a & <b>bold</b> <img src=x onerror=alert(1)>', `${s.name}: a name with tags in it is drawn as the text it is`);
+        await nasty.locator('summary').click();
+        has(await nasty.locator('pre').innerText(), 'Say "hi" & </script><script>alert(1)</script> <img src=x onerror=alert(2)>', `${s.name}: and so are its words`);
+        eq(await s.page.locator('#pr img, #pr b, #pr script').count(), 0, `${s.name}: and none of it became an element`);
+        eq(s.errors.length, 0, `${s.name}: and nothing ran (${s.errors.join(' | ')})`);
+      }
     });
 
     await section('c) export', async () => {

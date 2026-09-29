@@ -726,7 +726,8 @@ def _prompt(ctx, units, mode, prompt=None):
         text, counts = render(ctx, units, mode, chosen and chosen.instructions,
                               chosen and chosen.name)
     except promptkit.PromptError as e:
-        raise Refused("the prompt could not be made: %s" % e)
+        raise Refused(prompts.unmade(chosen, e) if chosen else
+                      "the prompt could not be made: %s" % e)
     r = dict(counts, prompt=text, region=ctx["region"], folded=ctx["folded"],
              **ctx["echo"])
     if chosen:

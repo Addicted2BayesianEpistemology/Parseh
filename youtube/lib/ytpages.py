@@ -1627,7 +1627,8 @@ def _tidy_prompt(h, captions, L, asked):
     except prompts.PromptsError as e:
         return h.send_json({"ok": False, "error": str(e)}, e.status)
     except promptkit.PromptError as e:
-        return h.send_json({"ok": False, "error": "the prompt could not be made: %s" % e}, 400)
+        return h.send_json({"ok": False, "error": prompts.unmade(chosen, e) if chosen else
+                            "the prompt could not be made: %s" % e}, 400)
     out = {"ok": True, "prompt": made, "lang": L.code}
     if chosen:
         out["custom"] = {"id": chosen.id, "name": chosen.name, "kind": chosen.kind}
@@ -1786,7 +1787,8 @@ def api_prepare(h):
         prompt = full_prompt(vid, meta, captions, data.get("glossary") or None, L, G,
                              chosen and chosen.instructions, chosen and chosen.name)
     except promptkit.PromptError as e:
-        return h.send_json({"ok": False, "error": "the prompt could not be made: %s" % e}, 400)
+        return h.send_json({"ok": False, "error": prompts.unmade(chosen, e) if chosen else
+                            "the prompt could not be made: %s" % e}, 400)
     return h.send_json({"ok": True, "id": vid, "lang": L.code, "folder": L.folder,
                         "custom": chosen and {"id": chosen.id, "name": chosen.name,
                                               "kind": chosen.kind},

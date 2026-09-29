@@ -608,6 +608,20 @@ def resolve(surface, prompt_id, lang=None):
     return Chosen(p["id"], p["name"], p["kind"], p["text"], _instructions(p))
 
 
+def unmade(chosen, error):
+    """What a person is told when a prompt of theirs cannot be made where it is
+    used.  Parseh's own words may have moved on since it was written -- a name it
+    used is no longer filled in -- and the kit then speaks of a bug in a template,
+    which this is not: saving the prompt again says which names Parseh fills in."""
+    said = str(error)
+    if "still carries" not in said:
+        return "your prompt %s could not be made: %s" % (chosen.name, said)
+    named = said.split("still carries ", 1)[1].split(": ", 1)[0]
+    return ("your prompt %s could not be made: it names %s, which this Parseh does not fill "
+            "in there. Open it from the prompt menu beside the copy button and save it again, "
+            "and it says which names it does" % (chosen.name, named))
+
+
 def markers(text):
     """The blocks a person's text uses, `{{?name}}`: for the studio's prompt, the
     boxes it takes -- a prompt in place of Parseh's that carries none of the boxes'

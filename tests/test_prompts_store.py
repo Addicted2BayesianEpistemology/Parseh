@@ -1063,6 +1063,17 @@ class TheRoutes(unittest.TestCase):
                 for p in reversed(patches):
                     p.stop()
 
+    def test_what_a_person_wrote_cannot_end_the_pages_script_or_add_a_tag(self):
+        nasty = {"name": "a & <b>x</b>", "text": "Say \"hi\" & </script><script>alert(1)</script> and <img src=x>"}
+        self.make(**nasty)
+        status, page, _ = self.ask("GET", "/settings/prompts/")
+        self.assertEqual(status, 200)
+        self.assertNotIn("</script><script>alert(1)", page, "inside the script, only `</` could end it")
+        state = json.loads(re.search(r'<script id="pr-state" type="application/json">(.*?)</script>', page, re.S)
+                           .group(1).replace("<\\/", "</"))
+        self.assertEqual((state["prompts"][0]["name"], state["prompts"][0]["text"]), (nasty["name"], nasty["text"]),
+                         "read back as it was written, whatever it holds")
+
     def test_a_device_let_in_may_do_all_of_it_and_the_computer_sees_what_it_wrote(self):
         for p in self.as_phone():
             p.start()
@@ -1213,6 +1224,36 @@ class TheRoutes(unittest.TestCase):
                                   {"video": "fA6bK2mQ8sT", "from": 0, "to": 3, "prompt": it["id"]})
         self.assertEqual((status, got["ok"]), (400, False))
         self.assertIn("italian only is a prompt for Italian (it) only, and this is Persian (fa)", got["error"])
+
+    def test_a_prompt_that_names_what_parseh_no_longer_fills_in_says_so_where_it_is_used(self):
+        # written when Parseh's words had a name this Parseh does not fill in any more: it saved then,
+        # and cannot be made now -- said in the person's words, not as a bug in a template
+        transcript = (PERSIAN_VIDEO / "transcript.txt").read_text(encoding="utf-8")
+        made = {surface: self.ask("POST", "/settings/api/prompts/save", mine(surface, name="old rules"))[1]["prompt"]["id"]
+                for surface in ("video-region", "video-new", "transcript-tidy")}
+        doc = json.loads(Path(P.STORE).read_text(encoding="utf-8"))
+        for p in doc["prompts"]:
+            p["text"] = "Use {{A_NAME_THAT_WENT}} well."
+        Path(P.STORE).write_text(json.dumps(doc), encoding="utf-8")
+        doors = (("/youtube/api/region/prompt", {"video": "fA6bK2mQ8sT", "from": 0, "to": 3}, "video-region"),
+                 ("/youtube/api/prepare", {"url": "fA6bK2mQ8sT", "lang": "fa", "gloss": "en", "transcript": transcript}, "video-new"),
+                 ("/youtube/api/transcript", {"transcript": transcript, "lang": "fa"}, "transcript-tidy"))
+        for path, body, surface in doors:
+            with self.subTest(path):
+                status, got, _ = self.ask("POST", path, dict(body, prompt=made[surface]))
+                self.assertEqual((status, got["ok"]), (400, False), got)
+                self.assertIn("your prompt old rules could not be made: it names {{A_NAME_THAT_WENT}}, which this "
+                              "Parseh does not fill in there", got["error"])
+                self.assertIn("Open it from the prompt menu beside the copy button and save it again", got["error"])
+                self.assertNotIn("bug", got["error"], "the words of a person's prompt, not of a template's")
+        # and saving it again is where it is told which name it was
+        status, got, _ = self.ask("POST", "/settings/api/prompts/save", dict(mine("video-region"), id=made["video-region"],
+                                                                             text="Use {{A_NAME_THAT_WENT}} well."))
+        self.assertEqual(status, 400)
+        self.assertIn("{{A_NAME_THAT_WENT}} is not something Parseh fills in", got["error"])
+        # Parseh's own prompt at the same door is untouched by any of it
+        status, got, _ = self.ask("POST", "/youtube/api/region/prompt", {"video": "fA6bK2mQ8sT", "from": 0, "to": 3})
+        self.assertEqual((status, got["ok"]), (200, True))
 
 
 if __name__ == "__main__":
