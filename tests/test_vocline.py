@@ -179,6 +179,33 @@ class JavaScript(unittest.TestCase):
                 self.assertEqual(g, read_in_python(c["voc"], c["lang"]))
 
 
+    def test_and_lines_nobody_thought_of(self):
+        """Random lines from an alphabet of what a line is made of -- macros, braces open and shut, escapes, the
+        joining punctuation, every kind of space, a character outside the basic plane -- read alike by both,
+        errors included.  The seed is fixed: what failed once fails again."""
+        import random
+        pieces = ["\\dw", "\\vb", "\\bw", "\\pw", "\\textit", "\\emph", "\\nobreak", "\\foo", "\\,", "\\ ", "\\\\",
+                  "\\%", "\\&", "\\{", "\\}", "{", "}", "{", "}", "{", "}", "a", "b", " ", "  ", "\n", "\t", ";", "; ",
+                  " · ", "(", ")", "/", "‘", "’", ".", ",", ":", "~", "--", "---", "کتاب", "書く", "é", " ",
+                  "　", "\x1c", "\x85", "﻿", "‌", "\U00020bb7", "x", "y y", "1", "%", "&", "<", ">", "'", '"']
+        rnd = random.Random(20260929)
+        voc = ["".join(rnd.choice(pieces) for _ in range(rnd.randint(1, 26))) for _ in range(1500)]
+        for _ in range(1000):                       # macros with about the groups they take
+            parts = []
+            for _k in range(rnd.randint(1, 5)):
+                m = rnd.choice(["dw", "vb", "bw", "pw", "textit", "emph"])
+                n = max(0, T.VOC_MACROS[m] + rnd.choice([0, 0, 0, -1, 1]))
+                groups = "".join("{%s}" % "".join(rnd.choice(pieces[7:]) for _ in range(rnd.randint(0, 4))) for _ in range(n))
+                parts.append("\\" + m + groups + rnd.choice(["", " ", " text", "; ", " · ", "/"]))
+            voc.append("".join(parts))
+        cases = [{"lang": rnd.choice(languages.CODES), "voc": v} for v in voc]
+        got = read_in_javascript(cases)
+        self.assertEqual(len(got), len(cases))
+        odd = [(c, g, read_in_python(c["voc"], c["lang"])) for c, g in zip(cases, got)
+               if g != read_in_python(c["voc"], c["lang"])]
+        self.assertEqual(odd[:3], [])
+
+
 @unittest.skipUnless(os.path.exists(DENO), "no deno")
 class Buttons(unittest.TestCase):
     """lib/vocbuttons.js: the four buttons' examples, one per language and kind."""
@@ -192,6 +219,8 @@ globalThis.document = {readyState: 'complete', getElementById: () => null};
 await import(%s);
 await import(%s);
 const B = globalThis.ParsehVocButtons, LANGS = %s, out = {examples: B.EXAMPLES, titles: {}};
+// a language somebody added has no example of its own, nor forms in its registry row
+out.added = ['dw', 'vb', 'bw', 'pw'].map(k => B.explain(k, {code: 'zz', name: 'Zzish'}, {name: 'English', code: 'en'}).title);
 for (const [code, L] of Object.entries(LANGS)) {
   out.titles[code] = {};
   for (const k of %s) out.titles[code][k] = B.explain(k, L, {name: 'English', code: 'en'}).title;
@@ -231,6 +260,14 @@ console.log(JSON.stringify(out));
                 CA.check_voc(line["voc"], "example", errs.append)
                 self.assertEqual(errs, [], "a video takes it")
                 texwrite._check_voc(line["voc"], "example")           # and a book does, or raises Refused
+
+    def test_a_language_somebody_added_is_explained_without_an_example(self):
+        for title in self.got["added"]:
+            with self.subTest(title=title):
+                self.assertEqual(len(title.split("\n")), 2, "the kind and the braces, and no example to draw")
+                self.assertNotIn("undefined", title)
+                self.assertNotIn("looks like", title)
+        self.assertIn("the form it is listed under · its pres. form · its past form", self.got["added"][1])
 
     def test_the_title_says_the_three_things_and_the_example_as_text(self):
         for code in languages.CODES:

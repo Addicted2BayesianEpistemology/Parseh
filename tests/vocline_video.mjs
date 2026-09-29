@@ -18,8 +18,9 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //  a) the cloud draws a macro line as the READER draws it: the same HTML
 //     lib/tex2html.py's render_voc makes of the same line, byte for byte, in
 //     five languages, two of them right to left; a line of plain text, in the
-//     same videos, is byte for byte what the player as it was committed draws
-//     (tests/fixtures/player_base/, the page as a whole).
+//     same videos, is byte for byte what it is on a page that never received the
+//     two new scripts (tests/player_words.mjs holds it to the committed player),
+//     and a macro line is shown as its source there, as an older Parseh shows it.
 //  b) the ✎ form's vocabulary row: the four buttons, each the kind of entry
 //     with its skeleton small under it; pointing at one, or tabbing to it,
 //     shows a line under the buttons -- on screen, and what the pointer would
@@ -40,7 +41,13 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     joins it back: the file is the file it was, byte for byte.
 //  g) on a phone, in the mobile interface, the cloud draws the same line, inside
 //     the screen.
-//  h) last: no page threw, logged an error or had a request refused; the hub
+//  h) the book's chunk sheet, in a reader built as every book's is (nothing of
+//     this work is baked into it): the same four buttons, kind and skeleton, in
+//     the same order, the same line under them with the language's own three
+//     forms and an example drawn by the same renderer, the baked press still
+//     writing its skeleton, Tab reaching them; a card made of a chunk carries
+//     the line the reader drew, as text.
+//  i) last: no page threw, logged an error or had a request refused; the hub
 //     printed no traceback; the owner's config/, books/ and youtube/videos/ and
 //     the fixtures are as they were.
 const root = await Deno.realPath(new URL('..', import.meta.url));
@@ -735,8 +742,8 @@ try {
     await ctx.close();
   }
 
-  /* ---------------- i) ---------------- */
-  console.log('\ni) the book\'s chunk sheet, in a reader built as every book\'s is: no rebuild');
+  /* ---------------- h) ---------------- */
+  console.log('\nh) the book\'s chunk sheet, in a reader built as every book\'s is: no rebuild');
   for (const key of ['fa', 'it']) {
     const bk = B0.books[key];
     const url = `${B}/books/${bk.rel}/reader/`;
@@ -877,8 +884,8 @@ try {
     }
   }
 
-  /* ---------------- h) ---------------- */
-  console.log('\nh) what the pages and the hub said');
+  /* ---------------- i) ---------------- */
+  console.log('\ni) what the pages and the hub said');
   console.log('  (refused as expected: ' + [...allowed].join(', ') + ')');
   assert(!errors.length, 'no page threw, logged an error or had a request refused: ' + errors.join('; '));
   assert(!/Traceback/.test(log.join('')), 'no traceback in the hub\'s log');
