@@ -148,7 +148,8 @@ async function suite(h) {
         const st = JSON.parse(await s.page.locator('#pr-state').textContent());
         eq(st.where, s.name === 'phone' ? 'lan' : 'self', `${s.name}: the page knows where it is asked from`);
         eq(st.may, {'prompts.save': true, 'prompts.delete': true}, `${s.name}: every button is allowed, from here too`);
-        has(await text(s, '.whomay'), 'any device that has been let in', `${s.name}: the door's pill says who may`);
+        has(await text(s, '.whomay'), 'any device let in', `${s.name}: the door's pill says who may`);
+        has(await text(s, '.whomay'), 'Any device that has been let in may keep, import or delete one of these', `${s.name}: and the line beside it says what they may`);
         eq(await s.page.locator('.gate:not(.open)').evaluateAll(els => els.filter(e => e.closest('.whomay')).length), 0,
            `${s.name}: and none of this page's own pills says the computer only`);
         eq(await s.page.locator('[data-lock], .lockline').count(), 0, `${s.name}: no lock line`);
@@ -158,6 +159,7 @@ async function suite(h) {
         const guide = await s.page.locator('.foot a').getAttribute('href');
         has(guide, '/guide/site/studio/your-prompts.html', `${s.name}: the guide's page is linked`);
         await s.page.goto(s.origin + '/settings/');
+        await shot(s, 'a-hub');
         const cardHref = s.page.locator('a.door[href="/settings/prompts/"]');
         eq(await cardHref.count(), 1, `${s.name}: the hub has a card for it`);
         has(await cardHref.innerText(), 'Your prompts', `${s.name}: named`);
@@ -245,8 +247,11 @@ async function suite(h) {
         await s.page.locator('.sure button', {hasText: 'Delete it'}).click();
         await until(async () => (await names()).length === 1, `${s.name}: the delete`);
         eq(await names(), ['for books'], `${s.name}: Delete it takes it out of the store`);
+        // the store has it first and the page reads it again after, so the sentence is waited for
+        await until(async () => (await text(s, '[data-said]')).includes('Deleted “British spellings”.'), `${s.name}: the page says what it deleted`);
         has(await text(s, '[data-said]'), 'Deleted “British spellings”.', `${s.name}: and says so`);
         eq(await s.page.locator('.pk').count(), 1, `${s.name}: and off the page`);
+        await shot(s, 'd-deleted');
         await door(other);
         eq(await other.page.locator('.pk h3').allInnerTexts(), ['for books'], `${s.name}: the other device no longer sees it`);
         // a delete of one that another device has taken away already is said in words, and the page is right again
@@ -269,6 +274,7 @@ async function suite(h) {
         await until(async () => (await text(s, '[data-said]')).includes('Imported as'), `${s.name}: the import`);
         has(await text(s, '[data-said]'), 'Imported as “British spellings (2)”: you have a prompt called “British spellings” for this already, and an import never writes over one.', `${s.name}: a name that is taken is renamed, and it says so`);
         eq(await s.page.locator('.pk h3').allInnerTexts(), ['British spellings', 'Persian own rules', 'British spellings (2)'], `${s.name}: both are listed`);
+        await shot(s, 'e-imported');
         assert((await stored()).prompts.find(p => p.name === 'British spellings').id === brit, `${s.name}: and the first is the same prompt it was`);
         // the same file into a place that has no prompt of that name: kept as it is called
         await h.send({cmd: 'clear'});
@@ -295,7 +301,7 @@ async function suite(h) {
         await refuse('unknown-name', JSON.stringify(Object.assign({}, good, {prompt: Object.assign({}, good.prompt, {text: 'Be brief. {{FROM_LATER}}'})})),
                      '{{FROM_LATER}} is not something Parseh fills in for this prompt');
         await refuse('empty', JSON.stringify(Object.assign({}, good, {prompt: Object.assign({}, good.prompt, {text: '  '})})), 'no words in it');
-        await refuse('no-place', JSON.stringify(Object.assign({}, good, {prompt: Object.assign({}, good.prompt, {surface: 'the-moon'})})), 'is not a prompt Parseh has');
+        await refuse('no-place', JSON.stringify(Object.assign({}, good, {prompt: Object.assign({}, good.prompt, {surface: 'the-moon'})})), 'is not a place Parseh hands a prompt out from');
         await shot(s, 'e-refused');
       }
     });
@@ -417,6 +423,12 @@ async function suite(h) {
             soft(r[0] >= 4.5, `${label}: the words are readable against their ground (worst ${r[0].toFixed(2)}:1 on ${r[1]})`);
             const inside = await s.page.locator('.pk h3[dir=auto]').evaluateAll(els => els.every(e => { const b = e.getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth; }));
             soft(inside, `${label}: every name, the right-to-left one too, is inside the screen`);
+            // a long place's name wraps, and the number of prompts stays beside its first line, not alone under it
+            const beside = await s.page.locator('#pr section h2:has(small)').evaluateAll(els => els.every(h2 => {
+              const name = h2.firstElementChild.getBoundingClientRect(), n = h2.querySelector('small').getBoundingClientRect();
+              return n.top < name.top + 24 && n.left >= name.right - 1;
+            }));
+            soft(beside, `${label}: the count of prompts is beside the name of its place`);
             await shot(s, `i-${w}-${theme}`);
           }
         }

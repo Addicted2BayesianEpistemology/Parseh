@@ -156,7 +156,8 @@ class TheStore(Stored):
         self.assertEqual(P.find(p["id"])["surface"], "video-region")
 
     def test_what_a_prompt_may_be_is_said_in_words(self):
-        self.refused(mine("the-moon"), "'the-moon' is not a prompt Parseh has", "video-region")
+        self.refused(mine("the-moon"), "'the-moon' is not a place Parseh hands a prompt out from",
+                     "a stretch of a video, glossed by an LLM", "Ask LLM, one sentence in the sources")
         self.refused(mine("ask", kind="both"), "added to Parseh's instructions or in place of them")
         self.refused(mine("ask", text=""), "no words in it")
         self.refused(mine("ask", text="  \n "), "no words in it")
@@ -336,7 +337,7 @@ class ExportAndImport(Stored):
             (json.dumps(dict(good, format="parseh-latex-theme/1")), "it wants parseh-prompt/1"),
             (json.dumps(dict(good, format="parseh-prompt/2")), "exported by a newer Parseh (it says parseh-prompt/2)"),
             (json.dumps({k: v for k, v in good.items() if k != "prompt"}), "a set of named fields"),
-            (json.dumps(dict(good, prompt=dict(good["prompt"], surface="the-moon"))), "is not a prompt Parseh has"),
+            (json.dumps(dict(good, prompt=dict(good["prompt"], surface="the-moon"))), "is not a place Parseh hands a prompt out from"),
             (json.dumps(dict(good, prompt=dict(good["prompt"], kind="both"))), "in place of them"),
             (json.dumps(dict(good, prompt=dict(good["prompt"], text=""))), "no words in it"),
             (json.dumps(dict(good, prompt=dict(good["prompt"], name=""))), "name is a few words"),

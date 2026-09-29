@@ -168,8 +168,8 @@ def _epoch(stamp):
 # ------------------------------------------------------------------ Parseh's own
 def _known(surface):
     if surface not in SURFACES:
-        raise PromptsError("%r is not a prompt Parseh has (they are: %s)"
-                           % (surface, ", ".join(SURFACES)))
+        raise PromptsError("%r is not a place Parseh hands a prompt out from (it does, for: %s)"
+                           % (surface, "; ".join(LABELS[s] for s in SURFACES)))
 
 
 def _load(surface):

@@ -83,7 +83,8 @@ STYLE = r"""
 .pr .said{min-height:1.4em;font-size:13.5px;margin:.6rem 0}
 .pr .bad{color:var(--danger,#c33)}
 .pr .none{color:var(--dim);font-size:14px}
-.pr section h2 small{font-weight:400;color:var(--dim);font-size:.85rem}
+.pr section h2{display:flex;gap:.6rem;align-items:baseline;justify-content:space-between}
+.pr section h2 small{flex:none;font-weight:400;color:var(--dim);font-size:.85rem}
 """
 
 SCRIPT = r"""
@@ -140,7 +141,7 @@ SCRIPT = r"""
     var by = {};
     S.prompts.forEach(function (p) { (by[p.surface] = by[p.surface] || []).push(p); });
     var sections = S.surfaces.filter(function (s) { return by[s.id]; }).map(function (s) {
-      return '<section><h2>' + esc(s.label) + ' <small>' + by[s.id].length + '</small></h2>' + by[s.id].map(card).join('') + '</section>';
+      return '<section><h2><span>' + esc(s.label) + '</span><small>' + by[s.id].length + '</small></h2>' + by[s.id].map(card).join('') + '</section>';
     }).join('');
     root.innerHTML =
       (sections || '<section><p class="none" data-none>You have no prompts of your own yet. You make one from the <b>prompt</b> menu beside the button that copies a prompt, on any page that hands one out, and it is listed here.</p></section>') +
