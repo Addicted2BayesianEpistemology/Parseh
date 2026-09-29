@@ -98,9 +98,12 @@ async function openPanel(pg, layout = 'browser') {
   await pg.waitForSelector('#mkbox:not([hidden])');
 }
 // a view in the widths and themes the work is looked at in: 1280 and 390 px, light and dark.
-// In each of them the page must not scroll sideways, and the making panel, where it is open,
-// must lie inside the window: a phone's screen is the one nobody can resize.  The screenshots
-// are taken only when SHOTS says where to put them.
+// In each of them nothing this work draws may lie past the window's edge -- the making button,
+// the panel, the words under the last batch, the locked chunk sheet with its note and its ask --
+// and the library and the add page, which are wholly this work's, must not scroll sideways
+// either: a phone's screen is the one nobody can resize.  A reader's own layout is not what this
+// suite is about, so there only what the making adds is measured.  The screenshots are taken
+// only when SHOTS says where to put them.
 async function views(pg, name, {full = false} = {}) {
   // a tab that is not in front is not drawn, and a screenshot of it waits for a frame that never comes
   await pg.bringToFront();
@@ -111,21 +114,27 @@ async function views(pg, name, {full = false} = {}) {
       await pg.evaluate(t => Parseh.theme.set(t), theme);
       await sleep(350);
       const fit = await pg.evaluate(() => {
-        const de = document.documentElement, out = {sw: de.scrollWidth, cw: de.clientWidth, past: []};
-        if (out.sw > out.cw + 1)
+        const de = document.documentElement, cw = de.clientWidth, past = [];
+        const whole = !/\/reader\//.test(location.pathname);
+        for (const sel of ['.mk-btn', '#mkbox', '#mktocome', '#chbox', '#chbox .mk-chnote', '#chbox .mk-ask'])
+          for (const e of document.querySelectorAll(sel)) {
+            const r = e.getBoundingClientRect(), st = getComputedStyle(e);
+            if (!r.width || st.visibility === 'hidden' || st.display === 'none') continue;
+            if (r.right > cw + 1 || r.left < -1) past.push(sel + ' ' + Math.round(r.left) + '..' + Math.round(r.right));
+          }
+        if (whole && de.scrollWidth > cw + 1) {
+          past.push('the page is ' + de.scrollWidth + ' wide');
           for (const e of document.querySelectorAll('body *')) {
             const r = e.getBoundingClientRect(), st = getComputedStyle(e);
-            if (r.width && r.right > out.cw + 1 && st.position !== 'fixed' && st.visibility !== 'hidden' && st.display !== 'none')
-              out.past.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + Math.round(r.right));
-            if (out.past.length > 4) break;
+            if (r.width && r.right > cw + 1 && st.position !== 'fixed' && st.visibility !== 'hidden' && st.display !== 'none')
+              past.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ' to ' + Math.round(r.right));
+            if (past.length > 5) break;
           }
-        const box = document.querySelector('#mkbox:not([hidden])');
-        out.panel = box ? Math.round(box.getBoundingClientRect().right) : null;
-        return out;
+        }
+        return {cw, past};
       });
-      assert(fit.sw <= fit.cw + 1 && (fit.panel === null || fit.panel <= fit.cw + 1),
-             `${name} at ${w} px, ${theme}: the page does not scroll sideways ` +
-             `(${fit.sw} wide in ${fit.cw}${fit.past.length ? ', past the edge: ' + fit.past.join(' ') : ''}${fit.panel === null ? '' : ', panel to ' + fit.panel})`);
+      assert(!fit.past.length, `${name} at ${w} px, ${theme}: nothing lies past the window's edge (${fit.cw} wide` +
+             `${fit.past.length ? '; past it: ' + fit.past.join(', ') : ''})`);
       if (!SHOTS) continue;
       try {
         await pg.screenshot({path: `${SHOTS}/${name}-${w}-${theme}.png`, fullPage: full, timeout: 20000});
