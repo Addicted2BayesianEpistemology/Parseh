@@ -24,7 +24,9 @@
 
    record(opts):
      player      a YT.Player: getDuration getCurrentTime seekTo playVideo pauseVideo
-                 (and get/setPlaybackRate, isMuted/getVolume/mute/unMute/setVolume)
+                 (and get/setPlaybackRate, isMuted/getVolume/mute/unMute/setVolume,
+                 and getPlayerState, whose 0 -- YouTube's "ended" -- is how the end
+                 of a video is told from a video that has stopped)
      wave        true (default): the SHAPE, 20 numbers a second (consumer 1, below)
      pcm         false (default) | true | {chunkSeconds: 5}: the SOUND, 16 kHz mono
                  16-bit, in chunks in order (consumer 2, below)
@@ -51,10 +53,11 @@
      onMark(frame, videoSeconds)     where the video was, at sample `frame` of the
                                      sound -- see MARKS below
      onEnd(reason)                   once, when everything is cleaned up: 'ended'
-                                     (the video reached its end), 'stalled' (its
-                                     clock stopped for ten seconds), 'share-ended'
-                                     (the person stopped sharing), 'cancelled',
-                                     'ad', 'error'
+                                     (the video reached its end: its clock did, or
+                                     its player said "ended"), 'stalled' (its clock
+                                     stopped for ten seconds, and not at its end),
+                                     'share-ended' (the person stopped sharing),
+                                     'cancelled', 'ad', 'error'
    The promise resolves for ended, stalled and cancelled with {reason, rate,
    peaks (with wave), samples (with pcm), reached, duration}, and rejects with an
    Error whose message says what to do for the rest (its .reason is the reason).
@@ -98,6 +101,15 @@
      . a share with no sound fails BEFORE the video plays, in a sentence
      . nothing is ever connected to the speakers, and the microphone is never asked
      . the 'ended' listener on the share is taken off again at the end
+     . a video that has played to its end is 'ended', never 'stalled', whatever
+       length its player gave: YouTube's is the true length rounded UP to a whole
+       second (596.501 s is 597) and its clock stops where the video does, up to a
+       second short of it (measured, 2026-09-29: 7 of 13 videos stopped more than
+       0.3 s short, and every one said "ended" as its clock stopped).  So a video
+       that has played to within END_NEAR of its length is over when its player
+       says "ended" -- or, of a player that cannot say, when its clock stands still
+       for ten seconds.  A player that says it is paused or loading, or a clock
+       that stops far from the end, is still a stall, and says so
      . cancel() -- and every other end -- stops playback and puts the player back
        as it was, closes both contexts, stops the clone, aborts what onChunk
        started, and leaves no timer and no state: a second record() works
@@ -113,6 +125,7 @@
   var TICK_MS = 25;                // the one clock loop
   var STALL_TICKS = 400;           // a clock unmoved for this many ticks (10 s) has stalled
   var END_MARGIN = 0.3;            // seconds from the end at which a video has ended
+  var END_NEAR = 5;                // seconds from the length within which "ended" from the player (or a stopped clock, if it cannot say) is the end
   var END_TAIL_MS = 500;           // the sound goes on this long after the clock says the end
   var PCM_RATE = 16000;            // what a transcript is made from
   var BLOCK = 4000;                // samples the worklet posts at a time: a quarter second
@@ -542,6 +555,13 @@
     };
 
     // ---- the one clock loop --------------------------------------------------
+    // what the player says it is doing (YouTube's 0 is "ended"); null when it cannot say
+    function playerState() {
+      try {
+        var s = player.getPlayerState ? player.getPlayerState() : null;
+        return typeof s === 'number' && isFinite(s) ? s : null;
+      } catch (e) { return null; }
+    }
     function tick() {
       var v = 0, j, t = 0;
       if (an) {
@@ -577,8 +597,19 @@
       }
       // 2. the sound: where the video is, at the sample the sound has reached
       if (pcmSide && opts.onMark) markTick(t);
-      if (t >= dur - END_MARGIN || stalled > STALL_TICKS) {
-        var reason = t >= dur - END_MARGIN ? 'ended' : 'stalled';
+      // THE END.  The clock reaching the length is one way, and not the usual one: the length a player
+      // gives is the video's rounded UP to a whole second (YouTube's is), the clock stops where the
+      // video does, up to a second short, and `t >= dur - END_MARGIN` never came -- the recording sat
+      // ten seconds and called a video that had ended "stalled".  So a video that has played to
+      // within END_NEAR of its length is over when its player says "ended", or, of a player that
+      // cannot say, when its clock has stood still for ten seconds.  A player that says it is
+      // paused or loading, and a clock that stops anywhere else, is a stall: no silent loss of the
+      // last seconds.  (`reached >= 1`: an "ended" left over from an earlier play is not this one's.)
+      var near = reached >= 1 && reached >= dur - END_NEAR;
+      var state = near ? playerState() : null;
+      var ended = t >= dur - END_MARGIN || (near && (state === 0 || (state === null && stalled > STALL_TICKS)));
+      if (ended || stalled > STALL_TICKS) {
+        var reason = ended ? 'ended' : 'stalled';
         if (pcm && reason === 'ended') {
           // the sound is still on its way: the last of it is worth a moment
           clearInterval(timer);

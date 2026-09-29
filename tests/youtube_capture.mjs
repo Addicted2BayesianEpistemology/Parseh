@@ -71,7 +71,9 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     with marks that say where the video was), a stop to buffer and a late
 //     start, no sound in the share, a share of the screen, a browser that
 //     cannot, an ad, a cancel in the middle, an hour through the chunk
-//     pipeline, the picture of the share dropped
+//     pipeline, the picture of the share dropped; a video that ends short of
+//     the length its player gave (YouTube's is rounded up) ends the recording
+//     when its player says so, and a stop anywhere else is still a stall
 //  n) the add page's speech to text for a YouTube video, on the fake YouTube
 //     and a real tab capture, against the real transcription job (its worker a
 //     stand-in for faster-whisper, lib/getstt.py a file: tests/addstt_fakes.py):
@@ -80,8 +82,9 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     recording to its end and the words in the transcript box, the shape of
 //     the sound held and put beside the video when it is added; no sound in the
 //     share, a share refused, Cancel in the middle (playback, tracks, upload,
-//     the temporary sound, the box), a second start refused, and the same in a
-//     right-to-left language on a phone's width
+//     the temporary sound, the box), a second start refused, a video whose
+//     player rounds its length up (it was cancelled as stopped), and the same
+//     in a right-to-left language on a phone's width
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
@@ -134,6 +137,8 @@ await ff('-f', 'lavfi', '-i', "aevalsrc='if(lt(mod(t\\,1)\\,0.5)\\,0.5*sin(2*PI*
          '-ac', '1', '-c:a', 'pcm_s16le', FAKE + '/tones.wav');
 // and its first 12 s, for the checks that only need a video to end
 await ff('-i', FAKE + '/tones.wav', '-t', '12', '-c:a', 'pcm_s16le', FAKE + '/short.wav');
+// and its first 3 s, for a video shorter than the last seconds the recorder watches for an end
+await ff('-i', FAKE + '/tones.wav', '-t', '3', '-c:a', 'pcm_s16le', FAKE + '/tiny.wav');
 // A clip's tones, measured: decoded by ffmpeg, the loudness (RMS) of every
 // 5 ms, a tone where it passes 0.1; each run's frequency from the zero
 // crossings of its middle (its edges hold the codec's noise of the silence
@@ -195,13 +200,20 @@ async function clipIsExact(path, s, e, what) {
 // ?stall=1: the first play stops to load for 400 ms, 1.5 s in;
 // ?late=1: every play says BUFFERING for its first 0.18 s of playing, and
 // PLAYING only after, as a real YouTube frame was seen to (driven: PLAYING
-// first at 0.176 s of a video played from 0).
+// first at 0.176 s of a video played from 0);
+// ?over=0.6: the length it gives is that many seconds more than the sound it
+// plays, as a real YouTube frame's was (driven, 13 videos: the length it gave
+// at the start was the video's own rounded UP to a whole second, 596.501 s as
+// 597, while the clock stopped where the sound did and the state said ENDED);
+// ?ghost=0.5: every play says ENDED for its first 0.5 s of playing, as a player
+// might that has not yet let go of the play before (a real one was not seen to).
 const CHILD_HTML = `<!doctype html><meta charset="utf-8"><title>not YouTube</title>
 <body style="margin:0;background:#1d2733;color:#cde;font:13px sans-serif;display:grid;place-items:center">
 <div>a frame of another origin <b id="at">0.00</b></div><audio id="a" preload="auto"></audio>
 <script>
 const a = document.getElementById('a'), q = new URLSearchParams(location.search);
 const deaf = q.get('deaf') === '1', late = q.get('late') === '1';
+const over = +q.get('over') || 0, ghost = +q.get('ghost') || 0;
 let stall = q.get('stall') === '1', stallTimer = 0, started = false, waiting = false, lateFrom = null;
 a.src = q.get('src') || 'tones.wav';
 if (deaf) a.muted = true;
@@ -210,11 +222,12 @@ a.addEventListener('playing', () => { waiting = false; });
 function state() {
   if (lateFrom != null && !a.paused && a.currentTime - lateFrom < 0.18) return 3;
   lateFrom = null;
+  if (ghost && started && !a.paused && a.currentTime < ghost) return 0;
   return a.ended ? 0 : !started ? 5 : (waiting && !a.paused) ? 3 : a.paused ? 2 : 1;
 }
 function post() {
   parent.postMessage(JSON.stringify({event: 'infoDelivery', info: {currentTime: a.currentTime, playerState: state(),
-    duration: a.duration || 0, muted: deaf ? false : a.muted, volume: Math.round(a.volume * 100), playbackRate: a.playbackRate}}), '*');
+    duration: a.duration ? a.duration + over : 0, muted: deaf ? false : a.muted, volume: Math.round(a.volume * 100), playbackRate: a.playbackRate}}), '*');
 }
 // its picture changes as it plays, as a video's does (a share of the tab
 // sends a picture only when something in it changes)
@@ -291,7 +304,7 @@ const TYPES = {html: 'text/html; charset=utf-8', wav: 'audio/wav'};
 async function serveFake(req) {
   const u = new URL(req.url), name = u.pathname.replace(/^\/+/, '');
   if (name === 'child.html') return new Response(CHILD_HTML, {headers: {'content-type': TYPES.html}});
-  if (name !== 'tones.wav' && name !== 'short.wav') return new Response('404', {status: 404});
+  if (!['tones.wav', 'short.wav', 'tiny.wav'].includes(name)) return new Response('404', {status: 404});
   const data = await Deno.readFile(FAKE + '/' + name);
   const h = new Headers({'content-type': TYPES.wav, 'accept-ranges': 'bytes', 'cache-control': 'no-store'});
   const m = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
@@ -1462,14 +1475,14 @@ const WAKE = () => {
     return {release: async () => { window.__wake.released++; }, addEventListener() {}};
   }}});
 };
-async function tcPage({query = 'src=tones.wav', init = null, embed = true} = {}) {
+async function tcPage({query = 'src=tones.wav', init = null, embed = true, minLength = 10} = {}) {
   const {context, page} = await newPage(browser, {query, init: init ? [WAKE, init] : [WAKE]});
   await page.goto(`http://127.0.0.1:${P3}/blank.html`);
   if (embed) {
     const bad = await page.evaluate(id => ParsehTabCapture.embed(document.getElementById('box'), id, {})
       .then(p => { window.__p = p; return ''; }, e => e.message), YT);
     if (bad) throw Error('FAIL: the embedded player did not come: ' + bad);
-    await until(() => page.evaluate(() => __p.getDuration() > 10), 'the embedded player knows its length');
+    await until(() => page.evaluate(n => __p.getDuration() > n, minLength), 'the embedded player knows its length');
   }
   return {context, page};
 }
@@ -1812,6 +1825,100 @@ const gotOf = page => page.evaluate(() => ({error: __got.error, ended: __got.end
   await context.close();
 }
 {
+  console.log('   m8c) a video that ends short of the length its player gave: the recording ends with the video, not ten seconds after');
+  // YouTube's length is the video's rounded UP to a whole second, and its clock stops where the video
+  // does: driven on 13 real videos, 7 stopped more than 0.3 s short of the length and every one said
+  // ENDED as its clock stopped.  The recording sat ten seconds and said the video "stopped moving".
+  // ?over=0.6 is that: the player says 12.6 s for the 12 s that play.
+  {
+    const {context, page} = await tcPage({query: 'src=short.wav&over=0.6'});
+    eq(await page.evaluate(() => Math.round(__p.getDuration() * 10) / 10), 12.6, 'the player gives 12.6 s for the 12 s that play');
+    await startRec(page);
+    await recOver(page, 'the recording ends with the video', 40000);
+    const g = await gotOf(page);
+    eq([g.error, g.result.reason, g.ended, g.started], [null, 'ended', ['ended'], 1],
+       'it ended because the video did, and not as a stall: once, and started once');
+    assert(g.result.reached > 11.9 && g.result.reached < 12.05 && near(g.result.duration, 12.6, 0.01),
+           `having reached ${g.result.reached.toFixed(3)} s, the video's 12 (the player's 12.6 is not a place the clock goes to)`);
+    const c = await collected(page);
+    assert(c.samples / 16000 > 12 && c.samples / 16000 < 14,
+           `and it did not wait: 12 s of video is ${(c.samples / 16000).toFixed(2)} s of sound (ten seconds of waiting would be 22)`);
+    const errs = toneErrors(c.tones, c.marks);
+    assert(errs.length >= 10 && errs.at(-1).k === 11 && errs.every(e => Math.abs(e.error) <= 0.15),
+           `the video's last whole tone (11 s, 850 Hz) is in the sound, where the marks put it: ${JSON.stringify(errs.slice(-2))}`);
+    assert(g.result.peaks.length >= 253 && Math.min(...g.result.peaks.slice(223, 228)) > 0.5, 'and in the shape');
+    eq(await page.evaluate(() => [ParsehTabCapture.busy(), __contexts.map(c => c.state).join(), __streams.map(s => s.getTracks().map(t => t.readyState).join()),
+                                  __clones.map(c => c.readyState).join()]),
+       [false, 'closed,closed', ['ended,ended'], 'ended'], 'and everything is let go: not busy, both contexts closed, the share and the clone stopped');
+    await context.close();
+  }
+  {
+    // the shape alone (the timings sheet's "draw the sound"), and how long after the player said "ended" the recording said so, measured in the page
+    const {context, page} = await tcPage({query: 'src=short.wav&over=0.6'});
+    await startRec(page, {pcm: false});
+    await page.evaluate(() => {
+      window.__lag = {ended: 0, done: 0};
+      const over = () => { if (!__lag.done) __lag.done = performance.now(); };
+      __rec.promise.then(over, over);
+      (function watch() {
+        if (!__lag.ended && __p.getPlayerState() === 0) __lag.ended = performance.now();
+        if (!__lag.ended || !__lag.done) requestAnimationFrame(watch);
+      })();
+    });
+    await recOver(page, 'the shape is drawn to the video\'s end', 40000);
+    await until(() => page.evaluate(() => __lag.ended > 0 && __lag.done > 0), 'the page has seen both the player and the recording say it', 5000);
+    const g = await gotOf(page);
+    const lag = await page.evaluate(() => __lag);
+    eq([g.error, g.result.reason, g.ended], [null, 'ended', ['ended']], 'the shape alone ends as the video does, once');
+    // the player's "ended" is seen on a frame, the recording's on its own 25 ms tick: either may be seen first, by a frame
+    assert(lag.done - lag.ended > -1000 && lag.done - lag.ended < 2000,
+           `within two seconds of the player saying it had ended (${Math.round(lag.done - lag.ended)} ms; a stall is ten seconds): ${JSON.stringify(lag)}`);
+    assert(g.result.reached > 11.9 && g.result.reached < 12.05 && Math.min(...g.result.peaks.slice(223, 228)) > 0.5,
+           `with the last tone in it (reached ${g.result.reached.toFixed(3)} s)`);
+    await context.close();
+  }
+  {
+    // a video that has not ended is not ended by this: paused three seconds from its end, it stalls, and says so
+    const {context, page} = await tcPage({query: 'src=short.wav&over=0.6'});
+    await startRec(page);
+    await until(async () => (await childState(page)).t > 9, 'the video plays to nine seconds', 30000);
+    await page.evaluate(() => __p.pauseVideo());
+    await recOver(page, 'the stopped clock ends the recording', 40000);
+    const g = await gotOf(page);
+    eq([g.error, g.result.reason, g.ended], [null, 'stalled', ['stalled']],
+       'a video paused three seconds from its end stalls: it was not played to its end, and its last seconds are not written off as an end');
+    assert(g.result.reached > 9 && g.result.reached < 10.5 && g.result.samples > 18 * 16000,
+           `having reached ${g.result.reached.toFixed(2)} s of the 12, with ${(g.result.samples / 16000).toFixed(1)} s of sound (the ten seconds of standing still)`);
+    await context.close();
+  }
+  {
+    // a player that cannot say what it is doing has only its clock: near the end, ten seconds still is the end
+    const {context, page} = await tcPage({query: 'src=short.wav&over=0.6'});
+    await page.evaluate(() => { __p.getPlayerState = undefined; });
+    await startRec(page);
+    await recOver(page, 'ten seconds of a stopped clock near the end end the recording', 60000);
+    const g = await gotOf(page);
+    eq([g.error, g.result.reason, g.ended], [null, 'ended', ['ended']],
+       'a player with no state: a clock that stood still for ten seconds within five of the length is the end of the video');
+    assert(g.result.reached > 11.9 && g.result.reached < 12.05 && g.result.samples / 16000 > 21.5 && g.result.samples / 16000 < 27,
+           `having reached ${g.result.reached.toFixed(3)} s, with ${(g.result.samples / 16000).toFixed(1)} s of sound (the ten seconds of standing still, and the tail)`);
+    await context.close();
+  }
+  {
+    // the "ended" a player still says as a play begins, of the play before, is not this play's end: nothing is
+    // done with the word until the video has played for a second.  (A real YouTube was driven and did not say
+    // it, so this is a player as it might be, not as seen.)
+    const {context, page} = await tcPage({query: 'src=tiny.wav&over=0.6&ghost=0.5', minLength: 1});
+    await startRec(page);
+    await recOver(page, 'the short video is recorded', 30000);
+    const g = await gotOf(page);
+    eq([g.error, g.result.reason, g.ended], [null, 'ended', ['ended']], 'the video ends as it does');
+    assert(g.result.reached > 2.9 && g.result.reached < 3.05 && g.result.samples / 16000 > 3 && g.result.samples / 16000 < 5,
+           `at its own end, not at once: reached ${g.result.reached.toFixed(3)} s of the 3, with ${(g.result.samples / 16000).toFixed(2)} s of sound`);
+    await context.close();
+  }
+}
+{
   console.log('   m9) an hour of sound through the pipeline: nothing piles up');
   const {context, page} = await tcPage({embed: false});
   const r = await page.evaluate(async () => {
@@ -2016,8 +2123,8 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
   const fakeLog = () => Deno.readTextFile(STTF + '/fake.log').then(t => t.split('\n').filter(Boolean).map(l => JSON.parse(l)), () => []);
   const status = (page, job) => page.request.post(`${BASE}/youtube/api/transcribe/status`, {data: {job}}).then(r => r.json());
   // the add page on a YouTube video, with a transcript in the box or not
-  async function addPage({lang = 'it', width = 1280, init = null, box = '', id = NID} = {}) {
-    const {context, page} = await newPage(browser, {width, query: 'src=short.wav', init});
+  async function addPage({lang = 'it', width = 1280, init = null, box = '', id = NID, query = 'src=short.wav'} = {}) {
+    const {context, page} = await newPage(browser, {width, query, init});
     page.calls = [];
     page.hosts = [];
     page.dialogs = [];
@@ -2140,6 +2247,32 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     eq(Object.keys(beside), ['rate', 'peaks'], 'in the shape it has always had');
     eq(await names(HOLD, /\.json$/), [], 'and the hold is spent');
     await context.close();
+  }
+
+  {
+    console.log('   n1b) a video whose length its player rounds up, as YouTube\'s does: the recording ends with the video and the words come');
+    // it ended as "The video stopped moving for ten seconds, so the recording was stopped and nothing was written"
+    // with the bar at its end: the clock stops where the video does, up to a second short of the length
+    const {context, page} = await addPage({query: 'src=short.wav&over=0.6'});
+    await toReady(page);
+    await page.click('#stt_rec');
+    await inPh(page, 'recording', 'recording');
+    await inPh(page, 'idle', 'the recording ends and the words arrive', 40000);
+    const note = await text(page, '#stt_note');
+    assert(/The transcript is in the box: 3 captions/.test(note) && !/stopped moving/.test(note),
+           'the words are in the box, and the page did not say the video stopped moving: ' + note);
+    eq((await panelStarts(page)).map(r => r[1]), ['Buongiorno a tutti', 'oggi andiamo al mercato', 'compriamo la frutta'], 'one caption each');
+    const rec = (await fakeLog()).filter(r => r.kind === 'transcribe').pop();
+    assert(rec && rec.samples >= 12 * 16000 && rec.samples <= 15 * 16000,
+           `the sound the tab gave reached the worker: ${rec && (rec.samples / 16000).toFixed(2)} s for a video of 12 (it did not wait ten seconds for a video that had ended)`);
+    const c = await captured(page);
+    eq([c.frames, c.busy, c.contexts.every(x => x === 'closed'), c.tracks.every(t => t.every(x => x === 'ended'))], [0, false, true, true],
+       'the video is out of its frame, and the tab, both contexts and every track are let go');
+    eq(await names(TMPAUDIO), [], 'the temporary sound is deleted');
+    eq((await names(HOLD, /\.json$/)).length, 1, 'the shape of the sound is held for the video, which has not been added');
+    await context.close();
+    // let the held shape go, so the next section starts clean
+    for (const n of await names(HOLD, /\.json$/)) await Deno.remove(`${HOLD}/${n}`);
   }
 
   {
