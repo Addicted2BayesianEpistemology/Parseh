@@ -155,8 +155,9 @@ def start(book_dir, what="pdf", runner=None, chapters=()):
                "finished": None, "ok": None, "code": None}
         JOBS[key] = job
         view = _view(job)
-    threading.Thread(target=_run, args=(job, command(book_dir, what, chapters), runner),
-                     daemon=True).start()
+    # the chapters go to `command` only for the draft: the other ways are called as they always were
+    cmd = command(book_dir, what, chapters) if what == "draft" else command(book_dir, what)
+    threading.Thread(target=_run, args=(job, cmd, runner), daemon=True).start()
     return view, True
 
 
