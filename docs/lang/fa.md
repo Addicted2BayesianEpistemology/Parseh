@@ -97,23 +97,27 @@ No etymologies of headwords, one equivalent in the gloss language rather
 than a string of synonyms, and **an empty `voc` is the right answer** for a
 chunk needing nothing.
 
-In a **video** the line is plain text: verbs as
-`دیدن didan · pres. بین bin · past دید did · to see`, and a form of the verb
-in the chunk first, with the entry in brackets after it — `ببخشید bebaxšid
-excuse me (بخشیدن baxšidan · pres. بخش baxš · past بخشید baxšid · to
-forgive)`; compounds as `فکر کردن fekr kardan to think`; colloquial ↔
-written pairs spelled out (`میاد mi-yād = می‌آید mi-āyad`); loanwords flagged
-with the language they came **from**, which has nothing to do with the
-language the gloss is written in (`تکست tekst — Eng. "text"`, `مرسی mersi —
-Fr. "merci"`). Persian script inside `voc` is fine — the player isolates it.
-A video is spoken Tehrani, and the commonest verbs contract their present
-beyond recognition (گو → *mi-gam*, رو → *mi-ram*, شو → *mi-šam*, دان →
-*mi-dunam*): where the speaker says one and the chunk does not already show
-it, the entry takes the colloquial first person present as its extra, **in
-videos only** — `گفتن goftan · pres. گو gu · past گفت goft · to say (coll.
-می‌گم mi-gam)`. A book keeps to the written stems and never carries it.
+{{?video}}In a **video** the line is written exactly as in a book, with the macros
+below and entries parted by `; `; a line with no macro at all is plain text, and
+is also accepted. A form of the verb in the chunk that is none of its three is
+named after the entry, not inside it, with its sound and then what it is —
+`\vb{بخشیدن}{baxšidan}{بخش}{baxš}{بخشید}{baxšid}{to forgive}; here \pw{ببخشید}
+\textit{bebaxšid}, excuse me`. Colloquial ↔ written pairs are spelled out
+(`\dw{خونه}{xune} = \pw{خانه} \textit{xāne} house`, and after a `\vb`
+`; here \pw{میاد} \textit{mi-yād} = \pw{می‌آید} \textit{mi-āyad}`); loanwords are
+flagged with the language they came **from**, which has nothing to do with the
+language the gloss is written in (`\dw{تکست}{tekst} — Eng. "text"`,
+`\dw{مرسی}{mersi} — Fr. "merci"`). Persian script inside `voc` is fine — the
+player isolates it. A video is spoken Tehrani, and the commonest verbs contract
+their present beyond recognition (گو → *mi-gam*, رو → *mi-ram*, شو → *mi-šam*,
+دان → *mi-dunam*): where the speaker says one and the chunk does not already
+show it, the entry takes the colloquial first person present as its extra, **in
+videos only**, in the parenthesis after the meaning —
+`\vb{گفتن}{goftan}{گو}{gu}{گفت}{goft}{to say (coll. \pw{می‌گم} \textit{mi-gam})}`;
+a compound's light verb has no meaning, so there the parenthesis stands alone —
+`\vb{شدن}{šodan}{شو}{šav}{شد}{šod}{(coll. \pw{می‌شم} \textit{mi-šam})}\bw{معلوم}{ma'lum}{evident}`.
 
-In a **book** the line uses four macros and nothing else: `\dw{fa}{rom}
+{{/video}}{{?book}}In a **book** the line{{/book}}{{?video}}The line{{/video}} uses four macros and nothing else: `\dw{fa}{rom}
 gloss` · `\vb{inf}{rom}{pres}{rom}{past}{rom}{meaning}` ·
 `\bw{base}{rom}{meaning}` · `\pw{fa}` — plus `\textit`, `\emph`,
 `\nobreak`. **Every** verb gets a `\vb`, no exceptions: the infinitive, the
@@ -129,7 +133,8 @@ meaning**, items parted by `; `, and in Persian that is a closed list:
   `\vb{داشتن}{dāštan}{دار}{dār}{داشت}{dāšt}{to have (pres. without mi-)}`.
   No other verb carries it; بودن keeps `باش` as its stem and `هست` its own
   `\dw`, as above.
-- the colloquial present, in a video only (above).
+- the colloquial present, in a video only{{?video}} (above){{/video}}{{?book}}:
+  a book keeps to the written stems and never carries it{{/book}}.
 
 A verb with a **preverb** (برگشتن, درآوردن, فراگرفتن) is hyphenated after
 the preverb in all three romanisations, because *mi-*, *be-* and *na-* go in
@@ -160,11 +165,9 @@ for and nothing else:
 ```
 
 — the `\bw` run straight onto the `\vb`, with no `; ` between them, which is
-what makes the pair one entry in the line. In a **video**, where there is no
-macro to say which word belongs to which, it writes the compound whole and
-glossed whole, as this file's video section asks (`compounds as فکر کردن
-fekr kardan to think`), with the verb that does the conjugating after it:
-`لبخند زدن labxand zadan to smile (زدن zadan · pres. زن zan · past زد zad)`.
+what makes the pair one entry in the line.{{?video}} In a **video** it writes
+the same pair, with the colloquial present in the light verb's parenthesis where
+there is one (above).{{/video}}
 The plain `\vb` button is untouched beside it — the light verb alone, still
 drawn unfinished — and the row goes on naming the `\bw` under *to fill in*,
 so you see what the entry is about to become before pressing. Where the
@@ -175,9 +178,9 @@ is yours. It hyphenates a preverb only where the dictionary
 marks one (برگشتن, برداشتن, درآوردن, فراگرفتن and a few more): برخاستن comes
 as *barxāstan*, and the hyphen is yours to put in. A preverb verb the text
 writes apart (`بر می‌گردم`, `در آورده`) is offered whole, as برگشتن and
-درآوردن. In a video it adds the colloquial present wherever the dictionary's
+درآوردن.{{?video}} In a video it adds the colloquial present wherever the dictionary's
 colloquial Tehrani table spells it differently (18 verbs, the four above
-among them); take it out where the speaker does not say it.
+among them); take it out where the speaker does not say it.{{/video}}
 
 The meaning is what the gloss language is for; the labels around it are
 not. *pres.* and *past* are printed by the edition itself — the same two
