@@ -67,12 +67,13 @@ A few lines look different on purpose:
   copies the phrase too, which is the way on a touch screen.
 - **Alt-click (or Ctrl-click, or ⌘-click) a word** to make a card of that
   very word, with the phrase's meaning, the caption as its context and the
-  vocabulary as its notes — as plain text, never with its macros. While one
-  of those keys is held, the word under the pointer lights up. **+ card** in
-  a cloud does the same for the whole phrase. The card can go to an Anki deck, to one of your exercise decks,
+  vocabulary as its notes. While one of those keys is held, the word under
+  the pointer lights up. **+ card** in a cloud does the same for the whole
+  phrase. The card can go to an Anki deck, to one of your exercise decks,
   or onto the clipboard as studio markdown, and it can carry the word's own
   sound and a frame of the video — the section *Cards and Anki* explains
-  the sheet.
+  the sheet. The vocabulary goes into the notes as plain text, never with
+  its macros.
 
 The cloud also has **✎ edit** and a row of four colours, which write into
 the video: see [Editing a phrase](editing-a-phrase.md).
