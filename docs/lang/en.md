@@ -307,20 +307,22 @@ is built from commoner words than the headword.
   *had* or *would*, `'s` for *is* or *has* or the possessive) — the last of
   these the first time it appears and not again.
 
-In a **video** the line is plain text: `go goʊ · past went wɛnt · p.p. gone
-gɔn · to move from here to there`, and a form of the verb in the chunk first
-with that entry in brackets after it (`went wɛnt moved (go goʊ · past went
-wɛnt · …)`); a noun as `child tʃaɪld a young person, pl. children`; entries
-separated by `;`. In a **book** the line uses four macros
-and nothing else: `\dw{fa}{sound} gloss` ·
+The line uses four macros and nothing else: `\dw{fa}{sound} gloss` ·
 `\vb{plain}{sound}{past}{sound}{p.p.}{sound}{meaning}` ·
 `\bw{base}{sound}{meaning}` · `\pw{fa}` — plus `\textit`, `\emph`,
-`\nobreak`. **Every** verb but a modal gets a `\vb`, no exceptions. `\pw`
-quotes a word of the text inside the meaning — it is what `\dw`, `\vb` and
-`\bw` set their headwords with — and how much it does depends on the gloss
-language: in a book glossed in another language it is what tells the English
-word from the prose around it, while in a monolingual one the two are one
-language in one face and the mark says only "this is a word of the text".
+`\nobreak` — and its entries are parted by `; `. **Every** verb but a modal
+gets a `\vb`, no exceptions.{{?video}} A video's line is written exactly as a
+book's; a line with no macro at all is plain text, and is also accepted. What
+a video adds is the form its chunk has, where it is none of the three the
+`\vb` prints, nor one its parenthesis names: it is named after the entry,
+outside it, with its sound,
+`\vb{go}{goʊ}{went}{wɛnt}{gone}{gɔn}{to move from here to there}; here \pw{going} \textit{ˈgoʊɪŋ}`.{{/video}}
+`\pw` quotes a word of the text inside the meaning — it is what `\dw`, `\vb`
+and `\bw` set their headwords with — and how much it does depends on the
+gloss language: in an edition glossed in another language it is what tells
+the English word from the prose around it, while in a monolingual one the
+two are one language in one face and the mark says only "this is a word of
+the text".
 
 The gloss editor's sources sidebar, in the reader and in the player, now
 proposes the `\vb` from the dictionary for a verb it recognises — the three
