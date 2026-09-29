@@ -43,7 +43,8 @@ templates, the language files, a person's instructions.
 - **A resolved prompt never carries `{{`**: the kit refuses one that does, and a
   block whose flag nobody gave, in words (`PromptError`). It is a bug.
 - **`verbatim`** values and the **data** are never looked into: a caption or a
-  title may say `{{`.
+  title may say `{{`. Parseh's own text put in by hand (`lead`, `extras`) is
+  looked into with `promptkit.check(text, surface)`, which is `assemble`'s test.
 - Flags of every text of a surface: `book`, `video`, `studio`, `region`, `new`
   (`surface_flags`), beside those the assembler gives (`keep`, `regloss`, …).
 

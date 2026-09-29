@@ -808,6 +808,32 @@ class LanguageCut(unittest.TestCase):
                 self.assertNotIn("Chunking", K.language_text("video-new", "fa"))
                 self.assertIn("Only a book.", K.language_text("book-new", "fa"))
 
+    def test_an_oddly_written_file_is_cut_by_the_same_rules(self):
+        # no title of its own, a `## ` inside a code fence, one section twice, the studio's note in a
+        # section the studio does not take, a text field of one paragraph: none of it breaks the cut
+        odd = ("Opening words.\n\n## Reading\n\n```\n## not a heading\n\nnor this\n```\n\nAfter the fence.\n\n"
+               "## The text field\n\n`fa` reproduces the source **verbatim**.\n\n## Reading\n\nAgain.\n\n"
+               "## Vocabulary\n\nA rule.\n\nRuns are marked as `[x]{tl}` in the studio.\n")
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, "fa.md"), "w", encoding="utf-8") as f:
+                f.write(odd)
+            with mock.patch.object(K, "LANG_DOCS", td):
+                studio = K.language_text("studio-doc", "fa")
+                self.assertEqual(studio.count("## Reading"), 2)
+                self.assertIn("## not a heading\n\nnor this", studio)
+                self.assertNotIn("Opening words.", studio)
+                self.assertNotIn("A rule.", studio)
+                self.assertIn("Runs are marked as `[x]{tl}` in the studio.", studio)
+                self.assertTrue(studio.startswith("## Reading"), "no title of its own to keep")
+                self.assertLess(studio.index("The text field"), studio.rindex("## Reading"), "the note stands where the file's text field does")
+                region = K.language_text("video-region", "fa")
+                self.assertIn("Opening words.", region)
+                self.assertIn("### The text field\n\n`fa` reproduces the source **verbatim**.", region)
+                self.assertIn("A rule.", region)
+                self.assertNotIn("{tl}", region)
+                self.assertIn("## not a heading", region, "a heading inside a fence is not one, and is not moved down")
+                self.assertEqual(K.language_text("book-new", "fa"), odd.strip())
+
     def test_a_language_with_no_file_says_what_each_prompt_has_always_said(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.object(K, "LANG_DOCS", td):
             self.assertEqual(K.language_text("studio-doc", "it"), "")
