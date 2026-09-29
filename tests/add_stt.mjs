@@ -118,6 +118,9 @@ prefs.STORE = str(tmp / 'config' / 'prefs.json')
 network.STORE = str(tmp / 'config' / 'network.json')
 import latexthemes, latexdraw, texpackages
 latexthemes.STORE = str(tmp / 'config' / 'latex.json')
+# and the prompts a person wrote (lib/prompts.py)
+import prompts
+prompts.STORE = str(tmp / 'config' / 'prompts.json')
 latexdraw.DRAWN = str(tmp / 'latex-drawn')
 texpackages.TREE = str(tmp / 'texmf')
 offline.DIGESTS = str(tmp / 'config' / 'digests.json')

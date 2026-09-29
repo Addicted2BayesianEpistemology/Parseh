@@ -5884,6 +5884,9 @@ prefs.STORE = os.path.join(config, "prefs.json")
 network.STORE = os.path.join(config, "network.json")
 import latexthemes, latexdraw, texpackages
 latexthemes.STORE = os.path.join(config, "latex.json")
+# and the prompts a person wrote (lib/prompts.py)
+import prompts
+prompts.STORE = os.path.join(config, "prompts.json")
 latexdraw.DRAWN = os.path.join(os.path.dirname(config), "latex-drawn")
 texpackages.TREE = os.path.join(os.path.dirname(config), "texmf")
 sys.path.insert(0, os.path.join(os.getcwd(), "tests"))

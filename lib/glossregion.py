@@ -87,6 +87,7 @@ for _p in (HERE, YT_LIB):
 import books                                                    # noqa: E402
 import languages                                                # noqa: E402
 import promptkit                                                # noqa: E402
+import prompts                                                  # noqa: E402
 import reading                                                  # noqa: E402
 import texwrite                                                 # noqa: E402
 import wordline                                                 # noqa: E402
@@ -666,8 +667,10 @@ def _about(ctx, counts):
     return "\n".join(out)
 
 
-def assembled(ctx, units, mode):
-    """The prompt for these units, in the parts the kit made it of.
+def assembled(ctx, units, mode, instructions=None, custom=None):
+    """The prompt for these units, in the parts the kit made it of.  The
+    instructions are a person's own where they are given (lib/prompts.py),
+    and `custom` names them in the version line.
     -> (promptkit.Assembled, counts)"""
     L, G = ctx["L"], ctx["G"]
     book = ctx["surface"] == "book"
@@ -697,24 +700,37 @@ def assembled(ctx, units, mode):
     # a title that says `{{DATA}}` is a title, and is put in as one
     return promptkit.assemble(
         "%s-region" % ctx["surface"], L, G, mode=mode, flags=flags, values=subs,
-        verbatim={"ABOUT": _about(ctx, counts), "DATA": data}), counts
+        verbatim={"ABOUT": _about(ctx, counts), "DATA": data},
+        instructions=instructions, custom=custom), counts
 
 
-def render(ctx, units, mode):
+def render(ctx, units, mode, instructions=None, custom=None):
     """The prompt for these units.  -> (text, counts)"""
-    a, counts = assembled(ctx, units, mode)
+    a, counts = assembled(ctx, units, mode, instructions, custom)
     return a.text, counts
 
 
-def _prompt(ctx, units, mode):
+def _prompt(ctx, units, mode, prompt=None):
+    """`prompt` is the id of one of the person's own prompts, or nothing for
+    Parseh's: the instructions of it in place of Parseh's, the answer contract
+    and the data Parseh's still."""
     if not units:
         raise Refused("nothing in this region can be sent: %s" % ctx["region"])
     try:
-        text, counts = render(ctx, units, mode)
+        chosen = prompts.resolve("%s-region" % ctx["surface"], prompt, ctx["L"])
+    except prompts.NotFound as e:
+        raise NotFound(str(e))
+    except prompts.PromptsError as e:
+        raise Refused(str(e))
+    try:
+        text, counts = render(ctx, units, mode, chosen and chosen.instructions,
+                              chosen and chosen.name)
     except promptkit.PromptError as e:
         raise Refused("the prompt could not be made: %s" % e)
     r = dict(counts, prompt=text, region=ctx["region"], folded=ctx["folded"],
              **ctx["echo"])
+    if chosen:
+        r["custom"] = {"id": chosen.id, "name": chosen.name, "kind": chosen.kind}
     notes = []
     if not counts["fill"]:
         notes.append("nothing here is left to gloss: every chunk is glossed already"
@@ -728,15 +744,15 @@ def _prompt(ctx, units, mode):
     return r
 
 
-def book_prompt(book, first, last, regloss=False, perfield=False):
+def book_prompt(book, first, last, regloss=False, perfield=False, prompt=None):
     """The prompt for a book region.  -> {prompt, region, units, chunks, fill,
-    glossed, folded, notes}"""
+    glossed, folded, notes, custom?}"""
     mode = _mode(regloss, perfield)
     ctx, units, _folded, _known = _book_units(book, first, last)
-    return _prompt(ctx, units, mode)
+    return _prompt(ctx, units, mode, prompt)
 
 
-def video_prompt(vdir, frm, to, regloss=False, perfield=False):
+def video_prompt(vdir, frm, to, regloss=False, perfield=False, prompt=None):
     """The prompt for a video region.  -> as book_prompt, folded always 0"""
     mode = _mode(regloss, perfield)
     ctx, units, _segs = _video_units(vdir, frm, to)
@@ -744,7 +760,7 @@ def video_prompt(vdir, frm, to, regloss=False, perfield=False):
         raise Refused("nothing in this region can be glossed: it holds no chunk of "
                       "%s text, only plain captions and the video's own framing"
                       % ctx["L"].name)
-    return _prompt(ctx, units, mode)
+    return _prompt(ctx, units, mode, prompt)
 
 
 # --- the answer ---------------------------------------------------------

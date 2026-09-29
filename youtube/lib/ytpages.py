@@ -56,6 +56,7 @@ import bundle       # noqa: E402  which file of a video's own is its film
 import chunker      # noqa: E402  the two ways a draft may be cut
 import languages    # noqa: E402  the registry: folders, names, scripts, chips
 import promptkit    # noqa: E402  the three parts every prompt is made of
+import prompts      # noqa: E402  the prompts a person wrote, chosen by their id
 import words        # noqa: E402  a word line proposed where an answer left one out
 import wordline     # noqa: E402  and proved against the checker before it is given
 import make_index   # noqa: E402  the bundle panel both index pages share
@@ -1213,13 +1214,16 @@ def lang_conventions(L):
     return promptkit.language_text("video-new", L)
 
 
-def assembled_chat(glossary=None, lang=None, gloss=None, data=None):
+def assembled_chat(glossary=None, lang=None, gloss=None, data=None, instructions=None,
+                   custom=None):
     """docs/chat-prompt.md with its placeholders filled: the language's
     name, the generic conventions verbatim (the binding spec, one copy of
     it), the language's own block, the example, a word list -- and the
     language the meanings are to be WRITTEN in, which the template names
     where it asks for them.  In its three parts (lib/promptkit.py), the
-    `data` the last one.  -> promptkit.Assembled"""
+    `data` the last one, and the `instructions` a person's own where they
+    are given (lib/prompts.py), named `custom` in the version line.
+    -> promptkit.Assembled"""
     L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
     G = gloss if isinstance(gloss, languages.Gloss) \
         else languages.gloss_or_default(gloss)
@@ -1292,7 +1296,7 @@ def assembled_chat(glossary=None, lang=None, gloss=None, data=None):
                 "WORDS_CHECK": words_check, "WORDS_RECEIVED": words_received,
                 "TR_RULE": tr_rule, "EXAMPLE_INTRO": ex_intro, "GLOSSARY": gl},
         verbatim={"EXAMPLE_IN": ex_in or "", "EXAMPLE_OUT": ex_out or ""},
-        includes={"CONVENTIONS": conv}, data=data)
+        includes={"CONVENTIONS": conv}, data=data, instructions=instructions, custom=custom)
 
 
 def chat_prompt(glossary=None, lang=None, gloss=None):
@@ -1300,11 +1304,13 @@ def chat_prompt(glossary=None, lang=None, gloss=None):
     return assembled_chat(glossary, lang, gloss).text
 
 
-def full_prompt(vid, meta, captions, glossary=None, lang=None, gloss=None):
-    return assembled_full(vid, meta, captions, glossary, lang, gloss).text
+def full_prompt(vid, meta, captions, glossary=None, lang=None, gloss=None, instructions=None,
+                custom=None):
+    return assembled_full(vid, meta, captions, glossary, lang, gloss, instructions, custom).text
 
 
-def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None):
+def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None, instructions=None,
+                   custom=None):
     """The whole prompt of a video from scratch: its captions and the facts
     about the video are the data, the last part.  -> promptkit.Assembled"""
     L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
@@ -1333,7 +1339,8 @@ def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None):
                                    fmt_time(captions[-1]["start"]) if captions else "?"))
     head += ["", "## The captions", "", "```", caption_lines(captions, L), "```", "",
              "Now answer with the JSON, and nothing else."]
-    return assembled_chat(glossary, L, G, data="\n".join(head))
+    return assembled_chat(glossary, L, G, data="\n".join(head), instructions=instructions,
+                          custom=custom)
 
 
 def _json_blocks(text):
@@ -1610,6 +1617,23 @@ def posted_gloss(value):
     return languages.gloss(CA.lang_code(value) or None)
 
 
+def _tidy_prompt(h, captions, L, asked):
+    """The tidy's prompt, answered: Parseh's own where `asked` is true, and made
+    from one of the person's where it is that prompt's id (lib/prompts.py)."""
+    try:
+        chosen = prompts.resolve("transcript-tidy", asked, L)
+        made = tidier.prompt(captions, L.code, chosen and chosen.instructions,
+                             chosen and chosen.name)
+    except prompts.PromptsError as e:
+        return h.send_json({"ok": False, "error": str(e)}, e.status)
+    except promptkit.PromptError as e:
+        return h.send_json({"ok": False, "error": "the prompt could not be made: %s" % e}, 400)
+    out = {"ok": True, "prompt": made, "lang": L.code}
+    if chosen:
+        out["custom"] = {"id": chosen.id, "name": chosen.name, "kind": chosen.kind}
+    return h.send_json(out)
+
+
 def api_transcript(h):
     """The transcript the add page is editing, read or written.
 
@@ -1633,7 +1657,11 @@ def api_transcript(h):
                              for whoever would rather have a model read the
                              transcript than an algorithm.  The answer comes
                              back into the box as an ordinary panel, by the
-                             first form above.
+                             first form above.  `prompt` is true for Parseh's
+                             own, or the id of one of the person's prompts
+                             (lib/prompts.py), whose text goes after Parseh's
+                             instructions or in place of them, as it says;
+                             the contract and the transcript stay Parseh's.
 
     Every answer carries `can_tidy` and, where it cannot, `why`.  The tidy
     button is there for every language the toolbox teaches and works once
@@ -1677,8 +1705,7 @@ def api_transcript(h):
                                     "error": "caption %d: chapter must be text" % i}, 400)
             clean.append({"start": start, "text": c["text"], "chapter": chapter})
         if data.get("prompt"):
-            return h.send_json({"ok": True, "prompt": tidier.prompt(clean, L.code),
-                                "lang": L.code})
+            return _tidy_prompt(h, clean, L, data["prompt"])
         if data.get("tidy"):
             clean, notes = tidier.tidy(clean, L.code)
         text = CA.transcript_text(clean)
@@ -1687,8 +1714,7 @@ def api_transcript(h):
             return h.send_json({"ok": False, "error": "transcript must be text"}, 400)
         got = parse_transcript_text(as_transcript(data["transcript"]), L)
         if data.get("prompt"):
-            return h.send_json({"ok": True, "prompt": tidier.prompt(got, L.code),
-                                "lang": L.code})
+            return _tidy_prompt(h, got, L, data["prompt"])
         if data.get("tidy"):
             got, notes = tidier.tidy(got, L.code)
         text = CA.transcript_text(got)
@@ -1748,10 +1774,22 @@ def api_prepare(h):
         return h.send_json({"ok": False, "error": "every caption is plain (not one "
                             "character of %s script) -- nothing to annotate; is the "
                             "language right?" % L.name}, 400)
+    # THE PERSON'S OWN PROMPT, by its id (lib/prompts.py): refused in words when
+    # it is gone, or is for another place or another language
+    try:
+        chosen = prompts.resolve("video-new", data.get("prompt"), L)
+    except prompts.PromptsError as e:
+        return h.send_json({"ok": False, "error": str(e)}, e.status)
     meta = {} if local else oembed(vid)
     exists = find_video(vid)[0] is not None
-    prompt = full_prompt(vid, meta, captions, data.get("glossary") or None, L, G)
+    try:
+        prompt = full_prompt(vid, meta, captions, data.get("glossary") or None, L, G,
+                             chosen and chosen.instructions, chosen and chosen.name)
+    except promptkit.PromptError as e:
+        return h.send_json({"ok": False, "error": "the prompt could not be made: %s" % e}, 400)
     return h.send_json({"ok": True, "id": vid, "lang": L.code, "folder": L.folder,
+                        "custom": chosen and {"id": chosen.id, "name": chosen.name,
+                                              "kind": chosen.kind},
                         "gloss": G.code, "gloss_name": G.name,
                         "url": "" if local else "https://www.youtube.com/watch?v=" + vid,
                         "local": local,

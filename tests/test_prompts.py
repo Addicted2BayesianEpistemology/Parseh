@@ -1030,7 +1030,10 @@ class StudioPromptRoutes(unittest.TestCase):
     edits and copies a text and knows no marks, so none is ever handed to it."""
 
     def test_none_of_them_hands_out_the_mark_of_a_part_and_a_custom_text_is_kept_whole(self):
-        with tempfile.TemporaryDirectory() as td, mock.patch.object(studio_server.store, "LIB", studio_server.Path(td)):
+        # the custom prompt lives in the person's own prompts since a0.4.2 (lib/prompts.py): its
+        # store is pointed at the temporary tree too, never at the computer's config/
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(studio_server.store, "LIB", studio_server.Path(td)), \
+                mock.patch.object(studio_server.prompts, "STORE", os.path.join(td, "config", "prompts.json")):
             h = Handler(query={"target": ["fa"]})
             studio_server.api_prompt_get(h)
             self.assertFalse(h.answer["custom"])

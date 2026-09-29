@@ -127,10 +127,31 @@ class Table(unittest.TestCase):
         for route, key in (("getspeech", "speech.get"), ("dropspeech", "speech.remove"),
                            ("stopspeech", "speech.stop")):
             self.assertEqual(settingspage.ROUTES["/lookup/api/" + route], (key,))
+        # YOUR OWN PROMPTS (brief §8.4, a0.4.2) are NOT risky: a prompt is text a person
+        # copies into a chatbot -- keeping, importing and deleting one decides nothing
+        # Parseh will run -- so both keys are open to any device that has been let in
+        for key in ("prompts.save", "prompts.delete"):
+            self.assertIsNone(S[key][0], key)
+        for route in ("state", "list", "get", "parseh", "export"):
+            self.assertEqual(settingspage.ROUTES["/settings/api/prompts/" + route], settingspage.READ)
+        for route, key in (("save", "prompts.save"), ("uptodate", "prompts.save"),
+                           ("import", "prompts.save"), ("delete", "prompts.delete")):
+            self.assertEqual(settingspage.ROUTES["/settings/api/prompts/" + route], (key,))
+
+    def test_your_prompts_is_a_door_of_its_own_open_to_any_device_let_in(self):
+        doors = {d[0]: d for d in settingspage.DOORS}
+        href, name, what, keys = doors["/settings/prompts/"]
+        self.assertEqual((name, keys), ("Your prompts", ("prompts.save", "prompts.delete")))
+        self.assertTrue(settingspage.open_to_all(keys))
+        self.assertIn("any device let in", settingspage.gate(keys))
+        self.assertIn('href="/settings/prompts/"', settingspage.settings_doors("/settings/"))
+        hub = settingspage.hub()
+        self.assertIn('<a class="door" href="/settings/prompts/">', hub)
+        self.assertIn("Your prompts", hub)
 
     def test_speech_to_text_is_a_door_of_its_own_and_the_only_one_that_lists_its_keys(self):
         doors = {d[0]: d for d in settingspage.DOORS}
-        self.assertEqual(len(settingspage.DOORS), 5)
+        self.assertEqual(len(settingspage.DOORS), len(doors), "a door has an address of its own")
         href, name, what, keys = doors["/settings/speech/"]
         self.assertEqual((name, keys), ("Speech to text", ("speech.get", "speech.remove", "speech.stop")))
         self.assertTrue(settingspage.open_to_all(keys))
@@ -142,7 +163,7 @@ class Table(unittest.TestCase):
         self.assertEqual(sorted(set(settingspage.SETTINGS) - set(listed)), [],
                          "every setting is on some door")
         row = settingspage.settings_doors("/settings/speech/")
-        self.assertEqual(row.count('<a class="sdoor'), 5)
+        self.assertEqual(row.count('<a class="sdoor'), len(settingspage.DOORS))
         self.assertIn('class="sdoor on" href="/settings/speech/" aria-current="page"', row)
 
     def test_the_route_finder_sees_every_speech_route(self):
@@ -323,6 +344,7 @@ class Served(unittest.TestCase):
         import getmt
         import getstt
         import decomposition
+        import prompts
         cls.serve = serve
         cls._td = tempfile.TemporaryDirectory()
         tmp = Path(cls._td.name)
@@ -330,6 +352,7 @@ class Served(unittest.TestCase):
         cls.patches = [
             patch.object(serve.Handler, "log_request", lambda *a, **k: None),
             patch.object(network, "STORE", str(tmp / "config" / "network.json")),
+            patch.object(prompts, "STORE", str(tmp / "config" / "prompts.json")),
             patch.object(lookup, "DICT_DIR", str(tmp / "dict")),
             patch.object(corpus, "CORPUS_DIR", str(tmp / "corpus")),
             patch.object(getmt, "MT_DIR", str(tmp / "mt")),
@@ -484,6 +507,43 @@ class Served(unittest.TestCase):
         finally:
             for p in reversed(ps):
                 p.stop()
+
+    def test_a_phone_may_keep_import_and_delete_its_own_prompts_and_nothing_riskier(self):
+        # brief §8.4: writing a prompt changes nothing Parseh will run, so a device let in
+        # over the Wi-Fi does all of it -- and the same origin is still refused what does
+        # (the update), which proves the phone is really being judged a phone
+        import prompts
+        body = {"surface": "video-region", "name": "British spellings",
+                "text": "Prefer British spellings in {{GLOSS_LANGUAGE}}."}
+        ps = self.as_phone()
+        for p in ps:
+            p.start()
+        try:
+            status, _, got = self.ask("POST", "/settings/api/prompts/save", body)
+            self.assertEqual((status, got.get("ok")), (200, True), got)
+            pid = got["prompt"]["id"]
+            status, _, got = self.ask("POST", "/settings/api/prompts/list",
+                                      {"surface": "video-region", "lang": "fa"})
+            self.assertEqual([p["name"] for p in got["prompts"]], ["British spellings"])
+            status, _, got = self.ask("POST", "/settings/api/prompts/save", dict(body, id=pid, name="UK"))
+            self.assertEqual((status, got["prompt"]["name"]), (200, "UK"))
+            status, _, raw = self.ask("GET", "/settings/api/prompts/export?id=" + pid)
+            self.assertEqual((status, raw["format"]), (200, prompts.EXPORT_FORMAT))
+            status, _, got = self.ask("POST", "/settings/api/prompts/import", {"data": json.dumps(raw)})
+            self.assertEqual((status, got["prompt"]["name"], got["renamed_from"]), (200, "UK (2)", "UK"))
+            status, _, got = self.ask("POST", "/settings/api/prompts/delete", {"id": pid})
+            self.assertEqual((status, got.get("ok")), (200, True), got)
+            status, _, page = self.ask("GET", "/settings/prompts/")
+            self.assertEqual(status, 200)
+            self.assertIn('id="pr-state"', page)
+            self.assertIn("any device let in", page)
+            self.assertNotIn("changed on the computer only", page.split("<main", 1)[1])
+            status, _, got = self.ask("POST", "/settings/api/update/apply", {})
+            self.assertEqual(status, 403, "an update is still the computer's alone")
+        finally:
+            for p in reversed(ps):
+                p.stop()
+        self.assertEqual([p["name"] for p in prompts.all_of()], ["UK (2)"])
 
     def test_the_pairing_code_is_on_the_computer_only(self):
         live = network.say_code(network.code()["code"])

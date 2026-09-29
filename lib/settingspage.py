@@ -2,15 +2,17 @@
 """The Settings section, and the page a device that has not been let in sees.
 
 Settings opens from the hub, says which Parseh this is (its version), and
-holds five pages: **Network** -- who may reach this Parseh, on which port,
+holds six pages: **Network** -- who may reach this Parseh, on which port,
 with which certificate (lib/network.py keeps the answers; TO-DO §1.1, §3.3,
 §3.4, and the owner's decisions of 2026-09-23) -- **Reading help**, the
 dictionaries, corpora, models and component packs this computer has fetched
 (lib/lookuppage.py draws it; TO-DO §11.10) -- and **Updating Parseh**, another
 version in place of this one (lib/updatepage.py draws it, lib/updater.py does
-it; TO-DO §13.16), **LaTeX drawings** (lib/latexpage.py) and **Speech to
+it; TO-DO §13.16), **LaTeX drawings** (lib/latexpage.py), **Speech to
 text**, the program and the two models that turn a video's sound into a
-transcript (lib/speechpage.py draws it, lib/getstt.py does it; TO-DO §7.23).
+transcript (lib/speechpage.py draws it, lib/getstt.py does it; TO-DO §7.23)
+and **Your prompts**, the ones a person wrote for a chatbot (lib/promptspage.py
+draws it, lib/prompts.py keeps them).
 The section was a section rather than a page from the start because the next
 settings to come out of the pages were always going to live beside the first.
 
@@ -141,6 +143,16 @@ SETTINGS = {
                          "pins can be fetched, each checked against its hash."),
     "speech.remove": (None, "It frees the space the program or a model took."),
     "speech.stop": (None, "It stops an install this page started."),
+    # YOUR OWN PROMPTS ARE NOT RISKY (brief §8.4, a0.4.2).  A prompt is text
+    # that a person copies into a chatbot: writing one, or taking one away,
+    # decides nothing Parseh will run -- no model of Parseh's own runs, nothing
+    # is sent anywhere, and the answer contract and the data that Parseh reads
+    # back are its own whatever is written (lib/prompts.py).  So any device
+    # that has been let in may keep, import and delete them, from a phone as
+    # from the computer.
+    "prompts.save": (None, "It keeps a prompt of yours, or changes one: text that is copied "
+                           "into a chatbot, and decides nothing Parseh runs."),
+    "prompts.delete": (None, "It takes a prompt of yours away."),
 }
 
 # Asking how things stand is not a setting: open to every device let in, and
@@ -227,6 +239,18 @@ ROUTES = {
     "/settings/api/latex/package-remove": ("latex.packages",),
     "/settings/api/latex/package-stop": ("latex.packages",),
     "/settings/api/latex/forget": ("latex.forget",),
+    # your own prompts (lib/prompts.py, lib/promptspage.py): reading them, what
+    # Parseh's own says and an export, open; keeping, importing and deleting one,
+    # open to any device let in (SETTINGS says why)
+    "/settings/api/prompts/state": READ,
+    "/settings/api/prompts/list": READ,
+    "/settings/api/prompts/get": READ,
+    "/settings/api/prompts/parseh": READ,
+    "/settings/api/prompts/export": READ,
+    "/settings/api/prompts/save": ("prompts.save",),
+    "/settings/api/prompts/uptodate": ("prompts.save",),
+    "/settings/api/prompts/import": ("prompts.save",),
+    "/settings/api/prompts/delete": ("prompts.delete",),
 }
 
 
@@ -419,6 +443,9 @@ DOORS = (
     ("/settings/speech/", "Speech to text",
      "A transcript made on this computer, while adding a video: the program, two models",
      ("speech.get", "speech.remove", "speech.stop")),
+    ("/settings/prompts/", "Your prompts",
+     "The prompts you wrote for a chatbot: export, import, delete",
+     ("prompts.save", "prompts.delete")),
 )
 
 
@@ -821,12 +848,20 @@ def hub(reading_tags="", update_tags="", speech_tags=""):
     once, kept on this computer, nothing sent anywhere.</div>
     <div class="tags">%(speech_gate)s%(speech_tags)s</div>
   </a>
+  <a class="door" href="/settings/prompts/">
+    <div class="dname">Your prompts</div>
+    <div class="dwhat">The prompts you wrote for the buttons that copy a prompt for a chatbot
+    &mdash; a rule of yours after %(name)s&rsquo;s, or a prompt of your own in its place &mdash;
+    kept on this computer, and exported and imported as files.</div>
+    <div class="tags">%(prompts_gate)s</div>
+  </a>
 </div>
 </main>""" % {"name": NAME, "version": esc(parseh_version()),
               "reading_gate": gate(DOORS[0][3]), "reading_tags": reading_tags,
               "update_gate": gate(DOORS[2][3]), "update_tags": update_tags,
               "latex_gate": gate(DOORS[3][3]),
               "speech_gate": gate(DOORS[4][3]), "speech_tags": speech_tags,
+              "prompts_gate": gate(DOORS[5][3]),
               "net_gate": gate(net),
               "where": esc(doors_said(network.settings())), "port": network.port()}
     return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", signed(main),

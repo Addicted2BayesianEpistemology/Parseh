@@ -4,7 +4,8 @@
 Layout:  library/<folder>/<id>/source.md   the markdown source (authoritative)
          library/<folder>/<id>/meta.json   title, tags, timestamps, build info
          library/<folder>/<id>/build/      xelatex working dir (main.tex/.pdf)
-         library/_prompt.md                custom LLM prompt override (optional)
+         library/_prompt.md                the custom LLM prompt of before a0.4.2, moved
+                                           to the person's own prompts (move_prompt)
 
 `<folder>` is the target language's folder from the registry (persian,
 japanese, ...): a document is filed by its front matter's `target:` and
@@ -39,6 +40,7 @@ import clips          # lib/, as audiofile: the tray's decode check (holds_sound
 import htmlgen
 import mdparser
 import latexthemes  # noqa: E402  (lib/, as mdparser has it)
+import prompts      # noqa: E402  the prompts a person wrote: the studio's one custom prompt is one
 import languages
 from texgen import set_target, cur_lang, is_latin_target, parse_mark_fields, clip_window
 from texgen import (LEGACY_UID_RE, doc_name_key, escape_doc_name, find_doclinks,
@@ -2697,6 +2699,12 @@ def lang_counts():
 
 
 # ---- custom prompt override ------------------------------------------
+# THE STUDIO'S ONE CUSTOM PROMPT lived here as library/_prompt.md until a0.4.2,
+# and has lived in the person's own prompts since (lib/prompts.py, config/
+# prompts.json): move_prompt() carries the file over, once, at the first start.
+# The three functions below are the studio's old single-prompt routes, kept
+# working on the prompt that was moved -- before the move they still read the
+# file, so a tree the move has not reached yet behaves as it always did.
 
 def prompt_path():
     return lib() / "_prompt.md"
@@ -2712,19 +2720,32 @@ def default_prompt():
     return src
 
 
+def move_prompt():
+    """The studio's library/_prompt.md into the person's own prompts, as "my
+    studio prompt (from before a0.4.2)", once -> the prompt made, or None."""
+    return prompts.move_studio_file(LIB / "_prompt.md")
+
+
 def get_prompt():
+    kept = prompts.studio_text()
+    if kept is not None:
+        return {"text": kept, "custom": True}
     p = prompt_path()
-    if p.exists():
+    if p.exists() and not prompts.moved(prompts.STUDIO_MARK):
         return {"text": p.read_text(encoding="utf-8"), "custom": True}
     return {"text": default_prompt(), "custom": False}
 
 
 def set_prompt(text):
-    lib().mkdir(parents=True, exist_ok=True)
-    prompt_path().write_text(text, encoding="utf-8")
+    move_prompt()
+    try:
+        prompts.set_studio_text(text)
+    except prompts.PromptsError as e:
+        raise StoreError(str(e))
 
 
 def reset_prompt():
+    prompts.drop_studio()
     p = prompt_path()
     if p.exists():
         p.unlink()
