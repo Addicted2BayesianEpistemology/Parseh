@@ -30,6 +30,7 @@ LIB = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, LIB)
 from books import all_books, ROOT, BOOKS_DIR                  # noqa: E402
 import languages                                              # noqa: E402
+import making                                                 # noqa: E402  a book an agent is still making says so on its card
 
 APP_NAME = "Parseh"
 
@@ -420,6 +421,16 @@ def card(b):
     st = stats(b)
     L = b.lang
     tags = []
+    # A BOOK AN AGENT IS STILL MAKING says where the making stands, from its
+    # making.json (lib/making.py).  The page is a file, written when a book
+    # is built and not when the agent writes a batch, so this is what the
+    # making was the last time it was written; the script at the foot of the
+    # page asks the server again, and moves it while the tab is open.
+    made = making.is_making(b.dir)
+    if made:
+        doc, _bad = making.read(b.dir)
+        tags.append('<span class="tag on" data-making-tag>being made &middot; %s</span>'
+                    % esc(making.stage_words(doc or {})))
     if st.get("built"):
         tags.append('<span class="tag">%s chapters</span>'
                     % len(st.get("chapters", [])))
@@ -459,6 +470,8 @@ def card(b):
                     else "build this book: its reader and its PDF (./build.sh)",
                     esc(build), esc(what), "rebuild" if st.get("built") else "build"))
     whole = "" if st.get("built") else ' data-build="%s" data-what="%s"' % (esc(build), esc(what))
+    if made:
+        whole += ' data-making="%s"' % esc(b.rel_from_books())
     return """<a class="%s" href="%s" data-lang="%s"%s>
   %s%s
   <div class="fa"%s>%s</div>
@@ -469,6 +482,41 @@ def card(b):
 </a>""" % (cls, esc(href), esc(L.code), whole, delete_btn, build_btn, attrs, esc(b.title), attrs, esc(b.author),
            esc(b.title_latin), esc(b.author_latin),
            esc(b.meta.get("blurb", "")), "".join(tags))
+
+
+# A CARD OF A BOOK BEING MADE MOVES while the page is open: the stage and how long
+# ago the agent last wrote, asked of the server for each such card and again every
+# few seconds while the tab is showing.  A page opened off the disk has no server
+# to ask and keeps what it was written with; so does one that cannot reach it.
+MAKING_JS = """<script>
+(function () {
+  if (location.protocol === 'file:') return;
+  var cards = Array.prototype.slice.call(document.querySelectorAll('a.book[data-making]'));
+  if (!cards.length) return;
+  function ago(s) {
+    s = Math.max(0, Math.round(s));
+    if (s < 90) return 'just now';
+    if (s < 5400) return Math.round(s / 60) + ' minutes ago';
+    if (s < 129600) return Math.round(s / 3600) + ' hours ago';
+    return Math.round(s / 86400) + ' days ago';
+  }
+  function poll() {
+    cards.forEach(function (card) {
+      fetch(card.getAttribute('data-making') + '/__making', {cache: 'no-store'})
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var tag = card.querySelector('[data-making-tag]');
+          if (!tag || !j.ok) return;
+          if (!j.making) { tag.textContent = 'finished'; card.removeAttribute('data-making'); return; }
+          tag.textContent = 'being made \u00b7 ' + j.words +
+            (j.updated ? ' \u00b7 ' + ago(j.now - j.updated) : '');
+        }).catch(function () {});
+    });
+  }
+  poll();
+  setInterval(function () { if (!document.hidden) poll(); }, 8000);
+})();
+</script>"""
 
 
 def lang_head(L, n):
@@ -531,9 +579,9 @@ def main():
 <a class="book sync add" href="add/">
   <div class="chname">&#65291; Add a book</div>
   <div class="blurb">A new reading edition, in any of the languages. Paste a chapter and get
-  the whole book with every gloss blank, to write yourself in the reader &mdash; or take the
-  recipe for Claude Code: a working folder set up with the tools and a finished book to learn
-  from, the prompt that sets it to work paragraph by paragraph, and the way back here.</div>
+  the whole book with every gloss blank, to write yourself in the reader &mdash; or have an
+  agent make it: Parseh makes the book&rsquo;s folder and the agent you use fills it in, while you
+  watch it grow here and steer it.</div>
 </a>
 %(take)s
   <footer class="idx">
@@ -542,10 +590,12 @@ def main():
     reader and PDF; <code>./build.sh</code> does every book from a terminal.
   </footer>
 </main>
+%(making)s
 </body></html>
 """ % {"app": APP_NAME, "lib": lib_rel, "cards": cards, "chips": chips,
        "take": (bundle_panel("book", "/books/__upload")
-                + shelf_panel("book", "/books/__backup", "/books/__restore"))}
+                + shelf_panel("book", "/books/__backup", "/books/__restore")),
+       "making": MAKING_JS}
     out = os.path.join(BOOKS_DIR, "index.html")
     open(out, "w", encoding="utf-8").write(page)
     print("books/index.html  %d book%s: %s"

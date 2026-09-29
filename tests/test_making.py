@@ -22,6 +22,7 @@ checkout's books/:
     what it says in words when either is not.
 """
 import calendar
+import io
 import json
 import os
 import shutil
@@ -31,7 +32,9 @@ import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from pathlib import Path
+from unittest import mock
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +42,7 @@ for p in ("markdown/exlex", "markdown/app", "lib", "youtube/lib", "."):
     sys.path.insert(0, str(ROOT / p))
 import books as booklib                                        # noqa: E402
 import bookbuild                                               # noqa: E402
+import bundle                                                  # noqa: E402
 import making                                                  # noqa: E402
 
 PY = os.environ.get("PARSEH_PYTHON") or sys.executable
@@ -678,6 +682,153 @@ class Finish(unittest.TestCase):
         ok, said, _ = making.verify_words(2, "Traceback: nothing")
         self.assertFalse(ok)
         self.assertIn("could not run", said)
+
+
+class TheBundle(unittest.TestCase):
+    """What a finished book carries in its download and its backup (brief 5.9): its
+    original and annot/ beside what it carried before, and never the agent's own files."""
+
+    AGENTS_OWN = ("AGENTS.md", "CLAUDE.md", "ASKS.md", "making.json", ".claude/settings.json",
+                  ".claude/skills/parseh-book/SKILL.md", "frankdraft.tex", "frankdraft.pdf",
+                  "frankdraft.log", "main.pdf", "main.aux")
+
+    def book(self, original=None):
+        _into, r = made(self, original=original)
+        d = Path(r["path"])
+        (d / "annot").mkdir(exist_ok=True)
+        (d / "annot" / "ch1_p00.json").write_text('{"idx": 0, "ch": 1, "ann": {"sentences": []}}',
+                                                  encoding="utf-8")
+        for name in self.AGENTS_OWN[4:]:
+            (d / name).parent.mkdir(parents=True, exist_ok=True)
+            (d / name).write_text("x", encoding="utf-8")
+        return d
+
+    def names(self, data):
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            return {n.split("/", 1)[1] for n in z.namelist() if "/" in n and not n.endswith("/")}, \
+                json.loads(z.read("parseh-bundle.json"))
+
+    def test_the_download_carries_the_original_and_annot_and_none_of_the_agents_files(self):
+        d = self.book()
+        data, _name = bundle.pack_book(str(d))
+        got, man = self.names(data)
+        for want in ("book.json", "main.tex", "NOTES.md", "original/Il-Gatto.txt", "annot/ch1_p00.json"):
+            self.assertIn(want, got)
+        for never in self.AGENTS_OWN:
+            self.assertNotIn(never, got, never)
+        self.assertEqual(man["format"], "parseh-bundle/3", "raised: going back past a0.4.2 says so first")
+        # and every shape carries them, because they are the book's own record
+        for mode in bundle.MODES:
+            self.assertIn("annot/ch1_p00.json", self.names(bundle.pack_book(str(d), audio=mode)[0])[0], mode)
+
+    def test_the_backup_of_the_shelf_carries_them_too(self):
+        d = self.book()
+        import shelf
+        path, _name = shelf.pack("book", root=str(d.parents[2]))
+        self.addCleanup(os.unlink, path)
+        with zipfile.ZipFile(path) as z:
+            inner = [n for n in z.namelist() if n.endswith(".zip")]
+            self.assertEqual(len(inner), 1)
+            got, man = self.names(z.read(inner[0]))
+        self.assertIn("original/Il-Gatto.txt", got)
+        self.assertIn("annot/ch1_p00.json", got)
+        self.assertNotIn("making.json", got)
+
+    def test_it_comes_back_as_an_ordinary_book_with_its_record_and_its_source(self):
+        d = self.book()
+        data, _ = bundle.pack_book(str(d))
+        root = tmpdir(self)
+        done = bundle.install(data, root=root)
+        got = Path(root, done["dir"])
+        self.assertEqual((got / "original" / "Il-Gatto.txt").read_bytes(), TEXT)
+        self.assertTrue((got / "annot" / "ch1_p00.json").is_file())
+        for never in ("AGENTS.md", "CLAUDE.md", "ASKS.md", "making.json", ".claude"):
+            self.assertFalse((got / never).exists(), never)
+        # an ordinary book: nothing says it is being made, so the reader's doors edit it
+        self.assertEqual(making.state(str(got)), "none")
+
+    def test_an_older_or_hand_made_bundle_over_a_book_does_not_take_its_record_away(self):
+        d = self.book()
+        data, _ = bundle.pack_book(str(d))
+        root = tmpdir(self)
+        first = bundle.install(data, root=root)
+        dest = Path(root, first["dir"])
+        # the bundle a0.4.1 would have made: the same book without annot/ and original/
+        with zipfile.ZipFile(io.BytesIO(data)) as z, io.BytesIO() as out:
+            with zipfile.ZipFile(out, "w") as w:
+                for n in z.namelist():
+                    if "/annot/" not in n and "/original/" not in n:
+                        w.writestr(n, z.read(n))
+            older = out.getvalue()
+        self.assertNotIn("annot", self.names(older)[0])
+        done = bundle.install(older, replace=True, root=root)
+        self.assertTrue((dest / "annot" / "ch1_p00.json").is_file(), "the record was kept")
+        self.assertTrue((dest / "original" / "Il-Gatto.txt").is_file(), "and so was the source")
+        self.assertIn("annot", done["kept"])
+        # a bundle that carries its own replaces them
+        (dest / "annot" / "ch1_p00.json").write_text("{}", encoding="utf-8")
+        bundle.install(data, replace=True, root=root)
+        self.assertIn("ann", (dest / "annot" / "ch1_p00.json").read_text(encoding="utf-8"))
+
+    def test_the_original_is_stored_counted_as_no_recording_and_has_no_text_budget(self):
+        d = self.book(original={"name": "big.pdf", "data": PDF + os.urandom(20000)})
+        data, _ = bundle.pack_book(str(d))
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            info = z.getinfo("%s/original/big.pdf" % d.name)
+            self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
+        said = bundle.payload("book", str(d), "linked")
+        self.assertEqual((said["media"], said["media_bytes"]), (0, 0), "an original is no recording")
+        self.assertLess(abs(len(data) - said["bytes"]), 0.01 * len(data) + 64)
+        # a text budget of 5 kB refuses 5 kB of source/ text and takes a 20 kB original whole
+        with mock.patch.object(bundle, "MAX_UNPACKED", 5000):
+            root = tmpdir(self)
+            self.assertEqual(bundle.install(data, root=root)["ok"], True)
+            bad = io.BytesIO()
+            with zipfile.ZipFile(bad, "w") as z:
+                z.writestr("parseh-bundle.json", json.dumps({
+                    "format": bundle.FORMAT, "kind": "book", "language": "it", "gloss": "en", "slug": "x"}))
+                z.writestr("x/book.json", json.dumps({"slug": "x", "language": "it", "main": "main.tex"}))
+                z.writestr("x/main.tex", "\\end{document}\n")
+                z.writestr("x/source/paras/ch1_p00.txt", "a" * 6000)
+            with self.assertRaisesRegex(bundle.BundleError, "of text"):
+                bundle.install(bad.getvalue(), root=tmpdir(self))
+
+    def test_a_hand_made_bundle_cannot_put_a_page_or_a_script_in_either(self):
+        d = self.book()
+        data, _ = bundle.pack_book(str(d))
+        out = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(data)) as z, zipfile.ZipFile(out, "w") as w:
+            for n in z.namelist():
+                w.writestr(n, z.read(n))
+            for extra in ("original/page.html", "annot/page.html", "original/evil.svg", "annot/x.js",
+                          "original/.hidden.txt/x", "AGENTS.md", ".claude/skills/x/SKILL.md"):
+                w.writestr("%s/%s" % (d.name, extra), "<script>alert(1)</script>")
+        root = tmpdir(self)
+        what = bundle.inspect(out.getvalue(), root=root)
+        for extra in ("original/page.html", "annot/page.html", "original/evil.svg", "annot/x.js",
+                      "AGENTS.md", ".claude/skills/x/SKILL.md"):
+            self.assertIn(extra, what["dropped"], extra)
+        self.assertNotIn("original/page.html", what["files"])
+        done = bundle.install(out.getvalue(), root=root)
+        got = Path(root, done["dir"])
+        for extra in ("original/page.html", "annot/page.html", "original/evil.svg", "annot/x.js",
+                      "AGENTS.md", ".claude"):
+            self.assertFalse((got / extra).exists(), extra)
+
+    def test_the_originals_kinds_are_the_tools_own_in_both_places(self):
+        self.assertEqual(bundle.ORIGINAL_EXTS, making.ORIGINAL_EXTS)
+        self.assertEqual(bundle.SHAPE["book"]["dirs"]["original"], making.ORIGINAL_EXTS)
+        self.assertEqual(bundle.SHAPE["book"]["dirs"]["annot"], (".json",))
+
+    def test_a_book_from_before_a0_4_2_packs_to_the_same_files_as_it_did(self):
+        # a fixture book has no annot/ and no original/: nothing is added, nothing goes missing
+        book = tmpdir(self) + "/books/english/mini-en"
+        shutil.copytree(ROOT / "tests" / "fixtures" / "books" / "english" / "mini-en", book,
+                        ignore=shutil.ignore_patterns("reader"))
+        got, man = self.names(bundle.pack_book(book)[0])
+        self.assertFalse([n for n in got if n.startswith(("annot/", "original/"))])
+        self.assertIn("ch1.tex", got)
+        self.assertEqual(man["format"], bundle.FORMAT)
 
 
 class OpeningTheFolder(unittest.TestCase):

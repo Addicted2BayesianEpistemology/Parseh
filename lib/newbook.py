@@ -21,43 +21,40 @@ that one alone:
      fields: the language, the gloss and the title are the book's
      already, read from its book.json.
 
-  3. outside, with an LLM, in a folder of its own that holds the tools
-     and one finished edition to learn from.  Nothing here is posted:
-     the page hands back three things to copy -- the shell that sets the
-     folder up, the prompt that sets the work going the way the first
-     edition was made, and the shell that brings the result back.  This
-     is the one way that needs a terminal, and the card says so before
-     anybody has filled in a field.
+  3. made by an agent, in place.  The book's facts and its original -- a
+     file the person picks, uploaded, so no path is typed on the server --
+     become a folder under books/ (lib/making.py), with the instructions
+     the agent reads; the person opens that folder in whatever agent they
+     use.  Parseh never starts an agent.  Nothing is copied and nothing is
+     brought back: the agent works on the real tree, and the book is on
+     the library from the first minute, marked being made, where its
+     making panel watches it grow.  Making the folder is the computer's
+     alone (lib/settingspage.py, `making.folder`).
 
 What used to be a single fifteen-field block above three mutually
 exclusive actions, with the mapping stated only in prose, is now
 structure: the ten identity fields are built ONCE, in #ident, and MOVED
 (appendChild, never cloned -- a clone would fork the values, the
 listeners and the saved draft) into whichever way needs them.  The
-reference edition, the original file, its pages and the working folder
-render in way 3 alone, inside a labelled box that says so.
+original file, its pages, the edition to learn from and the box about the
+person's own books render in way 3 alone, inside a labelled box that says
+so.
 
-The prompt's text lives in docs/new-book-prompt.md; this file only fills
-its placeholders and lays the page out.  Everything the page needs to
-know about the toolbox (its path, the built books with their languages
-and sizes, the books already on the shelf -- built or not, because a
-name is taken either way -- and every language of the registry with its
-conventions block docs/lang/<code>.md, read at request time) is embedded
-as JSON, and the placeholders are filled in the browser as the form is
-typed.  The language select defaults to the toolbox's shared preference
-(Parseh.lang, the chip rows' choice) and picks the reference edition:
-one of the same language when there is one, else the Persian one, with
-the prompt saying that the method is the same and the conventions
-differ.
+The instructions the agent reads are lib/making.py's, and the server
+produces them: this file lays the page out and fills none of their
+placeholders, so the text the page shows is the text the folder gets.
+Everything the page needs to know about the toolbox (the built books with
+their languages and sizes, for Learn from; the books already on the shelf
+-- built or not, because a name is taken either way -- and every language
+of the registry) is embedded as JSON.  The language select defaults to
+the toolbox's shared preference (Parseh.lang, the chip rows' choice).
 
 A book declares TWO languages: the one it teaches and the one its
 glosses are WRITTEN in (docs/languages.md section 3).  The second select
 is that, defaulting to English -- which is what every book in the
 toolbox is glossed in, and what a book.json with no "gloss" means -- and
 offering both the languages the toolbox teaches and the prose languages
-it can only set.  The prompt tells the annotator which one to write in,
-once, at the top, because the reference edition it learns from is
-glossed in English and its every example would otherwise say so.
+it can only set.
 """
 import html
 import json
@@ -70,10 +67,10 @@ from books import all_books, ROOT                              # noqa: E402
 import chunker                                                 # noqa: E402
 import languages                                               # noqa: E402
 import make_index                                              # noqa: E402
+import making                                                  # noqa: E402  the folder way 3 makes, and who may make it
 
 APP_NAME = "Parseh"
 DOCS = os.path.join(ROOT, "docs")
-WORK = os.path.join(ROOT, "work dir")
 
 
 def esc(s):
@@ -81,43 +78,26 @@ def esc(s):
 
 
 def references():
-    """Every built book, with what the prompt says about it and the
-    language it is in.  The page picks among them by language."""
+    """Every finished, built book, with what the page says about it and the
+    language it is in: what the agent may be shown, when the person picks
+    one, as an example of the method.  A book still being made is no example
+    of anything yet."""
     out = []
     for b in all_books():
         st = make_index.stats(b)
-        if not st.get("built"):
+        if not st.get("built") or making.is_making(b.dir):
             continue
-        n_annot = 0
-        if os.path.isdir(os.path.join(WORK, "annot")):
-            n_annot = sum(1 for f in os.listdir(os.path.join(WORK, "annot"))
-                          if f.endswith(".json"))
-        has_notes = os.path.isfile(os.path.join(b.dir, "NOTES.md"))
         chapters = len(st.get("chapters", []))
         stats = ("%d chapter%s, %d paragraphs, %d subparagraphs, %d chunks%s%s"
                  % (chapters, "" if chapters == 1 else "s", st.get("paragraphs", 0),
                     st.get("subs", 0), st.get("chunks", 0),
                     ", narrated" if b.has_audio else "",
-                    ", with NOTES.md" if has_notes else ""))
-        # "src" is where the edition lies in this toolbox; "path" is where the
-        # setup shell puts the copy -- always under its language's folder, so
-        # a reference still lying directly under books/ (the layout before
-        # languages) is addressed, in the prompt and the shell alike, at the
-        # place it will actually be
-        out.append({"slug": b.slug, "src": b.rel_from_books(),
-                    "path": "%s/%s" % (b.lang.folder, os.path.basename(b.dir)),
-                    "folder": b.lang.folder, "lang": b.language,
-                    "lang_name": b.lang.name,
-                    # what the reference's OWN glosses are written in: an
-                    # edition glossed in another language is a model for the
-                    # shape of a gloss and not for its wording
-                    "gloss": b.gloss, "gloss_name": b.gloss_lang.name,
-                    "title": b.title, "title_latin": b.title_latin,
-                    "author_latin": b.author_latin, "stats": stats,
-                    "has_notes": has_notes, "annot": n_annot,
-                    "source_pdf": b.meta.get("source_pdf") or "",
-                    "chapters": chapters, "paragraphs": st.get("paragraphs", 0)})
-    # the edition with notes and its JSON is the one to learn from
+                    ", with notes" if os.path.isfile(os.path.join(b.dir, "NOTES.md")) else ""))
+        out.append({"path": b.rel_from_books(), "lang": b.language, "lang_name": b.lang.name,
+                    "title": b.title_latin or b.title or b.slug, "stats": stats,
+                    "has_notes": os.path.isfile(os.path.join(b.dir, "NOTES.md")),
+                    "paragraphs": st.get("paragraphs", 0)})
+    # the edition with notes, and the biggest, is the one to learn from
     out.sort(key=lambda r: (-int(r["has_notes"]), -r["paragraphs"]))
     return out
 
@@ -137,7 +117,8 @@ def shelf():
 
     The href is worked out from the DIRECTORY rather than from the slug,
     so a book from before languages (lying directly under books/) is
-    addressed correctly too.
+    addressed correctly too.  `making` marks a book an agent is still
+    making: nothing is added to it from a page, and it is no example.
     """
     out = []
     for b in all_books():
@@ -149,7 +130,7 @@ def shelf():
         out.append({"path": "/books/" + rel, "rel": rel,
                     "folder": b.lang.folder, "dirname": os.path.basename(b.dir),
                     "lang": b.language, "lang_name": b.lang.name,
-                    "dir": b.lang.dir,
+                    "dir": b.lang.dir, "making": making.is_making(b.dir),
                     "name": b.meta.get("title_latin") or b.meta.get("title") or rel})
     return out
 
@@ -169,22 +150,9 @@ def conventions(L):
 
 def lang_records():
     """One record per language of the registry, in its order, with what the
-    prompt's placeholders need."""
-    out = []
-    for L in languages.LANGS.values():
-        out.append({
-            "code": L.code, "name": L.name, "native": L.native, "folder": L.folder,
-            "dir": L.dir, "reading": L.reading, "words": L.words,
-            "translit_label": L.translit_label,
-            "digit_example": L.to_native_digits("3"),
-            "label_example": L.to_native_digits("3.1"),
-            # what "character for character" means for this language's text
-            "strip_note": ("once the marks (harakat) are stripped from both sides"
-                           if L.strip_range else
-                           "-- %s carries no marks to strip, so exactly" % L.name),
-            "conventions": conventions(L),
-        })
-    return out
+    page lays out: its names, its folder and its direction."""
+    return [{"code": L.code, "name": L.name, "native": L.native, "folder": L.folder,
+             "dir": L.dir} for L in languages.LANGS.values()]
 
 
 def gloss_records():
@@ -198,85 +166,6 @@ def gloss_records():
     """
     return [G.as_json() for G in languages.GLOSSES.values()]
 
-
-def prompt_template():
-    with open(os.path.join(DOCS, "new-book-prompt.md"), encoding="utf-8") as f:
-        return f.read()
-
-
-SETUP_SH = r'''#!/bin/sh
-# Set up a folder for the new edition of {{TITLE_LATIN}} ({{LANG_NAME}}), beside (not inside) the toolbox.
-set -e
-SOFT="{{ROOT}}"                 # this toolbox
-WORK="{{FOLDER}}"               # the new book's own folder
-SRC="{{SOURCE_PATH}}"           # the original text of the new book (PDF, epub or txt)
-
-mkdir -p "$WORK/books/{{LANG_FOLDER}}/{{SLUG}}/source/paras" "$WORK/books/{{LANG_FOLDER}}/{{SLUG}}/annot" \
-         "$WORK/books/{{REF_FOLDER}}" "$WORK/others" "$WORK/work dir"
-# the tools, the build script, the environment, the docs (with the languages' conventions)
-cp -r "$SOFT/lib" "$SOFT/build.sh" "$SOFT/environment.yml" "$SOFT/docs" "$WORK/"
-rm -rf "$WORK/lib/__pycache__"
-# the finished edition to learn from -- its text, its notes, its batch files
-cp -r "$SOFT/books/{{REF_SRC}}" "$WORK/books/{{REF_FOLDER}}/"
-rm -rf "$WORK/books/{{REF_PATH}}/reader" "$WORK/books/{{REF_PATH}}/main.aux" \
-       "$WORK/books/{{REF_PATH}}/main.log" "$WORK/books/{{REF_PATH}}/main.toc"
-# ... and its annotation JSON, the ground truth its .tex was built from
-[ -d "$SOFT/work dir/annot" ] && cp -r "$SOFT/work dir/annot" "$WORK/work dir/"
-[ -d "$SOFT/work dir/src" ]   && cp -r "$SOFT/work dir/src"   "$WORK/work dir/"
-# the new book's original, and its skeleton
-cp "$SRC" "$WORK/others/"
-cat > "$WORK/books/{{LANG_FOLDER}}/{{SLUG}}/book.json" <<'EOF'
-{{BOOK_JSON}}
-EOF
-cat > "$WORK/books/{{LANG_FOLDER}}/{{SLUG}}/main.tex" <<'EOF'
-{{MAIN_TEX}}
-EOF
-cat > "$WORK/PROMPT.md" <<'EOF'
-{{PROMPT}}
-EOF
-echo "ready: $WORK"
-echo "next:  cd \"$WORK\" && claude     then paste PROMPT.md (or say: read PROMPT.md and begin)"
-'''
-
-RETURN_SH = r'''#!/bin/sh
-# Bring the finished edition of {{TITLE_LATIN}} back into the toolbox, and build it.
-set -e
-SOFT="{{ROOT}}"
-WORK="{{FOLDER}}"
-
-# the book itself -- its .tex, its sources, its annotation JSON, its notes --
-# into its language's folder
-mkdir -p "$SOFT/books/{{LANG_FOLDER}}"
-cp -r "$WORK/books/{{LANG_FOLDER}}/{{SLUG}}" "$SOFT/books/{{LANG_FOLDER}}/"
-rm -rf "$SOFT/books/{{LANG_FOLDER}}/{{SLUG}}/reader"          # the reader is rebuilt below
-# the original it was made from, where book.json points
-mkdir -p "$SOFT/others"
-[ -f "$WORK/others/{{SOURCE_FILE}}" ] && cp "$WORK/others/{{SOURCE_FILE}}" "$SOFT/others/"
-
-cd "$SOFT"
-. lib/env.sh && parseh_env    # the ilya-frank environment, wherever it is (lib/env.sh)
-./build.sh {{SLUG}}         # the PDF and the reader (minutes); ./build.sh --html for the reader alone
-python3 lib/verify_book.py --help >/dev/null 2>&1 || true
-FRANK_BOOK=books/{{LANG_FOLDER}}/{{SLUG}} python3 lib/verify_book.py
-echo "done: open https://localhost:7654/books/  (or ./serve.sh restart if it is not running)"
-'''
-
-BOOK_JSON = '''{
-  "slug": "{{SLUG}}",
-  "language": "{{LANG}}",
-  "gloss": "{{GLOSS}}",
-  "title": "{{TITLE}}",
-  "title_latin": "{{TITLE_LATIN}}",
-  "title_en": "{{TITLE_EN}}",
-  "author": "{{AUTHOR}}",
-  "author_latin": "{{AUTHOR_LATIN}}",
-  "year": "{{YEAR}}",
-  "blurb": "{{BLURB}}",
-  "main": "main.tex",
-  "audio": null,
-  "transcript": null,
-  "source_pdf": "../../../others/{{SOURCE_FILE}}"{{SOURCE_PAGES}}
-}'''
 
 # \BookLang, \BookGloss and \FrankLib come before the preamble, which reads
 # them; the preamble \providecommand's all three (\BookGloss as `en', which is
@@ -301,17 +190,19 @@ MAIN_TEX = r'''%% {{TITLE_LATIN}} - {{AUTHOR_LATIN}} ({{LANG_NAME}}, glossed in 
 \end{document}'''
 
 
-def page():
+def page(may_make=True):
+    """The page.  `may_make` is whether the device asking may make a book's
+    folder (making.folder, lib/settingspage.py): where it may not, the button
+    is shut and the reason is said under it, in the server's own words."""
+    import settingspage
     refs = references()
     langs = lang_records()
     glosses = gloss_records()
     books = shelf()
-    data = {"root": ROOT, "refs": refs, "langs": langs, "glosses": glosses,
-            "books": books,
+    data = {"refs": refs, "langs": langs, "glosses": glosses, "books": books,
             "default_lang": languages.DEFAULT, "default_gloss": languages.DEFAULT_GLOSS,
-            "prompt": prompt_template(),
-            "setup": SETUP_SH, "ret": RETURN_SH, "book_json": BOOK_JSON,
-            "main_tex": MAIN_TEX, "batch": 10}
+            "may_make": bool(may_make), "may_said": settingspage.refusal("making.folder"),
+            "original_exts": list(making.ORIGINAL_EXTS)}
     # The ways a draft may be cut, named once (lib/chunker.py) so this page
     # and the video's cannot come to disagree about what they offer.  All of
     # them are offered whatever is installed, and NOT disabled by what this
@@ -331,11 +222,14 @@ def page():
     # each option carries the book's own language: the text box of the way
     # that adds to a book takes ITS face and direction, never the identity
     # select's, which is about a book that does not exist yet
+    # (a book an agent is still making is listed, greyed: what is added to it
+    # would collide with the batches the agent writes)
     into_opts = "".join(
-        '<option value="%s" data-lang="%s" data-dir="%s" data-langname="%s" data-name="%s">'
-        '%s &mdash; %s</option>'
+        '<option value="%s" data-lang="%s" data-dir="%s" data-langname="%s" data-name="%s"%s>'
+        '%s &mdash; %s%s</option>'
         % (esc(b["path"]), esc(b["lang"]), esc(b["dir"]), esc(b["lang_name"]), esc(b["name"]),
-           esc(b["name"]), esc(b["rel"])) for b in books)
+           " disabled" if b["making"] else "", esc(b["name"]), esc(b["rel"]),
+           " (being made)" if b["making"] else "") for b in books)
     lang_opts = "".join('<option value="%s">%s &mdash; %s</option>'
                         % (esc(L["code"]), esc(L["name"]), esc(L["native"]))
                         for L in langs)
@@ -348,10 +242,10 @@ def page():
                           % (esc(G["code"]), esc(G["name"]), esc(G["native"]))
                           for G in glosses if G["taught"] is taught))
         for taught, label in ((True, "taught here"), (False, "written in, not taught")))
-    ref_opts = "".join('<option value="%s" data-lang="%s">%s (%s) &mdash; %s</option>'
-                       % (esc(r["path"]), esc(r["lang"]), esc(r["title_latin"] or r["slug"]),
-                          esc(r["lang_name"]), esc(r["stats"]))
-                       for r in refs)
+    ref_opts = '<option value="">none</option>' + "".join(
+        '<option value="%s" data-lang="%s">%s (%s) &mdash; %s</option>'
+        % (esc(r["path"]), esc(r["lang"]), esc(r["title"]), esc(r["lang_name"]), esc(r["stats"]))
+        for r in refs)
     # The card for "add to a book already here" is not offered when there is
     # nothing to add to.  The LANE stays in the markup whatever the shelf
     # holds -- every control it owns is read by save() and the draft restore,
@@ -473,6 +367,11 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
 .hbox p:last-child{margin-bottom:0}
 .hbox p b{color:var(--dim)}
 .hbox label{margin-top:6px}
+/* the folder that was made: its path is what gets copied into an agent's chat,
+   so it wraps rather than scrolls and selects whole with one click */
+.step code.bigpath,.note code.bigpath{display:block;margin:10px 0;padding:8px 10px;font-size:12.5px;
+  overflow-wrap:anywhere;user-select:all}
+.handover{margin:12px 0 4px;font-size:14px;color:var(--ink)}
 </style>
 </head><body class="index wizard">
 <div class="parseh-bar">
@@ -505,16 +404,16 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     </button>
     <button type="button" class="path" role="radio" aria-checked="false" tabindex="-1"
             data-path="llm" aria-controls="lane-llm">
-      <b>Let an LLM do it outside</b>
-      <span>Three things to copy: a script that builds a working folder, the prompt, and a
-        script that brings the finished book back.</span>
-      <em>needs: the facts, the original file, a folder &mdash; and a terminal. Nothing here
-        is posted.</em>
+      <b>Let an agent make it</b>
+      <span>Parseh makes the book&rsquo;s folder; the agent you use fills it in, batch by batch,
+        while you watch the book grow in the library and steer it.</span>
+      <em>needs: the facts, the original file &mdash; and an agent that works in a folder</em>
     </button>
   </div>
 
   <p class="pathnote" id="nopath">Three ways in. <b>By hand</b> and <b>add to a book</b> write
-    to the shelf straight away; <b>outside, with an LLM</b> only hands you things to copy.
+    to the shelf straight away; <b>an agent</b> gets a folder of its own on the shelf, made here,
+    and does the work in it.
     <span class="also">Already have an exported <code>&lt;slug&gt;-book.zip</code>? Bring it
       back from <a href="/books/">the library page</a>.</span></p>
 
@@ -671,71 +570,64 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
 </section>
 </div>
 
-<!-- ===================== way 3: an LLM, outside ============================ -->
+<!-- ===================== way 3: an agent makes it, here =================== -->
 <div id="lane-llm" hidden>
 <section class="step" id="step-llm-1">
   <div class="shead"><span class="num">1</span><h2>The book</h2></div>
   <div class="sbody" id="facts-llm">
   <!-- #ident is moved in here by choose('llm') -->
   <div class="hbox">
-    <div class="hlab">only for the outside folder</div>
-    <label>Learn from <select id="ref">''' + ref_opts + r'''</select>
-      <span class="fieldnote">A finished edition the LLM copies its method from &mdash; its
-        notes and its annotation JSON are copied into the folder beside your book.</span>
-      <span class="fieldnote" id="refnote"></span></label>
-    <label>The original <input id="source" placeholder="/home/you/books/the-book.pdf">
-      <span class="fieldnote">PDF with a text layer, epub or txt. The script copies it into
-        the folder; nothing is uploaded anywhere.</span></label>
+    <div class="hlab">only for a book an agent makes</div>
+    <label>The original <input type="file" id="original"
+        accept=".pdf,.epub,.txt,application/pdf,application/epub+zip,text/plain">
+      <span class="fieldnote">A PDF with a text layer, an epub or a plain text file. It is copied
+        into the book&rsquo;s own folder, in <code>original/</code>, and goes nowhere else.</span>
+      <span class="fieldnote" id="originalnote"></span></label>
     <label>PDF pages, first&ndash;last <input id="pages" placeholder="13-21">
-      <span class="fieldnote" id="pagesnote">0-based. Leave empty for the whole file.</span></label>
-    <label>Working folder <input id="folder" placeholder="~/frank-the-book">
-      <span class="fieldnote" id="foldernote">Where the LLM works, outside the toolbox.</span></label>
+      <span class="fieldnote" id="pagesnote">Counted from 0, for a PDF only. Leave empty for the
+        whole file.</span></label>
+    <label>Learn from <select id="ref">''' + ref_opts + r'''</select>
+      <span class="fieldnote" id="refnote"></span></label>
+    <label class="inline" style="margin-top:12px"><input type="checkbox" id="examples">
+      let the agent look at my finished books in this language, as examples</label>
+    <span class="fieldnote" id="examplesnote"></span>
   </div>
   </div>
 </section>
 
 <section class="step" id="step-llm-2">
-  <div class="shead"><span class="num">2</span><h2>Set the folder up</h2></div>
+  <div class="shead"><span class="num">2</span><h2>Make the book&rsquo;s folder</h2></div>
   <div class="sbody">
-  <div class="note warn" id="llmwarn" hidden></div>
-  <p class="why">Run this once in a terminal.</p>
-  <details><summary>the setup script</summary><pre class="cmd" id="setup"></pre></details>
-  <div class="row"><button type="button" class="wbtn quiet" data-copyraw="setup">copy the setup script</button></div>
+  <div class="note warn" id="mklock" hidden></div>
+  <p class="why">The folder is made in <code>books/</code>, with the original inside it and the
+    instructions for the agent. The book is on <a href="/books/">the library page</a> at once,
+    marked <b>being made</b>.</p>
+  <div class="row">
+    <button type="button" class="wbtn" id="mkfolder">make the book&rsquo;s folder</button>
+    <span class="stat" id="mkstat"></span>
+  </div>
+  <span class="fieldnote whysmall" id="mkwhy"></span>
+  <div id="mkresult" aria-live="polite" hidden></div>
   </div>
 </section>
 
 <section class="step" id="step-llm-3">
-  <div class="shead"><span class="num">3</span><h2>Set Claude Code to work</h2></div>
+  <div class="shead"><span class="num">3</span><h2>The instructions</h2></div>
   <div class="sbody">
-  <ol>
-    <li><code>cd</code> into the folder and start <code>claude</code>.</li>
-    <li>Paste the prompt (it is also in the folder as <code>PROMPT.md</code>).</li>
-    <li>Between batches, look at the draft PDF (<code>./build.sh --draft chNx</code>) and read
-      a paragraph or two. The tools prove fidelity; they cannot judge a gloss.</li>
-  </ol>
-  <details id="pshow"><summary>The prompt, as copied</summary><pre class="cmd" id="prompt"></pre></details>
-  <div class="row"><button type="button" class="wbtn quiet" data-copyraw="prompt">copy the prompt</button>
-    <span class="stat" id="plen"></span></div>
-  </div>
-</section>
-
-<section class="step" id="step-llm-4">
-  <div class="shead"><span class="num">4</span><h2>Bring it back</h2></div>
-  <div class="sbody">
-  <p class="why">When every chapter is closed and <code>verify_book.py</code> is clean.</p>
-  <details><summary>the return script</summary><pre class="cmd" id="ret"></pre></details>
-  <div class="row"><button type="button" class="wbtn quiet" data-copyraw="ret">copy the return script</button></div>
+  <p class="why">They are written into the folder as <code>AGENTS.md</code>, which any agent can be
+    told to read and several read by themselves. For an agent that does not, copy them here.</p>
+  <div id="instrmount"></div>
   <button type="button" class="hbtn" aria-expanded="false" aria-controls="how-llm">how this works</button>
   <div class="hbox" id="how-llm" hidden>
-    <p><b>The setup script copies</b> the tools, the reference edition with its notes and its
-      annotation JSON, the original, and a <code>book.json</code> and <code>main.tex</code>
-      skeleton, and writes the prompt as <code>PROMPT.md</code> in the folder.</p>
-    <p><b>The return script</b> copies the finished
-      <code>books/&lt;language&gt;/&lt;slug&gt;/</code> in, builds the PDF and the reader, and
-      runs <code>verify_book.py</code>. The book then appears on
-      <a href="/books/">the library page</a>.</p>
-    <p><b>Nothing on this page is posted</b> &mdash; the three scripts are yours to copy and
-      run, and the LLM works outside the toolbox without seeing this software.</p>
+    <p><b>Parseh never starts an agent</b> and does not name one as the way: use any that works in
+      a folder. It writes the folder and the instructions, and shows you where.</p>
+    <p><b>The agent works on the real tree</b>: Parseh&rsquo;s own tools, run with Parseh&rsquo;s own
+      Python, writing only inside the book&rsquo;s folder. Nothing is copied out and nothing is
+      brought back.</p>
+    <p><b>You watch it in the library and the reader</b>: the book&rsquo;s card says where the
+      making stands, and the reader has a making panel &mdash; look at it now, the PDF of the
+      chapters so far, what to change from now on, and <b>finish</b> when it is done. While it is
+      made, the reader does not edit: the agent writes the book from its own files.</p>
   </div>
   </div>
 </section>
@@ -744,9 +636,9 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
 <footer class="idx">
   <span id="foot-all">A book is written paragraph by paragraph: the reader is rebuilt the
   moment text lands, the PDF with the next <code>./build.sh</code>.</span>
-  <span id="foot-llm" hidden>The prompt is <code>docs/new-book-prompt.md</code>, the conventions
-  per language <code>docs/lang/&lt;code&gt;.md</code>; the reference&rsquo;s own account of the
-  method is <code>books/&lt;reference&gt;/NOTES.md</code>. Edit any and this page follows.</span>
+  <span id="foot-llm" hidden>The instructions are written by Parseh into the book&rsquo;s folder
+  (<code>AGENTS.md</code>); the conventions per language are <code>docs/lang/&lt;code&gt;.md</code>.
+  Making the folder is done on the computer Parseh runs on.</span>
 </footer>
 <script id="data" type="application/json">''' + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + r'''</script>
 <script>
@@ -754,13 +646,13 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   var D = JSON.parse(document.getElementById('data').textContent);
   var $ = function (id) { return document.getElementById(id); };
   var KEY = 'bk_add_draft';
-  // the fields the outside folder's templates are built from: these, and
+  // the fields the notes under way 3's form are worked out from: these, and
   // only these, re-render on every keystroke
   var FIELDS = ['lang', 'gloss', 'ref', 'slug', 'year', 'title', 'title_latin', 'title_en',
-                'author', 'author_latin', 'blurb', 'source', 'pages', 'folder'];
+                'author', 'author_latin', 'blurb', 'pages'];
   // saved and restored, but never a reason to re-render: the two texts feed
-  // no template (re-rendering a 19 KB prompt on every keystroke of a pasted
-  // chapter would make typing it a chore), and the rest feed only a body.
+  // nothing else (re-rendering on every keystroke of a pasted chapter would
+  // make typing it a chore), and the rest feed only a body.
   // `how` had no listener at all before this: choosing "sense groups" was
   // never saved and silently reverted to one chunk per sentence on reload.
   var SAVE_ONLY = ['how', 'ahow', 'addinto', 'chtext', 'aptext'];
@@ -780,6 +672,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   }
   FIELDS.concat(SAVE_ONLY).forEach(function (k) { if (saved[k]) val(k, saved[k]); });
   if (saved.addwhere === 'last') { if ($('addwhere_last')) $('addwhere_last').checked = true; }
+  if (saved.examples && $('examples')) $('examples').checked = true;
   function addWhere() {
     return ($('addwhere_last') && $('addwhere_last').checked) ? 'last' : 'new';
   }
@@ -798,6 +691,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     var o = {};
     FIELDS.concat(SAVE_ONLY).forEach(function (k) { o[k] = val(k); });
     o.addwhere = addWhere();
+    o.examples = !!($('examples') && $('examples').checked);
     o.path = PATH;
     try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {}
   }
@@ -816,10 +710,6 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     return foldCase(s).normalize('NFKD').replace(/[^\x00-\x7f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
   }
-  function fill(tpl, m) {
-    return tpl.replace(/\{\{([A-Z_]+)\}\}/g, function (_, k) { return k in m ? m[k] : '{{' + k + '}}'; });
-  }
-  function jsonStr(s) { return JSON.stringify(String(s)).slice(1, -1); }
   function langRec() {
     return D.langs.filter(function (l) { return l.code === val('lang'); })[0] || D.langs[0];
   }
@@ -827,19 +717,10 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     return D.glosses.filter(function (g) { return g.code === val('gloss'); })[0]
       || D.glosses.filter(function (g) { return g.code === D.default_gloss; })[0];
   }
-  // The reference to learn from: one of the same language when there is one,
-  // else the Persian one -- the method is the same, the conventions differ
-  // and the prompt says so.  Called when the language changes; a choice made
-  // by hand in the select afterwards stands until the language changes again.
-  function pickRef() {
-    var L = langRec();
-    var same = D.refs.filter(function (r) { return r.lang === L.code; });
-    var fa = D.refs.filter(function (r) { return r.lang === D.default_lang; });
-    var r = same[0] || fa[0] || D.refs[0];
-    if (r) val('ref', r.path);
-  }
+  // The edition to learn from is the person's choice and "none" until they
+  // make one: nothing is picked for them
   function refRec() {
-    return D.refs.filter(function (r) { return r.path === val('ref'); })[0] || D.refs[0] || {};
+    return D.refs.filter(function (r) { return r.path === val('ref'); })[0] || null;
   }
   function slugNow() {
     return slugify(val('slug') || val('title_latin') || val('title') || 'new-book') || 'new-book';
@@ -857,11 +738,8 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     var hit = taken(slug, L.folder);
     el.className = 'fieldnote' + (hit ? ' warn' : '');
     el.innerHTML = hit
-      ? (PATH === 'llm'
-          ? 'a book is already at <code>books/' + esc(L.folder) + '/' + esc(slug) +
-            '/</code> &mdash; the return script would copy over it'
-          : 'a book is already at <code>books/' + esc(L.folder) + '/' + esc(slug) +
-            '/</code> &mdash; choose another slug')
+      ? 'a book is already at <code>books/' + esc(L.folder) + '/' + esc(slug) +
+        '/</code> &mdash; choose another slug'
       : 'will be created as <code>books/' + esc(L.folder) + '/' + esc(slug) + '/</code>';
   }
   // The one pairing the reading editions refuse: a right-to-left gloss of a
@@ -957,145 +835,49 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     // never came while the slug that would be refused was typed.  Here,
     // before the gate, it follows every field on every way that shows it.
     slugPreview();
-    // only way 3 reads the rest.  It used to rebuild four artefacts and a
-    // ~19 KB prompt on every keystroke of fourteen fields, in ways where
-    // nothing it produces is ever looked at.
     if (PATH !== 'llm') return;
-    var L = langRec();
-    var G = glossRec();
-    var ref = refRec();
-    var slug = slugNow();
-    var src = val('source').trim();
-    var srcFile = src ? src.replace(/^.*[\\/]/, '') : 'the-book.pdf';
-    var folder = val('folder').trim() || ('$HOME/frank-' + slug);
-    folder = folder.replace(/^~(?=\/|$)/, '$HOME');
-    var pages = val('pages').trim(), pageArgs = '', pagesJson = '';
-    var pm = pages.match(/^(\d+)\s*[-–]\s*(\d+)$/);
-    if (pm) { pageArgs = '--from ' + pm[1] + ' --to ' + pm[2];
-              pagesJson = ',\n  "source_pages": [' + pm[1] + ', ' + pm[2] + ']'; }
-    // the working folder has a real default and needs no gate; it is simply
-    // shown, so what the script will contain is on screen before it is run
-    $('foldernote').textContent = 'Where the LLM works, outside the toolbox. Defaults to ' + folder + '.';
-    // a page range that is not a range was dropped in silence, and the whole
-    // file was extracted instead
-    $('pagesnote').className = 'fieldnote' + (pages && !pm ? ' warn' : '');
-    $('pagesnote').textContent = (pages && !pm)
-      ? 'the page range is ignored: write it 13-21'
-      : '0-based. Leave empty for the whole file.';
-    // THE ONE GATE WAY 3 HAS EVER HAD.  Only the original is checked: with
-    // it empty the scripts say /path/to/the-book.pdf and the user runs that.
-    // The folder is NOT gated -- its default is correct and is printed above.
-    var ready = !!src;
-    $('llmwarn').hidden = ready;
-    if (!ready) $('llmwarn').innerHTML = '<b>Name the original first</b> &mdash; without it ' +
-      'the scripts are written with <code>/path/to/the-book.pdf</code> in them.';
-    Array.prototype.forEach.call(document.querySelectorAll('[data-copyraw]'), function (b) {
-      b.disabled = !ready;
-      b.title = ready ? '' : 'name the original file first';
-    });
-    var sameLang = ref.lang === L.code;
-    var refNote = sameLang ? '' :
-      ' The reference is in ' + (ref.lang_name || 'Persian') + ', not in ' + L.name +
-      ': the method is the same and the conventions differ -- the conventions of ' + L.name +
-      ' below replace every ' + (ref.lang_name || 'Persian') + '-specific rule of the notes.';
-    $('refnote').textContent = ref.path ? (sameLang
-      ? 'A ' + L.name + ' edition to learn from: its notes and conventions apply as they are.'
-      : 'No ' + L.name + ' edition is built yet, so the reference is the ' + (ref.lang_name || 'Persian') +
-        ' one: the conventions of ' + L.name + ' are in the prompt and replace its language-specific rules.')
-      : 'No built edition to learn from: build one first (./build.sh) and reload.';
-    // the class the note is written with follows the class it is styled by:
-    // it was 'why' and is now 'fieldnote', and the warn state has to ride
-    // the new one or the note silently loses its styling on the first render
-    $('refnote').className = 'fieldnote' + (ref.path && sameLang ? '' : ' warn');
-    var kanaRule = (L.reading
-      ? ' ' + L.name + ' is a **reading language**: every glossed chunk also carries `kana`, the reading of the ' +
-        'whole chunk (never a per-character alignment); `assemble.py` writes it as `\\chr` and refuses a ' +
-        'chunk without it, and `check_batch.py` reports one.'
-      : '') + (L.words
-      ? ' ' + L.name + ' also divides every glossed chunk into **words**, and the division is required: `words` is ' +
-        'one line, the words parted by spaces and each word\'s ' + (L.reading ? 'kana' : L.translit_label) +
-        ' after it in parentheses, and the words joined with nothing between them must be `fa` exactly (the ' +
-        '`## Words` section of the conventions below is the rule). **The machine starts the words and the ' +
-        'annotator corrects them** (step 2b): the division is never written from nothing. `words` never replaces ' +
-        (L.reading ? '`kana`' : '`tr`') + ', which stays the reading of the whole chunk; `assemble.py` writes a ' +
-        'chunk with words as `\\' + (L.reading ? 'chrw' : 'chw') + '` and `check_batch.py` checks the line, and ' +
-        'warns about a paragraph none of whose chunks has one.'
-      : '');
-    // and how the words start: from the machine's proposal, exactly what a
-    // text pasted into a draft gets, which the annotator then corrects
-    var wordsStep = L.words
-      ? '\n   For ' + L.name + ' every chunk\'s words start from the machine\'s, as a text pasted into a ' +
-        'draft does. As soon as a paragraph\'s chunks are cut and their ' + (L.reading ? '`kana`' : '`tr`') +
-        ' written, the annotator runs, with the environment\'s Python (the analyzers are in it),\n\n' +
-        '   ```bash\n   python3 lib/fill_words.py --lang ' + L.code + ' --json books/' + L.folder + '/' + slug +
-        '/annot/chN_pNN.json\n   ```\n\n' +
-        '   which gives every chunk without words the proposed `words` -- each word\'s reading cut from the ' +
-        'chunk\'s own -- and fills a reading still blank from the words. Then the annotator reads every line ' +
-        'against `## Words` and corrects, in the JSON, the division and the readings: the proposal is where the ' +
-        'words start, never where they end. A chunk cut again afterwards gets its `words` deleted and the tool ' +
-        'run once more.\n'
-      : '';
-    // What the annotator has to be told once, at the top, because everything
-    // it is shown to learn from was glossed in another language.  Nothing is
-    // said when the reference already glosses in this one: there the examples
-    // are the model for the wording as well as for the shape.
-    var glossNote = (!ref.path || ref.gloss === G.code) ? '' :
-      ' The reference edition is glossed in ' + ref.gloss_name + ' and yours is not: read its ' +
-      '`en` fields and its vocabulary lines for the SHAPE of a gloss, never for its wording, ' +
-      'and write every one of yours in ' + G.name + '.';
-    var kanaExample = (L.reading || L.words)
-      ? '\nFor ' + L.name + ' every chunk has ' +
-        (L.reading ? 'the reading beside the transliteration' : '') +
-        (L.reading && L.words ? ', and ' : '') + (L.words ? 'its words' : '') + ':\n\n' +
-        '```json\n{"fa": "…"' + (L.words ? ', "words": "…"' : '') + (L.reading ? ', "kana": "…"' : '') +
-        ', "tr": "…", "voc": "…", "en": "…"}\n```\n'
-      : '';
-    var m = {
-      ROOT: D.root, FOLDER: folder, SLUG: slug, SOURCE_PATH: src || '/path/to/' + srcFile,
-      SOURCE_FILE: srcFile, PAGE_ARGS: pageArgs, SOURCE_PAGES: pagesJson,
-      TITLE: val('title').trim() || '…', TITLE_LATIN: val('title_latin').trim() || slug,
-      // the half title is set in capitals, and the registry's code is the
-      // locale that decides which: Turkish uppercases bir to BİR and kış to
-      // KIŞ.  The browser carries that rule; a table of pairs written out
-      // here would be a language's own spelling kept outside the registry
-      TITLE_LATIN_UPPER: (val('title_latin').trim() || slug).toLocaleUpperCase(L.code),
-      TITLE_EN: val('title_en').trim(), AUTHOR: val('author').trim() || '…',
-      AUTHOR_LATIN: val('author_latin').trim() || '…', YEAR: val('year').trim(),
-      BLURB: jsonStr(val('blurb').trim()),
-      LANG: L.code, LANG_NAME: L.name, LANG_NATIVE: L.native, LANG_FOLDER: L.folder,
-      GLOSS: G.code, GLOSS_NAME: G.name, GLOSS_NATIVE: G.native, GLOSS_NOTE: glossNote,
-      LANG_CONVENTIONS: L.conventions, LANG_DIGIT_EXAMPLE: L.digit_example,
-      LANG_LABEL_EXAMPLE: L.label_example, STRIP_NOTE: L.strip_note,
-      TR_LABEL: L.translit_label, KANA_RULE: kanaRule, KANA_EXAMPLE: kanaExample,
-      WORDS_STEP: wordsStep,
-      REF_SLUG: ref.slug || '', REF_PATH: ref.path || '', REF_SRC: ref.src || '',
-      REF_FOLDER: ref.folder || '',
-      REF_LANG_NAME: ref.lang_name || '', REF_NOTE: refNote,
-      REF_STATS: ref.stats || '', BATCH: String(D.batch),
-      // a reference kept with its annotation JSON is worth pointing at; one without it is not
-      WORKDIR_LINES: ref.annot
-        ? "work dir/annot/          the reference's annotation JSON — the ground truth its .tex was built from\n" +
-          "work dir/src/            its per-chapter source lists (src_chN.json), what assemble.py indexes into\n"
-        : '',
-      JSON_EXAMPLES: ref.annot
-        ? "Hundreds of real ones are in `work dir/annot/`; the reference's `ch*.tex` show what they become."
-        : "The reference's `ch*.tex` show what they become: read a chunk there back into this shape and you have the idea."
-    };
-    m.BOOK_JSON = fill(D.book_json, m);
-    m.MAIN_TEX = fill(D.main_tex, m);
-    var prompt = fill(D.prompt, m);
-    m.PROMPT = prompt;
-    $('prompt').textContent = prompt;
-    $('plen').textContent = prompt.length + ' characters';
-    $('setup').textContent = fill(D.setup, m);
-    $('ret').textContent = fill(D.ret, m);
+    var L = langRec(), ref = refRec(), file = $('original').files[0];
+    // the edition to learn from, said as what it does to the agent
+    $('refnote').className = 'fieldnote';
+    $('refnote').textContent = !D.refs.length
+      ? 'There is no finished book here to learn from, and that is fine: the agent works from ' +
+        'the instructions alone.'
+      : !ref ? 'None: the agent works from the instructions alone.'
+      : ref.title + ' is shown to the agent as an example of the method: it reads it where it ' +
+        'lies and never changes it.' + (ref.lang === L.code ? '' :
+          ' It is in ' + ref.lang_name + ', not ' + L.name + ': the conventions of ' + L.name +
+          ' still decide every chunk.');
+    // the box about the person's own books: what ticking it does, and how many it names
+    var mine = D.books.filter(function (b) { return b.lang === L.code && !b.making; }).length;
+    $('examplesnote').textContent = mine
+      ? 'Off, the agent is shown none of your books. Ticked, the instructions name where your ' +
+        mine + ' finished ' + L.name + ' book' + (mine === 1 ? ' is' : 's are') +
+        ', as examples only: it never writes there.'
+      : 'You have no finished ' + L.name + ' book yet, so there is nothing to show.';
+    // the original as it was chosen, and a file the tools cannot read named at once
+    var ext = file ? (file.name.match(/\.[^.]*$/) || [''])[0].toLowerCase() : '';
+    var known = D.original_exts.indexOf(ext) >= 0;
+    $('originalnote').className = 'fieldnote' + (file && !known ? ' warn' : '');
+    $('originalnote').textContent = !file ? '' : !known
+      ? file.name + ' is not a PDF, an epub or a plain text file: the tools cannot read it.'
+      : file.name + ', ' + size(file.size) + '.';
+    // a page range that is not a range is dropped, and so is one for a file with no pages
+    var pages = val('pages').trim(), range = /^\d+\s*[-\u2013]\s*\d+$/.test(pages);
+    $('pagesnote').className = 'fieldnote' + (pages && (!range || (file && ext !== '.pdf')) ? ' warn' : '');
+    $('pagesnote').textContent = (pages && !range) ? 'The page range is ignored: write it 13-21.'
+      : (pages && file && ext !== '.pdf') ? 'A page range is for a PDF: it is ignored for this file.'
+      : 'Counted from 0, for a PDF only. Leave empty for the whole file.';
+    if (instructions && instructions.open()) refreshSoon();
+  }
+  function size(n) {
+    return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' kB' : (n / 1048576).toFixed(1) + ' MB';
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
     return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
 
   /* ---------------- which way, and only that way ---------------- */
   var CRUMB = {'new': ' &rsaquo; by hand', 'extend': ' &rsaquo; add to a book',
-               'llm': ' &rsaquo; outside, with an LLM'};
+               'llm': ' &rsaquo; made by an agent'};
   function choose(p, push, focusIt) {
     if (!LANES[p]) p = '';                       // an unknown ?path= falls back to the chooser
     if (p === 'extend' && !D.books.length) p = '';   // nothing to add to: the chooser, not an empty select
@@ -1159,7 +941,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     tick('step-new-2', !!val('chtext').trim());
     tick('step-add-1', !!val('addinto'));
     tick('step-add-3', !!val('aptext').trim());
-    tick('step-llm-1', !!(val('title').trim() && val('source').trim()));
+    tick('step-llm-1', !!(val('title').trim() && $('original').files.length));
     gate();
   }
   // a button that cannot act says why, in its title -- and, where no title is
@@ -1171,6 +953,14 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     $('mkempty').disabled = !!why;
     $('mkempty').title = why;
     $('mkwhy').textContent = why;
+    // the folder's button says why it cannot be pressed, in words: the computer's
+    // alone (D.may_said is the server's own sentence), then what is missing
+    var mwhy = !D.may_make ? 'making the folder is the computer\'s alone: see above'
+             : !val('title').trim() ? 'the title comes first'
+             : !$('original').files.length ? 'choose the original first' : '';
+    $('mkfolder').disabled = !!mwhy;
+    $('mkfolder').title = mwhy;
+    $('mkwhy').textContent = mwhy;
     var awhy = !val('addinto') ? 'there is no book here to add to yet'
              : !val('aptext').trim() ? 'paste the text first' : '';
     if ($('addto')) {
@@ -1324,6 +1114,125 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
         gate(); Parseh.toast(String(e), true); });
   };
 
+  /* ---------------- way 3: an agent makes it, here ---------------- */
+  // The book's facts as the server takes them.  The half title is set in
+  // capitals, and the registry's code is the locale that decides which:
+  // Turkish uppercases bir to BİR and kış to KIŞ.  The browser carries that
+  // rule and Python's upper() does not, so it is sent already made.
+  function bookFields(originalName) {
+    var L = langRec();
+    return {lang: L.code, gloss: val('gloss'), slug: val('slug').trim(), title: val('title').trim(),
+            title_latin: val('title_latin').trim(), title_en: val('title_en').trim(),
+            author: val('author').trim(), author_latin: val('author_latin').trim(),
+            year: val('year').trim(), blurb: val('blurb').trim(), pages: val('pages').trim(),
+            title_latin_upper: (val('title_latin').trim() || slugNow()).toLocaleUpperCase(L.code),
+            original: originalName || ''};
+  }
+  // THE INSTRUCTIONS, WHAT THE SERVER WOULD WRITE INTO THE FOLDER: the same
+  // text the folder gets, produced by lib/making.py, so this page fills none
+  // of its placeholders and cannot say one thing while the folder says another.
+  function getInstructions() {
+    var f = $('original').files[0];
+    return fetch('/books/__making/instructions', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({book: bookFields(f ? f.name : ''), reference: val('ref'),
+                            examples: !!$('examples').checked})})
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) throw new Error(j.error || 'the instructions could not be made');
+        return j.text;
+      });
+  }
+  // THE ONE SEAM FOR THE LLM ROW (lib/llmrow.js, brief 3.6): everything a
+  // person presses to hand the instructions over is drawn by this function
+  // alone, so the row -- the prompt menu, the size line, both copy buttons --
+  // takes its place here in one line once it is merged.  `getText()` answers
+  // the text as a promise; what the row shows and copies is what it returns.
+  function mountInstructionsRow(mount, getText) {
+    mount.innerHTML =
+      '<details id="ishow"><summary>the instructions, as they will be written</summary>' +
+      '<pre class="cmd" id="itext"></pre></details>' +
+      '<div class="row"><button type="button" class="wbtn quiet" id="icopy">copy the instructions</button>' +
+      '<span class="stat" id="ilen"></span></div>';
+    var box = mount.querySelector('#itext'), det = mount.querySelector('#ishow');
+    var len = mount.querySelector('#ilen'), copyBtn = mount.querySelector('#icopy');
+    function refresh() {
+      return getText().then(function (t) {
+        box.textContent = t;
+        len.className = 'stat';
+        len.textContent = t.length.toLocaleString() + ' characters';
+        return t;
+      }).catch(function (e) {
+        box.textContent = '';
+        len.className = 'stat warn';
+        len.textContent = String(e && e.message || e);
+        return '';
+      });
+    }
+    det.addEventListener('toggle', function () { if (det.open) refresh(); });
+    copyBtn.onclick = function () { refresh().then(function (t) { if (t) Parseh.copy(t, true); }); };
+    return {refresh: refresh, open: function () { return det.open; }};
+  }
+  var instructions = mountInstructionsRow($('instrmount'), getInstructions);
+  var refreshTimer = null;
+  function refreshSoon() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(function () { instructions.refresh(); }, 400);
+  }
+  if (!D.may_make) {
+    $('mklock').hidden = false;
+    $('mklock').textContent = D.may_said;
+  }
+  // the folder is made from the file the person picked, sent as the body of the
+  // request -- so it is copied by the server, on this computer or on Windows,
+  // with no path typed anywhere -- and the book's facts ride in the address
+  $('mkfolder').onclick = function () {
+    var file = $('original').files[0];
+    if (!val('title').trim()) { Parseh.toast('the title comes first', true); $('title').focus(); return; }
+    if (!file) { Parseh.toast('choose the original first', true); $('original').focus(); return; }
+    var res = $('mkresult'); res.hidden = true;
+    $('mkstat').textContent = 'making the folder…'; $('mkfolder').disabled = true;
+    var act = working('Making the folder of ' + val('title').trim());
+    var facts = bookFields(file.name);
+    facts.reference = val('ref');
+    facts.examples = !!$('examples').checked;
+    fetch(act.url('/books/__make?name=' + encodeURIComponent(file.name) +
+                  '&book=' + encodeURIComponent(JSON.stringify(facts))),
+      {method: 'POST', headers: {'Content-Type': 'application/octet-stream'}, body: file})
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        act.end(!!j.ok);
+        $('mkstat').textContent = ''; res.hidden = false;
+        gate();
+        if (!j.ok) {
+          res.innerHTML = '<div class="note bad"><b>' + esc(j.error || 'failed') + '</b></div>';
+          res.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+          return;
+        }
+        var base = '/books/' + j.dir;
+        res.innerHTML = '<div class="note good"><b>The folder is made</b>, and the book is on ' +
+          '<a href="/books/">the library page</a>, marked <b>being made</b>.' +
+          '<code class="bigpath">' + esc(j.path) + '</code>' +
+          '<div class="row"><button type="button" class="wbtn quiet" id="mkcopy">copy the path</button>' +
+          '<button type="button" class="wbtn quiet" id="mkopen">open the folder</button>' +
+          '<a class="wbtn" href="' + esc(base) + '/reader/">open the reader &rarr;</a></div>' +
+          '<p class="handover">Open this folder in the agent you use, and tell it: ' +
+          '<b>read AGENTS.md and begin</b>.</p>' +
+          '<span class="fieldnote">Parseh does not start an agent and does not choose one for you: ' +
+          'any agent that works in a folder will do.</span></div>' + afterWrote(j);
+        $('mkcopy').onclick = function () { Parseh.copy(j.path, true); };
+        $('mkopen').onclick = function () {
+          fetch(base + '/__making/open', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                          body: '{}'})
+            .then(function (r) { return r.json(); })
+            .then(function (o) { Parseh.toast(o.ok ? 'opened' : (o.error || 'it could not be opened'), !o.ok); })
+            .catch(function (e) { Parseh.toast(String(e), true); });
+        };
+        res.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+      })
+      .catch(function (e) { act.end(false); $('mkstat').textContent = ''; gate(); Parseh.toast(String(e), true); });
+  };
+
   /* ---------------- wiring ---------------- */
   FIELDS.forEach(function (k) {
     var el = $(k);
@@ -1337,13 +1246,16 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     el.addEventListener('input', function () { save(); ticks(); });
     el.addEventListener('change', function () { save(); ticks(); });
   });
+  ['original', 'examples'].forEach(function (k) {
+    $(k).addEventListener('change', function () { save(); ticks(); render(); });
+  });
   ['addwhere_new', 'addwhere_last'].forEach(function (k) {
     var el = $(k);
     if (el) el.addEventListener('change', function () { save(); });
   });
   if ($('addinto')) $('addinto').addEventListener('change', function () { applyInto(); });
   $('lang').addEventListener('change', function () {
-    applyLang(); applyGloss(); pickRef(); save(); ticks(); render(); });
+    applyLang(); applyGloss(); save(); ticks(); render(); });
   $('gloss').addEventListener('change', function () { applyGloss(); save(); render(); });
   Array.prototype.forEach.call(document.querySelectorAll('.hbtn'), function (b) {
     b.onclick = function () {
@@ -1353,29 +1265,11 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
       b.setAttribute('aria-expanded', String(open));
     };
   });
-  // RAW, not collapsed.  Parseh.copy squeezes every run of whitespace to one
-  // space, which is right for a word and destroys a shell script: both setup
-  // scripts carry heredocs and the prompt is ~15,000 characters of Markdown,
-  // and all three arrived as a single unrunnable line.  The second argument
-  // asks for the text exactly as it stands, and keeps the toast and the
-  // execCommand fallback that a private clipboard call would have lost.
-  Array.prototype.forEach.call(document.querySelectorAll('[data-copyraw]'), function (b) {
-    b.onclick = function () {
-      var el = $(b.dataset.copyraw);
-      // a <pre> here and a <textarea> on the video page: read whichever the
-      // element actually keeps its text in
-      Parseh.copy(('value' in el) ? el.value : el.textContent, true);
-    };
-  });
-
-  // THE ORDER MATTERS, now that render() is gated.  The draft is restored,
-  // the language and the gloss are applied, the reference is picked -- and
-  // only then is a way chosen, which performs the single gated render.  Turn
-  // these around and a way-3 visitor's first prompt is built against
-  // whichever reference happened to be first in a notes-first sort.
+  // THE ORDER MATTERS, now that render() is gated.  The draft is restored and
+  // the language and the gloss are applied -- and only then is a way chosen,
+  // which performs the single gated render.
   applyLang();
   applyGloss();
-  if (!saved.ref) pickRef();
   applyInto();
   var want = (location.search.match(/[?&]path=([a-z]+)/) || [])[1] || saved.path || '';
   choose(want, false, false);

@@ -97,6 +97,16 @@ ORIGINAL = "original"
 ORIGINAL_EXTS = (".pdf", ".epub", ".txt")
 BATCH = 10                                  # paragraphs to a batch (docs/new-book-prompt.md)
 
+# THE SHAPE OF annot/*.json, as a number (lib/version.py FORMATS): the annotation
+# JSON the agent writes a paragraph and a batch at a time and lib/assemble.py
+# builds the chapters from -- {"idx", "ch", "ann": {"sentences": [{"chunks": [...]}]}},
+# a chunk holding fa, tr, voc, en and, for a language with a reading or words,
+# kana and words (lib/check_batch.py's docstring).  It rides in a book's bundle
+# from a0.4.2 (lib/bundle.py), so an older Parseh must be told it may not read it.
+# RAISE IT when the shape changes so that the Parseh before this one would read
+# what is written now wrong.
+ANNOT_FORMAT = 1
+
 # THE DOORS OF A BOOK'S READER THAT WRITE ITS .tex OR ITS TITLE PAGE, shut while
 # the agent makes it (serve.py's _books_post asks is_making before any of them).
 # A hand edit would be erased by the next assembly, and one that lands while the

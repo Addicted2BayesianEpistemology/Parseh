@@ -21,7 +21,8 @@ What is mounted where -- one address, one port, one process:
     /books/           the reading editions (static pages built by ./build.sh)
     /youtube/         the video player (pages assembled per request)
     /youtube/add/     paste a transcript, copy the prompt, paste the answer
-    /books/add/       the recipe and the Claude Code prompt for a new edition
+    /books/add/       a new edition: by hand, onto a book, or made by an agent whose
+                      folder this makes under books/ (lib/making.py)
     /studio/          the LLM-answer studio, under a prefix
     /exercises/       decks of studio exercises, studied like Anki cards
                       (markdown/app/deckroutes.py, the store in exercises/)
@@ -155,6 +156,7 @@ import structure            # noqa: E402  a chapter's name and the sections insi
 import bookmeta             # noqa: E402  a book's title, author and the like, edited in place
 import chunker            # noqa: E402  the two ways a draft may be cut
 import bookbuild          # noqa: E402  a book built from a page, as a job the page polls
+import making             # noqa: E402  a book made by an agent in place: its folder, its record, its asks, its end
 import activity           # noqa: E402  what the server is busy with, for every page to show
 import draft               # noqa: E402  an empty book or video, to author from nothing
 import annwrite            # noqa: E402  one chunk of a video's annotations, edited
@@ -452,6 +454,10 @@ STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js"
                 # the mobile interface's sheet (docs/mobile.md), and the layer
                 # parseh.js loads into every book's reader for it
                 "/lib/mobile.css", "/lib/mobilereader.js",
+                # what a reader of a book being made by an agent adds to itself:
+                # the making panel, the lock on editing, "ask about this chunk"
+                # (lib/making.js, loaded by parseh.js)
+                "/lib/making.js",
                 # the narration's controls -- ▶ ↺ ↻, the speed -- which
                 # parseh.js loads into every reader in EITHER mode, so a book
                 # built before today gains them without being built again
@@ -510,6 +516,9 @@ MAX_BODY = 32 * 1024 * 1024             # a JSON body: an edit, a chunk, an answ
 # for the ordinary JSON routes, where a body of that size is a mistake and
 # not a film.
 UPLOAD_ROUTES = ("/anki/sync/upload", "/books/__upload", "/exercises/api/import",
+                 # the original of a book an agent will make: a PDF of a whole
+                 # book, chosen with a file picker and sent as the body
+                 "/books/__make",
                  # a whole library put back from a backup: streamed to disk,
                  # because it is as big as everything somebody has written
                  "/studio/api/library/zip",
@@ -2299,6 +2308,8 @@ def long_work(method, path, query, length=0):
         return "restore", "Restoring books from " + file, "putting them back"
     if path == "/books/__empty":
         return "build", "Writing a new book", None
+    if path == "/books/__make":
+        return "upload", "Making the folder of a book for an agent, from " + file, "writing it"
     if path.startswith("/books/"):
         if re.match(r"^/books/.+/__append/?$", path):
             return "build", "Adding text to " + _book_named(path), None
@@ -2421,8 +2432,8 @@ def activity_now():
         last = next((ln.strip() for ln in reversed(job["log"]) if ln.strip()), None)
         extra.append(activity.entry(
             build_entry(book, job["started"]), "build",
-            ("Building the PDF of %s" if job["what"] == "pdf"
-             else "Rebuilding the reader of %s") % named(title),
+            {"pdf": "Building the PDF of %s", "draft": "Making the PDF of the chapters so far of %s"
+             }.get(job["what"], "Rebuilding the reader of %s") % named(title),
             job["started"], stage=last, page=page,
             finished=job["finished"] if job["state"] != "running" else None,
             ok=job["state"] == "done"))
@@ -3311,7 +3322,10 @@ class Handler(SimpleHTTPRequestHandler):
         if path in ("/books/add", "/books/add/"):
             if method != "GET":
                 return self._method_not_allowed()
-            return self.send_html(newbook.page())
+            # a device that may not make a book's folder is shown the page with
+            # the button shut and the reason under it, not a button that fails
+            return self.send_html(newbook.page(
+                may_make=settingspage.may("making.folder", self._where())))
         if path == "/lib/langs.css":
             # generated from the registry on every request (it is tiny, and
             # no-store like every page), never a file on disk
@@ -3326,6 +3340,14 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._shelf_restore("book")
             return (self._bundle_upload("book") if path.endswith("upload")
                     else self._book_empty())
+        # A BOOK MADE BY AN AGENT, IN PLACE (lib/making.py, a0.4.2): the folder
+        # (computer only, and the original is the body), what the instructions
+        # would say, and everything about one book being made below
+        if path in ("/books/__make", "/books/__making/instructions"):
+            if method != "POST":
+                return self._method_not_allowed()
+            return (self._making_make() if path.endswith("__make")
+                    else self._making_instructions())
         if path == "/books/__backup":
             if method != "GET":
                 return self._method_not_allowed()
@@ -3352,6 +3374,8 @@ class Handler(SimpleHTTPRequestHandler):
             book = book_dir(m.group(1))
             if not book:
                 return self.send_json({"ok": False, "error": "no book here"}, 404)
+            if making.is_making(book):
+                return self._making_locked()
             return self._book_append(book)
         # a book built from a page: the PDF and the reader (./build.sh), or
         # the reader alone, as a job the page polls (lib/bookbuild.py).
@@ -3370,6 +3394,21 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "POST":
                 return self._method_not_allowed()
             return self._book_build(book)
+        # the panel of a book being made, from its card, its reader (which asks
+        # relative to itself) and the add page: what it is on, an ask, the
+        # folder opened, Finish -- addressed by the book's own path like __build
+        m = re.match(r"^(/books/.+?)(?:/reader)?/__making(/[a-z/]+?)?/?$", path)
+        if m:
+            what = (m.group(2) or "").strip("/")
+            # the two doors that change what Parseh will run are asked BEFORE the
+            # book is looked up: a device that may not is told so, whatever it names
+            gate = {"open": "making.folder", "finish": "making.finish"}.get(what)
+            if gate and method == "POST" and not self._may(gate):
+                return
+            book = book_dir(m.group(1))
+            if not book:
+                return self.send_json({"ok": False, "error": "no book here"}, 404)
+            return self._making(book, method, what)
         m = re.match(r"^(/books/[^/]+(?:/[^/]+)?)/notes(/.*)?$", path)
         if m:
             # book_dir, as notes_library looks it up for a "+ Deck" copy
@@ -3573,11 +3612,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _book_build(self, book):
         """Start building one book: {"what": "pdf"}, the PDF and the reader
-        (the default), or {"what": "html"}, the reader alone.  The answer
-        comes at once, with the job; the page polls __build/status for the
-        build's log and its end.  A book already building answers 409 with
-        that build, so a second press never starts a second lualatex over the
-        same .aux."""
+        (the default), {"what": "html"}, the reader alone, or {"what": "draft"},
+        the PDF of the chapters main.tex has so far (a book being made by an
+        agent, looked at while it grows).  The answer comes at once, with the
+        job; the page polls __build/status for the build's log and its end.  A
+        book already building answers 409 with that build, so a second press
+        never starts a second lualatex over the same .aux."""
         try:
             body = self._json_body()
         except ValueError:
@@ -3586,7 +3626,12 @@ class Handler(SimpleHTTPRequestHandler):
         if what not in bookbuild.WAYS:
             return self.send_json({"ok": False, "error": "no such build: %r (%s)"
                                    % (what, ", ".join(bookbuild.WAYS))}, 400)
-        job, started = bookbuild.start(book, what)
+        try:
+            job, started = (bookbuild.start(book, what, chapters=making.chapter_inputs(book))
+                            if what == "draft" else bookbuild.start(book, what))
+        except ValueError as e:
+            # only the draft can be refused: no chapter yet, or no shell to make it
+            return self.send_json({"ok": False, "error": str(e)}, 409)
         # the name of this build on the activity list (activity_now), so the
         # page that asked can show its own entry once and not twice -- the
         # build already running, when that is the answer
@@ -3595,6 +3640,102 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(dict(job, ok=False, activity=act,
                                        error="it is already being built"), 409)
         self.send_json(dict(job, ok=True, activity=act))
+
+    # ---- a book made by an agent, in place (lib/making.py)
+    def _may(self, key):
+        """May this device do what the table's `key` says (lib/settingspage.py)?
+        True, or the refusal already sent, in the entry's own words."""
+        if settingspage.may(key, self._where()):
+            return True
+        self.send_json({"ok": False, "error": settingspage.refusal(key)}, 403)
+        return False
+
+    def _making_locked(self):
+        """The answer to a door that writes the .tex of a book being made."""
+        self.send_json({"ok": False, "making": True, "error": making.LOCK_SAID}, 409)
+
+    def _making_make(self):
+        """The book's folder, from the add page's third way.  The original is the
+        request's body -- streamed to a file when it is big, like every file that
+        comes in -- and the book's facts are one JSON in the query.  Computer
+        only: what is made here is what an agent will be told to run tools in."""
+        if not self._may("making.folder"):
+            return
+        try:
+            fields = json.loads((self.query.get("book") or ["{}"])[0])
+            if not isinstance(fields, dict):
+                raise ValueError("not an object")
+        except ValueError:
+            return self.send_json({"ok": False, "error": "the book's facts did not arrive as JSON"}, 400)
+        options = {"reference": str(fields.pop("reference", "") or ""),
+                   "examples": bool(fields.pop("examples", False))}
+        name = (self.query.get("name") or [""])[0]
+        original = {"name": name, "path": self._spool} if self._spool else {"name": name, "data": self._raw}
+        try:
+            r = making.make(fields, original, options)
+        except ValueError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 400)
+        except OSError as e:
+            return self.send_json({"ok": False, "error": "the folder could not be written (%s); "
+                                   "nothing was changed" % e}, 500)
+        # on the library page and in its reader from the first minute
+        r["reader"] = self._rebuild_reader(r["path"])
+        r["library"] = self._write_library()
+        self.send_json(dict(r, ok=True))
+
+    def _making_instructions(self):
+        """What the folder's AGENTS.md would say for the form as it stands, for the
+        page to show and copy.  It names this computer's paths, so it is the
+        computer's, like the folder itself."""
+        if not self._may("making.folder"):
+            return
+        body = self._json_body()
+        fields = body.get("book") if isinstance(body.get("book"), dict) else {}
+        options = {"reference": str(body.get("reference") or ""), "examples": bool(body.get("examples"))}
+        try:
+            text = making.instructions_for(fields, options)
+        except ValueError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 400)
+        self.send_json({"ok": True, "text": text, "chars": len(text)})
+
+    def _making(self, book, method, what):
+        """One book being made: what its panel shows (GET), an ask written to
+        ASKS.md, the folder opened, Finish and how it is going."""
+        if what == "":
+            if method != "GET":
+                return self._method_not_allowed()
+            out = making.describe(book)
+            where = self._where()
+            out["may"] = {"folder": settingspage.may("making.folder", where),
+                          "finish": settingspage.may("making.finish", where)}
+            if out["may"]["folder"]:
+                out["path"] = book          # this computer's own path, for a device with the computer's rights
+            out["build"] = bookbuild.status(book)
+            out["finish"] = making.finish_status(book)
+            return self.send_json(out)
+        if what == "finish/status":
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_json(dict(making.finish_status(book), ok=True))
+        if what not in ("ask", "open", "finish"):
+            return self._not_found("no such door")
+        if method != "POST":
+            return self._method_not_allowed()
+        body = self._json_body()
+        if what == "ask":
+            chunk = body.get("chunk") if isinstance(body.get("chunk"), dict) else None
+            try:
+                return self.send_json(making.ask(book, body.get("line"), chunk))
+            except ValueError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 400)
+        if what == "open":
+            err = making.open_folder(book)
+            return self.send_json({"ok": not err, "error": err or "", "path": book}, 200 if not err else 500)
+        try:
+            job, started = making.finish_start(book)
+        except ValueError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 409)
+        self.send_json(dict(job, ok=True, started=started))
 
     def _video_delete(self):
         """Take one video off the shelf, into videos/.trash/ -- the very
@@ -4604,6 +4745,15 @@ class Handler(SimpleHTTPRequestHandler):
     # ---- the book reader's two writes
     def _books_post(self, path):
         p = path.rstrip("/")
+        # A BOOK BEING MADE BY AN AGENT IS NOT EDITED FROM ITS READER.  The
+        # pipeline's truth is annot/*.json and the .tex is assembled from it, so
+        # an edit made here would be erased by the agent's next batch; the doors
+        # that write the .tex say so, in words, and the reader (lib/making.js)
+        # has already turned the pencil into "ask about this chunk"
+        if p.endswith(making.LOCKED):
+            locked = self._book_dir()
+            if locked and making.is_making(locked):
+                return self._making_locked()
         if p.endswith("__save/review-corrections.json"):
             return self._save()
         if p.endswith("__save/subtimes.json"):
