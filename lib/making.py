@@ -339,6 +339,12 @@ def describe(book_dir):
         stamp = os.path.getmtime(path_of(book_dir, MAKING))
     except OSError:
         stamp = None
+    # WHETHER THE READER IS OLDER THAN WHAT THE AGENT HAS WRITTEN, said by the files' own
+    # times: a page built before the last batch lands is the page the person is looking at
+    written = [path_of(book_dir, n) for n in [name + ".tex" for name in inputs] + ["main.tex"]]
+    newest = max((os.path.getmtime(p) for p in written if os.path.isfile(p)), default=0)
+    reader = os.path.join(book_dir, "reader", "index.html")
+    built = os.path.getmtime(reader) if os.path.isfile(reader) else None
     ran_under = _line(doc.get("parseh"), 40)
     return {
         "ok": True, "making": not finished, "state": "finished" if finished else "making",
@@ -346,6 +352,7 @@ def describe(book_dir):
         "on": _line(doc.get("on")), "batches": {"done": _int(b.get("done")), "of": _int(b.get("of"))},
         "chapters": table, "present": present,
         "to_come": [n for n in wanted if n not in present],
+        "stale": bool(newest and (built is None or newest > built)),
         "checks": {_line(k, 40): _line(v) for k, v in list(checks.items())[:12]},
         "started": _epoch(doc.get("started")),
         "updated": _epoch(doc.get("updated")) or stamp,

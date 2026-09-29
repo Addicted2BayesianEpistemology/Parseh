@@ -3708,6 +3708,10 @@ class Handler(SimpleHTTPRequestHandler):
             where = self._where()
             out["may"] = {"folder": settingspage.may("making.folder", where),
                           "finish": settingspage.may("making.finish", where)}
+            # what a device that may not is told, in the table's own words, so that the
+            # panel says the reason and does not draw a button that would only fail
+            out["said"] = {k: settingspage.refusal("making." + k) for k, ok in out["may"].items() if not ok}
+            out["name"] = booklib.Book(book).title_latin or booklib.Book(book).title
             if out["may"]["folder"]:
                 out["path"] = book          # this computer's own path, for a device with the computer's rights
             out["build"] = bookbuild.status(book)

@@ -63,8 +63,8 @@ def available(what):
     above all -- the reader can still be built (the Python build below does it),
     the PDF of a few chapters cannot, and the page says so plainly."""
     if what == "draft" and (runtime.WIN or not shutil.which("sh")):
-        return False, ("the PDF of these chapters is made by a shell script, and this computer has "
-                       "none: it is not available here. The reader is -- look at it now")
+        return False, ("the PDF of these chapters is not available on this computer, which has no shell "
+                       "to make it. The reader is available: look at it now")
     return True, ""
 
 

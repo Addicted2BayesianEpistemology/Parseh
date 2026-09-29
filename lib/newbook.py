@@ -284,6 +284,7 @@ def page(may_make=True):
 .step pre.cmd{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.55;
   background:var(--bg);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;
   overflow:auto;max-height:420px;white-space:pre;color:var(--ink);margin:8px 0}
+.step pre.cmd.wrap{white-space:pre-wrap;overflow-wrap:anywhere}
 .step .why{font-size:13.5px;line-height:1.65;color:var(--dim)}
 .step .why b{color:var(--ink)}
 .step ol{padding-left:20px;margin:0}
@@ -606,7 +607,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     <button type="button" class="wbtn" id="mkfolder">make the book&rsquo;s folder</button>
     <span class="stat" id="mkstat"></span>
   </div>
-  <span class="fieldnote whysmall" id="mkwhy"></span>
+  <span class="fieldnote whysmall" id="mkfwhy"></span>
   <div id="mkresult" aria-live="polite" hidden></div>
   </div>
 </section>
@@ -955,12 +956,14 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     $('mkwhy').textContent = why;
     // the folder's button says why it cannot be pressed, in words: the computer's
     // alone (D.may_said is the server's own sentence), then what is missing
-    var mwhy = !D.may_make ? 'making the folder is the computer\'s alone: see above'
+    var L = langRec(), mwhy = !D.may_make ? 'making the folder is the computer\'s alone: see above'
              : !val('title').trim() ? 'the title comes first'
-             : !$('original').files.length ? 'choose the original first' : '';
+             : !$('original').files.length ? 'choose the original first'
+             : taken(slugNow(), L.folder) ? 'a book is already at books/' + L.folder + '/' + slugNow() +
+               '/ -- choose another slug' : '';
     $('mkfolder').disabled = !!mwhy;
     $('mkfolder').title = mwhy;
-    $('mkwhy').textContent = mwhy;
+    $('mkfwhy').textContent = mwhy;
     var awhy = !val('addinto') ? 'there is no book here to add to yet'
              : !val('aptext').trim() ? 'paste the text first' : '';
     if ($('addto')) {
@@ -1151,7 +1154,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   function mountInstructionsRow(mount, getText) {
     mount.innerHTML =
       '<details id="ishow"><summary>the instructions, as they will be written</summary>' +
-      '<pre class="cmd" id="itext"></pre></details>' +
+      '<pre class="cmd wrap" id="itext"></pre></details>' +
       '<div class="row"><button type="button" class="wbtn quiet" id="icopy">copy the instructions</button>' +
       '<span class="stat" id="ilen"></span></div>';
     var box = mount.querySelector('#itext'), det = mount.querySelector('#ishow');
@@ -1210,6 +1213,10 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
           return;
         }
         var base = '/books/' + j.dir;
+        D.books.push({path: base, rel: j.dir, folder: j.folder, dirname: j.slug, lang: j.language,
+                      making: true, name: val('title_latin').trim() || j.slug});
+        render();
+        gate();
         res.innerHTML = '<div class="note good"><b>The folder is made</b>, and the book is on ' +
           '<a href="/books/">the library page</a>, marked <b>being made</b>.' +
           '<code class="bigpath">' + esc(j.path) + '</code>' +
