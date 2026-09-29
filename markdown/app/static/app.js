@@ -5071,13 +5071,18 @@ function initPrompt() {
   }
   const row = window.ParsehLLMRow ? ParsehLLMRow.mount($("#llm-row"), {
     surface: "studio-doc", cls: "btn primary big", ids: {copy: "btn-copy-all"},
-    title: "Copy the prompt, and your question after it if you wrote one",
+    title: "Put the prompt on the clipboard, with your question after it when you have written one",
     remind: "paste it into your chatbot, then bring its answer back with Upload .md or Paste LLM answer.",
     box: () => ta,
   }) : null;
   if (!row) $("#llm-row").textContent = "The prompt helper could not be loaded.";
-  // a prompt not loaded yet has nothing to copy
-  const sync = () => { if (row && current.text) row.update(copyText()); };
+  // a prompt not loaded yet has nothing to copy; and a button says what it copies:
+  // "and your question" once one is written
+  const sync = () => {
+    if (!row || !current.text) return;
+    row.update(copyText());
+    row.label(question.value.trim() ? "copy the prompt and your question" : "copy the prompt");
+  };
   question.addEventListener("input", sync);
   ta.addEventListener("input", () => { if (editing) sync(); });
 
