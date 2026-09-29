@@ -106,7 +106,7 @@ about what goes in it), and `kana` when the language has a reading:
  {"start": 27,
   "chunks": [
    {"fa": "احساس می‌کنم", "tr": "ehsās mi-konam",
-    "voc": "احساس ehsās feeling (Ar.); احساس کردن ehsās kardan to feel",
+    "voc": "\\vb{کردن}{kardan}{کن}{kon}{کرد}{kard}{}\\bw{احساس}{ehsās}{to feel (Ar.)}",
     "en": "I feel"},
    {"fa": "یه چیزی در مورد شما هست", "tr": "ye čiz-i dar mored-e šomā hast",
     "en": "there is something about you"}
@@ -120,7 +120,7 @@ and, for Japanese, with the chunk's words and the reading of the whole chunk:
 [
  {"start": 14,
   "chunks": [
-   {"fa": "私は", "words": "私(わたし) は", "kana": "わたしは", "tr": "watashi wa", "voc": "私 わたし watashi I", "en": "I"},
+   {"fa": "私は", "words": "私(わたし) は", "kana": "わたしは", "tr": "watashi wa", "voc": "\\dw{私}{watashi} I", "en": "I"},
    {"fa": "毎朝コーヒーを飲みます", "words": "毎朝(まいあさ) コーヒー を 飲みます(のみます)",
     "kana": "まいあさコーヒーをのみます", "tr": "maiasa kōhī o nomimasu",
     "en": "drink coffee every morning"}

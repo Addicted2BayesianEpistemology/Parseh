@@ -82,8 +82,9 @@ The prompt is written for the video's own language and gloss language: the
 meanings in the language the video's glosses are written in; the
 transliteration where the language romanises every phrase (Persian, Arabic,
 Japanese, Hindi, Chinese), and where the conventions call for it in the
-others; the kana of a Japanese phrase; the vocabulary line as **plain
-text** — a video's has no LaTeX; the language's own conventions, whole
+others; the kana of a Japanese phrase; the vocabulary line in the
+books' entries (`\dw`, `\vb`, `\bw`, `\pw`), which the player draws as a
+book's reader does — a plain line is accepted as well; the language's own conventions, whole
 (`docs/lang/<code>.md`, the file every prompt of Parseh carries), and
 Frank's repetition rule. The run itself is one JSON block: one entry per
 caption, with its number (`"i"`), its start in seconds and its phrases in

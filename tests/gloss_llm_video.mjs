@@ -940,7 +940,8 @@ try {
         document.execCommand = () => false;
       });
       await page.click('#rgcopy');
-      await page.waitForFunction(() => !document.querySelector('#rgpromptrow').hidden, null, {timeout: 20000});
+      // THE HAND-COPY BOX IS MADE THE FIRST TIME IT IS NEEDED (lib/llmrow.js offer): wait for it to exist, not only to be shown
+      await page.waitForFunction(() => { const r = document.querySelector('#rgpromptrow'); return !!r && !r.hidden; }, null, {timeout: 20000});
       const byHand = await page.evaluate(() => document.querySelector('#rgprompt').value);
       assert(/^Parseh prompt · [^\n]+\n\n# Gloss part of/.test(byHand) && /would not put it on the clipboard/.test(await text(page, '#rgcopysay')) && (await clip(page)) === SENTINEL,
              `${key}: a browser that refuses the clipboard: the prompt is shown in the panel to copy by hand, and the row says so`);

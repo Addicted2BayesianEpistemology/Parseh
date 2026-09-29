@@ -124,7 +124,7 @@ language — which then has no phrases — and its `chunks`, the phrases:
 | `words` | Japanese, Chinese: the phrase's words, each with its reading in ASCII parentheses; joined with nothing they must be `fa` exactly |
 | `kana` | Japanese: the reading of the whole phrase |
 | `tr` | the transliteration — required where the language wants one, optional for a language in Latin letters |
-| `voc` | the vocabulary line, plain text: a word's first appearance in the video, and rarely after |
+| `voc` | the vocabulary line, in the books' entries (`\dw`, `\vb`, `\bw`, `\pw`) or plain text: a word's first appearance in the video, and rarely after |
 | `en` | the meaning — named after English, and written in the video's `gloss` language |
 | `note` | anything else worth saying: what the automatic transcript really heard, a cultural point |
 | `plain` | `true` for a phrase asked for nothing: an aside in another language, in a language written in Latin letters |

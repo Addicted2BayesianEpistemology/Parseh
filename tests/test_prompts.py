@@ -240,13 +240,12 @@ CHECKS = (
     Check("has_no_tex_specials_rule_in_a_video",
           "the TeX specials are a book's: a video never reaches LaTeX (brief 3.8, 4.3)",
           ("video-region", "video-new"), {}, has_no_tex_specials_rule),
-    # --- rows that wait for the lane that rewrites the words they are about ---
     Check("says_no_video_line_is_plain_text",
           "a video's vocabulary line is written with the books' macros and a line with none is only "
-          "also accepted (brief 6.5); the language files of it, fr, de, tr, en and es still say "
-          "\"plain text\" in the paragraph for a video, which lane V rewrites",
-          ("video-region", "video-new"), {"video-region": "V", "video-new": "V"},
+          "also accepted (brief 6.5): no language file says a video's is plain text",
+          ("video-region", "video-new"), {},
           says_a_videos_line_is_plain_text),
+    # --- rows that wait for the lane that rewrites the words they are about ---
     Check("has_no_harakat_rule_of_a_reading_edition_in_a_video",
           "a reading edition's harakat are a book's (brief 3.8); the language files still say them in "
           "unmarked paragraphs (the text field, the sources sidebar's) which D marks {{?book}} or moves",
