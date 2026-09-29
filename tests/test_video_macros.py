@@ -11,7 +11,6 @@ Standard library only.
 """
 import copy
 import glob
-import io
 import json
 import os
 import shutil

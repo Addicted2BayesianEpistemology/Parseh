@@ -552,6 +552,10 @@ try {
     eq(order, ['dw', 'vb', 'bw', 'pw'], `${k}: Tab goes through the four buttons in order`);
     await page.keyboard.press('Shift+Tab');
     eq(await page.evaluate(() => document.activeElement.dataset.ins), 'bw', `${k}: and back`);
+    await page.keyboard.press('Escape');
+    eq(await page.evaluate(() => [document.querySelector('#vk-help').hidden, document.querySelector('#cloud').classList.contains('editing')]),
+       [true, false], `${k}: Esc closes the form and takes the line under the buttons with it`);
+    await openEdit(page, b.seg, b.chunk);
     // a press writes the skeleton at the cursor, the caret inside its first braces
     await type(page, 'voc', '');
     await page.click('#cloud .evbtns [data-ins="vb"]');
@@ -818,6 +822,10 @@ try {
   /* ---------------- shots ---------------- */
   if (SHOTS) {
     console.log('\nscreenshots for the eye, into ' + SHOTS);
+    // section c) left a plain line in the Persian chunk: the line the cloud is to be seen with goes back
+    await py("import sys; sys.path[:0] = ['youtube/lib', 'lib']; import annwrite; " +
+             "annwrite.edit_chunk(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), {'voc': sys.argv[4]})",
+             B0.fa.dir, String(B0.fa.seg), String(B0.fa.chunk), LINES.fa.line);
     const theme = (page, t) => page.evaluate(t => Parseh.theme.set(t), t);
     const png = async loc => (await loc.screenshot()).toString('base64');
     // two element pictures side by side, captioned: the player's and the reader's rendering of the same line

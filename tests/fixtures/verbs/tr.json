@@ -564,6 +564,7 @@
      "word": "teşekkür",
      "bw": "\\bw{teşekkür}{}{to thank (-e)}",
      "tex": "\\vb{etmek}{}{ediyor}{}{eder}{}{}\\bw{teşekkür}{}{to thank (-e)}",
+     "tex_video": "\\vb{etmek}{}{ediyor}{}{eder}{}{}\\bw{teşekkür}{}{to thank (-e)}",
      "plain": "teşekkür etmek to thank (-e) (etmek · pres. ediyor · aor. eder)",
      "complete": true,
      "missing": []
