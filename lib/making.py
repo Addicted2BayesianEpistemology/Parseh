@@ -409,61 +409,6 @@ def ask(book_dir, line, chunk=None, when=None):
 
 
 # ------------------------------------------------------------------ the instructions (the seam)
-STUB = """\
-# {{TITLE_LATIN}} -- a book made with Parseh's tools
-
-You are making a reading edition of **{{TITLE_LATIN}}**{{TITLE_NOTE}} by {{AUTHOR_LATIN}}: a book \
-in {{LANG_NAME}}, glossed in {{GLOSS_NAME}}. This folder is the book. Parseh made it and does not \
-start any agent: the person opened you here, watches the book grow in Parseh's library, and \
-writes you asks.
-
-## Where everything is
-
-- The book, and the only place you write: `{{BOOK_DIR}}`
-- Parseh's tools: `{{LIB}}`, the `*.py` files. Run them with the Python at `{{PYTHON}}`, by its \
-full path -- no `conda`, nothing to install.
-- The original text: `{{ORIGINAL}}`{{PAGES}}
-- {{LANG_NAME}}'s conventions, binding for every chunk: `{{CONVENTIONS}}`
-{{REFERENCE}}{{EXAMPLES}}
-## The rules
-
-1. Write only inside this folder. Read anything of Parseh's; change nothing of it.
-2. Never run the full build (`build.sh <book>`): the person's page does. To look at your work, \
-typeset the chapters so far: `sh {{ROOT}}/build.sh {{BOOK_REL}} --draft ch1 ch1b` writes \
-`frankdraft.pdf` beside the book, never `main.pdf`.
-3. `annot/*.json` is the truth; the `.tex` chapters are assembled from it by `assemble.py` and \
-never edited by hand.
-4. Before EVERY batch, read `ASKS.md` again. Do what an entry asks from the next batch on, write \
-in `NOTES.md` what you changed because of it, and ask the person in your own chat if an ask goes \
-against the method.
-5. Keep `NOTES.md`: the source's oddities, the decisions, what is open.
-6. Keep `making.json` (below) every time you finish something. Never change its `state`, \
-`parseh` or `started`. When `state` says `finished`, stop: the book is the person's now.
-
-## `making.json`
-
-`stage`: `source` (the original recovered), `chapters` (the chapter table written), `batch`, \
-`done` (every batch is in). `on`: one line, what you are on. `chapters`: \
-`[{"chapter": 1, "paragraphs": 24}, ...]`. `batches`: `{"done": 3, "of": 12}`. `checks`: what \
-the tools last said, e.g. `{"check_batch": "0 errors", "assemble": "ALL PARAGRAPHS CLEAN", \
-"verify_book": "clean"}`. `updated`: the time you wrote it, UTC (`2026-09-29T14:20:01Z`).
-
-{{MEANING_RULE}}
-
-## The work, {{BATCH}} paragraphs at a time
-
-1. Recover the text into `source/clean.txt` (one paragraph a line) and `source/paras/chN_pNN.txt` \
--- `extract_pdf.py` for a PDF with a text layer, your own care for an epub or a text file -- and \
-run `chapter_src.py --book {{BOOK_DIR}} --all`. Write the chapter table into `NOTES.md` and show \
-it to the person before annotating anything.
-2. For each batch: one `annot/chN_pNN.json` a paragraph. {{WORDS}}Check each with \
-`check_batch.py <json> --book {{BOOK_DIR}}` until it says 0 errors; then `merge_batch.py`, \
-`normalize_batch.py` and `assemble.py` (it must end `ALL PARAGRAPHS CLEAN`) make `chNx.tex`, \
-which you `\\input` in `main.tex`, in order.
-3. At the end: `verify_book.py --book {{BOOK_DIR}}` must be clean. Then tell the person; they \
-press Finish in Parseh.
-"""
-
 _TOKEN = re.compile(r"\{\{([A-Z_]+)\}\}")
 
 
@@ -471,51 +416,79 @@ def _fill(text, values):
     return _TOKEN.sub(lambda m: str(values.get(m.group(1), m.group(0))), text)
 
 
-def _meaning_rule(book):
-    """docs/meaning-rule.md in the words of this book's language and gloss language: the rule
-    every chunk's `en` follows, the same text the gloss prompts carry."""
-    with open(os.path.join(os.path.dirname(LIB), "docs", "meaning-rule.md"), encoding="utf-8") as f:
-        text = promptkit.blocks(f.read(), {"video": False})
-    return (text.replace("{{LANGUAGE}}", book["language_name"])
-            .replace("{{GLOSS_LANGUAGE}}", book["gloss_name"]).strip() + "\n")
+def _reading_and_words(L, folder_python, lib, book_dir):
+    """What only a language with a reading, or one that divides a chunk into words, needs told: the
+    fields it adds, the tool that starts the division from the machine's, and a chunk that shows them.
+    Returns (KANA_RULE, WORDS_STEP, KANA_EXAMPLE) -- three strings, empty where the language has none."""
+    reading_word = "`kana`" if L.reading else "`tr`"
+    rule = ""
+    if L.reading:
+        rule += (" %s is a **reading language**: every glossed chunk also carries `kana`, the reading of the "
+                 "whole chunk (never a per-character alignment); `assemble.py` writes it as `\\chr` and "
+                 "refuses a chunk without it, and `check_batch.py` reports one." % L.name)
+    step = ""
+    if L.words:
+        rule += (" %s also divides every glossed chunk into **words**, and the division is required: `words` is "
+                 "one line, the words parted by spaces and each word's %s after it in parentheses, and the "
+                 "words joined with nothing between them must be `fa` exactly (the `## Words` section of the "
+                 "conventions below is the rule). **The machine starts the words and the annotator corrects "
+                 "them** (step 2b): the division is never written from nothing. `words` never replaces %s, "
+                 "which stays the reading of the whole chunk; `assemble.py` writes a chunk with words as `\\%s` "
+                 "and `check_batch.py` checks the line, and warns about a paragraph none of whose chunks has "
+                 "one." % (L.name, "kana" if L.reading else L.translit_label, reading_word,
+                           "chrw" if L.reading else "chw"))
+        step = ("For %s every chunk's words start from the machine's, as a text pasted into a draft does. As "
+                "soon as a paragraph's chunks are cut and their %s written, run `%s %s --lang %s --json "
+                "%s/annot/chN_pNN.json`, which gives every chunk without words the proposed `words` -- each "
+                "word's reading cut from the chunk's own -- and fills a reading still blank from the words. "
+                "Then read every line against `## Words` and correct, in the JSON, the division and the "
+                "readings: the proposal is where the words start, never where they end. A chunk cut again "
+                "afterwards gets its `words` deleted and the tool run once more. "
+                % (L.name, reading_word, folder_python, os.path.join(lib, "fill_words.py"), L.code, book_dir))
+    example = ""
+    if L.reading or L.words:
+        example = ("\nFor %s every chunk has %s%s%s:\n\n```json\n{\"fa\": \"...\"%s%s, \"tr\": \"...\", "
+                   "\"voc\": \"...\", \"en\": \"...\"}\n```\n"
+                   % (L.name, "the reading beside the transliteration" if L.reading else "",
+                      ", and " if L.reading and L.words else "", "its words" if L.words else "",
+                      ", \"words\": \"...\"" if L.words else "", ", \"kana\": \"...\"" if L.reading else ""))
+    return rule, step, example
 
 
 def instructions_text(facts, options=None):
-    """What AGENTS.md says for these facts -> str.  This is the text Lane H's
-    real instructions replace; the seam is write_instructions, which calls it."""
+    """What AGENTS.md says for these facts -> str: docs/new-book-prompt.md, assembled by the prompt kit
+    (the language's conventions and the rule on the meaning come in by it).  The seam is
+    write_instructions, which calls this."""
     book, orig = facts["book"], facts["original"]
-    options = options or {}
     ref = facts.get("reference")
     ex = facts.get("examples") or []
+    L, G = languages.get(book["language"]), languages.gloss_or_default(book["gloss"])
     pages = ", pages %d-%d of it (counted from 0)" % tuple(orig["pages"]) if orig.get("pages") else ""
-    lang = book["language"]
     latin = book["title_latin"] or book["slug"]
-    # A LANGUAGE THAT DIVIDES A CHUNK INTO WORDS (Japanese, Chinese: the registry's `words`) has the
-    # machine start the division and the annotator correct it -- the step the page's old recipe carried
-    # in its prompt, and the one an agent cannot know of without being told
-    words = ("For %s every chunk also has `words`, its division into words: start it from the machine's "
-             "with `%s %s --lang %s --json <the paragraph's JSON>`, then correct it against the `## Words` "
-             "section of the conventions. " % (book["language_name"], facts["python"],
-                                              os.path.join(facts["lib"], "fill_words.py"), lang)
-             ) if languages.get(lang).words else ""
+    rule, step, example = _reading_and_words(L, facts["python"], facts["lib"], book["dir"])
     values = {
-        "WORDS": words,
-        "MEANING_RULE": _meaning_rule(book),
         "TITLE_NOTE": " (%s)" % book["title"] if book["title"] and book["title"] != latin else "",
         "TITLE_LATIN": latin,
         "AUTHOR_LATIN": book["author_latin"] or book["author"] or "an unnamed author",
-        "LANG_NAME": book["language_name"], "GLOSS_NAME": book["gloss_name"],
+        "LANG_NAME": L.name, "LANG_NATIVE": L.native, "LANG": L.code,
+        "GLOSS_NAME": G.name, "GLOSS": G.code,
         "BOOK_DIR": book["dir"], "BOOK_REL": book["rel"], "ROOT": facts["root"],
-        "LIB": facts["lib"], "PYTHON": facts["python"], "BATCH": facts.get("batch", BATCH),
+        "LIB": facts["lib"], "PYTHON": facts["python"], "BATCH": str(facts.get("batch", BATCH)),
+        "BATCH_LAST": str(facts.get("batch", BATCH) - 1),
         "ORIGINAL": os.path.join(book["dir"], *orig["file"].split("/")), "PAGES": pages,
-        "CONVENTIONS": os.path.join(facts["root"], "docs", "lang", lang + ".md"),
+        "PAGE_ARGS": "--from %d --to %d" % tuple(orig["pages"]) if orig.get("pages") else "",
+        "CONVENTIONS": os.path.join(facts["root"], "docs", "lang", L.code + ".md"),
         "REFERENCE": ("- A finished edition to learn the method from -- read it, change nothing: "
                       "`%s`\n" % ref["path"]) if ref else "",
         "EXAMPLES": ("- The person's finished books in %s, as examples only -- read them, change "
-                     "nothing: `%s` (%s)\n" % (book["language_name"], facts["examples_dir"],
+                     "nothing: `%s` (%s)\n" % (L.name, facts["examples_dir"],
                                                ", ".join(e["rel"] for e in ex[:12]))) if ex else "",
+        "STRIP_NOTE": ("once the marks (harakat) are stripped from both sides" if L.strip_range else
+                       "-- %s carries no marks to strip, so exactly" % L.name),
+        "LANG_DIGIT_EXAMPLE": L.to_native_digits("3"), "LANG_LABEL_EXAMPLE": L.to_native_digits("3.1"),
+        "KANA_RULE": rule, "WORDS_STEP": step, "KANA_EXAMPLE": example,
     }
-    return _fill(STUB, values)
+    return promptkit.assemble("book-new", L, G, values=values).text
 
 
 CLAUDE_LINE = "Read AGENTS.md in this folder before anything else, and follow it.\n"
