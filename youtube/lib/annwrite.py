@@ -748,9 +748,9 @@ def merge_chunks(video_dir, seg, chunk, fields=None):
     it out -- the texts end to end with the language's word separator, the
     romanisations and meanings with a space, the vocabulary with its own
     separator (a middle dot for a plain line, a semicolon once the line holds
-    one of the books' macros) -- and its notes come back with the answer.  A colour the two
-    did not share, and anything else that could not simply be put end to end,
-    is named there rather than lost quietly.
+    one of the books' macros) -- and its notes come back with the answer.  A
+    colour the two did not share, and anything else that could not simply be
+    put end to end, is named there rather than lost quietly.
 
     Returns {segment, chunks, count, what, index, notes}: `chunks` is the
     segment's whole new list, because every chunk after the join has moved and

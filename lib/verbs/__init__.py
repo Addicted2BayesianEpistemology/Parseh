@@ -1186,13 +1186,16 @@ def compose(code, parts, word="", of_form="", gloss="en", meaning=""):
         here = plain
 
     # AND THE CHUNK'S OWN FORM AFTER THE ENTRY, as the books name one: `; here
-    # \pw{vint} \textit{vẽ}` (docs/lang/fr.md, zh.md).  A video's older line
-    # hung the form in front and the entry in brackets after it (`here`); the
-    # books put the entry first.  Only a form that is none of the three the \vb
-    # prints is named -- the entry already shows the others, and the ones its
-    # parenthesis names (`p.r. \pw{accadde}`), and a bare Arabic word that is
-    # letter for letter one of them -- and the description a person adds after
-    # it ("past historic") is theirs to write.
+    # \pw{vint} \textit{vẽ}` (docs/lang/zh.md writes it so; fr.md puts the same
+    # note inside the meaning, after its parenthesis, and the two read alike).
+    # It goes OUTSIDE the \vb because the description a person adds after it
+    # ("past historic") is typed at the end of the line, where the sidebar's
+    # entry leaves the caret.  A video's older line hung the form in front and
+    # the entry in brackets after it (`here`); the books put the entry first.
+    # Only a form that is none of the three the \vb prints is named -- the
+    # entry already shows the others, and the ones its parenthesis names
+    # (`p.r. \pw{accadde}`), and a bare Arabic word that is letter for letter
+    # one of them.
     tex_video = vb_video
     printed = {vword(f) for f in (f1, f2, f3) if f}
     if w and not _same_word(w, f1, L) and vword(w) not in printed \

@@ -231,13 +231,14 @@ def _entries(voc, style):
     text, and one before a word rather than a macro is the middle of an entry
     that happens to have punctuation in it.
 
-    A video's PLAIN line is cut at the middle dot, outside brackets -- because the same
-    dot separates the parts of a single verb entry, which the conventions
-    write inside brackets: `هستم hastam I am (بودن budan · pres. باش bāš)`.
-    A line that writes a verb without them comes out as several entries; they
-    are put back with the same dot, and `_stick` keeps them on one side, so
-    the line is the line it was either way.  A video's line with macros in it
-    is a book's, and is cut as one (style_of).
+    A video's PLAIN line is cut at the middle dot, outside brackets --
+    because the same dot separates the parts of a single verb entry, which the
+    conventions write inside brackets:
+    `هستم hastam I am (بودن budan · pres. باش bāš)`.  A line that writes a
+    verb without them comes out as several entries; they are put back with the
+    same dot, and `_stick` keeps them on one side, so the line is the line it
+    was either way.  A video's line with macros in it is a book's, and is cut
+    as one (style_of).
     """
     voc = voc or ""
     if not voc.strip():
