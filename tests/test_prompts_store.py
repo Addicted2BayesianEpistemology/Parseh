@@ -528,6 +528,10 @@ class ResolvingAnId(Stored):
         names = [n for n, _m in info["placeholders"]]
         self.assertEqual(names, [n for n, _m in K.placeholders("video-region")])
         self.assertTrue(all(m and "\n" not in m for _n, m in info["placeholders"]))
+        # and the blocks its text may use: the kit's kinds and the ones its template uses, never a mark of a part
+        self.assertTrue({"video", "book", "keep", "regloss", "perfield"} <= set(info["blocks"]), info["blocks"])
+        self.assertFalse({"note", "contract", "data"} & set(info["blocks"]), info["blocks"])
+        self.assertEqual(P.parseh("ask")["blocks"], ["book", "new", "region", "studio", "video"])
 
     def test_ask_llms_words_are_the_javascripts(self):
         # the kit has no template for Ask LLM (it is built in the page, offline too), so its
@@ -829,26 +833,42 @@ class AnAnswerLandsAsOneToParsehsOwn(unittest.TestCase):
         self.assertEqual(reports[1], reports[0], "an answer to a prompt added to Parseh's lands as one to Parseh's")
         self.assertEqual(reports[2], reports[0], "and to one in place of it")
 
-    def test_a_video_from_its_transcript_the_add_pages_check_takes_the_same_answer(self):
+    def every_video(self, check):
+        """check(dir, meta) for each language's fixture video, a subtest each."""
+        for vj in TG.VIDEOS:
+            with self.subTest(os.path.relpath(os.path.dirname(vj), str(FIX))):
+                with open(vj, encoding="utf-8") as f:
+                    check(os.path.dirname(vj), json.load(f))
+
+    def test_a_video_from_its_transcript_the_add_pages_check_takes_the_same_answer_in_every_language(self):
         self.videos = os.path.join(self.td, "videos")
-        os.makedirs(self.videos)
         for name, value in (("VIDEOS", self.videos), ("oembed", lambda vid: {})):
             patcher = mock.patch.object(ytpages, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
-        vid = "fA6bK2mQ8sT"
-        parts = json.loads((PERSIAN_VIDEO / "parts" / "01.json").read_text(encoding="utf-8"))
+        yours = self.kinds("video-new")
+        self.every_video(lambda d, meta: self.a_video_from_its_transcript(d, meta, yours))
+
+    def a_video_from_its_transcript(self, d, meta, yours):
+        vid, code, gloss = os.path.basename(d), meta["language"], meta.get("gloss") or "en"
+        with open(os.path.join(d, "parts", "01.json"), encoding="utf-8") as f:
+            parts = json.load(f)
         answer = "```json\n%s\n```" % json.dumps(
             {"video": {"level": "beginner"},
              "captions": [{"i": i, "start": p["start"], "chunks": p["chunks"]} for i, p in enumerate(parts)]},
             ensure_ascii=False)
-        transcript = (PERSIAN_VIDEO / "transcript.txt").read_text(encoding="utf-8")
-        L, G = languages.get("fa"), languages.gloss("en")
+        with open(os.path.join(d, "transcript.txt"), encoding="utf-8") as f:
+            transcript = f.read()
+        L, G = languages.get(code), languages.gloss(gloss)
         caps = ytpages.parse_transcript_text(ytpages.as_transcript(transcript), L)
+        # THE SHELF IS EMPTY WHENEVER A PROMPT IS MADE: a video on it is the example the prompt
+        # borrows (ytpages._example), and it would make the second prompt another than the first
+        self.clean_shelf()
         own = ytpages.assembled_full(vid, {}, caps, None, L, G)
+        body = {"url": vid, "lang": code, "gloss": gloss, "transcript": transcript}
         wrote = []
-        for kind, pid in [(None, None)] + self.kinds("video-new"):
-            h = ytpages_handler({"url": vid, "lang": "fa", "gloss": "en", "transcript": transcript, "prompt": pid})
+        for kind, pid in [(None, None)] + yours:
+            h = ytpages_handler(dict(body, prompt=pid))
             ytpages.api_prepare(h)
             self.assertEqual(h.status, 200, h.sent)
             if pid:
@@ -856,41 +876,52 @@ class AnAnswerLandsAsOneToParsehsOwn(unittest.TestCase):
                 made = ytpages.assembled_full(vid, {}, caps, None, L, G, chosen.instructions, chosen.name)
                 self.held_the_same(own, made, kind)
                 self.assertEqual(h.sent["prompt"], made.text)
-                self.assertTrue(h.sent["prompt"].split("\n")[0].endswith(" · custom: my " + kind))
+                self.assertEqual(h.sent["prompt"].split("\n")[0],
+                                 K.version_line("video-new", L, G, None, "my " + kind))
                 self.assertEqual(h.sent["custom"], {"id": pid, "name": "my " + kind, "kind": kind})
             else:
                 self.assertEqual(h.sent["prompt"], own.text)
                 self.assertIsNone(h.sent["custom"])
-            shutil.rmtree(self.videos)
-            os.makedirs(self.videos)
-            h = ytpages_handler({"url": vid, "lang": "fa", "gloss": "en", "transcript": transcript, "answer": answer})
+            h = ytpages_handler(dict(body, answer=answer))
             ytpages.api_add(h)
             self.assertEqual((h.status, h.sent.get("ok")), (200, True), h.sent)
             wrote.append(TG.snap(self.videos))
+            self.clean_shelf()
         self.assertEqual(wrote[1], wrote[0])
         self.assertEqual(wrote[2], wrote[0], "the video the answer makes does not depend on who asked")
 
-    def test_the_tidied_transcript_goes_back_into_the_box_by_the_same_door(self):
-        L = languages.get("fa")
-        transcript = (PERSIAN_VIDEO / "transcript.txt").read_text(encoding="utf-8")
+    def clean_shelf(self):
+        shutil.rmtree(self.videos, ignore_errors=True)
+        os.makedirs(self.videos)
+
+    def test_the_tidied_transcript_goes_back_into_the_box_by_the_same_door_in_every_language(self):
+        yours = self.kinds("transcript-tidy")
+        self.every_video(lambda d, meta: self.a_tidied_transcript(d, meta, yours))
+
+    def a_tidied_transcript(self, d, meta, yours):
+        code = meta["language"]
+        L = languages.get(code)
+        with open(os.path.join(d, "transcript.txt"), encoding="utf-8") as f:
+            transcript = f.read()
         caps = ytpages.parse_transcript_text(ytpages.as_transcript(transcript), L)
-        own = tidier.assembled(caps, "fa")
+        own = tidier.assembled(caps, code)
         tidy_answer = CA.transcript_text([dict(c, text=c["text"] + ".") for c in caps if not c.get("plain")])
         back = []
-        for kind, pid in [(None, None)] + self.kinds("transcript-tidy"):
-            h = ytpages_handler({"transcript": transcript, "lang": "fa", "prompt": pid or True})
+        for kind, pid in [(None, None)] + yours:
+            h = ytpages_handler({"transcript": transcript, "lang": code, "prompt": pid or True})
             ytpages.api_transcript(h)
             self.assertEqual(h.status, 200, h.sent)
             if pid:
                 chosen = P.resolve("transcript-tidy", pid, L)
-                made = tidier.assembled(caps, "fa", chosen.instructions, chosen.name)
+                made = tidier.assembled(caps, code, chosen.instructions, chosen.name)
                 self.held_the_same(own, made, kind)
                 self.assertEqual(h.sent["prompt"], made.text)
-                self.assertTrue(h.sent["prompt"].split("\n")[0].endswith(" · custom: my " + kind))
+                self.assertEqual(h.sent["prompt"].split("\n")[0],
+                                 K.version_line("transcript-tidy", L, None, None, "my " + kind))
                 self.assertEqual(h.sent["custom"], {"id": pid, "name": "my " + kind, "kind": kind})
             else:
                 self.assertEqual((h.sent["prompt"], "custom" in h.sent), (own.text, False))
-            h = ytpages_handler({"transcript": tidy_answer, "lang": "fa"})
+            h = ytpages_handler({"transcript": tidy_answer, "lang": code})
             ytpages.api_transcript(h)
             self.assertEqual(h.status, 200, h.sent)
             back.append(h.sent["captions"])

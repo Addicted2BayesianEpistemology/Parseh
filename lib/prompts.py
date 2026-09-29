@@ -220,7 +220,8 @@ def parseh(surface):
         text, contract, locked = parts.instructions, parts.contract, True
     return {"surface": surface, "label": LABELS[surface], "text": text,
             "version": version_of(text), "locked": locked, "contract": contract,
-            "data": DATA[surface], "placeholders": [[n, m] for n, m in known_names(surface)]}
+            "data": DATA[surface], "placeholders": [[n, m] for n, m in known_names(surface)],
+            "blocks": sorted((set(_flags(surface)) | set(promptkit.surface_flags(surface))) - {"note"})}
 
 
 # ------------------------------------------------------------ what a text may say

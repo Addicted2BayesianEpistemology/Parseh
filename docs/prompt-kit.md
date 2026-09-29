@@ -143,7 +143,7 @@ all three are one store. Every writing route is refused from another site
 |---|---|---|
 | `list` | `{surface, lang?}` | `prompts`: those the place offers (for the language or for every one), without their text: `id name surface kind languages size updated stale` |
 | `get` | `{id}` | `prompt` (with `text`) and `verdict` |
-| `parseh` | `{surface}` | Parseh's raw `text`, its `version`, `locked`, the `contract` (raw, to show greyed under the text), `data` (one line saying what follows), the `placeholders` `[[NAME, meaning]]` and the place's `label` |
+| `parseh` | `{surface}` | Parseh's raw `text`, its `version`, `locked`, the `contract` (raw, to show greyed under the text), `data` (one line saying what follows), the `placeholders` `[[NAME, meaning]]`, the `blocks` a text may use (`{{?name}}…{{/name}}`) and the place's `label` |
 | `save` | `{id?, surface, name, kind, text, languages?}` | `prompt` and `verdict`; with `id` it changes that prompt (its surface stays) |
 | `uptodate` | `{id}` | "mine stands on Parseh's as it is now": records the current version, `prompt` and `verdict` |
 | `delete` | `{id}` | `{ok}` |
