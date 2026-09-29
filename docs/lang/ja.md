@@ -142,22 +142,23 @@ the convention.
 ## Vocabulary
 
 `voc` is written in the voice of the books' gloss blocks: headword +
-reading + meaning.
+rōmaji + meaning.
 
 - A **verb** is given as its **dictionary form, -masu stem and -te form**,
-  then the meaning, with its **class** in brackets after it: `書く かく kaku ·
-  stem 書き kaki · -te 書いて kaite · to write (godan; tr.)`; `食べる たべる
-  taberu · stem 食べ tabe · -te 食べて tabete · to eat (ichidan; tr.)`; `する`
-  and `来る くる` are `irregular`; a **-suru** compound is whole in every slot,
-  `勉強する · stem 勉強し · -te 勉強して · to study (suru)`. The form in the
-  text is tied to it: `書いて · 書く, te-form`; `食べました · 食べる, past
-  polite`.
-- An **adjective** names its class: `高い たかい (i-adj.) · high, expensive`;
-  `静か しずか (na-adj.) · quiet`.
-- A **noun** is `漢字 かんじ · Chinese character`; a counter is named as such
-  (`人 にん · counter for people`).
+  then the meaning, with its **class** in brackets after it:
+  `\vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}`;
+  `\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}`;
+  `する` and `来る` are `irregular`; a **-suru** compound is whole in every
+  slot,
+  `\vb{勉強する}{benkyō suru}{勉強し}{benkyō shi}{勉強して}{benkyō shite}{to study (suru)}`.
+  The form in the text is tied to it: `書いて · 書く, te-form`; `食べました ·
+  食べる, past polite`.
+- An **adjective** names its class: `\dw{高い}{takai} (i-adj.) high, expensive`;
+  `\dw{静か}{shizuka} (na-adj.) quiet`.
+- A **noun** is `\dw{漢字}{kanji} Chinese character`; a counter is named as
+  such (`\dw{人}{nin} counter for people`).
 - A **particle** doing something a learner may not expect is **named**:
-  `に · particle, direction`, `と · particle, quotation`; the ordinary
+  `\pw{に} particle, direction`, `\pw{と} particle, quotation`; the ordinary
   particles are never glossed (below).
 - Name what was stripped: the honorific `お`/`ご`, the plural `たち`, the
   nominaliser `の`/`こと`, the copula, the sentence-final particles (`ね`,
@@ -192,10 +193,9 @@ reading + meaning.
   all is plain text, and is also accepted. Japanese script inside it is fine —
   the player shows it in the target font — and, as in a book, a headword takes
   its rōmaji and never its kana (the chunk's `kana` and `words` carry the
-  reading), whatever the first bullets of this section show. What a video adds
-  is the form its chunk has, where it is none of the three the `\vb` prints, nor
-  one its parenthesis names: it is named after the entry, outside it, with its
-  sound,
+  reading). What a video adds is the form its chunk has, where it is none of
+  the three the `\vb` prints, nor one its parenthesis names: it is named after
+  the entry, outside it, with its sound,
   `\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}; here
   \pw{食べました} \textit{tabemashita}, past polite`.
 {{/video}}- The gloss editor's sources sidebar, in the reader and in the player, now
