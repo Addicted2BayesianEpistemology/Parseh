@@ -72,7 +72,8 @@ A step a machine enforces is a step nobody can forget. These are enforced:
 **Not enforced — this page is the only guard:** that the suites were run
 and are no redder than the baseline (GitHub runs none: they need a browser
 and the whole toolchain, which are on your computer); the rehearsals; the
-publishing; Parseh-mine's update from GitHub; everything under *Afterwards*.
+publishing; the guide's run on GitHub Pages, launched by you (8.4);
+Parseh-mine's update from GitHub; everything under *Afterwards*.
 
 ## Before you start
 
@@ -147,8 +148,8 @@ on 2026-09-28 on the `a0.4.0` tag in a worktree (the same three reds again;
 fonts and built fixture readers, so copy them from the checkout first or six
 unit tests of `test_mobile_pages` and `test_offline_notes` fail for that
 reason alone) — and a last time the same day on the finished a0.4.1 tree,
-which gave the same three reds and a fourth, `timings`; the counts below are
-that last run's:
+which gave the same three reds and a flaky fourth, `timings`; the counts
+below are that last run's:
 
 | Suite | State | How it fails |
 |---|---|---|
@@ -157,13 +158,15 @@ that last run's:
 | `tests/decomposition.mjs` | **red** | `TimeoutError: locator.click: Timeout 7000ms exceeded` waiting for `.test-extra [data-character="想"]`: the mode bar's *Choose a kanji in the text.* (with `#novid` and `#captimes`) covers it — `tests/decomposition.mjs:119` |
 | `tests/exercises.mjs` | **red** | `page.evaluate: Error: a line of chunks points its arrows along the line` — `tests/exercises.mjs:91`. A second red hides behind it: the mocked editor page never shows `.ex-edit` (a 30 s timeout). Mending the first will not turn it green. |
 | `tests/studio_narrow.mjs` | **red** | `FAIL: from 280 to 1440 px the editor never scrolls sideways …`: at 730 and 740 px the page is 741 px wide and `ins-br` is off screen; its parts b and c never run |
-| `tests/timings.mjs` | **red** | `FAIL ONE caption moved, not the one before it as well: null` — `tests/timings.mjs:1692`. The test reads the answer of `/youtube/api/times` the moment the sheet closes, before Playwright has read its body, so it sees `null`; it failed again when run alone, and passes when it waits for the answer (`{"ok":true,"moved":1,…}` comes about 50 ms later). Parseh saved the caption right, as the checks after it show: a fault of the test, not of Parseh. When the test waits for the answer, take this row out. |
+| `tests/timings.mjs` | **flaky** | `FAIL ONE caption moved, not the one before it as well: null` — `tests/timings.mjs:1692`. The test reads the answer of `/youtube/api/times` the moment the sheet closes, before Playwright has read its body, so now and then it sees `null`. It failed in the full run and on one rerun alone, and passed (391 checks) on another: unlike the *Flaky* ones below, failing again alone does not make this message breakage. Any other failure of `timings` is new. Parseh saved the caption right (with a wait, the answer comes about 50 ms later and the suite passes): a fault of the test, not of Parseh. When the test waits for the answer, take this row out. |
 | the other 46 `tests/*.mjs` | green | those under *Flaky* below fail now and then, and pass on a second run, alone |
 
 The first three reds are old: they failed the same way on a0.3.0, before this
-version's work began (measured again on 2026-09-24). `timings` is new to
-a0.4.1's run (2026-09-28, and alone again on 2026-09-29); it passed on the
-`a0.4.0` tag.
+version's work began (measured again on 2026-09-24). `timings` is not: it
+first failed in a0.4.1's full run (2026-09-28), passed on a rerun alone
+(2026-09-29), and failed on a later rerun alone the same day; it passed on the
+`a0.4.0` tag. The lines it fails at are the test's own, which a0.4.1 did not
+change.
 
 **Flaky, not broken.** These have failed now and then and passed when the
 suite was run again alone. They depend on timing — a browser that is slow
@@ -283,8 +286,9 @@ tagged commit and makes nothing while they disagree.
 
 ### 3. The guide, compiled
 
-The compiled guide, `html-guide/site/`, ships in the zip and is what GitHub
-Pages publishes, so it is committed with the Markdown it comes from:
+The compiled guide, `html-guide/site/`, ships in the zip, so it is committed
+with the Markdown it comes from (GitHub Pages compiles the same sources
+again, when you launch it: step 8.4):
 
 ```bash
 python3 html-guide/build.py
@@ -482,7 +486,8 @@ once before it counts. Pushing a tag shows nobody anything but the tag and
 its commit.
 
 1. Tag the rehearsal's commit and push **the tag alone** — not `main`,
-   which would publish the guide on GitHub Pages with its undated page:
+   which must not carry the rehearsal's undated pages (the guide on GitHub
+   Pages is published from `main`, step 8.4):
 
    ```bash
    git tag -a <version>-rc1 -m "Parseh <version>, rehearsal 1"
@@ -583,8 +588,8 @@ before you tag.
    git push origin main <version>
    ```
 
-   Pushing `main` also publishes the compiled guide on GitHub Pages, dated
-   pages and all, within minutes; publish the draft the same day.
+   Pushing `main` publishes nothing on GitHub Pages: it only makes the
+   guide's workflow compile the guide, as a check (see 8.4).
 2. On GitHub, **Actions → release**: the run for `<version>` must end
    green (a few minutes). A red run says in its failing step why —
    usually `check`, naming what disagrees — and made no draft: see
@@ -595,6 +600,16 @@ before you tag.
    `parseh-<version>.zip.sha256` (and GitHub's own *Source code* archives,
    which are not the release and never get a checksum). Its notes are the
    changelog's section.
+4. **The guide on GitHub Pages: your own step, by hand, in the browser.**
+   The guide is published when you launch its workflow, and only then: on
+   GitHub, **Actions → guide on GitHub Pages → Run workflow**, branch
+   **`main`**, **Run workflow**. It compiles the guide from what `main`
+   holds and its **deploy** job puts it on the site, in a minute or two;
+   step 12.3 looks at the result. Do it on the day you publish the draft
+   (step 10), with the release commit on `main`, and before step 12.6 puts
+   the next version's *not yet released* heading there. Nothing else
+   publishes it (a push only compiles it), and whoever follows the rest of
+   this page for you does not launch it: they stop here and tell you.
 
 ### 9. The draft is what you built
 
@@ -684,10 +699,12 @@ releases, **Go back to <previous>**).
    rehearsal.)
 2. **The releases page, signed out** (a private window): the release is
    there, with the zip and its `.sha256`, and no rehearsal.
-3. **Pages is current.** GitHub, **Actions**: the *pages build and
-   deployment* run for your push is green. Then
-   `https://addicted2bayesianepistemology.github.io/Parseh/html-guide/site/reference/whats-new.html`
-   shows `<version>` with its day.
+3. **Pages is current** — the run you launched in step 8.4. GitHub,
+   **Actions**: the *guide on GitHub Pages* run is green, its **deploy** job
+   too (a run for a push only compiles: its deploy job is skipped). Then
+   `https://addicted2bayesianepistemology.github.io/Parseh/site/reference/whats-new.html`
+   shows `<version>` with its day. If it shows the version before, the run
+   was not launched: launch it now, from `main`.
 4. **README.md** needs nothing: it names no version and links to the newest
    release (a test holds it so).
 5. **The baseline.** If step 1 found the reds different from the table
