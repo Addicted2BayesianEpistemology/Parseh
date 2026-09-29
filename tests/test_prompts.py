@@ -59,7 +59,7 @@ import ytpages                                                  # noqa: E402
 # person's own text or a language they added adds is theirs; these are Parseh's.
 SIZES = {
     #        studio-doc     studio-exercises  video-new      video-region   book-region    transcript-tidy  book-new
-    "fa": ((21274, 24500), (33749, 38900), (30695, 35300), (20604, 23700), (19707, 22700), (2696, 3200), (32808, 37800)),
+    "fa": ((21274, 24500), (33749, 38900), (30695, 35300), (20604, 23700), (19730, 22700), (2696, 3200), (32808, 37800)),
     "ar": ((21945, 25300), (34419, 39600), (30569, 35200), (21027, 24200), (20705, 23900), (2687, 3100), (32685, 37600)),
     "it": ((22104, 25500), (30335, 34900), (30602, 35200), (21032, 24200), (20710, 23900), (2747, 3200), (32652, 37600)),
     "ja": ((22748, 26200), (30978, 35700), (33877, 39000), (24592, 28300), (24866, 28600), (2636, 3100), (34581, 39800)),
@@ -717,10 +717,11 @@ def _file(code):
         return f.read()
 
 
-def _resolved(code, surface):
-    """The file as one surface reads it: its {{?video}} blocks kept in a video's
-    prompt and gone from a book's; three newlines become two, as _cut makes
-    them after a block is taken out."""
+def _read_as(code, surface):
+    """The file as one surface reads it: its {{?flag}} blocks resolved, and the blank
+    lines a block leaves behind collapsed as the cut collapses them.  A shipped
+    file marks what belongs to a book or a video only, so what a prompt takes of
+    it is compared to this and not to the raw text."""
     return re.sub(r"\n{3,}", "\n\n", K.blocks(_file(code), K.surface_flags(surface)))
 
 
@@ -749,11 +750,10 @@ class LanguageCut(unittest.TestCase):
                 self.assertIn(h, K.SECTIONS, "%s: `## %s` is in no row of promptkit.SECTIONS" % (code, h))
 
     def test_the_prompts_that_take_everything_get_the_file_as_it_is(self):
-        # as it is: the blocks of their own surface resolved, and nothing else done to it
         for code in self.CODES:
-            self.assertEqual(K.language_text("book-new", code), _resolved(code, "book-new").strip(), code)
+            self.assertEqual(K.language_text("book-new", code), _read_as(code, "book-new").strip(), code)
             self.assertEqual(K.language_text("video-new", code),
-                             re.sub(r"^# .*\n+", "", _resolved(code, "video-new"), count=1).strip(), code)
+                             re.sub(r"^# .*\n+", "", _read_as(code, "video-new"), count=1).strip(), code)
 
     def test_the_studio_takes_the_transliteration_the_reading_and_the_script_note(self):
         for code in self.CODES:
@@ -771,8 +771,8 @@ class LanguageCut(unittest.TestCase):
             self.assertNotIn("Chunking", secs)
             self.assertNotIn("(title)", secs)
             self.assertIn("Vocabulary", secs)
-            # the same sections, though what a {{?video}} or {{?book}} block says in one is its own
-            self.assertEqual(sorted(_names("video-region", code)), sorted(_names("book-region", code)))
+            self.assertEqual(sorted(n for n, _ in K.language_sections("video-region", code)),
+                             sorted(n for n, _ in K.language_sections("book-region", code)))
             field = secs["The text field"]
             self.assertEqual(field.count("\n\n"), 1, code)
             self.assertIn("reproduces the source **verbatim**", field, code)
@@ -795,7 +795,7 @@ class LanguageCut(unittest.TestCase):
     def test_a_cut_only_deletes_every_paragraph_of_it_is_a_paragraph_of_the_file(self):
         for code in self.CODES:
             for surface in ("studio-doc", "video-region", "book-region"):
-                raw = [_flat(p) for p in re.split(r"\n\s*\n", _resolved(code, surface))]
+                raw = [_flat(p) for p in re.split(r"\n\s*\n", _read_as(code, surface))]
                 for name, text in K.language_sections(surface, code):
                     for p in re.split(r"\n\s*\n", text):
                         if _flat(p) not in raw and not re.match(r"^#+ ", p):
