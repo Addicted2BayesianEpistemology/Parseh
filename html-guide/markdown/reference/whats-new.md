@@ -41,8 +41,8 @@ before a0.4.2 shows the new row after **rebuild the reader**.
 ### A video's vocabulary in the books' entries
 
 A video's vocabulary line may now use the books' entries (`\dw`, `\vb`, `\bw`,
-`\pw`), drawn as the reader draws them; a plain line still works and looks as
-it did. The four buttons that insert them, in a book's chunk sheet and in a
+`\pw`), drawn as the reader draws them, and the prompts for a video ask the
+chatbot for them (a plain line still works and looks as it did). The four buttons that insert them, in a book's chunk sheet and in a
 video's ✎ form, say what they write and show an example. See [Editing a
 phrase](../videos/editing-a-phrase.md).
 
@@ -51,7 +51,10 @@ phrase](../videos/editing-a-phrase.md).
 A book can be made by an agent of your choice working in the book's own
 folder, which Parseh makes for you: the library shows it as **being made**,
 its reader shows the batches as they arrive, you steer it by writing asks, and
-**Finish** ends the making. Nothing to copy into a terminal. See [A book made
+**Finish** ends the making. Nothing to copy into a terminal. The folder holds
+`AGENTS.md`, the whole method (the tools with their full paths, the shape of an
+annotation, the checks), so that any agent that can work in a folder can make the
+book. See [A book made
 by an agent](../books/made-by-an-agent.md).
 
 ## a0.4.1 — 29 September 2026

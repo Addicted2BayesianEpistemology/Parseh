@@ -3,7 +3,7 @@
 - Glosses an LLM writes are aligned to their chunks: a meaning says what its own words say, in the text's order
 - Every prompt is assembled by one kit from its instructions, its answer contract and its data, and opens with a version line
 - The LLM row: one control for every prompt, saying its size before the copy, on the studio, the exercise dialog, the add page, the tidy, the player, the reader and Ask LLM
-- A video's vocabulary in the books' entries, drawn as in the reader, with macro buttons that say what they write
+- A video's vocabulary in the books' entries, asked of the chatbots and drawn as in the reader, with macro buttons that say what they write
 - A book made by an agent in place, watched from the library, steered through asks, finished with one button
 
 ## [a0.4.1] - 2026-09-29

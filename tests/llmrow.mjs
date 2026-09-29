@@ -732,7 +732,8 @@ try {
          `${what}: and the two buttons it replaces are gone`);
       eq([r.chars, r.size], [String(codePoints(box)), sizeWords(codePoints(box), Number(r.tokens))],
          `${what}: the size said is the size of what the box shows (${r.chars} characters)`);
-      assert(box.startsWith('target: fa — this document is about Persian'), `${what}: the box shows the target line the copy always began with`);
+      assert(/^Parseh prompt · studio-doc · fa · a0\.\d+\.\d+\n\n/.test(box) && box.includes('target: fa — this document is about Persian'),
+             `${what}: the box opens with the version line and shows the target line the copy always had`);
       await setClip(page, SENTINEL);
       assert((await clip(page)) === SENTINEL && !!(await rowOf(page, '#llm-row')).chars, `${what}: the size is said, and nothing has been copied`);
       await page.click('#llm-row .llmrow-copy');
@@ -756,7 +757,8 @@ try {
       // another language: another prompt, and its own size
       await page.selectOption('#prompt-target', 'it');
       const r3 = await until(async () => { const x = await rowOf(page, '#llm-row'); return x.chars !== r2.chars ? x : null; }, 'the size follows the language');
-      assert((await page.inputValue('#prompt-text')).startsWith('target: it — this document is about Italian'), `${what}: Italian is another prompt`);
+      const boxIt = await page.inputValue('#prompt-text');
+      assert(/^Parseh prompt · studio-doc · it · /.test(boxIt) && boxIt.includes('target: it — this document is about Italian'), `${what}: Italian is another prompt`);
       eq(r3.chars, String(codePoints(await page.inputValue('#prompt-text')) + codePoints('\n' + q + '\n') + ((await page.inputValue('#prompt-text')).endsWith('\n') ? 0 : 1)),
          `${what}: and the size is its own`);
       await look(page, `studio-prompt-${what.startsWith('mounted') ? 'mounted' : 'alone'}`, {scope: '#llm-row', studio: true});
