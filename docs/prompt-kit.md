@@ -56,7 +56,9 @@ table, `promptkit.SECTIONS`, says which section goes to which kind of prompt
 everywhere. Inside The text field the studio takes the note that names the
 studio's `{tl}` mark, wherever it stands, and a region takes its first
 paragraph. Mark what belongs to one surface with `{{?book}}`, `{{?video}}`,
-`{{?studio}}`, `{{?region}}` or `{{?new}}`; the kit resolves them.
+`{{?studio}}`, `{{?region}}` or `{{?new}}`; the kit resolves them. A word to whoever
+maintains the file ("no speaker has reviewed this example yet") goes in
+`{{?note}}…{{/note}}`: that flag is never true, so no prompt carries it.
 
 ## The version line
 

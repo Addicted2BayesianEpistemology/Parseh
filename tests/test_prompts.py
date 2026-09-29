@@ -452,6 +452,11 @@ class Marks(unittest.TestCase):
         self.assertEqual(K.blocks(t, {"x": True}), "abc")
         self.assertEqual(K.blocks(t, {"x": False}), "ac")
 
+    def test_a_note_to_the_maintainer_is_never_sent_to_any_surface(self):
+        t = "a{{?note}}no speaker has reviewed this yet{{/note}}b"
+        for surface in K.SURFACES:
+            self.assertEqual(K.blocks(t, K.surface_flags(surface)), "ab", surface)
+
     def test_a_block_may_hold_a_block(self):
         t = "1{{?a}}2{{?b}}3{{/b}}4{{/a}}5"
         self.assertEqual(K.blocks(t, {"a": True, "b": True}), "12345")

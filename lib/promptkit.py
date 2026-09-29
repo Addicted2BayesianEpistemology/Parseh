@@ -434,10 +434,11 @@ def surface_flags(surface):
     """The flags every text of a surface may use -- its template, the language's
     file, a person's instructions: book and video, and the kind of prompt it
     is (studio, region, new: what cuts the language's file and what takes it
-    all)."""
+    all).  `note` is never true: {{?note}}...{{/note}} is a word to whoever
+    maintains the file, and no prompt carries it."""
     return {"book": surface.startswith("book-"), "video": surface.startswith("video-"),
             "studio": surface.startswith("studio-"), "region": surface.endswith("-region"),
-            "new": surface.endswith("-new")}
+            "new": surface.endswith("-new"), "note": False}
 
 
 def _outline(lines):
