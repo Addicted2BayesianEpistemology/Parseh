@@ -283,6 +283,14 @@ def flags(L, on, types=None, exercising=False):
     return out
 
 
+def has_box_marks(text):
+    """Whether a person's own text carries the studio's blocks -- `{{?id}}` of a box, or of its `no_<id>`
+    -- so that the boxes ticked apply to it; a text with none is copied whole, and the boxes cannot
+    change it (the page greys them, and says why)."""
+    marks = set(BOX_IDS) | {"no_" + b for b in BOX_IDS}
+    return bool(set(re.findall(r"\{\{\?(\w+)\}\}", text or "")) & marks)
+
+
 def legacy_text(L):
     """The prompt as a page of before the boxes knew it, one text: every box this language is offered,
     then the answer contract.  A person's own prompt of that time was written over it and is kept

@@ -1192,6 +1192,7 @@ RESERVED = (
     C('shortcode', 'always', 'fa', 'A {{< figure src="x" >}} shortcode.', 'para', 'para', ('{{&lt; figure src=&quot;x&quot; &gt;}}',), None, 'shortcodes'),
     C('emoji-shortcode', 'always', 'fa', 'A :smile: here.', 'para', 'para', ('A :smile: here.',), None, '`:smile:`'),
     C('heading-attribute', 'always', 'fa', '## A section {#id}', 'section', 'para section para', ('A section {#id}',), None, '`## Title {#id}`'),
+    C('heading-closing-hashes', 'always', 'fa', '## A section ##', 'section', 'para section para', ('A section ##</h2>',), None, 'no closing hashes'),
     C('quotes-dashes-ellipsis', 'always', 'fa', 'A "quote" -- and --- and ... here.', 'para', 'para', ('&quot;quote&quot; -- and --- and ...',), None, '“ ”'),
     C('emoji', 'always', 'fa', 'Well done 🎉 indeed.', 'para', 'para', ('Well done 🎉 indeed.',), None, 'no emoji'),
     C('arrow-glyph', 'always', 'fa', 'a → b', 'para', 'para', ('<span class="arrow">→</span>',), None, '→ themselves'),
@@ -1476,6 +1477,21 @@ class StudioBoxes(ControlledMachine):
                     self.assertGreater(row["chars"], 100, (code, row["id"]))
                 else:
                     self.assertEqual(row["chars"], 0)
+
+    def test_a_persons_text_is_told_from_the_default_by_the_boxes_it_carries(self):
+        # what Lane F's row reads: a text with the studio's blocks takes the boxes, one without is copied whole
+        self.assertTrue(promptboxes.has_box_marks("Rules.\n{{?lists}}Use lists.{{/lists}}"))
+        self.assertTrue(promptboxes.has_box_marks("{{?no_math}}No formulas.{{/no_math}}"))
+        self.assertFalse(promptboxes.has_box_marks("Just my rules for {{LANGUAGE}}, {{?studio}}here{{/studio}}."))
+        self.assertFalse(promptboxes.has_box_marks(""))
+        # and the kit resolves such a text with the same flags the default is resolved with
+        text = "Rules.{{?lists}} Use lists.{{/lists}}{{?no_lists}} No lists.{{/no_lists}}"
+        it = languages.get("it")
+        on = studio_server.studio_prompt(it, custom_text=text, boxes=["lists"]).instructions
+        off = studio_server.studio_prompt(it, custom_text=text, boxes=[]).instructions
+        self.assertIn("Rules. Use lists.", on)
+        self.assertNotIn("No lists.", on)
+        self.assertIn("Rules. No lists.", off)
 
     def test_tokens_as_a_chatbot_counts_them(self):
         self.assertEqual(promptboxes.tokens("a" * 400), 100)
