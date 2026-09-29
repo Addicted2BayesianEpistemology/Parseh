@@ -3715,12 +3715,8 @@ class Handler(SimpleHTTPRequestHandler):
             if out["may"]["folder"]:
                 out["path"] = book          # this computer's own path, for a device with the computer's rights
             out["build"] = bookbuild.status(book)
-            out["finish"] = making.finish_status(book)
+            out["finish"] = making.finish_status(book)      # how a Finish is going: the panel polls this one door
             return self.send_json(out)
-        if what == "finish/status":
-            if method != "GET":
-                return self._method_not_allowed()
-            return self.send_json(dict(making.finish_status(book), ok=True))
         if what not in ("ask", "open", "finish"):
             return self._not_found("no such door")
         if method != "POST":

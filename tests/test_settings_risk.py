@@ -526,8 +526,8 @@ class Served(unittest.TestCase):
             status, _, got = self.ask("POST", book + "/__build", {"what": "draft"})
             self.assertEqual(status, 409)
             self.assertIn("no chapter", got["error"])
-            status, _, got = self.ask("GET", book + "/__making/finish/status")
-            self.assertEqual((status, got["state"]), (200, "idle"))
+            status, _, got = self.ask("GET", book + "/__making")
+            self.assertEqual((status, got["finish"]["state"]), (200, "idle"), "no Finish ran for a refused device")
         finally:
             for p in reversed(ps):
                 p.stop()
