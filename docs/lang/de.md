@@ -237,7 +237,6 @@ at all; elsewhere they are left empty.
   names: it is named after the entry, outside it,
   `\vb{geben}{}{gab}{}{gegeben}{}{to give (er gibt)}; here \pw{gaben}, plural`.
 {{/video}}
-
 The gloss editor's sources sidebar, in the reader and in the player, now
 proposes the `\vb` from the dictionary for a verb it recognises: the three
 principal parts, the third person where it changes, the auxiliary, and the
