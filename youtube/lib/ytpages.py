@@ -55,6 +55,7 @@ for _p in (LIB, TOOLBOX_LIB):
 import bundle       # noqa: E402  which file of a video's own is its film
 import chunker      # noqa: E402  the two ways a draft may be cut
 import languages    # noqa: E402  the registry: folders, names, scripts, chips
+import promptkit    # noqa: E402  the three parts every prompt is made of
 import words        # noqa: E402  a word line proposed where an answer left one out
 import wordline     # noqa: E402  and proved against the checker before it is given
 import make_index   # noqa: E402  the bundle panel both index pages share
@@ -796,7 +797,6 @@ def stats():
 # default); it decides which captions are plain, what the prompt says, and
 # which folder the video is filed under.
 DOCS = os.path.join(HERE, "docs")
-LANG_DOCS = os.path.join(ROOT, "docs", "lang")     # docs/lang/<code>.md, the conventions per language
 YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 LEVELS = ("beginner", "lower-intermediate", "intermediate",
           "upper-intermediate", "advanced")
@@ -1206,43 +1206,33 @@ def _example(lang=None):
 
 def lang_conventions(L):
     """docs/lang/<code>.md, the language's own conventions (the docs agent
-    writes them; docs/languages.md section 9), without its H1.  A missing
-    file is a one-line placeholder rather than an error: the prompt must
-    still be copyable the day a language is added."""
-    p = os.path.join(LANG_DOCS, "%s.md" % L.code)
-    try:
-        with open(p, encoding="utf-8") as f:
-            return re.sub(r"^# .*\n+", "", f.read(), count=1).strip()
-    except OSError:
-        return ("(The %s conventions -- transliteration scheme, what to gloss -- are "
-                "not written yet: docs/lang/%s.md is missing. Use a standard, "
-                "consistent romanisation and say which in a note.)" % (L.name, L.code))
+    writes them; docs/languages.md section 9), without its H1, as the video
+    prompt takes them (lib/promptkit.py cuts each prompt's).  A missing file
+    is a one-line placeholder rather than an error: the prompt must still be
+    copyable the day a language is added."""
+    return promptkit.language_text("video-new", L)
 
 
-def chat_prompt(glossary=None, lang=None, gloss=None):
+def assembled_chat(glossary=None, lang=None, gloss=None, data=None):
     """docs/chat-prompt.md with its placeholders filled: the language's
     name, the generic conventions verbatim (the binding spec, one copy of
     it), the language's own block, the example, a word list -- and the
     language the meanings are to be WRITTEN in, which the template names
-    where it asks for them."""
+    where it asks for them.  In its three parts (lib/promptkit.py), the
+    `data` the last one.  -> promptkit.Assembled"""
     L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
     G = gloss if isinstance(gloss, languages.Gloss) \
         else languages.gloss_or_default(gloss)
-    with open(os.path.join(DOCS, "chat-prompt.md"), encoding="utf-8") as f:
-        tpl = f.read()
     with open(os.path.join(DOCS, "conventions.md"), encoding="utf-8") as f:
         conv = f.read()
     # its own H1 would break the prompt's outline; the rest is the spec
     conv = re.sub(r"^# .*\n+", "", conv, count=1).strip()
     ex_in, ex_out, ex_intro = _example(L)
     # Nothing in the player to quote yet -- a fresh clone, or a language whose
-    # first video this is.  Cut the worked example rather than leave its
-    # heading standing over a hole: the shape of an answer is in the
-    # conventions just above it, which are the binding spec anyway.
-    if ex_in is None:
-        tpl = re.sub(r"## An example, from a video already in the player\n"
-                     r".*?(?=\{\{GLOSSARY\}\})", "", tpl, flags=re.S)
-        ex_in = ex_out = ex_intro = ""
+    # first video this is.  The template cuts the worked example (its block
+    # `example`) rather than leave its heading standing over a hole: the shape
+    # of an answer is in the conventions just above it, which are the binding
+    # spec anyway.
     gl = ""
     if glossary and re.match(r"^[a-z0-9-]+$", glossary):
         gp = os.path.join(DOCS, "glossary-%s.md" % glossary)
@@ -1294,31 +1284,34 @@ def chat_prompt(glossary=None, lang=None, gloss=None):
                else "`en` on every chunk of %s text (`tr` is optional here)" % L.name)
     if L.reading:
         tr_rule = "`kana`, " + tr_rule
-    # an empty intro (the example is of the language) leaves a hole of
-    # blank lines; three or more newlines collapse to a paragraph break
-    return re.sub(r"\n{3,}", "\n\n",
-            tpl.replace("{{LANGUAGE}}", L.name)
-               .replace("{{LANGUAGE_NATIVE}}", L.native)
-               .replace("{{GLOSS_LANGUAGE}}", G.name)
-               .replace("{{CONVENTIONS}}", conv)
-               .replace("{{LANG_CONVENTIONS}}", lang_conventions(L))
-               .replace("{{KANA_LINE}}", kana_line)
-               .replace("{{WORDS_LINE}}", words_line)
-               .replace("{{WORDS_CHECK}}", words_check)
-               .replace("{{WORDS_RECEIVED}}", words_received)
-               .replace("{{TR_RULE}}", tr_rule)
-               .replace("{{EXAMPLE_INTRO}}", ex_intro)
-               .replace("{{EXAMPLE_IN}}", ex_in)
-               .replace("{{EXAMPLE_OUT}}", ex_out)
-               .replace("{{GLOSSARY}}", gl))
+    # THE EXAMPLE IS A VIDEO'S, not the template's: a caption that says `{{` is
+    # a caption, and is put in as one
+    return promptkit.assemble(
+        "video-new", L, G, flags={"example": ex_in is not None},
+        values={"KANA_LINE": kana_line, "WORDS_LINE": words_line,
+                "WORDS_CHECK": words_check, "WORDS_RECEIVED": words_received,
+                "TR_RULE": tr_rule, "EXAMPLE_INTRO": ex_intro, "GLOSSARY": gl},
+        verbatim={"EXAMPLE_IN": ex_in or "", "EXAMPLE_OUT": ex_out or ""},
+        includes={"CONVENTIONS": conv}, data=data)
+
+
+def chat_prompt(glossary=None, lang=None, gloss=None):
+    """The prompt for a video before its captions -> str (assembled_chat)."""
+    return assembled_chat(glossary, lang, gloss).text
 
 
 def full_prompt(vid, meta, captions, glossary=None, lang=None, gloss=None):
+    return assembled_full(vid, meta, captions, glossary, lang, gloss).text
+
+
+def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None):
+    """The whole prompt of a video from scratch: its captions and the facts
+    about the video are the data, the last part.  -> promptkit.Assembled"""
     L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
     G = gloss if isinstance(gloss, languages.Gloss) \
         else languages.gloss_or_default(gloss)
     want = [c for c in captions if not c["plain"]]
-    head = ["", "## This video", "", "- id: `%s`" % vid]
+    head = ["## This video", "", "- id: `%s`" % vid]
     if not is_local_id(vid):
         head.append("- url: https://www.youtube.com/watch?v=%s" % vid)
     else:
@@ -1339,8 +1332,8 @@ def full_prompt(vid, meta, captions, glossary=None, lang=None, gloss=None):
                 "about %s long" % (len(captions), len(want),
                                    fmt_time(captions[-1]["start"]) if captions else "?"))
     head += ["", "## The captions", "", "```", caption_lines(captions, L), "```", "",
-             "Now answer with the JSON, and nothing else.", ""]
-    return chat_prompt(glossary, L, G) + "\n".join(head)
+             "Now answer with the JSON, and nothing else."]
+    return assembled_chat(glossary, L, G, data="\n".join(head))
 
 
 def _json_blocks(text):

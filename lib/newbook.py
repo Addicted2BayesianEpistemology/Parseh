@@ -70,6 +70,7 @@ from books import all_books, ROOT                              # noqa: E402
 import chunker                                                 # noqa: E402
 import languages                                               # noqa: E402
 import make_index                                              # noqa: E402
+import promptkit                                               # noqa: E402
 
 APP_NAME = "Parseh"
 DOCS = os.path.join(ROOT, "docs")
@@ -155,16 +156,12 @@ def shelf():
 
 
 def conventions(L):
-    """docs/lang/<code>.md, the language's binding annotation conventions,
-    read now rather than at import so an edit to the file reaches the next
-    request.  A missing file is said to be missing, in one line, rather
-    than leaving the prompt with a hole."""
-    path = os.path.join(DOCS, "lang", L.code + ".md")
-    if os.path.isfile(path):
-        with open(path, encoding="utf-8") as f:
-            return f.read().strip()
-    return ("(The conventions of %s -- docs/lang/%s.md -- are not written yet: "
-            "the file is missing. Ask for them before annotating.)" % (L.name, L.code))
+    """docs/lang/<code>.md, the language's binding annotation conventions as
+    a book from scratch takes them (lib/promptkit.py: all of them, the flags of
+    a book resolved), read now rather than at import so an edit to the file
+    reaches the next request.  A missing file is said to be missing, in one
+    line, rather than leaving the prompt with a hole."""
+    return promptkit.language_text("book-new", L)
 
 
 def lang_records():
@@ -200,8 +197,10 @@ def gloss_records():
 
 
 def prompt_template():
+    # THE PAGE FILLS THE TEMPLATE ITSELF, in the browser, and knows the marks of
+    # no part: they come out here and the words stay where they were
     with open(os.path.join(DOCS, "new-book-prompt.md"), encoding="utf-8") as f:
-        return f.read()
+        return promptkit.flat(f.read())
 
 
 SETUP_SH = r'''#!/bin/sh

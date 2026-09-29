@@ -865,8 +865,13 @@ class PromptTests(unittest.TestCase):
         h = Handler(page)
         studio_server.api_exercise_prompt(h)
         prompt = h.answer["prompt"]
-        instructions = (studio_server.EXLEX / "EXERCISES_PROMPT.md").read_text(encoding="utf-8").strip()
-        dialect = studio_server.store.get_prompt()["text"].strip()
+        # the instructions of each prompt, without the answer contract that
+        # lib/promptkit.py puts after them (the exercise prompt's own, after
+        # the dialect: it asks for a fence, the authoring prompt's for a file)
+        instructions = studio_server.promptkit.instructions_of(
+            (studio_server.EXLEX / "EXERCISES_PROMPT.md").read_text(encoding="utf-8")).strip()
+        dialect = studio_server.promptkit.instructions_of(
+            studio_server.store.get_prompt()["text"]).strip()
         conventions = studio_server.lang_block("fa")
         self.assertTrue(conventions, "docs/lang/fa.md is there to be appended")
         self.assertIn("front-audio", instructions)
@@ -876,10 +881,14 @@ class PromptTests(unittest.TestCase):
         at = {name: prompt.find(text) for name, text in (
             ("instructions", instructions), ("rtl", "Mixed-direction sequences for Persian — binding"),
             ("dialect", heading), ("authoring", dialect), ("conventions", conventions),
+            ("contract", "Return the complete updated Markdown document in one fenced"),
             ("page", "Here is the complete Markdown page to augment"))}
         self.assertTrue(all(v >= 0 for v in at.values()), at)
         self.assertEqual(sorted(at, key=at.get),
-                         ["instructions", "rtl", "dialect", "authoring", "conventions", "page"])
+                         ["instructions", "rtl", "dialect", "authoring", "conventions",
+                          "contract", "page"])
+        self.assertNotIn("actual `.md` file", prompt, "the authoring prompt's file-asking "
+                         "contract is not part of the dialect this prompt embeds")
         self.assertIn("the instructions above win", prompt[at["dialect"]:at["authoring"]])
         self.assertIn("![…](audio/…)", studio_server.store.default_prompt())
 

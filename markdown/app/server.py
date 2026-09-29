@@ -41,7 +41,6 @@ EXLEX = ROOT / "exlex"
 PARSEH = ROOT.parent
 LIB = PARSEH / "lib"
 LIB_FONTS = LIB / "fonts"
-DOCS_LANG = PARSEH / "docs" / "lang"
 YT_LIB = PARSEH / "youtube" / "lib"
 ANKI_DIR = PARSEH / "youtube" / "anki"
 for p in (str(HERE), str(EXLEX), str(LIB), str(YT_LIB)):
@@ -57,6 +56,7 @@ import envsetup       # noqa: E402
 import mdparser       # noqa: E402
 import texgen         # noqa: E402
 import languages      # noqa: E402
+import promptkit      # noqa: E402  the three parts every prompt is made of
 import anki_store     # noqa: E402
 import decks          # noqa: E402  the exercise decks (serve.py's hub reads it)
 import deckroutes     # noqa: E402  and their routes, mounted at /exercises
@@ -1909,57 +1909,73 @@ answer needs a different flow from the target language. This is separate from
 def api_exercise_prompt(h):
     body = h._json_body()
     markdown = str(body.get("markdown") or "")
-    instructions = (EXLEX / "EXERCISES_PROMPT.md").read_text(encoding="utf-8").strip()
     rows = _deck_vocabulary(body.get("decks") or [])
-    parts = [instructions]
     fm, _blocks = mdparser.parse(markdown)
     target = languages.get_or_default(fm["target"])
+    extras = []
     if target.dir == "rtl":
-        parts.append(_rtl_markdown_guidance(target, exercises=True))
+        extras.append(_rtl_markdown_guidance(target, exercises=True))
     # The whole dialect, as the authoring prompt teaches it (the custom one
     # when there is one), and the language's own conventions: a jolly card
     # takes any block of it, so the model has to know all of it -- but it is
     # asked for exercises here, not a page, and the instructions above say
-    # what to return.
-    dialect = [store.get_prompt()["text"].strip(), lang_block(target.code)]
-    parts.append("## The page's Markdown dialect\n\n"
-                 "What follows is the complete description of the Markdown dialect "
-                 "the page is written in; where it differs from the output "
-                 "instructions above, the instructions above win.\n\n"
-                 + "\n\n".join(x for x in dialect if x))
+    # what to return.  ONLY THE AUTHORING PROMPT'S INSTRUCTIONS come in: its
+    # contract asks for a file, and this prompt's asks for a fence.
+    authoring = store.get_prompt()
+    authoring = (authoring["text"] if authoring.get("custom")
+                 else promptkit.instructions_of(authoring["text"])).strip()
+    dialect = [authoring, promptkit.language_text("studio-exercises", target)]
+    extras.append("## The page's Markdown dialect\n\n"
+                  "What follows is the complete description of the Markdown dialect "
+                  "the page is written in; where it differs from the output "
+                  "instructions above, the instructions above win.\n\n"
+                  + "\n\n".join(x for x in dialect if x))
+    data = []
     if rows:
-        parts.extend([
-            "\nKnown vocabulary from the selected Anki decks follows as tab-separated "
+        data.extend([
+            "Known vocabulary from the selected Anki decks follows as tab-separated "
             "target, reading, transliteration, and meaning fields. It is optional vocabulary "
             "you may freely use; do not force every item into an exercise.",
             "```tsv\ntarget\treading\ttransliteration\tmeaning\n%s\n```" % "\n".join(
                 "\t".join(x.replace("\t", " ").replace("\n", " ") for x in row)
                 for row in rows),
         ])
-    parts.append("\nHere is the complete Markdown page to augment:\n```markdown\n%s\n```" % markdown.rstrip())
-    h.send_json({"prompt": "\n\n".join(parts) + "\n", "vocabulary": len(rows)})
+    data.append("Here is the complete Markdown page to augment:\n```markdown\n%s\n```" % markdown.rstrip())
+    a = promptkit.assemble("studio-exercises", target, extras=extras, data="\n\n".join(data))
+    h.send_json({"prompt": a.text, "vocabulary": len(rows)})
 
 
 def lang_block(code):
-    """The language's conventions (docs/lang/<code>.md) for the prompt
-    page, read at request time; empty when the file is not there."""
-    L = languages.get_or_default(code)
-    p = DOCS_LANG / (L.code + ".md")
-    if p.is_file():
-        try:
-            return p.read_text(encoding="utf-8").strip()
-        except OSError:
-            return ""
-    return ""
+    """The language's conventions (docs/lang/<code>.md) for the prompt page,
+    cut to what a document needs (lib/promptkit.py) and read at request time;
+    empty when the file is not there."""
+    return promptkit.language_text("studio-doc", languages.get_or_default(code))
+
+
+def _target_line(L):
+    """The line the prompt opens with, after its version line: which language
+    the document is about."""
+    return ("target: %s — this document is about %s: write `target: %s` in the "
+            "front matter." % (L.code, L.name, L.code))
 
 
 def api_prompt_get(h):
     """The prompt, plus -- for ?target=<code> -- that language's own
-    conventions block, kept apart from the editable text."""
+    conventions block, kept apart from the editable text.
+
+    `text` (the editable prompt, its parts' marks taken out in place),
+    `custom` and `lang_block` are what the page has always composed a prompt
+    from, the block after the text.  `prompt` is the whole of it as
+    lib/promptkit.py assembles it -- version line, target line, instructions,
+    the language's conventions, the answer contract -- which is what a page
+    copies; `header` and `contract` are two of its parts, for showing them."""
     out = store.get_prompt()
     L = languages.get_or_default(_q1(h, "target"))
     out["target"] = L.code
     out["target_name"] = L.name
+    custom = bool(out.get("custom"))
+    if not custom:
+        out["text"] = promptkit.flat(out["text"])
     blocks = [lang_block(L.code)]
     # The shipped prompt contains this rule itself so it also works when
     # copied directly from disk. Add it here for every custom override (and
@@ -1967,9 +1983,18 @@ def api_prompt_get(h):
     # without repeating the full section in the normal copied prompt.
     has_box_rule = ("Mixed-direction sequences:" in out["text"] or
                     "Mixed-direction sequences for" in out["text"])
-    if L.dir == "rtl" and (out.get("custom") or not has_box_rule):
+    if L.dir == "rtl" and (custom or not has_box_rule):
         blocks.append(_rtl_markdown_guidance(L))
     out["lang_block"] = "\n\n".join(x for x in blocks if x)
+    try:
+        a = promptkit.assemble("studio-doc", L, custom=custom, lead=_target_line(L),
+                               instructions=out["text"] if custom else None,
+                               extras=[out["lang_block"]])
+        out.update(prompt=a.text, header=a.header, contract=a.contract)
+    except promptkit.PromptError as e:
+        # a custom prompt from before the kit may say what the kit refuses; the
+        # page still has its text and its block, and is told
+        out["prompt_error"] = str(e)
     h.send_json(out)
 
 

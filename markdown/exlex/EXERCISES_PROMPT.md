@@ -1,6 +1,6 @@
 You are adding practice activities to an existing Parseh Studio Markdown page.
 
-Return the complete updated Markdown document in one fenced `markdown` block. Preserve the page's front matter, content, spelling, formatting, and existing extensions. Add exercises after the material they test. Do not answer or rewrite the lesson.
+{{?contract}}Return the complete updated Markdown document in one fenced `markdown` block. {{/contract}}Preserve the page's front matter, content, spelling, formatting, and existing extensions. Add exercises after the material they test. Do not answer or rewrite the lesson.
 
 Every activity is one deterministic container:
 

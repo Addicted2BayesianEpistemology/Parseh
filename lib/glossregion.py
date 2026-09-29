@@ -72,7 +72,6 @@ then written through that door, texwrite.edit_chunk or annwrite.edit_chunk,
 one chunk at a time, only the fields that change.  A door that still refuses
 puts its own words in `dropped`, and the rest land.
 """
-import io
 import json
 import math
 import os
@@ -87,14 +86,12 @@ for _p in (HERE, YT_LIB):
         sys.path.insert(0, _p)
 import books                                                    # noqa: E402
 import languages                                                # noqa: E402
+import promptkit                                                # noqa: E402
 import reading                                                  # noqa: E402
 import texwrite                                                 # noqa: E402
 import wordline                                                 # noqa: E402
 import annwrite                                                 # noqa: E402
 import check_annotations as CA                                  # noqa: E402
-
-TEMPLATE = os.path.join(ROOT, "docs", "region-prompt.md")
-LANG_DOCS = os.path.join(ROOT, "docs", "lang")
 
 # The only fields an answer ever writes, in the order a chunk carries them.
 GLOSS = ("kana", "tr", "voc", "en")
@@ -587,28 +584,6 @@ def _mode(regloss, perfield):
 
 
 # --- the prompt ---------------------------------------------------------
-def _conventions(L):
-    """docs/lang/<code>.md without its H1, its headings one level down so
-    they sit under the prompt's own -- ytpages.lang_conventions' reading of
-    the same file, with the same placeholder when it is missing."""
-    p = os.path.join(LANG_DOCS, "%s.md" % L.code)
-    try:
-        with io.open(p, encoding="utf-8") as f:
-            text = re.sub(r"^# .*\n+", "", f.read(), count=1).strip()
-    except OSError:
-        return ("(The %s conventions -- transliteration scheme, what to gloss -- are "
-                "not written yet: docs/lang/%s.md is missing. Use a standard, "
-                "consistent romanisation.)" % (L.name, L.code))
-    out, fenced = [], False
-    for line in text.split("\n"):
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
-        elif not fenced and re.match(r"#{2,5} ", line):
-            line = "#" + line
-        out.append(line)
-    return "\n".join(out)
-
-
 def _shown(ch, todo, mode):
     """One chunk as the prompt shows it."""
     d = {"fa": ch["fa"]}
@@ -655,17 +630,6 @@ def _data(ctx, units, mode):
     return text, {"units": len(units), "chunks": chunks, "fill": fill, "glossed": glossed}
 
 
-def _blocks(tpl, flags):
-    """{{?flag}}...{{/flag}}: kept where the flag is true, gone where it is
-    not.  Innermost first, so a block may hold another."""
-    pat = re.compile(r"\{\{\?(\w+)\}\}((?:(?!\{\{\?).)*?)\{\{/\1\}\}", re.S)
-    while True:
-        new = pat.sub(lambda m: m.group(2) if flags.get(m.group(1)) else "", tpl)
-        if new == tpl:
-            return tpl
-        tpl = new
-
-
 def _about(ctx, counts):
     L, G = ctx["L"], ctx["G"]
     meta = ctx["meta"]
@@ -702,23 +666,18 @@ def _about(ctx, counts):
     return "\n".join(out)
 
 
-def render(ctx, units, mode):
-    """The prompt for these units.  -> (text, counts)"""
+def assembled(ctx, units, mode):
+    """The prompt for these units, in the parts the kit made it of.
+    -> (promptkit.Assembled, counts)"""
     L, G = ctx["L"], ctx["G"]
     book = ctx["surface"] == "book"
     data, counts = _data(ctx, units, mode)
-    with io.open(TEMPLATE, encoding="utf-8") as f:
-        tpl = f.read()
     fields = (["kana"] if L.reading else []) + ["tr", "voc", "en"]
-    flags = {"book": book, "video": not book, "keep": mode != "regloss",
-             "regloss": mode == "regloss", "perfield": mode == "perfield",
-             "reading": L.reading, "words": L.words,
+    flags = {"keep": mode != "regloss", "regloss": mode == "regloss",
+             "perfield": mode == "perfield", "reading": L.reading, "words": L.words,
              "seeded": L.words and mode != "regloss",
              "require_tr": L.require_tr, "optional_tr": not L.require_tr}
-    text = _blocks(tpl, flags)
     subs = {
-        "LANGUAGE": L.name,
-        "GLOSS_LANGUAGE": G.name,
         "GLOSS_NOTE": "" if G.code == languages.DEFAULT_GLOSS else ", not in English",
         "A_LANGUAGE": _a(L.name),
         "SURFACE": ("%s reading edition" if book else "the captions of %s video")
@@ -729,28 +688,31 @@ def render(ctx, units, mode):
         "TEXT_FIELDS": _said(["fa"] + [f for f in fields if f != "voc"]),
         "REQUIRED": _said(_required(L)),
         "READING_FIELD": "kana" if L.reading else "tr",
-        "TR_LABEL": L.translit_label,
         "UNIT": "sentence" if book else "caption",
         "UNITS": "sentences" if book else "captions",
         "LIST_KEY": "sentences" if book else "captions",
         "ADDRESS": "`at`" if book else "`i` and `start`",
-        "ABOUT": _about(ctx, counts),
     }
-    for k, v in subs.items():
-        text = text.replace("{{%s}}" % k, v)
-    # a block taken out leaves its line behind, blank or holding only the
-    # indent; three or more newlines collapse to a paragraph break.  The two
-    # long ones go in last, so nothing inside them is taken for a placeholder
-    text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    text = text.replace("{{LANG_CONVENTIONS}}", _conventions(L)).replace("{{DATA}}", data)
-    return text, counts
+    # THE TITLE AND THE CHUNKS ARE THE BOOK'S OR THE VIDEO'S, not the template's:
+    # a title that says `{{DATA}}` is a title, and is put in as one
+    return promptkit.assemble(
+        "%s-region" % ctx["surface"], L, G, mode=mode, flags=flags, values=subs,
+        verbatim={"ABOUT": _about(ctx, counts), "DATA": data}), counts
+
+
+def render(ctx, units, mode):
+    """The prompt for these units.  -> (text, counts)"""
+    a, counts = assembled(ctx, units, mode)
+    return a.text, counts
 
 
 def _prompt(ctx, units, mode):
     if not units:
         raise Refused("nothing in this region can be sent: %s" % ctx["region"])
-    text, counts = render(ctx, units, mode)
+    try:
+        text, counts = render(ctx, units, mode)
+    except promptkit.PromptError as e:
+        raise Refused("the prompt could not be made: %s" % e)
     r = dict(counts, prompt=text, region=ctx["region"], folded=ctx["folded"],
              **ctx["echo"])
     notes = []

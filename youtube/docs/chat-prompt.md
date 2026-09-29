@@ -5,11 +5,11 @@ a learner can hover any phrase of it and see the reading (where the
 language has one), the transliteration, the vocabulary and the meaning —
 the way an Ilya Frank reading edition glosses a text, phrase by phrase.
 You will receive the video's captions below, numbered and with their
-start times. You answer with **one JSON document and nothing else**: the
+start times. {{?contract}}You answer with **one JSON document and nothing else**: the
 page that reads your answer reads every ```` ```json ```` block in what is
 pasted into it, in order, and merges them (several blocks, across several
 messages — see the end); a caption given again in a later block replaces
-the earlier one.
+the earlier one.{{/contract}}
 
 ## The conventions — binding
 
@@ -43,7 +43,7 @@ appear for context and must **not** be annotated:
 
 Every `[i]` line must appear in your answer exactly once, in order.
 
-## What you answer
+{{?contract}}## What you answer
 
 ```json
 {
@@ -78,9 +78,9 @@ Every `[i]` line must appear in your answer exactly once, in order.
   script carries only `fa`; for a Latin-script language an aside in another
   language is a chunk with `fa` and `"plain": true`. Write `kana` only when the
   language has a reading.
-- Leave out `title` and `channel` rather than guess them.
+- Leave out `title` and `channel` rather than guess them.{{/contract}}
 
-## An example, from a video already in the player
+{{?example}}## An example, from a video already in the player
 
 {{EXAMPLE_INTRO}}
 
@@ -96,7 +96,7 @@ Answered (the `video` object is abbreviated):
 {{EXAMPLE_OUT}}
 ```
 
-{{GLOSSARY}}
+{{/example}}{{GLOSSARY}}
 
 ## Before you answer, check
 
@@ -110,7 +110,7 @@ Answered (the `video` object is abbreviated):
 - valid JSON, inside a single ```` ```json ```` fence, and nothing else in
   the message.
 
-A long video may not fit one message. Then stop at a caption boundary, end
+{{?contract}}A long video may not fit one message. Then stop at a caption boundary, end
 the message with the fence closed, and continue in the next message with the
 next `[i]`, in a new ```` ```json ```` fence holding only `"captions"`; the
-page merges all the blocks you paste, in order.
+page merges all the blocks you paste, in order.{{/contract}}
