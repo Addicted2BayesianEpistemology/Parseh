@@ -2,7 +2,7 @@
 
 You are making a reading edition of **{{TITLE_LATIN}}**{{TITLE_NOTE}} by {{AUTHOR_LATIN}}: a book in {{LANG_NAME}}, glossed in {{GLOSS_NAME}}. This folder is the book. Parseh made it and does not start any agent: the person opened you here, watches the book grow in Parseh's library, and writes you asks.
 
-A reading edition in this method prints a text in short chunks -- phrases -- and gives each chunk its {{TR_LABEL}}, a vocabulary line and its meaning, so that a learner reads {{LANG_NAME}} and understands it at once, phrase by phrase (Ilya Frank's method). Read this whole file before you touch anything: every rule in it exists because something went wrong once. The tools do most of the checking; you do the work they cannot.
+A reading edition in this method prints a text in short chunks -- phrases -- and gives each chunk its {{TR_LABEL}} (where the language's conventions ask for one), a vocabulary line and its meaning, so that a learner reads {{LANG_NAME}} and understands it at once, phrase by phrase (Ilya Frank's method). Read this whole file before you touch anything: every rule in it exists because something went wrong once. The tools check that the text is reproduced exactly, that the JSON is well formed, that LaTeX will accept it and that no required field is empty; for every language but Persian nothing else is checked (what is glossed, how long a chunk is, the shape of a `\vb`, the transliteration), so read your own work against the rules and the conventions below before you call a paragraph done.
 
 The book is in **{{LANG_NAME}}** ({{LANG_NATIVE}}, registry code `{{LANG}}`). The toolbox teaches several languages with one method; what changes per language -- what the text field carries, the transliteration scheme, the vowelling or reading, what never to gloss -- is the language's conventions below, and the tools read the language from the book's `book.json`.
 
@@ -21,18 +21,18 @@ The book's folder holds, when it is finished:
 book.json, main.tex        what the book declares, and how the batch files are \input
 original/                  the source text the book is made from
 source/clean.txt           one paragraph per line, the recovered text
-source/paras/              one file per paragraph: chN_pNN.txt (N from 1, NN from 00)
+source/paras/              one file per paragraph: chN_pNN.txt (N from 1, NN from 00), holding that paragraph's text alone, on one line, exactly as in clean.txt
 source/src_chN.json        the chapter lists (chapter_src.py makes them)
 annot/chN_pNN.json         the annotation, one file per paragraph -- THE GROUND TRUTH
-annot/chN_batchX.json      a batch of ten paragraphs, merged and normalised
-chN.tex, chNb.tex, ...     one file per batch, built by assemble.py, never by hand
+annot/chN_batchA.json      a batch of ten paragraphs, merged and normalised (A for a chapter's first batch, then B, C ...)
+chN.tex, chNb.tex, ...     one file per batch (the first batch is chN.tex, the second chNb.tex ...), built by assemble.py, never by hand
 NOTES.md, ASKS.md, making.json     the journal, the person's asks, the record of the making
 ```
 
 ## The rules
 
 1. Write only inside this folder. Read anything of Parseh's; change nothing of it.
-2. Never run the full build (`build.sh <book>`): the person's page does. To look at your work, typeset the chapters so far: `sh {{ROOT}}/build.sh {{BOOK_REL}} --draft ch1 ch1b` writes `frankdraft.pdf` beside the book, never `main.pdf`.
+2. Never run the full build (`build.sh <book>`): the person's page does. To look at your work, typeset the chapters so far: `sh {{ROOT}}/build.sh {{BOOK_REL}} --draft ch1 ch1b` writes `frankdraft.pdf` beside the book, never `main.pdf`. It is a convenience and not a check: if it is refused or cannot find the book, skip the look and say so in `NOTES.md`.
 3. `annot/*.json` is the truth; the `.tex` chapters are assembled from it by `assemble.py` and never edited by hand. A correction goes into the JSON; the `.tex` is built again.
 4. Before EVERY batch, read `ASKS.md` again. Do what an entry asks from the next batch on, write in `NOTES.md` what you changed because of it, and ask the person in your own chat if an ask goes against the method.
 5. Keep `NOTES.md`: the source's oddities, the decisions, what is open.
@@ -58,18 +58,18 @@ Every chunk of {{LANG_NAME}} in the edition must reproduce the source **characte
 ## The rules of the method (non-negotiable, whatever the language)
 
 1. **The JSON is the ground truth, the `.tex` is build output.** Corrections go into the JSON; the `.tex` is regenerated. Never hand-edit a `.tex`.
-2. **One file per batch; a batch never rewrites one already checked.** The first batch of chapter N is `chN.tex`, the next `chNb.tex`, `chNc.tex` ... Every batch but the chapter's last is assembled with `--partial`; every batch but the chapter's first with `--no-open`.
+2. **One file per batch; a batch never rewrites one already checked.** The first batch of chapter N is `chN.tex` (its batch JSON `chN_batchA.json`), the next `chNb.tex` (`chN_batchB.json`), then `chNc.tex` ... Every batch but the chapter's last is assembled with `--partial`; every batch but the chapter's first with `--no-open`.
 3. **{{BATCH}} paragraphs per batch**, in the source's order, never a paragraph twice, never a gap. A paragraph of 500+ words is a batch member like any other, but gets a pass of its own.
 4. **Every paragraph passes `check_batch.py` with 0 errors before anything else happens**, and every warning it prints is judged explicitly -- fixed, or defensible in one sentence.
-5. **The `fa` field is the chunk's text in {{LANG_NAME}}.** The key is named after Persian, the toolbox's first language, and is kept because every tool and every stored file uses it; read it as "the foreign text". `tr` is its {{TR_LABEL}}, `en` its meaning **in {{GLOSS_NAME}}**, of that chunk's own words only and in the order of the text (the rule on the meaning, above), `voc` the vocabulary line -- also in {{GLOSS_NAME}}, apart from the {{LANG_NAME}} words it quotes.{{KANA_RULE}}
-6. **The vocabulary line uses only** `\dw \vb \bw \pw \textit \nobreak \emph`. Every verb gets a `\vb`; name what was stripped (an article, a plural, an enclitic, a particle), in {{GLOSS_NAME}}; one {{GLOSS_NAME}} equivalent, not a string of synonyms; an empty `voc` is the right answer for a chunk that needs nothing. `\pw{...}` is a {{LANG_NAME}} word standing inside the {{GLOSS_NAME}}, and is what keeps it the right way round on the page. What is never glossed is in the conventions below. Entries are parted by `; `. In the JSON every backslash is written twice: `"\\dw{...}{...} ..."`.
+5. **The `fa` field is the chunk's text in {{LANG_NAME}}.** The key is named after Persian, the toolbox's first language, and is kept because every tool and every stored file uses it; read it as "the foreign text". `tr` is its {{TR_LABEL}} (some languages leave it out where the conventions say so), `en` its meaning **in {{GLOSS_NAME}}**, of that chunk's own words only and in the order of the text (the rule on the meaning, above), `voc` the vocabulary line -- also in {{GLOSS_NAME}}, apart from the {{LANG_NAME}} words it quotes.{{KANA_RULE}}
+6. **The vocabulary line uses only** `\dw \vb \bw \pw \textit \nobreak \emph`: `\dw{word}{sound} meaning` (a word: its {{LANG_NAME}} form, its {{TR_LABEL}} where the conventions give one, then the meaning); `\vb{...}` with seven groups (below); `\bw{base}{sound}{meaning}` (the base word of a compound verb, run straight after the light verb's `\vb`); `\pw{word}` (a word of {{LANG_NAME}} put inside a meaning); `\textit{...}` and `\emph{...}`; `\nobreak`. Every verb gets a `\vb`; name what was stripped (an article, a plural, an enclitic, a particle), in {{GLOSS_NAME}}; one {{GLOSS_NAME}} equivalent, not a string of synonyms; an empty `voc` is the right answer for a chunk that needs nothing. `\pw{...}` puts a word of {{LANG_NAME}} inside the {{GLOSS_NAME}} text, and is what keeps it the right way round on the page. What is never glossed is in the conventions below. Entries are parted by `; `. In the JSON every backslash is written twice: `"\\dw{...}{...} ..."`.
 
    **The `\vb` is {{LANG_NAME}}'s own**, and the conventions below are where its shape is: which three forms fill `\vb{form}{sound}{form}{sound}{form}{sound}{meaning}`, in the order the edition labels them, and which verbs get one at all. The same seven arguments in every language, and three rules that hold in every language: a **pair whose form is left empty is not printed** -- neither the form nor its label -- so leave one empty only where the conventions say that verb has no such form, never to save room and never by repeating another form in it; **what the three forms cannot say** (an auxiliary, a verb class, a governed case or preposition, an irregular participle or future) goes in **one parenthesis after the meaning**, items parted by `; `, in the conventions' exact words and **only where it is not the ordinary case** -- `to drive (er fährt; aux. sein)` is German's, `to have (fut. \pw{tendré})` Spanish's; and a verb the conventions do not give a `\vb` stays a `\dw` -- Chinese gives one only to a separable verb (`split`) or a verb with a complement (`can't`), English none to a modal. The form of the verb in the chunk, when it is none of the three, is named after the entry as the conventions show.
-7. **Read across every chunk seam** for the errors no check can find: a connective, particle or case ending dropped at a seam (in Persian the ezafe -- the shape of the error is the same in every language), a misparsed idiom, and `fa` and `tr` agreeing on the *wrong* reading. A proof-reading pass is spent on exactly those three things and nothing else.
+7. **Read across every chunk seam** for the errors no check can find: a connective, particle or case ending dropped at a seam (a word ending, or a small word, that belongs to one chunk but was left out of both the gloss and the `tr` because it stands at the edge of the next; in Persian it is the ezafe), a misparsed idiom, and `fa` and `tr` agreeing on the *wrong* reading. A proof-reading pass is spent on exactly those three things and nothing else.
 8. **Never apply an unconfirmed finding.** Whoever confirms a finding -- a second reader, or you in a separate pass -- re-reads the JSON itself rather than trusting the finding's own quotation, rejects taste, rejects anything that would change the source's own spelling, and rejects a "fix" that the conventions say is deliberate.
-9. **A chunk is a phrase**: the smallest span that still means something on its own and that a gloss can translate as one thing. **Cut at the edges of phrases, never inside one**, and aim for **2-5 words**.
+9. **A chunk is a phrase**: the smallest span that still means something on its own and that a gloss can translate as one thing. **Cut at the edges of phrases, never inside one**, and aim for **2-5 words** (the conventions may give another range for the language).
 
-   **Keep together, always** -- an **adposition with its noun** (`به خانه`, `in the house`), which alone cannot be glossed at all; a **noun with everything that modifies it** (articles, demonstratives, numerals, adjectives, possessives, the {{LANG_NAME}} equivalent of Persian's ezafe chain); a **verb with everything that makes its tense** -- auxiliaries, negation, a separable prefix, the light verb of a compound (`فکر کردن`): **the unit is the verb group, not the verb**, and `می‌خواهم بروم` cut in half is two halves that mean nothing; a **word with its particles and clitics**; and a **fixed expression or idiom even where that breaks the syntax**, because the meaning is not in the pieces and showing the pieces teaches something untrue. That last one is the most valuable chunk in the book and the one only a reader of the language can find.
+   **Keep together, always** -- an **adposition with its noun** (`به خانه`, `in the house`), which alone cannot be glossed at all; a **noun with everything that modifies it** (articles, demonstratives, numerals, adjectives, possessives, and whatever the language uses to link a noun to its modifiers); a **verb with everything that makes its tense** -- auxiliaries, negation, a separable prefix, the light verb of a compound (`فکر کردن`): **the unit is the verb group, not the verb**, and `می‌خواهم بروم` cut in half is two halves that mean nothing; a **word with its particles and clitics**; and a **fixed expression or idiom even where that breaks the syntax**, because the meaning is not in the pieces and showing the pieces teaches something untrue. That last one is the most valuable chunk in the book and the one only a reader of the language can find.
 
    **Cut, always** -- at a **clause boundary**, with the conjunction or relativiser **opening** the chunk it introduces; and between **two content words with nothing binding them**.
 
@@ -77,7 +77,7 @@ Every chunk of {{LANG_NAME}} in the edition must reproduce the source **characte
 
    **What a chunk must not be**: not **one word per word** -- that is a dictionary with the text interleaved, and the reader never learns how the language phrases anything; and not **a whole sentence** -- past about six words the reader stops mapping and starts reading the translation, which is the one thing this method exists to prevent. A one-word chunk is right only where the word is the whole utterance or nothing may attach to it.
 
-   A sentence is a subparagraph, one `\begin{frank}` each; labels are in {{LANG_NAME}}'s digits (`\parnum{{{LANG_LABEL_EXAMPLE}}}`: paragraph.subparagraph -- `assemble.py` writes them).
+   A sentence ends where the text ends it (a full stop, a question or exclamation mark, or the language's own marks); it is a subparagraph, one `\begin{frank}` each; labels are in {{LANG_NAME}}'s digits (`\parnum{{{LANG_LABEL_EXAMPLE}}}`: paragraph.subparagraph -- `assemble.py` writes them).
 
 ## The conventions of {{LANG_NAME}} (`docs/lang/{{LANG}}.md`)
 
@@ -95,7 +95,7 @@ If the original is a PDF with a text layer:
 {{PYTHON}} {{LIB}}/extract_pdf.py "{{ORIGINAL}}" {{PAGE_ARGS}} --lang {{LANG}} --out {{BOOK_DIR}}/source/clean.txt --paras {{BOOK_DIR}}/source/paras --tag ch1
 ```
 
-Look at what came out: bidi controls, presentation forms, private-use marks, a running header to `--drop`, marks orphaned across a space, words split by a real space, and whatever the script of {{LANG_NAME}} is prone to (the conventions say). If the original is an epub or plain text, recover `source/clean.txt` yourself to the same shape -- one paragraph per line, the edition's own spelling kept -- and write the paragraph files `source/paras/chN_pNN.txt` from it.
+Look at what came out: bidi controls, presentation forms, private-use marks, a running header to `--drop`, marks orphaned across a space, words split by a real space, and whatever the conventions say about the script of {{LANG_NAME}}. If the original is an epub or plain text, recover `source/clean.txt` yourself to the same shape -- one paragraph per line, the edition's own spelling kept -- and write the paragraph files `source/paras/chN_pNN.txt` from it.
 
 Then decide the **chapter structure** from the source itself, write the paragraph files `source/paras/chN_pNN.txt` for every chapter, and make the chapter lists:
 
@@ -121,7 +121,7 @@ b. **Annotate each paragraph**: write `{{BOOK_DIR}}/annot/chN_pNN.json` in the s
 
 c. **Proof-read each paragraph** with only the three lenses of rule 7, reporting findings as `{"idx": NN, "chunk_fa": "...", "field": "fa|tr|voc|en", "proposed": "...", "why": "..."}` (a second reader if you have one, else you, in a separate pass with fresh eyes on the JSON alone).
 
-d. **Confirm or reject each finding** (rule 8). Only confirmed findings go into `fixes.json`, in the batch's folder or wherever you keep it; with none, give `-`.
+d. **Confirm or reject each finding** (rule 8). Only confirmed findings go into a `fixes.json` you write (put it in `annot/`); with none, give `-` to `merge_batch.py` in its place.
 
 e. Merge, normalise, assemble:
 
@@ -131,11 +131,11 @@ e. Merge, normalise, assemble:
    {{PYTHON}} {{LIB}}/assemble.py --book {{BOOK_DIR}} {{BOOK_DIR}}/annot/chN_batchX.norm.json {{BOOK_DIR}}/source/src_chN.json "{{LANG_DIGIT_EXAMPLE}}" {{BOOK_DIR}}/chNx.tex --partial --no-open
    ```
 
-   The third argument of `assemble.py` is the chapter's label **in {{LANG_NAME}}'s digits** (`{{LANG_DIGIT_EXAMPLE}}` is 3); `--partial` unless this batch closes the chapter, `--no-open` unless it opens it (a chapter of one batch takes neither). `assemble.py` refuses a batch that does not reproduce the source; it must end with `ALL PARAGRAPHS CLEAN`. Give `merge_batch.py` only the paragraphs of THIS batch (a glob that also catches an older batch's paragraphs merges them twice).
+   The third argument of `assemble.py` is the chapter's label **in {{LANG_NAME}}'s digits** (`{{LANG_DIGIT_EXAMPLE}}` is 3); `--partial` unless this batch closes the chapter, `--no-open` unless it opens it (a chapter of one batch takes neither). `X` is the batch's capital letter (A, B, C ...) and `chNx.tex` is `chN.tex` for A, `chNb.tex` for B, `chNc.tex` for C ... `assemble.py` refuses a batch that does not reproduce the source; it must end with `ALL PARAGRAPHS CLEAN`. Give `merge_batch.py` only the paragraphs of THIS batch (a glob that also catches an older batch's paragraphs merges them twice).
 
 f. `\input{chNx.tex}` in `main.tex`, in order, with a comment naming the paragraphs.
 
-g. **Look at it** (where typesetting works): `sh {{ROOT}}/build.sh {{BOOK_REL}} --draft chNx` typesets just that file in seconds. Read the PDF's text and confirm a chunk row shows the {{LANG_NAME}} *and then* its {{TR_LABEL}} -- the romanisation alone means the Lua side failed.
+g. **Look at it** (where typesetting works): `sh {{ROOT}}/build.sh {{BOOK_REL}} --draft chNx` typesets just that file in seconds. Read the PDF's text and confirm a chunk row shows the {{LANG_NAME}} *and then*, where the chunk has one, its {{TR_LABEL}} -- a row with the romanisation but without the {{LANG_NAME}} means the Lua side failed.
 
 h. `{{PYTHON}} {{LIB}}/verify_book.py --book {{BOOK_DIR}}` -- every built paragraph reproduces its source.
 
@@ -153,7 +153,7 @@ The shape (Persian glossed in English; the same shape for every language and eve
    {"chunks": [
      {"fa": "پایِ بَساطِ تَریاک", "tr": "pā-ye basāt-e taryāk",
       "voc": "\\dw{پای}{pāy} foot, + ezafe; \\dw{بساط}{basāt} pedlar's spread, + ezafe; \\dw{تریاک}{taryāk} opium",
-      "en": "beside the opium spread"},
+      "en": "beside opium spread"},
      {"fa": "پَراکَندِه کَردَم.", "tr": "parākande kardam",
       "voc": "\\vb{کردن}{kardan}{کن}{kon}{کرد}{kard}{}\\bw{پراکنده}{parākande}{scattered}",
       "en": "I scattered."}
