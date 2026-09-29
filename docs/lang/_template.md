@@ -65,7 +65,11 @@ is what the gloss language is for; the labels around it — the ones the
 edition prints from the registry included — are not, and stay as this file
 writes them whatever the glosses are in.
 
-In a **video** the line is plain text. In a **book** it uses four macros and
+{{?video}}In a **video** the line is written exactly as in a book, with the macros
+below and entries parted by `; `; a line with no macro at all is plain text, and
+is also accepted.
+
+{{/video}}{{?book}}In a **book** it{{/book}}{{?video}}The line{{/video}} uses four macros and
 nothing else: `\dw{fa}{rom} gloss` · `\vb{form}{rom}{form}{rom}{form}{rom}{meaning}` ·
 `\bw{base}{rom}{meaning}` · `\pw{fa}` — plus `\textit`, `\emph`, `\nobreak`.
 
@@ -87,9 +91,12 @@ language has, if any, in their exact wording; and which verbs do NOT get a
 is given with, and what an annotator must name when a form in the text is not
 the dictionary form.
 
-In a **video** the same entry is plain text, `form rom · {{VB_PRES}} form rom ·
-{{VB_PAST}} form rom · meaning (extras)`, and a form of it in the chunk is given
-first with the entry in brackets after it. The gloss editor's sources sidebar
+{{?video}}In a **video** the same entry is the same `\vb`: what only a video says goes
+in the parenthesis after the meaning (TODO: the colloquial forms of speech, if
+{{NAME}} has any), and a form of the verb in the chunk that is none of the three
+is named after the entry, not inside it, with its sound and then what it is:
+`\vb{form}{rom}{form}{rom}{form}{rom}{meaning}; here \pw{form} \textit{rom}, what it is`.
+{{/video}}The gloss editor's sources sidebar
 proposes these entries from the dictionary, for a verb it recognises; read
 what it proposes and correct it before it is saved — it is a draft, and where
 it could not fill a slot it says which.
