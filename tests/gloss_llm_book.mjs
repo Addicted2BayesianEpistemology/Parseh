@@ -527,7 +527,7 @@ try {
     assert(/on the clipboard/.test(sum) && /1 to gloss/.test(sum), `${bk.code}: the sheet says so: ${JSON.stringify(sum.split('\n')[0])}`);
     assert(prompt.includes(`- language: ${bk.name} (\`${bk.code}\`)`) &&
            prompt.includes(`- gloss language: **${bk.gloss}** (\`${bk.gcode}\`)`) &&
-           new RegExp(`^# Gloss part of an? ${bk.name} book, in ${bk.gloss}, for Parseh`).test(prompt),
+           new RegExp(`^Parseh prompt · [^\\n]+\\n\\n# Gloss part of an? ${bk.name} book, in ${bk.gloss}, for Parseh`).test(prompt),
            `${bk.code}: the prompt is for a ${bk.name} book glossed in ${bk.gloss}`);
     let data = dataOf(prompt);
     const inSentence = recs.filter(x => x.label === r.label);

@@ -9,9 +9,9 @@ to do, and leave everything else exactly as it is{{/keep}}{{?regloss}}this time
 every chunk is glossed afresh: no gloss already written is shown to you, and
 yours replaces it{{/regloss}}.
 
-You receive **one JSON document**, at the end of this message, and you answer
+{{?contract}}You receive **one JSON document**, at the end of this message, and you answer
 with **the same JSON document, filled in, and nothing else** — no word before
-it or after it.
+it or after it.{{/contract}}
 
 **Write every meaning in {{GLOSS_LANGUAGE}}.** It is the language this
 {{SURFACE_NOUN}}'s glosses are written in: every `en`, and every meaning inside
@@ -129,7 +129,7 @@ they speak of a {{OTHER_SURFACE}}, that part is not for this
 
 {{LANG_CONVENTIONS}}
 
-## What you answer
+{{?contract}}## What you answer
 
 The JSON below, **whole**, with the chunks to do filled in: every
 {{UNIT}} in the order given, with its {{ADDRESS}} unchanged, every chunk in
@@ -142,7 +142,7 @@ A long stretch may not fit one message. Then stop at a {{UNIT}} boundary,
 close the fence, and continue in the next message with the next {{UNIT}}, in
 a new ```` ```json ```` fence holding only `"{{LIST_KEY}}"`: every block
 pasted back is read, in order, and a {{UNIT}} that comes twice is taken from
-the later block — which is also how a correction is sent.
+the later block — which is also how a correction is sent.{{/contract}}
 
 ## Before you answer, check
 
@@ -156,7 +156,7 @@ the later block — which is also how a correction is sent.
 - valid JSON, inside a single ```` ```json ```` fence, and nothing else in the
   message.
 
-{{ABOUT}}
+{{?data}}{{ABOUT}}
 
 ## The {{UNITS}}
 
@@ -164,4 +164,4 @@ the later block — which is also how a correction is sent.
 {{DATA}}
 ```
 
-Answer with the JSON and nothing else.
+Answer with the JSON and nothing else.{{/data}}

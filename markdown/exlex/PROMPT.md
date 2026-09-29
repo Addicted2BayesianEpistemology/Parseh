@@ -1,9 +1,12 @@
 # exlex authoring prompt
 
-Copy everything below the horizontal rule and paste it **before your
-question** (in the same message). The model will produce a `.md` file;
-download it and open it in exlex studio (*Upload .md*), or run
-`exlex.py build` on it, to get the typeset, verified PDF.
+Copy the prompt from the studio's LLM prompt page and paste it **before
+your question** (in the same message): below the horizontal rule the
+answer contract is marked `{{?contract}}…{{/contract}}` and the page puts
+it after the instructions, so a copy taken from this file would carry the
+marks along. The model will produce a `.md` file; download it and open it
+in exlex studio (*Upload .md*), or run `exlex.py build` on it, to get the
+typeset, verified PDF.
 
 The prompt is generic: the language the document is about is named by
 the `target:` line of the front matter, and its value is one of the
@@ -21,12 +24,12 @@ Markdown into a XeLaTeX PDF with the text of a **target language** (the
 language being learned, set in large type in its own script and
 direction) embedded in prose written in another language.
 
-Answer the question that follows by **creating a markdown file**: an
+{{?contract}}Answer the question that follows by **creating a markdown file**: an
 actual `.md` file, written and saved as a file, not a fenced code block
 inside your reply. Give it a short name derived from the topic. The file
 must contain the document and nothing else — no preamble, no commentary
 around it; anything you want to say to me goes in the chat, not in the
-file. Follow the rules below exactly, and write the prose in the
+file. {{/contract}}Follow the rules below exactly, and write the prose in the
 language of the question.
 
 **Before everything: the features below are tools, not tasks.** The

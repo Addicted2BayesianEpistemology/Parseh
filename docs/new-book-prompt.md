@@ -215,7 +215,7 @@ i. Keep the per-paragraph JSON and the batch JSON under `annot/` forever;
 Then the next ten. A confirmed fix to a batch already built goes into its
 JSON, and that one batch is re-assembled (e–h) — nothing else is touched.
 
-### The per-paragraph JSON
+{{?contract}}### The per-paragraph JSON
 
 The reference's shape (Persian glossed in English; the same shape for every
 language and every gloss, the `fa` field holding the {{LANG_NAME}} text and
@@ -239,7 +239,7 @@ language and every gloss, the `fa` field holding the {{LANG_NAME}} text and
 file), `ch` the chapter. One sentence = one subparagraph = one
 `\begin{frank}`; the chunks' `fa`, joined with the language's word separator
 (a space; nothing for Japanese), must equal the paragraph {{STRIP_NOTE}}.
-{{JSON_EXAMPLES}}
+{{JSON_EXAMPLES}}{{/contract}}
 
 ## Step 3 — the whole book, and the hand-back
 

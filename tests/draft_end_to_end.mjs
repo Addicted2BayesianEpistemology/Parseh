@@ -740,7 +740,7 @@ try {
     const {prompt, sum} = await copyBookPrompt(page, bk.code + '-book');
     assert(prompt !== SENTINEL && prompt.length > 1000, `${bk.code}: "copy the prompt" put the prompt on the clipboard (${prompt.length} characters)`);
     assert(prompt.includes(`- language: ${bk.name} (\`${bk.code}\`)`) && prompt.includes('- gloss language: **English** (`en`)') &&
-           new RegExp(`^# Gloss part of an? ${bk.name} book, in English, for Parseh`).test(prompt),
+           new RegExp(`^Parseh prompt · [^\\n]+\\n\\n# Gloss part of an? ${bk.name} book, in English, for Parseh`).test(prompt),
            `${bk.code}: the prompt is for a ${bk.name} book glossed in English: ${JSON.stringify(prompt.split('\n')[0])}`);
     const data = dataOf(prompt);
     const all = data.sentences.flatMap(s => s.chunks);
@@ -1029,7 +1029,7 @@ try {
     const sum = await text(page, '#rgsum');
     assert(prompt !== SENTINEL && prompt.length > 1000, `"copy the prompt" put the prompt on the clipboard (${prompt.length} characters)`);
     await keepPrompt('fa-video', prompt);
-    assert(/^# Gloss part of a Persian video, in English, for Parseh/.test(prompt),
+    assert(/^Parseh prompt · [^\n]+\n\n# Gloss part of a Persian video, in English, for Parseh/.test(prompt),
            `the prompt is for a Persian video glossed in English: ${JSON.stringify(prompt.split('\n')[0])}`);
     const data = dataOf(prompt);
     eq(data.captions.map(c => c.plain ? 'plain' : c.chunks.map(ch => [ch.fa, ch.todo || false])),

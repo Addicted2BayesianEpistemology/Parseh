@@ -92,6 +92,7 @@ import chunker                                                # noqa: E402
 import draft                                                  # noqa: E402
 import languages                                              # noqa: E402
 import lookup                                                 # noqa: E402
+import promptkit                                              # noqa: E402
 
 # How long a sentence may grow before it is closed at the best seam there
 # is: a caption nobody can read is no better than a caption cut at random,
@@ -357,41 +358,41 @@ def _same_words(before, after, L):
     return said(before) == said(after)
 
 
-PROMPT = """You are given the automatic transcript of a video in %(lang)s, copied from
+PROMPT = """You are given the automatic transcript of a video in {{LANGUAGE}}, copied from
 YouTube's own transcript panel. Tidy it up and give it back in the same shape.
 
 WHAT IS WRONG WITH IT. YouTube cuts a caption where it runs out of room, never
 where a sentence ends: one caption holds the end of a sentence and the start of
-the next, and a sentence may run across three of them.%(bare)s The times are not
+the next, and a sentence may run across three of them.{{BARE}} The times are not
 wrong -- each caption really does begin when it says -- they are just nailed to
 the wrong places.
 
-WHAT TO GIVE BACK. The same transcript, one caption per SENTENCE, in exactly this
+{{?contract}}WHAT TO GIVE BACK. The same transcript, one caption per SENTENCE, in exactly this
 shape and with nothing else around it:
 
 ```
 0:08
-%(example)s
+{{EXAMPLE}}
 0:11.5
-%(example2)s
+{{EXAMPLE2}}
 ```
 
 A line with a time on it, then the sentence, then the next time, and so on. A
 time is M:SS or H:MM:SS, and may carry one decimal (0:11.5) where a sentence
 begins between two seconds. Every caption's time must be LATER than the one
-before it.
+before it.{{/contract}}
 
 THE RULES, in the order they matter:
 
 1. KEEP THE WORDS. This is a transcript of what somebody said, and the whole
    video will be glossed against it. Do not summarise, do not tidy the grammar,
-   do not drop a repetition -- a teacher saying "%(rep)s" said it three times
+   do not drop a repetition -- a teacher saying "{{REP}}" said it three times
    and the transcript says so too.
 2. CUT AT SENTENCES. Join what the captions split and split what they ran
    together. One sentence per caption; a very long sentence may be two captions
    cut at a clause.
 3. PUNCTUATE. Full stops, question marks, commas where they help a reader.
-   %(marks)s
+   {{MARKS}}
 4. TIME EACH CAPTION at the moment its first word is spoken. Work it out from
    the times you were given: a caption's words are spread across the stretch
    from its own time to the next one's, so a sentence starting halfway through
@@ -402,18 +403,26 @@ THE RULES, in the order they matter:
 6. LEAVE THE TAGS. "[music]", "[laughter]" and the like stay where they are, on
    a line of their own where the transcript put them on one.
 
-Give back the whole transcript in one fenced block and nothing else: no
-commentary, no numbering, no translation.
+{{?contract}}Give back the whole transcript in one fenced block and nothing else: no
+commentary, no numbering, no translation.{{/contract}}
 
-THE TRANSCRIPT:
+{{?data}}THE TRANSCRIPT:
 
 ```
-%(panel)s```
+{{PANEL}}```{{/data}}
 """
+promptkit.register("transcript-tidy", PROMPT)
 
 
 def prompt(captions, lang):
-    """The whole job as a prompt to hand an LLM -> str.
+    """The whole job as a prompt to hand an LLM -> str (assembled)."""
+    return assembled(captions, lang).text
+
+
+def assembled(captions, lang):
+    """The whole job as a prompt to hand an LLM, in the three parts of
+    lib/promptkit.py: the rules, what to give back, the transcript.
+    -> promptkit.Assembled
 
     THE OTHER ROAD, and it is the same road the add page already walks for
     the glossing: the toolbox writes the prompt, somebody pastes it wherever
@@ -440,12 +449,15 @@ def prompt(captions, lang):
     bare = ("" if caps and stops * 6 >= len(caps) else
             " It prints almost no punctuation, so the text itself barely says where a"
             " sentence ends.")
-    return PROMPT % {"lang": L.name, "bare": bare, "panel": panel,
-                     "example": "<one whole sentence of the video>",
-                     "example2": "<the next whole sentence>",
-                     "rep": _repeat(caps, L),
-                     "marks": ("This language ends a sentence with %s and asks with %s."
-                               % (full, ask))}
+    # THE TRANSCRIPT IS THE VIDEO'S, not the template's: a caption that says
+    # `{{` is a caption, and is put in as one
+    return promptkit.assemble(
+        "transcript-tidy", L, template=PROMPT,
+        values={"BARE": bare, "EXAMPLE": "<one whole sentence of the video>",
+                "EXAMPLE2": "<the next whole sentence>",
+                "MARKS": ("This language ends a sentence with %s and asks with %s."
+                          % (full, ask))},
+        verbatim={"PANEL": panel, "REP": _repeat(caps, L)})
 
 
 def _repeat(caps, L):
