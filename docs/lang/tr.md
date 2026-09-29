@@ -292,11 +292,10 @@ has (`; \textit{…}`) is yours as well. It is a **draft for you to correct**:
   entry it is —
   `\vb{etmek}{}{ediyor}{}{eder}{}{}\bw{teşekkür}{}{to thank (-e)}`, the `\bw`
   run straight onto the `\vb` — and says in so many words that teşekkür
-  etmek is one verb written in two words and not two entries; a video gets
-  the compound whole, `teşekkür etmek to thank (-e) (etmek · pres. ediyor ·
-  aor. eder)`. What it writes in the `\bw` is the **compound's** meaning,
-  which is the one the dictionary's entry is for; an edition that would
-  rather gloss the noun itself (`thanks (-e)`, as above) trims it there, as
+  etmek is one verb written in two words and not two entries. What it writes
+  in the `\bw` is the **compound's** meaning, which is the one the
+  dictionary's entry is for; an edition that would rather gloss the noun
+  itself (`thanks (-e)`, as above) trims it there, as
   it trims every other draft this sidebar proposes. Nothing is romanised:
   both sound slots stay empty, and the segmentation is yours. It
   finds the compound only where the noun stands right before the verb in the
@@ -327,12 +326,13 @@ vocabulary instead (`kitap`, `hayat`, `insan`, `zaman`), which an English
 reader has no way into at all, and a Japanese reader has neither. Gloss what
 this book's reader cannot get, and let the rest go.
 
-In a **video** the line is plain text and reads the way the book prints it:
-`evlerimizden ev-ler-imiz-den ev house + plural + our + from`, a verb as
-`bakmak · pres. bakıyor · aor. bakar · to look at (-e)`. In a **book** it uses
-four macros and nothing else: `\dw{fa}{segmentation} gloss` ·
+The line uses four macros and nothing else: `\dw{fa}{segmentation} gloss` ·
 `\vb{inf}{}{pres}{}{aorist}{}{meaning}` · `\bw{base}{segmentation}{meaning}` ·
-`\pw{fa}` — plus `\textit`, `\emph`, `\nobreak`.
+`\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted by
+`; `.{{?video}} A video's line is written exactly as a book's, a word as
+`\dw{evlerimizden}{ev-ler-imiz-den} house + plural + our + from` and a verb as
+`\vb{bakmak}{}{bakıyor}{}{bakar}{}{to look at (-e)}`; a line with no macro at
+all is plain text, and is also accepted.{{/video}}
 
 One equivalent in the gloss language rather than a string of synonyms; no
 etymologies; **an empty `voc` is the right answer** for a chunk needing

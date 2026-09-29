@@ -701,6 +701,14 @@ def _file(code):
         return f.read()
 
 
+def _read_as(code, surface):
+    """The file as one surface reads it: its {{?flag}} blocks resolved, and the blank
+    lines a block leaves behind collapsed as the cut collapses them.  A shipped
+    file marks what belongs to a book or a video only, so what a prompt takes of
+    it is compared to this and not to the raw text."""
+    return re.sub(r"\n{3,}", "\n\n", K.blocks(_file(code), K.surface_flags(surface)))
+
+
 def _headings(text):
     fenced, out = False, []
     for line in text.split("\n"):
@@ -727,10 +735,9 @@ class LanguageCut(unittest.TestCase):
 
     def test_the_prompts_that_take_everything_get_the_file_as_it_is(self):
         for code in self.CODES:
-            raw = _file(code)
-            self.assertEqual(K.language_text("book-new", code), raw.strip(), code)
+            self.assertEqual(K.language_text("book-new", code), _read_as(code, "book-new").strip(), code)
             self.assertEqual(K.language_text("video-new", code),
-                             re.sub(r"^# .*\n+", "", raw, count=1).strip(), code)
+                             re.sub(r"^# .*\n+", "", _read_as(code, "video-new"), count=1).strip(), code)
 
     def test_the_studio_takes_the_transliteration_the_reading_and_the_script_note(self):
         for code in self.CODES:
@@ -748,8 +755,8 @@ class LanguageCut(unittest.TestCase):
             self.assertNotIn("Chunking", secs)
             self.assertNotIn("(title)", secs)
             self.assertIn("Vocabulary", secs)
-            self.assertEqual(sorted(K.language_sections("video-region", code)),
-                             sorted(K.language_sections("book-region", code)))
+            self.assertEqual(sorted(n for n, _ in K.language_sections("video-region", code)),
+                             sorted(n for n, _ in K.language_sections("book-region", code)))
             field = secs["The text field"]
             self.assertEqual(field.count("\n\n"), 1, code)
             self.assertIn("reproduces the source **verbatim**", field, code)
@@ -771,8 +778,8 @@ class LanguageCut(unittest.TestCase):
 
     def test_a_cut_only_deletes_every_paragraph_of_it_is_a_paragraph_of_the_file(self):
         for code in self.CODES:
-            raw = [_flat(p) for p in re.split(r"\n\s*\n", _file(code))]
             for surface in ("studio-doc", "video-region", "book-region"):
+                raw = [_flat(p) for p in re.split(r"\n\s*\n", _read_as(code, surface))]
                 for name, text in K.language_sections(surface, code):
                     for p in re.split(r"\n\s*\n", text):
                         if _flat(p) not in raw and not re.match(r"^#+ ", p):

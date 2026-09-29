@@ -77,10 +77,11 @@ unambiguous.
 meaning, with the grammar a learner needs to recognise the form.
 
 - A **verb** is given as the infinitive, the first person present and the
-  past participle, and its auxiliary when that is *essere*: `andare · pres.
-  vado · p.p. andato · to go (aux. essere)`. No conjugation class: the
-  infinitive's own ending and the first person (`finisco`, `dormo`) already
-  say it. An **irregular form** in the text is tied to its infinitive:
+  past participle, and its auxiliary when that is *essere*, as a `\vb` prints
+  it: `andare · pres. vado · p.p. andato · to go (aux. essere)`. No
+  conjugation class: the infinitive's own ending and the first person
+  (`finisco`, `dormo`) already say it. An **irregular form** in the text is
+  tied to its infinitive:
   `vado · andare, 1sg pres.`; `fatto · fare, past participle`; `andrò ·
   andare, fut.`.
 - A **noun** carries its **gender** and, when it is not regular, its
@@ -93,13 +94,10 @@ meaning, with the grammar a learner needs to recognise the form.
 - Name what was stripped: the plural, the feminine, the diminutive
   (`-ino`, `-etto`), the superlative (`-issimo`), the adverb ending
   (`-mente`).
-- In a video the line is plain text, the verb as `venire · pres. vengo ·
-  p.p. venuto · to come (aux. essere; p.r. venni)` and a form of it in the
-  chunk first, with the entry in brackets after it: `vado I go (andare ·
-  pres. vado · p.p. andato · to go (aux. essere))`. In a book the line uses
-  the four macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`, `\emph`,
-  `\nobreak`), as the Persian editions do: `\vb` for every verb, `\dw` for
-  every other headword. The seven slots of `\vb` are, in this order,
+- The line uses the four macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`,
+  `\emph`, `\nobreak`), as the Persian editions do, and its entries are
+  parted by `; `: `\vb` for every verb, `\dw` for every other headword. The
+  seven slots of `\vb` are, in this order,
   **infinitive, first person present, past participle**, each with its
   pronunciation, then the meaning; the edition prints *pres.* and *p.p.*
   before the second and third forms, so never put another form into those
@@ -134,7 +132,12 @@ meaning, with the grammar a learner needs to recognise the form.
   `\vb{venire}{}{vengo}{}{venuto}{}{to come (aux. \pw{essere}; p.r.
   \pw{venni})}`, `\vb{parlare}{}{parlo}{}{parlato}{}{to speak}` — the last
   with nothing in brackets, because nothing about it is out of the ordinary.
-- The gloss editor's sources sidebar, in the reader and in the player, now
+{{?video}}- A video's line is written exactly as a book's; a line with no macro at all
+  is plain text, and is also accepted. What a video adds is the form its chunk
+  has, where it is none of the three the `\vb` prints, nor one its parenthesis
+  names: it is named after the entry, outside it,
+  `\vb{parlare}{}{parlo}{}{parlato}{}{to speak}; here \pw{parlavo}, 1sg imperfect`.
+{{/video}}- The gloss editor's sources sidebar, in the reader and in the player, now
   proposes this entry from the dictionary for a verb it recognises, the
   auxiliary and an irregular passato remoto included, and for a form the
   dictionary only knows as a compound (`alzandosi`, `dimmelo`, `farlo`) the

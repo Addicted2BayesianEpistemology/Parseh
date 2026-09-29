@@ -231,15 +231,16 @@ at all; elsewhere they are left empty.
   — but where the chunk's gloss could be read as a preposition, say it in
   the vocabulary line once: `a · the personal a: marks a person as the
   object, not "to"`.
-- In a **video** the line is plain text, a verb as `tener · pres. tengo ·
-  pret. tuvo · to have (fut. tendré)` and a form of it in the chunk first,
-  with that entry in brackets after it — `tiene you have, formal (tener ·
-  pres. tengo · pret. tuvo · to have (fut. tendré))` — entries separated by
-  `;`. In a **book** it uses four macros and nothing else: `\dw{fa}{rom}
-  gloss` · `\vb{inf}{rom}{pres}{rom}{pret}{rom}{meaning}` ·
-  `\bw{base}{rom}{meaning}` · `\pw{fa}` — plus `\textit`, `\emph`,
-  `\nobreak`. `\vb` for every verb, `\dw` for every other headword.
-- The gloss editor's sources sidebar, in the reader and in the player, now
+- The line uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
+  `\vb{inf}{rom}{pres}{rom}{pret}{rom}{meaning}` · `\bw{base}{rom}{meaning}` ·
+  `\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted
+  by `; `. `\vb` for every verb, `\dw` for every other headword.
+{{?video}}- A video's line is written exactly as a book's; a line with no macro at all
+  is plain text, and is also accepted. What a video adds is the form its chunk
+  has, where it is none of the three the `\vb` prints, nor one its parenthesis
+  names: it is named after the entry, outside it,
+  `\vb{hablar}{}{hablo}{}{habló}{}{to speak}; here \pw{hablaba}, 1/3sg imperf.`.
+{{/video}}- The gloss editor's sources sidebar, in the reader and in the player, now
   proposes the `\vb` from the dictionary for a verb it recognises — the two
   forms, and an irregular participle or future, read off the dictionary's
   own conjugation rows and never made up. It is a **draft for you to

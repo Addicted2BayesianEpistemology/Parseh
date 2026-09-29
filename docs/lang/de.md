@@ -224,17 +224,19 @@ at all; elsewhere they are left empty.
   from `das Brot`), the comparative `-er` and superlative `-st` (`größer ·
   groß, comp.`), the `zu` of an infinitive, the adverb that is simply the
   bare adjective (`schnell`).
-- In a **video** the line is plain text: `geben · pret. gab · p.p. gegeben ·
-  to give (er gibt)`, and a form of the verb in the chunk first with that
-  entry in brackets after it (`gab gave (geben · pret. gab · …)`); `der
-  Tisch, -e · table`. In a **book** it uses the four
-  macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`, `\emph`, `\nobreak`), as
-  the Persian editions do: `\vb` for every verb, `\dw` for every other
-  headword — the article and the plural go inside the headword slot
-  (`\dw{der Tisch, -e}{} table`) — `\bw` for the parts of a compound, and
-  `\pw` for a German word quoted inside a remark in the gloss language
-  (`\pw{auf} at the end of the clause`).
-
+- The line uses the four macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`,
+  `\emph`, `\nobreak`), as the Persian editions do, and its entries are
+  parted by `; `: `\vb` for every verb, `\dw` for every other headword — the
+  article and the plural go inside the headword slot (`\dw{der Tisch, -e}{}
+  table`) — `\bw` for the parts of a compound, and `\pw` for a German word
+  quoted inside a remark in the gloss language (`\pw{auf} at the end of the
+  clause`).
+{{?video}}- A video's line is written exactly as a book's; a line with no macro at all
+  is plain text, and is also accepted. What a video adds is the form its chunk
+  has, where it is none of the three the `\vb` prints, nor one its parenthesis
+  names: it is named after the entry, outside it,
+  `\vb{geben}{}{gab}{}{gegeben}{}{to give (er gibt)}; here \pw{gaben}, pret. plural`.
+{{/video}}
 The gloss editor's sources sidebar, in the reader and in the player, now
 proposes the `\vb` from the dictionary for a verb it recognises: the three
 principal parts, the third person where it changes, the auxiliary, and the
