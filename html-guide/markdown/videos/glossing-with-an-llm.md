@@ -148,6 +148,20 @@ Then, one line to a phrase, what did not land:
 A line that names a caption brings it into view when clicked. The rest
 land: one bad phrase costs only itself.
 
+## What the meaning says
+
+The meaning under a phrase is a **gloss**, not a translation: it says what
+*that* phrase says, in the order of the text, so that you can point from each
+word of it to the word it renders. Read in a row, the meanings of a sentence
+may not be good English, and that is meant: you think it through, and you see
+how the language builds its sentence. The prompt asks for exactly this, in so
+many words and with an example. It is not what **Ask LLM** in the sources
+sidebar gives, which asks for a fluent translation of one sentence on
+purpose: a translation is for understanding the sentence, a gloss is for
+seeing how it is put together. If a chatbot hands back a fluent sentence cut
+into pieces, that is the very mistake the prompt names; tick **re-gloss** and
+ask again.
+
 ## What is protected, and why
 
 A gloss somebody wrote is judgement, and an LLM told to leave it alone

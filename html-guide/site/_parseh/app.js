@@ -5014,7 +5014,6 @@ function initPrompt() {
   const ta = $("#prompt-text");
   const badge = $("#prompt-badge");
   const question = $("#question");
-  const info = $("#copy-info");
   const sel = $("#prompt-target");
   let current = {text: "", custom: false, target: "fa", target_name: "Persian",
                  lang_block: ""};
@@ -5045,34 +5044,47 @@ function initPrompt() {
   }
   function show(p) {
     current = p;
-    // the conventions block is shown with the prompt but is not part of
-    // the editable text: it belongs to the language, not to the prompt
-    ta.value = editing ? p.text : p.text.trim()
-      + (p.lang_block ? "\n\n" + p.lang_block.trim() : "") + "\n";
+    // WHAT THE BOX SHOWS is the prompt the server assembled (the version line, the target
+    // line, the instructions, the language's conventions, the answer contract), so that what
+    // it shows is what is copied; a server that does not send one is composed the old way
+    ta.value = editing ? p.text : p.prompt ? p.prompt.replace(/\n*$/, "\n")
+      : guidance() + p.text.trim() + (p.lang_block ? "\n\n" + p.lang_block.trim() : "") + "\n";
     badge.textContent = (p.custom ? "custom" : "default (exlex/PROMPT.md)")
       + ` · ${p.target_name}`;
     badge.className = "badge " + (p.custom ? "warn" : "");
+    sync();
   }
   const load = () => api("/api/prompt?target=" + encodeURIComponent(sel.value))
     .then(show).catch(e => toast(e.message, true));
   sel.addEventListener("change", load);
   load();
 
-  async function copy(text, label) {
-    try {
-      await navigator.clipboard.writeText(text);
-      info.textContent = `${label} copied — ${text.length} chars ✓`;
-      toast(label + " copied");
-    } catch (e) { toast("Clipboard unavailable", true); }
-  }
-  $("#btn-copy-prompt").addEventListener("click", () =>
-    copy(guidance() + (editing ? fullText() : ta.value.trim() + "\n"), "Prompt"));
-  $("#btn-copy-all").addEventListener("click", () => {
+  /* WHAT IS COPIED: the prompt as the box shows it -- while it is being edited
+     the box holds the editable text alone, and the target line and the
+     language's conventions go round it -- and, after a blank line, the
+     question when one is written.  The row (lib/llmrow.js) holds this text,
+     says how long it is before anything is copied, and copies exactly it. */
+  function copyText() {
     const q = question.value.trim();
-    if (!q) { toast("Write your question first", true); question.focus(); return; }
-    copy(guidance() + (editing ? fullText() : ta.value.trim() + "\n")
-         + "\n" + q + "\n", "Prompt + question");
-  });
+    const prompt = editing ? guidance() + fullText() : ta.value;
+    return q ? prompt.replace(/\n*$/, "\n") + "\n" + q + "\n" : prompt;
+  }
+  const row = window.ParsehLLMRow ? ParsehLLMRow.mount($("#llm-row"), {
+    surface: "studio-doc", cls: "btn primary big", ids: {copy: "btn-copy-all"},
+    title: "Put the prompt on the clipboard, with your question after it when you have written one",
+    remind: "paste it into your chatbot, then bring its answer back with Upload .md or Paste LLM answer.",
+    box: () => ta,
+  }) : null;
+  if (!row) $("#llm-row").textContent = "The prompt helper could not be loaded.";
+  // a prompt not loaded yet has nothing to copy; and a button says what it copies:
+  // "and your question" once one is written
+  const sync = () => {
+    if (!row || !current.text) return;
+    row.update(copyText());
+    row.label(question.value.trim() ? "copy the prompt and your question" : "copy the prompt");
+  };
+  question.addEventListener("input", sync);
+  ta.addEventListener("input", () => { if (editing) sync(); });
 
   const btnEdit = $("#btn-edit-prompt"), btnSave = $("#btn-save-prompt"),
         btnCancel = $("#btn-cancel-edit"), btnReset = $("#btn-reset-prompt");
@@ -5080,6 +5092,7 @@ function initPrompt() {
     editing = true;
     ta.value = current.text;        // the text alone, without the block
     ta.readOnly = false; ta.focus();
+    sync();
     btnEdit.classList.add("hidden");
     btnSave.classList.remove("hidden");
     btnCancel.classList.remove("hidden");
@@ -5091,21 +5104,19 @@ function initPrompt() {
     btnSave.classList.add("hidden");
     btnCancel.classList.add("hidden");
   };
-  // a save or a reset answers with the bare prompt record (text, custom):
-  // the target and its conventions block belong to the page and stay
-  const withTarget = p => Object.assign({}, current, p);
+  // a save or a reset answers with the bare prompt record (text, custom): the prompt the
+  // box shows is assembled by the server, so it is asked for again
   btnSave.addEventListener("click", async () => {
-    const p = await api("/api/prompt?target=" + encodeURIComponent(sel.value),
-                        {method: "PUT", json: {text: ta.value}});
-    endEdit(); show(withTarget(p)); toast("Custom prompt saved");
+    await api("/api/prompt?target=" + encodeURIComponent(sel.value),
+              {method: "PUT", json: {text: ta.value}});
+    endEdit(); await load(); toast("Custom prompt saved");
   });
   btnCancel.addEventListener("click", () => { endEdit(); show(current); });
   btnReset.addEventListener("click", async () => {
     if (current.custom &&
         !confirm("Discard the custom prompt and return to the default?")) return;
-    const p = await api("/api/prompt?target=" + encodeURIComponent(sel.value),
-                        {method: "DELETE"});
-    endEdit(); show(withTarget(p)); toast("Prompt reset to default");
+    await api("/api/prompt?target=" + encodeURIComponent(sel.value), {method: "DELETE"});
+    endEdit(); await load(); toast("Prompt reset to default");
   });
 }
 

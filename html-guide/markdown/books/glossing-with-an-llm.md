@@ -180,6 +180,20 @@ The rest land: one bad chunk costs only itself. For what is still missing,
 copy the prompt again — the chunks just filled now go as context — or ask
 the chatbot for the ones it left out and paste its reply under the first.
 
+## What the meaning says
+
+The meaning under a phrase is a **gloss**, not a translation: it says what
+*that* phrase says, in the order of the text, so that you can point from each
+word of it to the word it renders. Read in a row, the meanings of a sentence
+may not be good English, and that is meant: you think it through, and you see
+how the language builds its sentence. The prompt asks for exactly this, in so
+many words and with an example. It is not what **Ask LLM** in the sources
+sidebar gives, which asks for a fluent translation of one sentence on
+purpose: a translation is for understanding the sentence, a gloss is for
+seeing how it is put together. If a chatbot hands back a fluent sentence cut
+into pieces, that is the very mistake the prompt names; tick **re-gloss** and
+ask again.
+
 ## What is protected, and why
 
 A gloss somebody wrote is judgement, and the edition is made of it. An LLM

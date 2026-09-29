@@ -17,6 +17,43 @@ guide and rebuilds the readers by itself.
 
 ## a0.4.2 — not yet released
 
+### The meaning under a phrase is a gloss
+
+When an LLM glosses a stretch, each phrase's meaning now says what *that*
+phrase says, in the order of the text, instead of a fluent translation of the
+sentence cut into as many pieces as there are phrases. Every gloss prompt
+carries the rule, with an example: see [What the meaning
+says](../books/glossing-with-an-llm.md#what-the-meaning-says) for a book and
+[the same for a video](../videos/glossing-with-an-llm.md#what-the-meaning-says).
+Glosses an LLM wrote before a0.4.2 may not be aligned: **re-gloss** redoes a
+stretch.
+
+### One prompt kit, and a row of controls for it
+
+Every prompt Parseh hands to a chatbot is assembled from three parts (the
+instructions, the answer contract, the data), opens with a line saying which
+prompt it is and which Parseh made it, and each page that copies one now says
+how long it is before you copy it. The buttons around a prompt are one row,
+drawn once, on the studio's prompt page, the exercise dialog, the add-a-video
+page, the transcript tidy, the player, the reader and Ask LLM. A reader built
+before a0.4.2 shows the new row after **rebuild the reader**.
+
+### A video's vocabulary in the books' entries
+
+A video's vocabulary line may now use the books' entries (`\dw`, `\vb`, `\bw`,
+`\pw`), drawn as the reader draws them; a plain line still works and looks as
+it did. The four buttons that insert them, in a book's chunk sheet and in a
+video's ✎ form, say what they write and show an example. See [Editing a
+phrase](../videos/editing-a-phrase.md).
+
+### A book made by an agent, in place
+
+A book can be made by an agent of your choice working in the book's own
+folder, which Parseh makes for you: the library shows it as **being made**,
+its reader shows the batches as they arrive, you steer it by writing asks, and
+**Finish** ends the making. Nothing to copy into a terminal. See [A book made
+by an agent](../books/made-by-an-agent.md).
+
 ## a0.4.1 — 29 September 2026
 
 ### Speech to text
