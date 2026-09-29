@@ -3,8 +3,10 @@
 **Markdown → XeLaTeX → verified PDF for lexical essays about a language,
 plus a local web studio to read, annotate and drill them.**
 
-`exlex` turns a markdown file — typically written by an LLM given
-[`exlex/PROMPT.md`](exlex/PROMPT.md) plus a question — into a typeset PDF
+`exlex` turns a markdown file — typically written by an LLM given the
+prompt the studio's LLM prompt page copies (it resolves the sections of
+[`exlex/PROMPT.md`](exlex/PROMPT.md) for the features ticked) plus a
+question — into a typeset PDF
 in which the **target language** appears large, in its own font (Vazirmatn
 for Persian, Noto Naskh Arabic for Arabic, Noto Serif Devanagari for Hindi,
 Noto Serif CJK JP and CJK SC for Japanese and Chinese, and the text face
@@ -1004,10 +1006,37 @@ rebuild**, with both sets on hover. The command line takes the same two,
 
 ### Prompt page (`/prompt`)
 
-The copy-paste part of `exlex/PROMPT.md` plus a question box; one button
-copies prompt + question for the LLM, which answers by writing a `.md`
-file you then upload. The prompt can be edited and saved as a custom
-override (`library/_prompt.md`) and reset to the default.
+The prompt made from `exlex/PROMPT.md` plus a question box; one button
+copies prompt + question for the LLM, which answers with a `.md` file you
+then upload, or, where it cannot make a file, with the whole document in one
+fenced block that **Paste LLM answer** takes the document out of. The
+prompt can be edited and saved as a custom override (`library/_prompt.md`)
+and reset to the default.
+
+**The prompt is in parts a person ticks.** `exlex/PROMPT.md` holds every
+rule the prompt can teach, each feature in a section marked
+`{{?id}}…{{/id}}` (a "box": vocabulary entries, glosses, transliteration,
+reading marks, the language's own punctuation, right-to-left sequences,
+passages, Latin blocks, wrong and right forms, lists, tables, boxes, bold
+and italic, footnotes, links, colours, formulas, LaTeX drawings, exercises,
+and keeping what a pasted document has), and the copy has only the ones
+ticked (`app/promptboxes.py`: the boxes, the presets — a short answer, **a
+lesson** (the default), a vocabulary study, a lesson with exercises, all,
+none — level and length, and what each box costs, measured). A box a
+language cannot use is hidden (a reading only for Japanese, its own
+punctuation only for a language with a script of its own, the box order of
+mixed directions only for right-to-left targets). Whatever is ticked, the
+copy carries an always-in part — the task, the front matter, the structure,
+how the target language is written, **one paragraph on one line**, and that
+the model never writes a picture, a recording, a video or a link to another
+document — and a **reserved list**: every mark the studio reads, with what
+it does, so that a feature that was not ticked is forbidden by name and the
+model writes it only when it was taught. The answer contract comes last
+(the file, or the fence), then the learner's level and the length asked
+for, one line each. The routes are `GET /api/prompt?target=&boxes=&level=&length=`
+and, for the editor's **Generate with LLM…**, `POST /api/exercise-prompt`,
+which builds its dialect from the same boxes (ticked from what the page
+already uses) and its exercises from one box per type.
 
 The prompt is written in **no particular prose language** — it tells the
 model to answer in the language of the question, and its own rules and
@@ -1085,9 +1114,12 @@ POST   /api/translit · /api/kana     same as above, on an unsaved buffer (pure)
 POST   /api/image-layout · /api/la-layout    same, on an unsaved buffer (pure)
 GET    /api/tags · /api/palette · /api/status · /api/export (zip)
 POST   /api/download                 ids=a,b (a form) or {ids: [...]} → zip of those .md sources
-GET    /api/exercise-decks           the Anki decks the LLM exercise prompt may take words from
-POST   /api/exercise-prompt          {markdown, decks?} → {prompt, vocabulary}
-GET/PUT/DELETE /api/prompt
+GET    /api/exercise-decks[?target=] the Anki decks the LLM exercise prompt may take words from
+                                     (only the language's own, with ?target=<code>)
+POST   /api/exercise-prompt          {markdown, decks?, boxes?, types?, level?, length?} →
+                                     {prompt, vocabulary, boxes, types, preticked, size}
+GET    /api/prompt[?target=&boxes=&level=&length=]  → {prompt, size, boxes, presets, levels, lengths, …}
+PUT/DELETE /api/prompt               the one custom prompt (library/_prompt.md), kept as it was
 POST   /api/shutdown
 ```
 

@@ -150,23 +150,47 @@ yours to edit in the source.
 
 **Generate with LLM…** prepares a prompt that asks a language model to add
 practice activities to this page. **The page itself is always included** —
-the editor's text as it is now, saved or not. Under that, the dialog lists
-your Anki decks (the ones the toolbox builds for you; see the
-[cards and Anki section](../cards-and-anki/_index.md)), each with its
-language and its number of cards: tick some, and their words — with
-readings, transliterations and meanings — go into the prompt as vocabulary
-the learner already knows, for the model to use where it helps. None is
-needed: *No Anki decks installed — the prompt works without them.*
+the editor's text as it is now, saved or not.
 
-**Copy complete prompt** puts on the clipboard, in one piece: the
-instructions for writing exercises, the whole description of the dialect
-(your custom prompt, if you saved one on the
-[LLM prompt page](llm-prompt.md), and the target language's conventions),
-the known vocabulary, and the page. The line beside the button says how
-many known words went in.
+The prompt is in parts you choose, as the
+[LLM prompt page](llm-prompt.md#the-boxes) is, so that it is no longer than
+the job needs:
+
+- **The exercise types.** One box for each of the twelve — fill in the
+  blanks, flashcard, put in order, match translations, match opposites,
+  match definitions, yes or no, single choice, build the sentence, find the
+  mistake, choose all that apply, odd one out — each with the size it adds.
+  The types the page already holds are ticked; a page with no exercise yet
+  starts with all of them. The flashcard is the longest by far, because a
+  Jolly card can hold any block of the dialect. Tick at least one.
+- **The dialect.** The same boxes as the prompt page — vocabulary entries,
+  glosses, lists, tables, footnotes and the rest — ticked from what the page
+  already uses, which the studio reads with its own parser, so that the model
+  knows how to write inside a prompt, an answer or a card what the page
+  writes. Tick more to let the exercises use more. Like the prompt page, it
+  always tells the model which marks the studio reads, and that pictures,
+  recordings and links to other documents are never its to write; for a
+  right-to-left target it always carries the rule for the order of isolated
+  right-to-left boxes, which is why that box is not offered here, and the
+  exercises box is not either: the types are the exercises. A prompt you
+  saved on the prompt page is that page's own and does not come here.
+- **For a learner at** and **length**, one line each, as on the prompt page.
+- **Known vocabulary.** Under those, the dialog lists your Anki decks **of
+  the page's language** (the ones the toolbox builds for you; see the
+  [cards and Anki section](../cards-and-anki/_index.md)), each with its
+  language and its number of cards: tick some, and their words — with
+  readings, transliterations and meanings — go into the prompt as vocabulary
+  the learner already knows, for the model to use where it helps. None is
+  needed: *No Anki decks installed — the prompt works without them.*
+
+The dialog shows the size of the prompt. **Copy complete prompt** puts on the
+clipboard, in one piece: the instructions for writing exercises, the
+description of the dialect, the target language's conventions, the known
+vocabulary, and the page. The line beside the button says how many known
+words went in.
 
 Paste it to your model. It answers with the whole page, exercises added,
-in one Markdown block: copy that block, select all the text in the editor,
+in one Markdown block, opened and closed with four backticks: copy that block, select all the text in the editor,
 paste it in place, look it over in the preview and **Save** — or undo, if
 you do not like it.
 

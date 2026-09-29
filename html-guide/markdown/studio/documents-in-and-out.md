@@ -35,7 +35,10 @@ it into the box, and press **Create document**. The studio finds the
 document inside: when the reply holds a fenced code block that looks like
 a document (it starts with the front matter, or it has a heading and is at
 least half of what was pasted), that block is the document, the longest
-one if there are several; otherwise the whole paste is. The new document
+one if there are several; otherwise the whole paste is. A block opened with
+four backticks — what the [LLM prompt](llm-prompt.md#a-file-or-one-fenced-block)
+asks for when a chatbot cannot make a file — is the document whole, even when
+the document holds a fence of three backticks of its own. The new document
 opens at once.
 
 A paste is taken as it is, but for its name. Without a `title:` it is

@@ -200,6 +200,17 @@ def includes():
     return {"EXERCISE_BLOCKS": exercise_blocks}
 
 
+# where the reserved list begins in the instructions of the prompt: what is before it is the rules and
+# the boxes ticked, what is after it the marks the studio reads (PROMPT.md's last section)
+RESERVED = "**Reserved marks.**"
+
+
+def split_reserved(instructions):
+    """(the rules and boxes, the reserved list) of a studio prompt's instructions."""
+    at = instructions.index(RESERVED)
+    return instructions[:at], instructions[at:]
+
+
 # --- what a request may say -------------------------------------------------------
 def _ids(given, known, what):
     if given is None:
@@ -268,7 +279,7 @@ def flags(L, on, types=None, exercising=False):
         "lang_own_script": bool(L.chars), "lang_latin_script": not L.chars,
         "lang_reading": bool(L.reading), "lang_vertical": bool(L.vertical),
         "lang_alt_font": bool(L.fonts.get("alt_key")), "lang_rtl": bool(L.rtl),
-        "lang_arabic_script": L.script == "arabic"})
+        "lang_arabic_script": L.script == "arabic", "lang_other_script": L.script != "arabic"})
     return out
 
 
