@@ -259,19 +259,18 @@ function initEdit() {
     }
     /* THE PROMPT is made by the server from this page and the decks ticked, as
        the dialog opens and each time a deck is ticked; the row (lib/llmrow.js)
-       holds it, says how long it is before the copy, and copies exactly it. */
-    let known = 0;
+       holds it, says how long it is before the copy, and copies exactly it.
+       What the decks added to it is said as soon as it is made. */
     const row = window.ParsehLLMRow ? ParsehLLMRow.mount($('[data-x="row"]', ov), {
       surface: "studio-exercises", cls: "btn primary",
       remind: "paste it into your chatbot, then put the exercises it writes into this page.",
       getText: async () => {
         const decks = $$('input[type="checkbox"]:checked', list).map(x => x.value);
         const result = await api("/api/exercise-prompt", {method: "POST", json: {markdown: src.value, decks}});
-        known = result.vocabulary;
+        const known = result.vocabulary;
+        $(".ex-copy-status", ov).textContent = known
+          ? `${known} known item${known === 1 ? "" : "s"} from your decks ${known === 1 ? "is" : "are"} in it` : "";
         return result.prompt;
-      },
-      onCopied: ok => {
-        if (ok) $(".ex-copy-status", ov).textContent = `Copied · ${known} known item${known === 1 ? "" : "s"}`;
       },
       measure: () => ov.isConnected,
     }) : null;
