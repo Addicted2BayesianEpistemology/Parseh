@@ -100,6 +100,11 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9\-]{0,80}$")
 
 FENCE_RE = re.compile(r"```(?:markdown|md)?[ \t]*\n(.*?)\n[ \t]*```",
                       re.S | re.I)
+# A FENCE OF FOUR BACKTICKS OR MORE, closed by a line of as many: the envelope the studio's prompt asks
+# for when a chatbot cannot make a file.  It may hold a fence of three, which FENCE_RE would take for
+# its end, cutting the document off there without a word.
+LONG_FENCE_RE = re.compile(r"^[ \t]*(`{4,})(?:markdown|md)?[ \t]*\n(.*?)\n[ \t]*\1`*[ \t]*$",
+                           re.S | re.I | re.M)
 
 # C0 control chars are never meaningful in this markdown dialect, and two
 # of them (\x00, \x01) are used internally as freeze/bold sentinels in
@@ -149,9 +154,12 @@ def extract_markdown(text):
     The dialect itself never contains code fences, so if the pasted
     text has fenced blocks, the longest one is the document (prefer
     fences that start with front matter).  Otherwise use the text as-is.
+    A fence of four backticks or more (what the prompt asks for) is the
+    envelope whatever fences of three it holds.
     """
     text = text.replace("\r\n", "\n").strip()
-    fences = [f for f in FENCE_RE.findall(text) if f.strip()]
+    fences = ([m.group(2) for m in LONG_FENCE_RE.finditer(text)] or FENCE_RE.findall(text))
+    fences = [f for f in fences if f.strip()]
     if fences:
         with_fm = [f for f in fences if f.lstrip().startswith("---")]
         best = max(with_fm or fences, key=len)

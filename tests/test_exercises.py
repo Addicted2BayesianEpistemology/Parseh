@@ -849,49 +849,65 @@ class PromptTests(unittest.TestCase):
         studio_server.api_exercise_prompt(ltr)
         self.assertNotIn("Mixed-direction sequences for English", ltr.answer["prompt"])
 
-    def test_exercise_prompt_teaches_the_whole_dialect_and_the_language(self):
-        # a jolly card takes any block of the dialect, so the exercise prompt
-        # carries the authoring prompt (the custom one when there is one) and
-        # the target's conventions -- after the exercise instructions, which
-        # say they win, and before the page
+    def test_exercise_prompt_builds_its_dialect_from_the_boxes_the_page_uses_and_teaches_the_language(self):
+        # CHANGED ON PURPOSE (brief 7.6; it was "teaches the whole dialect"): a jolly card takes any block of
+        # the dialect, so the exercise prompt teaches the parts of it the page already uses -- built from the
+        # studio prompt's own boxes, not embedded whole -- and the target's conventions, after the exercise
+        # instructions, which say they win, and before the page
         class Handler:
-            def __init__(self, markdown):
-                self.body = {"markdown": markdown, "decks": []}
+            def __init__(self, markdown, **more):
+                self.body = dict({"markdown": markdown, "decks": []}, **more)
                 self.answer = None
             def _json_body(self): return self.body
             def send_json(self, answer, code=200): self.answer = answer
 
-        page = "---\ntitle: Persian\ntarget: fa\n---\n\nLesson text"
+        page = ("---\ntitle: Persian\ntarget: fa\n---\n\n## کتاب | ketāb | from Arabic | = *book*\n\n"
+                "| Form | Meaning |\n|---|---|\n| کتاب | a book |\n")
         h = Handler(page)
         studio_server.api_exercise_prompt(h)
         prompt = h.answer["prompt"]
-        # the instructions of each prompt, without the answer contract that
-        # lib/promptkit.py puts after them (the exercise prompt's own, after
-        # the dialect: it asks for a fence, the authoring prompt's for a file)
-        instructions = studio_server.promptkit.instructions_of(
-            (studio_server.EXLEX / "EXERCISES_PROMPT.md").read_text(encoding="utf-8")).strip()
-        dialect = studio_server.promptkit.instructions_of(
-            studio_server.store.get_prompt()["text"]).strip()
+        # what the page uses, read with the parser, is ticked; the rest is named as reserved
+        self.assertEqual(h.answer["preticked"]["boxes"], ["vocab", "tables"])
+        self.assertEqual([b["id"] for b in h.answer["boxes"] if b["on"]], ["vocab", "tables"])
+        self.assertIn("**Vocabulary entries.**", prompt)
+        self.assertIn("**Tables.**", prompt)
+        self.assertNotIn("**Colour marks.**", prompt)
+        self.assertNotIn("**LaTeX drawings.**", prompt)
+        self.assertIn("`{crimson}`", prompt[prompt.index("**Reserved marks.**"):])
         conventions = studio_server.lang_block("fa")
         self.assertTrue(conventions, "docs/lang/fa.md is there to be appended")
-        self.assertIn("front-audio", instructions)
-        self.assertIn("`field-name: |`", instructions)
+        dialect = studio_server.promptboxes.dialect_text(
+            studio_server.languages.get("fa"), ["vocab", "tables"], studio_server.promptboxes.TYPE_IDS)
+        self.assertIn("front-audio", prompt)
+        self.assertIn("`field-name: |`", prompt)
         heading = "## The page's Markdown dialect"
         self.assertEqual(prompt.count(heading), 1)
         at = {name: prompt.find(text) for name, text in (
-            ("instructions", instructions), ("rtl", "Mixed-direction sequences for Persian — binding"),
-            ("dialect", heading), ("authoring", dialect), ("conventions", conventions),
+            ("instructions", "You are adding practice activities"),
+            ("rtl", "Mixed-direction sequences for Persian — binding"),
+            ("dialect", heading), ("boxes", dialect), ("conventions", conventions),
             ("contract", "Return the complete updated Markdown document in one fenced"),
             ("page", "Here is the complete Markdown page to augment"))}
         self.assertTrue(all(v >= 0 for v in at.values()), at)
         self.assertEqual(sorted(at, key=at.get),
-                         ["instructions", "rtl", "dialect", "authoring", "conventions",
-                          "contract", "page"])
-        self.assertNotIn("actual `.md` file", prompt, "the authoring prompt's file-asking "
-                         "contract is not part of the dialect this prompt embeds")
-        self.assertIn("the instructions above win", prompt[at["dialect"]:at["authoring"]])
-        self.assertIn("![…](audio/…)", studio_server.store.default_prompt())
+                         ["instructions", "rtl", "dialect", "boxes", "conventions", "contract", "page"])
+        self.assertNotIn("creating a markdown file", prompt, "the authoring prompt's file-asking "
+                         "contract is not part of the dialect this prompt teaches")
+        self.assertIn("the instructions above win", prompt[at["dialect"]:at["boxes"]])
+        self.assertIn("![…](audio/…)", prompt, "a picture and a recording are never written, and named so")
 
+        # the boxes are the person's to change: none is the reserved list alone, all is the whole dialect
+        none = Handler(page, boxes=[])
+        studio_server.api_exercise_prompt(none)
+        self.assertNotIn("**Vocabulary entries.**", none.answer["prompt"])
+        self.assertIn("vocabulary entry", none.answer["prompt"])
+        everything = Handler(page, boxes=studio_server.promptboxes.BOX_IDS)
+        studio_server.api_exercise_prompt(everything)
+        self.assertIn("**LaTeX drawings.**", everything.answer["prompt"])
+        self.assertNotIn("**Exercises.**", everything.answer["prompt"], "the types are this prompt's exercises")
+        self.assertLess(len(prompt), len(everything.answer["prompt"]))
+
+        # the studio page's custom prompt is that page's choice and does not carry over
         original = studio_server.store.get_prompt
         studio_server.store.get_prompt = lambda: {"text": "Custom dialect rules", "custom": True}
         try:
@@ -899,8 +915,7 @@ class PromptTests(unittest.TestCase):
             studio_server.api_exercise_prompt(custom)
             text = custom.answer["prompt"]
             self.assertIn(heading, text)
-            self.assertIn("Custom dialect rules", text)
-            self.assertNotIn(dialect[:200], text)
+            self.assertNotIn("Custom dialect rules", text)
             english = studio_server.lang_block("en")
             if english:
                 self.assertIn(english, text)

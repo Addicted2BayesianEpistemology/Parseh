@@ -57,19 +57,22 @@ import ytpages                                                  # noqa: E402
 # shorter does it on purpose: change the measured number and its budget together
 # (test_the_budgets_keep_to_their_rule) and say why in the commit.  What a
 # person's own text or a language they added adds is theirs; these are Parseh's.
+# The studio's prompt is measured as the page opens on it -- the lesson preset -- and
+# the exercise prompt for a page that uses no feature yet, every type ticked
+# (`StudioBoxes` measures the other presets against the old prompt).
 SIZES = {
     #        studio-doc     studio-exercises  video-new      video-region   book-region    transcript-tidy  book-new
-    "fa": ((21274, 24500), (33749, 38900), (27702, 31900), (17566, 20300), (18348, 21200), (2696, 3200), (30229, 34800)),
-    "ar": ((21945, 25300), (34419, 39600), (27581, 31800), (17994, 20700), (17782, 20500), (2687, 3100), (30111, 34700)),
-    "it": ((22104, 25500), (30335, 34900), (27609, 31800), (17994, 20700), (17782, 20500), (2747, 3200), (30073, 34600)),
-    "ja": ((22748, 26200), (30978, 35700), (30879, 35600), (21549, 24800), (21933, 25300), (2636, 3100), (31997, 36800)),
-    "fr": ((26105, 30100), (34337, 39500), (35733, 41100), (23940, 27600), (23682, 27300), (2795, 3300), (38141, 43900)),
-    "de": ((25652, 29500), (33884, 39000), (36110, 41600), (23994, 27600), (23562, 27100), (2758, 3200), (38550, 44400)),
-    "tr": ((23877, 27500), (32108, 37000), (36567, 42100), (25843, 29800), (25690, 29600), (2746, 3200), (39035, 44900)),
-    "en": ((28074, 32300), (36305, 41800), (38804, 44700), (27373, 31500), (27054, 31200), (2811, 3300), (41200, 47400)),
-    "hi": ((23605, 27200), (31838, 36700), (31010, 35700), (20663, 23800), (21027, 24200), (2692, 3100), (33517, 38600)),
-    "es": ((23771, 27400), (32002, 36900), (36893, 42500), (25897, 29800), (26239, 30200), (2664, 3100), (39349, 45300)),
-    "zh": ((24414, 28100), (32645, 37600), (39347, 45300), (26703, 30800), (26919, 31000), (2620, 3100), (40547, 46700)),
+    "fa": ((15919, 18400), (18959, 21900), (27702, 31900), (17566, 20300), (18348, 21200), (2696, 3200), (30229, 34800)),
+    "ar": ((16590, 19100), (19629, 22600), (27581, 31800), (17994, 20700), (17782, 20500), (2687, 3100), (30111, 34700)),
+    "it": ((16287, 18800), (14346, 16500), (27609, 31800), (17994, 20700), (17782, 20500), (2747, 3200), (30073, 34600)),
+    "ja": ((17527, 20200), (15350, 17700), (30879, 35600), (21549, 24800), (21933, 25300), (2636, 3100), (31997, 36800)),
+    "fr": ((20288, 23400), (18348, 21200), (35733, 41100), (23940, 27600), (23682, 27300), (2795, 3300), (38141, 43900)),
+    "de": ((19835, 22900), (17895, 20600), (36110, 41600), (23994, 27600), (23562, 27100), (2758, 3200), (38550, 44400)),
+    "tr": ((18060, 20800), (16119, 18600), (36567, 42100), (25843, 29800), (25690, 29600), (2746, 3200), (39035, 44900)),
+    "en": ((22257, 25600), (20316, 23400), (38804, 44700), (27373, 31500), (27054, 31200), (2811, 3300), (41200, 47400)),
+    "hi": ((18136, 20900), (16092, 18600), (31010, 35700), (20663, 23800), (21027, 24200), (2692, 3100), (33517, 38600)),
+    "es": ((17954, 20700), (16013, 18500), (36893, 42500), (25897, 29800), (26239, 30200), (2664, 3100), (39349, 45300)),
+    "zh": ((18937, 21800), (16918, 19500), (39347, 45300), (26703, 30800), (26919, 31000), (2620, 3100), (40547, 46700)),
 }
 MEASURED = ("studio-doc", "studio-exercises", "video-new", "video-region", "book-region",
             "transcript-tidy", "book-new")
@@ -231,6 +234,10 @@ CHECKS = (
     Check("has_no_tex_specials_rule_in_a_video",
           "the TeX specials are a book's: a video never reaches LaTeX (brief 3.8, 4.3)",
           ("video-region", "video-new"), {}, has_no_tex_specials_rule),
+    Check("has_no_avoid_math",
+          "the studio's rule 14 no longer says to avoid math (brief 7.3): `math`, `latex` and `exercises` "
+          "are taught in their boxes",
+          STUDIO, {}, has_no_avoid_math),
     # --- rows that wait for the lane that rewrites the words they are about ---
     Check("has_no_harakat_rule_of_a_reading_edition_in_a_video",
           "a reading edition's harakat are a book's (brief 3.8); the language files still say them in "
@@ -248,9 +255,6 @@ CHECKS = (
           "the sources sidebar's paragraph is documentation of a button and leaves every language "
           "file for the guide (brief 6.5); the studio's prompts no longer receive it",
           ALL_SURFACES, {s: "D" for s in GLOSSED}, has_no_sidebar_paragraph),
-    Check("has_no_avoid_math",
-          "the studio's rule 14 no longer says to avoid math (brief 7.3)",
-          STUDIO, {s: "E" for s in STUDIO}, has_no_avoid_math),
 )
 
 
@@ -515,10 +519,14 @@ class Marks(unittest.TestCase):
                                  (surface, flags))
 
     def test_flat_takes_the_marks_out_and_nothing_else(self):
-        for surface, flags in (("video-new", {"example": True}), ("studio-exercises", {}), ("book-new", {})):
+        for surface, flags in (("video-new", {"example": True}), ("studio-exercises", None), ("book-new", {})):
             with open(K.TEMPLATES[surface], encoding="utf-8") as f:
                 text = f.read()
-            stripped = re.sub(r"\{\{[?/](contract|data|example)\}\}", "", text)
+            if flags is None:
+                # the exercise template is a block a type: `flat` wants every flag it names, here all on
+                names = set(re.findall(r"\{\{\?(\w+)\}\}", text)) - set(K._MARKS)
+                flags = {n: True for n in names}
+            stripped = re.sub(r"\{\{[?/](%s)\}\}" % "|".join(["contract", "data", "example"] + sorted(flags)), "", text)
             self.assertNotIn("{{?contract}}", stripped)
             self.assertEqual(K.flat(text, flags), stripped, surface)
 
@@ -927,11 +935,12 @@ class Assemblers(ControlledMachine):
     def test_the_exercise_route_keeps_its_shape_and_the_authoring_prompts_contract_is_not_in_it(self):
         h = Handler({"markdown": "---\ntitle: T\ntarget: fa\n---\n\nLesson", "decks": []})
         studio_server.api_exercise_prompt(h)
-        self.assertEqual(sorted(h.answer), ["prompt", "vocabulary"])
+        # the old keys are kept, and what the dialog draws its boxes and types from is added (E-CONTRACT)
+        self.assertEqual(sorted(h.answer), ["boxes", "preticked", "prompt", "size", "types", "vocabulary"])
         p = h.answer["prompt"]
         self.assertTrue(p.startswith(K.version_line("studio-exercises", "fa")))
         self.assertIn("Return the complete updated Markdown document in one fenced", p)
-        self.assertNotIn("actual `.md` file", p)
+        self.assertNotIn("creating a markdown file", p, "the studio's contract asks for a file, this one for a fence")
         self.assertTrue(p.rstrip().endswith("```"))
 
     def test_the_region_routes_hand_out_the_prompt_the_lab_builds(self):
@@ -1048,7 +1057,7 @@ class StudioPromptRoutes(unittest.TestCase):
             self.assertFalse(h.answer["custom"])
             self.assertNotIn("{{", h.answer["text"])
             self.assertIn("creating a markdown file", h.answer["text"])
-            self.assertEqual(h.answer["text"], studio_server.promptkit.flat(studio_server.store.default_prompt()))
+            self.assertEqual(h.answer["text"], studio_server.promptboxes.legacy_text(languages.get("fa")))
             self.assertFalse(os.path.exists(os.path.join(td, "_prompt.md")))
 
 
