@@ -260,6 +260,64 @@ class InAVideo(unittest.TestCase):
         self.assertEqual(got, line, "trimmed, and nothing else done to it")
 
 
+class ThroughTheChatbotsAnswer(unittest.TestCase):
+    """lib/glossregion.py's paste door for a video: an answer's vocabulary line
+    goes through the same checker as an edit, so a macro line lands as it was
+    written and a bad one is dropped in the checker's words, the rest landing."""
+
+    def setUp(self):
+        import glossregion
+        self.GR = glossregion
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.dir = str(Path(td.name) / PERSIAN.name)
+        shutil.copytree(PERSIAN, self.dir)
+        L = CA.video_language(self.dir, json.loads((Path(self.dir) / "video.json").read_text(encoding="utf-8")))
+        segs = A.read(self.dir)["segments"]
+        self.i, self.k = next((i, k) for i, sg in enumerate(segs) if i and not sg.get("plain")
+                              for k, c in enumerate(sg.get("chunks") or [])
+                              if CA.required(c, L) and CA.complete(c, L))
+        old = segs[self.i]["chunks"][self.k]
+        self.old = {f: old[f] for f in glossregion.GLOSS if (old.get(f) or "").strip()}
+        A.edit_chunk(self.dir, self.i, self.k,
+                     {f: "" for f in glossregion.GLOSS if f != "kana" or L.reading})
+        self.frm, self.to = max(0, self.i - 1), min(len(segs) - 1, self.i + 1)
+        text = glossregion.video_prompt(self.dir, self.frm, self.to)["prompt"]
+        self.doc = json.loads(text[text.rindex("```json") + 7:text.rindex("```")])
+        self.chunk = next(u for u in self.doc["captions"] if u["i"] == self.i)["chunks"][self.k]
+
+    def answer(self, voc):
+        """The whole answer, its chunk glossed as it was and its vocabulary `voc`, applied."""
+        self.chunk.pop("todo", None)
+        self.chunk.update(self.old, voc=voc)
+        fence = "```json\n" + json.dumps(self.doc, ensure_ascii=False) + "\n```"
+        return self.GR.video_apply(self.dir, self.frm, self.to, fence)
+
+    def on_disk(self):
+        return A.read(self.dir)["segments"][self.i]["chunks"][self.k].get("voc")
+
+    def test_a_macro_line_lands_as_it_was_written(self):
+        for voc in ("\\vb{دیدن}{didan}{بین}{bin}{دید}{did}{to see}; \\dw{سیب}{sib} apple, pl. \\pw{سیب‌ها}",
+                    "\\dw{سیب}{sib} 100% & _ # $ apple",
+                    self.old.get("voc") or "plain text · as always"):
+            with self.subTest(voc=voc):
+                got = self.answer(voc)
+                self.assertEqual((got["written"], got["dropped"]), ([[self.i, self.k]], []), got)
+                self.assertEqual(self.on_disk(), voc)
+                A.edit_chunk(self.dir, self.i, self.k, {f: "" for f in self.GR.GLOSS if f != "kana"})
+
+    def test_a_bad_one_is_dropped_in_the_checkers_words_and_nothing_is_written(self):
+        for voc, said in (("\\dw{سیب}{sib} apple \\foo{x}", "voc uses \\foo, which is not one of the books' vocabulary macros"),
+                          ("\\dw{سیب}{sib", "voc leaves 1 brace open"),
+                          ("\\vb{دیدن}{didan}{بین}{bin}", "\\vb needs 7 groups in braces and has 4")):
+            with self.subTest(voc=voc):
+                got = self.answer(voc)
+                self.assertEqual(got["written"], [], got)
+                self.assertEqual(len(got["dropped"]), 1, got)
+                self.assertIn(said, got["dropped"][0]["why"])
+                self.assertFalse(self.on_disk())
+
+
 class Wiring(unittest.TestCase):
     """A door written is not a door reachable: the two scripts are served, kept for a phone and linked."""
 
