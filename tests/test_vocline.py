@@ -25,6 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "lib"))
+sys.path.insert(0, str(ROOT / "youtube" / "lib"))
 import chunkdiv        # noqa: E402
 import languages       # noqa: E402
 import tex2html as X   # noqa: E402
@@ -176,6 +177,73 @@ class JavaScript(unittest.TestCase):
         for c, g in zip(lines, got):
             with self.subTest(lang=c["lang"], voc=c["voc"]):
                 self.assertEqual(g, read_in_python(c["voc"], c["lang"]))
+
+
+@unittest.skipUnless(os.path.exists(DENO), "no deno")
+class Buttons(unittest.TestCase):
+    """lib/vocbuttons.js: the four buttons' examples, one per language and kind."""
+
+    KINDS = ("dw", "vb", "bw", "pw")
+
+    @classmethod
+    def setUpClass(cls):
+        js = """
+globalThis.document = {readyState: 'complete', getElementById: () => null};
+await import(%s);
+await import(%s);
+const B = globalThis.ParsehVocButtons, LANGS = %s, out = {examples: B.EXAMPLES, titles: {}};
+for (const [code, L] of Object.entries(LANGS)) {
+  out.titles[code] = {};
+  for (const k of %s) out.titles[code][k] = B.explain(k, L, {name: 'English', code: 'en'}).title;
+}
+console.log(JSON.stringify(out));
+""" % (json.dumps("file://" + str(VOCLINE)), json.dumps("file://" + str(ROOT / "lib" / "vocbuttons.js")),
+       json.dumps({c: languages.get(c).as_json() for c in languages.CODES}), json.dumps(list(cls.KINDS)))
+        with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False, encoding="utf-8") as f:
+            f.write(js)
+        try:
+            r = subprocess.run([DENO, "run", "--quiet", "--allow-read", f.name], capture_output=True, text=True, timeout=120)
+        finally:
+            os.unlink(f.name)
+        if r.returncode:
+            raise AssertionError("deno failed: " + (r.stderr or r.stdout)[-600:])
+        cls.got = json.loads(r.stdout.strip().split("\n")[-1])
+
+    def test_every_language_has_an_example_for_every_kind(self):
+        for code in languages.CODES:
+            for kind in self.KINDS:
+                with self.subTest(code=code, kind=kind):
+                    self.assertTrue(self.got["examples"][code][kind].strip())
+
+    def test_every_example_is_a_line_both_renderers_read_alike_and_both_doors_take(self):
+        """The buttons stand in the book's chunk sheet and the video's form, so what they show as an example must be
+        what either would accept -- a book's check (LaTeX's rules included), a video's -- and what the reader's code
+        and the page's draw the same."""
+        import check_annotations as CA
+        lines = [{"lang": code, "voc": self.got["examples"][code][kind]}
+                 for code in languages.CODES for kind in self.KINDS]
+        drawn = read_in_javascript(lines)
+        for line, js in zip(lines, drawn):
+            with self.subTest(**line):
+                self.assertTrue(chunkdiv.is_macro_line(line["voc"]), "an example is a line in the books' macros")
+                self.assertEqual(js, read_in_python(line["voc"], line["lang"]))
+                errs = []
+                CA.check_voc(line["voc"], "example", errs.append)
+                self.assertEqual(errs, [], "a video takes it")
+                texwrite._check_voc(line["voc"], "example")           # and a book does, or raises Refused
+
+    def test_the_title_says_the_three_things_and_the_example_as_text(self):
+        for code in languages.CODES:
+            L = languages.get(code)
+            for kind in self.KINDS:
+                with self.subTest(code=code, kind=kind):
+                    first, braces, look = self.got["titles"][code][kind].split("\n")
+                    self.assertRegex(first, r"^(word|verb|compound|word in a meaning) — ")
+                    self.assertTrue(braces.startswith("in the braces"))
+                    self.assertEqual(look, "looks like: " + T.voc_text(self.got["examples"][code][kind], L))
+            forms = " · ".join(L.vb_forms[:3])
+            self.assertIn(forms, self.got["titles"][code]["vb"], "a verb's says the language's own three forms")
+            self.assertIn("‘%s’ and ‘%s’" % tuple(L.vb_labels), self.got["titles"][code]["vb"])
 
 
 if __name__ == "__main__":

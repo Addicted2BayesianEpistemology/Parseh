@@ -151,6 +151,53 @@ for key, entries in (('fa', '\\dw{%s}{a} x; \\dw{%s}{b} y'), ('it', '\\dw{%s}{a}
     out[key]['two_line'] = ann['segments'][at[0]]['chunks'][at[1]]['voc']
     errs, _w, _n = CA.check(str(d))
     out[key]['errors'] += errs
+# two books of the same fixtures, their readers built as every book's is built: nothing of this work is baked in
+import subprocess
+import books as booklib, texwrite
+out['books'] = {}
+for key, rel in (('fa', 'persian/mini-fa'), ('it', 'italian/mini-it')):
+    d = root / 'books' / rel
+    shutil.copytree(str(REPO / 'tests/fixtures/books' / rel), str(d), ignore=shutil.ignore_patterns('reader', '.reader-key'))
+    r = subprocess.run([sys.executable, 'lib/tex2html.py', '--book', str(d)], capture_output=True, text=True)
+    if r.returncode:
+        raise SystemExit(r.stderr or r.stdout)
+    rdr = d / 'reader'
+    climb = os.path.relpath(str(REPO), str(rdr)).replace(os.sep, '/') + '/'
+    for name in os.listdir(str(rdr)):
+        if name.endswith('.html'):
+            pth = rdr / name
+            pth.write_text(pth.read_text(encoding='utf-8').replace(climb, '/'), encoding='utf-8')
+    BL = booklib.Book(str(d)).lang
+    cs = texwrite.read_chunks(str(d / 'ch1.tex'))
+    n = next(i for i, c in enumerate(cs) if c['glossed'] and '\\vb{' in c['voc'] and '~' not in c['voc']
+             and '--' not in c['voc'] and '\\%' not in c['voc'])
+    tex2html.set_lang(BL); texparse.set_lang(BL)
+    out['books'][key] = {'rel': rel, 'n': n, 'voc': cs[n]['voc'], 'text': texparse.voc_text(cs[n]['voc'], BL),
+                         'lang': BL.as_json()}
+# for the eye only: a book per language whose chunk holds the same line, to be drawn beside the video's cloud
+out['shots'] = {}
+if len(sys.argv) > 3 and sys.argv[3] == 'shots':
+    rels = {'fa': 'persian/mini-fa', 'ar': 'arabic/mini-ar', 'ja': 'japanese/mini-ja', 'it': 'italian/mini-it', 'zh': 'chinese/mini-zh'}
+    for key, rel in rels.items():
+        folder, slug = rel.split('/')
+        d = root / 'books' / folder / (slug + '-vl')
+        shutil.copytree(str(REPO / 'tests/fixtures/books' / rel), str(d), ignore=shutil.ignore_patterns('reader', '.reader-key'))
+        meta = json.loads((d / 'book.json').read_text(encoding='utf-8'))
+        meta['slug'] = slug + '-vl'
+        (d / 'book.json').write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
+        cs = texwrite.read_chunks(str(d / 'ch1.tex'))
+        n = next(i for i, c in enumerate(cs) if i > 0 and c['glossed'] and c['voc'].strip())
+        texwrite.edit_chunk(str(d / 'ch1.tex'), n, {'voc': LINES[key]['line']})
+        r = subprocess.run([sys.executable, 'lib/tex2html.py', '--book', str(d)], capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit(r.stderr or r.stdout)
+        rdr = d / 'reader'
+        climb = os.path.relpath(str(REPO), str(rdr)).replace(os.sep, '/') + '/'
+        for name in os.listdir(str(rdr)):
+            if name.endswith('.html'):
+                pth = rdr / name
+                pth.write_text(pth.read_text(encoding='utf-8').replace(climb, '/'), encoding='utf-8')
+        out['shots'][key] = {'rel': folder + '/' + slug + '-vl', 'n': n}
 # a line typed into the form and saved, and how the reader draws it
 fa_L = languages.get('fa')
 tex2html.set_lang(fa_L); texparse.set_lang(fa_L)
@@ -252,7 +299,7 @@ const errors = [];
 let hub = null, browser = null;
 const log = [];
 try {
-  const B0 = JSON.parse((await py(BUILD, TMP, JSON.stringify(LINES))).trim().split('\n').pop());
+  const B0 = JSON.parse((await py(BUILD, TMP, JSON.stringify(LINES), SHOTS ? 'shots' : '')).trim().split('\n').pop());
   for (const k of Object.keys(LINES))
     eq(B0[k].errors, [], `${k}: the copy as set up is one the checker has nothing against`);
   const port = freePort();
@@ -285,6 +332,8 @@ try {
   /* ---------------- helpers over a page ---------------- */
   const optional = (status, method, path) => status === 404 && method === 'GET' &&
     (/^\/mt\/[^/]+\/meta\.json$/.test(path) || /^\/youtube\/videos\/[^/]+\/[^/]+\/waveform\.json$/.test(path) ||
+     // a book with no narration has no times, and its reader asks all the same
+     /^\/books\/[^/]+\/[^/]+\/timings\.json$/.test(path) ||
      path === '/favicon.ico');
   const allowed = new Set();
   const refused = [];
@@ -684,6 +733,148 @@ try {
       await page.close();
     }
     await ctx.close();
+  }
+
+  /* ---------------- i) ---------------- */
+  console.log('\ni) the book\'s chunk sheet, in a reader built as every book\'s is: no rebuild');
+  for (const key of ['fa', 'it']) {
+    const bk = B0.books[key];
+    const url = `${B}/books/${bk.rel}/reader/`;
+    const raw = await (await fetch(url)).text();
+    assert(raw.includes('data-ins="dw"') && raw.includes('>\\dw{}{}</button>') && raw.includes('>\\vb{}{}{}{}{}{}{}</button>'),
+           `${key}: the page as built holds the buttons it always did, each with its raw skeleton`);
+    assert(!/vocbuttons|vocline/.test(raw), `${key}: and names neither new script: parseh.js brings them`);
+    const page = await context.newPage();
+    page.on('pageerror', e => errors.push(key + ' reader pageerror: ' + e.message));
+    page.on('response', r => {
+      const u = new URL(r.url());
+      if (u.host === `127.0.0.1:${port}` && r.status() >= 400 && !optional(r.status(), r.request().method(), u.pathname))
+        errors.push(key + ' reader ' + r.status() + ' ' + u.pathname);
+    });
+    page.on('console', m => { if (m.type() === 'error' && !/^Failed to load resource/.test(m.text())) errors.push(key + ' reader console: ' + m.text()); });
+    await page.goto(url);
+    await page.waitForSelector('#chins.vk-row', {state: 'attached'});
+    assert(await page.evaluate(() => !!document.querySelector('script[src$="/vocline.js"]') && !!document.querySelector('script[src$="/vocbuttons.js"]')),
+           `${key}: the two scripts were loaded by parseh.js from beside it`);
+    await page.evaluate(n => openChunk(n, rowOf(n)), bk.n);
+    await page.waitForFunction(() => !document.querySelector('#chbox').hidden);
+    eq(await page.evaluate(() => [...document.querySelectorAll('#chins [data-ins]')].map(
+         x => [x.dataset.ins, x.querySelector('.vk-kind').textContent, x.querySelector('.vk-skel').textContent])),
+       KINDS, `${key}: four buttons in the order of the kinds, each the kind with its skeleton small under it`);
+    const lang = bk.lang;
+    for (const [kind, name] of KINDS) {
+      await page.hover(`#chins [data-ins="${kind}"]`);
+      await page.waitForFunction(k => { const h = document.querySelector('#vk-help'); return h && !h.hidden && document.querySelector(`#chins [data-ins="${k}"]`).classList.contains('vk-on'); }, kind);
+      const h = await page.evaluate(k => {
+        const el = document.querySelector('#vk-help'), r = el.getBoundingClientRect(), btn = document.querySelector(`#chins [data-ins="${k}"]`), br = btn.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        const drawn = el.querySelector('.vk-drawn');
+        return {name: el.children[0].textContent, braces: el.children[1].textContent, drawn: drawn ? drawn.innerHTML : '',
+                src: (el.querySelector('.vk-src code') || {}).textContent || '', title: btn.title,
+                ok: !!hit && el.contains(hit) && r.top >= br.bottom - 1 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth};
+      }, kind);
+      const ex = await page.evaluate(([k, c]) => ParsehVocButtons.EXAMPLES[c][k], [kind, lang.code]);
+      eq(h.src, ex, `${key}: ${name}: the book's language's example`);
+      eq(h.drawn, await page.evaluate(([e, l]) => ParsehVocline.render(e, l), [ex, lang]), `${key}: ${name}: drawn by the renderer the reader's own HTML is held to`);
+      assert(h.name.startsWith(name + ' — ') && h.title.split('\n')[0] === h.name && h.title.split('\n')[1] === h.braces,
+             `${key}: ${name}: the title says what the line says`);
+      assert(h.ok, `${key}: ${name}: the line is under the buttons, on screen, and what a pointer there hits`);
+      if (kind === 'vb')
+        assert(h.braces.includes(lang.vb_forms.slice(0, 3).join(' · ')), `${key}: a verb's names ${lang.name}'s three forms: ${h.braces}`);
+    }
+    await shot(page, `sheet-${key}-verb-1280`, '#chbox');
+    // the baked press still writes the skeleton, as it always did
+    await page.click('#chvoc');
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Delete');
+    await page.click('#chins [data-ins="vb"]');
+    eq(await page.evaluate(() => { const t = document.querySelector('#chvoc'); return [t.value, t.selectionStart]; }),
+       ['\\vb{}{}{}{}{}{}{}', 4], `${key}: a press still writes the \\vb with its seven groups, the caret in the first`);
+    // Tab reaches them
+    await page.focus('#chvoc');
+    await page.keyboard.press('Tab');
+    eq(await page.evaluate(() => [document.activeElement.dataset.ins, document.querySelector('#vk-help').hidden]), ['dw', false], `${key}: Tab reaches the first, and its line opens`);
+    await page.keyboard.press('Escape');
+    // a card made from a chunk carries the rendered line as text, never its source
+    await page.evaluate(() => closeChunk());
+    const notes = await page.evaluate(n => {
+      const w = document.querySelector(`.row[data-c="${n}"] .fa .wd, [data-c="${n}"] .wd`);
+      w.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, altKey: true}));
+      return null;
+    }, bk.n);
+    await page.waitForFunction(() => !document.querySelector('#anki').hidden);
+    eq(await page.inputValue('#anotes'), bk.text, `${key}: the reader's card carries the line as text: ${bk.text}`);
+    assert(!/[\\{}]/.test(await page.inputValue('#anotes')), `${key}: no backslash and no brace in it`);
+    await page.close();
+  }
+
+  /* ---------------- shots ---------------- */
+  if (SHOTS) {
+    console.log('\nscreenshots for the eye, into ' + SHOTS);
+    const theme = (page, t) => page.evaluate(t => Parseh.theme.set(t), t);
+    const png = async loc => (await loc.screenshot()).toString('base64');
+    // two element pictures side by side, captioned: the player's and the reader's rendering of the same line
+    const sideBySide = async (name, left, right, note) => {
+      const p = await context.newPage();
+      await p.setContent(`<body style="margin:0;padding:14px;background:#888;font:13px sans-serif;color:#fff">
+        <div style="display:flex;gap:18px;align-items:flex-start">
+          <div><div style="margin-bottom:5px">the video player's cloud</div><img src="data:image/png;base64,${left}"></div>
+          <div><div style="margin-bottom:5px">the book reader's chunk, same line</div><img src="data:image/png;base64,${right}"></div>
+        </div><div style="margin-top:8px">${note}</div></body>`);
+      await p.screenshot({path: `${SHOTS}/${name}.png`, fullPage: true});
+      await p.close();
+    };
+    for (const key of Object.keys(LINES)) {
+      const b = B0[key], sb = B0.shots[key];
+      const rd = await context.newPage();
+      await rd.goto(`${B}/books/${sb.rel}/reader/`);
+      await rd.waitForSelector('.row[data-c] .gl .voc');
+      const rowVoc = rd.locator(`.row[data-c="${sb.n}"] .gl .voc`);
+      const rhtml = await rowVoc.evaluate(e => e.innerHTML);
+      eq(rhtml, b.html, `${key}: the reader's own row holds the very HTML the video's cloud is byte for byte`);
+      for (const t of ['light', 'dark']) {
+        const page = await player(LINES[key].vid, key + ' shots');
+        await theme(page, t); await theme(rd, t);
+        await hover(page, b.seg, b.chunk);
+        const left = await png(page.locator('#cloud'));
+        await shot(page, `cloud-${key}-1280-${t}`, '#cloud');
+        const right = await png(rowVoc);
+        await sideBySide(`side-by-side-${key}-${t}`, left, right, `${key}: ${b.line.replace(/</g, '&lt;')}`);
+        await page.close();
+      }
+      await rd.close();
+    }
+    // the ✎ form and the book's sheet, buttons pointed at, at 1280 and in a window 390 wide, light and dark
+    for (const [w, h] of [[1280, 900], [390, 844]]) {
+      const ctx = await newContext({viewport: {width: w, height: h}});
+      for (const t of ['light', 'dark']) {
+        for (const key of ['fa', 'it']) {
+          const b = B0[key];
+          const page = await player(LINES[key].vid, key + ' form shots', ctx);
+          await theme(page, t);
+          await openEdit(page, b.seg, b.chunk);
+          for (const kind of ['vb', 'bw']) {
+            await page.hover(`#cloud .evbtns [data-ins="${kind}"]`);
+            await page.waitForFunction(() => !document.querySelector('#vk-help').hidden);
+            await sleep(150);
+            await page.screenshot({path: `${SHOTS}/form-${key}-${kind}-${w}-${t}.png`});
+          }
+          await page.close();
+          const rd = await ctx.newPage();
+          await rd.goto(`${B}/books/${B0.books[key].rel}/reader/`);
+          await rd.waitForSelector('#chins.vk-row', {state: 'attached'});
+          await theme(rd, t);
+          await rd.evaluate(n => openChunk(n, rowOf(n)), B0.books[key].n);
+          await rd.waitForFunction(() => !document.querySelector('#chbox').hidden);
+          await rd.hover('#chins [data-ins="vb"]');
+          await rd.waitForFunction(() => !document.querySelector('#vk-help').hidden);
+          await sleep(150);
+          await rd.screenshot({path: `${SHOTS}/sheet-${key}-vb-${w}-${t}.png`});
+          await rd.close();
+        }
+      }
+      await ctx.close();
+    }
   }
 
   /* ---------------- h) ---------------- */

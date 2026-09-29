@@ -457,7 +457,8 @@ try {
   eq(r.sw, ['in italian', true], 'the editor has the switch over the dictionary\'s rows, on as remembered');
   eq(r.tr, [['IT: ' + SENSES[0], 'it']], 'the row\'s sense read in Italian under it');
   eq(r.btns, ['→ vocabulary', 'meaning →'], 'with the buttons that put the translation');
-  eq(r.put, ['run rʌn IT: ' + SENSES[0], 'IT: ' + SENSES[0]], 'and they put it');
+  // the video's entry is the books' now (a0.4.2): a \dw, the sense after it
+  eq(r.put, ['\\dw{run}{rʌn} IT: ' + SENSES[0], 'IT: ' + SENSES[0]], 'and they put it, the vocabulary as a \\dw');
   eq(r.off, [false, true, false, true], 'the editor\'s switch turns it off everywhere, and the editor stays open');
   eq(r.on, [true, false], 'and on again');
   await click('#cloud .ecancel');

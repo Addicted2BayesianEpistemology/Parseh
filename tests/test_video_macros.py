@@ -261,6 +261,25 @@ class InAVideo(unittest.TestCase):
         self.assertEqual(got, line, "trimmed, and nothing else done to it")
 
 
+class Wiring(unittest.TestCase):
+    """A door written is not a door reachable: the two scripts are served, kept for a phone and linked."""
+
+    def test_the_two_scripts_are_served_kept_and_linked(self):
+        import offline
+        import serve
+        for name in ("vocline.js", "vocbuttons.js"):
+            with self.subTest(name):
+                self.assertTrue((ROOT / "lib" / name).is_file())
+                self.assertIn("/lib/" + name, serve.STATIC_FILES, "only the files STATIC_FILES names are on the web")
+                self.assertIn("/lib/" + name, offline.SHARED, "a kept video and a kept book open offline with it")
+        player = (ROOT / "youtube" / "lib" / "player.html").read_text(encoding="utf-8")
+        order = [player.index(s) for s in ('/lib/wordline.js', '/lib/vocline.js', '/lib/vocbuttons.js', '/lib/player.js')]
+        self.assertEqual(order, sorted(order), "the player's page loads them before player.js, which reads them")
+        # a reader, however old, gets both from beside parseh.js
+        hub = (ROOT / "lib" / "parseh.js").read_text(encoding="utf-8")
+        self.assertIn("['ParsehVocline', 'vocline.js'], ['ParsehVocButtons', 'vocbuttons.js']", hub)
+
+
 class TheSidebarsEntry(unittest.TestCase):
     """lib/verbs: `tex_video`, the book's \\vb as a video's line takes it."""
 
