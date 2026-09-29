@@ -86,10 +86,13 @@ SHARED = (
     "/lib/parseh.css", "/lib/langs.css", "/lib/mobile.css", "/lib/parseh.js",
     "/lib/narrctl.js", "/lib/mobilereader.js", "/lib/mobileplayer.js",
     "/lib/wordtouch.js", "/lib/explain.js", "/lib/prefs.js", "/lib/activity.js",
+    # a vocabulary line in the books' macros, drawn by the first and written
+    # with the buttons of the second, on the player's page and in every reader
+    "/lib/vocline.js", "/lib/vocbuttons.js",
     # keeping, and the chip that says the computer cannot be reached: without
     # it a kept page would open offline and say nothing about being offline
     "/lib/keep.js",
-    "/lib/wordline.js", "/lib/llm.js", "/lib/vocline.js", "/lib/vocbuttons.js",
+    "/lib/wordline.js", "/lib/llm.js",
     # THE TRANSLATION HELPER, AND WHY IT IS NAMED HERE.  Every reader loads
     # /lib/mt.js as a PARSER-BLOCKING script in its head (lib/tex2html.py),
     # and it was in no list: offline the request missed every cache, the
