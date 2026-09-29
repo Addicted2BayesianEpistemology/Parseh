@@ -245,9 +245,9 @@ function initEdit() {
       <h3>Generate exercises with an LLM</h3>
       <p>The page itself is always included. Optionally add vocabulary the learner already knows from these Anki decks.</p>
       <div class="ex-decks"></div>
+      <div data-x="row"></div>
       <div class="row"><span class="pv-status ex-copy-status"></span>
-        <button class="btn" data-x="cancel">Cancel</button>
-        <button class="btn primary" data-x="copy">Copy complete prompt</button></div></div>`;
+        <button class="btn" data-x="cancel">Close</button></div></div>`;
     const list = $(".ex-decks", ov);
     if (!(data.decks || []).length) list.innerHTML = '<span class="pv-status">No Anki decks installed — the prompt works without them.</span>';
     for (const d of data.decks || []) {
@@ -257,21 +257,31 @@ function initEdit() {
       text.textContent = `${d.name} · ${d.language} · ${d.cards} card${d.cards === 1 ? "" : "s"}`;
       label.append(ck, text); list.appendChild(label);
     }
-    const close = () => root.innerHTML = "";
-    $('[data-x="cancel"]', ov).addEventListener("click", close);
-    ov.addEventListener("click", e => { if (e.target === ov) close(); });
-    $('[data-x="copy"]', ov).addEventListener("click", async e => {
-      const btn = e.currentTarget; btn.disabled = true;
-      try {
+    /* THE PROMPT is made by the server from this page and the decks ticked, as
+       the dialog opens and each time a deck is ticked; the row (lib/llmrow.js)
+       holds it, says how long it is before the copy, and copies exactly it.
+       What the decks added to it is said as soon as it is made. */
+    const row = window.ParsehLLMRow ? ParsehLLMRow.mount($('[data-x="row"]', ov), {
+      surface: "studio-exercises", cls: "btn primary",
+      remind: "paste it into your chatbot, then put the exercises it writes into this page.",
+      getText: async () => {
         const decks = $$('input[type="checkbox"]:checked', list).map(x => x.value);
         const result = await api("/api/exercise-prompt", {method: "POST", json: {markdown: src.value, decks}});
-        await navigator.clipboard.writeText(result.prompt);
-        $(".ex-copy-status", ov).textContent = `Copied · ${result.vocabulary} known item${result.vocabulary === 1 ? "" : "s"}`;
-        toast("Exercise-generation prompt copied");
-      } catch (err) { toast("Could not copy: " + err.message, true); }
-      finally { btn.disabled = false; }
-    });
+        const known = result.vocabulary;
+        $(".ex-copy-status", ov).textContent = known
+          ? `${known} known item${known === 1 ? "" : "s"} from your decks ${known === 1 ? "is" : "are"} in it` : "";
+        return result.prompt;
+      },
+      measure: () => ov.isConnected,
+    }) : null;
+    const close = () => { if (row) row.destroy(); root.innerHTML = ""; };
+    $('[data-x="cancel"]', ov).addEventListener("click", close);
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
     root.appendChild(ov);
+    if (row) {
+      list.addEventListener("change", () => row.invalidate());
+      row.refresh();
+    } else $('[data-x="row"]', ov).textContent = "The prompt helper could not be loaded.";
   }
 
   async function preview() {

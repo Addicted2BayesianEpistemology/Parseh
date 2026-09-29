@@ -520,7 +520,8 @@ try {
     const prompt = await clip(page);
     if (PROMPTS && prompt !== SENTINEL)
       await Deno.writeTextFile(`${PROMPTS}/${String(++promptNo).padStart(2, '0')}.md`, prompt);
-    return {prompt, sum: await text(page, '#rgsum')};
+    // `said` is the LLM row's own line (lib/llmrow.js): that it reached the clipboard is its to say
+    return {prompt, sum: await text(page, '#rgsum'), said: await text(page, '#rgcopysay')};
   }
   // an answer PASTED: onto the clipboard, then Ctrl+V into the emptied box
   async function paste(page, answer) {
@@ -801,7 +802,7 @@ try {
         eq(await slots(page), [name(r0), name(r1)], `${key}: (the picks are as they were through all that)`);
       }
     }
-    let {prompt, sum} = await copyPrompt(page);
+    let {prompt, sum, said} = await copyPrompt(page);
     assert(prompt !== SENTINEL && prompt.length > 1000, `${key}: "copy the prompt" put the prompt on the clipboard (${prompt.length} characters)`);
     assert(new RegExp(`^Parseh prompt · [^\\n]+\\n\\n# Gloss part of an? ${V.name} video, in English, for Parseh`).test(prompt),
            `${key}: the prompt is for ${/^[AEIOU]/.test(V.name) ? 'an' : 'a'} ${V.name} video glossed in English: ${JSON.stringify(prompt.split('\n')[0])}`);
@@ -825,8 +826,8 @@ try {
     }));
     assert(others, `${key}: the ${glossedSent} other chunks are sent with their gloss exactly as the file has it, not todo${plainSent ? `; the ${plainSent} plain one marked plain, with none` : ''}`);
     const nChunks = data.captions.reduce((n, c) => n + (c.chunks || []).length, 0);
-    assert(sum.includes(nChunks + ' chunks, 1 to gloss, ' + glossedSent + ' glossed sent as context') && /on the clipboard/.test(sum),
-           `${key}: the panel says what it made: ${JSON.stringify(sum.split('\n').slice(0, 2).join(' | '))}`);
+    assert(sum.includes(nChunks + ' chunks, 1 to gloss, ' + glossedSent + ' glossed sent as context') && /^copied/.test(said),
+           `${key}: the panel says what it made, and the row that it is copied: ${JSON.stringify(sum.split('\n').slice(0, 2).join(' | '))} / ${JSON.stringify(said)}`);
 
     /* ---------------- d) ---------------- */
     console.log(' d) the deleted gloss, answered and filled');
@@ -855,7 +856,7 @@ try {
     console.log(' e) a hostile answer');
     const beforeHostile = await bytesOf(key);
     ann = await annOf(key);
-    ({prompt, sum} = await copyPrompt(page));
+    ({prompt, sum, said} = await copyPrompt(page));
     eq(prompt, SENTINEL, `${key}: with nothing left to gloss, "copy the prompt" copies nothing`);
     assert(/0 to gloss/.test(sum) && /nothing was copied/.test(sum), `${key}: and says so: ${JSON.stringify(sum.split('\n').slice(0, 3).join(' | '))}`);
     const hostile = structuredClone(data);
@@ -941,10 +942,10 @@ try {
       await page.click('#rgcopy');
       await page.waitForFunction(() => !document.querySelector('#rgpromptrow').hidden, null, {timeout: 20000});
       const byHand = await page.evaluate(() => document.querySelector('#rgprompt').value);
-      assert(/^Parseh prompt · [^\n]+\n\n# Gloss part of/.test(byHand) && /the prompt is below/.test(await text(page, '#rgsum')) && (await clip(page)) === SENTINEL,
-             `${key}: a browser that refuses the clipboard: the prompt is shown in the panel to copy by hand, and the panel says so`);
+      assert(/^Parseh prompt · [^\n]+\n\n# Gloss part of/.test(byHand) && /would not put it on the clipboard/.test(await text(page, '#rgcopysay')) && (await clip(page)) === SENTINEL,
+             `${key}: a browser that refuses the clipboard: the prompt is shown in the panel to copy by hand, and the row says so`);
       await page.evaluate(() => { navigator.clipboard.writeText = window.__write; document.execCommand = window.__exec; });
-      ({prompt, sum} = await copyPrompt(page));
+      ({prompt, sum, said} = await copyPrompt(page));
       eq(prompt, byHand, `${key}: the next press copies it, the same prompt`);
       eq(await page.evaluate(() => document.querySelector('#rgpromptrow').hidden), true, `${key}: and the hand-copy box is put away`);
       data = dataOf(prompt);
@@ -973,7 +974,7 @@ try {
       await pickRun(page, g0, g1);
       eq(await slots(page), [name(g0), name(g1)], `${key}: captions ${g0}–${g1} picked`);
       await page.click('#rgregloss');
-      ({prompt, sum} = await copyPrompt(page));
+      ({prompt, sum, said} = await copyPrompt(page));
       data = dataOf(prompt);
       const flat = data.captions.flatMap(c => c.chunks || []);
       const glossable = flat.filter(ch => !ch.plain);
@@ -1070,10 +1071,10 @@ try {
       eq(await slots(page), [name(pi), name(pi)], `${key}: caption ${pi} picked by clicks on its time`);
       eq(await page.evaluate(() => [window.__yt.seeks.length, window.__yt.going()]), [seeks, false],
          `${key}: which, while picking, plays nothing either`);
-      ({prompt, sum} = await copyPrompt(page));
+      ({prompt, sum, said} = await copyPrompt(page));
       eq(prompt, SENTINEL, `${key}: per chunk, a chunk with any gloss is left as it is: nothing to copy`);
       await page.click('#rgperfield');
-      ({prompt, sum} = await copyPrompt(page));
+      ({prompt, sum, said} = await copyPrompt(page));
       data = dataOf(prompt);
       const slotsL = ['kana', 'tr', 'voc', 'en'].filter(f => f !== 'kana' || L.reading);
       const wantTodo = ann.segments[pi].chunks.map(ch => unwritten(ch, L) ? true : (slotsL.filter(f => !(ch[f] || '').trim()).length ? slotsL.filter(f => !(ch[f] || '').trim()) : undefined));

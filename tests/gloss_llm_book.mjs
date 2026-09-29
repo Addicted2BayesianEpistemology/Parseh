@@ -444,7 +444,8 @@ try {
     const prompt = await clip(page);
     if (PROMPTS && prompt !== 'SENTINEL — not written by the page')
       await Deno.writeTextFile(`${PROMPTS}/${String(++promptNo).padStart(2, '0')}.md`, prompt);
-    return {prompt, sum: await text(page, '#rgsum')};
+    // `said` is the LLM row's own line (lib/llmrow.js): that it reached the clipboard is its to say
+    return {prompt, sum: await text(page, '#rgsum'), said: await text(page, '#rgcopysay')};
   }
   async function fill(page) {
     await page.click('#rgfill');
@@ -521,10 +522,10 @@ try {
     eq(await pick(page), {lo: s, hi: s}, `${bk.code}: it starts picked on the chunk's own sentence (${label})`);
     const tag = await page.evaluate(n => { const el = document.querySelector('.pass.p2 .row[data-c="' + n + '"]');
                                           el.__mine = 'this very element'; return true; }, bk.n);
-    let {prompt, sum} = await copyPrompt(page);
+    let {prompt, sum, said} = await copyPrompt(page);
     assert(prompt !== 'SENTINEL — not written by the page' && prompt.length > 1000,
            `${bk.code}: "copy the prompt" put the prompt on the clipboard (${prompt.length} characters)`);
-    assert(/on the clipboard/.test(sum) && /1 to gloss/.test(sum), `${bk.code}: the sheet says so: ${JSON.stringify(sum.split('\n')[0])}`);
+    assert(/^copied/.test(said) && /1 to gloss/.test(sum), `${bk.code}: the sheet says so: ${JSON.stringify(said)} / ${JSON.stringify(sum.split('\n')[0])}`);
     assert(prompt.includes(`- language: ${bk.name} (\`${bk.code}\`)`) &&
            prompt.includes(`- gloss language: **${bk.gloss}** (\`${bk.gcode}\`)`) &&
            new RegExp(`^Parseh prompt · [^\\n]+\\n\\n# Gloss part of an? ${bk.name} book, in ${bk.gloss}, for Parseh`).test(prompt),
@@ -894,7 +895,7 @@ try {
     await onScreen(page, '#rgcopy', '"copy the prompt"');
     await setClip(page, 'SENTINEL — not written by the page');
     await page.tap('#rgcopy');
-    await page.waitForFunction(() => /clipboard/.test(document.querySelector('#rgsum').textContent));
+    await page.waitForFunction(() => /^copied/.test(document.querySelector('#rgcopysay').textContent));
     const data = dataOf(await clip(page));
     const answer = structuredClone(data);
     let k = 0;
@@ -931,9 +932,9 @@ try {
     await waitStat(page, /^gloss deleted/);
     await page.click('#chrgn');
     await page.waitForFunction(() => rgShown);
-    const {prompt, sum} = await copyPrompt(page);
+    const {prompt, said} = await copyPrompt(page);
     eq(prompt, 'SENTINEL — not written by the page', 'the clipboard was refused, and holds what it held');
-    assert(/not copied — the browser would not put it on the clipboard/.test(sum), 'the sheet says so: ' + JSON.stringify(sum.split('\n').pop()));
+    assert(/would not put it on the clipboard/.test(said), 'the row says so: ' + JSON.stringify(said));
     const held = await page.evaluate(() => {
       const t = document.querySelector('#rgout');
       return {shown: !document.querySelector('#rgoutrow').hidden, value: t.value,
@@ -943,7 +944,7 @@ try {
            'the prompt is shown under the button, selected, to copy by hand');
     await page.evaluate(() => { window.__refuse = false; });
     await page.click('#rgcopy');
-    await page.waitForFunction(() => /on the clipboard/.test(document.querySelector('#rgsum').textContent));
+    await page.waitForFunction(() => /^copied/.test(document.querySelector('#rgcopysay').textContent));
     eq(await clip(page), held.value, 'pressed again, "copy the prompt" puts that same prompt on the clipboard');
     eq(await page.evaluate(() => document.querySelector('#rgoutrow').hidden), true, 'and the box to copy by hand goes');
     // the chunk put back, through the chunk sheet's own undo

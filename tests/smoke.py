@@ -202,6 +202,7 @@ def test_js():
     scripts = {
         "lib/parseh.js": open(os.path.join(LIB, "parseh.js"), encoding="utf-8").read(),
         "lib/llm.js": open(os.path.join(LIB, "llm.js"), encoding="utf-8").read(),
+        "lib/llmrow.js": open(os.path.join(LIB, "llmrow.js"), encoding="utf-8").read(),
         "lib/decomposition.js": open(os.path.join(LIB, "decomposition.js"), encoding="utf-8").read(),
         "lib/cardkit.js": open(os.path.join(LIB, "cardkit.js"), encoding="utf-8").read(),
         "youtube/lib/player.js": open(os.path.join(YT_LIB, "player.js"), encoding="utf-8").read(),
@@ -5933,7 +5934,7 @@ def test_server():
         studio = load_studio()
         import languages
         doc_ids = [d["id"] for d in studio.store.list_docs()]
-        pages = ["/", "/lib/langs.css", "/lib/parseh.css", "/lib/mobile.css", "/lib/parseh.js", "/lib/llm.js", "/lib/decomposition.js", "/lib/decomposition.css",
+        pages = ["/", "/lib/langs.css", "/lib/parseh.css", "/lib/mobile.css", "/lib/parseh.js", "/lib/llm.js", "/lib/llmrow.js", "/lib/decomposition.js", "/lib/decomposition.css",
                  "/settings/reading-help/", "/lib/fonts/NotoNaskhArabic.woff2",
                  "/books/", "/books/add/",
                  "/youtube/", "/youtube/add/",
