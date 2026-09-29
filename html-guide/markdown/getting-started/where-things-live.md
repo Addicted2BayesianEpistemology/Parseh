@@ -79,8 +79,9 @@ Parseh/
   who may reach Parseh, its port, and every device you let in, each with
   the secret token it carries — keep it to yourself, as you would a key;
   `languages.json`, the languages you added, when you have; `updates.json`,
-  whether Parseh looks for a new version once a day; and `digests.json`
-  with `wheres.json`, what a phone checks the things it keeps against.
+  whether Parseh looks for a new version once a day; `prompts.json`, the
+  prompts you wrote for a chatbot; and `digests.json` with `wheres.json`, what a
+  phone checks the things it keeps against.
 
 **The files at the top**:
 

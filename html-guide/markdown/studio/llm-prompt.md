@@ -72,7 +72,9 @@ the ones a document it is asked to revise already has.
 - **Reset to default** throws your version away, after asking, and goes
   back to the prompt that ships with Parseh.
 
-The custom prompt is a file in the library (`_prompt.md`), so it travels in
-the library's **Backup**. It is also what the editor's **Exercises ▾ →
+The custom prompt is one of [your own prompts](your-prompts.md), kept in
+`config/prompts.json` and no longer a file in the library, so the library's
+**Backup** does not carry it: export it from **Settings → Your prompts** if you
+want a copy. It is also what the editor's **Exercises ▾ →
 Generate with LLM…** sends as the description of the dialect: see
 [Exercises in the editor](editor-exercises.md#generate-with-llm).
