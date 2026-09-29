@@ -87,8 +87,9 @@ with it.
 `voc` is written in the voice of the books' gloss blocks: headword +
 transliteration + meaning.
 
-- A **noun** gives the singular with its plural (`كِتَاب kitāb, pl. كُتُب
-  kutub · book`) and the **root in parentheses** (`(ك ت ب)`).
+- A **noun** gives the singular with its plural (`{{?book}}\dw{كِتَاب}{kitāb} book, pl.
+  \pw{كُتُب} \textit{kutub}{{/book}}{{?video}}\dw{كتاب}{kitāb} book, pl. \pw{كتب}
+  \textit{kutub}{{/video}}`) and the **root in parentheses** (`(\pw{ك ت ب})`).
 - A **verb** is given as the perfect with its form, the imperfect and the
   masdar: `كَتَبَ kataba (I) · impf. يَكْتُبُ yaktubu · masdar كِتَابَة kitāba ·
   to write`; a derived form names its number the same way (`عَلَّمَ ʿallama
