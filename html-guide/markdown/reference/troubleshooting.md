@@ -102,6 +102,28 @@ More in [Compiling and publishing](../writing-this-guide/compiling.md).
 
 More in [Books](../books/_index.md).
 
+## A book made by an agent
+
+| What you see | What it means, and what to do |
+|---|---|
+| **make the book's folder**, on the add page, is greyed, and a note says *That is changed on the computer Parseh runs on and nowhere else, because it changes what Parseh will run…* | The folder is made, and later opened and finished, by the computer Parseh runs on: an agent runs Parseh's own tools in it, and Finish runs a build. A phone or another computer that has been let in can watch the making and steer it, but not begin one or end it. Do it on that computer's own browser. |
+| *choose the original first* | The file picker is empty. Choose the PDF, the epub or the text file the book is made from. |
+| *a book is already at books/english/mini-en/ — choose another slug* | A book with that name is on the shelf, or an earlier folder was made for it. Give the new one another slug, or take the other off the shelf with **✕** on its card (it goes to the trash, not away). |
+| *the original has to be a PDF with a text layer, an epub or a plain text file (.pdf, .epub, .txt): 'letter.docx' is none of them*, or *letter.pdf does not look like a PDF: choose the right file* | The original is one of three kinds, and its first bytes have to say what its name says. The agent reads text, so a PDF that is only pictures of pages — a scan — has nothing to read: save the text as a plain text file, or choose a PDF that has a text layer. |
+| *This book is being made by an agent … editing is off until the making is finished*, or the pencil says *editing is off while an agent makes this book* | The agent writes the book's `.tex` from its own files (`annot/`), so anything you changed by hand would be erased by its next batch. Ask instead: the making panel has a box, **what to change from now on**, and the chunk sheet has **ask about this chunk**. When the making is finished, the reader edits again. |
+| The reader says *More is written than this page shows*, or the panel says *The agent has written more since this page was built* | The page is a reader built earlier, and the agent has written since. Press **look at it now** in the making panel: it builds the reader again from what is there. |
+| The panel says *Parseh was updated during the making: it began under … and this is …* | Parseh was updated while the agent worked, and the tools it calls — the checkers, the assembler — may have changed under it. Nothing is stopped or changed. Read what the versions in between changed ([What changed, version by version](whats-new.md)), and write an ask if the agent should know. |
+| The panel says *making.json cannot be read just now* | The agent is writing the file at that moment, or wrote it half. The book stays locked and being made; the panel is drawn again in a few seconds. If it stays, tell the agent to write `making.json` again. |
+| The panel says *The agent has not written anything yet* for a long time | Nothing has opened the folder. Open it in the agent you use (**open the folder**, or the path above it) and tell it to read `AGENTS.md` and begin. Parseh does not start an agent. |
+| *the PDF of these chapters is not available on this computer, which has no shell to make it. The reader is available: look at it now* | The PDF of the chapters so far is made by a shell script (`build.sh --draft`), and this computer — Windows above all — has no shell. **look at it now** builds the reader, which shows everything written; the whole book, PDF included, is built by **finish** and by **build PDF**, which have a Python build for a computer with no shell. |
+| **finish…** says *N paragraphs do not reproduce their source*, with *chapter 1 paragraph 3 does not reproduce its source (it differs at character 41)* under it | The text of the chunks, joined, has to give back the original paragraph. Nothing is finished. Tell the agent which paragraph (an ask, then let it repair the batch), or, if the source itself is what is wrong, do it in the reader once the book is finished, with **this paragraph need not reproduce `source/paras/`** ([What a book is made of](../books/files.md#the-source-paragraphs-and-fidelity)). |
+| **finish…** says *there is no chapter in the book yet, so there is nothing to finish* | The agent has not written a chapter. Finish is for a book whose batches are in. To give the book up, take it off the shelf with **✕** on its card. |
+| **finish…** says *the build failed: …* with TeX's first error after it | The check passed and the whole build did not. The message is the first line TeX gave (one that starts with `!`): it names a file and a line. Mend it — or ask the agent to — and finish again. The book is still being made. |
+| **finish…** says *the reader was built; the PDF was left, because TeX is not installed on this computer* | The book is finished, and it has its reader. The PDF needs TeX Live (or MiKTeX): install it, and **build PDF** in the reader makes the PDF. |
+| A card still says **being made** and nobody is making it | The agent stopped, and nobody pressed **finish**. Finish it if the batches are in, or take it off the shelf with **✕**. A folder Parseh made stays being made until one of the two is done: Parseh never guesses that an agent has given up. |
+
+More in [A book made by an agent](../books/made-by-an-agent.md).
+
 ## Videos
 
 | What you see | What it means, and what to do |

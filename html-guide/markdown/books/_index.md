@@ -14,8 +14,9 @@ a subparagraph at a time.
 
 The **Books** door of the hub opens the library at `/books/`. Everything in
 this section is done from there and from the pages it leads to: nothing
-here needs a terminal, except one way of adding a book that hands the work
-to an AI coding assistant outside Parseh, and it says so.
+here needs a terminal, even the way of adding a book that hands the work to
+an AI coding assistant — the folder is made by a button, the assistant is the
+one you choose, and you watch the book grow from the library.
 
 ## Where to start
 

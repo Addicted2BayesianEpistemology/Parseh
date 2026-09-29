@@ -110,9 +110,12 @@ the map.
    the text divided and every gloss blank, and you gloss it in the reader.
 3. **Add to a book already here**: more text onto the end of a book on
    the shelf, as a new chapter or more of the last one.
-4. **Let an LLM do it outside**: the page gives you the recipe for a
-   working folder and the prompt that sets the work going, batch by
-   batch, and the command that brings the finished book back.
+4. **Let an agent make it**: choose the original with the file picker and
+   press **make the book's folder**; open that folder in the agent you use
+   and tell it *read AGENTS.md and begin*. The book is on the library,
+   marked **being made**, and its reader has a making panel to look at it
+   now, to write what to change from now on, and to **finish** it when the
+   agent is done.
 
 ## Glossing with an LLM
 

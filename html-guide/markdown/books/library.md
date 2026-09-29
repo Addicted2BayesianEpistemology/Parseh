@@ -31,6 +31,7 @@ transliterated title and author, the one-sentence blurb, and a row of tags:
 | **audio · 12/57 timed** | the book has a recording, and how many subparagraphs have a time in it |
 | **no audio yet** | the book has no recording |
 | **not built yet** | the book has no reader: nothing has built it |
+| **being made · batch 2 of 6 · 3 minutes ago** | an agent is still making the book: where the making stands and when it last wrote, moving by itself while the page is open ([A book made by an agent](doc:A book made by an agent)) |
 
 A click on a built card opens its reader. A card whose book has **not been
 built yet** is all one button: clicking anywhere on it builds the book (its
