@@ -27,6 +27,10 @@ It proves, mechanically, what a machine can prove:
     asked of a video whose video.json says "reorders": true
   * a chunk that carries a colour carries one of the four the books mark
     a chunk with -- red, blue, orange, green, and nothing else
+  * a vocabulary line that holds the books' macros (\\dw \\vb \\bw \\pw \\textit
+    \\emph) holds them as a book's does -- no other macro, braces that
+    balance, every macro its groups -- and is drawn as the reader draws it;
+    a line without one is plain text, and is not looked at (check_voc)
 
 A CHUNK NOBODY HAS GLOSSED YET is legal, in every video and at every
 stage: NOTHING written in it -- no tr, no voc, no en, no kana (a reading
@@ -74,7 +78,9 @@ LIB = os.path.dirname(os.path.realpath(__file__))
 TOOLBOX_LIB = os.path.join(os.path.dirname(os.path.dirname(LIB)), "lib")
 if TOOLBOX_LIB not in sys.path:
     sys.path.insert(0, TOOLBOX_LIB)
+import chunkdiv   # noqa: E402  which vocabulary lines hold the books' macros
 import languages  # noqa: E402  the registry: scripts, digits, duration words
+import texparse   # noqa: E402  the books' macros, and how many groups each takes
 import wordline   # noqa: E402  the word line's grammar, the books' as well
 
 # THE SHAPES OF video.json AND annotations.json, as numbers (lib/version.py
@@ -445,6 +451,74 @@ def transcript_text(captions):
     return "\n".join(out) + ("\n" if out else "")
 
 
+# THE BOOKS' VOCABULARY MACROS, and how many groups each takes: what the reader
+# draws (texparse.VOC_MACROS) and \nobreak, which it reads and prints nothing
+# for.  check_batch.ALLOWED is the same set, and texwrite refuses a book's line
+# by it; a video's macro line is drawn by the same reading (lib/vocline.js), so
+# it is refused by what that reading cannot take.
+VOC_MACROS = dict(texparse.VOC_MACROS, nobreak=0)
+
+
+def check_voc(voc, where, err):
+    """A video's vocabulary line, when it holds the books' macros.
+
+    A line with none of them is plain text and is checked as it always was:
+    not at all.  One with a macro is a book's line, and is refused the way
+    texwrite._check_voc refuses a book's -- a macro that is not the books',
+    braces that do not balance, a macro short of its groups -- in words that
+    say which, so that a person or a model can mend it.
+
+    TEX'S SPECIAL CHARACTERS ARE NOT REFUSED.  % & # _ $ are what a book's
+    line may not hold, because LaTeX reads them as instructions; a video's
+    never reaches LaTeX, and "100%" is text.
+
+    THE GROUPS ARE COUNTED AS THE READER READS THEM, whitespace between two
+    skipped (texparse.read_args): a line the renderer can draw is not refused
+    for a space or a newline between two braces.
+    """
+    if not chunkdiv.is_macro_line(voc):
+        return
+    unknown = sorted({m.group(1) for m in re.finditer(r"\\([a-zA-Z]+)", voc)
+                      if m.group(1) not in VOC_MACROS})
+    if unknown:
+        err("%s: voc uses %s, which %s not one of the books' vocabulary macros "
+            "-- a line may hold %s and nothing else"
+            % (where, ", ".join("\\" + u for u in unknown),
+               "is" if len(unknown) == 1 else "are",
+               ", ".join("\\" + m for m in sorted(VOC_MACROS))))
+    depth = 0
+    i = 0
+    while i < len(voc):
+        c = voc[i]
+        if c == "\\":                         # a backslash steps over one
+            i += 2                            # character, read_group's rule
+            continue
+        depth += (c == "{") - (c == "}")
+        if depth < 0:
+            err("%s: voc closes a brace it never opened" % where)
+            return
+        i += 1
+    if depth:
+        err("%s: voc leaves %d brace%s open" % (where, depth, "" if depth == 1 else "s"))
+        return
+    short = set()
+    for m in re.finditer(r"\\([a-zA-Z]+)", voc):
+        need = VOC_MACROS.get(m.group(1), 0)
+        j, got = m.end(), 0
+        while got < need:
+            while j < len(voc) and voc[j] in " \t\r\n":
+                j += 1
+            if j >= len(voc) or voc[j] != "{":
+                break
+            j = texparse.read_group(voc, j)[1]
+            got += 1
+        if got < need:
+            short.add((m.group(1), need, got))
+    for name, need, got in sorted(short):
+        err("%s: \\%s needs %d group%s in braces and has %d"
+            % (where, name, need, "" if need == 1 else "s", got))
+
+
 def check_chunk(ch, where, err, warn, lang=None, reorders=False, half=None):
     """One chunk's own fields.
 
@@ -548,6 +622,8 @@ def check_chunk(ch, where, err, warn, lang=None, reorders=False, half=None):
     if not L.reading and isinstance(kana, str) and kana.strip():
         warn("%s: kana on a chunk of a language with no reading -- ignored"
              % where)
+    if isinstance(ch.get("voc"), str):
+        check_voc(ch["voc"], where, err)
     if "words" in ch:
         if ch.get("plain"):
             err("%s: a chunk marked plain carries no words" % where)

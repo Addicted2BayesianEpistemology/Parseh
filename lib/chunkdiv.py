@@ -91,8 +91,30 @@ import wordline
 # middle dot, which is also what separates the parts INSIDE one verb entry,
 # so the two are told apart by the brackets around the second (see _entries).
 TEX, PLAIN = "tex", "plain"
-STYLES = (TEX, PLAIN)
+# A VIDEO'S LINE MAY BE EITHER, and is asked which: AUTO says the style is the
+# line's own.  A video glossed before the books' macros were let into it holds
+# plain lines only, and every one of them is cut and joined as it always was;
+# a line with a macro in it is a book's line and is cut like one.
+AUTO = "auto"
+STYLES = (TEX, PLAIN, AUTO)
 VOC_SEP = {TEX: "; ", PLAIN: " · "}
+
+# What makes a line a MACRO line -- the same six openings lib/vocline.js's
+# isMacro looks for, held to it by tests/fixtures/vocline.json.  A line with
+# none of them is plain text, whatever else it holds: \nobreak alone is not an
+# entry, and a plain line has never carried a backslash on purpose.
+MACRO_LINE = ("\\dw{", "\\vb{", "\\bw{", "\\pw{", "\\textit{", "\\emph{")
+
+
+def is_macro_line(voc):
+    return isinstance(voc, str) and any(m in voc for m in MACRO_LINE)
+
+
+def style_of(voc, style=AUTO):
+    """`style`, or for AUTO the style this line is written in."""
+    if style != AUTO:
+        return style
+    return TEX if is_macro_line(voc) else PLAIN
 
 # What opens a vocabulary entry in a book: the four gloss macros, and no
 # others.  A semicolon not followed by one of these is inside an entry --
@@ -209,12 +231,13 @@ def _entries(voc, style):
     text, and one before a word rather than a macro is the middle of an entry
     that happens to have punctuation in it.
 
-    A video's is cut at the middle dot, outside brackets -- because the same
+    A video's PLAIN line is cut at the middle dot, outside brackets -- because the same
     dot separates the parts of a single verb entry, which the conventions
     write inside brackets: `هستم hastam I am (بودن budan · pres. باش bāš)`.
     A line that writes a verb without them comes out as several entries; they
     are put back with the same dot, and `_stick` keeps them on one side, so
-    the line is the line it was either way.
+    the line is the line it was either way.  A video's line with macros in it
+    is a book's, and is cut as one (style_of).
     """
     voc = voc or ""
     if not voc.strip():
@@ -378,6 +401,7 @@ def split(chunk, at, lang, style=TEX):
     """
     if style not in STYLES:
         raise ValueError("style must be %s" % " or ".join(STYLES))
+    style = style_of(chunk.get("voc"), style)
     fa = chunk.get("fa") or ""
     c = _cut_at(fa, at, lang)
     a_fa, b_fa = c["a"], c["b"]
@@ -449,6 +473,7 @@ def entries_for(chunk, at, lang, style=TEX):
     where an entry begins and where it goes stays here and the page carries
     only the answer -- one implementation, drawn twice.
     """
+    style = style_of(chunk.get("voc"), style)
     fa = chunk.get("fa") or ""
     c = _cut_at(fa, at, lang)
     es = _entries(chunk.get("voc"), style)
@@ -469,6 +494,11 @@ def merge(first, second, lang, style=TEX):
     """
     if style not in STYLES:
         raise ValueError("style must be %s" % " or ".join(STYLES))
+    # TWO LINES JOIN AS A MACRO LINE IF EITHER IS ONE: the result holds a
+    # macro, so it is a book's line and is cut like one from then on
+    if style == AUTO:
+        style = TEX if (is_macro_line(first.get("voc"))
+                        or is_macro_line(second.get("voc"))) else PLAIN
     if bool(first.get("plain")) != bool(second.get("plain")):
         raise ValueError("one of these chunks is marked plain and the other is "
                          "glossed: an aside and a phrase of the language are "
