@@ -261,5 +261,142 @@ class InAVideo(unittest.TestCase):
         self.assertEqual(got, line, "trimmed, and nothing else done to it")
 
 
+class TheSidebarsEntry(unittest.TestCase):
+    """lib/verbs: `tex_video`, the book's \\vb as a video's line takes it."""
+
+    def compose(self, code, **kw):
+        import verbs as V
+        parts = dict(parts=[("گفتن", "goftan"), ("گو", "gu"), ("گفت", "goft")],
+                     meaning="to say", extras_video=[])
+        parts.update(kw.pop("parts", {}))
+        return V.compose(code, V.Parts(**parts), **kw)
+
+    def test_the_videos_extras_go_inside_the_meanings_parenthesis(self):
+        import verbs as V
+        vb = self.compose("fa", parts=dict(extras_video=["coll. " + V.tl("می‌گم", "mi-gam")]),
+                          word="گفتن", meaning="to say")
+        self.assertEqual(vb["tex"], "\\vb{گفتن}{goftan}{گو}{gu}{گفت}{goft}{to say}")
+        self.assertEqual(vb["tex_video"],
+                         "\\vb{گفتن}{goftan}{گو}{gu}{گفت}{goft}{to say (coll. \\pw{می‌گم} \\textit{mi-gam})}")
+        # the books' extras and the video's share the one parenthesis
+        vb = self.compose("it", parts=dict(parts=[("andare", ""), ("vado", ""), ("andato", "")],
+                                           extras=["aux. " + V.tl("essere")], meaning="to go",
+                                           extras_video=["coll. " + V.tl("vo")]))
+        self.assertIn("{to go (aux. \\pw{essere}; coll. \\pw{vo})}", vb["tex_video"])
+        self.assertIn("{to go (aux. \\pw{essere})}", vb["tex"])
+
+    def test_the_chunks_own_form_follows_the_entry_as_the_books_name_it(self):
+        vb = self.compose("fa", word="گفتم", of_form="goftam")
+        self.assertEqual(vb["tex_video"], vb["tex"] + "; here \\pw{گفتم} \\textit{goftam}")
+        vb = self.compose("fa", word="گفتم")
+        self.assertEqual(vb["tex_video"], vb["tex"] + "; here \\pw{گفتم}", "no sound, none named")
+        for said in ("گفتن", "گو", "گفت", "گَفت"):
+            with self.subTest(word=said):
+                vb = self.compose("fa", word=said, of_form="x")
+                self.assertEqual(vb["tex_video"], vb["tex"], "a form the \\vb already prints is not named")
+        import verbs as V
+        vb = self.compose("fa", parts=dict(extras=["coll. " + V.tl("می‌گم")]), word="می‌گم")
+        self.assertNotIn("; here", vb["tex_video"], "nor a form its parenthesis names")
+        self.assertEqual(self.compose("fa")["tex_video"], self.compose("fa", word="")["tex_video"])
+
+    def test_an_arabic_verb_is_written_bare_as_a_video_writes_it(self):
+        import verbs as V
+        vb = V.compose("ar", V.Parts(parts=[("خَرَجَ", "ḫaraja (I)"), ("يَخْرُجُ", "yaḫruju"), ("خُرُوج", "ḫurūj")],
+                                     meaning="to go out", extras=["+ " + V.tl("مِنْ")]),
+                       word="خرجوا", of_form="ḫarajū")
+        self.assertIn("\\vb{خَرَجَ}{ḫaraja (I)}{يَخْرُجُ}", vb["tex"], "the book's is vowelled")
+        self.assertEqual(vb["tex_video"],
+                         "\\vb{خرج}{ḫaraja (I)}{يخرج}{yaḫruju}{خروج}{ḫurūj}{to go out (+ \\pw{من})}"
+                         "; here \\pw{خرجوا} \\textit{ḫarajū}")
+        # letter for letter one of the forms once the marks are off: nothing to name
+        vb = V.compose("ar", V.Parts(parts=[("خَرَجَ", ""), ("يَخْرُجُ", ""), ("خُرُوج", "")]), word="خرج")
+        self.assertNotIn("; here", vb["tex_video"])
+
+    def test_a_compound_goes_in_as_one_entry_with_the_light_verbs_video_extras(self):
+        import verbs as V
+        vb = V.compose("fa", V.Parts(parts=[("کردن", "kardan"), ("کن", "kon"), ("کرد", "kard")], meaning="",
+                                     extras_video=["coll. " + V.tl("می‌کنم", "mi-konam")],
+                                     compound={"name": "compound verb", "whole": "فکر کردن", "whole_sound": "fekr kardan",
+                                               "mean": "to think", "word": "فکر", "word_sound": "fekr"}),
+                       word="فکر می‌کنم")
+        cp = vb["compound"]
+        self.assertEqual(cp["tex"], vb["tex"] + cp["bw"])
+        self.assertEqual(cp["tex_video"],
+                         "\\vb{کردن}{kardan}{کن}{kon}{کرد}{kard}{(coll. \\pw{می‌کنم} \\textit{mi-konam})}"
+                         "\\bw{فکر}{fekr}{to think}")
+        self.assertNotIn("; ", cp["tex_video"], "one entry, not two")
+
+    def test_every_language_s_own_cases(self):
+        """The eight cases of every recipe, each built into a dictionary of
+        one entry (tests/fixtures/verbs/README.md): the video's entry is a
+        book's \\vb, reads back as the line the video always had, and a
+        video's own check takes it."""
+        import lookup as lk
+        import texparse
+        import texwrite
+        import verbs as V
+        built = 0
+        for code in languages.CODES:
+            L = languages.get(code)
+            path = ROOT / "tests" / "fixtures" / "verbs" / ("%s.json" % code)
+            if not path.is_file():
+                continue
+            with tempfile.TemporaryDirectory() as td:
+                for k, case in enumerate(json.loads(path.read_text(encoding="utf-8"))["cases"]):
+                    vb = self.build(lk, V, td, code, k, case)
+                    if not vb:
+                        continue
+                    built += 1
+                    with self.subTest(code=code, case=k):
+                        tex, head = vb["tex_video"], vb["tex_video"].split("; here ")[0]
+                        texwrite._check_voc(tex, "%s case %d" % (code, k))
+                        self.assertEqual(errors_of(tex, code), [])
+                        if code not in ("fa", "ar"):
+                            self.assertEqual(head, vb["tex"], "a video adds nothing to it here")
+                        if not vb["reading"]:            # the kana a video prints after the headword
+                            self.assertEqual(texparse.voc_text(head, L), vb["plain"])
+                        if head != tex:
+                            self.assertRegex(tex, r"; here \\pw\{[^{}]+\}( \\textit\{[^{}]+\})?$")
+                        cp = vb.get("compound")
+                        if cp:
+                            self.assertEqual(cp["tex_video"], head + cp["bw"])
+        self.assertGreater(built, 60, "the eight cases of every language")
+
+    @staticmethod
+    def build(lk, V, td, code, k, case):
+        """One case as a dictionary of its own (smoke.py's _verb_case_dict), built."""
+        d = os.path.join(td, "%s-%d" % (code, k))
+        os.makedirs(d)
+        c = lk.create(os.path.join(d, "%s.db" % code))
+        e = case["entry"]
+        cols = ("headword", "translit", "ipa", "reading", "pos", "sense", "sense_tags", "head")
+        eid = c.execute("INSERT INTO entry (%s) VALUES (%s)" % (", ".join(cols), ",".join("?" * len(cols))),
+                        [e.get(x) or "" for x in cols]).lastrowid
+        for row in case["forms"]:
+            form, note, roman, ipa = (list(row) + ["", "", ""])[:4]
+            c.execute("INSERT INTO form (form, entry_id, note, roman, ipa) VALUES (?,?,?,?,?)",
+                      (form, eid, note or "", roman or "", ipa or ""))
+        c.commit()
+        c.close()
+
+        def forget():
+            for conn, _stamp in (getattr(lk._CONNS, "map", None) or {}).values():
+                try:
+                    conn and conn.close()
+                except Exception:
+                    pass
+            lk._CONNS.map = {}
+            V.clear_cache()
+        was = lk.DICT_DIR
+        lk.DICT_DIR = d
+        forget()
+        try:
+            return V.build(code, {"entry": eid, "headword": e["headword"], "pos": e.get("pos") or ""},
+                           case.get("word") or "", case.get("text") or "", case.get("gloss") or "en")
+        finally:
+            lk.DICT_DIR = was
+            forget()
+
+
 if __name__ == "__main__":
     unittest.main()

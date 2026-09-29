@@ -513,6 +513,28 @@
     }
     return out + esc(s.slice(last));
   }
+  /* A VOCABULARY LINE THAT HOLDS THE BOOKS' MACROS is drawn as the reader draws
+     it (lib/vocline.js, held to the reader's own renderer by one fixture); any
+     other line is drawn exactly as it always was, so that every video glossed
+     before macros existed looks the same to the pixel.  A line nobody can read
+     -- a brace left open in a file edited by hand -- is shown as it stands:
+     a cloud that will not open is worse than its source. */
+  function vocHTML(s) {
+    if (window.ParsehVocline && ParsehVocline.isMacro(s)) {
+      try { return ParsehVocline.render(s, L); } catch (e) { /* drawn as it stands, below */ }
+    }
+    return glossHTML(s);
+  }
+  // THE SAME LINE AS PLAIN TEXT, for a card's notes: a card is read in Anki
+  // and in a studio document, which know no macro, so what it carries is the
+  // line as a person reads it (ParsehVocline.flatten) and never its source.  A
+  // plain line goes as it is.
+  function vocText(s) {
+    if (window.ParsehVocline && ParsehVocline.isMacro(s)) {
+      try { return ParsehVocline.flatten(s, L); } catch (e) { /* its source, below */ }
+    }
+    return s || '';
+  }
   // the words of a chunk, for the per-word spans: split at the language's
   // separator; a language without one (Japanese) makes the chunk one word
   function wordsOf(s) { return L.word_sep ? s.split(L.word_sep) : [s]; }
@@ -622,7 +644,7 @@
     // no gloss language, so it takes no lang of its own -- the three lines
     // under it are prose the reader reads, and take the gloss's
     if (ch.tr) h += '<div class="tr">' + esc(ch.tr) + '</div>';
-    if (ch.voc) h += '<div class="voc"' + GATTRS + '>' + glossHTML(ch.voc) + '</div>';
+    if (ch.voc) h += '<div class="voc"' + GATTRS + '>' + vocHTML(ch.voc) + '</div>';
     if (ch.en) h += '<div class="en"' + GATTRS + '>' + glossHTML(ch.en) + '</div>';
     if (ch.note) h += '<div class="note"' + GATTRS + '>' + glossHTML(ch.note) + '</div>';
     // a chunk nobody has glossed yet -- a phrase all the same, hoverable and
@@ -1487,6 +1509,42 @@
         mountStrip(at, strip.value());
     });
   }
+  /* THE VOCABULARY ROW, as the book's chunk sheet has it (lib/tex2html.py):
+     what the line reads as, drawn by lib/vocline.js the way the reader and
+     the cloud draw it; the box; the four buttons that write a book's entries,
+     each saying what it is for (lib/vocbuttons.js); and a note.  It is a div
+     with a label for the box, not a label round everything: buttons inside a
+     label would be a second thing the label labels. */
+  function vocRow(at, f) {
+    return '<div class="erow evrow"><label class="elab" for="evoc">' + esc(f[1]) + '</label>' +
+           '<div class="evcap">reads as</div><div class="evnow"></div>' +
+           '<textarea id="evoc" class="ef gl" data-f="voc" rows="2">' + esc(at.ch.voc || '') + '</textarea>' +
+           '<div class="evbtns" role="group" aria-label="write an entry">' +
+           ['dw', 'vb', 'bw', 'pw'].map(function (k) {
+             return '<button type="button" data-ins="' + k + '"></button>';
+           }).join('') + '</div>' +
+           '<div class="efnote">Entries are parted by <code>;</code>. The buttons write the books&#8217; ' +
+           'entries, and <b>reads as</b> above shows the line the way the cloud will set it; a plain line ' +
+           'is fine too. Only <code>\\dw</code> <code>\\vb</code> <code>\\bw</code> <code>\\pw</code>, ' +
+           '<code>\\textit</code>, <code>\\emph</code> and <code>\\nobreak</code> may be written; ' +
+           '<code>% &amp; # _ $</code> are ordinary characters in a video.</div></div>';
+  }
+  // what the box holds, drawn: a macro line as the reader draws it, any other
+  // as the cloud draws a plain one; a line not finished says what is short
+  function vocNow(ta, el) {
+    var v = ta.value;
+    if (!v.trim()) { el.innerHTML = '<span class="none">no vocabulary line yet</span>'; return; }
+    if (window.ParsehVocline && ParsehVocline.isMacro(v)) {
+      try {
+        // the four skeletons as they are written say nothing yet
+        el.innerHTML = ParsehVocline.render(v, L) || '<span class="none">an entry with nothing in it yet</span>';
+      } catch (e) { el.innerHTML = '<span class="bad">' + esc(e.message) + '</span>'; }
+    } else el.innerHTML = glossHTML(v);
+    // a line that grew the form past the foot of the window is placed again
+    var r = cloud.getBoundingClientRect();
+    if (cloudFor && r.bottom > (document.documentElement.clientHeight || window.innerHeight) - 4)
+      placeCloud(cloudFor);
+  }
   function openEditor() {
     var at = coords();
     if (!at) return;
@@ -1528,6 +1586,7 @@
             '<div class="esrcbody">looking\u2026</div></div>' +
             '<div class="emain">';
     editRows().forEach(function (f) {
+      if (f[0] === 'voc' && window.ParsehVocButtons) { h += vocRow(at, f); return; }
       h += '<label class="erow"><span class="elab">' + esc(f[1]) + '</span>' +
            '<textarea class="ef' + (f[2] ? ' ' + f[2] : '') + '" data-f="' + f[0] +
            '" rows="' + (f[0] === 'voc' || f[0] === 'en' ? 2 : 1) + '">' +
@@ -1577,6 +1636,20 @@
     cloud.innerHTML = h + colourRow(at.ch);
     Array.prototype.forEach.call(cloud.querySelectorAll('.ef.tl'), targetAttrs);
     Array.prototype.forEach.call(cloud.querySelectorAll('.ef.gl'), glossAttrs);
+    var vbox = cloud.querySelector('.ef[data-f="voc"]'), vnow = cloud.querySelector('.evnow'),
+        vbtns = cloud.querySelector('.evbtns');
+    if (vnow) {
+      glossAttrs(vnow);
+      vocNow(vbox, vnow);
+      vbox.addEventListener('input', function () { vocNow(vbox, vnow); });
+    }
+    if (vbtns) {
+      ParsehVocButtons.mount(vbtns, { lang: L, gloss: G });
+      vbtns.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('[data-ins]') : null;
+        if (b) ParsehVocButtons.insert(vbox, b.getAttribute('data-ins'));
+      });
+    }
     paintDel(at);
     fitFields();
     wordsInto(at);
@@ -1622,6 +1695,21 @@
     if (at) placeCloud(at.w);
   }
 
+  /* THE ENTRIES THE SIDEBAR PUTS ARE THE BOOKS' when lib/vocline.js is on the
+     page (it is, wherever the player is served): the \vb the language's recipe
+     built -- `tex_video`, the book's own with what only a video says inside
+     its parenthesis and the chunk's own form named after it -- or a \dw for a
+     word, parted from what is there by "; " as a book's are.  A page without
+     it puts the plain line it always did. */
+  var MACRO_ENTRIES = typeof ParsehVocline !== 'undefined';
+  var VOC_JOIN = MACRO_ENTRIES ? '; ' : ' · ';
+  function vbEntry(vb) { return MACRO_ENTRIES && vb.tex_video ? vb.tex_video : vb.here; }
+  function cpEntry(cp) { return MACRO_ENTRIES && cp.tex_video ? cp.tex_video : cp.plain; }
+  function dwEntry(word, sound, sense) {
+    if (!MACRO_ENTRIES) return word + (sound ? ' ' + sound : '') + (sense ? ' ' + sense : '');
+    return '\\dw{' + word + '}{' + (sound || '') + '}' + (sense ? ' ' + sense : '');
+  }
+
   // append rather than replace: a vocabulary line is built entry by entry
   function srcPut(field, text, sep) {
     if (!text) return;
@@ -1630,6 +1718,8 @@
     var had = (el.value || '').trim();
     el.value = had ? had + (sep === undefined ? ' ' : sep) + text : text;
     el.style.height = (el.scrollHeight + 2) + 'px';
+    // what the vocabulary reads as follows the box (the form's own listener)
+    if (field === 'voc') el.dispatchEvent(new Event('input', { bubbles: true }));
     el.focus();
     // at the end, so the next thing typed carries the line on rather than
     // landing in front of what was just put there
@@ -1800,18 +1890,19 @@
                    word + ' carries the forms, ' + cp.word +
                    ' never changes, and the pair means ' +
                    (cp.mean || 'what neither word means alone') +
-                   '. This puts the whole compound in as one entry:\n' + cp.plain +
+                   '. This puts the whole compound in as one entry:\n' + cpEntry(cp) +
                    (cp.complete ? ''
                     : '\n\nthen fill in by hand what the dictionary did not give:' +
                       missTitle(cp.missing || [])),
-                   function () { srcPut('voc', cp.plain, ' \u00b7 '); },
+                   function () { srcPut('voc', cpEntry(cp), VOC_JOIN); },
                    cp.complete ? '' : 'sgap']);
       btns.push(['\u2192 vocabulary', partial
                    ? 'add this verb and its forms to the vocabulary line \u2014 ' +
                      'then fill in by hand what the dictionary did not give:' +
                      missTitle(missing)
-                   : 'add this verb and its forms to the vocabulary line',
-                 function () { srcPut('voc', vb.here, ' \u00b7 '); },
+                   : 'add this verb and its forms to the vocabulary line' +
+                     (MACRO_ENTRIES ? ':\n' + vbEntry(vb) : ''),
+                 function () { srcPut('voc', vbEntry(vb), VOC_JOIN); },
                  partial ? 'sgap' : '']);
       if (vb.line || notes.length || partial) {
         main += '<div class="svb">' + (vb.line ? glossHTML(vb.line) : '');
@@ -1826,10 +1917,7 @@
     } else {
       var hs = headSound(h);
       btns.push(['\u2192 vocabulary', 'add this word to the vocabulary line',
-                 function () {
-                   srcPut('voc', word + (hs ? ' ' + hs : '') +
-                          (sense ? ' ' + sense : ''), ' \u00b7 ');
-                 }]);
+                 function () { srcPut('voc', dwEntry(word, hs, sense), VOC_JOIN); }]);
     }
     if (sense)
       btns.push(['meaning \u2192', 'put this sense in the meaning',
@@ -1844,7 +1932,7 @@
       t.className = 'sdef'; t.dataset.def = sense;
       if (!vb) {
         var hsd = headSound(h);
-        t.dataset.voc = word + (hsd ? ' ' + hsd : '') + ' ';
+        t.dataset.voc = dwEntry(word, hsd, '') + ' ';
       }
       t.hidden = !opts.defsMt;
       row.appendChild(t);
@@ -1858,7 +1946,7 @@
     var btns = [];
     if (el.dataset.voc !== undefined)
       btns.push(['\u2192 vocabulary', 'add this word to the vocabulary line, its sense in ' + G.name,
-                 function () { srcPut('voc', el.dataset.voc + text, ' \u00b7 '); }]);
+                 function () { srcPut('voc', el.dataset.voc + text, VOC_JOIN); }]);
     btns.push(['meaning \u2192', 'put this sense, in ' + G.name + ', in the meaning',
                function () { srcPut('en', text); }]);
     btns.forEach(function (b) {
@@ -2280,6 +2368,9 @@
       var el = cloud.querySelector('.ef[data-f="' + f + '"]');
       if (el) el.value = ch[f] || '';
     });
+    // what the vocabulary reads as follows the box
+    var vn = cloud.querySelector('.evnow'), vx = cloud.querySelector('.ef[data-f="voc"]');
+    if (vn && vx) vocNow(vx, vn);
     // the word line is checked against the reading box, which has just changed
     if (strip) mountStrip(at, strip.value());
     paintDel(at);
@@ -4179,7 +4270,7 @@
     // gets its caption -- the sentence it lives in -- and so does a word
     // of the line, which the whole phrase would only repeat
     A.ctx.value = ((ofLine || word === ch.fa) && sg && sg.text) ? sg.text : ch.fa;
-    A.notes.value = (ch.voc || '') +
+    A.notes.value = vocText(ch.voc) +
       (ch.note ? (ch.voc ? '\n' : '') + ch.note : '');
     // the registry's tag: farsi-youtube for Persian, exactly as before
     A.tags.value = L.tag + '-youtube ' + CFG.id;
