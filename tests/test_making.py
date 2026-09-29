@@ -285,6 +285,23 @@ class TheInstructionsSeam(unittest.TestCase):
         for gone in ("conda env create", "conda activate", "others/", "PROMPT.md", "cp -r"):
             self.assertNotIn(gone, text)
 
+    def test_the_words_step_is_told_to_the_languages_that_divide_a_chunk_into_words_and_to_no_other(self):
+        # the step the page's old recipe carried in its prompt (docs/new-book-prompt.md's WORDS_STEP):
+        # the machine starts the words, the annotator corrects them
+        import languages
+        with_words = []
+        for code in languages.CODES:
+            with self.subTest(code=code):
+                text = making.instructions_for({"lang": code, "gloss": "en", "title": "x", "title_latin": "x"},
+                                               None, into=tmpdir(self))
+                if languages.get(code).words:
+                    with_words.append(code)
+                    self.assertIn("fill_words.py --lang %s --json" % code, text)
+                    self.assertIn("`## Words`", text)
+                else:
+                    self.assertNotIn("fill_words", text)
+        self.assertLessEqual({"ja", "zh"}, set(with_words))
+
     def test_the_page_shows_the_same_text_the_folder_gets(self):
         into, r = made(self, {"title_latin_upper": ""})
         asked = making.instructions_for(dict(FIELDS, original="Il Gatto.txt"), None, into=into)

@@ -82,6 +82,7 @@ LIB = os.path.dirname(os.path.realpath(__file__))
 if LIB not in sys.path:
     sys.path.insert(0, LIB)
 import books as booklib                                        # noqa: E402
+import languages                                               # noqa: E402
 import version                                                 # noqa: E402
 
 MAKING = "making.json"
@@ -452,7 +453,7 @@ the tools last said, e.g. `{"check_batch": "0 errors", "assemble": "ALL PARAGRAP
 -- `extract_pdf.py` for a PDF with a text layer, your own care for an epub or a text file -- and \
 run `chapter_src.py --book {{BOOK_DIR}} --all`. Write the chapter table into `NOTES.md` and show \
 it to the person before annotating anything.
-2. For each batch: one `annot/chN_pNN.json` a paragraph, each checked with \
+2. For each batch: one `annot/chN_pNN.json` a paragraph. {{WORDS}}Check each with \
 `check_batch.py <json> --book {{BOOK_DIR}}` until it says 0 errors; then `merge_batch.py`, \
 `normalize_batch.py` and `assemble.py` (it must end `ALL PARAGRAPHS CLEAN`) make `chNx.tex`, \
 which you `\\input` in `main.tex`, in order.
@@ -477,7 +478,16 @@ def instructions_text(facts, options=None):
     pages = ", pages %d-%d of it (counted from 0)" % tuple(orig["pages"]) if orig.get("pages") else ""
     lang = book["language"]
     latin = book["title_latin"] or book["slug"]
+    # A LANGUAGE THAT DIVIDES A CHUNK INTO WORDS (Japanese, Chinese: the registry's `words`) has the
+    # machine start the division and the annotator correct it -- the step the page's old recipe carried
+    # in its prompt, and the one an agent cannot know of without being told
+    words = ("For %s every chunk also has `words`, its division into words: start it from the machine's "
+             "with `%s %s --lang %s --json <the paragraph's JSON>`, then correct it against the `## Words` "
+             "section of the conventions. " % (book["language_name"], facts["python"],
+                                              os.path.join(facts["lib"], "fill_words.py"), lang)
+             ) if languages.get(lang).words else ""
     values = {
+        "WORDS": words,
         "TITLE_NOTE": " (%s)" % book["title"] if book["title"] and book["title"] != latin else "",
         "TITLE_LATIN": latin,
         "AUTHOR_LATIN": book["author_latin"] or book["author"] or "an unnamed author",
