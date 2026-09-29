@@ -126,8 +126,11 @@ The doors take `prompt=<id>` in their body: `POST /youtube/api/region/prompt` an
 takes `instructions`, `instructionsKind` and `custom`) and the make-a-book page. A
 `studio-doc` prompt of kind `added` goes after the boxes: hand the kit
 `chosen.instructions` with the box flags, or `chosen.text` as an extra; a `replace`
-one takes the boxes only if its text carries the `{{?id}}` markers, which the caller
-sees with `re.findall(r"\{\{\?(\w+)\}\}", chosen.text)`.
+one takes the boxes only if its text carries the `{{?id}}` markers, which
+`prompts.markers(chosen.text)` lists. Where the kit refuses a prompt of yours at the
+door (it named something Parseh no longer fills in), say it with
+`prompts.unmade(chosen, error)`: the kit's words speak of a bug in a template, which a
+person's prompt is not.
 
 ### The API the row's menu calls
 
