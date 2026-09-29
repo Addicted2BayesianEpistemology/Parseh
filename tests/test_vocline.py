@@ -9,8 +9,10 @@ macro line with.
 tests/fixtures/vocline.json holds the cases, as tests/fixtures/wordline.json
 holds the word line's; the Python side is run here, the JavaScript side under
 deno.  Beyond the fixture, every vocabulary line of every fixture book and
-video is read by both, so an equality that holds only for the lines somebody
-thought of would not pass.  Standard library only.
+video is read by both, and so are a couple of thousand random lines, so an
+equality that holds only for the lines somebody thought of would not pass.
+The last class is lib/vocbuttons.js: the examples its four buttons show.
+Standard library only.
 """
 import glob
 import json
