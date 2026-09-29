@@ -125,15 +125,18 @@ transliteration + meaning. Name what was stripped from the form in the text.
 One equivalent in the gloss language rather than a string of synonyms, and
 **an empty `voc` is the right answer** for a chunk that needs nothing.
 
-{{?video}}In a **video** the line is written exactly as in a book, with the macros
-below and entries parted by `; `; a line with no macro at all is plain text, and
-is also accepted. A form of the verb in the chunk that is none of its three is
-named after the entry, not inside it, with its sound and then what it is —
-`\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\pw{ने})}; here \pw{करेगा}
-\textit{karegā}, will do`.
-{{/video}}{{?book}}In a **book** it{{/book}}{{?video}}The line{{/video}} uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
+The line uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
 `\vb{inf}{rom}{stem}{rom}{perf}{rom}{meaning}` · `\bw{base}{rom}{meaning}` ·
-`\pw{fa}` — plus `\textit`, `\emph`, `\nobreak`.
+`\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted
+by `; `.
+
+{{?video}}A video's line is written exactly as a book's; a line with no macro at
+all is plain text, and is also accepted. What a video adds is the form its chunk
+has, where it is none of the three the `\vb` prints, nor one its parenthesis
+names: it is named after the entry, outside it, with its sound,
+`\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\pw{ने})}; here \pw{करेगा}
+\textit{karegā}, future`.
+{{/video}}
 
 **Every noun is given with its gender**, `m.` or `f.`, without exception.
 Hindi agreement runs off the gender of a noun the reader cannot see it in:
