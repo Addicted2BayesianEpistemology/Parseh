@@ -82,7 +82,6 @@ LIB = os.path.dirname(os.path.realpath(__file__))
 if LIB not in sys.path:
     sys.path.insert(0, LIB)
 import books as booklib                                        # noqa: E402
-import languages                                               # noqa: E402
 import version                                                 # noqa: E402
 
 MAKING = "making.json"
