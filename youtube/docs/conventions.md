@@ -92,7 +92,15 @@ That is normal in these videos and is not a fault.
   blocks: headword + transliteration + meaning; verbs with their stems
   or forms as the language's file shows; colloquial ↔ written pairs
   spelled out; loanwords flagged. Target-script text inside `voc` is
-  fine — the player isolates it. **Optional.**
+  fine — the player isolates it. It is written with the books' macros
+  (`\dw{word}{sound} meaning`, `\vb{…}` with its seven groups,
+  `\bw{base}{sound}{meaning}`, `\pw{word}`, `\textit{…}`, `\emph{…}` and
+  `\nobreak`), entries parted by `; `, exactly as the language's file shows
+  them for its books; what a video adds (a colloquial form, say) the file
+  says where it goes. A video never reaches LaTeX, so `$ % & # _ ^ ~` are
+  ordinary text in it, each written as itself. In the JSON every backslash is
+  written twice. A line with no macro is plain text and is also accepted.
+  **Optional.**
 - **`en`** — the short meaning of the chunk, written in the video's gloss
   language (`video.json`'s `"gloss"`; English when it says none — the prompt
   names it), lower-case, like the books' third line ("there are wounds",

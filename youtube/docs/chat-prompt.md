@@ -104,6 +104,9 @@ Answered (the `video` object is abbreviated):
 {{EXAMPLE_OUT}}
 ```
 
+The example's vocabulary lines may be in the older plain form. Write yours with
+the macros of the conventions above (a line with none is also accepted).
+
 {{/example}}{{GLOSSARY}}
 
 ## Before you answer, check
@@ -114,7 +117,8 @@ Answered (the `video` object is abbreviated):
 {{WORDS_CHECK}}- {{TR_RULE}}, in the transliteration scheme of the {{LANGUAGE}}
   conventions above;
 - `voc` on first appearances only — by the end of the video the common
-  words carry none;
+  words carry none — written with the books' macros, every backslash doubled
+  in the JSON;
 - valid JSON, inside a single ```` ```json ```` fence, and nothing else in
   the message.
 

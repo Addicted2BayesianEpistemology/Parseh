@@ -109,8 +109,17 @@ What each chunk asks of you:
      the JSON a backslash is written twice: `"\\dw{…}{…} …"`.
    - {{TEXT_FIELDS}} are plain text, and none of
      `\ { } $ % & # _ ^ ~` may appear in them.
-{{/book}}{{?video}}     In a video `voc` is **plain text** — no LaTeX, no macros — written as
-     the conventions below show for a video.
+{{/book}}{{?video}}     In a video `voc` is written with the books' **macros** — the same ones as in
+     a book — and only these may appear in it: `\dw{word}{rom} meaning`,
+     `\vb{…}` (seven arguments, as the conventions give them),
+     `\bw{base}{rom}{meaning}`, `\pw{word}`, `\textit{…}`, `\emph{…}` and
+     `\nobreak`. Entries are parted by `; `, and every brace must close. A video
+     never reaches LaTeX, so `$ % & # _ ^ ~` are ordinary text in it: write each
+     as itself, never as a TeX escape. In the JSON a backslash is written twice,
+     `"\\dw{…}{…} …"`: with a single one the JSON is invalid (`\d`, `\p`, `\v`) or
+     the macro is spoiled (`\bw`, `\textit` and `\nobreak` are read as a
+     backspace, a tab and a new line). A line with no macro at all is plain text
+     and is also accepted.
 {{/video}}   - `en` — the meaning of the chunk, short, in {{GLOSS_LANGUAGE}}; required.
      Read the rule on the meaning below before you write one.
 {{?words}}   - `{{READING_FIELD}}` agrees with `words`: the words' readings run

@@ -678,8 +678,10 @@ class VideoRegion(unittest.TestCase):
         self.assertIn("- gloss language: **%s** (`%s`)" % (v.G.name, v.G.code), t)
         self.assertIn("**A chunk you gloss is glossed completely:** %s on every one"
                       % said(required(v.L)), t)
-        self.assertIn("`voc` is **plain text**", t)
+        self.assertIn("In a video `voc` is written with the books' **macros**", t)
+        self.assertNotIn("`voc` is **plain text**", t)
         self.assertNotIn("`voc` is **LaTeX**", t)
+        self.assertNotIn("None of `$ % & # _ ^ ~` may", t)      # a video never reaches LaTeX
         doc = data_of(t)
         segs = v.segs()
         self.assertEqual([u["i"] for u in doc["captions"]], list(range(v.frm, v.to + 1)))
