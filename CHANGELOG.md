@@ -1,3 +1,6 @@
+## [a0.4.2] - unreleased
+### Added
+
 ## [a0.4.1] - 2026-09-29
 ### Added
 - Speech to text, optional and local: a transcript made on this computer while adding a video, from a film on this machine or a YouTube video recorded through the tab
