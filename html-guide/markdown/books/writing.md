@@ -88,15 +88,22 @@ The vocabulary line is LaTeX, and only this much of it: entries divided by
 `;`, and four macros, which the four buttons under the box insert with their
 braces in place and the cursor in the first one.
 
+Each button shows the **kind** of entry it writes, with the macro small under
+it, and says what it is for before you press it. Point at one, or Tab to it,
+and a line opens under the buttons: what kind of entry it is and when to use
+it rather than another, what goes in each pair of braces, in order, and an
+example in the book's own language, drawn the way the reader will draw it.
+The button's tooltip says the same.
+
 | Button | Writes | Is |
 |---|---|---|
-| **\dw{}{}** | `\dw{word}{romanisation} what it means` | a dictionary word: two groups, then free text |
-| **\pw{}** | `\pw{word}` | a word of the language inside the gloss, kept the right way round |
-| **\bw{}{}{}** | `\bw{word}{romanisation}{the phrase}` | the base of a compound: three groups |
-| **\vb{}{}{}{}{}{}{}** | `\vb{verb}{rom}{form2}{rom}{form3}{rom}{meaning}` | a verb with its principal parts: seven groups |
+| **word** `\dw{}{}` | `\dw{word}{romanisation} what it means` | a word as a dictionary lists it: two groups, then free text — for every word that is not a verb |
+| **verb** `\vb{…}` | `\vb{verb}{rom}{form2}{rom}{form3}{rom}{meaning}` | a verb with its principal parts: seven groups — for every verb |
+| **compound** `\bw{}{}{}` | `\bw{word}{romanisation}{the phrase}` | the base word of a compound verb, run straight onto the verb's entry with nothing between them: three groups |
+| **word in a meaning** `\pw{}` | `\pw{word}` | a word of the language inside a meaning, kept the right way round |
 
-What the three forms of a `\vb` are is the language's own, and the
-button's tooltip says which:
+What the three forms of a `\vb` are is the language's own, and the line under
+the button says which:
 
 | Language | The three forms |
 |---|---|

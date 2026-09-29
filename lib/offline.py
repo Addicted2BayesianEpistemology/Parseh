@@ -98,6 +98,9 @@ SHARED = (
     # script ever ran.  It was the one address missing, and it was missing
     # for every book on the shelf (the owner, in airplane mode, 2026-09-23).
     "/lib/mt.js",
+    # a vocabulary line in the books' macros, drawn by the first and written
+    # with the buttons of the second, on the player's page and in every reader
+    "/lib/vocline.js", "/lib/vocbuttons.js",
     # what a reader's own script calls into as it starts: without these the
     # page opens offline and throws before it is drawn
     "/lib/decomposition.js", "/lib/decomposition.css",

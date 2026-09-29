@@ -21,6 +21,15 @@ language inside a vocabulary line or a meaning are set in the language's
 own face and direction, so a Persian word inside an English sentence reads
 the right way round.
 
+A vocabulary line is either plain text or written in the books' entries
+(`\dw`, `\vb`, `\bw`, `\pw`), and the cloud draws the second exactly as a
+book's reader does: each word of the language in its own script and face,
+its romanisation in italics, a verb with the labels its language prints
+(*pres.*, *past*…). A line with a macro in it is drawn that way, on a phone
+too; any other line is drawn as it always was, so a video glossed before
+this looks the same. Opened in an older Parseh, a line in the books' entries
+shows its source instead — nothing is refused and nothing breaks.
+
 **Click a line** — or its time — and the video plays from that line's
 beginning. That is the main way to work: hear it, read the cloud, click,
 hear it again. A click that ends a text selection does not replay, so you
@@ -63,7 +72,8 @@ A few lines look different on purpose:
   phrase. The card can go to an Anki deck, to one of your exercise decks,
   or onto the clipboard as studio markdown, and it can carry the word's own
   sound and a frame of the video — the section *Cards and Anki* explains
-  the sheet.
+  the sheet. The vocabulary goes into the notes as plain text, never with
+  its macros.
 
 The cloud also has **✎ edit** and a row of four colours, which write into
 the video: see [Editing a phrase](editing-a-phrase.md).

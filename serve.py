@@ -479,6 +479,9 @@ STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js"
                 "/lib/icons/parseh-192.png", "/lib/icons/parseh-512.png",
                 "/lib/icons/parseh-maskable-512.png", "/lib/icons/apple-touch-icon.png",
                 "/lib/decomposition.js", "/lib/decomposition.css", "/lib/wordline.js",
+                # a video's vocabulary line in the books' macros (lib/vocline.js), and the
+                # four buttons that write one, which a reader loads too (lib/vocbuttons.js)
+                "/lib/vocline.js", "/lib/vocbuttons.js",
                 # the card kit: the cut editor and the card sheet's three
                 # destinations, shared by the reader and the player
                 "/lib/cardkit.js", "/lib/cardkit.css",

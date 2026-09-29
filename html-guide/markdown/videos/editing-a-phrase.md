@@ -49,7 +49,7 @@ The fields are named the way this video's language names them:
 | **words** (Japanese, Chinese) | the phrase divided into words, each with its reading — below |
 | **kana** (Japanese) | the reading of the whole phrase |
 | **transliteration**, **pronunciation**, **rōmaji** or **pinyin** | its romanisation, called what the language calls it |
-| **vocabulary** | the vocabulary line: the dictionary form, the root, what it is made of |
+| **vocabulary** | the vocabulary line: the dictionary form, the root, what it is made of — plain text, or in the books' entries ([below](#the-vocabulary-box)) |
 | the gloss language's name (**english**, **italian**…) | what the phrase means here — called **meaning** when the video is glossed in the language it teaches |
 | **the transcript** | the one checkbox: below |
 
@@ -88,6 +88,40 @@ you like: a meaning saved before its transliteration is saved as it is, and
 the checker lists the phrase until the rest is written. What is refused is
 the opposite — emptying, on its own, a box the language requires, which
 would turn a finished gloss into a half-finished one (the refusals, below).
+
+### The vocabulary box {#the-vocabulary-box}
+
+A vocabulary line is plain text, as it always was — `سیب sib apple · چند čand
+how much` — **or** it is written in the books' entries, the same four macros a
+book's line uses. Both are fine in every language, and a video glossed before
+this existed looks exactly as it did.
+
+The box has what the book's chunk sheet has. Over it, **reads as** shows the
+line the way the cloud will set it: a plain line as text, a line in the
+books' entries drawn as the reader draws it — each word of the language in
+its own script and face, its romanisation in italics, a verb with the labels
+its language prints. While a line is not finished it says what is short
+(*\dw needs 2 groups in braces {…} and has 1*). Under the box, four buttons
+write an entry, its braces in place and the cursor in the first:
+
+| Button | Writes | Use it for |
+|---|---|---|
+| **word** `\dw{}{}` | `\dw{word}{romanisation} what it means` | a word as a dictionary lists it — any word that is not a verb |
+| **verb** `\vb{…}` | `\vb{verb}{rom}{form2}{rom}{form3}{rom}{meaning}` | a verb with its principal parts — every verb; the three forms are the language's own |
+| **compound** `\bw{}{}{}` | `\bw{word}{romanisation}{the phrase}` | the base word of a compound verb, run straight onto the verb's entry with nothing between them |
+| **word in a meaning** `\pw{}` | `\pw{word}` | a word of the language inside a meaning, kept the right way round |
+
+Each button says what it is for before you press it. Point at one, or Tab to
+it, and a line opens under the buttons: what kind of entry it is and when to
+use it rather than another, what goes in each pair of braces, in order (for a
+verb, the language's own three forms and the two labels it prints), and an
+example in this video's language, drawn the way it will look. The button's
+tooltip says the same.
+
+Entries are parted by `;`. Beyond the four macros, `\textit`, `\emph` and
+`\nobreak` are allowed, and nothing else spelled with letters. A video's line
+never reaches LaTeX, so `% & # _ $` are ordinary characters in it, unlike in a
+book. A card made of the phrase takes the line as plain text.
 
 ## Deleting a gloss {#deleting-a-gloss}
 
@@ -180,9 +214,12 @@ loses a macron. Whether the column is open is remembered.
 It holds four blocks, in this order:
 
 - **dictionary** — each entry for the phrase's words, with **romanisation →**
-  (into the transliteration), **→ vocabulary** (the word added to the
-  vocabulary line — for a verb, the form in the phrase and then its lemma
-  with its other forms, as a vocabulary line writes a verb) and
+  (into the transliteration), **→ vocabulary** (an entry added to the
+  vocabulary line, in the books' form and parted from what is there by `;` —
+  a `\dw` for a word; for a verb the `\vb` of its lemma with its other forms,
+  the video's colloquial present inside the meaning's parenthesis where the
+  language has one, and — where the phrase holds a form of the verb that the
+  `\vb` does not print — that form named after it, `; here \pw{…}`) and
   **meaning →**. Where the recipe for a verb could not fill something the
   language needs, the row and the button say what is still to write.
   Where the dictionary defines its words in their own language and a
@@ -222,6 +259,7 @@ open with your text in it.
 | *segment 1 (start 6): chunks do not reproduce the text* (with the two texts under it) | the text changed. Marks are set aside first, so vowelling goes through, and changing a word or a stop does not. Moving a word to the next phrase is not one phrase's edit: it is a boundary moving ([Cutting and joining](cutting-and-joining.md)). A misheard word is what **the transcript** box is for |
 | *segment 4 (start 21) chunk 1: a glossed phrase needs its meaning -- check_annotations.py calls an empty en an error; empty every box of the gloss ("delete gloss") to take the whole gloss off* | you emptied, on its own, a field the language requires. The same goes for the transliteration where the language romanises every phrase (*Persian romanises every phrase, so tr cannot be emptied on its own*) and for the kana of a Japanese phrase. Emptying **every** box at once is allowed — that is **delete gloss** — and the vocabulary may always be emptied. Filling a box is never refused for what is still empty beside it |
 | *segment 2 (start 12) chunk 1: the words do not reproduce the text: …* | Japanese, Chinese: the text changed and the words did not — change both in one save |
+| *segment 3 (start 15) chunk 0: voc uses \foo, which is not one of the books' vocabulary macros -- a line may hold \bw, \dw, \emph, \nobreak, \pw, \textit, \vb and nothing else* | a vocabulary line with a macro in it is checked as a book's is: only those macros, braces that balance, and every macro its groups (*voc leaves 1 brace open*, *voc closes a brace it never opened*, *\vb needs 7 groups in braces and has 5*). A line with no macro in it is plain text and is never looked at |
 | *no chunk 3 in segment 4: there are 2* | the page is out of date: the file was changed elsewhere since it was drawn. Reload rather than let a neighbouring phrase be edited by mistake |
 | *the edit was refused* / *the server did not answer* | the server is stopped or could not be reached; nothing was written |
 

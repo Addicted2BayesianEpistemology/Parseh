@@ -73,7 +73,7 @@ records how the worker built and called it and can be told to fail the ways a
 graphics card fails, so that no test needs a model, CUDA or PyAV. Its "film"
 is a 16-bit WAV under any name; the real decoder is PyAV's.
 
-## Cases: `verbs/`, `align/`, `wordline.json`
+## Cases: `verbs/`, `align/`, `wordline.json`, `vocline.json`
 
 - `verbs/<code>.json`: conjugation rows cut from Wiktionary, through the
   kaikki.org extracts. **CC BY-SA 4.0**, as Wiktionary's text is;
@@ -83,3 +83,7 @@ is a 16-bit WAV under any name; the real decoder is PyAV's.
   sentences from Tatoeba (**CC BY 2.0 FR**), with dictionary lookups from
   Wiktionary (**CC BY-SA 4.0**). Its `_source` key says so.
 - `wordline.json`: cases of the word line's grammar, written for the tests.
+- `vocline.json`: cases of a vocabulary line in the books' macros, read and
+  drawn by the reader's code and by `lib/vocline.js` alike; written for the
+  tests, the expected values worked out by the reader's code and read through
+  by hand.

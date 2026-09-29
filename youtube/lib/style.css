@@ -484,6 +484,19 @@ html[data-theme=dark]{
 /* the fields that hold target text, in its face; their direction is the
    dir attribute the script sets, and only for a right-to-left language */
 #cloud .ef.tl{font-family:var(--tl-font,serif);font-size:17px;line-height:1.9}
+/* THE VOCABULARY ROW: what the line reads as, drawn as the reader draws it
+   (lib/vocline.js) and set like the cloud's own vocabulary line, over the box
+   it is read from.  The caption is not decoration: a bordered box above a
+   textarea reads as a second box to type in unless something says it is a
+   rendering.  The four buttons under the box are lib/vocbuttons.js's. */
+#cloud .evcap{color:var(--faint);font-size:10.5px;letter-spacing:.06em;
+  text-transform:uppercase;margin-bottom:2px}
+#cloud .evnow{font-size:var(--yt-gl,12.5px);color:var(--dim);line-height:1.5;
+  padding:5px 8px;margin-bottom:6px;border:1px dashed var(--rule);border-radius:6px}
+#cloud .evnow i{color:var(--ink)}
+#cloud .evnow .none{color:var(--faint);font-style:italic}
+#cloud .evnow .bad{color:var(--danger);font-style:italic}
+#cloud .evrow .efnote{margin-top:6px}
 /* the save wears the accent, and has to name the row to get it: the row's
    own "#cloud .mkrow button" carries a type selector and outweighs a bare
    class -- the same trap the anki dashboard's buttons fell into */

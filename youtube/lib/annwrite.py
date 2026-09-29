@@ -616,7 +616,7 @@ def _split(ch, at, L, seg, i):
     (_unseeded)."""
     bare, field = _unseeded(ch, L)
     try:
-        a, b, why = chunkdiv.split(bare, at, L, chunkdiv.PLAIN)
+        a, b, why = chunkdiv.split(bare, at, L, chunkdiv.AUTO)
     except wordline.WordsError as e:
         raise ValueError("segment %d chunk %d: its words cannot be divided "
                          "until the line is mended -- %s" % (seg, i, e))
@@ -631,9 +631,9 @@ def _join(a, b, L):
     ba, fa_ = _unseeded(a, L)
     bb, fb_ = _unseeded(b, L)
     if (fa_ or fb_) and unwritten(a, L) and unwritten(b, L):
-        one, notes = chunkdiv.merge(ba, bb, L, chunkdiv.PLAIN)
+        one, notes = chunkdiv.merge(ba, bb, L, chunkdiv.AUTO)
         return _seeded(one, fa_ or fb_, L), notes
-    return chunkdiv.merge(a, b, L, chunkdiv.PLAIN)
+    return chunkdiv.merge(a, b, L, chunkdiv.AUTO)
 
 
 def _asked(side, name):
@@ -747,9 +747,10 @@ def merge_chunks(video_dir, seg, chunk, fields=None):
     `fields` is the joined chunk, whole; when it is None chunkdiv.merge works
     it out -- the texts end to end with the language's word separator, the
     romanisations and meanings with a space, the vocabulary with its own
-    middle dot -- and its notes come back with the answer.  A colour the two
-    did not share, and anything else that could not simply be put end to end,
-    is named there rather than lost quietly.
+    separator (a middle dot for a plain line, a semicolon once the line holds
+    one of the books' macros) -- and its notes come back with the answer.  A
+    colour the two did not share, and anything else that could not simply be
+    put end to end, is named there rather than lost quietly.
 
     Returns {segment, chunks, count, what, index, notes}: `chunks` is the
     segment's whole new list, because every chunk after the join has moved and
@@ -847,7 +848,7 @@ def divide_preview(video_dir, seg, chunk):
     ch = chunks[i]
     out = {"segment": seg, "index": i, "chunk": ch, "cuts": [], "next": None,
            "merge": None, "merge_error": None,
-           "voc_sep": chunkdiv.VOC_SEP[chunkdiv.PLAIN],
+           "voc_sep": chunkdiv.VOC_SEP[chunkdiv.style_of(ch.get("voc"))],
            "pieces": chunkdiv.pieces(ch.get("fa") or "", L)}
     for c in chunkdiv.cuts(ch.get("fa") or "", L):
         a, b, notes = _split(ch, c["at"], L, seg, i)
@@ -856,7 +857,7 @@ def divide_preview(video_dir, seg, chunk):
                             "first": _order(a), "second": _order(b),
                             "notes": notes,
                             "entries": chunkdiv.entries_for(ch, c["at"],
-                                                            L, chunkdiv.PLAIN)})
+                                                            L, chunkdiv.AUTO)})
     if i + 1 < len(chunks):
         nxt = chunks[i + 1]
         out["next"] = nxt if isinstance(nxt, dict) else None

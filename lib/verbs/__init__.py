@@ -20,6 +20,7 @@ rows, in every shape a reader might want it:
 
     hit["vb"] = {
       "tex":   "\\vb{andare}{}{vado}{}{andato}{}{to go (aux. \\pw{essere})}",
+      "tex_video": "\\vb{andare}{}{vado}{}{andato}{}{to go (aux. \\pw{essere})}",
       "plain": "andare · pres. vado · p.p. andato · to go (aux. essere)",
       "here":  "vado (andare · pres. vado · p.p. andato · to go (aux. essere))",
       "line":  "pres. vado · p.p. andato · aux. essere",
@@ -28,11 +29,16 @@ rows, in every shape a reader might want it:
       "meaning": "to go", "reading": "", "notes": [],
       "complete": true, "missing": [], "compound": null}
 
-`tex` goes into a book's vocabulary line; `plain` is the lemma's entry in a
-video's, which is plain text, and `here` the same entry hung on the word the
-chunk actually has, with that word's own sound where anything says it; `line`
-is shown under the hit in the reading panel, and `notes` beside it -- hints
-that are not missing (Arabic's other masdars).
+`tex` goes into a book's vocabulary line, and `tex_video` into a video's,
+which may hold the books' macros: it is `tex` with what only a video says
+added in the meaning's parenthesis (Persian's colloquial present), its words
+bare where a video's are (Arabic), and -- where the chunk's word is none of
+the three forms the \\vb prints -- the chunk's own form named after it as the
+books name one, `; here \\pw{vint} \\textit{vẽ}`.  `plain` is the lemma's entry
+as a video's plain-text line has it, and `here` the same entry hung on the word
+the chunk actually has, with that word's own sound where anything says it;
+`line` is shown under the hit in the reading panel, and `notes` beside it --
+hints that are not missing (Arabic's other masdars).
 
 `compound` IS THE VERB THAT IS MORE THAN ONE WORD, whole: Persian's فکر
 کردن, Turkish's teşekkür etmek, Hindi's conjunct काम करना, French's
@@ -47,6 +53,7 @@ entry for one verb, and `compound` is that entry, written both ways:
         "sound": "fekr kardan", "mean": "to think",
         "bw":    "\\bw{فکر}{fekr}{to think}",
         "tex":   "\\vb{کردن}{kardan}{کن}{kon}{کرد}{kard}{}\\bw{فکر}{fekr}{to think}",
+        "tex_video": "\\vb{کردن}{kardan}{کن}{kon}{کرد}{kard}{(coll. \\pw{می‌کنم} \\textit{mi-konam})}\\bw{فکر}{fekr}{to think}",
         "plain": "فکر کردن fekr kardan to think (کردن kardan · pres. کن kon · past کرد kard)",
         "complete": true, "missing": []}
 
@@ -1141,6 +1148,20 @@ def compose(code, parts, word="", of_form="", gloss="en", meaning=""):
         runs += [("txt", " · ")] + _runs(vslot)
     plain = _flatten(video(runs))
 
+    # THE BOOK'S \vb, FOR A VIDEO: a video's vocabulary line may hold the books'
+    # macros, and the entry that goes into it is the book's own -- with what
+    # only a video says added in the meaning's parenthesis (Persian's
+    # colloquial present), and its words written bare where a video's are
+    # (Arabic).  It is `tex` where a video adds nothing, and it reads back to
+    # `plain` (texparse.voc_text), which is what holds the two to each other.
+    def vword(f):
+        return strip_marks(f, L) if bare else f
+
+    def vpieces(pieces):
+        return [p if p[0] == "txt" else (p[0], vword(p[1]), p[2]) for p in pieces]
+    vb_video = "\\vb{%s}{%s}{%s}{%s}{%s}{%s}{%s}" % (
+        vword(f1), s1, vword(f2), s2, vword(f3), s3, _tex(vpieces(vslot)))
+
     w, of = sanitise(lookup._bare(word or "", L)), sanitise(of_form)
     if w and not _same_word(w, f1, L):
         # THE WORD'S OWN SOUND FROM THE \vb ITSELF, where the word is one of
@@ -1164,14 +1185,34 @@ def compose(code, parts, word="", of_form="", gloss="en", meaning=""):
     else:
         here = plain
 
+    # AND THE CHUNK'S OWN FORM AFTER THE ENTRY, as the books name one: `; here
+    # \pw{vint} \textit{vẽ}` (docs/lang/zh.md writes it so; fr.md puts the same
+    # note inside the meaning, after its parenthesis, and the two read alike).
+    # It goes OUTSIDE the \vb because the description a person adds after it
+    # ("past historic") is typed at the end of the line, where the sidebar's
+    # entry leaves the caret.  A video's older line hung the form in front and
+    # the entry in brackets after it (`here`); the books put the entry first.
+    # Only a form that is none of the three the \vb prints is named -- the
+    # entry already shows the others, and the ones its parenthesis names
+    # (`p.r. \pw{accadde}`), and a bare Arabic word that is letter for letter
+    # one of them.
+    tex_video = vb_video
+    printed = {vword(f) for f in (f1, f2, f3) if f}
+    if w and not _same_word(w, f1, L) and vword(w) not in printed \
+            and not any(f and _spelt_as(w, f, L) for f, _s in ((f2, s2), (f3, s3))) \
+            and not any(p[0] == "tl" and _same_word(w, p[1], L) for p in vslot):
+        tex_video += "; here \\pw{%s}%s" % (vword(w), (" \\textit{%s}" % of) if of else "")
+
     bits = [_flatten([("txt", lab + " "), ("fa", f), ("em", s)])
             for f, s, lab in ((f2, s2, lab2), (f3, s3, lab3)) if f]
     shown = [_flatten(_runs(e)) for e in extras]
     missing = [sanitise(x) for x in _listed(parts.missing) if sanitise(x)]
     compound = _compound(parts.compound, video, pairs, (lab2, lab3), tex)
+    if compound:
+        compound["tex_video"] = vb_video + compound["bw"]
     notes = [n for n in (_flatten(_runs(_pieces(x))) for x in _listed(parts.notes))
              if n]
-    return {"tex": tex, "plain": plain, "here": here,
+    return {"tex": tex, "tex_video": tex_video, "plain": plain, "here": here,
             "line": " · ".join(bits + shown),
             "lemma": f1,
             "parts": [[f, s] for f, s in pairs],
