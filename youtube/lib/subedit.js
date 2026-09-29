@@ -178,12 +178,11 @@
       'Copy the prompt into any model, then paste its whole answer here. What comes ' +
       'back is read as an ordinary transcript, so look it over before using it \u2014 ' +
       'a model may mend a misheard word, and may invent one.'));
-    var llmRow = el('div', 'se-llmrow');
-    var copyBtn = button('copy the prompt again', {'class': 'se-btn se-quiet'});
+    // copy the prompt and its size: drawn by lib/llmrow.js, once the prompt is
+    // made.  Its own words are the note above, so it adds none
+    var llmMount = el('div', 'se-llmrow');
+    llm.appendChild(llmMount);
     var llmStat = el('span', 'se-stat');
-    llmRow.appendChild(copyBtn);
-    llmRow.appendChild(llmStat);
-    llm.appendChild(llmRow);
     var answer = el('textarea', 'se-answer');
     answer.rows = 4;
     answer.placeholder = '0:08\n\u2026the answer, pasted whole\u2026';
@@ -194,6 +193,7 @@
     var llmFoot = el('div', 'se-llmrow');
     llmFoot.appendChild(useAnswer);
     llmFoot.appendChild(dropAnswer);
+    llmFoot.appendChild(llmStat);
     llm.appendChild(llmFoot);
     box.appendChild(llm);
 
@@ -223,6 +223,7 @@
       return -1;
     }
     function paintOrder() {
+      llmRow.invalidate();
       var bad = outOfOrder();
       Array.prototype.forEach.call(list.children, function (row, i) {
         row.classList.toggle('se-wrong', i === bad);
@@ -278,7 +279,7 @@
       text.value = c.text;
       text.dir = 'auto';
       text.setAttribute('aria-label', 'caption ' + (i + 1) + ', what is said');
-      text.addEventListener('input', function () { c.text = text.value; fit(text); });
+      text.addEventListener('input', function () { c.text = text.value; fit(text); llmRow.invalidate(); });
       row.appendChild(text);
 
       var acts = el('span', 'se-acts');
@@ -418,31 +419,41 @@
     }
     tidyBtn.addEventListener('click', tidyUp);
 
-    var thePrompt = '';
-    function askPrompt(again) {
-      var was = caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
-      if (thePrompt && again) { copyOut(); return; }
-      say('writing the prompt\u2026');
-      post('/api/transcript', {lang: lang, prompt: true, captions: was}).then(function (j) {
-        if (done) return;
-        if (!j.ok) { say(j.error || 'the prompt could not be written', true); return; }
-        thePrompt = j.prompt || '';
-        llm.hidden = false;
-        say('');
-        copyOut();
-        answer.focus();
-      }, function (err) { if (!done) say(err.message || String(err), true); });
+    /* THE PROMPT, made when the panel is opened and held by the row, which says
+       how long it is BEFORE the copy.  The captions change under it in a dozen
+       ways -- a nudge, a word typed, a cut, a join -- so the row is told at the
+       ones it can see (paintOrder, a keystroke) and asks, at a press, whether
+       what it holds is still what the captions say (`fresh`).  The prompt is a
+       fenced transcript: the row copies it as it is, line breaks and all. */
+    function capsKey() {
+      return JSON.stringify(caps.map(function (c) { return [c.start, c.text]; }));
     }
-    function copyOut() {
-      // raw: the prompt is a fenced transcript, and squeezing its whitespace
-      // would hand the model one unreadable line (lib/parseh.js says so)
-      if (window.Parseh && Parseh.copy) Parseh.copy(thePrompt, true);
-      llmStat.textContent = 'copied \u00b7 ' + thePrompt.length + ' characters';
-      llmStat.classList.remove('se-bad');
-    }
-    llmBtn.addEventListener('click', function () { askPrompt(false); });
-    copyBtn.addEventListener('click', function () { askPrompt(true); });
-    dropAnswer.addEventListener('click', function () { llm.hidden = true; });
+    var madeFrom = '';
+    var llmRow = window.ParsehLLMRow ? ParsehLLMRow.mount(llmMount, {
+      surface: 'transcript-tidy', cls: 'se-btn se-quiet', remind: '',
+      getText: function () {
+        var key = capsKey();
+        var was = caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
+        return post('/api/transcript', {lang: lang, prompt: true, captions: was}).then(function (j) {
+          if (!j.ok) throw new Error(j.error || 'the prompt could not be written');
+          madeFrom = key;
+          return j.prompt || '';
+        });
+      },
+      fresh: function () { return capsKey() === madeFrom; },
+      measure: function () { return !done && !llm.hidden; }
+    }) : (function () {
+      llmMount.textContent = 'the prompt helper could not be loaded';
+      var no = function () {};
+      return {refresh: no, invalidate: no, forget: no, el: llmMount};
+    }());
+    llmBtn.addEventListener('click', function () {
+      llm.hidden = false;
+      llmRow.refresh();
+      var copyNow = llmMount.querySelector('.llmrow-copy');
+      if (copyNow) copyNow.focus();
+    });
+    dropAnswer.addEventListener('click', function () { llm.hidden = true; llmRow.forget(); });
     useAnswer.addEventListener('click', function () {
       var text = answer.value.trim();
       if (!text) { llmStat.textContent = 'paste the answer first'; llmStat.classList.add('se-bad'); answer.focus(); return; }

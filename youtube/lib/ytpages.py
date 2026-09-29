@@ -2244,13 +2244,15 @@ ADD_PAGE_HEAD = r'''
   <span class="fieldnote">A per-family list that keeps the transliteration consistent with the
     videos already here. Only the prompt uses it.</span>
   <div class="row">
-    <button type="button" class="wbtn" id="prepare">Prepare &amp; copy the prompt</button>
+    <button type="button" class="wbtn" id="prepare">Prepare the prompt</button>
     <span id="pstat" class="stat"></span>
   </div>
   <div id="pinfo" class="note" aria-live="polite" hidden></div>
-  <details id="pshow" hidden><summary>The prompt, as copied</summary>
+  <!-- copy the prompt and its size, which are said once it is prepared: drawn by
+       /lib/llmrow.js, the one place these controls are built -->
+  <div id="prow" hidden></div>
+  <details id="pshow" hidden><summary>The prompt, as it will be copied</summary>
     <textarea id="prompt" rows="14" readonly spellcheck="false"></textarea>
-    <div class="row"><button type="button" class="wbtn small quiet" id="copyagain">copy again</button></div>
   </details>
   </div>
 </section>
@@ -2430,6 +2432,21 @@ ADD_PAGE_JS = r'''
   // at all, only by whether the URL box happened to be empty.
   var SRC = '', BY = '';
   var PROMPT = '';
+  // THE ROW OF CONTROLS AROUND THE PROMPT (/lib/llmrow.js).  What a press of
+  // "Prepare the prompt" makes is held by it: it says the size, and the press
+  // on "copy the prompt" that follows puts on the clipboard the very text the
+  // box below shows.  Without its script there is nothing to copy with, and
+  // the page says so.
+  var promptRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('prow'), {
+    surface: 'video-new', cls: 'wbtn',
+    ids: {copy: 'pcopy', size: 'psize', say: 'pcopysay'},
+    remind: 'paste it into a chatbot, then paste its whole answer in step 4 below.',
+    box: function () { $('pshow').open = true; return $('prompt'); }
+  }) : (function () {
+    $('prow').textContent = 'the prompt helper could not be loaded';
+    var no = function () {};
+    return {update: no, forget: no};
+  }());
   // The id a local film's video will have, given by `prepare` and handed
   // back to `add`, so the prompt's `id:` line and the directory finally
   // written are the same id.
@@ -2506,6 +2523,7 @@ ADD_PAGE_JS = r'''
   // goes with them.
   function forgetPrompt() {
     PROMPT = ''; $('pshow').hidden = true; $('pshow').open = false;
+    $('prow').hidden = true; promptRow.forget();
   }
   // The prompt is built FROM the transcript, the video and the language, so
   // anything that changes one of them makes it stale -- typing in the box, an
@@ -2723,17 +2741,15 @@ ADD_PAGE_JS = r'''
         $('pinfo').innerHTML = '<b>' + esc(j.id) + '</b>' +
           (j.title ? ' — ' + esc(j.title) + (j.channel ? ' (' + esc(j.channel) + ')' : '') : '') +
           ': ' + j.captions + ' captions, ' + j.want + ' to annotate, ' + j.plain + ' plain, ~' +
-          esc(j.duration) + '. Prompt: ' + PROMPT.length + ' characters.' +
+          esc(j.duration) + '.' +
           (j.exists ? '<br>This video is already in the player — adding it again will replace it.' : '');
-        // RAW: Parseh.copy squeezes every run of whitespace to one space,
-        // which is right for a word and destroys a prompt of numbered
-        // captions and fenced JSON.  The second argument asks for the text
-        // exactly as it stands, and keeps the toast and the execCommand
-        // fallback a private clipboard call would have lost.
-        Parseh.copy(PROMPT, true);
+        // NOT COPIED HERE: the row says how long the prompt is first, and the
+        // press on its button copies exactly what the box shows, as it is
+        // (a prompt of numbered captions and fenced JSON keeps its line breaks)
+        $('prow').hidden = false;
+        promptRow.update(PROMPT);
       }).catch(function (e) { $('pstat').textContent = ''; Parseh.toast(String(e), true); });
   };
-  $('copyagain').onclick = function () { if (PROMPT) Parseh.copy(PROMPT, true); };
   // A stray line some copies of the transcript panel repeat on every
   // caption -- a second timestamp, a duration the parser's DURATION regex
   // does not recognise in that panel's language -- falls at the same
@@ -2962,7 +2978,8 @@ def add_page():
                      '<link rel="stylesheet" href="%s/lib/addstt.css">\n'
                      '<script src="%s/lib/subedit.js"></script>\n'
                      '<script src="%s/lib/tabcapture.js"></script>\n'
-                     '<script src="%s/lib/addstt.js"></script>\n' % ((BASE,) * 5))
+                     '<script src="%s/lib/addstt.js"></script>\n'
+                     '<script src="/lib/llmrow.js"></script>\n' % ((BASE,) * 5))
     return (head + ADD_PAGE_HEAD.replace("__GLOSSARIES__", gl)
                 .replace("__HOWS__", hows).replace("__LANGS__", langs)
                                 .replace("__GLOSSES__", glosses)

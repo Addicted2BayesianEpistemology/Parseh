@@ -73,6 +73,8 @@
   border-radius:8px;background:var(--se-boxbg)}
 .se-llmnote{font-size:12px;line-height:1.5;color:var(--se-dim);margin-bottom:6px}
 .se-llmrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 0}
+/* the row that copies the prompt (lib/llmrow.js) takes the width of the box it stands in */
+.se-llmrow .llmrow{flex:1 1 100%;margin:0}
 .se-box textarea.se-answer{width:100%;margin-top:6px;font:inherit;font-size:12.5px;
   line-height:1.5;padding:5px 7px;border:1px solid var(--se-rule);border-radius:6px;
   background:var(--se-card);color:var(--se-ink);resize:vertical}
