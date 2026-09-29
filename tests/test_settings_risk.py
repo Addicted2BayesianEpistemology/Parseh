@@ -537,7 +537,7 @@ class Served(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertIn('id="pr-state"', page)
             self.assertIn("any device let in", page)
-            self.assertNotIn("changed on the computer only", page.split("<main", 1)[1])
+            self.assertNotIn('class="lockline"', page, "no lock line on this door, for a phone either")
             status, _, got = self.ask("POST", "/settings/api/update/apply", {})
             self.assertEqual(status, 403, "an update is still the computer's alone")
         finally:

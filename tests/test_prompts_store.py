@@ -520,6 +520,12 @@ class ResolvingAnId(Stored):
         self.assertIn("### The per-paragraph JSON", whole, "the whole prompt, the JSON's part too")
         self.assertNotIn("{{?", whole)
 
+    def test_the_blocks_a_text_uses_are_told_apart_from_the_marks_of_the_parts(self):
+        self.assertEqual(P.markers("{{?vocab}}a{{/vocab}} {{?gloss}}{{?vocab}}b{{/vocab}}{{/gloss}} {{LANGUAGE}}"),
+                         ["gloss", "vocab"])
+        self.assertEqual(P.markers("No boxes here, {{LANGUAGE}}."), [])
+        self.assertEqual(P.markers("{{?contract}}x{{/contract}}{{?data}}y{{/data}}"), [])
+
     def test_the_editor_is_told_what_stays_parsehs_under_the_text(self):
         info = P.parseh("video-region")
         self.assertEqual(info["contract"], K.contract("video-region"))

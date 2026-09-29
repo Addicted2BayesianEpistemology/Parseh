@@ -608,6 +608,13 @@ def resolve(surface, prompt_id, lang=None):
     return Chosen(p["id"], p["name"], p["kind"], p["text"], _instructions(p))
 
 
+def markers(text):
+    """The blocks a person's text uses, `{{?name}}`: for the studio's prompt, the
+    boxes it takes -- a prompt in place of Parseh's that carries none of the boxes'
+    markers is copied whole."""
+    return sorted(set(_FLAG.findall(text)) - set(promptkit._MARKS))
+
+
 def instructions_for(surface, prompt_id, lang=None):
     """The instructions to hand the kit for `prompt=<id>` (see resolve), None
     where none was asked for.  For a book from scratch it is the whole prompt,
