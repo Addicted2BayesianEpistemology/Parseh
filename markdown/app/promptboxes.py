@@ -430,7 +430,16 @@ def page_uses(markdown):
     for box, pattern in _USES:
         if pattern.search(text):
             found.add(box)
-    if re.search(r"\]\{\s*(?:tl|%s)\b" % re.escape(L.code), text) or "⏎" in text:
+    mark = r"\]\{\s*(?:tl|%s)\b" % re.escape(L.code)
+    if L.chars:
+        # a language with a script of its own: a run marked `{tl}` holds a Latin word, which the box teaches
+        wrote = re.search(mark, text)
+    else:
+        # a Latin-script target marks EVERY run (taught to it always): only a block, a tint or a line break is the box's
+        alone = re.compile(r"\[[^\[\]]+\]\{\s*(?:tl|%s)\b[^{}]*\}" % re.escape(L.code))
+        wrote = re.search(mark + r"[^{}]*\b(?:bg|font|vertical)\b", text) \
+            or any(b["type"] == "para" and alone.fullmatch(b["text"].strip()) for b in blocks)
+    if wrote or "⏎" in text:
         found.add("blocks")
     if L.chars and any(c in text for c in OWN_CHARS.get(L.script, "")):
         found.add("punct")

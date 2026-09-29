@@ -1607,7 +1607,12 @@ class ExerciseRoutes(ControlledMachine):
 
     def test_what_the_page_uses_is_ticked_and_named_by_the_parser(self):
         a = self.post(markdown=self.PAGE).answer
-        self.assertEqual(a["preticked"], {"boxes": ["gloss", "blocks", "tables", "emphasis"], "types": ["fill-blanks"]})
+        # a Latin-script target marks every run `[bello]{tl}`, which its prompt always teaches: that is no box
+        self.assertEqual(a["preticked"], {"boxes": ["gloss", "tables", "emphasis"], "types": ["fill-blanks"]})
+        block = self.post(markdown="---\ntitle: T\ntarget: it\n---\n\n[Una frase intera.]{tl bg=sand}\n").answer
+        self.assertEqual(block["preticked"]["boxes"], ["blocks"], "a block of its own, and a tint, are the box's")
+        persian = self.post(markdown="---\ntitle: T\ntarget: fa\n---\n\nA phrase [یک فایل PDF]{tl} inside prose.\n").answer
+        self.assertEqual(persian["preticked"]["boxes"], ["blocks"], "a Latin word inside a Persian phrase is the box's")
         self.assertEqual([b["id"] for b in a["boxes"] if b["on"]], a["preticked"]["boxes"])
         self.assertEqual([t["id"] for t in a["types"] if t["on"]], ["fill-blanks"])
         self.assertEqual([t["id"] for t in a["types"]], list(promptboxes.TYPE_IDS))
@@ -1617,6 +1622,56 @@ class ExerciseRoutes(ControlledMachine):
         self.assertFalse([b for b in a["boxes"] if b["id"] in ("exercises", "rtl") and b["shown"]])
         self.assertIn("`fill-blanks` — `text:` contains `[[slot]]`", a["prompt"])
         self.assertNotIn("`order-sentences`", a["prompt"])
+
+    RICH = """---
+title: Persian
+target: fa
+---
+
+## کتاب | ketāb | from Arabic | = *book*
+
+The word [کتاب]{crimson translit:ketāb} = *book*, and a [PDF فایل]{tl} inside a phrase.[^1] A list, a link and a wrong form:
+
+- **one** [the site](https://example.org/x) ✗کتابا
+- two ^[an inline note]
+
+| a | b |
+|---|---|
+| 1 | 2 |
+
+> a box with a formula [x^2]{math}
+
+[Set apart.]{la bg=sage}
+
+:::math
+a+b
+:::
+
+::::latex
+\\ce{H2O}
+::::
+
+![a map](images/map.png)
+
+[^1]: A note.
+
+Three words: کند، آهسته، یواش.
+"""
+
+    def test_a_page_that_uses_every_feature_ticks_every_box_the_dialog_offers(self):
+        a = self.post(markdown=self.RICH).answer
+        offered = [b["id"] for b in a["boxes"] if b["shown"]]
+        self.assertEqual(a["preticked"]["boxes"], offered)
+        self.assertNotIn("reading", offered, "a Persian page has no reading to teach")
+        self.assertEqual(sorted(set(promptboxes.BOX_IDS) - set(offered)), ["exercises", "reading", "rtl"])
+        # and each was found by what it is: the parser's blocks, and the marks the page carries
+        for box in offered:
+            with self.subTest(box=box):
+                self.assertIn(box, promptboxes.page_uses(self.RICH)[0])
+
+    def test_a_page_that_uses_nothing_ticks_nothing_and_a_document_of_prose_is_prose(self):
+        self.assertEqual(promptboxes.page_uses("---\ntitle: T\ntarget: en\n---\n\nJust a paragraph of English prose.\n"), ([], []))
+        self.assertEqual(promptboxes.page_uses("Prose only, no front matter.")[0], [])
 
     def test_a_page_with_no_exercise_ticks_every_type_and_the_person_may_choose(self):
         page = "---\ntitle: T\ntarget: it\n---\n\nLesson\n"
@@ -1676,6 +1731,65 @@ class ExerciseRoutes(ControlledMachine):
                 h = PathHandler("/api/exercise-decks?target=it")
                 studio_server.api_exercise_decks(h)
                 self.assertEqual(h.answer["decks"], [])
+
+
+class AddedScriptLanguage(ControlledMachine):
+    """Korean, added the way a person adds a language with a script of its own (`--script other --chars`): no row
+    for its script in the studio's table of marks, no alternate face, no reading.  Every prompt of the studio
+    has to be made for it, in words that are true of it and of no other language."""
+
+    @classmethod
+    def setUpClass(cls):
+        tmp = tempfile.mkdtemp(prefix="promptkit-ko-")
+        cls.addClassCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shipped = os.path.join(tmp, "lib", "languages.json")
+        personal = os.path.join(tmp, "config", "languages.json")
+        lang_docs = os.path.join(tmp, "docs", "lang")
+        os.makedirs(os.path.dirname(shipped))
+        shutil.copy(os.path.join(ROOT, "lib", "languages.json"), shipped)
+        shutil.copytree(os.path.join(ROOT, "lib", "lang"), os.path.join(tmp, "lib", "lang"))
+        shutil.copytree(os.path.join(ROOT, "docs", "lang"), lang_docs)
+        patches = [mock.patch.object(newlang, n, v) for n, v in (
+            ("REGISTRY", shipped), ("PERSONAL", personal), ("LANG_TEX", os.path.join(tmp, "lib", "lang")),
+            ("LANG_DOCS", lang_docs), ("ROOT", tmp), ("STUDIO", os.path.join(tmp, "markdown")))]
+        for p in patches:
+            p.start()
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                rc = newlang.main(["ko", "--name", "Korean", "--native", "한국어", "--script", "other",
+                                   "--chars", "가-힣ᄀ-ᇿ"])
+        finally:
+            for p in patches:
+                p.stop()
+        assert rc == 0, "newlang could not add the language: %s" % out.getvalue()[-400:]
+        langs, problems = languages._load(shipped, personal)
+        assert "ko" in langs and not problems, problems
+        for p in [mock.patch.dict(languages.LANGS, {"ko": langs["ko"]}),
+                  mock.patch.dict(languages.FOLDERS, {langs["ko"].folder: "ko"}),
+                  mock.patch.object(K, "LANG_DOCS", lang_docs)] + machine_patches():
+            p.start()
+            cls.addClassCleanup(p.stop)
+
+    def test_every_preset_and_the_exercise_prompt_are_made_for_it_in_words_that_are_true_of_it(self):
+        L = languages.get("ko")
+        self.assertEqual((L.script, bool(L.chars), L.reading, L.rtl, L.vertical), ("other", True, False, False, False))
+        self.assertEqual(promptboxes.shown_ids(L), set(promptboxes.BOX_IDS) - {"reading", "rtl"},
+                         "its own script gives it the punctuation box; it has no reading and is not right to left")
+        for p in promptboxes.PRESETS:
+            a = studio_server.studio_prompt(L, boxes=list(p.boxes))
+            self.assertNotIn("{{", a.text, p.id)
+            self.assertIn("this document is about Korean", a.text)
+            for persian in ("Arabic comma", "zero-width non-joiner", "نستعلیق", "{tl font="):
+                self.assertNotIn(persian, a.text, "%s is not true of Korean (%s)" % (persian, p.id))
+        everything = studio_server.studio_prompt(L, boxes=list(promptboxes.BOX_IDS)).text
+        self.assertIn("The target language's own punctuation — the marks its script has of its own —", everything)
+        self.assertIn("the first line of the passage", everything, "a passage is shown with words of no language")
+        self.assertIn("**Text in the target language.** Write it inline as plain Unicode", everything,
+                      "its runs are found by their script, not marked")
+        page, _rows = studio_server.exercise_prompt("---\ntitle: T\ntarget: ko\n---\n\nLesson")
+        self.assertNotIn("{{", page.text)
+        self.assertNotIn("Mixed-direction", page.text)
 
 
 class AnswerShapes(unittest.TestCase):
