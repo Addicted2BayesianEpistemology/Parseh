@@ -149,9 +149,9 @@ reading + meaning.
   stem 書き kaki · -te 書いて kaite · to write (godan; tr.)`; `食べる たべる
   taberu · stem 食べ tabe · -te 食べて tabete · to eat (ichidan; tr.)`; `する`
   and `来る くる` are `irregular`; a **-suru** compound is whole in every slot,
-  `勉強する · stem 勉強し · -te 勉強して · to study (suru)`.{{?book}} The form in the
+  `勉強する · stem 勉強し · -te 勉強して · to study (suru)`. The form in the
   text is tied to it: `書いて · 書く, te-form`; `食べました · 食べる, past
-  polite`.{{/book}}
+  polite`.
 - An **adjective** names its class: `高い たかい (i-adj.) · high, expensive`;
   `静か しずか (na-adj.) · quiet`.
 - A **noun** is `漢字 かんじ · Chinese character`; a counter is named as such
@@ -162,19 +162,10 @@ reading + meaning.
 - Name what was stripped: the honorific `お`/`ご`, the plural `たち`, the
   nominaliser `の`/`こと`, the copula, the sentence-final particles (`ね`,
   `よ`).
-{{?video}}- In a video the line is written exactly as in a book, with the macros
-  below and entries parted by `; `; a line with no macro at all is plain text,
-  and is also accepted. Japanese script inside it is fine — the player shows it
-  in the target font — and, as in a book, a headword takes its rōmaji and never
-  its kana, unlike the plain entries above: the chunk's `kana` and `words` carry
-  the reading. A form of the verb in the chunk that is none of its three is
-  named after the entry, not inside it, with its sound and then what it is —
-  `\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}; here
-  \pw{食べました} \textit{tabemashita}, past polite`.
-{{/video}}- {{?book}}In a book the line{{/book}}{{?video}}The line{{/video}} uses
-  the four macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`, `\emph`,
-  `\nobreak`), as the Persian editions do: `\vb` for every verb, `\dw` for
-  every other headword. The seven slots of `\vb` are, in this order,
+- The line uses the four macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`,
+  `\emph`, `\nobreak`), as the Persian editions do, and its entries are
+  parted by `; `: `\vb` for every verb, `\dw` for every other headword. The
+  seven slots of `\vb` are, in this order,
   **dictionary form, -masu stem, -te form**, each with its rōmaji and never
   with kana (the chunk's kana line carries the reading), then the meaning —
   `\vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}` — and
@@ -197,7 +188,17 @@ reading + meaning.
   `\vb{来る}{kuru}{来}{ki}{来て}{kite}{to come (irregular; intr.)}`,
   `\vb{いらっしゃる}{irassharu}{いらっしゃい}{irasshai}{いらっしゃって}{irasshatte}{to
   come, to go, to be (godan; intr.; hon.)}`.
-- The gloss editor's sources sidebar, in the reader and in the player, now
+{{?video}}- A video's line is written exactly as a book's; a line with no macro at
+  all is plain text, and is also accepted. Japanese script inside it is fine —
+  the player shows it in the target font — and, as in a book, a headword takes
+  its rōmaji and never its kana (the chunk's `kana` and `words` carry the
+  reading), whatever the first bullets of this section show. What a video adds
+  is the form its chunk has, where it is none of the three the `\vb` prints, nor
+  one its parenthesis names: it is named after the entry, outside it, with its
+  sound,
+  `\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}; here
+  \pw{食べました} \textit{tabemashita}, past polite`.
+{{/video}}- The gloss editor's sources sidebar, in the reader and in the player, now
   proposes this entry from the dictionary for a verb it recognises: the
   three forms with the rōmaji the dictionary gives them (the -te form is its
   past with た made て, 書いた kaita → 書いて kaite), the class it records,
