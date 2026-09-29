@@ -80,7 +80,8 @@ manager: nothing in Parseh ever does it.
 
 The **＋ Add a book** card opens `/books/add/`, which offers three ways to
 begin a book: writing it here by hand, adding text to a book already on the
-shelf, or handing the work to an LLM outside Parseh.
+shelf, or having an agent you choose make it in a folder Parseh prepares, while
+the book grows on this page ([A book made by an agent](doc:A book made by an agent)).
 [Adding a book](doc:Adding a book) walks through all three.
 
 ## ⇩ Bring a book back
