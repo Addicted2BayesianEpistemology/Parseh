@@ -13,6 +13,7 @@
 <script src="/lib/wordtouch.js" defer></script>
 <script src="/lib/wordline.js"></script>
 <script src="/lib/llm.js"></script>
+<script src="/lib/llmrow.js"></script>
 <script src="/lib/mt.js"></script>
 <link rel="stylesheet" href="/lib/decomposition.css">
 <script src="/lib/decomposition.js"></script>
@@ -165,15 +166,12 @@
   <div class="anote rgcnote">its glosses are not sent, and the answer replaces them</div>
   <label class="rgchk"><input type="checkbox" id="rgperfield"> also fill the empty boxes of partly glossed chunks</label>
   <div class="anote rgcnote">otherwise a chunk with any gloss is left exactly as it is</div>
-  <div class="rgact">
-    <button type="button" id="rgcopy">copy the prompt</button>
-  </div>
+  <!-- copy the prompt, its size, what to do next, and the prompt itself to copy
+       by hand where the clipboard is refused: drawn by lib/llmrow.js, which
+       player.js mounts here (the ids of its parts are the ones this panel
+       had: #rgcopy, #rgpromptrow, #rgprompt) -->
+  <div id="rgrow"></div>
   <div id="rgsum" role="status"></div>
-  <!-- the prompt, where the clipboard could not be reached: to copy by hand -->
-  <div id="rgpromptrow" hidden>
-    <textarea id="rgprompt" rows="5" readonly></textarea>
-    <div class="anote">the clipboard could not be reached: select this and copy it</div>
-  </div>
   <label class="rglab" for="rgans">the LLM's answer</label>
   <textarea id="rgans" rows="5" spellcheck="false"
     placeholder="paste the LLM's reply here, as it came — several messages one under the other"></textarea>

@@ -373,7 +373,7 @@ console.log(await inPage(`
   await until(() => document.querySelector('#chsrcbody .sword'), 'the sidebar\\'s dictionary');
   const w = document.querySelector('#chsrcbody .sword');
   assert(w.textContent === '二人 ふたり' && w.nextElementSibling.classList.contains('srow'), 'the editor\\'s rows under their word too');
-  await until(() => { const b = document.querySelector('#chside .sllmactions button'); return b && !b.disabled; }, 'the chatbot\\'s corpus pages');
+  await until(() => { const b = document.querySelector('#chside .llmrow-copy'); return b && !b.disabled; }, 'the chatbot\\'s corpus pages');
   sideShow(false); closeChunk();
   return 'Lookup: the cloud, the look-ahead, the sidebar, rows placed by i, keys with the line: passed';
 `));

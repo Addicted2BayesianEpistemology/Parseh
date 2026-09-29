@@ -304,6 +304,15 @@ html[data-lang="zh"] body.aloud .seg .fa>*+.w{margin-inline-start:.3em}
 #cloud .eside .sllmstat{font-size:11px;color:var(--faint)}
 #cloud .eside .sllmstat.bad{color:var(--danger)}
 #cloud .eside .sllmout{margin-top:6px}
+/* the row that copies the prompt (lib/llmrow.js): a small button in the accent,
+   like the ones it stood among, with its size and its reminder under it */
+#cloud .eside .llmrow{margin:0;font-size:11px}
+#cloud .eside .llmrow-bar button{font:inherit;font-size:10.5px;color:var(--accent);
+  background:var(--hl);border:1px solid var(--accent);border-radius:4px;
+  padding:2px 7px;cursor:pointer}
+#cloud .eside .llmrow-bar button:hover{filter:brightness(1.08)}
+#cloud .eside .llmrow-bar button:disabled{opacity:.55;cursor:wait}
+#cloud .eside .llmrow-hand textarea{font-size:10.5px}
 #cloud .esrc{font:inherit;font-size:11px;color:var(--dim);background:var(--bg);
   border:1px solid var(--rule);border-radius:5px;padding:1px 7px;cursor:pointer}
 #cloud .esrc.on{color:var(--accent);border-color:var(--accent)}
@@ -904,6 +913,8 @@ body.sbs #vid iframe,body.sbs #vid video,body.sbs.nopin #vid iframe,body.sbs.nop
   font-size:11.5px;font-feature-settings:'locl' 0}
 #rgpromptrow{margin-top:8px}
 #rgpromptrow[hidden]{display:none}
+/* the row that copies the prompt (lib/llmrow.js) stands where the button did */
+#rgpanel .llmrow{margin:12px 0 0}
 /* what the server answered: the summary under copy, the report under fill --
    each keeps the server's own sentences, and a refusal is in the danger colour */
 #rgsum,#rgreport{font-size:12.5px;line-height:1.5;color:var(--dim);white-space:pre-line}

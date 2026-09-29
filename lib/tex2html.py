@@ -1221,6 +1221,15 @@ body.hovermode .p1 .w:hover,body.hovermode .p1 .w.hot{background:var(--card);
 #chside .sllmstat{font-size:11.5px;color:var(--faint)}
 #chside .sllmstat.bad{color:var(--danger)}
 #chside .sllmout{margin-top:7px}
+/* the row that copies the prompt (lib/llmrow.js): a small button in the accent,
+   like the ones it stood among, with its size and its reminder under it */
+#chside .llmrow{margin:0;font-size:11.5px}
+#chside .llmrow-bar button{font:inherit;font-size:11.5px;color:var(--accent);
+  background:var(--bg);border:1px solid var(--accent);border-radius:5px;
+  padding:3px 8px;cursor:pointer}
+#chside .llmrow-bar button:hover{filter:brightness(1.08)}
+#chside .llmrow-bar button:disabled{opacity:.55;cursor:wait}
+#chside .llmrow-hand textarea{font-size:11px}
 #chsrc.on{color:var(--accent)}
 #cloud .dict .mtout{color:var(--ink)}
 #cloud .dict .mtout .mthere{color:var(--accent);font-weight:600}
@@ -8489,33 +8498,51 @@ function rgPick() {
 }
 const rgFlags = () => ({regloss: $('#rgregloss').checked, perfield: $('#rgperfield').checked});
 const rgN = (k, one, many) => k + ' ' + (k === 1 ? one : many);
-// A prompt the clipboard would not take, kept for the next press of "copy
-// the prompt": a browser that refuses a copy made after a round trip to the
-// server allows one made inside the press itself, before anything is
-// awaited -- Safari refuses the first press every time, so on an iPad this
-// is the ordinary way a prompt reaches the clipboard.  Only for the same
-// stretch and the same two boxes, and only while nothing can have changed
-// what it was made from: the sheet closing lets it go (nothing else in this
-// page that writes a chunk -- the chunk sheet with its save, delete, undo and
-// divide -- can open under it), and so does a fill that wrote something.  Held any longer, a gloss deleted since would
-// go out as context with its old words -- and an answer that echoes them
-// back would write the deleted gloss in again.
-let rgHeld = null;
-const rgKey = p => JSON.stringify([p.lo, p.hi, rgFlags()]);
+// THE ROW OF CONTROLS AROUND THE PROMPT (lib/llmrow.js) asks for the prompt
+// as soon as a stretch is picked, to say its size before the copy, and HOLDS
+// it: a browser that refuses a copy made after a round trip to the server
+// allows one made inside the press itself, before anything is awaited --
+// Safari refuses the first press every time, so on an iPad the press used to
+// fail and the prompt was shown in a box.  Only for the same stretch and the
+// same two boxes, and only while nothing can have changed what it was made
+// from: the pick or a box changing lets it go, so does the sheet closing
+// (nothing else in this page that writes a chunk -- the chunk sheet with its
+// save, delete, undo and divide -- can open under it), and so does a fill
+// that wrote something.  Held any longer, a gloss deleted since would go out
+// as context with its old words -- and an answer that echoes them back would
+// write the deleted gloss in again.  A page without the row's script has no
+// copy button and says so.
+let rgMade = null, rgByHand = false;
+const rgRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('#rgrow'), {
+  surface: 'book-region', cls: {copy: 'primary'},
+  ids: {copy: 'rgcopy', size: 'rgsize', say: 'rgcopysay', hand: 'rgout', handRow: 'rgoutrow'},
+  remind: 'paste it into a chatbot, then paste its whole answer into the box below.',
+  getText: () => rgText(), onCopied: (ok, text) => rgCopied(ok, text),
+  // a press: what was said of the last one is not about this one, and a
+  // confirmation to replace glosses was about what was counted
+  onPress: () => { rgDisarm(); rgSum('', false); },
+  onError: (e, which, press) => { if (press) rgSum(e.message, true); },
+  measure: () => rgShown && !!(rgPicker && rgPicker.get())
+}) : (() => {
+  $('#rgrow').textContent = 'the prompt helper could not be loaded';
+  const no = () => {};
+  return {update: no, forget: no, invalidate: no, disable: no, enable: no};
+})();
 function rgDrop() {
-  if (!rgHeld) return;
-  rgHeld = null;
-  $('#rgout').value = '';
-  $('#rgoutrow').hidden = true;
+  rgMade = null;
+  rgRow.invalidate();
+  if (!rgByHand) return;
+  rgByHand = false;
   rgSum('', false);                 // the line said it was in the box below
 }
 function rgState() {
   const p = rgPicker && rgPicker.get();
-  $('#rgcopy').disabled = !p;
+  if (p) rgRow.enable(); else rgRow.disable('pick a stretch of the book first');
   $('#rgfill').disabled = !p;
   // a confirmation is for what was counted, and that has just changed
   rgDisarm();
-  if (rgHeld && (!p || rgHeld.key !== rgKey(p))) rgDrop();
+  // and so is a prompt made for the stretch and the boxes as they were
+  rgDrop();
 }
 // the stretch picked, as the chunk numbers the server takes -> {first, last},
 // or null when it holds none
@@ -8561,7 +8588,7 @@ function rgSum(text, bad, notes) {
   }
 }
 // what the prompt holds, in the server's words and counts
-function rgSummary(j, copied) {
+function rgSummary(j) {
   const parts = [j.region || ''];
   let much = rgN(j.chunks || 0, 'chunk', 'chunks') + ', ' + (j.fill || 0) + ' to gloss';
   if (j.glossed) much += ', ' + j.glossed + ' glossed sent as context';
@@ -8570,38 +8597,30 @@ function rgSummary(j, copied) {
   // here only if they did not
   if (j.folded && !/folded/.test(j.region || ''))
     parts.push(rgN(j.folded, 'folded paragraph', 'folded paragraphs') + ' left out');
-  // with nothing to gloss nothing is copied, and the server's note says why
-  const said = !j.fill ? 'nothing was copied'
-    : copied ? 'the prompt is on the clipboard: paste it into a chatbot, and its answer '
-               + 'into the box below'
-    : 'not copied — the browser would not put it on the clipboard: it is below, to copy by hand';
-  rgSum(parts.filter(Boolean).join(' · ') + '\n' + said, !!j.fill && !copied, j.notes);
+  // with nothing to gloss nothing is copied, and the server's note says why;
+  // that the prompt reached the clipboard, or is below to copy by hand, is the
+  // row's to say
+  rgSum(parts.filter(Boolean).join(' · ') + (j.fill ? '' : '\nnothing was copied'),
+        false, j.notes);
 }
-async function rgCopy() {
+// THE PROMPT FOR WHAT IS PICKED NOW, made by the server -- a stretch with
+// nothing to gloss gives the row an empty text, and nothing is copied
+async function rgText() {
   const p = rgPicker && rgPicker.get();
-  if (!p) return;
-  const key = rgKey(p), flags = rgFlags();
-  if (rgHeld && rgHeld.key === key) {
-    const held = rgHeld, ok = await Parseh.copy(held.prompt, true);
-    if (ok) { rgHeld = null; $('#rgoutrow').hidden = true; }
-    rgSummary(held.j, ok);
-    return;
-  }
-  const btn = $('#rgcopy');
-  btn.disabled = true;
-  rgSum('writing the prompt…', false);
+  if (!p) return '';
   const range = await rgRange();
-  const j = range ? await rgPost('prompt', Object.assign(range, flags))
+  const j = range ? await rgPost('prompt', Object.assign(range, rgFlags()))
                   : {ok: false, error: 'what is picked holds no chunk to send'};
-  btn.disabled = !(rgPicker && rgPicker.get());
   // a refusal is the server's sentence, shown as it came
-  if (!j.ok) { rgSum(j.error || 'the prompt was refused', true); return; }
-  const ok = j.fill ? await Parseh.copy(j.prompt, true) : false;
-  rgHeld = j.fill && !ok ? {key, prompt: j.prompt, j} : null;
-  $('#rgout').value = rgHeld ? j.prompt : '';
-  $('#rgoutrow').hidden = !rgHeld;
-  rgSummary(j, ok);
-  if (rgHeld) { $('#rgout').focus(); $('#rgout').select(); }
+  if (!j.ok) throw new Error(j.error || 'the prompt was refused');
+  rgMade = {j, text: j.fill ? j.prompt : ''};
+  return rgMade.text;
+}
+// after a press: what was made, and whether it reached the clipboard
+function rgCopied(ok, text) {
+  if (!rgMade || rgMade.text !== text) return;
+  rgByHand = ok === false;
+  rgSummary(rgMade.j);
 }
 /* THE CONFIRMATION, for a re-gloss that would replace what somebody wrote.
    The server counts first and writes nothing; the button then says how many
@@ -8731,8 +8750,8 @@ async function rgFill() {
    stops and is put back on when the sheet closes, the player's keys stand
    down while it is up, Escape closes it, and the form never submits. */
 function rgOpen(on, at, playing) {
-  // a prompt held for a second press is for this opening of the sheet only:
-  // with it closed, a chunk may be saved, deleted or undone (rgHeld)
+  // a prompt held by the row is for this opening of the sheet only: with it
+  // closed, a chunk may be saved, deleted or undone (rgMade)
   rgDrop();
   rgShown = !!on;
   $('#rgback').hidden = !on;
@@ -8766,7 +8785,6 @@ $('#rgn').onclick = () => rgOpen($('#rgbox').hidden);
 $('#rgcancel').onclick = () => rgOpen(false);
 $('#rgclose').onclick = () => rgOpen(false);
 $('#rgback').onclick = () => rgOpen(false);
-$('#rgcopy').onclick = () => rgCopy();
 $('#rgfill').onclick = () => rgFill();
 $('#rgregloss').addEventListener('change', rgState);
 $('#rgperfield').addEventListener('change', rgState);
@@ -9201,7 +9219,7 @@ function sideTranslation(box, whole, probe, words, text, sentence) {
 
 function sideLLM(box, n, text, ctx, evidence, live) {
   box.textContent = '';
-  if (typeof ParsehLLM === 'undefined') {
+  if (typeof ParsehLLM === 'undefined' || !window.ParsehLLMRow) {
     box.innerHTML = '<div class="snone">the prompt helper could not be loaded</div>';
     return;
   }
@@ -9209,15 +9227,14 @@ function sideLLM(box, n, text, ctx, evidence, live) {
   const around = chunkContextWindow(n);
   const controls = document.createElement('div');
   controls.className = 'sllmctl';
+  // THE ROW (lib/llmrow.js) draws the button, the size and the reminder
+  const askBox = document.createElement('div');
   const actions = document.createElement('div');
   actions.className = 'sllmactions';
-  const ask = document.createElement('button');
-  ask.type = 'button'; ask.textContent = 'Ask LLM';
-  ask.title = 'copy a prompt for an external chatbot';
   const use = document.createElement('button');
   use.type = 'button'; use.textContent = 'Use translation';
   use.title = 'use the translation pasted below';
-  actions.appendChild(ask); actions.appendChild(use);
+  actions.appendChild(use);
   const paste = document.createElement('textarea');
   paste.rows = 3;
   paste.placeholder = 'Paste the chatbot\u2019s translation here';
@@ -9228,7 +9245,7 @@ function sideLLM(box, n, text, ctx, evidence, live) {
   status.className = 'sllmstat'; status.setAttribute('aria-live', 'polite');
   const result = document.createElement('div');
   result.className = 'sllmout';
-  controls.appendChild(actions); controls.appendChild(paste);
+  controls.appendChild(askBox); controls.appendChild(paste); controls.appendChild(actions);
   controls.appendChild(status); controls.appendChild(result);
   box.appendChild(controls);
 
@@ -9239,7 +9256,7 @@ function sideLLM(box, n, text, ctx, evidence, live) {
     sideTranslation(result, cached, '', evidence.words || [], text, sentence);
   }
 
-  let allPairs = null;
+  let allPairs = null, ver = '';
   function corpusPage(offset) {
     return pAsk('__lookup', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(withLine({text: text, sentence: sentence, corpus_only: true,
@@ -9249,52 +9266,43 @@ function sideLLM(box, n, text, ctx, evidence, live) {
         return j;
       });
   }
-  // Prepare the corpus evidence while the user reads the sidebar.  Clipboard
-  // access in Safari and Firefox must happen directly inside the button's
-  // click; waiting for a network request first would lose that permission.
+  const build = () => ParsehLLM.prompt({
+    sourceName: LANG.name, targetName: GLOSS.name, sourceCode: LANG.code, targetCode: GLOSS.code,
+    version: ver, sentence: sentence, before: around.before, after: around.after,
+    words: evidence.words || [], pairs: allPairs
+  });
+  const row = ParsehLLMRow.mount(askBox, {
+    surface: 'ask', label: 'Ask LLM', title: 'copy a prompt for an external chatbot',
+    remind: 'paste it into a chatbot, then paste its translation below.',
+    // a failed preparing has said why in the line below, and gives no prompt
+    getText: () => allPairs ? build() : preparePairs().then(() => allPairs ? build() : ''),
+    onCopied: () => { status.textContent = ''; status.classList.remove('bad'); }
+  });
+  // Prepare the corpus evidence while the user reads the sidebar.  The row
+  // then holds the prompt, so the clipboard write happens directly inside the
+  // button's click -- which Safari and Firefox insist on: waiting for a
+  // network request first would lose that permission -- and its size is said
+  // before the copy.
   function preparePairs() {
-    ask.disabled = true; status.classList.remove('bad');
+    row.disable('preparing the prompt\u2026'); status.classList.remove('bad');
     status.textContent = evidence.pairs_more
       ? 'Preparing Ask LLM with all Tatoeba examples\u2026' : 'Preparing Ask LLM\u2026';
-    const preparing = ParsehLLM.collectPairs(evidence, corpusPage).then(pairs => {
-      allPairs = pairs;
-      if (!live() || !box.isConnected) return;
-      ask.disabled = false;
-      status.textContent = LLM.sent.has(sentence)
-        ? 'Reusing the translation pasted for this sentence.'
-        : 'Ready to copy a prompt for an external chatbot.';
-    }).catch(() => {
-      if (!live() || !box.isConnected) return;
-      allPairs = null; ask.disabled = false;
-      status.textContent = 'Could not collect all Tatoeba examples. Press Ask LLM to retry.';
-      status.classList.add('bad');
-    });
-    return preparing;
+    return Promise.all([ParsehLLM.collectPairs(evidence, corpusPage), ParsehLLM.version()])
+      .then(([pairs, number]) => {
+        allPairs = pairs; ver = number;
+        if (!live() || !box.isConnected) return;
+        row.enable();
+        status.textContent = LLM.sent.has(sentence)
+          ? 'Reusing the translation pasted for this sentence.' : '';
+        row.update(build());
+      }).catch(() => {
+        if (!live() || !box.isConnected) return;
+        allPairs = null; row.enable();
+        status.textContent = 'Could not collect all Tatoeba examples. Press Ask LLM to retry.';
+        status.classList.add('bad');
+      });
   }
   preparePairs();
-  ask.onclick = e => {
-    e.preventDefault();
-    if (!allPairs) { preparePairs(); return; }
-    status.classList.remove('bad'); status.textContent = 'Copying the prompt\u2026';
-    try {
-      const prompt = ParsehLLM.prompt({
-        sourceName: LANG.name, targetName: GLOSS.name,
-        sentence: sentence, before: around.before, after: around.after,
-        words: evidence.words || [], pairs: allPairs
-      });
-      ParsehLLM.copy(prompt).then(copied => {
-        if (!live() || !box.isConnected) return;
-        status.textContent = copied
-          ? 'Prompt copied. Paste it into a chatbot, then paste its answer below.'
-          : 'The clipboard is unavailable. Try Ask LLM again after allowing clipboard access.';
-        status.classList.toggle('bad', !copied);
-      });
-    } catch (_) {
-      if (!live() || !box.isConnected) return;
-      status.textContent = 'The prompt could not be copied. Try Ask LLM again.';
-      status.classList.add('bad');
-    }
-  };
   function accept() {
     const out = paste.value.trim();
     if (!out) {
@@ -10478,16 +10486,11 @@ def chunk_editor(dir_attrs):
     </div></div>
   <div class="arow"><span class="alab">prompt</span>
     <div class="actl">
-      <div class="nrow">
-        <button type="button" id="rgcopy" class="primary" disabled>copy the prompt</button>
-      </div>
+      <!-- copy the prompt, its size, what to do next, and the prompt itself to
+           copy by hand where the clipboard is refused: drawn by lib/llmrow.js
+           (the row keeps this sheet's ids: #rgcopy, #rgoutrow, #rgout) -->
+      <div id="rgrow"></div>
       <div id="rgsum" class="nstate" role="status" aria-live="polite"></div>
-      <div id="rgoutrow" hidden>
-        <textarea id="rgout" rows="5" readonly spellcheck="false"
-          aria-label="the prompt, to copy by hand"></textarea>
-        <div class="anote">the clipboard could not be reached: select this and copy
-          it &mdash; or press <b>copy the prompt</b> again</div>
-      </div>
     </div></div>
   <div class="arow"><label class="alab" for="rgans">the LLM's answer</label>
     <div class="actl">
@@ -10595,6 +10598,7 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
 <script src="__LIB__/wordline.js"></script>
 <script src="__LIB__/parseh.js"></script>
 <script src="__LIB__/llm.js"></script>
+<script src="__LIB__/llmrow.js"></script>
 <script src="__LIB__/mt.js"></script>
 <link rel="stylesheet" href="__LIB__/decomposition.css">
 <script src="__LIB__/decomposition.js"></script>

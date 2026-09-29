@@ -162,16 +162,19 @@ console.log(await page.evaluate(async()=>{
  const sub=[...document.querySelectorAll('.sub')].find((s,i)=>i>0&&i<document.querySelectorAll('.sub').length-1&&s.querySelectorAll('.pass.p2 .row').length>1);
  const rows=[...sub.querySelectorAll('.pass.p2 .row')];
  openChunk(+rows[0].dataset.c,rows[0]); sideShow(true);
- for(let i=0;i<100&&(!document.querySelector('#chside .sllmactions')||document.querySelector('#chside .sllmactions button').disabled);i++)await new Promise(r=>setTimeout(r,20));
+ for(let i=0;i<100&&(!document.querySelector('#chside .llmrow-copy')||document.querySelector('#chside .llmrow-copy').disabled||!document.querySelector('#chside .llmrow-size').dataset.chars);i++)await new Promise(r=>setTimeout(r,20));
  assert([...document.querySelectorAll('#chsrcbody h4')].map(x=>x.textContent).join('|')==='dictionary|a machine’s reading|sentences somebody translated|external chatbot','book source order');
- let copied=''; ParsehLLM.copy=async p=>(copied=p,true);
- document.querySelector('#chside .sllmactions button').click();
- for(let i=0;i<50&&!/Prompt copied/.test(document.querySelector('#chside .sllmstat').textContent);i++)await new Promise(r=>setTimeout(r,20));
+ let copied=''; Object.defineProperty(navigator,'clipboard',{value:{writeText:async p=>{copied=p;}},configurable:true});
+ assert(document.querySelector('#chside .llmrow-size').textContent.startsWith('about '),'book: the size is said before the copy');
+ document.querySelector('#chside .llmrow-copy').click();
+ for(let i=0;i<50&&!/^copied/.test(document.querySelector('#chside .llmrow-say').textContent);i++)await new Promise(r=>setTimeout(r,20));
+ assert(copied.startsWith('Parseh prompt · ask · ja → en'),'book: the first line says which prompt it is');
+ assert(document.querySelector('#chside .llmrow-size').dataset.chars===String([...copied].length),'book: the size said is the size copied');
  assert(copied.includes('TARGET SENTENCE:')&&copied.includes(chunkCtx(+rows[0].dataset.c).sentence),'book prompt target sentence');
  assert(copied.includes('SENTENCES BEFORE:')&&copied.includes('SENTENCES AFTER:'),'book prompt context');
  assert(copied.includes('本: hon | noun | book')&&copied.includes('本の例 10'),'book prompt has dictionary and all Tatoeba');
  const area=document.querySelector('#chside .sllmctl textarea'); area.value='This book is useful.';
- document.querySelectorAll('#chside .sllmactions button')[1].click();
+ document.querySelector('#chside .sllmactions button').click();
  assert(document.querySelector('#chside .sllmout .shere'),'book pasted translation is highlighted');
  const whole=[...document.querySelectorAll('#chside .sllmout .sput button')].find(b=>/whole sentence/.test(b.textContent));
  assert(whole,'book pasted translation has the machine-reading buttons'); whole.click();
@@ -221,16 +224,17 @@ if(await page.locator('#cloud .dict .dmore').count())throw Error('video Load mor
 console.log('Video Tatoeba progressive loading: passed');
 await page.locator('#cloud .mkedit').click();
 await page.locator('#cloud .esrc').click();
-await page.waitForSelector('#cloud .sllmactions');
-await page.evaluate(()=>{window.__llmPrompt='';ParsehLLM.copy=async p=>(window.__llmPrompt=p,true);});
-await page.locator('#cloud .sllmactions button').first().click();
-await page.waitForFunction(()=>/Prompt copied/.test(document.querySelector('#cloud .sllmstat').textContent));
+await page.waitForSelector('#cloud .llmrow-copy:not([disabled])');
+await page.waitForFunction(()=>document.querySelector('#cloud .llmrow-size').dataset.chars);
+await page.evaluate(()=>{window.__llmPrompt='';Object.defineProperty(navigator,'clipboard',{value:{writeText:async p=>{window.__llmPrompt=p;}},configurable:true});});
+await page.locator('#cloud .llmrow-copy').click();
+await page.waitForFunction(()=>/^copied/.test(document.querySelector('#cloud .llmrow-say').textContent));
 const videoPrompt=await page.evaluate(()=>window.__llmPrompt);
 if(!videoPrompt.includes('TARGET SENTENCE:')||!videoPrompt.includes('SENTENCES BEFORE:')||
    !videoPrompt.includes('SENTENCES AFTER:')||!videoPrompt.includes('本: hon | noun | book')||
    !videoPrompt.includes('今日は本を読む 10'))throw Error('video external-chatbot prompt lacks its evidence');
 await page.locator('#cloud .sllmctl textarea').fill('I read this useful book today.');
-await page.locator('#cloud .sllmactions button').nth(1).click();
+await page.locator('#cloud .sllmactions button').first().click();
 if(!await page.locator('#cloud .sllmout .shere').count())throw Error('video pasted translation was not dictionary-highlighted');
 if(!await page.locator('#cloud .sllmout .sput button').count())throw Error('video pasted translation lacks insertion buttons');
 const editedAt=await page.locator('#cloud .ewhere').textContent();
