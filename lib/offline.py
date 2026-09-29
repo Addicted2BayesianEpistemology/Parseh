@@ -86,6 +86,9 @@ SHARED = (
     "/lib/parseh.css", "/lib/langs.css", "/lib/mobile.css", "/lib/parseh.js",
     "/lib/narrctl.js", "/lib/mobilereader.js", "/lib/mobileplayer.js",
     "/lib/wordtouch.js", "/lib/explain.js", "/lib/prefs.js", "/lib/activity.js",
+    # what a reader of a book an agent is making adds to itself (parseh.js loads it
+    # into every reader; it asks one question and does nothing for any other book)
+    "/lib/making.js",
     # keeping, and the chip that says the computer cannot be reached: without
     # it a kept page would open offline and say nothing about being offline
     "/lib/keep.js",
