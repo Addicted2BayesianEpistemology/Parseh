@@ -1966,6 +1966,16 @@ def _target_line(L):
             "front matter." % (L.code, L.name, L.code))
 
 
+def _prompt_record():
+    """The stored prompt as the page has it, {text, custom}: the page edits and
+    copies a text and knows no marks, so the default's marks of the answer
+    contract are taken out where they stand (lib/promptkit.py flat)."""
+    out = store.get_prompt()
+    if not out.get("custom"):
+        out["text"] = promptkit.flat(out["text"])
+    return out
+
+
 def _prompt_tail(L, text, custom):
     """What follows the instructions on the prompt page: the language's
     conventions and, where the text lacks it, the rule for the boxes of a
@@ -2005,13 +2015,11 @@ def api_prompt_get(h):
     lib/promptkit.py assembles it -- version line, target line, instructions,
     the language's conventions, the answer contract -- which is what a page
     copies; `header` and `contract` are two of its parts, for showing them."""
-    out = store.get_prompt()
+    out = _prompt_record()
     L = languages.get_or_default(_q1(h, "target"))
     out["target"] = L.code
     out["target_name"] = L.name
     custom = bool(out.get("custom"))
-    if not custom:
-        out["text"] = promptkit.flat(out["text"])
     out["lang_block"] = _prompt_tail(L, out["text"], custom)
     try:
         a = studio_prompt(L, out["text"] if custom else None)
@@ -2026,12 +2034,12 @@ def api_prompt_get(h):
 def api_prompt_put(h):
     body = h._json_body()
     store.set_prompt(body.get("text", ""))
-    h.send_json(store.get_prompt())
+    h.send_json(_prompt_record())
 
 
 def api_prompt_delete(h):
     store.reset_prompt()
-    h.send_json(store.get_prompt())
+    h.send_json(_prompt_record())
 
 
 def api_status(h):

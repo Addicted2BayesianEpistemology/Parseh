@@ -200,20 +200,21 @@ def _spaces(text):
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+\n", "\n", text))
 
 
-def _serial(block, marks):
-    """A block written out again, its flag blocks still marked: the words of
-    the instructions (marks=False, the parts' marks left out) or of one part
-    (marks=True, taken from inside it)."""
+def _serial(block, inside):
+    """A block written out again with its flag blocks still marked: the
+    instructions (`inside` False: the marks of the parts, and what is in them,
+    left out) or what stands inside one part (`inside` True: another part in
+    it is refused)."""
     out = []
     for kid in block.kids:
         if isinstance(kid, str):
             out.append(kid)
         elif kid.name in _MARKS:
-            if marks:
+            if inside:
                 raise PromptError("{{?%s}} inside {{?%s}}: the parts do not nest"
                                   % (kid.name, block.name))
         else:
-            inner = _serial(kid, marks)
+            inner = _serial(kid, inside)
             if inner.strip():
                 out.append("{{?%s}}%s{{/%s}}" % (kid.name, inner, kid.name))
     return "".join(out)
@@ -280,6 +281,7 @@ def contract(surface, template=None):
 # --- what a template may name ------------------------------------------
 _REGION = ("video-region", "book-region")
 _GLOSSED = ("video-new", "video-region", "book-region", "book-new")
+_WITH_FILE = ("studio-doc", "studio-exercises") + _GLOSSED      # the ones that take a language file
 _NEW_VIDEO, _TIDY, _NEW_BOOK = ("video-new",), ("transcript-tidy",), ("book-new",)
 _PLACEHOLDERS = (
     ("LANGUAGE", "the language's name, in English (Persian)", "*"),
@@ -288,7 +290,7 @@ _PLACEHOLDERS = (
     ("TR_LABEL", "what its transliteration is called: transliteration, pronunciation, "
                  "rōmaji, pinyin", "*"),
     ("LANG_CONVENTIONS", "the language's conventions (docs/lang/<code>.md), cut to what "
-                         "this prompt needs", "*"),
+                         "this prompt needs", _WITH_FILE),
     ("GLOSS_LANGUAGE", "the language the meanings are written in (English)", _GLOSSED),
     ("GLOSS_CODE", "its code (en)", _GLOSSED),
     # a stretch of a book or a video (lib/glossregion.py)

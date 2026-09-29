@@ -96,11 +96,26 @@ def no_placeholder_left(a, c):
         if "{{" in a.text else []
 
 
+# WHERE EACH PROMPT SAYS WHICH LANGUAGE IT IS ABOUT, and which the meanings are written in: a language's
+# name is in every prompt by accident (Persian's file speaks of a book glossed in Italian), so the
+# check looks at the place the prompt says it on purpose.
+def _says(surface, L, G):
+    name, code = re.escape(L.name), re.escape(L.code)
+    if surface == "studio-doc":
+        return [r"this document is about %s:" % name]
+    if surface == "studio-exercises":
+        return [r"^# %s . the annotation conventions" % name]
+    if surface in REGIONS or surface == "video-new":
+        return [r"^- language: %s \(`%s`\)" % (name, code),
+                r"^- gloss language: \*\*%s\*\* \(`%s`\)" % (re.escape(G.name), re.escape(G.code))]
+    if surface == "transcript-tidy":
+        return [r"transcript of a video in %s," % name]
+    return [r"in %s, glossed in %s" % (name, re.escape(G.name))]
+
+
 def names_the_language(a, c):
-    out = [] if c.L.name in a.text else ["never says %s" % c.L.name]
-    if c.surface in GLOSSED and c.G.name not in a.text:
-        out.append("never says the gloss language, %s" % c.G.name)
-    return out
+    return ["never says %r" % p for p in _says(c.surface, c.L, c.G)
+            if not re.search(p, a.text, re.M)]
 
 
 def within_its_budget(a, c):
@@ -131,6 +146,12 @@ def has_its_three_parts_in_order(a, c):
         out.append("the parts are not in the order instructions, contract, data: %s" % at)
     if a.data and not a.text.rstrip("\n").endswith(a.data.rstrip("\n")[-40:]):
         out.append("the data is not last")
+    # the contract comes after EVERYTHING that is instruction, the language's conventions included
+    if c.surface in K.KIND and a.contract:
+        conventions = K.language_text(c.surface, c.L)
+        if conventions and conventions[-60:] in a.text \
+                and a.text.index(a.contract[:60]) < a.text.index(conventions[-60:]):
+            out.append("the answer contract comes before the language's conventions end")
     return out
 
 
@@ -635,6 +656,20 @@ class Placeholders(unittest.TestCase):
             names = set(re.findall(r"\{\{([A-Z_0-9]+)\}\}", template))
             self.assertEqual(sorted(names - given), [], surface)
 
+    def test_the_names_the_kit_fills_itself_are_the_ones_it_publishes_and_no_others(self):
+        given = ("LANGUAGE", "LANGUAGE_NATIVE", "LANGUAGE_CODE", "TR_LABEL", "LANG_CONVENTIONS",
+                 "GLOSS_LANGUAGE", "GLOSS_CODE")
+        for surface in ALL_SURFACES:
+            published = {n for n, _ in K.placeholders(surface)}
+            for name in given:
+                tpl = "x {{%s}}" % name
+                if name in published:
+                    a = K.assemble(surface, "fa", "en" if surface in GLOSSED else None, template=tpl)
+                    self.assertNotIn("{{", a.instructions, (surface, name))
+                else:
+                    with self.assertRaises(K.PromptError, msg=(surface, name)):
+                        K.assemble(surface, "fa", "en" if surface in GLOSSED else None, template=tpl)
+
     def test_each_has_a_one_line_meaning(self):
         for name, meaning in K.placeholders():
             self.assertTrue(meaning and "\n" not in meaning and len(meaning) < 110, name)
@@ -927,6 +962,33 @@ class Assemblers(ControlledMachine):
         self.assertNotIn("{{/", tpl)
         self.assertIn("{{WORDS_STEP}}", tpl)
         self.assertIn("### The per-paragraph JSON", tpl)
+
+
+class StudioPromptRoutes(unittest.TestCase):
+    """The routes that edit the studio's prompt, on a temporary library: the page
+    edits and copies a text and knows no marks, so none is ever handed to it."""
+
+    def test_none_of_them_hands_out_the_mark_of_a_part_and_a_custom_text_is_kept_whole(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(studio_server.store, "LIB", studio_server.Path(td)):
+            h = Handler(query={"target": ["fa"]})
+            studio_server.api_prompt_get(h)
+            self.assertFalse(h.answer["custom"])
+            self.assertNotIn("{{", h.answer["text"])
+            self.assertIn("creating a markdown file", h.answer["text"])
+            h = Handler({"text": "My own prompt."})
+            studio_server.api_prompt_put(h)
+            self.assertEqual(h.answer, {"text": "My own prompt.", "custom": True})
+            h = Handler(query={"target": ["fa"]})
+            studio_server.api_prompt_get(h)
+            self.assertEqual((h.answer["text"], h.answer["custom"]), ("My own prompt.", True))
+            self.assertTrue(h.answer["prompt"].startswith(K.version_line("studio-doc", "fa", None, None, True)))
+            h = Handler()
+            studio_server.api_prompt_delete(h)
+            self.assertFalse(h.answer["custom"])
+            self.assertNotIn("{{", h.answer["text"])
+            self.assertIn("creating a markdown file", h.answer["text"])
+            self.assertEqual(h.answer["text"], studio_server.promptkit.flat(studio_server.store.default_prompt()))
+            self.assertFalse(os.path.exists(os.path.join(td, "_prompt.md")))
 
 
 if __name__ == "__main__":
