@@ -86,9 +86,6 @@ SHARED = (
     "/lib/parseh.css", "/lib/langs.css", "/lib/mobile.css", "/lib/parseh.js",
     "/lib/narrctl.js", "/lib/mobilereader.js", "/lib/mobileplayer.js",
     "/lib/wordtouch.js", "/lib/explain.js", "/lib/prefs.js", "/lib/activity.js",
-    # a vocabulary line in the books' macros, drawn by the first and written
-    # with the buttons of the second, on the player's page and in every reader
-    "/lib/vocline.js", "/lib/vocbuttons.js",
     # keeping, and the chip that says the computer cannot be reached: without
     # it a kept page would open offline and say nothing about being offline
     "/lib/keep.js",
@@ -101,6 +98,9 @@ SHARED = (
     # script ever ran.  It was the one address missing, and it was missing
     # for every book on the shelf (the owner, in airplane mode, 2026-09-23).
     "/lib/mt.js",
+    # a vocabulary line in the books' macros, drawn by the first and written
+    # with the buttons of the second, on the player's page and in every reader
+    "/lib/vocline.js", "/lib/vocbuttons.js",
     # what a reader's own script calls into as it starts: without these the
     # page opens offline and throws before it is drawn
     "/lib/decomposition.js", "/lib/decomposition.css",
