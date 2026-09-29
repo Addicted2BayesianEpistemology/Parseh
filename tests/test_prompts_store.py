@@ -30,8 +30,6 @@ WHAT IS HELD, and where:
 NOTHING HERE WRITES config/: the store is pointed at a temporary tree in every
 class (tests/configguard.py watches the whole run for the day one is not).
 """
-import copy
-import glob
 import http.client
 import io
 import json
@@ -49,7 +47,6 @@ ROOT = Path(__file__).resolve().parents[1]
 for _p in ("tests", "markdown/exlex", "markdown/app", "lib", "youtube/lib", "."):
     if str(ROOT / _p) not in sys.path:
         sys.path.insert(0, str(ROOT / _p))
-import annwrite as A                                            # noqa: E402
 import check_annotations as CA                                  # noqa: E402
 import glossregion as GR                                        # noqa: E402
 import languages                                                # noqa: E402
