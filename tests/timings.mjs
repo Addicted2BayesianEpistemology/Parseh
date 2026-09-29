@@ -1681,13 +1681,13 @@ for name in os.listdir(out):
          `and F opens the view back to exactly what fit does: ${vnarrow} -> ${vbyKey}`);
 
   console.log('e) and it saves through /youtube/api/times');
-  let said = null;
-  vp.on('response', async r => {
-    if (r.url().includes('/api/times')) { try { said = JSON.parse(await r.text()); } catch (_) {} }
-  });
+  // Playwright reads the body after the page has closed the sheet: wait for it, do not sample it
+  const saidP = vp.waitForResponse(r => r.url().includes('/api/times'), {timeout: 25000})
+    .then(r => r.json()).catch(e => ({error: String(e)}));
   const vwant = v1now[0];
   await vp.click('[data-x="save"]');
   await vp.waitForFunction(() => !document.querySelector('.tl-root'), null, {timeout: 25000});
+  const said = await saidP;
   assert(said && said.ok && said.moved === 1,
          'ONE caption moved, not the one before it as well: ' + JSON.stringify(said));
   const after = await labs();

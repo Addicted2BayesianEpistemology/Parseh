@@ -148,8 +148,8 @@ on 2026-09-28 on the `a0.4.0` tag in a worktree (the same three reds again;
 fonts and built fixture readers, so copy them from the checkout first or six
 unit tests of `test_mobile_pages` and `test_offline_notes` fail for that
 reason alone) — and a last time the same day on the finished a0.4.1 tree,
-which gave the same three reds and a flaky fourth, `timings`; the counts
-below are that last run's:
+which gave the same three reds; the counts below are that last run's, but
+for `timings`, which was flaky there and has been mended since (below):
 
 | Suite | State | How it fails |
 |---|---|---|
@@ -158,15 +158,15 @@ below are that last run's:
 | `tests/decomposition.mjs` | **red** | `TimeoutError: locator.click: Timeout 7000ms exceeded` waiting for `.test-extra [data-character="想"]`: the mode bar's *Choose a kanji in the text.* (with `#novid` and `#captimes`) covers it — `tests/decomposition.mjs:119` |
 | `tests/exercises.mjs` | **red** | `page.evaluate: Error: a line of chunks points its arrows along the line` — `tests/exercises.mjs:91`. A second red hides behind it: the mocked editor page never shows `.ex-edit` (a 30 s timeout). Mending the first will not turn it green. |
 | `tests/studio_narrow.mjs` | **red** | `FAIL: from 280 to 1440 px the editor never scrolls sideways …`: at 730 and 740 px the page is 741 px wide and `ins-br` is off screen; its parts b and c never run |
-| `tests/timings.mjs` | **flaky** | `FAIL ONE caption moved, not the one before it as well: null` — `tests/timings.mjs:1692`. The test reads the answer of `/youtube/api/times` the moment the sheet closes, before Playwright has read its body, so now and then it sees `null`. It failed in the full run and on one rerun alone, and passed (391 checks) on another: unlike the *Flaky* ones below, failing again alone does not make this message breakage. Any other failure of `timings` is new. Parseh saved the caption right (with a wait, the answer comes about 50 ms later and the suite passes): a fault of the test, not of Parseh. When the test waits for the answer, take this row out. |
-| the other 46 `tests/*.mjs` | green | those under *Flaky* below fail now and then, and pass on a second run, alone |
+| the other 47 `tests/*.mjs` | green | those under *Flaky* below fail now and then, and pass on a second run, alone |
 
-The first three reds are old: they failed the same way on a0.3.0, before this
-version's work began (measured again on 2026-09-24). `timings` is not: it
-first failed in a0.4.1's full run (2026-09-28), passed on a rerun alone
-(2026-09-29), and failed on a later rerun alone the same day; it passed on the
-`a0.4.0` tag. The lines it fails at are the test's own, which a0.4.1 did not
-change.
+The three reds are old: they failed the same way on a0.3.0, before this
+version's work began (measured again on 2026-09-24). `timings` was not one of
+them: its test read the answer of `/youtube/api/times` the moment the sheet
+closed, before Playwright had read its body, and failed for that now and then
+(in a0.4.1's runs of 2026-09-28 and 2026-09-29; it passed on the `a0.4.0`
+tag). It waits for the answer now (a0.4.2), so a red `timings` is new
+breakage.
 
 **Flaky, not broken.** These have failed now and then and passed when the
 suite was run again alone. They depend on timing — a browser that is slow
