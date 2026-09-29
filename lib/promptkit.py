@@ -82,6 +82,10 @@ READS_BACK = ("studio-doc", "studio-exercises", "video-new", "video-region",
 # the words a mode adds to the version line; the default mode says nothing
 MODE_WORDS = {"regloss": "re-gloss", "perfield": "per field"}
 
+# the one rule every gloss prompt embeds by {{MEANING_RULE}}: written once, so that the
+# prompts and the guide never say two things about what a meaning is
+MEANING_RULE = os.path.join(ROOT, "docs", "meaning-rule.md")
+
 TEMPLATES = {
     "studio-doc": os.path.join(ROOT, "markdown", "exlex", "PROMPT.md"),
     "studio-exercises": os.path.join(ROOT, "markdown", "exlex", "EXERCISES_PROMPT.md"),
@@ -293,6 +297,7 @@ _PLACEHOLDERS = (
                          "this prompt needs", _WITH_FILE),
     ("GLOSS_LANGUAGE", "the language the meanings are written in (English)", _GLOSSED),
     ("GLOSS_CODE", "its code (en)", _GLOSSED),
+    ("MEANING_RULE", "the rule for what a chunk's meaning says (docs/meaning-rule.md)", _GLOSSED),
     # a stretch of a book or a video (lib/glossregion.py)
     ("A_LANGUAGE", "the language's name with its article: a Persian, an Italian", _REGION),
     ("SURFACE", "what is glossed: a Persian reading edition, the captions of a Persian "
@@ -548,6 +553,11 @@ def language_sections(surface, lang, flags=None):
                 KIND[surface], LAYOUT[surface][0])
 
 
+def _meaning_rule():
+    with open(MEANING_RULE, encoding="utf-8") as f:
+        return f.read()
+
+
 def _common(L, G):
     """The placeholders the kit fills in every prompt of a language (and of a
     gloss language, where the prompt has one)."""
@@ -691,6 +701,8 @@ def assemble(surface, lang=None, gloss=None, *, flags=None, values=None, verbati
     includes = dict(includes or {})
     if surface in KIND:
         includes.setdefault("LANG_CONVENTIONS", lambda: language_text(surface, L, flags))
+    if surface in _GLOSSED:
+        includes.setdefault("MEANING_RULE", _meaning_rule)
     fill = _Fill(flags, values, includes, dict(verbatim or {}))
     made = []
     for raw in (given.instructions if instructions is None else instructions,

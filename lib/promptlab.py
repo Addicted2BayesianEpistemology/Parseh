@@ -111,7 +111,7 @@ def build(surface, lang, mode=None, gloss=None):
                  "GLOSS_NAME": G.name, "GLOSS_NATIVE": G.native, "GLOSS": G.code}
         values = {n: known.get(n, "<%s>" % n) for n, _ in promptkit.placeholders(surface)
                   if n not in ("LANGUAGE", "LANGUAGE_NATIVE", "LANGUAGE_CODE", "TR_LABEL",
-                               "LANG_CONVENTIONS", "GLOSS_LANGUAGE", "GLOSS_CODE")}
+                               "LANG_CONVENTIONS", "GLOSS_LANGUAGE", "GLOSS_CODE", "MEANING_RULE")}
         return promptkit.assemble(surface, L, G, values=values)
     kind = "books" if surface == "book-region" else "videos"
     path, tmp = _fixture(kind, L)

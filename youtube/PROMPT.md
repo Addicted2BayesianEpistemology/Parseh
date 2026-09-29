@@ -184,7 +184,8 @@ renders and the captions highlight in time with the video.
 
 The finished page should read like a page of the printed editions: the
 text carries the reader, the cloud answers the question the reader was
-about to ask, and nothing more. The meaning lines should join up into
-continuous prose down the page, in the gloss language. When the transcript's ASR garbles a word,
+about to ask, and nothing more. Each meaning line says what its own chunk
+says, in the order of the text (`docs/meaning-rule.md`): read in a row the
+lines may not be good prose, and that is meant. When the transcript's ASR garbles a word,
 the gloss quietly says what was really said. When a word has appeared five
 times, its cloud has grown short.

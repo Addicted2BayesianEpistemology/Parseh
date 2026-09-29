@@ -5044,11 +5044,11 @@ function initPrompt() {
   }
   function show(p) {
     current = p;
-    // the conventions block is shown with the prompt but is not part of
-    // the editable text: it belongs to the language, not to the prompt.  The
-    // box shows the target line too, so that what it shows is what is copied
-    ta.value = editing ? p.text : guidance() + p.text.trim()
-      + (p.lang_block ? "\n\n" + p.lang_block.trim() : "") + "\n";
+    // WHAT THE BOX SHOWS is the prompt the server assembled (the version line, the target
+    // line, the instructions, the language's conventions, the answer contract), so that what
+    // it shows is what is copied; a server that does not send one is composed the old way
+    ta.value = editing ? p.text : p.prompt ? p.prompt.replace(/\n*$/, "\n")
+      : guidance() + p.text.trim() + (p.lang_block ? "\n\n" + p.lang_block.trim() : "") + "\n";
     badge.textContent = (p.custom ? "custom" : "default (exlex/PROMPT.md)")
       + ` · ${p.target_name}`;
     badge.className = "badge " + (p.custom ? "warn" : "");
@@ -5104,21 +5104,19 @@ function initPrompt() {
     btnSave.classList.add("hidden");
     btnCancel.classList.add("hidden");
   };
-  // a save or a reset answers with the bare prompt record (text, custom):
-  // the target and its conventions block belong to the page and stay
-  const withTarget = p => Object.assign({}, current, p);
+  // a save or a reset answers with the bare prompt record (text, custom): the prompt the
+  // box shows is assembled by the server, so it is asked for again
   btnSave.addEventListener("click", async () => {
-    const p = await api("/api/prompt?target=" + encodeURIComponent(sel.value),
-                        {method: "PUT", json: {text: ta.value}});
-    endEdit(); show(withTarget(p)); toast("Custom prompt saved");
+    await api("/api/prompt?target=" + encodeURIComponent(sel.value),
+              {method: "PUT", json: {text: ta.value}});
+    endEdit(); await load(); toast("Custom prompt saved");
   });
   btnCancel.addEventListener("click", () => { endEdit(); show(current); });
   btnReset.addEventListener("click", async () => {
     if (current.custom &&
         !confirm("Discard the custom prompt and return to the default?")) return;
-    const p = await api("/api/prompt?target=" + encodeURIComponent(sel.value),
-                        {method: "DELETE"});
-    endEdit(); show(withTarget(p)); toast("Prompt reset to default");
+    await api("/api/prompt?target=" + encodeURIComponent(sel.value), {method: "DELETE"});
+    endEdit(); await load(); toast("Prompt reset to default");
   });
 }
 

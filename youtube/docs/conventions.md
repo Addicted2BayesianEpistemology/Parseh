@@ -93,13 +93,13 @@ That is normal in these videos and is not a fault.
   or forms as the language's file shows; colloquial ↔ written pairs
   spelled out; loanwords flagged. Target-script text inside `voc` is
   fine — the player isolates it. **Optional.**
-- **`en`** — the short meaning of the chunk as spoken, written in the
-  video's gloss language (`video.json`'s `"gloss"`; English when it says
-  none — the prompt names it), lower-case, like the books' third line
-  ("there are wounds", "in solitude"). The key is named `en` after the
-  first gloss language, whatever the gloss is written in. Keep the reading
-  order of the caption: if a caption's sense runs across the next one, end
-  with `…` and pick it up.
+- **`en`** — the short meaning of the chunk, written in the video's gloss
+  language (`video.json`'s `"gloss"`; English when it says none — the prompt
+  names it), lower-case, like the books' third line ("there are wounds",
+  "in solitude"). The key is named `en` after the first gloss language,
+  whatever the gloss is written in. What it says is what THAT chunk's own
+  words say, in the order of the caption (the rule on the meaning, in the
+  prompt, is the whole of it).
 - **`note`** — optional, sparingly: ASR slips, garbled words, culture
   notes, sounds (`[laughter]`). The caption stays wrong in `fa`; the
   note is where the truth goes.

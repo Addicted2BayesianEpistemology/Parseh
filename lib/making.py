@@ -83,6 +83,7 @@ if LIB not in sys.path:
     sys.path.insert(0, LIB)
 import books as booklib                                        # noqa: E402
 import languages                                               # noqa: E402
+import promptkit                                               # noqa: E402  the meaning rule the gloss prompts carry
 import version                                                 # noqa: E402
 
 MAKING = "making.json"
@@ -447,6 +448,8 @@ against the method.
 the tools last said, e.g. `{"check_batch": "0 errors", "assemble": "ALL PARAGRAPHS CLEAN", \
 "verify_book": "clean"}`. `updated`: the time you wrote it, UTC (`2026-09-29T14:20:01Z`).
 
+{{MEANING_RULE}}
+
 ## The work, {{BATCH}} paragraphs at a time
 
 1. Recover the text into `source/clean.txt` (one paragraph a line) and `source/paras/chN_pNN.txt` \
@@ -466,6 +469,15 @@ _TOKEN = re.compile(r"\{\{([A-Z_]+)\}\}")
 
 def _fill(text, values):
     return _TOKEN.sub(lambda m: str(values.get(m.group(1), m.group(0))), text)
+
+
+def _meaning_rule(book):
+    """docs/meaning-rule.md in the words of this book's language and gloss language: the rule
+    every chunk's `en` follows, the same text the gloss prompts carry."""
+    with open(os.path.join(os.path.dirname(LIB), "docs", "meaning-rule.md"), encoding="utf-8") as f:
+        text = promptkit.blocks(f.read(), {"video": False})
+    return (text.replace("{{LANGUAGE}}", book["language_name"])
+            .replace("{{GLOSS_LANGUAGE}}", book["gloss_name"]).strip() + "\n")
 
 
 def instructions_text(facts, options=None):
@@ -488,6 +500,7 @@ def instructions_text(facts, options=None):
              ) if languages.get(lang).words else ""
     values = {
         "WORDS": words,
+        "MEANING_RULE": _meaning_rule(book),
         "TITLE_NOTE": " (%s)" % book["title"] if book["title"] and book["title"] != latin else "",
         "TITLE_LATIN": latin,
         "AUTHOR_LATIN": book["author_latin"] or book["author"] or "an unnamed author",
