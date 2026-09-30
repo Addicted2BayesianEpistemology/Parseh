@@ -247,3 +247,5 @@ components/.build-*/
 # xelatex leaves texput.log where markdown/exlex/envsetup.py probes whether a font is
 # registered (a dot-file probe it refuses in nonstop mode): a by-product, never content
 texput.log
+
+aligner-models/
