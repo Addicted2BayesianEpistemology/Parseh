@@ -290,7 +290,7 @@ class Route(unittest.TestCase):
         self.assertEqual(rec["rest"], [])
         (heard,) = s.records("transcribe")
         self.assertEqual((heard["language"], heard["beam_size"], heard["vad_filter"], heard["task"],
-                          heard["rest"]), ("fa", 5, True, "transcribe", []))
+                          heard["rest"]), ("fa", 5, True, "transcribe", ["word_timestamps"]))
 
     def test_the_job_is_on_the_activity_list_without_its_token(self):
         s = self.s

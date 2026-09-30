@@ -817,6 +817,12 @@ async function partSkip(page, tag) {
   await tap(page, '.nc-dock .nc-skip[data-skip="-1"]');
   await sleep(400);
   eq((await state()).t, 0, 'en: ↺: back to the start');
+  await page.keyboard.press('ArrowRight');
+  await sleep(400);
+  eq((await state()).t, 5, 'en: keyboard → in Mobile mode: on by the same chosen seconds');
+  await page.keyboard.press('ArrowLeft');
+  await sleep(400);
+  eq((await state()).t, 0, 'en: keyboard ← in Mobile mode: back by the same chosen seconds');
   // the speed: the chip says it, a tap opens the row, and the sound obeys
   eq(await page.evaluate(() => document.querySelector('.nc-dock .nc-chip').textContent), '1×',
      'en: the speed chip says 1×');

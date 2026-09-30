@@ -291,7 +291,7 @@ class Start(Base):
     def test_extra_fields_a_client_might_send_are_not_part_of_the_signature(self):
         import inspect
         params = list(inspect.signature(sttjobs.start).parameters)
-        self.assertEqual(params, ["source", "lang", "model", "processing", "duration"])
+        self.assertEqual(params, ["source", "lang", "model", "processing", "duration", "exact"])
         with self.assertRaises(TypeError):
             sttjobs.start({"kind": "film", "path": self.film()}, "fa", TURBO, "cpu",
                           device="cuda")

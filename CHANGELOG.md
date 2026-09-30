@@ -1,4 +1,14 @@
-## [a0.4.2] - unreleased
+## [a0.4.3] - unreleased
+### Added
+- Optional, local exact word times for every speech-to-text language, with hash-pinned int8 CTC networks and a remembered add-page switch
+- A Parseh-made transcript carries its word timing through the add-page editor and stores it with the matching video
+- Two transcript tidy cues: the existing text cues and recorded pauses
+- Mobile-mode keyboard arrows skip narration or video by the selected amount
+
+### Changed
+- Markdown and exercise-deck cards made from books or videos mark target and context fields as the target language automatically
+
+## [a0.4.2] - 2026-09-30
 ### Added
 - Glosses an LLM writes are aligned to their chunks: a meaning says what its own words say, in the text's order
 - Every prompt is assembled by one kit from its instructions, its answer contract and its data, and opens with a version line

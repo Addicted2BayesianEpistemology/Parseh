@@ -1,7 +1,7 @@
 ---
 title: Speech to text
 weight: 12
-description: Settings → Speech to text (/settings/speech/) — an optional program and two Whisper models that make a transcript on this computer while you add a video; the processor (the CPU always, an NVIDIA graphics card when Parseh can prove it works), what each part costs, who may get and remove them, where the files are, and whose work they are.
+description: Settings → Speech to text (/settings/speech/) — an optional program, two Whisper models and optional per-language exact-word-time networks that make a transcript on this computer while you add a video; the processor (the CPU always, an NVIDIA graphics card when Parseh can prove it works), what each part costs, who may get and remove them, where the files are, and whose work they are.
 ---
 
 A video you add needs a transcript, and the transcript is usually what
@@ -87,6 +87,16 @@ All eleven of Parseh's are ticked: Persian, Arabic, Italian, Japanese,
 French, German, Turkish, English, Hindi, Spanish and Chinese. A language you
 added yourself is ticked if Whisper has a code for it, and marked *not
 offered* if it does not.
+
+Under each offered language is an **Exact word times** row. Its separate,
+optional CTC network is about 340–361 MiB installed, and its row says the
+size before **Get it**, download progress, **Stop** or **Remove**, its licence
+and its attribution. It is not needed to transcribe: Whisper works with no
+such network. When installed, it lets the add page make word boundaries from
+the recording while leaving Whisper's captions unchanged. All eleven offered
+languages have one; each download is pinned to an immutable public
+`parseh/aligner-<language>` revision and hash-checked before it is installed
+under `stt/aligners/<language>/`.
 
 ### A row's states
 
@@ -253,6 +263,12 @@ Each row says whose work it is and its licence, linked, and
   CTranslate2's format (by Systran, and by Mobius Labs for the turbo one; the
   repository is now `dropbox-dash/faster-whisper-large-v3-turbo`), under the
   MIT licence, fetched from Hugging Face at a fixed version.
+- Exact-word-time networks: Parseh's `aligner-zh`, `aligner-ja`, `aligner-hi`,
+  `aligner-ar`, `aligner-fa`, `aligner-tr`, `aligner-es`, `aligner-de`,
+  `aligner-fr`, `aligner-it` and `aligner-en` repositories on Hugging Face,
+  fetched at the pinned revision. They run through onnxruntime; their notices
+  and licences travel with each installed row (Apache-2.0, except Hindi MIT
+  and Turkish CC-BY-4.0).
 
 The hosts it talks to, and only when you press a button, are `pypi.org` and
 `files.pythonhosted.org` for the program, and `huggingface.co` (which answers

@@ -204,6 +204,21 @@ class Pins(unittest.TestCase):
         a, b = (getstt.MODEL_PINS[k]["files"] for k in getstt.MODELS)
         self.assertNotEqual(a["tokenizer.json"], b["tokenizer.json"])
 
+    def test_each_exact_word_times_network_is_public_pinned_and_checked(self):
+        self.assertEqual(set(getstt.ALIGNERS), {"zh", "ja", "hi", "ar", "fa", "tr", "es", "de", "fr", "it", "en"})
+        self.assertEqual(set(getstt.ALIGN_PARTS), {"align-" + c for c in getstt.ALIGNERS})
+        for code, pin in getstt.ALIGN_PINS.items():
+            with self.subTest(code=code):
+                self.assertEqual(pin["repo"], "parseh/aligner-" + code)
+                self.assertRegex(pin["revision"], r"^[0-9a-f]{40}$")
+                self.assertEqual(set(pin["files"]), {"model.int8.onnx", "vocab.json",
+                                                       "preprocessor_config.json", "meta.json",
+                                                       "LICENSE", "NOTICE"})
+                for digest, size in pin["files"].values():
+                    self.assertRegex(digest, r"^[0-9a-f]{64}$")
+                    self.assertTrue(size is None or size > 0)
+                self.assertGreater(getstt.MEASURED["align-" + code], 300_000_000)
+
     def test_the_costs_are_measured_for_every_kind_of_computer(self):
         kinds = {"linux x86_64", "linux aarch64", "macOS arm64", "macOS x86_64", "windows amd64"}
         self.assertEqual(set(getstt.MEASURED["runtime"]), kinds)
@@ -314,7 +329,8 @@ class NormalParseh(unittest.TestCase):
         # AN IMPORT OF faster_whisper, ctranslate2, av OR onnxruntime WOULD PUT A SECOND
         # numpy IN THE SERVER: only the two children (the probe and the worker) may.  Every
         # module the server can load is read, and not a list of the few it is known to load
-        children = {ROOT / "lib" / "sttworker.py", ROOT / "lib" / "sttprobe.py"}
+        children = {ROOT / "lib" / "sttworker.py", ROOT / "lib" / "sttprobe.py",
+                    ROOT / "lib" / "ctcalign.py"}
         files = [ROOT / "serve.py"] + [p for d in ("lib", "youtube/lib", "markdown", "html-guide/engine")
                                        for p in sorted((ROOT / d).rglob("*.py"))]
         self.assertGreater(len(files), 100, "the scan found the server's modules")

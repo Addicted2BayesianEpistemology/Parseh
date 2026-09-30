@@ -2,7 +2,7 @@
 title: Mending the transcript first
 linkTitle: Mending the transcript
 weight: 5
-description: The add page's small subtitle editor — timings to a tenth of a second, cutting and joining captions, ✨ tidy up, and the same job done by an LLM.
+description: The add page's small subtitle editor — recorded word starts where Parseh made the transcript, timings to a tenth of a second, cutting and joining captions, ✨ tidy up in two modes, and the same job done by an LLM.
 ---
 
 A pasted transcript is what YouTube **heard**, cut where YouTube chose to
@@ -42,10 +42,10 @@ them, one row each:
 **A caption runs until the next one begins**, so moving one moves where the
 one before it ends; there is no end to set.
 
-After **✂**, the second half starts halfway to the next caption — a guess,
-the one a hand would make — and the editor says *cut in two — set where the
-second half begins*. Click in the words where the cut goes first, or it asks
-you to. A join puts the two captions' words together with a space.
+After **✂**, a transcript Parseh made with word times starts the second half
+at its first recorded word. A pasted transcript still uses the former halfway
+guess and says so. A join puts the two captions' words together with a space;
+if it would remove a start you set by hand, it asks before doing that.
 
 Above the list:
 
@@ -55,7 +55,18 @@ Above the list:
   It refuses to take the first caption before the video begins.
 - **+ caption at the end** — one more, four seconds after the last, to give
   its words and its time.
-- **✨ tidy up**, **undo the tidy** and **or with an LLM…** — below.
+- **✨ tidy up**, its **text cues / recorded pauses** choice, **undo**, **redo**
+  and **or with an LLM…** — below.
+
+### Starts from the recording
+
+When Parseh made the transcript, it carries the heard words behind the panel
+while this editor is open. A cut, tidy result and accepted LLM answer takes a
+new caption's start from its first matched word. A start you type or nudge is
+kept as a person-set boundary; automatic work cannot quietly discard it. The
+editor's count explains how many starts are from the recording and how many
+are worked out. This timing detail belongs only to a Parseh-made transcript:
+a pasted transcript remains the familiar panel editor.
 
 ### Hearing a nudge
 
@@ -83,9 +94,9 @@ An automatic transcript is cut where YouTube ran out of room, never where a
 sentence ends. **✨ tidy up** reads the whole transcript at once and
 re-cuts it into **sentences**, one caption each:
 
-1. It lays every word across the time its caption covers, in proportion to
-   how long the word is (a language written without spaces, character by
-   character).
+1. With a Parseh-made transcript, it reads the carried word times. With a
+   pasted transcript it lays words across the time their caption covers as
+   before (a language written without spaces, character by character).
 2. It cuts that stream into sentences — **across** the caption edges, which
    is what the transcript cannot do for itself.
 3. Each sentence becomes a caption starting at its first word's time, and

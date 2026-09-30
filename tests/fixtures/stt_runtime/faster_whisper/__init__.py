@@ -40,9 +40,15 @@ def _log(kind, **fields):
         f.write(json.dumps(fields) + "\n")
 
 
+class Word:
+    def __init__(self, start, end, word):
+        self.start, self.end, self.word, self.probability = start, end, word, 0.9
+
+
 class Segment:
-    def __init__(self, start, end, text):
+    def __init__(self, start, end, text, words=None):
         self.start, self.end, self.text = start, end, text
+        self.words = words or []
 
 
 class TranscriptionInfo:
@@ -92,10 +98,16 @@ class WhisperModel:
         delay = float(CONFIG.get("delay") or 0)
         lazy = CONFIG.get("cuda_lazy_error") if self.device == "cuda" else CONFIG.get("cpu_lazy_error")
 
+        want_words = bool(rest.get("word_timestamps"))
         def generate():
             if lazy:
                 raise RuntimeError(lazy)
             for start, end, text in made:
                 time.sleep(delay)
-                yield Segment(float(start), float(end), text)
+                bits = text.split()
+                span = float(end) - float(start)
+                words = [Word(float(start) + span * i / len(bits),
+                              float(start) + span * (i + 1) / len(bits), bit)
+                         for i, bit in enumerate(bits)] if want_words and bits else []
+                yield Segment(float(start), float(end), text, words)
         return generate(), TranscriptionInfo(language, duration)

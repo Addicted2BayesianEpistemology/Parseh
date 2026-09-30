@@ -298,10 +298,12 @@ class DataFormats(unittest.TestCase):
         import latexthemes
         import making
         import texpackages
+        import wordtimes
         got = version.formats()
         self.assertEqual(set(got), set(version.FORMATS))
         held = {"parseh-timings": timestamp.TIMINGS_FORMAT, "parseh-review": timestamp.REVIEW_FORMAT,
                 "parseh-parts": merge_parts.PARTS_FORMAT, "parseh-waveform": serve.WAVEFORM_FORMAT,
+                "parseh-wordtimes": wordtimes.WORDTIMES_FORMAT,
                 "parseh-library": store.LIBRARY_FORMAT, "parseh-anki": anki_store.STORE_FORMAT,
                 "parseh-clips": clips.INFO_FORMAT, "parseh-dictionary": lookup.DB_FORMAT,
                 "parseh-corpus": corpus.DB_FORMAT, "parseh-components": getdecomposition.PACK_FORMAT,
@@ -369,7 +371,7 @@ class DataFormats(unittest.TestCase):
     KEPT = {"books/": ("parseh-book", "parseh-reading", "parseh-timings", "parseh-review",
                        "parseh-annot"),
             "youtube/videos/": ("parseh-video", "parseh-annotations", "parseh-parts",
-                                "parseh-waveform"),
+                                "parseh-waveform", "parseh-wordtimes"),
             "markdown/library/": ("parseh-library",),
             "exercises/": ("parseh-exercise-deck", "parseh-schedule"),
             "clips/": ("parseh-clips",),
@@ -421,6 +423,7 @@ class DataFormats(unittest.TestCase):
         for fmt, name in (("parseh-library", "markdown/library/"), ("parseh-anki", "youtube/anki/"),
                           ("parseh-timings", "timings.json"), ("parseh-review", "review.json"),
                           ("parseh-parts", "parts/*.json"), ("parseh-waveform", "waveform.json"),
+                          ("parseh-wordtimes", "wordtimes.json"),
                           ("parseh-dictionary", "dict/"), ("parseh-corpus", "corpus/"),
                           ("parseh-components", "components/")):
             self.assertIn(name, version.what(fmt), fmt)

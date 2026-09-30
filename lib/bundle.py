@@ -380,7 +380,7 @@ SHAPE = {
         # bundle cannot carry -- so making it again on the next machine is
         # an hour nobody should be asked to spend twice.
         "files": ("video.json", "annotations.json", "transcript.txt",
-                  "waveform.json"),
+                  "waveform.json", "wordtimes.json"),
         "dirs": {"parts": (".json",), NOTES_DIR: NOTES_EXTS},
     },
 }
@@ -1677,8 +1677,8 @@ def _put(tree, dest, kind, mode):
             # size: it is an hour of somebody's afternoon, not a thing the
             # next build makes again, and a bundle made before it was
             # recorded carries none.  Given up only to another waveform.
-            if entry == "waveform.json" and not os.path.exists(
-                    os.path.join(dest, "waveform.json")):
+            if entry in ("waveform.json", "wordtimes.json") and not os.path.exists(
+                    os.path.join(dest, entry)):
                 pass                          # keep the one that is here
             elif kind == "book" and entry in (ANNOT_DIR, ORIGINAL_DIR) and not os.path.exists(
                     os.path.join(dest, entry)):
@@ -1999,4 +1999,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-

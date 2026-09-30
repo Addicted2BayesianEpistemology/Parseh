@@ -628,9 +628,11 @@ print(r.stdout.strip().splitlines()[-1])
     forward: ParsehCards.markdown({fa: 'clock', en: 'a thing that tells the time', dir: 'forward'}, 'vocab'),
     random: ParsehCards.markdown({fa: 'clock', en: 'a thing that tells the time', dir: 'both-random'}, 'vocab'),
     repeat: ParsehCards.markdown({fa: 'clock', en: 'a thing that tells the time', dir: 'both-repeat'}, 'vocab'),
+    rtl: ParsehCards.markdown({fa: 'حرف بزنم.', en: 'to talk',
+      context: 'امروز میخوام حرف بزنم.\nدر باره همه چیزهایی که دارم.'}, 'vocab'),
   }), [clipName, A]);
   assert(md.vocab.startsWith(':::exercise flashcard\ncard-type: vocab\ntarget: [wound]{tl}\n') && md.vocab.endsWith('\n:::\n')
-         && md.vocab.includes('\ncontext: |\n  The old man\n  wound the clock\n')
+         && md.vocab.includes('\ncontext: |\n  [The old man]{tl}\n  [wound the clock]{tl}\n')
          && md.vocab.includes(`\nsource: [The Clock and the Wind — 1.1](${A}/books/english/mini-en/reader/#p1)\n`)
          && md.vocab.includes(`\nfront-audio: audio/${clipName}\n`) && md.vocab.includes('\ndirection: both-repeat\n')
          && !md.vocab.includes('reading:') && !md.vocab.includes('bidirectional'),
@@ -643,6 +645,8 @@ print(r.stdout.strip().splitlines()[-1])
          && md.jolly.includes('\nback-primary: |\n  | form | sound |\n  |---|---|\n'),
          'markdown(jolly): the four fields verbatim, a block where there are lines');
   assert(!md.forward.includes('direction') && !md.forward.includes('bidirectional'), 'markdown: forward writes no direction');
+  assert(md.rtl.includes('target: [حرف بزنم.]{tl}') && md.rtl.includes('context: |\n  [امروز میخوام حرف بزنم.]{tl}\n  [در باره همه چیزهایی که دارم.]{tl}'),
+         'markdown: Persian target and each wrapped context line are marked as the target language');
   assert(md.random.includes('\ndirection: both-random\n') && md.repeat.includes('\ndirection: both-repeat\n')
          && !md.random.includes('bidirectional') && !md.repeat.includes('bidirectional'),
          'markdown: both (random) and both (repeat) are written as their own values, and the sheet\'s old "both" is both (repeat)');
@@ -671,7 +675,7 @@ print(json.dumps(out))
            `markdown(${k}) is one sound exercise to mdparser, decks.validate_markdown and htmlgen ${p.errors.join('; ')}${p.deck === true ? '' : p.deck}`);
   }
   assert(parsed.vocab.fields.target === '[wound]{tl}' && parsed.vocab.fields.direction === 'both-repeat'
-         && parsed.vocab.fields['front-audio'] === 'audio/' + clipName && parsed.vocab.raw.context === 'The old man\nwound the clock'
+         && parsed.vocab.fields['front-audio'] === 'audio/' + clipName && parsed.vocab.raw.context === '[The old man]{tl}\n[wound the clock]{tl}'
          && parsed.vocab.html.includes(`src="/clips/media/audio/${clipName}"`) && parsed.vocab.html.includes('ex-card-play'),
          'the vocab card reads back field for field and draws its recording from the tray');
   assert(parsed.opposites.fields.direction === 'reverse' && parsed.opposites.fields.opposite === '[young]{tl}',

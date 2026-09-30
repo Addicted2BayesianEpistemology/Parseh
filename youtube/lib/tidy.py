@@ -118,6 +118,10 @@ PAUSE_TIMES = 2.0
 # long is fast whatever its pace says, and every short caption in a slow
 # video would otherwise read as a pause
 PAUSE_LEAST = 1.2
+# A real gap shorter than this is normally a consonant/word boundary, not the
+# sentence-level pause this tidy control is looking for.  This rule is offered
+# separately from the legacy reading-rate heuristic in the editor.
+AUDIO_PAUSE_LEAST = 0.65
 # a non-speech tag: what a transcript writes for a sound nobody said
 TAG = re.compile(r"^[\[(（【][^\]\)）】]*[\]\)）】]$")
 
@@ -207,7 +211,7 @@ def _size(word, L):
     return max(1, len(re.sub(r"\s+", "", L.strip(word) if hasattr(L, "strip") else word)))
 
 
-def _stream(captions, L, dur=None):
+def _stream(captions, L, dur=None, word_times=None, pause_mode="text"):
     """Every word of every caption, with the time it was probably spoken.
 
         -> [{"word", "at", "cap", "first"}]
@@ -233,6 +237,8 @@ def _stream(captions, L, dur=None):
     median = sorted(pace)[len(pace) // 2] if pace else 0.0
 
     out = []
+    timed = list(word_times or [])
+    timed_at = 0
     for i, c in enumerate(captions):
         words = _pieces(c.get("text"), L)
         if not words:
@@ -256,14 +262,33 @@ def _stream(captions, L, dur=None):
                     and span / total >= median * PAUSE_TIMES)
         at = t0
         for k, w in enumerate(words):
-            out.append({"word": w, "at": round(at, 3), "cap": i, "first": k == 0,
-                        "last": k == len(words) - 1, "slow": slow, "hard": k in hard,
+            got = timed[timed_at] if timed_at < len(timed) else None
+            timed_at += 1
+            try:
+                exact_at = float(got.get("start")) if isinstance(got, dict) else None
+                exact_end = float(got.get("end")) if isinstance(got, dict) else None
+            except (TypeError, ValueError):
+                exact_at = exact_end = None
+            if exact_at is not None and not (exact_at >= 0):
+                exact_at = exact_end = None
+            source = got.get("source") if isinstance(got, dict) else ""
+            out.append({"word": w, "at": round(exact_at if exact_at is not None else at, 3),
+                        "end": round(exact_end, 3) if exact_end is not None else None,
+                        "recorded": source in ("whisper", "aligner"),
+                        "cap": i, "first": k == 0, "last": k == len(words) - 1,
+                        "slow": slow and pause_mode == "text", "hard": k in hard,
                         # a tag the transcript itself put on a line of its
                         # own: that one stands alone, and one written INSIDE
                         # a caption stays where it was written -- cutting
                         # round it there would strand the words on both sides
                         "lone": len(words) == 1 and bool(TAG.match(w))})
             at += span * sizes[k] / total
+    if pause_mode == "recording":
+        for before, after in zip(out, out[1:]):
+            end, start = before.get("end"), after.get("at")
+            if before.get("recorded") and after.get("recorded") and end is not None \
+                    and start is not None and start - end >= AUDIO_PAUSE_LEAST:
+                before["audio_pause"] = True
     return out
 
 
@@ -472,7 +497,7 @@ def _repeat(caps, L):
     return "no no no"
 
 
-def tidy(captions, lang, dur=None):
+def tidy(captions, lang, dur=None, word_times=None, pause_mode="text"):
     """The captions cut into sentences and timed again -> (captions, notes).
 
     `notes` is what to tell whoever pressed the button: how many captions
@@ -492,7 +517,8 @@ def tidy(captions, lang, dur=None):
     # the verb cue is for a language that puts its verb last, and needs the
     # dictionary to tell one from a noun; the rest of the cues need neither
     verbal = chunker.verb_final(L.code) and lookup.available(L.code)
-    stream = _stream(caps, L, dur)
+    pause_mode = pause_mode if pause_mode in ("text", "recording") else "text"
+    stream = _stream(caps, L, dur, word_times, pause_mode)
     if not stream:
         return list(captions), ["no words in the transcript"]
     words = [s["word"] for s in stream]
@@ -523,6 +549,12 @@ def tidy(captions, lang, dur=None):
             end = _ends_sentence(words, i, L, R)
         # 3 -- silence after this caption: whatever was being said is over
         if s.get("last") and s.get("slow"):
+            end = True
+        # The optional recording-aware algorithm observes actual gaps between
+        # two measured words.  Unlike the legacy caption-rate heuristic it can
+        # cut inside a former caption; the emitted start still comes from the
+        # first real word, never from a shared-span estimate.
+        if s.get("audio_pause"):
             end = True
         # 4 -- A QUESTION WITH NO VERB IN IT: "یعنی چه", "چه رنگی" -- speech asks
         # half its questions that way, and no verb will ever close them.
@@ -563,4 +595,6 @@ def tidy(captions, lang, dur=None):
         return list(captions), ["the tidy would have changed the words themselves, "
                                 "so nothing was done"]
     notes = ["%d captions became %d" % (len(caps), len(out))]
+    if pause_mode == "recording" and not any(s.get("recorded") for s in stream):
+        notes.append("recording pauses were unavailable, so text cues were used")
     return out, notes

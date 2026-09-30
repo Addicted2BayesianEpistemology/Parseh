@@ -86,8 +86,12 @@
     var base = String(opts.base || '/youtube');
     var lang = String(opts.lang || '');
     var vid = String(opts.video || '');      // a YouTube id, or "" for a film
+    var wordJob = String(opts.wordJob || '');
     var caps = [], done = false;
     var player = null, playReady = false, stopAt = null, ticker = 0;
+    var wordShift = 0, wordInfo = null;
+    var undoStack = [], redoStack = [], historyBytes = 0;
+    var HISTORY_BYTES = 640 * 1024 * 1024;
 
     var root = el('div', 'se-root');
     var box = el('div', 'se-box');
@@ -155,7 +159,13 @@
     var tidyBtn = button('\u2728 tidy up', {'class': 'se-btn se-quiet',
       'title': 'cut the captions into sentences and time them again \u2014 a guess, ' +
                'and one you can undo'});
-    var undoBtn = button('undo the tidy', {'class': 'se-btn se-quiet'});
+    var tidyMode = el('select', 'se-tidymode');
+    tidyMode.setAttribute('aria-label', 'how tidy finds pauses');
+    [['text', 'text cues'], ['recording', 'recorded pauses']].forEach(function (row) {
+      var option = el('option', null, row[1]); option.value = row[0]; tidyMode.appendChild(option);
+    });
+    var undoBtn = button('undo', {'class': 'se-btn se-quiet', 'title': 'undo the last transcript edit'});
+    var redoBtn = button('redo', {'class': 'se-btn se-quiet', 'title': 'redo the last undone transcript edit'});
     // THE OTHER ROAD, and the one the add page already walks for the
     // glossing: the toolbox writes the prompt, a model reads the transcript,
     // the answer comes back into the box.  The two fail differently -- the
@@ -165,9 +175,11 @@
     var llmBtn = button('or with an LLM\u2026', {'class': 'se-btn se-quiet',
       'title': 'copy a prompt that asks a model to do the same thing, and paste its ' +
                'answer back here'});
-    tidyBtn.hidden = undoBtn.hidden = true;
+    tidyBtn.hidden = tidyMode.hidden = undoBtn.hidden = redoBtn.hidden = true;
     tools.appendChild(tidyBtn);
+    tools.appendChild(tidyMode);
     tools.appendChild(undoBtn);
+    tools.appendChild(redoBtn);
     tools.appendChild(llmBtn);
     box.appendChild(tools);
 
@@ -213,6 +225,103 @@
       var s = where || stat;
       s.textContent = msg || '';
       s.classList.toggle('se-bad', !!bad);
+    }
+    function copyCaps() {
+      return caps.map(function (c) {
+        return {start: c.start, text: c.text, chapter: c.chapter || null,
+                _atom: c._atom || '', _atoms: c._atoms ? c._atoms.slice() : null,
+                _starts: c._starts ? c._starts.slice() : null,
+                _ends: c._ends ? c._ends.slice() : null, _sources: c._sources ? c._sources.slice() : null,
+                _pin: c._pin, _pinAtom: c._pinAtom || ''};
+      });
+    }
+    function snapshot() { return {caps: copyCaps(), shift: wordShift}; }
+    function bytes(state) { try { return JSON.stringify(state).length * 2; } catch (e) { return 0; } }
+    function refreshHistory() {
+      undoBtn.hidden = !undoStack.length;
+      redoBtn.hidden = !redoStack.length;
+      undoBtn.disabled = !undoStack.length;
+      redoBtn.disabled = !redoStack.length;
+    }
+    function remember(state) {
+      state = state || snapshot();
+      var size = bytes(state);
+      undoStack.push({state: state, size: size}); historyBytes += size; redoStack = [];
+      // The cap is a ceiling, not a reservation.  Each entry is an exact
+      // client-side transaction state until it ages out; the held document
+      // itself stays small and server-owned.
+      while (historyBytes > HISTORY_BYTES && undoStack.length > 1)
+        historyBytes -= undoStack.shift().size;
+      refreshHistory();
+    }
+    function restore(state) {
+      caps = state.caps.map(function (c) {
+        return {start: c.start, text: c.text, chapter: c.chapter || null,
+                _atom: c._atom || '', _atoms: c._atoms ? c._atoms.slice() : null,
+                _starts: c._starts ? c._starts.slice() : null,
+                _ends: c._ends ? c._ends.slice() : null, _sources: c._sources ? c._sources.slice() : null,
+                _pin: c._pin, _pinAtom: c._pinAtom || ''};
+      });
+      wordShift = state.shift || 0;
+      paint();
+    }
+    function undo() {
+      if (!undoStack.length) return;
+      var item = undoStack.pop(); historyBytes -= item.size; redoStack.push({state: snapshot(), size: bytes(snapshot())});
+      restore(item.state); refreshHistory(); say('undone');
+    }
+    function redo() {
+      if (!redoStack.length) return;
+      var item = redoStack.pop(); var now = snapshot(); undoStack.push({state: now, size: bytes(now)}); historyBytes += bytes(now);
+      restore(item.state); refreshHistory(); say('redone');
+    }
+    function piecesFor(text) {
+      var raw = String(text || '');
+      if (lang === 'ja' || lang === 'zh') return Array.from(raw).filter(function (ch) {
+        return !/\s/.test(ch) && !/[\.,!?;:，。！？；：、]/.test(ch);
+      });
+      return raw.trim().split(/\s+/).filter(Boolean).map(function (word) {
+        return word.replace(/[\.,!?;:،؛؟。！？]/g, '');
+      }).filter(Boolean);
+    }
+    function putWordInfo(info) {
+      wordInfo = info || null;
+      var rows = (info && info.captions) || [];
+      caps.forEach(function (c, i) {
+        var row = rows[i] || {};
+        c._atom = row.atom || '';
+        c._atoms = Array.isArray(row.atoms) ? row.atoms.slice() : null;
+        // The held tape stays in its original video clock until Use commits
+        // it.  Keep this projection in that clock too; wordAt adds the one
+        // visible global shift, so a tidy response cannot make a later split
+        // apply the shift twice.
+        c._starts = Array.isArray(row.starts) ? row.starts.map(function (v) {
+          return v == null ? v : +v - wordShift;
+        }) : null;
+        c._ends = Array.isArray(row.ends) ? row.ends.map(function (v) {
+          return v == null ? v : +v - wordShift;
+        }) : null;
+        c._sources = Array.isArray(row.sources) ? row.sources.slice() : null;
+        c._pin = row.pin == null ? null : +row.pin;
+        c._pinAtom = c._pin != null ? c._atom : '';
+      });
+      if (info && info.counts) {
+        var n = info.counts, heard = (n.whisper || 0) + (n.aligner || 0);
+        var worked = (n.interpolated || 0) + (n.estimated || 0);
+        count.title = heard + ' starts from the recording' + (worked ? '; ' + worked + ' worked out' : '') +
+          (n.guess ? '; ' + n.guess + ' guesses' : '');
+      }
+    }
+    function wordState(extra) {
+      var out = extra || {};
+      if (!wordJob) return out;
+      out.word_job = wordJob;
+      out.word_shift = wordShift;
+      if (wordInfo) {
+        out.word_pins = caps.filter(function (c) { return c._pinAtom && c._pin != null; })
+          .map(function (c) { return {atom: c._pinAtom, start: c._pin}; });
+      }
+      return out;
     }
     // the first caption whose start does not come after the one before it:
     // the panel is read in order, and a video whose captions go backwards is
@@ -264,7 +373,9 @@
       at.addEventListener('change', function () {
         var n = seconds(at.value);
         if (isNaN(n)) { at.value = stamp(c.start); say('a time is 0:08, or 1:02:03.5, or a number of seconds', true); return; }
+        remember();
         c.start = n;
+        if (c._atom) { c._pinAtom = c._atom; c._pin = n; }
         at.value = stamp(n);
         say('');
         paintOrder();
@@ -279,7 +390,12 @@
       text.value = c.text;
       text.dir = 'auto';
       text.setAttribute('aria-label', 'caption ' + (i + 1) + ', what is said');
-      text.addEventListener('input', function () { c.text = text.value; fit(text); llmRow.invalidate(); });
+      text.addEventListener('focus', function () { text._before = snapshot(); });
+      text.addEventListener('input', function () {
+        c.text = text.value; c._starts = c._ends = c._sources = c._atoms = null; c._atom = '';
+        c._pin = null; c._pinAtom = ''; fit(text); llmRow.invalidate();
+      });
+      text.addEventListener('change', function () { if (text._before) remember(text._before); text._before = null; });
       row.appendChild(text);
 
       var acts = el('span', 'se-acts');
@@ -333,31 +449,53 @@
         say('');
       }
     }
+    function wordAt(c, index) {
+      if (!c._starts || index < 0 || index >= c._starts.length || c._starts[index] == null) return null;
+      return Math.round((+c._starts[index] + wordShift) * 1000) / 1000;
+    }
     function split(i, row) {
       var t = row.querySelector('.se-text');
       var at = t.selectionStart;
       var before = t.value.slice(0, at).trim(), after = t.value.slice(at).trim();
       if (!before || !after) { say('put the cursor where the caption should be cut in two', true); return; }
-      // the second half starts halfway to the next caption -- a guess, and
-      // the one a hand would make; the nudges and \u25b6 are how it stops
-      // being a guess
+      remember();
       var next = i + 1 < caps.length ? caps[i + 1].start : caps[i].start + 4;
       var mid = Math.round((caps[i].start + next) / 2 * 10) / 10;
+      var cut = piecesFor(t.value.slice(0, at)).length;
+      var exact = wordAt(caps[i], cut);
+      if (exact != null) mid = exact;
       if (!(mid > caps[i].start)) mid = Math.round((caps[i].start + 1) * 10) / 10;
-      caps[i].text = before;
-      caps.splice(i + 1, 0, {start: mid, text: after, chapter: null});
-      say('cut in two — set where the second half begins');
+      var old = caps[i], starts = old._starts && old._starts.slice(), ends = old._ends && old._ends.slice(),
+          sources = old._sources && old._sources.slice(), atoms = old._atoms && old._atoms.slice();
+      old.text = before;
+      old._starts = starts && starts.slice(0, cut); old._ends = ends && ends.slice(0, cut);
+      old._sources = sources && sources.slice(0, cut); old._atoms = atoms && atoms.slice(0, cut);
+      old._atom = old._atoms && old._atoms[0] || '';
+      var moved = {start: mid, text: after, chapter: null,
+                   _starts: starts && starts.slice(cut), _ends: ends && ends.slice(cut),
+                   _sources: sources && sources.slice(cut), _atoms: atoms && atoms.slice(cut)};
+      moved._atom = moved._atoms && moved._atoms[0] || '';
+      caps.splice(i + 1, 0, moved);
+      say(exact != null ? 'cut in two at the recorded word' : 'cut in two — set where the second half begins');
       paint(i + 1);
     }
     function join(i) {
       if (i + 1 >= caps.length) { say('there is no caption after this one', true); return; }
+      if (caps[i + 1]._pinAtom && caps[i + 1]._pin != null &&
+          !window.confirm('This removes a person-set start at the join. Join and remove that start?')) return;
+      remember();
       var next = caps.splice(i + 1, 1)[0];
       caps[i].text = (caps[i].text + ' ' + next.text).replace(/\s+/g, ' ').trim();
+      ['_starts', '_ends', '_sources', '_atoms'].forEach(function (name) {
+        caps[i][name] = caps[i][name] && next[name] ? caps[i][name].concat(next[name]) : null;
+      });
+      caps[i]._atom = caps[i]._atoms && caps[i]._atoms[0] || '';
       say('joined');
       paint(i);
     }
     function remove(i) {
       if (caps.length === 1) { say('a transcript needs one caption at least', true); return; }
+      remember();
       caps.splice(i, 1);
       say('deleted');
       paint(Math.min(i, caps.length - 1));
@@ -367,7 +505,9 @@
     // against the video playing beside it
     function moveBy(i, d, row) {
       var c = caps[i];
+      remember();
       c.start = Math.max(0, Math.round((c.start + d) * 1000) / 1000);
+      if (c._atom) { c._pinAtom = c._atom; c._pin = c.start; }
       var at = row.querySelector('.se-at');
       if (at) at.value = stamp(c.start);
       say('caption ' + (i + 1) + ' at ' + stamp(c.start));
@@ -391,25 +531,32 @@
       if (first < 0) { say('that would take the first caption before the video begins', true); return; }
       // a tenth is kept, as everywhere else here: a panel that is late by
       // 1.4 s is moved by 1.4 s and not by one
-      caps.forEach(function (c) { c.start = Math.max(0, Math.round((c.start + by) * 1000) / 1000); });
+      remember();
+      wordShift += by;
+      caps.forEach(function (c) {
+        c.start = Math.max(0, Math.round((c.start + by) * 1000) / 1000);
+        if (c._pin != null) c._pin = Math.max(0, Math.round((c._pin + by) * 1000) / 1000);
+      });
       say('every caption moved by ' + by + ' s');
       paint();
     });
-    // what the captions were before the tidy, for one press of undo
-    var before = null;
+    function panelCaps() {
+      return caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter || null}; });
+    }
     function tidyUp() {
       tidyBtn.disabled = true;
       say('reading the whole transcript\u2026');
-      var was = caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
-      post('/api/transcript', {lang: lang, tidy: true, captions: was}).then(function (j) {
+      var was = snapshot();
+      post('/api/transcript', wordState({lang: lang, tidy: true, tidy_mode: tidyMode.value,
+                                         captions: panelCaps()})).then(function (j) {
         tidyBtn.disabled = false;
         if (done) return;
         if (!j.ok) { say(j.error || 'the tidy was refused', true); return; }
-        before = was;
+        remember(was);
         caps = (j.captions || []).map(function (c) {
           return {start: +c.start || 0, text: String(c.text || ''), chapter: c.chapter || null};
         });
-        undoBtn.hidden = false;
+        putWordInfo(j.wordtimes);
         say((j.notes || []).join(' \u00b7 ') || 'tidied');
         paint();
       }, function (err) {
@@ -433,7 +580,7 @@
       surface: 'transcript-tidy', cls: 'se-btn se-quiet', remind: '',
       getText: function () {
         var key = capsKey();
-        var was = caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
+        var was = panelCaps();
         return post('/api/transcript', {lang: lang, prompt: true, captions: was}).then(function (j) {
           if (!j.ok) throw new Error(j.error || 'the prompt could not be written');
           madeFrom = key;
@@ -460,22 +607,22 @@
       useAnswer.disabled = true;
       llmStat.textContent = 'reading it\u2026';
       llmStat.classList.remove('se-bad');
-      var was = caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
-      post('/api/transcript', {lang: lang, transcript: text}).then(function (j) {
+      var was = snapshot(), wordsBefore = panelCaps();
+      post('/api/transcript', wordState({lang: lang, transcript: text})).then(function (j) {
         useAnswer.disabled = false;
         if (done) return;
         if (!j.ok) { llmStat.textContent = j.error || 'that is not a transcript'; llmStat.classList.add('se-bad'); return; }
-        before = was;
+        remember(was);
         caps = (j.captions || []).map(function (c) {
           return {start: +c.start || 0, text: String(c.text || ''), chapter: c.chapter || null};
         });
-        undoBtn.hidden = false;
+        putWordInfo(j.wordtimes);
         llm.hidden = true;
         // A MODEL MAY HAVE CHANGED THE WORDS, which is sometimes the point
         // (a misheard name) and sometimes the trouble.  Nothing here forbids
         // it -- the whole reason to ask a model is that it hears the sense --
         // but the reader is told how much moved.
-        say(was.length + ' captions became ' + caps.length + letters(was, caps));
+        say(wordsBefore.length + ' captions became ' + caps.length + letters(wordsBefore, caps));
         paint();
       }, function (err) {
         useAnswer.disabled = false;
@@ -495,16 +642,11 @@
              (d ? d + ' letters more or fewer' : 'the same length, different letters') +
              '. Look them over.';
     }
-    undoBtn.addEventListener('click', function () {
-      if (!before) return;
-      caps = before.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
-      before = null;
-      undoBtn.hidden = true;
-      say('back as it was');
-      paint();
-    });
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
     addBtn.addEventListener('click', function () {
       var last = caps.length ? caps[caps.length - 1] : null;
+      remember();
       caps.push({start: last ? last.start + 4 : 0, text: '', chapter: null});
       say('a caption at the end — give it its words and its time');
       paint(caps.length - 1);
@@ -527,9 +669,9 @@
       if (!words.length) { say('every caption is empty', true, fstat); return; }
       useBtn.disabled = true;
       say('checking…', false, fstat);
-      post('/api/transcript', {captions: caps.map(function (c) {
+      post('/api/transcript', wordState({captions: caps.map(function (c) {
         return {start: c.start, text: c.text, chapter: c.chapter || null};
-      }), lang: lang}).then(function (j) {
+      }), lang: lang, word_commit: true})).then(function (j) {
         useBtn.disabled = false;
         if (!j.ok) { say(j.error || 'the transcript was refused', true, fstat); return; }
         finish(j.text);
@@ -591,13 +733,14 @@
 
     document.body.appendChild(root);
     say('reading the transcript…');
-    post('/api/transcript', {transcript: String(opts.transcript || ''), lang: lang})
+    post('/api/transcript', wordState({transcript: String(opts.transcript || ''), lang: lang}))
       .then(function (j) {
         if (done) return;
         if (!j.ok) { say(j.error || 'the transcript could not be read', true); useBtn.disabled = true; return; }
         caps = (j.captions || []).map(function (c) {
           return {start: +c.start || 0, text: String(c.text || ''), chapter: c.chapter || null};
         });
+        putWordInfo(j.wordtimes);
         // the button appears only where there is something behind it: the
         // server says whether this language gives the cue it reads, and why
         // not where it does not

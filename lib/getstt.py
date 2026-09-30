@@ -79,6 +79,7 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import download       # noqa: E402  resumable, stoppable, and says how far
 import version        # noqa: E402  who is asking: UA
+from alignerpins import ALIGN_PINS  # noqa: E402  public, immutable CTC networks
 
 STT_DIR = os.path.join(ROOT, "stt")
 REQUIREMENTS = os.path.join(HERE, "stt-requirements.txt")
@@ -143,7 +144,9 @@ MODES = ("auto", "cpu", "cuda")
 MODELS = ("large-v3-turbo", "large-v3")     # the ONLY two identifiers
 ALLOWED_MODELS = frozenset(MODELS)
 DEFAULT_MODEL = "large-v3-turbo"
-PARTS = ("runtime",) + MODELS               # what a job may name
+ALIGNERS = tuple(sorted(ALIGN_PINS))
+ALIGN_PARTS = tuple("align-" + code for code in ALIGNERS)
+PARTS = ("runtime",) + MODELS + ALIGN_PARTS  # what Settings may name
 SETTINGS_PAGE = "/settings/speech/"
 GUIDE = "/guide/site/lookup-and-languages/speech-to-text.html"
 
@@ -213,6 +216,10 @@ MEASURED = {
     "large-v3-turbo": sum(s for _h, s in MODEL_PINS["large-v3-turbo"]["files"].values()),
     "large-v3": sum(s for _h, s in MODEL_PINS["large-v3"]["files"].values()),
 }
+# The published model is overwhelmingly the download. Supporting metadata is
+# pinned and checked too, but intentionally not a second network probe.
+MEASURED.update({"align-" + code: sum(size or 0 for _sha, size in pin["files"].values())
+                 for code, pin in ALIGN_PINS.items()})
 # below these, pip finds no wheel: the newest pins raise the floor of the two Macs
 RUNTIME_FLOORS = {"macOS arm64": 14, "macOS x86_64": 13}
 # THE LONGEST PATH INSIDE THE PROGRAM'S FOLDER, in characters, from the pinned wheels' own
@@ -284,6 +291,30 @@ def _runtimes_dir():
 
 def _models_dir():
     return os.path.join(STT_DIR, "models")
+
+
+def _aligners_dir():
+    return os.path.join(STT_DIR, "aligners")
+
+
+def aligner_code(key):
+    """The language code named by an optional ``align-<code>`` part."""
+    if not isinstance(key, str) or not key.startswith("align-"):
+        raise ValueError("%r is not an exact-word-times part" % (key,))
+    code = key[len("align-"):]
+    if code not in ALIGN_PINS:
+        raise ValueError("%r is not an exact-word-times language" % (code,))
+    return code
+
+
+def aligner_dir(code):
+    if not isinstance(code, str) or code not in ALIGN_PINS:
+        raise ValueError("%r is not an exact-word-times language" % (code,))
+    return os.path.join(_aligners_dir(), code)
+
+
+def _aligner_part(code):
+    return aligner_dir(code) + ".part"
 
 
 def runtime_folder():
@@ -623,6 +654,60 @@ def model_ready(key):
     return model_info(key)["ready"]
 
 
+def aligner_info(code):
+    """One public CTC network, checked from its immutable sidecar record.
+
+    ``meta.json`` belongs to the network and tells the aligner how to decode;
+    Parseh's own source/revision record is therefore the hidden sidecar rather
+    than a replacement for that file.
+    """
+    if not isinstance(code, str) or code not in ALIGN_PINS:
+        raise ValueError("%r is not an exact-word-times language" % (code,))
+    pin, path = ALIGN_PINS[code], aligner_dir(code)
+    row = {"state": "absent", "have": False, "ready": False, "size": 0,
+           "built": "", "revision": "", "why": ""}
+    if not os.path.isdir(path):
+        return row
+    meta = {}
+    try:
+        with io.open(os.path.join(path, ".parseh.json"), encoding="utf-8") as f:
+            meta = json.load(f)
+    except (OSError, ValueError):
+        pass
+    if not isinstance(meta, dict):
+        meta = {}
+    sizes = {}
+    for name in pin["files"]:
+        try:
+            sizes[name] = os.path.getsize(os.path.join(path, name))
+        except OSError:
+            sizes[name] = None
+    row.update(have=True, size=sum(s for s in sizes.values() if s),
+               built=meta.get("built", ""), revision=meta.get("revision", ""))
+    if meta.get("revision") and meta["revision"] != pin["revision"]:
+        row.update(state="older", why="It was fetched at another version of the alignment network.")
+        return row
+    # A known byte size is checked on every status read. The remaining files
+    # were hash checked at download time and retain a sidecar revision record.
+    bad = [n for n, (_sha, want) in pin["files"].items()
+           if sizes[n] is None or (want is not None and sizes[n] != want)]
+    if bad or meta.get("revision") != pin["revision"]:
+        row.update(state="broken", why="The alignment network's folder is incomplete (%s). Get it again."
+                   % (bad[0] if bad else ".parseh.json"))
+        return row
+    row.update(state="ready", ready=True)
+    return row
+
+
+def aligner_ready(code):
+    return isinstance(code, str) and code in ALIGN_PINS and aligner_info(code)["ready"]
+
+
+def aligner_path(code):
+    """A ready local network directory for the isolated worker, else None."""
+    return aligner_dir(code) if aligner_ready(code) else None
+
+
 def installed():
     """The models that are ready to be used: the program is, and so are they."""
     if not runtime_ready():
@@ -757,6 +842,7 @@ def sweep():
     clear(STT_DIR, only=lambda n: n.startswith(("runtime.part-", ".trash")))
     clear(_runtimes_dir(), only=lambda n: n.startswith((".trash", ".old")))
     clear(_models_dir(), only=lambda n: n.startswith((".trash", ".old")))
+    clear(_aligners_dir(), only=lambda n: n.startswith((".trash", ".old")))
 
 
 def _rmtree(path):
@@ -1146,22 +1232,27 @@ def plan(key, *, probe=True):
         if rt_dl is None:
             return download.plan(None)
         return download.plan(rt_dl, measured=True, kept=rt_kept, have=0, peak=rt_dl + rt_kept)
-    model = MEASURED[key]
-    have = _part_bytes(_model_part(key))
+    size = MEASURED[key]
+    if key.startswith("align-"):
+        have = _part_bytes(_aligner_part(aligner_code(key)))
+    else:
+        have = _part_bytes(_model_part(key))
     if not need_rt:
-        return download.plan(model, measured=True, kept=model, have=have,
-                             peak=max(model - have, 0))
+        return download.plan(size, measured=True, kept=size, have=have,
+                             peak=max(size - have, 0))
     if rt_dl is None:
         return download.plan(None)
-    dl = rt_dl + model
-    peak = max(rt_dl + rt_kept, rt_kept + max(model - have, 0))
-    return download.plan(dl, measured=True, kept=model + rt_kept, have=have, peak=peak)
+    dl = rt_dl + size
+    peak = max(rt_dl + rt_kept, rt_kept + max(size - have, 0))
+    return download.plan(dl, measured=True, kept=size + rt_kept, have=have, peak=peak)
 
 
 def part_name(key):
     """What a part is called in a sentence."""
     if key == "runtime":
         return "the speech-to-text program"
+    if key.startswith("align-"):
+        return "the %s exact-word-times network" % aligner_code(key)
     return "the %s speech model" % key
 
 
@@ -1339,7 +1430,7 @@ def _fetch_all(files, say, progress, cancel, base=0, whole=None):
     already here, whole and matching its digest, is not fetched again --
     which is how a model stopped after its second file carries on at its
     third."""
-    whole = whole or sum(f[3] for f in files)
+    whole = whole or sum(f[3] or 0 for f in files)
     before = 0
     for url, dest, sha, size in files:
         say("    %s" % os.path.basename(dest))
@@ -1359,7 +1450,7 @@ def _fetch_all(files, say, progress, cancel, base=0, whole=None):
             except OSError as e:
                 raise SystemExit("getstt: could not download (%s). What came is kept: the next "
                                  "try carries on from there." % e)
-        before += size
+        before += size or 0
 
 
 def _tidy(part, names):
@@ -1407,6 +1498,32 @@ def _install_model(key, say, progress, cancel, base=0, whole=None):
     say("  %s: %s" % (key, _mb(model_info(key)["size"])))
 
 
+def _install_aligner(code, say, progress, cancel, base=0, whole=None):
+    """Fetch an immutable CTC network without replacing its decoding meta."""
+    pin, part, final = ALIGN_PINS[code], _aligner_part(code), aligner_dir(code)
+    os.makedirs(_aligners_dir(), exist_ok=True)
+    os.makedirs(part, exist_ok=True)
+    _tidy(part, list(pin["files"]) + [".parseh.json"])
+    say("  exact word times for %s, from %s at a fixed version" % (code, pin["repo"]))
+    files = [(MODEL_URL % {"repo": pin["repo"], "revision": pin["revision"], "file": name},
+              os.path.join(part, name), sha, size)
+             for name, (sha, size) in pin["files"].items()]
+    _fetch_all(files, say, progress, cancel, base=base, whole=whole)
+    for name, (_sha, size) in pin["files"].items():
+        path = os.path.join(part, name)
+        if not os.path.isfile(path) or (size is not None and os.path.getsize(path) != size):
+            raise SystemExit("getstt: %s did not arrive whole. Try again." % name)
+    record = {"language": code, "repo": pin["repo"], "revision": pin["revision"],
+              "files": {n: s for n, (_h, s) in pin["files"].items()},
+              "licence": pin["licence"], "built": time.strftime("%Y-%m-%d")}
+    with io.open(os.path.join(part, ".parseh.json"), "w", encoding="utf-8") as f:
+        json.dump(record, f, indent=1)
+    if os.path.isdir(final):
+        _take_away(final)
+    os.replace(part, final)
+    say("  exact word times for %s: %s" % (code, _mb(aligner_info(code)["size"])))
+
+
 @contextlib.contextmanager
 def _install_turn(say, cancel):
     """The right to install the program, waited for -- and Stop is heard while
@@ -1442,6 +1559,20 @@ def build(key, say=print, progress=None, cancel=None):
                     return runtime()["size"]
                 _install_runtime(say, progress, cancel)
             return runtime()["size"]
+        if key.startswith("align-"):
+            code = aligner_code(key)
+            if aligner_ready(code):
+                say("  exact word times for %s are already installed" % code)
+                return aligner_info(code)["size"]
+            total = MEASURED[key]
+            with _install_turn(say, cancel):
+                base = 0
+                if not runtime_ready():
+                    total += rt_dl
+                    _install_runtime(say, progress, cancel, base=0, whole=total)
+                    base = rt_dl
+            _install_aligner(code, say, progress, cancel, base=base, whole=total)
+            return aligner_info(code)["size"]
         if model_ready(key):
             # as the program's guard above: a press on a page that is out of date is not
             # gigabytes fetched again to replace the same bytes (an older, newer or broken
@@ -1463,11 +1594,13 @@ def build(key, say=print, progress=None, cancel=None):
 def discard(key):
     """Throw away what a stopped download left (a model's .part folder).
     The installed part, if any, is untouched.  Returns the bytes freed."""
+    if not isinstance(key, str) or key not in PARTS:
+        raise ValueError("%r is not a part of speech to text" % (key,))
     if key == "runtime":
         freed = _tree_size(_stage_folder()) if os.path.isdir(_stage_folder()) else 0
         _rmtree(_stage_folder())
         return freed
-    part = _model_part(check_model(key))
+    part = _aligner_part(aligner_code(key)) if key.startswith("align-") else _model_part(check_model(key))
     freed = _part_bytes(part)
     _rmtree(part)
     return freed
@@ -1486,6 +1619,10 @@ def remove(key):
         freed = _take_away(_runtimes_dir())
         _rmtree(_stage_folder())
         forget_hardware()
+    elif key.startswith("align-"):
+        code = aligner_code(key)
+        freed = _take_away(aligner_dir(code))
+        _rmtree(_aligner_part(code))
     else:
         freed = _take_away(model_dir(key))
         _rmtree(_model_part(key))
@@ -1548,6 +1685,21 @@ def _models_status():
     return out
 
 
+def _aligners_status():
+    rt, out = runtime(), {}
+    import languages
+    for code in ALIGNERS:
+        a, pin = aligner_info(code), ALIGN_PINS[code]
+        L = languages.LANGS.get(code)
+        out[code] = dict(a, id="align-" + code, language=code,
+                         name=L.name if L else code, native=L.native if L else code,
+                         repo=pin["repo"], pinned=pin["revision"], licence=pin["licence"],
+                         download=MEASURED["align-" + code],
+                         ready=bool(a["ready"] and rt["ready"]), files_ready=a["ready"],
+                         hint="Optional — Whisper works without it; this makes word times exact.")
+    return out
+
+
 def status():
     """The whole `speech` object of /lookup/api/status and of Settings -> Speech
     to text: the pin, the program, each model, the processor, the languages.
@@ -1563,6 +1715,7 @@ def status():
                 "gpu": dict(GPU_NEEDS), "help": GUIDE + "#how-to-enable-gpu-acceleration"},
         "runtime": dict(rt, download=_runtime_plan()[0]),
         "models": _models_status(),
+        "aligners": _aligners_status(),
         "hardware": hw,
         "requirements": [{"what": w, "link": l} for w, l in needs],
         "requirements_note": gpu_note(),
@@ -1582,6 +1735,7 @@ def summary(where=None):
     it is not used -- it is the interface's argument, and stays."""
     rt = runtime()
     models = _models_status()
+    aligners = _aligners_status()
     hw = hardware()
     ready = [k for k in MODELS if models[k]["ready"]]
     return {"ok": True,
@@ -1591,6 +1745,11 @@ def summary(where=None):
                         "hint": models[k]["hint"], "have": models[k]["have"],
                         "ready": models[k]["ready"], "size": models[k]["size"],
                         "download": models[k]["download"]} for k in MODELS],
+            "aligners": [{"id": "align-" + k, "language": k, "name": aligners[k]["name"],
+                          "native": aligners[k]["native"], "have": aligners[k]["have"],
+                          "ready": aligners[k]["ready"], "files_ready": aligners[k]["files_ready"],
+                          "size": aligners[k]["size"], "download": aligners[k]["download"],
+                          "hint": aligners[k]["hint"]} for k in ALIGNERS],
             "default_model": next((k for k in MODELS if models[k]["ready"]), None),
             "processing": processing(hw),
             "languages": speech_languages(),

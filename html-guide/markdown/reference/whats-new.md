@@ -15,7 +15,36 @@ change. A new version comes in from **Settings → Updating Parseh**
 ([Updating Parseh](../getting-started/updating.md)), which compiles this
 guide and rebuilds the readers by itself.
 
-## a0.4.2 — not yet released
+## a0.4.3 — not yet released
+
+### Exact word times while adding a video
+
+Speech to text can now keep the word boundaries it heard while you correct a
+transcript. Settings offers an optional, per-language exact-word-time network:
+it is local, hash-checked before it is installed, and leaves Whisper's captions
+unchanged. The add page remembers whether to use it; Whisper still works when
+it is absent or switched off. The editor uses a recorded word at a new caption
+boundary, preserves a start you set yourself, offers undo and redo, and can
+tidy from ordinary text cues or from recorded pauses. The captured audio is
+not retained. See [Speech to text](../lookup-and-languages/speech-to-text.md),
+[Adding a video](../videos/adding-a-video.md#speech-to-text) and
+[Mending the transcript](../videos/mending-the-transcript.md).
+
+### Target-language cards stay in reading order
+
+A Markdown or exercise-deck card made from a book or video now marks its
+target and every context line as target language automatically. This keeps
+right-to-left punctuation and line wrapping in their correct reading order;
+Anki cards and fields that already contain markup stay unchanged. See
+[the reader](../books/reader.md#making-a-card).
+
+### Keyboard skipping in Mobile mode
+
+On a keyboard, Mobile mode's ← and → now do the same chosen-seconds move as
+↺ and ↻. Shift keeps a book reader's subparagraph keys, while a video skips.
+See [Mobile mode](../getting-started/mobile-mode.md).
+
+## a0.4.2 — 30 September 2026
 
 ### The meaning under a phrase is a gloss
 

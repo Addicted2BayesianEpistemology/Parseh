@@ -1610,6 +1610,49 @@ def posted_gloss(value):
     return languages.gloss(CA.lang_code(value) or None)
 
 
+def _word_document(data, lang, captions):
+    """The held word tape, temporarily brought to the current editor panel.
+
+    A job token is a capability minted by sttjobs.  It is never a pathname,
+    and a pasted transcript without one remains exactly the old, panel-only
+    road.  The document is saved only when the editor accepts its panel;
+    tidy may therefore try a result and be undone without leaving a second
+    source of truth on disk.
+    """
+    token = data.get("word_job")
+    if not isinstance(token, str):
+        return None
+    try:
+        import wordtimes
+        doc = wordtimes.load(token)
+        if doc is None or doc.get("language") != lang.code:
+            return None
+        doc = wordtimes.sync(doc, captions, lang.code)
+        shift = data.get("word_shift")
+        if shift not in (None, "", 0, 0.0):
+            doc = wordtimes.shift_all(doc, shift)
+        # The first open only asks to project held state; later editor calls
+        # carry the complete authoritative pin set (including deliberate
+        # removals after a confirmed structural edit).
+        if "word_pins" in data:
+            doc = wordtimes.set_pins(doc, data.get("word_pins") or [])
+        return doc
+    except (ValueError, TypeError):
+        return None
+
+
+def _word_starts(doc, captions):
+    """Apply boundary pins/word starts to the panel projection in place."""
+    if doc is None:
+        return captions
+    import wordtimes
+    for caption, state in zip(captions, doc.get("captions") or []):
+        start = wordtimes.caption_start(doc, state)
+        if start is not None:
+            caption["start"] = start
+    return captions
+
+
 def api_transcript(h):
     """The transcript the add page is editing, read or written.
 
@@ -1655,6 +1698,7 @@ def api_transcript(h):
     except KeyError as e:
         return h.send_json({"ok": False, "error": str(e.args[0])}, 400)
     notes = []
+    word_doc = None
     given = data.get("captions")
     if given is not None:
         if not isinstance(given, list):
@@ -1679,8 +1723,18 @@ def api_transcript(h):
         if data.get("prompt"):
             return h.send_json({"ok": True, "prompt": tidier.prompt(clean, L.code),
                                 "lang": L.code})
+        word_doc = _word_document(data, L, clean)
         if data.get("tidy"):
-            clean, notes = tidier.tidy(clean, L.code)
+            mode = data.get("tidy_mode") if isinstance(data.get("tidy_mode"), str) else "text"
+            words = None
+            if word_doc is not None:
+                import wordtimes
+                words = wordtimes.timed_stream(word_doc)
+            clean, notes = tidier.tidy(clean, L.code, word_times=words, pause_mode=mode)
+            if word_doc is not None:
+                import wordtimes
+                word_doc = wordtimes.sync(word_doc, clean, L.code)
+        clean = _word_starts(word_doc, clean)
         text = CA.transcript_text(clean)
     else:
         if not isinstance(data.get("transcript"), str):
@@ -1689,17 +1743,45 @@ def api_transcript(h):
         if data.get("prompt"):
             return h.send_json({"ok": True, "prompt": tidier.prompt(got, L.code),
                                 "lang": L.code})
+        word_doc = _word_document(data, L, got)
         if data.get("tidy"):
-            got, notes = tidier.tidy(got, L.code)
+            mode = data.get("tidy_mode") if isinstance(data.get("tidy_mode"), str) else "text"
+            words = None
+            if word_doc is not None:
+                import wordtimes
+                words = wordtimes.timed_stream(word_doc)
+            got, notes = tidier.tidy(got, L.code, word_times=words, pause_mode=mode)
+            if word_doc is not None:
+                import wordtimes
+                word_doc = wordtimes.sync(word_doc, got, L.code)
+        got = _word_starts(word_doc, got)
         text = CA.transcript_text(got)
     captions = parse_transcript_text(text, L)
     if not captions:
         return h.send_json({"ok": False, "error": "no captions found -- paste the "
                             "transcript as YouTube shows it, timestamps included"}, 400)
     why = tidier.why_not(L.code)
+    word_projection = None
+    if word_doc is not None:
+        import wordtimes
+        # Canonical serialisation is the state bound to adoption.  The editor
+        # commits it only when its Use button accepts this same panel.
+        word_doc["panel_sha256"] = wordtimes.panel_hash(text)
+        lost_pins = wordtimes.orphaned_pins(word_doc)
+        if lost_pins:
+            return h.send_json({"ok": False,
+                                "error": "That change would make a person-set start fall inside a caption. "
+                                         "Keep that boundary, move the start, or explicitly remove it first."}, 409)
+        if data.get("word_commit"):
+            try:
+                wordtimes.save(data.get("word_job"), word_doc)
+            except ValueError:
+                pass
+        word_projection = wordtimes.projection(word_doc)
     return h.send_json({"ok": True, "captions": captions, "text": text,
                         "lang": L.code, "notes": notes,
-                        "can_tidy": not why, "why": why})
+                        "can_tidy": not why, "why": why,
+                        "wordtimes": word_projection})
 
 
 def api_prepare(h):
@@ -2698,7 +2780,8 @@ ADD_PAGE_JS = r'''
     ParsehSubedit.open({
       base: BASE, lang: val('lang'),
       video: SRC === 'film' ? '' : ytId(val('url')),
-      transcript: was
+      transcript: was,
+      wordJob: stt && stt.words ? stt.words() : ''
     }).then(function (text) {
       if (text == null) { $('sestat').textContent = 'left as it was'; return; }
       val('transcript', text);
@@ -2786,6 +2869,8 @@ ADD_PAGE_JS = r'''
     // the shape of the sound a transcription held for THIS video comes with it
     var held = stt && stt.wave();
     if (held) body.wave = held;
+    var heldWords = stt && stt.words && stt.words();
+    if (heldWords) body.wordtimes = heldWords;
     post(SRC === 'film' ? '/api/local' : '/api/empty', body)
       .then(function (j) {
         $('empty').disabled = false; $('estat').textContent = ''; res.hidden = false;
@@ -2828,6 +2913,8 @@ ADD_PAGE_JS = r'''
                 gloss: val('gloss')};
     var held = stt && stt.wave();
     if (held) body.wave = held;
+    var heldWords = stt && stt.words && stt.words();
+    if (heldWords) body.wordtimes = heldWords;
     post('/api/add', body)
       .then(function (j) {
         $('add').disabled = false; $('astat').textContent = '';

@@ -244,5 +244,13 @@ def remap(segments, marks, rate=SAMPLE_RATE):
         start = max(prev, a - lag_at(a), 0.0)
         end = max(start, b - lag_at(b))
         prev = start
-        out.append(dict(seg, start=round(start, 3), end=round(end, 3)))
+        row = dict(seg, start=round(start, 3), end=round(end, 3))
+        # A word lives on the same recording clock as its segment.  Keeping
+        # this recursion here, rather than in the job, means a YouTube stall
+        # cannot leave the panel in video time and its word tape in recording
+        # time.  ``words`` are ordinary tiny segments, so the same drop rule
+        # removes a word wholly heard while the video was stopped.
+        if isinstance(seg.get("words"), list):
+            row["words"] = remap(seg["words"], marks, rate)
+        out.append(row)
     return out

@@ -169,6 +169,11 @@ computer, and the transcript is still made on the computer Parseh runs on.
   choose the one that is spoken. All eleven of the toolbox's languages are
   offered (and a language you added, if Whisper knows it; where it does not
   the block says so and offers nothing).
+- **Exact word times.** When Settings has the optional network for this
+  language, this switch starts on and says that word starts will be aligned
+  after Whisper has made the unchanged captions. Turn it off to use Whisper's
+  own word times instead. The choice is remembered in this browser; an absent
+  network says **not installed — Settings** and Whisper still works normally.
 
 What you chose is remembered in this browser, for the next video.
 
@@ -208,7 +213,10 @@ the page.
 **What arrives.** The words go into **Transcript**, in the panel format,
 timed to the video's own clock (a stop to buffer does not shift what follows),
 and the box is at once yours to edit, by hand or in
-[the editor](mending-the-transcript.md). Then:
+[the editor](mending-the-transcript.md). Parseh keeps the timed-word track
+only long enough to add this video; it is adopted as `wordtimes.json` when you
+use the matching edited transcript, and the captured audio is not retained.
+Then:
 
 - **the video is not added.** You read it, correct it, and go on by the road
   you chose, exactly as with a pasted transcript;

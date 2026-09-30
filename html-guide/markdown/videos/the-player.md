@@ -72,8 +72,11 @@ A few lines look different on purpose:
   phrase. The card can go to an Anki deck, to one of your exercise decks,
   or onto the clipboard as studio markdown, and it can carry the word's own
   sound and a frame of the video — the section *Cards and Anki* explains
-  the sheet. The vocabulary goes into the notes as plain text, never with
-  its macros.
+  the sheet. For a Markdown or exercise-deck card, Parseh automatically wraps
+  the target and its context in target-language blocks, line by line, so RTL
+  punctuation and wrapped lines keep their reading direction. It leaves a
+  field that already has markup untouched; Anki cards are unchanged. The
+  vocabulary goes into the notes as plain text, never with its macros.
 
 The cloud also has **✎ edit** and a row of four colours, which write into
 the video: see [Editing a phrase](editing-a-phrase.md).
@@ -228,6 +231,10 @@ hover it never delivers. A tap elsewhere on the line still plays it from its
 beginning. On a narrow screen the bar slides out of the way as the page
 moves down and comes back on the smallest move up, bringing the video with
 it; a desktop is left exactly as it is.
+
+In the toolbox's Mobile mode, a hardware keyboard's **←** and **→** skip the
+video by the same chosen seconds as ↺ and ↻. Shift changes nothing for a
+video: unlike a narrated book it has no subparagraph walker to preserve.
 
 ## While something is working
 

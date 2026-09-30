@@ -190,6 +190,9 @@ def speech_credits():
     out = {"speech:runtime": (esc(getstt.SOURCE), licence)}
     for model in getstt.MODELS:
         out["speech:" + model] = (esc(getstt.MODEL_SOURCE), licence_link(getstt.MODEL_LICENCE))
+    for code, pin in getstt.ALIGN_PINS.items():
+        out["speech:align-" + code] = (
+            esc("Parseh %s CTC alignment network" % code), licence_link(pin["licence"]))
     return out
 
 

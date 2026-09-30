@@ -2,7 +2,7 @@
 /* Parseh — the speech to text of the add-a-video page.
 
      ParsehAddStt.mount(opts) -> {sourceChanged, langChanged, modelChanged, redraw,
-                                  busy, guardEdit, wave, videoAdded}
+                                  busy, guardEdit, wave, words, videoAdded}
 
    ONE OPTIONAL BLOCK in the transcript's step, and nothing else of Parseh's
    knows it is there: it writes the transcript into the box the page already
@@ -59,7 +59,7 @@
   var PIECE_DEADLINE_MS = 40000;   // one piece is 5 s of sound, 160 KB
   var READY_MS = 8 * 60 * 1000;    // a loaded video nobody records: the computer would give up at 10 minutes
   var PREFS = 'yt_add_stt';        // the model and the processor last chosen, in this browser only
-  var STATE = 'yt_add_stt_state';  // what a reload must find again: the tie, the held waveform, a running job
+  var STATE = 'yt_add_stt_state';  // what a reload must find again: the tie, held derived data, a running job
 
   /* ---------------------------------------------------------------- words */
   var SAY_START_OVER = 'Replace the transcript in the box with a new one made by speech to text? ' +
@@ -211,6 +211,7 @@
              abort: null, held: null, said: '', pct: null};
     var AUTO = null;   // {source, lang, model, hash}: the box holds what THIS video, language and model made
     var WAVE = null;   // {job, source}: the shape of the sound, held by the computer for this video
+    var WORDS = null;  // {job, source, lang}: the word tape, for a YouTube video or a local film
     var LOCKED = null; // while a job runs: [[element, value]] what the controls read when it began
     var lastToast = 0;
 
@@ -245,14 +246,22 @@
     lblProc.appendChild(selProc);
     rowModel.appendChild(lblModel);
     rowProc.appendChild(lblProc);
+    var exact = el('input');
+    exact.type = 'checkbox';
+    exact.id = 'stt_exact';
+    var rowExact = el('div', 'row'), lblExact = el('label', 'inline', 'Exact word times ');
+    lblExact.appendChild(exact);
+    rowExact.appendChild(lblExact);
     var modelNote = el('span', 'fieldnote'), now = el('span', 'fieldnote'), gpu = el('span', 'fieldnote warn');
     var langNote = el('span', 'fieldnote'), busyNote = el('span', 'fieldnote warn'), how = el('p', 'fieldnote');
+    var exactNote = el('span', 'fieldnote');
     modelNote.id = 'stt_modelnote';
     now.id = 'stt_now';
     gpu.id = 'stt_gpu';
     langNote.id = 'stt_lang';
     busyNote.id = 'stt_busy';
     how.id = 'stt_how';
+    exactNote.id = 'stt_exactnote';
     var go = button('Transcribe', 'stt_go'), rec = button('Start recording', 'stt_rec');
     var cancel = button('Cancel', 'stt_cancel', 'wbtn quiet');
     var use = button('Use the new transcript instead', 'stt_use', 'wbtn small quiet');
@@ -270,7 +279,7 @@
     sayEl.id = 'stt_say';
     sayEl.setAttribute('role', 'status');
     sayEl.setAttribute('aria-live', 'polite');
-    [intro, rowModel, modelNote, rowProc, now, gpu, busyNote, langNote, how, actions, frame, bar, sayEl,
+    [intro, rowModel, modelNote, rowProc, now, gpu, rowExact, exactNote, busyNote, langNote, how, actions, frame, bar, sayEl,
      el('div', 'row')].forEach(function (n) { form.appendChild(n); });
     form.lastChild.appendChild(use);
 
@@ -282,10 +291,10 @@
     [title, absent, why, form, tied, noteEl].forEach(function (n) { root.appendChild(n); });
 
     /* -------------------------------------------------- what is remembered */
-    var prefs = load(PREFS);
-    function savePrefs() { store(PREFS, {model: selModel.value, processing: selProc.value}); }
+    var prefs = load(PREFS), exactWanted = prefs.exact !== false;
+    function savePrefs() { store(PREFS, {model: selModel.value, processing: selProc.value, exact: exactWanted}); }
     function persist() {
-      store(STATE, {auto: AUTO, wave: WAVE,
+      store(STATE, {auto: AUTO, wave: WAVE, words: WORDS,
                     job: S.job ? {id: S.job, kind: S.kind, key: S.key, lang: S.lang, model: S.model,
                                   hash: S.startHash} : null});
     }
@@ -303,6 +312,9 @@
     }
     function autoNow() {
       return ((S.slice && S.slice.processing) || []).filter(function (p) { return p.id === 'auto'; })[0] || null;
+    }
+    function alignerFor(code) {
+      return ((S.slice && S.slice.aligners) || []).filter(function (a) { return a.language === code; })[0] || null;
     }
     function fill() {
       var have = models().map(function (m) { return m.id; });
@@ -389,6 +401,12 @@
         langNote.appendChild(document.createTextNode('Listens for ' + lang.name + (own ? ' — ' : '')));
         if (own) langNote.appendChild(el('bdi', null, own));
         langNote.appendChild(document.createTextNode(', the language chosen above.'));
+        var aligner = alignerFor(lang.code), exactReady = !!(aligner && aligner.files_ready);
+        exact.disabled = !exactReady;
+        exact.checked = !!(exactReady && exactWanted);
+        exactNote.textContent = exactReady
+          ? 'Optional alignment network installed — exact word times are ' + (exact.checked ? 'on.' : 'off.')
+          : 'Optional — Whisper still gives approximate word times. Get exact word times for ' + lang.name + ' in Settings.';
         how.textContent = film ? SAY_FILM : S.phase === 'ready' ? SAY_READY
           : (S.phase === 'recording' || S.phase === 'sending') ? SAY_KEEP : SAY_YOUTUBE;
         go.hidden = !idle;
@@ -422,11 +440,11 @@
     /* ------------------------------------------------- locking while a job runs */
     function targets() {
       var out = (o.lock || []).map(function (sel) { return document.querySelector(sel); }).filter(Boolean);
-      return out.concat([selModel, selProc]);
+      return out.concat([selModel, selProc, exact]);
     }
     function lock(on) {
       var list = targets();
-      if (on) LOCKED = list.map(function (e) { return [e, e.value]; });
+      if (on) LOCKED = list.map(function (e) { return [e, e.value, e.checked]; });
       else LOCKED = null;
       list.forEach(function (e) {
         e.classList.toggle('stt-locked', on);
@@ -448,13 +466,13 @@
       // a text box that is read-only can still be clicked into, and its words
       // selected and copied; only a key that would change it, or a paste, is
       // an attempt
-      if (t.tagName === 'INPUT') {
+      if (t.tagName === 'INPUT' && t.type !== 'checkbox') {
         if (e.type === 'mousedown' || e.type === 'click') return;
         if (e.type === 'keydown' && !(e.key.length === 1 && !e.ctrlKey && !e.metaKey)
             && e.key !== 'Backspace' && e.key !== 'Delete') return;
       }
       if (e.type === 'change' || e.type === 'input') {
-        LOCKED.forEach(function (p) { if (p[0] === t) t.value = p[1]; });
+        LOCKED.forEach(function (p) { if (p[0] === t) { t.value = p[1]; t.checked = p[2]; } });
       }
       e.preventDefault();
       e.stopPropagation();
@@ -475,10 +493,12 @@
       var k = key(o.source());
       if (AUTO && AUTO.source !== k) drop('video');
       if (WAVE && WAVE.source !== k) { WAVE = null; persist(); }
+      if (WORDS && WORDS.source !== k) { WORDS = null; persist(); }
       paint();
     }
     function langChanged() {
       if (AUTO && AUTO.lang !== o.lang().code) drop('language');
+      if (WORDS && WORDS.lang !== o.lang().code) { WORDS = null; persist(); }
       paint();
     }
     function modelChanged() {
@@ -488,6 +508,7 @@
     }
     selModel.addEventListener('change', modelChanged);
     selProc.addEventListener('change', function () { savePrefs(); paint(); });
+    exact.addEventListener('change', function () { exactWanted = exact.checked; savePrefs(); paint(); });
 
     /* ------------------------------------------------------------ the job */
     function post(name, body, ms, outer) { return ask(route(name), body, ms, outer); }
@@ -554,7 +575,8 @@
       S.phase = 'starting';
       lock(true);
       say('Starting…');
-      var body = {source: film ? 'film' : 'youtube', lang: lang.code, model: model, processing: selProc.value};
+      var body = {source: film ? 'film' : 'youtube', lang: lang.code, model: model,
+                  processing: selProc.value, exact: !!exact.checked};
       if (film) body.path = src.value; else body.url = src.value;
       post('start', body).then(function (r) {
         if (run !== S.run) { if (r.j && r.j.job) cancelServer(r.j.job); return; }
@@ -777,6 +799,7 @@
       o.setTranscript(res.text);
       AUTO = {source: t.key, lang: t.lang, model: t.model, hash: hash(o.transcript())};
       if (res.wave && res.wave.held) WAVE = {job: t.job, source: t.key};
+      if (res.words && res.words.held) WORDS = {job: t.job, source: t.key, lang: t.lang};
       persist();
       o.invalidate();
       var n = res.captions;
@@ -874,6 +897,7 @@
       var k = key(o.source());
       AUTO = was.auto && was.auto.source === k ? was.auto : null;
       WAVE = was.wave && was.wave.source === k ? was.wave : null;
+      WORDS = was.words && was.words.source === k ? was.words : null;
     })();
     lock(false);
     refresh().then(resume);
@@ -893,7 +917,13 @@
         var src = o.source();
         return WAVE && src.kind === 'yt' && WAVE.source === key(src) ? WAVE.job : '';
       },
-      videoAdded: function () { AUTO = WAVE = null; S.held = null; forget(STATE); paint(); }
+      // Word timing is useful for either source kind.  The final add door
+      // adopts it only when its held panel hash still agrees with the box.
+      words: function () {
+        var src = o.source();
+        return WORDS && WORDS.source === key(src) && WORDS.lang === o.lang().code ? WORDS.job : '';
+      },
+      videoAdded: function () { AUTO = WAVE = WORDS = null; S.held = null; forget(STATE); paint(); }
     };
   }
 

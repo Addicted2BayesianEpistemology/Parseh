@@ -168,6 +168,7 @@ import clips               # noqa: E402  the tray a card's recording is cut into
 import guidebuild          # noqa: E402  the HTML guide: its files, and its compile as a job
 import sttjobs             # noqa: E402  the transcription job of the add page (needs no speech runtime to import)
 import wavefile            # noqa: E402  waveform.json: one cleaner, one writer, and the hold
+import wordtimes           # noqa: E402  held/adopted word-time tape of a transcription
 import version             # noqa: E402  which Parseh this is: VERSION, read once (§16.1)
 import author              # noqa: E402  who made it, and his two links: the hub's foot (lib/author.py)
 
@@ -5429,9 +5430,14 @@ class Handler(SimpleHTTPRequestHandler):
         the answer, {} when the request named none.  A token that is not one,
         or a job that held nothing, is ignored: the video is made either way
         and the player can still draw the sound."""
-        if "wave" not in body:
-            return {}
-        return {"waveform": wavefile.adopt(body.get("wave"), video_dir) or {"kept": False}}
+        out = {}
+        if "wave" in body:
+            out["waveform"] = wavefile.adopt(body.get("wave"), video_dir) or {"kept": False}
+        if "wordtimes" in body:
+            out["wordtimes"] = wordtimes.adopt(body.get("wordtimes"), video_dir,
+                                                 body.get("transcript") or "",
+                                                 body.get("lang") or "")
+        return out
 
     def _video_local(self):
         """A video that is a FILE ON THIS MACHINE, drafted from its subtitles.
@@ -5574,7 +5580,7 @@ class Handler(SimpleHTTPRequestHandler):
                 # slot, and Cancel
                 source, lang = sttjobs.source_of(body)
                 return sttjobs.start(source, lang, body.get("model"), body.get("processing"),
-                                     body.get("duration"))
+                                     body.get("duration"), body.get("exact", True))
             if what == "marks":
                 return sttjobs.marks(token, body.get("marks"))
             if what == "wave":

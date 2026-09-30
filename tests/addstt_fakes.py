@@ -74,6 +74,16 @@ def make(root):
         why = "" if ready else (NOT_READY if cuda["name"] else NO_CARD)
         info = mod.MODEL_INFO
         no = set(st.get("no_lang") or [])
+        import languages
+        aligners = []
+        for code in mod.ALIGNERS:
+            L = languages.LANGS.get(code)
+            aligners.append({"id": "align-" + code, "language": code,
+                             "name": L.name if L else code,
+                             "native": L.native if L else code,
+                             "have": False, "ready": False, "files_ready": False,
+                             "size": 0, "download": mod.MEASURED["align-" + code],
+                             "hint": "Optional — Whisper works without it; this makes word times exact."})
         return {"ok": True,
                 "installed": bool(runtime and have),
                 "runtime": {"state": "ready" if runtime else "absent",
@@ -82,6 +92,7 @@ def make(root):
                             "hint": info[k]["hint"], "have": k in have, "ready": k in have,
                             "size": 1 << 30 if k in have else 0,
                             "download": 1 << 30} for k in MODELS],
+                "aligners": aligners,
                 "default_model": have[0] if have else None,
                 "processing": [
                     {"id": "auto", "ready": True, "now": "cuda" if ready else "cpu",

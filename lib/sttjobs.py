@@ -95,8 +95,8 @@ PAGE = "/youtube/add/"
 
 AWAITING, RECEIVING, QUEUED, PREPARING, LOADING = \
     "awaiting-audio", "receiving", "queued", "preparing", "loading"
-TRANSCRIBING, DONE, FAILED, CANCELLED = "transcribing", "done", "failed", "cancelled"
-ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING)
+TRANSCRIBING, ALIGNING, DONE, FAILED, CANCELLED = "transcribing", "aligning", "done", "failed", "cancelled"
+ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING)
 RECORDING = (AWAITING, RECEIVING)           # a YouTube job still taking audio
 
 TOKEN_BYTES = 12
@@ -380,6 +380,12 @@ def _end(job, state, code=None, say=None):
         # keeps its peaks: an hour of the person's time, and half a megabyte)
         import wavefile
         wavefile.drop(job["id"])
+    if state in (FAILED, CANCELLED):
+        try:
+            import wordtimes
+            wordtimes.drop(job["id"])
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def busy():
@@ -391,7 +397,7 @@ def busy():
 
 
 # ------------------------------------------------------------------------ start
-def start(source, lang, model, processing, duration=None):
+def start(source, lang, model, processing, duration=None, exact=True):
     """A job, for a source the add flow's validators passed -> {"job", "state",
     "need", ...}.  `source` is what source_of() made; everything here is
     checked again, because this is the door tests and other code reach too."""
@@ -401,6 +407,8 @@ def start(source, lang, model, processing, duration=None):
         raise Refusal("bad-processing", "Processing has to be Automatic, CPU or NVIDIA GPU.")
     if not isinstance(lang, str) or not LANG_RE.match(lang):
         raise Refusal("bad-language", "That is not a language code.")
+    if not isinstance(exact, bool):
+        raise Refusal("bad-exact", "Exact word times can only be on or off.")
     if not isinstance(source, dict):
         raise Refusal("bad-source", "There is no video to transcribe.")
     kind = source.get("kind")
@@ -468,6 +476,13 @@ def start(source, lang, model, processing, duration=None):
         except Exception:                                    # noqa: BLE001
             name = ""
     threads = gs.cpu_threads()
+    aligner = ""
+    ready = getattr(gs, "aligner_ready", None)
+    if exact and callable(ready):
+        try:
+            aligner = lang if ready(lang) else ""
+        except Exception:  # noqa: BLE001
+            aligner = ""
     tmp = _tmp()
     if kind == "youtube":
         need = FREE_TO_START + (int(hint * SAMPLE_RATE * 2) if hint else 0)
@@ -484,12 +499,14 @@ def start(source, lang, model, processing, duration=None):
         now = _now()
         job = {"id": token, "kind": kind, "source": norm, "film": film,
                "lang": lang, "wlang": wlang, "model": model, "mode": processing,
+               "aligner": aligner,
                "planned": device, "device": None, "device_name": name, "threads": threads,
                "fell_back": False,
                "state": AWAITING if kind == "youtube" else QUEUED,
                "created": now, "touched": now, "started": None, "finished": None,
                "have": 0, "sealed": False, "hint": hint, "marks": [],
                "total": None, "done": 0.0, "segments": None, "text": "", "notes": [],
+               "words": None,
                "facts": None, "warning": "", "error": None, "cancelled": False,
                "proc": None, "lock": threading.Lock(),
                "pcm": _named(token, ".pcm"), "spec": _named(token, ".spec.json"),
@@ -500,6 +517,8 @@ def start(source, lang, model, processing, duration=None):
         # must not take the part away under a recording (nothing else notices it)
         job["hold"] = contextlib.ExitStack()
         job["hold"].enter_context(_using(gs, model))
+        if aligner:
+            job["hold"].enter_context(_using(gs, "align-" + aligner))
         # the answer is made BEFORE the worker's thread can move the state on
         answer = _started(job)
     if kind == "film":
@@ -511,6 +530,7 @@ def _started(job):
     out = {"job": job["id"], "state": job["state"], "kind": job["kind"],
            "need": "audio" if job["kind"] == "youtube" else "",
            "lang": job["lang"], "model": job["model"], "processing": job["mode"],
+           "exact": bool(job.get("aligner")),
            "say": _say(job)}
     out.update(_who(job))
     return out
@@ -663,6 +683,9 @@ def _say(job):
         pct = _pct(job)
         return "%sTranscribing on %s…%s" % (fell, where, " %d%%" % pct if pct is not None
                                                   else "")
+    if s == ALIGNING:
+        pct = _pct(job)
+        return "Making exact word times…%s" % (" %d%%" % pct if pct is not None else "")
     if s == DONE:
         n = (job["facts"] or {}).get("captions", 0)
         return "Done — %d caption%s." % (n, "" if n == 1 else "s")
@@ -675,7 +698,7 @@ def _say(job):
 def _pct(job):
     if job["state"] == DONE:
         return 100
-    if job["state"] == TRANSCRIBING and job["total"]:
+    if job["state"] in (TRANSCRIBING, ALIGNING) and job["total"]:
         return max(0, min(99, int(100 * job["done"] / job["total"])))
     if job["state"] == RECEIVING and job["hint"]:
         return max(0, min(99, int(100 * job["have"] / float(SAMPLE_RATE) / job["hint"])))
@@ -688,6 +711,7 @@ def _report(job):
            "done": round(job["done"], 3), "total": round(job["total"], 3) if job["total"]
            else None, "device": job["device"], "fell_back": job["fell_back"],
            "model": job["model"], "lang": job["lang"], "kind": job["kind"],
+           "exact": bool(job.get("aligner")),
            "have": job["have"], "stopped": job["state"] == CANCELLED}
     out.update(_who(job))
     if job["fell_back"]:
@@ -722,6 +746,7 @@ def cancel(token):
     token stays (a little while), so that a page which asks is told so.
     A job that is over has nothing to stop (its answer stays)."""
     import wavefile
+    import wordtimes
     job = _job(token, missing=False)
     if job is None:
         return {"cancelled": False}
@@ -742,6 +767,7 @@ def cancel(token):
         _clean_files(job)
     _unhold(job)                         # with the worker dead, the part may go
     wavefile.drop(token)
+    wordtimes.drop(token)
     with LOCK:
         JOBS.pop(token, None)
         TOMBS[token] = {"kind": job["kind"], "at": _now()}
@@ -769,6 +795,7 @@ def result(token):
         return dict(facts, text=job["text"], lang=job["lang"], model=job["model"],
                     device=job["device"], fell_back=job["fell_back"],
                     notes=list(job["notes"]), warning=job["warning"],
+                    words=dict(job["words"] or {"held": False, "count": 0}),
                     wave={"held": wavefile.held(token)})
 
 
@@ -797,7 +824,8 @@ def _spec(gs, job):
             "lang": job["wlang"], "model_path": model_path, "device": job["planned"],
             "cpu_threads": job["threads"],
             "compute": {"cpu": "int8", "cuda": ["int8_float16", "float16"]},
-            "mode": job["mode"], "film": job["film"], "parent": os.getpid()}
+            "mode": job["mode"], "film": job["film"], "parent": os.getpid(),
+            "aligner_path": (gs.aligner_path(job["aligner"]) if job.get("aligner") else None)}
 
 
 def _spawn(gs, job, spec_path):
@@ -947,6 +975,13 @@ def _message(job, msg, got):
                 job["state"], job["done"] = LOADING, 0.0
         elif kind == "loading":
             job["state"] = LOADING
+        elif kind == "aligning":
+            job["state"] = ALIGNING
+            total, done = _num(msg.get("total")), _num(msg.get("done"))
+            if total:
+                job["total"] = total
+            if done is not None:
+                job["done"] = done
         elif kind == "progress":
             # the first line, before the model is even asked for, only says how
             # long the audio is (0 of the whole); a later one, with something
@@ -979,7 +1014,20 @@ def _finish(job, msg):
         a, b = _num(s.get("start")), _num(s.get("end"))
         if a is None:
             continue
-        segs.append({"start": a, "end": b if b is not None else a, "text": s["text"][:4000]})
+        row = {"start": a, "end": b if b is not None else a, "text": s["text"][:4000]}
+        words = []
+        raw_words = s.get("words", []) if isinstance(s.get("words"), list) else []
+        for w in raw_words[:MAX_LINE // 32]:
+            if not isinstance(w, dict) or not isinstance(w.get("text"), str):
+                continue
+            wa, wb = _num(w.get("start")), _num(w.get("end"))
+            if wa is None:
+                continue
+            words.append({"start": wa, "end": wb if wb is not None else wa,
+                          "text": w["text"][:400], "score": _num(w.get("score"), -1e6, 1e6)})
+        if words:
+            row["words"] = words
+        segs.append(row)
     if job["kind"] == "youtube" and job["marks"]:
         segs = sttpanel.remap(segs, job["marks"], SAMPLE_RATE)
     text, notes = sttpanel.segments_to_panel(segs)
@@ -994,10 +1042,30 @@ def _finish(job, msg):
         L = languages.LANGS.get(job["lang"])
         warning = ("Every caption came out in another script than %s: is the language "
                    "the one spoken?" % (L.name if L else job["lang"]))
+    word_info = {"held": False, "count": 0}
+    all_words = [w for seg in segs for w in (seg.get("words") or [])]
+    if all_words:
+        try:
+            import wordtimes
+            import ytpages
+            source = msg.get("word_source") if msg.get("word_source") in ("whisper", "aligner") else "whisper"
+            doc = wordtimes.empty(job["id"], job["lang"], all_words, source, job["model"])
+            doc = wordtimes.sync(doc, ytpages.parse_transcript_text(text, job["lang"]), job["lang"])
+            panel = wordtimes.panel_hash(text)
+            doc["panel_sha256"] = panel
+            wordtimes.hold(job["id"], doc)
+            word_info = {"held": True, "count": len(doc.get("atoms") or []), "source": source,
+                         "panel_sha256": panel}
+        except Exception:  # noqa: BLE001 - words must never discard a successful transcript
+            traceback.print_exc()
+            notes.append("Word timestamps could not be kept for this transcription.")
+    if isinstance(msg.get("word_warning"), str) and msg.get("word_warning"):
+        notes.append(msg["word_warning"])
     with LOCK:
         if job["cancelled"]:
             return
-        job["text"], job["notes"], job["facts"], job["warning"] = text, notes, facts, warning
+        job["text"], job["notes"], job["facts"], job["warning"], job["words"] = \
+            text, notes, facts, warning, word_info
         job["done"], job["segments"] = job["total"] or job["done"], None
         job["state"], job["finished"] = DONE, _now()
         _unhold(job)                     # in the breath that says it is done
@@ -1045,5 +1113,10 @@ def startup():
     try:
         import wavefile
         wavefile.sweep()
+    except Exception:                                        # noqa: BLE001
+        traceback.print_exc()
+    try:
+        import wordtimes
+        wordtimes.sweep()
     except Exception:                                        # noqa: BLE001
         traceback.print_exc()

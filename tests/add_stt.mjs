@@ -351,7 +351,8 @@ await section('b', 'installed: the models, the processor, and what is remembered
   await page.selectOption('#stt_model', 'large-v3');
   await page.selectOption('#stt_proc', 'cuda');
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('yt_add_stt')));
-  eq(kept, {model: 'large-v3', processing: 'cuda'}, 'the model and the processor are kept in localStorage, as the page\'s own');
+  eq(kept, {model: 'large-v3', processing: 'cuda', exact: true},
+     'the model, processor and exact-word-times choice are kept in localStorage');
   await page.reload();
   await page.waitForSelector('#transcript', {state: 'visible'});
   await blockReady(page);

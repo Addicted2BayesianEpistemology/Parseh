@@ -143,8 +143,11 @@ word; **+ card** in the cloud does the same for the whole chunk. The sheet
 sends the card to **Anki**, to one of the toolbox's **exercise decks**, or
 as **markdown** to the clipboard, as a vocabulary, opposites or jolly card,
 with a recording cut from the narration if you like (**🔊 cut the audio…**).
-The Cards and Anki section of this guide covers the sheet in full; the
-narration pauses while it is open.
+For Markdown or an exercise deck, Parseh marks the target and context as
+target-language blocks automatically, one block per written line; it leaves a
+field that already contains markup alone. Anki cards are unchanged. The Cards
+and Anki section of this guide covers the sheet in full; the narration pauses
+while it is open.
 
 ## Aa: text and margins
 
@@ -243,6 +246,10 @@ builds, no narration panel, no folding, no timings, no pencil, no cards.
 Every book's reader has it, however long ago it was built.
 [Browser and Mobile](../getting-started/mobile-mode.md#the-books) says what
 is where.
+
+With a hardware keyboard in Mobile mode, **←** and **→** skip the narration
+by the same seconds as ↺ and ↻. **Shift+←** and **Shift+→** are deliberately
+left to this reader's previous/next-subparagraph keys.
 
 ## Keys
 

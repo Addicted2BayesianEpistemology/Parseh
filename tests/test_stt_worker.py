@@ -292,7 +292,8 @@ class Words(Worker):
         (rec,) = stt_fakes.records(self.root, "transcribe")
         self.assertEqual((rec["beam_size"], rec["vad_filter"], rec["task"]), (5, True, "transcribe"),
                          "explicit language, beam 5, VAD on, and NO translation")
-        self.assertEqual(rec["rest"], [], "no word timestamps, no prompts: nothing else")
+        self.assertEqual(rec["rest"], ["word_timestamps"],
+                         "one Whisper pass asks for words, and no prompt reaches it")
         self.assertEqual((rec["audio_type"], rec["dtype"]), ("ndarray", "float32"))
         self.assertEqual(rec["samples"], 3 * 16000)
         self.assertAlmostEqual(rec["peak"], 12000 / 32768.0, places=3, msg="int16 scaled to -1..1")
@@ -305,6 +306,14 @@ class Words(Worker):
         got = self.last(msgs, "done")["segments"]
         self.assertEqual([s["text"] for s in got], [t for _a, _b, t in said])
         self.assertEqual([(s["start"], s["end"]) for s in got], [(a, b) for a, b, _t in said])
+
+    def test_one_pass_carries_each_whisper_word_and_its_time(self):
+        rc, msgs, _ = self.go({"segments": [[1.0, 3.0, " hello world"]]}, source_path=self.pcm(4))
+        self.assertEqual(rc, 0)
+        done = self.last(msgs, "done")
+        self.assertEqual(done["word_source"], "whisper")
+        self.assertEqual([(w["text"], w["start"], w["end"]) for w in done["segments"][0]["words"]],
+                         [("hello", 1.0, 2.0), ("world", 2.0, 3.0)])
 
     def test_the_wire_is_ascii_and_gives_the_unicode_back_exactly(self):
         # a Windows console is not UTF-8: nothing but ASCII crosses the pipe

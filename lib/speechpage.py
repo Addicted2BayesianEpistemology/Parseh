@@ -74,7 +74,8 @@ def view(jobs=None, where="", device=""):
     from the next one every time it asks how things stand (`speech` with
     {"full": true}, or `speechcheck`)."""
     st = getstt.status()
-    kept = st["runtime"]["size"] + sum(m["size"] for m in st["models"].values())
+    kept = (st["runtime"]["size"] + sum(m["size"] for m in st["models"].values())
+            + sum(a["size"] for a in st.get("aligners", {}).values()))
     try:
         free = lookuppage.disk_free(getstt.STT_DIR)
     except OSError:
@@ -105,7 +106,8 @@ against its own hash.</span></p>
 <div id="sp-band" class="band"></div>
 <div id="sp"><p class="rh-wait">Reading what is here&hellip;</p></div>
 <p class="foot">What is fetched here lives in the <code>stt/</code> folder &mdash;
-<code>runtime/</code> for the program, <code>models/</code> for the models, and <code>tmp/</code> for
+<code>runtime/</code> for the program, <code>models/</code> for the models, <code>aligners/</code> for
+optional exact-word-times networks, and <code>tmp/</code> for
 the sound of a video while it is being transcribed, which is deleted when it has been &mdash; and
 nothing else of %(name)s depends on it. It is offered only on the page a video is added on:
 <a href="/youtube/add/">Add a video</a>. Every licence is also on the
@@ -145,6 +147,7 @@ STYLE = r"""
 .sp .modes dt{font-weight:600}
 .sp .modes dd{margin:0;color:var(--dim)}
 .sp .langs{display:flex;flex-wrap:wrap;gap:6px 8px;padding:12px 16px 14px}
+.sp .sp-aligners{border-top:1px solid var(--rule);margin-top:2px}
 .sp .lang-chip{display:inline-flex;align-items:baseline;gap:7px;border:1px solid var(--rule);border-radius:8px;
   padding:3px 10px;font-size:13.5px;background:var(--boxbg)}
 .sp .lang-chip .nat{font-size:16px;color:var(--accent)}
@@ -225,9 +228,27 @@ SCRIPT = r"""
     });
     rows.forEach(function (r) { r.job = J()[r.id] || null; });
     // the program comes first when a model is fetched: its own row says where it is
-    var first = Object.keys(sp.models).filter(function (id) { var j = J()[id]; return j && j.running; })[0];
+    var first = Object.keys(sp.models).concat(Object.keys(sp.aligners || {}).map(function (code) {
+      return 'align-' + code;
+    })).filter(function (id) { var j = J()[id]; return j && j.running; })[0];
     if (first && !rt.ready && !rows[0].job) rows[0].withModel = first;
     rows.forEach(function (r) { r.usable = r.id === 'runtime' || rt.ready; });
+    return rows;
+  }
+
+  function alignerParts() {
+    var sp = S.speech, rt = sp.runtime, lic = S.credits || {}, rows = [];
+    Object.keys(sp.aligners || {}).forEach(function (code) {
+      var a = sp.aligners[code], native = a.native && a.native !== a.name ? ' — ' + a.native : '';
+      rows.push({id: a.id || ('align-' + code), name: 'Exact word times · ' + a.name + native,
+                 'for': a.hint || 'Optional — Whisper works without it; this makes word times exact.',
+                 have: a.have, state: a.state, why: a.why,
+                 na: rt.state === 'unavailable' && !a.have, naWhy: rt.why,
+                 credit: lic['speech:' + (a.id || ('align-' + code))],
+                 facts: a.have ? GB(a.size) + ' · ' + esc(a.repo) + (a.built ? ' · ' + built(a.built) : '') : '',
+                 kept: a.size, needsProgram: !rt.ready});
+    });
+    rows.forEach(function (r) { r.job = J()[r.id] || null; r.usable = rt.ready; });
     return rows;
   }
 
@@ -395,7 +416,7 @@ SCRIPT = r"""
       '<li>The models are large: ' + GB(t) + ' and ' + GB(l) + (rtDl != null ? ', and the program is ' + GB(rtDl) + ' more' : '') + '.</li>' +
       '<li>It is offered only on the page a video is added on, <a href="/youtube/add/">Add a video</a>: not on a video already in your library.</li></ul></section>';
   }
-  function languages() {
+  function languages(aligners) {
     var chips = S.languages.map(function (L) {
       return '<span class="lang-chip' + (L.whisper ? '' : ' no') + '"><span class="nat" lang="' + esc(L.code) + '"' + (L.rtl ? ' dir="rtl"' : '') + '>' +
         esc(L.native) + '</span><span>' + esc(L.name) + '</span><i>' + (L.whisper ? '✓' : 'not offered') + '</i></span>';
@@ -403,7 +424,9 @@ SCRIPT = r"""
     var some = S.languages.filter(function (L) { return !L.whisper; });
     return '<h2 class="part">Languages <span class="aside">— every language Parseh has' +
       (some.length ? '; Whisper does not list ' + some.map(function (L) { return esc(L.name); }).join(', ') : '') + '</span></h2>' +
-      '<section class="shared"><div class="langs">' + chips + '</div></section>';
+      '<section class="shared"><div class="langs">' + chips + '</div>' +
+      (aligners && aligners.length ? '<div class="sp-aligners">' + aligners.map(row).join('') + '</div>' : '') +
+      '</section>';
   }
 
   var ROWS = {};
@@ -441,9 +464,10 @@ SCRIPT = r"""
   function draw() {
     ROWS = {};
     var rows = parts();
-    rows.forEach(function (r) { ROWS[r.id] = r; });
+    var alignRows = alignerParts();
+    rows.concat(alignRows).forEach(function (r) { ROWS[r.id] = r; });
     var html = about() + processor() +
-      '<h2 class="part">The program and the models</h2><section class="shared">' + rows.map(row).join('') + '</section>' + languages();
+      '<h2 class="part">The program and the models</h2><section class="shared">' + rows.map(row).join('') + '</section>' + languages(alignRows);
     drawBand();
     if (html === drawn) return;
     drawn = html;
@@ -516,7 +540,9 @@ SCRIPT = r"""
       return;
     }
     if ((id = b.getAttribute('data-remove'))) {
-      var r = ROWS[id], what = id === 'runtime' ? 'the speech program' : 'the ' + id + ' model';
+      var r = ROWS[id], what = id === 'runtime' ? 'the speech program'
+        : id.indexOf('align-') === 0 ? 'exact word times for ' + id.slice(6)
+        : 'the ' + id + ' model';
       asking[id] = {kind: 'remove', said: 'Remove ' + esc(what) + '? It frees ' + (GB(r.kept) || 'a little room') +
                     '; getting it back is a ' + GB(size(id).download) + ' download.' +
                     (id === 'runtime' ? ' The models stay, but cannot be used until the program is back.' : '')};

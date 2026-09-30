@@ -263,6 +263,8 @@ FORMATS = {
     "parseh-waveform": ("serve.py", "WAVEFORM_FORMAT",
                         "the picture of a video's sound, recorded while it played "
                         "(a video's waveform.json)"),
+    "parseh-wordtimes": ("youtube/lib/wordtimes.py", "WORDTIMES_FORMAT",
+                           "the timed words kept with a video, wordtimes.json"),
     # what is made from books and videos, kept beside them
     "parseh-library": ("markdown/app/store.py", "LIBRARY_FORMAT",
                        "the studio's documents, and the notes written into books and videos "

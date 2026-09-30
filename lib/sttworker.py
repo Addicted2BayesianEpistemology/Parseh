@@ -41,6 +41,7 @@ TEXT IS KEPT AS WHISPER GIVES IT: no transliteration, no translation
 """
 import gc
 import json
+import math
 import os
 import re
 import sys
@@ -128,6 +129,14 @@ def read_spec(path):
             or not os.path.isdir(model):
         raise Refused("bad-spec")
     spec["model_path"] = model
+    aligner = raw.get("aligner_path")
+    if aligner is not None:
+        if not isinstance(aligner, str) or not os.path.isabs(aligner) or not os.path.isdir(aligner):
+            raise Refused("bad-spec")
+        # The worker will only read these immutable, server-selected files.
+        if not os.path.isfile(os.path.join(aligner, "model.int8.onnx")):
+            raise Refused("bad-spec")
+    spec["aligner_path"] = aligner
     mode = raw.get("mode")
     device = raw.get("device")
     if mode not in MODES or device not in ("cpu", "cuda"):
@@ -286,7 +295,7 @@ def load_model(WhisperModel, spec, device):
 
 
 def listen(WhisperModel, spec, audio, device, fell_back):
-    """One try on one device -> (segments, language).  The generator that
+    """One try on one device -> (segments, language, word warning).  The generator that
     transcribe() returns does the actual work as it is consumed, so this is
     where a GPU that loaded and cannot compute shows itself."""
     send({"t": "device", "device": device, "fell_back": fell_back})
@@ -302,13 +311,47 @@ def listen(WhisperModel, spec, audio, device, fell_back):
             raise Refused("no-memory" if is_memory(e) else "model-load")
         seconds = len(audio) / float(SAMPLE_RATE)
         try:
-            found, info = model.transcribe(audio, language=spec["lang"], beam_size=BEAM_SIZE,
-                                           vad_filter=True, task="transcribe")
+            # This is the owner's chosen single pass unless an installed CTC
+            # aligner will time the unchanged caption pass afterwards.
+            word_warning = ""
+            word_times = not spec.get("aligner_path")
+            try:
+                found, info = model.transcribe(audio, language=spec["lang"], beam_size=BEAM_SIZE,
+                                               vad_filter=True, task="transcribe",
+                                               **({"word_timestamps": True} if word_times else {}))
+            except (TypeError, ValueError, AttributeError):
+                if not word_times:
+                    raise
+                found, info = model.transcribe(audio, language=spec["lang"], beam_size=BEAM_SIZE,
+                                                vad_filter=True, task="transcribe")
+                word_times, word_warning = False, "Word timestamps were not available from this speech runtime."
             total = float(getattr(info, "duration", 0) or 0) or seconds
             out, last = [], 0.0
             for s in found:
-                out.append({"start": round(float(s.start), 3), "end": round(float(s.end), 3),
-                            "text": str(s.text)})
+                row = {"start": round(float(s.start), 3), "end": round(float(s.end), 3),
+                       "text": str(s.text)}
+                if word_times:
+                    words = []
+                    for w in (getattr(s, "words", None) or []):
+                        try:
+                            text = str(getattr(w, "word", "")).strip()
+                            start, end = float(getattr(w, "start")), float(getattr(w, "end"))
+                        except (TypeError, ValueError):
+                            continue
+                        score = getattr(w, "probability", None)
+                        if isinstance(score, (int, float)) and math.isfinite(score):
+                            score = round(float(score), 6)
+                        else:
+                            score = None
+                        if text and math.isfinite(start) and math.isfinite(end):
+                            words.append({"start": round(max(0.0, start), 3),
+                                          "end": round(max(start, end), 3), "text": text,
+                                          "score": score})
+                    if words:
+                        row["words"] = words
+                    else:
+                        word_warning = "Word timestamps were not returned for this transcription."
+                out.append(row)
                 now = time.time()
                 if now - last >= TICK:
                     last = now
@@ -319,7 +362,7 @@ def listen(WhisperModel, spec, audio, device, fell_back):
                 raise gpu_refusal(e)
             raise Refused("no-memory" if is_memory(e) else "failed")
         send({"t": "progress", "done": total, "total": total})
-        return out, getattr(info, "language", None) or spec["lang"]
+        return out, getattr(info, "language", None) or spec["lang"], word_warning
     finally:
         # the generator holds the model, and a failure's traceback holds the
         # generator: let all three go before anything else is loaded, so two
@@ -350,7 +393,7 @@ def run(spec):
     first = "cuda" if mode == "cuda" or (mode == "auto" and spec["device"] == "cuda") else "cpu"
     fell = None
     try:
-        segments, language = listen(WhisperModel, spec, audio, first, False)
+        segments, language, word_warning = listen(WhisperModel, spec, audio, first, False)
     except Refused as e:
         # ONE fall back, and only for `auto` on a card: an explicit choice of
         # the card is answered with the card's own error and not hidden
@@ -362,9 +405,27 @@ def run(spec):
         # before the second one loads a model of its own
         log("falling back to the CPU once (%s)" % fell)
         gc.collect()
-        segments, language = listen(WhisperModel, spec, audio, "cpu", True)
+        segments, language, word_warning = listen(WhisperModel, spec, audio, "cpu", True)
+    word_source = "whisper"
+    if spec.get("aligner_path"):
+        try:
+            import ctcalign
+            send({"t": "aligning", "done": 0, "total": len(segments)})
+            segments, made, missed = ctcalign.align_segments(
+                audio, segments, spec["aligner_path"],
+                progress=lambda done, total: send({"t": "aligning", "done": done, "total": total}))
+            if made:
+                word_source = "aligner"
+                if missed:
+                    word_warning = "%d caption%s could not be aligned; their starts remain caption guesses." % (
+                        missed, "" if missed == 1 else "s")
+            else:
+                word_warning = "Exact word times could not be made; the transcript was kept."
+        except Exception as e:                               # noqa: BLE001 - optional enhancement
+            log("the optional aligner stopped", e)
+            word_warning = "Exact word times could not be made; the transcript was kept."
     send({"t": "done", "segments": segments, "duration": round(seconds, 3),
-          "language": language})
+          "language": language, "word_warning": word_warning, "word_source": word_source})
 
 
 def main(argv):
