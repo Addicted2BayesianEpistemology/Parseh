@@ -456,6 +456,27 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 .preview-scroll .sheet { margin: 1rem auto 3rem; }
 .insert-group { display: inline-flex; gap: .15rem; margin-right: .3rem; }
 .insert-group .btn { padding: .3rem .45rem; }
+.colour-tool { display: inline-flex; position: relative; }
+.colour-tool .colour-main { display: inline-flex; align-items: center; gap: .3rem; border-radius: 6px 0 0 6px; }
+.colour-tool .colour-pick > summary { border-radius: 0 6px 6px 0; padding-inline: .32rem; }
+.colour-tool .menu { left: 0; right: auto; min-width: 11rem; }
+.colour-tool .menu button, .colour-custom { display: flex; align-items: center; gap: .48rem; }
+.colour-active, .colour-chip { display: inline-block; width: .78rem; height: .78rem; flex: none; border-radius: 50%; background: var(--fac-teal); }
+.colour-active.fac-crimson,
+.colour-chip.fac-crimson { background: var(--fac-crimson); }
+.colour-active.fac-indigo,
+.colour-chip.fac-indigo { background: var(--fac-indigo); }
+.colour-active.fac-teal,
+.colour-chip.fac-teal { background: var(--fac-teal); }
+.colour-active.fac-violet,
+.colour-chip.fac-violet { background: var(--fac-violet); }
+.colour-active.fac-amber,
+.colour-chip.fac-amber { background: var(--fac-amber); }
+.colour-chip.custom { background: conic-gradient(#d23 0 20%, #fc3 0 40%, #3a6 0 60%, #38c 0 80%, #a4c 0); }
+.colour-chip.none { background: transparent; border: 1px solid var(--chrome-line); color: var(--chrome-mut); text-align: center; line-height: .68rem; }
+.colour-custom { padding: .45rem .6rem; cursor: pointer; font-size: .88rem; }
+.colour-custom:hover { background: var(--chrome-bg); border-radius: 5px; }
+.colour-custom input { width: 1.5rem; height: 1.2rem; margin-left: auto; padding: 0; border: 0; background: transparent; }
 /* The editor's bar on a phone.  Its controls in a row are wider than a
    phone's window, and the end of the row -- Exercises ▾, Save, Save & view --
    was past the right edge, reached only by panning the whole editor

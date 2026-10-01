@@ -58,6 +58,7 @@ from texgen import (FA_CHARS, FA_RE, RUN_RE, PE_WORD_LIMIT,  # noqa: E402,F401
                     MATH_RE, LATEX_INLINE_RE, inline_latex_pairs,
                     NOT_A_RUN, is_target_line, prompt_lines)
 import languages  # noqa: E402
+from segcolour import find_runs as segmented_runs  # noqa: E402
 
 # THE PROSE A DOCUMENT IS EXPLAINED IN, when its front matter does not say.
 # It used to be Italian, from the months when the studio had one author and
@@ -128,7 +129,7 @@ def url_base():
 
 # Footnote state, mirroring texgen's: numbering is document-global and
 # assigned in source order.  `muted` is set while rendering footnote
-# bodies, so runs inside a note are not offered to the colour picker
+# bodies, so runs inside a note are not offered to the word cloud
 # (they are rendered twice — in the cloud and in the end list — and would
 # desynchronise the occurrence counter against the source).  It is set
 # too while a flashcard draws a field as blocks: the page's editors leave
@@ -337,6 +338,12 @@ def inline(text, force_breakable=False):
         return _aux("fn", _FN["n"], _FN["defs"].get(m.group(1), ""))
     text = FN_REF_RE.sub(_fn_ref, text)
 
+    # Keep a partially coloured word as one semantic node.  This happens
+    # before the old colour pass so its inner pieces never become separate
+    # target-language runs/cloud targets.
+    for node in reversed(list(segmented_runs(text))):
+        text = text[:node.start] + _aux("seg", node) + text[node.end:]
+
     # target-language stretches (before links/colours: same [..]{..}
     # shape); for a Latin target an inline `[…]{tl}` is just a run
     if latin:
@@ -541,6 +548,33 @@ def inline(text, force_breakable=False):
                 % (esc(item[1]), esc(item[1]))
         if item[0] == "latex":
             return _inline_latex(item[1], item[2] if len(item) > 2 else None)
+        if item[0] == "seg":
+            node = item[1]
+            plain = node.plain_text
+            cls = "fa segmented-colour-run"
+            if force_breakable or run_is_long(plain):
+                cls += " fa-l"
+            bits = (' data-fa="%s" data-occ="%s"'
+                    % (esc(plain), _occurrence(plain)))
+            if node.mark("translit"):
+                bits += ' data-translit="%s"' % esc(node.mark("translit"))
+            if node.mark("kana"):
+                bits += ' data-kana="%s"' % esc(node.mark("kana"))
+            inside = []
+            for piece in node.pieces:
+                body = esc(piece.text)
+                if not piece.colour:
+                    inside.append(body)
+                elif piece.colour.startswith("#"):
+                    inside.append('<span class="seg-colour fac" data-color="%s" '
+                                  'style="color:%s">%s</span>'
+                                  % (piece.colour, piece.colour, body))
+                else:
+                    inside.append('<span class="seg-colour fac fac-%s" '
+                                  'data-color="%s">%s</span>'
+                                  % (piece.colour, piece.colour, body))
+            return '<span class="%s"%s%s>%s</span>' % (
+                cls, _dir_lang(), bits, "".join(inside))
         if item[0] == "rtl":
             # one isolated unit in the target's direction: the browser's
             # bidi keeps punctuation and embedded Latin words in reading
@@ -1817,6 +1851,23 @@ def render_blocks(blocks, ctx, inside_box=False):
             kana = b.get("kana") or ""
             kana_html = ('<div class="voce-kana"%s>%s</div>'
                          % (_dir_lang(), esc(kana)) if kana else "")
+            head_html = esc(b["fa"])
+            if b.get("fa_segments"):
+                bits = []
+                for text_, colour_ in b["fa_segments"]:
+                    body_ = esc(text_)
+                    if not colour_:
+                        bits.append(body_)
+                    elif colour_.startswith("#"):
+                        bits.append('<span class="seg-colour fac" data-color="%s" '
+                                    'style="color:%s">%s</span>'
+                                    % (colour_, colour_, body_))
+                    else:
+                        bits.append('<span class="seg-colour fac fac-%s" '
+                                    'data-color="%s">%s</span>'
+                                    % (colour_, colour_, body_))
+                head_html = "".join(bits)
+                cls += " segmented-colour-run"
             out.append(
                 '<section class="voce"%s>'
                 '<div class="voce-head">'
@@ -1827,7 +1878,7 @@ def render_blocks(blocks, ctx, inside_box=False):
                 '<div class="voce-etym">%s</div>'
                 '</div></div></section>'
                 % (anchor, cls, _dir_lang(), pick, data, style,
-                   esc(b["fa"]), kana_html, inline(b["translit"]),
+                   head_html, kana_html, inline(b["translit"]),
                    inline(b["etym"])))
         elif t == "para":
             txt = b["text"].strip()
@@ -1984,7 +2035,14 @@ def target_runs(markdown):
     """Every run of the target language in the source, in order: the
     detected runs of a script language, the marked ones of a Latin
     target (the rule of LATIN_RUN_RE)."""
-    if is_latin_target():
+    latin = is_latin_target()
+    # A segmented word is one run for counts and every other nonvisual
+    # consumer, not one run per source fragment.  Reduce it locally to the
+    # ordinary spelling that the established run detector already knows.
+    for node in reversed(list(segmented_runs(markdown))):
+        plain = "[%s]{tl}" % node.plain_text if latin else node.plain_text
+        markdown = markdown[:node.start] + plain + markdown[node.end:]
+    if latin:
         return [m.group(1) for m in LATIN_RUN_RE.finditer(markdown)]
     return run_re().findall(markdown)
 
@@ -2080,9 +2138,23 @@ def _gloss_text(text, out):
     """Collect the glosses of one inline string into `out`."""
     if not text or " = " not in text:
         return
+    latin = is_latin_target()
+    # A segmented head is one flattened word to the glossary too.  Reduce it
+    # to the old whole-run spelling locally so the established gloss parser
+    # and its validation remain the one implementation.
+    for node in reversed(list(segmented_runs(text))):
+        marks = dict(node.marks)
+        fields = []
+        if marks.get("kana"):
+            fields.append("kana:" + marks["kana"])
+        if marks.get("translit"):
+            fields.append("translit:" + marks["translit"])
+        replacement = ("[%s]{%s}" % (node.plain_text,
+                                      " ".join(fields) if fields else "tl")
+                       if fields or latin else node.plain_text)
+        text = text[:node.start] + replacement + text[node.end:]
     # a […]{la} block is ordinary markdown inside: unwrap and keep going
     text = LA_RE.sub(lambda m: m.group(1), text)
-    latin = is_latin_target()
     if not latin:
         # a […]{tl} block is opaque prose -- never a gloss
         text = tl_re().sub(" ", text)
@@ -2148,6 +2220,13 @@ def _translit_index(markdown, blocks):
     instead of showing a blank.
     """
     idx = {}
+    for node in segmented_runs(markdown):
+        fields = dict(node.marks)
+        if node.plain_text and fields:
+            cur = idx.setdefault(node.plain_text, {"translit": "", "kana": ""})
+            for k in ("translit", "kana"):
+                if fields.get(k) and not cur[k]:
+                    cur[k] = fields[k]
     for m in TRANSLIT_RE.finditer(markdown):
         fa = m.group(1).strip()
         fields = parse_mark_fields(m.group(3))

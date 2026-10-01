@@ -113,13 +113,11 @@ braces. The braces may also hold `{tl}` or the language's own code
 `kana:`) with no colour at all: `## [کتاب]{translit:ketāb} | | …`. A
 colour name the studio does not know leaves the headword black.
 
-You rarely type the colour: point at the headword in the reading view or
-the preview, and the cloud that opens is the colour cloud of any word
-([Colours](colours-and-pronunciation.md#colours)) — a click on a swatch
-writes `## [کتاب]{teal} | …` into the heading, and **✕** takes the colour
-off again. That cloud holds **only the colours** for a headword: it never
-shows or edits its transliteration or its reading, which are written in
-the heading's own parts and shown in the entry itself.
+You rarely type the colour: select the headword's letters in Studio's source
+editor and use **colour** ([Colours](colours-and-pronunciation.md#colours)).
+Its transliteration or reading is written in the heading's own parts and
+shown in the entry itself, so a headword does not open an empty cloud merely
+to offer no action.
 
 ### What makes a heading an entry
 
@@ -190,9 +188,9 @@ above and a thinner one below: the headword on the left, in the target
 face, as large as the typography bar's **Lemma** slider says; on the
 right the reading in grey, the transliteration in italics in the accent
 colour, and the origin small and grey under it. Each entry is listed in
-**☰ Contents** with its transliteration. Point at the headword and the
-cloud that opens offers only the colours: the transliteration and the
-reading are shown in the entry, and edited in the heading's own parts.
+**☰ Contents** with its transliteration. The transliteration and reading are
+shown in the entry and edited in the heading's own parts; colour is applied
+to selected source text in Studio.
 
 In the PDF the headword is set in 38-point type (larger in large print)
 in a column six tenths as wide as the text, and scaled down if it is

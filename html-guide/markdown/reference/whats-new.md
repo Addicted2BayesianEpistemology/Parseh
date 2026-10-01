@@ -17,6 +17,19 @@ guide and rebuilds the readers by itself.
 
 ## a0.4.3 — not yet released
 
+### Colour meaningful parts of a word
+
+Studio can colour a stem, affix, radical or ending without splitting the
+word. Select the exact letters and use the split **colour** control; another
+selection may receive another colour, and **No colour** removes only the
+selected part. Persian and Arabic keep their cursive joining, Unicode
+graphemes stay whole, and the word remains one unit for copying, search,
+glosses and its pronunciation cloud. The same colours reach the PDF and a
+downloaded HTML page. Word clouds now contain linguistic annotations only;
+colour is an authoring operation. See [Colours and
+pronunciation](../dialect/colours-and-pronunciation.md#colouring-part-of-a-word)
+and [the editor](../studio/editor.md#insert-at-cursor).
+
 ### Exact word times while adding a video
 
 Speech to text can now keep the word boundaries it heard while you correct a

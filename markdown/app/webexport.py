@@ -104,7 +104,7 @@ PLAYER_REFERRER = "strict-origin-when-cross-origin"
 # everything the page shows.  The studio writes them for its editor and its
 # hover tools: the Markdown of a target-language line or block (so the
 # overlay can open it again), the line a block starts on, where an exercise
-# ends, how many times a run occurred before (the colour palette's key), a
+# ends, how many times a run occurred before (the word cloud's source key), a
 # formula's source twice over (data-tex stays: it is what the formula is
 # drawn from), a linked document's name.  None of them is read by anything
 # the exported page runs; every one of them would let its Markdown be pieced

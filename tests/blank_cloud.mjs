@@ -233,13 +233,16 @@ try {
     const t = document.querySelector('#toast');
     new MutationObserver(() => window.__toasts.push(t.textContent)).observe(t, {childList: true, characterData: true, subtree: true});
   });
-  // the reading view's colour palette opens over a word of the page ...
+  // A plain word can still acquire a linguistic annotation from its +
+  // control, but the old colour tools are absent.
   const F = '.sheet .exercise[data-subtype="fill-blanks"]';
   const kin = await page.evaluate(F => !!document.querySelector(F + ' .ex-bank [data-fa]'), F);
   if (kin) {
     await page.locator(`${F} .ex-bank [data-fa]`).first().hover();
     await page.waitForTimeout(400);
-    assert(await drawn(page, '.fapal'), 'document: the colour palette opens over a word of the bank (as it always has)');
+    eq([await drawn(page, '.fapal'), await drawn(page, '.fapal .tr-add'),
+        await page.locator('.fapal button[data-color], .fapal input[type="color"], .fapal .none').count()],
+       [true, true, 0], 'document: the bank word offers only its linguistic +, no colour controls');
   }
   // ... and never over a word of a blank's cloud, a copy to choose from
   await page.locator(`${F} .ex-blank`).nth(0).click();
@@ -247,7 +250,7 @@ try {
   await page.locator(`${F} .ex-cloud .ex-cloud-pick`).first().hover();
   await page.waitForTimeout(700);
   eq([await drawn(page, '.fapal'), await page.evaluate(F => document.querySelectorAll(F + ' .ex-cloud [data-fa]').length, F)],
-     [false, 0], 'document: no colour palette over a word of the cloud');
+     [false, 0], 'document: no linguistic cloud over a word of the answer cloud');
   await page.keyboard.press('Escape');
   await fillEveryWay(page, '.sheet', 'document');
   await matchEveryWay(page, '.sheet', 'document');

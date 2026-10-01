@@ -1026,8 +1026,27 @@ body[data-theme="dark"] {      /* lifted for contrast on a dark sheet */
 .fac-teal    { color: var(--fac-teal); }
 .fac-violet  { color: var(--fac-violet); }
 .fac-amber   { color: var(--fac-amber); }
+.segmented-colour-run .seg-colour {
+  display: inline;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  font-stretch: inherit;
+  font-variant: inherit;
+  font-kerning: inherit;
+  font-feature-settings: inherit;
+  font-variation-settings: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  writing-mode: inherit;
+  direction: inherit;
+  unicode-bidi: normal;
+  margin: 0;
+  padding: 0;
+}
 
-/* the hover palette */
+/* the linguistic word cloud */
 .fapal {
   position: absolute; z-index: 70; display: flex; align-items: center;
   gap: .3rem; padding: .3rem .4rem;
@@ -1041,26 +1060,6 @@ body[data-theme="dark"] {      /* lifted for contrast on a dark sheet */
 }
 .fapal button:hover { transform: scale(1.18); }
 .fapal button.on { border-color: var(--chrome-fg); }
-.fapal input[type="color"] {
-  width: 1.15rem; height: 1.15rem; border-radius: 50%;
-  border: 2px solid transparent; padding: 0; background: none;
-  cursor: pointer;
-}
-.fapal input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-.fapal input[type="color"]::-webkit-color-swatch {
-  border: 1px dashed var(--chrome-mut); border-radius: 50%;
-}
-.fapal input[type="color"].on { border-color: var(--chrome-fg); }
-.fapal input[type="color"]:hover { transform: scale(1.18); }
-.fapal .none {
-  background: var(--chrome-bg); color: var(--chrome-mut);
-  border: 1px solid var(--chrome-line);
-}
-.fapal .lbl {
-  font-size: .68rem; color: var(--chrome-mut); padding: 0 .15rem 0 .3rem;
-  white-space: nowrap;
-}
-
 /* transliteration, at the head of the cloud: a label you click to edit,
    or a + when the run has none yet.  These are not swatches, so they opt
    out of the round fixed-size button rules above. */

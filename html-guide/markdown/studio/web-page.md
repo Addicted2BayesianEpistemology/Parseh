@@ -57,9 +57,11 @@ A deck's exercises can be a page too, one that crams them: see
   line under the video says so: *YouTube plays this video only when the
   page is on a website — watch it on YouTube*, the last words opening the
   video on YouTube, from where the page's stretch of it begins.
-- **The transliteration cloud.** Pointing at a word of the target
-  language opens the studio's own cloud: its transliteration, the kana of
-  a Japanese word, the colours. What is changed in it is changed **on the
+- **The linguistic cloud.** Pointing at a word of the target language —
+  including any coloured part of a partially coloured word — opens one
+  cloud for the complete word: its transliteration and the kana of a
+  Japanese word. It has no colour controls. A pronunciation or reading
+  changed there is changed **on the
   open page only**, and is gone when the tab is closed or reloaded. The
   first time a word or the cloud is clicked (or tapped, on a phone), a
   line over the screen says so once: *Changes made here are not saved*.
@@ -92,9 +94,10 @@ change it.
   editor finds a line by. The document's Markdown can be neither read nor
   pieced back together from the file.
 - **Nothing that edits.** There is no ✎, no ⚙ on a picture or a player,
-  no **+ Deck**, and none of the code behind them is in the file. The
-  cloud's colours and transliterations change the open page and nothing
-  else.
+  no **+ Deck**, no colour picker, and none of the code behind them is in
+  the file. The cloud's pronunciation or reading changes the open page and
+  nothing else. Colours embedded by the author, including colours within a
+  word, are preserved but cannot be edited there.
 - **No word about decks.** A flashcard set to [**Both
   (repeat)**](../dialect-exercises/flashcards.md#which-side-comes-first)
   does not say, as it does in the studio, that a deck will ask both sides:
@@ -112,7 +115,7 @@ change it.
 
 The page keeps nothing and sends nothing. The size and theme chosen with
 **Aa**, the answers given, the transliterations hidden, what was changed in
-the cloud: all of it lasts
+the linguistic cloud: all of it lasts
 until the tab is closed or reloaded, and none of it is written anywhere.
 Nothing goes into the browser's storage or a cookie, and nothing to any
 server. The page tells the browser so itself: its own security rules forbid

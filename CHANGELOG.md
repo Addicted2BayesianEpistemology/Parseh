@@ -4,9 +4,11 @@
 - A Parseh-made transcript carries its word timing through the add-page editor and stores it with the matching video
 - Two transcript tidy cues: the existing text cues and recorded pauses
 - Mobile-mode keyboard arrows skip narration or video by the selected amount
+- Partial-word foreground colours in Studio, with selection-first editing, Unicode-safe boundaries, one-word linguistic clouds, PDF and standalone-HTML output
 
 ### Changed
 - Markdown and exercise-deck cards made from books or videos mark target and context fields as the target language automatically
+- Studio and exported word clouds are linguistic only; foreground colour is applied from the source editor
 
 ## [a0.4.2] - 2026-09-30
 ### Added

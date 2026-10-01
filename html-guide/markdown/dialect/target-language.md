@@ -49,7 +49,7 @@ What a run takes in, and what ends it:
 A run is **opaque**: nothing inside it is read as Markdown, and emphasis
 never crosses it ([Paragraphs and emphasis](paragraphs-and-emphasis.md)).
 In the reading view a click on a run copies it, and pointing at it opens a
-small cloud with the colours and the transliteration
+small cloud with its transliteration or reading
 ([Colours, pronunciation and glosses](colours-and-pronunciation.md)). On
 paper a run of up to four words (eight characters in Japanese and Chinese)
 is never broken across two lines; a longer one may be. In large print a

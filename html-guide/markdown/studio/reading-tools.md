@@ -2,13 +2,12 @@
 title: Reading, annotating and practising
 linkTitle: Reading and practising
 weight: 8
-description: On the document page — copy a word, colour it, write its transliteration, drill the glosses, check the exercises, enlarge a card, copy exercises into a deck.
+description: On the document page — copy a word, inspect or edit its pronunciation, drill the glosses, check the exercises, enlarge a card, copy exercises into a deck.
 ---
 
-A document's page is made to be worked on as well as read. Everything
-here is done with the mouse on the typeset sheet, and whatever changes the
-document is written back into its Markdown — so it lasts, reaches the PDF,
-and is there for a model the next time the document is revised.
+A document's page is made to be worked on as well as read. Linguistic
+annotations can be inspected and edited on the typeset sheet. Foreground
+colour is an authoring operation in Studio's source editor.
 
 ## Copying a word
 
@@ -19,10 +18,9 @@ the clipboard, ready to paste into a dictionary: *Copied: …* says what.
 A footnote's number opens its note in a small cloud when you point at it
 (a tap, on a phone); the notes are also listed at the end of the document.
 
-## Colours and transliterations {#colours-and-transliterations}
+## Pronunciation and reading {#colours-and-transliterations}
 
-**Point at a word of the target language** — a run of it in the text, or
-the headword of a lemma heading — and a small cloud opens over it:
+**Point at a word of the target language** and a small cloud opens over it:
 
 - At its head, the word's **transliteration** (or pronunciation, or
   pinyin, or rōmaji: each language names its own). Click it to edit it in
@@ -30,23 +28,17 @@ the headword of a lemma heading — and a small cloud opens over it:
   field. Enter saves, Escape cancels, a click elsewhere saves. Saving an
   empty field takes the transliteration away. For Japanese, the **kana**
   reading has a field of its own above it.
-- Then **colour**: the five colours of the palette — crimson, indigo, teal,
-  violet and amber — a sixth swatch that opens your system's colour picker
-  for any colour at all, starting from the word's own, and **✕** for no
-  colour.
 
-A click on a swatch colours that one word, *Marked teal — saved in the
-markdown*. Each choice is written into the Markdown as the dialect's mark —
-`[کند]{teal}`, `[کند]{#2F6B8F}`, `[کند]{translit:kond}`, or both at
-once, `[کند]{teal translit:kond}` — and each one is changed without
-disturbing the other. A mark left with nothing in it is taken away, leaving
-the bare word. The colour reaches the PDF; the transliteration is printed
-nowhere but is shown in this cloud and fills the glossary's column.
+The cloud has no colour picker or swatches. Colours are applied in the
+[source editor](editor.md#insert-at-cursor) by selecting exactly the letters
+to colour. Existing colours remain visible while the cloud is open. A
+partially coloured word opens one cloud for the complete word, and copying it
+copies its complete plain text.
 
 A lemma heading already carries its transliteration in the heading itself,
-so there the cloud shows it without offering to change it — it can still be
-coloured. The same cloud works in [the editor's preview](editor.md#tools-in-the-preview),
-where it writes into the text being edited, as an edit you can undo.
+so it does not open an empty cloud merely to offer no action. It can still be
+coloured by selecting its source text in Studio. The same linguistic cloud
+works in [the editor's preview](editor.md#tools-in-the-preview).
 
 > **Which word is which.** The same word can stand in a document many
 > times; the page counts which occurrence you pointed at, and the Markdown

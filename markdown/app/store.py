@@ -44,6 +44,10 @@ from texgen import set_target, cur_lang, is_latin_target, parse_mark_fields, cli
 from texgen import (LEGACY_UID_RE, doc_name_key, escape_doc_name, find_doclinks,
                     unescape_doc_name, prepare_doc_index, lookup_doclink,
                     resolve_doclink)
+from segcolour import (Piece as ColourPiece, find_runs as segmented_runs,
+                       parse_at as parse_segmented, parse_marks,
+                       normalise_colour, recolour_pieces,
+                       serialize as serialize_colours, flatten as flatten_colours)
 
 ROOT = Path(__file__).resolve().parent.parent
 LIB = ROOT / "library"
@@ -951,7 +955,7 @@ def _blank_spans(src, spans):
 
 
 def _mask_uncountable(src, parsed=None):
-    """Blank out regions whose runs the colour picker never offers,
+    """Blank out regions whose runs the word cloud never offers,
     preserving offsets: footnote bodies (rendered twice — cloud + end
     list), ✗-marked runs (their red is not overridable), `[…]{tl}`
     stretches, and auto-block paragraphs (both rendered opaquely).
@@ -1092,7 +1096,7 @@ def _blank_maths(flat, where, src, blocks):
     of a table, a field of a lemma heading -- after a note, a note's
     reference and a `{tl}` mark have been set aside (htmlgen.inline).  The page offers no word
     inside a formula.  A formula starts at its own `[`, so a mark written
-    before it -- a colour the palette has just put round a word -- stays out
+    before it -- a colour the source editor has put round a word -- stays out
     of it, on the page and here alike (texgen.MATH_RE says where a formula
     begins; this reads it, and so never disagrees with the page)."""
     from texgen import MATH_RE, FN_REF_RE, tl_re
@@ -1144,6 +1148,15 @@ def _run_matches(src, text):
     parsed = mdparser.parse(src)
     blocks = parsed[1]
     masked = _mask_uncountable(src, parsed)
+    seg_nodes = list(segmented_runs(masked))
+    # The inner pieces must never be found as independent source runs.
+    # Keep offsets stable while the ordinary matcher does its work, then
+    # add the complete flattened nodes beside its results.
+    if seg_nodes:
+        chars = list(masked)
+        for node in seg_nodes:
+            chars[node.start:node.end] = " " * (node.end - node.start)
+        masked = "".join(chars)
     flat, where = _flatten(masked, _joined_lines(blocks))
     flat = _blank_maths(flat, where, src, blocks)
 
@@ -1158,7 +1171,10 @@ def _run_matches(src, text):
             fa, ("(?<![%s]%s)" % (fa, sep)) if sep else "",
             re.escape(text), fa,
             ("(?!%s[%s])" % (sep, fa)) if sep else "")
-        return [hit(m) for m in re.finditer(pat, flat)]
+        hits = [hit(m) for m in re.finditer(pat, flat)]
+        hits += [_Hit(n.start, n.end, n.plain_text)
+                 for n in seg_nodes if n.plain_text == text]
+        return sorted(hits, key=lambda m: m.start())
     marks = re.finditer(r"(?<=\[)(%s)(?=\]\{%s)"
                         % (re.escape(text), _LATIN_MARK_ATTRS), flat)
     heads = re.finditer(r"(?m)^[ \t]*(?:>[ \t]?)*##[ \t]+(%s)[ \t]*\|"
@@ -1166,6 +1182,8 @@ def _run_matches(src, text):
     hits = [hit(m) for m in marks] + [hit(m) for m in heads]
     hits += [_Hit(s, e, src[s:e]) for m in _slotted_marks(masked, blocks)
              for s, e in _slotted_pieces(m) if masked[s:e] == text]
+    hits += [_Hit(n.start, n.end, n.plain_text)
+             for n in seg_nodes if n.plain_text == text]
     return sorted(hits, key=lambda m: m.start(1))
 
 
@@ -1230,10 +1248,9 @@ def _remark_markdown(src, text, occurrence, color=_KEEP, translit=_KEEP,
     to bare text -- except for a Latin-script target, whose run IS the
     mark: there the bare form is `[bello]{tl}`.
 
-    A run that is only part of a mark's content is edited as the mark:
-    the hover cloud showed the mark's own colour and annotations, and a
-    mark written inside a mark would be nested brackets the parser
-    prints literally.
+    A run that is only part of an ordinary mark's content is edited as the
+    mark.  A segmented-colour run is handled as one flattened run above;
+    changing its linguistic fields preserves all of its visual pieces.
     """
     from texgen import HEX_RE, PALETTE
     L = _target_of(src)
@@ -1252,6 +1269,24 @@ def _remark_markdown(src, text, occurrence, color=_KEEP, translit=_KEEP,
         raise StoreError("that run is no longer in the source")
     m = hits[occurrence]
     s, e = m.start(1), m.end(1)
+    segmented = parse_segmented(src, s)
+    if segmented is not None and segmented.end == e:
+        marks = dict(segmented.marks)
+        if translit is not _KEEP:
+            if translit:
+                marks["translit"] = translit
+            else:
+                marks.pop("translit", None)
+        if kana is not _KEEP:
+            if kana:
+                marks["kana"] = kana
+            else:
+                marks.pop("kana", None)
+        pieces = segmented.pieces
+        if color is not _KEEP:
+            pieces = recolour_pieces(pieces, 0, len(segmented.plain_text), color)
+        new = serialize_colours(pieces, marks, latin=latin)
+        return src[:s] + new + src[e:]
     # A piece of a mark holding a blank (`[Mi chiamo [[x]] Anna]{tl}` in a
     # fill-in sentence) is marked as the page draws it: the mark is written
     # out spread over its pieces first (texgen.spread_slots, which the
@@ -1318,6 +1353,214 @@ def recolor_markdown(src, text, occurrence, color):
     (which rewrites its unsaved buffer).
     """
     return _remark_markdown(src, text, occurrence, color=color)
+
+
+_SOURCE_MARK_RE = re.compile(r"\[([^\[\]\n]+)\]\{([^{}\n]+)\}")
+
+
+def _ordinary_colour_mark(match, latin):
+    """The semantic parts of an ordinary run mark, or None."""
+    attrs = match.group(2).strip()
+    fields_at = re.search(r"(?:^|\s)(?:translit|kana|reading):", attrs)
+    head = attrs[:fields_at.start()].strip() if fields_at else attrs
+    marks = parse_marks(attrs)
+    colour = normalise_colour(head) if head else None
+    if colour or marks:
+        return colour, marks
+    if latin and head and head.lower() not in ("la", "ltr", "math", "latex"):
+        return None, {}
+    return None
+
+
+def _word_char(ch):
+    cat = unicodedata.category(ch)
+    return cat[:1] in ("L", "M", "N") or ch in "'’‌‍-"
+
+
+def _word_at(src, caret):
+    """Half-open Unicode word under/next to a source caret."""
+    if not src:
+        return None
+    p = min(max(0, caret), len(src))
+    if p == len(src) or (p < len(src) and not _word_char(src[p])):
+        if p and _word_char(src[p - 1]):
+            p -= 1
+        else:
+            return None
+    a = p
+    while a and _word_char(src[a - 1]):
+        a -= 1
+    b = p + 1
+    while b < len(src) and _word_char(src[b]):
+        b += 1
+    return a, b
+
+
+def colour_selection_markdown(src, start, end, colour):
+    """Apply a foreground colour to the exact visible editor selection.
+
+    The return value is ``(markdown, caret)``.  Existing ordinary and
+    segmented run marks are parsed and serialised canonically; raw text is
+    split only at lexical-word edges, so crossing a space cannot manufacture
+    one fake word.  Browser code expands the two edges to grapheme boundaries
+    before calling this function.
+    """
+    _target_of(src)
+    latin = is_latin_target()
+    try:
+        start, end = int(start), int(end)
+    except (TypeError, ValueError):
+        raise StoreError("selection offsets must be integers")
+    start, end = max(0, min(start, len(src))), max(0, min(end, len(src)))
+    if end < start:
+        start, end = end, start
+    if colour:
+        colour = normalise_colour(str(colour))
+        if not colour:
+            raise StoreError("unknown colour")
+    if start == end:
+        node_here = next((n for n in segmented_runs(src)
+                          if n.start <= start <= n.end and n.positions), None)
+        if node_here:
+            start, end = node_here.positions[0], node_here.positions[-1] + 1
+        else:
+            marked_here = None
+            in_mark_syntax = False
+            for mark in _SOURCE_MARK_RE.finditer(src):
+                parsed = _ordinary_colour_mark(mark, latin)
+                if parsed is None:
+                    continue
+                if mark.start(1) <= start <= mark.end(1):
+                    marked_here = (mark.start(1), mark.end(1))
+                    break
+                if mark.start() <= start <= mark.end():
+                    in_mark_syntax = True
+            if marked_here:
+                start, end = marked_here
+            else:
+                word = None if in_mark_syntax else _word_at(src, start)
+                if not word:
+                    raise StoreError("Select text to colour")
+                start, end = word
+
+    # An existing segmented word: source positions of its visible code
+    # points provide the source/plain mapping without treating markup as text.
+    for node in segmented_runs(src):
+        if end <= node.start or start >= node.end:
+            continue
+        picked = [i for i, pos in enumerate(node.positions)
+                  if start <= pos < end]
+        if start < node.start or end > node.end:
+            continue                 # handled with the other crossed units below
+        if not picked:
+            raise StoreError("Select visible text, not its colour markup")
+        pieces = recolour_pieces(node.pieces, min(picked), max(picked) + 1, colour)
+        new = serialize_colours(pieces, dict(node.marks), latin=latin)
+        out = src[:node.start] + new + src[node.end:]
+        return out, node.start + len(new)
+
+    # An ordinary whole-run mark becomes segmented only when the chosen
+    # interval needs it.  Its colour and all linguistic fields are retained.
+    for mark in _SOURCE_MARK_RE.finditer(src):
+        body_a, body_b = mark.start(1), mark.end(1)
+        if body_a <= start and end <= body_b:
+            parsed = _ordinary_colour_mark(mark, latin)
+            if parsed is None:
+                break
+            base, marks = parsed
+            pieces = recolour_pieces((ColourPiece(mark.group(1), base),),
+                                     start - body_a, end - body_a, colour)
+            new = serialize_colours(pieces, marks, latin=latin)
+            out = src[:mark.start()] + new + src[mark.end():]
+            return out, mark.start() + len(new)
+
+    chosen = src[start:end]
+    # A clean complete word or phrase retains the compact ordinary syntax.
+    left_ok = start == 0 or not _word_char(src[start - 1])
+    right_ok = end == len(src) or not _word_char(src[end])
+    if (colour and chosen and "\n" not in chosen and not re.search(r"[\[\]{}]", chosen)
+            and left_ok and right_ok):
+        new = "[%s]{%s}" % (chosen, colour)
+        out = src[:start] + new + src[end:]
+        return out, start + len(new)
+
+    # Partial boundaries, including a selection crossing words: each lexical
+    # unit is rewritten independently and only its intersecting interval is
+    # coloured.  Spaces and punctuation remain byte-for-byte untouched.
+    line_a = src.rfind("\n", 0, start) + 1
+    nl = src.find("\n", end)
+    line_b = len(src) if nl < 0 else nl
+    replacements = []
+    occupied = []
+
+    # Semantic nodes intersected by a longer selection are rewritten as
+    # units.  Their source markup is occupied so the raw-word pass below
+    # cannot mistake colour names or linguistic field names for visible
+    # text.  Visible code-point positions retain the exact selected slice.
+    for node in segmented_runs(src):
+        occupied.append((node.start, node.end))
+        picked = [k for k, pos in enumerate(node.positions)
+                  if start <= pos < end]
+        if not picked:
+            continue
+        pieces = recolour_pieces(node.pieces, min(picked), max(picked) + 1, colour)
+        new = serialize_colours(pieces, dict(node.marks), latin=latin)
+        if new != src[node.start:node.end]:
+            replacements.append((node.start, node.end, new))
+
+    for mark in _SOURCE_MARK_RE.finditer(src):
+        if any(a <= mark.start() and mark.end() <= b for a, b in occupied):
+            continue                 # an inner piece of a segmented node
+        parsed = _ordinary_colour_mark(mark, latin)
+        if parsed is None:
+            continue
+        occupied.append((mark.start(), mark.end()))
+        positions = range(mark.start(1), mark.end(1))
+        picked = [k for k, pos in enumerate(positions) if start <= pos < end]
+        if not picked:
+            continue
+        base, marks = parsed
+        pieces = recolour_pieces((ColourPiece(mark.group(1), base),),
+                                 min(picked), max(picked) + 1, colour)
+        new = serialize_colours(pieces, marks, latin=latin)
+        if new != mark.group(0):
+            replacements.append((mark.start(), mark.end(), new))
+
+    occupied.sort()
+    occupied_i = 0
+    i = line_a
+    while i < line_b:
+        while occupied_i < len(occupied) and occupied[occupied_i][1] <= i:
+            occupied_i += 1
+        if occupied_i < len(occupied) and occupied[occupied_i][0] <= i < occupied[occupied_i][1]:
+            i = occupied[occupied_i][1]
+            continue
+        if not _word_char(src[i]):
+            i += 1
+            continue
+        j = i + 1
+        next_occupied = (occupied[occupied_i][0]
+                         if occupied_i < len(occupied) else line_b)
+        while j < line_b and j < next_occupied and _word_char(src[j]):
+            j += 1
+        a, b = max(i, start), min(j, end)
+        if a < b:
+            pieces = recolour_pieces((ColourPiece(src[i:j]),), a - i, b - i, colour)
+            new = serialize_colours(pieces, latin=latin)
+            if new != src[i:j]:
+                replacements.append((i, j, new))
+        i = j
+    if not replacements:
+        if colour is None:
+            return src, end
+        raise StoreError("Select text to colour")
+    out = src
+    caret = end
+    for a, b, new in reversed(replacements):
+        out = out[:a] + new + out[b:]
+        if a < end:
+            caret += len(new) - (b - a)
+    return out, caret
 
 
 def retranslit_markdown(src, text, occurrence, translit):
@@ -2657,8 +2900,8 @@ def list_docs(q="", tags=None, exclude_tags=None, intext=False, sort="updated"):
                 hit = ql in hay
                 if not hit and intext:
                     try:
-                        hit = ql in languages.fold(
-                            (d / "source.md").read_text(encoding="utf-8"))
+                        hit = ql in languages.fold(flatten_colours(
+                            (d / "source.md").read_text(encoding="utf-8")))
                     except OSError:
                         hit = False
                 if not hit:

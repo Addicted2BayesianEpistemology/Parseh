@@ -29,6 +29,8 @@ LIB = HERE.parent.parent / "lib"
 if str(LIB) not in sys.path:
     sys.path.insert(0, str(LIB))
 import languages  # noqa: E402
+from segcolour import (PALETTE, HEX_RE, normalise_colour, parse_marks,
+                       find_runs as segmented_runs)  # noqa: E402
 
 
 class ThreadDict:
@@ -355,13 +357,6 @@ def escape_latin(s):
 # ----------------------------------------------------------------------
 # Five dark hues, legible on white paper and (via lighter CSS variants)
 # on a dark screen.  The names are the authoring interface: `[متن]{teal}`.
-PALETTE = {
-    "crimson": "8E2B34",
-    "indigo":  "2F3E8F",
-    "teal":    "13605C",
-    "violet":  "5C2E7E",
-    "amber":   "8A5A0B",
-}
 
 # ^[nota inline] — tolerates one level of nested [..]{..}/[..](..), same
 # as LA_RE, so a translit/colour/link mark can sit inside an inline note
@@ -407,7 +402,6 @@ LEGACY_UID_RE = re.compile(r"[0-9a-fA-F]{6,32}")
 # [testo]{teal} — or an arbitrary colour: [testo]{#8E2B34}
 COLOR_RE = re.compile(
     r"\[([^\[\]]*)\]\{\s*(#[0-9A-Fa-f]{6}|[A-Za-z]+)\s*\}")
-HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 # [تند]{translit:tond} — a transliteration annotation: the text renders
 # exactly as if unmarked (in the PDF the mark disappears entirely); the
@@ -431,23 +425,12 @@ def parse_mark_fields(raw):
     Keys may come in any order; a key given twice keeps the last value;
     `reading:` is stored under "kana".  Missing keys are absent.
     """
-    out = {}
-    for part in _MARK_SPLIT_RE.split((raw or "").strip()):
-        m = re.match(r"(" + _MARK_KEY_RE + r"):\s*(.*)$", part, re.S)
-        if not m:
-            continue
-        key = "kana" if m.group(1) == "reading" else m.group(1)
-        out[key] = m.group(2).strip()
-    return out
+    return parse_marks(raw)
 
 
 def _norm_colour(v):
     """Colour token -> normalised name/#HEX, or None when invalid."""
-    if not v:
-        return None
-    if v.startswith("#"):
-        return "#" + v[1:].upper() if HEX_RE.match(v) else None
-    return v.lower() if v.lower() in PALETTE else None
+    return normalise_colour(v)
 
 # `[…]{tl}`: the bracketed stretch is prose in the target language, laid
 # out AS A WHOLE in that language's direction and font -- ASCII
@@ -1313,6 +1296,11 @@ def inline(text, force_breakable=False):
         return _aux("fn", _FN["n"], _FN["defs"].get(m.group(1), ""))
     text = FN_REF_RE.sub(_fn_ref, text)
 
+    # One semantic run, frozen before the ordinary inner colour marks.
+    # ``[[slot]]`` has no valid colour piece and is deliberately untouched.
+    for node in reversed(list(segmented_runs(text))):
+        text = text[:node.start] + _aux("seg", node) + text[node.end:]
+
     #    target-language stretches (before links/colours: same [..]{..}
     #    shape).  For a script language an inline `[…]{tl}` is one opaque
     #    unit in the target's direction; for a Latin target it is simply
@@ -1522,6 +1510,26 @@ def inline(text, force_breakable=False):
             depth = (r.get("d") or 0) * scale
             return (r"\raisebox{-%.3fpt}{\includegraphics[scale=%.3f]{%s}}"
                     % (depth, scale, "latex/%s.pdf" % r["key"]))
+        if item[0] == "seg":
+            node = item[1]
+            plain = node.plain_text
+            if is_mono():
+                return _fa_macro(plain, force_breakable)
+            chunks = []
+            for piece in node.pieces:
+                body = escape_latin(piece.text) if latin else piece.text
+                if not piece.colour:
+                    style = ""
+                elif piece.colour.startswith("#"):
+                    style = r"\color[HTML]{%s}" % piece.colour[1:]
+                else:
+                    style = r"\color{fa%s}" % piece.colour
+                chunks.append(r"\segpiece{%s}{%s}" % (style, body))
+            breakable = force_breakable or _CARD["on"] \
+                or run_is_long(plain, print_size())
+            body = escape_latin(plain) if latin else plain
+            shaped = r"\segword{%s}{%s}" % (body, "".join(chunks))
+            return ("\\pel{%s}" if breakable else "\\pe{%s}") % shaped
         if item[0] == "rtl":
             attrs = item[2] if len(item) > 2 else parse_tl_attrs("")
             fnt = "\\tlalt" if attrs["font"] else "\\tlfont"
@@ -2829,6 +2837,18 @@ def render_blocks(blocks, inside_box=False):
         elif t == "voce":
             prev = _begin_defer()
             head = escape_latin(b["fa"]) if is_latin_target() else b["fa"]
+            if b.get("fa_segments") and not is_mono():
+                pieces = []
+                for text_, colour_ in b["fa_segments"]:
+                    body_ = escape_latin(text_) if is_latin_target() else text_
+                    if not colour_:
+                        style_ = ""
+                    elif colour_.startswith("#"):
+                        style_ = r"\color[HTML]{%s}" % colour_[1:]
+                    else:
+                        style_ = r"\color{fa%s}" % colour_
+                    pieces.append(r"\segpiece{%s}{%s}" % (style_, body_))
+                head = r"\segword{%s}{%s}" % (head, "".join(pieces))
             core = "\\voce{%s}{%s}{%s}{%s}" % (
                 head, escape_latin(b.get("kana") or ""),
                 inline(b["translit"]), inline(b["etym"]))
@@ -3208,6 +3228,35 @@ def target_dir_tex(L):
 \DeclareRobustCommand{\pel}[1]{\leavevmode{\tlfont\beginR #1\endR}}
 \DeclareRobustCommand{\peb}[1]{\mbox{\tlfont\bfseries\beginR #1\endR}}
 
+% A segmented-colour word remains one shaped run.  Its uncoloured full-word
+% box is the ink and the advance; clipped, coloured full-word copies replace
+% only the selected horizontal slices.  Logical RTL pieces advance from the
+% right edge.  In particular, no colour command ever interrupts Arabic
+% joining.
+\newsavebox{\segfullbox}
+\newsavebox{\segpiecebox}
+\newlength{\segoffset}
+\newlength{\segright}
+\DeclareRobustCommand{\segword}[2]{%
+  \begingroup
+  \sbox{\segfullbox}{#1}%
+  \setlength{\segoffset}{\wd\segfullbox}%
+  \leavevmode\hbox{\beginL
+    \rlap{\usebox{\segfullbox}}%
+    \def\segpiece##1##2{%
+      \sbox{\segpiecebox}{##2}%
+      \addtolength{\segoffset}{-\wd\segpiecebox}%
+      \setlength{\segright}{\wd\segfullbox}%
+      \addtolength{\segright}{-\segoffset}%
+      \addtolength{\segright}{-\wd\segpiecebox}%
+      \if\relax\detokenize{##1}\relax\else
+        \rlap{\kern\segoffset
+          \clipbox{\the\segoffset\space 0pt \the\segright\space 0pt}%
+            {\hbox{##1#1}}}%
+      \fi}%
+    #2\kern\wd\segfullbox
+  \endL}\endgroup}
+
 % A paragraph of prose in the target language (ASCII punctuation and
 % \beginL islands for Latin words included): right-aligned, whole
 % paragraph in TeXXeT R direction so nothing splits the reading order.
@@ -3222,6 +3271,33 @@ def target_dir_tex(L):
 \DeclareRobustCommand{\pe}[1]{\mbox{\tlfont #1}}
 \DeclareRobustCommand{\pel}[1]{\leavevmode{\tlfont #1}}
 \DeclareRobustCommand{\peb}[1]{\mbox{\tlfont\bfseries #1}}
+
+% The LTR counterpart of the shaped overlay above.  Pieces advance from the
+% left edge; the underlying word and every coloured layer are still shaped
+% as an uninterrupted full word.
+\newsavebox{\segfullbox}
+\newsavebox{\segpiecebox}
+\newlength{\segoffset}
+\newlength{\segright}
+\DeclareRobustCommand{\segword}[2]{%
+  \begingroup
+  \sbox{\segfullbox}{#1}%
+  \setlength{\segoffset}{0pt}%
+  \leavevmode\hbox{\beginL
+    \rlap{\usebox{\segfullbox}}%
+    \def\segpiece##1##2{%
+      \sbox{\segpiecebox}{##2}%
+      \setlength{\segright}{\wd\segfullbox}%
+      \addtolength{\segright}{-\segoffset}%
+      \addtolength{\segright}{-\wd\segpiecebox}%
+      \if\relax\detokenize{##1}\relax\else
+        \rlap{\kern\segoffset
+          \clipbox{\the\segoffset\space 0pt \the\segright\space 0pt}%
+            {\hbox{##1#1}}}%
+      \fi
+      \addtolength{\segoffset}{\wd\segpiecebox}}%
+    #2\kern\wd\segfullbox
+  \endL}\endgroup}
 
 % A paragraph of prose in the target language: a left-to-right
 % paragraph in the target face.
