@@ -1206,7 +1206,10 @@ function flipCard(card) {
    cram page.  The two sides swap names, so `.ex-card-front` is still the
    side shown first for everything that reads it (flipCard, the recording
    played first, the enlarged copy).  A card already turned (a preview shows
-   both sides) is left as it is, and one drawn once is not drawn again. */
+   both sides) is left as it is, and one drawn once is not drawn again.
+   The example, the notes and the source of a card (data-extra) are on the
+   answer's side, which the draw has just changed: each goes to the other
+   side, at its end, where its own come in the order they were drawn. */
 function drawFirstSide(card) {
   if (card.dataset.first !== "random" || card.dataset.drawn || card.classList.contains("flipped")) return;
   card.dataset.drawn = "1";
@@ -1215,6 +1218,8 @@ function drawFirstSide(card) {
   front.className = "ex-card-back"; back.className = "ex-card-front";
   front.hidden = true; back.hidden = false;
   card.insertBefore(back, front);
+  const [fromFront, fromBack] = [front, back].map(side => $$(":scope > [data-extra]", side));
+  back.append(...fromFront); front.append(...fromBack);
 }
 
 function escAttr(s) {

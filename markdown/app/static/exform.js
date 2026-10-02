@@ -73,6 +73,10 @@ const JOLLY_KEYS = ["front-primary", "front-secondary", "back-primary", "back-se
 /* which side a flashcard shows first (mdparser.FLASHCARD_DIRECTIONS) */
 const CARD_DIRECTIONS = [["forward", "Front"], ["reverse", "Back"],
                          ["both-random", "Both (random)"], ["both-repeat", "Both (repeat)"]];
+/* the fields of a vocab or opposites card that go on the side the card turns
+   to, or on the side shown first when their `-side` says `question`
+   (mdparser.CARD_EXTRAS, CARD_SIDES) */
+const CARD_EXTRAS = ["context", "notes", "source"];
 
 function parseExerciseSource(source) {
   const lines = String(source || "").replaceAll("\r\n", "\n").split("\n");
@@ -356,6 +360,11 @@ function exerciseSource(model, def) {
         sourceField(lines, key + "-size", f[key + "-size"]);
       if (f[key + "-shade"] && f[key + "-shade"] !== base.shade)
         sourceField(lines, key + "-shade", f[key + "-shade"]);
+      // `answer` is what a field says when it says nothing; any other value,
+      // a mistaken one too, is kept as written for the parser to name
+      const side = String(f[key + "-side"] || "").trim();
+      if (CARD_EXTRAS.includes(key) && side && side.toLowerCase() !== "answer")
+        sourceField(lines, key + "-side", side);
     }
     sourceField(lines, "direction", f.direction);
     // not in the form, but kept: a card sheet writes it, and a card opened
@@ -458,6 +467,10 @@ function validateExercise(model, def) {
         throw new Error("Text sizes must be between 50% and 250%");
       if (!new Set(["primary", "subdued", "muted", "accent"]).has(shade) && !/^#[0-9a-f]{6}$/i.test(shade))
         throw new Error("Choose one of the available color treatments");
+      // what mdparser says of a side: the box under Text appearance writes only these
+      const side = String(model.fields[key + "-side"] || "").trim().toLowerCase();
+      if (CARD_EXTRAS.includes(key) && side && side !== "answer" && side !== "question")
+        throw new Error(`The side of the ${key} must be answer or question: tick or untick its box under Text appearance`);
     }
   }
 }
@@ -865,6 +878,21 @@ function openExerciseForm({model, def, mode = "add", onSave, preview, title, sav
         const colorInput = field(cols, "Custom color", isCustom ? shade : "#4466aa",
           v => model.fields[key + "-shade"] = v, {single: true, type: "color", spellcheck: false});
         colorInput.parentElement.hidden = shadeSelect.value !== "custom";
+        if (CARD_EXTRAS.includes(key)) {
+          // not a size or a colour but where the field goes: with the answer
+          // unless ticked (mdparser.card_extras)
+          const check = document.createElement("label"); check.className = "ex-correct-toggle ex-side-toggle";
+          const box = document.createElement("input"); box.type = "checkbox";
+          box.checked = String(model.fields[key + "-side"] || "").trim().toLowerCase() === "question";
+          box.addEventListener("change", () => {
+            model.fields[key + "-side"] = box.checked ? "question" : "";
+            scheduleExercisePreview();
+          });
+          check.append(box, document.createTextNode("Show on the side shown first"));
+          const help = document.createElement("small");
+          help.textContent = "Unticked, it goes on the other side, the one the card turns to.";
+          style.append(check, help);
+        }
         lab.appendChild(style);
       }
     });

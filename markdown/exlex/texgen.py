@@ -1998,7 +1998,10 @@ def _card_sides(f, kind, cards):
     """(front, back) of a card on paper: the pieces of each side, the
     picture, the recording, then the fields, as the page shows them --
     turned round by `direction: reverse`, since the left half is the side
-    the card shows first."""
+    the card shows first.  The example, the notes and the source go where
+    mdparser.card_extras puts them: on paper a `both-random` card is the
+    front first, so they stay on the back unless a `-side` says otherwise."""
+    import mdparser     # exlex's parser imports this module: not at the top
     if kind == "jolly":
         front = [_card_jolly(f, "front-primary", cards.get("front-primary"), True),
                  _card_jolly(f, "front-secondary", cards.get("front-secondary"))]
@@ -2006,15 +2009,17 @@ def _card_sides(f, kind, cards):
                 _card_jolly(f, "back-secondary", cards.get("back-secondary"))]
     else:
         line = lambda key, primary=False: _card_line(f, key, f.get(key, ""), primary)
+        word, meaning = mdparser.card_extras(f)
         if kind == "opposites":
             front = [line("target", True), line("reading"), line("transliteration")]
             back = [line("opposite", True), line("opposite-reading"),
-                    line("opposite-transliteration"), line("notes"), line("source")]
+                    line("opposite-transliteration")]
         else:
             front = ([line("front", True)] if f.get("front") else
                      [line("target", True), line("reading"), line("transliteration")])
-            back = ([line("back", True)] if f.get("back") else
-                    [line("meaning", True), line("context"), line("notes"), line("source")])
+            back = [line("back", True)] if f.get("back") else [line("meaning", True)]
+        front += [line(key) for key in word]
+        back += [line(key) for key in meaning]
         front = [_card_picture(f, "front-image"), _card_audio(f, "front-audio")] + front
         back = [_card_picture(f, "back-image"), _card_audio(f, "back-audio")] + back
     if (f.get("direction") or "forward").lower() == "reverse":
