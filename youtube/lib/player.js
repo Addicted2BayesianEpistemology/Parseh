@@ -3885,7 +3885,8 @@
   }
   var TARGET_NOTE = {
     anki: '',
-    deck: 'an exercise in the deck, studied on its page; the recording and the frame go in with it',
+    deck: 'an exercise in the deck, studied on its page; ' +
+          (CFG.kind === 'audio' ? 'the recording goes' : 'the recording and the frame go') + ' in with it',
     md: 'one :::exercise block on the clipboard, for a studio document or a deck’s “Add exercise”'
   };
   // the name typed for a new deck, per destination: an Anki name nests with

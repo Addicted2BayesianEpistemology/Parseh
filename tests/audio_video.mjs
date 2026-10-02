@@ -558,7 +558,9 @@ await ctxA.close();
   await shot(p, 'film-missing-desktop');
   await p.setInputFiles('#novid input[type=file]', MEDIA + '/again.mp3');
   await p.waitForURL(`${BASE}/youtube/v/${lost.id}/`, {timeout: 20000}).catch(() => {});
-  await until(() => p.evaluate(() => document.documentElement.getAttribute('data-kind') === 'audio' && document.querySelector('#film') && document.querySelector('#film').tagName === 'AUDIO'),
+  // (the page reloads itself on what was sent: an ask made in the middle of that is no answer)
+  await until(() => p.evaluate(() => document.documentElement.getAttribute('data-kind') === 'audio' && document.querySelector('#film') && document.querySelector('#film').tagName === 'AUDIO')
+                      .catch(() => false),
               'the page opens again on what was sent, a sound', 30000);
   eq((await walk(VIDEOS)).filter(q => q.includes('/lost-film-a1b2c3/') && /media/.test(q)).map(q => q.split('/').pop()), ['media.mp3'], 'the folder holds the sound that was sent');
   eq((await readJson((await walk(VIDEOS)).find(q => q.endsWith('/lost-film-a1b2c3/video.json')))).kind, 'audio', 'video.json now says it is one');
