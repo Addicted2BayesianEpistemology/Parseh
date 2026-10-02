@@ -9,19 +9,26 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //  a) the add page, BY PATH: the path box is looked at when it is left (a sound with no picture; a wma
 //     says a playable copy will be made), "Start it empty" makes the video, and the player opens on a
 //     sound: <html data-kind=audio>, an <audio id=film>, NO iframe and NO <video>, a bar whose waveform
-//     is really painted (read back off the canvas), a press on the bar goes there, the transcript follows
-//     the sound, the controls that need a picture (the grip, the side-by-side button) are not drawn
+//     is really painted (read back off the canvas), a press on the bar goes there, a drag scrubs, the
+//     transcript follows the sound, the controls that need a picture (the grip, the side-by-side
+//     button, the card's frame row) are not drawn, the timings draw the sound's own waveform; and
+//     the shelf: the card says it is a sound, the phone's shelf too, a film is still a film (control)
+//  a2) without ffmpeg (the picture of the sound refused): a plain track that says why, and still goes
+//     where it is pressed
 //  b) BY UPLOAD: a file chosen on the page is asked about before it is sent (its size, the room), sent
 //     with a bar, its speed and the time left (the upload is slowed so that there is time to see it),
 //     and can be stopped -- nothing is kept; sent whole it puts its path in the same box, and the video
-//     is made through the very door a typed path uses; the waiting copy is gone afterwards
+//     is made through the very door a typed path uses; the waiting copy is gone afterwards; the LLM
+//     way's prompt says "a recording"; a text file is refused in words at the choosing; and the same
+//     page on a 390 px phone browser (no sideways scroll, buttons tall enough)
 //  c) a card from a sound: the sheet has no frame row, "cut the audio…" cuts the recording out of the
 //     sound, the exercise deck's item names the recording and no picture
 //  d) the phone's player: the same page in the mobile mode: the bar fills the video's place inside the
-//     screen, held upright and sideways, the dock's play button drives the sound, the box that sends a
-//     film again is not drawn
-//  e) a video whose film is not there any more is offered the file again, and a sound sent to it plays
-//  f) the shelf: the card says it is a sound; a film is still a film (control)
+//     screen, held upright and sideways, on the whole screen with the subtitles, the dock's play button
+//     drives the sound, the box that sends a film again is not drawn
+//  e) a video whose film is not there any more is offered the file again, a sound sent to it plays, and
+//     a sound whose file goes is a small box and not a black frame
+//  f) a wma added by path gets a playable copy that plays in the browser
 //  g) three themes and two widths, looked at (shots)
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
