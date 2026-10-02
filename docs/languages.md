@@ -1118,7 +1118,7 @@ back when it finishes, so that nobody leaves Persian's grammar on a
 language by not looking.
 
 What is left by hand, and what the tool lists when it finishes:
-`\FrankHowTo` in the `.tex` (§6), the six sections of the `.md` (§9), a
+`\FrankHowTo` in the `.tex` (§6), the seven sections of the `.md` (§9), a
 fixture under `tests/fixtures/` if the smoke test is to cover the language —
 it only tries what it has a fixture for — the studio's starter document
 `markdown/exlex/starters/<code>.md`, a guided tour of everything a document
