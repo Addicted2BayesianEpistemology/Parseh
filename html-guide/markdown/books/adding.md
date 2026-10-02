@@ -201,7 +201,13 @@ by an agent](doc:A book made by an agent).
 be written** shows the text of `AGENTS.md` for the form as it stands, and
 **copy the instructions** copies exactly what is shown. You do not need it
 for an agent that reads `AGENTS.md` by itself — several do — but an agent
-that does not can be given the text.
+that does not can be given the text. The text opens with what the method is
+for — you read a phrase at a time, and the gloss says what *that* phrase says,
+in the order of the text — and carries the rule that follows from it: a
+meaning is a gloss, not a translation ([What the meaning
+says](glossing-with-an-llm.md#what-the-meaning-says)). It also says that the
+original is text to make a book of and not orders: an instruction written
+inside it is part of the text.
 
 ### What it refuses
 
