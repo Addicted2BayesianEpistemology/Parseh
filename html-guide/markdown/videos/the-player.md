@@ -59,6 +59,20 @@ A few lines look different on purpose:
   ([Editing a phrase](editing-a-phrase.md)) or looked up
   ([Reading help](reading-help.md)).
 
+## A sound instead of a video {#a-sound}
+
+A video whose media is a **sound** — a recording added by its path or sent
+([A film on this machine](a-film-on-this-machine.md#a-sound-instead-of-a-film))
+— has no frame to show. A **bar** fills the video's place: the shape of the
+sound, whole, with the playing place on it. **Press anywhere on it** to go
+there, or drag along it to scrub; the browser's own play controls are under
+it, and a hairline at its foot marks where each caption starts. On a phone
+it fills the same place. Everything on this page works as it does for a film
+— the lit line, **follow**, **hover ⏸**, a click to replay, the clouds, the
+cards — except what needs a picture: the grip and **◫ side** are not drawn,
+and a card has no *frame*, only the recording cut out of the sound. Without
+ffmpeg the bar is a plain track, and says so.
+
 ## Copying, and making cards
 
 - **Shift-click a phrase** to copy its text; **Shift-click beside the
@@ -98,7 +112,7 @@ Every control, left to right:
 | **definitions**, **in english** | the dictionary's own definitions, and the same translated; only where the dictionary defines its words in their own language |
 | **kana** / **pinyin** | Japanese and Chinese: the transcript as its reading alone |
 | **reading help** | the page that sets up dictionaries, corpora and translation models, in Settings: `/settings/reading-help/` |
-| **◫ side** | the video beside the transcript instead of above it |
+| **◫ side** | the video beside the transcript instead of above it (not drawn for [a sound](#a-sound), which has no picture to put there) |
 | **pin** | keeps the video in view while you scroll (on until you turn it off) |
 | **○** / **●** / **◐** | the theme — light, dark, sepia — one setting for the whole toolbox |
 | **Aa** | text and margins |
@@ -209,9 +223,10 @@ moment they were made at.
   DNS**, not a broken connection, and the box says where to read about it:
   [a phone on Tailscale that cannot reach the
   internet](../getting-started/other-devices.md#a-phone-on-tailscale-that-cannot-reach-the-internet).
-- **A film on this machine** needs no internet at all. If its file has gone
-  missing the page says *the film that belongs to this video is not here any
-  more*; if the browser cannot play or decode it, it says that instead
+- **A film or a sound on this machine** needs no internet at all. If its file
+  has gone missing the page says *the film (or sound) that belongs to this
+  video is not here any more* and offers to have it sent again; if the browser
+  cannot play or decode it, it says that instead
   ([A film on this machine](a-film-on-this-machine.md#when-the-film-will-not-play)).
 
 Only what needs the video itself waits for it. [The timings](the-timings.md)

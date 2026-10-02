@@ -1197,6 +1197,8 @@ def _video_card(m):
     tags = []
     if m.get("duration"):
         tags.append('<span class="tag">%s</span>' % esc(m["duration"]))
+    if m.get("_kind") == "audio":
+        tags.append('<span class="tag">&#9834; a sound</span>')
     if m.get("level"):
         tags.append('<span class="tag">%s</span>' % esc(m["level"]))
     if m["_segments"] and not m.get("_blank"):

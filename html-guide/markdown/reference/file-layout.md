@@ -143,7 +143,7 @@ own, or for a film on this machine the one the add page gave it.
 | `annotations.json` | Every caption's chunks and glosses: what the player shows. |
 | `parts/NN.json` | The batches an LLM annotated. They exist only **while the video is being added** — `merge_parts.py` assembles the file above from them and they are dropped before the video reaches the shelf. A video added before 23 September 2026 may still carry them; nothing reads them ([parts/ is retired](../videos/the-files.md#parts)). |
 | `waveform.json` | The picture of the sound, once one has been recorded. |
-| `media.<ext>` | The film itself, for a video that is a file on this machine. |
+| `media.<ext>` | The film itself, or the sound, for a video that is a file on this machine (`media-orig.<ext>` beside it keeps the original of a sound that had to be made playable). |
 | `markdown/` | The notes written into the video's seams (below). |
 
 The player's **⤓** downloads all of it as one zip, a film on this machine

@@ -24,7 +24,10 @@ youtube/videos/
       markdown/persian/<note>/    the notes, one studio document each
       waveform.json               the drawn picture of a YouTube video's sound
       media.mp4                   the film, for a film on this machine
+      media.mp3                   or the sound: media.<ext> is either
+      media-orig.wma              the original of a sound made playable
   .trash/                         videos taken off the shelf, or replaced
+  .incoming/                      files sent and not yet used: cleared after two days
 ```
 
 `<id>` is the YouTube id, eleven characters, or for a film the id made from
@@ -48,6 +51,7 @@ needed; the others appear when there is something to put in them.
 | `added` | the day it was added |
 | `blurb` | one sentence for the card |
 | `reorders` | `true` for a text read out of its written order ([kanbun](video-info-and-drafts.md#kanbun)) |
+| `kind` | `"audio"` for a video whose media is a **sound** with no picture, written once, when the file was attached; absent for a film or a YouTube video, and then the media is a picture, as it always was. A video made before the key reads it from the extension of `media.<ext>` ([A film on this machine](a-film-on-this-machine.md#a-sound-instead-of-a-film)) |
 
 `language` and `gloss` are never to be read for each other: an Italian
 learning English watches a video with `"language": "en", "gloss": "it"`. The
@@ -184,6 +188,9 @@ have lost.
   A film has none: the server reads the film.
 - **`media.<ext>`** is the film of [a film on this machine](a-film-on-this-machine.md).
   It is kept out of git; the rest can be.
+- **`media-orig.<ext>`** exists only for a sound a browser could not play: the
+  person's own file, kept beside the playable copy that is `media.<ext>`. It is
+  never taken for the film and a download does not carry it.
 
 ## For the command line {#for-the-command-line}
 
