@@ -1,0 +1,17 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* The add page's film field: what the path names, and the way to send the file
+   instead (youtube/lib/addfilm.js).  The page's own tokens throughout, so the three
+   themes are one set of rules. */
+.addvid .filmsay{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--dim)}
+.addvid .filmsay.warn{color:var(--warn)}
+.addvid .filmsay[hidden]{display:none}
+.addvid .filmsend{margin-top:12px;padding-top:10px;border-top:1px dashed var(--rule)}
+.addvid .filmsend .fieldnote{display:block}
+.addvid .filmrow{margin-top:8px}
+.addvid .filmrow input[type=file]{display:none}
+.addvid .filmbar{height:8px;margin-top:10px;border:1px solid var(--rule);border-radius:5px;
+  background:var(--card);overflow:hidden}
+.addvid .filmbar[hidden]{display:none}
+.addvid .filmfill{height:100%;width:0;background:var(--accent);transition:width .15s linear}
+.addvid .filmsend.sending .filmpick{opacity:.55}
+@media (prefers-reduced-motion:reduce){.addvid .filmfill{transition:none}}

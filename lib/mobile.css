@@ -771,6 +771,8 @@ html.m-player[data-mode=mobile] #segs .seg{padding:10px 8px}
 html.m-player[data-mode=mobile] :is(#anki,#ankiback,#dvbox,#dvback,#ntedit,#ntread,
   #vmbox,#vmback,#cloud .mkcard,#cloud .mkedit,#cloud .colrow,#cloud .cstat,#subedit,
   #segs .gap .plus){display:none!important}
+/* and the box that sends a film or a sound again, which writes the video's folder */
+html.m-player[data-mode=mobile] #novid .novid-send{display:none!important}
 
 /* HELD SIDEWAYS: the video at the left, the transcript at the right, with the
    divider between them draggable (the player's own #grip, which listens to

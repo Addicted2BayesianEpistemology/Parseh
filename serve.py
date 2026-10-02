@@ -142,6 +142,7 @@ import notices              # noqa: E402  the licences page: Parseh's, and its f
 import newbook              # noqa: E402  the "add a book" recipe page
 import anki_store           # noqa: E402  the shared card store
 import ytpages              # noqa: E402  the video player's pages + Anki endpoints
+import filmdoor             # noqa: E402  a film or a sound SENT, and the picture of its sound (youtube/lib/filmdoor.py)
 import timestamp as tstamp  # noqa: E402  the aligner: its transcript parser, for the panel
 import bundle              # noqa: E402  a book or a video as one file, out and back
 import shelf               # noqa: E402  a whole shelf of either, backed up and put back
@@ -511,7 +512,9 @@ STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js"
                 "/youtube/lib/subedit.js", "/youtube/lib/subedit.css",
                 # and its speech to text (optional: drawn only where the
                 # computer has it, and the only page that has it)
-                "/youtube/lib/addstt.js", "/youtube/lib/addstt.css"}
+                "/youtube/lib/addstt.js", "/youtube/lib/addstt.css",
+                # and the way a film or a sound is SENT when it is not named by a path
+                "/youtube/lib/addfilm.js", "/youtube/lib/addfilm.css"}
 BODY_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 MAX_BODY = 32 * 1024 * 1024             # a JSON body: an edit, a chunk, an answer
 
@@ -2359,6 +2362,8 @@ def long_work(method, path, query, length=0):
         return "upload", "Uploading " + file, "installing"
     if path == yt + "/api/restore":
         return "restore", "Restoring videos from " + file, "putting them back"
+    if path == yt + "/api/film":
+        return "upload", "Receiving " + file, "looking at it"
     if path == yt + "/api/local":
         return "install", "Adding a video from a file on this machine", None
     if path == yt + "/api/add":
@@ -3002,6 +3007,11 @@ class Handler(SimpleHTTPRequestHandler):
                     except Exception:
                         pass
                     return
+            if method == "POST" and path == ytpages.BASE + "/api/film":
+                # a film or a sound SENT, as a narration is: straight to a file
+                # beside where it will live, never held and never capped
+                self._raw = b""
+                return filmdoor.receive(self, n)
             # A BUNDLE MAY BE THE WHOLE OF A FILM.  The two bundle doors used
             # to take the Anki wizard's 400 MB cap and read the body into a
             # bytearray, which meant the download button here handed somebody
@@ -3519,7 +3529,7 @@ class Handler(SimpleHTTPRequestHandler):
         if bundle.is_media_name(base):
             ext = os.path.splitext(base)[1].lower()
             self.extensions_map = dict(type(self).extensions_map)
-            self.extensions_map[ext] = "video/" + {
+            self.extensions_map[ext] = bundle.SOUND_TYPES.get(ext) or "video/" + {
                 ".m4v": "mp4", ".mkv": "x-matroska", ".ogv": "ogg",
                 ".avi": "x-msvideo"}.get(ext, ext.lstrip("."))
         fs = self.translate_path(path)
@@ -4286,6 +4296,10 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._video_empty()
             if sub == "/api/local":
                 return self._video_local()
+            if sub == "/api/film/look":
+                return filmdoor.look(self)
+            if sub == "/api/film/wave":
+                return filmdoor.wave(self)
             if sub == "/api/edit":
                 return self._video_edit_chunk()
             if sub == "/api/region/prompt":
@@ -7463,6 +7477,8 @@ def main():
     # and the held waveforms nobody adopted -- cleared off the way in, here,
     # never at import
     threading.Thread(target=sttjobs.startup, daemon=True).start()
+    # and the films and sounds that were sent and never made a video
+    threading.Thread(target=filmdoor.sweep, daemon=True).start()
 
     def _stop_drawings(*_a):
         latexdraw.stop_all()

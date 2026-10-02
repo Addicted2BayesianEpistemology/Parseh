@@ -277,6 +277,31 @@ AUDIO_EXTS = (".mp3", ".m4a", ".mp4", ".aac", ".webm", ".ogg", ".oga", ".opus",
 # videos/.  An allowlist for the same reason AUDIO_EXTS is one.
 VIDEO_EXTS = (".mp4", ".m4v", ".webm", ".mkv", ".mov", ".avi", ".ogv", ".ogg")
 MEDIA_STEM = "media"
+# A SOUND MAY BE A VIDEO'S MEDIA TOO: a lesson that was recorded and never
+# filmed.  It is the same one file called `media`, so every rule above holds
+# for it as it holds for a film, and the table is an allowlist for the same
+# reason VIDEO_EXTS is one.  MEDIA_EXTS is what is_media_name reads; AUDIO_EXTS
+# stays the books' narration, which is a different door.  `.ogg` is in both
+# lists on purpose: it is a film in an old video and a sound in a new one, and
+# video.json's "kind" (film_kind below) says which.
+SOUND_EXTS = (".mp3", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".wav", ".flac",
+              ".wma", ".aiff", ".aif", ".amr", ".mka", ".weba", ".caf")
+MEDIA_EXTS = VIDEO_EXTS + tuple(e for e in SOUND_EXTS if e not in VIDEO_EXTS)
+# WHAT THE STATIC ROUTE CALLS A SOUND when it serves it as a video's media: a
+# film is announced as video/<ext> (serve.py's _static), and that is wrong for a
+# sound an <audio> element is given.  Fixed here and not left to the platform's
+# table, which disagrees with itself about these (Windows' registry above all).
+# `.ogg` stays video/ogg, as it was for the films that used it.
+SOUND_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac",
+               ".oga": "audio/ogg", ".opus": "audio/ogg", ".wav": "audio/wav",
+               ".flac": "audio/flac", ".wma": "audio/x-ms-wma", ".aiff": "audio/aiff",
+               ".aif": "audio/aiff", ".amr": "audio/amr", ".mka": "audio/x-matroska",
+               ".weba": "audio/webm", ".caf": "audio/x-caf"}
+# THE ORIGINAL OF A SOUND THAT HAD TO BE MADE PLAYABLE (youtube/lib/filmkind.py)
+# is kept beside the copy under this name.  It is never taken for the film, and
+# a bundle does not carry it: the copy is what the next machine plays, and the
+# original is a file the person already has.
+ORIG_STEM = "media-orig"
 
 # The three shapes a book comes out in, and what a bundle that names none of
 # them is.  Spelt as the reader's download sheet and serve.py's ?audio= spell
@@ -458,7 +483,14 @@ def _dir_exts(kind, mode):
 def is_media_name(entry):
     """Is this the one file a local video's film is allowed to be?"""
     stem, ext = os.path.splitext(entry)
-    return stem == MEDIA_STEM and ext.lower() in VIDEO_EXTS
+    return stem == MEDIA_STEM and ext.lower() in MEDIA_EXTS
+
+
+def is_orig_name(entry):
+    """Is this the original a sound was kept as when its playable copy was
+    made (media-orig.<ext>)?  Not the film, and not carried."""
+    stem, ext = os.path.splitext(entry)
+    return stem == ORIG_STEM and ext.lower() in MEDIA_EXTS
 
 
 def _is_media(rel):
@@ -886,6 +918,34 @@ def film_at(video_dir):
         return ""
     return next((n for n in sorted(here) if is_media_name(n)
                  and os.path.isfile(os.path.join(video_dir, n))), "")
+
+
+def film_kind(video_dir, meta=None):
+    """What the video's film is -- "video", or "audio" for a sound that has no
+    picture -- or "" for a video that has no film here.
+
+    video.json SAYS IT ("kind", written once, when the film was attached:
+    youtube/lib/filmkind.py asks ffprobe where there is one), so no page
+    guesses.  A video made before the key existed is read from the extension,
+    which is also what a bundle from an older Parseh comes to: a sound that is
+    only ever a sound is audio, and anything else -- `.ogg` among it, which
+    those videos used as a film -- is a video, as they have always played.
+    `meta` is video.json as the caller already has it.
+    """
+    film = film_at(video_dir)
+    if not film:
+        return ""
+    if meta is None:
+        try:
+            with open(os.path.join(video_dir, "video.json"), encoding="utf-8") as f:
+                meta = json.load(f)
+        except (OSError, ValueError):
+            meta = {}
+    said = meta.get("kind") if isinstance(meta, dict) else None
+    if said in ("video", "audio"):
+        return said
+    ext = os.path.splitext(film)[1].lower()
+    return "audio" if ext in SOUND_EXTS and ext not in VIDEO_EXTS else "video"
 
 
 def video_mode(video_dir, mode=None):

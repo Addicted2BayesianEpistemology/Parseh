@@ -112,6 +112,29 @@ body.sized #vid iframe,body.sized #vid video,body.sized:not(.nopin) #vid iframe,
 /* while dragging, the iframe must not swallow the pointer */
 body.resizing #vid iframe,body.resizing #vid video{pointer-events:none}
 
+/* ---------------- a SOUND in the video's place ----------------
+   html[data-kind=audio]: the media is a sound alone (video.json's "kind"), so
+   there is no frame to matte on black.  A bar fills the place -- the shape of
+   the sound with the playhead on it (player.js soundBar) and the element's own
+   controls under it -- drawn in the page's own tokens, so the three themes are
+   one rule.  What needs a picture steps aside: the grip that resizes it, the
+   side-by-side button, the card's frame row.  Written after the video's rules
+   above, which it overrides at equal weight. */
+html[data-kind="audio"] #vid{aspect-ratio:auto;max-height:none;width:auto!important;
+  background:var(--card);padding:6px 8px 4px}
+html[data-kind="audio"] #vid audio{display:block;width:100%;height:42px;margin-top:2px}
+#sndbar{position:relative}
+#sndwave{display:block;width:100%;height:64px;cursor:pointer;touch-action:none;
+  border-radius:6px}
+.sndsay{position:absolute;inset:auto 0 8px 0;text-align:center;font-size:11.5px;
+  color:var(--faint);pointer-events:none}
+html[data-kind="audio"] #novid{position:static;padding:6px 8px;color:var(--dim)}
+html[data-kind="audio"] #grip,html[data-kind="audio"] #sbs,
+html[data-kind="audio"] #ashotrow{display:none}
+/* the film or sound that is not there any more, and the way to send it again */
+#novid .novid-send{margin-top:6px}
+#novid .novid-said{font-size:12.5px;margin-top:6px}
+
 /* ---------------- the transcript ---------------- */
 /* the Aa panel in the header sets --yt-fa (the target text), --yt-gl (the
    gloss cloud), --yt-width (the column) and --yt-lead (a line-height
