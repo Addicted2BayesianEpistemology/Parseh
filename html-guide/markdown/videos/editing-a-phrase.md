@@ -139,8 +139,8 @@ for that, because an emptied box is how every field of this form is cleared;
 the note's key goes out of the file with it. The note is saved with the rest,
 down the same route and under the same rules: only what you changed is sent,
 the text is trimmed (a note of nothing but spaces is no note), and the file
-changes as a hand's edit would have changed it — taking a note off is one
-line of the diff.
+changes as a hand's edit would have changed it — taking a note off removes
+the line it was written on, and nothing else of the file moves.
 
 The usual reason to open it is a slip a model has flagged. If the transcript
 says *garlic* where the speaker said *apple*, and the note says so, mend the

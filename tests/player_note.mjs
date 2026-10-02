@@ -19,12 +19,14 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     a phrase with no note takes one; a card made of the phrase carries it; nothing changed is said so and
 //     asks the server nothing.
 //  c) the ✱ notes button: in the browser mode and not in the mobile one; off on every visit, with ‹ › out of
-//     sight; on, its count is the file's (a blank note is not one), every such phrase is dashed under in the
-//     accent and followed by a ✱ the stylesheet draws -- no text added to a line, a colour mark showing beside
-//     it -- and ‹ › visit them in order, wrapping, each scrolled into view below the bar and the video; a note
-//     written or taken off in the form updates it at once; hovering still opens the cloud and a click still
-//     replays; it asks the server for nothing and writes nothing; a reload finds it off; the mode switched
-//     under it takes the highlight away.
+//     sight and not a class on the page (on and off again, the transcript is byte for byte what it was); on,
+//     its count is the file's (a blank note is not one), every such phrase is dashed under in the accent and
+//     followed by a ✱ the stylesheet draws -- no text added to a line, a colour mark showing beside it -- and
+//     ‹ › visit them in order, wrapping, each scrolled into view below the bar and the video (in a window as
+//     narrow as a phone's, where the bar slides away as the page moves, it stays while the walk is on; and
+//     with the video beside the transcript); a note written or taken off in the form updates it at once;
+//     hovering still opens the cloud and a click still replays; it asks the server for nothing and writes
+//     nothing; a reload finds it off; the mode switched under it takes the highlight away.
 //  d) the screenshots (NOTE_SHOTS): a right-to-left line with a right-to-left gloss, and a left-to-right one,
 //     at 1280 and 390 px, in the light, dark and sepia themes.
 //  e) last: no page threw, logged an error or had a request refused; the hub printed no traceback; the
@@ -512,6 +514,50 @@ try {
     await type(page, 'note', '   ');
     eq(await save(page), 'nothing changed', `${k}: and spaces over an empty box are nothing changed`);
     await closeEdit(page);
+    // the note is no gloss: a phrase whose gloss is deleted keeps its note, and its cloud says nothing is glossed
+    const only = [3, 0];
+    await openEdit(page, ...only);
+    await page.click('#cloud .edel');
+    await page.waitForFunction(() => /gloss deleted/.test(document.querySelector('#cloud .cstat').textContent));
+    await type(page, 'note', 'the topic marker, said softly');
+    eq(await save(page), 'saved ✓', `${k}: a note written on a phrase whose gloss has been deleted`);
+    eq(await page.evaluate(() => document.querySelector('#cloud .edel').disabled), true, `${k}: delete gloss is greyed: a note is no gloss to delete`);
+    await closeEdit(page);
+    await hover(page, ...only);
+    eq(await page.evaluate(() => [!!document.querySelector('#cloud .unwritten'), (document.querySelector('#cloud .note') || {}).textContent]),
+       [true, 'the topic marker, said softly'], `${k}: its cloud still says nothing is glossed yet, and shows the note under it`);
+    await away(page);
+    // A CUT AND A JOIN, from the page: the sheet draws no box for the note and posts none, and the note comes through
+    // all the same -- on the first half of a cut, whole through a join -- with ✱ notes counting the page as it is redrawn
+    await page.click('#notesbtn');
+    const count = () => page.evaluate(() => document.querySelector('#notesbtn').textContent.trim());
+    eq(await count(), '✱ notes 2', `${k}: two phrases carry a note`);
+    await openEdit(page, ...at);
+    await page.click('#cloud .edv[data-dv="split"]');
+    await page.waitForFunction(() => !document.querySelector('#dvbox').hidden && document.querySelectorAll('#dvpair .dvcol').length === 2);
+    eq(await page.evaluate(() => document.querySelectorAll('#dvbox [data-k="note"]').length), 0, `${k}: the sheet that cuts has no note box`);
+    await page.click('#dvdo');
+    await page.waitForFunction(() => /done/.test(document.querySelector('#dvstat').textContent));
+    let cs = (await annOf(k)).segments[at[0]].chunks;
+    eq([cs[at[1]].fa, cs[at[1]].note, cs[at[1] + 1].fa, cs[at[1] + 1].note], ['十', longer.trim(), '分', undefined],
+       `${k}: cut in two, the note stays on the first half, which the sheet never named`);
+    await page.click('#dvdo');                  // the sheet's close
+    await page.waitForFunction(() => document.querySelector('#dvbox').hidden);
+    eq(await count(), '✱ notes 2', `${k}: the page was drawn again from the file, and the count is as it was`);
+    eq(await page.evaluate(() => [...document.querySelectorAll('#segs .has-note')].map(e => [+e.closest('.seg').dataset.i, +e.dataset.j])), [[3, 0], [4, 2]],
+       `${k}: with the first half lit and the second not`);
+    await openEdit(page, at[0], at[1]);
+    await page.click('#cloud .edv[data-dv="next"]');
+    await page.waitForFunction(() => !document.querySelector('#dvbox').hidden && document.querySelectorAll('#dvpair .dvcol').length === 1);
+    await page.click('#dvdo');
+    await page.waitForFunction(() => /done/.test(document.querySelector('#dvstat').textContent));
+    cs = (await annOf(k)).segments[at[0]].chunks;
+    eq([cs[at[1]].fa, cs[at[1]].note], ['十分', longer.trim()], `${k}: joined again, the one phrase has its note`);
+    await page.click('#dvdo');
+    await page.waitForFunction(() => document.querySelector('#dvbox').hidden);
+    eq(await count(), '✱ notes 2', `${k}: and the count is still 2`);
+    await page.click('#notesbtn');
+    await away(page);
     await page.close();
   }
   console.log(`\nplayer_note: ${passed} checks passed (so far)`);
@@ -681,6 +727,12 @@ try {
     await page.evaluate(() => { document.querySelector('#notesbtn').click(); });
     eq(await page.evaluate(() => [document.querySelectorAll('#segs .has-note').length, document.querySelector('#notesbtn').getAttribute('aria-pressed')]),
        [0, 'false'], `${k}: pressed by a script, nothing lights: the highlight is the browser mode's alone`);
+    // the mobile mode edits nothing and goes on drawing the note: a tap on a phrase opens its cloud, note and all
+    await page.tap(W(3, 2));
+    await page.waitForFunction(() => !document.querySelector('#cloud').hidden);
+    eq((await cloudNote(page)).text, B.it.notes['3,2'], `${k}: a tap on a phrase of the mobile mode shows its note in the cloud`);
+    eq(await page.evaluate(() => !!document.querySelector('#cloud .mkedit') && getComputedStyle(document.querySelector('#cloud .mkedit')).display !== 'none'
+                                 && document.querySelector('#cloud .mkedit').getBoundingClientRect().width > 0), false, `${k}: and the cloud has no ✎ there`);
     await page.close();
     await ctx.close();
   }

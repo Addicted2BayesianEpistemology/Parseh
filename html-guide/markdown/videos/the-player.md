@@ -145,12 +145,17 @@ leaves when something needs saying — a slip it noticed in the transcript, what
 was really said, a cultural point
 ([The note](editing-a-phrase.md#the-note)). A highlight over a long transcript
 is for seeing where those are, after an LLM has glossed a video for instance.
+It is about what is written on a phrase: the notes you write in the seam
+between two captions ([Notes in the seam](notes-in-the-seam.md)) are marked in
+the seams already, and are not what this button lights.
 
 With **✱ notes** on, every phrase that has a note is underlined with a dashed
 line in the accent colour and followed by a small **✱**, and the button says
 how many there are (*✱ notes 7*). **‹** and **›** appear beside it and walk from
 one such phrase to the next, in the order of the transcript, scrolling each into
 view below the bar and the video, and going round from the last to the first.
+(In a window as narrow as a phone's, where the bar slides away as the page
+moves down, it stays while **✱ notes** is on, so that the arrows are in reach.)
 Point at a lit phrase and its cloud shows the note as its last line; **✎ edit**
 changes it or empties it, and the lit phrases and the count follow a save at
 once.

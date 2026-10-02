@@ -16,7 +16,8 @@ writes through (youtube/lib/annwrite.py):
   * a note is set, changed, trimmed and taken off in every fixture video's
     language, written where the field order puts it, and the file lands as the
     edit a hand would have made: what an empty box takes off leaves the file
-    byte for byte as it was;
+    byte for byte as it was -- in a file a hand has reformatted too (its indent,
+    its escapes, its last newline);
   * THE OWNER'S CASE: a note about a slip in the transcript, the phrase mended
     through the `free` tick, the note then emptied -- and the file's diff is
     the one line the note was on;
@@ -48,9 +49,8 @@ for _p in (os.path.join(ROOT, "lib"), YT_LIB):
 import annwrite as A             # noqa: E402
 import check_annotations as CA   # noqa: E402
 import chunkdiv                  # noqa: E402
-import languages                 # noqa: E402
 
-FIX = os.path.join(ROOT, "tests", "fixtures", "videos")
+FIX =os.path.join(ROOT, "tests", "fixtures", "videos")
 EVERY = sorted(glob.glob(os.path.join(FIX, "*", "*", "video.json")))
 # the boxes the divide sheet draws, and so all it posts (the colour it posts
 # too, when the phrase has one: tests/test_wordvideo.py says the same)
@@ -165,6 +165,29 @@ class TheNoteIsThePersons(Scratch):
                     self.assertNotIn("note", self.chunk(v, i, k))
                     self.assertEqual(raw(self.path(v)), before, repr(empty))
                 self.assertEqual(CA.check(v)[0], errors)
+
+    def test_a_file_a_hand_has_reformatted_keeps_its_shape(self):
+        """annotations.json is edited by hand, and a hand may have given it another
+        indent, escaped the Persian, or left no newline at the end: the note is
+        written, and taken off, in that shape -- the file the person had comes back."""
+        for name, dump in (("two spaces, escaped", dict(indent=2, ensure_ascii=True)),
+                           ("tabs, unescaped, no final newline", dict(indent="\t", ensure_ascii=False))):
+            with self.subTest(name):
+                v = self.persian()
+                i, k = self.where(v)
+                ann = A.read(v)
+                text = json.dumps(ann, **dump) + ("\n" if dump["indent"] == 2 else "")
+                with io.open(self.path(v), "w", encoding="utf-8", newline="") as f:
+                    f.write(text)
+                before = raw(self.path(v))
+                A.edit_chunk(v, i, k, {"note": "a word the transcript lost"})
+                mid = raw(self.path(v))
+                self.assertNotEqual(mid, before)
+                self.assertEqual(mid.endswith(b"\n"), before.endswith(b"\n"))
+                self.assertEqual(b"\\u" in mid, b"\\u" in before, "escapes as the file had them")
+                self.assertEqual(len(lines_changed(before, mid)), 3, "the note and the comma above it")
+                A.edit_chunk(v, i, k, {"note": ""})
+                self.assertEqual(raw(self.path(v)), before)
 
     def test_a_note_lands_before_the_colour_and_the_mark_it_has_not_got_yet(self):
         v = self.persian()
