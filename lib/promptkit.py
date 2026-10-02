@@ -430,6 +430,12 @@ class Option(object):
         """Whether this language has the option at all."""
         return True
 
+    def records(self, L):
+        """Whether a book's or a video's own record can hold this option in this language, so that a
+        prompt asking for the other value is told that the book would mix the two.  An option that
+        is a choice of the moment (the short vowels) is held by none."""
+        return False
+
     def applies(self, surface, L):
         return surface in self.surfaces and L is not None and self.offered(L)
 
@@ -439,6 +445,11 @@ class Option(object):
     def choices(self, L):
         """[(id, what the row says)] for this language."""
         raise NotImplementedError
+
+    def sentence(self, L):
+        """{id: how a sentence names the choice} for the ids the row's words do not fit into one
+        ("usual scheme" is "the usual scheme" in a sentence); the others are said as the row says them."""
+        return {}
 
     def suffix(self, value):
         """What the version line ends with for this value ('' says nothing)."""
@@ -475,12 +486,20 @@ class _Translit(Option):
     def offered(self, L):
         return L.ipa != "none"
 
+    def records(self, L):
+        # WHERE THE USUAL SCHEME IS IPA (English) THE TWO ARE ONE, and a book cannot mix them
+        return L.ipa == "offered"
+
     def label(self, L):
         return L.translit_label
 
     def choices(self, L):
         return [("classic", "IPA (already the usual)" if L.ipa == "usual" else "usual scheme"),
                 ("ipa", "IPA")]
+
+    def sentence(self, L):
+        """{id: how a sentence names the choice}, where that is not what the row says."""
+        return {"classic": "the usual scheme"}
 
     def suffix(self, value):
         return "IPA" if value == "ipa" else ""
@@ -601,11 +620,15 @@ def header_fields(surface, lang, options=None):
 
 
 def describe(surface, lang, options=None, facts=None):
-    """The options a page offers for this prompt -> [{name, label, value, default, fact, choices,
-    remember}], those that apply and no others: `label` is the language's own word (rōmaji, pinyin,
-    transliteration, pronunciation) or the option's, `value` what stands now (the request's, else
-    the record's `facts`, else the default), `fact` whether that value is the book's or the video's
-    own, `remember` what the row keeps the person's choice under on this device."""
+    """The options a page offers for this prompt -> [{name, label, value, default, fact, record,
+    choices, remember}], those that apply and no others: `label` is the language's own word
+    (rōmaji, pinyin, transliteration, pronunciation) or the option's, `value` what stands now (the
+    request's, else the record's `facts`, else the default), `fact` whether that value is the book's
+    or the video's own, `record` whether the book or the video this is asked for holds the option at
+    all (it does where `facts` has its key, and the language's scheme can differ from the usual's:
+    a prompt that asks for the other value is then told that the book would mix the two, and offered
+    to change the book), `remember` what the row keeps the person's choice under on this device.  A
+    choice whose name in a sentence is not the row's word has it in `as`."""
     L = _language(lang)
     chosen = resolve(surface, L, options, facts)
     out = []
@@ -616,10 +639,17 @@ def describe(surface, lang, options=None, facts=None):
             own = opt.parse((facts or {}).get(opt.name))
         except OptionError:
             own = None
+        said = opt.sentence(L)
+        choices = []
+        for i, t in opt.choices(L):
+            choice = {"id": i, "label": t}
+            if i in said:
+                choice["as"] = said[i]
+            choices.append(choice)
         out.append({"name": opt.name, "label": opt.label(L), "value": chosen[opt.name],
                     "default": opt.default(surface), "fact": own is not None and chosen[opt.name] == own,
-                    "choices": [{"id": i, "label": t} for i, t in opt.choices(L)],
-                    "remember": L.code if opt.memory == "lang" else surface})
+                    "record": opt.name in (facts or {}) and opt.records(L),
+                    "choices": choices, "remember": L.code if opt.memory == "lang" else surface})
     return out
 
 

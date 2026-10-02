@@ -142,7 +142,9 @@ kept in the book (`book.json`'s `translit`), and every prompt for a stretch
 of it asks for that one: the sheet shows it as the book's own. Choosing the
 other for a single prompt is allowed, and the sheet then says that a book
 that mixes two schemes is harder to read, and offers **make … the book's
-setting**, which changes the book itself. A Persian book that says IPA is
+setting**, which changes the book itself. A book that says nothing is in the
+usual scheme, so choosing IPA for a stretch of it is choosing the other, and
+that button is how a book becomes an IPA one. A Persian book that says IPA is
 not held to the checks written for the usual scheme (`/ey/` and *češm*);
 the checker says in a note that it did not run them. The PDF sets IPA
 letters the main face lacks in a second face, as it does for any

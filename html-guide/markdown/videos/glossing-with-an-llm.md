@@ -115,7 +115,9 @@ is kept in the video, and every prompt for a stretch of it asks for that
 one: the panel shows it as the video's own. Choosing the other for a single
 prompt is allowed, and the panel then says that a video that mixes two
 schemes is harder to read, and offers **make … the video's setting**, which
-changes the video itself. A video that says IPA is not held to the checks
+changes the video itself. A video that says nothing is in the usual scheme, so
+choosing IPA for a stretch of it is choosing the other, and that button is how
+a video becomes an IPA one. A video that says IPA is not held to the checks
 written for the usual scheme.
 
 ## Filling from the answer

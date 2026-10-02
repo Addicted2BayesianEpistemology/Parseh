@@ -260,6 +260,27 @@ class TheTable(unittest.TestCase):
         d = K.describe("book-region", "fa", {"translit": "classic"}, {"translit": "ipa"})[0]
         self.assertEqual((d["value"], d["fact"]), ("classic", False))
 
+    def test_a_record_that_says_nothing_says_the_usual_scheme_and_the_descriptor_says_the_book_holds_it(self):
+        # THE KEY WITHOUT A VALUE is a book or a video that exists and has no word of its scheme: asking for IPA for
+        # a stretch of it is asking for the other, and the row offers to make IPA the record's
+        d = K.describe("book-region", "fa", None, {"translit": None})[0]
+        self.assertEqual((d["value"], d["fact"], d["record"]), ("classic", False, True))
+        d = K.describe("video-region", "fa", None, {"translit": "ipa"})[0]
+        self.assertEqual((d["value"], d["fact"], d["record"]), ("ipa", True, True))
+        # no facts at all: a page about a book or a video that is not made yet (the add page) or about none (the studio)
+        for surface in ("video-new", "book-new", "studio-doc"):
+            self.assertEqual([x["record"] for x in K.describe(surface, "fa")], [False] * len(K.describe(surface, "fa")), surface)
+        # the short vowels are a choice of the moment, never a book's: where the key of the scheme is given they stay false
+        got = {x["name"]: x for x in K.describe("book-region", "fa", None, {"translit": None})}
+        self.assertEqual((got["translit"]["record"], got["marks"]["record"]), (True, False))
+        # where the usual scheme is IPA the two are one and a book cannot mix them
+        self.assertFalse(K.describe("book-region", "en", None, {"translit": None})[0]["record"])
+        # a sentence says "the usual scheme", and the row's word is "usual scheme"; IPA is IPA in both
+        self.assertEqual(got["translit"]["choices"], [{"id": "classic", "label": "usual scheme", "as": "the usual scheme"},
+                                                       {"id": "ipa", "label": "IPA"}])
+        self.assertEqual(got["marks"]["choices"], [{"id": "nomarks", "label": "as they are"},
+                                                    {"id": "marks", "label": "write them"}])
+
     def test_the_editor_of_a_persons_own_prompt_is_told_the_flags_and_the_placeholders(self):
         for surface in GLOSSED + STUDIO:
             names = [n for n, _m in K.placeholders(surface)]
@@ -892,14 +913,17 @@ class TheServer(unittest.TestCase):
             says(path, translit=None)
             status, got = self.ask("GET", "/__prompt/options?" + query)
             (translit,) = [o for o in got["options"] if o["name"] == "translit"]
-            self.assertEqual((translit["value"], translit["fact"]), ("classic", False), query)
+            self.assertEqual((translit["value"], translit["fact"], translit["record"]), ("classic", False, True), query)
             says(path, translit="ipa")
             status, got = self.ask("GET", "/__prompt/options?" + query)
             (translit,) = [o for o in got["options"] if o["name"] == "translit"]
-            self.assertEqual((translit["value"], translit["fact"]), ("ipa", True), query)
-        # a book that is not on the shelf says nothing of itself
+            self.assertEqual((translit["value"], translit["fact"], translit["record"]), ("ipa", True, True), query)
+        # a book that is not on the shelf says nothing of itself, and holds nothing a prompt could mix with; nor does
+        # a page that names none (the add page asks for a video that is not made yet)
         status, got = self.ask("GET", "/__prompt/options?surface=book-region&lang=fa&book=/books/persian/none")
-        self.assertEqual((status, got["options"][0]["fact"]), (200, False))
+        self.assertEqual((status, got["options"][0]["fact"], got["options"][0]["record"]), (200, False, False))
+        status, got = self.ask("GET", "/__prompt/options?surface=video-new&lang=fa")
+        self.assertEqual([o["record"] for o in got["options"]], [False, False])
         says(book, translit=None)
         says(video, translit=None)
 

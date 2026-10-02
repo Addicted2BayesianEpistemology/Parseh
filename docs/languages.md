@@ -470,8 +470,10 @@ usual scheme (`lib/check_batch.py`'s `/ey/` and čašm of a Persian `tr`, `lib/n
 spellings) step aside for a book that says IPA and say so in a note. It is a
 key an older Parseh ignores (`BOOK_FORMAT` and `VIDEO_FORMAT` do not change);
 the person sets it when the book or the video is made, and the row of a stretch's
-prompt offers to change it (written through the doors the info sheets use,
-`bookmeta.edit_meta` and `ytpages.edit_meta`). Which languages offer it is the registry's
+prompt offers to change it, in either direction (a record that says nothing says the
+usual scheme, so asking for IPA for a stretch of such a book offers to make IPA the
+book's), written through the doors the info sheets use, `bookmeta.edit_meta` and
+`ytpages.edit_meta`. Which languages offer it is the registry's
 `ipa` (§1: left out, the setting is offered; `usual`, the usual scheme already is
 IPA; `none`, no setting).
 

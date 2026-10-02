@@ -20,15 +20,21 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     with the storage refused the panel works with the defaults.
 //  b) the video's own record: a video that says IPA opens on IPA whatever the device remembers, choosing the usual
 //     scheme for one prompt says that a video mixing two is harder to read and offers to make it the video's, which
-//     writes video.json -- and the line above the prompt follows.
+//     writes video.json -- and the line above the prompt follows.  A video that says nothing says the usual scheme:
+//     asking for IPA says the same and offers to make IPA the video's.
 //  c) the book's sheet, the same (a reader built by this tex2html.py): the options, the request, the remembered choice,
 //     the book's own record and "make it the book's setting" through the door the info sheet uses.
 //  d) the add page: the options sit above the button that prepares the prompt, follow the language, are carried by
 //     prepare, and a prompt prepared for other choices is forgotten.
-//  e) at 1280 and 390 px, in the light, dark and sepia themes, the options are inside the window and wrap, and nothing is
-//     wider than its box.
+//  e) in a) to d): at 1280 and 390 px, in the light, dark and sepia themes, the options are inside the window and wrap, and
+//     nothing is wider than its box.
+//  g) IPA on the page: the letters written into the Persian and Italian book and video are the ones the reader's pass,
+//     the player's cloud and the studio's sheet draw, in the three themes at both widths.
 //  f) last: no page threw, logged an error or had a request refused; the hub printed no traceback; the owner's config/,
 //     books/, youtube/videos/ and the fixtures are as they were.
+//
+// A STRETCH OF THE FIXTURES HAS NOTHING TO GLOSS (every chunk is glossed), and the panel copies nothing for such a stretch:
+// so the box that re-glosses is ticked wherever a prompt is copied, and the first line says "re-gloss" before the options.
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
@@ -286,7 +292,6 @@ try {
     const n = document.querySelector(scope + ' .llmrow-optnote');
     return n && !n.hidden && n.getClientRects().length ? {text: n.firstChild.textContent, button: (n.querySelector('button') || {}).textContent || ''} : null;
   }, scope);
-  const FIRST = /^Parseh prompt · (video|book)-region · (\w+) → en · a0\.\d+\.\d+/;
   // the prompt the row copies: its first line
   async function copyFirstLine(page, scope) {
     await setClip(page, 'SENTINEL — not written by the page');
@@ -324,12 +329,18 @@ try {
 
   /* ---------------- the player ---------------- */
   const PANEL = '#rgrow';
+  // THE PANEL OPENED, with the box that re-glosses ticked: a stretch with nothing to gloss is told so and nothing goes on
+  // the clipboard, and the fixtures' chunks are all glossed (the first line then says "re-gloss" before the options)
+  async function openPanel(page) {
+    await page.click('#rgn');
+    await page.waitForFunction(() => !document.querySelector('#rgpanel').hidden);
+    await page.check('#rgregloss');
+  }
   async function player(vid, name, more) {
     const page = await open(`/youtube/v/${vid}/`, name, more);
     await page.waitForSelector('#segs .seg .fa .w');
     await page.waitForFunction(() => window.__yt && document.querySelector('#novid').hidden);
-    await page.click('#rgn');
-    await page.waitForFunction(() => !document.querySelector('#rgpanel').hidden);
+    await openPanel(page);
     return page;
   }
   async function pickCaption(page, i) {
@@ -345,7 +356,7 @@ try {
        'Persian: the two options, the first in the language\'s own word, both on their defaults');
     await pickCaption(page, 1);
     let first = await copyFirstLine(page, PANEL);
-    assert(/^Parseh prompt · video-region · fa → en · a0\.\d+\.\d+ · no marks$/.test(first), 'the usual scheme and the text as it is: the line says only the second (' + first + ')');
+    assert(/^Parseh prompt · video-region · fa → en · a0\.\d+\.\d+ · re-gloss · no marks$/.test(first), 'the usual scheme and the text as it is: after the mode the line says only the second (' + first + ')');
     let body = posted.filter(p => /region\/prompt/.test(p.path)).pop().body;
     eq([body.translit, body.marks], ['classic', 'nomarks'], 'the request carries both, on their defaults');
     await choose(page, PANEL, 'translit', 'ipa');
@@ -363,7 +374,7 @@ try {
     await page.reload();
     await page.waitForSelector('#segs .seg .fa .w');
     await page.waitForFunction(() => window.__yt && document.querySelector('#novid').hidden);
-    await page.click('#rgn');
+    await openPanel(page);
     await until(async () => (await optionsOf(page, PANEL)).length === 2, 'the options drawn after a reload');
     eq((await optionsOf(page, PANEL)).map(o => o.value), ['ipa', 'marks'], 'after a reload the choices are the ones kept');
     await pickCaption(page, 1);
@@ -406,12 +417,12 @@ try {
 
   await section('b', 'the video\'s own record of the scheme', async () => {
     await record(videoJson(T.vfa), 'ipa');
-    let page = await player(T.vfa, 'player fa, a video that says IPA');
+    const page = await player(T.vfa, 'player fa, a video that says IPA');
     await page.evaluate(() => { try { localStorage.clear(); } catch (e) {} });
     await page.reload();
     await page.waitForSelector('#segs .seg .fa .w');
     await page.waitForFunction(() => window.__yt && document.querySelector('#novid').hidden);
-    await page.click('#rgn');
+    await openPanel(page);
     await until(async () => (await optionsOf(page, PANEL)).length === 2, 'the options drawn');
     eq((await optionsOf(page, PANEL)).map(o => o.value), ['ipa', 'nomarks'], 'a video that says IPA opens on IPA, with nothing remembered on this device');
     eq(await noteOf(page, PANEL), null, 'and has nothing to say about it');
@@ -420,8 +431,8 @@ try {
     assert(/ · IPA · no marks$/.test(first), 'its prompt asks for IPA (' + first + ')');
     await choose(page, PANEL, 'translit', 'classic');
     const note = await noteOf(page, PANEL);
-    assert(note && /^this video's transliteration is IPA and this prompt asks for usual scheme: a video that mixes the two is harder to read\.$/.test(note.text) &&
-           note.button === "make usual scheme the video's setting", 'choosing the usual scheme for one prompt says so, and offers to make it the video\'s (' + JSON.stringify(note) + ')');
+    assert(note && /^this video's transliteration is IPA and this prompt asks for the usual scheme: a video that mixes the two is harder to read\.$/.test(note.text) &&
+           note.button === "make the usual scheme the video's setting", 'choosing the usual scheme for one prompt says so, and offers to make it the video\'s (' + JSON.stringify(note) + ')');
     first = await copyFirstLine(page, PANEL);
     assert(!/ · IPA/.test(first), 'the prompt of that choice is in the usual scheme (' + first + ')');
     eq(await store(page, 'parseh_llmrow_translit_fa'), null, 'and a choice against the record is for this prompt: nothing is remembered');
@@ -431,16 +442,34 @@ try {
     eq(await record(videoJson(T.vfa), '?'), null, 'making it the video\'s writes video.json: the usual way is no key');
     first = await copyFirstLine(page, PANEL);
     assert(!/ · IPA/.test(first), 'and the next prompt is in the usual scheme (' + first + ')');
+    // A RECORD THAT SAYS NOTHING SAYS THE USUAL SCHEME: asking for IPA is asking for the other, and the way to make a
+    // video an IPA one from the page
+    await choose(page, PANEL, 'translit', 'ipa');
+    const other = await noteOf(page, PANEL);
+    assert(other && /^this video's transliteration is the usual scheme and this prompt asks for IPA: a video that mixes the two is harder to read\.$/.test(other.text) &&
+           other.button === "make IPA the video's setting", 'a video that says nothing: asking for IPA says so too, and offers to make IPA the video\'s (' + JSON.stringify(other) + ')');
+    eq(await record(videoJson(T.vfa), '?'), null, 'and nothing is written until the button is pressed');
+    await page.click(PANEL + ' .llmrow-optnote button');
+    await until(async () => (await noteOf(page, PANEL)) === null, 'the note gone');
+    eq(await record(videoJson(T.vfa), '?'), 'ipa', 'pressed: video.json says IPA');
+    first = await copyFirstLine(page, PANEL);
+    assert(/ · IPA · no marks$/.test(first), 'and the prompt of the page is in IPA (' + first + ')');
+    await record(videoJson(T.vfa), '');
     await page.close();
   });
 
   /* ---------------- the book's reader ---------------- */
   const SHEET = '#rgrow';
-  async function reader(key, name, more) {
-    const page = await open(T['b' + key] + '/reader/', name, more);
+  // THE SHEET OPENED, with the box that re-glosses ticked (see openPanel)
+  async function openSheet(page) {
     await page.waitForSelector('#rgn');
     await page.click('#rgn');
     await page.waitForFunction(() => rgShown);
+    await page.check('#rgregloss');
+  }
+  async function reader(key, name, more) {
+    const page = await open(T['b' + key] + '/reader/', name, more);
+    await openSheet(page);
     return page;
   }
   async function pickFirstSentence(page) {
@@ -462,7 +491,7 @@ try {
        [['translit', 'transliteration:', 'classic'], ['marks', 'short vowels:', 'nomarks']], 'Persian: the two options on their defaults');
     await pickFirstSentence(page);
     let first = await copyFirstLine(page, SHEET);
-    assert(/^Parseh prompt · book-region · fa → en · a0\.\d+\.\d+ · no marks$/.test(first), 'the first line says the short vowels and not the scheme (' + first + ')');
+    assert(/^Parseh prompt · book-region · fa → en · a0\.\d+\.\d+ · re-gloss · no marks$/.test(first), 'after the mode the first line says the short vowels and not the scheme (' + first + ')');
     await choose(page, SHEET, 'translit', 'ipa');
     await choose(page, SHEET, 'marks', 'marks');
     first = await copyFirstLine(page, SHEET);
@@ -470,9 +499,17 @@ try {
     const body = posted.filter(p => /__region\/prompt/.test(p.path)).pop().body;
     eq([body.translit, body.marks], ['ipa', 'marks'], 'and the request carries both');
     await look(page, 'reader-fa-options', SHEET);
+    // A RECORD THAT SAYS NOTHING SAYS THE USUAL SCHEME: asking for IPA is asking for the other, and the way to make a
+    // book an IPA one from the sheet
+    const other = await noteOf(page, SHEET);
+    assert(other && /^this book's transliteration is the usual scheme and this prompt asks for IPA: a book that mixes the two is harder to read\.$/.test(other.text) &&
+           other.button === "make IPA the book's setting", 'a book that says nothing: asking for IPA says so, and offers to make IPA the book\'s (' + JSON.stringify(other) + ')');
+    eq(await record(bookJson('fa'), '?'), null, 'and nothing is written until the button is pressed');
+    await page.click(SHEET + ' .llmrow-optnote button');
+    await until(async () => (await noteOf(page, SHEET)) === null, 'the note gone (the reader is built again first)', 60000);
+    eq(await record(bookJson('fa'), '?'), 'ipa', 'pressed: book.json says IPA');
     await page.reload();
-    await page.waitForSelector('#rgn');
-    await page.click('#rgn');
+    await openSheet(page);
     await until(async () => (await optionsOf(page, SHEET)).length === 2, 'the options after a reload');
     eq((await optionsOf(page, SHEET)).map(o => o.value), ['ipa', 'marks'], 'a reload keeps the choices');
     await page.close();
@@ -485,10 +522,10 @@ try {
     eq((await optionsOf(page, SHEET)).map(o => o.value), ['ipa', 'nomarks'], 'a book that says IPA opens on IPA');
     await choose(page, SHEET, 'translit', 'classic');
     const note = await noteOf(page, SHEET);
-    assert(note && /^this book's transliteration is IPA and this prompt asks for usual scheme/.test(note.text) && note.button === "make usual scheme the book's setting",
+    assert(note && /^this book's transliteration is IPA and this prompt asks for the usual scheme/.test(note.text) && note.button === "make the usual scheme the book's setting",
            'choosing against it says so and offers to make it the book\'s (' + JSON.stringify(note) + ')');
     await page.click(SHEET + ' .llmrow-optnote button');
-    await until(async () => (await noteOf(page, SHEET)) === null, 'the note gone');
+    await until(async () => (await noteOf(page, SHEET)) === null, 'the note gone (the reader is built again first)', 60000);
     eq(await record(bookJson('fa'), '?'), null, 'the book\'s record lost the key: the usual way is no key');
     await page.close();
 
@@ -511,8 +548,10 @@ try {
   /* ---------------- the add page ---------------- */
   await section('d', 'the add page: above the button that prepares the prompt', async () => {
     await page_clear();
-    const page = await open('/youtube/add/', 'add');
-    await page.waitForSelector('#prepare');
+    // THE TWO QUESTIONS ANSWERED BY THE ADDRESS (a video on YouTube, a chatbot writes the glosses): the step with the
+    // prompt, and with it the options, is drawn only then
+    const page = await open('/youtube/add/?src=yt&by=llm', 'add');
+    await page.waitForSelector('#transcript', {state: 'visible'});
     await page.selectOption('#lang', 'fa');
     await until(async () => (await optionsOf(page, '#popts')).length === 2, 'the options drawn for Persian');
     eq((await optionsOf(page, '#popts')).map(o => [o.name, o.label, o.value, o.shown]),
@@ -527,8 +566,6 @@ try {
     await page.selectOption('#lang', 'fa');
     await until(async () => (await optionsOf(page, '#popts')).length === 2, 'the options back');
     await choose(page, '#popts', 'translit', 'ipa');
-    await page.click('.path[data-src="yt"]');
-    await page.click('.path[data-by="llm"]');
     await page.fill('#url', 'https://www.youtube.com/watch?v=' + T.vfa);
     await page.fill('#transcript', T.transcript);
     await page.click('#prepare');
@@ -566,6 +603,7 @@ try {
     await page.evaluate(() => { document.documentElement.setAttribute('data-theme', 'light'); if (document.body) document.body.setAttribute('data-theme', 'light'); });
   }
   const WROTE = {fa: ['sæˈlɒːm', 'tʃeˈtoɾi', 'ɡæɾm ʃoːd'], it: ['ˈkwanto ˈkɔstano', 'le ˈmele ˈɔddʒi', 'ˈbwɔna dʒorˈnata']};
+  const IPA_OF = {fa: ['sæˈlɒːm', 'tʃeˈtoɾi', 'ɡæɾm ʃoːd', 'ˈʒɒːle ʔɒːn', 'ɪn ʊ ɔ ʌ ɑː'], it: ['ˈkwanto ˈkɔstano', 'le ˈmele ˈɔddʒi', 'ˈbwɔna dʒorˈnata', 'ˈfaʎʎa ˈɲɔkki', 'ˈpeʃe ʒ']};
   await section('g', 'IPA on the reader, the player and the studio', async () => {
     await page_clear();
     for (const key of ['fa', 'it']) {
@@ -603,7 +641,6 @@ try {
     await themed(page, 'studio-ipa-sheet', page.locator('body').first());
     await page.close();
   });
-  const IPA_OF = {fa: ['sæˈlɒːm', 'tʃeˈtoɾi', 'ɡæɾm ʃoːd', 'ˈʒɒːle ʔɒːn', 'ɪn ʊ ɔ ʌ ɑː'], it: ['ˈkwanto ˈkɔstano', 'le ˈmele ˈɔddʒi', 'ˈbwɔna dʒorˈnata', 'ˈfaʎʎa ˈɲɔkki', 'ˈpeʃe ʒ']};
 
   /* ---------------- last ---------------- */
   await section('f', 'what the pages and the hub said', async () => {

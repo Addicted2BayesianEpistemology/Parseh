@@ -101,7 +101,12 @@ promptkit.given(body_or_query)                                 # the options a r
   tidy) is left out instead, so that what a device remembers of one prompt cannot
   stop another, and the answer's `options` says what each came to.
 - `facts` are what a book's or a video's own record says (`book.json`, `video.json`:
-  `"translit": "ipa"`). They are the default; what a request says wins.
+  `"translit": "ipa"`). They are the default; what a request says wins. A page that
+  asks about a book or a video that exists passes the key even when the record has no
+  value (`{"translit": None}`): the descriptor's `record` is then true, because a record
+  that says nothing says the usual scheme, and the row tells a person who asks for IPA
+  for a stretch that the book would mix the two, and offers to make IPA the book's. A
+  page that asks about none (the add page, the studio) passes no facts.
 - **Flags**: `ipa` and `classic`, `marks` and `nomarks`, in every text of a prompt
   (a template, a language file, a person's own): `{{?ipa}}…{{/ipa}}`. The first of
   each pair is true by default; where the language has no short vowels neither of the

@@ -5365,20 +5365,22 @@ class Handler(SimpleHTTPRequestHandler):
         L = languages.LANGS.get(q("lang"))
         if L is None:
             return self.send_json({"ok": False, "error": "%r is not a language of Parseh" % q("lang")}, 400)
-        meta = {}
+        # NO FACTS WITHOUT A RECORD: the page that asks for a book or a video that is not made yet
+        # (the add page) has nothing a prompt could mix with, and a record that will not read says
+        # nothing of the scheme
+        facts = None
         try:
             if q("book"):
                 where = book_dir(q("book") if q("book").startswith("/books/") else "/books/" + q("book").strip("/"))
                 if where:
-                    meta = booklib.Book(where).meta
+                    facts = {"translit": booklib.Book(where).meta.get("translit")}
             elif q("video"):
                 where = video_dir(q("video"))
                 if where:
-                    meta = annwrite._meta(where)
+                    facts = {"translit": annwrite._meta(where).get("translit")}
         except (OSError, ValueError):
-            meta = {}                       # a record that will not read says nothing of the scheme
-        self.send_json({"ok": True, "options": promptkit.describe(
-            surface, L, None, {"translit": meta.get("translit")})})
+            facts = None
+        self.send_json({"ok": True, "options": promptkit.describe(surface, L, None, facts)})
 
     def _book_region(self, what):
         """Part of a book glossed by an LLM (lib/glossregion.py): `prompt`
