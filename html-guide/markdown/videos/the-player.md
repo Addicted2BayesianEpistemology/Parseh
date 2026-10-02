@@ -94,6 +94,7 @@ Every control, left to right:
 | `0:14 / 0:40` | where the video is, and how long it is |
 | **follow** | keeps the spoken line in view (on until you turn it off) |
 | **hover ⏸** | pauses the video while a cloud is open (off until you turn it on) |
+| **✱ notes** | lights every phrase that carries a note, counts them, and walks from one to the next with **‹** and **›** (off on every visit; not in the mobile interface) |
 | **dictionary** | reading help under a phrase nobody glossed; shown once there is something to help with ([Reading help](reading-help.md)) |
 | **definitions**, **in english** | the dictionary's own definitions, and the same translated; only where the dictionary defines its words in their own language |
 | **kana** / **pinyin** | Japanese and Chinese: the transcript as its reading alone |
@@ -106,7 +107,9 @@ Every control, left to right:
 | **Decompose Kanji** / **Decompose Hanzi** | Japanese and Chinese: a character's components ([Reading help](reading-help.md#decomposing-a-character)) |
 
 A button that is lit (filled with the accent colour) is on. Every one of
-these switches is remembered in this browser and holds for every video.
+these switches is remembered in this browser and holds for every video —
+except **✱ notes**, which is a tool for looking and is off every time the page
+opens.
 
 **There is no speech to text here.** The player has no *transcribe* button,
 no *transcribe again* and no speech model to choose, and none of it is
@@ -134,6 +137,38 @@ you press play yourself in the meantime, it leaves that alone.
 A book read aloud has the same switch in its reader, worded the same, in the
 browser interface and on a phone
 ([Playing and listening](doc:Playing and listening)).
+
+### ✱ notes {#notes}
+
+A phrase can carry a **note**: the aside under its meaning, which a model
+leaves when something needs saying — a slip it noticed in the transcript, what
+was really said, a cultural point
+([The note](editing-a-phrase.md#the-note)). A highlight over a long transcript
+is for seeing where those are, after an LLM has glossed a video for instance.
+It is about what is written on a phrase: the notes you write in the seam
+between two captions ([Notes in the seam](notes-in-the-seam.md)) are marked in
+the seams already, and are not what this button lights.
+
+With **✱ notes** on, every phrase that has a note is underlined with a dashed
+line in the accent colour and followed by a small **✱**, and the button says
+how many there are (*✱ notes 7*). **‹** and **›** appear beside it and walk from
+one such phrase to the next, in the order of the transcript, scrolling each into
+view below the bar and the video, and going round from the last to the first.
+(In a window as narrow as a phone's, where the bar slides away as the page
+moves down, it stays while **✱ notes** is on, so that the arrows are in reach.)
+Point at a lit phrase and its cloud shows the note as its last line; **✎ edit**
+changes it or empties it, and the lit phrases and the count follow a save at
+once.
+
+It is a way of looking and changes nothing: a colour mark shows beside it (the
+phrase keeps its own colour, and the underline and the ✱ are the accent's), no
+text is added to the line — selecting, copying and the timings read it as they
+always did — nothing is hidden, and a click on a lit phrase does what it always
+does. It writes nothing and asks the server nothing, and it is **off every time
+the page opens**. A note of nothing but spaces is no note. A phrase drawn
+bare — one marked plain, which has no cloud — is lit and counted too if the
+file gives it a note, since there is nowhere else to see it. It is a button of
+the browser interface: the mobile interface, which writes nothing, has none.
 
 ### pin, and the grip
 

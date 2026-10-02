@@ -2,7 +2,7 @@
 title: Editing a phrase in the player
 linkTitle: Editing a phrase
 weight: 7
-description: The four colours, the ✎ form and its fields, deleting a gloss, the words of Japanese and Chinese, the sources beside the fields, and every refusal.
+description: The four colours, the ✎ form and its fields, the note, deleting a gloss, the words of Japanese and Chinese, the sources beside the fields, and every refusal.
 ---
 
 A video's writing door is the gloss cloud itself, and it needs no mode:
@@ -51,11 +51,12 @@ The fields are named the way this video's language names them:
 | **transliteration**, **pronunciation**, **rōmaji** or **pinyin** | its romanisation, called what the language calls it |
 | **vocabulary** | the vocabulary line: the dictionary form, the root, what it is made of — plain text, or in the books' entries ([below](#the-vocabulary-box)) |
 | the gloss language's name (**english**, **italian**…) | what the phrase means here — called **meaning** when the video is glossed in the language it teaches |
+| **note** | the aside under the meaning — what the automatic transcript really heard, a cultural point; on every phrase, empty until somebody writes one ([below](#the-note)) |
 | **the transcript** | the one checkbox: below |
 
 Target-language boxes take the language's face and direction; the
-vocabulary and the meaning take the gloss language's, so an Arabic meaning
-runs right to left inside this left-to-right form.
+vocabulary, the meaning and the note take the gloss language's, so an
+Arabic meaning runs right to left inside this left-to-right form.
 
 Under the fields: **save** (**Ctrl+↵**, or ⌘+↵) and **delete gloss**
 beside it (below), **✂ cut in two**, **join next**, and — from the second
@@ -77,10 +78,9 @@ emptied box removes its field (absent and empty mean the same thing to
 everything that reads the file). After *saved ✓* the boxes show what is now
 on disk.
 
-Two fields are deliberately not in the form: `note` and `plain`. They
-belong to whoever authored the video — `plain` in particular decides
-whether a phrase is asked for a gloss at all — so they are edited in the
-file ([A video's files](the-files.md)).
+One field is deliberately not in the form: `plain`. It belongs to whoever
+authored the video — it decides whether a phrase is asked for a gloss at
+all — so it is edited in the file ([A video's files](the-files.md)).
 
 **One box at a time is fine.** A phrase nobody has glossed opens with its
 boxes empty, and you may fill them in any order, over as many sittings as
@@ -122,6 +122,36 @@ Entries are parted by `;`. Beyond the four macros, `\textit`, `\emph` and
 `\nobreak` are allowed, and nothing else spelled with letters. A video's line
 never reaches LaTeX, so `% & # _ $` are ordinary characters in it, unlike in a
 book. A card made of the phrase takes the line as plain text.
+
+### The note {#the-note}
+
+A phrase's **note** is the aside under its meaning in the cloud: *what the
+automatic transcript really heard*, *a cultural point*. A model that glosses
+a video leaves one only when something needs saying — a slip it noticed in
+the transcript, what was really said — and a hand may write one. It is **no
+gloss**: a phrase that has only a note still says *nothing glossed yet*, and
+**delete gloss** leaves it where it is.
+
+It is yours to edit, and its box is on every phrase, so that a note can be
+written as well as changed: one row that grows with what is in it, and under
+it a line that says how a note is taken off — **empty it**. There is no button
+for that, because an emptied box is how every field of this form is cleared;
+the note's key goes out of the file with it. The note is saved with the rest,
+down the same route and under the same rules: only what you changed is sent,
+the text is trimmed (a note of nothing but spaces is no note), and the file
+changes as a hand's edit would have changed it — taking a note off removes
+the line it was written on, and nothing else of the file moves.
+
+The usual reason to open it is a slip a model has flagged. If the transcript
+says *garlic* where the speaker said *apple*, and the note says so, mend the
+phrase with **the transcript** box ([below](#when-youtube-heard-wrong)), and
+then empty the note, which is stale: both in the same form.
+
+A cut leaves a phrase's note on its first half, and a join puts two notes end
+to end ([Cutting and joining](cutting-and-joining.md)): the sheet for either
+has no note box, and neither loses a note. A card made of the phrase carries
+its note in the card's notes. To see where the notes are before opening any
+phrase, switch on **✱ notes** in the bar ([The player](the-player.md#notes)).
 
 ## Deleting a gloss {#deleting-a-gloss}
 
@@ -174,6 +204,10 @@ has them and untick the box in the same save; unticking alone, while the
 words still differ, is refused — *segment 1: text differs from
 transcript.txt*, with the two texts under it. When a save is refused
 because the words differ, the form scrolls this box into view.
+
+A model that noticed the slip may have left a note about it; once the phrase
+is mended the note is stale, and emptying its box in the same form takes it
+off ([The note](#the-note)).
 
 ## Japanese and Chinese: the words
 
@@ -265,5 +299,7 @@ open with your text in it.
 
 Two more exist for requests made by hand, never by the page:
 *colour 'purple' is not one of red, blue, orange, green*, and
-*cannot set 'plain' on a chunk: fa, words, kana, tr, voc, en, col, free* —
-which is also what a mistyped field name gets.
+*cannot set 'plain' on a chunk: fa, words, kana, tr, voc, en, note, col,
+free -- plain decides whether a phrase is asked for a gloss at all, so it
+belongs to whoever authored the video*. A mistyped field name gets the same
+list of fields, without the reason.
