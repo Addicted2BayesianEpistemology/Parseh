@@ -676,6 +676,15 @@ class Routes(unittest.TestCase):
             time.sleep(0.05)
         self.assertEqual(self.waiting(), [], "whole or not at all: the half is gone, and no .mp3 stands in its place")
 
+    def test_a_send_is_on_the_activity_list_while_it_arrives(self):
+        kind, label, after = self.serve.long_work("POST", "/youtube/api/film", {"name": ["lesson 1.mp3"]}, 4 << 20)
+        self.assertEqual(kind, "upload")
+        self.assertIn("lesson 1.mp3", label)
+        self.assertIn("MB", label, "the size comes from the request, never from the page's word")
+        self.assertTrue(after)
+        self.assertIsNone(self.serve.long_work("POST", "/youtube/api/film/look", {}, 40),
+                          "a look is not long work, and neither is the picture of a sound")
+
     def test_from_another_site_it_is_refused_and_the_body_is_never_read(self):
         for site in ("cross-site", "same-site"):
             with self.subTest(site=site):
