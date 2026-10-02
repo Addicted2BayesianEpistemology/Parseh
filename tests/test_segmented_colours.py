@@ -86,6 +86,28 @@ class RenderTests(unittest.TestCase):
         finally:
             texgen.set_print()
 
+    def test_nested_target_mark_keeps_the_run_and_no_placeholder(self):
+        source = "[[[ک[ت]{crimson}[ا]{indigo}ب]]]{tl}"
+        tex = texgen.inline(source)
+        self.assertIn(r"\segword{کتاب}", tex)
+        self.assertNotIn("[[", tex)
+        self.assertNotIn("{tl}", tex)
+        self.assertNotIn("\x05", tex)
+        shown = htmlgen.inline(source)
+        self.assertEqual("کتاب", _text(shown))
+        self.assertEqual(1, shown.count("segmented-colour-run"))
+
+    def test_exercise_prompt_keeps_segmented_run_whole(self):
+        md = ("---\ntitle: T\ntarget: fa\n---\n\n"
+              ":::exercise single-choice\n"
+              "prompt: Pick [[ک[ت]{crimson}[ا]{indigo}ب]] now.\n"
+              "- [x] yes\n- [ ] no\n:::\n")
+        tex = texgen.generate(*mdparser.parse(md), colophon=False)
+        self.assertEqual(1, tex.count(r"\segword{کتاب}"))
+        self.assertNotIn("Pick [[", tex)
+        page = htmlgen.render_document(md)["html"]
+        self.assertEqual(1, page.count("segmented-colour-run"))
+
     def test_glossary_uses_flattened_word_and_outer_transliteration(self):
         md = ("---\ntitle: T\ntarget: fa\n---\n\n"
               "[[ک[ت]{crimson}[ا]{indigo}ب]]{translit:ketāb} = *book*\n")
@@ -123,68 +145,85 @@ class RenderTests(unittest.TestCase):
             finally:
                 store.use_library(old)
 
-    @unittest.skipUnless(shutil.which("xelatex"), "needs xelatex")
-    def test_real_pdf_engine_accepts_segmented_persian(self):
-        md = ("---\ntitle: T\nlang: en\ntarget: fa\n---\n\n"
-              "کتاب ⏎ [[ک[ت]{crimson}[ا]{indigo}ب]]\n")
-        tex = texgen.generate(*mdparser.parse(md), colophon=False)
+    @unittest.skipUnless(shutil.which("xelatex") and shutil.which("pdftoppm"),
+                         "needs xelatex and pdftoppm")
+    def test_real_pdf_engine_renders_colours_in_every_container(self):
+        word = "[[ک[ت]{teal}[ا]{indigo}ب]]"
+        cases = {
+            "paragraph": word + "\n",
+            "heading": "## A %s title\n" % word,
+            "target_mark": "[%s]{tl}\n" % word,
+            "prompt": (":::exercise single-choice\n"
+                       "prompt: Pick %s now.\n"
+                       "- [x] yes\n- [ ] no\n:::\n" % word),
+        }
         with tempfile.TemporaryDirectory(prefix="parseh-segcolour-") as td:
-            main = Path(td) / "main.tex"
-            main.write_text(tex, encoding="utf-8")
-            done = subprocess.run([shutil.which("xelatex"),
-                                   "-interaction=nonstopmode", "-halt-on-error",
-                                   "main.tex"], cwd=td, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True, timeout=90)
-            self.assertEqual(0, done.returncode, done.stdout[-4000:])
-            pdf = Path(td) / "main.pdf"
-            self.assertTrue(pdf.exists())
-            try:
-                import fitz
-            except ImportError:
-                return
-            page = fitz.open(pdf)[0]
-            lines, seen_lines = [], []
-            for block in page.get_text("dict")["blocks"]:
-                for line in block.get("lines", []):
-                    shown = "".join(span["text"] for span in line["spans"])
-                    seen_lines.append(shown)
-                    if "کتاب" in shown or "باتک" in shown or shown == "\uffff" * 4:
-                        lines.append(fitz.Rect(line["bbox"]))
-            self.assertEqual(2, len(lines), seen_lines)
-
-            def ink(rect):
-                pix = page.get_pixmap(matrix=fitz.Matrix(4, 4), clip=rect + (-2, -2, 2, 2),
-                                      alpha=False)
-                raw, n = pix.samples, pix.n
-                pts = {(x, y) for y in range(pix.height) for x in range(pix.width)
-                       if min(raw[(y * pix.width + x) * n:(y * pix.width + x) * n + 3]) < 245}
-                x0, x1 = min(x for x, _ in pts), max(x for x, _ in pts)
-                y0, y1 = min(y for _, y in pts), max(y for _, y in pts)
-                return {(x - x0, y - y0) for x, y in pts}, (x1 - x0 + 1, y1 - y0 + 1)
-
-            plain, psize = ink(lines[0])
-            coloured, csize = ink(lines[1])
-            self.assertLessEqual(abs(psize[0] - csize[0]), 2,
-                                 (psize, csize, "colour changed the shaped word's width"))
-            best = 0.0
-            for dx in range(-2, 3):
-                for dy in range(-2, 3):
-                    shifted = {(x + dx, y + dy) for x, y in coloured}
-                    best = max(best, len(plain & shifted) / len(plain | shifted))
-            self.assertGreater(best, .78,
-                               "colour boundaries changed Persian contextual glyph forms: %.3f" % best)
-            cpix = page.get_pixmap(matrix=fitz.Matrix(4, 4),
-                                   clip=lines[1] + (-2, -2, 2, 2), alpha=False)
-            rgb = [cpix.samples[i:i + 3] for i in range(0, len(cpix.samples), cpix.n)]
-            self.assertTrue(any(r > 90 and r > g * 1.45 and r > b * 1.25
-                                for r, g, b in rgb), "crimson piece did not reach the PDF")
-            self.assertTrue(any(b > 90 and b > r * 1.45 and b > g * 1.35
-                                for r, g, b in rgb), "indigo piece did not reach the PDF")
+            fonts = Path(td) / "fonts"
+            fonts.mkdir()
+            for name in ("Vazirmatn-Regular.ttf", "Vazirmatn-Bold.ttf"):
+                shutil.copy2(ROOT / "markdown" / "exlex" / "assets" / "fonts" / name,
+                             fonts / name)
+            for name, body in cases.items():
+                with self.subTest(container=name):
+                    md = "---\ntitle: T\nlang: en\ntarget: fa\n---\n\n" + body
+                    tex = texgen.generate(*mdparser.parse(md), colophon=False)
+                    self.assertEqual(1, tex.count(r"\segword{کتاب}"))
+                    self.assertNotIn("[[", tex)
+                    self.assertNotIn("\x05", tex)
+                    main = Path(td) / (name + ".tex")
+                    main.write_text(tex, encoding="utf-8")
+                    done = subprocess.run(
+                        [shutil.which("xelatex"), "-interaction=nonstopmode",
+                         "-halt-on-error", main.name], cwd=td, stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT, text=True, timeout=90)
+                    self.assertEqual(0, done.returncode, done.stdout[-4000:])
+                    pdf = Path(td) / (name + ".pdf")
+                    self.assertTrue(pdf.exists())
+                    raster = subprocess.run(
+                        [shutil.which("pdftoppm"), "-r", "220", "-f", "1",
+                         "-singlefile", str(pdf), str(Path(td) / name)], cwd=td,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, timeout=90)
+                    self.assertEqual(0, raster.returncode, raster.stdout[-2000:])
+                    colours = list(_ppm_pixels(Path(td) / (name + ".ppm")))
+                    teal = sum(g > 55 and b > 50 and r < g * .65
+                               and abs(g - b) < 35 for r, g, b in colours)
+                    indigo = sum(b > 70 and b > r * 1.45 and b > g * 1.35
+                                 for r, g, b in colours)
+                    self.assertGreater(teal, 20, "teal piece did not reach the PDF")
+                    self.assertGreater(indigo, 8, "indigo piece did not reach the PDF")
 
 
 def _text(html):
     import re
     return re.sub(r"<[^>]+>", "", html)
+
+
+def _ppm_pixels(path):
+    """Read the P6 file emitted by pdftoppm without an optional image API."""
+    raw = path.read_bytes()
+    tokens, at = [], 0
+    while len(tokens) < 4:
+        while at < len(raw) and chr(raw[at]).isspace():
+            at += 1
+        if raw[at:at + 1] == b"#":
+            at = raw.find(b"\n", at) + 1
+            continue
+        end = at
+        while end < len(raw) and not chr(raw[end]).isspace():
+            end += 1
+        tokens.append(raw[at:end])
+        at = end
+    while at < len(raw) and chr(raw[at]).isspace():
+        at += 1
+    magic, width, height, maximum = tokens
+    if magic != b"P6" or maximum != b"255":
+        raise AssertionError("unexpected PPM header: %r" % (tokens,))
+    pixels = raw[at:]
+    expected = int(width) * int(height) * 3
+    if len(pixels) != expected:
+        raise AssertionError("PPM has %d bytes, expected %d" % (len(pixels), expected))
+    return zip(pixels[0::3], pixels[1::3], pixels[2::3])
 
 
 def select(source, visible, occurrence=0):

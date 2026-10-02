@@ -10,6 +10,9 @@
 - Markdown and exercise-deck cards made from books or videos mark target and context fields as the target language automatically
 - Studio and exported word clouds are linguistic only; foreground colour is applied from the source editor
 
+### Fixed
+- Partial-word colours compile and remain visible in PDFs, including headings, target-language blocks and exercise prompts
+
 ## [a0.4.2] - 2026-09-30
 ### Added
 - Glosses an LLM writes are aligned to their chunks: a meaning says what its own words say, in the text's order

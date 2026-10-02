@@ -57,6 +57,7 @@ from texgen import (FA_CHARS, FA_RE, RUN_RE, PE_WORD_LIMIT,  # noqa: E402,F401
                     PROSE_WORD_RE, audio_window,
                     MATH_RE, LATEX_INLINE_RE, inline_latex_pairs,
                     NOT_A_RUN, is_target_line, prompt_lines)
+from texgen import target_marks, target_fullmatch  # noqa: E402
 import languages  # noqa: E402
 from segcolour import find_runs as segmented_runs  # noqa: E402
 
@@ -242,6 +243,45 @@ def _rtl_html(content):
     return re.sub(r"\s*⏎\s*", "<br>", esc(content))
 
 
+def _segmented_html(node, force_breakable=False):
+    """One semantic coloured word and its visual child spans."""
+    plain = node.plain_text
+    cls = "fa segmented-colour-run"
+    if force_breakable or run_is_long(plain):
+        cls += " fa-l"
+    bits = ' data-fa="%s" data-occ="%s"' % (esc(plain), _occurrence(plain))
+    if node.mark("translit"):
+        bits += ' data-translit="%s"' % esc(node.mark("translit"))
+    if node.mark("kana"):
+        bits += ' data-kana="%s"' % esc(node.mark("kana"))
+    inside = []
+    for piece in node.pieces:
+        body = esc(piece.text)
+        if not piece.colour:
+            inside.append(body)
+        elif piece.colour.startswith("#"):
+            inside.append('<span class="seg-colour fac" data-color="%s" '
+                          'style="color:%s">%s</span>'
+                          % (piece.colour, piece.colour, body))
+        else:
+            inside.append('<span class="seg-colour fac fac-%s" '
+                          'data-color="%s">%s</span>'
+                          % (piece.colour, piece.colour, body))
+    return '<span class="%s"%s%s>%s</span>' % (
+        cls, _dir_lang(), bits, "".join(inside))
+
+
+def _rtl_segmented_html(content):
+    """Opaque target prose, except for recognised segmented-colour words."""
+    out, at = [], 0
+    for node in segmented_runs(content):
+        out.append(_rtl_html(content[at:node.start]))
+        out.append(_segmented_html(node, force_breakable=True))
+        at = node.end
+    out.append(_rtl_html(content[at:]))
+    return "".join(out)
+
+
 def _fa_span(run, breakable, bold=False, countable=True):
     cls = "fa"
     if bold:
@@ -337,6 +377,14 @@ def inline(text, force_breakable=False):
         _FN["n"] += 1
         return _aux("fn", _FN["n"], _FN["defs"].get(m.group(1), ""))
     text = FN_REF_RE.sub(_fn_ref, text)
+
+    # Hold a balanced target-language mark containing a segmented word
+    # before freezing the inner run, so its outer brackets stay structural.
+    for mark in reversed(list(target_marks(text))):
+        if list(segmented_runs(mark.content)):
+            text = (text[:mark.start]
+                    + _aux("rtl-seg", mark.content, parse_tl_attrs(mark.attrs))
+                    + text[mark.end:])
 
     # Keep a partially coloured word as one semantic node.  This happens
     # before the old colour pass so its inner pieces never become separate
@@ -549,32 +597,17 @@ def inline(text, force_breakable=False):
         if item[0] == "latex":
             return _inline_latex(item[1], item[2] if len(item) > 2 else None)
         if item[0] == "seg":
-            node = item[1]
-            plain = node.plain_text
-            cls = "fa segmented-colour-run"
-            if force_breakable or run_is_long(plain):
-                cls += " fa-l"
-            bits = (' data-fa="%s" data-occ="%s"'
-                    % (esc(plain), _occurrence(plain)))
-            if node.mark("translit"):
-                bits += ' data-translit="%s"' % esc(node.mark("translit"))
-            if node.mark("kana"):
-                bits += ' data-kana="%s"' % esc(node.mark("kana"))
-            inside = []
-            for piece in node.pieces:
-                body = esc(piece.text)
-                if not piece.colour:
-                    inside.append(body)
-                elif piece.colour.startswith("#"):
-                    inside.append('<span class="seg-colour fac" data-color="%s" '
-                                  'style="color:%s">%s</span>'
-                                  % (piece.colour, piece.colour, body))
-                else:
-                    inside.append('<span class="seg-colour fac fac-%s" '
-                                  'data-color="%s">%s</span>'
-                                  % (piece.colour, piece.colour, body))
-            return '<span class="%s"%s%s>%s</span>' % (
-                cls, _dir_lang(), bits, "".join(inside))
+            return _segmented_html(item[1], force_breakable)
+        if item[0] == "rtl-seg":
+            attrs = dict(item[2])
+            attrs["vertical"] = False
+            cls, data, _ = _tl_style_bits(attrs)
+            tag = ("" if _FN["muted"] else
+                   ' data-tl-kind="mark" data-tl-src="%s"%s'
+                   ' data-rtl-kind="mark" data-rtl-src="%s"%s'
+                   % (esc(item[1]), _tl_occ("mark", item[1]), esc(item[1]), data))
+            return ('<span class="fa fa-l fa-rich%s"%s%s>%s</span>'
+                    % (cls, _dir_lang(), tag, _rtl_segmented_html(item[1])))
         if item[0] == "rtl":
             # one isolated unit in the target's direction: the browser's
             # bidi keeps punctuation and embedded Latin words in reading
@@ -1884,6 +1917,7 @@ def render_blocks(blocks, ctx, inside_box=False):
             txt = b["text"].strip()
             la_whole = LA_RE.fullmatch(txt)
             tl_whole = tl_re().fullmatch(txt)
+            tl_nested = target_fullmatch(txt) if tl_whole is None else None
             if la_whole:
                 a = parse_la_attrs(la_whole.group(2))
                 ml = max(-25.0, min(float(a["offset"]), 125.0))
@@ -1902,17 +1936,20 @@ def render_blocks(blocks, ctx, inside_box=False):
             elif _is_pure_fa_paragraph(txt):
                 out.append('<p class="fa-display">%s</p>'
                            % _fa_span(txt, breakable=True))
-            elif tl_whole or is_fa_only_paragraph(txt):
-                content = tl_whole.group(1) if tl_whole else txt
-                kind = "mark" if tl_whole else "auto"
-                attrs = parse_tl_attrs(tl_whole.group(2) if tl_whole else "")
+            elif tl_whole or tl_nested or is_fa_only_paragraph(txt):
+                content = (tl_whole.group(1) if tl_whole else
+                           (tl_nested.content if tl_nested else txt))
+                kind = "mark" if tl_whole or tl_nested else "auto"
+                attrs = parse_tl_attrs(tl_whole.group(2) if tl_whole else
+                                       (tl_nested.attrs if tl_nested else ""))
                 cls, data, style = _tl_style_bits(attrs)
                 src = ("" if card else
                        ' data-tl-kind="%s" data-tl-src="%s"%s data-rtl-kind="%s" data-rtl-src="%s"'
                        % (kind, esc(content), _tl_occ(kind, content), kind, esc(content)))
                 out.append('<p class="fa-par%s"%s%s%s%s>%s</p>'
                            % (cls, _dir_lang(), src, data, style,
-                              _rtl_html(content)))
+                              (_rtl_segmented_html(content)
+                               if list(segmented_runs(content)) else _rtl_html(content))))
             else:
                 out.append("<p>%s</p>" % inline(b["text"]))
         elif t in ("list", "enum"):

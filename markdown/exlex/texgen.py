@@ -463,6 +463,57 @@ def tl_re(code=None):
     return rx
 
 
+class TargetMark:
+    """One balanced ``[content]{tl ...}`` mark.
+
+    The historical regular expression remains the fast path for ordinary
+    bracketless content.  This scanner is the narrow nested path needed by
+    a target-language mark containing a segmented-colour word.
+    """
+
+    def __init__(self, start, end, content, attrs):
+        self.start = start
+        self.end = end
+        self.content = content
+        self.attrs = attrs
+
+
+def target_marks(text, code=None):
+    """Yield balanced target-language marks, including nested brackets."""
+    L = languages.get_or_default(code) if code else cur_lang()
+    markers = ["tl", L.code] + (["rtl"] if L.code == languages.DEFAULT else [])
+    suffix = re.compile(r"\{\s*(?:%s)\b([^{}]*)\}"
+                        % "|".join(re.escape(m) for m in markers))
+    i = 0
+    while i < len(text):
+        start = text.find("[", i)
+        if start < 0:
+            return
+        depth, at = 1, start + 1
+        while at < len(text) and depth:
+            if text[at] == "[":
+                depth += 1
+            elif text[at] == "]":
+                depth -= 1
+            at += 1
+        if depth:
+            i = start + 1
+            continue
+        mark = suffix.match(text, at)
+        if mark:
+            yield TargetMark(start, mark.end(), text[start + 1:at - 1], mark.group(1))
+            i = mark.end()
+        else:
+            i = start + 1
+
+
+def target_fullmatch(text, code=None):
+    """The balanced target mark when it occupies *text* completely."""
+    found = list(target_marks(text, code))
+    return found[0] if len(found) == 1 and found[0].start == 0 \
+        and found[0].end == len(text) else None
+
+
 # The Persian regex under the old names, for callers that still import
 # them; no rendering path reads them.
 TL_RE = RTL_RE = re.compile(r"\[([^\[\]]+)\]\{\s*(?:tl|%s|rtl)\b([^{}]*)\}"
@@ -840,6 +891,40 @@ def block_fragment(content):
     """A target-language block's content, in the current language's
     direction."""
     return rtl_fragment(content) if cur_lang().rtl else ltr_fragment(content)
+
+
+def _segmented_tex(node):
+    """A segmented node as one shaped TeX word, without its outer run."""
+    if is_mono():
+        return escape_latin(node.plain_text) if is_latin_target() else node.plain_text
+    pieces = []
+    for piece in node.pieces:
+        body = escape_latin(piece.text) if is_latin_target() else piece.text
+        if not piece.colour:
+            style = ""
+        elif piece.colour.startswith("#"):
+            style = r"\color[HTML]{%s}" % piece.colour[1:]
+        else:
+            style = r"\color{fa%s}" % piece.colour
+        pieces.append(r"\segpiece{%s}{%s}" % (style, body))
+    plain = escape_latin(node.plain_text) if is_latin_target() else node.plain_text
+    return r"\segword{%s}{%s}" % (plain, "".join(pieces))
+
+
+def target_fragment(content):
+    """Target-language prose with segmented words preserved as TeX nodes."""
+    nodes = list(segmented_runs(content))
+    if not nodes:
+        return block_fragment(content)
+    held = []
+    for node in reversed(nodes):
+        token = "\x06%s\x06" % chr(0xE000 + len(held))
+        held.append((token, _segmented_tex(node)))
+        content = content[:node.start] + token + content[node.end:]
+    rendered = block_fragment(content)
+    for token, shaped in held:
+        rendered = rendered.replace(token, shaped)
+    return rendered
 
 
 # `pending` is non-None while rendering a construct where \footnote is
@@ -1296,6 +1381,15 @@ def inline(text, force_breakable=False):
         return _aux("fn", _FN["n"], _FN["defs"].get(m.group(1), ""))
     text = FN_REF_RE.sub(_fn_ref, text)
 
+    # A target-language stretch may itself contain a segmented word.  Hold
+    # the balanced outer mark first; otherwise its opening bracket is
+    # mistaken for part of the inner run and its placeholder leaks.
+    for mark in reversed(list(target_marks(text))):
+        if list(segmented_runs(mark.content)):
+            text = (text[:mark.start]
+                    + _aux("rtl-seg", mark.content, parse_tl_attrs(mark.attrs))
+                    + text[mark.end:])
+
     # One semantic run, frozen before the ordinary inner colour marks.
     # ``[[slot]]`` has no valid colour piece and is deliberately untouched.
     for node in reversed(list(segmented_runs(text))):
@@ -1515,21 +1609,21 @@ def inline(text, force_breakable=False):
             plain = node.plain_text
             if is_mono():
                 return _fa_macro(plain, force_breakable)
-            chunks = []
-            for piece in node.pieces:
-                body = escape_latin(piece.text) if latin else piece.text
-                if not piece.colour:
-                    style = ""
-                elif piece.colour.startswith("#"):
-                    style = r"\color[HTML]{%s}" % piece.colour[1:]
-                else:
-                    style = r"\color{fa%s}" % piece.colour
-                chunks.append(r"\segpiece{%s}{%s}" % (style, body))
             breakable = force_breakable or _CARD["on"] \
                 or run_is_long(plain, print_size())
-            body = escape_latin(plain) if latin else plain
-            shaped = r"\segword{%s}{%s}" % (body, "".join(chunks))
+            shaped = _segmented_tex(node)
             return ("\\pel{%s}" if breakable else "\\pe{%s}") % shaped
+        if item[0] == "rtl-seg":
+            attrs = item[2]
+            fnt = "\\tlalt" if attrs["font"] else "\\tlfont"
+            fragment = target_fragment(item[1])
+            if cur_lang().rtl:
+                body = "{%s\\beginR %s\\endR}" % (fnt, fragment)
+            else:
+                body = "{%s %s}" % (fnt, fragment)
+            if attrs["bg"]:
+                body = "%s{%s}" % (panel("rtlbg" + attrs["bg"]), body)
+            return body
         if item[0] == "rtl":
             attrs = item[2] if len(item) > 2 else parse_tl_attrs("")
             fnt = "\\tlalt" if attrs["font"] else "\\tlfont"
@@ -1834,7 +1928,7 @@ def _render_tl_block(content, attrs):
     if attrs["vertical"]:
         # the tint is dropped on paper: a \colorbox around a rotated box
         # of columns would paint a page-high slab
-        return "\\tlvertical{%d}{%s}" % (attrs["height"], ltr_fragment(content))
+        return "\\tlvertical{%d}{%s}" % (attrs["height"], target_fragment(content))
     if L.rtl:
         fnt = ("\\tlalt\\linespread{1.8}\\selectfont" if attrs["font"] else "")
         if attrs["bg"]:
@@ -1844,9 +1938,9 @@ def _render_tl_block(content, attrs):
                     "\\vspace{0.6ex}{\\tlfont%s\\raggedleft\\leavevmode"
                     "\\beginR %s\\endR\\par}\\vspace{0.6ex}"
                     "\\end{minipage}}\\par\\medskip"
-                    % (panel("rtlbg" + attrs["bg"]), fnt, rtl_fragment(content)))
+                    % (panel("rtlbg" + attrs["bg"]), fnt, target_fragment(content)))
         # the space ends \\selectfont: the first word was read into its name
-        return "\\begin{fapar}%s%s\\end{fapar}" % (fnt and fnt + " ", rtl_fragment(content))
+        return "\\begin{fapar}%s%s\\end{fapar}" % (fnt and fnt + " ", target_fragment(content))
     fnt = "\\tlalt" if attrs["font"] else ""
     if attrs["bg"]:
         return ("\\par\\medskip\\noindent"
@@ -1855,8 +1949,8 @@ def _render_tl_block(content, attrs):
                 "\\vspace{0.6ex}{\\tlfont%s\\raggedright\\leavevmode "
                 "%s\\par}\\vspace{0.6ex}"
                 "\\end{minipage}}\\par\\medskip"
-                % (panel("rtlbg" + attrs["bg"]), fnt, ltr_fragment(content)))
-    return "\\begin{fapar}%s %s\\end{fapar}" % (fnt, ltr_fragment(content))
+                % (panel("rtlbg" + attrs["bg"]), fnt, target_fragment(content)))
+    return "\\begin{fapar}%s %s\\end{fapar}" % (fnt, target_fragment(content))
 
 
 def _render_box(b):
@@ -2186,18 +2280,23 @@ def prompt_lines(source):
         at = 0
         # Keep explicit breaks inside any opaque inline mark inside that
         # mark, just as inline() does. Only breaks around marks split lines.
-        marks = sorted((m for rx in (tl_re(), LA_RE, MATH_RE, COLOR_RE, TRANSLIT_RE)
-                        for m in rx.finditer(span)), key=lambda m: (m.start(), -m.end()))
-        for mark in marks:
-            if mark.start() < at:
+        marks = [(m.start(), m.end(), m.group(0))
+                 for rx in (tl_re(), LA_RE, MATH_RE, COLOR_RE, TRANSLIT_RE)
+                 for m in rx.finditer(span)]
+        marks.extend((m.start, m.end, span[m.start:m.end])
+                     for m in target_marks(span))
+        marks.extend((m.start, m.end, span[m.start:m.end])
+                     for m in segmented_runs(span))
+        for mark_start, mark_end, raw in sorted(set(marks), key=lambda m: (m[0], -m[1])):
+            if mark_start < at:
                 continue
-            for n, piece in enumerate(span[at:mark.start()].split("⏎")):
+            for n, piece in enumerate(span[at:mark_start].split("⏎")):
                 if n:
                     lines.append([])
                 if piece:
                     lines[-1].append((piece, regular))
-            lines[-1].append((mark.group(0), regular))
-            at = mark.end()
+            lines[-1].append((raw, regular))
+            at = mark_end
         for n, piece in enumerate(span[at:].split("⏎")):
             if n:
                 lines.append([])
@@ -2866,17 +2965,20 @@ def render_blocks(blocks, inside_box=False):
             txt = b["text"].strip()
             la_whole = LA_RE.fullmatch(txt)
             tl_whole = tl_re().fullmatch(txt)
+            tl_nested = target_fullmatch(txt) if tl_whole is None else None
             if la_whole:
                 out.append(_render_la_block(
                     la_whole.group(1), parse_la_attrs(la_whole.group(2))))
             elif _is_pure_fa_paragraph(txt):
                 out.append("\\par\\medskip\\noindent\\hspace*{1.5em}"
                            "{\\large\\pel{%s}}\\par\\medskip" % txt)
-            elif tl_whole or is_fa_only_paragraph(txt):
+            elif tl_whole or tl_nested or is_fa_only_paragraph(txt):
                 # prose in the target language (punctuation/latin islands
                 # included): a block in its direction, optionally styled
-                content = tl_whole.group(1) if tl_whole else txt
-                attrs = parse_tl_attrs(tl_whole.group(2) if tl_whole else "")
+                content = (tl_whole.group(1) if tl_whole else
+                           (tl_nested.content if tl_nested else txt))
+                attrs = parse_tl_attrs(tl_whole.group(2) if tl_whole else
+                                       (tl_nested.attrs if tl_nested else ""))
                 out.append(_render_tl_block(content, attrs))
             else:
                 out.append(inline(b["text"]) + ("" if inside_box else "\n"))
@@ -3235,27 +3337,59 @@ def target_dir_tex(L):
 % joining.
 \newsavebox{\segfullbox}
 \newsavebox{\segpiecebox}
+\newsavebox{\segmeasurebox}
+\newsavebox{\segoverlaybox}
+\newsavebox{\segclipbox}
 \newlength{\segoffset}
 \newlength{\segright}
+\DeclareRobustCommand{\segpiece}[2]{#2}% safe in moving heading arguments
+\makeatletter
+\newcommand{\segclip}[3]{%
+  \sbox{\segclipbox}{#3}%
+  \@trimbox\segclipbox{#1}{0pt}{#2}{0pt}%
+  \@cliptoboxdim\segclipbox
+  \usebox{\segclipbox}}%
+\makeatother
 \DeclareRobustCommand{\segword}[2]{%
   \begingroup
   \sbox{\segfullbox}{#1}%
-  \setlength{\segoffset}{\wd\segfullbox}%
-  \leavevmode\hbox{\beginL
-    \rlap{\usebox{\segfullbox}}%
+  % Isolated Arabic letters are wider than those same letters in their
+  % joined word.  Do the clipping in the isolated-pieces measuring space,
+  % then shrink the completed overlay back to the full word.  The two
+  % horizontal transforms cancel, preserving the uninterrupted shaping.
+  \def\segpiece##1##2{##2}%
+  \sbox{\segmeasurebox}{#2}%
+  \setlength{\segoffset}{\wd\segmeasurebox}%
+  \sbox{\segoverlaybox}{\hbox{\beginL
     \def\segpiece##1##2{%
       \sbox{\segpiecebox}{##2}%
       \addtolength{\segoffset}{-\wd\segpiecebox}%
-      \setlength{\segright}{\wd\segfullbox}%
+      \setlength{\segright}{\wd\segmeasurebox}%
       \addtolength{\segright}{-\segoffset}%
       \addtolength{\segright}{-\wd\segpiecebox}%
       \if\relax\detokenize{##1}\relax\else
         \rlap{\kern\segoffset
-          \clipbox{\the\segoffset\space 0pt \the\segright\space 0pt}%
-            {\hbox{##1#1}}}%
+          \segclip{\the\segoffset}{\the\segright}%
+            {\resizebox*{\wd\segmeasurebox}%
+              {\dimexpr\ht\segfullbox+\dp\segfullbox\relax}%
+              {\hbox{##1#1}}}}%
       \fi}%
-    #2\kern\wd\segfullbox
+    #2\kern\wd\segmeasurebox
+  \endL}}%
+  \ht\segoverlaybox=\ht\segfullbox
+  \dp\segoverlaybox=\dp\segfullbox
+  \leavevmode\hbox{\beginL
+    \rlap{\usebox{\segfullbox}}%
+    \rlap{\resizebox*{\wd\segfullbox}%
+      {\dimexpr\ht\segfullbox+\dp\segfullbox\relax}%
+      {\usebox{\segoverlaybox}}}%
+    \kern\wd\segfullbox
   \endL}\endgroup}
+
+\pdfstringdefDisableCommands{%
+  \def\pe#1{#1}\def\pel#1{#1}\def\peb#1{#1}%
+  \def\segword#1#2{#1}\def\segpiece#1#2{}%
+}
 
 % A paragraph of prose in the target language (ASCII punctuation and
 % \beginL islands for Latin words included): right-aligned, whole
@@ -3277,13 +3411,22 @@ def target_dir_tex(L):
 % as an uninterrupted full word.
 \newsavebox{\segfullbox}
 \newsavebox{\segpiecebox}
+\newsavebox{\segclipbox}
 \newlength{\segoffset}
 \newlength{\segright}
+\DeclareRobustCommand{\segpiece}[2]{#2}% safe in moving heading arguments
+\makeatletter
+\newcommand{\segclip}[3]{%
+  \sbox{\segclipbox}{#3}%
+  \@trimbox\segclipbox{#1}{0pt}{#2}{0pt}%
+  \@cliptoboxdim\segclipbox
+  \usebox{\segclipbox}}%
+\makeatother
 \DeclareRobustCommand{\segword}[2]{%
   \begingroup
   \sbox{\segfullbox}{#1}%
   \setlength{\segoffset}{0pt}%
-  \leavevmode\hbox{\beginL
+  \leavevmode\hbox{%
     \rlap{\usebox{\segfullbox}}%
     \def\segpiece##1##2{%
       \sbox{\segpiecebox}{##2}%
@@ -3292,12 +3435,17 @@ def target_dir_tex(L):
       \addtolength{\segright}{-\wd\segpiecebox}%
       \if\relax\detokenize{##1}\relax\else
         \rlap{\kern\segoffset
-          \clipbox{\the\segoffset\space 0pt \the\segright\space 0pt}%
+          \segclip{\the\segoffset}{\the\segright}%
             {\hbox{##1#1}}}%
       \fi
       \addtolength{\segoffset}{\wd\segpiecebox}}%
     #2\kern\wd\segfullbox
-  \endL}\endgroup}
+  }\endgroup}
+
+\pdfstringdefDisableCommands{%
+  \def\pe#1{#1}\def\pel#1{#1}\def\peb#1{#1}%
+  \def\segword#1#2{#1}\def\segpiece#1#2{}%
+}
 
 % A paragraph of prose in the target language: a left-to-right
 % paragraph in the target face.

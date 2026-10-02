@@ -94,6 +94,13 @@ def parse_at(text, start):
     close = text.find("]]", start + 2, limit)
     if close < 0:
         return None
+    # ``[[[segmented word]]]{tl}`` starts with three brackets: the first
+    # belongs to the outer target-language mark.  Do not consume that first
+    # bracket as plain text in a larger, bogus segmented run; find_runs()
+    # will advance one character and recognise the real inner run.
+    if (text.startswith("]]]", close)
+            and re.match(r"\{\s*(?:tl|rtl|[a-z]{2})\b", text[close + 3:])):
+        return None
     interior = text[start + 2:close]
     if "[[" in interior:
         return None                 # segmented runs cannot nest
@@ -155,7 +162,7 @@ def find_runs(text):
             return
         node = parse_at(text, i)
         if node is None:
-            i += 2
+            i += 1
         else:
             yield node
             i = node.end
