@@ -222,7 +222,7 @@ const soundReady = page => until(() => page.evaluate(() => {
   const f = document.querySelector('#film');
   return f && f.tagName === 'AUDIO' && f.readyState >= 1 && f.duration > 30;
 }), 'the sound loads');
-const waveReady = page => until(async () => (await painted(page)).columns > 200, 'the waveform is painted');
+const waveReady = page => until(async () => (await page.evaluate(() => document.querySelector('#sndwave').getAttribute('data-shape'))) === 'wave', 'the waveform is drawn from the shape of the sound');
 
 try {
 /* ================================================================ a) the add page, by path */

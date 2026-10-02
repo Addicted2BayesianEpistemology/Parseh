@@ -725,6 +725,47 @@ class Routes(unittest.TestCase):
         self.json_of("POST", "/youtube/api/film/wave", {"video": "nothing-a1b2c3"}, want=404)
         self.json_of("POST", "/youtube/api/film/wave", {"video": YT_FIXTURE.name}, want=400)
 
+    # ---- the words, the prompt, the page's own files
+    def test_the_prompt_names_a_sound_a_recording_and_a_film_a_film(self):
+        for src, said, not_said in ((self.sounds[".mp3"], "a recording on the reader's own machine, not on YouTube",
+                                     "a film on the reader's own machine"),
+                                    (self.film, "a film on the reader's own machine, not on YouTube",
+                                     "a recording on the reader's own machine")):
+            with self.subTest(src=os.path.basename(src)):
+                j = self.json_of("POST", "/youtube/api/prepare",
+                                 {"path": src, "lang": "en", "gloss": "en", "transcript": TRANSCRIPT})
+                self.assertTrue(j["ok"], j)
+                self.assertTrue(j["local"])
+                self.assertIn(said, j["prompt"])
+                self.assertNotIn(not_said, j["prompt"])
+
+    def test_the_add_page_has_the_looking_and_the_sending_and_serves_their_files(self):
+        status, _h, raw = self.http("GET", "/youtube/add/")
+        page = raw.decode("utf-8")
+        self.assertEqual(status, 200)
+        for need in ('<script src="/youtube/lib/addfilm.js"></script>', 'href="/youtube/lib/addfilm.css"',
+                     'id="filmsend"', 'id="filmlook"', 'data-base="/youtube"', "A video or a sound on this machine",
+                     "The video or sound", "media-orig.&lt;ext&gt;"):
+            self.assertIn(need, page)
+        accept = re.search(r'data-accept="([^"]*)"', page).group(1)
+        self.assertTrue(accept.startswith("audio/*,video/*,"))
+        for ext in bundle.MEDIA_EXTS:
+            self.assertIn(ext, accept.split(","))
+        for name, kind in (("addfilm.js", "text/javascript"), ("addfilm.css", "text/css")):
+            status, heads, body = self.http("GET", "/youtube/lib/" + name)
+            self.assertEqual(status, 200, name + " is on the static allowlist")
+            self.assertTrue({k.lower(): v for k, v in heads}["content-type"].startswith(kind))
+            self.assertEqual(body, slurp(ROOT / "youtube" / "lib" / name))
+
+    def test_what_a_phone_keeps_of_a_sound_video_is_its_media_too(self):
+        import offline
+        got = self.add_local(self.sounds[".mp3"], vid="phone-sound-a1b2c3")
+        d = self.videos / got["folder"] / got["id"]
+        rec = offline.video(str(d), got["id"], "/youtube")
+        media = [m["url"] for m in rec["media"]]
+        self.assertEqual([u for u in media if u.endswith("/media.mp3")], ["/youtube/videos/%s/%s/media.mp3"
+                                                                          % (got["folder"], got["id"])])
+
     # ---- a bundle carries the sound, and an older Parseh still takes the bundle
     def test_a_bundle_carries_the_sound_and_not_the_original(self):
         if ".wma" not in self.sounds:
@@ -785,3 +826,77 @@ class Routes(unittest.TestCase):
                 self.assertFalse(os.path.exists(os.path.join(into, r["dir"], "media.mp3")))
                 self.assertTrue(os.path.exists(os.path.join(into, r["dir"], "annotations.json")),
                                 "the words came: only what that Parseh cannot play was left behind")
+
+
+# ================================================== speech to text, on a sound
+class SpeechOnASound(unittest.TestCase):
+    """A sound is a film to the transcription job.  The add flow's own validators take
+    its path (check_film, through sttjobs.source_of) and the job reads it with the
+    stand-in runtime of tests/stt_fakes.py -- a real 16-bit WAV with a sound's own
+    name, which this job refused before, as it refused every film that was not a video."""
+
+    def setUp(self):
+        try:
+            import numpy  # noqa: F401  the stand-in runtime and the worker count with it
+            sys.path.insert(0, str(ROOT / "tests"))
+            try:
+                import stt_fakes
+            finally:
+                sys.path.pop(0)
+            import sttjobs
+        except ImportError as e:
+            self.skipTest("the stand-in speech runtime is not available here (%s)" % e)
+        import ytpages
+        self.stt_fakes, self.sttjobs = stt_fakes, sttjobs
+        self.td = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))
+        self.addCleanup(self.td.cleanup)
+        self.root = self.td.name
+        os.makedirs(os.path.join(self.root, "videos"))
+        held = stt_fakes.installed(self.root)
+        self.gs = held.__enter__()
+        self.addCleanup(held.__exit__, None, None, None)
+        moved = mock.patch.object(ytpages, "VIDEOS", os.path.join(self.root, "videos"))
+        moved.start()
+        self.addCleanup(moved.stop)
+        quiet = mock.patch.object(sys, "stderr", io.StringIO())
+        quiet.start()
+        self.addCleanup(quiet.stop)
+        sttjobs.JOBS.clear()
+        sttjobs.TOMBS.clear()
+        self.addCleanup(self.reset)
+
+    def reset(self):
+        self.sttjobs.stop_all()
+        end = time.time() + 8
+        while self.sttjobs.CHILDREN and time.time() < end:
+            time.sleep(0.05)
+        self.sttjobs.JOBS.clear()
+        self.sttjobs.TOMBS.clear()
+        self.sttjobs.CHILDREN.clear()
+
+    def test_a_sound_is_named_and_transcribed_as_a_film_is(self):
+        for ext in (".wav", ".mp3"):
+            with self.subTest(ext=ext):
+                path = self.stt_fakes.write_wav(os.path.join(self.root, "lesson" + ext), 3)
+                source, lang = self.sttjobs.source_of({"source": "film", "path": path, "lang": "en"})
+                self.assertEqual((source, lang), ({"kind": "film", "path": path}, "en"))
+                got = self.sttjobs.start(source, lang, "large-v3-turbo", "cpu")
+                self.assertEqual((got["state"], got["need"], got["kind"], got["film"]),
+                                 ("queued", "", "film", "lesson" + ext))
+                end, state = time.time() + 40, None
+                while time.time() < end:
+                    state = self.sttjobs.status(got["job"])["state"]
+                    if state in ("done", "failed", "cancelled"):
+                        break
+                    time.sleep(0.03)
+                self.assertEqual(state, "done")
+                self.assertTrue(self.sttjobs.result(got["job"])["text"].strip(),
+                                "a transcript, in the panel the add page reads")
+                self.reset()
+
+    def test_what_is_not_media_is_still_refused_in_the_films_own_words(self):
+        txt = os.path.join(self.root, "lesson.txt")
+        open(txt, "w").close()
+        with self.assertRaises(self.sttjobs.Refusal) as cm:
+            self.sttjobs.source_of({"source": "film", "path": txt, "lang": "en"})
+        self.assertIn("is not a video this can play", str(cm.exception))

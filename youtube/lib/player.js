@@ -6023,6 +6023,8 @@
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, w, h);
       var at = dur ? Math.min(1, now / dur) * w : 0, mid = (h - 6) / 2;
+      // what is drawn, for whoever looks: the shape of the sound, or a plain track
+      cv.setAttribute('data-shape', wave && wave.peaks.length ? 'wave' : 'plain');
       if (wave && wave.peaks.length) {
         var n = wave.peaks.length, bw = w / n;
         for (var i = 0; i < n; i++) {

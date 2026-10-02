@@ -2747,7 +2747,7 @@ ADD_PAGE_JS = r'''
     var film = SRC === 'film';
     var s = source().trim();
     if (!s) {
-      Parseh.toast(film ? 'name the film on this machine' : 'paste the URL', true);
+      Parseh.toast(film ? 'name the video or sound on this machine' : 'paste the URL', true);
       $(film ? 'path' : 'url').focus();
       return null;
     }

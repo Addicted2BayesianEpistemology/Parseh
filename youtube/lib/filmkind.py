@@ -217,6 +217,10 @@ def settle(video_dir, held):
     else:
         film = bundle.MEDIA_STEM + held_ext
         os.replace(held, os.path.join(video_dir, film))
+        # a film put back over ITSELF is a second name for one file, which a rename
+        # leaves as it is: the part name would stay
+        if os.path.exists(held):
+            _drop(held)
         if not ok:
             note = ("%s is a sound most browsers cannot play, and ffmpeg, which would "
                     "make a playable copy, is not installed on this computer: it was "
