@@ -152,6 +152,10 @@ youtube/videos/*/.trash/
 # reason a few lines down.
 youtube/videos/*/*/media.*
 youtube/videos/*/media.*
+# and the original of a sound that had to be made playable (media-orig.<ext>),
+# and a film or a sound that was SENT and has not been used yet
+youtube/videos/*/*/media-orig.*
+youtube/videos/.incoming/
 tests/fixtures/videos/*/*/media.*
 tests/fixtures/videos/*/media.*
 # what the studio builds and remembers, not what it holds: a document under

@@ -773,6 +773,10 @@ html.m-player[data-mode=mobile] :is(#anki,#ankiback,#dvbox,#dvback,#ntedit,#ntre
   #segs .gap .plus){display:none!important}
 /* and the box that sends a film or a sound again, which writes the video's folder */
 html.m-player[data-mode=mobile] #novid .novid-send{display:none!important}
+/* A SOUND ON THE WHOLE SCREEN has no 16:9 picture to be as large as the screen holds:
+   its bar takes most of the width, and the line being said lies under it as it
+   lies over a picture */
+html.m-player.m-vfullon[data-kind=audio][data-mode=mobile] body #vid{width:min(92%,640px)!important}
 
 /* HELD SIDEWAYS: the video at the left, the transcript at the right, with the
    divider between them draggable (the player's own #grip, which listens to

@@ -104,8 +104,9 @@ on Windows who has no path to type:
 2. press **Send it**. A bar and a line say how far it has got, how fast, and
    about how long is left (*Sending lesson.mp3: 38 % of 412 MB · 12 MB/s · about
    22 seconds left*); **Stop** ends it and nothing is kept;
-3. when the last byte is in, the computer looks at the file — a file that is
-   not a video or a sound it can read is refused then — and **puts its path in the box**.
+3. when the last byte is in, the computer looks at the file — where ffmpeg is
+   installed, a file that is not a video or a sound it can read is refused
+   then — and **puts its path in the box**.
    From there it is a path like any other: the prompt, speech to text, *Start
    it empty*.
 

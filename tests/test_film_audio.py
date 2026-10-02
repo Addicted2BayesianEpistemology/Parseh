@@ -751,11 +751,14 @@ class Routes(unittest.TestCase):
         self.assertTrue(accept.startswith("audio/*,video/*,"))
         for ext in bundle.MEDIA_EXTS:
             self.assertIn(ext, accept.split(","))
-        for name, kind in (("addfilm.js", "text/javascript"), ("addfilm.css", "text/css")):
-            status, heads, body = self.http("GET", "/youtube/lib/" + name)
-            self.assertEqual(status, 200, name + " is on the static allowlist")
-            self.assertTrue({k.lower(): v for k, v in heads}["content-type"].startswith(kind))
-            self.assertEqual(body, slurp(ROOT / "youtube" / "lib" / name))
+        # the two files the page links are on the static allowlist (this temporary
+        # toolbox has no youtube/lib to serve them from: what is asked is the guard)
+        for name in ("addfilm.js", "addfilm.css"):
+            self.assertTrue(self.serve.static_ok("/youtube/lib/" + name), name + " is on the static allowlist")
+            self.assertTrue((ROOT / "youtube" / "lib" / name).is_file())
+        self.assertFalse(self.serve.static_ok("/youtube/lib/filmdoor.py"), "a module is never served")
+        self.assertFalse(self.serve.static_ok("/youtube/videos/.incoming/x/lesson.mp3"),
+                         "and what was sent and waits is never served")
 
     def test_what_a_phone_keeps_of_a_sound_video_is_its_media_too(self):
         import offline

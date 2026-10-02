@@ -250,6 +250,7 @@ await until(() => page.evaluate(() => /no file at /.test(document.querySelector(
 await page.fill('#path', MEDIA + '/lesson.mp3');
 await page.press('#path', 'Tab');
 await until(() => page.evaluate(() => /A sound with no picture/.test(document.querySelector('#filmlook').textContent)), 'the sound again');
+await page.locator('#src-film').scrollIntoViewIfNeeded();
 await shot(page, 'add-by-path-desktop');
 await page.selectOption('#lang', 'en');
 await page.fill('#transcript', TRANSCRIPT);
@@ -301,8 +302,18 @@ for (const t of ['dark', 'sepia']) { await theme(page, t); await sleep(500); awa
 await theme(page, 'light');
 // the timings door draws its strip from the sound, as it does from a film
 await page.click('#captimes');
-await until(() => shown(page, '.tl-root, .pc-root, [class*=timeline]'), 'the timings sheet opens on a sound').catch(() => {});
+await until(() => shown(page, '.tl-root'), 'the timings sheet opens on a sound');
+await page.waitForSelector('.tl-strip.tl-drawn', {timeout: 25000});
+assert(await page.evaluate(() => {
+  const c = document.querySelector('.tl-wave'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  let lit = 0;
+  for (let k = 3; k < d.length; k += 4) if (d[k] > 0) lit++;
+  return lit;
+}) > 500, 'the timings draw the sound\'s own waveform, read by the server with ffmpeg: no recording to make first');
+eq(await page.evaluate(() => document.querySelectorAll('.tl-band').length > 3), true, 'with a block for each caption');
+await shot(page, 'timings-sound-desktop');
 await page.keyboard.press('Escape');
+await until(() => page.evaluate(() => !document.querySelector('.tl-root') || document.querySelector('.tl-root').hidden), 'and it closes');
 
 /* ================================================================ f) the shelf */
 {
@@ -337,6 +348,7 @@ const said = await pb.evaluate(() => document.querySelector('#filmsend .filmsay'
 assert(/sent\.mp3 is \d/.test(said) && /a sound/.test(said) && /free/.test(said) && /depends on the connection/.test(said),
        'the size, the kind and the room are said BEFORE anything is sent: ' + said);
 eq(aboutToSend.filter(u => u.includes('/api/film?')), [], 'and not one byte has been sent yet');
+await pb.locator('#filmsend').scrollIntoViewIfNeeded();
 await shot(pb, 'add-by-upload-chosen-desktop');
 await pb.click('#filmsend .filmgo');
 await until(() => pb.evaluate(() => /^Sent: sent\.mp3/.test(document.querySelector('#filmsend .filmsay').textContent)), 'the file is sent');
@@ -376,6 +388,7 @@ assert(!/a film on the reader's own machine/.test(await pb.inputValue('#prompt')
 await pb.goto(`${BASE}/youtube/add/?src=film&by=empty`);
 await pb.setInputFiles('#filmsend input[type=file]', MEDIA + '/long.wav');
 await until(() => shown(pb, '#filmsend .filmgo'), 'the Send button (the long file)');
+const pathBefore = await pb.inputValue('#path');
 const cdp = await ctxB.newCDPSession(pb);
 await cdp.send('Network.enable');
 await cdp.send('Network.emulateNetworkConditions', {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: 2 * 1024 * 1024});
@@ -389,8 +402,8 @@ await shot(pb, 'add-by-upload-sending-desktop');
 assert((await walk(INCOMING)).some(p => p.endsWith('long.wav.part')), 'the server is writing it to a .part, which no listing reads as media');
 await pb.click('#filmsend .filmstop');
 await until(() => pb.evaluate(() => /^Stopped/.test(document.querySelector('#filmsend .filmsay').textContent)), 'Stop stops it');
-await until(async () => (await walk(INCOMING)).length === 0, 'and nothing of it is kept: whole or not at all', 20000);
-eq(await pb.inputValue('#path'), '', 'the path box was not touched');
+await until(async () => (await walk(INCOMING)).filter(p => /long\.wav/.test(p)).length === 0, 'and nothing of it is kept: whole or not at all', 20000);
+eq(await pb.inputValue('#path'), pathBefore, 'the path box was not touched');
 await cdp.send('Network.emulateNetworkConditions', {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
 
 // refused, in words, before anything is sent
@@ -451,10 +464,10 @@ await ctxA.close();
   assert(pcol.columns > 0.6 * pcol.w, `its waveform is painted on the phone: ${pcol.columns} of ${pcol.w} columns`);
   assert(await shown(pp, '.nc-dock'), 'the dock\'s controls are there');
   const before = await pp.evaluate(() => ParsehPlayer.paused());
-  await pp.locator('.nc-dock button').nth(1).tap();
+  await pp.locator('.nc-dock .nc-play').tap();
   await until(() => pp.evaluate(() => !document.querySelector('#film').paused), 'the dock\'s middle button plays the sound');
   assert(before === true, 'it was paused, and now plays');
-  await pp.locator('.nc-dock button').nth(1).tap();
+  await pp.locator('.nc-dock .nc-play').tap();
   await until(() => pp.evaluate(() => document.querySelector('#film').paused), 'and pauses it');
   eq(await shown(pp, '#novid .novid-send'), false, 'nothing here writes: no box that sends a film again');
   await shot(pp, 'player-light-phone');
@@ -471,6 +484,19 @@ await ctxA.close();
   eq(await pp.evaluate(() => document.body.classList.contains('sbs')), false, 'held sideways a sound is not put beside the text: there is no picture to put there');
   assert(await inside(pp, '#vid'), 'the bar is inside the screen held sideways');
   await shot(pp, 'player-light-phone-sideways');
+  // the whole screen, with the line being said under the bar
+  await until(() => shown(pp, 'header .m-vfull'), 'the whole-screen button is drawn held sideways');
+  await pp.evaluate(() => { ParsehPlayer.seek(7.5); });
+  await pp.locator('header .m-vfull').tap();
+  await until(() => pp.evaluate(() => document.documentElement.classList.contains('m-vfullon')), 'the whole screen opens');
+  await until(() => shown(pp, '.m-subs .m-subline .w'), 'the line being said is laid on it as subtitles');
+  assert(await inside(pp, '#vid') && await inside(pp, '#sndwave') && await inside(pp, '.m-subs'),
+         'the bar and the subtitles are inside the screen');
+  const wide = await pp.evaluate(() => document.querySelector('#vid').getBoundingClientRect().width);
+  assert(wide > 400 && wide <= 640 + 1, 'the bar takes the width a bar wants on the whole screen: ' + Math.round(wide));
+  await shot(pp, 'player-whole-screen-phone');
+  await pp.locator('#playerwrap .m-vout').tap();
+  await until(() => pp.evaluate(() => !document.documentElement.classList.contains('m-vfullon')), 'and it closes');
   await cp.close();
 }
 
