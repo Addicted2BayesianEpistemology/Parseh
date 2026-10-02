@@ -49,26 +49,27 @@ A recording that was never filmed is a video with no picture. Any of
 is: by its path, sent, started empty, glossed by an LLM, transcribed by
 speech to text. What is different, and why:
 
-- **it is decided once** whether the file is a sound. `video.json` says
-  `"kind": "audio"` and nothing else needs to look (a film's `video.json`
-  says nothing, as it always did). Where ffmpeg is installed it is asked what
-  is *inside* the file, so an mp3 with the album's picture in it is still a
-  sound; without it the extension decides;
-- **the player draws a bar** where a video shows a frame: the shape of the
+- **Its kind is decided once.** `video.json` says `"kind": "audio"` and
+  nothing else needs to look (a film's `video.json` says nothing, as it
+  always did). Where ffmpeg is installed it is asked what is *inside* the
+  file, so an mp3 with the album's picture in it is still a sound, and an
+  MP4 with no picture in it is one too; without ffmpeg the extension decides.
+- **A bar stands where the frame was.** The player draws the shape of the
   sound, whole, with the playing place on it — press anywhere on it to go
   there, drag to scrub — the browser's own play controls under it, and a
   hairline at the foot where each caption starts. It is drawn by ffmpeg from
   the file; without ffmpeg the bar is a plain track and says so. The
   transcript follows the sound as it follows a film, and everything that
-  worked on a film's sound — [the timings](the-timings.md), a card's recording —
-  works on a sound's;
-- **a card has no frame**: the sheet's *frame* row is not drawn, and the
-  card takes the **recording** cut out of the sound ([Adding a video](adding-a-video.md#speech-to-text)
-  says what the speech to text does with one);
-- **the shelf says so**: a card of a sound carries *♪ a sound*, where a
-  thumbnail would be;
-- **a prompt to an LLM** names it *a recording on the reader's own machine,
-  not on YouTube*.
+  worked on a film's sound — [the timings](the-timings.md), a card's
+  recording — works on a sound's.
+- **A card has no frame.** The sheet's *frame* row is not drawn, and the card
+  takes the **recording** cut out of the sound ([Adding a
+  video](adding-a-video.md#speech-to-text) says what the speech to text does
+  with one).
+- **The shelf says so.** A card of a sound carries *♪ a sound*, where a
+  thumbnail would be.
+- **The prompt says "a recording".** A prompt to an LLM names the video *a
+  recording on the reader's own machine, not on YouTube*.
 
 ### A sound the browser cannot play
 
