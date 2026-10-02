@@ -221,7 +221,10 @@ def parseh(surface):
     return {"surface": surface, "label": LABELS[surface], "text": text,
             "version": version_of(text), "locked": locked, "contract": contract,
             "data": DATA[surface], "placeholders": [[n, m] for n, m in known_names(surface)],
-            "blocks": sorted((set(_flags(surface)) | set(promptkit.surface_flags(surface))) - {"note"})}
+            "blocks": sorted((set(_flags(surface)) | set(promptkit.surface_flags(surface)))
+                             - {"note"} - promptkit.unasked_flags(surface)),
+            # what the options' blocks are for (ipa, classic, marks, nomarks), so that the editor can say
+            "block_notes": promptkit.flag_meanings(surface)}
 
 
 # ------------------------------------------------------------ what a text may say
@@ -243,8 +246,8 @@ _LEFT = ("your text has a double brace in it ({{) that is not a placeholder Pars
          "cannot be part of your text: write it with a space between the braces, or leave "
          "it out")
 # the names the kit fills in itself, whatever a caller gives
-_FILLED = ("LANGUAGE", "LANGUAGE_NATIVE", "LANGUAGE_CODE", "TR_LABEL", "LANG_CONVENTIONS",
-           "GLOSS_LANGUAGE", "GLOSS_CODE")
+_FILLED = ("LANGUAGE", "LANGUAGE_NATIVE", "LANGUAGE_CODE", "TR_LABEL", "TR_SCHEME", "MARKS_RULE",
+           "LANG_CONVENTIONS", "GLOSS_LANGUAGE", "GLOSS_CODE")
 
 
 def check_text(surface, text, lang=None):

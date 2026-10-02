@@ -3,7 +3,8 @@
 """The prompt lab: a prompt of Parseh's as a chatbot receives it, and what it is made of.
 
     python3 lib/promptlab.py <surface> <language> [--mode fill|perfield|regloss]
-                             [--gloss <code>] [--sizes]
+                             [--gloss <code>] [--translit ipa|classic] [--marks 1|0]
+                             [--sizes]
 
 A DEVELOPER'S TOOL, not a page: nothing a person does needs it.  It builds the
 prompt of one surface in one language the way that surface's own page would,
@@ -14,7 +15,10 @@ the language's conventions in them, the answer contract, the data -- in
 characters and in tokens as a chatbot counts them.  --sizes prints the table
 alone.  The sizes are what a lane that changes a prompt reads before and after.
 
-    build(surface, language, mode, gloss)   the promptkit.Assembled of that prompt
+    build(surface, language, mode, gloss, options)
+                                            the promptkit.Assembled of that prompt, with the
+                                            options a person sets on its page ({"translit":
+                                            "ipa", "marks": "1"}: lib/promptkit.py OPTIONS)
     sizes(assembled, surface, language)     the table's rows, [(label, chars)]
 
 tests/test_prompts.py drives build() over every surface and every language.
@@ -81,9 +85,11 @@ def _captions(L):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
-def build(surface, lang, mode=None, gloss=None):
+def build(surface, lang, mode=None, gloss=None, options=None):
     """The prompt of a surface in a language, built the way its page builds it.
-    `mode` is a region's: fill (the default), perfield or regloss.
+    `mode` is a region's: fill (the default), perfield or regloss.  `options`
+    are what a person sets beside the copy button -- the scheme of the
+    transliteration, the short vowels -- as a request says them.
     -> promptkit.Assembled"""
     L = languages.get_or_default(lang) if isinstance(lang, str) else lang
     G = languages.gloss_or_default(gloss)
@@ -93,13 +99,16 @@ def build(surface, lang, mode=None, gloss=None):
         raise LabError("`ask` is assembled in the browser (lib/llm.js): there is nothing to print here")
     if mode not in (None, "fill", "perfield", "regloss"):
         raise LabError("a mode is fill, perfield or regloss")
+    options = promptkit.given(options or {})
     if surface in ("studio-doc", "studio-exercises"):
         import server as studio
-        return studio.studio_prompt(L) if surface == "studio-doc" else studio.exercise_prompt(PAGE % L.code)[0]
+        translit = options.get("translit")
+        return (studio.studio_prompt(L, translit=translit) if surface == "studio-doc"
+                else studio.exercise_prompt(PAGE % L.code, translit=translit)[0])
     if surface == "video-new":
         import ytpages
         return ytpages.assembled_full("fA6bK2mQ8sT", {"title": "T", "channel": "C"}, _captions(L),
-                                      None, L, G)
+                                      None, L, G, options=options)
     if surface == "transcript-tidy":
         import tidy
         return tidy.assembled(_captions(L), L.code)
@@ -110,9 +119,10 @@ def build(surface, lang, mode=None, gloss=None):
         known = {"LANG_NAME": L.name, "LANG_NATIVE": L.native, "LANG": L.code,
                  "GLOSS_NAME": G.name, "GLOSS_NATIVE": G.native, "GLOSS": G.code}
         values = {n: known.get(n, "<%s>" % n) for n, _ in promptkit.placeholders(surface)
-                  if n not in ("LANGUAGE", "LANGUAGE_NATIVE", "LANGUAGE_CODE", "TR_LABEL",
-                               "LANG_CONVENTIONS", "GLOSS_LANGUAGE", "GLOSS_CODE", "MEANING_RULE")}
-        return promptkit.assemble(surface, L, G, values=values)
+                  if n not in ("LANGUAGE", "LANGUAGE_NATIVE", "LANGUAGE_CODE", "TR_LABEL", "TR_SCHEME",
+                               "MARKS_RULE", "LANG_CONVENTIONS", "GLOSS_LANGUAGE", "GLOSS_CODE",
+                               "MEANING_RULE")}
+        return promptkit.assemble(surface, L, G, values=values, options=options)
     kind = "books" if surface == "book-region" else "videos"
     path, tmp = _fixture(kind, L)
     try:
@@ -122,7 +132,7 @@ def build(surface, lang, mode=None, gloss=None):
             ctx, units, _f, _k = glossregion._book_units(path, 0, 5)
         else:
             ctx, units, _s = glossregion._video_units(path, 0, 3)
-        return glossregion.assembled(ctx, units, m)[0]
+        return glossregion.assembled(ctx, units, m, options=options)[0]
     finally:
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -141,12 +151,12 @@ def sizes(a, surface, lang):
     """The rows of the size table: [(label, characters)], the whole last."""
     L = languages.get_or_default(lang) if isinstance(lang, str) else lang
     rows = [("version line", len(a.header))]
-    language = promptkit.language_text(surface, L) if surface in promptkit.KIND else ""
+    language = promptkit.language_text(surface, L, options=a.options) if surface in promptkit.KIND else ""
     inside = language and language in a.instructions
     rows.append(("instructions" + (", without the language's" if inside else ""),
                  len(a.instructions) - (len(language) if inside else 0)))
     if inside:
-        for name, text in promptkit.language_sections(surface, L) or []:
+        for name, text in promptkit.language_sections(surface, L, options=a.options) or []:
             rows.append(("  language: %s" % name, len(text)))
     rows += [("answer contract", len(a.contract)), ("data", len(a.data)), ("the whole", len(a.text))]
     return rows
@@ -158,6 +168,9 @@ def main(argv=None):
     ap.add_argument("language", nargs="?", help="a code of the registry: %s" % " ".join(languages.CODES))
     ap.add_argument("--mode", help="a region's: fill, perfield or regloss")
     ap.add_argument("--gloss", help="the language the meanings are written in (default %s)" % languages.DEFAULT_GLOSS)
+    ap.add_argument("--translit", help="the scheme of the transliteration: ipa, or classic (the usual one)")
+    ap.add_argument("--marks", help="the short vowels, where the language has them: 1 writes them, 0 leaves "
+                                    "the text as it is")
     ap.add_argument("--sizes", action="store_true", help="the table alone")
     args = ap.parse_args(argv)
     if not (args.surface and args.language):
@@ -165,7 +178,8 @@ def main(argv=None):
     if args.language not in languages.LANGS:
         ap.error("%r is not a language of the registry (%s)" % (args.language, " ".join(languages.CODES)))
     try:
-        a = build(args.surface, args.language, args.mode, args.gloss)
+        a = build(args.surface, args.language, args.mode, args.gloss,
+                  {"translit": args.translit, "marks": args.marks})
     except (LabError, promptkit.PromptError) as e:
         print("promptlab: %s" % e, file=sys.stderr)
         return 2

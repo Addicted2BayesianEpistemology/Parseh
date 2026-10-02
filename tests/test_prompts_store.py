@@ -1160,7 +1160,9 @@ class TheRoutes(unittest.TestCase):
         self.assertEqual(status, 200, got)
         self.assertEqual(got["custom"], {"id": added["id"], "name": "mine", "kind": "added"})
         self.assertIn("Never gloss names.", got["prompt"])
-        self.assertTrue(got["prompt"].split("\n")[0].endswith(" · fa → en · %s · custom: mine" % version.VERSION))
+        # the options' words come before the person's name (a free text stands last), and Persian says its marks
+        self.assertEqual(got["prompt"].split("\n")[0], K.version_line("video-new", "fa", "en", None, "mine"))
+        self.assertTrue(got["prompt"].split("\n")[0].endswith(" · fa → en · %s · no marks · custom: mine" % version.VERSION))
         self.assertTrue(got["prompt"].split("\n\n", 1)[1].startswith(own.split("\n\n", 1)[1][:400]))
         # a prompt for another place, one that is gone, one asked for by its name: refused in words
         other = self.make(name="not for this")
@@ -1206,7 +1208,7 @@ class TheRoutes(unittest.TestCase):
                 self.assertEqual((status, got["ok"]), (200, True), got)
                 self.assertEqual(got["custom"]["id"], mine_)
                 first = got["prompt"].split("\n")[0]
-                self.assertTrue(first.startswith("Parseh prompt · %s · fa → en · %s · re-gloss · custom: " % (surface, version.VERSION)), first)
+                self.assertTrue(first.startswith("Parseh prompt · %s · fa → en · %s · re-gloss · no marks · custom: " % (surface, version.VERSION)), first)
                 self.assertEqual(got["prompt"].split("\n\n", 2)[2].split("\n## What you answer")[1:],
                                  own["prompt"].split("\n\n", 2)[2].split("\n## What you answer")[1:], "the contract and the data are Parseh's")
                 # one for another place, one that is gone

@@ -1215,23 +1215,33 @@ def lang_conventions(L):
 
 
 def assembled_chat(glossary=None, lang=None, gloss=None, data=None, instructions=None,
-                   custom=None):
+                   custom=None, options=None):
     """docs/chat-prompt.md with its placeholders filled: the language's
     name, the generic conventions verbatim (the binding spec, one copy of
     it), the language's own block, the example, a word list -- and the
     language the meanings are to be WRITTEN in, which the template names
     where it asks for them.  In its three parts (lib/promptkit.py), the
     `data` the last one, and the `instructions` a person's own where they
-    are given (lib/prompts.py), named `custom` in the version line.
+    are given (lib/prompts.py), named `custom` in the version line.  `options`
+    is what the request chose of the scheme of the transliteration and the
+    short vowels (promptkit.OPTIONS).
     -> promptkit.Assembled"""
     L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
     G = gloss if isinstance(gloss, languages.Gloss) \
         else languages.gloss_or_default(gloss)
+    chosen = promptkit.resolve("video-new", L, options)
     with open(os.path.join(DOCS, "conventions.md"), encoding="utf-8") as f:
         conv = f.read()
     # its own H1 would break the prompt's outline; the rest is the spec
     conv = re.sub(r"^# .*\n+", "", conv, count=1).strip()
     ex_in, ex_out, ex_intro = _example(L)
+    # AN EXAMPLE MADE BEFORE IPA WAS ASKED FOR shows its transliterations in the language's usual
+    # scheme, and a model imitates the example it is shown over the rule it was told; so the example
+    # says what it is.  (When the example is the language file's own, with an IPA twin, this goes.)
+    if ex_in is not None and chosen.get("translit") == "ipa":
+        ex_intro = (ex_intro + " " if ex_intro else "") + (
+            "The transliterations in the example are written in the usual scheme of %s, which is not "
+            "the one asked for here: write yours in IPA, as the conventions above say." % L.name)
     # Nothing in the player to quote yet -- a fresh clone, or a language whose
     # first video this is.  The template cuts the worked example (its block
     # `example`) rather than leave its heading standing over a hole: the shape
@@ -1296,21 +1306,23 @@ def assembled_chat(glossary=None, lang=None, gloss=None, data=None, instructions
                 "WORDS_CHECK": words_check, "WORDS_RECEIVED": words_received,
                 "TR_RULE": tr_rule, "EXAMPLE_INTRO": ex_intro, "GLOSSARY": gl},
         verbatim={"EXAMPLE_IN": ex_in or "", "EXAMPLE_OUT": ex_out or ""},
-        includes={"CONVENTIONS": conv}, data=data, instructions=instructions, custom=custom)
+        includes={"CONVENTIONS": conv}, data=data, instructions=instructions, custom=custom,
+        options=chosen)
 
 
-def chat_prompt(glossary=None, lang=None, gloss=None):
+def chat_prompt(glossary=None, lang=None, gloss=None, options=None):
     """The prompt for a video before its captions -> str (assembled_chat)."""
-    return assembled_chat(glossary, lang, gloss).text
+    return assembled_chat(glossary, lang, gloss, options=options).text
 
 
 def full_prompt(vid, meta, captions, glossary=None, lang=None, gloss=None, instructions=None,
-                custom=None):
-    return assembled_full(vid, meta, captions, glossary, lang, gloss, instructions, custom).text
+                custom=None, options=None):
+    return assembled_full(vid, meta, captions, glossary, lang, gloss, instructions, custom,
+                          options).text
 
 
 def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None, instructions=None,
-                   custom=None):
+                   custom=None, options=None):
     """The whole prompt of a video from scratch: its captions and the facts
     about the video are the data, the last part.  -> promptkit.Assembled"""
     L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
@@ -1340,7 +1352,7 @@ def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None, in
     head += ["", "## The captions", "", "```", caption_lines(captions, L), "```", "",
              "Now answer with the JSON, and nothing else."]
     return assembled_chat(glossary, L, G, data="\n".join(head), instructions=instructions,
-                          custom=custom)
+                          custom=custom, options=options)
 
 
 def _json_blocks(text):
@@ -1784,12 +1796,17 @@ def api_prepare(h):
     meta = {} if local else oembed(vid)
     exists = find_video(vid)[0] is not None
     try:
-        prompt = full_prompt(vid, meta, captions, data.get("glossary") or None, L, G,
-                             chosen and chosen.instructions, chosen and chosen.name)
+        made = assembled_full(vid, meta, captions, data.get("glossary") or None, L, G,
+                              chosen and chosen.instructions, chosen and chosen.name,
+                              promptkit.given(data))
+    except promptkit.OptionError as e:
+        return h.send_json({"ok": False, "error": str(e)}, 400)
     except promptkit.PromptError as e:
         return h.send_json({"ok": False, "error": prompts.unmade(chosen, e) if chosen else
                             "the prompt could not be made: %s" % e}, 400)
+    prompt = made.text
     return h.send_json({"ok": True, "id": vid, "lang": L.code, "folder": L.folder,
+                        "options": promptkit.describe("video-new", L, made.options),
                         "custom": chosen and {"id": chosen.id, "name": chosen.name,
                                               "kind": chosen.kind},
                         "gloss": G.code, "gloss_name": G.name,
@@ -1833,13 +1850,19 @@ def trash_video(path):
 # main.tex-style second copy to keep in step and nothing here refuses a
 # LaTeX special; only texwrite.NOT_TEXT, the same control-character refusal
 # every field in this toolbox answers to
-EDITABLE_META = ("title", "title_native", "channel", "level", "blurb", "reorders")
+EDITABLE_META = ("title", "title_native", "channel", "level", "blurb", "reorders", "translit")
 
 # the ones of those that are a switch, not text: "reorders", a text read out
 # of its written order (kanbun), whose words' readings are not held to the
 # chunk's reading (lib/wordline.py's check).  true, or not written at all --
 # check_annotations and the player read a missing key as false
 SWITCHES_META = ("reorders",)
+
+# ...and the one that is a choice among words: "translit", the scheme the video's
+# transliteration is written in -- "ipa", or "" for the language's usual one,
+# which is no key at all (the prompts and the checks read a missing key as the
+# usual scheme).  An older Parseh ignores the key, so VIDEO_FORMAT stays
+CHOICES_META = {"translit": ("", "ipa")}
 
 
 def edit_meta(vdir, fields):
@@ -1868,6 +1891,14 @@ def edit_meta(vdir, fields):
                                        % (field, type(value).__name__))
             checked[field] = value
             continue
+        if field in CHOICES_META:
+            said = value.strip().lower() if isinstance(value, str) else None
+            said = "" if said == "classic" else said
+            if said not in CHOICES_META[field]:
+                raise texwrite.Refused("%s is %s, not %r" % (
+                    field, " or ".join(repr(c) for c in CHOICES_META[field]), value))
+            checked[field] = said
+            continue
         if not isinstance(value, str):
             raise texwrite.Refused("%s must be a string, not %s"
                                    % (field, type(value).__name__))
@@ -1892,6 +1923,9 @@ def edit_meta(vdir, fields):
     meta.update(checked)
     for field in SWITCHES_META:
         if checked.get(field) is False:         # a switch turned off is not written
+            meta.pop(field, None)
+    for field in CHOICES_META:
+        if checked.get(field) == "":            # the usual way is no key at all
             meta.pop(field, None)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -1930,6 +1964,10 @@ def api_add(h):
         G = posted_gloss(data.get("gloss"))
     except KeyError as e:
         return h.send_json({"ok": False, "error": str(e.args[0] if e.args else e)}, 400)
+    try:
+        translit = promptkit.resolve("video-new", L, promptkit.given(data)).get("translit")
+    except promptkit.OptionError as e:
+        return h.send_json({"ok": False, "error": str(e)}, 400)
     transcript = as_transcript(data.get("transcript")) \
         .replace("\r\n", "\n").replace("\r", "\n")
     captions = parse_transcript_text(transcript, L)
@@ -2029,6 +2067,11 @@ def api_add(h):
         "added": datetime.date.today().isoformat(),
         "blurb": pick("blurb"),
     }
+    # THE SCHEME OF ITS TRANSLITERATION is a fact of the video, written when it is chosen and only when
+    # it is not the usual one (a key an older Parseh ignores, like "reorders"): the player's prompts ask
+    # for it from then on, so that one video does not mix two schemes
+    if translit == "ipa":
+        meta["translit"] = "ipa"
 
     vdir = os.path.join(VIDEOS, L.folder, vid)
     # the id may already be in the player -- under this folder, another

@@ -659,16 +659,18 @@ class Assembling(unittest.TestCase):
 class VersionLine(unittest.TestCase):
     def test_its_shape(self):
         v = version.VERSION
-        self.assertEqual(K.version_line("video-region", "fa", "en"), "Parseh prompt · video-region · fa → en · " + v)
+        # a language with short vowels says its setting for them last (brief 3.10): `no marks` is the
+        # default of a stretch of a book or a video and of a video from scratch
+        self.assertEqual(K.version_line("video-region", "fa", "en"), "Parseh prompt · video-region · fa → en · " + v + " · no marks")
         self.assertEqual(K.version_line("studio-doc", "it"), "Parseh prompt · studio-doc · it · " + v)
         self.assertEqual(K.version_line("book-region", "ja", "it", "regloss"),
                          "Parseh prompt · book-region · ja → it · %s · re-gloss" % v)
         self.assertEqual(K.version_line("book-region", "ja", "it", "perfield"),
                          "Parseh prompt · book-region · ja → it · %s · per field" % v)
         self.assertEqual(K.version_line("video-region", "fa", "en", "fill"),
-                         "Parseh prompt · video-region · fa → en · " + v)
+                         "Parseh prompt · video-region · fa → en · " + v + " · no marks")
         self.assertEqual(K.version_line("video-new", "fa", "en", None, "my rules"),
-                         "Parseh prompt · video-new · fa → en · %s · custom: my rules" % v)
+                         "Parseh prompt · video-new · fa → en · %s · no marks · custom: my rules" % v)
         self.assertEqual(K.version_line("studio-doc", "fa", None, None, True),
                          "Parseh prompt · studio-doc · fa · %s · custom" % v)
 
@@ -966,7 +968,7 @@ class Assemblers(ControlledMachine):
         h = Handler({"markdown": "---\ntitle: T\ntarget: fa\n---\n\nLesson", "decks": []})
         studio_server.api_exercise_prompt(h)
         # the old keys are kept, and what the dialog draws its boxes and types from is added (E-CONTRACT)
-        self.assertEqual(sorted(h.answer), ["boxes", "preticked", "prompt", "size", "types", "vocabulary"])
+        self.assertEqual(sorted(h.answer), ["boxes", "options", "preticked", "prompt", "size", "types", "vocabulary"])
         p = h.answer["prompt"]
         self.assertTrue(p.startswith(K.version_line("studio-exercises", "fa")))
         self.assertIn("Return the complete updated Markdown document in one fenced", p)
