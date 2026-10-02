@@ -8515,6 +8515,10 @@ const rgN = (k, one, many) => k + ' ' + (k === 1 ? one : many);
 let rgMade = [], rgByHand = false;
 const rgRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('#rgrow'), {
   surface: 'book-region', cls: {copy: 'primary'},
+  // THE OPTIONS OF THE PROMPT (the scheme of the transliteration, the short vowels) are asked of the
+  // server for this book's language, and start from what the book's own record says of them
+  lang: LANG.code, book: (/^(\/books\/[^\/]+\/[^\/]+)\//.exec(location.pathname) || [])[1],
+  setFact: (name, value) => rgSetFact(name, value),
   ids: {copy: 'rgcopy', size: 'rgsize', say: 'rgcopysay', hand: 'rgout', handRow: 'rgoutrow'},
   remind: 'paste it into a chatbot, then paste its whole answer into the box below.',
   getText: () => rgText(), onCopied: (ok, text) => rgCopied(ok, text),
@@ -8556,6 +8560,14 @@ async function rgRange() {
   const first = +a.dataset.from, last = +b.dataset.to;
   return Number.isInteger(first) && Number.isInteger(last) && first >= 0 && last >= first
     ? {first, last} : null;
+}
+// A CHOICE MADE AGAINST THE BOOK'S OWN RECORD may be made the book's (the row offers the button):
+// written through the door the book's info sheet uses, which says in words why when it refuses
+async function rgSetFact(name, value) {
+  const r = await fetch('__edit/meta', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({fields: {[name]: value}})});
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'the edit was refused');
 }
 // relative, like __edit/chunk: the path says which book
 async function rgPost(what, body) {
@@ -8609,7 +8621,7 @@ async function rgText() {
   const p = rgPicker && rgPicker.get();
   if (!p) return '';
   const range = await rgRange();
-  const j = range ? await rgPost('prompt', Object.assign(range, rgFlags()))
+  const j = range ? await rgPost('prompt', Object.assign(range, rgFlags(), rgRow.options ? rgRow.options() : {}))
                   : {ok: false, error: 'what is picked holds no chunk to send'};
   // a refusal is the server's sentence, shown as it came
   if (!j.ok) throw new Error(j.error || 'the prompt was refused');

@@ -2319,6 +2319,7 @@ ADD_PAGE_HEAD = r'''
   </div>
   <span class="fieldnote">A per-family list that keeps the transliteration consistent with the
     videos already here. Only the prompt uses it.</span>
+  <div id="popts"></div>
   <div class="row">
     <button type="button" class="wbtn" id="prepare">Prepare the prompt</button>
     <span id="pstat" class="stat"></span>
@@ -2523,6 +2524,14 @@ ADD_PAGE_JS = r'''
     var no = function () {};
     return {update: no, forget: no};
   }());
+  // THE OPTIONS OF THE PROMPT (the scheme of the transliteration, the short vowels) are chosen BEFORE it
+  // is prepared, so they sit above the button that prepares it and not in the row, which only appears
+  // with a prompt.  They follow the language chosen above (langChanged); a prompt prepared for other
+  // choices is out of date, like one prepared for another language
+  var promptOpts = window.ParsehLLMRow && ParsehLLMRow.options ? ParsehLLMRow.options($('popts'), {
+    surface: 'video-new',
+    onOption: function () { forgetPrompt(); $('pinfo').hidden = true; }
+  }) : {options: function () { return {}; }, setLang: function () {}};
   // The id a local film's video will have, given by `prepare` and handed
   // back to `add`, so the prompt's `id:` line and the directory finally
   // written are the same id.
@@ -2712,6 +2721,7 @@ ADD_PAGE_JS = r'''
     if (L.dir === 'rtl') $('ov_title_native').setAttribute('dir', 'rtl');
     else $('ov_title_native').removeAttribute('dir');
     forgetPrompt();          // the prompt was prepared for the previous language
+    promptOpts.setLang(code); // and the choices for it are the new language's own
     if (stt) stt.langChanged();
   }
   $('lang').addEventListener('change', langChanged);
@@ -2800,9 +2810,9 @@ ADD_PAGE_JS = r'''
     if (!w) return;
     if (!needTranscript()) return;
     $('pstat').textContent = 'preparing…'; $('pinfo').hidden = true;
-    post('/api/prepare', {url: w.url, path: w.path, id: w.id,
+    post('/api/prepare', Object.assign({url: w.url, path: w.path, id: w.id,
                           transcript: val('transcript'), glossary: val('glossary'),
-                          lang: val('lang'), gloss: val('gloss')})
+                          lang: val('lang'), gloss: val('gloss')}, promptOpts.options()))
       .then(function (j) {
         $('pstat').textContent = '';
         if (!j.ok) { $('pinfo').hidden = false; $('pinfo').className = 'note bad';
@@ -2904,11 +2914,12 @@ ADD_PAGE_JS = r'''
     if (!val('answer').trim()) { Parseh.toast('paste the answer first', true); $('answer').focus(); return; }
     $('astat').textContent = 'checking…'; $('add').disabled = true;
     var res = $('result'); res.hidden = true;
-    var body = {url: w.url, path: w.path, id: w.id,
+    // the scheme the prompt asked for is the video's own from now on (video.json "translit")
+    var body = Object.assign({url: w.url, path: w.path, id: w.id,
                 transcript: val('transcript'), answer: val('answer'),
                 replace: $('replace').checked,
                 overrides: overrides(), lang: val('lang'),
-                gloss: val('gloss')};
+                gloss: val('gloss')}, promptOpts.options());
     var held = stt && stt.wave();
     if (held) body.wave = held;
     post('/api/add', body)

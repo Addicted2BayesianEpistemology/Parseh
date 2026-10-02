@@ -5468,6 +5468,17 @@
   var rgByHand = false;        // the summary points at the box under the row
   var rgRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('#rgrow'), {
     surface: 'video-region',
+    // THE OPTIONS OF THE PROMPT (the scheme of the transliteration, the short vowels) are asked of the
+    // server for this video's language, and start from what the video's own record says of them; a
+    // choice made against that record may be made the video's (through the door the video's info sheet uses)
+    lang: L.code, video: CFG.id,
+    setFact: function (name, value) {
+      var fields = {}; fields[name] = value;
+      return fetch('/youtube/api/editmeta', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video: CFG.id, fields: fields }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (!j.ok) throw new Error(j.error || 'the edit was refused'); });
+    },
     ids: {copy: 'rgcopy', size: 'rgsize', say: 'rgcopysay', hand: 'rgprompt', handRow: 'rgpromptrow'},
     remind: 'paste it into the LLM, then paste its answer into the box below.',
     getText: rgText, onCopied: rgCopied,
@@ -5680,7 +5691,7 @@
      given nothing to do answers nothing (the row is given an empty text). */
   function rgText() {
     if (rgFrom === null) return '';
-    return rgAsk('prompt', rgBody()).then(function (j) {
+    return rgAsk('prompt', rgBody(rgRow.options ? rgRow.options() : {})).then(function (j) {
       if (!j || !j.ok) throw new Error((j && j.error) || 'the prompt could not be made');
       var text = j.fill ? j.prompt : '';
       // by its text, since two askings can overlap and be answered out of order
