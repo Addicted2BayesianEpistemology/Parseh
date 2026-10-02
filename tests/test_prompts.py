@@ -1152,8 +1152,8 @@ class Assemblers(ControlledMachine):
                 bare = ytpages.chat_prompt(None, code)
             with mock.patch.object(ytpages, "video_dirs", lambda shelf=shelf: shelf):
                 shelved = ytpages.chat_prompt(None, code)
-            self.assertEqual(shelved, bare, code)
-            self.assertNotIn("\n\n\n", bare, code)
+            self.assertTrue(shelved == bare, "%s: a video on the shelf changed the prompt" % code)
+            self.assertTrue("\n\n\n" not in bare, "%s: a heading or a blank stands over a hole" % code)
 
     def test_the_example_of_the_video_prompt_is_the_languages_own_section(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1217,7 +1217,8 @@ class TheMeaningRule(ControlledMachine):
             with open(os.path.join(ROOT, path), encoding="utf-8") as f:
                 text = re.sub(r"\s+", " ", f.read())
             for s in said:
-                self.assertNotIn(s, text, "%s carries a copy of the meaning rule: `{{MEANING_RULE}}` embeds it" % path)
+                self.assertTrue(s not in text, "%s carries a copy of the meaning rule (%r...): "
+                                "`{{MEANING_RULE}}` embeds it" % (path, s[:40]))
 
     def test_the_kit_embeds_it_in_the_four_gloss_prompts_and_no_other(self):
         for surface in K.SURFACES[:-1]:
@@ -1277,7 +1278,7 @@ class TheMeaningRule(ControlledMachine):
         for said in ("one Italian sentence on what the video is", "every meaning in Italian, saying what its own chunk says"):
             self.assertIn(said, text)
         for old in ("one English sentence", "short English meaning", "every meaning in English"):
-            self.assertNotIn(old, text)
+            self.assertTrue(old not in text, "the prompt still says %r" % old)
 
 
 class TheSweep(unittest.TestCase):
@@ -1301,14 +1302,14 @@ class TheSweep(unittest.TestCase):
         for path in ("lib/promptkit.py", "docs/new-book-prompt.md", "docs/prompt-kit.md", "docs/languages.md",
                      "youtube/PROMPT.md", "youtube/docs/conventions.md"):
             with open(os.path.join(ROOT, path), encoding="utf-8") as f:
-                self.assertNotIn("audio-sync-prompt", f.read(), path)
+                self.assertTrue("audio-sync-prompt" not in f.read(), "%s still names the retired prompt" % path)
 
     def test_no_prompt_file_names_the_owners_own_video(self):
         for path in ("docs/region-prompt.md", "docs/new-book-prompt.md", "youtube/docs/chat-prompt.md",
                      "youtube/docs/conventions.md", "youtube/PROMPT.md", "youtube/lib/ytpages.py",
                      "docs/meaning-rule.md"):
             with open(os.path.join(ROOT, path), encoding="utf-8") as f:
-                self.assertNotIn("nFoM8JraEek", f.read(), path)
+                self.assertTrue("nFoM8JraEek" not in f.read(), "%s names the owner's own video" % path)
         self.assertFalse([n for n, _ in K.placeholders() if n.startswith("EXAMPLE_")],
                          "the add page's example is the language's own section: no placeholder for a borrowed one")
 
