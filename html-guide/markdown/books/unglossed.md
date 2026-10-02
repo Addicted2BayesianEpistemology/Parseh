@@ -163,13 +163,13 @@ and what is left to you:
 - **Persian.** The infinitive and the two stems, each with its sound. Where
   the book already has a `\vb` for the same infinitive, the book's own is
   offered first. The stems are Wiktionary's, from the literary Iranian table
-  where there is one, and need not be the book's — it has *dah* for `دادن`
+  where there is one, and need not be the book's — it has *dah* for دادن
   where the series writes *deh* — so check them against the conventions, and
   trim the meaning to the one sense the text uses. For a compound the
-  dictionary knows (`فکر کردن`, `عوض کردن` — not every one it should) the
+  dictionary knows (فکر کردن and عوض کردن — not every one it should) the
   draft is the light verb's `\vb` with its meaning already empty, and the
   **compound verb** button puts the whole pair in, saying in so many words that
-  `لبخند زدن` is one verb written in two words and not two entries:
+  لبخند زدن is one verb written in two words and not two entries:
   `\vb{زدن}{zadan}{زن}{zan}{زد}{zad}{}\bw{لبخند}{labxand}{to smile}`, the `\bw`
   run straight onto the `\vb` with no `; ` between them, which is what makes the
   pair one entry in the line (in a video, with the colloquial present in the
@@ -179,11 +179,11 @@ and what is left to you:
   *to fill in*, so you see what the entry is about to become before you press.
   Where the dictionary gave no meaning the compound still goes in, with that
   slot empty and the button dashed; where it does not know the compound at all
-  (`گمان کردن`, `معلوم شدن`) the light verb comes with its own meaning, and
+  (گمان کردن or معلوم شدن) the light verb comes with its own meaning, and
   emptying it is yours. A preverb is hyphenated only where the dictionary marks
-  one (`برگشتن`, `برداشتن`, `درآوردن`, `فراگرفتن` and a few more): `برخاستن` comes as
+  one (برگشتن, برداشتن, درآوردن, فراگرفتن and a few more): برخاستن comes as
   *barxāstan*, and the hyphen is yours to put in. A preverb verb the text writes
-  apart (`بر می‌گردم`, `در آورده`) is offered whole, as `برگشتن` and `درآوردن`. In a
+  apart (بر می‌گردم, در آورده) is offered whole, as برگشتن and درآوردن. In a
   video the draft adds the colloquial present wherever the dictionary's
   Tehrani table spells it differently — 18 verbs, among them *mi-gam*,
   *mi-ram*, *mi-šam* and *mi-dunam* — and you take it out where the speaker
