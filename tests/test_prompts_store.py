@@ -865,8 +865,7 @@ class AnAnswerLandsAsOneToParsehsOwn(unittest.TestCase):
             transcript = f.read()
         L, G = languages.get(code), languages.gloss(gloss)
         caps = ytpages.parse_transcript_text(ytpages.as_transcript(transcript), L)
-        # THE SHELF IS EMPTY WHENEVER A PROMPT IS MADE: a video on it is the example the prompt
-        # borrows (ytpages._example), and it would make the second prompt another than the first
+        # A FRESH SHELF FOR EVERY ROAD: what an answer writes there is compared between the three
         self.clean_shelf()
         own = ytpages.assembled_full(vid, {}, caps, None, L, G)
         body = {"url": vid, "lang": code, "gloss": gloss, "transcript": transcript}
