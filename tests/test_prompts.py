@@ -1561,7 +1561,7 @@ class StudioBoxes(ControlledMachine):
                  ("colourparts", "colours", "fa", "Colouring a whole word stays the colour mark's job"),
                  ("colourparts", "translit", "fa", "of the whole word goes there"),
                  ("colourparts", "reading", "ja", "The reading of the whole word goes there too"),
-                 ("exercises", "colourparts", "fa", "but never on the `prompt:` line"))
+                 ("exercises", "colourparts", "fa", "may go in a prompt, an answer row"))
         for a, b, code, words in pairs:
             with self.subTest(pair=(a, b)):
                 self.assertIn(words, _instructions(code, (a, b)))
@@ -1944,10 +1944,12 @@ class ColouredWords(ControlledMachine):
                 for words in ("how ONE word is built", "a stem against its ending", "double brackets", "single brackets",
                               "no space or joiner", "`crimson`, `indigo`, `teal`, `violet`, `amber`", "six-digit hex value",
                               "never another name", "on one line", "never put one such word inside another",
-                              "closing `]]`", "never a colour", "section or subsection title", "`[…]{tl}` block", "`^[…]` note",
+                              "closing `]]`", "never a colour", "`^[…]` note",
                               "**Most documents need none**", "as few colours as the idea needs",
                               "never explain the colours in the text"):
                     self.assertIn(words, text)
+                for gone in ("section or subsection title", "`[…]{tl}` block"):
+                    self.assertNotIn(gone, text, "the a0.4.3 dialect now takes a title and a block: not forbidden")
 
     def test_it_has_one_example_for_a_script_of_its_own_and_one_for_a_latin_script_target(self):
         for code, own, latin in (("fa", True, False), ("ar", True, False), ("it", False, True), ("en", False, True),
@@ -2029,13 +2031,13 @@ class ColouredWords(ControlledMachine):
             studio_server.api_exercise_prompt(h)
             return h.answer["prompt"]
         both = prompt(["colourparts"], ["fill-blanks", "single-choice"])
-        self.assertIn("A word coloured in parts (`[[ab[cd]{teal}ef]]`) may go in an answer row, a pair, a fill sentence or "
-                      "a card's field, but never on the `prompt:` line, where its brackets would show.", both)
+        self.assertIn("A word coloured in parts (`[[ab[cd]{teal}ef]]`) may go in a prompt, an answer row, a pair, a fill sentence or "
+                      "a card's field.", both)
         self.assertIn("A blank is never inside a word coloured in parts", both)
         self.assertNotIn("A blank is never inside a word coloured in parts", prompt(["colourparts"], ["single-choice"]),
                          "no fill-blanks type, no sentence about its blanks")
         off = prompt([], ["fill-blanks", "single-choice"])
-        self.assertNotIn("never on the `prompt:` line", off)
+        self.assertNotIn("A word coloured in parts (`[[ab[cd]{teal}ef]]`) may go in", off)
         self.assertNotIn("**Colour inside a word.**", off)
         self.assertIn("is one word coloured in parts", off, "unticked, it is named in the reserved list")
 
@@ -2090,7 +2092,9 @@ class ColouredWordsOfA043(ControlledMachine):
     def test_the_real_renderers_take_every_example_in_every_place_the_prompt_names(self):
         places = (("a sentence", "Some words {W} in a sentence."), ("a list", "- an item with {W}"),
                   ("a table", "| a | b |\n|---|---|\n| {W} | x |"), ("a box", "> a caution about {W}"),
-                  ("a gloss", "{W} = *meaning*"), ("a headword", "## {W} | translit | origin | = *meaning*"))
+                  ("a gloss", "{W} = *meaning*"), ("a headword", "## {W} | translit | origin | = *meaning*"),
+                  ("a title", "## A title with {W}"),
+                  ("an exercise prompt", ":::exercise single-choice\nprompt: Pick {W} now.\n- [x] a\n- [ ] b\n:::"))
         for code in languages.CODES:
             L = languages.get(code)
             spells = _examples(code, promptboxes.BOX_IDS)
@@ -2108,7 +2112,7 @@ class ColouredWordsOfA043(ControlledMachine):
                         self.assertNotIn("[[", visible)
                         self.assertNotIn("]]", visible)
                         for key, value in marks.items():
-                            if place != "a headword":
+                            if place not in ("a headword", "a title", "an exercise prompt"):
                                 self.assertIn('data-%s="%s"' % (key, value), page)
                         tex = self.texgen.generate(*mdparser.parse(md), colophon=False)
                         self.assertEqual(tex.count("\\segword{"), 1, "and one on paper")

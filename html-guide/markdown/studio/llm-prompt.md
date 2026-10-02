@@ -146,7 +146,7 @@ still reads as one word ([Colours, pronunciation and
 glosses](../dialect/colours-and-pronunciation.md) shows what a reader sees).
 The model is told to reach for it only when a lesson is about how a word is
 built, to keep the word whole and on one line, and not to write it in a
-section or subsection title, a `[…]{tl}` passage or a note written in place.
+note written in place.
 
 Where two features say something to each other — a colour beside a
 transliteration, a list inside a vocabulary entry, a formula in an
