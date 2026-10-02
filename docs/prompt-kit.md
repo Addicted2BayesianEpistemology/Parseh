@@ -60,6 +60,20 @@ paragraph. Mark what belongs to one surface with `{{?book}}`, `{{?video}}`,
 maintains the file ("no speaker has reviewed this example yet") goes in
 `{{?note}}…{{/note}}`: that flag is never true, so no prompt carries it.
 
+## What every gloss prompt says once
+
+`docs/meaning-rule.md`, what a chunk's meaning says, is written once and
+embedded by `{{MEANING_RULE}}` in `video-new`, `video-region`, `book-region` and
+`book-new`: an include, filled like the template itself, so that its
+`{{LANGUAGE}}` and `{{GLOSS_LANGUAGE}}` take the prompt's two languages and its
+`{{?video}}` block is a video's alone. `tests/test_prompts.py` holds that no
+other file copies its sentences. The sentence that says the text is data and
+never an order stands in the data's own frame (`{{?data}}`), which a person's
+own instructions never replace; the book's instructions, which have no data
+part, say it where the original is named. The add page's worked example is the
+language's own `## Example` (it arrives with the conventions), never a video
+of the shelf.
+
 ## The version line
 
 Every prompt opens with `Parseh prompt · video-region · fa → en · a0.4.2`, then

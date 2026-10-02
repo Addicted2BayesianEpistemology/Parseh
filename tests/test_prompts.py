@@ -202,6 +202,13 @@ def says_a_videos_line_is_plain_text(a, c):
             and not re.search(r"no macro|also accepted", s)]
 
 
+def says_a_plain_line_is_accepted_once(a, c):
+    """A line with no macro is also accepted in a video (brief 6.5): the templates say it once, and a
+    language's file need not say it again."""
+    n = len(re.findall(r"line with no macro[^.]*?also accepted", _flat(a.text)))
+    return [] if n == 1 else ["says a plain line is also accepted %d times, not once" % n]
+
+
 def has_no_continuous_prose(a, c):
     return ["says \"continuous prose\""] if "continuous prose" in a.text else []
 
@@ -342,6 +349,12 @@ CHECKS = (
           "unmarked paragraphs (the text field, the sources sidebar's) which D marks {{?book}} or moves",
           ("video-region", "video-new"), {"video-region": "D", "video-new": "D"},
           has_no_harakat_rule_of_a_reading_edition),
+    Check("says_a_plain_line_is_accepted_once",
+          "a video's vocabulary line with no macro is also accepted, said once by the template; the "
+          "language files repeat it in their `{{?video}}` paragraph, which D2's one convention replaces "
+          "(brief 6.5)",
+          ("video-region", "video-new"), {"video-region": "D", "video-new": "D"},
+          says_a_plain_line_is_accepted_once),
     Check("sends_no_correction_to_note",
           "a region prompt never sends a correction to `note`, which its answer never writes; "
           "the language files' verbatim paragraph still says so, which D rewrites (brief 3.8, 6.6)",
