@@ -779,7 +779,10 @@ class Routes(unittest.TestCase):
         import offline
         got = self.add_local(self.sounds[".mp3"], vid="phone-sound-a1b2c3")
         d = self.videos / got["folder"] / got["id"]
-        rec = offline.video(str(d), got["id"], "/youtube")
+        # what a phone keeps remembers the digests of what it weighed, in config/: not in a test's
+        with mock.patch.object(offline, "DIGESTS", str(self.root / "digests.json")), \
+                mock.patch.object(offline, "WHERES", str(self.root / "wheres.json")):
+            rec = offline.video(str(d), got["id"], "/youtube")
         media = [m["url"] for m in rec["media"]]
         self.assertEqual([u for u in media if u.endswith("/media.mp3")], ["/youtube/videos/%s/%s/media.mp3"
                                                                           % (got["folder"], got["id"])])
