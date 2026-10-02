@@ -186,7 +186,10 @@ async function newPage(opts = {viewport: {width: 1280, height: 800}}, phone = fa
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text()); });
   page.on('response', r => {
     const u = new URL(r.url());
+    // the look door answers a refusal as 400 in words, by design (the suite provokes two); 409 is
+    // "ffmpeg is not here" and 507 "no room", both of them the page's to say
     if (u.host === `127.0.0.1:${port}` && r.status() >= 400 && r.status() !== 409 && r.status() !== 507
+        && !(r.status() === 400 && u.pathname === '/youtube/api/film/look')
         && /^\/(clips|exercises\/api|anki|youtube\/api)/.test(u.pathname))
       errors.push(r.status() + ' ' + r.request().method() + ' ' + u.pathname);
   });
@@ -572,6 +575,7 @@ await ctxA.close();
   eq((await walk(VIDEOS)).filter(q => q.includes('/lost-film-a1b2c3/') && /media/.test(q)).map(q => q.split('/').pop()), ['media.mp3'], 'the folder holds the sound that was sent');
   eq((await readJson((await walk(VIDEOS)).find(q => q.endsWith('/lost-film-a1b2c3/video.json')))).kind, 'audio', 'video.json now says it is one');
   // and a sound whose file goes is still a sound: a small box saying so, not a black frame with nothing in it
+  await waveReady(p);           // (its bar has asked for its shape before the file is taken away)
   await Deno.remove((await walk(VIDEOS)).find(q => q.endsWith('/lost-film-a1b2c3/media.mp3')));
   await p.reload();
   await p.waitForSelector('.seg .fa .w');
