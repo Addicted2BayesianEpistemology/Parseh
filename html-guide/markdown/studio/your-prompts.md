@@ -78,7 +78,14 @@ for, every name it may use and what it stands for. The ones every place has:
 | `{{LANGUAGE}}` | the language's name, in English (*Persian*) |
 | `{{LANGUAGE_NATIVE}}` | its name in itself |
 | `{{LANGUAGE_CODE}}` | its code (*fa*) |
-| `{{TR_LABEL}}` | what its transliteration is called (*transliteration*, *pinyin*, *rōmaji*) |
+| `{{TR_LABEL}}` | what its transliteration is called (*transliteration*, *pinyin*, *rōmaji*), or *IPA* where the prompt asks for it |
+
+A place that asks for a transliteration (the studio's two, a video or a book
+from scratch, a stretch of either) also has `{{TR_SCHEME}}`, the scheme it is
+written in (*IPA*, or *the usual rōmaji scheme for Japanese*); the places that
+write or read a book's or a video's own text have `{{MARKS_RULE}}`, what is
+asked of the short vowels in Persian and Arabic (*write the short vowels in
+`fa`*, or *leave `fa` as it is*), and nothing in a language that has none.
 
 Where a gloss language is involved (the video and book prompts, and Ask
 LLM) there are also the language the meanings are written in
@@ -91,7 +98,12 @@ for that place is **refused when you save**, in words that name it: `{{NOPE}}`
 A part of a prompt may be kept for one kind of place only, between
 `{{?video}}` and `{{/video}}` (or `book`, `studio`), and the prompts that
 begin as a copy of Parseh's carry such blocks: leave them as they are and the
-prompt still fits both the book and the video. A double brace that is none of
+prompt still fits both the book and the video. The two choices beside the copy
+button have blocks of their own: `{{?ipa}}…{{/ipa}}` is kept while the
+transliteration is asked for in IPA and `{{?classic}}…{{/classic}}` while it is in
+the language's usual scheme; `{{?marks}}…{{/marks}}` while the short vowels are to
+be written and `{{?nomarks}}…{{/nomarks}}` while the text is left as it is (neither
+in a language without short vowels). The editor says which a place can use. A double brace that is none of
 these cannot be part of your text; write it with a space between the braces.
 
 ## For every language, or for one
@@ -108,10 +120,12 @@ one prompt of that name (upper and lower case count the same). The line every
 copied prompt opens with says which prompt made it:
 
 ```text
-Parseh prompt · video-region · fa → en · <the version> · custom: British spellings
+Parseh prompt · video-region · fa → en · <the version> · no marks · custom: British spellings
 ```
 
-so an answer can always be traced to the words that asked for it.
+so an answer can always be traced to the words that asked for it. What the
+choices beside the copy button came to stands before the name (*IPA*, *marks*,
+*no marks*), because the name is your own text and goes last.
 
 ## Keeping up with Parseh
 

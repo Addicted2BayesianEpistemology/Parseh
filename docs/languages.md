@@ -30,8 +30,11 @@ vertically, fonts (CSS stacks and TeX names), the babel/fontspec names, the
 reading editions' passes, what a verb entry is in the language — the two
 labels a `\vb` prints (`vb_labels`), what its three forms are (`vb_forms`)
 and whether a video writes them without the marks (`vb_video_bare`), §3 —
-the ISO 639-3 code an outside source keys its files by (`iso3`, below), the
-Anki note-type ids. `lib/languages.py` is the Python API over it
+the ISO 639-3 code an outside source keys its files by (`iso3`, below), what
+the prompts' IPA setting makes of the language (`ipa`: left out, a person may
+ask for IPA in place of the usual scheme; `usual`, the usual scheme already is
+IPA, as English's; `none`, no setting yet, as Chinese's, whose words are written
+in pinyin), the Anki note-type ids. `lib/languages.py` is the Python API over it
 (`get(code)`, `LANGS`, `by_folder`, `detect_from_path`, `Lang.has_script /
 strip / run_re / to_latin_digits / passes / vb_labels / vb_forms /
 vb_video_bare / as_json`), and it
@@ -453,6 +456,24 @@ nothing rebuilds them now.) Neither file marks a book or a video as still
 being written: a chunk with no gloss is legal in every one (§12), and a
 `"draft": true` an older version left in `book.json` or `video.json` is never
 read.
+
+**The scheme of a transliteration: `translit`.** `"translit": "ipa"` in
+`book.json` or `video.json` says that the book's or the video's `tr` and the
+sound groups of its vocabulary are written in IPA and not in the language's
+usual scheme; absent is the usual scheme, which is what every book and video
+written before the setting existed says by saying nothing, and `"classic"` is
+never written. The prompts that hand out a stretch ask for what the record says
+unless the person chooses otherwise for that prompt; a book that mixes two
+schemes is harder to read than one that uses either, which is why it is a fact
+of the book and not only a choice of the moment. The checks written for the
+usual scheme (`lib/check_batch.py`'s `/ey/` and čašm of a Persian `tr`, `lib/normalize_batch.py`'s
+spellings) step aside for a book that says IPA and say so in a note. It is a
+key an older Parseh ignores (`BOOK_FORMAT` and `VIDEO_FORMAT` do not change);
+the person sets it when the book or the video is made, and the row of a stretch's
+prompt offers to change it (written through the doors the info sheets use,
+`bookmeta.edit_meta` and `ytpages.edit_meta`). Which languages offer it is the registry's
+`ipa` (§1: left out, the setting is offered; `usual`, the usual scheme already is
+IPA; `none`, no setting).
 
 ### The reader's mark: `col`
 

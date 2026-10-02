@@ -244,6 +244,15 @@ refused, *Another transcription is running.*
 family of videos that keeps names and transliterations the same from one
 video to the next. **none** is the default; only the prompt uses it.
 
+**The scheme of the transliteration** is chosen above the button, with the
+language's own word for it (*transliteration*, *rōmaji*, *pronunciation*):
+**usual scheme** or **IPA**. With IPA the prompt asks for IPA wherever the
+answer carries a transliteration, and the video is then kept in IPA — every
+later prompt for a stretch of it asks for it too. Persian and Arabic have a
+second choice, **short vowels: as they are** or **write them**. Both are
+remembered on this device, and the first line of the prompt says what was
+chosen (**· IPA**, **· marks**, **· no marks**).
+
 **Prepare & copy the prompt** reads the transcript with the language you
 picked and puts a self-contained prompt on the clipboard. It holds:
 

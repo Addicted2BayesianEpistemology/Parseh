@@ -46,7 +46,8 @@ templates, the language files, a person's instructions.
   title may say `{{`. Parseh's own text put in by hand (`lead`, `extras`) is
   looked into with `promptkit.check(text, surface)`, which is `assemble`'s test.
 - Flags of every text of a surface: `book`, `video`, `studio`, `region`, `new`
-  (`surface_flags`), beside those the assembler gives (`keep`, `regloss`, …).
+  and the options' `ipa`, `classic`, `marks`, `nomarks` (`surface_flags`), beside
+  those the assembler gives (`keep`, `regloss`, …).
 
 ## The language's conventions, cut per prompt
 
@@ -63,9 +64,66 @@ maintains the file ("no speaker has reviewed this example yet") goes in
 ## The version line
 
 Every prompt opens with `Parseh prompt · video-region · fa → en · a0.4.2`, then
-`· re-gloss` or `· per field` for a mode and `· custom: <name>` for a person's
-own. The version is read from `lib/version.py` when the line is made, never
-written in a template.
+`· re-gloss` or `· per field` for a mode, what its options say (`· IPA`,
+`· marks`, `· no marks`: below) and `· custom: <name>` for a person's own, which
+stands last because it is free text. The version is read from `lib/version.py` when
+the line is made, never written in a template.
+
+## The options of a prompt
+
+An **option** is a choice a person makes for one prompt, explicitly: the **scheme
+of the transliteration** (the language's usual one, or IPA) and **the short
+vowels** of a language that has them (write them, or leave the text as it is).
+Both are rows of one table, `promptkit.OPTIONS`, so that the row of controls, the
+routes, the flags a text may use, the version line, the header of a skill's
+request and a person's own prompts all say the same thing about each. A third
+option is another row there and nothing more.
+
+| option | its values | asked on | for a language |
+|---|---|---|---|
+| `translit` | `classic` (the default), `ipa` | every prompt that asks for a transliteration: the studio's two, a video or a book from scratch, a stretch of either; not the tidy, not Ask LLM | any, unless its registry row says `ipa: none` (Chinese); English says `ipa: usual` and the row reads "IPA (already the usual)" |
+| `marks` | `nomarks`, `marks` (a book made in place: `marks`) | a video or a book from scratch, a stretch of either | one whose registry row has `strip` (Persian, Arabic): the condition is the record, never the code |
+
+What the code calls:
+
+```python
+chosen = promptkit.resolve(surface, lang, asked, facts)    # {name: id}: only what APPLIES here
+promptkit.assemble(surface, lang, gloss, ..., options=asked)   # the Assembled carries .options
+promptkit.describe(surface, lang, asked, facts)                # what a page draws, from the server
+promptkit.header_fields(surface, lang, asked)                  # ['translit: ipa', 'marks: on'] (lane G)
+promptkit.given(body_or_query)                                 # the options a request named
+```
+
+- A request names an option by its name (`translit=ipa`, `marks=1`; JSON `true` and
+  `"on"` also mean `marks`). A value that is none of the option's is **refused in
+  words** (`OptionError`, a `PromptError`) wherever it is meant; an option that
+  does **not apply** (the short vowels of Italian, IPA for Chinese, either on the
+  tidy) is left out instead, so that what a device remembers of one prompt cannot
+  stop another, and the answer's `options` says what each came to.
+- `facts` are what a book's or a video's own record says (`book.json`, `video.json`:
+  `"translit": "ipa"`). They are the default; what a request says wins.
+- **Flags**: `ipa` and `classic`, `marks` and `nomarks`, in every text of a prompt
+  (a template, a language file, a person's own): `{{?ipa}}…{{/ipa}}`. The first of
+  each pair is true by default; where the language has no short vowels neither of the
+  second pair is, and where IPA is not offered the usual scheme stands.
+- **Placeholders**: `{{TR_LABEL}}` is "IPA" when the prompt asks for it, `{{TR_SCHEME}}`
+  names the scheme ("IPA", or "the usual rōmaji scheme for Japanese"), `{{MARKS_RULE}}`
+  says what is asked of the short vowels (empty where the language has none).
+- **A language file with no `{{?ipa}}` block** of its own is given a general paragraph in
+  front of its conventions when IPA is chosen (it says what holds for any language), so that
+  the setting works for every language, a person's own among them; a file's own note
+  replaces it.
+- **The version line** ends with what the options say, before a person's own prompt's name:
+  `· IPA`, `· marks` or `· no marks` (only where the language has short vowels).
+- **The row** (`lib/llmrow.js`) draws them as "rōmaji: [usual scheme ▾]" from
+  `GET /__prompt/options?surface=…&lang=…[&book=…|&video=…]`; a page puts what the row
+  says in the request that makes the prompt (`row.options()`) and gets `options` back.
+  A choice is remembered on this device per language (the scheme) or per surface (the marks).
+- **The book's or the video's own record**: `translit` is written when a book is made
+  (`making.make`) or a video added (`ytpages.api_add`) with IPA chosen, and changed through
+  `bookmeta.edit_meta` and `ytpages.edit_meta`. It is an optional key an older Parseh ignores, so no
+  format number is raised. The checks written for the usual scheme step aside for it
+  (`lib/check_batch.py`, `lib/normalize_batch.py`).
 
 ## For a person's own instructions
 

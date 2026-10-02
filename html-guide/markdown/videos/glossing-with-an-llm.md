@@ -96,6 +96,28 @@ transcript (**this phrase need not reproduce `transcript.txt`**) and
 corrected goes with its corrected text; `transcript.txt` is never read for
 the prompt.
 
+## The scheme of the transliteration
+
+Under **copy the prompt** the panel has a choice labelled with the language's
+own word for its transliteration line — *transliteration* for Persian,
+Arabic and Hindi, *rōmaji* for Japanese, *pronunciation* for Italian and
+the other Latin-script languages — **usual scheme** or **IPA**. With IPA
+the prompt asks for the International Phonetic Alphabet everywhere the
+answer carries a transliteration: the `tr` line and the sound of every
+vocabulary entry. Nothing else changes: the text, the kana and the language
+of the meanings are what they were. English's usual line already is IPA, and
+the choice says so; Chinese has no IPA setting yet, because its word line is
+written in pinyin. The first line of the prompt ends **· IPA** when it asks
+for it, and the choice is remembered on this device, one for each language.
+
+**A video is in one scheme.** The scheme you chose when the video was added
+is kept in the video, and every prompt for a stretch of it asks for that
+one: the panel shows it as the video's own. Choosing the other for a single
+prompt is allowed, and the panel then says that a video that mixes two
+schemes is harder to read, and offers **make … the video's setting**, which
+changes the video itself. A video that says IPA is not held to the checks
+written for the usual scheme.
+
 ## Filling from the answer
 
 Paste the chatbot's whole reply into **the LLM's answer** and press **fill

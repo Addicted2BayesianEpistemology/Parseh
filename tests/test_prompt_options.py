@@ -431,8 +431,6 @@ class InThePrompt(Quiet):
         for code in languages.CODES:
             for surface in SURFACES:
                 budget = T.SIZES[code][T.MEASURED.index(surface)][1]
-                if surface in T.REGIONS:
-                    budget = max(budget, T.SIZES[code][T.MEASURED.index(surface)][1])
                 for asked in ({"translit": "ipa"}, {"marks": "1"}):
                     a = promptlab.build(surface, code, None, None, asked)
                     with self.subTest(surface=surface, language=code, asked=asked):
@@ -507,6 +505,8 @@ class RegionDoors(Quiet):
 
     def test_a_record_that_says_nonsense_is_passed_over(self):
         d = self.book("fa")
+        says(d / "book.json", translit="ipa")
+        self.assertIn(" · IPA", GR.book_prompt(str(d), 0, 5)["prompt"].split("\n")[0], "a record that says IPA is read")
         says(d / "book.json", translit="klingon")
         self.assertNotIn(" · IPA", GR.book_prompt(str(d), 0, 5)["prompt"].split("\n")[0])
 
@@ -643,7 +643,6 @@ class OtherDoors(Quiet):
 
     def test_the_book_made_in_place_keeps_its_scheme_and_its_instructions_ask_for_it(self):
         into = os.path.join(self.td, "books")
-        shelf = os.path.join(self.td, "shelf")
         for code, translit, marks in (("fa", "ipa", None), ("it", None, None), ("ar", "ipa", "0")):
             fields = {"lang": code, "gloss": "en", "title": "T", "title_latin": "T", "slug": "t-%s" % code}
             if translit:
@@ -664,7 +663,6 @@ class OtherDoors(Quiet):
         with self.assertRaises(ValueError) as e:
             making.instructions_for({"lang": "fa", "translit": "klingon", "title": "T"}, {})
         self.assertIn("'klingon'", str(e.exception))
-        self.assertEqual(shelf, shelf)
 
     def test_the_record_may_be_changed_through_the_doors_that_edit_it_and_the_usual_way_is_no_key(self):
         d = copy_of("books", "fa", self.td)
