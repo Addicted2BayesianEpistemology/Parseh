@@ -3,6 +3,7 @@
 """The three doors of a video's own media that are not "name it by its path".
 
     POST /youtube/api/film/look   {path}                 what a file is, before it is added
+                                  {name, bytes}          or a file about to be sent: the kind and the room
     POST /youtube/api/film        ?name=<file>[&video=<id>]   the file itself, SENT as the body
     POST /youtube/api/film/wave   {video}                the shape of its sound, for the bar
 
@@ -25,9 +26,10 @@ WHOLE OR NOT AT ALL.  The body is streamed to disk in megabyte pieces and never
 held, to a name ending `.part` that no page, no listing and no bundle reads as
 media, and renamed only when the last byte is in and the file has been looked at.
 There is no ceiling on its size but the disk's, which is said BEFORE it starts
-(the answer to /api/film/look has the size; the refusal for want of room says how
-much is free).  Every refusal is a sentence, and the body of a refused request is
-never read.
+(the page asks /api/film/look {name, bytes} first, and is told what is free; a
+refusal that came after the body had begun would reach it as a broken connection
+and not as words).  Every refusal is a sentence, and the body of a refused request
+is never read.
 
 Who may write, and from where, is not decided here: serve.py's dispatcher refuses
 any write that does not come from a Parseh page (lib/crosssite.py) and any device
