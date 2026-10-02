@@ -70,8 +70,8 @@ LANG_DOCS = os.path.join(ROOT, "docs", "lang")
 # The prompts of the toolbox, by where a person gets them.  `ask` is assembled
 # in the browser (lib/llm.js); it is named here so that the version line, a
 # person's saved prompts and the editor speak of it as they speak of the
-# others.  The two that are files handed over as they are (youtube/PROMPT.md,
-# docs/audio-sync-prompt.md) are not surfaces: there is nothing to assemble.
+# others.  The one that is a file handed over as it is (youtube/PROMPT.md) is
+# not a surface: there is nothing to assemble.
 SURFACES = ("studio-doc", "studio-exercises", "video-new", "video-region",
             "book-region", "book-new", "transcript-tidy", "ask")
 # the ones whose answer Parseh reads back, and which therefore always carry
@@ -332,9 +332,6 @@ _PLACEHOLDERS = (
     ("WORDS_RECEIVED", "the paragraph about the machine's word division under a caption",
      _NEW_VIDEO),
     ("TR_RULE", "which fields every chunk carries in this language", _NEW_VIDEO),
-    ("EXAMPLE_INTRO", "a sentence for an example borrowed from another language", _NEW_VIDEO),
-    ("EXAMPLE_IN", "the example's captions, as they are received", _NEW_VIDEO),
-    ("EXAMPLE_OUT", "the example's answer", _NEW_VIDEO),
     ("GLOSSARY", "the word list of a family of videos, when one is asked for", _NEW_VIDEO),
     # the transcript tidy (youtube/lib/tidy.py)
     ("BARE", "a sentence for a transcript that carries almost no punctuation", _TIDY),
