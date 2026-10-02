@@ -6089,7 +6089,7 @@
      the box that says so, to the same door the add page sends by (its own script,
      youtube/lib/addfilm.js, is not on this page: the player is kept on a phone and
      what it loads is a list).  Whole or not at all, and the page is opened again
-     on it.  Browser mode only: a phone's page writes nothing (style.css). */
+     on it.  Browser mode only: a phone's page writes nothing (lib/mobile.css). */
   function sendAgain(box) {
     var pick = document.createElement('input');
     pick.type = 'file';

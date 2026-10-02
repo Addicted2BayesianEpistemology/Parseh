@@ -412,6 +412,31 @@ await until(() => pb.evaluate(() => /name the file with its extension/.test(docu
 eq(await shown(pb, '#filmsend .filmgo'), false, 'and there is nothing to send');
 await ctxB.close();
 
+// from another device: a phone's browser, the add page in the browser interface, 390 px wide
+{
+  const {context: cx, page: px} = await newPage({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true});
+  await px.goto(`${BASE}/youtube/add/?src=film&by=empty`);
+  await px.waitForSelector('#filmsend input[type=file]', {state: 'attached'});
+  await px.setInputFiles('#filmsend input[type=file]', MEDIA + '/sent.mp3');
+  await until(() => shown(px, '#filmsend .filmgo'), 'the Send button, on a phone');
+  await px.locator('#filmsend').scrollIntoViewIfNeeded();
+  const fit = await px.evaluate(() => ({scroll: document.documentElement.scrollWidth, width: innerWidth,
+    boxes: ['#path', '#filmsend .filmpick', '#filmsend .filmgo', '#filmsend .filmsay'].map(s => {
+      const r = document.querySelector(s).getBoundingClientRect();
+      return [s, Math.round(r.left), Math.round(r.right), Math.round(r.height)];
+    })}));
+  assert(fit.scroll <= fit.width + 1 && fit.boxes.every(b => b[1] >= 0 && b[2] <= fit.width), 'no sideways scroll, and every part of the film field inside a 390 px screen: ' + JSON.stringify(fit));
+  assert(fit.boxes.filter(b => /filmpick|filmgo/.test(b[0])).every(b => b[3] >= 30), 'the two buttons are tall enough to press: ' + JSON.stringify(fit.boxes));
+  await shot(px, 'add-by-upload-chosen-phone');
+  await px.locator('#filmsend .filmgo').tap();
+  await until(() => px.evaluate(() => /^Sent: sent\.mp3/.test(document.querySelector('#filmsend .filmsay').textContent)), 'sent from a phone-sized browser');
+  assert((await walk(INCOMING)).some(p => p.endsWith('/sent.mp3')), 'and it is on the computer');
+  await shot(px, 'add-by-upload-sent-phone');
+  await cx.close();
+  // what was sent and not used is swept by the next time anybody sends, after two days; here it is taken away by hand
+  await Deno.remove(INCOMING, {recursive: true}).catch(() => {});
+}
+
 /* ================================================================ c) a card from a sound */
 await page.goto(`${BASE}/youtube/v/${ID_A}/`);
 await page.waitForSelector('.seg .fa .w');

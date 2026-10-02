@@ -760,6 +760,21 @@ class Routes(unittest.TestCase):
         self.assertFalse(self.serve.static_ok("/youtube/videos/.incoming/x/lesson.mp3"),
                          "and what was sent and waits is never served")
 
+    def test_the_checker_and_the_video_info_sheet_leave_the_kind_alone(self):
+        import check_annotations as CA
+        got = self.add_local(self.sounds[".mp3"], vid="kept-kind-a1b2c3")
+        d = self.videos / got["folder"] / got["id"]
+        errors, warnings, _counts = CA.check(str(d))
+        self.assertEqual(errors, [], "a video that says what its media is passes the same checks")
+        self.assertFalse([w for w in warnings if "kind" in w], warnings)
+        # the sheet that edits the title, the channel and the rest writes video.json whole
+        self.ytpages.edit_meta(str(d), {"title": "Another title"})
+        meta = video_json(d)
+        self.assertEqual((meta["title"], meta["kind"]), ("Another title", "audio"))
+        j = self.json_of("POST", "/youtube/api/editmeta", {"video": got["id"], "fields": {"blurb": "A sound."}})
+        self.assertTrue(j["ok"])
+        self.assertEqual(video_json(d)["kind"], "audio")
+
     def test_what_a_phone_keeps_of_a_sound_video_is_its_media_too(self):
         import offline
         got = self.add_local(self.sounds[".mp3"], vid="phone-sound-a1b2c3")
