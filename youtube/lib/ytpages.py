@@ -1811,7 +1811,11 @@ def api_prepare(h):
     except prompts.PromptsError as e:
         return h.send_json({"ok": False, "error": str(e)}, e.status)
     meta = {} if local else oembed(vid)
-    if local and filmkind.look(_p)["kind"] == "audio":
+    # BY THE NAME ALONE, NEVER BY LOOKING INSIDE THE FILE: the page asks for this
+    # prompt again and again as the person types, and an ffprobe on every ask made
+    # the answer arrive after the next keystroke (tests/add_stt.mjs caught it).
+    # The kind that counts is decided once, when the file is attached.
+    if local and filmkind.kind_of(os.path.splitext(_p)[1].lower()) == "audio":
         meta = {"kind": "audio"}        # the prompt says "a recording", not "a film"
     exists = find_video(vid)[0] is not None
     try:
