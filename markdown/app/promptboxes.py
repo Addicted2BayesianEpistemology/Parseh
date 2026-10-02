@@ -30,6 +30,13 @@ for _p in (LIB, EXLEX):
 import languages                                                    # noqa: E402
 import mdparser                                                     # noqa: E402
 import promptkit                                                    # noqa: E402
+try:
+    import segcolour                                                # noqa: E402
+except ImportError:
+    # WHY NOT A COPY: the word coloured in parts (`[[ab[cd]{teal}ef]]`) has one scanner, exlex/segcolour.py, which a
+    # tree has once the a0.4.3 dialect is merged into it; its grammar written out here would be a second source of one
+    # thing.  Without it a page is simply never found to use the box (nor would the parser show such a word).
+    segcolour = None
 
 
 class Refused(ValueError):
@@ -68,6 +75,8 @@ BOXES = (
     Box("notes", LAID_OUT, "footnotes", "notes at the foot of the page, or in a cloud on screen", None),
     Box("links", LAID_OUT, "links", "links to web pages", None),
     Box("colours", LAID_OUT, "colour marks", "a word in colour, to show a contrast", None),
+    Box("colourparts", LAID_OUT, "colour inside a word",
+        "part of a word in colour, to show its stem and its ending", None),
     Box("math", EXTRAS, "formulas", "formulas, in a line or on their own", None),
     Box("latex", EXTRAS, "LaTeX drawings", "chemistry, plots and diagrams drawn by LaTeX", None),
     Box("exercises", EXTRAS, "exercises", "exercises the learner can answer, of every type", None),
@@ -409,6 +418,9 @@ def page_uses(markdown):
             elif t == "voce":
                 found.add("vocab")
                 texts.append(b.get("fa", ""))
+                if b.get("fa_segments"):
+                    # a headword coloured in parts reaches the block already flattened, its pieces beside it
+                    found.add("colourparts")
             elif t in ("list", "enum"):
                 found.add("lists")
                 texts.extend(x for _, x in b["items"])
@@ -435,8 +447,13 @@ def page_uses(markdown):
     text = "\n".join(str(x) for x in texts)
     if "^[" in text:
         found.add("notes")
+    runs = bool(segcolour and next(segcolour.find_runs(text), None))
+    if runs:
+        found.add("colourparts")
     for box, pattern in _USES:
-        if pattern.search(text):
+        # THE PIECES OF A COLOURED WORD ARE NOT A COLOUR MARK: `[ت]{crimson}` inside `[[…]]` is the other box's
+        # business, so the colours box reads the page with each such word taken for the plain word it is
+        if pattern.search(segcolour.flatten(text) if runs and box == "colours" else text):
             found.add(box)
     mark = r"\]\{\s*(?:tl|%s)\b" % re.escape(L.code)
     if L.chars:

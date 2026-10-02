@@ -1031,8 +1031,8 @@ rule the prompt can teach, each feature in a section marked
 `{{?id}}…{{/id}}` (a "box": vocabulary entries, glosses, transliteration,
 reading marks, the language's own punctuation, right-to-left sequences,
 passages, Latin blocks, wrong and right forms, lists, tables, boxes, bold
-and italic, footnotes, links, colours, formulas, LaTeX drawings, exercises,
-and keeping what a pasted document has), and the copy has only the ones
+and italic, footnotes, links, colours, colour inside a word, formulas, LaTeX
+drawings, exercises, and keeping what a pasted document has), and the copy has only the ones
 ticked (`app/promptboxes.py`: the boxes, the presets — a short answer, **a
 lesson** (the default), a vocabulary study, a lesson with exercises, all,
 none — level and length, and what each box costs, measured). A box a

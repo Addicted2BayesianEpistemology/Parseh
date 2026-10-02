@@ -134,10 +134,19 @@ that a language cannot use is not shown.
 | **footnotes** | `[^x]`, `^[…]` | every language |
 | **links** | `[words](https://…)` | every language |
 | **colour marks** | the five named colours and a hex value | every language |
+| **colour inside a word** | `[[ab[cd]{teal}ef]]`: part of one word in colour, its stem against its ending | every language |
 | **formulas** | `[…]{math}`, `:::math` | every language |
 | **LaTeX drawings** | `::::latex`, `[…]{latex}`, and the themes this computer has | every language |
 | **exercises** | the `:::exercise` blocks, of every type | every language |
 | **keep what a pasted document has** | marks a reader wrote, pictures, recordings and links a document you paste already holds | every language |
+
+**Colour inside a word** teaches the model to colour only a part of one
+word — its stem against its ending, a root's letters — in a way the studio
+still reads as one word ([Colours, pronunciation and
+glosses](../dialect/colours-and-pronunciation.md) shows what a reader sees).
+The model is told to reach for it only when a lesson is about how a word is
+built, to keep the word whole and on one line, and not to write it in a
+section or subsection title, a `[…]{tl}` passage or a note written in place.
 
 Where two features say something to each other — a colour beside a
 transliteration, a list inside a vocabulary entry, a formula in an
@@ -159,8 +168,9 @@ the ticked boxes are exactly its set.
 - **all.** Every box the language can use.
 - **none.** Only what is always in the prompt.
 
-No preset ticks colours, formulas or drawings, and only the fourth ticks
-exercises: tick those yourself when the document is about them. The page
+No preset ticks colours, colour inside a word, formulas or drawings, and only
+the fourth ticks exercises: tick those yourself when the document is about
+them. The page
 shows what each choice costs, in characters, before you copy it.
 
 ## Level and length

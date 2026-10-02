@@ -25,6 +25,7 @@ passes on all of them it fails, until the mark is taken off.
 """
 import collections
 import contextlib
+import importlib.util
 import io
 import itertools
 import math
@@ -54,6 +55,12 @@ import server as studio_server                                  # noqa: E402
 import tidy as tidier                                           # noqa: E402
 import version                                                  # noqa: E402
 import ytpages                                                  # noqa: E402
+
+# THE a0.4.3 DIALECT'S WORD COLOURED IN PARTS is read by exlex/segcolour.py, which this tree has once the a0.4.3 branch is
+# merged into it (DIALECT-A043.md): what needs that parser is checked where the module is importable, and skipped, saying so,
+# where it is not
+HAVE_A043 = importlib.util.find_spec("segcolour") is not None
+WAITS = "waits for the a0.4.3 dialect (markdown/exlex/segcolour.py)"
 
 # THE SIZE BUDGETS, in characters, of every prompt on the lab's fixtures, and
 # what was measured beside each: (measured, budget), the budget being the
@@ -1113,6 +1120,79 @@ def C(id, box, target, sample, blocks, wrapped, page, in_box, in_list, doc=""):
                      page, in_box, in_list, doc)
 
 
+# THE WORD COLOURED IN PARTS (`[[ab[cd]{teal}ef]]`, the a0.4.3 dialect, DIALECT-A043.md), and what the prompt's examples of it
+# are checked with where this tree's parser does not know it.  The grammar, from the a0.4.3 branch's own tests:
+#   [[ plain letters and pieces [text]{colour} ]]  on ONE line, no `[[` inside, at least one piece whose colour is a name of the
+#   palette (any case) or #RRGGBB; a piece that is not valid stays as typed; the braces after `]]` hold linguistic marks
+#   (translit: kana: reading:) and never a colour -- braces that are anything else stay as typed after the word.
+_PALETTE = ("crimson", "indigo", "teal", "violet", "amber")
+_PIECE = re.compile(r"\[([^\[\]]+)\]\{([^{}]*)\}")
+_MARK_KEY = re.compile(r"(?:^|\s)(translit|kana|reading):")
+
+
+def coloured_words(text):
+    """The words coloured in parts that a text holds, as the grammar says: [(start, end, the word flattened, {mark: value})]."""
+    found, i = [], 0
+    while True:
+        i = text.find("[[", i)
+        if i < 0:
+            return found
+        nl = text.find("\n", i)
+        close = text.find("]]", i + 2, len(text) if nl < 0 else nl)
+        inside = text[i + 2:close] if close >= 0 else None
+        flat, pieces, k = [], 0, 0
+        while inside is not None and "[[" not in inside and k < len(inside):
+            piece = _PIECE.match(inside, k)
+            if piece and (piece.group(2).strip().lower() in _PALETTE
+                          or re.fullmatch(r"#[0-9A-Fa-f]{6}", piece.group(2).strip())):
+                flat.append(piece.group(1))
+                pieces += 1
+                k = piece.end()
+            else:
+                flat.append(inside[k])
+                k += 1
+        if not pieces or inside is None or "[[" in inside:
+            i += 2
+            continue
+        end, marks = close + 2, {}
+        braces = re.match(r"\{([^{}\[\]\n]*)\}", text[end:])
+        keys = list(_MARK_KEY.finditer(braces.group(1))) if braces else []
+        if keys and not braces.group(1)[:keys[0].start()].strip():
+            for n, key in enumerate(keys):
+                stop = keys[n + 1].start() if n + 1 < len(keys) else None
+                marks["kana" if key.group(1) == "reading" else key.group(1)] = braces.group(1)[key.end():stop].strip()
+            end += braces.end()
+        found.append((i, end, "".join(flat), marks))
+        i = end
+
+
+class GrammarAsScanner:
+    """The grammar above, offered the way exlex/segcolour.py is (find_runs, flatten) for what reads a page with a scanner
+    of it -- so that the wiring of the page is held in a tree that has no a0.4.3 dialect yet."""
+
+    @staticmethod
+    def find_runs(text):
+        return iter(coloured_words(text))
+
+    @staticmethod
+    def flatten(text):
+        out, at = [], 0
+        for start, end, flat, _marks in coloured_words(text):
+            out.extend((text[at:start], flat))
+            at = end
+        out.append(text[at:])
+        return "".join(out)
+
+
+# the rows of the a0.4.3 dialect: named in the prompt whatever the parser is, and read by the REAL parser only where there is
+# one that knows them (ColouredWordsOfA043)
+RESERVED_A043 = (
+    C('mark-coloured-word', 'colourparts', 'fa', 'A word [[ک[ت]{crimson}[ا]{indigo}ب]]{translit:ketāb} here.', 'para', 'para', ('class="fa segmented-colour-run"', 'data-fa="کتاب"', 'data-translit="ketāb"'), '[[ab[cd]{teal}ef]]', '[[ab[cd]{teal}ef]]'),
+    C('mark-coloured-word-latin-target', 'colourparts', 'it', 'A word [[disfa[re]{crimson}]] here.', 'para', 'para', ('data-fa="disfare"',), 'needs no `{tl}` mark', None),
+    C('coloured-headword', 'colourparts', 'fa', '## [[ک[ت]{crimson}[ا]{indigo}ب]] | ketāb | from Arabic | = *book*', 'voce', 'para voce para', ('class="voce-fa segmented-colour-run"', 'data-fa="کتاب"'), 'headword of a vocabulary entry', None),
+)
+
+
 RESERVED = (
     C('fence-exercise', 'exercises', 'fa', ':::exercise single-choice', 'exercise', 'para exercise', ('Exercise needs attention', 'missing its closing'), ':::exercise', ':::exercise'),
     C('fence-math', 'math', 'fa', ':::math', 'math', 'para math', ('class="math mathblock"',), ':::math', ':::math'),
@@ -1225,7 +1305,7 @@ RESERVED = (
     C('emoji', 'always', 'fa', 'Well done 🎉 indeed.', 'para', 'para', ('Well done 🎉 indeed.',), None, 'no emoji'),
     C('arrow-glyph', 'always', 'fa', 'a → b', 'para', 'para', ('<span class="arrow">→</span>',), None, '→ themselves'),
     C('star-in-word', 'emphasis', 'fa', 'Two stars: 2*3*4 stay.', 'para', 'para', ('2*3*4',), 'never inside a word', None),
-)
+) + RESERVED_A043
 
 
 def _document(row, sample=None):
@@ -1300,6 +1380,8 @@ class ReservedList(ControlledMachine):
 
     def test_the_parser_reads_each_sample_as_the_construct_the_row_says(self):
         for r in RESERVED:
+            if r in RESERVED_A043:
+                continue                    # the a0.4.3 dialect's: ColouredWordsOfA043 reads them with its own parser
             with self.subTest(construct=r.id):
                 self.assertEqual(_mismatch(r), [])
 
@@ -1349,7 +1431,7 @@ class ReservedList(ControlledMachine):
 
 # --- the boxes, the presets, level and length, and what a request may ask ----------------------------------
 BRIEF_BOXES = ("vocab gloss translit reading punct rtl blocks latin forms lists tables boxes emphasis notes links "
-               "colours math latex exercises revise").split()
+               "colours colourparts math latex exercises revise").split()     # `colourparts` is the a0.4.3 dialect's, not the brief's
 # the words each box's block opens with: how a box is told from another in a prompt
 LABELS = {"vocab": "**Vocabulary entries.**", "gloss": "**Glosses.**", "translit": "**Marks for the ",
           "reading": "**The reading mark.**", "punct": "**Punctuation: use the Latin mark",
@@ -1357,7 +1439,7 @@ LABELS = {"vocab": "**Vocabulary entries.**", "gloss": "**Glosses.**", "translit
           "latin": "**Latin blocks.**", "forms": "**Ungrammatical and correct forms.**", "lists": "**Lists.**",
           "tables": "**Tables.**", "boxes": "**Highlight boxes.**", "emphasis": "**Bold and italic.**",
           "notes": "**Footnotes.**", "links": "**Links.**", "colours": "**Colour marks.**",
-          "math": "**Formulas.**", "latex": "**LaTeX drawings.**", "exercises": "**Exercises.**",
+          "colourparts": "**Colour inside a word.**", "math": "**Formulas.**", "latex": "**LaTeX drawings.**", "exercises": "**Exercises.**",
           "revise": "**Revising a document you are given.**"}
 # THE OLD PROMPTS, in characters, as Phase 0 measured them on the commit before this work (28368c6): the
 # studio's, whole and with the language's file pasted whole, and the exercise prompt before the page
@@ -1404,7 +1486,8 @@ class StudioBoxes(ControlledMachine):
         self.assertEqual(by["none"], set())
         self.assertEqual([p.id for p in promptboxes.PRESETS if p.default], ["lesson"])
         for name in ("short", "lesson", "vocabulary", "exercises"):
-            self.assertFalse(by[name] & {"colours", "math", "latex"}, "no preset ticks colours, formulas or drawings")
+            self.assertFalse(by[name] & {"colours", "colourparts", "math", "latex"},
+                             "no preset ticks colours, coloured words, formulas or drawings")
         for name in ("short", "lesson", "vocabulary"):
             self.assertNotIn("exercises", by[name], "exercises only in the last")
 
@@ -1474,7 +1557,11 @@ class StudioBoxes(ControlledMachine):
                  ("gloss", "blocks", "fa", "keep the usual pattern"),
                  ("punct", "blocks", "fa", "typically inside a `[…]{tl}` block"),
                  ("translit", "vocab", "fa", "Leave the mark out of `##` entries"),
-                 ("exercises", "math", "it", "A blank may not sit inside a formula"))
+                 ("exercises", "math", "it", "A blank may not sit inside a formula"),
+                 ("colourparts", "colours", "fa", "Colouring a whole word stays the colour mark's job"),
+                 ("colourparts", "translit", "fa", "of the whole word goes there"),
+                 ("colourparts", "reading", "ja", "The reading of the whole word goes there too"),
+                 ("exercises", "colourparts", "fa", "but never on the `prompt:` line"))
         for a, b, code, words in pairs:
             with self.subTest(pair=(a, b)):
                 self.assertIn(words, _instructions(code, (a, b)))
@@ -1700,16 +1787,20 @@ a+b
 [^1]: A note.
 
 Three words: کند، آهسته، یواش.
+
+A word coloured in parts: [[ک[ت]{crimson}[ا]{indigo}ب]].
 """
 
     def test_a_page_that_uses_every_feature_ticks_every_box_the_dialog_offers(self):
         a = self.post(markdown=self.RICH).answer
         offered = [b["id"] for b in a["boxes"] if b["shown"]]
-        self.assertEqual(a["preticked"]["boxes"], offered)
         self.assertNotIn("reading", offered, "a Persian page has no reading to teach")
         self.assertEqual(sorted(set(promptboxes.BOX_IDS) - set(offered)), ["exercises", "reading", "rtl"])
+        # the coloured word is read by the a0.4.3 dialect's scanner (ColouredWordsOfA043 holds it with the real one)
+        read = [b for b in offered if HAVE_A043 or b != "colourparts"]
+        self.assertEqual(a["preticked"]["boxes"], read)
         # and each was found by what it is: the parser's blocks, and the marks the page carries
-        for box in offered:
+        for box in read:
             with self.subTest(box=box):
                 self.assertIn(box, promptboxes.page_uses(self.RICH)[0])
 
@@ -1775,6 +1866,277 @@ Three words: کند، آهسته، یواش.
                 h = PathHandler("/api/exercise-decks?target=it")
                 studio_server.api_exercise_decks(h)
                 self.assertEqual(h.answer["decks"], [])
+
+
+# --- the word coloured in parts (DIALECT-A043.md): what the prompts say of it ----------------------------------------------
+# THE WORDS THE EXAMPLES SPELL, flattened: the word a reader copies, searches and looks up
+FLAT = {"[[ab[cd]{teal}ef]]": "abcdef", "[[بر[گشت]{teal}[م]{crimson}]]": "برگشتم",
+        "[[un[break]{crimson}able]]": "unbreakable", "[[ab[cd]{teal}ef]]{translit:…}": "abcdef",
+        "[[日[本]{indigo}語]]{kana:にほんご}": "日本語"}
+# WHAT THE GRAMMAR SAYS, one row a shape: the source, then the word it makes and its marks -- None where it is no such word.
+# (The a0.4.3 branch's own cases, and what the driving of 2026-10-02 found: a colour in the braces after the word is not a mark.)
+SHAPES = (
+    ("[[ab[cd]{teal}ef]]", ("abcdef", {})),
+    ("[[[ab]{crimson}cd]]", ("abcd", {})),
+    ("[[ab[cd]{crimson}]]", ("abcd", {})),
+    ("[[ab[cd]{Teal}ef]]", ("abcdef", {})),
+    ("[[ab[cd]{#C2185B}ef]]", ("abcdef", {})),
+    ("[[ab[cd]{#C2185}ef]]", None),
+    ("[[ab[cd]{red}ef]]", None),
+    ("[[ab[cd]{red}[ef]{teal}]]", ("ab[cd]{red}ef", {})),
+    ("[[slot]]", None),
+    ("[[ab[cd]{teal}ef", None),
+    ("[[ab[[cd]{teal}ef]]", None),
+    ("[[ab[cd]{teal}\nef]]", None),
+    ("[[ab[]{teal}ef]]", None),
+    ("[[ک[ت]{crimson}[ا]{indigo}ب]]{translit:ketāb}", ("کتاب", {"translit": "ketāb"})),
+    ("[[日[本]{indigo}語]]{kana:にほんご translit:nihongo}", ("日本語", {"kana": "にほんご", "translit": "nihongo"})),
+    ("[[ab[cd]{teal}ef]]{reading:x}", ("abcdef", {"kana": "x"})),
+    ("[[ab[cd]{teal}ef]]{teal}", ("abcdef", {})),
+    ("[[ab[cd]{teal}ef]]{teal translit:x}", ("abcdef", {})),
+    ("[[ab[cd]{teal}ef]] {translit:x}", ("abcdef", {})),
+    ("[[ab[cd]{teal}ef]]{note}", ("abcdef", {})),
+)
+
+
+def _examples(code, ticked):
+    """The words coloured in parts a studio prompt gives as examples, each span once: [(its code span, the word the grammar
+    reads in it)] -- the code spans that hold a double bracket and a piece."""
+    text = _instructions(code, ticked)
+    spans = dict.fromkeys(s for s in re.findall(r"`([^`\n]+)`", text) if "[[" in s and "]{" in s)
+    return [(span, w) for span in spans for w in coloured_words(span)]
+
+
+class ColouredWords(ControlledMachine):
+    """The box that teaches a word coloured in parts, the reserved list's line for it, and what the exercise prompt says of it:
+    everything that is true of the prompts whatever the parser of the tree is.  What needs the a0.4.3 parser is
+    ColouredWordsOfA043's."""
+
+    def setUp(self):
+        super().setUp()
+        _INSTRUCTIONS.clear()
+
+    def test_the_box_stands_beside_the_colours_and_no_preset_ticks_it_but_all(self):
+        ids = list(promptboxes.BOX_IDS)
+        self.assertEqual(ids.index("colourparts"), ids.index("colours") + 1)
+        box, colours = promptboxes.BY_ID["colourparts"], promptboxes.BY_ID["colours"]
+        self.assertEqual(box.group, colours.group)
+        self.assertTrue(box.name and box.line)
+        by = {p.id: set(p.boxes) for p in promptboxes.PRESETS}
+        for name in ("short", "lesson", "vocabulary", "exercises", "none"):
+            self.assertNotIn("colourparts", by[name], name)
+        self.assertIn("colourparts", by["all"])
+
+    def test_every_language_is_offered_it_in_both_prompts_and_its_size_is_measured(self):
+        for code in languages.CODES:
+            L = languages.get(code)
+            for exercising in (False, True):
+                row = next(r for r in promptboxes.catalog(L, (), exercising) if r["id"] == "colourparts")
+                self.assertTrue(row["shown"], (code, exercising))
+                self.assertTrue(900 < row["chars"] < 1900, (code, exercising, row["chars"]))
+                self.assertEqual((row["name"], row["group"]), ("colour inside a word", "how it is laid out"))
+
+    def test_the_box_teaches_the_spelling_the_colours_and_when_to_reach_for_it(self):
+        for code in languages.CODES:
+            text = _box_own(code, "colourparts")
+            with self.subTest(language=code):
+                self.assertTrue(text.startswith("**Colour inside a word.**"), text[:60])
+                for words in ("how ONE word is built", "a stem against its ending", "double brackets", "single brackets",
+                              "no space or joiner", "`crimson`, `indigo`, `teal`, `violet`, `amber`", "six-digit hex value",
+                              "never another name", "on one line", "never put one such word inside another",
+                              "closing `]]`", "never a colour", "section or subsection title", "`[…]{tl}` block", "`^[…]` note",
+                              "**Most documents need none**", "as few colours as the idea needs",
+                              "never explain the colours in the text"):
+                    self.assertIn(words, text)
+
+    def test_it_has_one_example_for_a_script_of_its_own_and_one_for_a_latin_script_target(self):
+        for code, own, latin in (("fa", True, False), ("ar", True, False), ("it", False, True), ("en", False, True),
+                                 ("fr", False, True), ("ja", False, False), ("zh", False, False), ("hi", False, False)):
+            text = _box_own(code, "colourparts")
+            with self.subTest(language=code):
+                self.assertEqual("[[بر[گشت]{teal}[م]{crimson}]]" in text, own)
+                self.assertEqual("[[un[break]{crimson}able]]" in text, latin)
+                self.assertEqual("needs no `{tl}` mark" in text, latin, "a Latin-script target marks every run, and this is one")
+                self.assertIn("`[[ab[cd]{teal}ef]]`", text, "the spelling every language is taught")
+
+    def test_every_example_the_prompt_gives_is_spelled_as_the_grammar_says(self):
+        for code in languages.CODES:
+            for ticked in (("colourparts",), promptboxes.BOX_IDS):
+                spells = _examples(code, ticked)
+                self.assertTrue(spells, (code, ticked))
+                for span, (start, end, flat, marks) in spells:
+                    with self.subTest(language=code, example=span):
+                        self.assertEqual((start, end), (0, len(span)), "the whole code span is the word and its marks")
+                        self.assertEqual(flat, FLAT[span])
+                        self.assertNotIn("crimson", " ".join(marks.values()), "a colour is never in the braces after the word")
+        everything = {span for code in languages.CODES for span, _ in _examples(code, promptboxes.BOX_IDS)}
+        self.assertEqual(everything, set(FLAT), "every spelling the prompts give is one this table knows, and each is given")
+
+    def test_the_grammar_of_this_file_refuses_what_the_dialect_refuses(self):
+        # it has teeth: each shape of SHAPES is read as the a0.4.3 branch's own tests and the driving of it say
+        for source, want in SHAPES:
+            with self.subTest(source=source):
+                got = coloured_words(source)
+                if want is None:
+                    self.assertEqual(got, [], source)
+                else:
+                    self.assertEqual([(f, m) for _s, _e, f, m in got], [want], source)
+        self.assertEqual(coloured_words("Fill the [[name]] and [[d]] here."), [], "a blank is no coloured word")
+        self.assertEqual(len(coloured_words("[[ab[cd]{teal}ef]] then [[gh[ij]{indigo}]]")), 2)
+
+    def test_a_double_bracket_word_with_a_coloured_piece_is_no_blank_and_the_reserved_list_says_so(self):
+        for code in ("fa", "it", "ja"):
+            self.assertIn("a double-bracket word with a coloured piece in it is no blank", _reserved(code, ()))
+            # unticked, the feature is named by the reserved list; ticked, by its box
+            self.assertIn("is one word coloured in parts", _reserved(code, ()))
+            self.assertNotIn("is one word coloured in parts", _reserved(code, ("colourparts",)))
+            self.assertIn("**Colour inside a word.**", _instructions(code, ("colourparts",)))
+
+    def test_the_revise_rule_names_the_reader_s_coloured_words_and_no_longer_says_a_cloud_colours(self):
+        # a0.4.3: a colour is set by selecting text in the source editor, the pointing cloud is for the pronunciation
+        for code in ("fa", "it", "ja"):
+            text = _box_own(code, "revise")
+            self.assertIn("a colour on only part of a word, `[[ab[cd]{teal}ef]]`", text)
+            self.assertNotIn("hovering", text)
+            self.assertIn("keep everything else of it exactly as it is", text)
+
+    def test_a_page_that_uses_one_is_found_and_has_its_box_ticked_in_the_exercise_prompt_by_the_scanner_the_tree_has(self):
+        # the wiring, held in a tree with no a0.4.3 dialect: this file's grammar stands in for exlex/segcolour.py
+        # (ColouredWordsOfA043 does the same with the real one)
+        page = ("---\ntitle: T\ntarget: fa\n---\n\nThe word [[ک[ت]{crimson}[ا]{indigo}ب]]{translit:ketāb} and "
+                "[آهسته]{crimson} here, and [[slot]].\n")
+        with mock.patch.object(promptboxes, "segcolour", GrammarAsScanner):
+            boxes, _types = promptboxes.page_uses(page)
+            self.assertEqual(boxes, ["translit", "colours", "colourparts"])
+            only = "---\ntitle: T\ntarget: fa\n---\n\nThe word [[ک[ت]{crimson}[ا]{indigo}ب]] here.\n"
+            self.assertEqual(promptboxes.page_uses(only)[0], ["colourparts"], "its pieces are not a colour mark")
+            for none in ("A [[slot]] here.", "A [آهسته]{crimson} here.", "A [[آهسته]] here."):
+                self.assertNotIn("colourparts", promptboxes.page_uses("---\ntitle: T\ntarget: fa\n---\n\n%s\n" % none)[0], none)
+            h = PathHandler(None, {"markdown": page, "decks": []})
+            studio_server.api_exercise_prompt(h)
+            self.assertEqual(h.answer["preticked"]["boxes"], ["translit", "colours", "colourparts"])
+            self.assertIn("**Colour inside a word.**", h.answer["prompt"])
+            self.assertIn("colourparts", [b["id"] for b in h.answer["boxes"] if b["on"]])
+        # without a scanner nothing silly happens: the page is read as it always was, and the box is not found
+        with mock.patch.object(promptboxes, "segcolour", None):
+            self.assertNotIn("colourparts", promptboxes.page_uses(page)[0])
+
+    def test_the_exercise_prompt_says_where_such_a_word_may_stand_only_when_its_box_is_ticked(self):
+        page = "---\ntitle: T\ntarget: fa\n---\n\nLesson\n"
+
+        def prompt(boxes, types):
+            h = PathHandler(None, {"markdown": page, "decks": [], "boxes": boxes, "types": types})
+            studio_server.api_exercise_prompt(h)
+            return h.answer["prompt"]
+        both = prompt(["colourparts"], ["fill-blanks", "single-choice"])
+        self.assertIn("A word coloured in parts (`[[ab[cd]{teal}ef]]`) may go in an answer row, a pair, a fill sentence or "
+                      "a card's field, but never on the `prompt:` line, where its brackets would show.", both)
+        self.assertIn("A blank is never inside a word coloured in parts", both)
+        self.assertNotIn("A blank is never inside a word coloured in parts", prompt(["colourparts"], ["single-choice"]),
+                         "no fill-blanks type, no sentence about its blanks")
+        off = prompt([], ["fill-blanks", "single-choice"])
+        self.assertNotIn("never on the `prompt:` line", off)
+        self.assertNotIn("**Colour inside a word.**", off)
+        self.assertIn("is one word coloured in parts", off, "unticked, it is named in the reserved list")
+
+
+@unittest.skipUnless(HAVE_A043, WAITS)
+class ColouredWordsOfA043(ControlledMachine):
+    """What needs the a0.4.3 parser (markdown/exlex/segcolour.py): the real scanner reads the prompt's examples as the grammar of
+    this file does, the real parser reads the rows' samples, the real renderers take every example in every place the prompt lets
+    such a word stand, and a page that uses one has its box ticked in the exercise prompt.  Skipped, saying so, in a tree
+    without that dialect; on after the merge, with no edit."""
+
+    # the a0.4.3 branch's own scanner cases (tests/test_segmented_colours.py), the authority the grammar of this file follows
+    A043_CASES = ("[[a[b]{crimson}c]]", "[[[a]{crimson}bc]]", "[[ab[c]{crimson}]]", "[[a[b]{crimson}[c]{indigo}d]]",
+                  "[[[ab]{crimson}[cd]{indigo}]]", "[[a[bc]{#C2185B}d]]", "[[ک[ت]{crimson}[ا]{indigo}ب]]{translit:ketāb}",
+                  "[[日[本]{indigo}語]]{kana:にほんご translit:nihongo}", "[[ordinary brackets]]", "[[slot]]", "[[کتاب",
+                  "[[ک[ت]{crimson}", "[[ک[ت]{red}اب]]", "[[x[[a]{teal}b]]", "[[x[y]{red}z[q]{teal}]]")
+
+    def setUp(self):
+        super().setUp()
+        _INSTRUCTIONS.clear()
+        self.segcolour = importlib.import_module("segcolour")
+        self.texgen = importlib.import_module("texgen")
+
+    def real(self, text):
+        return [(n.start, n.end, n.plain_text, dict(n.marks)) for n in self.segcolour.find_runs(text)]
+
+    def test_the_real_scanner_reads_the_prompt_s_examples_and_a_corpus_as_the_grammar_of_this_file_does(self):
+        corpus = list(self.A043_CASES) + [source for source, _want in SHAPES]
+        given = [span for code in languages.CODES for span, _ in _examples(code, promptboxes.BOX_IDS)]
+        self.assertTrue(given, "the prompts give examples of it")
+        corpus += given
+        corpus += ["A [[ab[cd]{teal}ef]] then [[gh[ij]{indigo}]]{translit:x} and [[slot]].", "[[[a]{teal}[b]{teal}c]]"]
+        for source in corpus:
+            with self.subTest(source=source):
+                self.assertEqual(self.real(source), coloured_words(source))
+                self.assertEqual(self.segcolour.flatten(source), GrammarAsScanner.flatten(source))
+
+    def test_the_real_parser_reads_each_row_of_the_a0_4_3_dialect_as_the_row_says(self):
+        for r in RESERVED_A043:
+            with self.subTest(construct=r.id):
+                self.assertEqual(_mismatch(r), [])
+
+    def test_the_comparison_refuses_a_wrong_expectation_of_these_rows(self):
+        # the driver has teeth for them: a paragraph is not a list, and the pieces are no whole-word colour marks (what a
+        # parser without the dialect makes of them, which is the one thing these rows must not be satisfied by)
+        row = next(r for r in RESERVED_A043 if r.id == "mark-coloured-word")
+        self.assertEqual(_mismatch(row), [])
+        self.assertTrue(_mismatch(row._replace(blocks=["list"])))
+        self.assertTrue(_mismatch(row._replace(page=('class="fac fac-crimson" data-color="crimson"',))))
+        self.assertTrue(_mismatch(row._replace(page=('data-fa="کت"',))), "the word is one, and whole")
+
+    def test_the_real_renderers_take_every_example_in_every_place_the_prompt_names(self):
+        places = (("a sentence", "Some words {W} in a sentence."), ("a list", "- an item with {W}"),
+                  ("a table", "| a | b |\n|---|---|\n| {W} | x |"), ("a box", "> a caution about {W}"),
+                  ("a gloss", "{W} = *meaning*"), ("a headword", "## {W} | translit | origin | = *meaning*"))
+        for code in languages.CODES:
+            L = languages.get(code)
+            spells = _examples(code, promptboxes.BOX_IDS)
+            self.assertTrue(spells, "%s is given examples of it" % code)
+            for span, (_s, _e, flat, marks) in spells:
+                for place, template in places:
+                    if place == "a headword" and L.re_chars and not L.re_chars.match(flat[0]):
+                        continue            # a vocabulary entry's first field is in the script of an own-script target
+                    with self.subTest(language=code, example=span, place=place):
+                        md = "---\ntitle: T\nlang: en\ntarget: %s\n---\n\n%s\n" % (code, template.replace("{W}", span))
+                        page = htmlgen.render_document(md, colophon=False)["html"]
+                        self.assertEqual(page.count('segmented-colour-run'), 1, "one word on the page")
+                        self.assertIn('data-fa="%s"' % flat, page)
+                        visible = re.sub(r"<[^>]+>", "", page)
+                        self.assertNotIn("[[", visible)
+                        self.assertNotIn("]]", visible)
+                        for key, value in marks.items():
+                            if place != "a headword":
+                                self.assertIn('data-%s="%s"' % (key, value), page)
+                        tex = self.texgen.generate(*mdparser.parse(md), colophon=False)
+                        self.assertEqual(tex.count("\\segword{"), 1, "and one on paper")
+                        self.assertIn("\\segword{%s}" % flat, tex)
+
+    def test_a_page_that_uses_one_has_its_box_ticked_in_the_exercise_prompt_by_the_real_scanner(self):
+        for place, body in (("a sentence", "A word [[ک[ت]{crimson}[ا]{indigo}ب]] here."),
+                            ("a list", "- a word [[ک[ت]{crimson}[ا]{indigo}ب]] here"),
+                            ("a table", "| a | b |\n|---|---|\n| [[ک[ت]{crimson}[ا]{indigo}ب]] | x |"),
+                            ("a box", "> a word [[ک[ت]{crimson}[ا]{indigo}ب]] here"),
+                            ("a headword", "## [[ک[ت]{crimson}[ا]{indigo}ب]] | ketāb | from Arabic | = *book*"),
+                            ("an answer row", ":::exercise single-choice\nprompt: Pick.\n- [x] [[ک[ت]{crimson}[ا]{indigo}ب]]\n- [ ] b\n:::")):
+            with self.subTest(place=place):
+                page = "---\ntitle: T\ntarget: fa\n---\n\n%s\n" % body
+                self.assertIn("colourparts", promptboxes.page_uses(page)[0])
+                h = PathHandler(None, {"markdown": page, "decks": []})
+                studio_server.api_exercise_prompt(h)
+                self.assertIn("colourparts", h.answer["preticked"]["boxes"])
+                self.assertIn("**Colour inside a word.**", h.answer["prompt"])
+        latin = "---\ntitle: T\ntarget: it\n---\n\nA word [[disfa[re]{crimson}]] here.\n"
+        self.assertEqual(promptboxes.page_uses(latin)[0], ["colourparts"], "a Latin-script target needs no {tl} for it")
+
+    def test_a_page_with_only_whole_word_colours_or_a_blank_does_not_tick_it(self):
+        for body in ("A [آهسته]{crimson} here.", "A [[slot]] here.", "A [[آهسته]] here.", "A [ت]{crimson} here."):
+            with self.subTest(body=body):
+                found = promptboxes.page_uses("---\ntitle: T\ntarget: fa\n---\n\n%s\n" % body)[0]
+                self.assertNotIn("colourparts", found)
+        self.assertEqual(promptboxes.page_uses("---\ntitle: T\ntarget: fa\n---\n\nA [[ک[ت]{crimson}ا]]b.\n")[0].count("colours"), 0)
 
 
 class AddedScriptLanguage(ControlledMachine):
