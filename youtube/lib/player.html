@@ -74,6 +74,14 @@
   <span id="pos"></span>
   <button id="follow" title="keep the playing caption in view">follow</button>
   <button id="hoverpause" title="pause the video while a gloss is open">hover&nbsp;⏸</button>
+  <!-- every phrase that carries a note, lit and counted, and ‹ › to walk from one
+       to the next: to see where a model flagged a problem.  It writes nothing,
+       asks nothing and is off on every visit; the mobile mode, which has no
+       such control, hides the whole span (lib/mobile.css names what stays) -->
+  <span id="notesgrp"><button id="notesbtn" aria-pressed="false"
+    title="light up every phrase that carries a note — what a model or a hand left under a meaning — and count them; it writes nothing and is off on every visit">✱ notes</button><button id="notesprev" hidden aria-label="the previous phrase with a note"
+    title="the previous phrase with a note">‹</button><button id="notesnext" hidden aria-label="the next phrase with a note"
+    title="the next phrase with a note">›</button></span>
   <button id="dictmode" hidden title="look the words of an unglossed phrase up in a dictionary">dictionary</button>
   <!-- only where the dictionary defines its words in their own language
        (English's): its definitions, and the definitions translated; the

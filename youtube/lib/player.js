@@ -574,6 +574,88 @@
     COLOURS.forEach(function (c) { el.classList.remove('hl-' + c); });
     if (ch.col && COLOURS.indexOf(ch.col) >= 0) el.classList.add('hl-' + ch.col);
   }
+
+  /* ---------------- ✱ notes: the phrases that carry a note ----------------
+     A phrase's `note` is the aside under its meaning -- what the automatic
+     transcript really heard, a cultural point -- and an LLM leaves one when
+     something needs saying.  The button lights every phrase that has one, to
+     see where a model may have flagged a problem, and walks from one to the
+     next (‹ ›): a highlight over a long transcript is not a list.  It is a
+     reviewing tool and nothing else -- it writes nothing, asks nothing, hides
+     nothing, and no click means something else while it is on -- and it is OFF
+     on every visit: a remembered highlight would leave a transcript looking
+     marked for ever by something nobody recalls turning on.  Not in the mobile
+     mode, which writes nothing and has no button for it.
+
+     THE PHRASE'S OWN CLASS, has-note, and not an hl- colour: the four colours
+     are the person's marks and go on showing beside it.  A class and nothing
+     more -- the dashed underline and the ✱ are drawn by the stylesheet
+     (body.shownotes), so no text is added to the line, and selection, copy, the
+     dictionary's sentence and the timings read what they always read.  What
+     counts is a note that is not blank once trimmed, on any chunk the line
+     draws: a chunk drawn bare (one marked plain) has no cloud and its note is
+     shown nowhere else.  The count and the walk read the page, which is the
+     one thing that is always as drawn: a save, a cut and a redraw all end in
+     pnPaint(). */
+  var pn = { on: false, cur: null };      // the switch, and the phrase last walked to
+  function hasNote(ch) {
+    return !!ch && typeof ch.note === 'string' && ch.note.trim() !== '';
+  }
+  function paintNote(el, ch) {
+    var has = hasNote(ch);
+    el.classList.toggle('has-note', has);
+    if (!has) el.classList.remove('note-here');
+  }
+  function pnList() {
+    return Array.prototype.slice.call($('#segs').querySelectorAll('.has-note'));
+  }
+  function pnPaint() {
+    if (mobileNow()) pn.on = false;       // the mobile mode has no button, so it is left off there
+    var on = pn.on, list = on ? pnList() : [];
+    if (!on && pn.cur) { pn.cur.classList.remove('note-here'); pn.cur = null; }
+    document.body.classList.toggle('shownotes', on);
+    var b = $('#notesbtn');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.textContent = '✱ notes' + (on ? ' ' + list.length : '');
+    ['#notesprev', '#notesnext'].forEach(function (s) {
+      $(s).hidden = !on; $(s).disabled = !list.length;
+    });
+  }
+  // the line the transcript is read below: the bar, and the video where it is
+  // pinned over the text (what measure() hands the stylesheet as --headh and --vidh)
+  function pnReadFrom() {
+    return $('header').offsetHeight + (opts.pin && !sideOn() ? $('#playerwrap').offsetHeight : 0);
+  }
+  // one phrase on, in document order, wrapping at the ends.  From the phrase
+  // last walked to; and where there is none (not walked yet, or its note has
+  // gone) from where the page is being read, so that the first press goes to
+  // the next note on the way and not back to the top of a long transcript
+  function pnStep(dir) {
+    var list = pnList();
+    if (!list.length) return;
+    var at = list.indexOf(pn.cur), to;
+    if (at >= 0) to = (at + dir + list.length) % list.length;
+    else {
+      var edge = pnReadFrom(), below = list.filter(function (el) {
+        return el.getBoundingClientRect().top > edge;
+      }).length;
+      to = dir > 0 ? (below ? list.length - below : 0)
+                   : (list.length - below ? list.length - below - 1 : list.length - 1);
+    }
+    if (pn.cur) pn.cur.classList.remove('note-here');
+    pn.cur = list[to];
+    pn.cur.classList.add('note-here');
+    // follow stands down for a moment, as it does for a hand on the wheel
+    lastUserScroll = Date.now();
+    pn.cur.closest('.seg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  $('#notesbtn').onclick = function () { pn.on = !pn.on; pnPaint(); };
+  $('#notesprev').onclick = function () { pnStep(-1); };
+  $('#notesnext').onclick = function () { pnStep(1); };
+  // the mode switched under the page: the highlight goes with the button
+  if (window.Parseh && Parseh.mode && Parseh.mode.onChange) Parseh.mode.onChange(pnPaint);
+
   // the words of a chunk as spans of their own, so a modifier-click can
   // name the WORD even though the hover gloss belongs to the whole phrase
   // (a Japanese chunk is one word: its card is the phrase).  A function
@@ -1389,6 +1471,10 @@
       if (done) done(ch);
       paintWords(at.w, ch);
       paintCol(at.w, ch);
+      // a note written, changed or taken off lights or dims its phrase now,
+      // and the count of ✱ notes follows
+      paintNote(at.w, ch);
+      pnPaint();
       // the answer may arrive after the pointer has moved to the next
       // phrase, whose cloud must not be told about this one
       if (cloudFor !== at.w) return;
@@ -1429,13 +1515,15 @@
      in.  The third column is what the field holds: 'tl' target text, so
      it takes the language's face and direction, 'gl' gloss prose, so it
      takes the gloss language's -- and the vocabulary is 'gl' too, being a
-     line of that prose with target words quoted inside it. */
+     line of that prose with target words quoted inside it.  The note, last, is
+     prose in the gloss language as well, and is called what it is. */
   function editRows() {
     var rows = [['fa', L.name.toLowerCase(), 'tl']];
     if (L.reading) rows.push(['kana', L.reading_label || 'reading', 'tl']);
     rows.push(['tr', L.translit_label || 'transliteration', ''],
               ['voc', 'vocabulary', 'gl'],
-              ['en', GLOSS_LABEL, 'gl']);
+              ['en', GLOSS_LABEL, 'gl'],
+              ['note', 'note', 'gl']);
     return rows;
   }
   // Each box the size of what is in it before the cloud is placed: a phrase,
@@ -1529,6 +1617,16 @@
            '<code>\\textit</code>, <code>\\emph</code> and <code>\\nobreak</code> may be written; ' +
            '<code>% &amp; # _ $</code> are ordinary characters in a video.</div></div>';
   }
+  /* THE NOTE ROW: the aside under the meaning, offered on every phrase -- a note
+     is as much written here as changed.  One row that grows with what is in it,
+     and under it the line that says how a note is taken off: there is no button
+     for that, an emptied box is how every field of this form is cleared. */
+  function noteRow(at, f) {
+    return '<div class="erow"><label class="elab" for="enote">' + esc(f[1]) + '</label>' +
+           '<textarea id="enote" class="ef gl" data-f="note" rows="1">' + esc(at.ch.note || '') +
+           '</textarea><div class="efnote">Shown under the meaning in the cloud. ' +
+           'Empty it to take the note off.</div></div>';
+  }
   // what the box holds, drawn: a macro line as the reader draws it, any other
   // as the cloud draws a plain one; a line not finished says what is short
   function vocNow(ta, el) {
@@ -1587,6 +1685,7 @@
             '<div class="emain">';
     editRows().forEach(function (f) {
       if (f[0] === 'voc' && window.ParsehVocButtons) { h += vocRow(at, f); return; }
+      if (f[0] === 'note') { h += noteRow(at, f); return; }
       h += '<label class="erow"><span class="elab">' + esc(f[1]) + '</span>' +
            '<textarea class="ef' + (f[2] ? ' ' + f[2] : '') + '" data-f="' + f[0] +
            '" rows="' + (f[0] === 'voc' || f[0] === 'en' ? 2 : 1) + '">' +
@@ -1652,6 +1751,15 @@
     }
     paintDel(at);
     fitFields();
+    // the note's row grows as it is typed into, and the form is placed again
+    // when that takes it past the foot of the window (as the vocabulary's does)
+    var nbox = cloud.querySelector('.ef[data-f="note"]');
+    if (nbox) nbox.addEventListener('input', function () {
+      nbox.style.height = ''; nbox.style.height = (nbox.scrollHeight + 2) + 'px';
+      var r = cloud.getBoundingClientRect();
+      if (cloudFor && r.bottom > (document.documentElement.clientHeight || window.innerHeight) - 4)
+        placeCloud(cloudFor);
+    });
     wordsInto(at);
     var srcBtn = cloud.querySelector('.esrc');
     if (srcBtn) {
@@ -3119,10 +3227,12 @@
     fa.textContent = ch.fa || ''; c.appendChild(fa);
     // the colour is the one field the sheet draws no box for and still sends:
     // it is a field a page may set (annwrite.EDITABLE), and a page that left
-    // it out would be saying "no colour".  The note and the plain mark are
-    // not a page's to set at all -- the server refuses a divide that names
-    // them ("cannot set 'note' on a chunk") -- and it carries both across
-    // itself, from the chunk being divided or joined, so they stay here.
+    // it out would be saying "no colour".  The note is a field a page may set
+    // too and the sheet has no box for it, so a page that leaves it out is not
+    // saying "no note": the server carries it across itself (a cut leaves it on
+    // the first half, a join joins both).  The plain mark is not a page's to set
+    // at all -- the server refuses a divide that names it -- and is carried
+    // the same way, so it stays here.
     if (ch.col) c.dataset.xcol = String(ch.col);
     var add = function (key, label, rows, kind) {
       var l = document.createElement('label'); l.textContent = label;
@@ -3146,8 +3256,8 @@
     Array.prototype.forEach.call(col.querySelectorAll('textarea'), function (t) {
       out[t.dataset.k] = t.value.trim();
     });
-    // only what annwrite lets a page set: a note, and the plain mark, sent
-    // back here made a phrase with a note impossible to cut or join
+    // only the boxes the sheet draws and the colour: the plain mark sent back
+    // here would be refused, and the note is the server's to carry across
     if (col.dataset.xcol) out.col = col.dataset.xcol;
     return out;
   }
@@ -3386,6 +3496,7 @@
     rgPaint();
     measure();
     markGlossed();
+    pnPaint();
   }
   /* ONE CAPTION'S LINE, whole: its time, its phrases, and every listener the
      line and its phrases carry.  A function of its own because two things
@@ -3455,6 +3566,7 @@
           // a mark set by hand in the file still shows on a chunk the
           // player itself would not offer to colour
           paintCol(bare, ch);
+          paintNote(bare, ch);       // and its note, which is shown nowhere else (✱ notes)
           fa.appendChild(bare);
           return;
         }
@@ -3462,6 +3574,7 @@
         w.className = 'w'; w.dataset.j = j;
         paintWords(w, ch);
         paintCol(w, ch);
+        paintNote(w, ch);
         w.addEventListener('mouseenter', function () {
           if (!hoverPointer()) return;    // a tap's synthetic hover: not one
           openCloud(w, ch, sg);
@@ -3507,6 +3620,7 @@
     old.parentNode.replaceChild(d, old);
     els[i] = d;
     markGlossed();
+    pnPaint();
   }
 
   // shift-click copies: the phrase under the cursor (the hoverable unit),
