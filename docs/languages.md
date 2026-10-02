@@ -1046,8 +1046,8 @@ prompts and are the same for every language: `youtube/docs/conventions.md`
 (with `chat-prompt.md`, the add page's video prompt), `docs/new-book-prompt.md`
 (the instructions an agent making a book is given), `docs/region-prompt.md` (a
 stretch of a book or a video glossed by an LLM, filled in by
-`lib/glossregion.py`), and `docs/meaning-rule.md`, which the first three embed
-(`{{MEANING_RULE}}`). `docs/lang/<code>.md` is read afresh for every prompt
+`lib/glossregion.py`), and `docs/meaning-rule.md`, which those three prompts
+embed (`{{MEANING_RULE}}`). `docs/lang/<code>.md` is read afresh for every prompt
 and **cut to what that prompt needs** by `lib/promptkit.py`: the sections it
 takes are named by one table (`SECTIONS`) — a gloss prompt for a stretch takes
 everything but Chunking, a prompt for a whole book or video takes everything,
