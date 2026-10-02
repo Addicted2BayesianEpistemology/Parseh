@@ -306,6 +306,51 @@ try {
     }
   }
 
+  /* ---------------- a4) every combination of sides, drawn both ways ---------------- */
+  console.log('a4) every combination of sides on a both-random card, drawn both ways');
+  {
+    // a card for each set of the extras said to be `question`, every field naming itself
+    const combos = [];
+    for (const kind of ['vocab', 'opposites']) {
+      const keys = kind === 'vocab' ? ['context', 'notes', 'source'] : ['notes', 'source'];
+      for (let mask = 0; mask < (1 << keys.length); mask++)
+        combos.push({kind, keys, asked: keys.filter((k, i) => mask & (1 << i))});
+    }
+    const NAME = {target: 'WORD', reading: 'READING', transliteration: 'TRANSLIT', meaning: 'MEANING', opposite: 'OPPOSITE',
+                  'opposite-reading': 'OREADING', 'opposite-transliteration': 'OTRANSLIT', context: 'CONTEXT', notes: 'NOTES', source: 'SOURCE'};
+    const own = {vocab: ['target', 'reading', 'transliteration', 'meaning'],
+                 opposites: ['target', 'reading', 'transliteration', 'opposite', 'opposite-reading', 'opposite-transliteration']};
+    const wordSide = ['target', 'reading', 'transliteration'];
+    const cards = combos.map(c => 'card-type: ' + c.kind + '\n' + own[c.kind].map(k => `${k}: ${NAME[k]}`).join('\n') + '\n'
+      + c.keys.map(k => `${k}: ${NAME[k]}`).join('\n') + '\n' + c.asked.map(k => `${k}-side: question`).join('\n')
+      + (c.asked.length ? '\n' : '') + 'direction: both-random');
+    const all = await (await send('POST', '/api/docs', JSON.stringify({markdown: doc('en', cards)
+      .replace('title: Sides en', 'title: Every combination')}))).json();
+    for (const [v, meaningFirst] of [[0.1, false], [0.9, true]]) {
+      const ctx = await browser.newContext({viewport: {width: 1100, height: 700}});
+      await ctx.addInitScript(forced(v));
+      const page = await ctx.newPage();
+      await page.goto(`${B}/doc/${all.meta.id}`);
+      await page.waitForSelector('#sheet .ex-flashcard');
+      const got = await page.locator('#sheet .ex-flashcard').evaluateAll(cs => cs.map(c => {
+        const f = side => [...c.querySelector(':scope > ' + side).children].filter(x => x.classList.contains('ex-card-field')).map(x => x.textContent.trim());
+        return [f('.ex-card-front'), f('.ex-card-back')];
+      }));
+      let wrong = [];
+      combos.forEach((c, i) => {
+        const word = wordSide.map(k => NAME[k]);
+        const meaning = own[c.kind].filter(k => !wordSide.includes(k)).map(k => NAME[k]);
+        const asked = c.keys.filter(k => c.asked.includes(k)).map(k => NAME[k]);
+        const answered = c.keys.filter(k => !c.asked.includes(k)).map(k => NAME[k]);
+        // what the first side holds, and what the other: the side shown first has the question's extras, the other the answer's
+        const want = meaningFirst ? [[...meaning, ...asked], [...word, ...answered]] : [[...word, ...asked], [...meaning, ...answered]];
+        if (!same(got[i], want)) wrong.push(`${c.kind} ${c.asked.join('+') || 'none'}: ${JSON.stringify(got[i])} not ${JSON.stringify(want)}`);
+      });
+      assert(wrong.length === 0, `random ${v}: all ${combos.length} combinations of sides are drawn as the rule says: ${wrong.slice(0, 2).join(' | ')}`);
+      await ctx.close();
+    }
+  }
+
   /* ---------------- b) the real draw ---------------- */
   console.log('b) the real draw');
   {
