@@ -384,23 +384,23 @@ html[data-theme=dark]{
 .hl-green{color:var(--hl-green)}
 
 /* ---------------- ✱ notes: the phrases that carry a note ----------------
-   The bar's switch (player.js, "the phrases that carry a note") puts
-   body.shownotes on; a phrase with a note has had .has-note all along.  NOT
-   AN hl- COLOUR, and drawn without touching the text: the four colours are the
-   person's own marks and keep showing -- the underline and the ✱ are the
-   accent's, and the phrase's own ink is left to the colour -- and the ✱ is
-   generated content, so selecting, copying, the dictionary's sentence and the
-   timings read the line as they always did.  The ✱ is set in the quiet sans the
-   bare runs use, because the language's own face has none and the browser would
-   pick whichever font has it; it is placed logically, so it follows a
-   right-to-left line to its left.  .note-here is the phrase the walk has just
-   arrived at, and is an outline because the line in play has a tinted ground. */
-body.shownotes .has-note{text-decoration:underline dashed var(--accent) 1.5px;
+   The bar's switch (player.js, "the phrases that carry a note") puts .has-note
+   on every phrase that has one, and only while it is on.  NOT AN hl- COLOUR,
+   and drawn without touching the text: the four colours are the person's own
+   marks and keep showing -- the underline and the ✱ are the accent's, and the
+   phrase's own ink is left to the colour -- and the ✱ is generated content, so
+   selecting, copying, the dictionary's sentence and the timings read the line as
+   they always did.  The ✱ is set in the quiet sans the bare runs use, because
+   the language's own face has none and the browser would pick whichever font has
+   it; it is placed logically, so it follows a right-to-left line to its left.
+   .note-here is the phrase the walk has just arrived at, and is an outline
+   because the line in play has a tinted ground. */
+.fa .has-note{text-decoration:underline dashed var(--accent) 1.5px;
   text-decoration-skip-ink:none;text-underline-offset:7px}
-body.shownotes .has-note::after{content:"\2731";color:var(--accent);
+.fa .has-note::after{content:"\2731";color:var(--accent);
   font:normal 600 .62em/0 -apple-system,'Segoe UI',Roboto,sans-serif;
   vertical-align:.95em;margin-inline-start:.18em;pointer-events:none}
-body.shownotes .has-note.note-here{outline:2px solid var(--accent);outline-offset:3px;
+.fa .has-note.note-here{outline:2px solid var(--accent);outline-offset:3px;
   border-radius:4px}
 /* the switch and its two arrows, kept together when the bar wraps; the arrows
    are drawn only while the highlight is on, and greyed when no phrase has a note */

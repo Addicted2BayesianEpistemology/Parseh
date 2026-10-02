@@ -373,6 +373,32 @@ try {
   });
   const urls = () => requests.filter(([m, p]) => m !== 'GET' || /^\/youtube\/api\//.test(p));
 
+  // ✱ notes' walk: the phrase last walked to, and whether the page has stopped moving (the scroll is smooth)
+  const here = page => page.evaluate(() => {
+    const e = document.querySelector('#segs .note-here');
+    if (!e) return null;
+    const r = e.getBoundingClientRect();
+    return {at: [+e.closest('.seg').dataset.i, e.dataset.j !== undefined ? +e.dataset.j : [...e.parentNode.children].indexOf(e)],
+            top: r.top, bottom: r.bottom, head: document.querySelector('header').getBoundingClientRect().bottom,
+            video: document.querySelector('#playerwrap').getBoundingClientRect().bottom, vh: innerHeight,
+            side: document.body.classList.contains('sbs'), many: document.querySelectorAll('#segs .note-here').length};
+  });
+  async function settle(page) {
+    await sleep(80);
+    let last = -1;
+    for (let n = 0; n < 60; n++) { const y = await page.evaluate(() => scrollY); if (y === last) return; last = y; await sleep(120); }
+  }
+  const walk = async (page, dir) => { await page.click(dir > 0 ? '#notesnext' : '#notesprev'); await settle(page); return here(page); };
+  // the phrase walked to is the one lit, below the bar -- and below the video where it is pinned over the text --
+  // and inside the window
+  const walks = async (page, what) => {
+    const h = await here(page);
+    const floor = h && (h.side ? h.head : Math.max(h.head, h.video));
+    assert(h && h.many === 1 && h.top >= floor - 1 && h.bottom <= h.vh + 1,
+           `${what}: ${JSON.stringify(h && h.at)} is the one phrase lit as walked to, below the ${h && h.side ? 'bar' : 'bar and the video'}, inside the window (${h && Math.round(h.top)}..${h && Math.round(h.bottom)} of ${h && h.vh}; below ${h && Math.round(floor)})`);
+    return h.at;
+  };
+
   /* ---------------- a) ---------------- */
   console.log('\na) the owner\'s case: a note about a slip in the transcript, the phrase mended, the note emptied');
   {
@@ -504,7 +530,7 @@ try {
       const vis = e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility === 'visible' && s.display !== 'none' && !e.hidden; };
       return {text: b.textContent.trim(), pressed: b.getAttribute('aria-pressed'), on: b.classList.contains('on'),
               btn: vis(b), prev: vis(p), next: vis(n), disabled: [p.disabled, n.disabled],
-              shown: document.body.classList.contains('shownotes')};
+              lit: document.querySelectorAll('#segs .has-note').length};
     });
     // every phrase that wears the class, as [caption, chunk]: a .w knows its number, a bare run is the n-th element of its line
     const lit = () => page.evaluate(() => [...document.querySelectorAll('#segs .has-note')].map(e => [
@@ -515,32 +541,17 @@ try {
               after: a.content, afterColor: a.color, classes: e.className};
     }, sel);
     const spanOf = ([i, j]) => `#segs .seg[data-i="${i}"] .fa > :nth-child(${j + 1})`;
-    const here = () => page.evaluate(() => {
-      const e = document.querySelector('#segs .note-here');
-      if (!e) return null;
-      const r = e.getBoundingClientRect();
-      return {at: [+e.closest('.seg').dataset.i, e.dataset.j !== undefined ? +e.dataset.j : [...e.parentNode.children].indexOf(e)],
-              top: r.top, bottom: r.bottom, head: document.querySelector('header').getBoundingClientRect().bottom,
-              video: document.querySelector('#playerwrap').getBoundingClientRect().bottom, vh: innerHeight,
-              many: document.querySelectorAll('#segs .note-here').length};
-    });
-    async function settle() {                 // the smooth scroll has arrived when the page stops moving
-      await sleep(80);
-      let last = -1;
-      for (let n = 0; n < 60; n++) { const y = await page.evaluate(() => scrollY); if (y === last) return; last = y; await sleep(120); }
-    }
-    const walk = async dir => { await page.click(dir > 0 ? '#notesnext' : '#notesprev'); await settle(); return here(); };
-    const walks = async what => {             // the walk's phrase is below the bar and the video, and inside the window
-      const h = await here();
-      assert(h && h.many === 1 && h.top >= Math.max(h.head, h.video) - 1 && h.bottom <= h.vh + 1,
-             `${what}: ${JSON.stringify(h && h.at)} is the one phrase lit as walked to, below the bar and the video, inside the window (${h && Math.round(h.top)}..${h && Math.round(h.bottom)} of ${h && h.vh}; bar ${h && Math.round(h.head)}, video ${h && Math.round(h.video)})`);
-      return h.at;
-    };
 
     // OFF on a visit: the switch is there, its arrows are not, nothing is lit
     eq(await state(), {text: '✱ notes', pressed: 'false', on: false, btn: true, prev: false, next: false,
-                       disabled: [true, true], shown: false}, `${k}: the button is in the bar, off, with no count and no arrows`);
-    eq(await lit(), I.noted, `${k}: the phrases that carry a note wear the class from the start, and the blank note is none (${JSON.stringify(I.blank)} is not among them)`);
+                       disabled: [true, true], lit: 0}, `${k}: the button is in the bar, off, with no count and no arrows`);
+    eq(await lit(), [], `${k}: with it off not one phrase wears a class of it`);
+    // on and off again, the transcript is byte for byte what it was: not a class, not an attribute is left behind
+    const htmlOff = await page.evaluate(() => document.querySelector('#segs').innerHTML);
+    await page.click('#notesbtn');
+    eq(await lit(), I.noted, `${k}: on, the phrases that carry a note wear the class, and the blank note is none (${JSON.stringify(I.blank)} is not among them)`);
+    await page.click('#notesbtn');
+    eq(await page.evaluate(() => document.querySelector('#segs').innerHTML), htmlOff, `${k}: and off again the transcript is exactly what it was before the button was touched`);
     const dotted = await styleOf(page, spanOf(I.noted[1]));
     eq([dotted.style, dotted.after], ['dotted', 'none'], `${k}: while it is off a noted phrase looks as every phrase does (dotted, nothing after it)`);
     eq(await page.evaluate(() => Object.keys(localStorage).filter(x => /note/i.test(x))), [], `${k}: and nothing about it is remembered`);
@@ -557,7 +568,7 @@ try {
     await page.evaluate(() => scrollTo(0, 0));
     await page.click('#notesbtn');
     eq(await state(), {text: '✱ notes 3', pressed: 'true', on: true, btn: true, prev: true, next: true,
-                       disabled: [false, false], shown: true}, `${k}: on, it says 3 -- the file's count -- with its arrows`);
+                       disabled: [false, false], lit: 3}, `${k}: on, it says 3 -- the file's count -- with its arrows`);
     const accent = await probe(page, '--accent'), blue = await probe(page, '--hl-blue');
     for (const at of I.noted) {
       const s = await styleOf(page, spanOf(at));
@@ -583,10 +594,10 @@ try {
     }, [I.noted]);
     const order = I.noted.concat(I.noted).slice(first, first + 4);
     const got = [];
-    for (let n = 0; n < 4; n++) { await walk(1); got.push(await walks(`${k}: › ${n + 1}`)); }
+    for (let n = 0; n < 4; n++) { await walk(page, 1); got.push(await walks(page, `${k}: › ${n + 1}`)); }
     eq(got, order, `${k}: › four times visits the phrases in order and wraps to the first again`);
     const back = [];
-    for (let n = 0; n < 3; n++) { await walk(-1); back.push(await walks(`${k}: ‹ ${n + 1}`)); }
+    for (let n = 0; n < 3; n++) { await walk(page, -1); back.push(await walks(page, `${k}: ‹ ${n + 1}`)); }
     eq(back, [got[2], got[1], got[0]], `${k}: ‹ walks back along the same way, and wraps from the first to the last`);
     // it asked the server nothing and wrote nothing
     eq(requests.slice(seen), [], `${k}: toggling and walking made not one request`);
@@ -632,7 +643,7 @@ try {
     // off again, and OFF on every visit
     await page.click('#notesbtn');
     eq(await state(), {text: '✱ notes', pressed: 'false', on: false, btn: true, prev: false, next: false,
-                       disabled: [true, true], shown: false}, `${k}: the button turns it off, and takes its count and arrows with it`);
+                       disabled: [true, true], lit: 0}, `${k}: the button turns it off, and takes its count and arrows with it`);
     eq((await styleOf(page, spanOf(I.noted[2]))).after, 'none', `${k}: and the ✱ is gone from the page`);
     eq(await page.evaluate(() => document.querySelectorAll('#segs .note-here').length), 0, `${k}: with the walk's mark`);
     await page.click('#notesbtn');
@@ -644,13 +655,13 @@ try {
     // the mode switched under a page that has it on takes the highlight away, and it stays off
     const m = await player(I.id, k + ' (the mode switched)');
     await m.click('#notesbtn');
-    eq((await m.evaluate(() => document.body.classList.contains('shownotes'))), true, `${k}: on`);
+    eq(await m.evaluate(() => document.querySelectorAll('#segs .has-note').length), 3, `${k}: on`);
     await m.evaluate(() => Parseh.mode.set('mobile'));
-    await m.waitForFunction(() => !document.body.classList.contains('shownotes'));
+    await m.waitForFunction(() => document.querySelectorAll('#segs .has-note').length === 0);
     eq(await m.evaluate(() => document.querySelector('#notesbtn').textContent.trim()), '✱ notes', `${k}: switched to the mobile mode, the highlight is gone, and the count with it`);
     await m.evaluate(() => Parseh.mode.set('browser'));
     await sleep(150);
-    eq(await m.evaluate(() => [document.body.classList.contains('shownotes'), document.querySelector('#notesbtn').getAttribute('aria-pressed')]), [false, 'false'],
+    eq(await m.evaluate(() => [document.querySelectorAll('#segs .has-note').length, document.querySelector('#notesbtn').getAttribute('aria-pressed')]), [0, 'false'],
        `${k}: and switched back it is off, as a visit starts`);
     await m.close();
   }
@@ -668,8 +679,30 @@ try {
     });
     eq(gone, {display: 'none', w: 0, h: 0, inBar: 0}, `${k}: the ✱ notes control is not in the bar: display none, no box, no button of it drawn`);
     await page.evaluate(() => { document.querySelector('#notesbtn').click(); });
-    eq(await page.evaluate(() => [document.body.classList.contains('shownotes'), document.querySelectorAll('#segs .has-note').length > 0]),
-       [false, true], `${k}: pressed by a script, nothing lights: the highlight is the browser mode's alone`);
+    eq(await page.evaluate(() => [document.querySelectorAll('#segs .has-note').length, document.querySelector('#notesbtn').getAttribute('aria-pressed')]),
+       [0, 'false'], `${k}: pressed by a script, nothing lights: the highlight is the browser mode's alone`);
+    await page.close();
+    await ctx.close();
+  }
+  // the walk lands where it can be read in the other layouts too: a window as narrow as a phone's (the bar wraps
+  // to rows and the video is pinned under it), and the video beside the transcript (a column of its own)
+  for (const [label, win, before] of [['a 390 px window', {width: 390, height: 844}, null],
+                                      ['the video beside the transcript', {width: 1280, height: 800}, () => localStorage.setItem('yt_sbs', '1')]]) {
+    const k = 'it';
+    const ctx = await newContext({viewport: win});
+    if (before) await ctx.addInitScript(before);
+    const page = await player(B.it.id, k + ' (' + label + ')', ctx);
+    if (before) eq(await page.evaluate(() => document.body.classList.contains('sbs')), true, `${k}: ${label}`);
+    await page.click('#notesbtn');
+    const seen = [];
+    for (let n = 0; n < 4; n++) { await walk(page, 1); seen.push(await walks(page, `${k}, ${label}: › ${n + 1}`)); }
+    eq(seen.slice(0, 3).map(String).sort(), B.it.noted.map(String).sort(), `${k}, ${label}: the three phrases with a note, each walked to`);
+    eq(seen[3], seen[0], `${k}, ${label}: and round to the first again`);
+    // a narrow screen puts the bar away as the page moves down, and the arrows are in it: while the walk is on it stays
+    eq(await page.evaluate(() => [document.body.classList.contains('barhidden'), document.body.hasAttribute('data-bars-held')]), [false, true],
+       `${k}, ${label}: the bar was never put away while walking, so every press found its arrow`);
+    await page.click('#notesbtn');
+    eq(await page.evaluate(() => document.body.hasAttribute('data-bars-held')), false, `${k}, ${label}: and let go of when the walk is off`);
     await page.close();
     await ctx.close();
   }

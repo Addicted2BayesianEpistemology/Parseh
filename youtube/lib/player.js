@@ -589,31 +589,50 @@
 
      THE PHRASE'S OWN CLASS, has-note, and not an hl- colour: the four colours
      are the person's marks and go on showing beside it.  A class and nothing
-     more -- the dashed underline and the ✱ are drawn by the stylesheet
-     (body.shownotes), so no text is added to the line, and selection, copy, the
-     dictionary's sentence and the timings read what they always read.  What
-     counts is a note that is not blank once trimmed, on any chunk the line
-     draws: a chunk drawn bare (one marked plain) has no cloud and its note is
-     shown nowhere else.  The count and the walk read the page, which is the
-     one thing that is always as drawn: a save, a cut and a redraw all end in
-     pnPaint(). */
-  var pn = { on: false, cur: null };      // the switch, and the phrase last walked to
+     more -- the dashed underline and the ✱ are drawn by the stylesheet, so no
+     text is added to the line, and selection, copy, the dictionary's sentence
+     and the timings read what they always read -- and it is on the page only
+     while the switch is, so that with it off a transcript is exactly what it
+     was before there was a switch.  What counts is a note that is not blank
+     once trimmed, on any chunk the line draws: a chunk drawn bare (one marked
+     plain) has no cloud and its note is shown nowhere else.  The count and the
+     walk read the page, which is the one thing that is always as drawn: a save,
+     a cut and a redraw all end in pnPaint(). */
+  // the switch, the phrase last walked to, whether any phrase wears the class, whether the bar is held
+  var pn = { on: false, cur: null, swept: false, held: false };
   function hasNote(ch) {
     return !!ch && typeof ch.note === 'string' && ch.note.trim() !== '';
   }
+  // every phrase the lines draw, with its chunk: the n-th phrase of a line is the
+  // n-th chunk, and what lies between two is text
+  function pnEach(fn) {
+    Array.prototype.forEach.call($('#segs').querySelectorAll('.seg'), function (d) {
+      var sg = segs[+d.dataset.i], fa = d.querySelector('.fa');
+      if (!sg || !sg.chunks || !fa) return;
+      var kids = Array.prototype.filter.call(fa.children, function (e) {
+        return e.classList.contains('w') || e.classList.contains('bare');
+      });
+      sg.chunks.forEach(function (ch, j) { if (kids[j]) fn(kids[j], ch); });
+    });
+  }
   function paintNote(el, ch) {
-    var has = hasNote(ch);
-    el.classList.toggle('has-note', has);
-    if (!has) el.classList.remove('note-here');
+    var lit = pn.on && hasNote(ch);
+    el.classList.toggle('has-note', lit);
+    if (!lit) el.classList.remove('note-here');
   }
   function pnList() {
     return Array.prototype.slice.call($('#segs').querySelectorAll('.has-note'));
   }
   function pnPaint() {
     if (mobileNow()) pn.on = false;       // the mobile mode has no button, so it is left off there
-    var on = pn.on, list = on ? pnList() : [];
+    var on = pn.on;
+    if (on || pn.swept) { pnEach(paintNote); pn.swept = on; }
+    var list = on ? pnList() : [];
     if (!on && pn.cur) { pn.cur.classList.remove('note-here'); pn.cur = null; }
-    document.body.classList.toggle('shownotes', on);
+    // the arrows are in the bar, which a narrow screen puts away as the page moves
+    // down (lib/parseh.js, "the bar, on a phone"): while the walk is on it stays, or
+    // the second press would have to wait for a scroll up
+    if (on !== pn.held) { pn.held = on; document.body.toggleAttribute('data-bars-held', on); }
     var b = $('#notesbtn');
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -1471,9 +1490,8 @@
       if (done) done(ch);
       paintWords(at.w, ch);
       paintCol(at.w, ch);
-      // a note written, changed or taken off lights or dims its phrase now,
-      // and the count of ✱ notes follows
-      paintNote(at.w, ch);
+      // a note written, changed or taken off lights or dims its phrase now (with
+      // ✱ notes on), and the count follows
       pnPaint();
       // the answer may arrive after the pointer has moved to the next
       // phrase, whose cloud must not be told about this one
@@ -3566,7 +3584,6 @@
           // a mark set by hand in the file still shows on a chunk the
           // player itself would not offer to colour
           paintCol(bare, ch);
-          paintNote(bare, ch);       // and its note, which is shown nowhere else (✱ notes)
           fa.appendChild(bare);
           return;
         }
@@ -3574,7 +3591,6 @@
         w.className = 'w'; w.dataset.j = j;
         paintWords(w, ch);
         paintCol(w, ch);
-        paintNote(w, ch);
         w.addEventListener('mouseenter', function () {
           if (!hoverPointer()) return;    // a tap's synthetic hover: not one
           openCloud(w, ch, sg);
