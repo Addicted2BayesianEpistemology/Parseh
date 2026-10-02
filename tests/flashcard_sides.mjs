@@ -443,12 +443,21 @@ try {
       const f = x => [...c.querySelector(':scope > ' + x).children].filter(e => e.classList.contains('ex-card-field')).map(e => e.textContent.trim());
       return {first: f('.ex-card-front'), second: f('.ex-card-back')};
     }, FORM);
-    await sleep(500);
-    assert(same(await pv(), {first: ['wall'], second: ['a barrier', 'a high wall', 'of stone', 'Merriam']}), 'the form\'s preview starts as the card is');
+    // the preview is drawn a moment after a change: wait for what it should say, and say what it did
+    const settled = async want => {
+      let got = null;
+      for (let i = 0; i < 40; i++) {
+        got = await pv().catch(() => null);
+        if (same(got, want)) break;
+        await sleep(200);
+      }
+      return got;
+    };
+    const start = {first: ['wall'], second: ['a barrier', 'a high wall', 'of stone', 'Merriam']};
+    assert(same(await settled(start), start), 'the form\'s preview starts as the card is');
     await shut.locator('input').check();
-    await sleep(700);
-    assert(same(await pv(), {first: ['wall', 'of stone'], second: ['a barrier', 'a high wall', 'Merriam']}),
-           'ticking Notes moves it in the form\'s preview to the side shown first, after the word');
+    const noted = {first: ['wall', 'of stone'], second: ['a barrier', 'a high wall', 'Merriam']};
+    assert(same(await settled(noted), noted), 'ticking Notes moves it in the form\'s preview to the side shown first, after the word');
     await fieldBox(page, 'Source').locator('summary').click();
     // a click on its words ticks it as well as a click on the box, and so does the keyboard
     const words = fieldBox(page, 'Source').locator('.ex-side-toggle');
@@ -459,8 +468,8 @@ try {
     await words.locator('input').focus();
     await page.keyboard.press('Space');
     assert(await words.locator('input').isChecked(), 'Space on the focused box ticks it');
-    await sleep(700);
-    assert(same(await pv(), {first: ['wall', 'of stone', 'Merriam'], second: ['a barrier', 'a high wall']}), 'and Source after it');
+    const sourced = {first: ['wall', 'of stone', 'Merriam'], second: ['a barrier', 'a high wall']};
+    assert(same(await settled(sourced), sourced), 'and Source after it');
     await page.click(`${FORM} [data-x="save"]`);
     await page.waitForSelector(FORM, {state: 'detached'});
     let src = await page.evaluate(() => document.querySelector('#src').value);
