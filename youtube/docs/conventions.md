@@ -142,29 +142,6 @@ language it exists solely for imports from the older format. A chunk left
 with no gloss is not plain: it is a chunk still to be glossed, and the
 software counts it as one — so gloss every chunk that is not plain.
 
-## The output
-
-*This is the shape of a batch file, `parts/NN.json`, for a video written
-by hand from `youtube/PROMPT.md`. The add page's prompt asks for a shape
-of its own — one JSON object holding `video` and `captions`, each caption
-with its `i` — and shows it after these conventions: answering that
-prompt, follow that one.*
-
-A part file is a JSON **array**, one entry per caption, in order:
-
-```json
-[ {"start": 27, "chunks": [ {"fa": "…", "tr": "…", "voc": "…", "en": "…"} ]} ]
-```
-
-with `"kana": "…"` on every chunk when the language has a reading:
-
-```json
-[ {"start": 27, "chunks": [ {"fa": "…", "kana": "…", "tr": "…", "voc": "…", "en": "…"} ]} ]
-```
-
-Nothing else: no `text`, no `plain` on a caption, no `chapter` —
-`merge_parts.py` fills those from `transcript.txt`.
-
 ## The colour mark
 
 A chunk in a finished `annotations.json` may also carry **`col`** —

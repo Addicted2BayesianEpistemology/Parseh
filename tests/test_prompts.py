@@ -1308,6 +1308,18 @@ class TheSweep(unittest.TestCase):
             self.assertLess(len(named), 3, "conventions.md:%d lists languages: %s" % (n, ", ".join(named)))
             self.assertIsNone(re.search(r"`(%s)\.md`" % codes, line), "conventions.md:%d names a language's file" % n)
 
+    def test_the_add_pages_prompt_carries_no_batch_file_shape_which_is_the_project_prompts(self):
+        # the conventions are read by the add page's prompt and by the agent of youtube/PROMPT.md: the
+        # shape of a part file is the second's, and the first asks for a shape of its own
+        for code in ("fa", "ja", "it"):
+            text = promptlab.build("video-new", code).text
+            for said in ("parts/NN.json", "youtube/PROMPT.md"):
+                self.assertTrue(said not in text, "the %s add page's prompt names %s" % (code, said))
+        with open(os.path.join(ROOT, "youtube", "PROMPT.md"), encoding="utf-8") as f:
+            project = f.read()
+        self.assertIn("`parts/*.json`", project)
+        self.assertIn("a `plain` flag or a `chapter`", project)
+
     def test_the_audio_sync_prompt_for_one_persian_book_is_retired_with_nothing_left_pointing_at_it(self):
         # what it asked for (timings from the narration, an audio-synced reader, a review page) is
         # lib/timestamp.py and the reader's by ear; no prompt sends a language to it any more
