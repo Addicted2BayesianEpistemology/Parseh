@@ -784,6 +784,16 @@ class Routes(unittest.TestCase):
                 self.assertIn(said, j["prompt"])
                 self.assertNotIn(not_said, j["prompt"])
 
+    def test_the_prompt_is_prepared_without_looking_inside_the_file(self):
+        # THE PAGE ASKS FOR A PROMPT AGAIN AND AGAIN as the person types: an ffprobe on every
+        # ask made the answer arrive after the next keystroke (tests/add_stt.mjs went red on it)
+        with mock.patch.object(filmkind, "probe", side_effect=AssertionError("looked inside the file")), \
+             mock.patch.object(filmkind, "ffprobe", side_effect=AssertionError("looked for ffprobe")):
+            j = self.json_of("POST", "/youtube/api/prepare",
+                             {"path": self.sounds[".mp3"], "lang": "en", "gloss": "en", "transcript": TRANSCRIPT})
+        self.assertTrue(j["ok"], j)
+        self.assertIn("a recording on the reader's own machine, not on YouTube", j["prompt"])
+
     def test_the_add_page_has_the_looking_and_the_sending_and_serves_their_files(self):
         status, _h, raw = self.http("GET", "/youtube/add/")
         page = raw.decode("utf-8")
