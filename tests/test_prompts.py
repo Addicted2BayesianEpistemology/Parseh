@@ -26,6 +26,7 @@ passes on all of them it fails, until the mark is taken off.
 import collections
 import contextlib
 import io
+import itertools
 import math
 import os
 import random
@@ -34,15 +35,19 @@ import shutil
 import sys
 import tempfile
 import unittest
+import urllib.parse
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 for _p in ("markdown/app", "markdown/exlex", "markdown", "youtube/lib", "lib"):
     sys.path.insert(0, os.path.join(ROOT, _p))
 import glossregion                                              # noqa: E402
+import htmlgen                                                  # noqa: E402
 import languages                                                # noqa: E402
+import mdparser                                                 # noqa: E402
 import newbook                                                  # noqa: E402
 import newlang                                                  # noqa: E402
+import promptboxes                                              # noqa: E402
 import promptkit as K                                           # noqa: E402
 import promptlab                                                # noqa: E402
 import server as studio_server                                  # noqa: E402
@@ -57,19 +62,22 @@ import ytpages                                                  # noqa: E402
 # shorter does it on purpose: change the measured number and its budget together
 # (test_the_budgets_keep_to_their_rule) and say why in the commit.  What a
 # person's own text or a language they added adds is theirs; these are Parseh's.
+# The studio's prompt is measured as the page opens on it -- the lesson preset -- and
+# the exercise prompt for a page that uses no feature yet, every type ticked
+# (`StudioBoxes` measures the other presets against the old prompt).
 SIZES = {
     #        studio-doc     studio-exercises  video-new      video-region   book-region    transcript-tidy  book-new
-    "fa": ((21274, 24500), (33749, 38900), (30695, 35300), (20604, 23700), (19730, 22700), (2696, 3200), (32808, 37800)),
-    "ar": ((21945, 25300), (34419, 39600), (30569, 35200), (21027, 24200), (20705, 23900), (2687, 3100), (32685, 37600)),
-    "it": ((22104, 25500), (30335, 34900), (30602, 35200), (21032, 24200), (20710, 23900), (2747, 3200), (32652, 37600)),
-    "ja": ((22748, 26200), (30978, 35700), (33877, 39000), (24592, 28300), (24866, 28600), (2636, 3100), (34581, 39800)),
-    "fr": ((26105, 30100), (34337, 39500), (38721, 44600), (26973, 31100), (26605, 30600), (2795, 3300), (40715, 46900)),
-    "de": ((25652, 29500), (33884, 39000), (39098, 45000), (27027, 31100), (26485, 30500), (2758, 3200), (41124, 47300)),
-    "tr": ((23877, 27500), (32108, 37000), (39560, 45500), (28881, 33300), (28618, 33000), (2746, 3200), (41614, 47900)),
-    "en": ((28074, 32300), (36305, 41800), (41797, 48100), (30411, 35000), (29982, 34500), (2811, 3300), (43779, 50400)),
-    "hi": ((23605, 27200), (31838, 36700), (33993, 39100), (23691, 27300), (23945, 27600), (2692, 3100), (36086, 41500)),
-    "es": ((23771, 27400), (32002, 36900), (39886, 45900), (28935, 33300), (29167, 33600), (2664, 3100), (41928, 48300)),
-    "zh": ((24414, 28100), (32645, 37600), (42340, 48700), (29741, 34300), (29847, 34400), (2620, 3100), (43126, 49600)),
+    "fa": ((16137, 18600), (19078, 22000), (30695, 35300), (20604, 23700), (19730, 22700), (2696, 3200), (32808, 37800)),
+    "ar": ((16799, 19400), (19739, 22700), (30569, 35200), (21027, 24200), (20705, 23900), (2687, 3100), (32685, 37600)),
+    "it": ((16408, 18900), (14541, 16800), (30602, 35200), (21032, 24200), (20710, 23900), (2747, 3200), (32652, 37600)),
+    "ja": ((17663, 20400), (15565, 17900), (33877, 39000), (24592, 28300), (24866, 28600), (2636, 3100), (34581, 39800)),
+    "fr": ((20407, 23500), (18543, 21400), (38721, 44600), (26973, 31100), (26605, 30600), (2795, 3300), (40715, 46900)),
+    "de": ((19954, 23000), (18090, 20900), (39098, 45000), (27027, 31100), (26485, 30500), (2758, 3200), (41124, 47300)),
+    "tr": ((18181, 21000), (16314, 18800), (39560, 45500), (28881, 33300), (28618, 33000), (2746, 3200), (41614, 47900)),
+    "en": ((22378, 25800), (20511, 23600), (41797, 48100), (30411, 35000), (29982, 34500), (2811, 3300), (43779, 50400)),
+    "hi": ((18245, 21000), (16286, 18800), (33993, 39100), (23691, 27300), (23945, 27600), (2692, 3100), (36086, 41500)),
+    "es": ((18075, 20800), (16208, 18700), (39886, 45900), (28935, 33300), (29167, 33600), (2664, 3100), (41928, 48300)),
+    "zh": ((19058, 22000), (17124, 19700), (42340, 48700), (29741, 34300), (29847, 34400), (2620, 3100), (43126, 49600)),
 }
 MEASURED = ("studio-doc", "studio-exercises", "video-new", "video-region", "book-region",
             "transcript-tidy", "book-new")
@@ -245,6 +253,10 @@ CHECKS = (
           "also accepted (brief 6.5): no language file says a video's is plain text",
           ("video-region", "video-new"), {},
           says_a_videos_line_is_plain_text),
+    Check("has_no_avoid_math",
+          "the studio's rule 14 no longer says to avoid math (brief 7.3): `math`, `latex` and `exercises` "
+          "are taught in their boxes",
+          STUDIO, {}, has_no_avoid_math),
     # --- rows that wait for the lane that rewrites the words they are about ---
     Check("has_no_harakat_rule_of_a_reading_edition_in_a_video",
           "a reading edition's harakat are a book's (brief 3.8); the language files still say them in "
@@ -262,9 +274,6 @@ CHECKS = (
           "the sources sidebar's paragraph is documentation of a button and leaves every language "
           "file for the guide (brief 6.5); the studio's prompts no longer receive it",
           ALL_SURFACES, {s: "D" for s in GLOSSED}, has_no_sidebar_paragraph),
-    Check("has_no_avoid_math",
-          "the studio's rule 14 no longer says to avoid math (brief 7.3)",
-          STUDIO, {s: "E" for s in STUDIO}, has_no_avoid_math),
 )
 
 
@@ -529,10 +538,14 @@ class Marks(unittest.TestCase):
                                  (surface, flags))
 
     def test_flat_takes_the_marks_out_and_nothing_else(self):
-        for surface, flags in (("video-new", {"example": True}), ("studio-exercises", {}), ("book-new", {})):
+        for surface, flags in (("video-new", {"example": True}), ("studio-exercises", None), ("book-new", {})):
             with open(K.TEMPLATES[surface], encoding="utf-8") as f:
                 text = f.read()
-            stripped = re.sub(r"\{\{[?/](contract|data|example)\}\}", "", text)
+            if flags is None:
+                # the exercise template is a block a type: `flat` wants every flag it names, here all on
+                names = set(re.findall(r"\{\{\?(\w+)\}\}", text)) - set(K._MARKS)
+                flags = {n: True for n in names}
+            stripped = re.sub(r"\{\{[?/](%s)\}\}" % "|".join(["contract", "data", "example"] + sorted(flags)), "", text)
             self.assertNotIn("{{?contract}}", stripped)
             self.assertEqual(K.flat(text, flags), stripped, surface)
 
@@ -952,11 +965,12 @@ class Assemblers(ControlledMachine):
     def test_the_exercise_route_keeps_its_shape_and_the_authoring_prompts_contract_is_not_in_it(self):
         h = Handler({"markdown": "---\ntitle: T\ntarget: fa\n---\n\nLesson", "decks": []})
         studio_server.api_exercise_prompt(h)
-        self.assertEqual(sorted(h.answer), ["prompt", "vocabulary"])
+        # the old keys are kept, and what the dialog draws its boxes and types from is added (E-CONTRACT)
+        self.assertEqual(sorted(h.answer), ["boxes", "preticked", "prompt", "size", "types", "vocabulary"])
         p = h.answer["prompt"]
         self.assertTrue(p.startswith(K.version_line("studio-exercises", "fa")))
         self.assertIn("Return the complete updated Markdown document in one fenced", p)
-        self.assertNotIn("actual `.md` file", p)
+        self.assertNotIn("creating a markdown file", p, "the studio's contract asks for a file, this one for a fence")
         self.assertTrue(p.rstrip().endswith("```"))
 
     def test_the_region_routes_hand_out_the_prompt_the_lab_builds(self):
@@ -1073,8 +1087,812 @@ class StudioPromptRoutes(unittest.TestCase):
             self.assertFalse(h.answer["custom"])
             self.assertNotIn("{{", h.answer["text"])
             self.assertIn("creating a markdown file", h.answer["text"])
-            self.assertEqual(h.answer["text"], studio_server.promptkit.flat(studio_server.store.default_prompt()))
+            self.assertEqual(h.answer["text"], studio_server.promptboxes.legacy_text(languages.get("fa")))
             self.assertFalse(os.path.exists(os.path.join(td, "_prompt.md")))
+
+
+# --- the studio's prompt in parts (brief 7): the reserved list, the boxes, the routes -------------------
+# THE RESERVED LIST, DRIVEN.  Every construct the studio reads that the prompt names -- in its box when the
+# box is ticked, in the reserved list at the end of the prompt when it is not -- with the sample line that
+# makes it, read here by the real parser (mdparser for the blocks, htmlgen for the page).  The rows were
+# driven by hand in Phase 0 (a0.4.2's research: 121 of them, four of the brief's starter's own wrong: a
+# table's separator needs pipes, a `|` in a heading is an entry only in the script targets when the first
+# field is in the script, bold is not barred from target-language words, a code fence's inside is READ).
+#   id  box that teaches it, or "always"  target  the sample  its blocks  its blocks as the middle line of
+#   a wrapped paragraph  what the page shows  its words in the box  its words in the reserved list  [document]
+# A row whose reserved-list words are None is a detail of its box only.  `{CODE}` is the target's own code.
+Construct = collections.namedtuple("Construct", "id box target sample blocks wrapped page in_box in_list doc")
+WRAP = "Prose line one goes on for a good while and\n%s\nline three ends the sentence."
+
+
+def C(id, box, target, sample, blocks, wrapped, page, in_box, in_list, doc=""):
+    return Construct(id, box, target, sample, blocks.split(), wrapped.split() if wrapped else None,
+                     page, in_box, in_list, doc)
+
+
+RESERVED = (
+    C('fence-exercise', 'exercises', 'fa', ':::exercise single-choice', 'exercise', 'para exercise', ('Exercise needs attention', 'missing its closing'), ':::exercise', ':::exercise'),
+    C('fence-math', 'math', 'fa', ':::math', 'math', 'para math', ('class="math mathblock"',), ':::math', ':::math'),
+    C('fence-latex', 'latex', 'fa', '::::latex chemistry {width=45}', 'latex', 'para latex', ('latex-fail', 'closed by a line of four colons'), '::::latex', '::::latex'),
+    C('fence-bare', 'always', 'fa', ':::note', 'para', 'para', (':::note',), None, ':::note'),
+    C('mark-tl-inline', 'blocks', 'fa', 'A phrase [یک فایل PDF]{tl} inside prose.', 'para', 'para', ('data-tl-kind="mark"', 'class="fa fa-l fa-rich"'), '[…]{tl}', '[…]{tl}'),
+    C('mark-tl-block', 'blocks', 'fa', '[یک فایل PDF]{tl bg=sand}', 'para', 'para', ('class="fa-par rtl-bg-sand"', 'data-tl-kind="mark"'), 'bg=', 'bg='),
+    C('mark-tl-code-alias', 'blocks', 'fa', 'A phrase [یک فایل PDF]{fa} and [یک فایل PDF]{rtl} inside prose.', 'para', 'para', ('data-tl-kind="mark"',), '{CODE}', '{CODE}'),
+    C('mark-tl-code-alias-latin', 'blocks', 'it', 'A [bello]{it} here.', 'para', 'para', ('data-fa="bello"',), '{CODE}', '{CODE}'),
+    C('mark-tl-brackets-inside', 'blocks', 'fa', 'A [a [b] c]{tl} nested bracket.', 'para', 'para', ('[a [b] c]{tl}',), 'no square brackets inside', None),
+    C('mark-tl-long-form', 'blocks', 'fa', '[\nفلان می\u200cرود ⏎\nبه پارک\n]{tl}', 'para', 'para', ('class="fa-par"', '<br>'), 'opening bracket alone on the first line', None),
+    C('mark-tl-font', 'blocks', 'fa', '[hello]{tl font=nastaliq}', 'para', 'para', ('fa-alt fa-nasta', 'data-tl-font="nastaliq"'), 'font=', 'font='),
+    C('mark-tl-vertical', 'blocks', 'ja', '[古池や⏎蛙飛び込む⏎水の音]{tl vertical height=8}', 'para', 'para', ('tl-vertical', '--tl-vh:8em'), 'vertical', 'vertical'),
+    C('line-break', 'blocks', 'fa', 'First line ⏎ second line', 'para', 'para', ('First line<br>second line',), '⏎', '⏎'),
+    C('mark-la-block', 'latin', 'fa', '[A note set apart.]{la align=center bg=sage width=70}', 'para', 'para', ('class="la-par align-center rtl-bg-sage"', 'width:70%'), '{la}', '{la}'),
+    C('mark-la-inline', 'latin', 'fa', 'A sentence with [a Latin block]{la} inside it.', 'para', 'para', ('[a Latin block]{la}',), 'inside a sentence', None),
+    C('mark-math', 'math', 'fa', 'The formula [a^2+b^2=c^2]{math} holds.', 'para', 'para', ('class="math" data-tex="a^2+b^2=c^2"',), ']{math}', ']{math}'),
+    C('mark-math-swallow', 'math', 'fa', 'See [1] and [x^2]{math} here.', 'para', 'para', ('data-tex="1] and [x^2"',), '[sic]', None),
+    C('mark-latex', 'latex', 'fa', 'An inline drawing [\\ce{H2O}]{latex} here.', 'para', 'para', ('data-latex-src="\\ce{H2O}"',), ']{latex', ']{latex'),
+    C('mark-colour-name', 'colours', 'fa', 'A [word]{teal} here.', 'para', 'para', ('class="fac fac-teal" data-color="teal"',), 'crimson', 'crimson'),
+    C('mark-colour-hex', 'colours', 'fa', 'A [word]{#C2185B} here.', 'para', 'para', ('data-color="#C2185B"', 'color:#C2185B'), 'hex value', '#RRGGBB'),
+    C('mark-colour-unknown', 'always', 'fa', 'A [word]{red} here.', 'para', 'para', ('[word]{red}',), None, '{red}'),
+    C('mark-latin-target-any-word', 'always', 'it', 'A [word]{note} here.', 'para', 'para', ('data-fa="word"', 'class="fac"'), None, 'ANY `[text]{word}`'),
+    C('mark-translit', 'translit', 'fa', 'A [word]{teal translit:wɜːd} here.', 'para', 'para', ('data-translit="wɜːd"', 'data-color="teal"'), 'translit:', 'translit:'),
+    C('mark-kana', 'reading', 'ja', 'A [漢字]{kana:かんじ translit:kanji} here.', 'para', 'para', ('data-kana="かんじ"', 'data-translit="kanji"'), 'kana:', 'kana:'),
+    C('box-quote', 'boxes', 'fa', '> a quotation', 'box', 'para box para', ('<div class="box">',), '`>`', '`>`'),
+    C('box-no-space', 'boxes', 'fa', '>= 5 at the head of a line', 'box', 'para box para', (), 'space after', 'space after'),
+    C('box-heading-inside', 'boxes', 'fa', '> ## A heading in a box\n> text', 'box', 'para box para', ('<div class="box"><h2 class="section"',), 'no heading inside', None),
+    C('box-nested', 'boxes', 'fa', '> outer\n> > inner', 'box', 'para box para', ('<div class="box"><p>outer</p>', '<div class="box"><p>inner</p></div>'), 'No box inside a box', None),
+    C('list-dash', 'lists', 'fa', '- an item', 'list', 'para list para', ('<ul><li>an item</li></ul>',), '`- `', '`- `'),
+    C('list-star', 'lists', 'fa', '* an item', 'list', 'para list para', ('<ul><li>an item</li></ul>',), '`* `', '`* `'),
+    C('list-plus', 'lists', 'fa', '+ an item', 'list', 'para list para', ('<ul><li>an item</li></ul>',), '`+ `', '`+ `'),
+    C('enum-dot', 'lists', 'fa', '1. an item', 'enum', 'para enum para', ('<ol><li>an item</li></ol>',), '`1. `', '`1. `'),
+    C('enum-year', 'lists', 'fa', '1921. The year the war ended', 'enum', 'para enum para', ('<ol><li>The year the war ended</li></ol>',), '1921', '1921'),
+    C('enum-paren', 'lists', 'fa', '2) an item', 'enum', 'para enum para', ('<ol><li>an item</li></ol>',), '`2) `', '`2) `'),
+    C('enum-script-digits', 'always', 'fa', '۱. یک مورد', 'enum', 'para enum para', (), None, '۱. '),
+    C('list-indented', 'always', 'fa', '- one\n  - nested\n  continued line', 'list', 'para list para', ('<ul><li>one<ul><li>nested continued line</li></ul></li></ul>',), None, 'indenting the line'),
+    C('list-labelled', 'lists', 'fa', '- **Register** formal\n- **Origin** Arabic', 'list', 'para list para', ('<dl class="desc">', '<dt>Register</dt>'), 'bold label', None),
+    C('list-task-marker', 'always', 'fa', '- [ ] a task', 'list', 'para list para', ('<li>[ ] a task</li>',), None, '- [ ] task'),
+    C('list-rule-lookalike', 'always', 'fa', '* * *', 'list', 'para list para', ('<ul><li><em> </em></li></ul>',), None, '* * *'),
+    C('enum-blank-lines', 'lists', 'fa', '1. first\n\n2. second\n\n3. third', 'enum enum enum', 'para enum enum enum para', ('<ol><li>first</li></ol>', '<ol><li>third</li></ol>'), 'a blank line ends a list', None),
+    C('table', 'tables', 'fa', '| a | b |\n|---|---|', 'table', 'para table para', ('<table class="bt"',), '|---|---|', '|---|---|'),
+    C('table-one-column', 'tables', 'fa', '| a |\n|---|\n| 1 |', 'para', 'para', ('| a | |---| | 1 |',), 'two columns at least', None),
+    C('table-pipe-in-cell', 'tables', 'fa', '| a \\| b | c |\n|---|---|\n| 1 \\| 2 | 3 |', 'table', 'para table para', ('<th class="a-l">a \\</th>', '<th class="a-l">b</th>'), 'Never put a `|` inside a cell', None),
+    C('vocab-heading', 'vocab', 'fa', '## کتاب | ketāb | from Arabic | = *book*', 'voce', 'para voce para', ('class="voce"',), '<headword> |', 'holds a `|`'),
+    C('vocab-heading-latin-target', 'vocab', 'it', '## A section | with a pipe', 'voce', 'para voce para', ('class="voce"',), 'ANY `|`', 'ANY `|`'),
+    C('section-pipe-script-target', 'always', 'fa', '## Book | ketāb', 'section', 'para section para', ('Book | ketāb',), None, 'never contains a `|`'),
+    C('footnote-ref', 'notes', 'fa', 'A claim[^a] here.\n\n[^a]: The note.', 'para', '', ('class="fnref"', 'The note.'), '[^x]', '[^x]'),
+    C('footnote-def', 'notes', 'fa', '[^a]: The note text.', '', 'para para', (), ']:', ']:'),
+    C('footnote-inline', 'notes', 'fa', 'A claim ^[a short note] here.', 'para', 'para', ('class="fnref"', '>a short note<'), '^[', '^['),
+    C('footnote-ref-undefined', 'notes', 'fa', 'The value x[^2] is squared.', 'para', 'para', ('class="fnref"', 'id="fn-1"></span>'), 'x[^2]', 'x[^2]'),
+    C('link-web', 'links', 'fa', 'See [the site](https://example.com/x) now.', 'para', 'para', ('<a class="lnk" href="https://example.com/x"',), 'https://', 'https://'),
+    C('link-other-scheme', 'links', 'fa', 'See [the page](page.html) now.', 'para', 'para', ('See the page now.',), 'any other `[', 'any other `['),
+    C('link-doc', 'always', 'fa', 'See [the note](doc:Another note) now.', 'para', 'para', ('class="doclink-dead"', 'data-name="Another note"'), None, '[…](doc:…)'),
+    C('link-bare-url', 'always', 'fa', 'See <https://example.com/x> and https://example.com/y now.', 'para', 'para', ('&lt;https://example.com/x&gt;',), None, '<https://…>'),
+    C('link-ref-style', 'always', 'fa', '[text][ref]\n\n[ref]: https://example.com', 'para para', 'para para', ('[text][ref]', '[ref]: https://example.com'), None, '[text][ref]'),
+    C('picture-line', 'always', 'fa', '![a map](images/map.png){width=50 align=center}', 'image', 'para image para', ('<figure',), None, '`![…](images/…)`'),
+    C('recording-line', 'always', 'fa', '![a word](audio/word.mp3)', 'audio', 'para audio para', ('figure class="img audio',), None, '`![…](audio/…)`'),
+    C('video-line', 'always', 'fa', '@[a talk](https://youtu.be/dQw4w9WgXcQ)', 'video', 'para video para', ('youtube-nocookie.com/embed/dQw4w9WgXcQ',), None, '`@[…](…)`'),
+    C('gloss-script', 'gloss', 'fa', 'کتاب = *book*', 'para', 'para', ('<span class="eq">=</span>', '<em>book</em>'), ' = *', ' = *'),
+    C('gloss-latin-target', 'gloss', 'it', '[bello]{tl} = *beautiful*', 'para', 'para', ('<span class="eq">=</span>', '<em>beautiful</em>'), '[word]{tl} = *', ' = *'),
+    C('gloss-unmarked-latin', 'gloss', 'it', 'bello = *beautiful*', 'para', 'para', (), 'an unmarked word followed by `=`', None),
+    C('wrong-form-cross', 'forms', 'fa', 'A wrong form ✗goed is marked.', 'para', 'para', ('class="ungram-run"', 'class="ungram-x"'), '✗', '✗'),
+    C('wrong-form-emoji', 'forms', 'fa', 'A wrong form ❌goed is marked.', 'para', 'para', ('class="ungram-run"',), '❌', '❌'),
+    C('right-tick', 'forms', 'fa', 'The right form ✅ goed.', 'para', 'para', ('✅ goed',), '✅', '✅'),
+    C('blank-slot', 'exercises', 'fa', 'Fill the [[name]] here.', 'para', 'para', ('Fill the [[name]] here.',), '[[', '[['),
+    C('bold', 'emphasis', 'fa', 'A **bold** word.', 'para', 'para', ('<strong>bold</strong>',), '**bold**', '**'),
+    C('italic', 'emphasis', 'fa', 'An *italic* word.', 'para', 'para', ('<em>italic</em>',), '*italic*', 'italic'),
+    C('two-stars', 'emphasis', 'fa', 'The sum 5 * 3 = 15 and a * b = c.', 'para', 'para', ('5 <em> 3 = 15 and a </em> b',), 'in a sentence italicise everything between them', 'in a sentence italicise everything between them'),
+    C('italic-target-language', 'emphasis', 'fa', '*کتاب* keeps its stars.', 'para', 'para', (), 'never around a word of the target language', None),
+    C('bold-italic-triple', 'emphasis', 'fa', 'A ***both*** word.', 'para', 'para', ('<strong><em>both</strong></em>',), '***both***', None),
+    C('code-span', 'emphasis', 'fa', 'Press `Ctrl+S` and `**b**` now.', 'para', 'para', ('<code>Ctrl+S</code>', '<code><strong>b</strong></code>'), 'Backticks', 'Backticks'),
+    C('section', 'always', 'fa', '## A section', 'section', 'para section para', ('<h2 class="section"',), None, 'for sections'),
+    C('subsection', 'always', 'fa', '### A subsection', 'subsection', 'para subsection para', ('<h3 class="subsection"',), None, 'for subsections'),
+    C('section-typed-number', 'always', 'fa', '## 2. A section', 'section', 'para section para', ('</span> A section</h2>',), None, '## 2. The four words'),
+    C('section-gloss-tail', 'always', 'fa', '## A section = *a gloss*', 'section', 'para section para', ('</span> A section</h2>',), None, 'trailing `= *…*`'),
+    C('title-hash', 'always', 'fa', '# A title', '', 'para para', ('<h1>A title</h1>',), None, 'No `#` heading', 'title'),
+    C('title-hash-dropped', 'always', 'fa', '# A second title', '', 'para para', (), None, 'a `#` line is dropped'),
+    C('heading-deep', 'always', 'fa', '#### A deep heading', 'para', 'para', ('#### A deep heading',), None, '`####`'),
+    C('heading-setext', 'always', 'fa', 'A title\n===', 'para', 'para', ('A title ===',), None, '`===`'),
+    C('rule-dashes', 'always', 'fa', '---', '', 'para para', (), None, '`---`'),
+    C('rule-stars', 'always', 'fa', '***', '', 'para para', (), None, '`***`'),
+    C('rule-underscores', 'always', 'fa', '___', '', 'para para', (), None, '`___`'),
+    C('front-matter', 'always', 'fa', '---\ntitle: T\nsubtitle: S\nnote: N\nlang: en\ntarget: fa\n---\nBody text', 'para', '', (), None, 'title: <short title>', 'whole'),
+    C('front-matter-other-key', 'always', 'fa', '---\ntitle: T\nauthor: Someone\ntags: [a, b]\n---\nBody', 'para', '', (), None, 'any other key is dropped', 'whole'),
+    C('front-matter-unclosed', 'always', 'fa', '---\ntitle: T\nBody that is never reached', '', '', (), None, 'never closed', 'whole'),
+    C('front-matter-unknown-target', 'always', 'fa', '---\ntitle: T\ntarget: xx\n---\nBody', 'para', '', (), None, 'not in the registry', 'whole'),
+    C('front-matter-late', 'always', 'fa', 'Some text\n\n---\ntitle: T\n---\nBody', 'para para para', '', (), None, 'nothing before it', 'whole'),
+    C('target-paragraph', 'always', 'fa', 'سلام دوست من', 'para', 'para', ('class="fa-display"',), None, 'no Latin letter at all'),
+    C('target-paragraph-punct', 'blocks', 'fa', 'سلام!', 'para', 'para', ('class="fa-par"',), 'ASCII punctuation', None),
+    C('target-punctuation-in-run', 'punct', 'fa', 'Three words: کند، آهسته، یواش — a list.', 'para', 'para', ('data-fa="کند، آهسته، یواش"',), 'own punctuation', 'own punctuation'),
+    C('wrapped-lines-joined', 'always', 'ja', '日本語の文章です。\nこれは二行目です。', 'para', '', ('日本語の文章です。 これは二行目です。',), None, 'ONE line'),
+    C('mark-split-across-lines', 'always', 'fa', 'A [word]\n{teal} split mark.', 'para', '', ('[word] {teal}',), None, 'Never break a line inside a mark'),
+    C('backslash-escape', 'always', 'fa', 'An escaped \\*star\\* and \\# hash.', 'para', 'para', ('\\*star\\*',), None, 'backslash escapes'),
+    C('code-fence', 'always', 'fa', "```python\nprint('hi')\n# a comment in code\nx = [1, 2]\n```", 'para para', 'para para', ('```python print(&#x27;hi&#x27;)', 'x = [1, 2] ```'), None, 'code fences'),
+    C('code-fence-inside-read', 'always', 'fa', '```\n- item in fence\n> quote in fence\n## heading in fence\n```', 'para list box section para', 'para list box section para', (), None, 'the code inside a fence is read as Markdown'),
+    C('code-indent', 'always', 'fa', '    indented four spaces', 'para', 'para', ('<p>indented four spaces</p>',), None, 'indented code'),
+    C('underscore-emphasis', 'always', 'fa', 'An _italic_ and __bold__ word.', 'para', 'para', ('_italic_ and __bold__',), None, '`_x_`'),
+    C('strikethrough', 'always', 'fa', 'A ~~struck~~ word.', 'para', 'para', ('~~struck~~',), None, '`~~x~~`'),
+    C('dollar-math', 'always', 'fa', 'The formula $a^2$ and $$b^2$$ stay.', 'para', 'para', ('$a^2$ and $$b^2$$',), None, '`$x$`'),
+    C('html-tag', 'always', 'fa', 'A <b>bold</b> word and <br> a break.', 'para', 'para', ('&lt;b&gt;bold&lt;/b&gt;', '&lt;br&gt;'), None, '`<b>`'),
+    C('html-entity', 'always', 'fa', 'Fish &amp; chips &copy; here.', 'para', 'para', ('Fish &amp;amp; chips &amp;copy; here.',), None, '`&amp;`'),
+    C('html-comment', 'always', 'fa', 'Before <!-- a comment --> after.', 'para', 'para', ('&lt;!-- a comment -', 'class="arrow"'), None, '`<!-- -->`'),
+    C('definition-list', 'always', 'fa', 'Term\n: its definition', 'para', 'para', ('Term : its definition',), None, 'definition lists'),
+    C('shortcode', 'always', 'fa', 'A {{< figure src="x" >}} shortcode.', 'para', 'para', ('{{&lt; figure src=&quot;x&quot; &gt;}}',), None, 'shortcodes'),
+    C('emoji-shortcode', 'always', 'fa', 'A :smile: here.', 'para', 'para', ('A :smile: here.',), None, '`:smile:`'),
+    C('heading-attribute', 'always', 'fa', '## A section {#id}', 'section', 'para section para', ('A section {#id}',), None, '`## Title {#id}`'),
+    C('heading-closing-hashes', 'always', 'fa', '## A section ##', 'section', 'para section para', ('A section ##</h2>',), None, 'no closing hashes'),
+    C('quotes-dashes-ellipsis', 'always', 'fa', 'A "quote" -- and --- and ... here.', 'para', 'para', ('&quot;quote&quot; -- and --- and ...',), None, '“ ”'),
+    C('emoji', 'always', 'fa', 'Well done 🎉 indeed.', 'para', 'para', ('Well done 🎉 indeed.',), None, 'no emoji'),
+    C('arrow-glyph', 'always', 'fa', 'a → b', 'para', 'para', ('<span class="arrow">→</span>',), None, '→ themselves'),
+    C('star-in-word', 'emphasis', 'fa', 'Two stars: 2*3*4 stay.', 'para', 'para', ('2*3*4',), 'never inside a word', None),
+)
+
+
+def _document(row, sample=None):
+    text = row.sample if sample is None else sample
+    if row.doc == "whole":
+        return text
+    head = "---\n" + ("" if row.doc == "title" else "title: T\n")
+    return head + "lang: en\ntarget: %s\n---\n\n%s\n" % (row.target, text)
+
+
+def _page(md):
+    return re.sub(r' data-src-line="\d+"', "", htmlgen.render_document(md, colophon=False)["html"])
+
+
+def _mismatch(row):
+    """What the parser makes of a row's sample against what the row says: [] where they agree."""
+    out = []
+    got = [b["type"] for b in mdparser.parse(_document(row))[1]]
+    if got != row.blocks:
+        out.append("reads as %r, the row says %r" % (got, row.blocks))
+    page = _page(_document(row))
+    out += ["the page lacks %r" % s for s in row.page if s not in page]
+    if row.wrapped is not None:
+        wrapped = [b["type"] for b in mdparser.parse(_document(row, WRAP % row.sample))[1]]
+        if wrapped != row.wrapped:
+            out.append("as the middle line of a paragraph it reads as %r, the row says %r" % (wrapped, row.wrapped))
+    return out
+
+
+_INSTRUCTIONS = {}
+
+
+def _instructions(code, ticked):
+    """The instructions of the studio's prompt with only these boxes ticked."""
+    key = (code, tuple(ticked))
+    if key not in _INSTRUCTIONS:
+        _INSTRUCTIONS[key] = studio_server.studio_prompt(languages.get(code), boxes=list(ticked)).instructions
+    return _INSTRUCTIONS[key]
+
+
+def _box_own(code, box):
+    """The lines a box adds to a prompt with nothing else ticked: its own paragraphs."""
+    bare = set(_instructions(code, ()).split("\n"))
+    return "\n".join(x for x in _instructions(code, (box,)).split("\n") if x not in bare)
+
+
+def _reserved(code, ticked):
+    return promptboxes.split_reserved(_instructions(code, ticked))[1]
+
+
+def _said(row, words):
+    return words.replace("{CODE}", "{%s}" % row.target)
+
+
+class ReservedList(ControlledMachine):
+    def setUp(self):
+        super().setUp()
+        _INSTRUCTIONS.clear()
+
+    def test_the_table_is_one_row_a_construct_and_each_row_names_a_box_or_none(self):
+        ids = [r.id for r in RESERVED]
+        self.assertEqual(len(ids), len(set(ids)))
+        for r in RESERVED:
+            self.assertIn(r.box, ("always",) + promptboxes.BOX_IDS, r.id)
+            self.assertIn(r.target, languages.CODES, r.id)
+            self.assertTrue(r.in_box or r.in_list, r.id)
+            if r.box == "always":
+                self.assertTrue(r.in_list and not r.in_box, "%s belongs to no box: the prompt says it always" % r.id)
+        # a box of behaviour (the order of RTL boxes, keeping what a pasted document has) writes no mark of its own
+        writes = set(promptboxes.BOX_IDS) - {"rtl", "revise"}
+        self.assertEqual(sorted(writes - {r.box for r in RESERVED}), [], "a box with no row")
+
+    def test_the_parser_reads_each_sample_as_the_construct_the_row_says(self):
+        for r in RESERVED:
+            with self.subTest(construct=r.id):
+                self.assertEqual(_mismatch(r), [])
+
+    def test_the_comparison_refuses_a_wrong_expectation(self):
+        # the driver has teeth: it is seen to fail on each of the three ways a row can be wrong
+        by = {r.id: r for r in RESERVED}
+        self.assertEqual(_mismatch(by["list-dash"]), [])
+        self.assertTrue(_mismatch(by["list-dash"]._replace(blocks=["para"])), "a list is not a paragraph")
+        self.assertTrue(_mismatch(by["list-dash"]._replace(wrapped=["para"])), "it cuts a wrapped paragraph in three")
+        self.assertTrue(_mismatch(by["list-dash"]._replace(page=("<ol><li>an item</li></ol>",))), "a bullet, not a number")
+        # the brief's own starter said a line of dashes under a `|` line is a table: it is a dropped rule
+        starter = by["table"]._replace(sample="| a | b |\n-----")
+        self.assertTrue(_mismatch(starter))
+
+    def test_each_construct_is_named_in_its_box_when_the_box_is_ticked(self):
+        for r in RESERVED:
+            if r.box == "always" or not r.in_box:
+                continue
+            with self.subTest(construct=r.id, box=r.box):
+                self.assertIn(_said(r, r.in_box), _box_own(r.target, r.box))
+
+    def test_each_construct_is_named_in_the_reserved_list_when_the_box_is_not_ticked(self):
+        for r in RESERVED:
+            if r.box == "always" or not r.in_list:
+                continue
+            others = [b for b in promptboxes.BOX_IDS if b != r.box]
+            for ticked in ((), others):
+                with self.subTest(construct=r.id, box=r.box, others_ticked=bool(ticked)):
+                    self.assertIn(_said(r, r.in_list), _reserved(r.target, ticked))
+
+    def test_a_box_ticked_takes_its_line_out_of_the_reserved_list(self):
+        # it is taught in its box, so it is no longer among the marks the model was not taught
+        for r in RESERVED:
+            if r.box == "always" or not r.in_list:
+                continue
+            with self.subTest(construct=r.id, box=r.box):
+                self.assertNotEqual(_reserved(r.target, ()), _reserved(r.target, (r.box,)))
+
+    def test_a_construct_that_belongs_to_no_box_is_named_whatever_is_ticked(self):
+        for r in RESERVED:
+            if r.box != "always":
+                continue
+            for ticked in ((), promptboxes.BOX_IDS):
+                with self.subTest(construct=r.id, all_ticked=bool(ticked)):
+                    self.assertIn(_said(r, r.in_list), _instructions(r.target, ticked))
+
+
+# --- the boxes, the presets, level and length, and what a request may ask ----------------------------------
+BRIEF_BOXES = ("vocab gloss translit reading punct rtl blocks latin forms lists tables boxes emphasis notes links "
+               "colours math latex exercises revise").split()
+# the words each box's block opens with: how a box is told from another in a prompt
+LABELS = {"vocab": "**Vocabulary entries.**", "gloss": "**Glosses.**", "translit": "**Marks for the ",
+          "reading": "**The reading mark.**", "punct": "**Punctuation: use the Latin mark",
+          "rtl": "**Mixed-direction sequences:", "blocks": "**Passages, display lines",
+          "latin": "**Latin blocks.**", "forms": "**Ungrammatical and correct forms.**", "lists": "**Lists.**",
+          "tables": "**Tables.**", "boxes": "**Highlight boxes.**", "emphasis": "**Bold and italic.**",
+          "notes": "**Footnotes.**", "links": "**Links.**", "colours": "**Colour marks.**",
+          "math": "**Formulas.**", "latex": "**LaTeX drawings.**", "exercises": "**Exercises.**",
+          "revise": "**Revising a document you are given.**"}
+# THE OLD PROMPTS, in characters, as Phase 0 measured them on the commit before this work (28368c6): the
+# studio's, whole and with the language's file pasted whole, and the exercise prompt before the page
+OLD_STUDIO = {"fa": 31919, "ar": 31817, "it": 31764, "ja": 33689, "fr": 39850, "de": 40260, "tr": 40728,
+              "en": 42892, "hi": 35242, "es": 41041, "zh": 42258}
+OLD_EXERCISES = {"fa": 44840, "ar": 44736, "it": 40441, "ja": 42366, "fr": 48527, "de": 48937, "tr": 49405,
+                 "en": 51569, "hi": 43919, "es": 49718, "zh": 50935}
+
+
+class PathHandler(Handler):
+    """The handler as the studio's dispatch makes one: `query` parsed the way it parses it -- a blank value is
+    dropped, so `?boxes=` is not in it -- and the raw `path` beside it; the status is kept."""
+
+    def __init__(self, path=None, body=None):
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(path or "").query)
+        Handler.__init__(self, body, query)
+        self.path, self.code = path or "", 200
+
+    def send_json(self, answer, code=200):
+        self.answer, self.code = answer, code
+
+
+class StudioBoxes(ControlledMachine):
+    def setUp(self):
+        super().setUp()
+        _INSTRUCTIONS.clear()
+
+    def test_the_boxes_are_the_briefs_in_its_order_each_with_a_name_a_line_and_a_group(self):
+        self.assertEqual(list(promptboxes.BOX_IDS), BRIEF_BOXES)
+        for b in promptboxes.BOXES:
+            self.assertTrue(b.name and b.line and b.group, b.id)
+        self.assertEqual([g for g, _ in itertools.groupby(b.group for b in promptboxes.BOXES)],
+                         ["what it says", "how it is laid out", "extras", "a document you paste"])
+
+    def test_the_presets_are_the_briefs(self):
+        by = {p.id: set(p.boxes) for p in promptboxes.PRESETS}
+        short = {"gloss", "translit", "lists", "emphasis"}
+        self.assertEqual([p.id for p in promptboxes.PRESETS], ["short", "lesson", "vocabulary", "exercises", "all", "none"])
+        self.assertEqual(by["short"], short)
+        self.assertEqual(by["lesson"], short | {"vocab", "tables", "boxes", "notes", "links", "forms"})
+        self.assertEqual(by["vocabulary"], {"vocab", "gloss", "translit", "reading", "tables", "lists"})
+        self.assertEqual(by["exercises"], by["lesson"] | {"exercises"})
+        self.assertEqual(by["all"], set(BRIEF_BOXES))
+        self.assertEqual(by["none"], set())
+        self.assertEqual([p.id for p in promptboxes.PRESETS if p.default], ["lesson"])
+        for name in ("short", "lesson", "vocabulary", "exercises"):
+            self.assertFalse(by[name] & {"colours", "math", "latex"}, "no preset ticks colours, formulas or drawings")
+        for name in ("short", "lesson", "vocabulary"):
+            self.assertNotIn("exercises", by[name], "exercises only in the last")
+
+    def test_a_box_a_language_cannot_use_is_hidden(self):
+        for code in languages.CODES:
+            L = languages.get(code)
+            hidden = set(promptboxes.BOX_IDS) - promptboxes.shown_ids(L)
+            want = set()
+            if not L.reading:
+                want.add("reading")
+            if not L.chars:
+                want.add("punct")
+            if not L.rtl:
+                want.add("rtl")
+            self.assertEqual(hidden, want, code)
+        self.assertEqual({c for c in languages.CODES if "reading" in promptboxes.shown_ids(languages.get(c))}, {"ja"})
+        self.assertEqual({c for c in languages.CODES if "rtl" in promptboxes.shown_ids(languages.get(c))}, {"fa", "ar"})
+        self.assertNotIn("punct", promptboxes.shown_ids(languages.get("it")))
+
+    def test_a_box_is_taught_when_it_is_ticked_and_only_then(self):
+        for code in ("fa", "ja", "it"):
+            L = languages.get(code)
+            for box in promptboxes.BOX_IDS:
+                text = _instructions(code, (box,))
+                if not promptboxes.shown(promptboxes.BY_ID[box], L):
+                    self.assertNotIn(LABELS[box], text, "%s is never taught to %s" % (box, code))
+                    continue
+                for other, label in LABELS.items():
+                    self.assertEqual(label in text, other == box, (code, box, other))
+        for code in ("fa", "ja", "it"):
+            self.assertFalse([1 for label in LABELS.values() if label in _instructions(code, ())], code)
+
+    def test_every_flag_the_template_names_is_one_the_studio_gives(self):
+        with open(K.TEMPLATES["studio-exercises"], encoding="utf-8") as f:
+            texts = [K._template("studio-doc"), f.read()]
+        names = set()
+        for text in texts:
+            names |= set(re.findall(r"\{\{\?(\w+)\}\}", text)) - set(K._MARKS)
+        for code in languages.CODES:
+            for exercising in (False, True):
+                given = set(promptboxes.flags(languages.get(code), (), None, exercising))
+                self.assertEqual(sorted(names - given - set(K.surface_flags("studio-doc"))), [], (code, exercising))
+        self.assertIn("lang_own_script", names)
+        self.assertIn("type_fill_blanks", names)
+
+    def test_any_set_of_boxes_builds_in_every_language_with_no_mark_left(self):
+        rng = random.Random(29)
+        for code in languages.CODES:
+            sets = [[], list(promptboxes.BOX_IDS)] + [list(p.boxes) for p in promptboxes.PRESETS]
+            sets += [[b for b in promptboxes.BOX_IDS if rng.random() < 0.5] for _ in range(20)]
+            for ticked in sets:
+                a = studio_server.studio_prompt(languages.get(code), boxes=ticked)
+                self.assertNotIn("{{", a.text, (code, ticked))
+
+    def test_no_prompt_cites_a_rule_by_its_number(self):
+        # today's rules cited each other ("rule 4 says ..."): with a box off a number points at nothing
+        for code in ("fa", "it", "ja", "en"):
+            for ticked in ((), promptboxes.BOX_IDS) + tuple((b,) for b in promptboxes.BOX_IDS):
+                text = _instructions(code, ticked)
+                self.assertIsNone(re.search(r"\brules? \d+\b|\(rule \d", text), (code, ticked))
+
+    def test_what_two_features_say_to_each_other_is_said_only_when_both_are_ticked(self):
+        pairs = (("vocab", "lists", "it", "Inside an entry, use a bullet list"),
+                 ("translit", "colours", "fa", "A colour mark can share the braces"),
+                 ("reading", "translit", "ja", "the kana goes first"),
+                 ("boxes", "lists", "it", "A bullet list inside the box is allowed"),
+                 ("gloss", "blocks", "fa", "keep the usual pattern"),
+                 ("punct", "blocks", "fa", "typically inside a `[…]{tl}` block"),
+                 ("translit", "vocab", "fa", "Leave the mark out of `##` entries"),
+                 ("exercises", "math", "it", "A blank may not sit inside a formula"))
+        for a, b, code, words in pairs:
+            with self.subTest(pair=(a, b)):
+                self.assertIn(words, _instructions(code, (a, b)))
+                for ticked in ((), (a,), (b,)):
+                    self.assertNotIn(words, _instructions(code, ticked))
+
+    def test_the_lesson_is_under_sixty_percent_of_the_old_prompt_in_every_language(self):
+        # the owner's reason for the boxes: "sometimes these prompts are too long for some LLMs"
+        lesson = next(p for p in promptboxes.PRESETS if p.default).boxes
+        for code in languages.CODES:
+            new = len(studio_server.studio_prompt(languages.get(code), boxes=list(lesson)).text)
+            self.assertLess(new, 0.6 * OLD_STUDIO[code], "%s: the lesson is %d characters, the old prompt %d" % (
+                code, new, OLD_STUDIO[code]))
+
+    def test_the_exercise_prompt_for_a_page_that_uses_nothing_is_under_sixty_percent_of_the_old_one(self):
+        for code in languages.CODES:
+            new = len(promptlab.build("studio-exercises", code).text)
+            self.assertLess(new, 0.6 * OLD_EXERCISES[code], (code, new, OLD_EXERCISES[code]))
+
+    def test_the_size_of_a_box_is_what_ticking_it_adds(self):
+        for code in ("fa", "ja", "en"):
+            L = languages.get(code)
+            bare = len(studio_server.studio_prompt(L, boxes=[]).text)
+            for row in promptboxes.catalog(L, ()):
+                if row["shown"]:
+                    grown = len(studio_server.studio_prompt(L, boxes=[row["id"]]).text)
+                    self.assertEqual(row["chars"], grown - bare, (code, row["id"]))
+                    self.assertGreater(row["chars"], 100, (code, row["id"]))
+                else:
+                    self.assertEqual(row["chars"], 0)
+
+    def test_a_persons_text_is_told_from_the_default_by_the_boxes_it_carries(self):
+        # what Lane F's row reads: a text with the studio's blocks takes the boxes, one without is copied whole
+        self.assertTrue(promptboxes.has_box_marks("Rules.\n{{?lists}}Use lists.{{/lists}}"))
+        self.assertTrue(promptboxes.has_box_marks("{{?no_math}}No formulas.{{/no_math}}"))
+        self.assertFalse(promptboxes.has_box_marks("Just my rules for {{LANGUAGE}}, {{?studio}}here{{/studio}}."))
+        self.assertFalse(promptboxes.has_box_marks(""))
+        # and the kit resolves such a text with the same flags the default is resolved with
+        text = "Rules.{{?lists}} Use lists.{{/lists}}{{?no_lists}} No lists.{{/no_lists}}"
+        it = languages.get("it")
+        on = studio_server.studio_prompt(it, custom_text=text, boxes=["lists"]).instructions
+        off = studio_server.studio_prompt(it, custom_text=text, boxes=[]).instructions
+        self.assertIn("Rules. Use lists.", on)
+        self.assertNotIn("No lists.", on)
+        self.assertIn("Rules. No lists.", off)
+
+    def test_tokens_as_a_chatbot_counts_them(self):
+        self.assertEqual(promptboxes.tokens("a" * 400), 100)
+        self.assertEqual(promptboxes.tokens("س" * 400), 200)
+        self.assertEqual(promptboxes.tokens("日" * 400), 200)
+        self.assertEqual(promptboxes.tokens("क" * 400), 200)
+        self.assertEqual(promptboxes.size("a" * 400), {"chars": 400, "tokens": 100})
+
+    def test_level_and_length_are_each_one_line_after_the_contract_and_not_said_adds_none(self):
+        L = languages.get("it")
+        plain = studio_server.studio_prompt(L)
+        self.assertEqual(plain.data, "")
+        self.assertTrue(plain.text.rstrip().endswith(plain.contract.rstrip()))
+        for level, length in (("beginner", ""), ("", "short"), ("advanced", "exhaustive"), ("upper-intermediate", "page")):
+            a = studio_server.studio_prompt(L, level=level, length=length)
+            lines = a.data.split("\n\n")
+            self.assertEqual(len(lines), bool(level) + bool(length), (level, length))
+            self.assertTrue(all("\n" not in x for x in lines))
+            self.assertEqual(bool(level) and level in a.data, bool(level), (level, length))
+            self.assertTrue(a.text.rstrip().endswith(a.data.rstrip()))
+            self.assertLess(a.text.index(a.contract), a.text.index(a.data), "after the answer contract")
+        self.assertEqual([i for i, _ in [(x["id"], x["name"]) for x in promptboxes.levels()]],
+                         ["", "beginner", "lower-intermediate", "intermediate", "upper-intermediate", "advanced"])
+        self.assertEqual([x["id"] for x in promptboxes.lengths()], ["", "short", "page", "exhaustive"])
+        self.assertEqual(promptboxes.lengths()[2]["name"], "about a page")
+        with self.assertRaises(promptboxes.Refused):
+            studio_server.studio_prompt(L, level="expert")
+        with self.assertRaises(promptboxes.Refused):
+            studio_server.studio_prompt(L, length="long")
+
+    def test_exhaustive_is_the_persons_to_ask_for_and_not_in_the_rules(self):
+        # "Be exhaustive" (rule 15) went: length is what the person chooses
+        for code in ("fa", "en"):
+            self.assertNotIn("exhaustive", _instructions(code, promptboxes.BOX_IDS))
+            self.assertIn("exhaustive", studio_server.studio_prompt(languages.get(code), length="exhaustive").text)
+
+
+class StudioRoutes(ControlledMachine):
+    def get(self, query):
+        h = PathHandler("/api/prompt?" + query)
+        studio_server.api_prompt_get(h)
+        return h
+
+    def test_the_default_answer_is_the_lesson_and_carries_what_the_page_draws(self):
+        a = self.get("target=it").answer
+        L = languages.get("it")
+        for key in ("text", "custom", "target", "target_name", "lang_block", "prompt", "header", "contract",
+                    "boxes", "presets", "levels", "lengths", "always_chars", "size"):
+            self.assertIn(key, a)
+        self.assertEqual([b["id"] for b in a["boxes"]], BRIEF_BOXES)
+        self.assertEqual({b["id"] for b in a["boxes"] if b["on"]}, set(next(p.boxes for p in promptboxes.PRESETS if p.default)))
+        for b in a["boxes"]:
+            self.assertEqual(sorted(b), ["chars", "group", "id", "line", "name", "on", "shown"])
+        self.assertEqual({b["id"] for b in a["boxes"] if not b["shown"]}, {"reading", "punct", "rtl"})
+        self.assertEqual([p["id"] for p in a["presets"]], ["short", "lesson", "vocabulary", "exercises", "all", "none"])
+        self.assertEqual([p["id"] for p in a["presets"] if p.get("default")], ["lesson"])
+        self.assertEqual(a["presets"][-1], {"id": "none", "name": "none", "boxes": []})
+        self.assertEqual(a["always_chars"], len(studio_server.studio_prompt(L, boxes=[]).text))
+        self.assertEqual(a["size"], promptboxes.size(a["prompt"]))
+        self.assertEqual(a["prompt"], studio_server.studio_prompt(L).text)
+        self.assertLess(a["always_chars"], a["size"]["chars"])
+
+    def test_boxes_asked_for_are_the_only_ones_taught_and_ticked_in_the_answer(self):
+        a = self.get("target=fa&boxes=gloss,tables").answer
+        self.assertEqual([b["id"] for b in a["boxes"] if b["on"]], ["gloss", "tables"])
+        self.assertIn("**Glosses.**", a["prompt"])
+        self.assertIn("**Tables.**", a["prompt"])
+        self.assertNotIn("**Lists.**", a["prompt"])
+        self.assertIn("`- `, `* ` and `+ ` at the head of a line", a["prompt"], "an unticked box is still named")
+
+    def test_a_blank_boxes_means_none_and_an_absent_one_means_the_lesson(self):
+        none = self.get("target=fa&boxes=").answer
+        self.assertEqual([b["id"] for b in none["boxes"] if b["on"]], [])
+        self.assertEqual(none["size"]["chars"], none["always_chars"])
+        lesson = self.get("target=fa").answer
+        self.assertEqual({b["id"] for b in lesson["boxes"] if b["on"]}, set(next(p.boxes for p in promptboxes.PRESETS if p.default)))
+        # the same, asked through a handler whose query kept the blank
+        h = Handler(query={"target": ["fa"], "boxes": [""]})
+        studio_server.api_prompt_get(h)
+        self.assertEqual([b["id"] for b in h.answer["boxes"] if b["on"]], [])
+
+    def test_an_id_that_is_no_box_or_level_or_length_is_refused_in_words_with_a_400(self):
+        for query, said in (("boxes=vocab,nonsense", "nonsense"), ("boxes=x", "'x'"), ("level=expert", "expert"),
+                            ("length=forever", "forever")):
+            h = self.get("target=fa&" + query)
+            self.assertEqual(h.code, 400, query)
+            self.assertIn(said, h.answer["error"])
+            self.assertNotIn("prompt", h.answer)
+        self.assertIn("vocab", self.get("target=fa&boxes=nonsense").answer["error"], "and says what they are")
+
+    def test_a_box_a_language_cannot_use_is_hidden_and_never_ticked(self):
+        fa = self.get("target=fa&boxes=rtl,reading,punct").answer
+        self.assertEqual([b["id"] for b in fa["boxes"] if b["on"]], ["punct", "rtl"], "reading is Japanese's")
+        it = self.get("target=it&boxes=rtl,reading,punct").answer
+        self.assertEqual([b["id"] for b in it["boxes"] if b["on"]], [])
+        self.assertFalse(any(b["chars"] for b in it["boxes"] if not b["shown"]))
+        self.assertNotIn("Mixed-direction", it["prompt"])
+        ja = self.get("target=ja&boxes=reading,blocks").answer
+        self.assertIn("**The reading mark.**", ja["prompt"])
+        self.assertIn("vertical", ja["prompt"])
+        self.assertIn("{tl font=gothic}", ja["prompt"])
+        self.assertIn("{tl font=nastaliq}", self.get("target=fa&boxes=blocks").answer["prompt"])
+        self.assertNotIn("font=", self.get("target=it&boxes=blocks").answer["prompt"].split("**Reserved marks.**")[0])
+
+    def test_level_and_length_are_copied_as_one_line_each_at_the_end(self):
+        a = self.get("target=fa&level=beginner&length=page").answer
+        self.assertTrue(a["prompt"].rstrip().endswith("Write for a learner at the beginner level.\n\nMake it about a page long."))
+        self.assertLess(a["prompt"].index(a["contract"]), a["prompt"].index("Write for a learner"))
+        self.assertGreater(a["size"]["chars"], self.get("target=fa").answer["size"]["chars"])
+
+    def test_the_legacy_fields_stay_for_a_page_of_before_the_boxes(self):
+        a = self.get("target=fa&boxes=").answer
+        self.assertNotIn("{{", a["text"])
+        self.assertEqual(a["text"], promptboxes.legacy_text(languages.get("fa")), "the whole prompt, whatever was ticked")
+        self.assertIn("creating a markdown file", a["text"])
+        self.assertIn("Mixed-direction sequences: distinguish the direction", a["text"] + a["lang_block"])
+        self.assertEqual(a["lang_block"], K.language_text("studio-doc", "fa"))
+        self.assertFalse(a["custom"])
+
+
+class ExerciseRoutes(ControlledMachine):
+    def post(self, **body):
+        h = PathHandler(None, dict({"decks": []}, **body))
+        studio_server.api_exercise_prompt(h)
+        return h
+
+    PAGE = ("---\ntitle: T\ntarget: it\n---\n\nIn Italian, [bello]{tl} = *beautiful*.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n"
+            ":::exercise fill-blanks\nprompt: Complete.\ntext: Il [[a]] è bello.\n- [a] mare\n- [ ] sole\n:::\n")
+
+    def test_what_the_page_uses_is_ticked_and_named_by_the_parser(self):
+        a = self.post(markdown=self.PAGE).answer
+        # a Latin-script target marks every run `[bello]{tl}`, which its prompt always teaches: that is no box
+        self.assertEqual(a["preticked"], {"boxes": ["gloss", "tables", "emphasis"], "types": ["fill-blanks"]})
+        block = self.post(markdown="---\ntitle: T\ntarget: it\n---\n\n[Una frase intera.]{tl bg=sand}\n").answer
+        self.assertEqual(block["preticked"]["boxes"], ["blocks"], "a block of its own, and a tint, are the box's")
+        persian = self.post(markdown="---\ntitle: T\ntarget: fa\n---\n\nA phrase [یک فایل PDF]{tl} inside prose.\n").answer
+        self.assertEqual(persian["preticked"]["boxes"], ["blocks"], "a Latin word inside a Persian phrase is the box's")
+        self.assertEqual([b["id"] for b in a["boxes"] if b["on"]], a["preticked"]["boxes"])
+        self.assertEqual([t["id"] for t in a["types"] if t["on"]], ["fill-blanks"])
+        self.assertEqual([t["id"] for t in a["types"]], list(promptboxes.TYPE_IDS))
+        self.assertEqual(len(a["types"]), 12)
+        self.assertEqual(a["size"], promptboxes.size(a["prompt"]))
+        # a rtl target's mixed-direction rule is always in, so the dialog offers no box for it; the types are its exercises
+        self.assertFalse([b for b in a["boxes"] if b["id"] in ("exercises", "rtl") and b["shown"]])
+        self.assertIn("`fill-blanks` — `text:` contains `[[slot]]`", a["prompt"])
+        self.assertNotIn("`order-sentences`", a["prompt"])
+
+    RICH = """---
+title: Persian
+target: fa
+---
+
+## کتاب | ketāb | from Arabic | = *book*
+
+The word [کتاب]{crimson translit:ketāb} = *book*, and a [PDF فایل]{tl} inside a phrase.[^1] A list, a link and a wrong form:
+
+- **one** [the site](https://example.org/x) ✗کتابا
+- two ^[an inline note]
+
+| a | b |
+|---|---|
+| 1 | 2 |
+
+> a box with a formula [x^2]{math}
+
+[Set apart.]{la bg=sage}
+
+:::math
+a+b
+:::
+
+::::latex
+\\ce{H2O}
+::::
+
+![a map](images/map.png)
+
+[^1]: A note.
+
+Three words: کند، آهسته، یواش.
+"""
+
+    def test_a_page_that_uses_every_feature_ticks_every_box_the_dialog_offers(self):
+        a = self.post(markdown=self.RICH).answer
+        offered = [b["id"] for b in a["boxes"] if b["shown"]]
+        self.assertEqual(a["preticked"]["boxes"], offered)
+        self.assertNotIn("reading", offered, "a Persian page has no reading to teach")
+        self.assertEqual(sorted(set(promptboxes.BOX_IDS) - set(offered)), ["exercises", "reading", "rtl"])
+        # and each was found by what it is: the parser's blocks, and the marks the page carries
+        for box in offered:
+            with self.subTest(box=box):
+                self.assertIn(box, promptboxes.page_uses(self.RICH)[0])
+
+    def test_a_page_that_uses_nothing_ticks_nothing_and_a_document_of_prose_is_prose(self):
+        self.assertEqual(promptboxes.page_uses("---\ntitle: T\ntarget: en\n---\n\nJust a paragraph of English prose.\n"), ([], []))
+        self.assertEqual(promptboxes.page_uses("Prose only, no front matter.")[0], [])
+
+    def test_a_page_with_no_exercise_ticks_every_type_and_the_person_may_choose(self):
+        page = "---\ntitle: T\ntarget: it\n---\n\nLesson\n"
+        a = self.post(markdown=page).answer
+        self.assertEqual(a["preticked"]["types"], list(promptboxes.TYPE_IDS))
+        self.assertEqual(a["preticked"]["boxes"], [])
+        chosen = self.post(markdown=page, types=["flashcard", "yes-no"], boxes=["lists"]).answer
+        self.assertEqual([t["id"] for t in chosen["types"] if t["on"]], ["flashcard", "yes-no"])
+        self.assertEqual([b["id"] for b in chosen["boxes"] if b["on"]], ["lists"])
+        self.assertIn("`flashcard` — unscored.", chosen["prompt"])
+        self.assertIn("`yes-no` or `true-false`", chosen["prompt"])
+        self.assertNotIn("`single-choice`", chosen["prompt"])
+        self.assertIn("Do not place `=>`", chosen["prompt"], "rows of pairs are asked for")
+        only = self.post(markdown=page, types=["single-choice"]).answer["prompt"]
+        self.assertNotIn("Do not place `=>`", only)
+        self.assertIn("**Lists.**", chosen["prompt"])
+
+    def test_the_flashcard_is_most_of_the_types_and_each_type_has_a_size(self):
+        types = self.post(markdown="---\ntitle: T\ntarget: en\n---\n\nx\n").answer["types"]
+        by = {t["id"]: t["chars"] for t in types}
+        self.assertTrue(all(n > 0 for n in by.values()), by)
+        self.assertEqual(max(by, key=by.get), "flashcard", by)
+        self.assertGreater(by["flashcard"], 1500)
+        self.assertGreater(by["flashcard"], sum(n for k, n in by.items() if k != "flashcard") / 2, by)
+
+    def test_a_request_that_asks_for_nothing_or_for_what_is_not_there_is_refused_in_words(self):
+        page = "---\ntitle: T\ntarget: it\n---\n\nx\n"
+        for body, said in ((dict(types=[]), "at least one exercise type"), (dict(types=["nope"]), "nope"),
+                           (dict(boxes=["nope"]), "nope"), (dict(level="expert"), "expert"), (dict(length="long"), "long")):
+            h = self.post(markdown=page, **body)
+            self.assertEqual(h.code, 400, body)
+            self.assertIn(said, h.answer["error"])
+
+    def test_level_and_length_come_before_the_page(self):
+        page = "---\ntitle: T\ntarget: it\n---\n\nx\n"
+        p = self.post(markdown=page, level="advanced", length="short").answer["prompt"]
+        self.assertLess(p.index("Write for a learner at the advanced level."), p.index("Here is the complete Markdown page"))
+        self.assertLess(p.index("Return the complete updated"), p.index("Write for a learner"))
+
+    def test_the_dialog_lists_the_decks_of_the_pages_language_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = studio_server.Path(td)
+            for folder, lang in (("japanese", "ja"), ("persian", "fa")):
+                deck = root / folder / "known"
+                (deck / "cards").mkdir(parents=True)
+                (deck / "deck.json").write_text('{"name": "Known %s", "lang": "%s"}' % (lang, lang), encoding="utf-8")
+            with mock.patch.object(studio_server, "ANKI_DIR", root):
+                h = PathHandler("/api/exercise-decks")
+                studio_server.api_exercise_decks(h)
+                self.assertEqual(sorted(d["path"] for d in h.answer["decks"]), ["japanese/known", "persian/known"])
+                h = PathHandler("/api/exercise-decks?target=ja")
+                studio_server.api_exercise_decks(h)
+                self.assertEqual([d["path"] for d in h.answer["decks"]], ["japanese/known"])
+                h = PathHandler("/api/exercise-decks?target=fa")
+                studio_server.api_exercise_decks(h)
+                self.assertEqual([d["path"] for d in h.answer["decks"]], ["persian/known"])
+                h = PathHandler("/api/exercise-decks?target=it")
+                studio_server.api_exercise_decks(h)
+                self.assertEqual(h.answer["decks"], [])
+
+
+class AddedScriptLanguage(ControlledMachine):
+    """Korean, added the way a person adds a language with a script of its own (`--script other --chars`): no row
+    for its script in the studio's table of marks, no alternate face, no reading.  Every prompt of the studio
+    has to be made for it, in words that are true of it and of no other language."""
+
+    @classmethod
+    def setUpClass(cls):
+        tmp = tempfile.mkdtemp(prefix="promptkit-ko-")
+        cls.addClassCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shipped = os.path.join(tmp, "lib", "languages.json")
+        personal = os.path.join(tmp, "config", "languages.json")
+        lang_docs = os.path.join(tmp, "docs", "lang")
+        os.makedirs(os.path.dirname(shipped))
+        shutil.copy(os.path.join(ROOT, "lib", "languages.json"), shipped)
+        shutil.copytree(os.path.join(ROOT, "lib", "lang"), os.path.join(tmp, "lib", "lang"))
+        shutil.copytree(os.path.join(ROOT, "docs", "lang"), lang_docs)
+        patches = [mock.patch.object(newlang, n, v) for n, v in (
+            ("REGISTRY", shipped), ("PERSONAL", personal), ("LANG_TEX", os.path.join(tmp, "lib", "lang")),
+            ("LANG_DOCS", lang_docs), ("ROOT", tmp), ("STUDIO", os.path.join(tmp, "markdown")))]
+        for p in patches:
+            p.start()
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                rc = newlang.main(["ko", "--name", "Korean", "--native", "한국어", "--script", "other",
+                                   "--chars", "가-힣ᄀ-ᇿ"])
+        finally:
+            for p in patches:
+                p.stop()
+        assert rc == 0, "newlang could not add the language: %s" % out.getvalue()[-400:]
+        langs, problems = languages._load(shipped, personal)
+        assert "ko" in langs and not problems, problems
+        for p in [mock.patch.dict(languages.LANGS, {"ko": langs["ko"]}),
+                  mock.patch.dict(languages.FOLDERS, {langs["ko"].folder: "ko"}),
+                  mock.patch.object(K, "LANG_DOCS", lang_docs)] + machine_patches():
+            p.start()
+            cls.addClassCleanup(p.stop)
+
+    def test_every_preset_and_the_exercise_prompt_are_made_for_it_in_words_that_are_true_of_it(self):
+        L = languages.get("ko")
+        self.assertEqual((L.script, bool(L.chars), L.reading, L.rtl, L.vertical), ("other", True, False, False, False))
+        self.assertEqual(promptboxes.shown_ids(L), set(promptboxes.BOX_IDS) - {"reading", "rtl"},
+                         "its own script gives it the punctuation box; it has no reading and is not right to left")
+        for p in promptboxes.PRESETS:
+            a = studio_server.studio_prompt(L, boxes=list(p.boxes))
+            self.assertNotIn("{{", a.text, p.id)
+            self.assertIn("this document is about Korean", a.text)
+            for persian in ("Arabic comma", "zero-width non-joiner", "نستعلیق", "{tl font="):
+                self.assertNotIn(persian, a.text, "%s is not true of Korean (%s)" % (persian, p.id))
+        everything = studio_server.studio_prompt(L, boxes=list(promptboxes.BOX_IDS)).text
+        self.assertIn("The target language's own punctuation — the marks its script has of its own —", everything)
+        self.assertIn("the first line of the passage", everything, "a passage is shown with words of no language")
+        self.assertIn("**Text in the target language.** Write it inline as plain Unicode", everything,
+                      "its runs are found by their script, not marked")
+        page, _rows = studio_server.exercise_prompt("---\ntitle: T\ntarget: ko\n---\n\nLesson")
+        self.assertNotIn("{{", page.text)
+        self.assertNotIn("Mixed-direction", page.text)
+
+
+class AnswerShapes(unittest.TestCase):
+    """Paste LLM answer takes the document out of whatever a chatbot answered (brief 7.5): the studio's contract
+    asks for a file, and where the chatbot cannot make one for the whole document in ONE fenced block opened
+    with four backticks and the word `markdown`.  Each shape, driven through the route's own reading of it."""
+    DOC = "---\ntitle: Slow\nlang: en\ntarget: fa\n---\n\n## A section\n\nSome prose about آهسته = *slowly*.\n\n- one\n- two\n"
+    T3, T4 = "`" * 3, "`" * 4
+
+    def shapes(self):
+        d, t3, t4 = self.DOC, self.T3, self.T4
+        return [("a file's text", d),
+                ("a fence of four backticks", "%smarkdown\n%s%s\n" % (t4, d, t4)),
+                ("a fence of three backticks", "%smarkdown\n%s%s\n" % (t3, d, t3)),
+                ("a fence of three with no word after it", "%s\n%s%s\n" % (t3, d, t3)),
+                ("a fence with chatter round it", "Sure! Here is your document:\n\n%smarkdown\n%s%s\n\nTell me if you want changes." % (t4, d, t4)),
+                ("a fence of three with chatter round it", "Here it is.\n\n%smd\n%s%s\n\nHope that helps." % (t3, d, t3)),
+                ("a fence written with Windows line ends", ("%smarkdown\n%s%s\n" % (t4, d, t4)).replace("\n", "\r\n")),
+                ("a fence a chat window indented", "  %smarkdown\n%s  %s\n" % (t4, d, t4))]
+
+    def test_every_shape_gives_the_document_and_nothing_else(self):
+        for label, text in self.shapes():
+            with self.subTest(shape=label):
+                self.assertEqual(studio_server.store.extract_markdown(text), self.DOC)
+
+    def test_a_fence_of_four_holds_a_fence_of_three_whole(self):
+        # what the contract asks for, and a document that holds a fence of its own (the dialect does not read it,
+        # a model may write one): the three backticks are not the end of the four
+        doc = self.DOC + "\n%s\ncode\n%s\n\nafter the fence\n" % (self.T3, self.T3)
+        got = studio_server.store.extract_markdown("Here:\n\n%smarkdown\n%s%s\n\nDone." % (self.T4, doc, self.T4))
+        self.assertEqual(got, doc)
+        self.assertIn("after the fence", got)
+
+    def test_an_answer_with_no_fence_is_taken_as_it_stands_which_is_why_the_fence_is_asked_for(self):
+        got = studio_server.store.extract_markdown("Sure! Here is your document:\n\n" + self.DOC + "\nTell me more.")
+        self.assertTrue(got.startswith("Sure!"))
+        self.assertTrue(got.rstrip().endswith("Tell me more."))
+
+    def test_the_contract_asks_for_the_shape_the_route_takes(self):
+        contract = studio_server.studio_prompt(languages.get("fa")).contract
+        self.assertIn("creating a markdown file", contract)
+        self.assertIn("four backticks", contract)
+        self.assertIn("`markdown`", contract)
+        self.assertNotIn("not a fenced code block", contract, "the old contract's contradiction with the exercise prompt")
+        self.assertEqual(studio_server.store.extract_markdown("%smarkdown\n%s%s" % (self.T4, self.DOC, self.T4)), self.DOC)
+
+    def test_pasting_each_shape_makes_the_document_in_the_library(self):
+        # the route Paste LLM answer posts to, on a temporary library
+        with tempfile.TemporaryDirectory() as td:
+            was = studio_server.store.use_library(td)
+            try:
+                for i, (label, text) in enumerate(self.shapes()):
+                    h = Handler({"markdown": text.replace("title: Slow", "title: Slow %d" % i)})
+                    with mock.patch.object(studio_server, "_adopt"), \
+                            mock.patch.object(studio_server.latexdraw, "own_source"):
+                        studio_server.api_create(h)
+                    made = h.answer["meta"]
+                    self.assertEqual(made["title"], "Slow %d" % i, label)
+                    _meta, stored = studio_server.store.get(made["id"])
+                    self.assertEqual(stored, self.DOC.replace("title: Slow", "title: Slow %d" % i), label)
+            finally:
+                studio_server.store.use_library(was)
 
 
 if __name__ == "__main__":

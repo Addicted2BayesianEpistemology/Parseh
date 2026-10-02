@@ -287,6 +287,7 @@ _REGION = ("video-region", "book-region")
 _GLOSSED = ("video-new", "video-region", "book-region", "book-new")
 _WITH_FILE = ("studio-doc", "studio-exercises") + _GLOSSED      # the ones that take a language file
 _NEW_VIDEO, _TIDY, _NEW_BOOK = ("video-new",), ("transcript-tidy",), ("book-new",)
+_STUDIO = ("studio-doc",)
 _PLACEHOLDERS = (
     ("LANGUAGE", "the language's name, in English (Persian)", "*"),
     ("LANGUAGE_NATIVE", "its name in itself", "*"),
@@ -298,6 +299,11 @@ _PLACEHOLDERS = (
     ("GLOSS_LANGUAGE", "the language the meanings are written in (English)", _GLOSSED),
     ("GLOSS_CODE", "its code (en)", _GLOSSED),
     ("MEANING_RULE", "the rule for what a chunk's meaning says (docs/meaning-rule.md)", _GLOSSED),
+    # the studio's own prompt (markdown/app/promptboxes.py fills them)
+    ("OWN_MARKS", "the target's own punctuation marks, said in words", _STUDIO),
+    ("ALT_FONT", "the key of the language's alternate face (nastaliq, gothic)", _STUDIO),
+    ("LATEX_THEMES", "the LaTeX themes this machine has, each with what it adds", _STUDIO),
+    ("EXERCISE_BLOCKS", "what an exercise is, per type (EXERCISES_PROMPT.md's shared section)", _STUDIO),
     # a stretch of a book or a video (lib/glossregion.py)
     ("A_LANGUAGE", "the language's name with its article: a Persian, an Italian", _REGION),
     ("SURFACE", "what is glossed: a Persian reading edition, the captions of a Persian "
