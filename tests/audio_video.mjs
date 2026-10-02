@@ -593,6 +593,29 @@ if (HAVE_WMA) {
   await until(() => p.evaluate(() => { const f = document.querySelector('#film'); return !f.paused && f.currentTime > 0.5; }), 'the copy plays in the browser');
   assert(!(await p.evaluate(() => !!document.querySelector('#film').error)), 'with no error from the browser');
   await c.close();
+  // and the same wma where nothing made a playable copy (no ffmpeg then): the browser says it cannot,
+  // and the page says what to do -- the video is built by hand here, as it stands on a shelf
+  const raw = VIDEOS + '/english/wma-raw-a1b2c3';
+  await Deno.mkdir(raw, {recursive: true});
+  const fixture = 'tests/fixtures/videos/english/eN5wX7zA9bC';
+  const meta = await readJson(fixture + '/video.json');
+  await Deno.writeTextFile(raw + '/video.json', JSON.stringify({...meta, id: 'wma-raw-a1b2c3', url: '', kind: 'audio'}, null, 2));
+  const ann = await readJson(fixture + '/annotations.json');
+  await Deno.writeTextFile(raw + '/annotations.json', JSON.stringify({...ann, video: 'wma-raw-a1b2c3'}, null, 1));
+  await Deno.copyFile(fixture + '/transcript.txt', raw + '/transcript.txt');
+  await Deno.copyFile(MEDIA + '/radio.wma', raw + '/media.wma');
+  const kept = errors.length;
+  const {context: c2, page: p2} = await newPage();
+  await openVideo(p2, 'wma-raw-a1b2c3');
+  await until(() => shown(p2, '#novid'), 'the browser cannot play a wma, and the page says so');
+  const said = await p2.evaluate(() => document.querySelector('#novid').textContent);
+  assert(/this browser cannot play that sound/.test(said) && /where ffmpeg is installed/.test(said) && /transcript below still works/.test(said), 'in words: ' + said);
+  assert(await p2.evaluate(() => document.documentElement.getAttribute('data-kind') === 'audio' && !!document.querySelector('#sndbar')), 'inside the bar\'s own box');
+  await shot(p2, 'sound-cannot-play-desktop');
+  await c2.close();
+  // what the browser itself said about a file it cannot play is its own, and is not this page's fault
+  const media = errors.splice(kept);
+  assert(media.every(m => /media|source|support|decode|demux|codec/i.test(m)), 'nothing but the browser\'s own words about what it cannot play: ' + media.join(' | '));
 }
 
 assert(errors.length === 0, 'no page error, no console error, no failed request in all of it' + (errors.length ? ': ' + errors.join(' | ') : ''));
