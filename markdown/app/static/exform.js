@@ -360,8 +360,9 @@ function exerciseSource(model, def) {
         sourceField(lines, key + "-size", f[key + "-size"]);
       if (f[key + "-shade"] && f[key + "-shade"] !== base.shade)
         sourceField(lines, key + "-shade", f[key + "-shade"]);
-      // `answer` is what a field says when it says nothing; any other value,
-      // a mistaken one too, is kept as written for the parser to name
+      // A SIDE IS WRITTEN ONLY WHEN IT IS SET: `answer` is what a field says
+      // when it says nothing; any other value, a mistaken one too, is kept as
+      // written, for the parser to name
       const side = String(f[key + "-side"] || "").trim();
       if (CARD_EXTRAS.includes(key) && side && side.toLowerCase() !== "answer")
         sourceField(lines, key + "-side", side);

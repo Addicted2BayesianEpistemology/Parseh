@@ -1415,7 +1415,7 @@ def _card_field(fields, key, ctx, cls="", extra=False):
         cls += " ex-card-transliteration"
     with _field_at(key):
         inner = _ex_inline(text, ctx)
-    # `extra`: a field the random draw moves to the other side (app.js drawFirstSide)
+    # A FIELD THE DRAW MOVES says so (`extra`): app.js drawFirstSide looks for data-extra
     return '<div class="ex-card-field %s"%s%s>%s</div>' % (
         cls, _card_style(fields, key), ' data-extra="%s"' % key if extra else "", inner)
 
@@ -1556,8 +1556,9 @@ def _render_exercise_flashcard(b, preview, ctx, cards=None):
     f = b["fields"]
     kind = (f.get("card-type") or "vocab").lower()
     direction = (f.get("direction") or "forward").strip().lower()
-    # the example, the notes and the source go on the answer, which the draw of
-    # a both-random card moves (mdparser.card_extras): there they are marked
+    # THE EXAMPLE, THE NOTES AND THE SOURCE GO ON THE ANSWER (mdparser.card_extras).
+    # A both-random card's are marked, for the page's draw to move with it
+    # (app.js drawFirstSide); no other card carries the mark.
     word, meaning = mdparser.card_extras(f)
     extras = lambda keys: "".join(_card_field(f, k, ctx, extra=direction == "both-random")
                                   for k in keys)
