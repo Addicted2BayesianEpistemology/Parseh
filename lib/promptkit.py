@@ -858,20 +858,33 @@ def _common(surface, L, G, chosen=None):
 # its Transliteration section), so that the setting works for every language a person has -- one
 # they added, one whose note is not written yet -- and never leaves a prompt that says IPA in its
 # fields and describes the usual scheme in its conventions with nothing between them.  It says only
-# what holds for any language; the file's note, where there is one, says which IPA.
+# what holds for any language; the file's note, where there is one, says which IPA.  It stands where
+# the usual scheme is described (the first words of the Transliteration section) and is said again, in
+# one line, after the conventions: a stand-in chatbot that was given it only in front, ahead of a long
+# section on the usual scheme and its examples, went on writing the usual scheme (Hindi, nine chunks
+# in ten).
 _IPA_SAYS = {
-    "studio": ("**This prompt asks for IPA.** Where the conventions below give the usual %(label)s scheme of "
-               "%(lang)s, write IPA in its place: in the transliteration of a `##` heading and in "
-               "`[word]{translit:…}`. Write broad (phonemic) IPA for the standard pronunciation of %(lang)s, "
-               "with no slashes or square brackets around it, and the stress mark ˈ and the length mark ː "
-               "where %(lang)s has them. The words themselves are not changed."),
-    "gloss": ("**This prompt asks for IPA.** Where the conventions below give the usual %(label)s scheme of "
-              "%(lang)s, write IPA in its place: in `tr`, in the sound of every vocabulary entry "
-              "(`\\dw{word}{sound}`, `\\vb{…}`, `\\bw{base}{sound}{meaning}`) and wherever else a "
-              "transliteration is asked for. Write broad (phonemic) IPA for the standard pronunciation of "
+    "studio": ("**This prompt asks for IPA, not for the scheme below.** Wherever the rules of this section, or an "
+               "example of them, spell a sound in the usual %(label)s scheme of %(lang)s -- in the "
+               "transliteration of a `##` heading and in `[word]{translit:…}` -- write IPA instead, and keep "
+               "of them only what is not the spelling of a sound. Write broad (phonemic) IPA for the standard "
+               "pronunciation of %(lang)s, with no slashes or square brackets around it, and the stress mark "
+               "ˈ and the length mark ː where %(lang)s has them. The words themselves are not changed."),
+    "gloss": ("**This prompt asks for IPA, not for the scheme below.** Wherever the rules of this section or of "
+              "the ones after it, or an example in them, spell a sound in the usual %(label)s scheme of "
+              "%(lang)s -- in `tr`, in the sound of every vocabulary entry (`\\dw{word}{sound}`, `\\vb{…}`, "
+              "`\\bw{base}{sound}{meaning}`) and in every other place a transliteration is asked for -- write "
+              "IPA instead, and keep of them only what is not the spelling of a sound (which chunks carry a "
+              "`tr`, how words are parted). Write broad (phonemic) IPA for the standard pronunciation of "
               "%(lang)s, with no slashes or square brackets around it, and the stress mark ˈ and the length "
-              "mark ː where %(lang)s has them, one scheme from the first chunk to the last. The text "
-              "itself, any reading in kana and the language of the meanings are not changed."),
+              "mark ː where %(lang)s has them, one scheme from the first chunk to the last. The text itself, "
+              "any reading in kana and the language of the meanings are not changed."),
+}
+_IPA_AGAIN = {
+    "studio": "*This prompt asks for IPA: a sound written above in the usual scheme is written in IPA in "
+              "your answer.*",
+    "gloss": "*This prompt asks for IPA: a sound written above in the usual scheme -- in a rule or in an "
+             "example -- is written in IPA in your answer, in `tr` and in every vocabulary entry.*",
 }
 
 
@@ -883,17 +896,39 @@ def _says_ipa(L):
     return {"label": L.translit_label, "lang": L.name}
 
 
+def _with_ipa(secs, kind, said):
+    """The sections of a language's conventions with what a prompt says of IPA put in: after the heading
+    of the Transliteration section (in front of everything where there is none), and once more at the
+    end."""
+    way = "studio" if kind == "studio" else "gloss"
+    out, put = [], False
+    for name, text in secs:
+        if name == "Transliteration" and not put:
+            head, _, rest = text.partition("\n")
+            text, put = "%s\n\n%s\n\n%s" % (head, _IPA_SAYS[way] % said, rest.lstrip("\n")), True
+        out.append((name, text))
+    if not put:
+        out.insert(0, ("(IPA)", _IPA_SAYS[way] % said))
+    out.append(("(IPA again)", _IPA_AGAIN[way]))
+    return out
+
+
 def language_text(surface, lang, flags=None, gloss=None, options=None):
     """The language's conventions as this surface takes them, with the names
     the kit knows (LANGUAGE, and GLOSS_LANGUAGE where a gloss is given) filled
     in; where the file is not there, the one line the prompt has always said
     instead.  With IPA chosen (`options`, as resolve() reads them) a file that
-    has no IPA note of its own gets the general paragraph above in front."""
+    has no IPA note of its own gets the general paragraph above, where it
+    describes the usual scheme and once more at its end."""
     L = _language(lang)
     chosen = resolve(surface, L, options)
     secs = language_sections(surface, L, flags, chosen)
     if secs is None:
         return _MISSING[surface] % (L.name, L.code) if _MISSING[surface] else ""
+    if chosen.get("translit") == "ipa" and secs:
+        said = _says_ipa(L)
+        if said:
+            secs = _with_ipa(secs, KIND[surface], said)
     down, fenced, out = LAYOUT[surface][1], False, []
     for line in "\n\n".join(t for _, t in secs).split("\n"):
         if line.lstrip().startswith("```"):
@@ -902,12 +937,7 @@ def language_text(surface, lang, flags=None, gloss=None, options=None):
             line = "#" * down + line
         out.append(line)
     known = _common(surface, L, _gloss(gloss), chosen)
-    text = _PLACEHOLDER.sub(lambda m: known.get(m.group(1), m.group(0)), "\n".join(out).strip())
-    if chosen.get("translit") == "ipa" and text:
-        said = _says_ipa(L)
-        if said:
-            text = _IPA_SAYS["studio" if KIND[surface] == "studio" else "gloss"] % said + "\n\n" + text
-    return text
+    return _PLACEHOLDER.sub(lambda m: known.get(m.group(1), m.group(0)), "\n".join(out).strip())
 
 
 # --- the version line ---------------------------------------------------

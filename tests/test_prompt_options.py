@@ -320,12 +320,19 @@ class InThePrompt(Quiet):
         text = "# Italian\n\nOpening.\n\n## Transliteration\n\nThe usual scheme of {{LANGUAGE}}, and no other note.\n"
         self.in_files(text, "it")
         ipa = K.language_text("video-region", "it", options={"translit": "ipa"})
-        self.assertTrue(ipa.startswith("**This prompt asks for IPA.**"), ipa[:80])
+        said = ipa.index("**This prompt asks for IPA, not for the scheme below.**")
+        self.assertLess(ipa.index("## Transliteration"), said, "it stands where the usual scheme is described")
+        self.assertLess(said, ipa.index("no other note"), "ahead of the file's own words, which still follow")
         self.assertIn("pronunciation scheme of Italian", ipa)
         self.assertIn("`\\dw{word}{sound}`", ipa)
-        self.assertIn("no other note", ipa, "the file's own words still follow")
+        self.assertTrue(ipa.rstrip().endswith("in `tr` and in every vocabulary entry.*"), "and once more at the end")
         self.assertNotIn("IPA", K.language_text("video-region", "it"), "the usual scheme says nothing of it")
+        # a file with no such section has it in front
+        self.in_files("# Italian\n\nOpening.\n\n## Reading\n\nNothing about sounds.\n", "it")
+        bare = K.language_text("video-region", "it", options={"translit": "ipa"})
+        self.assertTrue(bare.startswith("**This prompt asks for IPA, not for the scheme below.**"), bare[:80])
         # the studio's own words: it has no vocabulary macros
+        self.in_files(text, "it")
         studio = K.language_text("studio-doc", "it", options={"translit": "ipa"})
         self.assertIn("`[word]{translit:…}`", studio)
         self.assertNotIn("\\dw", studio)
@@ -778,6 +785,34 @@ class TheChecks(unittest.TestCase):
                     CA.check_chunk(ch, "caption %d chunk %d" % (i, j), errors.append, warnings.append, languages.get(code))
             self.assertEqual(errors, [], code)
             self.assertEqual([w for w in warnings if "script inside tr" in w], [], code)
+
+
+class TheRecordTravels(unittest.TestCase):
+    """`translit` is an optional key an older Parseh ignores, so no format number is raised (lib/version.py: a field an
+    older reader simply ignores is not a change of shape) -- and it is carried by a download and kept by a return, like
+    every other key of book.json and video.json."""
+
+    def test_no_format_number_is_raised_for_a_key_an_older_parseh_ignores(self):
+        self.assertEqual((books.BOOK_FORMAT, ytpages.CA.VIDEO_FORMAT), (1, 1))
+        self.assertEqual(version.formats()["parseh-book"], 1)
+        self.assertEqual(version.formats()["parseh-video"], 1)
+
+    def test_a_book_and_a_video_that_say_ipa_keep_saying_it_through_a_download_and_a_return(self):
+        import bundle
+        for kind, code, name in (("books", "fa", "book.json"), ("videos", "ar", "video.json")):
+            with self.subTest(kind):
+                td = tempfile.TemporaryDirectory()
+                self.addCleanup(td.cleanup)
+                d = copy_of(kind, code, td.name)
+                says(d / name, translit="ipa")
+                data, _ = bundle.pack_book(str(d)) if kind == "books" else bundle.pack_video(str(d))
+                far = Path(td.name) / "far"
+                (far / "books").mkdir(parents=True)
+                (far / "youtube" / "videos").mkdir(parents=True)
+                res = bundle.install(data, root=str(far))
+                self.assertTrue(res.get("ok"), res)
+                (there,) = [Path(base) / name for base, _dirs, files in os.walk(far) if name in files]
+                self.assertEqual(json.loads(there.read_text(encoding="utf-8")).get("translit"), "ipa")
 
 
 # --- the real server ------------------------------------------------------------------------------------
