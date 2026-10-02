@@ -129,9 +129,9 @@ What each chunk asks of you:
    none on later appearances. A wall of repeated entries is worse than none.
 7. Every value is a JSON string. Write no other key than the ones above:
    `col`, `note`, `free`, `plain` and `words` are never written from an
-   answer.{{?video}} That includes the `note` the conventions below give a
-   correction or a remark: a `note` you write is thrown away, so what it
-   would say goes in the meaning or the vocabulary line.{{/video}}
+   answer.{{?video}} That includes `note`, wherever the conventions below
+   would put a correction or a remark: a `note` you write is thrown away, so
+   what it would say goes in the meaning or the vocabulary line.{{/video}}
 
 {{MEANING_RULE}}
 
