@@ -9,6 +9,7 @@ the word, so on it the example, the notes and the source are the word's.  The
 table below is the rule written out, once, as a person reads it; every test
 that follows holds a renderer to it.  The browser half (the draw, the editor's
 toggle, a deck's study page, an export) is tests/flashcard_sides.mjs."""
+import importlib.util
 import re
 import sys
 import tempfile
@@ -23,6 +24,7 @@ for folder in (ROOT / "markdown" / "exlex", ROOT / "markdown" / "app",
 
 import decks      # noqa: E402
 import htmlgen    # noqa: E402
+import languages  # noqa: E402
 import mdparser   # noqa: E402
 import store      # noqa: E402
 import texgen     # noqa: E402
@@ -243,15 +245,18 @@ class ThePageFollowsTheTable(unittest.TestCase):
         self.assertEqual(["WORD", "READING", "TRANSLIT"], left)
         self.assertEqual(["MEANING", "CONTEXT", "NOTES", "SOURCE"], right)
 
-    def test_paper_for_every_target_language_alike(self):
-        # the rule is not a language's: a right-to-left and two CJK targets draw as English does
-        for target in ("fa", "ar", "ja", "zh", "hi"):
-            for direction, sides, want in VOCAB[:6] + VOCAB[6:10]:
-                md = card("vocab", direction, sides, target=target)
-                first, second = html_halves(md)
-                self.check("vocab", first, second, direction, sides, want, "page " + target)
-                left, right = tex_halves(md)
-                self.check("vocab", left, right, direction, sides, want, "paper " + target)
+    def test_every_target_language_alike_on_the_page_and_on_paper(self):
+        # the rule is not a language's: every language of the registry, the right-to-left ones and the
+        # CJK ones among them, draws as English does -- the whole table, opposites too
+        self.assertGreaterEqual(len(languages.CODES), 11)
+        for target in languages.CODES:
+            for kind, table in (("vocab", VOCAB), ("opposites", OPPOSITES)):
+                for direction, sides, want in table:
+                    md = card(kind, direction, sides, target=target)
+                    first, second = html_halves(md)
+                    self.check(kind, first, second, direction, sides, want, "page " + target)
+                    left, right = tex_halves(md)
+                    self.check(kind, left, right, direction, sides, want, "paper " + target)
 
 
 class WhatTheRandomDrawMoves(unittest.TestCase):
@@ -305,6 +310,45 @@ class WhatTheRandomDrawMoves(unittest.TestCase):
         first, second = html_halves(card("vocab", "reverse"))
         self.assertEqual(["MEANING"], first)
         self.assertEqual(["WORD", "READING", "TRANSLIT", "CONTEXT", "NOTES", "SOURCE"], second)
+
+
+class NothingIsLostOrDrawnTwice(unittest.TestCase):
+    """Whatever the directions and the sides say, a field is drawn once: on the
+    page and on paper, a card draws every field it has, and none twice."""
+
+    SIDES = ("", "answer", "question")
+
+    def combos(self):
+        for kind in ("vocab", "opposites"):
+            for direction in (None, "forward", "reverse", "both-random", "both-repeat"):
+                for context in self.SIDES:
+                    for notes in self.SIDES:
+                        for source in self.SIDES:
+                            yield kind, direction, {k: v for k, v in
+                                                    (("context", context), ("notes", notes), ("source", source)) if v}
+
+    def test_the_page_and_the_paper_draw_each_field_once(self):
+        every = {"vocab": ["CONTEXT", "MEANING", "NOTES", "READING", "SOURCE", "TRANSLIT", "WORD"],
+                 "opposites": ["NOTES", "OPPOSITE", "OREADING", "OTRANSLIT", "READING", "SOURCE", "TRANSLIT", "WORD"]}
+        for kind, direction, sides in self.combos():
+            md = card(kind, direction, sides)
+            first, second = html_halves(md)
+            self.assertEqual(every[kind], sorted(first + second), (kind, direction, sides, "page"))
+            left, right = tex_halves(md)
+            self.assertEqual(every[kind], sorted(left + right), (kind, direction, sides, "paper"))
+
+    def test_so_do_a_custom_front_and_a_custom_back(self):
+        # `front` replaces the word's three fields and `back` the meaning and the three extras: what is
+        # replaced is written and never drawn, what is not is drawn once, whatever the sides say
+        for custom, drawn in (("front: CUSTOM\n", ["CONTEXT", "CUSTOM", "MEANING", "NOTES", "SOURCE"]),
+                              ("back: CUSTOM\n", ["CUSTOM", "READING", "TRANSLIT", "WORD"])):
+            for direction in (None, "reverse", "both-random"):
+                for sides in ({}, {"notes": Q}, {"context": Q, "notes": Q, "source": Q}):
+                    md = card("vocab", direction, sides, extra=custom)
+                    first, second = html_halves(md)
+                    self.assertEqual(drawn, sorted(first + second), (custom, direction, sides, "page"))
+                    left, right = tex_halves(md)
+                    self.assertEqual(drawn, sorted(left + right), (custom, direction, sides, "paper"))
 
 
 class TheCardsOwnFields(unittest.TestCase):
@@ -453,6 +497,40 @@ class InADeck(unittest.TestCase):
                 for key in extras:
                     self.assertIn(TOKENS[key], ask if key in sides else tell, (kind, sides, item["direction"], key))
                     self.assertNotIn(TOKENS[key], tell if key in sides else ask, (kind, sides, item["direction"], key))
+
+
+@unittest.skipUnless(importlib.util.find_spec("segcolour"),
+                     "waits for the a0.4.3 dialect (markdown/exlex/segcolour.py)")
+class AFieldMayHoldAWordColouredInParts(unittest.TestCase):
+    """The a0.4.3 dialect: `[[un[break]{crimson}able]]` is one word coloured in
+    parts.  A field is whatever its text says, so the rule moves it whole."""
+
+    WORD = "[[un[break]{crimson}able]]"
+
+    def test_the_extras_hold_their_pieces_wherever_they_go(self):
+        for direction in ("forward", "reverse"):
+            for sides in ({}, {"context": Q}):
+                md = card("vocab", direction, sides).replace("context: CONTEXT", "context: " + self.WORD)
+                html = htmlgen.render_document(md)["html"]
+                front, back = html.index('<div class="ex-card-front">'), html.index('<div class="ex-card-back"')
+                self.assertEqual(1, html.count("segmented-colour-run"), (direction, sides))
+                # whichever way the card is turned, a `question` is on the side shown first and the rest on the other
+                self.assertIs(bool(sides), front < html.index("segmented-colour-run") < back, (direction, sides))
+                self.assertIn('<span class="seg-colour fac fac-crimson" data-color="crimson">break</span>', html)
+                # the field holds the word in one piece
+                fields = [re.sub(r"<[^>]+>", "", m) for m in
+                          re.findall(r'<div class="ex-card-field[^"]*"[^>]*>(.*?)</div>', html)]
+                self.assertIn("unbreakable", fields, (direction, sides))
+                # and on paper the piece comes with it
+                tex = texgen.generate(*mdparser.parse(md), colophon=False)
+                self.assertIn("break", tex[tex.index("\\expapercard{"):])
+
+    def test_a_both_random_card_marks_it_like_any_extra(self):
+        md = card("vocab", "both-random").replace("context: CONTEXT", "context: " + self.WORD)
+        html = htmlgen.render_document(md)["html"]
+        field = re.search(r'<div class="ex-card-field [^"]*"[^>]*data-extra="context"[^>]*>(.*?)</div>', html)
+        self.assertIsNotNone(field)
+        self.assertIn("segmented-colour-run", field.group(1))
 
 
 class ThePromptSaysSo(unittest.TestCase):

@@ -215,7 +215,7 @@ FLASHCARD_DIRECTIONS = ("forward", "reverse", "both-random", "both-repeat")
 # `<field>-side`
 CARD_EXTRAS = {"vocab": ("context", "notes", "source"), "opposites": ("notes", "source")}
 CARD_SIDES = ("answer", "question")
-_EX_FIELD_RE =re.compile(r"^([a-z][a-z0-9-]*):\s*(.*)$", re.I)
+_EX_FIELD_RE = re.compile(r"^([a-z][a-z0-9-]*):\s*(.*)$", re.I)
 _EX_MARKED_RE = re.compile(r"^-\s*\[([^\]]*)\]\s*(.*)$")
 
 

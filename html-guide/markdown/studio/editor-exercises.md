@@ -83,7 +83,10 @@ The form is in sections, from the top:
     Markdown of the dialect over several lines. Each text field has
     **Text appearance**: its **Text size (%)**, from 50 to 250, and its
     **Color treatment** — **Primary text**, **Subdued**, **Muted**,
-    **Accent color** or **Custom color**. **Which side appears first**
+    **Accent color** or **Custom color**; under the example, the notes and
+    the source it also has **Show on the side shown first**, which puts
+    one of them there instead of on the side the card turns to.
+    **Which side appears first**
     is **Front**, **Back** (which turns the card round), **Both (random)**
     (the front or the back, drawn each time the card is shown) or **Both
     (repeat)** (the front first; a deck asks both sides).

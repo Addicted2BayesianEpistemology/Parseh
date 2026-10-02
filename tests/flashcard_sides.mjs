@@ -194,6 +194,118 @@ try {
     await ctx.close();
   }
 
+  /* ---------------- a2) the cards as a person looks at them ---------------- */
+  console.log('a2) the cards at 1280 and 390 px, light and dark, asked and turned');
+  const laidOut = page => page.evaluate(() => {
+    const bad = [];
+    document.querySelectorAll('#sheet .ex-flashcard').forEach((c, i) => {
+      c.scrollIntoView({block: 'center'});       // elementFromPoint sees only what is in the window
+      const cr = c.getBoundingClientRect();
+      if (cr.right > innerWidth + 1 || cr.left < -1) bad.push(`card ${i} is outside the window`);
+      c.querySelectorAll('.ex-card-field').forEach(f => {
+        if (f.closest('[hidden]')) return;
+        const r = f.getBoundingClientRect();
+        if (!r.width || !r.height) bad.push(`card ${i}: ${f.textContent.trim()} has no box`);
+        if (r.left < cr.left - 1 || r.right > cr.right + 1 || r.top < cr.top - 1 || r.bottom > cr.bottom + 1)
+          bad.push(`card ${i}: ${f.textContent.trim()} sticks out of its card`);
+        // and nothing covers it: what is at its centre is the field itself or something in it
+        const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        if (!at || !f.contains(at)) bad.push(`card ${i}: ${f.textContent.trim()} is covered by ${at && at.className}`);
+      });
+    });
+    return {bad, scroll: document.documentElement.scrollWidth <= innerWidth + 1};
+  });
+  for (const theme of ['light', 'dark']) {
+    for (const [w, h] of [[1280, 900], [390, 844]]) {
+      for (const which of ['en', 'fa', 'ja']) {
+        const ctx = await browser.newContext({viewport: {width: w, height: h}});
+        await ctx.addInitScript(forced(0.9));
+        await ctx.addInitScript(t => { try { localStorage.setItem('parseh_theme', t); } catch (e) { /* none */ } }, theme);
+        const page = await ctx.newPage();
+        const errors = [];
+        page.on('pageerror', e => errors.push(e.message));
+        await page.goto(`${B}/doc/${ids[which]}`);
+        await page.waitForSelector('#sheet .ex-flashcard');
+        await page.evaluate(() => document.fonts.ready);
+        // the cards are asked: look at each card where it stands, then turn each and look again
+        const cards = page.locator('#sheet .ex-flashcard');
+        const n = await cards.count();
+        let out = await laidOut(page);
+        const tag = `${which}-${theme}-${w}`;
+        for (let i = 0; i < n; i++) await cards.nth(i).scrollIntoViewIfNeeded();
+        await page.evaluate(() => scrollTo(0, 0));
+        if (which === 'en' || w === 1280) await shot(page, `cards-${tag}-asked`, {fullPage: true});
+        const askedOk = out.bad.length === 0 && out.scroll;
+        for (let i = 0; i < n; i++) { await cards.nth(i).scrollIntoViewIfNeeded(); await cards.nth(i).click({position: {x: 8, y: 8}}); }
+        await sleep(150);
+        out = await laidOut(page);
+        await page.evaluate(() => scrollTo(0, 0));
+        if (which === 'en' || w === 1280) await shot(page, `cards-${tag}-turned`, {fullPage: true});
+        assert(askedOk && out.bad.length === 0 && out.scroll && errors.length === 0,
+               `${tag}: every field of ${n} cards, asked and turned, is inside its card and uncovered, and nothing scrolls sideways ${JSON.stringify(out.bad.slice(0, 3))} ${errors.join('|')}`);
+        await ctx.close();
+      }
+    }
+  }
+  {
+    // right to left and CJK: the extras keep the direction of their own text, and come after the word's own fields
+    const ctx = await browser.newContext({viewport: {width: 1280, height: 900}});
+    await ctx.addInitScript(forced(0.9));
+    const page = await ctx.newPage();
+    await page.goto(`${B}/doc/${ids.fa}`);
+    await page.waitForSelector('#sheet .ex-flashcard');
+    const fa = await halves(page.locator('#sheet .ex-flashcard').nth(0));
+    assert(same(fa.first.fields, ['a book']) && fa.second.fields.length === 5 && fa.second.fields[0] === 'کتاب' && fa.second.fields[1] === 'ketâb'
+           && fa.second.fields[2].startsWith('یک کتاب') && fa.second.fields[3].includes('plural') && fa.second.fields[4] === 'Dehkhoda',
+           'Persian, turned round: the meaning opens the card, the word, its transliteration, the example, the notes and the source answer in order: ' + JSON.stringify(fa));
+    const dirs = await page.locator('#sheet .ex-flashcard').nth(0).evaluate(c =>
+      [...c.querySelectorAll(':scope > .ex-card-back .ex-card-field')].map(f => getComputedStyle(f).direction + '/' + getComputedStyle(f).textAlign));
+    assert(dirs.every(d => d.endsWith('/center')), 'each field of the revealed side is centred, as every field of a card is: ' + JSON.stringify(dirs));
+    const mixed = await halves(page.locator('#sheet .ex-flashcard').nth(1));
+    assert(same(mixed.first.fields, ['hello']) && same(mixed.second.fields, ['سلام', 'سلام دوست من', 'a greeting', 'Dehkhoda']),
+           'Persian, drawn meaning first: the word, then the example, the notes and the source: ' + JSON.stringify(mixed));
+    const ja = await (async () => {
+      await page.goto(`${B}/doc/${ids.ja}`);
+      await page.waitForSelector('#sheet .ex-flashcard');
+      return halves(page.locator('#sheet .ex-flashcard').first());
+    })();
+    assert(same(ja.first.fields, ['cat']) && same(ja.second.fields, ['猫', 'ねこ', '猫が好きです。', 'a pet', 'Jisho']),
+           'Japanese, turned round: the meaning alone asks, the word, its reading, the example, the notes and the source answer: ' + JSON.stringify(ja));
+    await ctx.close();
+  }
+
+  /* ---------------- a3) a word coloured in parts: the a0.4.3 dialect, where the renderer has it ---------------- */
+  console.log('a3) a field holding a word coloured in parts moves whole');
+  {
+    const seg = await (await send('POST', '/api/docs', JSON.stringify({markdown: doc('en', [
+      'card-type: vocab\ntarget: [stem]{tl}\nmeaning: a root\ncontext: [[un[break]{crimson}able]]\nnotes: coloured in parts\ndirection: both-random'])
+      .replace('title: Sides en', 'title: A word in parts')}))).json();
+    const probe = await (await fetch(`${B}/doc/${seg.meta.id}`)).text();
+    if (!probe.includes('segmented-colour-run')) {
+      console.log('  (waits for the a0.4.3 dialect: markdown/exlex/segcolour.py)');
+    } else {
+      for (const [v, meaningFirst] of [[0.1, false], [0.9, true]]) {
+        const ctx = await browser.newContext({viewport: {width: 1100, height: 700}});
+        await ctx.addInitScript(forced(v));
+        const page = await ctx.newPage();
+        await page.goto(`${B}/doc/${seg.meta.id}`);
+        await page.waitForSelector('#sheet .ex-flashcard');
+        const where = await page.locator('#sheet .ex-flashcard').evaluate(c => {
+          const own = side => [...c.querySelector(':scope > ' + side).children].filter(x => x.classList.contains('ex-card-field'));
+          const word = f => f.querySelector('.segmented-colour-run');
+          const field = own('.ex-card-back').find(word);
+          return {onFirst: own('.ex-card-front').some(word), onSecond: !!field, text: field && field.textContent,
+                  pieces: field ? [...field.querySelectorAll('.seg-colour')].map(p => p.dataset.color + ':' + p.textContent) : [],
+                  first: own('.ex-card-front').map(f => f.textContent.trim()), second: own('.ex-card-back').map(f => f.textContent.trim())};
+        });
+        assert(!where.onFirst && where.onSecond && where.text === 'unbreakable' && same(where.pieces, ['crimson:break'])
+               && same(where.first, [meaningFirst ? 'a root' : 'stem']) && where.second.slice(-2).join('|') === 'unbreakable|coloured in parts',
+               `random ${v}: the word coloured in parts is on the revealed side in one piece, its colour with it: ${JSON.stringify(where)}`);
+        await ctx.close();
+      }
+    }
+  }
+
   /* ---------------- b) the real draw ---------------- */
   console.log('b) the real draw');
   {
@@ -338,7 +450,15 @@ try {
     assert(same(await pv(), {first: ['wall', 'of stone'], second: ['a barrier', 'a high wall', 'Merriam']}),
            'ticking Notes moves it in the form\'s preview to the side shown first, after the word');
     await fieldBox(page, 'Source').locator('summary').click();
-    await fieldBox(page, 'Source').locator('.ex-side-toggle input').check();
+    // a click on its words ticks it as well as a click on the box, and so does the keyboard
+    const words = fieldBox(page, 'Source').locator('.ex-side-toggle');
+    await words.click({position: {x: 90, y: 8}});
+    assert(await words.locator('input').isChecked(), 'a click on the words of the box ticks it');
+    await words.click({position: {x: 90, y: 8}});
+    assert(!(await words.locator('input').isChecked()), 'and the next unticks it');
+    await words.locator('input').focus();
+    await page.keyboard.press('Space');
+    assert(await words.locator('input').isChecked(), 'Space on the focused box ticks it');
     await sleep(700);
     assert(same(await pv(), {first: ['wall', 'of stone', 'Merriam'], second: ['a barrier', 'a high wall']}), 'and Source after it');
     await page.click(`${FORM} [data-x="save"]`);
@@ -496,6 +616,19 @@ try {
     await page.click('#btn-show');
     h = await halves(page.locator('#study-stage .ex-flashcard'));
     assert(h.flipped && !h.second.hidden, 'and Show answer shows them');
+    await ctx.close();
+  }
+  {
+    // the browse page: a row opened shows the card with both sides at once
+    const ctx = await browser.newContext({viewport: {width: 1100, height: 900}});
+    const page = await ctx.newPage();
+    await page.goto(`${B}/exercises/deck/${reverseDeck.path}`);
+    await page.waitForSelector('.dk-row');
+    await page.locator('.dk-row-toggle').first().click();
+    await page.waitForSelector('.dk-row-preview .ex-flashcard');
+    const h = await halves(page.locator('.dk-row-preview .ex-flashcard').first());
+    assert(h.flipped && same(h.first.fields, ['a way in']) && same(h.second.fields, ['door', 'open the door', 'a noun', 'Longman']) && !h.second.hidden,
+           'the browse page shows a reverse card with the meaning alone on the side shown first and the example, notes and source on the other: ' + JSON.stringify(h));
     await ctx.close();
   }
   {

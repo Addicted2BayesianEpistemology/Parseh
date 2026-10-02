@@ -1207,9 +1207,9 @@ function flipCard(card) {
    side shown first for everything that reads it (flipCard, the recording
    played first, the enlarged copy).  A card already turned (a preview shows
    both sides) is left as it is, and one drawn once is not drawn again.
-   The example, the notes and the source of a card (data-extra) are on the
-   answer's side, which the draw has just changed: each goes to the other
-   side, at its end, where its own come in the order they were drawn. */
+   The example, the notes and the source (data-extra) go with the answer, which
+   the draw has just changed: each goes to the other side, after that side's
+   own fields, and each side keeps them in the order they were drawn in. */
 function drawFirstSide(card) {
   if (card.dataset.first !== "random" || card.dataset.drawn || card.classList.contains("flipped")) return;
   card.dataset.drawn = "1";

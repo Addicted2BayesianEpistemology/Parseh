@@ -650,6 +650,18 @@ class HubRoutes(unittest.TestCase):
         self.json_of("POST", "/clips/api/preview", {"markdown": 12}, want=400)
         self.assertEqual(self.http("GET", "/clips/api/preview")[0], 405)
 
+    def test_preview_puts_a_reverse_cards_example_on_the_side_that_answers(self):
+        # the card sheet shows what the deck will: the meaning opens a card turned round
+        # and the example is with the word (mdparser.card_extras)
+        md = (":::exercise flashcard\ncard-type: vocab\ntarget: [cat]{tl}\nmeaning: gatto\n"
+              "context: the cat sat\ndirection: reverse\n:::")
+        html = self.json_of("POST", "/clips/api/preview", {"markdown": md, "lang": "en"})["html"]
+        asked = html[html.index('<div class="ex-card-front">'):html.index('<div class="ex-card-back"')]
+        answered = html[html.index('<div class="ex-card-back"'):]
+        self.assertIn("gatto", asked)
+        self.assertNotIn("the cat sat", asked)
+        self.assertIn("the cat sat", answered)
+
     # ---- a book's recordings
     def reader(self, what):
         return "/books/english/mini-en/reader/__clip/" + what
