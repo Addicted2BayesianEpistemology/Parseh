@@ -336,6 +336,24 @@ await until(() => page.evaluate(() => !document.querySelector('.tl-root') || doc
   await cv.close();
 }
 
+/* ================================================================ without ffmpeg the bar is a plain track */
+{
+  const {context: c, page: p} = await newPage();
+  await p.route('**/youtube/api/film/wave', r => r.fulfill({status: 409, contentType: 'application/json',
+    body: JSON.stringify({ok: false, error: 'ffmpeg is not installed on this computer, so there is no picture of the sound to draw'})}));
+  await openVideo(p, ID_A);
+  await soundReady(p);
+  await until(() => p.evaluate(() => document.querySelector('#sndwave').getAttribute('data-shape') === 'plain' && document.querySelector('.sndsay').textContent.length > 0),
+              'the bar becomes a plain track, and says why');
+  const say = await p.evaluate(() => document.querySelector('.sndsay').textContent);
+  assert(/ffmpeg is not installed/.test(say) && /plain track/.test(say), 'in words: ' + say);
+  const bar = await p.locator('#sndwave').boundingBox();
+  await p.mouse.click(bar.x + bar.width * 0.75, bar.y + bar.height / 2);
+  await until(() => p.evaluate(() => Math.abs(document.querySelector('#film').currentTime - document.querySelector('#film').duration * 0.75) < 1.5), 'it still goes where it is pressed');
+  await shot(p, 'player-plain-track-desktop');
+  await c.close();
+}
+
 /* ================================================================ b) the add page, by upload */
 const {context: ctxB, page: pb} = await newPage();
 const aboutToSend = [];
