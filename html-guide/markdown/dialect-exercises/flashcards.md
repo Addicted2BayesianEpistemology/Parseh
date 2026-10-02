@@ -1,7 +1,7 @@
 ---
 title: Flashcards
 weight: 6
-description: The flashcard exercise — vocabulary, opposites and Jolly cards, their fields, sizes and shades, pictures and recordings, which side comes first, Enlarge, paper and decks.
+description: The flashcard exercise — vocabulary, opposites and Jolly cards, their fields, sizes and shades, pictures and recordings, which side comes first and where the example, notes and source go, Enlarge, paper and decks.
 ---
 
 A flashcard is a card with a front and a back, turned by a click. It is
@@ -38,14 +38,18 @@ the form offers none.
 | front | `transliteration` | its transliteration |
 | front | `front-image`, `front-audio` | a picture and a recording |
 | back | `meaning` | its meaning — the back's main text |
-| back | `context` | an example, or the context it was met in |
-| back | `notes` | anything else |
-| back | `source` | where it comes from |
+| [answer](#where-the-extras-go) | `context` | an example, or the context it was met in |
+| [answer](#where-the-extras-go) | `notes` | anything else |
+| [answer](#where-the-extras-go) | `source` | where it comes from |
 | back | `back-image`, `back-audio` | a picture and a recording |
 | front | `front` | a custom front, which replaces `target`, `reading` and `transliteration` |
 | back | `back` | a custom back, which replaces `meaning`, `context`, `notes` and `source` |
 
 On each side the picture comes first, then the recording, then the text.
+The **answer** is the side the card turns to, so `context`, `notes` and
+`source` are on the back of a card that shows its front first, and on the
+front of a card that shows its back first — [where the example, the notes
+and the source go](#where-the-extras-go) says why, and how to change it.
 
 ```parseh-example
 ---
@@ -89,7 +93,8 @@ back: *a bell*, and the sound it makes
 | Side | Fields |
 |---|---|
 | front | `target`, `reading`, `transliteration`, `front-image`, `front-audio` |
-| back | `opposite`, `opposite-reading`, `opposite-transliteration`, `notes`, `source`, `back-image`, `back-audio` |
+| back | `opposite`, `opposite-reading`, `opposite-transliteration`, `back-image`, `back-audio` |
+| [answer](#where-the-extras-go) | `notes`, `source` |
 
 ```parseh-example
 ---
@@ -106,7 +111,8 @@ direction: reverse
 :::
 ```
 
-This card shows صغير first: `direction: reverse` has turned it round.
+This card shows صغير first: `direction: reverse` has turned it round, and
+its notes are on the other side, with the word, which is the answer.
 
 ## Jolly cards {#jolly-cards}
 
@@ -221,13 +227,17 @@ at `88` and `subdued`. A size outside 50–250 is taken as 50 or 250,
 whichever is nearer, and one that is not a number leaves the field at its
 own size; a shade the card does not know is the page's ink. Both hold on
 paper too ([On paper](#on-paper)), where black and white prints every shade
-black.
+black. The three fields that go with the answer — `context`, `notes` and
+`source` — take a third, `<field>-side`, which is not about looks: [it says
+which side they go on](#where-the-extras-go).
 
 In the form, every text field has **Text appearance** under it: *Text size
 (%)*, and *Color treatment* — **Primary text**, **Subdued**, **Muted**,
 **Accent color**, or **Custom color** with a colour picker. The form
 refuses a size outside 50–250, and writes a size or a shade into the
-Markdown only when it differs from the field's own.
+Markdown only when it differs from the field's own. Under *Example or
+context*, *Notes* and *Source* the same fold holds a box of another kind,
+**Show on the side shown first** (below).
 
 ## Pictures and recordings
 
@@ -256,7 +266,7 @@ the other side too. In the form it is *Which side appears first*:
 | `direction:` | In the form | The card |
 |---|---|---|
 | `forward` (the default) | **Front** | shows the front first |
-| `reverse` | **Back** | shows the back first: the word from its meaning, where the front is the word |
+| `reverse` | **Back** | shows the back first: the word from its meaning, where the front is the word; its example, notes and source are on the front, with the word ([they go with the answer](#where-the-extras-go)) |
 | `both-random` | **Both (random)** | shows the front or the back first, drawn afresh each time the card is shown |
 | `both-repeat` | **Both (repeat)** | shows the front first, and in a deck is asked from both sides |
 
@@ -270,8 +280,9 @@ line `direction must be forward, reverse, both-random or both-repeat`.
   time each. It works the same in a document, on the study page, in a
   cram, on a phone's study pack and in an exported page, and the
   turning, the recordings that play when a side appears and **⤢ Enlarge**
-  all follow the side that came first. The editor's preview shows both
-  sides at once, so it draws nothing.
+  all follow the side that came first, and so do the example, the notes
+  and the source, which the draw puts on the side it did not show first.
+  The editor's preview shows both sides at once, so it draws nothing.
 - **Both (repeat).** The card is drawn front first, as `forward`, and the
   exercise's head says so in small grey type, right after the magenta
   *FLASHCARD*: *When exported to a deck, both sides will be asked.* The
@@ -316,6 +327,100 @@ made in the place that holds the card.
 
 A `bidirectional:` field, which older card sheets wrote, is kept as it is
 and changes nothing here.
+
+## Where the example, the notes and the source go {#where-the-extras-go}
+
+On a vocabulary card `context`, `notes` and `source` — on an opposites card
+`notes` and `source` — go **on the side the card turns to**, the answer: the
+side that is not shown first. A card that shows its front first has them on
+its back, with the meaning. A card turned round opens on its meaning alone,
+so that an example, the notes or the source never give the word away on the
+side that asks for it, and turns to the word, its reading and its
+transliteration, and under them the example, the notes and the source, in
+that order and each at its own size and shade.
+
+| `direction:` | Shown first | The example, notes and source are on |
+|---|---|---|
+| `forward` (the default), `both-repeat` | the front, the word | the back, with the meaning |
+| `reverse` | the back, the meaning | the front, with the word |
+| `both-random` | either, drawn each time | the side the draw does not show first |
+
+`context-side`, `notes-side` and `source-side` say otherwise for one field
+each. Two values: `answer` — the side the card turns to, which is what a
+field does when it says nothing — and `question`, the side shown first:
+
+```parseh-example
+---
+target: en
+---
+:::exercise flashcard
+card-type: vocab
+target: [bank]{tl}
+meaning: the sloping side of a river
+context: She sat on the river bank.
+context-side: question
+:::
+```
+
+Here the sentence is on the side that asks, a cue to the word's sense, and
+the meaning alone is on the answer. A card turned round gives its example,
+notes and source to the word:
+
+```parseh-example
+---
+target: de
+---
+:::exercise flashcard
+card-type: vocab
+target: [das Eichhörnchen]{tl}
+meaning: squirrel
+context: [Im Herbst sammelt es Nüsse.]{tl}
+notes: Neuter, as its ending *-chen* says.
+direction: reverse
+:::
+```
+
+Click it: the card opens on *squirrel*, and the word, the example and the
+notes are on the other side.
+
+- **Relative, not fixed.** `answer` and `question` mean the same on every
+  card, whatever `direction:` says, which is why they are not `front` and
+  `back`. Say `question` on all three of a card turned round and it is
+  drawn as such cards always were.
+- **Each in its place.** The side that receives them puts them after its own
+  fields — the main text, the reading, the transliteration, or the meaning
+  — as `context`, `notes`, `source`, whichever of them are there. The
+  pictures and recordings stay on the side that names them (`front-image`,
+  `back-audio`).
+- **Both (random).** The card is drawn first, and the page moves the three
+  with the draw, so that the ones that say `answer` are always on the side
+  that was not shown first. The same on the study page, in a cram and in
+  an exported page.
+- **In a deck.** A card put in with **Both (repeat)** becomes two cards, and
+  each follows its own direction: the example, notes and source of the one
+  that shows the front first are on its back, and of the one that shows the
+  back first on its front. A `-side` line is copied to both.
+- **A custom front, a custom back.** `back:` replaces the meaning, the
+  example, the notes and the source, so none of the three is drawn on
+  either side, whatever a `-side` says. `front:` replaces only the word and
+  its reading, so they stay and follow it.
+- **A Jolly card** has no such fields: its four fields are said where they
+  stand, and a `-side` on it does nothing. Nor does `context-side` on an
+  opposites card, which has no `context`.
+- **A value that is neither** shows *Exercise needs attention* and
+  `notes-side must be answer or question` (or `context-side`, or
+  `source-side`), on any kind of card. It is read in any case, `Question`
+  as `question`.
+- **Cards written before.** A card that shows its front first looks as it
+  did. A card turned round that has an example, notes or a source now has
+  them with the word; `question` on each puts them back.
+
+In the form, a box under each of *Example or context*, *Notes* and *Source*,
+in the fold called *Text appearance* — shut, like the size and the colour —
+**Show on the side shown first** writes the line `notes-side: question`,
+and nothing when it is not ticked. The form's preview moves the field as
+the box is ticked. An opposites card has the box under *Notes* and *Source*
+only, and a Jolly card none.
 
 ## In the form
 
@@ -381,9 +486,10 @@ answer is on the paper.
   each at its own `-size` and in its own `-shade` — in black and white,
   every shade is black. A recording cannot be played from paper, so it is
   ♪ and its file's name.
-- A **vocabulary** card prints every field it shows on the page: `target`
-  (or `front`) with its reading and transliteration, and `meaning` (or
-  `back`) with its context, notes and source — and its pictures. An
+- A **vocabulary** card prints every field it shows on the page, each
+  where the page puts it: `target` (or `front`) with its reading and
+  transliteration, `meaning` (or `back`), and the context, notes and source
+  [on the answer's half](#where-the-extras-go) — and its pictures. An
   **opposites** card prints the word and its opposite, with their
   readings, transliterations, notes and source.
 - A **Jolly** field of one paragraph is a line of its own in the middle of
@@ -391,9 +497,11 @@ answer is on the paper.
   out from the start of the line, at the page's size, and a table too wide
   for its half is made to fit it.
 - **`direction: reverse` turns the card round on paper too.** The side the
-  card shows first is the left half. `both-random` and `both-repeat` print
-  as `forward`, the front in the left half, and the paper says nothing of
-  decks.
+  card shows first is the left half, so the meaning is alone on it and the
+  example, notes and source are in the right half, with the word.
+  `both-random` and `both-repeat` print as `forward`, the front in the left
+  half and the example, notes and source in the right, and the paper says
+  nothing of decks.
 - **Nothing crosses the fold**, at any print size: a long word is
   hyphenated inside its half, a phrase of the target language wraps, and
   what cannot break is set smaller until it fits.

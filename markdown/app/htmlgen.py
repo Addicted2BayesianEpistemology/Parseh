@@ -1404,7 +1404,7 @@ def _card_style(fields, key):
     return ' style="font-size:%d%%;color:%s"' % (size, esc(colour))
 
 
-def _card_field(fields, key, ctx, cls=""):
+def _card_field(fields, key, ctx, cls="", extra=False):
     text = fields.get(key, "")
     if not text:
         return ""
@@ -1415,8 +1415,9 @@ def _card_field(fields, key, ctx, cls=""):
         cls += " ex-card-transliteration"
     with _field_at(key):
         inner = _ex_inline(text, ctx)
-    return '<div class="ex-card-field %s"%s>%s</div>' % (
-        cls, _card_style(fields, key), inner)
+    # A FIELD THE DRAW MOVES says so (`extra`): app.js drawFirstSide looks for data-extra
+    return '<div class="ex-card-field %s"%s%s>%s</div>' % (
+        cls, _card_style(fields, key), ' data-extra="%s"' % key if extra else "", inner)
 
 
 def _card_image(fields, key, ctx):
@@ -1554,6 +1555,13 @@ def _card_jolly_field(b, key, cls, ctx, field):
 def _render_exercise_flashcard(b, preview, ctx, cards=None):
     f = b["fields"]
     kind = (f.get("card-type") or "vocab").lower()
+    direction = (f.get("direction") or "forward").strip().lower()
+    # THE EXAMPLE, THE NOTES AND THE SOURCE GO ON THE ANSWER (mdparser.card_extras).
+    # A both-random card's are marked, for the page's draw to move with it
+    # (app.js drawFirstSide); no other card carries the mark.
+    word, meaning = mdparser.card_extras(f)
+    extras = lambda keys: "".join(_card_field(f, k, ctx, extra=direction == "both-random")
+                                  for k in keys)
     # within a side: the picture, the recording, then the text fields
     if kind == "jolly":
         cards = cards or {}
@@ -1564,21 +1572,20 @@ def _render_exercise_flashcard(b, preview, ctx, cards=None):
     elif kind == "opposites":
         front = (_card_image(f, "front-image", ctx) + _card_audio(f, "front-audio", ctx)
                  + _card_field(f, "target", ctx, "primary")
-                 + _card_field(f, "reading", ctx) + _card_field(f, "transliteration", ctx))
+                 + _card_field(f, "reading", ctx) + _card_field(f, "transliteration", ctx)
+                 + extras(word))
         back = (_card_image(f, "back-image", ctx) + _card_audio(f, "back-audio", ctx)
                 + _card_field(f, "opposite", ctx, "primary")
                 + _card_field(f, "opposite-reading", ctx) + _card_field(f, "opposite-transliteration", ctx)
-                + _card_field(f, "notes", ctx) + _card_field(f, "source", ctx))
+                + extras(meaning))
     else:
-        front = (_card_field(f, "front", ctx, "primary") or
-                 (_card_field(f, "target", ctx, "primary") + _card_field(f, "reading", ctx)
-                  + _card_field(f, "transliteration", ctx)))
+        front = ((_card_field(f, "front", ctx, "primary") or
+                  (_card_field(f, "target", ctx, "primary") + _card_field(f, "reading", ctx)
+                   + _card_field(f, "transliteration", ctx))) + extras(word))
         back = (_card_field(f, "back", ctx, "primary") or
-                (_card_field(f, "meaning", ctx, "primary") + _card_field(f, "context", ctx)
-                 + _card_field(f, "notes", ctx) + _card_field(f, "source", ctx)))
+                (_card_field(f, "meaning", ctx, "primary") + extras(meaning)))
         front = _card_image(f, "front-image", ctx) + _card_audio(f, "front-audio", ctx) + front
         back = _card_image(f, "back-image", ctx) + _card_audio(f, "back-audio", ctx) + back
-    direction = (f.get("direction") or "forward").strip().lower()
     if direction == "reverse":
         front, back = back, front
     # `both-random` is drawn where the card is shown (app.js drawFirstSide):

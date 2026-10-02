@@ -977,6 +977,11 @@ body[data-page="edit"] .ex-flashcard figure.img:hover img { outline: none; }
 .ex-field-style { margin-top: .15rem; }
 .ex-field-style summary { cursor: pointer; color: var(--accent); font-size: .76rem; }
 .ex-field-style .ex-field-cols { margin-top: .5rem; }
+/* the box that puts an example, notes or source on the side shown first: a
+   checkbox with its words, not the full-width input the form's rule for its
+   inputs would make of it */
+.modal.ex-form-modal .ex-field-style .ex-side-toggle { display: flex; align-items: center; gap: .4rem; margin-top: .6rem; }
+.modal.ex-form-modal .ex-field-style .ex-side-toggle input { width: auto; padding: 0; margin: 0; }
 .ex-form-preview-status { min-height: 1.15em; }
 .sheet.ex-form-preview {
   width: 100%; max-width: none; margin: 0; padding: .75rem;

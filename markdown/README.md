@@ -310,6 +310,19 @@ comes first, then the recording, then the text. On screen the recording is
 a 🔊 button over a hidden `<audio>` (`.ex-card-audio`); in the PDF the side
 starts with `♪ word.mp3`.
 
+**Where a vocab or opposites card draws `context`, `notes` and `source`** is
+`mdparser.card_extras(fields)`, the one rule both renderers read: on the side
+the flip reveals, so on the front of a `reverse` card, unless a `context-side`,
+`notes-side` or `source-side` says `question` (`answer` is the default; any
+other value is an error of the card). It answers in the halves a card is
+composed in, the word's first (`htmlgen._render_exercise_flashcard`,
+`texgen._card_sides`), and `reverse` turns them round after, as it always did;
+a custom `back` replaces them all. A `both-random` card is composed forward and
+marks each of them `data-extra`, which `app.js` `drawFirstSide` moves to the
+other side when the draw shows the back first; no other card's markup carries
+the attribute. A deck needs nothing of its own: `decks._faces` writes the two
+directions of a `both-repeat` card, and each is drawn by the rule for its own.
+
 ### Mathematics
 
 `[a^2+b^2=c^2]{math}` sets a formula in the line. On its own it is a fence,
