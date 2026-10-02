@@ -70,7 +70,7 @@
   var SAY_ABSENT = 'Speech to text is not set up on this computer. It is optional: Parseh can write ' +
                    'a transcript for you, here on this computer and without sending anything anywhere, ' +
                    'but pasting one works exactly as it always did.';
-  var SAY_FILM = 'The video or sound named above is read from its file on the computer Parseh runs on, so ' +
+  var SAY_FILM = 'The film named above is read from its file on the computer Parseh runs on, so ' +
                  'nothing is played and any browser will do. The path is a path on that computer’s ' +
                  'disk, even when this page is open on another device.';
   var SAY_YOUTUBE = 'The video plays here in real time, from its beginning, while this page records ' +
@@ -533,7 +533,7 @@
       if (S.phase !== 'idle') return;
       var src = o.source(), lang = o.lang(), film = src.kind === 'film';
       if (!src.value) {
-        toast(film ? 'name the video or sound on this machine' : 'paste the URL', true);
+        toast(film ? 'name the film on this machine' : 'paste the URL', true);
         if (o.focusSource) o.focusSource();
         return;
       }
