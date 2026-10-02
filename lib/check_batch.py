@@ -90,6 +90,7 @@ import wordline                                                 # noqa: E402
 BOOK = None     # set in main(): the book's directory
 LANG = None     # set in main(): the book's Lang record
 REORDERS = False  # set in main(): book.json's "reorders" -- read out of order
+IPA = False       # set in main(): book.json's "translit": "ipa" -- the transliteration is not the usual scheme
 
 FATHA, DAMMA, KASRA, SHADDA, SUKUN = "\u064e", "\u064f", "\u0650", "\u0651", "\u0652"
 ALLOWED  = {"dw", "vb", "bw", "pw", "textit", "nobreak", "emph"}
@@ -205,9 +206,9 @@ def corpus():
 
 
 def main(path, book=None, ch_opt=None):
-    global BOOK, LANG, REORDERS
+    global BOOK, LANG, REORDERS, IPA
     b = find_book(book or os.environ.get("FRANK_BOOK") or None)
-    BOOK, LANG, REORDERS = b.dir, b.lang, b.reorders
+    BOOK, LANG, REORDERS, IPA = b.dir, b.lang, b.reorders, b.translit == "ipa"
     blob = json.load(io.open(path, encoding="utf-8"))
     idx  = blob["idx"]
     # Which chapter the paragraph belongs to: the JSON's own "ch" wins, then
@@ -341,15 +342,21 @@ def main(path, book=None, ch_opt=None):
     WORDS, VERBS = corpus()
 
     # ---- 3. the edition's settled conventions ------------------------------
+    # THE CHECKS THAT READ THE ROMANISATION are written for the usual scheme (/ey/ as "ey", čašm), and an
+    # IPA book spells those sounds otherwise: they are not run for it, and the checker says so once, as a
+    # note -- the checks of the Persian TEXT (sukun, chashm's spelling, budan's stem) run as always
+    if IPA:
+        note("this book's transliteration is IPA (book.json): the checks that read it in the usual scheme "
+             "-- /ey/ and /ow/ against the text, čašm -- are not run")
     for c in chunks:
         fa, tr = c["fa"], c.get("tr", "")
         if SUKUN in fa:
             err("sukun in %r -- this edition never uses it" % fa)
-        if "ey" in tr and FATHA + "\u06cc" in fa:
+        if "ey" in tr and FATHA + "\u06cc" in fa and not IPA:
             err("/ey/ needs KASRA+ya, not fatha: %r (%s)" % (fa, tr))
-        if "ow" in tr and KASRA + "\u0648" in fa:
+        if "ow" in tr and KASRA + "\u0648" in fa and not IPA:
             err("/ow/ needs FATHA+vav, not kasra: %r (%s)" % (fa, tr))
-        if re.search(r"\bča[sš]m", tr) or "\u0686" + FATHA + "\u0634\u0645" in fa:
+        if "\u0686" + FATHA + "\u0634\u0645" in fa or (re.search(r"\bča[sš]m", tr) and not IPA):
             err("chashm must be češm / \u0686\u0650\u0634\u0645 in %r" % fa)
         if re.search(r"\\vb\{بودن\}\{[^}]*\}\{هست\}", c.get("voc", "")):
             err("budan's present stem is باش, not هست, in %r" % fa)
@@ -477,8 +484,11 @@ def main(path, book=None, ch_opt=None):
         first = strip(nxt["fa"].split()[0])
         if last[-1] in "\u060c\u061b.!\u061f:\u2013\u00bb":
             continue                                   # punctuation closes the phrase
+        # the ezafe is read off the text's final kasra, and -- in the usual scheme -- off the
+        # romanisation's "-e" / "-ye"; an IPA book writes its ezafe as its own file says, so only the
+        # text is read there
         if last.endswith((KASRA, "\u06c0")) \
-                or (cur.get("tr", "") or "").rstrip().endswith(("-e", "-ye")):
+                or (not IPA and (cur.get("tr", "") or "").rstrip().endswith(("-e", "-ye"))):
             continue                                   # the ezafe is already there
         if strip(last) in PREP or first in PREP:
             continue                                   # a function word is no qualifier

@@ -41,7 +41,10 @@ BW = re.compile(r"(\\bw\{[^{}]*\}\{[^{}]*\})[ \t]+([^{\;][^;\\]*?)(?=\s*(?:;|\\|
 VB_BUDAN = re.compile(r"(\\vb\{بودن\}\{[^}]*\}\{)هست(\}\{)hast(\})")
 
 
-def normalize(doc):
+def normalize(doc, ipa=False):
+    """`ipa`: the book's transliteration is IPA (book.json "translit"), which none of the rules that read
+    or write the romanisation can touch -- the /ey/ of a `tr`, the spellings in EY_TR, čašm, budan's
+    `hast`/`bāš` sound groups.  The rules on the text (EY_FA, چَشم) and the malformed \\bw are the same."""
     n = {"ey": 0, "eye": 0, "budan": 0, "bw": 0}
     for para in doc["paragraphs"]:
         for sent in para["ann"]["sentences"]:
@@ -51,14 +54,14 @@ def normalize(doc):
                     if a in fa:
                         fa = fa.replace(a, b)
                         n["ey"] += 1
-                if "ey" in c.get("tr", "") and "َی" in fa:
+                if "ey" in c.get("tr", "") and "َی" in fa and not ipa:
                     fa = fa.replace("َی", "ِی")
                     n["ey"] += 1
                 if "چَشم" in fa:                       # Tehrani /tʃeʃm/
                     fa = fa.replace("چَشم", "چِشم")
                     n["eye"] += 1
                 c["fa"] = fa
-                for f in ("tr", "voc"):
+                for f in () if ipa else ("tr", "voc"):
                     v = c.get(f, "")
                     if not v:
                         continue
@@ -71,7 +74,7 @@ def normalize(doc):
                         n["eye"] += 1
                     c[f] = v
                 voc = c.get("voc", "")
-                v2 = VB_BUDAN.sub(r"\1باش\2bāš\3", voc)
+                v2 = voc if ipa else VB_BUDAN.sub(r"\1باش\2bāš\3", voc)
                 n["budan"] += v2 != voc
                 v3 = BW.sub(lambda m: m.group(1) + "{" + m.group(2).strip() + "}", v2)
                 n["bw"] += v3 != v2
@@ -85,7 +88,8 @@ if __name__ == "__main__":
     ap.add_argument("dst", help="where the normalised batch goes")
     ap.add_argument("--book", default=None, help="book directory, slug or <folder>/<slug>")
     a = ap.parse_args()
-    lang = find_book(a.book or os.environ.get("FRANK_BOOK") or None).lang
+    book = find_book(a.book or os.environ.get("FRANK_BOOK") or None)
+    lang = book.lang
     blob = json.load(open(a.src, encoding="utf-8"))
     doc = blob.get("result", blob)
     if lang.code != "fa":
@@ -93,7 +97,10 @@ if __name__ == "__main__":
         print("%d paragraphs; %s has no settled spellings to apply -- copied unchanged"
               % (len(doc["paragraphs"]), lang.name))
         sys.exit(0)
-    n = normalize(doc)
+    if book.translit == "ipa":
+        print("this book's transliteration is IPA: the spellings that read or write the romanisation "
+              "are left alone")
+    n = normalize(doc, book.translit == "ipa")
     json.dump(doc, open(a.dst, "w", encoding="utf-8"), ensure_ascii=False)
     print("%d paragraphs; fixed %d /ey/, %d چشم, %d بودن stems, %d malformed \\bw"
           % (len(doc["paragraphs"]), n["ey"], n["eye"], n["budan"], n["bw"]))
