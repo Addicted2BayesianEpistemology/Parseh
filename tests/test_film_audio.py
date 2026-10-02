@@ -284,6 +284,42 @@ class Settle(unittest.TestCase):
                     self.assertEqual((found["video"], found["audio"]), (False, True))
                     self.assertIn(found["acodec"], filmkind.NATIVE_CODECS)
 
+    def test_an_audio_only_mp4_or_webm_is_a_sound_a_browser_plays_as_it_is(self):
+        # what ffprobe finds INSIDE decides: a film's container with no picture in it
+        for ext, opts in ((".mp4", []), (".webm", ["-c:a", "libopus"])):
+            src = os.path.join(self.work.name, "only" + ext)
+            try:
+                sine(src, 2, 440, *opts)
+            except AssertionError:
+                continue
+            with self.subTest(ext=ext):
+                d = new_video(self.work.name, "v-only-%s-a1b2c3" % ext.lstrip("."))
+                got = self.ytpages.attach_film(d, src)
+                self.assertEqual((got["film"], got["kind"], got["converted"]), ("media" + ext, "audio", False))
+                self.assertEqual(video_json(d)["kind"], "audio")
+                self.assertEqual(bundle.film_kind(d), "audio")
+
+    def test_a_container_or_a_codec_a_browser_lacks_is_made_playable(self):
+        out_ext = audiofile.best_output()[0]
+        cases = []
+        mkv = os.path.join(self.work.name, "only.mkv")
+        sine(mkv, 2)
+        cases.append(mkv)
+        alac = os.path.join(self.work.name, "lossless.m4a")
+        try:
+            sine(alac, 2, 440, "-c:a", "alac")       # Apple's lossless: an .m4a that a browser cannot play
+            cases.append(alac)
+        except AssertionError:
+            print("\nSettle: this ffmpeg cannot write ALAC, so that case is not made", file=sys.stderr)
+        for src in cases:
+            ext = os.path.splitext(src)[1]
+            with self.subTest(src=os.path.basename(src)):
+                d = new_video(self.work.name, "v-made-%s-a1b2c3" % ext.lstrip("."))
+                got = self.ytpages.attach_film(d, src)
+                self.assertEqual((got["film"], got["converted"], got["original"], got["kind"]),
+                                 ("media" + out_ext, True, "media-orig" + ext, "audio"))
+                self.assertEqual(slurp(os.path.join(d, "media-orig" + ext)), slurp(src))
+
     def test_a_film_keeps_its_video_json_as_it_always_was(self):
         d = new_video(self.work.name)
         before = slurp(os.path.join(d, "video.json"))
@@ -759,6 +795,15 @@ class Routes(unittest.TestCase):
         self.assertFalse(self.serve.static_ok("/youtube/lib/filmdoor.py"), "a module is never served")
         self.assertFalse(self.serve.static_ok("/youtube/videos/.incoming/x/lesson.mp3"),
                          "and what was sent and waits is never served")
+
+    def test_a_sound_whose_file_has_gone_is_still_said_to_be_one(self):
+        got = self.add_local(self.sounds[".mp3"], vid="gone-sound-a1b2c3")
+        d = self.videos / got["folder"] / got["id"]
+        os.unlink(str(d / "media.mp3"))
+        page = self.http("GET", "/youtube/v/gone-sound-a1b2c3/")[2].decode("utf-8")
+        self.assertIn('data-kind="audio"', page, "the small box a sound has, not a black frame with nothing in it")
+        self.assertIn('"media": ""', page)
+        self.assertIn('"local": true', page)
 
     def test_the_checker_and_the_video_info_sheet_leave_the_kind_alone(self):
         import check_annotations as CA

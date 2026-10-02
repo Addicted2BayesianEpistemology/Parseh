@@ -566,7 +566,10 @@ def player_page(vid):
            # once when the film was attached, or the extension for a video
            # made before there was one (bundle.film_kind).  The player draws a
            # bar with the waveform in place of a frame for it.
-           "kind": bundle.film_kind(_path, meta) or "video",
+           # (A sound whose file has gone says so all the same, so that the page
+           # is the bar's small box and not a black frame with nothing in it.)
+           "kind": bundle.film_kind(_path, meta)
+                   or ("audio" if meta.get("kind") == "audio" else "video"),
            # what the box that sends a film or a sound again may offer
            "accept": "audio/*,video/*," + ",".join(bundle.MEDIA_EXTS),
            # HOW BIG THE ⤓ DOWNLOAD IS: what the bundle will carry in the

@@ -407,7 +407,8 @@ eq(await pb.inputValue('#path'), pathBefore, 'the path box was not touched');
 await cdp.send('Network.emulateNetworkConditions', {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1});
 
 // refused, in words, before anything is sent
-await pb.setInputFiles('#filmsend input[type=file]', {name: 'notes.txt', mimeType: 'text/plain', buffer: new TextEncoder().encode('not a sound')});
+await Deno.writeTextFile(MEDIA + '/notes.txt', 'not a sound');
+await pb.setInputFiles('#filmsend input[type=file]', MEDIA + '/notes.txt');
 await until(() => pb.evaluate(() => /name the file with its extension/.test(document.querySelector('#filmsend .filmsay').textContent)), 'a text is refused in words, at the choosing');
 eq(await shown(pb, '#filmsend .filmgo'), false, 'and there is nothing to send');
 await ctxB.close();
@@ -543,6 +544,14 @@ await ctxA.close();
               'the page opens again on what was sent, a sound', 30000);
   eq((await walk(VIDEOS)).filter(q => q.includes('/lost-film-a1b2c3/') && /media/.test(q)).map(q => q.split('/').pop()), ['media.mp3'], 'the folder holds the sound that was sent');
   eq((await readJson((await walk(VIDEOS)).find(q => q.endsWith('/lost-film-a1b2c3/video.json')))).kind, 'audio', 'video.json now says it is one');
+  // and a sound whose file goes is still a sound: a small box saying so, not a black frame with nothing in it
+  await Deno.remove((await walk(VIDEOS)).find(q => q.endsWith('/lost-film-a1b2c3/media.mp3')));
+  await p.reload();
+  await p.waitForSelector('.seg .fa .w');
+  await until(() => shown(p, '#novid .novid-again'), 'the page of a sound that is gone offers it again');
+  const gone = await p.evaluate(() => ({kind: document.documentElement.getAttribute('data-kind'), h: document.querySelector('#vid').getBoundingClientRect().height}));
+  assert(gone.kind === 'audio' && gone.h < 190, 'a small box, not a 16:9 frame: ' + JSON.stringify(gone));
+  await shot(p, 'sound-missing-desktop');
   await c.close();
 }
 

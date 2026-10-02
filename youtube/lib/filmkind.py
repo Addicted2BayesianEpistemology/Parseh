@@ -46,7 +46,10 @@ import bundle       # noqa: E402  which file is a film, and the table of what ma
 # other answer -- "it is probably fine" -- is a recording that stays silent and
 # says nothing.  Where ffprobe is absent the codec is not known and the
 # extension alone decides.
-NATIVE_EXTS = (".mp3", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".wav", ".flac", ".weba")
+NATIVE_EXTS = (".mp3", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".wav", ".flac", ".weba",
+               # a film's containers, when ffprobe finds NO picture in one: an MP4 or a
+               # WebM with only a sound in it is played by an <audio> as it is
+               ".mp4", ".m4v", ".webm", ".ogv")
 NATIVE_CODECS = frozenset(("mp3", "aac", "vorbis", "opus", "flac", "pcm_s16le",
                            "pcm_s24le", "pcm_u8", "pcm_f32le"))
 # the longest an encode of one recording may take; a lesson of two hours is a
