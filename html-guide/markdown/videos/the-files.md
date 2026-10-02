@@ -126,7 +126,7 @@ language — which then has no phrases — and its `chunks`, the phrases:
 | `tr` | the transliteration — required where the language wants one, optional for a language in Latin letters |
 | `voc` | the vocabulary line, in the books' entries (`\dw`, `\vb`, `\bw`, `\pw`) or plain text: a word's first appearance in the video, and rarely after |
 | `en` | the meaning — named after English, and written in the video's `gloss` language |
-| `note` | anything else worth saying: what the automatic transcript really heard, a cultural point |
+| `note` | anything else worth saying: what the automatic transcript really heard, a cultural point; the ✎ form edits it, and emptying its box takes the key out ([The note](editing-a-phrase.md#the-note)) |
 | `plain` | `true` for a phrase asked for nothing: an aside in another language, in a language written in Latin letters |
 | `col` | `red`, `blue`, `orange` or `green`: your own mark |
 | `free` | `true`: this phrase need not reproduce `transcript.txt` ([When YouTube heard wrong](editing-a-phrase.md#when-youtube-heard-wrong)) |

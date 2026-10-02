@@ -360,7 +360,9 @@ The dots mark the phrase in the reading editions' own four colours — red,
 blue, orange, green — which no tool does anything with but check that it is
 one of the four: it is the reader's own mark, and the two doors show them in
 the same shades. The ✎ opens the
-chunk's fields, each named the way this language names them, and
+chunk's fields, each named the way this language names them — the note
+under the meaning among them: a model's aside is the person's to change, and
+emptying its box takes it off — and
 <kbd>Ctrl</kbd>+<kbd>↵</kbd> saves. `lib/annwrite.py` writes it: the edit
 goes through `check_annotations.py` **before** anything is written and is
 refused, in the checker's own words, if it introduces an error the file does
@@ -648,7 +650,9 @@ line a chapter marker or a duration line (`1 minuto e 6 secondi`, `۱ دقیقه
 و ۳ ثانیه`) come from every language's entry in the registry.
 
 In the player: **follow** keeps the playing caption in view, **hover ⏸**
-pauses the video while a gloss cloud is open, **pin** keeps the video stuck
+pauses the video while a gloss cloud is open, **✱ notes** lights every phrase
+that carries a note and counts them, with **‹ ›** to walk from one to the next
+(browser interface only, and off every time the page opens), **pin** keeps the video stuck
 under the header while you scroll, **◐** cycles light / dark / sepia — one setting for the whole toolbox,
 **Aa** opens the text-and-margins panel (the target text — the slider is
 labelled with the language's name — the gloss cloud, the column width, the
