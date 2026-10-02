@@ -207,7 +207,9 @@ your document* has that line in it.
 
 A custom prompt is your text as you wrote it: the boxes do not change it. The
 answer contract is still added after it, so that the model's answer lands the
-same way. The custom prompt is a file in the library (`_prompt.md`), so it
-travels in the library's **Backup**. The editor's **Exercises ▾ → Generate
-with LLM…** has its own boxes and does not use it: see [Exercises in the
+same way. It is one of [your own prompts](your-prompts.md), kept in
+`config/prompts.json` and no longer a file in the library, so the library's
+**Backup** does not carry it: export it from **Settings → Your prompts** if you
+want a copy. The editor's **Exercises ▾ → Generate with LLM…** has its own boxes
+and does not use it: see [Exercises in the
 editor](editor-exercises.md#generate-with-llm).

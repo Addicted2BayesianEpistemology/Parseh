@@ -133,6 +133,8 @@ import lookuppage         # noqa: E402  the page that sets the dictionaries up
 import speechpage         # noqa: E402  Settings -> Speech to text (§7.23)
 import latexpage          # noqa: E402  Settings -> LaTeX drawings (§8.39)
 import latexthemes        # noqa: E402  the themes a latex block is drawn with
+import prompts            # noqa: E402  the prompts a person wrote for a chatbot (§8, a0.4.2)
+import promptspage        # noqa: E402  Settings -> Your prompts
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
 import make_index           # noqa: E402  what a built reader says about itself
 import mobile               # noqa: E402  the mobile interface's own pages (/m/books/)
@@ -1613,6 +1615,22 @@ LATEX_ROUTES = {
     "/settings/api/latex/package-remove": "package-remove",
     "/settings/api/latex/package-stop": "package-stop",
     "/settings/api/latex/forget": "forget",
+}
+
+# SETTINGS -> YOUR PROMPTS (§8, lib/promptspage.py), and the routes the row beside
+# every copy button calls: what each does is lib/prompts.py api(), and who may is
+# lib/settingspage.py ROUTES, like every route under /settings/api/
+PROMPTS_PAGE = "/settings/prompts/"
+PROMPTS_ROUTES = {
+    "/settings/api/prompts/state": "state",
+    "/settings/api/prompts/list": "list",
+    "/settings/api/prompts/get": "get",
+    "/settings/api/prompts/parseh": "parseh",
+    "/settings/api/prompts/export": "export",
+    "/settings/api/prompts/save": "save",
+    "/settings/api/prompts/uptodate": "uptodate",
+    "/settings/api/prompts/import": "import",
+    "/settings/api/prompts/delete": "delete",
 }
 
 
@@ -5356,7 +5374,7 @@ class Handler(SimpleHTTPRequestHandler):
                                    "reply, pasted as it came"}, 400)
         try:
             if what == "prompt":
-                r = glossregion.book_prompt(book, first, last, **flags)
+                r = glossregion.book_prompt(book, first, last, prompt=body.get("prompt"), **flags)
             else:
                 r = glossregion.book_apply(book, first, last, answer, **flags)
         except glossregion.NotFound as e:
@@ -5704,7 +5722,7 @@ class Handler(SimpleHTTPRequestHandler):
                                    "reply, pasted as it came"}, 400)
         try:
             if what == "prompt":
-                r = glossregion.video_prompt(d, frm, to, **flags)
+                r = glossregion.video_prompt(d, frm, to, prompt=body.get("prompt"), **flags)
             else:
                 r = glossregion.video_apply(d, frm, to, answer, **flags)
         except glossregion.NotFound as e:
@@ -6490,6 +6508,12 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(latexpage.page(self._where()))
+        if path == PROMPTS_PAGE.rstrip("/"):
+            return self._redirect(PROMPTS_PAGE)
+        if path == PROMPTS_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(promptspage.page(self._where()))
         if path.startswith("/settings/api/") and method == "POST":
             # WHO MAY IS A PROPERTY OF THE SETTING (TO-DO §11.10, the owner,
             # 2026-09-24), and the table in lib/settingspage.py says it for
@@ -6517,6 +6541,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._update_api(method, path)
         if path in LATEX_ROUTES:
             return self._latex_api(method, path)
+        if path in PROMPTS_ROUTES:
+            return self._prompts_api(method, path)
         if path not in ("/settings/api/network", "/settings/api/code",
                         "/settings/api/forget"):
             return self._not_found()
@@ -6704,6 +6730,20 @@ class Handler(SimpleHTTPRequestHandler):
             return self._method_not_allowed()
         code, out = latexpage.api(what, self._json_body(), self._where(), notes_libraries(),
                                   rename=studio.latexrename, used=latex_used)
+        return self.send_json(out, code)
+
+    def _prompts_api(self, method, path):
+        """Settings -> Your prompts (lib/promptspage.py), and the row's menu.  A
+        prompt's export is a download, and a read; everything else is a POST,
+        gated above (lib/settingspage.py ROUTES)."""
+        what = PROMPTS_ROUTES[path]
+        if what == "export":
+            if method != "GET":
+                return self._method_not_allowed()
+            return prompts.send_export(self, (self.query.get("id") or [""])[0])
+        if method != "POST":
+            return self._method_not_allowed()
+        code, out = prompts.api(what, self._json_body())
         return self.send_json(out, code)
 
     def _refused(self, route):

@@ -3,8 +3,10 @@
 
 config/ beside the checkout is the owner's own: his preferences
 (`lib/prefs.py`, prefs.json), who may reach Parseh (`lib/network.py`,
-network.json), and the two memories the phone-keeping door learns
-(`lib/offline.py`, digests.json and wheres.json).  A test may exercise every
+network.json), the two memories the phone-keeping door learns
+(`lib/offline.py`, digests.json and wheres.json) and the prompts he wrote for
+the chatbots (`lib/prompts.py`, prompts.json -- his own words, which no test
+may ever leave a line in).  A test may exercise every
 one of those stores and must never write the real one: it points the store
 at a temporary tree first, as `tests/decks_harness.py` and the harnesses
 beside it do, or patches it for as long as it runs, as
@@ -32,7 +34,7 @@ CONFIG = ROOT / "config"
 ADVICE = ("config/ is the owner's own settings folder, and a test must leave "
           "it as it found it: point the store at the test's temporary tree "
           "first, as tests/decks_harness.py does for prefs.STORE, "
-          "network.STORE, offline.DIGESTS and offline.WHERES.  (A Parseh "
+          "network.STORE, prompts.STORE, offline.DIGESTS and offline.WHERES.  (A Parseh "
           "started from this checkout and used while the tests ran writes "
           "there too, and would be reported in the same words.)")
 

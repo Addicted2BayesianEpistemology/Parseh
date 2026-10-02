@@ -34,6 +34,10 @@ config/updates.json.*.tmp
 # settings above
 config/latex.json
 config/latex.json.tmp
+# the prompts this person wrote for the chatbots (lib/prompts.py, a0.4.2): the
+# person's own words, kept by every update
+config/prompts.json
+config/prompts.json.tmp
 # the drawings LaTeX made of the latex blocks (lib/latexdraw.py): derived, made
 # again from their blocks whenever they are missing -- never content
 markdown/latex/

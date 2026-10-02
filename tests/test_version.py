@@ -297,6 +297,7 @@ class DataFormats(unittest.TestCase):
         import timestamp
         import latexthemes
         import making
+        import prompts
         import texpackages
         got = version.formats()
         self.assertEqual(set(got), set(version.FORMATS))
@@ -319,6 +320,7 @@ class DataFormats(unittest.TestCase):
                 "parseh-updates": updater.STORE_FORMAT,
                 "parseh-latex": latexthemes.STORE_FORMAT,
                 "parseh-latex-theme": latexthemes.EXPORT_FORMAT,
+                "parseh-prompts": prompts.STORE_FORMAT, "parseh-prompt": prompts.EXPORT_FORMAT,
                 "parseh-texmf": texpackages.MANIFEST_FORMAT,
                 "parseh-annot": making.ANNOT_FORMAT}
         self.assertEqual(set(held) - set(got), set(), "held here, with no row")
@@ -375,7 +377,7 @@ class DataFormats(unittest.TestCase):
             "clips/": ("parseh-clips",),
             "youtube/anki/": ("parseh-anki",),
             "config/": ("parseh-prefs", "parseh-network", "parseh-languages", "parseh-digests",
-                        "parseh-wheres", "parseh-updates", "parseh-latex"),
+                        "parseh-wheres", "parseh-updates", "parseh-latex", "parseh-prompts"),
             "texmf/": ("parseh-texmf",),
             "dict/": ("parseh-dictionary",),
             "corpus/": ("parseh-corpus",),
@@ -390,7 +392,7 @@ class DataFormats(unittest.TestCase):
     # the rows that are not a store but a file made to travel: each is read
     # back by its own stamp, whatever wrote it
     TRAVEL = {"parseh-bundle", "parseh-shelf", "parseh-narration", "parseh-exercise-shelf",
-              "parseh-latex-theme"}
+              "parseh-latex-theme", "parseh-prompt"}
 
     def test_every_place_a_person_s_things_are_kept_has_its_rows(self):
         import release

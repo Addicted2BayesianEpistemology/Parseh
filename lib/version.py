@@ -249,6 +249,12 @@ FORMATS = {
     "parseh-annot": ("lib/making.py", "ANNOT_FORMAT",
                      "the annotation JSON a book made by an agent was assembled from "
                      "(a book's annot/*.json)"),
+    # the prompts a person wrote (a0.4.2)
+    "parseh-prompts": ("lib/prompts.py", "STORE_FORMAT",
+                       "your own prompts, and the studio's prompt moved in from the library "
+                       "(config/prompts.json)"),
+    "parseh-prompt": ("lib/prompts.py", "EXPORT_FORMAT",
+                      "a prompt of yours exported to a file"),
     # a book's narration, as the aligner leaves it beside the book
     "parseh-timings": ("lib/timestamp.py", "TIMINGS_FORMAT",
                        "where each sentence of a book's narration begins and ends "

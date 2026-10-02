@@ -138,6 +138,16 @@ one letter of the words changed*, or *— and the words are not the same: 3
 letters more or fewer. Look them over.* **undo the tidy** takes an answer
 back too. The prompt needs nothing installed.
 
+**Beside the button that copies the prompt is a menu, prompt: Parseh's ▾**:
+Parseh's own prompt for this job, and the ones you wrote for it
+([Your own prompts](../studio/your-prompts.md)). Choose one and it is what
+is copied, and the line it opens with says so (`… · custom: keep the
+captions`). A prompt of yours can add a rule after Parseh's — *never correct a
+name*, *leave out the tags* — or stand in place of Parseh's rules; either way
+the answer's shape, one fenced block in the panel's own form, and the
+transcript are Parseh's, so what comes back goes into the box as an ordinary
+panel whichever prompt asked.
+
 ## Putting it back
 
 Nothing is written until **Use this transcript**: the captions go back into

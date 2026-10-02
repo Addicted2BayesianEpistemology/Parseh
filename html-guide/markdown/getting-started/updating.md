@@ -134,7 +134,9 @@ afterwards:
 - **Your settings.** `config/`: the preferences that follow you from
   device to device, who may reach Parseh and the devices you let in
   (`config/network.json`), the languages you added, the LaTeX themes
-  (`config/latex.json`), and the daily look.
+  (`config/latex.json`), the prompts you wrote for a chatbot
+  (`config/prompts.json`, [Your own prompts](../studio/your-prompts.md)),
+  and the daily look.
 - **The certificate.** `.tls/`: no browser and no phone is asked to trust
   Parseh again, and a phone that was let in stays let in.
 - **The environment.** `.runtime/`, where the installer made it, is

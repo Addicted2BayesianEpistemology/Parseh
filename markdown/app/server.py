@@ -58,6 +58,7 @@ import texgen         # noqa: E402
 import languages      # noqa: E402
 import promptkit      # noqa: E402  the three parts every prompt is made of
 import promptboxes    # noqa: E402  the studio's prompts in parts a person chooses
+import prompts        # noqa: E402  the prompts a person wrote (lib/prompts.py)
 import anki_store     # noqa: E402
 import decks          # noqa: E402  the exercise decks (serve.py's hub reads it)
 import deckroutes     # noqa: E402  and their routes, mounted at /exercises
@@ -296,6 +297,15 @@ def migrate_library():
     # a rename as the documents do (registered here, not at import, so no
     # test's library can ever rewrite the decks on this machine)
     store.follow_renames(decks.rename_doc_links)
+    # THE CUSTOM PROMPT THE STUDIO KEPT AS A FILE until a0.4.2 goes into the
+    # person's own prompts, once (lib/prompts.py): what is said here is the one
+    # place a person who never opens Settings would hear of it
+    try:
+        if store.move_prompt():
+            print("studio: your custom prompt (library/_prompt.md) is now one of your "
+                  "prompts, \"%s\"; the file is gone from the library" % prompts.STUDIO_NAME)
+    except Exception as e:           # noqa: BLE001 -- a start-up chore
+        print("!! the studio's custom prompt could not be moved into your prompts: %s" % e)
     try:
         out = store.migrate_once()
     except Exception as e:           # noqa: BLE001 -- a start-up chore
@@ -2122,6 +2132,19 @@ def api_prompt_delete(h):
     h.send_json(_prompt_record(languages.get_or_default(_q1(h, "target"))))
 
 
+def api_prompts(h, what):
+    """The prompts a person wrote (lib/prompts.py): the studio's own copy of the
+    routes Settings' page and the row beside every copy button call at
+    /settings/api/prompts/ in the toolbox -- the studio run alone has no
+    Settings, and one shared module answers for both."""
+    code, out = prompts.api(what, h._json_body())
+    h.send_json(out, code)
+
+
+def api_prompts_export(h):
+    prompts.send_export(h, _q1(h, "id"))
+
+
 def api_status(h):
     h.send_json({
         "docs": len(store.list_docs()),
@@ -2436,6 +2459,8 @@ ROUTES = [
     ("GET",    r"^/api/prompt$",                          api_prompt_get),
     ("PUT",    r"^/api/prompt$",                          api_prompt_put),
     ("DELETE", r"^/api/prompt$",                          api_prompt_delete),
+    ("POST",   r"^/api/prompts/(state|list|get|parseh|save|uptodate|import|delete)$", api_prompts),
+    ("GET",    r"^/api/prompts/export$",                  api_prompts_export),
     ("GET",    r"^/api/status$",                          api_status),
     ("GET",    r"^/api/export$",                          api_export),
     ("POST",   r"^/api/download$",                        api_download),
