@@ -1944,7 +1944,7 @@ class ColouredWords(ControlledMachine):
                 for words in ("how ONE word is built", "a stem against its ending", "double brackets", "single brackets",
                               "no space or joiner", "`crimson`, `indigo`, `teal`, `violet`, `amber`", "six-digit hex value",
                               "never another name", "on one line", "never put one such word inside another",
-                              "closing `]]`", "never a colour", "section title", "`[…]{tl}` block", "`^[…]` note",
+                              "closing `]]`", "never a colour", "section or subsection title", "`[…]{tl}` block", "`^[…]` note",
                               "**Most documents need none**", "as few colours as the idea needs",
                               "never explain the colours in the text"):
                     self.assertIn(words, text)
