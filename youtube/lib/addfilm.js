@@ -152,14 +152,22 @@
       fill.style.width = '0%';
       mount.classList.add('sending');
       say(said, 'Sending ' + sent.name + ' (' + mb(sent.size) + ')…');
+      var lastWords = 0;
       x.upload.onprogress = function (e) {
         if (!e.lengthComputable) return;
-        var secs = (Date.now() - began) / 1000, rate = secs > 0.5 ? e.loaded / secs : 0;
+        var now = Date.now(), secs = (now - began) / 1000, rate = secs > 0.5 ? e.loaded / secs : 0;
         fill.style.width = (100 * e.loaded / e.total).toFixed(1) + '%';
+        if (act) act.progress(e.loaded, e.total);
+        if (e.loaded >= e.total) {
+          say(said, mb(e.total) + ' is on its way in: the computer is looking at it…');
+          return;
+        }
+        // the bar moves with every piece; the words, which a screen reader reads out,
+        // change twice a second
+        if (now - lastWords < 500) return;
+        lastWords = now;
         say(said, 'Sending ' + sent.name + ': ' + Math.floor(100 * e.loaded / e.total) + ' % of ' + mb(e.total) +
                   (rate ? ' · ' + mb(rate) + '/s · about ' + left((e.total - e.loaded) / rate) + ' left' : ''));
-        if (act) act.progress(e.loaded, e.total);
-        if (e.loaded >= e.total) say(said, mb(e.total) + ' is on its way in: the computer is looking at it…');
       };
       x.onload = function () {
         var j = null;
