@@ -2,6 +2,7 @@
 ### Added
 - Browser transcription workspace with video beside the transcript, word/caption replay, ±1/2/5-second playback controls, caption filters and a persistent word editor
 - Brief word playback with automatic pause, installed-dictionary suspect flags and original/replacement meanings in browser transcript review
+- Dictionary meanings for native Whisper alternatives alongside their recognition scores in the word inspector
 - Native faster-whisper beam alternatives mapped to source words, with sequence log scores kept separate from word probabilities
 - Browser Settings → LLM Integration: a reusable OpenAI-compatible endpoint, host-local credentials, model discovery and Unsloth run-settings link import
 - Review-first Whisper results with short sentence LLM replies, word-count progress, local failure recovery, retry of unresolved words, keyboard edits and inspectable responses

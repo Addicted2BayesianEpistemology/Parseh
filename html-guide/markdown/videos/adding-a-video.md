@@ -236,8 +236,8 @@ Whisper score below 0.5 is marked **⚠**, a word with no meaning in an installe
 dictionary is marked **◇**, and an LLM edit proposal **✎**. The threshold stays
 0.5. Dictionary lookup uses the same normalization and base-form rules as
 the readers; names or rare terms can still be valid. The word inspector shows
-the original word's dictionary meanings and the meanings of each proposed
-LLM replacement. Native Whisper beam alternatives, when an exact word mapping
+the original word's dictionary meanings and the meanings of each native Whisper
+alternative and proposed LLM replacement. Native Whisper beam alternatives, when an exact word mapping
 is possible, have whole-hypothesis log scores rather than word probabilities.
 Hover, focus or click/tap any word to inspect or edit it with the keyboard.
 Accept or reject proposals in the pending draft. LLM progress counts suspect

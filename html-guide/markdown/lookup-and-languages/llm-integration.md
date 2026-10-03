@@ -79,7 +79,8 @@ language dictionary, using the readers' normalization, base-form and prefix
 rules. A dictionary miss is also a suspect-word target, even with a high ASR
 score; names and rare words can be valid. An absent or failing dictionary does
 not flag words. The word inspector shows dictionary meanings for Whisper's
-original and each proposed LLM alternative, so you can compare them before
+original, each native Whisper alternative and each proposed LLM alternative,
+so you can compare them before
 accepting an edit. Meanings use the installed dictionary's language, normally
 English, independently of the video's gloss language.
 

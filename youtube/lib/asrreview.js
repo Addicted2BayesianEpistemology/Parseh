@@ -36,9 +36,11 @@
       });
       if (data.source) box.appendChild(el('p', data.source + ' · Meanings in ' + data.senses_language, 'fieldnote'));
     }
-    function dictionaryDetails(w, originalBox, candidateBoxes, proposal) {
-      if (!opts.dictionary) { dictionaryCard(originalBox, null); return; }
-      var key = result.review.evidence.source_sha256 + ':' + w.word_id + ':' + JSON.stringify(proposal && proposal.candidates || []);
+    function dictionaryDetails(w, originalBox, candidateBoxes, asrBoxes, proposal) {
+      if (!opts.dictionary) {
+        [originalBox].concat(candidateBoxes, asrBoxes).forEach(function (box) { dictionaryCard(box, null); }); return;
+      }
+      var key = result.review.evidence.source_sha256 + ':' + w.word_id + ':' + JSON.stringify([w.asr_alternatives, proposal && proposal.candidates || []]);
       var promise = dictionaryCache.get(key);
       if (!promise) {
         promise = opts.dictionary(w.word_id).catch(function () { return null; });
@@ -47,8 +49,16 @@
       }
       promise.then(function (data) {
         if (!root.contains(originalBox)) return;
-        dictionaryCard(originalBox, data && data.original);
-        candidateBoxes.forEach(function (box, i) { dictionaryCard(box, data && data.candidates[i]); });
+        var expected = proposal ? proposal.original : w.text;
+        dictionaryCard(originalBox, data && data.original && data.original.text === expected ? data.original : null);
+        candidateBoxes.forEach(function (box, i) {
+          var candidate = data && (data.candidates || [])[i];
+          dictionaryCard(box, candidate && candidate.text === proposal.candidates[i].text ? candidate : null);
+        });
+        asrBoxes.forEach(function (box, i) {
+          var alternative = data && (data.asr_alternatives || [])[i];
+          dictionaryCard(box, alternative && alternative.text === w.asr_alternatives[i].text ? alternative : null);
+        });
       });
     }
 
@@ -195,19 +205,25 @@
       if (w.low_asr_score) details.appendChild(el('p', '⚠ Low ASR score: below ' + result.review.evidence.low_score_threshold + '. This is recognition evidence, not proof the word is wrong.'));
       if (w.dictionary_miss) details.appendChild(el('p', '◇ No meaning found in the installed dictionary. This word is also a suspect-word review target. Names and rare words can be valid.'));
       if (w.asr_confidence == null) details.appendChild(el('p', 'Whisper supplied no word score.'));
-      if (!w.alternatives_available) details.appendChild(el('p', 'ASR alternatives are unavailable from this recognizer.'));
-      else {
-        details.appendChild(el('p', 'Native Whisper alternatives. Sequence log scores rank complete hypotheses; they are not word probabilities.'));
-        var list = el('ul');
-        w.asr_alternatives.forEach(function (a) { list.appendChild(el('li', a.text + ' · ' + (a.sequence_score == null ? 'Word score: ' + estimate(a.score) : 'Sequence log score: ' + estimate(a.sequence_score)))); });
-        if (!w.asr_alternatives.length) list.appendChild(el('li', 'No unambiguous word alternatives returned.'));
-        details.appendChild(list);
-      }
-      if (!w.reviewable) details.appendChild(el('p', 'This word could not be matched to an exact transcript span. Review it manually.'));
       var s = suggestions[w.word_id], manualKey = Object.keys(manualEdits).find(function (key) { return idsFor(key).indexOf(w.word_id) >= 0; });
       var originalDictionary = el('div', 'Looking up the Whisper word…', 'stt-review-dictionary'), candidateDictionaries = [];
       originalDictionary.setAttribute('role', 'status');
       details.appendChild(el('h4', 'Whisper dictionary meanings')); details.appendChild(originalDictionary);
+      var asrDictionaries = [];
+      if (!w.alternatives_available) details.appendChild(el('p', 'ASR alternatives are unavailable from this recognizer.'));
+      else {
+        details.appendChild(el('p', 'Native Whisper alternatives. Sequence log scores rank complete hypotheses; they are not word probabilities.'));
+        var list = el('ul');
+        w.asr_alternatives.forEach(function (a) {
+          var item = el('li'), surface = el('bdi', a.text); surface.dir = 'auto'; item.appendChild(surface);
+          item.appendChild(document.createTextNode(' · ' + (a.sequence_score == null ? 'Word score: ' + estimate(a.score) : 'Sequence log score: ' + estimate(a.sequence_score))));
+          var meaning = el('div', 'Looking up this Whisper alternative…', 'stt-review-dictionary'); meaning.setAttribute('role', 'status');
+          item.appendChild(meaning); asrDictionaries.push(meaning); list.appendChild(item);
+        });
+        if (!w.asr_alternatives.length) list.appendChild(el('li', 'No unambiguous word alternatives returned.'));
+        details.appendChild(list);
+      }
+      if (!w.reviewable) details.appendChild(el('p', 'This word could not be matched to an exact transcript span. Review it manually.'));
       var editId = s ? s.word_id : manualKey || w.word_id, editIds = s && s.word_ids || (manualKey ? idsFor(manualKey) : [w.word_id]);
       var sourceSpan = Array.from(result.text).slice(words[editIds[0]].span_start, words[editIds[editIds.length - 1]].span_end).join('');
       if (s && phase === 'review') {
@@ -228,7 +244,7 @@
         details.appendChild(alternatives);
         details.appendChild(btn('Reject this edit / keep Whisper word', function () { delete decisions[editId]; updateDraft(); detail(w); }));
       } else if (suspect(w)) details.appendChild(el('p', 'No LLM edit is proposed for this word. It stays unchanged.'));
-      dictionaryDetails(w, originalDictionary, candidateDictionaries, s);
+      dictionaryDetails(w, originalDictionary, candidateDictionaries, asrDictionaries, s);
       if (w.reviewable && phase === 'review') {
         var label = el('label', editIds.length > 1 ? 'Enter the correct short span ' : 'Enter the correct word '), input = el('input');
         input.type = 'text'; input.id = 'stt_manual_word'; input.dir = 'auto'; input.maxLength = 200;

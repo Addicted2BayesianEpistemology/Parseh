@@ -16,6 +16,7 @@ import asrcorrection
 import asrdictionary
 import asralternatives
 import sttworker
+import sttjobs
 
 
 def dictionary_row(word, headword=None):
@@ -24,6 +25,24 @@ def dictionary_row(word, headword=None):
 
 
 class DictionaryEvidence(unittest.TestCase):
+    def test_review_resolves_native_and_llm_alternatives_from_saved_evidence(self):
+        words = [{"word_id": "s0w0", "segment_id": "s0", "text": "loro", "asr_alternatives": []},
+                 {"word_id": "s0w1", "segment_id": "s0", "text": "anno", "asr_alternatives": [{"text": "hanno", "score": None}]},
+                 {"word_id": "s0w2", "segment_id": "s0", "text": "detto", "asr_alternatives": []}]
+        job = {"kind": "youtube", "lang": "it", "review_evidence": {"source_sha256": "source", "segments": [{"segment_id": "s0", "words": words}]},
+               "correction_result": {"suggestions": [{"word_id": "s0w1", "original": "anno", "candidates": [{"text": "hanno"}]}]}}
+        resolver = mock.Mock()
+        resolver.word.return_value = {"state": "found", "words": []}
+        job["dictionary_resolver"] = resolver
+        with mock.patch("sttjobs._job", return_value=job):
+            result = sttjobs.review_dictionary("job", "source", "s0w1")
+            with self.assertRaises(sttjobs.Refusal):
+                sttjobs.review_dictionary("job", "stale", "s0w1")
+        self.assertEqual(result["asr_alternatives"][0]["text"], "hanno")
+        self.assertEqual(result["candidates"][0]["text"], "hanno")
+        self.assertIn(mock.call("hanno", "loro", "detto"), resolver.word.call_args_list)
+        self.assertEqual(words[1]["asr_alternatives"], [{"text": "hanno", "score": None}])
+
     def test_high_score_dictionary_miss_is_target_without_changing_evidence(self):
         word = {"word_id": "s0w0", "segment_id": "s0", "text": "zzword",
                 "start": 0, "end": .5, "asr_confidence": .99, "low_asr_score": False,

@@ -844,7 +844,7 @@ def review_media(token):
 
 
 def review_dictionary(token, source_sha256, word_id):
-    """Read-only meanings for source words and validated model candidates only."""
+    """Read-only meanings for source words, native ASR and validated LLM candidates."""
     import asrcorrection
     import asrdictionary
     job = _job(token)
@@ -860,6 +860,10 @@ def review_dictionary(token, source_sha256, word_id):
             resolver = job["dictionary_resolver"] = asrdictionary.Resolver(job["lang"])
         segment = next(s for s in evidence["segments"] if s["segment_id"] == word["segment_id"])
         source_words = segment["words"]
+        index = next(i for i, w in enumerate(source_words) if w["word_id"] == word_id)
+        asr_before = source_words[index-1]["text"] if index else ""
+        asr_after = source_words[index+1]["text"] if index+1 < len(source_words) else ""
+        asr_candidates = [a["text"] for a in word["asr_alternatives"]]
         proposal = next((s for s in (job.get("correction_result") or {}).get("suggestions", [])
                          if word_id in s.get("word_ids", [s["word_id"]])), None)
         original = proposal["original"] if proposal else word["text"]
@@ -871,6 +875,7 @@ def review_dictionary(token, source_sha256, word_id):
         candidates = [c["text"] for c in proposal["candidates"]] if proposal else []
     return {"word_id": word_id, "source_sha256": source_sha256,
             "original": dict(resolver.word(original, before, after), text=original),
+            "asr_alternatives": [dict(resolver.word(text, asr_before, asr_after), text=text) for text in asr_candidates],
             "candidates": [dict(resolver.word(text, before, after), text=text) for text in candidates]}
 
 
