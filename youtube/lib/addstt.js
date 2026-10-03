@@ -264,11 +264,13 @@
     exactNote.id = 'stt_exactnote';
     var go = button('Transcribe', 'stt_go'), rec = button('Start recording', 'stt_rec');
     var cancel = button('Cancel', 'stt_cancel', 'wbtn quiet');
+    var reopen = button('Open transcription', 'stt_open', 'wbtn quiet');
+    reopen.hidden = true; reopen.setAttribute('data-layout', 'browser');
     var reviewRoot = el('section', 'stt-review');
     reviewRoot.id = 'stt_review'; reviewRoot.hidden = true;
     reviewRoot.setAttribute('data-layout', 'browser');
     var actions = el('div', 'row');
-    [go, rec, cancel].forEach(function (b) { actions.appendChild(b); });
+    [go, rec, cancel, reopen].forEach(function (b) { actions.appendChild(b); });
     var frame = el('div', 'stt-frame');
     frame.id = 'stt_frame';
     var bar = el('div', 'stt-bar');
@@ -287,7 +289,8 @@
     var reviewMobile = el('p', 'fieldnote', 'Switch to the Browser interface above to choose and use the pending transcript review.');
     reviewMobile.setAttribute('data-layout', 'mobile'); reviewMobile.hidden = true;
     form.lastChild.appendChild(reviewMobile);
-    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill, task) { chooseReview(mode, null, skill, task); }, retry: retryReview, use: useReview, cancel: cancelReview});
+    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill, task) { chooseReview(mode, null, skill, task); }, retry: retryReview, use: useReview, cancel: cancelReview,
+      select: selectReviewWord, seek: seekReview});
     var LLM = null;
 
     var tied = el('p', 'fieldnote');
@@ -296,6 +299,157 @@
     noteEl.id = 'stt_note';
     noteEl.setAttribute('aria-live', 'polite');
     [title, absent, why, form, tied, noteEl].forEach(function (n) { root.appendChild(n); });
+
+    /* The browser workspace owns playback; ASR, review and the box keep their
+       existing lifecycle. Returning to Add Video preserves the pending draft. */
+    var workspace = el('dialog', 'stt-workspace');
+    workspace.id = 'stt_workspace'; workspace.setAttribute('data-layout', 'browser');
+    workspace.setAttribute('aria-labelledby', 'stt_workspace_title');
+    var head = el('header', 'stt-workspace-head');
+    var heading = el('h2', null, 'Transcribe & review'); heading.id = 'stt_workspace_title';
+    var step = el('span', 'stt-workspace-step');
+    var back = button('Return to Add Video', 'stt_back', 'wbtn small quiet');
+    [heading, step, back].forEach(function (n) { head.appendChild(n); }); workspace.appendChild(head);
+    var columns = el('div', 'stt-workspace-columns'), media = el('section', 'stt-workspace-media');
+    media.setAttribute('aria-label', 'Video and playback controls');
+    var playerNote = el('p', 'fieldnote', 'Loading the video…');
+    var transport = el('div', 'stt-transport'); transport.setAttribute('dir', 'ltr');
+    var playPause = button('Play', 'stt_play', 'wbtn small quiet');
+    var playbackClock = el('output', 'stt-playback-clock', '0:00'); playbackClock.setAttribute('aria-label', 'Playback time');
+    transport.appendChild(playPause); transport.appendChild(playbackClock);
+    var nudges = el('div', 'stt-nudges'); transport.appendChild(nudges);
+    [-5, -2, -1, 1, 2, 5].forEach(function (seconds) {
+      var b = button((seconds > 0 ? '+' : '−') + Math.abs(seconds) + ' s', 'stt_seek_' + (seconds < 0 ? 'back_' : 'forward_') + Math.abs(seconds), 'wbtn small quiet');
+      b.setAttribute('aria-label', (seconds < 0 ? 'Back ' : 'Forward ') + Math.abs(seconds) + ' seconds');
+      b.addEventListener('click', function () { if (S.player) seekReview(currentTime() + seconds, false); });
+      nudges.appendChild(b);
+    });
+    var context = el('div', 'stt-replay-context');
+    var selectedLine = el('bdi', null, 'Select a transcript word to jump to its time.'); selectedLine.dir = 'auto';
+    var selectedTime = el('p', 'fieldnote');
+    var replayActions = el('div', 'row');
+    var replayWord = button('Replay word', 'stt_replay_word', 'wbtn small quiet');
+    var replaySentence = button('Replay caption', 'stt_replay_caption', 'wbtn small quiet');
+    var leadLabel = el('label', 'inline', 'Context '), lead = el('select');
+    [1, 2, 5].forEach(function (n) { var option = el('option', null, n + ' s'); option.value = String(n); lead.appendChild(option); });
+    lead.value = '2'; lead.setAttribute('aria-label', 'Seconds of context before and after replay'); leadLabel.appendChild(lead);
+    [replayWord, replaySentence, leadLabel].forEach(function (n) { replayActions.appendChild(n); });
+    [selectedLine, selectedTime, replayActions].forEach(function (n) { context.appendChild(n); });
+    var work = el('section', 'stt-workspace-review'); work.setAttribute('aria-label', 'Transcription and review');
+    var pending = el('div', 'stt-workspace-pending');
+    var pendingHeading = el('h3', null, 'Whisper is preparing your transcript');
+    pending.appendChild(pendingHeading);
+    pending.appendChild(el('p', null, 'When Whisper finishes, choose how to review the words. Your transcript box stays unchanged until you choose Use this transcript.'));
+    var jobActions = el('div', 'row');
+    var notice = el('p', 'stt-workspace-notice'); notice.setAttribute('role', 'status');
+    [pending, jobActions, reviewRoot, notice].forEach(function (n) { work.appendChild(n); });
+    // Moving reviewRoot alone is safe on mobile: it was browser-only already.
+    [media, work].forEach(function (n) { columns.appendChild(n); }); workspace.appendChild(columns); root.appendChild(workspace);
+    var beforeWorkspace = null, inWorkspace = false, playbackTimer = 0, replayStop = null, selectedWord = null, selectedCaption = null, mediaGeneration = 0;
+    function browserLayout() { return document.documentElement.getAttribute('data-mode') !== 'mobile'; }
+    function captureLive() { return ['starting', 'loading', 'ready', 'recording', 'sending', 'stopping'].indexOf(S.phase) >= 0; }
+    function openWorkspace() {
+      if (!browserLayout()) return;
+      if (!inWorkspace) {
+        beforeWorkspace = document.activeElement;
+        [frame, playerNote, transport, context].forEach(function (n) { media.appendChild(n); });
+        [how, bar, sayEl].forEach(function (n) { pending.appendChild(n); });
+        [rec, cancel].forEach(function (n) { jobActions.appendChild(n); });
+        // Progress stays above review, including during LLM requests.
+        work.insertBefore(bar, reviewRoot); work.insertBefore(sayEl, reviewRoot);
+        inWorkspace = true;
+      }
+      if (!workspace.open) { workspace.showModal(); heading.tabIndex = -1; heading.focus(); }
+      if (!playbackTimer) playbackTimer = setInterval(updatePlayback, 250);
+      ensureReviewPlayer(); paint();
+    }
+    function closeWorkspace(force) {
+      if (!force && captureLive()) return;
+      replayStop = null; clearInterval(playbackTimer); playbackTimer = 0;
+      if (S.player && !captureLive()) { try { S.player.pauseVideo(); } catch (e) {} }
+      if (workspace.open) workspace.close();
+      if (beforeWorkspace && beforeWorkspace.focus) beforeWorkspace.focus();
+      beforeWorkspace = null;
+      paint();
+    }
+    back.addEventListener('click', function () { closeWorkspace(false); });
+    reopen.addEventListener('click', openWorkspace);
+    workspace.addEventListener('cancel', function (e) { e.preventDefault(); closeWorkspace(false); });
+    function currentTime() { try { return S.player.getCurrentTime() || 0; } catch (e) { return 0; } }
+    function updatePlayback() {
+      var p = S.player, enabled = !!p && !captureLive();
+      Array.prototype.forEach.call(transport.querySelectorAll('button'), function (b) { b.disabled = !enabled; });
+      replayWord.disabled = !enabled || !selectedWord;
+      replaySentence.disabled = !enabled || !selectedCaption;
+      if (!p) return;
+      var t = currentTime(), duration = 0, playing = false;
+      try { duration = p.getDuration(); playing = p.getPlayerState() === 1; } catch (e) {}
+      playbackClock.textContent = clock(t) + (duration > 0 ? ' / ' + clock(duration) : '');
+      playPause.textContent = playing ? 'Pause' : 'Play';
+      if (replayStop != null && t >= replayStop) { try { p.pauseVideo(); } catch (e) {} replayStop = null; }
+      if (S.held && REVIEW.playhead) REVIEW.playhead(t);
+    }
+    function seekReview(at, play, end) {
+      if (!S.player || captureLive() || typeof at !== 'number' || !isFinite(at)) return;
+      var duration = 0; try { duration = S.player.getDuration(); } catch (e) {}
+      at = Math.max(0, duration > 0 ? Math.min(at, duration) : at);
+      replayStop = typeof end === 'number' && isFinite(end) ? end : null;
+      try { S.player.seekTo(at, true); if (play) S.player.playVideo(); } catch (e) {}
+      updatePlayback();
+    }
+    function selectReviewWord(w, caption, jump) {
+      selectedWord = w; selectedCaption = caption;
+      selectedLine.textContent = caption.text;
+      var hasWordTime = typeof w.start === 'number' && isFinite(w.start);
+      selectedTime.textContent = 'Selected: ' + w.text + ' · ' + clock(hasWordTime ? w.start : caption.start) +
+        (hasWordTime ? ' · Whisper word time' : ' · Caption time; word timing unavailable');
+      if (jump) seekReview(hasWordTime ? w.start : caption.start, true);
+      updatePlayback();
+    }
+    function replay(which) {
+      var span = which === 'word' && selectedWord && typeof selectedWord.start === 'number' ? selectedWord : selectedCaption;
+      if (!span) return;
+      var padding = Number(lead.value);
+      seekReview(Math.max(0, span.start - padding), true, typeof span.end === 'number' ? span.end + padding : null);
+    }
+    replayWord.addEventListener('click', function () { replay('word'); });
+    replaySentence.addEventListener('click', function () { replay('caption'); });
+    playPause.addEventListener('click', function () {
+      replayStop = null;
+      if (!S.player || captureLive()) return;
+      try { if (S.player.getPlayerState() === 1) S.player.pauseVideo(); else S.player.playVideo(); } catch (e) {}
+      updatePlayback();
+    });
+    function ensureReviewPlayer() {
+      if (!inWorkspace || !S.job || S.player || S.mediaLoading) return;
+      if (S.kind === 'film') {
+        var film = el('video'); film.controls = true; film.preload = 'metadata'; film.playsInline = true;
+        var filmSeek = null;
+        film.src = route('media') + '?job=' + encodeURIComponent(S.job); frame.textContent = ''; frame.appendChild(film);
+        S.player = {getCurrentTime: function () { return film.currentTime; }, getDuration: function () { return film.duration; },
+          getPlayerState: function () { return film.paused || film.ended ? 2 : 1; },
+          seekTo: function (t) { if (film.readyState < 1) filmSeek = t; else film.currentTime = t; }, pauseVideo: function () { film.pause(); },
+          playVideo: function () { var promise = film.play(); if (promise) promise.catch(function () { playerNote.textContent = 'Press Play in the video to start playback.'; }); },
+          destroy: function () { film.pause(); film.removeAttribute('src'); film.load(); film.remove(); }};
+        film.addEventListener('loadedmetadata', function () {
+          if (filmSeek != null) { film.currentTime = filmSeek; filmSeek = null; }
+          playerNote.textContent = 'Click a word to listen from its timestamp. Replay adds the context selected below.'; updatePlayback();
+        });
+        film.addEventListener('error', function () { playerNote.textContent = 'This browser could not play the local video. You can still review the transcript; try a browser-compatible video format for playback.'; });
+      } else if (S.kind === 'yt' && S.held && workspace.open) {
+        var generation = ++mediaGeneration; S.mediaLoading = true; frame.textContent = '';
+        playerNote.textContent = 'Loading the video for review…';
+        window.ParsehTabCapture.embed(frame, S.video, {}).then(function (p) {
+          if (generation !== mediaGeneration) { try { p.destroy(); } catch (e) {} return; }
+          S.mediaLoading = false; S.player = p;
+          playerNote.textContent = 'Click a word to listen from its timestamp. Replay adds the context selected below.'; updatePlayback();
+        }, function () {
+          if (generation !== mediaGeneration) return;
+          S.mediaLoading = false; playerNote.textContent = 'The video could not be loaded. You can still review or reopen this window to try playback again.';
+        });
+      }
+      updatePlayback();
+    }
 
     /* -------------------------------------------------- what is remembered */
     var prefs = load(PREFS), exactWanted = prefs.exact !== false;
@@ -355,8 +509,18 @@
       noteEl.className = 'note' + (kind ? ' ' + kind : '');
       noteEl.textContent = text || '';
       noteEl.hidden = !text;
+      if (notice) notice.textContent = text || '';
     }
     function paint() {
+      // Keep the existing inline mobile flow. Normal desktop close/reopen
+      // leaves the iframe in place: moving it would reload YouTube's player.
+      if (!browserLayout() && inWorkspace && !workspace.open) {
+        mediaGeneration++; S.mediaLoading = false;
+        if (S.player) { try { S.player.destroy(); } catch (e) {} S.player = null; }
+        [how, frame, bar, sayEl].forEach(function (n) { form.appendChild(n); });
+        [rec, cancel].forEach(function (n) { actions.appendChild(n); });
+        inWorkspace = false;
+      }
       var s = S.slice, idle = S.phase === 'idle';
       var src = o.source(), lang = o.lang();
       var ok = !!(s && s.installed);
@@ -418,11 +582,19 @@
           : (S.phase === 'recording' || S.phase === 'sending') ? SAY_KEEP : SAY_YOUTUBE;
         go.hidden = !idle;
         rec.hidden = S.phase !== 'ready';
-        cancel.hidden = !(S.phase === 'loading' || S.phase === 'ready' || S.phase === 'recording'
+        cancel.hidden = !(S.phase === 'starting' || S.phase === 'loading' || S.phase === 'ready' || S.phase === 'recording'
                           || S.phase === 'sending' || S.phase === 'working');
-        frame.hidden = !(S.phase === 'loading' || S.phase === 'ready' || S.phase === 'recording');
+        frame.hidden = inWorkspace ? false : !(S.phase === 'loading' || S.phase === 'ready' || S.phase === 'recording');
+        reopen.hidden = idle || workspace.open;
+        reopen.textContent = S.held ? 'Resume transcript review' : 'Open transcription';
+        back.disabled = captureLive();
+        back.title = back.disabled ? 'Finish or cancel the recording before returning to Add Video.' : 'Keep the pending draft and return to Add Video';
+        step.textContent = S.phase === 'correcting' ? 'LLM review' : S.held ? 'Review transcript' : idle ? 'Speech to text' : 'Whisper transcription';
+        pending.hidden = !!S.held;
+        pendingHeading.textContent = S.kind === 'yt' && captureLive() ? 'Record this YouTube video' : 'Whisper is transcribing';
+        notice.textContent = noteEl.textContent;
         var live = S.phase !== 'idle' && S.said !== '';
-        sayEl.hidden = !live;
+        sayEl.hidden = !live || inWorkspace && !!S.held;
         sayEl.textContent = live ? S.said : '';
         bar.hidden = !(S.phase === 'recording' || S.phase === 'sending' || S.phase === 'working' || S.phase === 'correcting');
         bar.classList.toggle('wait', S.pct == null);
@@ -532,6 +704,7 @@
     function tidy() {
       stopTimers();
       S.run++;
+      mediaGeneration++; S.mediaLoading = false;
       var p = S.player;
       S.player = null;
       S.rec = null;
@@ -544,6 +717,11 @@
       S.job = S.kind = S.key = S.video = '';
       S.sent = 0;
       S.phase = 'idle';
+      selectedWord = selectedCaption = null;
+      selectedLine.textContent = 'Select a transcript word to jump to its time.';
+      selectedTime.textContent = '';
+      closeWorkspace(true);
+      updatePlayback();
       lock(false);
       persist();
     }
@@ -584,8 +762,10 @@
       S.model = model;
       S.startHash = hash(o.transcript());
       S.phase = 'starting';
+      playerNote.textContent = film ? 'Loading the local video…' : 'Start recording when the video is ready. Playback controls become available after recording.';
       lock(true);
       say('Starting…');
+      openWorkspace();
       var body = {source: film ? 'film' : 'youtube', lang: lang.code, model: model,
                   processing: selProc.value, exact: !!exact.checked};
       if (film) body.path = src.value; else body.url = src.value;
@@ -603,7 +783,7 @@
         S.job = j.job;
         S.video = j.video_id || '';
         persist();
-        if (film) { S.phase = 'working'; say(j.say || 'Getting ready…'); poll(run); return; }
+        if (film) { S.phase = 'working'; ensureReviewPlayer(); say(j.say || 'Getting ready…'); poll(run); return; }
         S.phase = 'loading';
         say('Loading the video…');
         window.ParsehTabCapture.embed(frame, S.video, {}).then(function (player) {
@@ -700,11 +880,9 @@
       return once(pcm, offset);
     }
     function finishRecording(run, job, marks, peaks, ctl) {
-      // the video has done its part: out of the frame, and the tab is free
-      var p = S.player;
-      S.player = null;
-      if (p) { try { if (p.destroy) p.destroy(); } catch (e) {} }
-      frame.textContent = '';
+      // The capture released its tab share. Keep its paused video for review.
+      if (S.player) { try { S.player.pauseVideo(); } catch (e) {} }
+      playerNote.textContent = 'The recording is complete. Playback is available while Whisper prepares the transcript.';
       S.phase = 'sending';
       say('Sending the end of the recording…', null);
       // what is asked again where the computer said nothing (each of these can be
@@ -834,6 +1012,7 @@
         if (run === S.run && S.held) REVIEW.show(S.held.res, S.phase, {configured: false});
       });
       REVIEW.show(res, S.phase, res.review && res.review.evidence ? LLM : {configured: false});
+      ensureReviewPlayer();
       paint();
     }
     function retryReview(wordIds, skill, task) { if (wordIds.length) chooseReview('llm', wordIds, skill, task); }
@@ -957,7 +1136,7 @@
 
     /* ----------------------------------------------- Cancel, and leaving */
     function stop(text) {
-      if (S.phase === 'idle' || S.phase === 'starting' || S.phase === 'stopping') return;
+      if (S.phase === 'idle' || S.phase === 'stopping') return;
       var job = S.job, r = S.rec;
       S.phase = 'stopping';
       S.run++;
@@ -1026,6 +1205,7 @@
         if (s.state === 'awaiting-audio' || s.state === 'receiving') { over(SAY_LEFT); return; }
         var run = ++S.run;
         S.job = j.id; S.kind = src.kind; S.key = j.key; S.lang = j.lang; S.model = j.model;
+        S.video = s.video_id || '';
         S.startHash = j.hash || '';
         S.phase = 'working';
         lock(true);

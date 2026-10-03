@@ -4316,6 +4316,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": False, "error": "nothing to POST here"}, 404)
         if method != "GET":
             return self._method_not_allowed()
+        if sub == "/api/transcribe/media":
+            # Only a job capability, never a filesystem path supplied by a page.
+            # send_file streams Range requests so the review player can seek.
+            try:
+                path = sttjobs.review_media((self.query.get("job") or [""])[0])
+            except sttjobs.Refusal as e:
+                return self.send_json({"ok": False, "error": e.say, "code": e.code}, e.status)
+            return self.send_file(path)
         if sub == "/api/backup":
             return self._shelf_backup("video")
         m = re.match(r"^/v/([^/]+)/__download/?$", sub)

@@ -211,6 +211,22 @@ deleted as soon as the transcript is**, and the same when you cancel or leave
 the page.
 
 **What arrives.** The words wait for review; **Transcript** stays unchanged.
+In the Browser interface, **Transcribe** opens a dedicated window within the
+page. The video stays on the left and the transcript and word editor sit on
+the right. Click a word to listen from its Whisper timestamp, or click a
+caption's time to play from its start. **Replay word** and **Replay caption**
+include the selected **Context** before and after the speech. The **−1 / −2 /
+−5 s** and **+1 / +2 / +5 s** buttons move playback without changing any
+transcript timings. When a word has no timestamp, playback uses its caption's
+time and says so.
+
+Use **Needs attention**, **LLM proposals**, the text search, or **Previous
+issue / Next issue** to work through a long transcript. Accepted and manual
+edits appear immediately in the pending transcript. **Return to Add Video**
+pauses playback and keeps the pending draft; **Resume transcript review**
+opens it again. A live YouTube recording must finish or be cancelled before
+returning to the page. **Discard review** leaves the transcript box untouched.
+
 Choose **Review suspect words with the LLM** or **Review the whole text with the
 LLM**, sending bounded text and Whisper
 evidence to the destination shown, or **Review Whisper result without the
@@ -221,7 +237,7 @@ Accept or reject proposals in the pending draft. LLM progress counts suspect
 words; failed sentences leave their words intact while the run continues.
 **Retry all remaining suspect words** retries unresolved words while retaining
 accepted/manual edits. **LLM responses** shows actual model output. The
-**Correction skill** panel provides download, installation and optional native
+**Correction skill** panel, under **Models, preferences & skills**, provides download, installation and optional native
 Unsloth skill invocation. Only **Use this transcript**
 places it in the box, timed to the video's own clock (a stop to buffer does
 not shift what follows). See [LLM Integration](../lookup-and-languages/llm-integration.md).

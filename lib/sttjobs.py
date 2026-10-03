@@ -824,6 +824,22 @@ def result(token):
                             "diagnostics_clipped": bool(job.get("llm_diagnostics_clipped"))})
 
 
+def review_media(token):
+    """The original local film for this job's browser review, never a caller's path.
+
+    The normal admission gate still applies. The unpredictable job token grants
+    access only to the already validated source, while its file identity matches.
+    No copy of the film or ASR audio is created or retained.
+    """
+    job = _job(token)
+    with LOCK:
+        if job["kind"] != "film" or not job.get("film") or job["state"] in (FAILED, CANCELLED):
+            raise Refusal("no-review-media", "There is no local video for this review.", 404)
+        if not _review_source_current(job):
+            raise Refusal("source-changed", "The local film changed. Transcribe it again.", 409)
+        return job["source"]["path"]
+
+
 def _review_source_current(job):
     if job["kind"] != "film" or not job.get("film"):
         return True
