@@ -2,7 +2,8 @@
 ### Added
 - Browser Settings → LLM Integration: a reusable OpenAI-compatible endpoint, host-local credentials, model discovery and Unsloth run-settings link import
 - Review-first Whisper results with short sentence LLM replies, word-count progress, local failure recovery, retry of unresolved words, keyboard edits and inspectable responses
-- Remote selection of the saved endpoint model and downloadable correction skill with optional native Unsloth Skills installation/invocation
+- Remote installed-model profiles from Studio links, with explicit API loading of quantization, KV cache, context and vision options
+- Separate models, prompts and downloadable skills for suspect-word and whole-text review, including confident words and contiguous ASR spans
 - Individual pending draft decisions and explicit Use this transcript preserve the existing box and timing guards
 - Optional, local exact word times for every speech-to-text language, with hash-pinned int8 CTC networks and a remembered add-page switch
 - A Parseh-made transcript carries its word timing through the add-page editor and stores it with the matching video

@@ -1,18 +1,21 @@
-Parseh ASR correction skill
+Parseh transcript-review skills
 
-Unsloth Studio: extract parseh-asr-correction/SKILL.md under your user
-.agents/skills/ directory, or create an Agent Skill named
-parseh-asr-correction in Studio with the description and instructions from
-SKILL.md. Enable it. In a Studio chat select @parseh-asr-correction.
+The suspect-word package is parseh-asr-correction; the whole-text package is
+parseh-asr-audit. Extract the chosen skill folder under the endpoint user's
+.agents/skills/ directory, or create an Agent Skill in Unsloth Studio using
+its name, description and instructions from SKILL.md. Enable it. In a Studio
+chat select @parseh-asr-correction or @parseh-asr-audit.
 
-Parseh can install this exact skill through Unsloth's authenticated Skills
-API with the Install in saved endpoint button. It never overwrites an existing
-skill. Configure the Unsloth Agent Skills adapter in LLM Integration first,
-then choose Use installed correction skill on the correction review page.
-Only the read_skill tool is enabled for these requests, with MCP disabled.
+Parseh can install a new skill through Unsloth's authenticated Skills API.
+Select the skill to check/install in the review page, then use Install in
+saved endpoint. Existing skills are never overwritten: inspect or update
+them in Studio yourself. Configure the Unsloth Agent Skills adapter first,
+then choose Use installed skill for the chosen review. Only read_skill is
+enabled for these requests, with MCP disabled.
 
-Other software: use its own Agent Skills import mechanism. Installing a skill
-in a chat UI does not necessarily make it available to that software's API.
-Generic OpenAI-compatible endpoints continue to use Parseh's short prompt.
+Other software: use its own Agent Skills import mechanism. A skill available
+in a chat UI may not be available through that software's API. Generic
+OpenAI-compatible endpoints use Parseh's short prompt.
 
-Skills provide reusable instructions. They do not train or upgrade the model.
+Skills provide instructions. They do not train weights, improve the model's
+base language competence, or guarantee that a correction is right.

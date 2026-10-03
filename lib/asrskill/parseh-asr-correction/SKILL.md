@@ -5,7 +5,8 @@ license: GPL-3.0-or-later
 ---
 
 Correct the suspect ASR words using sentence context and optional Whisper hints.
-Return only the complete sentence, without explanations, JSON or Markdown.
+Return only the complete target sentence, without explanations, JSON or Markdown.
+Nearby context is read-only: use it to interpret the target, never output it.
 
 Keep all other words, punctuation, names and colloquial language unchanged.
 Do not translate, improve style, normalize speech or invent missing speech.

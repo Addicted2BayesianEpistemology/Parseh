@@ -13,7 +13,7 @@ LOCK = threading.RLock()
 LAST_TEST = {}
 REVISION = (None, "")
 PRESETS = {"ollama": "http://127.0.0.1:11434/v1", "unsloth": "", "generic": ""}
-ADAPTERS = ("openai-compatible", "unsloth-agent-skills")
+ADAPTERS = ("openai-compatible", "unsloth-studio", "unsloth-agent-skills")
 MAX_CONFIG = 16384
 
 
@@ -64,6 +64,9 @@ def share_link(value):
         model = text(q.get("model", [""])[0], 512, "model ID")
         variant = text(q.get("ggufVariant", [""])[0], 128, "GGUF variant", True)
         cache = text(q.get("kvCacheDtype", [""])[0], 128, "KV cache type", True)
+        context = q.get("customContextLength", [None])[0]
+        if context is not None and (not context.isdigit() or not 1 <= int(context) <= 1048576):
+            raise ValueError()
         vision = q.get("disableVision", [None])[0]
         if vision not in (None, "true", "false"):
             raise ValueError()
@@ -71,18 +74,45 @@ def share_link(value):
         raise LLMError("bad-link", "Use a version 1 Unsloth Chat run-settings share link.")
     # Keep only understood public settings; never retain arbitrary link parameters.
     params = {"v": "1", "model": model, "ggufVariant": variant, "kvCacheDtype": cache}
+    if context is not None:
+        params["customContextLength"] = context
     if vision is not None:
         params["disableVision"] = vision
     safe = origin + "/chat?run=1#run?" + urllib.parse.urlencode(params)
     return {"base_url": origin + "/v1", "model_hint": model,
-            "studio_link": safe, "gguf_variant": variant, "kv_cache_dtype": cache}
+            "studio_link": safe, "gguf_variant": variant, "kv_cache_dtype": cache,
+            "context_tokens": int(context) if context is not None else None,
+            "disable_vision": vision != "false"}
+
+
+def model_profile(link, name, base_url):
+    if not isinstance(link, str):
+        raise LLMError("bad-profile", "Enter a Studio profile link.")
+    try:
+        keys = set(urllib.parse.parse_qs(urllib.parse.urlsplit(link).fragment[4:]))
+    except ValueError:
+        keys = set()
+    if keys - {"v", "model", "ggufVariant", "kvCacheDtype", "customContextLength", "disableVision"}:
+        raise LLMError("bad-profile", "This link contains Studio options Parseh cannot apply. Use a link with model, GGUF, KV cache, context and vision settings only.")
+    imported = share_link(link)
+    if imported["base_url"] != base_url:
+        raise LLMError("bad-profile", "A model profile must use the saved endpoint. Change the connection on the host first.")
+    if not imported["gguf_variant"] or not imported["kv_cache_dtype"]:
+        raise LLMError("bad-profile", "The profile link must specify the installed GGUF variant and KV cache type.")
+    if imported["kv_cache_dtype"] not in ("f16", "bf16", "q8_0", "q4_0", "q4_1", "q5_0", "q5_1", "iq4_nl", "f32"):
+        raise LLMError("bad-profile", "This KV cache type is not supported.")
+    if imported["context_tokens"] is not None and not 4096 <= imported["context_tokens"] <= 131072:
+        raise LLMError("bad-profile", "Use a profile context length between 4096 and 131072 tokens.")
+    ident = hashlib.sha256(imported["studio_link"].encode("utf-8")).hexdigest()[:16]
+    return {"id": ident, "name": text(name, 100, "profile name"), "link": imported["studio_link"]}
 
 
 def validate(raw):
     if not isinstance(raw, dict) or type(raw.get("format_version")) is not int or raw["format_version"] != STORE_FORMAT:
         raise LLMError("bad-config", "The LLM configuration version is not supported.")
     if set(raw) - {"format_version", "provider_preset", "adapter", "base_url", "selected_model", "api_key",
-                   "timeout_seconds", "json_mode", "studio_link", "context_tokens", "key_action"}:
+                   "timeout_seconds", "json_mode", "studio_link", "context_tokens", "key_action",
+                   "model_profiles", "selected_profile", "pending_profile", "review_models"}:
         raise LLMError("bad-config", "The LLM configuration contains unknown settings.")
     if not isinstance(raw.get("provider_preset"), str) or raw["provider_preset"] not in PRESETS or raw.get("adapter", "openai-compatible") not in ADAPTERS:
         raise LLMError("bad-config", "Choose a supported LLM provider and adapter.")
@@ -107,6 +137,39 @@ def validate(raw):
            "context_tokens": context_tokens}
     if raw.get("studio_link"):
         out["studio_link"] = share_link(raw["studio_link"])["studio_link"]
+    profiles = raw.get("model_profiles", [])
+    if not isinstance(profiles, list) or len(profiles) > 8:
+        raise LLMError("bad-profile", "Save up to eight model profiles.")
+    cleaned, seen = [], set()
+    for p in profiles:
+        if not isinstance(p, dict) or set(p) != {"id", "name", "link"}:
+            raise LLMError("bad-profile", "The saved model profiles are malformed.")
+        item = model_profile(p["link"], p["name"], out["base_url"])
+        if item["id"] != p["id"] or item["id"] in seen:
+            raise LLMError("bad-profile", "The saved model profile IDs are invalid or repeated.")
+        seen.add(item["id"]); cleaned.append(item)
+    if cleaned:
+        out["model_profiles"] = cleaned
+    for key in ("selected_profile", "pending_profile"):
+        if raw.get(key) is not None:
+            if not isinstance(raw[key], str) or raw[key] not in seen:
+                raise LLMError("bad-profile", "The selected model profile no longer exists.")
+            out[key] = raw[key]
+    tasks = raw.get("review_models", {})
+    if not isinstance(tasks, dict) or set(tasks) - {"suspect", "full"}:
+        raise LLMError("bad-config", "Choose a model for suspect-word or whole-text review.")
+    if tasks:
+        out["review_models"] = {}
+    for task, setting in tasks.items():
+        if not isinstance(setting, dict) or set(setting) != {"model_id", "profile_id"}:
+            raise LLMError("bad-config", "The review model setting is malformed.")
+        model = text(setting["model_id"], 512, "review model ID")
+        profile = setting["profile_id"]
+        if profile is not None:
+            p = next((p for p in cleaned if p["id"] == profile), None)
+            if p is None or share_link(p["link"])["model_hint"] != model:
+                raise LLMError("bad-profile", "The review model profile no longer matches its saved model.")
+        out["review_models"][task] = {"model_id": model, "profile_id": profile}
     return out
 
 
@@ -193,6 +256,9 @@ def save(body, root=None):
         raw = dict(body, format_version=STORE_FORMAT,
                    api_key=body.get("api_key") if action == "replace" else
                    old.get("api_key") if action == "keep" else None)
+        if url(body.get("base_url")) == old.get("base_url"):
+            raw["model_profiles"] = old.get("model_profiles", [])
+            raw["review_models"] = old.get("review_models", {})
         c = validate(raw)
         _write(c, root)
         return view(root)
@@ -206,12 +272,47 @@ def select_model(body, root=None):
         old = load(root)
         if old is None:
             raise LLMError("unconfigured", "Configure the endpoint on the Parseh host first.")
-        c = validate(dict(old, selected_model=body["selected_model"], json_mode="auto"))
+        c = dict(old, selected_model=body["selected_model"], json_mode="auto")
+        c.pop("pending_profile", None); c.pop("selected_profile", None)
+        c = validate(c)
         _write(c, root)
         return view(root)
 
 
+def review_model(body, root=None):
+    """Model-only feature choices from any admitted browser; no destinations."""
+    if (not isinstance(body, dict) or set(body) != {"task", "model_id", "profile_id"}
+            or body.get("task") not in ("suspect", "full")):
+        raise LLMError("bad-config", "Select a review task and a saved model/profile only.")
+    with LOCK:
+        c = load(root)
+        if c is None:
+            raise LLMError("unconfigured", "Configure the endpoint on the host first.")
+        tasks = dict(c.get("review_models", {}))
+        if not body["model_id"] and body["profile_id"] is None:
+            tasks.pop(body["task"], None)
+        else:
+            tasks[body["task"]] = {"model_id": body["model_id"], "profile_id": body["profile_id"]}
+        c["review_models"] = tasks
+        _write(validate(c), root)
+        return view(root)
+
+
+def for_review(c, task):
+    if task not in ("suspect", "full"):
+        raise LLMError("bad-review", "Choose suspect-word or whole-text review.")
+    if c.get("pending_profile"):
+        raise LLMError("model-profile-pending", "The model load is unconfirmed. Load its saved profile again before review.")
+    setting = c.get("review_models", {}).get(task)
+    if setting and setting["profile_id"] and c.get("selected_profile") != setting["profile_id"]:
+        raise LLMError("profile-required", "Load this review's saved model profile before sending text.")
+    return dict(c, selected_model=setting["model_id"] if setting else c["selected_model"])
+
+
 def _write(c, root=None):
+    encoded = json.dumps(c, ensure_ascii=False).encode("utf-8")
+    if len(encoded) > MAX_CONFIG:
+        raise LLMError("bad-config", "The saved settings are too large. Remove a model profile or shorten its link.")
     target = path(root)
     os.makedirs(os.path.dirname(target), exist_ok=True)
     tmp = target + ".tmp"
@@ -219,7 +320,7 @@ def _write(c, root=None):
     try:
         os.chmod(tmp, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(c, f, ensure_ascii=False)
+            f.write(encoded.decode("utf-8"))
         os.replace(tmp, target)
     finally:
         if os.path.exists(tmp):

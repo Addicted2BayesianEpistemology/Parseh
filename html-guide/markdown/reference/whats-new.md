@@ -29,8 +29,9 @@ Short sentence replies, word-count progress, local failure recovery, a single
 retry action, keyboard word edits and inspectable LLM responses keep review
 under your control. A downloadable correction skill can be installed and
 invoked through Unsloth's Agent Skills API.
-Unsloth share links supply endpoint/model hints and open hardware settings
-in Studio without making Parseh load models. See
+Saved Studio share links load installed model variants/options through the API.
+Separate review models and skills support a whole-text check, including confident
+Whisper words and spans split across ASR pieces. See
 [LLM Integration](../lookup-and-languages/llm-integration.md).
 
 ### Colour meaningful parts of a word

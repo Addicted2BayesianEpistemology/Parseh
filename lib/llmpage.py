@@ -18,6 +18,7 @@ def page(where):
 <fieldset %s>
 <legend>Connection</legend>
 <p><label>API adapter <select id="llm_adapter"><option value="openai-compatible">OpenAI-compatible text</option>
+<option value="unsloth-studio">Unsloth Studio + installed-model profiles</option>
 <option value="unsloth-agent-skills">Unsloth Agent Skills + compatible text</option></select></label></p>
 <p class="why">Use the Skills adapter when your Unsloth version supports Agent Skills. It can invoke the installed correction skill with only its read_skill tool.</p>
 <p><label>Provider <select id="llm_provider"><option value="ollama">Ollama</option>
@@ -33,7 +34,7 @@ def page(where):
 <details><summary>Import Unsloth run settings</summary>
 <p><label>Studio share link <input id="llm_link" type="url" maxlength="4096"></label>
 <button type="button" class="plain" id="llm_import">Read settings link</button></p>
-<p id="llm_import_note">The link supplies the endpoint and model hint. GGUF and KV-cache settings are applied in Unsloth Studio; Parseh does not load or download models.</p>
+<p id="llm_import_note">This import supplies a connection/model hint only. Use Saved Unsloth model profiles below to apply model options through the API.</p>
 <a id="llm_studio" target="_blank" rel="noopener noreferrer" hidden>Open these settings in Unsloth Studio</a>
 </details>
 <p><button class="go" type="submit">Save connection</button>
@@ -48,12 +49,31 @@ def page(where):
 <p><button type="button" class="go" id="llm_select_model">Save model selection</button>
 <button class="plain" type="button" id="llm_test">Test saved connection</button></p>
 </fieldset></form>
+<section data-layout="browser"><h2>Saved Unsloth model profiles</h2>
+<p>Paste Studio share links to keep up to eight profiles. From any admitted device, select a profile and load its installed GGUF model with its quantization, KV cache, context length and vision setting. The connection and key stay on the host. Select an Unsloth Studio adapter on the host first.</p>
+<p><label>Profile name <input id="llm_profile_name" type="text" maxlength="100" placeholder="Qwen 4B Q4_1"></label>
+<label>Studio share link <input id="llm_profile_link" type="url" maxlength="4096"></label>
+<button type="button" class="plain" id="llm_profile_save">Save profile link</button></p>
+<p><label>Saved profile <select id="llm_profile_list"><option value="">Choose a profile</option></select></label>
+<button type="button" class="go" id="llm_profile_apply">Load selected profile</button>
+<button type="button" class="plain" id="llm_profile_remove">Remove profile</button></p>
+<p id="llm_profile_info"></p>
+<p class="why">Loading happens when you press Load selected profile or explicitly start a review assigned to that profile. Missing models or variants are refused; install them in Studio first. Links with unsupported options are refused. Vision defaults off when omitted; speculative decoding and thinking are off.</p></section>
+<section data-layout="browser"><h2>Models for transcript review</h2>
+<p>Choose separate models for suspect-word correction and whole-text review. An empty model ID uses the general model selection. A saved Studio profile is loaded through the API only after you explicitly start its review. Both tasks ask before sending text.</p>
+<p><label>Suspect-word profile <select id="llm_task_suspect_profile"></select></label>
+<label>Model ID <input id="llm_task_suspect_model" type="text" maxlength="512"></label>
+<button id="llm_task_suspect_save" type="button" class="plain">Save suspect-word model</button></p>
+<p><label>Whole-text profile <select id="llm_task_full_profile"></select></label>
+<label>Model ID <input id="llm_task_full_model" type="text" maxlength="512"></label>
+<button id="llm_task_full_save" type="button" class="plain">Save whole-text model</button></p>
+<p class="why">Whole-text review checks all mapped words, including confident Whisper words. It can propose a short span covering several ASR pieces. You accept or reject each edit before using the transcript.</p></section>
 <p id="llm_destination"></p>
 <p id="llm_status" role="status" aria-live="polite"></p>
 <p id="llm_last_test"></p>
 <section><h2>Where feature inputs go</h2>
-<p>Each feature sends only its required inputs to the saved destination. Transcript correction sends a short sentence with its suspect words and only their available Whisper hints. Audio, file paths, video IDs, cookies and unrelated history are never sent. A connection test asks for a short text response and says nothing about linguistic accuracy.</p>
-<p>Credentials stay on this Parseh host and are never returned after saving. Unsloth and Ollama control their own CPU/GPU, quantization and cache settings. Nothing is installed or started by Parseh.</p></section>
+<p>Each feature sends only its required inputs to the saved destination. Transcript review sends a short target caption, bounded nearby context, and optional hints for its low-score words. Whole-text review processes every caption. Audio, file paths, video IDs, cookies and unrelated history are never sent. A connection test says nothing about linguistic accuracy.</p>
+<p>Credentials stay on this Parseh host and are never returned after saving. Unsloth and Ollama own their CPU/GPU runtimes. Saved Studio profiles can explicitly load already installed GGUF files; Parseh never downloads weights or starts an endpoint.</p></section>
 </main><p data-layout="mobile">LLM Integration is configured in the Browser interface. Switch to Browser using the interface control above.</p>''' % (settingspage.settings_doors(PAGE), lock, "true" if can else "false", "" if can else "disabled")
     return settingspage.frame("LLM Integration — Parseh", "Settings", "Settings", "/guide/", main,
                               style=".settings fieldset {border:1px solid var(--rule);border-radius:.6rem;padding:1rem;} .settings input[type=url] {width:min(35rem,100%);font:inherit;} .settings select {font:inherit;} .settings input[type=password] {font:inherit;}",

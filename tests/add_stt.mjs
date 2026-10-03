@@ -868,7 +868,8 @@ await section('review', 'pending LLM draft, accessible details and Unicode-safe 
   await page.getByRole('button', {name:'Restore Whisper word',exact:true}).click();
   await page.locator('#review-contract #stt_review_retry').click();
   eq(await page.evaluate(() => window.reviewRetried), ['s0w2'], 'one retry action selects the remaining suspicious words');
-  assert(await page.locator('#review-contract a[download]').count() === 1, 'review offers a correction skill download');
+  assert(await page.locator('#review-contract a[download]').count() === 2, 'review offers separate correction and whole-text skill downloads');
+  assert(await page.locator('#review-contract #stt_review_full').count() === 1, 'whole-text review is an explicit choice');
   eq(await inBox(page), '', 'review component never writes to the existing transcript box');
   await context.close();
 });

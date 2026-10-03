@@ -5579,15 +5579,15 @@ class Handler(SimpleHTTPRequestHandler):
                                       or "The request could not be read.")
             token = body.get("job")
             if what in ("review", "retry-review", "cancel-review", "use"):
-                allowed = ({"job", "source_sha256", "mode", "connection_id", "instruction_mode"} if what == "review" else
-                           {"job", "source_sha256", "connection_id", "word_ids", "instruction_mode"} if what == "retry-review" else
+                allowed = ({"job", "source_sha256", "mode", "connection_id", "instruction_mode", "task"} if what == "review" else
+                           {"job", "source_sha256", "connection_id", "word_ids", "instruction_mode", "task"} if what == "retry-review" else
                            {"job", "source_sha256", "decisions", "manual_edits"} if what == "use" else {"job"})
                 if set(body) - allowed:
                     raise sttjobs.Refusal("bad-review", "The review request contains unknown settings.")
                 if what == "review":
-                    return sttjobs.review(token, body.get("mode"), body.get("source_sha256"), body.get("connection_id"), instruction_mode=body.get("instruction_mode", "prompt"))
+                    return sttjobs.review(token, body.get("mode"), body.get("source_sha256"), body.get("connection_id"), instruction_mode=body.get("instruction_mode", "prompt"), task=body.get("task", "suspect"))
                 if what == "retry-review":
-                    return sttjobs.review(token, "llm", body.get("source_sha256"), body.get("connection_id"), body.get("word_ids", []), body.get("instruction_mode", "prompt"))
+                    return sttjobs.review(token, "llm", body.get("source_sha256"), body.get("connection_id"), body.get("word_ids", []), body.get("instruction_mode", "prompt"), body.get("task", "suspect"))
                 if what == "cancel-review":
                     return sttjobs.cancel_review(token)
                 return sttjobs.use_review(token, body.get("source_sha256"), body.get("decisions", {}), body.get("manual_edits", {}))
@@ -6576,7 +6576,7 @@ class Handler(SimpleHTTPRequestHandler):
         what = path.rsplit("/", 1)[-1]
         try:
             body = self._json_body()
-            if what in ("status", "models-saved", "test", "skill-status", "skill-install") and body:
+            if what in ("status", "models-saved", "test", "skill-status", "skill-install", "audit-skill-status", "audit-skill-install") and body:
                 raise llmconfig.LLMError("bad-config", "This request uses the saved connection and accepts no overrides.")
             if what == "status":
                 out = llmconfig.view()
@@ -6590,21 +6590,33 @@ class Handler(SimpleHTTPRequestHandler):
                 out = {"models": llmadapter.adapter(llmconfig.preview(body)).models()}
             elif what == "select-model":
                 out = llmconfig.select_model(body)
+            elif what == "review-model":
+                out = llmconfig.review_model(body)
+            elif what == "review-prepare":
+                import llmprofiles
+                out = llmprofiles.prepare(body)
+            elif what in ("profile-save", "profile-remove", "profile-apply"):
+                import llmprofiles
+                out = {"profile-save": llmprofiles.save, "profile-remove": llmprofiles.remove,
+                       "profile-apply": llmprofiles.apply}[what](body)
             elif what == "models-saved":
                 config = llmconfig.load()
                 if config is None:
                     raise llmconfig.LLMError("unconfigured", "Configure an endpoint on the Parseh host first.")
                 out = {"models": llmadapter.adapter(config).models()}
-            elif what in ("skill-status", "skill-install"):
+            elif what in ("skill-status", "skill-install", "audit-skill-status", "audit-skill-install"):
                 import asrcorrection
                 config = llmconfig.load()
                 if not config or config.get("adapter") != "unsloth-agent-skills":
                     raise llmconfig.LLMError("skills-unavailable", "Select the Unsloth Agent Skills adapter in LLM Integration first.")
                 client = llmadapter.adapter(config)
-                if what == "skill-install":
-                    out = client.install_skill(asrcorrection.SKILL_NAME, asrcorrection.SKILL_DESCRIPTION, asrcorrection.skill_instructions())
+                audit = what.startswith("audit-")
+                name = asrcorrection.AUDIT_SKILL_NAME if audit else asrcorrection.SKILL_NAME
+                description = asrcorrection.AUDIT_SKILL_DESCRIPTION if audit else asrcorrection.SKILL_DESCRIPTION
+                if what.endswith("skill-install"):
+                    out = client.install_skill(name, description, asrcorrection.skill_instructions("full" if audit else "suspect"))
                 else:
-                    out = client.skill_status(asrcorrection.SKILL_NAME)
+                    out = client.skill_status(name)
             elif what == "test":
                 config = llmconfig.load()
                 if config is None:

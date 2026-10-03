@@ -287,7 +287,7 @@
     var reviewMobile = el('p', 'fieldnote', 'Switch to the Browser interface above to choose and use the pending transcript review.');
     reviewMobile.setAttribute('data-layout', 'mobile'); reviewMobile.hidden = true;
     form.lastChild.appendChild(reviewMobile);
-    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill) { chooseReview(mode, null, skill); }, retry: retryReview, use: useReview, cancel: cancelReview});
+    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill, task) { chooseReview(mode, null, skill, task); }, retry: retryReview, use: useReview, cancel: cancelReview});
     var LLM = null;
 
     var tied = el('p', 'fieldnote');
@@ -836,8 +836,8 @@
       REVIEW.show(res, S.phase, res.review && res.review.evidence ? LLM : {configured: false});
       paint();
     }
-    function retryReview(wordIds, skill) { if (wordIds.length) chooseReview('llm', wordIds, skill); }
-    function chooseReview(mode, wordIds, skill) {
+    function retryReview(wordIds, skill, task) { if (wordIds.length) chooseReview('llm', wordIds, skill, task); }
+    function chooseReview(mode, wordIds, skill, task) {
       if (!S.held || (S.phase !== 'choice' && S.phase !== 'review')) return;
       if (!pendingCurrent()) { discardPending(); return; }
       var evidence = S.held.res.review && S.held.res.review.evidence;
@@ -845,17 +845,37 @@
         if (mode !== 'whisper') return;
         S.phase = 'review'; REVIEW.show(S.held.res, 'review', {configured: false}); paint(); return;
       }
-      var run = S.run;
+      var run = S.run, attempt = S.reviewAttempt = (S.reviewAttempt || 0) + 1;
+      task = task || 'suspect';
+      if (!wordIds) REVIEW.resetProposals();
       S.responses = 0;
       S.phase = mode === 'llm' ? 'correcting' : 'choosing';
+      S.pct = null;
       REVIEW.show(S.held.res, 'correcting', LLM);
-      say(mode === 'llm' ? 'Starting LLM review…' : 'Opening Whisper-only review…');
+      say(mode === 'llm' ? 'Preparing the saved review model…' : 'Opening Whisper-only review…');
+      paint();
+      var started = Date.now(), preparing = mode === 'llm' && !wordIds;
+      var prepareTimer = preparing ? setInterval(function () {
+        if (attempt !== S.reviewAttempt || run !== S.run || !S.held) { clearInterval(prepareTimer); return; }
+        REVIEW.progress('Preparing the saved model profile. Elapsed: ' + clock(Math.floor((Date.now() - started) / 1000)) + '.');
+      }, 1000) : null;
       var body = {job: S.job, source_sha256: evidence.source_sha256,
+        task: task,
         instruction_mode: skill ? 'skill' : 'prompt',
         connection_id: mode === 'llm' && LLM ? LLM.connection_id : null};
       if (wordIds) body.word_ids = wordIds; else body.mode = mode;
-      post(wordIds ? 'retry-review' : 'review', body).then(function (r) {
+      var prepared = mode === 'llm' && !wordIds ? ask('/settings/api/llm/review-prepare', {task: task, connection_id: body.connection_id}, 310000).then(function (r) {
+        clearInterval(prepareTimer);
+        if (attempt !== S.reviewAttempt || run !== S.run || !S.held || S.phase !== 'correcting' || !pendingCurrent()) return null;
+        if (!r.j.ok) return r;
+        LLM = r.j; body.connection_id = LLM.connection_id;
+        return post('review', body);
+      }) : post(wordIds ? 'retry-review' : 'review', body);
+      prepared.then(function (r) {
+        clearInterval(prepareTimer);
         if (run !== S.run || !S.held) return;
+        if (attempt !== S.reviewAttempt) return;
+        if (!r || S.phase !== 'correcting' && S.phase !== 'choosing') return;
         if (!r.j.ok) {
           if (r.j.code === 'source-changed') { discardPending(); return; }
           S.phase = 'choice'; note(r.j.error, 'warn');
@@ -871,6 +891,8 @@
         }
         if (mode === 'llm') { poll(run); } else finishJob(run);
       }, function () {
+        clearInterval(prepareTimer);
+        if (attempt !== S.reviewAttempt) return;
         if (run !== S.run || !S.held) return;
         // The start may have reached the host: recover through status, never
         // resend a generation request because its answer was lost.
@@ -878,6 +900,7 @@
       });
     }
     function cancelReview() {
+      S.reviewAttempt = (S.reviewAttempt || 0) + 1;
       if (S.phase === 'correcting' || S.phase === 'choosing') {
         var run = S.run;
         post('cancel-review', {job: S.job}).then(function (r) {

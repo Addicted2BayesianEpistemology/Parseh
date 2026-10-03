@@ -38,11 +38,28 @@ reachability/authentication. It does not establish correction accuracy.
 
 ## Unsloth share links
 
-Under **Import Unsloth run settings**, paste a version 1 Chat run-settings
-link. **Read settings link** imports the endpoint/model hint without fetching
-or running it. Confirm the advertised model ID. **Open these settings in
-Unsloth Studio** lets you apply quantization, GPU and KV-cache settings there.
-Those hardware choices are controlled by Studio, not Parseh's correction API.
+**Saved Unsloth model profiles** retains up to eight Studio share links.
+Paste a link and profile name, then **Save profile link**. **Load selected
+profile** uses Studio's API to load an already installed GGUF variant with
+its KV-cache type, optional context length and vision option. Missing files
+and unsupported link options are refused without downloading anything.
+Vision defaults off when omitted; speculative decoding and thinking are off.
+Studio controls hardware placement; Parseh reads the loaded context budget.
+
+Profiles and model selection are available from any admitted browser. Profile
+links must use the saved endpoint; changing that destination or its key remains
+host-only. A failed or unconfirmed load blocks inference until you retry the
+profile or deliberately select a loaded model.
+
+Under **Models for transcript review**, choose separate profiles or exact model
+IDs for **suspect-word correction** and **whole-text review**. An empty ID uses
+the general selection. Starting a review explicitly loads its assigned installed
+Studio profile first. It never loads a model on opening a page. Compatible
+servers without Studio's native API use saved model IDs directly.
+
+**Import Unsloth run settings** is a separate host-only convenience for reading
+an endpoint/model hint. It does not execute the link. Use saved profiles to apply
+options through the API, or open the link in Studio.
 
 Create an Unsloth API key using the avatar's **Settings → API** page. Name it,
 press **Create** and copy it while shown; Studio shows the key once.
@@ -51,8 +68,8 @@ press **Create** and copy it while shown; Studio shows the key once.
 
 When [speech to text](speech-to-text.md) finishes on
 [Add a video](../videos/adding-a-video.md#speech-to-text), the transcript box
-stays unchanged. Choose **Review with the selected LLM** or **Review Whisper
-result without the LLM**. The saved destination/model are shown before sending.
+stays unchanged. Choose **Review suspect words with the LLM**, **Review the whole text with the
+LLM**, or **Review Whisper result without the LLM**. The saved destination/model are shown before sending.
 Whisper-only review sends nothing. Remembering a browser default marks a
 button and never makes an unattended request.
 
@@ -63,6 +80,10 @@ available alternatives are sent as readable hints; current faster-whisper does
 not expose N-best alternatives, and the page says so. The model may choose a
 better word beyond those hints. Its answer is a complete sentence; Parseh maps
 only unambiguous substitutions for suspect words back to their exact spans.
+Whole-text review checks every mapped word, including confident words, and can
+propose a short contiguous span covering several ASR pieces. The two reviews
+have separate prompts and skills. Nearby captions provide bounded read-only
+context and are never included in the replaceable target.
 
 Accept or reject individual proposals. Even when no proposal or ASR alternative
 exists, **Enter the correct word** and **Save word in draft** lets you type the
@@ -76,9 +97,9 @@ review in the existing timing editor because the audio has been deleted.
 
 ## Correction skill
 
-Expand **Correction skill** in the review page and **Download correction
-skill**. The zip contains `parseh-asr-correction/SKILL.md` and installation
-instructions. In Unsloth, extract the folder under the endpoint user's
+Expand **Correction skill** in the review page to download the suspect-word
+skill (`parseh-asr-correction`) or whole-text skill (`parseh-asr-audit`). Each zip
+contains its skill folder and `SKILL.md`. In Unsloth, extract the folder under the endpoint user's
 `.agents/skills/`, or create the skill in Studio and enable it. It can then be
 selected with `@parseh-asr-correction` in a Studio chat.
 
@@ -86,7 +107,8 @@ For API review, select **Unsloth Agent Skills + compatible text** as the saved
 adapter on the host. **Install in saved endpoint** creates this exact skill
 through Unsloth's authenticated Skills API; it never overwrites an existing
 skill. **Check installed skill** checks whether it is enabled and valid.
-Choose **Use installed correction skill** before starting LLM review. Parseh
+Choose which skill to check/install and enable **Use installed skill for the
+chosen review** before starting LLM review. Parseh
 sends the skill invocation and sentence evidence; Unsloth loads the installed
 instructions with its `read_skill` tool. Other tools and MCP are disabled.
 
@@ -96,11 +118,14 @@ instructions to the same model; it does not train it or ensure better accuracy.
 
 ## Progress, failures and diagnosis
 
-Progress counts suspect words processed, including failed attempts, rather than
-sentences. If one request times out or returns an invalid answer, its words stay
+Progress counts ASR words processed, including failed attempts, rather than
+sentences. Whole-text review counts every mapped word; suspect review counts
+only selected low-score words. If one request times out or returns an invalid answer, its words stay
 unchanged and the remaining sentences continue. Failed and unresolved words can
 be edited manually or sent again with **Retry all remaining suspect words**.
-Accepted and manual edits remain in the draft and are excluded from retry.
+Manual edits remain in the draft. Suspect-word retry excludes accepted words.
+Whole-text retry rechecks the affected captions; an acceptance is retained only
+when its exact proposal is unchanged. Neither route changes the transcript box.
 
 **LLM responses** shows actual prompts, raw/final answers, supplied reasoning,
 finish status and elapsed time. Output-limit failures are visible here. Long

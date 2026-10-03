@@ -179,6 +179,8 @@ class OpenAICompatible:
         return models
 
     def _completion(self, messages, cancel, use_json, max_tokens, observe=None, extensions=None):
+        if self.config.get("pending_profile"):
+            raise LLMError("model-profile-pending", "The selected model profile has not finished loading. Apply it again or select the loaded model in LLM Integration.")
         payload = {"model": self.config["selected_model"], "messages": messages,
                    "temperature": 0, "stream": False, "max_tokens": max_tokens}
         if extensions:
@@ -255,13 +257,88 @@ class OpenAICompatible:
         return {"say": "The selected model returned the requested text. This does not test linguistic accuracy."}
 
 
-class UnslothAgentSkills(OpenAICompatible):
-    """Opt-in native capability, sharing transport and final-text validation."""
-    def _skills(self):
+class UnslothStudio(OpenAICompatible):
+    """Explicit native capability; presets never select execution code."""
+    def _api(self):
         base = self.config["base_url"]
         if not base.endswith("/v1"):
-            raise LLMError("skills-unavailable", "The Unsloth Skills adapter needs an API base URL ending in /v1.")
-        return OpenAICompatible(dict(self.config, base_url=base[:-3] + "/api"))
+            raise LLMError("studio-unavailable", "The Unsloth Studio adapter needs an API base URL ending in /v1.")
+        transport = {k: v for k, v in self.config.items() if k not in ("model_profiles", "selected_profile", "pending_profile", "review_models")}
+        return OpenAICompatible(dict(transport, base_url=base[:-3] + "/api"))
+
+    def _completion(self, messages, cancel, use_json, max_tokens, observe=None, extensions=None):
+        return super()._completion(messages, cancel, use_json, max_tokens, observe,
+                                   dict({"enable_thinking": False}, **(extensions or {})))
+
+    def resolve_profile(self, profile):
+        """Read installed GGUFs and resolve one exact local file, never a Hub load."""
+        from llmconfig import share_link
+        info = share_link(profile["link"])
+        api = self._api()
+        rows = api.request("models/cached-gguf")
+        cached = rows.get("cached") if isinstance(rows, dict) else None
+        if not isinstance(cached, list) or len(cached) > 2000:
+            raise LLMError("models-unavailable", "Unsloth's installed GGUF inventory is unavailable.")
+        match = next((r for r in cached if isinstance(r, dict) and r.get("repo_id") == info["model_hint"]
+                      and not r.get("partial") and r.get("task") in (None, "text-generation")), None)
+        if match is None:
+            raise LLMError("model-not-installed", "This profile's GGUF model is not fully installed in Unsloth. Install it there first.")
+        query = urllib.parse.urlencode({"repo_id": info["model_hint"], "offline": "true", "prefer_local_cache": "true"})
+        variants = api.request("models/gguf-variants?" + query)
+        items = variants.get("variants") if isinstance(variants, dict) else None
+        if not isinstance(items, list) or len(items) > 2000:
+            raise LLMError("models-unavailable", "Unsloth's installed variant list is unavailable.")
+        quant = next((r for r in items if isinstance(r, dict) and r.get("quant") == info["gguf_variant"]
+                      and r.get("downloaded") is True and not r.get("partial")), None)
+        if quant is None:
+            raise LLMError("variant-not-installed", "This GGUF variant is not fully installed. Choose an installed variant in the profile link.")
+        if not info["disable_vision"] and match.get("has_vision") and variants.get("dependencies_resolved") is not True:
+            raise LLMError("vision-unavailable", "This profile's vision dependencies cannot be verified as installed. Use a text-only Studio link with disableVision=true.")
+        query = urllib.parse.urlencode({"repo_id": info["model_hint"], "variant": info["gguf_variant"]})
+        located = api.request("models/cached-model-path?" + query)
+        local = located.get("path") if isinstance(located, dict) else None
+        if (not isinstance(local, str) or len(local) > 4096 or any(ord(c) < 32 for c in local)
+                or located.get("is_dir") is not False or not local.lower().endswith(".gguf")
+                or not (local.startswith(("/", "\\\\")) or re.match(r"^[A-Za-z]:[\\\\/]", local))):
+            raise LLMError("model-path-unavailable", "Unsloth could not resolve this variant to an installed GGUF file.")
+        return info, local
+
+    def load_profile(self, info, local):
+        payload = {"model_path": local, "gguf_variant": info["gguf_variant"],
+                   "cache_type_kv": info["kv_cache_dtype"], "disable_vision": info["disable_vision"],
+                   "trust_remote_code": False, "speculative_type": "off"}
+        if info["context_tokens"] is not None:
+            payload["max_seq_length"] = info["context_tokens"]
+        api = self._api()
+        loaded = api.request("inference/load", payload)
+        if not isinstance(loaded, dict) or loaded.get("status") not in ("success", "loaded", "already_loaded"):
+            raise LLMError("model-load-failed", "Unsloth did not confirm loading the selected profile. Check Studio and retry.")
+        state = api.request("inference/status")
+        if (not isinstance(state, dict) or state.get("loading") or not state.get("loaded")
+                or (state.get("model_identifier") not in (local, info["model_hint"])
+                    and state.get("active_model") != info["model_hint"])
+                or state.get("gguf_variant") != info["gguf_variant"]
+                or state.get("cache_type_kv") != info["kv_cache_dtype"]
+                or state.get("disable_vision") is not info["disable_vision"]):
+            raise LLMError("model-load-unverified", "The endpoint's loaded model or options do not match the profile. Check Studio and retry.")
+        actual = state.get("context_length")
+        if type(actual) is not int or not 4096 <= actual <= 131072:
+            raise LLMError("model-context", "The loaded context length is outside Parseh's supported budget. Adjust it in Studio and retry.")
+        # Verify the public ID as well; local file paths never leave this adapter.
+        models = self.request("models")
+        if not isinstance(models, dict) or not isinstance(models.get("data"), list) or not any(
+                isinstance(r, dict) and r.get("id") == info["model_hint"] and r.get("loaded") is True
+                for r in models["data"]):
+            raise LLMError("model-load-unverified", "Unsloth did not advertise the loaded profile under its model ID. Check Studio and retry.")
+        return {"context_tokens": actual, "gguf_variant": info["gguf_variant"],
+                "kv_cache_dtype": info["kv_cache_dtype"], "disable_vision": info["disable_vision"],
+                "context_adjusted": info["context_tokens"] is not None and actual != info["context_tokens"]}
+
+
+class UnslothAgentSkills(UnslothStudio):
+    """Opt-in native skills, sharing transport and final-text validation."""
+    def _skills(self):
+        return self._api()
 
     def skill_status(self, name, cancel=None):
         if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name):
@@ -290,5 +367,5 @@ class UnslothAgentSkills(OpenAICompatible):
 
 def adapter(config):
     # Provider presets supply defaults, never distinct generation code.
-    kind = UnslothAgentSkills if config.get("adapter") == "unsloth-agent-skills" else OpenAICompatible
+    kind = {"unsloth-agent-skills": UnslothAgentSkills, "unsloth-studio": UnslothStudio}.get(config.get("adapter"), OpenAICompatible)
     return kind(config)

@@ -211,7 +211,8 @@ deleted as soon as the transcript is**, and the same when you cancel or leave
 the page.
 
 **What arrives.** The words wait for review; **Transcript** stays unchanged.
-Choose **Review with the selected LLM**, sending bounded text and Whisper
+Choose **Review suspect words with the LLM** or **Review the whole text with the
+LLM**, sending bounded text and Whisper
 evidence to the destination shown, or **Review Whisper result without the
 LLM**, which sends nothing to a model endpoint. Both open review. A low
 Whisper score below 0.5 is marked **⚠**, and an LLM edit proposal **✎**.

@@ -21,6 +21,7 @@ sys.path[:0] = [str(ROOT / "lib"), str(ROOT / "youtube/lib")]
 import asrcorrection as correction
 import llmadapter
 import llmconfig
+import llmprofiles
 import settingspage
 import sttjobs
 import sttworker
@@ -300,6 +301,37 @@ class Schema(unittest.TestCase):
         self.assertEqual(len(set(ids)), 240)
         self.assertTrue(all(len(u["text"].encode("utf-8")) <= 600 for u in units))
 
+    def test_whole_text_includes_confident_words_and_maps_japanese_span(self):
+        text = "鉄石缶だから行く"
+        raw = [{"start": 0, "end": 3, "text": text, "asr_words": [
+            {"text": t, "score": .2 if i == 0 else .95, "start": i / 10, "end": (i + 1) / 10}
+            for i, t in enumerate(text)]}]
+        panel, _ = sttpanel.segments_to_panel(raw)
+        req = correction.evidence(raw, panel, "ja")
+        unit = correction.sentence_units(req, task="full")[0]
+        self.assertEqual(len(unit["targets"]), len(text))
+        proposals, _ = correction.full_sentence_result("テスト期間だから行く", unit)
+        self.assertEqual(len(proposals), 1)
+        self.assertEqual(proposals[0]["word_ids"], ["s0w0", "s0w1", "s0w2"])
+        out, changed = correction.apply(panel, req, {"suggestions": proposals}, {"s0w0": 0})
+        self.assertTrue(changed)
+        self.assertEqual(out, panel.replace("鉄石缶", "テスト期間"))
+        with self.assertRaises(llmconfig.LLMError):
+            correction.apply(panel, req, {"suggestions": proposals}, {"s0w0": 0}, {"s0w1": "other"})
+        out, _ = correction.apply(panel, req, {"suggestions": []}, {}, {"s0w0": {"text": "テスト期間", "word_ids": ["s0w0", "s0w1", "s0w2"]}})
+        self.assertEqual(out, panel.replace("鉄石缶", "テスト期間"))
+
+    def test_whole_text_prompt_skill_and_bounded_context(self):
+        unit = correction.sentence_units(self.request, task="full")[0]
+        prompt = correction.messages(self.request, unit, task="full")
+        self.assertIn("high Whisper score", prompt[0]["content"])
+        self.assertNotIn('"word_id"', prompt[1]["content"])
+        prompt = correction.messages(self.request, unit, True, "full")
+        self.assertTrue(prompt[0]["content"].startswith("@parseh-asr-audit"))
+        for answer in ("loro hanno detto ciao -> loro hanno detto ciao", "translated explanation\nanswer"):
+            with self.assertRaises(llmconfig.LLMError):
+                correction.full_sentence_result(answer, unit)
+
     def test_failure_is_local_progress_counts_words_and_retry_filters(self):
         _, req = evidence("loro anno detto ciao")
         second = copy.deepcopy(req["segments"][0]); second["start"] = 10; second["end"] = 12
@@ -370,8 +402,25 @@ class Settings(unittest.TestCase):
             self.assertIsNone(llmconfig.load(root))
         for name in ("save", "reset", "models", "import-link"):
             self.assertFalse(settingspage.may_post("/settings/api/llm/" + name, "lan")[0])
-        for name in ("status", "test", "models-saved", "select-model"):
+        for name in ("status", "test", "models-saved", "select-model", "profile-save", "profile-remove", "profile-apply", "review-model", "review-prepare", "audit-skill-status"):
             self.assertTrue(settingspage.may_post("/settings/api/llm/" + name, "lan")[0])
+        self.assertFalse(settingspage.may_post("/settings/api/llm/audit-skill-install", "lan")[0])
+
+    def test_review_models_are_independent_and_cannot_override_destination(self):
+        with tempfile.TemporaryDirectory() as root:
+            body = dict(config(), key_action="replace"); body.pop("format_version")
+            llmconfig.save(body, root)
+            llmconfig.review_model({"task": "suspect", "model_id": "small/model", "profile_id": None}, root)
+            out = llmconfig.review_model({"task": "full", "model_id": "larger/model", "profile_id": None}, root)
+            saved = llmconfig.load(root)
+            self.assertEqual(llmconfig.for_review(saved, "suspect")["selected_model"], "small/model")
+            self.assertEqual(llmconfig.for_review(saved, "full")["selected_model"], "larger/model")
+            self.assertEqual(saved["api_key"], "private-key")
+            self.assertNotIn("api_key", out)
+            with self.assertRaises(llmconfig.LLMError):
+                llmconfig.review_model({"task": "full", "model_id": "other", "profile_id": None, "base_url": "http://override/v1"}, root)
+            with self.assertRaises(llmconfig.LLMError):
+                llmprofiles.prepare({"task": "full", "connection_id": "stale"}, root)
 
     def test_bad_url_model_config_and_share_link(self):
         for base in ("ftp://host", "http://user:secret@host/v1", "http://host:99999", "http://host/v1?api_key=secret", "http://host/\n"):
@@ -383,6 +432,81 @@ class Settings(unittest.TestCase):
         self.assertEqual(imported["gguf_variant"], "Q8_0")
         self.assertEqual(imported["kv_cache_dtype"], "q8_0")
         self.assertEqual(imported["model_hint"], "unsloth/Qwen3.5-0.8B-GGUF")
+        longer = llmconfig.share_link(link + "&customContextLength=20096&disableVision=true")
+        self.assertEqual(longer["context_tokens"], 20096)
+        self.assertIn("customContextLength=20096", longer["studio_link"])
+        self.assertIn("disableVision=true", longer["studio_link"])
+
+
+class ModelProfiles(unittest.TestCase):
+    LINK = "http://localhost:8888/chat?run=1#run?v=1&model=served%2Fmodel&ggufVariant=Q4_1&kvCacheDtype=q4_1&customContextLength=8192&disableVision=true"
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = self.directory.name
+        body = dict(config("http://localhost:8888/v1"), adapter="unsloth-studio", key_action="replace")
+        body.pop("format_version")
+        llmconfig.save(body, self.root)
+        self.saved = llmprofiles.save({"name": "Installed model", "link": self.LINK}, self.root)
+        self.ident = self.saved["saved_profile"]
+
+    def test_profiles_are_local_links_not_new_endpoints_and_preserve_credentials(self):
+        self.assertNotIn("api_key", self.saved)
+        self.assertEqual(llmconfig.load(self.root)["api_key"], "private-key")
+        with self.assertRaises(llmconfig.LLMError):
+            llmprofiles.save({"name": "Redirect", "link": self.LINK.replace("localhost:8888", "other:9999")}, self.root)
+        with self.assertRaises(llmconfig.LLMError):
+            llmprofiles.save({"name": "Unsupported", "link": self.LINK + "&llamaExtraArgs=evil"}, self.root)
+        with self.assertRaises(llmconfig.LLMError):
+            llmprofiles.apply({"profile_id": self.ident, "base_url": "http://other/v1"}, self.root)
+        self.assertEqual(len(llmprofiles.save({"name": "Renamed", "link": self.LINK}, self.root)["model_profiles"]), 1)
+        client = llmadapter.adapter(llmconfig.load(self.root))
+        self.assertEqual(client._api().config["base_url"], "http://localhost:8888/api")
+
+    def test_exact_installed_file_and_options_reach_native_load_and_are_verified(self):
+        client = llmadapter.adapter(llmconfig.load(self.root))
+        api = mock.Mock()
+        api.request.side_effect = [
+            {"cached": [{"repo_id": "served/model", "task": "text-generation"}]},
+            {"variants": [{"quant": "Q4_1", "downloaded": True}]},
+            {"path": "/installed/model-Q4_1.gguf", "is_dir": False},
+            {"status": "success"},
+            {"loaded": ["served/model"], "loading": [], "model_identifier": "/installed/model-Q4_1.gguf",
+             "gguf_variant": "Q4_1", "cache_type_kv": "q4_1", "disable_vision": True, "context_length": 8192},
+        ]
+        with mock.patch.object(client, "_api", return_value=api), mock.patch.object(client, "request", return_value={"data": [{"id": "served/model", "loaded": True}]}), mock.patch.object(llmadapter, "adapter", return_value=client):
+            out = llmprofiles.apply({"profile_id": self.ident}, self.root)
+        payload = api.request.call_args_list[3].args[1]
+        self.assertEqual(payload["model_path"], "/installed/model-Q4_1.gguf")
+        self.assertEqual(payload["max_seq_length"], 8192)
+        self.assertEqual(payload["cache_type_kv"], "q4_1")
+        self.assertTrue(payload["disable_vision"])
+        self.assertFalse(payload["trust_remote_code"])
+        self.assertEqual(payload["speculative_type"], "off")
+        self.assertNotIn("pending_profile", out)
+        self.assertNotIn("/installed", json.dumps(out))
+        self.assertNotIn("private-key", json.dumps(out))
+        self.assertEqual(out["selected_profile"], self.ident)
+
+    def test_missing_variant_never_calls_load_and_failure_remains_pending(self):
+        client = llmadapter.adapter(llmconfig.load(self.root))
+        api = mock.Mock()
+        api.request.side_effect = [{"cached": [{"repo_id": "served/model"}]}, {"variants": [{"quant": "Q8_0", "downloaded": True}]}]
+        with mock.patch.object(client, "_api", return_value=api), self.assertRaises(llmconfig.LLMError) as e:
+            client.resolve_profile(self.saved["model_profiles"][0])
+        self.assertEqual(e.exception.code, "variant-not-installed")
+        self.assertFalse(any("load" in call.args[0] for call in api.request.call_args_list))
+        info = llmconfig.share_link(self.LINK)
+        with mock.patch.object(llmadapter, "adapter", return_value=client), mock.patch.object(client, "resolve_profile", return_value=(info, "/installed/model-Q4_1.gguf")), mock.patch.object(client, "load_profile", side_effect=llmconfig.LLMError("timeout", "Timed out.")), self.assertRaises(llmconfig.LLMError):
+            llmprofiles.apply({"profile_id": self.ident}, self.root)
+        pending = llmconfig.load(self.root)
+        self.assertEqual(pending["pending_profile"], self.ident)
+        with self.assertRaises(llmconfig.LLMError) as e:
+            llmadapter.adapter(pending).generate_text([])
+        self.assertEqual(e.exception.code, "model-profile-pending")
+        restored = llmconfig.select_model({"selected_model": "served/model"}, self.root)
+        self.assertNotIn("pending_profile", restored)
 
 
 class Jobs(unittest.TestCase):

@@ -16,7 +16,10 @@ reader paths are unchanged.
 `llmadapter.py` provides shared standard-library HTTP, model discovery, plain
 and structured generation. Preset labels supply defaults, not correction code.
 No inference library is installed, no weights are fetched and no endpoint is
-started. HTTP does not follow redirects or proxy environment settings. Each
+started. Saved Studio profiles explicitly load already cached GGUF files through
+the native API, after offline inventory/variant/path checks; source paths stay
+inside the adapter. Loaded model/options/context and public ID are verified.
+Failed or unconfirmed loads persist as pending and block generation. HTTP does not follow redirects or proxy environment settings. Each
 request has a wall-clock deadline and its own cancellation token; timeout closes
 that request without cancelling subsequent sentences. User cancellation aborts
 the active socket. Errors expose static categories/status, never response bodies,
@@ -36,8 +39,8 @@ word substitutions. Original Whisper scores remain nullable and are never
 replaced by an aligner's confidence. Genuine alternatives are exposed through
 the worker capability hook; pinned faster-whisper currently reports alternatives
 unavailable. Stable segment/word IDs and Unicode code-point offsets stay local.
-Only bounded sentence text, language and flagged-word scores/available hints
-are sent. Audio, IDs, paths, cookies and unrelated history are excluded.
+Only a bounded target caption, nearby read-only context, language and
+flagged-word scores/available hints are sent. Audio, IDs, paths, cookies and unrelated history are excluded.
 
 The model returns a complete plain sentence, not JSON. Local diff mapping accepts
 only unambiguous substitutions belonging to selected low-score words. Changes
@@ -48,6 +51,21 @@ remaining sentences continue. Results include failed/unresolved word IDs, and
 progress counts attempted suspect words, including failed attempts. A retry
 selects only the remaining suspect IDs, retaining other validated proposals.
 Cancellation or source/connection changes invalidate in-flight work globally.
+
+The optional `full` task checks all mapped words with its own short prompt and
+`parseh-asr-audit` skill. Local character diffs expand to contiguous stable ASR
+word boundaries (maximum eight pieces/200 characters), including high-score
+pieces. Broad rewrites, unmapped/overlapping spans, changed punctuation and
+cross-caption edits are refused. Per-piece evidence and original offsets remain
+available. A failed caption never discards other valid caption results.
+
+`review_models` binds each task to a model ID and optional saved profile. Any
+admitted browser can change these model-only choices, retaining endpoint/key.
+The explicit `review-prepare` action checks the opaque connection revision and
+loads only that task's saved installed Studio profile. No transcript is sent
+while preparing. Cancel suppresses generation after preparation; an endpoint
+model load already started may finish. A subsequent review request checks the
+new revision and source. Changing configuration invalidates previous proposals.
 
 Jobs add `review: {evidence, choice, correction, result, diagnostics}` to existing
 fields. ASR ends in `awaiting-review-choice`, after releasing runtime/model holds.
@@ -66,8 +84,9 @@ claim that the endpoint actually read a skill when no evidence is returned.
 `use {job, source_sha256, decisions, manual_edits}` applies chosen candidates or
 literal keyboard edits to exact source spans. A manual edit may target any
 reviewable word, including those with no score, alternatives or LLM suggestion.
-Unknown IDs, overlapping decisions/manual edits, whitespace/control characters,
-empty or oversized substitutions are rejected. Caption clocks/boundaries are
+Unknown IDs, overlapping decisions/manual edits, control characters, empty or
+oversized substitutions are rejected. Single-word manual edits disallow spaces;
+an explicitly selected multi-piece proposal can be typed as a short span. Caption clocks/boundaries are
 checked against the original. Changed word timings use the existing timing
 editor and need review because retained audio has already been deleted.
 

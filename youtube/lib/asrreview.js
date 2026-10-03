@@ -12,23 +12,25 @@
 
     function skillControls() {
       var box = el('details'); box.appendChild(el('summary', 'Correction skill'));
-      var download = el('a', 'Download correction skill'); download.href = '/lib/asrskill/parseh-asr-correction.zip'; download.download = 'parseh-asr-correction.zip'; box.appendChild(download);
+      var download = el('a', 'Download suspect-word correction skill'); download.href = '/lib/asrskill/parseh-asr-correction.zip'; download.download = 'parseh-asr-correction.zip'; box.appendChild(download);
+      var auditDownload = el('a', 'Download whole-text review skill'); auditDownload.href = '/lib/asrskill/parseh-asr-audit.zip'; auditDownload.download = 'parseh-asr-audit.zip'; box.appendChild(el('p')).appendChild(auditDownload);
+      var skillTask = el('select'); ['Suspect words', 'Whole text'].forEach(function (label, i) { var op = el('option', label); op.value = i ? 'audit-' : ''; skillTask.appendChild(op); }); var skillLabel = el('label', 'Skill to check or install '); skillLabel.appendChild(skillTask); box.appendChild(skillLabel);
       box.appendChild(el('p', 'For Unsloth Studio, extract the skill folder into .agents/skills on the endpoint computer, or install it below. Enable it in Studio. Other software must support Agent Skills through its API.'));
       var enabled = !!(config && config.configured && config.adapter === 'unsloth-agent-skills');
       if (!enabled) useSkill = false;
-      var label = el('label', 'Use installed correction skill '), check = el('input'); check.id = 'stt_use_skill'; check.type = 'checkbox'; check.checked = useSkill;
+      var label = el('label', 'Use installed skill for the chosen review '), check = el('input'); check.id = 'stt_use_skill'; check.type = 'checkbox'; check.checked = useSkill;
       check.disabled = !enabled || phase === 'correcting'; check.addEventListener('change', function () { useSkill = check.checked; }); label.appendChild(check); box.appendChild(label);
       box.appendChild(el('p', enabled ? 'Skill requests ask Unsloth to load @parseh-asr-correction; only read_skill is enabled, with MCP off. Skills supply instructions to the same model.' : 'Select the Unsloth Agent Skills adapter in LLM Integration to use an installed skill. The short prompt remains available.'));
       var state = el('p'); state.setAttribute('role', 'status'); state.setAttribute('aria-live', 'polite');
       var inspectSkill, install;
       function operation(name) {
         inspectSkill.disabled = install.disabled = true; state.textContent = name === 'skill-install' ? 'Installing the correction skill at the saved endpoint…' : 'Checking the installed skill…';
-        fetch('/settings/api/llm/' + name, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+        fetch('/settings/api/llm/' + skillTask.value + name, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
           .then(function (r) { return r.json(); }).then(function (j) {
             if (!j.ok) throw new Error(j.error);
-            state.textContent = j.ready ? 'Correction skill is installed and enabled. Select Use installed correction skill before starting review.' : j.installed ? 'Skill exists; enable it in Unsloth Studio.' : 'Correction skill is not installed.';
+            state.textContent = j.ready ? 'Selected skill is installed and enabled. Select Use installed skill before starting its review.' : j.installed ? 'Skill exists; enable it in Unsloth Studio.' : 'Selected skill is not installed.';
           }).catch(function (e) { state.textContent = e.message || 'The endpoint did not answer.'; })
-          .finally(function () { inspectSkill.disabled = !enabled || phase === 'correcting'; install.disabled = !enabled || !config.can_install_skill || phase === 'correcting'; });
+          .finally(function () { inspectSkill.disabled = !enabled || phase === 'correcting' || useBusy; install.disabled = !enabled || !config.can_install_skill || phase === 'correcting' || useBusy; });
       }
       inspectSkill = btn('Check installed skill', function () { operation('skill-status'); }); inspectSkill.disabled = !enabled || phase === 'correcting'; box.appendChild(inspectSkill);
       install = btn('Install in saved endpoint', function () { operation('skill-install'); }); install.disabled = !enabled || !config.can_install_skill || phase === 'correcting'; box.appendChild(install);
@@ -82,15 +84,26 @@
         disabledBefore.forEach(function (old) { old[0].disabled = old[1]; }); disabledBefore = [];
       }
     }
+    function idsFor(id) {
+      var manual = manualEdits[id];
+      return manual != null ? typeof manual === 'object' ? manual.word_ids : [id] : suggestions[id] && suggestions[id].word_ids || [id];
+    }
+    function clearOverlaps(ids) {
+      Object.keys(decisions).forEach(function (id) { if (idsFor(id).some(function (member) { return ids.indexOf(member) >= 0; })) delete decisions[id]; });
+      Object.keys(manualEdits).forEach(function (id) { if (idsFor(id).some(function (member) { return ids.indexOf(member) >= 0; })) delete manualEdits[id]; });
+    }
+    function accepted(id) {
+      return Object.keys(decisions).concat(Object.keys(manualEdits)).some(function (key) { return idsFor(key).indexOf(id) >= 0; });
+    }
     function draft() {
       var chars = Array.from(result.text), edits = [];
       Object.keys(decisions).forEach(function (id) {
         var w = words[id], s = suggestions[id];
-        if (w && s) edits.push({a: w.span_start, b: w.span_end, text: s.candidates[decisions[id]].text});
+        if (w && s) edits.push({a: s.span_start == null ? w.span_start : s.span_start, b: s.span_end == null ? w.span_end : s.span_end, text: s.candidates[decisions[id]].text});
       });
       Object.keys(manualEdits).forEach(function (id) {
         var w = words[id];
-        if (w) edits.push({a: w.span_start, b: w.span_end, text: manualEdits[id]});
+        if (w) { var value = manualEdits[id], ids = idsFor(id); edits.push({a: w.span_start, b: words[ids[ids.length - 1]].span_end, text: typeof value === 'object' ? value.text : value}); }
       });
       edits.sort(function (a, b) { return b.a - a.a; });
       edits.forEach(function (e) { chars.splice.apply(chars, [e.a, e.b - e.a].concat(Array.from(e.text))); });
@@ -101,11 +114,11 @@
       status.textContent = Object.keys(decisions).length + ' LLM edits accepted and ' + Object.keys(manualEdits).length + ' manual edits in this draft. The transcript box has not changed.';
       Object.keys(words).forEach(function (id) {
         var button = root.querySelector('[data-review-word="' + id + '"]');
-        if (button) button.classList.toggle('asr-accepted', decisions[id] != null || manualEdits[id] != null);
+        if (button) button.classList.toggle('asr-accepted', accepted(id));
       });
       if (retry) { var remaining = retryWords(); retry.textContent = 'Retry all remaining suspect words (' + remaining.length + ')'; retry.disabled = !remaining.length || !config || !config.configured; }
     }
-    function retryWords() { return Object.keys(words).filter(function (id) { return words[id].reviewable && words[id].low_asr_score && decisions[id] == null && manualEdits[id] == null; }); }
+    function retryWords() { return Object.keys(words).filter(function (id) { return words[id].reviewable && (words[id].low_asr_score || result.review.result && (result.review.result.failed_word_ids || []).indexOf(id) >= 0) && !accepted(id); }); }
     function detail(w) {
       if (!w || useBusy) return;
       selected = w.word_id;
@@ -125,44 +138,48 @@
         details.appendChild(list);
       }
       if (!w.reviewable) details.appendChild(el('p', 'This word could not be matched to an exact transcript span. Review it manually.'));
-      var s = suggestions[w.word_id];
+      var s = suggestions[w.word_id], manualKey = Object.keys(manualEdits).find(function (key) { return idsFor(key).indexOf(w.word_id) >= 0; });
+      var editId = s ? s.word_id : manualKey || w.word_id, editIds = s && s.word_ids || (manualKey ? idsFor(manualKey) : [w.word_id]);
+      var sourceSpan = Array.from(result.text).slice(words[editIds[0]].span_start, words[editIds[editIds.length - 1]].span_end).join('');
       if (s) {
+        if (editIds.length > 1) { details.appendChild(el('p', 'Proposed source span: ' + s.original)); (s.asr_evidence || []).forEach(function (piece) { details.appendChild(el('p', piece.text + ' · Whisper ASR score: ' + estimate(piece.asr_confidence) + ' · ' + time(piece.start) + ' – ' + time(piece.end))); }); }
         details.appendChild(el('p', '✎ LLM word substitution' + (s.error_likelihood == null ? '' : ' · Error likelihood (model estimate): ' + estimate(s.error_likelihood))));
         if (s.reason) details.appendChild(el('p', s.reason));
         var alternatives = el('ol');
         s.candidates.forEach(function (c, i) {
           var li = el('li'), surface = el('bdi', c.text); surface.dir = 'auto'; li.appendChild(surface);
           if (c.confidence != null || c.reason) li.appendChild(el('p', (c.confidence == null ? '' : 'Confidence (model estimate): ' + estimate(c.confidence) + '. ') + (c.reason || '')));
-          li.appendChild(btn(decisions[w.word_id] === i ? 'Accepted in draft' : 'Accept this alternative', function () {
-            delete manualEdits[w.word_id]; decisions[w.word_id] = i; updateDraft(); detail(w);
+          li.appendChild(btn(decisions[editId] === i ? 'Accepted in draft' : 'Accept this alternative', function () {
+            clearOverlaps(editIds); decisions[editId] = i; updateDraft(); detail(w);
           }));
           alternatives.appendChild(li);
         });
         details.appendChild(alternatives);
-        details.appendChild(btn('Reject this edit / keep Whisper word', function () { delete decisions[w.word_id]; updateDraft(); detail(w); }));
+        details.appendChild(btn('Reject this edit / keep Whisper word', function () { delete decisions[editId]; updateDraft(); detail(w); }));
       } else if (w.low_asr_score) details.appendChild(el('p', 'No LLM edit is proposed for this word. It stays unchanged.'));
       if (w.reviewable) {
-        var label = el('label', 'Enter the correct word '), input = el('input');
+        var label = el('label', editIds.length > 1 ? 'Enter the correct short span ' : 'Enter the correct word '), input = el('input');
         input.type = 'text'; input.id = 'stt_manual_word'; input.dir = 'auto'; input.maxLength = 200;
-        input.value = manualEdits[w.word_id] != null ? manualEdits[w.word_id] : w.text; label.appendChild(input); details.appendChild(label);
-        var note = el('p', 'Manual edits change only this word in the pending draft.'); note.setAttribute('role', 'status'); details.appendChild(note);
+        var manual = manualEdits[editId]; input.value = manual != null ? typeof manual === 'object' ? manual.text : manual : s ? s.original : sourceSpan; label.appendChild(input); details.appendChild(label);
+        var note = el('p', 'Manual edits change only the selected word or span in the pending draft.'); note.setAttribute('role', 'status'); details.appendChild(note);
         function saveManual() {
           var value = input.value.trim();
-          if (!value || /\s/.test(value) || Array.from(value).length > 200 || /[\x00-\x1f]/.test(value)) { note.textContent = 'Enter one nonempty word, without spaces or line breaks.'; return; }
-          delete decisions[w.word_id];
-          if (value === w.text) delete manualEdits[w.word_id]; else manualEdits[w.word_id] = value;
+          if (!value || editIds.length === 1 && /\s/.test(value) || Array.from(value).length > 200 || /[\x00-\x1f]/.test(value)) { note.textContent = 'Enter a nonempty word or selected short span, without line breaks.'; return; }
+          clearOverlaps(editIds);
+          if (value !== (s ? s.original : sourceSpan)) manualEdits[editId] = editIds.length > 1 ? {text: value, word_ids: editIds.slice()} : value;
           updateDraft(); note.textContent = 'Word saved in the pending draft.';
         }
         input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); saveManual(); } });
         details.appendChild(btn('Save word in draft', saveManual));
-        details.appendChild(btn('Restore Whisper word', function () { delete decisions[w.word_id]; delete manualEdits[w.word_id]; updateDraft(); detail(w); }));
+        details.appendChild(btn('Restore Whisper word', function () { clearOverlaps(editIds); updateDraft(); detail(w); }));
       }
     }
     function render() {
       root.textContent = ''; root.hidden = false;
       root.appendChild(el('h3', phase === 'choice' ? 'Choose how to review the Whisper transcript' : 'Review transcript'));
       choice = el('div', null, 'row');
-      var llm = btn('Review with the selected LLM', function () { opts.choose('llm', useSkill); });
+      var llm = btn('Review suspect words with the LLM', function () { opts.choose('llm', useSkill, 'suspect'); });
+      var audit = btn('Review the whole text with the LLM', function () { opts.choose('llm', useSkill, 'full'); }); audit.id = 'stt_review_full'; audit.disabled = !config || !config.configured || phase === 'correcting';
       llm.id = 'stt_review_llm'; llm.disabled = !config || !config.configured || phase === 'correcting';
       var whisper = btn('Review Whisper result without the LLM', function () { opts.choose('whisper'); });
       whisper.id = 'stt_review_whisper'; whisper.disabled = phase === 'correcting';
@@ -180,8 +197,9 @@
       check.addEventListener('change', function () { if (!check.checked) { try { localStorage.removeItem('yt_asr_review_default'); } catch (e) {} } });
       if (preferred === 'llm') llm.classList.add('go'); else if (preferred === 'whisper') whisper.classList.add('go');
       // Preference only marks a button. It never dispatches a request.
-      choice.appendChild(llm); choice.appendChild(whisper); choice.appendChild(remember); root.appendChild(choice);
+      choice.appendChild(llm); choice.appendChild(audit); choice.appendChild(whisper); choice.appendChild(remember); root.appendChild(choice);
       root.appendChild(el('p', config && config.configured ? 'LLM destination: ' + config.base_url + ' · Selected model: ' + config.selected_model + '. Choosing LLM review sends bounded text and Whisper evidence; audio is never sent.' : 'LLM Integration is unconfigured. Whisper-only review sends nothing to an LLM.'));
+      if (config && config.configured) ['suspect', 'full'].forEach(function (task) { var setting = config.review_models && config.review_models[task]; root.appendChild(el('p', (task === 'full' ? 'Whole-text review' : 'Suspect-word review') + ': ' + (setting ? setting.model_id : config.selected_model) + (setting && setting.profile_id ? ' · Saved Studio profile will be loaded when this review starts.' : ''))); });
       var settings = el('a', 'LLM Integration settings'); settings.href = '/settings/llm/'; settings.target = '_blank'; settings.rel = 'noopener'; root.appendChild(settings);
       skillControls();
       var c = result.review && result.review.correction || {};
@@ -193,13 +211,13 @@
       showResponses(result.review && result.review.diagnostics || [], result.review && result.review.diagnostics_clipped);
       if (phase === 'choice' || phase === 'correcting') return;
       root.appendChild(el('p', '⚠ = low Whisper ASR score. ✎ = LLM edit proposal. Accepted and manual edits are underlined. Focus, hover or tap any word for details or to edit it.'));
-      var reviewed = result.review.result;
+      var reviewed = result.review && result.review.result;
       if (reviewed && reviewed.failed_word_ids && reviewed.failed_word_ids.length) root.appendChild(el('p', 'LLM review had problems with ' + reviewed.failed_word_ids.length + ' words. Other sentences were processed normally. Their Whisper words remain available; retry remaining suspect words or edit them yourself.', 'warn'));
       if (reviewed && !reviewed.suggestions.length) root.appendChild(el('p', reviewed.assessment === 'no_flagged_words' ? 'Whisper had no words below the ASR score threshold that could be reviewed. No text was sent to the LLM.' : reviewed.failed_word_ids && reviewed.failed_word_ids.length ? 'Some sentences could not be reviewed. Their words remain as Whisper returned them.' : reviewed.assessment === 'kept_original' ? 'The model kept the suspect words unchanged. This does not establish that they are correct; review their Whisper evidence.' : reviewed.assessment === 'uncertain' ? 'The model cannot tell whether a correction is needed. No words have been changed.' : 'The model reported no likely recognition error. No words have been changed.'));
       inspect = el('div', null, 'stt-review-text'); inspect.dir = 'auto';
       details = el('aside', 'Select a marked word for its evidence and alternatives.', 'stt-review-details');
       details.id = 'stt_review_details'; details.setAttribute('role', 'region'); details.setAttribute('aria-label', 'Word evidence and proposed edits'); details.setAttribute('aria-live', 'polite');
-      var evidence = result.review.evidence;
+      var evidence = result.review && result.review.evidence;
       if (evidence) evidence.segments.forEach(function (seg) {
         var row = el('p'), clock = el('span', time(seg.start) + '  ', 'stt-review-clock'); row.appendChild(clock);
         var text = el('span'), cursor = 0; text.dir = 'auto';
@@ -213,6 +231,13 @@
             b.setAttribute('data-review-word', w.word_id); b.setAttribute('aria-controls', details.id);
             b.setAttribute('aria-label', w.text + (w.low_asr_score ? ', low Whisper ASR score' : '') + (s ? ', LLM edit proposed' : ''));
             b.addEventListener('focus', function () { detail(w); });
+            b.addEventListener('keydown', function (e) {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault(); detail(w);
+                var target = details.querySelector('input') || details.querySelector('h3');
+                if (target) target.focus();
+              }
+            });
             b.addEventListener('mouseenter', function () { if (!details.contains(document.activeElement)) detail(w); });
             text.appendChild(b);
           } else text.appendChild(document.createTextNode(w.text));
@@ -224,7 +249,7 @@
       root.appendChild(inspect); root.appendChild(details);
       var previewBox = el('details'); previewBox.appendChild(el('summary', 'Pending transcript draft'));
       preview = el('pre'); preview.dir = 'auto'; previewBox.appendChild(preview); root.appendChild(previewBox);
-      retry = btn('Retry all remaining suspect words', function () { if (opts.retry) opts.retry(retryWords(), useSkill); }); retry.id = 'stt_review_retry'; root.appendChild(retry);
+      retry = btn('Retry all remaining suspect words', function () { if (opts.retry) opts.retry(retryWords(), useSkill, result.review.result && result.review.result.task || 'suspect'); }); retry.id = 'stt_review_retry'; root.appendChild(retry);
       use = btn('Use this transcript', function () { opts.use(Object.assign({}, decisions), Object.assign({}, manualEdits)); }); use.id = 'stt_use';
       root.appendChild(use); updateDraft();
       if (selected && words[selected]) detail(words[selected]);
@@ -235,13 +260,15 @@
         var before = result && result.review && result.review.evidence && result.review.evidence.source_sha256;
         var after = res.review && res.review.evidence && res.review.evidence.source_sha256;
         if (before !== after || state === 'choice') { decisions = {}; manualEdits = {}; selected = null; }
-        result = res; phase = state; config = connection; suggestions = {}; words = {};
-        ((res.review && res.review.result && res.review.result.suggestions) || []).forEach(function (s) { suggestions[s.word_id] = s; });
+        var previousSuggestions = suggestions; result = res; phase = state; config = connection; suggestions = {}; words = {};
+        ((res.review && res.review.result && res.review.result.suggestions) || []).forEach(function (s) { (s.word_ids || [s.word_id]).forEach(function (id) { suggestions[id] = s; }); });
         ((res.review && res.review.evidence && res.review.evidence.segments) || []).forEach(function (s) { s.words.forEach(function (w) { words[w.word_id] = w; }); });
+        Object.keys(decisions).forEach(function (id) { if (JSON.stringify(previousSuggestions[id]) !== JSON.stringify(suggestions[id])) delete decisions[id]; });
         render();
       },
       progress: function (say) { if (status) status.textContent = say; },
       diagnostics: function (history, clipped) { showResponses(history || [], clipped); },
+      resetProposals: function () { decisions = {}; },
       disableUse: function (on) { useBusy = on; disableControls(on); },
       clear: function () { result = null; decisions = {}; manualEdits = {}; useBusy = false; disabledBefore = []; root.textContent = ''; root.hidden = true; }
     };

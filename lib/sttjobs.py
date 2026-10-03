@@ -696,7 +696,7 @@ def _say(job):
     if s == CORRECTING:
         c = job.get("correction", {})
         if c.get("total", 0):
-            return "Reviewing with the selected LLM… %d / %d suspect words reviewed." % (c.get("done", 0), c["total"])
+            return "Reviewing with the selected LLM… %d / %d ASR words reviewed." % (c.get("done", 0), c["total"])
         return "Reviewing with the selected LLM…"
     if s == DONE:
         n = (job["facts"] or {}).get("captions", 0)
@@ -834,7 +834,7 @@ def _review_source_current(job):
         return False
 
 
-def review(token, mode, source_sha256, connection_id=None, word_ids=None, instruction_mode="prompt"):
+def review(token, mode, source_sha256, connection_id=None, word_ids=None, instruction_mode="prompt", task="suspect"):
     """Explicit browser choice. Destination and model come only from host config."""
     import llmconfig
     import llmadapter
@@ -850,6 +850,8 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
             raise Refusal("bad-review", "Choose LLM review or Whisper-only review.")
         if instruction_mode not in ("prompt", "skill"):
             raise Refusal("bad-review", "Choose the short prompt or installed correction skill.")
+        if task not in ("suspect", "full"):
+            raise Refusal("bad-review", "Choose suspect-word or whole-text review.")
         previous = job.get("correction_result")
         if word_ids is not None:
             import asrcorrection
@@ -857,8 +859,10 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
             if (mode != "llm" or not isinstance(word_ids, list) or not word_ids
                     or len(word_ids) > len(sources) or any(not isinstance(w, str) for w in word_ids)
                     or len(set(word_ids)) != len(word_ids)
-                    or any(w not in sources or not sources[w]["low_asr_score"] or not sources[w]["reviewable"] for w in word_ids)):
-                raise Refusal("bad-review", "Choose remaining low-score words from this Whisper result.")
+                    or any(w not in sources or not sources[w]["reviewable"] or
+                           (task != "full" and not sources[w]["low_asr_score"]) for w in word_ids)
+                    or (previous and previous.get("task", "suspect") != task)):
+                raise Refusal("bad-review", "Choose remaining words from this review task and Whisper result.")
         if mode == "whisper":
             job["review_choice"] = "whisper"
             job["correction_result"] = None
@@ -874,6 +878,10 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
             raise Refusal("skills-unavailable", "Select the Unsloth Agent Skills adapter in LLM Integration before using an installed skill.", 409)
         if connection_id != llmconfig.revision(config):
             raise Refusal("settings-changed", "The LLM settings changed. Inspect the current destination and choose review again.", 409)
+        try:
+            llmconfig.for_review(config, task)
+        except llmconfig.LLMError as e:
+            raise Refusal(e.code, e.say, 409)
         if word_ids is not None and previous and job.get("llm_config_fingerprint") != llmconfig.fingerprint(config):
             raise Refusal("settings-changed", "The LLM settings changed. Start a new review before retrying words.", 409)
         cancel = llmadapter.Cancellation()
@@ -890,7 +898,8 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
         job["correction"] = {"state": "running", "complete": False, "done": 0, "total": 0,
                              "unit": "words", "response_count": len(job.get("llm_diagnostics") or []),
                              "instruction_mode": instruction_mode,
-                             "destination": config["base_url"], "model": config["selected_model"],
+                             "task": task,
+                             "destination": config["base_url"], "model": llmconfig.for_review(config, task)["selected_model"],
                              "started": _now()}
         job["state"] = CORRECTING
         answer = _report(job)
@@ -904,6 +913,8 @@ def _correct(job, config, cancel, generation, word_ids=None, previous=None):
     import llmadapter
     import llmconfig
     stamp = llmconfig.fingerprint(config)
+    task = job["correction"].get("task", "suspect")
+    feature_config = llmconfig.for_review(config, task)
 
     def current():
         cancel.check()
@@ -915,7 +926,7 @@ def _correct(job, config, cancel, generation, word_ids=None, previous=None):
     class SavedAdapter:
         def generate_text(self, *args, **kw):
             current()
-            return llmadapter.adapter(config).generate_text(*args, **kw)
+            return llmadapter.adapter(feature_config).generate_text(*args, **kw)
 
     def progress(done, total):
         current()
@@ -947,16 +958,16 @@ def _correct(job, config, cancel, generation, word_ids=None, previous=None):
     try:
         out = asrcorrection.correct(job["review_evidence"], SavedAdapter(), cancel, progress,
                                     config.get("context_tokens", 8192), diagnostic, word_ids,
-                                    job["correction"].get("instruction_mode") == "skill")
+                                    job["correction"].get("instruction_mode") == "skill", task)
         current()
         with LOCK:
             if generation != job.get("llm_generation") or job["state"] != CORRECTING:
                 return
             if word_ids is not None and previous:
-                selected = set(word_ids)
+                selected = set(out.get("reviewed_word_ids", word_ids))
                 # A retry updates only its selected words. Other proposals and
                 # the browser's accepted/manual draft remain available.
-                out["suggestions"] = [s for s in previous["suggestions"] if s["word_id"] not in selected] + out["suggestions"]
+                out["suggestions"] = [s for s in previous["suggestions"] if not selected.intersection(s.get("word_ids", [s["word_id"]]))] + out["suggestions"]
                 for key in ("failed_word_ids", "uncertain_word_ids"):
                     out[key] = [w for w in previous.get(key, []) if w not in selected] + out[key]
                 out["assessment"] = "suggestions" if out["suggestions"] else out["assessment"]
