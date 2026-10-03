@@ -17,7 +17,10 @@ the same OpenAI-compatible implementation. No inference library or SDK is
 added to the main environment. HTTP does not follow redirects or proxy
 environment settings. A wall-clock deadline, cancellation event and socket
 shutdown bound the request. Error messages contain sanitized categories and
-HTTP status, never response bodies, prompts or credentials. JSON-mode output
+HTTP status, never response bodies, prompts or credentials. Known unloaded-model
+errors produce a static instruction to load the model in the endpoint's own
+interface; Parseh neither loads it nor retries that error without JSON mode.
+JSON-mode output
 is still parsed and validated. A connection test can record an unsupported
 JSON mode while retaining structured JSON parsing for feature calls.
 

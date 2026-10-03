@@ -121,6 +121,31 @@ class Adapter(unittest.TestCase):
         self.assertNotIn("private-key", str(e.exception))
         self.assertNotIn("transcript", str(e.exception))
 
+    def test_unloaded_model_is_explained_without_echo_or_json_mode_retry(self):
+        for error in ("No model loaded. private-key transcript contents",
+                      {"code": "model_not_loaded", "message": "private-key transcript contents"}):
+            with self.subTest(error=error):
+                self.http.status, self.http.body = 400, {"error": error}
+                self.http.calls.clear()
+                with self.assertRaises(llmconfig.LLMError) as e:
+                    llmadapter.adapter(config(self.http.base)).test()
+                self.assertEqual(e.exception.code, "model-not-loaded")
+                self.assertIn("Load the selected model", str(e.exception))
+                self.assertNotIn("private-key", str(e.exception))
+                self.assertNotIn("transcript", str(e.exception))
+                self.assertEqual(len(self.http.calls), 1)
+
+    def test_unknown_or_oversized_http_error_remains_redacted(self):
+        for body in (b'private-key transcript contents',
+                     {"error": {"message": "private-key transcript contents"}},
+                     b'x' * (llmadapter.MAX_ERROR + 1)):
+            self.http.status, self.http.body = 400, body
+            with self.assertRaises(llmconfig.LLMError) as e:
+                llmadapter.adapter(config(self.http.base)).models()
+            self.assertEqual(e.exception.code, "http-error")
+            self.assertNotIn("private-key", str(e.exception))
+            self.assertNotIn("transcript", str(e.exception))
+
     def test_size_limit_and_malformed_json(self):
         for raw in (b"x" * (llmadapter.MAX_RESPONSE + 1), b"not JSON", b'{"ok":NaN}'):
             self.http.body = raw

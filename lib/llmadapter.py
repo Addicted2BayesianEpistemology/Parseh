@@ -16,6 +16,7 @@ from llmconfig import LLMError, validate
 
 MAX_RESPONSE = 256 * 1024
 MAX_REQUEST = 64 * 1024
+MAX_ERROR = 16 * 1024
 
 
 class Cancellation:
@@ -55,6 +56,27 @@ def parse_json(content):
         return json.loads(content, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
     except (ValueError, TypeError, UnicodeError, RecursionError):
         raise LLMError("invalid-json", "The endpoint returned invalid JSON. The Whisper result is intact.")
+
+
+def endpoint_error(status, content=b""):
+    """Map known endpoint failures to static sentences; never echo its body."""
+    if status in (401, 403):
+        return LLMError("authentication", "The endpoint refused authentication.", status)
+    if status in (400, 404, 409, 422, 503) and len(content) <= MAX_ERROR:
+        try:
+            raw = parse_json(content)
+            error = raw.get("error", raw.get("detail")) if isinstance(raw, dict) else None
+            message = error.get("message") if isinstance(error, dict) else error
+            code = error.get("code") if isinstance(error, dict) else None
+            missing = code in ("model_not_loaded", "no_model_loaded")
+            if isinstance(message, str):
+                missing = missing or any(phrase in message.lower() for phrase in (
+                    "no model loaded", "no model is loaded", "model is not loaded", "model not loaded"))
+            if missing:
+                return LLMError("model-not-loaded", "The endpoint has no model loaded. Load the selected model in its own interface, wait until it is ready, then retry.", status)
+        except LLMError:
+            pass
+    return LLMError("http-error", "The endpoint refused the request (HTTP %d)." % status, status)
 
 
 class OpenAICompatible:
@@ -98,10 +120,10 @@ class OpenAICompatible:
                 response = conn.getresponse()
                 if response.status != 200:
                     status = response.status
-                    category = "authentication" if status in (401, 403) else "http-error"
-                    say = "The endpoint refused authentication." if category == "authentication" else \
-                        "The endpoint refused the request (HTTP %d)." % status
-                    raise LLMError(category, say, status)
+                    # Read only a small, bounded failure payload, solely to
+                    # recognize static categories. It is never logged/returned.
+                    failure = response.read(MAX_ERROR + 1) if status in (400, 404, 409, 422, 503) else b""
+                    raise endpoint_error(status, failure)
                 declared = response.getheader("Content-Length")
                 if declared and (not declared.isdigit() or int(declared) > MAX_RESPONSE):
                     raise LLMError("too-large", "The endpoint response is too large.")
@@ -170,7 +192,7 @@ class OpenAICompatible:
         try:
             raw = self.generate(messages, json_mode=True, max_tokens=64)
         except LLMError as e:
-            if e.status not in (400, 422):
+            if e.status not in (400, 422) or e.code != "http-error":
                 raise
             raw = self.generate(messages, json_mode=False, max_tokens=64)
             mode = "unsupported"
