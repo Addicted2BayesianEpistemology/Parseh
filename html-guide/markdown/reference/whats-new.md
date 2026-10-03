@@ -39,7 +39,10 @@ inspector compares meanings for the original, Whisper alternatives and proposed
 LLM replacements.
 The existing faster-whisper backend exposes native beam alternatives where
 they map exactly to a source word, with sequence scores labeled separately
-from word probabilities. The low-ASR-score threshold remains 0.5.
+from word probabilities. The low-ASR-score threshold remains 0.5. An additional reasoning workspace
+review gives a tool-capable model a temporary blanked transcript and CSV evidence,
+first skimming unblanked text and then resolving numbered entries with isolated
+Python. Its model selection is separate; existing review methods remain available.
 
 ### Colour meaningful parts of a word
 

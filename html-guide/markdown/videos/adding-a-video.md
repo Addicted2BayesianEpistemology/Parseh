@@ -229,7 +229,8 @@ opens it again. A live YouTube recording must finish or be cancelled before
 returning to the page. **Discard review** leaves the transcript box untouched.
 
 Choose **Review suspect words with the LLM** or **Review the whole text with the
-LLM**, sending bounded text and Whisper
+LLM**, or add a two-pass **Review with reasoning & workspace tools**, sending
+text and Whisper
 evidence to the destination shown, or **Review Whisper result without the
 LLM**, which sends nothing to a model endpoint. Both open review. A low
 Whisper score below 0.5 is marked **⚠**, a word with no meaning in an installed

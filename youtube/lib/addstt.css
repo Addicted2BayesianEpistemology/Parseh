@@ -89,6 +89,7 @@
 .stt-review-head{margin-bottom:12px}
 .stt-review-choices{display:flex;flex-wrap:wrap;gap:6px}
 .stt-review-choices button{flex:1 1 150px;text-align:start;line-height:1.45;padding:10px 12px}
+.stt-review-choices>.fieldnote{flex-basis:100%;margin:4px 0}
 .stt-review-destination{font-size:12px;color:var(--dim);margin:8px 0}
 .stt-review-options{margin:8px 0;font-size:13px}
 .stt-review summary{cursor:pointer;color:var(--dim);padding-block:6px}

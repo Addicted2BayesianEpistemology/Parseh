@@ -58,21 +58,25 @@ def page(where):
 <button type="button" class="go" id="llm_profile_apply">Load selected profile</button>
 <button type="button" class="plain" id="llm_profile_remove">Remove profile</button></p>
 <p id="llm_profile_info"></p>
-<p class="why">Loading happens when you press Load selected profile or explicitly start a review assigned to that profile. Missing models or variants are refused; install them in Studio first. Links with unsupported options are refused. Vision defaults off when omitted; speculative decoding and thinking are off.</p></section>
+<p class="why">Loading happens when you press Load selected profile or explicitly start a review assigned to that profile. Missing models or variants are refused; install them in Studio first. Links with unsupported options are refused. Vision defaults off when omitted; speculative decoding is off. The existing sentence reviews disable thinking; workspace review requests reasoning and supplies isolated Python tools.</p></section>
 <section data-layout="browser"><h2>Models for transcript review</h2>
-<p>Choose separate models for suspect-word correction and whole-text review. An empty model ID uses the general model selection. A saved Studio profile is loaded through the API only after you explicitly start its review. Both tasks ask before sending text.</p>
+<p>Choose separate models for suspect-word correction, whole-text review and reasoning workspace review. An empty model ID uses the general model selection. A saved Studio profile is loaded through the API only after you explicitly start its review. All methods ask before sending text.</p>
 <p><label>Suspect-word profile <select id="llm_task_suspect_profile"></select></label>
 <label>Model ID <input id="llm_task_suspect_model" type="text" maxlength="512"></label>
 <button id="llm_task_suspect_save" type="button" class="plain">Save suspect-word model</button></p>
 <p><label>Whole-text profile <select id="llm_task_full_profile"></select></label>
 <label>Model ID <input id="llm_task_full_model" type="text" maxlength="512"></label>
 <button id="llm_task_full_save" type="button" class="plain">Save whole-text model</button></p>
+<p><label>Reasoning workspace profile <select id="llm_task_workspace_profile"></select></label>
+<label>Model ID <input id="llm_task_workspace_model" type="text" maxlength="512"></label>
+<button id="llm_task_workspace_save" type="button" class="plain">Save workspace model</button></p>
+<p class="why">Workspace review adds a two-pass file-and-code workflow. It needs a reasoning model supporting external tool calls, at least 8192 context tokens, and working Linux bubblewrap on the Parseh host. Nothing is installed automatically.</p>
 <p class="why">Whole-text review checks all mapped words, including confident Whisper words. It can propose a short span covering several ASR pieces. You accept or reject each edit before using the transcript.</p></section>
 <p id="llm_destination"></p>
 <p id="llm_status" role="status" aria-live="polite"></p>
 <p id="llm_last_test"></p>
 <section><h2>Where feature inputs go</h2>
-<p>Each feature sends only its required inputs to the saved destination. Transcript review sends a short target caption, bounded nearby context, and optional hints for its low-score words. Whole-text review processes every caption. Audio, file paths, video IDs, cookies and unrelated history are never sent. A connection test says nothing about linguistic accuracy.</p>
+<p>Each feature sends only its required inputs to the saved destination. Transcript review sends a short target caption, bounded nearby context, and optional hints for its low-score words. Whole-text review processes every caption. Workspace review provides a complete transcript with numbered blanks and bounded CSV evidence through file tools; Python runs in a private isolated environment on the Parseh host. Audio, file paths, video IDs, cookies and unrelated history are never sent. A connection test says nothing about linguistic accuracy.</p>
 <p>Credentials stay on this Parseh host and are never returned after saving. Unsloth and Ollama own their CPU/GPU runtimes. Saved Studio profiles can explicitly load already installed GGUF files; Parseh never downloads weights or starts an endpoint.</p></section>
 </main><p data-layout="mobile">LLM Integration is configured in the Browser interface. Switch to Browser using the interface control above.</p>''' % (settingspage.settings_doors(PAGE), lock, "true" if can else "false", "" if can else "disabled")
     return settingspage.frame("LLM Integration — Parseh", "Settings", "Settings", "/guide/", main,

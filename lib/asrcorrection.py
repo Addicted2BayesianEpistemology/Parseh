@@ -169,7 +169,7 @@ def sentence_units(request, byte_limit=3500, task="suspect"):
     return units
 
 
-def hint(word):
+def hint(word, candidate_limit=3):
     sc = word["asr_confidence"]
     lead = "%s (Whisper ASR score %s): " % (word["text"], "unavailable" if sc is None else "%.2f" % sc)
     if word.get("dictionary_miss"):
@@ -178,7 +178,7 @@ def hint(word):
         return lead + "alternatives unavailable"
     if not word["asr_alternatives"]:
         return lead + "no alternatives returned"
-    candidates = word["asr_alternatives"][:3]
+    candidates = word["asr_alternatives"][:candidate_limit]
     return lead + "; ".join(a["text"] + (" (word score %.2f)" % a["score"] if a["score"] is not None else
                            " (sequence log score %.2f)" % a["sequence_score"] if a.get("sequence_score") is not None else " (word score unavailable)")
                            for a in candidates)

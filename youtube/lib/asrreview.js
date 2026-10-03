@@ -66,6 +66,8 @@
       var box = el('details'); box.setAttribute('data-review-disclosure', 'skill'); box.appendChild(el('summary', 'Correction skill'));
       var download = el('a', 'Download suspect-word correction skill'); download.href = '/lib/asrskill/parseh-asr-correction.zip'; download.download = 'parseh-asr-correction.zip'; box.appendChild(download);
       var auditDownload = el('a', 'Download whole-text review skill'); auditDownload.href = '/lib/asrskill/parseh-asr-audit.zip'; auditDownload.download = 'parseh-asr-audit.zip'; box.appendChild(el('p')).appendChild(auditDownload);
+      var workspaceDownload = el('a', 'Download reasoning workspace skill'); workspaceDownload.href = '/lib/asrskill/parseh-asr-workspace.zip'; workspaceDownload.download = 'parseh-asr-workspace.zip'; box.appendChild(el('p')).appendChild(workspaceDownload);
+      box.appendChild(el('p', 'Workspace review loads its bundled skill automatically and supplies isolated file/Python tools. The installed-skill checkbox below applies to the two sentence review methods.'));
       var skillTask = el('select'); ['Suspect words', 'Whole text'].forEach(function (label, i) { var op = el('option', label); op.value = i ? 'audit-' : ''; skillTask.appendChild(op); }); var skillLabel = el('label', 'Skill to check or install '); skillLabel.appendChild(skillTask); box.appendChild(skillLabel);
       box.appendChild(el('p', 'For Unsloth Studio, extract the skill folder into .agents/skills on the endpoint computer, or install it below. Enable it in Studio. Other software must support Agent Skills through its API.'));
       var enabled = !!(config && config.configured && config.adapter === 'unsloth-agent-skills');
@@ -102,13 +104,13 @@
         var entry = el('details');
         var traceKey = trace.run + ':' + trace.sentence_id + ':' + trace.attempt;
         entry.setAttribute('data-response-key', traceKey); entry.open = !!open[traceKey];
-        entry.appendChild(el('summary', 'Response ' + (i + 1) + ' · ' + (trace.word_ids || []).length + ' suspect words · ' + trace.state +
+        entry.appendChild(el('summary', 'Response ' + (i + 1) + ' · ' + (trace.word_ids || []).length + ' words' + (trace.phase ? ' · ' + trace.phase : '') + ' · ' + trace.state +
           ' · ' + (trace.elapsed_seconds == null ? '' : trace.elapsed_seconds + ' s') + (trace.finish_reason ? ' · finish: ' + trace.finish_reason : '')));
         if (trace.error) entry.appendChild(el('p', trace.error, 'warn'));
         entry.appendChild(el('h4', 'Whisper region'));
         var original = el('pre', trace.source || ''); original.dir = 'auto'; entry.appendChild(original);
-        entry.appendChild(el('h4', 'Final answer'));
-        var answer = el('pre', trace.answer || '(No final answer returned)'); answer.dir = 'auto'; entry.appendChild(answer);
+        entry.appendChild(el('h4', trace.phase ? 'Assistant text (optional for tool calls)' : 'Final answer'));
+        var answer = el('pre', trace.answer || (trace.tool_calls && trace.tool_calls.length ? '(The model called workspace tools)' : '(No final answer returned)')); answer.dir = 'auto'; entry.appendChild(answer);
         if (trace.raw_answer && trace.raw_answer !== trace.answer) {
           var raw = el('details'); raw.appendChild(el('summary', 'Raw answer content'));
           var rawText = el('pre', trace.raw_answer); rawText.dir = 'auto'; raw.appendChild(rawText); entry.appendChild(raw);
@@ -117,8 +119,13 @@
           var reasoning = el('details'); reasoning.appendChild(el('summary', 'Reasoning returned by the endpoint'));
           var thought = el('pre', trace.reasoning); thought.dir = 'auto'; reasoning.appendChild(thought); entry.appendChild(reasoning);
         }
-        var prompt = el('details'); prompt.appendChild(el('summary', 'Exact short prompt'));
-        (trace.prompt || []).forEach(function (message) { prompt.appendChild(el('h4', message.role)); var text = el('pre', message.content); text.dir = 'auto'; prompt.appendChild(text); });
+        if (trace.tool_calls && trace.tool_calls.length) {
+          var calls = el('details'); calls.appendChild(el('summary', 'Workspace tool calls'));
+          trace.tool_calls.forEach(function (call) { calls.appendChild(el('h4', call.function.name)); var args = el('pre', call.function.arguments); args.dir = 'auto'; calls.appendChild(args); });
+          (trace.tool_results || []).forEach(function (result) { calls.appendChild(el('h4', result.name + ' result')); var output = el('pre', result.output); output.dir = 'auto'; calls.appendChild(output); }); entry.appendChild(calls);
+        }
+        var prompt = el('details'); prompt.appendChild(el('summary', 'Exact request messages'));
+        (trace.prompt || []).forEach(function (message) { prompt.appendChild(el('h4', message.role)); var text = el('pre', message.content || (message.tool_calls ? JSON.stringify(message.tool_calls) : '')); text.dir = 'auto'; prompt.appendChild(text); });
         entry.appendChild(prompt);
         if (trace.ignored_edits && trace.ignored_edits.length) {
           entry.appendChild(el('p', trace.ignored_edits.length + ' changes outside flagged words or across ambiguous spans were ignored. Caption text is only changed by accepted word edits.'));
@@ -297,11 +304,14 @@
       choice = el('div', null, 'stt-review-choices');
       var llm = btn('Review suspect words with the LLM', function () { opts.choose('llm', useSkill, 'suspect'); });
       var audit = btn('Review the whole text with the LLM', function () { opts.choose('llm', useSkill, 'full'); }); audit.id = 'stt_review_full';
+      var workspace = btn('Review with reasoning & workspace tools', function () { opts.choose('llm', false, 'workspace'); }); workspace.id = 'stt_review_workspace';
+      workspace.disabled = !config || !config.configured || !config.workspace || !config.workspace.available || phase === 'correcting';
       audit.disabled = !config || !config.configured || phase === 'correcting';
       llm.id = 'stt_review_llm'; llm.disabled = !config || !config.configured || phase === 'correcting';
       var whisper = btn('Review Whisper result without the LLM', function () { opts.choose('whisper'); });
       whisper.id = 'stt_review_whisper'; whisper.disabled = phase === 'correcting';
-      [whisper, llm, audit].forEach(function (button) { choice.appendChild(button); });
+      [whisper, llm, audit, workspace].forEach(function (button) { choice.appendChild(button); });
+      if (config && config.configured) choice.appendChild(el('p', config.workspace && config.workspace.available ? 'Workspace review: first skim unblanked text, then resolve numbered suspects using CSV evidence and Python. Reasoning is requested; the 0.5 Whisper threshold stays unchanged.' : config.workspace && config.workspace.say || 'Workspace review is unavailable on this host.', 'fieldnote'));
       if (phase === 'choice') root.appendChild(choice);
       else {
         var another = el('details', null, 'stt-review-options'); another.setAttribute('data-review-disclosure', 'method');
@@ -313,9 +323,9 @@
       var advanced = el('details', null, 'stt-review-options'); advanced.setAttribute('data-review-disclosure', 'options');
       advanced.appendChild(el('summary', 'Models, preferences & skills'));
       root.appendChild(advanced);
-      if (config && config.configured) ['suspect', 'full'].forEach(function (task) {
+      if (config && config.configured) ['suspect', 'full', 'workspace'].forEach(function (task) {
         var setting = config.review_models && config.review_models[task];
-        advanced.appendChild(el('p', (task === 'full' ? 'Whole-text review' : 'Suspect-word review') + ': ' + (setting ? setting.model_id : config.selected_model) +
+        advanced.appendChild(el('p', (task === 'workspace' ? 'Reasoning workspace review' : task === 'full' ? 'Whole-text review' : 'Suspect-word review') + ': ' + (setting ? setting.model_id : config.selected_model) +
           (setting && setting.profile_id ? ' · Saved Studio profile loads when this review starts.' : '')));
       });
       var remember = el('label', 'Remember my default review choice in this browser '), check = el('input');

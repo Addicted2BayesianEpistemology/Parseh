@@ -243,6 +243,57 @@ class OpenAICompatible:
             raise LLMError("skills-unavailable", "This adapter does not invoke installed skills. Choose the Unsloth Agent Skills adapter or use the short prompt.")
         return self._completion(messages, cancel, False, max_tokens, observe)
 
+    def agent_turn(self, messages, tools, cancel=None, max_tokens=2048, observe=None):
+        """One external tool turn. Parseh, rather than the endpoint, runs tools."""
+        payload = {"model": self.config["selected_model"], "messages": messages,
+                   "tools": tools, "tool_choice": "auto", "parallel_tool_calls": False,
+                   "temperature": 0, "stream": False, "max_tokens": max_tokens}
+        if self.config.get("pending_profile"):
+            raise LLMError("model-profile-pending", "Finish loading this model profile before review.")
+        if isinstance(self, UnslothStudio):
+            # Explicit external functions; never enable Studio's host tools/MCP.
+            payload.update(enable_thinking=True, enable_tools=False, mcp_enabled=False)
+        started = time.monotonic()
+        raw = self.request("chat/completions", payload, cancel)
+        try:
+            choice = raw["choices"][0]
+            message = choice["message"]
+            finish = choice.get("finish_reason")
+            content = message.get("content") or ""
+            reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
+            calls = message.get("tool_calls") or []
+            if (not isinstance(content, str) or not isinstance(reasoning, str)
+                    or not isinstance(calls, list) or len(calls) > 4):
+                raise ValueError()
+            cleaned, seen = [], set()
+            allowed = {t["function"]["name"] for t in tools}
+            for call in calls:
+                ident, function = call["id"], call["function"]
+                name, arguments = function["name"], function["arguments"]
+                if (call.get("type") != "function" or not isinstance(ident, str)
+                        or not re.fullmatch(r"[\w-]{1,200}", ident) or ident in seen
+                        or name not in allowed or not isinstance(arguments, str)
+                        or len(arguments.encode("utf-8")) > 12000
+                        or not isinstance(parse_json(arguments), dict)):
+                    raise ValueError()
+                seen.add(ident)
+                cleaned.append({"id": ident, "type": "function", "function": {"name": name, "arguments": arguments}})
+        except (KeyError, IndexError, TypeError, AttributeError, ValueError):
+            raise LLMError("invalid-tools", "The model returned an invalid workspace tool call.")
+        if observe:
+            key = self.config.get("api_key")
+            safe = lambda s: s.replace(key, "[redacted credential]") if key else s
+            observe({"answer": safe(content)[:16000], "reasoning": safe(reasoning)[:16000],
+                     "tool_calls": parse_json(safe(json.dumps(cleaned, ensure_ascii=False))),
+                     "finish_reason": finish if finish in ("stop", "tool_calls", "length", None) else "other",
+                     "elapsed_seconds": round(time.monotonic() - started, 2)})
+        if finish == "length":
+            raise LLMError("output-limit", "The model reached its reasoning or tool output limit. Retry the remaining words.")
+        if finish not in ("stop", "tool_calls", None) or not calls:
+            raise LLMError("tools-required", "This review needs a model that calls the provided workspace tools. Its text answer is available in LLM responses.")
+        # Reasoning is diagnostic data, never injected as instructions/history.
+        return {"role": "assistant", "content": content or None, "tool_calls": cleaned}
+
     def generate(self, messages, cancel=None, json_mode=None, max_tokens=2048):
         use_json = self.config.get("json_mode") != "unsupported" if json_mode is None else json_mode
         return parse_json(self._completion(messages, cancel, use_json, max_tokens))

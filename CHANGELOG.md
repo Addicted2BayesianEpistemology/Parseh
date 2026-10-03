@@ -1,5 +1,6 @@
 ## [a0.4.3] - unreleased
 ### Added
+- Additional reasoning workspace review with numbered transcript blanks, CSV evidence, isolated Python tools, separate model selection and two-pass word progress; existing review modes and thresholds stay unchanged
 - Browser transcription workspace with video beside the transcript, word/caption replay, ±1/2/5-second playback controls, caption filters and a persistent word editor
 - Brief word playback with automatic pause, installed-dictionary suspect flags and original/replacement meanings in browser transcript review
 - Dictionary meanings for native Whisper alternatives alongside their recognition scores in the word inspector

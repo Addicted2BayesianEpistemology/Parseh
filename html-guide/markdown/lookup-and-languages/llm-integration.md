@@ -43,7 +43,8 @@ Paste a link and profile name, then **Save profile link**. **Load selected
 profile** uses Studio's API to load an already installed GGUF variant with
 its KV-cache type, optional context length and vision option. Missing files
 and unsupported link options are refused without downloading anything.
-Vision defaults off when omitted; speculative decoding and thinking are off.
+Vision defaults off when omitted; speculative decoding is off. Sentence reviews
+disable thinking. The additional workspace review requests reasoning.
 Studio controls hardware placement; Parseh reads the loaded context budget.
 
 Profiles and model selection are available from any admitted browser. Profile
@@ -52,7 +53,8 @@ host-only. A failed or unconfirmed load blocks inference until you retry the
 profile or deliberately select a loaded model.
 
 Under **Models for transcript review**, choose separate profiles or exact model
-IDs for **suspect-word correction** and **whole-text review**. An empty ID uses
+IDs for **suspect-word correction**, **whole-text review** and **reasoning
+workspace review**. An empty ID uses
 the general selection. Starting a review explicitly loads its assigned installed
 Studio profile first. It never loads a model on opening a page. Compatible
 servers without Studio's native API use saved model IDs directly.
@@ -69,7 +71,8 @@ press **Create** and copy it while shown; Studio shows the key once.
 When [speech to text](speech-to-text.md) finishes on
 [Add a video](../videos/adding-a-video.md#speech-to-text), the transcript box
 stays unchanged. Choose **Review suspect words with the LLM**, **Review the whole text with the
-LLM**, or **Review Whisper result without the LLM**. The saved destination/model are shown before sending.
+LLM**, **Review with reasoning & workspace tools**, or **Review Whisper result
+without the LLM**. The saved destination/model are shown before sending.
 Whisper-only review sends nothing. Remembering a browser default marks a
 button and never makes an unattended request.
 
@@ -109,10 +112,51 @@ untouched. Source, language, Whisper-model or box changes discard stale review.
 Caption boundaries and video clocks stay unchanged; edited word timings need
 review in the existing timing editor because the audio has been deleted.
 
+## Reasoning workspace review
+
+This is an additional method; the sentence reviews and Whisper-only review
+remain available. Choose a model supporting reasoning and external tool calls
+under **Models for transcript review → Reasoning workspace profile**. For
+Unsloth, save its Studio share link and select that profile. It loads only when
+you explicitly start its review. Use the endpoint's actual context length;
+workspace review requires at least 8192 tokens.
+
+Parseh creates a private temporary workspace containing the entire transcript
+without timestamps. Suspects are replaced by numbered blanks. The Whisper
+threshold remains **0.5**; installed-dictionary misses are a separate cue.
+A CSV pairs each number with the original guess, unchanged Whisper confidence
+(or “unavailable”), nearby context and genuine optional ASR alternatives.
+Additional CSV files supply stable source IDs and exact caption spacing.
+
+The model first skims unblanked text for missed errors, then processes numbered
+entries. Both passes use bounded regions, with access to the full transcript
+through real files. Tentative first-pass proposals provide context to the second
+pass. The bundled skill supplies a small CSV helper so the model can inspect evidence
+and save proposals with short Python calls. It still has real file/code tools.
+The model runs Python to read files and produce a small proposals CSV;
+Parseh checks IDs, exact original spans, duplicates and local substitutions.
+These are proposals, not a replacement transcript. All still need your approval.
+
+Python runs on the Parseh host under **Linux bubblewrap**, with no host home,
+credentials, network or other processes. Inputs are read-only; only one bounded
+CSV is writable. CPU, memory, output and execution time are limited. Nothing is
+installed automatically. If working isolation is unavailable, choose another
+review method. The endpoint still owns LLM hardware and inference. Temporary
+files are removed on completion or cancellation.
+
+Progress counts each mapped source word once across the two passes. A failed
+region leaves unseen words unchanged, preserves validated entries and continues
+with later regions. Retry remaining suspect/failed words or edit them manually.
+**LLM responses** also shows the actual code/tool calls, bounded tool output and
+reasoning supplied by the endpoint. Reasoning support is requested through
+Unsloth's API; other compatible endpoints use their model's default reasoning.
+This may be slower than sentence review and does not guarantee better accuracy.
+
 ## Correction skill
 
 Expand **Correction skill** in the review page to download the suspect-word
-skill (`parseh-asr-correction`) or whole-text skill (`parseh-asr-audit`). Each zip
+skill (`parseh-asr-correction`), whole-text skill (`parseh-asr-audit`), or the
+reasoning workspace skill (`parseh-asr-workspace`). Each zip
 contains its skill folder and `SKILL.md`. In Unsloth, extract the folder under the endpoint user's
 `.agents/skills/`, or create the skill in Studio and enable it. It can then be
 selected with `@parseh-asr-correction` in a Studio chat.
@@ -125,6 +169,11 @@ Choose which skill to check/install and enable **Use installed skill for the
 chosen review** before starting LLM review. Parseh
 sends the skill invocation and sentence evidence; Unsloth loads the installed
 instructions with its `read_skill` tool. Other tools and MCP are disabled.
+
+Workspace review always loads its bundled workspace skill and supplies Python
+tools; the installed-skill checkbox applies to the two sentence methods. A
+downloaded workspace skill also needs its own file/code tools when used outside
+Parseh.
 
 Other software needs its own skill-capable API to invoke installed skills.
 Generic compatible endpoints use Parseh's short prompt. A skill supplies reusable
@@ -148,6 +197,6 @@ with this job; they are never written to logs or synced. A model leaving a word
 unchanged does not establish that it is correct.
 
 **Cancel LLM review** aborts the HTTP work and retains the Whisper result.
-Audio, waveforms, paths, video IDs, cookies and unrelated history are never sent.
+Audio, waveforms, host file paths, video IDs, cookies and unrelated history are never sent.
 ASR hardware remains in Speech to text; LLM hardware belongs to the endpoint.
 This feature adds no mobile reader or mobile app behavior.

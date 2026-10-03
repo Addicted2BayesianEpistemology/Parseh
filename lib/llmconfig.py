@@ -156,8 +156,8 @@ def validate(raw):
                 raise LLMError("bad-profile", "The selected model profile no longer exists.")
             out[key] = raw[key]
     tasks = raw.get("review_models", {})
-    if not isinstance(tasks, dict) or set(tasks) - {"suspect", "full"}:
-        raise LLMError("bad-config", "Choose a model for suspect-word or whole-text review.")
+    if not isinstance(tasks, dict) or set(tasks) - {"suspect", "full", "workspace"}:
+        raise LLMError("bad-config", "Choose a model for a transcript review method.")
     if tasks:
         out["review_models"] = {}
     for task, setting in tasks.items():
@@ -210,7 +210,9 @@ def view(root=None):
     if c is None:
         return {"configured": False, "has_api_key": False, "presets": PRESETS,
                 "settings": "/settings/llm/"}
+    import asrworkspace
     return dict({k: v for k, v in c.items() if k != "api_key"}, configured=True,
+                workspace=asrworkspace.sandbox_status(),
                 connection_id=revision(c),
                 last_test=LAST_TEST.get(fingerprint(c)),
                 has_api_key=bool(c["api_key"]), presets=PRESETS, settings="/settings/llm/")
@@ -282,7 +284,7 @@ def select_model(body, root=None):
 def review_model(body, root=None):
     """Model-only feature choices from any admitted browser; no destinations."""
     if (not isinstance(body, dict) or set(body) != {"task", "model_id", "profile_id"}
-            or body.get("task") not in ("suspect", "full")):
+            or body.get("task") not in ("suspect", "full", "workspace")):
         raise LLMError("bad-config", "Select a review task and a saved model/profile only.")
     with LOCK:
         c = load(root)
@@ -299,8 +301,8 @@ def review_model(body, root=None):
 
 
 def for_review(c, task):
-    if task not in ("suspect", "full"):
-        raise LLMError("bad-review", "Choose suspect-word or whole-text review.")
+    if task not in ("suspect", "full", "workspace"):
+        raise LLMError("bad-review", "Choose a saved transcript review method.")
     if c.get("pending_profile"):
         raise LLMError("model-profile-pending", "The model load is unconfirmed. Load its saved profile again before review.")
     setting = c.get("review_models", {}).get(task)

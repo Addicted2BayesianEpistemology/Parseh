@@ -19,3 +19,9 @@ OpenAI-compatible endpoints use Parseh's short prompt.
 
 Skills provide instructions. They do not train weights, improve the model's
 base language competence, or guarantee that a correction is right.
+
+The additional parseh-asr-workspace skill describes a two-pass file-and-code
+review. Parseh loads it automatically for workspace review and provides isolated
+Python tools. Download it from Correction skill for other software; that software
+must provide its own file/code environment. The installed-skill checkbox applies
+to the two sentence-review methods above.

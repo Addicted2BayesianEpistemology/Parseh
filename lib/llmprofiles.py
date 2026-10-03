@@ -91,7 +91,7 @@ def apply(body, root=None, expected=None):
 
 def prepare(body, root=None):
     """Explicit review action: load only its saved installed-model profile."""
-    if not isinstance(body, dict) or set(body) != {"task", "connection_id"} or body.get("task") not in ("suspect", "full"):
+    if not isinstance(body, dict) or set(body) != {"task", "connection_id"} or body.get("task") not in ("suspect", "full", "workspace"):
         raise LLMError("bad-review", "Choose a saved review task only.")
     with llmconfig.LOCK:
         c = _configured(root)

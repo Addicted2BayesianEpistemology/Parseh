@@ -699,6 +699,8 @@ def _say(job):
     if s == CORRECTING:
         c = job.get("correction", {})
         if c.get("total", 0):
+            if c.get("task") == "workspace":
+                return "%s… %d / %d ASR words processed." % (c.get("phase", "Reviewing workspace"), c.get("done", 0), c["total"])
             return "Reviewing with the selected LLM… %d / %d ASR words reviewed." % (c.get("done", 0), c["total"])
         return "Reviewing with the selected LLM…"
     if s == DONE:
@@ -905,8 +907,8 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
             raise Refusal("bad-review", "Choose LLM review or Whisper-only review.")
         if instruction_mode not in ("prompt", "skill"):
             raise Refusal("bad-review", "Choose the short prompt or installed correction skill.")
-        if task not in ("suspect", "full"):
-            raise Refusal("bad-review", "Choose suspect-word or whole-text review.")
+        if task not in ("suspect", "full", "workspace"):
+            raise Refusal("bad-review", "Choose a saved transcript review method.")
         previous = job.get("correction_result")
         if word_ids is not None:
             import asrcorrection
@@ -915,7 +917,7 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
                     or len(word_ids) > len(sources) or any(not isinstance(w, str) for w in word_ids)
                     or len(set(word_ids)) != len(word_ids)
                     or any(w not in sources or not sources[w]["reviewable"] or
-                           (task != "full" and not asrcorrection.suspect(sources[w])) for w in word_ids)
+                           (task == "suspect" and not asrcorrection.suspect(sources[w])) for w in word_ids)
                     or (previous and previous.get("task", "suspect") != task)):
                 raise Refusal("bad-review", "Choose remaining words from this review task and Whisper result.")
         if mode == "whisper":
@@ -929,12 +931,16 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
         config = llmconfig.load()
         if config is None:
             raise Refusal("llm-unconfigured", "Set up LLM Integration, or review the Whisper result without it.", 409)
-        if instruction_mode == "skill" and config.get("adapter") != "unsloth-agent-skills":
+        if instruction_mode == "skill" and task != "workspace" and config.get("adapter") != "unsloth-agent-skills":
             raise Refusal("skills-unavailable", "Select the Unsloth Agent Skills adapter in LLM Integration before using an installed skill.", 409)
         if connection_id != llmconfig.revision(config):
             raise Refusal("settings-changed", "The LLM settings changed. Inspect the current destination and choose review again.", 409)
         try:
             llmconfig.for_review(config, task)
+            if task == "workspace":
+                import asrworkspace
+                if not asrworkspace.sandbox_status()["available"]:
+                    raise llmconfig.LLMError("workspace-unavailable", asrworkspace.sandbox_status()["say"])
         except llmconfig.LLMError as e:
             raise Refusal(e.code, e.say, 409)
         if word_ids is not None and previous and job.get("llm_config_fingerprint") != llmconfig.fingerprint(config):
@@ -983,16 +989,32 @@ def _correct(job, config, cancel, generation, word_ids=None, previous=None):
             current()
             return llmadapter.adapter(feature_config).generate_text(*args, **kw)
 
-    def progress(done, total):
+        def agent_turn(self, *args, **kw):
+            current()
+            return llmadapter.adapter(feature_config).agent_turn(*args, **kw)
+
+    def progress(done, total, phase=None):
         current()
         with LOCK:
             if generation == job.get("llm_generation") and job["state"] == CORRECTING:
                 job["correction"].update(done=done, total=total)
+                if phase:
+                    job["correction"]["phase"] = phase
 
     def diagnostic(trace):
         # Explicitly inspectable feature data, kept only with this ephemeral
         # job. Never put prompts/replies in logs, prefs, sync or status.
         current()
+        def redact(value):
+            if isinstance(value, str):
+                key = config.get("api_key")
+                return value.replace(key, "[redacted credential]") if key else value
+            if isinstance(value, list):
+                return [redact(v) for v in value]
+            if isinstance(value, dict):
+                return {k: redact(v) for k, v in value.items()}
+            return value
+        trace = redact(trace)
         trace["run"] = generation
         size = len(json.dumps(trace, ensure_ascii=False).encode("utf-8"))
         with LOCK:
@@ -1011,9 +1033,14 @@ def _correct(job, config, cancel, generation, word_ids=None, previous=None):
             job["correction"]["response_count"] = job["correction"].get("response_count", 0) + 1
 
     try:
-        out = asrcorrection.correct(job["review_evidence"], SavedAdapter(), cancel, progress,
-                                    config.get("context_tokens", 8192), diagnostic, word_ids,
-                                    job["correction"].get("instruction_mode") == "skill", task)
+        if task == "workspace":
+            import asrworkspace
+            out = asrworkspace.correct(job["review_evidence"], SavedAdapter(), cancel, progress,
+                                       config.get("context_tokens", 8192), diagnostic, word_ids)
+        else:
+            out = asrcorrection.correct(job["review_evidence"], SavedAdapter(), cancel, progress,
+                                        config.get("context_tokens", 8192), diagnostic, word_ids,
+                                        job["correction"].get("instruction_mode") == "skill", task)
         current()
         with LOCK:
             if generation != job.get("llm_generation") or job["state"] != CORRECTING:
