@@ -74,10 +74,23 @@ Whisper-only review sends nothing. Remembering a browser default marks a
 button and never makes an unattended request.
 
 **⚠** marks an available Whisper score below **0.5**, not proof a word is wrong.
-Missing scores stay missing. **✎** marks a proposed LLM substitution. Focus,
-hover or tap any word to inspect evidence or edit it. Only suspect words'
-available alternatives are sent as readable hints; current faster-whisper does
-not expose N-best alternatives, and the page says so. The model may choose a
+Missing scores stay missing. **◇** marks a word with no meaning in the installed
+language dictionary, using the readers' normalization, base-form and prefix
+rules. A dictionary miss is also a suspect-word target, even with a high ASR
+score; names and rare words can be valid. An absent or failing dictionary does
+not flag words. The word inspector shows dictionary meanings for Whisper's
+original and each proposed LLM alternative, so you can compare them before
+accepting an edit. Meanings use the installed dictionary's language, normally
+English, independently of the video's gloss language.
+
+**✎** marks a proposed LLM substitution. Focus, hover or tap any word to inspect
+evidence or edit it. Only suspect words' available alternatives are sent as
+readable hints. The same faster-whisper backend now retains up to five native
+beam hypotheses and exposes substitutions that map unambiguously to a source
+word. Their **sequence log scores** rank complete recognition hypotheses;
+alternative-word probabilities stay unavailable. An empty list means no
+unambiguous word alternative was returned, not that the word is correct.
+There is no extra recognizer or model download. The model may choose a
 better word beyond those hints. Its answer is a complete sentence; Parseh maps
 only unambiguous substitutions for suspect words back to their exact spans.
 Whole-text review checks every mapped word, including confident words, and can
@@ -120,7 +133,7 @@ instructions to the same model; it does not train it or ensure better accuracy.
 
 Progress counts ASR words processed, including failed attempts, rather than
 sentences. Whole-text review counts every mapped word; suspect review counts
-only selected low-score words. If one request times out or returns an invalid answer, its words stay
+selected low-score words and dictionary misses. If one request times out or returns an invalid answer, its words stay
 unchanged and the remaining sentences continue. Failed and unresolved words can
 be edited manually or sent again with **Retry all remaining suspect words**.
 Manual edits remain in the draft. Suspect-word retry excludes accepted words.

@@ -5567,7 +5567,7 @@ class Handler(SimpleHTTPRequestHandler):
         other route takes only the token the job made.  Every answer is
         {"ok": true, ...} or {"ok": false, "error": <a sentence>, "code": <a
         slug>}, and none of them is a traceback."""
-        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "retry-review", "cancel-review", "use"):
+        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "retry-review", "cancel-review", "use", "dictionary"):
             return self.send_json({"ok": False, "error": "nothing to POST here",
                                    "code": "no-such-route"}, 404)
 
@@ -5586,6 +5586,10 @@ class Handler(SimpleHTTPRequestHandler):
                 raise sttjobs.Refusal("bad-request", getattr(e, "said", None)
                                       or "The request could not be read.")
             token = body.get("job")
+            if what == "dictionary":
+                if set(body) - {"job", "source_sha256", "word_id"}:
+                    raise sttjobs.Refusal("bad-review", "The dictionary request contains unknown settings.")
+                return sttjobs.review_dictionary(token, body.get("source_sha256"), body.get("word_id"))
             if what in ("review", "retry-review", "cancel-review", "use"):
                 allowed = ({"job", "source_sha256", "mode", "connection_id", "instruction_mode", "task"} if what == "review" else
                            {"job", "source_sha256", "connection_id", "word_ids", "instruction_mode", "task"} if what == "retry-review" else

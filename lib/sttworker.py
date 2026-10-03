@@ -297,8 +297,8 @@ def load_model(WhisperModel, spec, device):
 def word_alternatives(word):
     """Capability hook for recognizers exposing genuine N-best candidates.
 
-    Pinned faster-whisper currently exposes no per-word alternatives. A future
-    backend can provide `alternatives` as [{text, score}]; absence is explicit.
+    Native beam candidates carry sequence log scores separately from nullable
+    word probabilities. Other recognizers can supply their own word scores.
     """
     raw = getattr(word, "alternatives", None)
     if not isinstance(raw, list):
@@ -309,7 +309,11 @@ def word_alternatives(word):
             continue
         sc = item.get("score")
         sc = float(sc) if type(sc) in (int, float) and math.isfinite(sc) and 0 <= sc <= 1 else None
-        kept.append({"text": item["text"][:400], "score": sc})
+        candidate = {"text": item["text"][:400], "score": sc}
+        seq = item.get("sequence_score")
+        if item.get("score_kind") == "sequence_log_score" and type(seq) in (int, float) and math.isfinite(seq):
+            candidate.update(sequence_score=float(seq), score_kind="sequence_log_score")
+        kept.append(candidate)
     return {"asr_alternatives": kept, "alternatives_available": True}
 
 
@@ -400,6 +404,16 @@ def run(spec):
         # an ImportError; the person is told the same, the log has the words)
         log("the speech runtime could not be imported", e)
         raise Refused("broken")
+
+    # PYTHONSAFEPATH deliberately keeps lib/ off this child's import path.
+    # Load only this trusted stdlib capability, without exposing lib's NumPy
+    # or other server modules ahead of the isolated speech runtime.
+    import importlib.util
+    capability = importlib.util.spec_from_file_location(
+        "parseh_asralternatives", os.path.join(os.path.dirname(os.path.abspath(__file__)), "asralternatives.py"))
+    module = importlib.util.module_from_spec(capability)
+    capability.loader.exec_module(module)
+    WhisperModel = module.capable_model(WhisperModel, BEAM_SIZE)
 
     audio = load_pcm(np, spec["source_path"]) if spec["audio_kind"] == "pcm16" \
         else load_media(np, spec)

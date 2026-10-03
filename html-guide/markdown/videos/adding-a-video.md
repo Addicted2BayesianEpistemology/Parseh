@@ -213,8 +213,9 @@ the page.
 **What arrives.** The words wait for review; **Transcript** stays unchanged.
 In the Browser interface, **Transcribe** opens a dedicated window within the
 page. The video stays on the left and the transcript and word editor sit on
-the right. Click a word to listen from its Whisper timestamp, or click a
-caption's time to play from its start. **Replay word** and **Replay caption**
+the right. Click a word to listen from its Whisper timestamp; playback pauses
+0.6 seconds after its end. Click a caption's time to play that caption and
+pause just after it. **Replay word** and **Replay caption**
 include the selected **Context** before and after the speech. The **−1 / −2 /
 −5 s** and **+1 / +2 / +5 s** buttons move playback without changing any
 transcript timings. When a word has no timestamp, playback uses its caption's
@@ -231,7 +232,13 @@ Choose **Review suspect words with the LLM** or **Review the whole text with the
 LLM**, sending bounded text and Whisper
 evidence to the destination shown, or **Review Whisper result without the
 LLM**, which sends nothing to a model endpoint. Both open review. A low
-Whisper score below 0.5 is marked **⚠**, and an LLM edit proposal **✎**.
+Whisper score below 0.5 is marked **⚠**, a word with no meaning in an installed
+dictionary is marked **◇**, and an LLM edit proposal **✎**. The threshold stays
+0.5. Dictionary lookup uses the same normalization and base-form rules as
+the readers; names or rare terms can still be valid. The word inspector shows
+the original word's dictionary meanings and the meanings of each proposed
+LLM replacement. Native Whisper beam alternatives, when an exact word mapping
+is possible, have whole-hypothesis log scores rather than word probabilities.
 Hover, focus or click/tap any word to inspect or edit it with the keyboard.
 Accept or reject proposals in the pending draft. LLM progress counts suspect
 words; failed sentences leave their words intact while the run continues.

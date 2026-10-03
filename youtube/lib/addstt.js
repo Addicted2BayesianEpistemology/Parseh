@@ -290,7 +290,11 @@
     reviewMobile.setAttribute('data-layout', 'mobile'); reviewMobile.hidden = true;
     form.lastChild.appendChild(reviewMobile);
     var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill, task) { chooseReview(mode, null, skill, task); }, retry: retryReview, use: useReview, cancel: cancelReview,
-      select: selectReviewWord, seek: seekReview});
+      select: selectReviewWord, seek: seekReview, dictionary: function (wordId) {
+        if (!S.held || !pendingCurrent()) return Promise.reject(new Error('This review changed.'));
+        return ask(route('dictionary'), {job: S.job, source_sha256: S.held.res.review.evidence.source_sha256, word_id: wordId}, 10000)
+          .then(function (r) { if (!r.j.ok) throw new Error(r.j.error); return r.j; });
+      }});
     var LLM = null;
 
     var tied = el('p', 'fieldnote');
@@ -386,14 +390,19 @@
       try { duration = p.getDuration(); playing = p.getPlayerState() === 1; } catch (e) {}
       playbackClock.textContent = clock(t) + (duration > 0 ? ' / ' + clock(duration) : '');
       playPause.textContent = playing ? 'Pause' : 'Play';
-      if (replayStop != null && t >= replayStop) { try { p.pauseVideo(); } catch (e) {} replayStop = null; }
+      // A seek is asynchronous, especially with YouTube. Arm the stop only
+      // once playback reaches the requested region, not at its old position.
+      if (replayStop != null) {
+        if (t >= replayStop.from - .25 && t < replayStop.end) replayStop.armed = true;
+        if (replayStop.armed && t >= replayStop.end) { try { p.pauseVideo(); } catch (e) {} replayStop = null; }
+      }
       if (S.held && REVIEW.playhead) REVIEW.playhead(t);
     }
     function seekReview(at, play, end) {
       if (!S.player || captureLive() || typeof at !== 'number' || !isFinite(at)) return;
       var duration = 0; try { duration = S.player.getDuration(); } catch (e) {}
       at = Math.max(0, duration > 0 ? Math.min(at, duration) : at);
-      replayStop = typeof end === 'number' && isFinite(end) ? end : null;
+      replayStop = typeof end === 'number' && isFinite(end) ? {from: at, end: Math.max(at + .1, end), armed: false} : null;
       try { S.player.seekTo(at, true); if (play) S.player.playVideo(); } catch (e) {}
       updatePlayback();
     }
@@ -403,7 +412,11 @@
       var hasWordTime = typeof w.start === 'number' && isFinite(w.start);
       selectedTime.textContent = 'Selected: ' + w.text + ' · ' + clock(hasWordTime ? w.start : caption.start) +
         (hasWordTime ? ' · Whisper word time' : ' · Caption time; word timing unavailable');
-      if (jump) seekReview(hasWordTime ? w.start : caption.start, true);
+      if (jump) {
+        var start = hasWordTime ? w.start : caption.start;
+        var end = hasWordTime && typeof w.end === 'number' ? w.end : caption.end;
+        seekReview(start, true, (typeof end === 'number' ? Math.max(start, end) : start + 1) + .6);
+      }
       updatePlayback();
     }
     function replay(which) {
@@ -433,7 +446,7 @@
           destroy: function () { film.pause(); film.removeAttribute('src'); film.load(); film.remove(); }};
         film.addEventListener('loadedmetadata', function () {
           if (filmSeek != null) { film.currentTime = filmSeek; filmSeek = null; }
-          playerNote.textContent = 'Click a word to listen from its timestamp. Replay adds the context selected below.'; updatePlayback();
+          playerNote.textContent = 'Click a word to listen; playback pauses just after it. Replay adds the context selected below.'; updatePlayback();
         });
         film.addEventListener('error', function () { playerNote.textContent = 'This browser could not play the local video. You can still review the transcript; try a browser-compatible video format for playback.'; });
       } else if (S.kind === 'yt' && S.held && workspace.open) {

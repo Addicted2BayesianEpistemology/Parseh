@@ -97,7 +97,8 @@ AWAITING, RECEIVING, QUEUED, PREPARING, LOADING = \
     "awaiting-audio", "receiving", "queued", "preparing", "loading"
 TRANSCRIBING, ALIGNING, DONE, FAILED, CANCELLED = "transcribing", "aligning", "done", "failed", "cancelled"
 REVIEW_CHOICE, CORRECTING = "awaiting-review-choice", "correcting"
-ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING, CORRECTING)
+CHECKING = "checking-dictionary"
+ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING, CHECKING, CORRECTING)
 RECORDING = (AWAITING, RECEIVING)           # a YouTube job still taking audio
 
 TOKEN_BYTES = 12
@@ -693,6 +694,8 @@ def _say(job):
         return "Making exact word times…%s" % (" %d%%" % pct if pct is not None else "")
     if s == REVIEW_CHOICE:
         return "Whisper finished. Choose how to review its transcript."
+    if s == CHECKING:
+        return "Whisper finished. Checking words in the installed dictionary…"
     if s == CORRECTING:
         c = job.get("correction", {})
         if c.get("total", 0):
@@ -840,6 +843,37 @@ def review_media(token):
         return job["source"]["path"]
 
 
+def review_dictionary(token, source_sha256, word_id):
+    """Read-only meanings for source words and validated model candidates only."""
+    import asrcorrection
+    import asrdictionary
+    job = _job(token)
+    with LOCK:
+        evidence = job.get("review_evidence")
+        if not evidence or source_sha256 != evidence["source_sha256"] or not _review_source_current(job):
+            raise Refusal("stale-review", "That dictionary lookup no longer matches the review.", 409)
+        word = asrcorrection.index(evidence).get(word_id) if isinstance(word_id, str) else None
+        if word is None:
+            raise Refusal("bad-word", "Choose a word from this Whisper result.")
+        resolver = job.get("dictionary_resolver")
+        if resolver is None:
+            resolver = job["dictionary_resolver"] = asrdictionary.Resolver(job["lang"])
+        segment = next(s for s in evidence["segments"] if s["segment_id"] == word["segment_id"])
+        source_words = segment["words"]
+        proposal = next((s for s in (job.get("correction_result") or {}).get("suggestions", [])
+                         if word_id in s.get("word_ids", [s["word_id"]])), None)
+        original = proposal["original"] if proposal else word["text"]
+        members = proposal.get("word_ids", [proposal["word_id"]]) if proposal else [word_id]
+        first = next(j for j, w in enumerate(source_words) if w["word_id"] == members[0])
+        last = next(j for j, w in enumerate(source_words) if w["word_id"] == members[-1])
+        before = source_words[first-1]["text"] if first else ""
+        after = source_words[last+1]["text"] if last+1 < len(source_words) else ""
+        candidates = [c["text"] for c in proposal["candidates"]] if proposal else []
+    return {"word_id": word_id, "source_sha256": source_sha256,
+            "original": dict(resolver.word(original, before, after), text=original),
+            "candidates": [dict(resolver.word(text, before, after), text=text) for text in candidates]}
+
+
 def _review_source_current(job):
     if job["kind"] != "film" or not job.get("film"):
         return True
@@ -876,7 +910,7 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
                     or len(word_ids) > len(sources) or any(not isinstance(w, str) for w in word_ids)
                     or len(set(word_ids)) != len(word_ids)
                     or any(w not in sources or not sources[w]["reviewable"] or
-                           (task != "full" and not sources[w]["low_asr_score"]) for w in word_ids)
+                           (task != "full" and not asrcorrection.suspect(sources[w])) for w in word_ids)
                     or (previous and previous.get("task", "suspect") != task)):
                 raise Refusal("bad-review", "Choose remaining words from this review task and Whisper result.")
         if mode == "whisper":
@@ -1351,10 +1385,20 @@ def _finish(job, msg):
         notes.append(msg["word_warning"])
     import asrcorrection
     review_evidence = asrcorrection.evidence(segs, text, job["lang"])
+    import asrdictionary
+    resolver = asrdictionary.Resolver(job["lang"])
+    with LOCK:
+        if job["cancelled"]:
+            return
+        job["state"] = CHECKING
+    _unhold(job)                         # worker is dead; dictionary work holds no model
+    if not resolver.enrich(review_evidence, lambda: job["cancelled"]):
+        return
     with LOCK:
         if job["cancelled"]:
             return
         job["review_evidence"] = review_evidence
+        job["dictionary_resolver"] = resolver
         job["review_choice"] = None
         job["correction"] = {"state": "not-requested", "complete": False}
         job["text"], job["notes"], job["facts"], job["warning"], job["words"] = \

@@ -114,6 +114,12 @@
 .stt-review-word:hover{background:var(--hl)}
 .stt-review-word.asr-low{border:1px dashed var(--warn,currentColor)}
 .stt-review-word.asr-low::before{content:'⚠';font-size:10px;margin-inline-end:2px}
+.stt-review-word.asr-dictionary{border:1px dotted currentColor}
+.stt-review-word.asr-dictionary::before{content:'◇';font-size:11px;margin-inline-end:2px}
+.stt-review-word.asr-low.asr-dictionary::before{content:'⚠◇'}
+.stt-review-dictionary{padding:6px 10px;margin-block:8px;border-inline-start:2px solid var(--line,currentColor);font-size:13px}
+.stt-review-dictionary p{margin-block:4px}
+.stt-review-dictionary ul{padding-inline-start:18px;margin-block:4px}
 .stt-review-word.asr-proposal{border:1px solid var(--accent);background:var(--card)}
 .stt-review-word.asr-proposal::after{content:'✎';font-size:11px;margin-inline-start:3px}
 .stt-review-word.asr-accepted{text-decoration:underline double;text-underline-offset:3px}
