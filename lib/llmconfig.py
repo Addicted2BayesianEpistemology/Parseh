@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import secrets
 import threading
 import urllib.parse
 
@@ -10,6 +11,7 @@ STORE_FORMAT = 1
 ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 LOCK = threading.RLock()
 LAST_TEST = {}
+REVISION = (None, "")
 PRESETS = {"ollama": "http://127.0.0.1:11434/v1", "unsloth": "", "generic": ""}
 MAX_CONFIG = 16384
 
@@ -121,12 +123,26 @@ def fingerprint(config):
     return hashlib.sha256(json.dumps(config, sort_keys=True).encode("utf-8")).hexdigest()
 
 
+def revision(config):
+    """Opaque session ID for the connection the person saw before sending text.
+
+    Never expose the fingerprint of credentials, including weak custom keys.
+    """
+    global REVISION
+    with LOCK:
+        stamp = fingerprint(config)
+        if REVISION[0] != stamp:
+            REVISION = (stamp, secrets.token_urlsafe(24))
+        return REVISION[1]
+
+
 def view(root=None):
     c = load(root)
     if c is None:
         return {"configured": False, "has_api_key": False, "presets": PRESETS,
                 "settings": "/settings/llm/"}
     return dict({k: v for k, v in c.items() if k != "api_key"}, configured=True,
+                connection_id=revision(c),
                 last_test=LAST_TEST.get(fingerprint(c)),
                 has_api_key=bool(c["api_key"]), presets=PRESETS, settings="/settings/llm/")
 

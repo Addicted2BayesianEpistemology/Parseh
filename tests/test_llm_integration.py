@@ -240,6 +240,8 @@ class Settings(unittest.TestCase):
             view = llmconfig.save(body, root)
             self.assertNotIn("api_key", view)
             self.assertTrue(view["has_api_key"])
+            self.assertEqual(view["connection_id"], llmconfig.view(root)["connection_id"])
+            self.assertNotEqual(view["connection_id"], llmconfig.fingerprint(llmconfig.load(root)))
             self.assertEqual(llmconfig.load(root)["api_key"], "private-key")
             Path(llmconfig.path(root)).write_text('{"format_version":99}')
             self.assertIsNone(llmconfig.load(root))
@@ -310,6 +312,18 @@ class Jobs(unittest.TestCase):
         with self.assertRaises(sttjobs.Refusal) as e:
             sttjobs.review(self.token, "whisper", "another-source")
         self.assertEqual(e.exception.code, "stale-review")
+
+    def test_changed_connection_before_choice_sends_no_text(self):
+        c = config()
+        seen = llmconfig.revision(c)
+        changed = dict(c, selected_model="another-model")
+        with mock.patch("llmconfig.load", return_value=changed), mock.patch("llmadapter.adapter") as adapter:
+            with self.assertRaises(sttjobs.Refusal) as e:
+                sttjobs.review(self.token, "llm", self.job["review_evidence"]["source_sha256"], seen)
+            self.assertEqual(e.exception.code, "settings-changed")
+            adapter.assert_not_called()
+        self.assertEqual(self.job["state"], sttjobs.REVIEW_CHOICE)
+        self.assertEqual(self.job["text"], self.panel)
 
 
 if __name__ == "__main__":

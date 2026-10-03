@@ -5579,11 +5579,11 @@ class Handler(SimpleHTTPRequestHandler):
                                       or "The request could not be read.")
             token = body.get("job")
             if what in ("review", "cancel-review", "use"):
-                allowed = {"job", "source_sha256", "mode"} if what == "review" else {"job", "source_sha256", "decisions"} if what == "use" else {"job"}
+                allowed = {"job", "source_sha256", "mode", "connection_id"} if what == "review" else {"job", "source_sha256", "decisions"} if what == "use" else {"job"}
                 if set(body) - allowed:
                     raise sttjobs.Refusal("bad-review", "The review request contains unknown settings.")
                 if what == "review":
-                    return sttjobs.review(token, body.get("mode"), body.get("source_sha256"))
+                    return sttjobs.review(token, body.get("mode"), body.get("source_sha256"), body.get("connection_id"))
                 if what == "cancel-review":
                     return sttjobs.cancel_review(token)
                 return sttjobs.use_review(token, body.get("source_sha256"), body.get("decisions", {}))

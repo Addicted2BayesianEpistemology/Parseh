@@ -832,7 +832,7 @@ def _review_source_current(job):
         return False
 
 
-def review(token, mode, source_sha256):
+def review(token, mode, source_sha256, connection_id=None):
     """Explicit browser choice. Destination and model come only from host config."""
     import llmconfig
     import llmadapter
@@ -857,6 +857,8 @@ def review(token, mode, source_sha256):
         config = llmconfig.load()
         if config is None:
             raise Refusal("llm-unconfigured", "Set up LLM Integration, or review the Whisper result without it.", 409)
+        if connection_id != llmconfig.revision(config):
+            raise Refusal("settings-changed", "The LLM settings changed. Inspect the current destination and choose review again.", 409)
         cancel = llmadapter.Cancellation()
         job["llm_cancel"] = cancel
         job["llm_generation"] = job.get("llm_generation", 0) + 1

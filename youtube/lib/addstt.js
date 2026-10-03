@@ -235,8 +235,8 @@
 
     var form = el('div', 'stt-form');
     form.id = 'stt_form';
-    var intro = el('p', 'fieldnote', 'Have this computer listen to the video and write the transcript. ' +
-                   'It is done on this computer: nothing is sent anywhere.');
+    var intro = el('p', 'fieldnote', 'Have Whisper on this computer listen to the video and write a pending transcript. ' +
+                   'Afterwards, choose Whisper-only review or explicitly send text and evidence to your selected LLM. Audio stays on this computer.');
     var selModel = el('select'), selProc = el('select');
     selModel.id = 'stt_model';
     selProc.id = 'stt_proc';
@@ -840,11 +840,21 @@
       S.phase = mode === 'llm' ? 'correcting' : 'choosing';
       REVIEW.show(S.held.res, 'correcting', LLM);
       say(mode === 'llm' ? 'Starting LLM review…' : 'Opening Whisper-only review…');
-      post('review', {job: S.job, mode: mode, source_sha256: evidence.source_sha256}).then(function (r) {
+      post('review', {job: S.job, mode: mode, source_sha256: evidence.source_sha256,
+        connection_id: mode === 'llm' && LLM ? LLM.connection_id : null}).then(function (r) {
         if (run !== S.run || !S.held) return;
         if (!r.j.ok) {
           if (r.j.code === 'source-changed') { discardPending(); return; }
-          S.phase = 'choice'; note(r.j.error, 'warn'); REVIEW.show(S.held.res, 'choice', LLM); paint(); return;
+          S.phase = 'choice'; note(r.j.error, 'warn');
+          if (r.j.code === 'settings-changed' || r.j.code === 'llm-unconfigured') {
+            LLM = null;
+            ask('/settings/api/llm/status', {}).then(function (fresh) {
+              if (run !== S.run || !S.held || S.phase !== 'choice') return;
+              LLM = fresh.j && fresh.j.ok ? fresh.j : {configured: false};
+              REVIEW.show(S.held.res, 'choice', LLM);
+            }, function () {});
+          }
+          REVIEW.show(S.held.res, 'choice', LLM); paint(); return;
         }
         if (mode === 'llm') { poll(run); } else finishJob(run);
       }, function () {

@@ -6,7 +6,10 @@ Missing, malformed and unknown-version configurations load as unconfigured.
 reset, discovery, connection test and link-import route before it runs.
 Credentials are masked, explicitly kept/replaced/cleared, stored with mode
 0600 and excluded from source, release manifests and prefs. Status never
-returns the saved key. The last connection test is session-local.
+returns the saved key or its fingerprint. An opaque session connection ID
+ties the destination shown before review to the saved connection; changing
+settings requires another deliberate choice before text is sent. The last
+connection test is session-local.
 
 `llmadapter.py` is the reusable boundary for models, connection testing and
 structured text generation. Ollama, Unsloth and generic configuration select
@@ -37,7 +40,7 @@ uncertainty. All windows must validate before any suggestions are exposed.
 Jobs retain the existing token, ASR panel and held-data fields and add
 `review: {evidence, choice, correction, result}`. ASR ends in
 `awaiting-review-choice`, after releasing the model/runtime hold. Pending
-reviews do not hold the execution slot. `review {job, mode, source_sha256}`
+reviews do not hold the execution slot. `review {job, mode, source_sha256, connection_id}`
 either opens Whisper-only review or claims the single slot for `correcting`.
 Saved endpoint/model settings are snapshotted and checked before each window
 and publication. Changes invalidate in-flight suggestions. `cancel-review`
