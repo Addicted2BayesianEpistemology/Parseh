@@ -277,6 +277,23 @@ class Devices(Worker):
 
 
 class Words(Worker):
+    def test_backend_word_scores_and_genuine_alternatives_are_preserved(self):
+        rc, msgs, _ = self.go({"segments": [[0, 1, " loro anno"]],
+            "word_evidence": {"loro": {"score": None}, "anno": {"score": .51,
+                "alternatives": [{"text": "hanno", "score": .37}]}}})
+        self.assertEqual(rc, 0)
+        segment = self.last(msgs, "done")["segments"][0]
+        self.assertEqual(segment["text"], " loro anno")
+        self.assertEqual(segment["asr_words"], segment["words"])
+        first, second = segment["asr_words"]
+        self.assertIsNone(first["score"])
+        self.assertFalse(first["alternatives_available"])
+        self.assertEqual(first["asr_alternatives"], [])
+        self.assertEqual(second["score"], .51)
+        self.assertTrue(second["alternatives_available"])
+        self.assertEqual(second["asr_alternatives"], [{"text": "hanno", "score": .37}])
+        self.assertEqual((second["start"], second["end"]), (.5, 1.0))
+
     def test_each_of_the_eleven_language_codes_reaches_transcribe(self):
         for code in ELEVEN:
             with self.subTest(lang=code):

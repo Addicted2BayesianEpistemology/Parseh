@@ -249,3 +249,7 @@ components/.build-*/
 texput.log
 
 aligner-models/
+
+# Host-local LLM credentials never belong to source, releases or synced prefs.
+config/llm.json
+config/llm.json.tmp

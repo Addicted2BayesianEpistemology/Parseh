@@ -43,6 +43,11 @@ def _log(kind, **fields):
 class Word:
     def __init__(self, start, end, word):
         self.start, self.end, self.word, self.probability = start, end, word, 0.9
+        evidence = CONFIG.get("word_evidence", {}).get(word, {})
+        if "score" in evidence:
+            self.probability = evidence["score"]
+        if "alternatives" in evidence:
+            self.alternatives = evidence["alternatives"]
 
 
 class Segment:

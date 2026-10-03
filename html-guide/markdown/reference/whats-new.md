@@ -17,6 +17,18 @@ guide and rebuilds the readers by itself.
 
 ## a0.4.3 — not yet released
 
+### Review a transcript before using it
+
+Whisper results now wait for an explicit review choice. Review its low ASR
+scores without sending text anywhere, or ask an already configured LLM for
+validated word-level proposals; accept or reject them in a pending draft.
+Only **Use this transcript** fills the box. **Settings → LLM Integration**
+adds a reusable OpenAI-compatible connection, Ollama/Unsloth/generic presets,
+served-model discovery, local credential controls and a connection test.
+Unsloth share links supply endpoint/model hints and open hardware settings
+in Studio without making Parseh load models. See
+[LLM Integration](../lookup-and-languages/llm-integration.md).
+
 ### Colour meaningful parts of a word
 
 Studio can colour a stem, affix, radical or ending without splitting the

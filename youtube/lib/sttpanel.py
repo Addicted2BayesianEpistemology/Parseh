@@ -252,5 +252,7 @@ def remap(segments, marks, rate=SAMPLE_RATE):
         # removes a word wholly heard while the video was stopped.
         if isinstance(seg.get("words"), list):
             row["words"] = remap(seg["words"], marks, rate)
+        if isinstance(seg.get("asr_words"), list):
+            row["asr_words"] = remap(seg["asr_words"], marks, rate)
         out.append(row)
     return out

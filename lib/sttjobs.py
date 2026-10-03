@@ -96,7 +96,8 @@ PAGE = "/youtube/add/"
 AWAITING, RECEIVING, QUEUED, PREPARING, LOADING = \
     "awaiting-audio", "receiving", "queued", "preparing", "loading"
 TRANSCRIBING, ALIGNING, DONE, FAILED, CANCELLED = "transcribing", "aligning", "done", "failed", "cancelled"
-ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING)
+REVIEW_CHOICE, CORRECTING = "awaiting-review-choice", "correcting"
+ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING, CORRECTING)
 RECORDING = (AWAITING, RECEIVING)           # a YouTube job still taking audio
 
 TOKEN_BYTES = 12
@@ -339,6 +340,8 @@ def stop_all():
         _kill(proc)
     for job in jobs:
         job["cancelled"] = True
+        if job.get("llm_cancel"):
+            job["llm_cancel"].cancel()
         _clean_files(job)
         _unhold(job)
 
@@ -352,7 +355,7 @@ def _expire():
     every call, under LOCK: there is no timer thread to keep."""
     now = _now()
     for token, job in list(JOBS.items()):
-        if job["state"] in (DONE, FAILED) and now - (job["finished"] or now) > KEEP:
+        if job["state"] in (DONE, FAILED, REVIEW_CHOICE) and now - (job["finished"] or now) > KEEP:
             del JOBS[token]
         elif job["state"] in RECORDING and now - job.get("touched", now) > IDLE:
             _end(job, FAILED, "abandoned", "No sound arrived for %d minutes, so this "
@@ -532,6 +535,8 @@ def _started(job):
            "lang": job["lang"], "model": job["model"], "processing": job["mode"],
            "exact": bool(job.get("aligner")),
            "say": _say(job)}
+    if job.get("correction"):
+        out["correction"] = dict(job["correction"])
     out.update(_who(job))
     return out
 
@@ -686,6 +691,13 @@ def _say(job):
     if s == ALIGNING:
         pct = _pct(job)
         return "Making exact word times…%s" % (" %d%%" % pct if pct is not None else "")
+    if s == REVIEW_CHOICE:
+        return "Whisper finished. Choose how to review its transcript."
+    if s == CORRECTING:
+        c = job.get("correction", {})
+        if c.get("total", 0) > 1:
+            return "Reviewing with the selected LLM… %d / %d windows completed." % (c.get("done", 0), c["total"])
+        return "Reviewing with the selected LLM…"
     if s == DONE:
         n = (job["facts"] or {}).get("captions", 0)
         return "Done — %d caption%s." % (n, "" if n == 1 else "s")
@@ -696,6 +708,9 @@ def _say(job):
 
 
 def _pct(job):
+    if job["state"] == CORRECTING:
+        c = job.get("correction", {})
+        return int(100 * c.get("done", 0) / c["total"]) if c.get("total", 0) > 1 else None
     if job["state"] == DONE:
         return 100
     if job["state"] in (TRANSCRIBING, ALIGNING) and job["total"]:
@@ -713,6 +728,8 @@ def _report(job):
            "model": job["model"], "lang": job["lang"], "kind": job["kind"],
            "exact": bool(job.get("aligner")),
            "have": job["have"], "stopped": job["state"] == CANCELLED}
+    if job.get("correction"):
+        out["correction"] = dict(job["correction"])
     out.update(_who(job))
     if job["fell_back"]:
         out["note"] = FELL_BACK
@@ -751,7 +768,9 @@ def cancel(token):
     if job is None:
         return {"cancelled": False}
     with LOCK:
-        if job["state"] not in ACTIVE:
+        if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") == "llm"):
+            return cancel_review(token)
+        if job["state"] not in ACTIVE + (REVIEW_CHOICE,):
             return {"cancelled": False}
         job["cancelled"] = True
         job["state"] = CANCELLED
@@ -789,14 +808,181 @@ def result(token):
         state = job["state"]
         if state == FAILED and job["error"]:
             raise Refusal(job["error"]["code"], job["error"]["say"], 409)
-        if state != DONE:
+        if state not in (DONE, REVIEW_CHOICE, CORRECTING):
             raise Refusal("not-finished", "It has not finished yet.", 409)
         facts = dict(job["facts"] or {})
         return dict(facts, text=job["text"], lang=job["lang"], model=job["model"],
                     device=job["device"], fell_back=job["fell_back"],
                     notes=list(job["notes"]), warning=job["warning"],
                     words=dict(job["words"] or {"held": False, "count": 0}),
-                    wave={"held": wavefile.held(token)})
+                    wave={"held": wavefile.held(token)},
+                    review={"evidence": job.get("review_evidence"),
+                            "choice": job.get("review_choice"),
+                            "correction": dict(job.get("correction") or {}),
+                            "result": job.get("correction_result")})
+
+
+def _review_source_current(job):
+    if job["kind"] != "film" or not job.get("film"):
+        return True
+    try:
+        st = os.stat(job["source"]["path"])
+        return [st.st_size, st.st_mtime_ns, st.st_ino] == job["film"]
+    except OSError:
+        return False
+
+
+def review(token, mode, source_sha256):
+    """Explicit browser choice. Destination and model come only from host config."""
+    import llmconfig
+    import llmadapter
+    job = _job(token)
+    with LOCK:
+        if job["state"] not in (REVIEW_CHOICE, DONE):
+            raise Refusal("wrong-state", "Wait for Whisper or cancel the current LLM review.", 409)
+        if not job.get("review_evidence") or source_sha256 != job["review_evidence"]["source_sha256"]:
+            raise Refusal("stale-review", "That review no longer matches the Whisper result.", 409)
+        if not _review_source_current(job):
+            raise Refusal("source-changed", "The local film changed. Transcribe it again.", 409)
+        if mode not in ("llm", "whisper"):
+            raise Refusal("bad-review", "Choose LLM review or Whisper-only review.")
+        if mode == "whisper":
+            job["review_choice"] = "whisper"
+            job["correction_result"] = None
+            job["correction"] = {"state": "not-requested", "complete": False}
+            job["state"], job["finished"] = DONE, _now()
+            return _report(job)
+        if any(j is not job and j["state"] in ACTIVE for j in JOBS.values()):
+            raise Refusal("busy", "Another transcription or LLM review is running.", 409)
+        config = llmconfig.load()
+        if config is None:
+            raise Refusal("llm-unconfigured", "Set up LLM Integration, or review the Whisper result without it.", 409)
+        cancel = llmadapter.Cancellation()
+        job["llm_cancel"] = cancel
+        job["llm_generation"] = job.get("llm_generation", 0) + 1
+        generation = job["llm_generation"]
+        job["review_choice"] = "llm"
+        job["llm_config_fingerprint"] = llmconfig.fingerprint(config)
+        job["correction_result"] = None
+        job["correction"] = {"state": "running", "complete": False, "done": 0, "total": 0,
+                             "destination": config["base_url"], "model": config["selected_model"],
+                             "started": _now()}
+        job["state"] = CORRECTING
+        answer = _report(job)
+    threading.Thread(target=_correct, args=(job, config, cancel, generation), daemon=True,
+                     name="asr-correction").start()
+    return answer
+
+
+def _correct(job, config, cancel, generation):
+    import asrcorrection
+    import llmadapter
+    import llmconfig
+    stamp = llmconfig.fingerprint(config)
+
+    def current():
+        cancel.check()
+        if not _review_source_current(job):
+            raise llmconfig.LLMError("source-changed", "The local film changed during review. Transcribe it again.")
+        if llmconfig.fingerprint(llmconfig.load()) != stamp:
+            raise llmconfig.LLMError("settings-changed", "The LLM destination or model changed. Choose review again.")
+
+    class SavedAdapter:
+        def generate(self, *args, **kw):
+            current()
+            return llmadapter.adapter(config).generate(*args, **kw)
+
+    def progress(done, total):
+        current()
+        with LOCK:
+            if generation == job.get("llm_generation") and job["state"] == CORRECTING:
+                job["correction"].update(done=done, total=total)
+
+    try:
+        out = asrcorrection.correct(job["review_evidence"], SavedAdapter(), cancel, progress,
+                                    config.get("context_tokens", 8192))
+        current()
+        with LOCK:
+            if generation != job.get("llm_generation") or job["state"] != CORRECTING:
+                return
+            job["correction_result"] = out
+            job["correction"].update(state="complete", complete=True)
+            job["state"], job["finished"] = DONE, _now()
+    except Exception as e:
+        # No tracebacks here: an unexpected exception may contain model text.
+        safe = e if isinstance(e, llmconfig.LLMError) else llmconfig.LLMError(
+            "correction-failed", "LLM review could not finish. The Whisper result is intact.")
+        with LOCK:
+            if generation != job.get("llm_generation") or job["state"] != CORRECTING:
+                return
+            job["correction_result"] = None
+            job["correction"].update(state="failed", complete=False, code=safe.code, error=safe.say)
+            job["state"], job["finished"] = REVIEW_CHOICE, _now()
+
+
+def cancel_review(token):
+    job = _job(token)
+    with LOCK:
+        if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") == "llm"):
+            job["llm_generation"] = job.get("llm_generation", 0) + 1
+            cancel = job.pop("llm_cancel", None)
+            if cancel:
+                cancel.cancel()
+            job["correction_result"] = None
+            job["correction"].update(state="cancelled", complete=False,
+                                     error="LLM review was cancelled. The Whisper result is intact.")
+            job["state"], job["finished"] = REVIEW_CHOICE, _now()
+        return _report(job)
+
+
+def use_review(token, source_sha256, decisions):
+    """Apply only chosen validated spans. Caption clocks/boundaries stay put."""
+    import asrcorrection
+    import llmconfig
+    import wordtimes
+    import ytpages
+    job = _job(token)
+    with LOCK:
+        if job["state"] != DONE or not job.get("review_choice"):
+            raise Refusal("review-first", "Choose how to review the transcript first.", 409)
+        if not _review_source_current(job):
+            raise Refusal("source-changed", "The local film changed. Transcribe it again.", 409)
+        if (job["review_choice"] == "llm" and
+                job.get("llm_config_fingerprint") != llmconfig.fingerprint(llmconfig.load())):
+            job["correction_result"] = None
+            job["correction"].update(state="failed", complete=False,
+                error="The LLM settings changed. Choose review again; the old suggestions were discarded.")
+            job["state"], job["finished"] = REVIEW_CHOICE, _now()
+            raise Refusal("stale-review", "The LLM settings changed. Choose review again.", 409)
+        evidence = job["review_evidence"]
+        if source_sha256 != evidence["source_sha256"]:
+            raise Refusal("stale-review", "That review no longer matches the Whisper result.", 409)
+        try:
+            panel, changed = asrcorrection.apply(job["text"], evidence,
+                job.get("correction_result") or {"suggestions": []}, decisions)
+        except llmconfig.LLMError as e:
+            raise Refusal(e.code, e.say)
+        original = ytpages.parse_transcript_text(job["text"], job["lang"])
+        caps = ytpages.parse_transcript_text(panel, job["lang"])
+        if [c["start"] for c in caps] != [c["start"] for c in original]:
+            raise Refusal("invalid-suggestions", "That edit would change the caption boundaries; it was not applied.")
+        out = result(token)
+        out["text"] = panel
+        # Rebuild from the immutable capture tape so a retried Use with a
+        # different decision set does not inherit an earlier pending edit.
+        doc = wordtimes.load(token)
+        if doc:
+            import copy
+            doc["atoms"] = copy.deepcopy(doc.get("raw_atoms") or doc["atoms"])
+            doc = wordtimes.sync(doc, caps, job["lang"])
+            doc["panel_sha256"] = wordtimes.panel_hash(panel)
+            wordtimes.hold(token, doc)
+            out["words"] = dict(out["words"], panel_sha256=doc["panel_sha256"],
+                                count=len(doc.get("atoms") or []), timings_stale=changed)
+        if changed:
+            # Audio has been deleted, so no exact re-alignment can be claimed.
+            out["notes"].append("Caption timings are unchanged. Changed word timings need review in Edit the transcript; the recording has been deleted.")
+        return out
 
 
 # -------------------------------------------------------------------- the child
@@ -1002,6 +1188,20 @@ def _message(job, msg, got):
                         "say": " ".join(say.split())[:300] or "Transcription failed."}
 
 
+def _evidence_words(raw):
+    import asrcorrection
+    words = []
+    for w in raw:
+        if not isinstance(w, dict) or not isinstance(w.get("text"), str):
+            continue
+        alt, available = asrcorrection.alternatives(w.get("asr_alternatives"))
+        words.append({"text": w["text"][:400], "start": _num(w.get("start")),
+                      "end": _num(w.get("end")), "score": asrcorrection.score(w.get("score")),
+                      "asr_alternatives": alt,
+                      "alternatives_available": w.get("alternatives_available", available) is True})
+    return words
+
+
 def _finish(job, msg):
     """The worker is done: its segments onto the video's clock, into the
     add page's panel, and counted by the add page's own parser."""
@@ -1027,6 +1227,11 @@ def _finish(job, msg):
                           "text": w["text"][:400], "score": _num(w.get("score"), -1e6, 1e6)})
         if words:
             row["words"] = words
+        # ASR evidence is independent of the optional CTC word timing tape.
+        if isinstance(s.get("asr_words"), list):
+            row["asr_words"] = _evidence_words(s["asr_words"])
+        else:
+            row["asr_words"] = _evidence_words(raw_words if msg.get("word_source") != "aligner" else [])
         segs.append(row)
     if job["kind"] == "youtube" and job["marks"]:
         segs = sttpanel.remap(segs, job["marks"], SAMPLE_RATE)
@@ -1061,13 +1266,18 @@ def _finish(job, msg):
             notes.append("Word timestamps could not be kept for this transcription.")
     if isinstance(msg.get("word_warning"), str) and msg.get("word_warning"):
         notes.append(msg["word_warning"])
+    import asrcorrection
+    review_evidence = asrcorrection.evidence(segs, text, job["lang"])
     with LOCK:
         if job["cancelled"]:
             return
+        job["review_evidence"] = review_evidence
+        job["review_choice"] = None
+        job["correction"] = {"state": "not-requested", "complete": False}
         job["text"], job["notes"], job["facts"], job["warning"], job["words"] = \
             text, notes, facts, warning, word_info
         job["done"], job["segments"] = job["total"] or job["done"], None
-        job["state"], job["finished"] = DONE, _now()
+        job["state"], job["finished"] = REVIEW_CHOICE, _now()
         _unhold(job)                     # in the breath that says it is done
 
 
@@ -1085,7 +1295,7 @@ def activity_entries(entry, keep, now=None):
         # having to start another job to find out
         _expire()
         for job in list(JOBS.values()):
-            over = job["state"] in (DONE, FAILED)
+            over = job["state"] in (DONE, FAILED, REVIEW_CHOICE)
             if over and now - (job["finished"] or now) > keep:
                 continue
             what = "Transcribing a YouTube video" if job["kind"] == "youtube" \
@@ -1093,7 +1303,8 @@ def activity_entries(entry, keep, now=None):
             out.append(entry(
                 "stt:%s@%.3f" % (job["kind"], job["created"]), "narration", what,
                 job["created"], stage=None if over else _say(job), page=PAGE,
-                finished=job["finished"] if over else None, ok=job["state"] == DONE))
+                finished=job["finished"] if over else None,
+                ok=job["state"] in (DONE, REVIEW_CHOICE)))
     return out
 
 

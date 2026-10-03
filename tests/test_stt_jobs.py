@@ -137,7 +137,12 @@ class Base(unittest.TestCase):
         self.fail("the job is still %r, wanted %r" % (s and s["state"], states))
 
     def done(self, token, timeout=40):
-        return self.wait(token, ("done", "failed", "cancelled"), timeout)
+        status = self.wait(token, ("awaiting-review-choice", "done", "failed", "cancelled"), timeout)
+        if status["state"] == "awaiting-review-choice":
+            evidence = sttjobs.result(token)["review"]["evidence"]
+            sttjobs.review(token, "whisper", evidence["source_sha256"])
+            return sttjobs.status(token)
+        return status
 
     def until(self, test, what, timeout=20):
         end = time.time() + timeout

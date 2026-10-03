@@ -53,7 +53,8 @@ import os, runpy, sys
 root, work = os.environ["PARSEH_TEST_ROOT"], os.environ["STT_ROUTE_WORK"]
 sys.path[:0] = [os.path.join(root, "lib"), os.path.join(root, "youtube", "lib"),
                 os.path.join(root, "tests")]
-import stt_fakes, prefs, network, offline, ytpages
+import stt_fakes, prefs, network, offline, ytpages, llmconfig
+llmconfig.ROOT = work
 sys.modules["getstt"] = stt_fakes.make(os.path.join(work, "fake"))
 ytpages.VIDEOS = os.path.join(work, "videos")
 prefs.STORE = os.path.join(work, "config", "prefs.json")
@@ -179,6 +180,11 @@ class Server:
         s = None
         while time.time() < end:
             code, s = self.status(job)
+            if code == 200 and s["state"] == "awaiting-review-choice" and "done" in states:
+                _, pending = self.post("result", {"job": job})
+                self.post("review", {"job": job, "mode": "whisper",
+                                    "source_sha256": pending["review"]["evidence"]["source_sha256"]})
+                continue
             if code == 200 and s["state"] in states:
                 return s
             time.sleep(0.05)

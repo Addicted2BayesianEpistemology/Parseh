@@ -141,6 +141,7 @@ SETTINGS = {
                          "pins can be fetched, each checked against its hash."),
     "speech.remove": (None, "It frees the space the program or a model took."),
     "speech.stop": (None, "It stops an install this page started."),
+    "llm.connection": (EXPOSE, "It chooses where feature text is sent, the credentials and the model Parseh invokes."),
     # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) puts two things
     # under the computer's roof.  Making the book's folder writes a folder
     # under books/ in which an agent will be told to run Parseh's own tools
@@ -174,6 +175,12 @@ KNOCK = "knock"
 # and tests/test_settings_risk.py fails when serve.py answers a route this
 # table does not name.
 ROUTES = {
+    "/settings/api/llm/status": READ,
+    "/settings/api/llm/save": ("llm.connection",),
+    "/settings/api/llm/reset": ("llm.connection",),
+    "/settings/api/llm/models": ("llm.connection",),
+    "/settings/api/llm/test": ("llm.connection",),
+    "/settings/api/llm/import-link": ("llm.connection",),
     "/settings/api/ping": READ,
     "/settings/api/pair": KNOCK,
     # one body saves all four, so all four must be allowed
@@ -437,6 +444,8 @@ DOORS = (
     ("/settings/speech/", "Speech to text",
      "A transcript made on this computer, while adding a video: the program, two models",
      ("speech.get", "speech.remove", "speech.stop")),
+    ("/settings/llm/", "LLM Integration",
+     "A reusable model endpoint, credentials and served-model selection", ("llm.connection",)),
 )
 
 
@@ -466,6 +475,8 @@ def settings_doors(here):
         out.append('<a class="sdoor%s" href="%s"%s><b>%s</b><small>%s</small>%s</a>'
                    % (" on" if on else "", esc(href), ' aria-current="page"' if on else "",
                       esc(name), esc(what), gate(settings)))
+        if href == "/settings/llm/":
+            out[-1] = out[-1].replace('<a ', '<a data-layout="browser" ', 1)
     return '<nav class="sdoors" aria-label="settings">%s</nav>' % "".join(out)
 
 
@@ -792,7 +803,7 @@ def signed(main):
     return main[:end] + '<p class="foot">%s</p>\n' % author.links() + main[end:]
 
 
-def hub(reading_tags="", update_tags="", speech_tags=""):
+def hub(reading_tags="", update_tags="", speech_tags="", llm_tags=""):
     """/settings/ -- the section itself.  Each door says what is behind it
     rather than only naming it, and who may change it, in the words of the
     table above; `reading_tags` is what the reading help has (serve.py knows
@@ -839,12 +850,19 @@ def hub(reading_tags="", update_tags="", speech_tags=""):
     once, kept on this computer, nothing sent anywhere.</div>
     <div class="tags">%(speech_gate)s%(speech_tags)s</div>
   </a>
+  <a class="door" data-layout="browser" href="/settings/llm/">
+    <div class="dname">LLM Integration</div>
+    <div class="dwhat">Connect Parseh features to an already running model endpoint.
+    Select a served model, test the connection and keep its credentials on this host.</div>
+    <div class="tags">%(llm_gate)s%(llm_tags)s</div>
+  </a>
 </div>
 </main>""" % {"name": NAME, "version": esc(parseh_version()),
               "reading_gate": gate(DOORS[0][3]), "reading_tags": reading_tags,
               "update_gate": gate(DOORS[2][3]), "update_tags": update_tags,
               "latex_gate": gate(DOORS[3][3]),
               "speech_gate": gate(DOORS[4][3]), "speech_tags": speech_tags,
+              "llm_gate": gate(DOORS[5][3]), "llm_tags": llm_tags,
               "net_gate": gate(net),
               "where": esc(doors_said(network.settings())), "port": network.port()}
     return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", signed(main),

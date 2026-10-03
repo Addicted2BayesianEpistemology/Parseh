@@ -130,6 +130,9 @@ import corpus             # noqa: E402  and the sentences somebody translated
 import getmt              # noqa: E402  and the model that runs in the page
 import getstt             # noqa: E402  speech to text: its program, its models, its processor
 import lookuppage         # noqa: E402  the page that sets the dictionaries up
+import llmconfig
+import llmadapter
+import llmpage
 import speechpage         # noqa: E402  Settings -> Speech to text (§7.23)
 import latexpage          # noqa: E402  Settings -> LaTeX drawings (§8.39)
 import latexthemes        # noqa: E402  the themes a latex block is drawn with
@@ -448,7 +451,7 @@ STATIC_PREFIXES = ("/lib/fonts/", "/lib/mathjax/", "/audiobook/", "/books/",
                    # the translation engine and its models: read by the
                    # reader's own worker, never written through the server
                    "/mt/")
-STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js",
+STATIC_FILES = {"/lib/llmsettings.js", "/youtube/lib/asrreview.js", "/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js",
                 # the row of controls every page that hands out a prompt draws:
                 # copy, the size, the reminder (lib/llmrow.js, a0.4.2)
                 "/lib/llmrow.js",
@@ -5556,7 +5559,7 @@ class Handler(SimpleHTTPRequestHandler):
         other route takes only the token the job made.  Every answer is
         {"ok": true, ...} or {"ok": false, "error": <a sentence>, "code": <a
         slug>}, and none of them is a traceback."""
-        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result"):
+        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "cancel-review", "use"):
             return self.send_json({"ok": False, "error": "nothing to POST here",
                                    "code": "no-such-route"}, 404)
 
@@ -5575,6 +5578,15 @@ class Handler(SimpleHTTPRequestHandler):
                 raise sttjobs.Refusal("bad-request", getattr(e, "said", None)
                                       or "The request could not be read.")
             token = body.get("job")
+            if what in ("review", "cancel-review", "use"):
+                allowed = {"job", "source_sha256", "mode"} if what == "review" else {"job", "source_sha256", "decisions"} if what == "use" else {"job"}
+                if set(body) - allowed:
+                    raise sttjobs.Refusal("bad-review", "The review request contains unknown settings.")
+                if what == "review":
+                    return sttjobs.review(token, body.get("mode"), body.get("source_sha256"))
+                if what == "cancel-review":
+                    return sttjobs.cancel_review(token)
+                return sttjobs.use_review(token, body.get("source_sha256"), body.get("decisions", {}))
             if what == "start":
                 # ANY DEVICE LET IN may start one (the owner): the bound is the one
                 # slot, and Cancel
@@ -6461,7 +6473,8 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(settingspage.hub(dict_tags(), updatepage.door_tags(ROOT),
-                                                   speechpage.door_tags()))
+                                                   speechpage.door_tags(),
+                                                   '<span class="tag">%s</span>' % ("configured" if llmconfig.load() else "unconfigured")))
         if path in ("/settings/network", "/settings/network/index.html"):
             return self._redirect("/settings/network/")
         if path == "/settings/network/":
@@ -6490,6 +6503,12 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._method_not_allowed()
             return self.send_html(speechpage.page(reading_jobs()["speech"], self._where(),
                                                   self._whose_device()))
+        if path in ("/settings/llm", "/settings/llm/index.html"):
+            return self._redirect("/settings/llm/")
+        if path == "/settings/llm/":
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(llmpage.page(self._where()))
         if path == LATEX_PAGE.rstrip("/"):
             return self._redirect(LATEX_PAGE)
         if path == LATEX_PAGE:
@@ -6519,6 +6538,8 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "POST":
                 return self._method_not_allowed()
             return self._pair()
+        if path.startswith("/settings/api/llm/"):
+            return self._llm_api(method, path)
         if path in UPDATE_ROUTES:
             return self._update_api(method, path)
         if path in LATEX_ROUTES:
@@ -6539,6 +6560,46 @@ class Handler(SimpleHTTPRequestHandler):
             gone = network.forget("" if body.get("all") else body.get("id"))
             return self.send_json({"ok": True, "forgotten": gone})
         return self._not_found()
+
+    def _llm_api(self, method, path):
+        if method != "POST":
+            return self._method_not_allowed()
+        crossed = self._cross_site(path)
+        if crossed:
+            return self.send_json({"ok": False, "error": crossed}, 403)
+        if len(self._body()) > llmconfig.MAX_CONFIG:
+            return self.send_json({"ok": False, "error": "The LLM settings request is too large."}, 413)
+        what = path.rsplit("/", 1)[-1]
+        try:
+            body = self._json_body()
+            if what == "status":
+                out = llmconfig.view()
+            elif what == "save":
+                out = llmconfig.save(body)
+            elif what == "reset":
+                out = llmconfig.reset()
+            elif what == "import-link":
+                out = llmconfig.share_link(body.get("link"))
+            elif what == "models":
+                out = {"models": llmadapter.adapter(llmconfig.preview(body)).models()}
+            elif what == "test":
+                config = llmconfig.load()
+                if config is None:
+                    raise llmconfig.LLMError("unconfigured", "Save a connection and model first.")
+                try:
+                    test = llmadapter.adapter(config).test()
+                except llmconfig.LLMError as e:
+                    llmconfig.record_test(config, {"say": e.say, "ok": False})
+                    raise
+                out = llmconfig.record_test(config, dict(test, ok=True))
+            else:
+                return self._not_found()
+            return self.send_json(dict(out, ok=True))
+        except llmconfig.LLMError as e:
+            return self.send_json({"ok": False, "code": e.code, "error": e.say}, 400)
+        except Exception:
+            # Never echo settings bodies, credentials or endpoint responses.
+            return self.send_json({"ok": False, "error": "The LLM connection could not be read or saved."}, 500)
 
     # ------------------------------------------------------------ updating Parseh
     def _update_api(self, method, path):

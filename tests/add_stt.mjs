@@ -113,7 +113,8 @@ tmp, port = Path(sys.argv[1]), sys.argv[2]
 # the computer's speech to text is a file (tests/addstt_fakes.py), not this machine's
 import addstt_fakes
 sys.modules['getstt'] = addstt_fakes.make(str(tmp.parent / 'fake'))
-import prefs, network, offline
+import prefs, network, offline, llmconfig
+llmconfig.ROOT = str(tmp)
 prefs.STORE = str(tmp / 'config' / 'prefs.json')
 network.STORE = str(tmp / 'config' / 'network.json')
 import latexthemes, latexdraw, texpackages
@@ -221,6 +222,16 @@ const text = (page, sel) => page.evaluate(sel => (document.querySelector(sel) ||
 const value = (page, sel) => page.inputValue(sel);
 const phase = page => page.evaluate(() => document.getElementById('stt').getAttribute('data-state'));
 const inPhase = (page, ph, what, ms = 20000) => until(async () => (await phase(page)) === ph, what || `the block is ${ph}`, ms);
+async function reviewAndUse(page) {
+  const before = await value(page, '#transcript');
+  await inPhase(page, 'choice', 'explicit post-ASR review choice', 60000);
+  eq(await value(page, '#transcript'), before, 'ASR completion does not insert text');
+  await page.click('#stt_review_whisper');
+  await inPhase(page, 'review', 'Whisper-only review opens');
+  eq(await value(page, '#transcript'), before, 'opening review does not insert text');
+  await page.click('#stt_use');
+  await inPhase(page, 'idle', 'explicit Use finishes the review');
+}
 // every control of the block that is on screen, enabled and would DO something
 const live = page => page.evaluate(() => [...document.querySelectorAll('#stt button, #stt select, #stt a[href]')]
   .filter(e => e.getClientRects().length > 0 && !e.disabled).map(e => e.id || e.tagName));
@@ -419,7 +430,8 @@ await section('c', 'a film: Transcribe, the text in the box, the video not added
   const before = await names(VIDEOS + '/persian');
   await page.click('#stt_go');
   // its own words as it goes, and a bar that moves
-  const lines = await saysOver(page, async () => (await phase(page)) === 'idle');
+  const lines = await saysOver(page, async () => (await phase(page)) === 'choice');
+  await reviewAndUse(page);
   assert(lines.some(l => /^Transcribing on CPU… \d+%$/.test(l)), 'it says how far it is: ' + JSON.stringify(lines));
   assert(lines.some(l => /^Loading large-v3-turbo…$/.test(l)), 'and that it loads the model first');
   eq(await inBox(page), PANEL_FA, 'the transcript is in the box, in the panel format: a clock line and the caption');
@@ -528,17 +540,17 @@ await section('c3', 'never over a person\'s words unasked; the prompt made stale
   // "yes"
   page.answer = true;
   await page.click('#stt_go');
-  await until(async () => (await inBox(page)) === PANEL_FA, 'the transcript replaces the box', 40000);
+  await reviewAndUse(page);
   await inPhase(page, 'idle');
   eq([await shown(page, '#pshow'), await shown(page, '#pinfo')], [false, false], 'the prompt prepared before is out of date: gone');
-  eq(page.dialogs.length, 2, 'asked once for that run');
+  eq(page.dialogs.length, 3, 'start and final Use both confirm replacement');
   // whose the box is
   assert(await shown(page, '#stt_tied') && /made by speech to text/.test(await text(page, '#stt_tied')), 'the box says it was made by speech to text');
   // a run over what speech to text itself wrote asks nothing
   await page.click('#stt_go');
   await until(async () => (await phase(page)) !== 'idle', 'a second run starts');
-  eq(page.dialogs.length, 2, 'over its own unedited work: not asked');
-  await inPhase(page, 'idle', 'and it ends', 40000);
+  eq(page.dialogs.length, 3, 'over its own unedited work: not asked to start');
+  await reviewAndUse(page);
   // edited: the tie says so, and it asks again
   await page.click('#transcript');
   await page.keyboard.press('End');
@@ -546,7 +558,7 @@ await section('c3', 'never over a person\'s words unasked; the prompt made stale
   assert(await shown(page, '#stt_tied') && /has been edited since/.test(await text(page, '#stt_tied')), 'an edit is said: ' + await text(page, '#stt_tied'));
   page.answer = false;
   await page.click('#stt_go');
-  eq([page.dialogs.length, await phase(page)], [3, 'idle'], 'over an edited box it asks, and "no" leaves it');
+  eq([page.dialogs.length, await phase(page)], [4, 'idle'], 'over an edited box it asks, and "no" leaves it');
   // the same text typed back is the same box
   await page.fill('#transcript', PANEL_FA);
   assert(await shown(page, '#stt_tied') && /made by speech to text/.test(await text(page, '#stt_tied')) && !/edited since/.test(await text(page, '#stt_tied')), 'the same words are its work again (the tie is the text, not the keystrokes)');
@@ -575,7 +587,7 @@ await section('c3', 'never over a person\'s words unasked; the prompt made stale
   page.answer = true;
   await page.click('#stt_go');
   await until(async () => (await phase(page)) !== 'idle', 'started');
-  await inPhase(page, 'idle', 'done', 40000);
+  await reviewAndUse(page);
   assert(await shown(page, '#stt_tied'), 'tied again');
   await page.selectOption('#stt_model', 'large-v3');
   eq(await shown(page, '#stt_tied'), false, 'another model: not tied');
@@ -583,7 +595,7 @@ await section('c3', 'never over a person\'s words unasked; the prompt made stale
   // and the video (the path) -- from a tied box again
   await page.click('#stt_go');
   await until(async () => (await phase(page)) !== 'idle', 'started');
-  await inPhase(page, 'idle', 'done', 40000);
+  await reviewAndUse(page);
   assert(await shown(page, '#stt_tied'), 'tied to the second model');
   await page.fill('#path', await film());
   eq(await shown(page, '#stt_tied'), false, 'another film: not tied');
@@ -592,36 +604,17 @@ await section('c3', 'never over a person\'s words unasked; the prompt made stale
   await context.close();
 });
 
-await section('c4', 'the box that changed while it ran is asked about again', async () => {
+await section('c4', 'editing the transcript while ASR runs discards stale review', async () => {
   await setFake({delay: 1.6, load_delay: 1.6});
   const {context, page} = await newPage();
-  await openAdd(page, {by: 'empty'});
-  await blockReady(page);
-  await chooseFilm(page);
-  // nothing in the box: nothing asked to start
-  await page.click('#stt_go');
-  await inPhase(page, 'working', 'running');
-  eq(page.dialogs.length, 0, 'an empty box: not asked');
+  await openAdd(page, {by: 'empty'}); await blockReady(page); await chooseFilm(page);
+  await page.click('#stt_go'); await inPhase(page, 'working', 'running');
   await page.fill('#transcript', 'typed while it ran');
-  page.answer = false;
-  await inPhase(page, 'idle', 'it ends', 40000);
-  eq(page.dialogs.length, 1, 'the box changed meanwhile: asked once more, when the text arrived');
-  assert(/changed while this was running/.test(page.dialogs[0]), 'in these words: ' + page.dialogs[0]);
-  eq(await inBox(page), 'typed while it ran', '"no": the person\'s words stay');
-  eq(await shown(page, '#stt_use'), true, 'and the new transcript is offered, not lost');
-  assert(/kept as you have it/.test(await text(page, '#stt_note')), await text(page, '#stt_note'));
-  await shot(page, 'c4-held-1280');
-  await page.click('#stt_use');
-  eq(await inBox(page), PANEL_FA, 'taken, it is in the box');
-  eq([await shown(page, '#stt_use'), await shown(page, '#stt_tied')], [false, true], 'and tied');
-  // and "yes"
-  await page.fill('#transcript', '');
-  await page.click('#stt_go');
-  await inPhase(page, 'working', 'again');
-  await page.fill('#transcript', 'typed again');
-  page.answer = true;
-  await inPhase(page, 'idle', 'ends', 40000);
-  eq([page.dialogs.length, await inBox(page)], [2, PANEL_FA], '"yes": replaced');
+  await inPhase(page, 'idle', 'stale result discarded', 40000);
+  eq(await inBox(page), 'typed while it ran', 'the edited box stays untouched');
+  eq(await shown(page, '#stt_use'), false, 'stale results cannot be applied');
+  assert(/stale review was discarded/.test(await text(page, '#stt_note')), 'the reason is visible');
+  eq(page.dialogs.length, 0, 'stale results never offer to replace the edited box');
   await context.close();
 });
 
@@ -632,7 +625,7 @@ await section('c5', 'the other source card breaks the tie, and leaves the words'
   await blockReady(page);
   await chooseFilm(page);
   await page.click('#stt_go');
-  await until(async () => (await inBox(page)) === PANEL_FA, 'the transcript is in the box', 40000);
+  await reviewAndUse(page);
   await inPhase(page, 'idle');
   assert(await shown(page, '#stt_tied'), 'the box is tied to the film');
   await page.click('.path[data-src="yt"]');
@@ -706,7 +699,8 @@ await section('d', 'failures are sentences, and nothing is left stuck', async ()
   // Automatic: the same card, and the same failure, is no failure
   await page.selectOption('#stt_proc', 'auto');
   await page.click('#stt_go');
-  const lines = await saysOver(page, async () => (await phase(page)) === 'idle');
+  const lines = await saysOver(page, async () => (await phase(page)) === 'choice');
+  await reviewAndUse(page);
   assert(lines.some(l => l.startsWith('The graphics card could not start this model, so Parseh continued on the CPU.')),
          'Automatic says that it fell back to the CPU: ' + JSON.stringify(lines));
   eq(await inBox(page), PANEL_FA, 'and the transcript arrives');
@@ -722,7 +716,7 @@ await section('d', 'failures are sentences, and nothing is left stuck', async ()
   await until(async () => /has not answered for a moment/.test(await text(page, '#stt_note')), 'silence is said', 30000);
   eq(await phase(page), 'working', 'and is not a verdict: it goes on waiting');
   await page.unroute('**/transcribe/status');
-  await inPhase(page, 'idle', 'it answers again, and the job finishes', 60000);
+  await reviewAndUse(page);
   eq(await inBox(page), PANEL_FA, 'the transcript arrives');
   eq(await shown(page, '#stt_note') && !/has not answered/.test(await text(page, '#stt_note')), true, 'and the silence is no longer said');
 
@@ -734,9 +728,9 @@ await section('d', 'failures are sentences, and nothing is left stuck', async ()
   const startsBefore = seen(page, /transcribe\/start/);
   await page.route('**/transcribe/result', r => (++asks <= 2 ? r.abort() : r.continue()));
   await page.click('#stt_go');
-  await inPhase(page, 'idle', 'the words arrive after all', 60000);
-  eq([await inBox(page), asks, seen(page, /transcribe\/start/) - startsBefore], [PANEL_FA, 3, 1],
-     'asked three times, answered the third, and only one job was ever started for it');
+  await reviewAndUse(page);
+  eq([await inBox(page), asks, seen(page, /transcribe\/start/) - startsBefore], [PANEL_FA, 4, 1],
+     'result retried until answered, then reopened after explicit review; only one job was ever started for it');
   await page.unroute('**/transcribe/result');
 
   // installed a moment ago, gone now: the page finds out when it asks
@@ -761,7 +755,7 @@ await section('d2', 'a reload finds a running job again; nothing is left stuck',
   await inPhase(page, 'working', 'after a reload the block is at the job again');
   eq([await value(page, '#lang'), await page.$eval('#path', e => e.readOnly)], ['fa', true], 'with the same video and language, held');
   assert(await shown(page, '#stt_cancel'), 'and Cancel');
-  await inPhase(page, 'idle', 'it ends', 60000);
+  await reviewAndUse(page);
   eq(await inBox(page), PANEL_FA, 'and the text arrives in the box the draft gave back');
   assert(await shown(page, '#stt_tied') && /made by speech to text/.test(await text(page, '#stt_tied')), 'tied');
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('yt_add_stt_state')));
@@ -824,9 +818,47 @@ await section('e', 'a browser that cannot record a tab: the YouTube way says so,
     await blockReady(page);
     await chooseFilm(page);
     await page.click('#stt_go');
-    await until(async () => (await inBox(page)) === PANEL_FA, `${name}: a film is transcribed all the same`, 40000);
+    await reviewAndUse(page);
     await context.close();
   }
+});
+
+await section('review', 'pending LLM draft, accessible details and Unicode-safe edits', async () => {
+  const {context, page} = await newPage();
+  await openAdd(page, {by: 'empty'}); await blockReady(page);
+  await page.evaluate(() => {
+    const root = document.createElement('section'); root.id = 'review-contract'; document.body.appendChild(root);
+    const original = '0:00\n🙂 loro anno detto ciao\n';
+    window.reviewApplied = null;
+    const word = {segment_id: 's0', word_id: 's0w2', text: 'anno', start: .5, end: .75,
+      asr_confidence: .3, asr_alternatives: [{text: 'hanno', score: .37}], alternatives_available: true,
+      low_asr_score: true, reviewable: true, span_start: Array.from(original.slice(0, original.indexOf('anno'))).length,
+      span_end: Array.from(original.slice(0, original.indexOf('anno') + 4)).length};
+    const res = {text: original, review: {evidence: {source_sha256:'source', low_score_threshold:.5,
+      segments: [{segment_id:'s0', start:0, text:'🙂 loro anno detto ciao', words:[word]}]},
+      correction:{state:'complete',complete:true}, result:{schema_version:1, assessment:'suggestions', suggestions:[{
+        segment_id:'s0',word_id:'s0w2',original:'anno',error_likelihood:.8,reason:'ASR alternative and context.',
+        candidates:[{text:'hanno',confidence:.7,reason:'Matches the sentence.'}]}]}}};
+    window.contractReview = ParsehAsrReview.mount(root, {choose: function(){}, cancel: function(){},
+      use: function(decisions){ window.reviewApplied = decisions; }});
+    contractReview.show(res, 'review', {configured:true,base_url:'http://saved/v1',selected_model:'served'});
+  });
+  const marked = '#review-contract [data-review-word="s0w2"]';
+  await page.hover(marked);
+  assert(/Low ASR score/.test(await text(page, '#review-contract .stt-review-details')), 'hover exposes ASR evidence');
+  await page.focus(marked);
+  assert(/model estimate/.test(await text(page, '#review-contract .stt-review-details')), 'keyboard focus exposes model estimates');
+  await page.click(marked);
+  await page.getByRole('button', {name:'Accept this alternative',exact:true}).click();
+  eq(await page.evaluate(() => window.reviewApplied), null, 'accept changes only the pending draft');
+  eq(await text(page, '#review-contract pre'), '0:00\n🙂 loro hanno detto ciao\n', 'Unicode offsets preserve the emoji and change only the selected span');
+  await page.getByRole('button', {name:'Reject this edit / keep Whisper word',exact:true}).click();
+  eq(await text(page, '#review-contract pre'), '0:00\n🙂 loro anno detto ciao\n', 'reject restores the original span');
+  await page.getByRole('button', {name:'Accept this alternative',exact:true}).click();
+  await page.locator('#review-contract #stt_use').click();
+  eq(await page.evaluate(() => window.reviewApplied), {s0w2:0}, 'only explicit Use hands off decisions');
+  eq(await inBox(page), '', 'review component never writes to the existing transcript box');
+  await context.close();
 });
 
 /* ================================================================ f) every language, width and theme */

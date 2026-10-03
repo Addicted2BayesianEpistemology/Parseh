@@ -125,7 +125,7 @@ went; look at the result before going on.
 Under the transcript box there is one more block, **Speech to text —
 optional**. It makes the transcript for you, **on the computer Parseh runs
 on**: a speech-recognition model called Whisper listens to the video, and the
-words it hears, with their times, go into the box in the panel format above.
+words it hears, with their times, wait in a pending review in the panel format above.
 The audio is processed there and nowhere else, and nothing is sent to a
 speech-recognition service.
 
@@ -210,9 +210,16 @@ exactly as it was. The recording is kept only while it is made: **it is
 deleted as soon as the transcript is**, and the same when you cancel or leave
 the page.
 
-**What arrives.** The words go into **Transcript**, in the panel format,
-timed to the video's own clock (a stop to buffer does not shift what follows),
-and the box is at once yours to edit, by hand or in
+**What arrives.** The words wait for review; **Transcript** stays unchanged.
+Choose **Review with the selected LLM**, sending bounded text and Whisper
+evidence to the destination shown, or **Review Whisper result without the
+LLM**, which sends nothing to a model endpoint. Both open review. A low
+Whisper score below 0.5 is marked **⚠**, and an LLM edit proposal **✎**.
+Hover, focus or click/tap shows the evidence and alternatives. Accept or
+reject each proposal in the pending draft. Only **Use this transcript**
+places it in the box, timed to the video's own clock (a stop to buffer does
+not shift what follows). See [LLM Integration](../lookup-and-languages/llm-integration.md).
+Then the box is yours to edit by hand or in
 [the editor](mending-the-transcript.md). Parseh keeps the timed-word track
 only long enough to add this video; it is adopted as `wordtimes.json` when you
 use the matching edited transcript, and the captured audio is not retained.
@@ -224,8 +231,8 @@ Then:
   prepared again from the new transcript;
 - **it never writes over your words unasked.** If the box holds something
   when you press **Transcribe**, the page asks first; and if the box changed
-  while it was running, it asks again when the words arrive — and if you say
-  no, they are offered again under the button until you leave the page;
+  while it was running or during review, the stale result is discarded. Final
+  **Use this transcript** asks before replacing a different, nonempty box;
 - **the box is tied to what made it**: this video, this language, this model.
   Change one of them and the page says, quietly, that the box is no longer
   tied to speech to text; it stays as it is, and a new transcription will ask

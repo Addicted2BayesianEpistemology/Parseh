@@ -294,6 +294,25 @@ def load_model(WhisperModel, spec, device):
     raise last
 
 
+def word_alternatives(word):
+    """Capability hook for recognizers exposing genuine N-best candidates.
+
+    Pinned faster-whisper currently exposes no per-word alternatives. A future
+    backend can provide `alternatives` as [{text, score}]; absence is explicit.
+    """
+    raw = getattr(word, "alternatives", None)
+    if not isinstance(raw, list):
+        return {"asr_alternatives": [], "alternatives_available": False}
+    kept = []
+    for item in raw[:10]:
+        if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+            continue
+        sc = item.get("score")
+        sc = float(sc) if type(sc) in (int, float) and math.isfinite(sc) and 0 <= sc <= 1 else None
+        kept.append({"text": item["text"][:400], "score": sc})
+    return {"asr_alternatives": kept, "alternatives_available": True}
+
+
 def listen(WhisperModel, spec, audio, device, fell_back):
     """One try on one device -> (segments, language, word warning).  The generator that
     transcribe() returns does the actual work as it is consumed, so this is
@@ -314,7 +333,7 @@ def listen(WhisperModel, spec, audio, device, fell_back):
             # This is the owner's chosen single pass unless an installed CTC
             # aligner will time the unchanged caption pass afterwards.
             word_warning = ""
-            word_times = not spec.get("aligner_path")
+            word_times = True  # retain Whisper evidence even when a CTC aligner follows
             try:
                 found, info = model.transcribe(audio, language=spec["lang"], beam_size=BEAM_SIZE,
                                                vad_filter=True, task="transcribe",
@@ -346,7 +365,7 @@ def listen(WhisperModel, spec, audio, device, fell_back):
                         if text and math.isfinite(start) and math.isfinite(end):
                             words.append({"start": round(max(0.0, start), 3),
                                           "end": round(max(start, end), 3), "text": text,
-                                          "score": score})
+                                          "score": score, **word_alternatives(w)})
                     if words:
                         row["words"] = words
                     else:
@@ -407,6 +426,9 @@ def run(spec):
         gc.collect()
         segments, language, word_warning = listen(WhisperModel, spec, audio, "cpu", True)
     word_source = "whisper"
+    # Keep acoustic evidence separate: a CTC alignment score is not Whisper confidence.
+    for segment in segments:
+        segment["asr_words"] = [dict(w) for w in segment.get("words", [])]
     if spec.get("aligner_path"):
         try:
             import ctcalign

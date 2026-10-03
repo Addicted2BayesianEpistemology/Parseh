@@ -48,3 +48,15 @@
 .addvid .stt .note{margin-top:12px}
 .addvid .stt .note:empty{display:none}
 .addvid #stt_tied{margin-top:10px}
+
+/* Browser correction review uses glyphs and borders as well as colour. */
+.stt-review { margin-block:1rem; padding:1rem; border:1px solid var(--rule); border-radius:.6rem; }
+.stt-review .row { flex-wrap:wrap; gap:.5rem; }
+.stt-review-text { max-height:24rem; overflow:auto; line-height:1.9; }
+.stt-review-clock { font-size:.8rem; opacity:.7; direction:ltr; unicode-bidi:isolate; }
+.stt-review-word { font:inherit; color:inherit; background:transparent; padding:.1rem .2rem; border:1px dashed currentColor; border-radius:.2rem; cursor:pointer; }
+.stt-review-word.asr-proposal { border-style:solid; background:var(--card); }
+.stt-review-word.asr-accepted { text-decoration:underline double; }
+.stt-review-word:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+.stt-review-details { border-inline-start:3px solid var(--accent); padding:.5rem 1rem; margin-block:1rem; }
+.stt-review pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:20rem; overflow:auto; font:inherit; }

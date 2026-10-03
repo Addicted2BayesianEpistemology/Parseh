@@ -267,6 +267,7 @@ touches one.
 | `prefs.json` | Each book's reading place, and the settings that follow you from device to device: the narration's speed, its gap, how far ↺ and ↻ carry, the theme. |
 | `network.json` | Who may reach Parseh (the doors of **Settings → Network**, and the ranges and names you added), its port, the certificate you gave it if any, and **every device you let in**, each with the secret token it carries in a cookie. Whoever has this file can pass for those devices: keep it as you would a key. |
 | `languages.json` | The languages added on this machine ([Adding a language](../lookup-and-languages/adding-a-language.md)); there is none until you add one. |
+| `llm.json` | The host-local LLM endpoint, selected model, context budget and private API key ([LLM Integration](../lookup-and-languages/llm-integration.md)). Never synced or shipped; keep it as you would a key. |
 | `updates.json` | Whether Parseh looks for a new version once a day, and what it last found. |
 | `digests.json` | A checksum of every file a phone may keep, so that the phone can tell a file that came whole from one that did not. Worked out again whenever it is missing. |
 | `wheres.json` | Where in its book each recording is, as a phone's *Keep on this phone* list says it. Worked out again whenever it is missing. |
