@@ -695,8 +695,8 @@ def _say(job):
         return "Whisper finished. Choose how to review its transcript."
     if s == CORRECTING:
         c = job.get("correction", {})
-        if c.get("total", 0) > 1:
-            return "Reviewing with the selected LLM… %d / %d windows completed." % (c.get("done", 0), c["total"])
+        if c.get("total", 0):
+            return "Reviewing with the selected LLM… %d / %d suspect words reviewed." % (c.get("done", 0), c["total"])
         return "Reviewing with the selected LLM…"
     if s == DONE:
         n = (job["facts"] or {}).get("captions", 0)
@@ -710,7 +710,7 @@ def _say(job):
 def _pct(job):
     if job["state"] == CORRECTING:
         c = job.get("correction", {})
-        return int(100 * c.get("done", 0) / c["total"]) if c.get("total", 0) > 1 else None
+        return int(100 * c.get("done", 0) / c["total"]) if c.get("total", 0) > 0 else None
     if job["state"] == DONE:
         return 100
     if job["state"] in (TRANSCRIBING, ALIGNING) and job["total"]:
@@ -819,7 +819,9 @@ def result(token):
                     review={"evidence": job.get("review_evidence"),
                             "choice": job.get("review_choice"),
                             "correction": dict(job.get("correction") or {}),
-                            "result": job.get("correction_result")})
+                            "result": job.get("correction_result"),
+                            "diagnostics": list(job.get("llm_diagnostics") or []),
+                            "diagnostics_clipped": bool(job.get("llm_diagnostics_clipped"))})
 
 
 def _review_source_current(job):
@@ -832,7 +834,7 @@ def _review_source_current(job):
         return False
 
 
-def review(token, mode, source_sha256, connection_id=None):
+def review(token, mode, source_sha256, connection_id=None, word_ids=None, instruction_mode="prompt"):
     """Explicit browser choice. Destination and model come only from host config."""
     import llmconfig
     import llmadapter
@@ -846,6 +848,17 @@ def review(token, mode, source_sha256, connection_id=None):
             raise Refusal("source-changed", "The local film changed. Transcribe it again.", 409)
         if mode not in ("llm", "whisper"):
             raise Refusal("bad-review", "Choose LLM review or Whisper-only review.")
+        if instruction_mode not in ("prompt", "skill"):
+            raise Refusal("bad-review", "Choose the short prompt or installed correction skill.")
+        previous = job.get("correction_result")
+        if word_ids is not None:
+            import asrcorrection
+            sources = asrcorrection.index(job["review_evidence"])
+            if (mode != "llm" or not isinstance(word_ids, list) or not word_ids
+                    or len(word_ids) > len(sources) or any(not isinstance(w, str) for w in word_ids)
+                    or len(set(word_ids)) != len(word_ids)
+                    or any(w not in sources or not sources[w]["low_asr_score"] or not sources[w]["reviewable"] for w in word_ids)):
+                raise Refusal("bad-review", "Choose remaining low-score words from this Whisper result.")
         if mode == "whisper":
             job["review_choice"] = "whisper"
             job["correction_result"] = None
@@ -857,26 +870,36 @@ def review(token, mode, source_sha256, connection_id=None):
         config = llmconfig.load()
         if config is None:
             raise Refusal("llm-unconfigured", "Set up LLM Integration, or review the Whisper result without it.", 409)
+        if instruction_mode == "skill" and config.get("adapter") != "unsloth-agent-skills":
+            raise Refusal("skills-unavailable", "Select the Unsloth Agent Skills adapter in LLM Integration before using an installed skill.", 409)
         if connection_id != llmconfig.revision(config):
             raise Refusal("settings-changed", "The LLM settings changed. Inspect the current destination and choose review again.", 409)
+        if word_ids is not None and previous and job.get("llm_config_fingerprint") != llmconfig.fingerprint(config):
+            raise Refusal("settings-changed", "The LLM settings changed. Start a new review before retrying words.", 409)
         cancel = llmadapter.Cancellation()
         job["llm_cancel"] = cancel
         job["llm_generation"] = job.get("llm_generation", 0) + 1
         generation = job["llm_generation"]
         job["review_choice"] = "llm"
         job["llm_config_fingerprint"] = llmconfig.fingerprint(config)
-        job["correction_result"] = None
+        if word_ids is None:
+            job["correction_result"] = None
+            job["llm_diagnostics"] = []
+            job["llm_diagnostics_bytes"] = 0
+            job["llm_diagnostics_clipped"] = False
         job["correction"] = {"state": "running", "complete": False, "done": 0, "total": 0,
+                             "unit": "words", "response_count": len(job.get("llm_diagnostics") or []),
+                             "instruction_mode": instruction_mode,
                              "destination": config["base_url"], "model": config["selected_model"],
                              "started": _now()}
         job["state"] = CORRECTING
         answer = _report(job)
-    threading.Thread(target=_correct, args=(job, config, cancel, generation), daemon=True,
+    threading.Thread(target=_correct, args=(job, config, cancel, generation, word_ids, previous), daemon=True,
                      name="asr-correction").start()
     return answer
 
 
-def _correct(job, config, cancel, generation):
+def _correct(job, config, cancel, generation, word_ids=None, previous=None):
     import asrcorrection
     import llmadapter
     import llmconfig
@@ -890,9 +913,9 @@ def _correct(job, config, cancel, generation):
             raise llmconfig.LLMError("settings-changed", "The LLM destination or model changed. Choose review again.")
 
     class SavedAdapter:
-        def generate(self, *args, **kw):
+        def generate_text(self, *args, **kw):
             current()
-            return llmadapter.adapter(config).generate(*args, **kw)
+            return llmadapter.adapter(config).generate_text(*args, **kw)
 
     def progress(done, total):
         current()
@@ -900,15 +923,46 @@ def _correct(job, config, cancel, generation):
             if generation == job.get("llm_generation") and job["state"] == CORRECTING:
                 job["correction"].update(done=done, total=total)
 
+    def diagnostic(trace):
+        # Explicitly inspectable feature data, kept only with this ephemeral
+        # job. Never put prompts/replies in logs, prefs, sync or status.
+        current()
+        trace["run"] = generation
+        size = len(json.dumps(trace, ensure_ascii=False).encode("utf-8"))
+        with LOCK:
+            if generation != job.get("llm_generation") or job["state"] != CORRECTING:
+                return
+            if size > 512 * 1024:
+                job["llm_diagnostics_clipped"] = True
+                return
+            history = job.setdefault("llm_diagnostics", [])
+            while history and (job.get("llm_diagnostics_bytes", 0) + size > 512 * 1024 or len(history) >= 100):
+                old = history.pop(0)
+                job["llm_diagnostics_bytes"] -= len(json.dumps(old, ensure_ascii=False).encode("utf-8"))
+                job["llm_diagnostics_clipped"] = True
+            history.append(trace)
+            job["llm_diagnostics_bytes"] = job.get("llm_diagnostics_bytes", 0) + size
+            job["correction"]["response_count"] = job["correction"].get("response_count", 0) + 1
+
     try:
         out = asrcorrection.correct(job["review_evidence"], SavedAdapter(), cancel, progress,
-                                    config.get("context_tokens", 8192))
+                                    config.get("context_tokens", 8192), diagnostic, word_ids,
+                                    job["correction"].get("instruction_mode") == "skill")
         current()
         with LOCK:
             if generation != job.get("llm_generation") or job["state"] != CORRECTING:
                 return
+            if word_ids is not None and previous:
+                selected = set(word_ids)
+                # A retry updates only its selected words. Other proposals and
+                # the browser's accepted/manual draft remain available.
+                out["suggestions"] = [s for s in previous["suggestions"] if s["word_id"] not in selected] + out["suggestions"]
+                for key in ("failed_word_ids", "uncertain_word_ids"):
+                    out[key] = [w for w in previous.get(key, []) if w not in selected] + out[key]
+                out["assessment"] = "suggestions" if out["suggestions"] else out["assessment"]
             job["correction_result"] = out
-            job["correction"].update(state="complete", complete=True)
+            job["correction"].update(state="complete", complete=True,
+                                     failed_words=len(out.get("failed_word_ids", [])))
             job["state"], job["finished"] = DONE, _now()
     except Exception as e:
         # No tracebacks here: an unexpected exception may contain model text.
@@ -937,7 +991,7 @@ def cancel_review(token):
         return _report(job)
 
 
-def use_review(token, source_sha256, decisions):
+def use_review(token, source_sha256, decisions, manual_edits=None):
     """Apply only chosen validated spans. Caption clocks/boundaries stay put."""
     import asrcorrection
     import llmconfig
@@ -961,7 +1015,7 @@ def use_review(token, source_sha256, decisions):
             raise Refusal("stale-review", "That review no longer matches the Whisper result.", 409)
         try:
             panel, changed = asrcorrection.apply(job["text"], evidence,
-                job.get("correction_result") or {"suggestions": []}, decisions)
+                job.get("correction_result") or {"suggestions": []}, decisions, manual_edits)
         except llmconfig.LLMError as e:
             raise Refusal(e.code, e.say)
         original = ytpages.parse_transcript_text(job["text"], job["lang"])

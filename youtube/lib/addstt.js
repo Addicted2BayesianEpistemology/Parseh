@@ -208,7 +208,7 @@
     // an answer that arrives after a Cancel finds it is not wanted.
     var S = {slice: null, phase: 'idle', run: 0, job: '', kind: '', key: '', lang: '', model: '',
              startHash: '', video: '', player: null, rec: null, sent: 0, timer: 0, readyTimer: 0,
-             abort: null, held: null, said: '', pct: null};
+             abort: null, held: null, said: '', pct: null, responses: 0};
     var AUTO = null;   // {source, lang, model, hash}: the box holds what THIS video, language and model made
     var WAVE = null;   // {job, source}: the shape of the sound, held by the computer for this video
     var WORDS = null;  // {job, source, lang}: the word tape, for a YouTube video or a local film
@@ -287,7 +287,7 @@
     var reviewMobile = el('p', 'fieldnote', 'Switch to the Browser interface above to choose and use the pending transcript review.');
     reviewMobile.setAttribute('data-layout', 'mobile'); reviewMobile.hidden = true;
     form.lastChild.appendChild(reviewMobile);
-    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: chooseReview, use: useReview, cancel: cancelReview});
+    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill) { chooseReview(mode, null, skill); }, retry: retryReview, use: useReview, cancel: cancelReview});
     var LLM = null;
 
     var tied = el('p', 'fieldnote');
@@ -771,6 +771,14 @@
             var c = j.correction || {};
             var elapsed = c.started ? Math.floor(Date.now() / 1000 - c.started) : 0;
             REVIEW.progress(j.say + (j.pct == null ? ' Elapsed: ' + clock(elapsed) + '.' : ''));
+            if (c.response_count && c.response_count !== S.responses) {
+              S.responses = c.response_count;
+              post('result', {job: S.job}).then(function (reply) {
+                if (run !== S.run || !S.held || S.phase !== 'correcting' || !reply.j.ok) return;
+                var review = reply.j.review || {};
+                REVIEW.diagnostics(review.diagnostics, review.diagnostics_clipped);
+              }, function () {});
+            }
           }
           say(j.say, j.pct);
           S.timer = setTimeout(tick, POLL_MS);
@@ -828,7 +836,8 @@
       REVIEW.show(res, S.phase, res.review && res.review.evidence ? LLM : {configured: false});
       paint();
     }
-    function chooseReview(mode) {
+    function retryReview(wordIds, skill) { if (wordIds.length) chooseReview('llm', wordIds, skill); }
+    function chooseReview(mode, wordIds, skill) {
       if (!S.held || (S.phase !== 'choice' && S.phase !== 'review')) return;
       if (!pendingCurrent()) { discardPending(); return; }
       var evidence = S.held.res.review && S.held.res.review.evidence;
@@ -837,11 +846,15 @@
         S.phase = 'review'; REVIEW.show(S.held.res, 'review', {configured: false}); paint(); return;
       }
       var run = S.run;
+      S.responses = 0;
       S.phase = mode === 'llm' ? 'correcting' : 'choosing';
       REVIEW.show(S.held.res, 'correcting', LLM);
       say(mode === 'llm' ? 'Starting LLM review…' : 'Opening Whisper-only review…');
-      post('review', {job: S.job, mode: mode, source_sha256: evidence.source_sha256,
-        connection_id: mode === 'llm' && LLM ? LLM.connection_id : null}).then(function (r) {
+      var body = {job: S.job, source_sha256: evidence.source_sha256,
+        instruction_mode: skill ? 'skill' : 'prompt',
+        connection_id: mode === 'llm' && LLM ? LLM.connection_id : null};
+      if (wordIds) body.word_ids = wordIds; else body.mode = mode;
+      post(wordIds ? 'retry-review' : 'review', body).then(function (r) {
         if (run !== S.run || !S.held) return;
         if (!r.j.ok) {
           if (r.j.code === 'source-changed') { discardPending(); return; }
@@ -876,14 +889,15 @@
       var job = S.job; S.held = null; REVIEW.clear(); tidy(); cancelServer(job);
       note('Review cancelled. The transcript box was left untouched.'); paint();
     }
-    function useReview(decisions) {
+    function useReview(decisions, manualEdits) {
+      manualEdits = manualEdits || {};
       if (!S.held || S.phase !== 'review') return;
       if (!pendingCurrent()) { discardPending(); return; }
-      if (o.transcript().trim() && (o.transcript() !== S.held.res.text || Object.keys(decisions).length) && !confirmOver('Replace the transcript in the box with this reviewed transcript? What is written there now is lost.')) return;
+      if (o.transcript().trim() && (o.transcript() !== S.held.res.text || Object.keys(decisions).length || Object.keys(manualEdits).length) && !confirmOver('Replace the transcript in the box with this reviewed transcript? What is written there now is lost.')) return;
       var held = S.held, run = S.run;
       var evidence = held.res.review && held.res.review.evidence;
       REVIEW.disableUse(true);
-      var request = evidence ? post('use', {job: S.job, source_sha256: evidence.source_sha256, decisions: decisions})
+      var request = evidence ? post('use', {job: S.job, source_sha256: evidence.source_sha256, decisions: decisions, manual_edits: manualEdits})
         : Promise.resolve({j: held.res});
       request.then(function (r) {
         if (run !== S.run || S.held !== held) return;

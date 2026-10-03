@@ -73,7 +73,7 @@ class FakeHTTP:
                 owner.calls.append((self.path, dict(self.headers), body))
                 time.sleep(owner.delay)
                 data = owner.body or ({"data": [{"id": "served/model"}]} if body is None else
-                    {"choices": [{"finish_reason": "stop", "message": {"content": '{"ok":true}'}}]})
+                    {"choices": [{"finish_reason": "stop", "message": {"content": 'Parseh connection OK'}}]})
                 raw = data if isinstance(data, bytes) else json.dumps(data).encode()
                 try:
                     self.send_response(owner.status)
@@ -99,17 +99,17 @@ class Adapter(unittest.TestCase):
         self.http = FakeHTTP()
         self.addCleanup(self.http.close)
 
-    def test_presets_share_adapter_and_saved_model_json_request(self):
+    def test_presets_share_adapter_and_saved_model_text_request(self):
         for preset in ("ollama", "unsloth", "generic"):
             adapter = llmadapter.adapter(config(self.http.base, preset))
             self.assertIsInstance(adapter, llmadapter.OpenAICompatible)
             self.assertEqual(adapter.models(), ["served/model"])
-            self.assertEqual(adapter.test()["json_mode"], "supported")
+            self.assertIn("returned the requested text", adapter.test()["say"])
         path, headers, payload = self.http.calls[-1]
         self.assertEqual(path, "/prefix/v1/chat/completions")
         self.assertEqual(payload["model"], "served/model")
         self.assertEqual(payload["temperature"], 0)
-        self.assertEqual(payload["response_format"], {"type": "json_object"})
+        self.assertNotIn("response_format", payload)
         self.assertEqual(headers["Authorization"], "Bearer private-key")
         self.assertEqual(len(payload["messages"]), 2)
 
@@ -186,64 +186,148 @@ class Adapter(unittest.TestCase):
         with self.assertRaises(llmconfig.LLMError):
             adapter.test()
 
+    def test_reasoning_is_separate_inspectable_and_credentials_redacted(self):
+        self.http.body = {"choices": [{"finish_reason": "length", "message": {
+            "content": None, "reasoning_content": "private-key reasoning"}}]}
+        traces = []
+        with self.assertRaises(llmconfig.LLMError) as e:
+            llmadapter.adapter(config(self.http.base)).generate_text([], observe=traces.append)
+        self.assertEqual(e.exception.code, "output-limit")
+        self.assertEqual(traces[0]["answer"], "")
+        self.assertNotIn("private-key", traces[0]["reasoning"])
+        self.assertIn("reasoning", traces[0]["reasoning"])
+
+    def test_timeout_does_not_cancel_the_remaining_requests(self):
+        token = llmadapter.Cancellation()
+        self.http.delay = 2
+        adapter = llmadapter.adapter(config(self.http.base, timeout=1))
+        with self.assertRaises(llmconfig.LLMError):
+            adapter.models(token)
+        self.assertFalse(token.event.is_set())
+        self.http.delay = 0
+        self.assertEqual(adapter.models(token), ["served/model"])
+
+    def test_structured_generation_remains_available_to_other_features(self):
+        self.http.body = {"choices": [{"finish_reason": "stop", "message": {"content": '{"ok":true}'}}]}
+        out = llmadapter.adapter(config(self.http.base)).generate([])
+        self.assertEqual(out, {"ok": True})
+        self.assertEqual(self.http.calls[-1][2]["response_format"], {"type": "json_object"})
+
+    def test_native_skill_adapter_uses_only_read_skill_and_never_overwrites(self):
+        client = llmadapter.adapter(dict(config(self.http.base), adapter="unsloth-agent-skills"))
+        self.assertEqual(client._skills().config["base_url"], self.http.base.rstrip("/")[:-3] + "/api")
+        self.http.body = [{"name": correction.SKILL_NAME, "valid": True, "enabled": True}]
+        self.assertTrue(client.skill_status(correction.SKILL_NAME)["ready"])
+        self.assertEqual(self.http.calls[-1][0], "/prefix/api/skills")
+        with self.assertRaises(llmconfig.LLMError) as e:
+            client.install_skill(correction.SKILL_NAME, correction.SKILL_DESCRIPTION, correction.skill_instructions())
+        self.assertEqual(e.exception.code, "skill-exists")
+        self.http.body = {"choices": [{"finish_reason": "stop", "message": {"content": "loro hanno detto ciao"}}]}
+        with mock.patch.object(client, "skill_status", return_value={"ready": True}):
+            client.generate_text([{ "role": "user", "content": "@" + correction.SKILL_NAME}], skill=correction.SKILL_NAME)
+        payload = self.http.calls[-1][2]
+        self.assertEqual(payload["enabled_tools"], ["read_skill"])
+        self.assertTrue(payload["enable_tools"])
+        self.assertFalse(payload["mcp_enabled"])
+        self.assertNotIn("bypass_permissions", payload)
+        self.assertNotIn("response_format", payload)
+
 
 class Schema(unittest.TestCase):
     def setUp(self):
         self.panel, self.request = evidence()
         self.targets = set(correction.index(self.request))
 
-    def test_valid_proposal_rehydrates_source_and_applies_only_the_selected_span(self):
-        result = correction.validate_result(proposal(self.request), self.request, self.targets)
-        word = result["suggestions"][0]
+    def test_sentence_rehydrates_source_and_applies_only_selected_span(self):
+        unit = correction.sentence_units(self.request)[0]
+        proposals, ignored = correction.sentence_result("loro hanno detto ciao", unit)
+        word = proposals[0]
         self.assertEqual(word["asr_confidence"], .3)
         self.assertEqual(word["asr_alternatives"], [{"text": "hanno", "score": .37}])
+        result = {"suggestions": proposals}
         panel, changed = correction.apply(self.panel, self.request, result, {word["word_id"]: 0})
         self.assertTrue(changed)
         self.assertEqual(panel, self.panel.replace("anno", "hanno"))
         self.assertEqual(correction.apply(self.panel, self.request, result, {})[0], self.panel)
+        self.assertIsNone(word["error_likelihood"])
+        self.assertIsNone(word["candidates"][0]["confidence"])
 
-    def test_empty_results_and_uncertainty_are_distinct(self):
-        for assessment in ("no_likely_error", "uncertain"):
-            result = correction.validate_result({"schema_version": 1, "suggestions": [],
-                "assessment": assessment}, self.request, self.targets)
-            self.assertEqual(result["assessment"], assessment)
+    def test_ignore_edits_outside_targets_and_reject_unrelated_or_json_answers(self):
+        unit = correction.sentence_units(self.request)[0]
+        proposals, ignored = correction.sentence_result("loro hanno detto buongiorno", unit)
+        self.assertEqual([s["original"] for s in proposals], ["anno"])
+        self.assertTrue(ignored)
+        for answer in ('{"suggestions":[]}', "Completely unrelated output", "x" * 6001, "line\nbreak"):
+            with self.subTest(answer=answer), self.assertRaises(llmconfig.LLMError):
+                correction.sentence_result(answer, unit)
 
-    def test_rejects_bad_schemas_ids_spans_duplicates_and_scores(self):
-        cases = []
-        for key, value in (("schema_version", 2), ("schema_version", True), ("transcript", "rewritten")):
-            bad = proposal(self.request); bad[key] = value; cases.append(bad)
-        for key, value in (("word_id", "unknown"), ("segment_id", "s99"), ("original", "changed"),
-                           ("error_likelihood", float("nan")), ("error_likelihood", 1.1),
-                           ("error_likelihood", True), ("start", 999), ("asr_confidence", .99)):
-            bad = proposal(self.request); bad["suggestions"][0][key] = value; cases.append(bad)
-        bad = proposal(self.request); bad["suggestions"] *= 2; cases.append(bad)
-        for value in (-.1, float("inf"), True):
-            bad = proposal(self.request); bad["suggestions"][0]["candidates"][0]["confidence"] = value; cases.append(bad)
-        bad = proposal(self.request); bad["suggestions"][0]["candidates"][0]["text"] = "x\ny"; cases.append(bad)
-        for raw in cases:
-            with self.subTest(raw=raw), self.assertRaises(llmconfig.LLMError):
-                correction.validate_result(raw, self.request, self.targets)
-
-    def test_unicode_missing_evidence_and_no_calibrated_certainty(self):
+    def test_unicode_manual_edit_without_llm_or_asr_alternatives(self):
         for text in ("سلام دنیا", "日本語の名前", "caffè e tè", "🙂 parola"):
             panel, req = evidence(text)
-            for word in correction.index(req).values():
-                self.assertIsNone(word["asr_confidence"])
-                self.assertFalse(word["low_asr_score"])
-                self.assertFalse(word["alternatives_available"])
-                self.assertEqual(panel[word["span_start"]:word["span_end"]], word["text"])
-        for rule in ("Do not rewrite", "translate", "colloquial", "missing speech", "cannot tell", "not calibrated"):
-            self.assertIn(rule, correction.SYSTEM)
+            word = list(correction.index(req).values())[-1]
+            self.assertIsNone(word["asr_confidence"])
+            self.assertFalse(word["low_asr_score"])
+            result, changed = correction.apply(panel, req, {"suggestions": []}, {}, {word["word_id"]: "corretto"})
+            self.assertTrue(changed)
+            self.assertEqual(result, panel[:word["span_start"]] + "corretto" + panel[word["span_end"]:])
+        for edits in ({"unknown": "word"}, {"s0w1": "two words"}, {"s0w1": ""}, {"s0w1": "x" * 201}, {"s0w1": "x\ny"}):
+            with self.assertRaises(llmconfig.LLMError):
+                correction.apply(self.panel, self.request, {"suggestions": []}, {}, edits)
 
-    def test_windows_are_bounded_with_disjoint_ownership_and_overlap(self):
-        _, req = evidence(" ".join("parola%d" % i for i in range(240)))
-        chunks = correction.windows(req, 5000)
-        self.assertGreater(len(chunks), 1)
-        targets = [w for c in chunks for w in c["target_word_ids"]]
-        self.assertEqual(len(targets), len(set(targets)))
-        self.assertEqual(set(targets), set(correction.index(req)))
-        self.assertTrue(all(len(json.dumps(c, ensure_ascii=False).encode()) <= 5000 for c in chunks))
-        self.assertTrue(set(w["word_id"] for w in chunks[0]["context"]) & set(w["word_id"] for w in chunks[1]["context"]))
+    def test_prompt_is_short_plain_text_and_hints_only_targets(self):
+        unit = correction.sentence_units(self.request)[0]
+        prompt = correction.messages(self.request, unit)
+        self.assertLess(len(correction.SYSTEM.split()), 90)
+        self.assertIn("complete", correction.SYSTEM)
+        self.assertIn("Do not\ntranslate", correction.SYSTEM)
+        self.assertIn("optional", correction.SYSTEM)
+        self.assertIn("hanno", prompt[1]["content"])
+        self.assertNotIn('"word_id"', prompt[1]["content"])
+        self.assertNotIn("loro (", prompt[1]["content"])
+        self.assertIn("If unsure", correction.SYSTEM)
+        skill_prompt = correction.messages(self.request, unit, use_skill=True)
+        self.assertEqual(len(skill_prompt), 1)
+        self.assertTrue(skill_prompt[0]["content"].startswith("@" + correction.SKILL_NAME))
+        self.assertNotIn(correction.SYSTEM, skill_prompt[0]["content"])
+
+    def test_long_caption_splits_keep_each_target_owned_once(self):
+        _, req = evidence(" ".join("word%d" % i for i in range(240)))
+        for w in correction.index(req).values():
+            w["low_asr_score"] = True
+        units = correction.sentence_units(req, 600)
+        ids = [w["word_id"] for u in units for w in u["targets"]]
+        self.assertEqual(len(ids), 240)
+        self.assertEqual(len(set(ids)), 240)
+        self.assertTrue(all(len(u["text"].encode("utf-8")) <= 600 for u in units))
+
+    def test_failure_is_local_progress_counts_words_and_retry_filters(self):
+        _, req = evidence("loro anno detto ciao")
+        second = copy.deepcopy(req["segments"][0]); second["start"] = 10; second["end"] = 12
+        for w in second["words"]:
+            w["word_id"] += "b"; w["segment_id"] = "s1"
+        req["segments"].append(second)
+        adapter, progress, diagnostics = mock.Mock(), [], []
+        adapter.generate_text.side_effect = [llmconfig.LLMError("timeout", "Timed out."), "loro hanno detto ciao"]
+        result = correction.correct(req, adapter, llmadapter.Cancellation(), lambda a,b: progress.append((a,b)), diagnostic=diagnostics.append)
+        self.assertEqual(progress, [(0,2), (1,2), (2,2)])
+        self.assertEqual(result["failed_word_ids"], ["s0w1"])
+        self.assertEqual([s["word_id"] for s in result["suggestions"]], ["s0w1b"])
+        self.assertEqual(len(diagnostics), 2)
+        adapter.generate_text.side_effect = None; adapter.generate_text.return_value = "loro hanno detto ciao"
+        result = correction.correct(req, adapter, llmadapter.Cancellation(), lambda a,b: None, target_word_ids=["s0w1"])
+        self.assertEqual(result["words_total"], 1)
+        self.assertEqual(result["failed_word_ids"], [])
+
+    def test_cancellation_stops_the_run_and_truncation_is_inspectable(self):
+        adapter = mock.Mock()
+        adapter.generate_text.side_effect = llmconfig.LLMError("cancelled", "Cancelled.")
+        with self.assertRaises(llmconfig.LLMError):
+            correction.correct(self.request, adapter, llmadapter.Cancellation(), lambda a,b: None)
+        adapter.generate_text.side_effect = llmconfig.LLMError("output-limit", "Output limit.")
+        diagnostics = []
+        out = correction.correct(self.request, adapter, llmadapter.Cancellation(), lambda a,b: None, diagnostic=diagnostics.append)
+        self.assertEqual(out["failed_word_ids"], ["s0w1"])
+        self.assertEqual(len(diagnostics), 2)
 
     def test_backend_alternative_capability_and_remapping_preserve_scores(self):
         absent = sttworker.word_alternatives(type("Word", (), {})())
@@ -257,6 +341,20 @@ class Schema(unittest.TestCase):
 
 
 class Settings(unittest.TestCase):
+    def test_model_only_save_cannot_redirect_or_replace_credentials(self):
+        with tempfile.TemporaryDirectory() as root:
+            body = dict(config(), key_action="replace"); body.pop("format_version")
+            llmconfig.save(body, root)
+            out = llmconfig.select_model({"selected_model": "another/model"}, root)
+            saved = llmconfig.load(root)
+            self.assertEqual(saved["base_url"], config()["base_url"])
+            self.assertEqual(saved["api_key"], "private-key")
+            self.assertEqual(saved["selected_model"], "another/model")
+            self.assertNotIn("api_key", out)
+            for extra in ("base_url", "api_key", "timeout_seconds"):
+                with self.assertRaises(llmconfig.LLMError):
+                    llmconfig.select_model({"selected_model": "another/model", extra: "override"}, root)
+
     def test_default_disabled_key_redaction_and_risky_routes(self):
         with tempfile.TemporaryDirectory() as root:
             self.assertFalse(llmconfig.view(root)["configured"])
@@ -270,9 +368,10 @@ class Settings(unittest.TestCase):
             self.assertEqual(llmconfig.load(root)["api_key"], "private-key")
             Path(llmconfig.path(root)).write_text('{"format_version":99}')
             self.assertIsNone(llmconfig.load(root))
-        for name in ("save", "reset", "models", "test", "import-link"):
+        for name in ("save", "reset", "models", "import-link"):
             self.assertFalse(settingspage.may_post("/settings/api/llm/" + name, "lan")[0])
-        self.assertTrue(settingspage.may_post("/settings/api/llm/status", "lan")[0])
+        for name in ("status", "test", "models-saved", "select-model"):
+            self.assertTrue(settingspage.may_post("/settings/api/llm/" + name, "lan")[0])
 
     def test_bad_url_model_config_and_share_link(self):
         for base in ("ftp://host", "http://user:secret@host/v1", "http://host:99999", "http://host/v1?api_key=secret", "http://host/\n"):
@@ -309,16 +408,16 @@ class Jobs(unittest.TestCase):
             out = sttjobs.use_review(self.token, self.job["review_evidence"]["source_sha256"], {})
             self.assertEqual(out["text"], self.panel)
 
-    def test_failed_or_partial_windows_leave_whisper_intact_and_slot_free(self):
+    def test_failed_sentences_leave_whisper_intact_and_slot_free(self):
         cancellation = llmadapter.Cancellation()
         self.job.update(state=sttjobs.CORRECTING, llm_generation=1)
         c = config()
         with mock.patch("llmconfig.load", return_value=c), mock.patch("llmadapter.adapter") as adapter:
-            adapter.return_value.generate.side_effect = llmconfig.LLMError("invalid-json", "Invalid JSON.")
+            adapter.return_value.generate_text.side_effect = llmconfig.LLMError("invalid-response", "Invalid response.")
             sttjobs._correct(self.job, c, cancellation, 1)
-        self.assertEqual(self.job["state"], sttjobs.REVIEW_CHOICE)
+        self.assertEqual(self.job["state"], sttjobs.DONE)
         self.assertEqual(self.job["text"], self.panel)
-        self.assertIsNone(self.job["correction_result"])
+        self.assertEqual(self.job["correction_result"]["failed_word_ids"], ["s0w1"])
         self.assertFalse(sttjobs.busy())
 
     def test_cancel_preserves_pending_asr_and_invalidates_late_results(self):

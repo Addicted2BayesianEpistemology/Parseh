@@ -141,7 +141,8 @@ SETTINGS = {
                          "pins can be fetched, each checked against its hash."),
     "speech.remove": (None, "It frees the space the program or a model took."),
     "speech.stop": (None, "It stops an install this page started."),
-    "llm.connection": (EXPOSE, "It chooses where feature text is sent, the credentials and the model Parseh invokes."),
+    "llm.connection": (EXPOSE, "It chooses where feature text is sent and the saved credentials."),
+    "llm.model": (None, "It selects a model at the already configured endpoint; the destination and credentials stay on the host."),
     # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) puts two things
     # under the computer's roof.  Making the book's folder writes a folder
     # under books/ in which an agent will be told to run Parseh's own tools
@@ -179,7 +180,11 @@ ROUTES = {
     "/settings/api/llm/save": ("llm.connection",),
     "/settings/api/llm/reset": ("llm.connection",),
     "/settings/api/llm/models": ("llm.connection",),
-    "/settings/api/llm/test": ("llm.connection",),
+    "/settings/api/llm/test": ("llm.model",),
+    "/settings/api/llm/models-saved": ("llm.model",),
+    "/settings/api/llm/select-model": ("llm.model",),
+    "/settings/api/llm/skill-status": READ,
+    "/settings/api/llm/skill-install": ("llm.connection",),
     "/settings/api/llm/import-link": ("llm.connection",),
     "/settings/api/ping": READ,
     "/settings/api/pair": KNOCK,
@@ -445,7 +450,7 @@ DOORS = (
      "A transcript made on this computer, while adding a video: the program, two models",
      ("speech.get", "speech.remove", "speech.stop")),
     ("/settings/llm/", "LLM Integration",
-     "A reusable model endpoint, credentials and served-model selection", ("llm.connection",)),
+     "A reusable model endpoint; model selection from any device let in", ("llm.model",)),
 )
 
 

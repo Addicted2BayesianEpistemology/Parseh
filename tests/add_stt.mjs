@@ -840,7 +840,8 @@ await section('review', 'pending LLM draft, accessible details and Unicode-safe 
         segment_id:'s0',word_id:'s0w2',original:'anno',error_likelihood:.8,reason:'ASR alternative and context.',
         candidates:[{text:'hanno',confidence:.7,reason:'Matches the sentence.'}]}]}}};
     window.contractReview = ParsehAsrReview.mount(root, {choose: function(){}, cancel: function(){},
-      use: function(decisions){ window.reviewApplied = decisions; }});
+      use: function(decisions,manual){ window.reviewApplied = decisions; window.reviewManual = manual; },
+      retry: function(ids){ window.reviewRetried = ids; }});
     contractReview.show(res, 'review', {configured:true,base_url:'http://saved/v1',selected_model:'served'});
   });
   const marked = '#review-contract [data-review-word="s0w2"]';
@@ -857,6 +858,17 @@ await section('review', 'pending LLM draft, accessible details and Unicode-safe 
   await page.getByRole('button', {name:'Accept this alternative',exact:true}).click();
   await page.locator('#review-contract #stt_use').click();
   eq(await page.evaluate(() => window.reviewApplied), {s0w2:0}, 'only explicit Use hands off decisions');
+  await page.getByRole('button', {name:'Reject this edit / keep Whisper word',exact:true}).click();
+  await page.locator('#review-contract #stt_manual_word').fill('avevano');
+  await page.locator('#review-contract #stt_manual_word').press('Enter');
+  eq(await text(page, '#review-contract pre'), '0:00\n🙂 loro avevano detto ciao\n', 'keyboard edits stay in the Unicode-safe pending draft');
+  await page.locator('#review-contract #stt_use').click();
+  eq(await page.evaluate(() => window.reviewManual), {s0w2:'avevano'}, 'explicit Use hands off manual edits');
+  assert(await page.locator('#review-contract #stt_review_retry').isDisabled(), 'manual corrections are excluded from retry');
+  await page.getByRole('button', {name:'Restore Whisper word',exact:true}).click();
+  await page.locator('#review-contract #stt_review_retry').click();
+  eq(await page.evaluate(() => window.reviewRetried), ['s0w2'], 'one retry action selects the remaining suspicious words');
+  assert(await page.locator('#review-contract a[download]').count() === 1, 'review offers a correction skill download');
   eq(await inBox(page), '', 'review component never writes to the existing transcript box');
   await context.close();
 });

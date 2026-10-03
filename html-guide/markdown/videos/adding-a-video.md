@@ -215,8 +215,13 @@ Choose **Review with the selected LLM**, sending bounded text and Whisper
 evidence to the destination shown, or **Review Whisper result without the
 LLM**, which sends nothing to a model endpoint. Both open review. A low
 Whisper score below 0.5 is marked **⚠**, and an LLM edit proposal **✎**.
-Hover, focus or click/tap shows the evidence and alternatives. Accept or
-reject each proposal in the pending draft. Only **Use this transcript**
+Hover, focus or click/tap any word to inspect or edit it with the keyboard.
+Accept or reject proposals in the pending draft. LLM progress counts suspect
+words; failed sentences leave their words intact while the run continues.
+**Retry all remaining suspect words** retries unresolved words while retaining
+accepted/manual edits. **LLM responses** shows actual model output. The
+**Correction skill** panel provides download, installation and optional native
+Unsloth skill invocation. Only **Use this transcript**
 places it in the box, timed to the video's own clock (a stop to buffer does
 not shift what follows). See [LLM Integration](../lookup-and-languages/llm-integration.md).
 Then the box is yours to edit by hand or in

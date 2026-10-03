@@ -1,106 +1,114 @@
 ---
 title: LLM Integration
 weight: 9
-description: A reusable host-local OpenAI-compatible connection, model discovery and explicit transcript correction review in the browser.
+description: An OpenAI-compatible connection, remote model selection, installed correction skills and explicit browser transcript review.
 ---
 
-**Settings → LLM Integration** (`/settings/llm/`) connects browser features
-to an endpoint you already run. It starts unconfigured. Whisper and manual
-transcript entry work without it. Parseh installs no LLM software, downloads
-no weights and starts no model server.
+**Settings → LLM Integration** connects browser features to an endpoint you
+already run. It starts unconfigured. Whisper and manual transcript entry work
+without it. Parseh installs no model software, downloads no weights and starts
+no endpoint.
 
 ## Configure the connection
 
-Choose **Ollama**, **Unsloth** or **Generic OpenAI-compatible**. The labels
-supply defaults; all three use the same chat-completions adapter. Ollama
-prefills `http://127.0.0.1:11434/v1`. For Unsloth, enter your installation's
-address with `/v1`; installations can use different ports. A remote HTTP(S)
-endpoint is possible too. The address is reached by the Parseh host, so
-`localhost` means that host.
+Choose **Ollama**, **Unsloth** or **Generic OpenAI-compatible**. Presets supply
+defaults and share the text adapter. Ollama prefills
+`http://127.0.0.1:11434/v1`. For Unsloth use your installation's API address
+ending in `/v1`; ports vary. The Parseh host reaches the address, so `localhost`
+means that host. Hosted or other-computer HTTP(S) endpoints are also possible.
 
-The **API key** control keeps an existing key, replaces it with the masked
-field, or clears it explicitly. A saved key is never returned to the browser.
-It lives only in the host's `config/llm.json`, outside Git, releases and synced
-preferences. Endpoint, credentials and model changes are permitted only on
-the computer Parseh runs on, as the Settings door says.
+The **API key** control keeps, replaces or clears the masked key explicitly.
+It stays in the host's private `config/llm.json`, outside releases and synced
+preferences, and is never returned after saving. Endpoint, credential, adapter
+and timeout/context changes are made on the host.
 
-**Refresh models** asks the endpoint for the models it advertises. Select one
-or enter an exact model ID manually if discovery is unavailable. Listing is
-advisory: a model may disappear before a later request. A small quantized
-multilingual Qwen model is a starting point, rather than a required provider
-or model family.
+**Model selection is available from any device admitted to Parseh**, in the
+Browser interface. **Refresh models** lists advertised models. Choose one or
+enter an exact ID, then **Save model selection**. This changes only the model,
+retaining the destination and credentials. Listing is advisory: the model may
+be unloaded later. A small multilingual Qwen model is a starting point; choose
+one that works well for your language and computer.
 
-Set the request timeout and the endpoint's context budget. Match the context
-length you configured in the endpoint; Parseh splits text into bounded,
-overlapping windows, reserves space for the instructions and answer, and uses
-a conservative UTF-8 byte estimate without installing a tokenizer.
-
-**Save connection** stores the settings. **Test saved connection** sends a
-small synthetic request to the selected model and checks JSON output and
-authentication. It does not measure linguistic accuracy. The last result is
-shown for these settings during the current server session. **Clear
-connection** removes this connection only; speech runtimes and models stay.
+Set the timeout and context budget to match your endpoint. Parseh reserves
+instructions/output space and uses bounded sentences with conservative UTF-8
+byte estimates. **Save connection** saves all host controls. **Test saved
+connection** asks the saved model for a short synthetic text reply and checks
+reachability/authentication. It does not establish correction accuracy.
+**Clear connection** leaves all Whisper runtimes and models intact.
 
 ## Unsloth share links
 
 Under **Import Unsloth run settings**, paste a version 1 Chat run-settings
-share link and press **Read settings link**. Parseh reads its endpoint origin,
-model hint, GGUF variant and KV-cache type without fetching the link. Confirm
-the advertised model ID before saving.
+link. **Read settings link** imports the endpoint/model hint without fetching
+or running it. Confirm the advertised model ID. **Open these settings in
+Unsloth Studio** lets you apply quantization, GPU and KV-cache settings there.
+Those hardware choices are controlled by Studio, not Parseh's correction API.
 
-**Open these settings in Unsloth Studio** lets you apply quantization and
-hardware choices there. A link's `run=1` does not become an automatic request
-by Parseh. GGUF, GPU and KV-cache settings belong to the endpoint: they are
-not portable chat-completions parameters.
-
-In Unsloth Studio, an API key is created from the avatar at the bottom left
-under **Settings → API**. Name the key, press **Create** and copy it while it
-is shown; Studio shows the key only once.
+Create an Unsloth API key using the avatar's **Settings → API** page. Name it,
+press **Create** and copy it while shown; Studio shows the key once.
 
 ## Review a Whisper result
 
 When [speech to text](speech-to-text.md) finishes on
 [Add a video](../videos/adding-a-video.md#speech-to-text), the transcript box
-stays as it was. Choose **Review with the selected LLM** or **Review Whisper
-result without the LLM**. The LLM button shows the saved destination and model
-before use. An unconfigured connection offers Whisper-only review and a link
-to this Settings door. Remembering a browser default only marks a button;
-every LLM request still requires a click.
+stays unchanged. Choose **Review with the selected LLM** or **Review Whisper
+result without the LLM**. The saved destination/model are shown before sending.
+Whisper-only review sends nothing. Remembering a browser default marks a
+button and never makes an unattended request.
 
-Both routes open review. **⚠** marks available Whisper scores below **0.5**;
-this is a low ASR score, not proof a word is wrong. Missing scores stay
-missing. **✎** marks an LLM proposal. Hover, keyboard focus or tap/click on a
-marked word exposes its original text, timestamps, ASR score, available
-alternatives, suggested replacements and reasons. LLM likelihood and
-confidence values are explicitly model estimates, not calibrated
-probabilities. A word flagged only by Whisper stays unchanged.
+**⚠** marks an available Whisper score below **0.5**, not proof a word is wrong.
+Missing scores stay missing. **✎** marks a proposed LLM substitution. Focus,
+hover or tap any word to inspect evidence or edit it. Only suspect words'
+available alternatives are sent as readable hints; current faster-whisper does
+not expose N-best alternatives, and the page says so. The model may choose a
+better word beyond those hints. Its answer is a complete sentence; Parseh maps
+only unambiguous substitutions for suspect words back to their exact spans.
 
-Accept individual alternatives or reject them to keep Whisper's word. Edits
-affect the pending draft, and **Pending transcript draft** shows the result.
-Only **Use this transcript** writes it into the existing box, with an
-overwrite confirmation when necessary. Cancel leaves the box untouched. A
-source, language, Whisper-model or transcript-box change discards stale
-review. Caption boundaries and their video-clock timings are preserved.
-Changed word timing is carried through the existing timing editor as
-estimated and needs review; the audio has already been deleted, so automatic
-re-alignment is not claimed.
+Accept or reject individual proposals. Even when no proposal or ASR alternative
+exists, **Enter the correct word** and **Save word in draft** lets you type the
+correction yourself. Any reviewable word can be edited, including words without
+scores. **Restore Whisper word** undoes its edit. **Pending transcript draft**
+shows the pending result. Only **Use this transcript** writes it into the box,
+after the existing overwrite confirmation if needed. Cancel leaves the box
+untouched. Source, language, Whisper-model or box changes discard stale review.
+Caption boundaries and video clocks stay unchanged; edited word timings need
+review in the existing timing editor because the audio has been deleted.
 
-## Progress, cancellation and privacy
+## Correction skill
 
-Multiple LLM windows report completed-window progress. A single request has
-an indeterminate bar and elapsed time. **Cancel LLM review** aborts the HTTP
-work, discards proposals and keeps the Whisper result available. Failure,
-timeout or invalid model JSON likewise offers retry or Whisper-only review;
-partial suggestions are never presented as complete.
+Expand **Correction skill** in the review page and **Download correction
+skill**. The zip contains `parseh-asr-correction/SKILL.md` and installation
+instructions. In Unsloth, extract the folder under the endpoint user's
+`.agents/skills/`, or create the skill in Studio and enable it. It can then be
+selected with `@parseh-asr-correction` in a Studio chat.
 
-Correction sends only bounded text, language and ASR evidence with stable
-word and segment IDs. Audio, waveforms, file paths, video identifiers,
-cookies and unrelated history are never sent. Whisper scores and genuine
-ASR alternatives retain their meaning. The current faster-whisper backend
-does not expose per-word N-best alternatives, so requests explicitly report
-them as unavailable. An optional timing aligner's score is never used as a
-Whisper score.
+For API review, select **Unsloth Agent Skills + compatible text** as the saved
+adapter on the host. **Install in saved endpoint** creates this exact skill
+through Unsloth's authenticated Skills API; it never overwrites an existing
+skill. **Check installed skill** checks whether it is enabled and valid.
+Choose **Use installed correction skill** before starting LLM review. Parseh
+sends the skill invocation and sentence evidence; Unsloth loads the installed
+instructions with its `read_skill` tool. Other tools and MCP are disabled.
 
-This feature belongs to the browser authoring flow. It adds no mobile reader
-or mobile app feature. ASR hardware choices remain in Speech to text; LLM
-hardware is controlled by the endpoint's owner.
+Other software needs its own skill-capable API to invoke installed skills.
+Generic compatible endpoints use Parseh's short prompt. A skill supplies reusable
+instructions to the same model; it does not train it or ensure better accuracy.
+
+## Progress, failures and diagnosis
+
+Progress counts suspect words processed, including failed attempts, rather than
+sentences. If one request times out or returns an invalid answer, its words stay
+unchanged and the remaining sentences continue. Failed and unresolved words can
+be edited manually or sent again with **Retry all remaining suspect words**.
+Accepted and manual edits remain in the draft and are excluded from retry.
+
+**LLM responses** shows actual prompts, raw/final answers, supplied reasoning,
+finish status and elapsed time. Output-limit failures are visible here. Long
+outputs/history are bounded and may be clipped. These records remain temporary
+with this job; they are never written to logs or synced. A model leaving a word
+unchanged does not establish that it is correct.
+
+**Cancel LLM review** aborts the HTTP work and retains the Whisper result.
+Audio, waveforms, paths, video IDs, cookies and unrelated history are never sent.
+ASR hardware remains in Speech to text; LLM hardware belongs to the endpoint.
+This feature adds no mobile reader or mobile app behavior.

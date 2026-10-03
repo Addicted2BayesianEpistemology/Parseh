@@ -1,73 +1,82 @@
 # LLM connection and correction review
 
-`llmconfig.py` owns the versioned host-only `config/llm.json` configuration.
-Missing, malformed and unknown-version configurations load as unconfigured.
-`settingspage.py` classifies `llm.connection` as risky and gates every save,
-reset, discovery, connection test and link-import route before it runs.
-Credentials are masked, explicitly kept/replaced/cleared, stored with mode
-0600 and excluded from source, release manifests and prefs. Status never
-returns the saved key or its fingerprint. An opaque session connection ID
-ties the destination shown before review to the saved connection; changing
-settings requires another deliberate choice before text is sent. The last
-connection test is session-local.
+`llmconfig.py` owns the versioned host-local `config/llm.json`. Missing,
+malformed and unknown-version configurations load as unconfigured. Credentials
+are kept/replaced/cleared explicitly, saved with mode 0600 and excluded from
+source, releases, status and prefs. An opaque session connection ID binds the
+saved destination to the connection shown before a deliberate review click.
 
-`llmadapter.py` is the reusable boundary for models, connection testing and
-structured text generation. Ollama, Unsloth and generic configuration select
-the same OpenAI-compatible implementation. No inference library or SDK is
-added to the main environment. HTTP does not follow redirects or proxy
-environment settings. A wall-clock deadline, cancellation event and socket
-shutdown bound the request. Error messages contain sanitized categories and
-HTTP status, never response bodies, prompts or credentials. Known unloaded-model
-errors produce a static instruction to load the model in the endpoint's own
-interface; Parseh neither loads it nor retries that error without JSON mode.
-JSON-mode output
-is still parsed and validated. A connection test can record an unsupported
-JSON mode while retaining structured JSON parsing for feature calls.
+`settingspage.py` gates endpoint, credential, adapter and skill-install changes
+on the host. Any admitted device may discover models at the saved endpoint,
+select an exact model ID and test the saved connection. Model-only save accepts
+no other fields and preserves the endpoint/key. Feature bodies cannot override
+saved connection settings. The browser interface owns these controls; mobile
+reader paths are unchanged.
 
-`asrcorrection.py` owns the feature prompt and CorrectionRequest /
-CorrectionResult contract. ASR evidence receives stable segment/word IDs and
-exact Unicode code-point spans in the original panel. Unmatched spans are
-inspectable but ineligible for edits. Word scores stay nullable. The worker
-keeps `asr_words` before CTC alignment so CTC probabilities cannot replace
-Whisper evidence. `word_alternatives` is the capability hook for genuine
-backend alternatives; pinned faster-whisper currently returns unavailable.
+`llmadapter.py` provides shared standard-library HTTP, model discovery, plain
+and structured generation. Preset labels supply defaults, not correction code.
+No inference library is installed, no weights are fetched and no endpoint is
+started. HTTP does not follow redirects or proxy environment settings. Each
+request has a wall-clock deadline and its own cancellation token; timeout closes
+that request without cancelling subsequent sentences. User cancellation aborts
+the active socket. Errors expose static categories/status, never response bodies,
+prompts or credentials. Connection testing uses synthetic short text and does
+not measure language accuracy.
 
-Windows own disjoint target IDs with bounded overlapping context. Input
-budgeting counts UTF-8 bytes conservatively, reserving instructions and
-output tokens against the host-configured context length. Candidate IDs,
-original spans, scores, evidence echoes, reasons, duplicates and response
-size are validated. Unknown fields and schemas are rejected. Optional
-`assessment` and `uncertain_word_ids` distinguish no likely error from
-uncertainty. All windows must validate before any suggestions are exposed.
+The optional `unsloth-agent-skills` adapter adds the native Skills catalog/create
+API and generation with only `read_skill` enabled and MCP disabled. Generic
+compatible endpoints use short prompts. The review page offers a portable skill
+zip, an explicit install action (never overwriting an existing skill), readiness
+check and opt-in skill invocation. Instructions live in
+`lib/asrskill/parseh-asr-correction/SKILL.md`; skills are instructions loaded by
+the endpoint, not training. No other local tools are enabled by Parseh.
 
-Jobs retain the existing token, ASR panel and held-data fields and add
-`review: {evidence, choice, correction, result}`. ASR ends in
-`awaiting-review-choice`, after releasing the model/runtime hold. Pending
-reviews do not hold the execution slot. `review {job, mode, source_sha256, connection_id}`
-either opens Whisper-only review or claims the single slot for `correcting`.
-Saved endpoint/model settings are snapshotted and checked before each window
-and publication. Changes invalidate in-flight suggestions. `cancel-review`
-or Cancel during correction aborts outstanding HTTP work and restores the
-review choice with no accepted/partial suggestions. Per-request timeout and
-failure release the slot without turning successful ASR into a failure.
+`asrcorrection.py` owns immutable evidence, short sentence prompts and validated
+word substitutions. Original Whisper scores remain nullable and are never
+replaced by an aligner's confidence. Genuine alternatives are exposed through
+the worker capability hook; pinned faster-whisper currently reports alternatives
+unavailable. Stable segment/word IDs and Unicode code-point offsets stay local.
+Only bounded sentence text, language and flagged-word scores/available hints
+are sent. Audio, IDs, paths, cookies and unrelated history are excluded.
 
-`use {job, source_sha256, decisions}` accepts only candidate indices keyed by
-validated word IDs. It applies replacements to exact panel spans, checks
-caption clocks/boundaries against the original and returns the reviewed
-panel. The immutable Whisper panel/evidence remain intact. The existing word
-tape sync retires changed atoms and estimates replacements. The returned
-timing notice directs the person to the existing editor; retained audio is
-not available for re-alignment. Caption clocks are never inferred anew.
+The model returns a complete plain sentence, not JSON. Local diff mapping accepts
+only unambiguous substitutions belonging to selected low-score words. Changes
+outside those words, ambiguous boundaries, oversized replacements and deletions
+are ignored and disclosed. No model-created certainty/rationale is fabricated.
+Unchanged words are unresolved, not proven correct. A sentence failure is local;
+remaining sentences continue. Results include failed/unresolved word IDs, and
+progress counts attempted suspect words, including failed attempts. A retry
+selects only the remaining suspect IDs, retaining other validated proposals.
+Cancellation or source/connection changes invalidate in-flight work globally.
 
-`asrreview.js` handles browser draft decisions and Unicode-safe preview;
-`addstt.js` owns source/language/model/transcript ties, polling and the only
-explicit Use handoff. The browser requests no generation on ASR completion
-or from a remembered default. Dynamic endpoint/model/source text is rendered
-with textContent. Details use focus, hover and click/tap with glyphs plus
-border cues. Mobile-specific code and paths are unchanged.
+Jobs add `review: {evidence, choice, correction, result, diagnostics}` to existing
+fields. ASR ends in `awaiting-review-choice`, after releasing runtime/model holds.
+Review itself claims the single slot only while correcting. The explicit
+`review` / `retry-review` routes bind source and connection IDs. Completed runs
+with failed sentences release the slot and expose their failure count.
 
-New regression coverage is in `tests/test_llm_integration.py`; the existing
-fake-worker helpers explicitly choose Whisper review when their callers ask
-for a completed job. Tests require no external model, GPU or endpoint.
-Loopback HTTP is supplied by an in-process fake server. For this change the
-user requested a release rehearsal without executing test suites.
+Bounded prompts, final/raw text, endpoint-supplied reasoning, finish reason and
+elapsed time are inspectable through the job result only. These diagnostics stay
+in ephemeral job memory (512 KiB / 100 records, 16 KiB per response field), never
+logs, status, prefs or sync. Exact saved credentials are redacted from output.
+Output-limit retries enlarge the bounded answer budget once before marking only
+that sentence failed. Skill mode diagnostics show the invocation, not an invented
+claim that the endpoint actually read a skill when no evidence is returned.
+
+`use {job, source_sha256, decisions, manual_edits}` applies chosen candidates or
+literal keyboard edits to exact source spans. A manual edit may target any
+reviewable word, including those with no score, alternatives or LLM suggestion.
+Unknown IDs, overlapping decisions/manual edits, whitespace/control characters,
+empty or oversized substitutions are rejected. Caption clocks/boundaries are
+checked against the original. Changed word timings use the existing timing
+editor and need review because retained audio has already been deleted.
+
+`asrreview.js` keeps accepted/manual edits in a pending Unicode-safe draft,
+provides accessible details, response inspection and one retry button excluding
+accepted/manual words. `addstt.js` owns stale transcript/source/language/model
+guards and the only explicit Use handoff with overwrite confirmation. ASR
+completion and remembered defaults never send a request or populate the box.
+
+Offline fake HTTP/worker coverage is in `tests/test_llm_integration.py` and the
+browser review contract in `tests/add_stt.mjs`. Private evaluation recordings,
+transcripts and benchmark diagnostics belong outside source and release archives.

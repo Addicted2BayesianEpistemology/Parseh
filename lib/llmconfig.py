@@ -13,6 +13,7 @@ LOCK = threading.RLock()
 LAST_TEST = {}
 REVISION = (None, "")
 PRESETS = {"ollama": "http://127.0.0.1:11434/v1", "unsloth": "", "generic": ""}
+ADAPTERS = ("openai-compatible", "unsloth-agent-skills")
 MAX_CONFIG = 16384
 
 
@@ -63,11 +64,16 @@ def share_link(value):
         model = text(q.get("model", [""])[0], 512, "model ID")
         variant = text(q.get("ggufVariant", [""])[0], 128, "GGUF variant", True)
         cache = text(q.get("kvCacheDtype", [""])[0], 128, "KV cache type", True)
+        vision = q.get("disableVision", [None])[0]
+        if vision not in (None, "true", "false"):
+            raise ValueError()
     except (ValueError, LLMError):
         raise LLMError("bad-link", "Use a version 1 Unsloth Chat run-settings share link.")
     # Keep only understood public settings; never retain arbitrary link parameters.
-    safe = origin + "/chat?run=1#run?" + urllib.parse.urlencode(
-        {"v": "1", "model": model, "ggufVariant": variant, "kvCacheDtype": cache})
+    params = {"v": "1", "model": model, "ggufVariant": variant, "kvCacheDtype": cache}
+    if vision is not None:
+        params["disableVision"] = vision
+    safe = origin + "/chat?run=1#run?" + urllib.parse.urlencode(params)
     return {"base_url": origin + "/v1", "model_hint": model,
             "studio_link": safe, "gguf_variant": variant, "kv_cache_dtype": cache}
 
@@ -78,7 +84,7 @@ def validate(raw):
     if set(raw) - {"format_version", "provider_preset", "adapter", "base_url", "selected_model", "api_key",
                    "timeout_seconds", "json_mode", "studio_link", "context_tokens", "key_action"}:
         raise LLMError("bad-config", "The LLM configuration contains unknown settings.")
-    if not isinstance(raw.get("provider_preset"), str) or raw["provider_preset"] not in PRESETS or raw.get("adapter", "openai-compatible") != "openai-compatible":
+    if not isinstance(raw.get("provider_preset"), str) or raw["provider_preset"] not in PRESETS or raw.get("adapter", "openai-compatible") not in ADAPTERS:
         raise LLMError("bad-config", "Choose a supported LLM provider and adapter.")
     timeout = raw.get("timeout_seconds", 60)
     if type(timeout) is not int or not 1 <= timeout <= 300:
@@ -94,7 +100,7 @@ def validate(raw):
     mode = raw.get("json_mode", "auto")
     if mode not in ("auto", "supported", "unsupported"):
         raise LLMError("bad-config", "The JSON capability is not supported.")
-    out = {"format_version": STORE_FORMAT, "adapter": "openai-compatible",
+    out = {"format_version": STORE_FORMAT, "adapter": raw.get("adapter", "openai-compatible"),
            "provider_preset": raw["provider_preset"], "base_url": url(raw.get("base_url")),
            "selected_model": text(raw.get("selected_model"), 512, "model ID"),
            "api_key": key, "timeout_seconds": timeout, "json_mode": mode,
@@ -175,7 +181,7 @@ def record_test(config, result, root=None):
 def save(body, root=None):
     if not isinstance(body, dict):
         raise LLMError("bad-config", "The configuration must be an object.")
-    allowed = {"provider_preset", "base_url", "selected_model", "timeout_seconds",
+    allowed = {"provider_preset", "adapter", "base_url", "selected_model", "timeout_seconds",
                "key_action", "api_key", "studio_link", "context_tokens"}
     if set(body) - allowed:
         raise LLMError("bad-config", "The configuration contains unknown settings.")
@@ -188,6 +194,19 @@ def save(body, root=None):
                    api_key=body.get("api_key") if action == "replace" else
                    old.get("api_key") if action == "keep" else None)
         c = validate(raw)
+        _write(c, root)
+        return view(root)
+
+
+def select_model(body, root=None):
+    """Any admitted device may change only the model at the saved endpoint."""
+    if not isinstance(body, dict) or set(body) != {"selected_model"}:
+        raise LLMError("bad-config", "Model selection accepts only an exact model ID.")
+    with LOCK:
+        old = load(root)
+        if old is None:
+            raise LLMError("unconfigured", "Configure the endpoint on the Parseh host first.")
+        c = validate(dict(old, selected_model=body["selected_model"], json_mode="auto"))
         _write(c, root)
         return view(root)
 
