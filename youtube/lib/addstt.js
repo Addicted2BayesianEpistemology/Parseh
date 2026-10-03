@@ -1028,7 +1028,7 @@
       ensureReviewPlayer();
       paint();
     }
-    function retryReview(wordIds, skill, task) { if (wordIds.length) chooseReview('llm', wordIds, skill, task); }
+    function retryReview(wordIds, skill, task) { if (wordIds.length) chooseReview(task === 'likelihood' ? 'likelihood' : 'llm', wordIds, skill, task); }
     function externalReview(action, values) {
       if (!S.held || (S.phase !== 'choice' && S.phase !== 'review') || !pendingCurrent()) {
         return Promise.reject(new Error('This review changed. Prepare a new Whisper result.'));
@@ -1067,12 +1067,13 @@
       }
       var run = S.run, attempt = S.reviewAttempt = (S.reviewAttempt || 0) + 1;
       task = task || 'suspect';
+      var numerical = mode === 'likelihood';
       if (!wordIds) REVIEW.resetProposals();
       S.responses = 0;
-      S.phase = mode === 'llm' ? 'correcting' : 'choosing';
+      S.phase = mode === 'llm' || numerical ? 'correcting' : 'choosing';
       S.pct = null;
       REVIEW.show(S.held.res, 'correcting', LLM);
-      say(mode === 'llm' ? 'Preparing the saved review model…' : 'Opening Whisper-only review…');
+      say(numerical ? 'Loading the standalone likelihood model…' : mode === 'llm' ? 'Preparing the saved review model…' : 'Opening Whisper-only review…');
       paint();
       var started = Date.now(), preparing = mode === 'llm' && !wordIds;
       var prepareTimer = preparing ? setInterval(function () {
@@ -1084,7 +1085,11 @@
         instruction_mode: skill ? 'skill' : 'prompt',
         connection_id: mode === 'llm' && LLM ? LLM.connection_id : null};
       if (wordIds) body.word_ids = wordIds; else body.mode = mode;
-      var prepared = mode === 'llm' && !wordIds ? ask('/settings/api/llm/review-prepare', {task: task, connection_id: body.connection_id}, 310000).then(function (r) {
+      if (numerical) {
+        body = {job: S.job, source_sha256: evidence.source_sha256, revision: LLM && LLM.likelihood && LLM.likelihood.revision};
+        if (wordIds) body.word_ids = wordIds;
+      }
+      var prepared = numerical ? post('review-likelihood', body) : mode === 'llm' && !wordIds ? ask('/settings/api/llm/review-prepare', {task: task, connection_id: body.connection_id}, 310000).then(function (r) {
         clearInterval(prepareTimer);
         if (attempt !== S.reviewAttempt || run !== S.run || !S.held || S.phase !== 'correcting' || !pendingCurrent()) return null;
         if (!r.j.ok) return r;
@@ -1109,7 +1114,7 @@
           }
           REVIEW.show(S.held.res, 'choice', LLM); paint(); return;
         }
-        if (mode === 'llm') { poll(run); } else finishJob(run);
+        if (mode === 'llm' || numerical) { poll(run); } else finishJob(run);
       }, function () {
         clearInterval(prepareTimer);
         if (attempt !== S.reviewAttempt) return;

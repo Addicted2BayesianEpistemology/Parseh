@@ -250,6 +250,10 @@ Unsloth skill invocation. Only **Use this transcript**
 places it in the box, timed to the video's own clock (a stop to buffer does
 not shift what follows). See [LLM Integration](../lookup-and-languages/llm-integration.md).
 All three LLM methods also offer **Use an external chatbot · copy & paste**.
+The additional [LM likelihood · experimental](../lookup-and-languages/lm-likelihood.md)
+method searches raw token probabilities for candidate words and ranks the
+original, all Whisper alternatives and those candidates using fixed surrounding
+text. It has separate installed-model settings and sends no chatbot prompt.
 Choose the method, **Prepare external prompt**, copy it to your chatbot, then
 paste the answer and **Import answer into review**. No saved connection is
 required. The workspace method also downloads its transcript and CSV files.

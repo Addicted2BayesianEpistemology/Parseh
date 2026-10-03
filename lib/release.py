@@ -166,7 +166,7 @@ RUNNABLE = ("install.sh", "serve.sh", "build.sh", "Parseh.command", "serve.py")
 # where a person's own things live: a release carries only the scaffolding
 CONTENT = ("books/", "youtube/videos/", "markdown/library/", "exercises/", "clips/",
            "youtube/anki/", "config/", "dict/", "corpus/", "mt/", "components/", "texmf/",
-           "stt/")
+           "stt/", "llm-scoring/")
 SCAFFOLDING = (".gitkeep", "README.md")
 # never in a release, whatever .gitattributes says
 NEVER = (".tls/", "tests/", ".github/", ".runtime/", ".parseh-update/", "dist/",

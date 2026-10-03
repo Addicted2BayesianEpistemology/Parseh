@@ -133,6 +133,8 @@ import lookuppage         # noqa: E402  the page that sets the dictionaries up
 import llmconfig
 import llmadapter
 import llmpage
+import lmlikelihoodpage
+import lmlikelihoodconfig
 import speechpage         # noqa: E402  Settings -> Speech to text (§7.23)
 import latexpage          # noqa: E402  Settings -> LaTeX drawings (§8.39)
 import latexthemes        # noqa: E402  the themes a latex block is drawn with
@@ -451,7 +453,7 @@ STATIC_PREFIXES = ("/lib/fonts/", "/lib/mathjax/", "/audiobook/", "/books/",
                    # the translation engine and its models: read by the
                    # reader's own worker, never written through the server
                    "/mt/")
-STATIC_FILES = {"/lib/llmsettings.js", "/youtube/lib/asrreview.js", "/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js",
+STATIC_FILES = {"/lib/lmlikelihoodsettings.js", "/lib/llmsettings.js", "/youtube/lib/asrreview.js", "/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js",
                 # the row of controls every page that hands out a prompt draws:
                 # copy, the size, the reminder (lib/llmrow.js, a0.4.2)
                 "/lib/llmrow.js",
@@ -5577,7 +5579,7 @@ class Handler(SimpleHTTPRequestHandler):
         other route takes only the token the job made.  Every answer is
         {"ok": true, ...} or {"ok": false, "error": <a sentence>, "code": <a
         slug>}, and none of them is a traceback."""
-        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "retry-review", "cancel-review", "use", "dictionary", "external-start", "external-action"):
+        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "review-likelihood", "retry-review", "cancel-review", "use", "dictionary", "external-start", "external-action"):
             return self.send_json({"ok": False, "error": "nothing to POST here",
                                    "code": "no-such-route"}, 404)
 
@@ -5596,6 +5598,10 @@ class Handler(SimpleHTTPRequestHandler):
                 raise sttjobs.Refusal("bad-request", getattr(e, "said", None)
                                       or "The request could not be read.")
             token = body.get("job")
+            if what == "review-likelihood":
+                if set(body) - {"job", "source_sha256", "revision", "word_ids"}:
+                    raise sttjobs.Refusal("bad-review", "The likelihood request accepts no model, path or runtime overrides.")
+                return sttjobs.review_likelihood(token, body.get("source_sha256"), body.get("revision"), body.get("word_ids"))
             if what in ("external-start", "external-action"):
                 allowed = ({"job", "source_sha256", "task", "word_ids"} if what == "external-start" else
                            {"job", "source_sha256", "session", "action", "index", "answer"})
@@ -6543,6 +6549,12 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(llmpage.page(self._where()))
+        if path in ("/settings/lm-likelihood", "/settings/lm-likelihood/index.html"):
+            return self._redirect(lmlikelihoodpage.PAGE)
+        if path == lmlikelihoodpage.PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(lmlikelihoodpage.page(self._where()))
         if path == LATEX_PAGE.rstrip("/"):
             return self._redirect(LATEX_PAGE)
         if path == LATEX_PAGE:
@@ -6574,6 +6586,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self._pair()
         if path.startswith("/settings/api/llm/"):
             return self._llm_api(method, path)
+        if path in ("/settings/api/lm-likelihood/status", "/settings/api/lm-likelihood/save", "/settings/api/lm-likelihood/models",
+                    "/settings/api/lm-likelihood/select", "/settings/api/lm-likelihood/install", "/settings/api/lm-likelihood/unload"):
+            return self._likelihood_api(method, path)
         if path in UPDATE_ROUTES:
             return self._update_api(method, path)
         if path in LATEX_ROUTES:
@@ -6595,6 +6610,43 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": True, "forgotten": gone})
         return self._not_found()
 
+    def _likelihood_api(self, method, path):
+        from lmgguf import ScoringError
+        if method != "POST":
+            return self._method_not_allowed()
+        crossed = self._cross_site(path)
+        if crossed:
+            return self.send_json({"ok": False, "error": crossed}, 403)
+        if len(self._body()) > 65536:
+            return self.send_json({"ok": False, "error": "The scoring settings request is too large."}, 413)
+        what = path.rsplit("/", 1)[-1]
+        try:
+            body = self._json_body()
+            if what in ("status", "models", "install", "unload") and body:
+                raise ScoringError("bad-config", "This action uses saved settings and accepts no overrides.")
+            if what == "save":
+                lmlikelihoodconfig.save(body)
+            elif what == "select":
+                if set(body) != {"id"}:
+                    raise ScoringError("bad-config", "Select a model from the discovered host inventory.")
+                lmlikelihoodconfig.select(body["id"])
+            elif what == "models":
+                return self.send_json(dict(lmlikelihoodconfig.inventory(), ok=True))
+            elif what == "install":
+                lmlikelihoodconfig.install()
+            elif what == "unload":
+                import lmlikelihood
+                with sttjobs.LOCK:
+                    tokens = [j["id"] for j in sttjobs.JOBS.values() if j.get("review_choice") == "likelihood" and j["state"] == sttjobs.CORRECTING]
+                for token in tokens:
+                    sttjobs.cancel_review(token)
+                lmlikelihood.unload_all()
+            elif what != "status":
+                return self._not_found()
+            return self.send_json(dict(lmlikelihoodconfig.status(settingspage.may("likelihood.worker", self._where())), ok=True))
+        except ScoringError as e:
+            return self.send_json({"ok": False, "code": e.code, "error": e.say}, 400)
+
     def _llm_api(self, method, path):
         if method != "POST":
             return self._method_not_allowed()
@@ -6610,6 +6662,7 @@ class Handler(SimpleHTTPRequestHandler):
                 raise llmconfig.LLMError("bad-config", "This request uses the saved connection and accepts no overrides.")
             if what == "status":
                 out = llmconfig.view()
+                out["likelihood"] = lmlikelihoodconfig.status()
             elif what == "save":
                 out = llmconfig.save(body)
             elif what == "reset":

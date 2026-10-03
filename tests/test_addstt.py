@@ -107,7 +107,7 @@ class ThePage(unittest.TestCase):
         scripts = re.findall(r'<script src="([^"]+)"', self.page)
         js = [s for s in scripts if s.startswith("/youtube/lib/")]
         self.assertEqual(js, ["/youtube/lib/subedit.js", "/youtube/lib/tabcapture.js",
-                              "/youtube/lib/addstt.js"],
+                              "/youtube/lib/asrreview.js", "/youtube/lib/addstt.js"],
                          "the recording is loaded before the block that uses it")
         self.assertIn('href="/youtube/lib/addstt.css"', self.page)
         src = read(ADDSTT_JS)
@@ -121,7 +121,9 @@ class ThePage(unittest.TestCase):
         # what the page's script says of speech to text is the glue, and no more
         glue = [ln for ln in ytpages.ADD_PAGE_JS.splitlines() if "stt" in ln.lower()]
         self.assertLess(len(glue), 45, "\n".join(glue))
-        self.assertLess(len(read(ADDSTT_JS).splitlines()), 1200, "the block is a file, not the page")
+        # Review is another reusable file, loaded before the add-flow glue.
+        self.assertNotIn('stt_review_likelihood', ytpages.ADD_PAGE_JS)
+        self.assertEqual(self.page.count('/youtube/lib/asrreview.js'), 1)
 
     def test_the_server_sends_both_files(self):
         import serve
@@ -131,8 +133,8 @@ class ThePage(unittest.TestCase):
 
     def test_the_css_keeps_to_the_pages_own_tokens_and_logical_sides(self):
         css = re.sub(r"/\*.*?\*/", "", read(ADDSTT_CSS), flags=re.S)
-        self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b", css), ["#0b0b0b"],
-                         "no colour is named but the video frame's black: the three themes carry the rest")
+        self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b", css), ["#0b0b0b", "#fff"],
+                         "only the video frame's black and its white overlay are fixed; the three themes carry the rest")
         for what in ("margin-left", "margin-right", "padding-left", "padding-right", "text-align:left",
                      "text-align:right", "float:", "left:", "right:"):
             self.assertNotIn(what, css.replace(" ", ""), what + ": a page turned right to left would break")

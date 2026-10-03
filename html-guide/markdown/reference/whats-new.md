@@ -48,6 +48,12 @@ prompt and pasted answer. No configured endpoint is needed. Workspace review
 can download its text/CSV files for an external service with file/code tools.
 Imported proposals are checked and remain in the pending draft until accepted
 and explicitly used.
+An additional experimental [LM likelihood](../lookup-and-languages/lm-likelihood.md)
+method searches raw model probabilities for candidate words and ranks the original,
+every Whisper alternative and those candidates using fixed original context.
+Select installed GGUF weights separately from chat models. Its isolated CPU/GPU
+worker reports numerical scores, candidate origins and incomplete coverage;
+changes still require explicit acceptance and Use.
 
 ### Colour meaningful parts of a word
 

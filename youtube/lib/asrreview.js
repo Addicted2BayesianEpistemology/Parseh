@@ -188,6 +188,12 @@
         var entry = el('details');
         var traceKey = trace.run + ':' + trace.sentence_id + ':' + trace.attempt;
         entry.setAttribute('data-response-key', traceKey); entry.open = !!open[traceKey];
+        if (trace.kind === 'likelihood') {
+          entry.appendChild(el('summary', 'LM likelihood · ' + trace.sentence_id + ' · ' + trace.state + ' · ' + trace.elapsed_seconds + ' s'));
+          entry.appendChild(el('p', 'Numerical evaluation diagnostics, not chatbot output. No full-vocabulary logits are stored.'));
+          var scoreData = el('pre', JSON.stringify(trace.scores, null, 2)); scoreData.dir = 'auto'; entry.appendChild(scoreData);
+          responses.appendChild(entry); return;
+        }
         entry.appendChild(el('summary', 'Response ' + (i + 1) + ' · ' + (trace.word_ids || []).length + ' words' + (trace.phase ? ' · ' + trace.phase : '') + ' · ' + trace.state +
           ' · ' + (trace.elapsed_seconds == null ? '' : trace.elapsed_seconds + ' s') + (trace.finish_reason ? ' · finish: ' + trace.finish_reason : '')));
         if (trace.error) entry.appendChild(el('p', trace.error, 'warn'));
@@ -254,7 +260,7 @@
     }
     function updateDraft() {
       preview.textContent = draft();
-      status.textContent = Object.keys(decisions).length + ' LLM edits accepted and ' + Object.keys(manualEdits).length + ' manual edits in this draft. The transcript box has not changed.';
+      status.textContent = Object.keys(decisions).length + (result.review.choice === 'likelihood' ? ' candidate selections' : ' LLM edits') + ' accepted and ' + Object.keys(manualEdits).length + ' manual edits in this draft. The transcript box has not changed.';
       var applied = {}, suppressed = {};
       Object.keys(decisions).concat(Object.keys(manualEdits)).forEach(function (id) {
         var ids = idsFor(id), manual = manualEdits[id];
@@ -266,14 +272,14 @@
         button.classList.toggle('asr-accepted', !!changed);
         button.hidden = !!suppressed[id];
         button.textContent = applied[id] == null ? words[id].text : applied[id];
-        button.setAttribute('aria-label', words[id].text + (applied[id] != null ? ', changed in draft to ' + applied[id] : '') +
-          (words[id].low_asr_score ? ', low Whisper ASR score' : '') + (suggestions[id] ? ', LLM edit proposed' : ''));
+        button.setAttribute('aria-label', words[id].text + (applied[id] != null ? applied[id] === words[id].text ? ', original retained in draft' : ', changed in draft to ' + applied[id] : '') +
+          (words[id].low_asr_score ? ', low Whisper ASR score' : '') + (suggestions[id] ? suggestions[id].likelihood ? ', LM likelihood evaluation available' : ', LLM edit proposed' : ''));
         if (words[id].dictionary_miss) button.setAttribute('aria-label', button.getAttribute('aria-label') + ', no dictionary meaning found');
       });
-      if (retry) { var remaining = retryWords(); retry.textContent = 'Retry remaining suspect words (' + remaining.length + ')'; retry.disabled = phase !== 'review' || !remaining.length || (result.review.choice !== 'external' && (!config || !config.configured)); }
+      if (retry) { var remaining = retryWords(); retry.textContent = 'Retry remaining suspect words (' + remaining.length + ')'; var configured = result.review.choice === 'likelihood' ? config && config.likelihood && config.likelihood.available : config && config.configured; retry.disabled = phase !== 'review' || !remaining.length || (result.review.choice !== 'external' && !configured); }
       var all = Object.keys(words), low = all.filter(function (id) { return words[id].low_asr_score; }).length;
       var missing = all.filter(function (id) { return words[id].dictionary_miss; }).length;
-      if (summary) summary.textContent = low + ' low-score words · ' + missing + ' dictionary misses · ' + Object.keys(suggestions).length + ' words with proposals · ' +
+      if (summary) summary.textContent = low + ' low-score words · ' + missing + ' dictionary misses · ' + Object.keys(suggestions).length + (result.review.choice === 'likelihood' ? ' words with numerical evaluations · ' : ' words with proposals · ') +
         (Object.keys(decisions).length + Object.keys(manualEdits).length) + ' edits saved';
       applyFilter();
     }
@@ -315,21 +321,36 @@
         details.appendChild(list);
       }
       if (!w.reviewable) details.appendChild(el('p', 'This word could not be matched to an exact transcript span. Review it manually.'));
+      if (!s && result.review.result && (result.review.result.storage_failed_word_ids || []).indexOf(w.word_id) >= 0) details.appendChild(el('p', 'This target exceeded the bounded numerical-review storage. Its candidate coverage is incomplete; the Whisper alternatives above are intact. Reduce optional search/context bounds and start a new review, or edit it manually.', 'warn'));
       var editId = s ? s.word_id : manualKey || w.word_id, editIds = s && s.word_ids || (manualKey ? idsFor(manualKey) : [w.word_id]);
       var sourceSpan = Array.from(result.text).slice(words[editIds[0]].span_start, words[editIds[editIds.length - 1]].span_end).join('');
       if (s && phase === 'review') {
         if (editIds.length > 1) { details.appendChild(el('p', 'Proposed source span: ' + s.original)); (s.asr_evidence || []).forEach(function (piece) { details.appendChild(el('p', piece.text + ' · Whisper ASR score: ' + estimate(piece.asr_confidence) + ' · ' + time(piece.start) + ' – ' + time(piece.end))); }); }
-        details.appendChild(el('p', '✎ LLM word substitution' + (s.error_likelihood == null ? '' : ' · Error likelihood (model estimate): ' + estimate(s.error_likelihood))));
+        details.appendChild(el('p', s.likelihood ? '∑ LM likelihood · ranked candidate replacements' : '✎ LLM word substitution' + (s.error_likelihood == null ? '' : ' · Error likelihood (model estimate): ' + estimate(s.error_likelihood))));
+        if (s.likelihood) {
+          var coverage = s.likelihood.coverage;
+          details.appendChild(el('p', 'Model: ' + s.likelihood.model + ' · Mandatory coverage: ' + coverage.mandatory_scored + ' / ' + coverage.mandatory_total + ' · ' + coverage.state + ' · ' + s.likelihood.elapsed_seconds + ' s'));
+          details.appendChild(el('p', 'Raw sum log P(candidate + fixed following context | original preceding context). Scores are not probabilities of correct transcription. Best among ' + s.likelihood.winner_scope + '.'));
+          if (s.likelihood.context) details.appendChild(el('p', 'Context: ' + s.likelihood.context.preceding_chars + ' preceding / ' + s.likelihood.context.following_chars + ' following characters. Boundary backoff: ' + s.likelihood.retokenized_preceding_bytes + ' preceding bytes included.'));
+          if (s.likelihood.hardware) { var hw = s.likelihood.hardware; details.appendChild(el('p', 'Execution: ' + hw.backend.toUpperCase() + (hw.device ? ' · ' + hw.device.description + ' · GPU device ' + hw.gpu_device : '') + ' · ' + hw.offloaded_layers + ' layers offloaded · ' + hw.context_tokens + ' context tokens')); }
+          if (s.likelihood.tied_best && s.likelihood.tied_best.length > 1) details.appendChild(el('p', 'Tied highest scores: ' + s.likelihood.tied_best.join(' · ')));
+          if (s.likelihood.discovery_error) details.appendChild(el('p', 'Additional-candidate search: ' + s.likelihood.discovery_error));
+          if (s.likelihood.discovery_note) details.appendChild(el('p', s.likelihood.discovery_note));
+        }
         if (s.reason) details.appendChild(el('p', s.reason));
         var alternatives = el('ol');
         s.candidates.forEach(function (c, i) {
           var li = el('li'), surface = el('bdi', c.text); surface.dir = 'auto'; li.appendChild(surface);
+          if (s.likelihood) {
+            li.appendChild(el('p', (c.rank == null ? 'Unscored' : 'Rank ' + c.rank) + ' · Origins: ' + c.origins.map(function (o) { return o.kind === 'original' ? 'original Whisper' : o.kind === 'whisper' ? 'Whisper alternative ' + (o.alternative_index + 1) : 'LM beam search'; }).join(', ') + ' · Raw log likelihood: ' + (c.log_likelihood == null ? 'unavailable' : c.log_likelihood.toFixed(6)) + ' · Difference from original: ' + (c.delta_original == null ? 'unavailable' : c.delta_original.toFixed(6)) + ' · Evaluated tokens: ' + (c.evaluated_tokens == null ? 'unavailable' : c.evaluated_tokens)));
+            if (c.error) li.appendChild(el('p', c.error, 'warn'));
+          }
           if (c.confidence != null || c.reason) li.appendChild(el('p', (c.confidence == null ? '' : 'Confidence (model estimate): ' + estimate(c.confidence) + '. ') + (c.reason || '')));
           var candidateDictionary = el('div', 'Looking up this alternative…', 'stt-review-dictionary'); candidateDictionary.setAttribute('role', 'status');
           li.appendChild(candidateDictionary); candidateDictionaries.push(candidateDictionary);
-          li.appendChild(btn(decisions[editId] === i ? 'Accepted in draft' : 'Accept this alternative', function () {
+          var accept = btn(decisions[editId] === i ? 'Accepted in draft' : 'Accept this alternative', function () {
             clearOverlaps(editIds); decisions[editId] = i; updateDraft(); detail(w);
-          }));
+          }); accept.disabled = !!s.likelihood && !c.applicable; li.appendChild(accept);
           alternatives.appendChild(li);
         });
         details.appendChild(alternatives);
@@ -390,12 +411,16 @@
       var llm = btn('Review suspect words with the LLM', function () { opts.choose('llm', useSkill, 'suspect'); });
       var audit = btn('Review the whole text with the LLM', function () { opts.choose('llm', useSkill, 'full'); }); audit.id = 'stt_review_full';
       var workspace = btn('Review with reasoning & workspace tools', function () { opts.choose('llm', false, 'workspace'); }); workspace.id = 'stt_review_workspace';
+      var likelihood = btn('LM likelihood · experimental', function () { opts.choose('likelihood', false, 'likelihood'); }); likelihood.id = 'stt_review_likelihood';
+      likelihood.disabled = !config || !config.likelihood || !config.likelihood.available || phase === 'correcting';
       workspace.disabled = !config || !config.configured || !config.workspace || !config.workspace.available || phase === 'correcting';
       audit.disabled = !config || !config.configured || phase === 'correcting';
       llm.id = 'stt_review_llm'; llm.disabled = !config || !config.configured || phase === 'correcting';
       var whisper = btn('Review Whisper result without the LLM', function () { opts.choose('whisper'); });
       whisper.id = 'stt_review_whisper'; whisper.disabled = phase === 'correcting';
-      [whisper, llm, audit, workspace].forEach(function (button) { choice.appendChild(button); });
+      [whisper, llm, audit, workspace, likelihood].forEach(function (button) { choice.appendChild(button); });
+      choice.appendChild(el('p', 'LM likelihood searches raw token probabilities and scores supplied substitutions locally. It sends no chatbot prompt and requires its own model memory. Selected scoring model: ' + (config && config.likelihood && config.likelihood.model || 'unconfigured') + (config && config.likelihood && config.likelihood.error ? ' · ' + config.likelihood.error : ''), 'fieldnote'));
+      var likelihoodSettings = el('a', 'Choose installed model / scoring settings'); likelihoodSettings.href = '/settings/lm-likelihood/'; likelihoodSettings.target = '_blank'; likelihoodSettings.rel = 'noopener'; choice.appendChild(likelihoodSettings);
       if (config && config.configured) choice.appendChild(el('p', config.workspace && config.workspace.available ? 'Workspace review: first skim unblanked text, then resolve numbered suspects using CSV evidence and Python. Reasoning is requested; the 0.5 Whisper threshold stays unchanged.' : config.workspace && config.workspace.say || 'Workspace review is unavailable on this host.', 'fieldnote'));
       if (phase === 'choice') root.appendChild(choice);
       else {
@@ -435,13 +460,13 @@
       if (reviewed && !reviewed.suggestions.length) root.appendChild(el('p', reviewed.assessment === 'no_flagged_words' ? 'No reviewable words had a low ASR score or a dictionary miss. No text was sent to the LLM.' : reviewed.assessment === 'no_reviewable_words' ? 'No source words could be mapped for LLM edits. Review the Whisper text.' : reviewed.failed_word_ids && reviewed.failed_word_ids.length ? 'Some sentences could not be reviewed. Their words remain unchanged.' : reviewed.assessment === 'uncertain' ? 'The model could not determine a correction. No words have changed.' : 'The model kept the words unchanged. This does not establish that they are correct.'));
       var toolbar = el('div', null, 'stt-review-tools');
       var filterLabel = el('label', 'Show '), picker = el('select'); picker.id = 'stt_review_filter';
-      [['all', 'All captions'], ['attention', 'Needs attention'], ['proposals', 'LLM proposals']].forEach(function (option) { var n = el('option', option[1]); n.value = option[0]; picker.appendChild(n); });
+      [['all', 'All captions'], ['attention', 'Needs attention'], ['proposals', result.review.choice === 'likelihood' ? 'LM evaluations' : 'LLM proposals']].forEach(function (option) { var n = el('option', option[1]); n.value = option[0]; picker.appendChild(n); });
       picker.value = filter; picker.addEventListener('change', function () { filter = picker.value; applyFilter(); }); filterLabel.appendChild(picker);
       var searchBox = el('input'); searchBox.type = 'search'; searchBox.placeholder = 'Find text…'; searchBox.value = search;
       searchBox.setAttribute('aria-label', 'Find text in captions'); searchBox.addEventListener('input', function () { search = searchBox.value; applyFilter(); });
       toolbar.appendChild(filterLabel); toolbar.appendChild(searchBox);
       toolbar.appendChild(btn('Previous issue', function () { navigateIssue(-1); })); toolbar.appendChild(btn('Next issue', function () { navigateIssue(1); })); root.appendChild(toolbar);
-      var legend = el('p', '⚠ Low ASR score · ◇ No dictionary meaning · ✎ LLM proposal · ✓ Saved edit. Click a word to listen briefly and inspect; Enter opens its editor.', 'stt-review-legend'); root.appendChild(legend);
+      var legend = el('p', '⚠ Low ASR score · ◇ No dictionary meaning · ✎ LLM proposal · ∑ Numerical evaluation · ✓ Saved edit. Click a word to listen briefly and inspect; Enter opens its editor.', 'stt-review-legend'); root.appendChild(legend);
       if (result.review.evidence.dictionary && result.review.evidence.dictionary.failed) root.appendChild(el('p', 'Some dictionary lookups could not finish. Those failures do not flag words as incorrect.', 'fieldnote'));
       var body = el('div', null, 'stt-review-body');
       inspect = el('div', null, 'stt-review-text'); inspect.setAttribute('role', 'region'); inspect.setAttribute('aria-label', 'Timestamped transcript');
@@ -463,7 +488,7 @@
           var s = suggestions[w.word_id];
           if (w.reviewable || suspect(w) || s) {
             var b = btn(w.text, function () { detail(w); if (opts.select) opts.select(w, seg, true); });
-            b.className = 'stt-review-word' + (w.low_asr_score ? ' asr-low' : '') + (w.dictionary_miss ? ' asr-dictionary' : '') + (s ? ' asr-proposal' : '');
+            b.className = 'stt-review-word' + (w.low_asr_score ? ' asr-low' : '') + (w.dictionary_miss ? ' asr-dictionary' : '') + (s ? ' asr-proposal' : '') + (s && s.likelihood ? ' asr-likelihood' : '');
             b.setAttribute('data-review-word', w.word_id); b.setAttribute('aria-controls', details.id);
             b.addEventListener('focus', function () { detail(w); });
             b.addEventListener('keydown', function (e) {
@@ -502,6 +527,7 @@
       updateDraft();
       if (phase === 'choice') status.textContent = 'Choose a review above. The transcript box has not changed.';
       if (phase === 'correcting') status.textContent = 'The model is reviewing the transcript. You can listen and inspect the Whisper evidence while it works.';
+      if (phase === 'review' && result.review.choice === 'likelihood') status.textContent = result.review.correction && result.review.correction.state === 'partial' ? 'Likelihood review finished with incomplete targets. Inspect coverage and failure reasons, retry remaining suspects, or use your reviewed draft.' : 'Likelihood scoring finished. Inspect ranked candidates and explicitly accept any changes before using the transcript.';
       if (phase === 'external') status.textContent = 'Copy a prompt and paste the answer above. Finish importing to accept the draft; the transcript box has not changed.';
       Array.prototype.forEach.call(root.querySelectorAll('[data-review-disclosure]'), function (box) { if (box.getAttribute('data-review-disclosure') === 'external' && result.review.external && !result.review.external.finished) box.open = true; else box.open = !!opened[box.getAttribute('data-review-disclosure')]; });
       inspect.scrollTop = scroll;

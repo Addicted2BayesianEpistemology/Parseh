@@ -50,9 +50,9 @@ def alternatives(raw):
     """An ASR capability: supported backends provide real candidates only."""
     available = isinstance(raw, list)
     out = []
-    for item in raw[:10] if available else []:
-        if isinstance(item, dict) and isinstance(item.get("text"), str) and item["text"].strip():
-            candidate = {"text": item["text"][:400], "score": score(item.get("score"))}
+    for item in raw if available else []:
+        if isinstance(item, dict) and isinstance(item.get("text"), str):
+            candidate = {"text": item["text"], "score": score(item.get("score"))}
             seq = item.get("sequence_score")
             if item.get("score_kind") == "sequence_log_score" and type(seq) in (int, float) and math.isfinite(seq) and abs(seq) <= 1e6:
                 candidate.update(sequence_score=float(seq), score_kind="sequence_log_score")
@@ -455,7 +455,18 @@ def apply(panel, request, result, decisions, manual_edits=None):
         a, b, original = proposal_span(proposals[ident], sources)
         if panel[a:b] != original:
             invalid()
-        edits.append((a, b, proposals[ident]["candidates"][choice]["text"]))
+        candidate = proposals[ident]["candidates"][choice]
+        replacement = candidate["text"]
+        if result.get("task") == "likelihood":
+            from lmlikelihoodcore import replacement as checked_replacement
+            from lmgguf import ScoringError
+            try:
+                if not candidate.get("applicable") or checked_replacement(original, replacement) != replacement:
+                    invalid()
+            except ScoringError:
+                invalid()
+        if replacement != panel[a:b]:
+            edits.append((a, b, replacement))
     for ident, replacement in manual_edits.items():
         w = sources.get(ident)
         ids = [ident]

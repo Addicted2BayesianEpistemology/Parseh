@@ -9,6 +9,10 @@ already run. It starts unconfigured. Whisper and manual transcript entry work
 without it. Parseh installs no model software, downloads no weights and starts
 no endpoint.
 
+The additional [LM likelihood](lm-likelihood.md) method has its own installed
+GGUF selection and isolated scoring runtime. It uses numerical token scores
+instead of a chat request; configure it in its separate Settings door.
+
 ## Configure the connection
 
 Choose **Ollama**, **Unsloth** or **Generic OpenAI-compatible**. Presets supply

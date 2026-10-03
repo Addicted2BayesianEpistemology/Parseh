@@ -56,12 +56,13 @@ def routes_in_serve():
     found = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) \
-                and node.value.startswith("/settings/api/") and len(node.value) > 14:
+                and node.value.startswith("/settings/api/") and len(node.value) > 14 and not node.value.endswith('/'):
             found.add(node.value)
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):
             continue
-        if node.name == "_lookup_api":
+        if node.name in ("_lookup_api", "_llm_api", "_likelihood_api"):
+            prefix = {"_lookup_api": "/lookup/api/", "_llm_api": "/settings/api/llm/", "_likelihood_api": "/settings/api/lm-likelihood/"}[node.name]
             for c in ast.walk(node):
                 if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name) \
                         and c.left.id == "what":
@@ -69,7 +70,7 @@ def routes_in_serve():
                         values = comp.elts if isinstance(comp, (ast.Tuple, ast.List, ast.Set)) else [comp]
                         for v in values:
                             if isinstance(v, ast.Constant) and isinstance(v.value, str):
-                                found.add("/lookup/api/" + v.value)
+                                found.add(prefix + v.value)
         if node.name == "_reading_key":
             for c in ast.walk(node):
                 if isinstance(c, ast.Tuple) and len(c.elts) == 3 \
@@ -139,7 +140,8 @@ class Table(unittest.TestCase):
 
     def test_speech_to_text_is_a_door_of_its_own_and_the_only_one_that_lists_its_keys(self):
         doors = {d[0]: d for d in settingspage.DOORS}
-        self.assertEqual(len(settingspage.DOORS), 5)
+        self.assertIn('/settings/llm/', doors)
+        self.assertIn('/settings/lm-likelihood/', doors)
         href, name, what, keys = doors["/settings/speech/"]
         self.assertEqual((name, keys), ("Speech to text", ("speech.get", "speech.remove", "speech.stop")))
         self.assertTrue(settingspage.open_to_all(keys))
@@ -154,7 +156,7 @@ class Table(unittest.TestCase):
                          "every setting is on some door")
         self.assertEqual(sorted(set(settingspage.ELSEWHERE) & set(listed)), [])
         row = settingspage.settings_doors("/settings/speech/")
-        self.assertEqual(row.count('<a class="sdoor'), 5)
+        self.assertEqual(row.count('<a class="sdoor'), len(settingspage.DOORS) - 1)
         self.assertIn('class="sdoor on" href="/settings/speech/" aria-current="page"', row)
 
     def test_the_route_finder_sees_every_speech_route(self):
@@ -392,6 +394,45 @@ class Served(unittest.TestCase):
         return [patch.object(network, "where", lambda ip, doc=None: network.LAN),
                 patch.object(network, "may_connect", lambda ip, doc=None: True),
                 patch.object(network, "let_in", lambda *a, **k: True)]
+
+    def test_likelihood_worker_host_only_model_choice_remote_and_status_redacted(self):
+        import contextlib
+        import lmlikelihoodconfig as lc
+        from test_lm_likelihood import write_gguf
+        import lmgguf
+        model_path = self.tmp / 'installed-model-blob'
+        write_gguf(model_path)
+        model = dict(lmgguf.inspect(model_path), model_id='installed-model', source='unsloth')
+        with patch.object(lc, 'CONFIG', self.tmp / 'likelihood-settings.json'), \
+                patch.object(lc, 'runtime_status', return_value={'available': False, 'say': 'Not installed.'}), \
+                patch.object(lc, 'discover', return_value=([model], [])):
+            status, _, response = self.ask('POST', '/settings/api/lm-likelihood/save', {'source': 'unsloth'})
+            self.assertEqual(status, 200)
+            with contextlib.ExitStack() as stack:
+                for p in self.as_phone():
+                    stack.enter_context(p)
+                self.assertEqual(self.ask('POST', '/settings/api/lm-likelihood/save', {'path': str(model_path)})[0], 403)
+                self.assertEqual(self.ask('POST', '/settings/api/lm-likelihood/install', {})[0], 403)
+                status, _, inventory = self.ask('POST', '/settings/api/lm-likelihood/models', {})
+                self.assertEqual(status, 200)
+                self.assertNotIn('path', inventory['models'][0])
+                status, _, chosen = self.ask('POST', '/settings/api/lm-likelihood/select', {'id': inventory['models'][0]['id']})
+                self.assertEqual(status, 200)
+                self.assertEqual(chosen['model'], 'installed-model')
+                self.assertNotIn('settings', chosen)
+                self.assertNotIn(str(model_path), json.dumps(chosen))
+                status, _, page = self.ask('GET', '/settings/lm-likelihood/')
+                self.assertEqual(status, 200)
+                self.assertIn('<fieldset disabled>', page)
+                self.assertNotIn(str(model_path), page)
+                self.assertIn('id="lm_models"', page)
+
+    def test_likelihood_feature_request_cannot_override_model_or_worker(self):
+        for key in ('path', 'python', 'model', 'base_url', 'gpu_layers'):
+            status, _, response = self.ask('POST', '/youtube/api/transcribe/review-likelihood',
+                                           {'job': 'ABCDEFGHIJKLMNOP', 'source_sha256': 'source', 'revision': 'rev', key: 'override'})
+            self.assertEqual(status, 400)
+            self.assertEqual(response['code'], 'bad-review')
 
     def stubbed(self, **mods):
         return patch.dict(sys.modules, mods)

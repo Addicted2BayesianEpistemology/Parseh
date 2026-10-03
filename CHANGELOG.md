@@ -1,5 +1,6 @@
 ## [a0.4.3] - unreleased
 ### Added
+- Experimental LM likelihood review with installed-model selection, raw-token candidate search, numerical rankings and an isolated CPU/GPU scoring worker
 - External chatbot copy/paste review for suspect words, whole text and reasoning workspaces, with bounded prompts, validated answer import and downloadable text/CSV workspace files
 - Additional reasoning workspace review with numbered transcript blanks, CSV evidence, isolated Python tools, separate model selection and two-pass word progress; existing review modes and thresholds stay unchanged
 - Browser transcription workspace with video beside the transcript, word/caption replay, ±1/2/5-second playback controls, caption filters and a persistent word editor

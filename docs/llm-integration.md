@@ -1,5 +1,9 @@
 # LLM connection and correction review
 
+The additional experimental [LM likelihood](lm-likelihood.md) method has its
+own installed-GGUF selection and isolated llama.cpp worker. The chat adapter
+below is not used for its candidate search or numerical evaluation.
+
 `llmconfig.py` owns the versioned host-local `config/llm.json`. Missing,
 malformed and unknown-version configurations load as unconfigured. Credentials
 are kept/replaced/cleared explicitly, saved with mode 0600 and excluded from

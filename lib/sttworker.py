@@ -304,12 +304,12 @@ def word_alternatives(word):
     if not isinstance(raw, list):
         return {"asr_alternatives": [], "alternatives_available": False}
     kept = []
-    for item in raw[:10]:
+    for item in raw:
         if not isinstance(item, dict) or not isinstance(item.get("text"), str):
             continue
         sc = item.get("score")
         sc = float(sc) if type(sc) in (int, float) and math.isfinite(sc) and 0 <= sc <= 1 else None
-        candidate = {"text": item["text"][:400], "score": sc}
+        candidate = {"text": item["text"], "score": sc}
         seq = item.get("sequence_score")
         if item.get("score_kind") == "sequence_log_score" and type(seq) in (int, float) and math.isfinite(seq):
             candidate.update(sequence_score=float(seq), score_kind="sequence_log_score")

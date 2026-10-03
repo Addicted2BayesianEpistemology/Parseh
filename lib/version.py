@@ -200,6 +200,7 @@ VERSION = read()
 # here, and tests/test_version.py fails when a new one is not -- a stamp
 # written anywhere, or a file kept in config/.
 FORMATS = {
+    "parseh-lm-likelihood": ("lib/lmlikelihoodconfig.py", "STORE_FORMAT", "the host-local numerical scoring settings (config/lm-likelihood.json)"),
     "parseh-llm": ("lib/llmconfig.py", "STORE_FORMAT", "the host-local reusable LLM connection (config/llm.json)"),
     "parseh-bundle": ("lib/bundle.py", "FORMAT",
                       "a book or a video downloaded as one file"),

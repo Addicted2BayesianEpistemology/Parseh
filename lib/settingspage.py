@@ -143,6 +143,8 @@ SETTINGS = {
     "speech.stop": (None, "It stops an install this page started."),
     "llm.connection": (EXPOSE, "It chooses where feature text is sent and the saved credentials."),
     "llm.model": (None, "It selects a model at the already configured endpoint; the destination and credentials stay on the host."),
+    "likelihood.worker": (RUN, "It selects local model paths, an executable and runtime backend on this host."),
+    "likelihood.model": (None, "It selects weights from the host’s discovered installed-model inventory."),
     # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) puts two things
     # under the computer's roof.  Making the book's folder writes a folder
     # under books/ in which an agent will be told to run Parseh's own tools
@@ -176,6 +178,12 @@ KNOCK = "knock"
 # and tests/test_settings_risk.py fails when serve.py answers a route this
 # table does not name.
 ROUTES = {
+    "/settings/api/lm-likelihood/status": READ,
+    "/settings/api/lm-likelihood/save": ("likelihood.worker",),
+    "/settings/api/lm-likelihood/install": ("likelihood.worker",),
+    "/settings/api/lm-likelihood/models": ("likelihood.model",),
+    "/settings/api/lm-likelihood/select": ("likelihood.model",),
+    "/settings/api/lm-likelihood/unload": ("likelihood.model",),
     "/settings/api/llm/status": READ,
     "/settings/api/llm/save": ("llm.connection",),
     "/settings/api/llm/reset": ("llm.connection",),
@@ -457,7 +465,9 @@ DOORS = (
      "A transcript made on this computer, while adding a video: the program, two models",
      ("speech.get", "speech.remove", "speech.stop")),
     ("/settings/llm/", "LLM Integration",
-     "A reusable model endpoint; model selection from any device let in", ("llm.model",)),
+     "A reusable model endpoint; model selection from any device let in", ("llm.connection", "llm.model")),
+    ("/settings/lm-likelihood/", "LM likelihood · experimental",
+     "Raw causal model scores using installed GGUF weights", ("likelihood.worker", "likelihood.model")),
 )
 
 
@@ -465,6 +475,8 @@ def gate(settings):
     """The pill that says who may change these settings."""
     if open_to_all(settings):
         return '<span class="gate open">%sany device let in</span>' % TICK
+    if any(SETTINGS.get(key, (RUN,))[0] is None for key in settings):
+        return '<span class="gate">%ssome controls changed on the computer only</span>' % LOCK
     return '<span class="gate">%schanged on the computer only</span>' % LOCK
 
 

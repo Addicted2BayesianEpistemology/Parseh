@@ -699,6 +699,8 @@ def _say(job):
     if s == CORRECTING:
         c = job.get("correction", {})
         if c.get("total", 0):
+            if c.get("task") == "likelihood":
+                return "%s… %d / %d suspect spans processed." % (c.get("phase", "Scoring likelihood"), c.get("done", 0), c["total"])
             if c.get("task") == "workspace":
                 return "%s… %d / %d ASR words processed." % (c.get("phase", "Reviewing workspace"), c.get("done", 0), c["total"])
             return "Reviewing with the selected LLM… %d / %d ASR words reviewed." % (c.get("done", 0), c["total"])
@@ -773,7 +775,7 @@ def cancel(token):
     if job is None:
         return {"cancelled": False}
     with LOCK:
-        if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") == "llm"):
+        if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") in ("llm", "likelihood")):
             return cancel_review(token)
         if job["state"] == DONE and job.get("review_choice") == "external":
             # Discarding the browser review also forgets its unaccepted imports.
@@ -1081,7 +1083,7 @@ def _correct(job, config, cancel, generation, word_ids=None, previous=None):
 def cancel_review(token):
     job = _job(token)
     with LOCK:
-        if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") == "llm"):
+        if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") in ("llm", "likelihood")):
             job["llm_generation"] = job.get("llm_generation", 0) + 1
             cancel = job.pop("llm_cancel", None)
             if cancel:
@@ -1091,6 +1093,129 @@ def cancel_review(token):
                                      error="LLM review was cancelled. The Whisper result is intact.")
             job["state"], job["finished"] = REVIEW_CHOICE, _now()
         return _report(job)
+
+
+def review_likelihood(token, source_sha256, revision, word_ids=None):
+    """Additional numeric method. Job input cannot choose a path or runtime."""
+    import asrcorrection
+    import lmlikelihoodconfig as lc
+    import llmadapter
+    from lmgguf import ScoringError, revalidate
+    job = _job(token)
+    with LOCK:
+        if job["state"] not in (REVIEW_CHOICE, DONE):
+            raise Refusal("wrong-state", "Wait for Whisper or cancel the current review.", 409)
+        if not job.get("review_evidence") or source_sha256 != job["review_evidence"]["source_sha256"]:
+            raise Refusal("stale-review", "That review no longer matches the Whisper result.", 409)
+        if not _review_source_current(job):
+            raise Refusal("source-changed", "The local film changed. Transcribe it again.", 409)
+        if any(j is not job and j["state"] in ACTIVE for j in JOBS.values()):
+            raise Refusal("busy", "Another transcription or model review is running.", 409)
+        config = lc.load()
+        if lc.INSTALL['state'] == 'installing':
+            raise Refusal("runtime-installing", "Wait for the isolated scoring runtime to finish rebuilding.", 409)
+        if revision != lc.revision(config):
+            raise Refusal("settings-changed", "The likelihood model or worker settings changed. Inspect them and choose review again.", 409)
+        if not config["model"]:
+            raise Refusal("likelihood-unconfigured", "Select an installed GGUF in LM likelihood settings first.", 409)
+        try:
+            revalidate(config["model"])
+        except ScoringError as e:
+            raise Refusal(e.code, e.say, 409)
+        sources = asrcorrection.index(job["review_evidence"])
+        previous = job.get("correction_result")
+        if word_ids is not None and (not isinstance(word_ids, list) or not word_ids or len(word_ids) > len(sources)
+                or any(not isinstance(w, str) or w not in sources or not sources[w]["reviewable"] or not asrcorrection.suspect(sources[w]) for w in word_ids)
+                or len(set(word_ids)) != len(word_ids) or not previous or previous.get("task") != "likelihood"
+                or job.get("likelihood_revision") != lc.revision(config)):
+            raise Refusal("bad-review", "Retry mapped suspect words from the same likelihood model and source.")
+        cancel = llmadapter.Cancellation()
+        job["llm_cancel"] = cancel
+        job["llm_generation"] = job.get("llm_generation", 0) + 1
+        generation = job["llm_generation"]
+        job["review_choice"] = "likelihood"
+        job.pop("external_review", None)
+        job["likelihood_revision"] = lc.revision(config)
+        if word_ids is None:
+            job["correction_result"] = None
+            job["llm_diagnostics"] = []
+            job["llm_diagnostics_clipped"] = False
+        total = len(word_ids) if word_ids else sum(w["reviewable"] and asrcorrection.suspect(w) for w in sources.values())
+        job["correction"] = {"state": "running", "complete": False, "done": 0, "total": total,
+            "unit": "words", "task": "likelihood", "destination": "Local standalone scoring worker",
+            "model": config["model"]["model_id"], "started": _now(), "phase": "loading likelihood model"}
+        job["state"] = CORRECTING
+        answer = _report(job)
+    threading.Thread(target=_likelihood_correct, args=(job, config, cancel, generation, word_ids, previous),
+                     daemon=True, name="asr-likelihood").start()
+    return answer
+
+
+def _likelihood_correct(job, config, cancel, generation, word_ids, previous):
+    import lmlikelihood
+    import lmlikelihoodconfig as lc
+    from lmgguf import ScoringError, revalidate
+    stamp = lc.revision(config)
+    def current():
+        cancel.check()
+        if generation != job.get("llm_generation") or job["state"] != CORRECTING:
+            raise ScoringError("cancelled", "Likelihood review was cancelled.")
+        if not _review_source_current(job):
+            raise ScoringError("source-changed", "The local film changed during review. Transcribe it again.")
+        if lc.revision(lc.load()) != stamp:
+            raise ScoringError("settings-changed", "The likelihood model or worker settings changed. Choose review again.")
+        revalidate(config["model"])
+    def progress(done, total, phase):
+        current()
+        with LOCK:
+            job["correction"].update(done=done, total=total, phase=phase)
+    def diagnostic(trace):
+        current()
+        trace["run"] = generation
+        size = len(json.dumps(trace, ensure_ascii=True).encode())
+        with LOCK:
+            history = job.setdefault("llm_diagnostics", [])
+            if size > 512 * 1024:
+                job["llm_diagnostics_clipped"] = True
+                return
+            while history and (len(history) >= 100 or len(json.dumps(history, ensure_ascii=True).encode()) + size > 512 * 1024):
+                history.pop(0); job["llm_diagnostics_clipped"] = True
+            history.append(trace)
+            job["correction"]["response_count"] = len(history)
+    try:
+        out = lmlikelihood.correct(job["review_evidence"], job["text"], config, current, progress, diagnostic, word_ids)
+        current()
+        with LOCK:
+            if word_ids is not None and previous:
+                selected = set(word_ids)
+                out["suggestions"] = [s for s in previous["suggestions"] if s["word_id"] not in selected] + out["suggestions"]
+                out["failed_word_ids"] = [w for w in previous.get("failed_word_ids", []) if w not in selected] + out["failed_word_ids"]
+                out["storage_failed_word_ids"] = [w for w in previous.get("storage_failed_word_ids", []) if w not in selected] + out.get("storage_failed_word_ids", [])
+                kept, bounded = 0, []
+                for suggestion in out["suggestions"]:
+                    size = len(json.dumps(suggestion, ensure_ascii=True).encode())
+                    if kept + size <= lmlikelihood.MAX_REVIEW_BYTES:
+                        bounded.append(suggestion); kept += size
+                    else:
+                        ident = suggestion["word_id"]
+                        if ident not in out["failed_word_ids"]:
+                            out["failed_word_ids"].append(ident)
+                        if ident not in out["storage_failed_word_ids"]:
+                            out["storage_failed_word_ids"].append(ident)
+                out["suggestions"] = bounded
+                out["complete"] = not out["failed_word_ids"]
+            job["correction_result"] = out
+            job["correction"].update(state="complete" if out["complete"] else "partial", complete=out["complete"],
+                                     failed_words=len(out["failed_word_ids"]))
+            job["state"], job["finished"] = DONE, _now()
+    except Exception as e:
+        with LOCK:
+            if generation != job.get("llm_generation") or job["state"] != CORRECTING:
+                return
+            job["correction_result"] = None
+            job["correction"].update(state="failed", complete=False, code=e.code if isinstance(e, ScoringError) else "worker-failed",
+                error=e.say if isinstance(e, ScoringError) else "Likelihood review could not finish. The Whisper result is intact.")
+            job["state"], job["finished"] = REVIEW_CHOICE, _now()
 
 
 def _external_job(token, source_sha256, session=None):
@@ -1301,6 +1426,19 @@ def use_review(token, source_sha256, decisions, manual_edits=None):
                 error="The LLM settings changed. Choose review again; the old suggestions were discarded.")
             job["state"], job["finished"] = REVIEW_CHOICE, _now()
             raise Refusal("stale-review", "The LLM settings changed. Choose review again.", 409)
+        if job["review_choice"] == "likelihood":
+            import lmlikelihoodconfig as lc
+            from lmgguf import ScoringError, revalidate
+            cfg = lc.load()
+            try:
+                if job.get("likelihood_revision") != lc.revision(cfg) or not cfg["model"]:
+                    raise ScoringError("settings-changed", "The likelihood model or worker settings changed. Choose review again.")
+                revalidate(cfg["model"])
+            except ScoringError as e:
+                job["correction_result"] = None
+                job["correction"].update(state="failed", complete=False, code=e.code, error=e.say)
+                job["state"], job["finished"] = REVIEW_CHOICE, _now()
+                raise Refusal("stale-review", e.say, 409)
         evidence = job["review_evidence"]
         if source_sha256 != evidence["source_sha256"]:
             raise Refusal("stale-review", "That review no longer matches the Whisper result.", 409)

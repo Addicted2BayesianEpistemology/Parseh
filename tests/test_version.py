@@ -299,9 +299,12 @@ class DataFormats(unittest.TestCase):
         import making
         import texpackages
         import wordtimes
+        import llmconfig
+        import lmlikelihoodconfig
         got = version.formats()
         self.assertEqual(set(got), set(version.FORMATS))
-        held = {"parseh-timings": timestamp.TIMINGS_FORMAT, "parseh-review": timestamp.REVIEW_FORMAT,
+        held = {"parseh-llm": llmconfig.STORE_FORMAT, "parseh-lm-likelihood": lmlikelihoodconfig.STORE_FORMAT,
+                "parseh-timings": timestamp.TIMINGS_FORMAT, "parseh-review": timestamp.REVIEW_FORMAT,
                 "parseh-parts": merge_parts.PARTS_FORMAT, "parseh-waveform": serve.WAVEFORM_FORMAT,
                 "parseh-wordtimes": wordtimes.WORDTIMES_FORMAT,
                 "parseh-library": store.LIBRARY_FORMAT, "parseh-anki": anki_store.STORE_FORMAT,
@@ -377,7 +380,7 @@ class DataFormats(unittest.TestCase):
             "clips/": ("parseh-clips",),
             "youtube/anki/": ("parseh-anki",),
             "config/": ("parseh-prefs", "parseh-network", "parseh-languages", "parseh-digests",
-                        "parseh-wheres", "parseh-updates", "parseh-latex"),
+                        "parseh-wheres", "parseh-updates", "parseh-latex", "parseh-llm", "parseh-lm-likelihood"),
             "texmf/": ("parseh-texmf",),
             "dict/": ("parseh-dictionary",),
             "corpus/": ("parseh-corpus",),
@@ -388,7 +391,9 @@ class DataFormats(unittest.TestCase):
             # meta.json of the kind mt/'s have, and lib/getstt.py judges both (older,
             # newer, another Python) -- so there is no row, and a step back to a
             # version that lacks the folder has nothing to warn about
-            "stt/": ()}
+            "stt/": (),
+            # Isolated numerical runtime/toolchain, with no Parseh data store.
+            "llm-scoring/": ()}
     # the rows that are not a store but a file made to travel: each is read
     # back by its own stamp, whatever wrote it
     TRAVEL = {"parseh-bundle", "parseh-shelf", "parseh-narration", "parseh-exercise-shelf",

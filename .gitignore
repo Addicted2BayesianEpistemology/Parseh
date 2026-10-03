@@ -253,3 +253,6 @@ aligner-models/
 # Host-local LLM credentials never belong to source, releases or synced prefs.
 config/llm.json
 config/llm.json.tmp
+config/lm-likelihood.json
+config/lm-likelihood.json.tmp
+llm-scoring/
