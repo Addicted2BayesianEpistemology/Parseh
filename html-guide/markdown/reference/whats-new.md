@@ -43,6 +43,11 @@ from word probabilities. The low-ASR-score threshold remains 0.5. An additional 
 review gives a tool-capable model a temporary blanked transcript and CSV evidence,
 first skimming unblanked text and then resolving numbered entries with isolated
 Python. Its model selection is separate; existing review methods remain available.
+Each of the three methods also supports an external chatbot through a copied
+prompt and pasted answer. No configured endpoint is needed. Workspace review
+can download its text/CSV files for an external service with file/code tools.
+Imported proposals are checked and remain in the pending draft until accepted
+and explicitly used.
 
 ### Colour meaningful parts of a word
 

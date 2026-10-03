@@ -868,9 +868,73 @@ await section('review', 'pending LLM draft, accessible details and Unicode-safe 
   await page.getByRole('button', {name:'Restore Whisper word',exact:true}).click();
   await page.locator('#review-contract #stt_review_retry').click();
   eq(await page.evaluate(() => window.reviewRetried), ['s0w2'], 'one retry action selects the remaining suspicious words');
-  assert(await page.locator('#review-contract a[download]').count() === 2, 'review offers separate correction and whole-text skill downloads');
+  assert(await page.locator('#review-contract a[download]').count() === 3, 'review offers separate correction, whole-text and workspace skill downloads');
   assert(await page.locator('#review-contract #stt_review_full').count() === 1, 'whole-text review is an explicit choice');
   eq(await inBox(page), '', 'review component never writes to the existing transcript box');
+  await context.close();
+});
+
+await section('external', 'external review without an endpoint and explicit draft use', async () => {
+  const {context, page} = await newPage();
+  await openAdd(page, {by: 'empty'}); await blockReady(page);
+  await page.evaluate(() => {
+    const root = document.createElement('section'); root.id = 'external-contract'; document.body.appendChild(root);
+    const original = '0:00\n🙂 loro anno detto ciao\n';
+    const word = {segment_id:'s0', word_id:'s0w2', text:'anno', start:.5, end:.75,
+      asr_confidence:.3, low_asr_score:true, alternatives_available:false, asr_alternatives:[], reviewable:true,
+      span_start:Array.from(original.slice(0, original.indexOf('anno'))).length,
+      span_end:Array.from(original.slice(0, original.indexOf('anno') + 4)).length};
+    let res = {text:original, review:{choice:null, evidence:{language:'it', source_sha256:'source',
+      low_score_threshold:.5, segments:[{segment_id:'s0', start:0, end:2, text:'🙂 loro anno detto ciao', words:[word]}]}}};
+    window.externalApplied = null;
+    window.externalContract = ParsehAsrReview.mount(root, {job:() => 'fake-job', current:() => true,
+      choose:() => {}, cancel:() => {}, use:decisions => { window.externalApplied = decisions; },
+      external:(action, values) => {
+        if (action === 'start') res.review = {...res.review, choice:'external', result:{task:values.task, suggestions:[]},
+          external:{id:'session-' + values.task, task:values.task, index:0, batches:1, finished:false,
+            submitted:[], words_done:0, words_total:1, prompt:'A bounded prompt for ' + values.task}};
+        if (action === 'cancel') res.review = {...res.review, choice:null, external:null, result:null};
+        if (action === 'answer') {
+          if (values.answer !== 'sentence0: 🙂 loro hanno detto ciao') return Promise.reject(new Error('Invalid pasted answer.'));
+          res.review = {...res.review, external:{...res.review.external, finished:true, submitted:[0], words_done:1},
+            result:{task:res.review.external.task, suggestions:[{...word, original:'anno', error_likelihood:null,
+              candidates:[{text:'hanno', confidence:null, reason:''}]}]}};
+        }
+        return Promise.resolve({res:JSON.parse(JSON.stringify(res)), state:res.review.choice ? 'review' : 'choice', connection:{configured:false}});
+      }});
+    externalContract.show(res, 'choice', {configured:false});
+  });
+  const panel = page.locator('#external-contract #stt_external');
+  for (const method of ['suspect', 'full', 'workspace']) {
+    if (!(await panel.evaluate(node => node.open))) await panel.locator('summary').click();
+    await panel.locator('#stt_external_task').selectOption(method);
+    await panel.locator('#stt_external_start').click();
+    await until(async () => (await panel.locator('#stt_external_prompt').inputValue()).includes(method), 'external prompt ready');
+    assert(await page.locator('#external-contract #stt_use').isDisabled(), 'Use is disabled while waiting for a paste');
+    assert(await panel.locator('#stt_external_copy').count() === 1, 'one shared copy control');
+    assert(await panel.locator('#stt_external_files').count() === (method === 'workspace' ? 1 : 0), 'workspace download for the workspace method');
+    if (method === 'workspace') assert(/session=session-workspace/.test(await panel.locator('#stt_external_files').getAttribute('href')), 'download belongs to this session');
+    eq(await inBox(page), '', 'preparing prompts leaves the transcript box untouched');
+    await panel.getByRole('button', {name:'Cancel external review', exact:true}).click();
+    await until(async () => await panel.locator('#stt_external_prompt').count() === 0, 'external review cancelled');
+  }
+  if (!(await panel.evaluate(node => node.open))) await panel.locator('summary').click();
+  await panel.locator('#stt_external_task').selectOption('suspect');
+  await panel.locator('#stt_external_start').click();
+  await panel.locator('#stt_external_answer').fill('invalid answer');
+  await panel.locator('#stt_external_import').click();
+  await until(async () => /Invalid pasted answer/.test(await panel.locator('#stt_external_status').textContent()), 'invalid import explained');
+  eq(await panel.locator('#stt_external_answer').inputValue(), 'invalid answer', 'failure preserves pasted text');
+  await panel.locator('#stt_external_answer').fill('sentence0: 🙂 loro hanno detto ciao');
+  await panel.locator('#stt_external_import').click();
+  await until(async () => !(await page.locator('#external-contract #stt_use').isDisabled()), 'import ready for review');
+  await page.locator('#external-contract [data-review-word="s0w2"]').click();
+  await page.locator('#external-contract').getByRole('button', {name:'Accept this alternative', exact:true}).click();
+  eq(await page.evaluate(() => window.externalApplied), null, 'import and accept change only the draft');
+  eq(await inBox(page), '', 'import and accept leave the transcript box untouched');
+  await page.locator('#external-contract #stt_use').click();
+  eq(await page.evaluate(() => window.externalApplied), {s0w2:0}, 'explicit Use hands off the accepted edit');
+  await page.evaluate(() => externalContract.clear());
   await context.close();
 });
 

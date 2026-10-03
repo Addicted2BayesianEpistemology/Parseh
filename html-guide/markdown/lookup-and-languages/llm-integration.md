@@ -152,6 +152,48 @@ reasoning supplied by the endpoint. Reasoning support is requested through
 Unsloth's API; other compatible endpoints use their model's default reasoning.
 This may be slower than sentence review and does not guarantee better accuracy.
 
+## Use an external chatbot
+
+All three review methods also work by copy and paste, without configuring an
+endpoint. In the Browser transcript review, expand **Use an external chatbot ·
+copy & paste**, choose **Suspect words**, **Whole text** or **Reasoning
+workspace**, and press **Prepare external prompt**.
+
+Press **Copy review prompt** and paste it into the chatbot you choose. Bring
+its answer back to the labeled answer box and press **Import answer into
+review**. Sentence methods ask for complete sentences with the supplied labels;
+the workspace method asks for proposals CSV with exact source IDs and original
+spans. Parseh checks the answer before offering edits. A pasted answer is never
+executed as code. **LLM responses** also shows imported answers for inspection.
+
+For **Reasoning workspace**, **Download transcript & CSV workspace** supplies a
+ZIP containing the entire blanked transcript without timestamps, current-batch
+evidence, source IDs, the skill and Python helper. Attach it to a chatbot with
+file/code tools and use the copied prompt. Extract it with `parseh-review` as
+the working directory; paste the resulting proposals CSV back. A chatbot
+without file tools can use the current-region evidence included in the prompt.
+This external route does not require bubblewrap on the Parseh host: any code
+tools run in the external service's environment.
+
+Long transcripts use several bounded prompts. Progress counts source words
+in imported batches. **Previous prompt** and **Next prompt** let you revisit
+a batch; importing it again replaces that batch's proposals. A malformed
+answer leaves previously imported batches and the answer box intact. Missing
+or invalid sentences remain unchanged and can be retried. **Review received
+suggestions** finishes with the answers received so far, marking unanswered
+words for retry or keyboard edits. **Cancel external review** returns to the
+review choice with the Whisper result intact. Keep the page open while working;
+Parseh retains the pending result in memory while this review is open.
+
+Accept/reject and manual edits use the same pending draft as API review. Only
+**Use this transcript** fills the existing transcript box, with the same
+overwrite and stale-source guards. Endpoint calls and model loading do not
+occur in this route. You send the text to an external service yourself when
+you paste the prompt or attach the ZIP; choose a destination you are comfortable
+sharing that text with. Prompts and downloads contain no audio, host paths,
+video IDs, endpoint credentials or unrelated history. Pasted drafts stay in
+page memory and are not stored in browser preferences or sync.
+
 ## Correction skill
 
 Expand **Correction skill** in the review page to download the suspect-word

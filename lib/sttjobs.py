@@ -775,6 +775,12 @@ def cancel(token):
     with LOCK:
         if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") == "llm"):
             return cancel_review(token)
+        if job["state"] == DONE and job.get("review_choice") == "external":
+            # Discarding the browser review also forgets its unaccepted imports.
+            job.pop("external_review", None)
+            job["review_choice"] = None
+            job["correction_result"] = None
+            job["state"] = REVIEW_CHOICE
         if job["state"] not in ACTIVE + (REVIEW_CHOICE,):
             return {"cancelled": False}
         job["cancelled"] = True
@@ -825,6 +831,7 @@ def result(token):
                             "choice": job.get("review_choice"),
                             "correction": dict(job.get("correction") or {}),
                             "result": job.get("correction_result"),
+                            "external": _external_view(job),
                             "diagnostics": list(job.get("llm_diagnostics") or []),
                             "diagnostics_clipped": bool(job.get("llm_diagnostics_clipped"))})
 
@@ -921,6 +928,7 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
                     or (previous and previous.get("task", "suspect") != task)):
                 raise Refusal("bad-review", "Choose remaining words from this review task and Whisper result.")
         if mode == "whisper":
+            job.pop("external_review", None)
             job["review_choice"] = "whisper"
             job["correction_result"] = None
             job["correction"] = {"state": "not-requested", "complete": False}
@@ -950,6 +958,7 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
         job["llm_generation"] = job.get("llm_generation", 0) + 1
         generation = job["llm_generation"]
         job["review_choice"] = "llm"
+        job.pop("external_review", None)
         job["llm_config_fingerprint"] = llmconfig.fingerprint(config)
         if word_ids is None:
             job["correction_result"] = None
@@ -1084,6 +1093,193 @@ def cancel_review(token):
         return _report(job)
 
 
+def _external_job(token, source_sha256, session=None):
+    job = _job(token)
+    if (job["state"] not in (DONE, REVIEW_CHOICE) or not job.get("review_evidence")
+            or source_sha256 != job["review_evidence"]["source_sha256"]):
+        raise Refusal("stale-review", "That external review no longer matches the pending Whisper result.", 409)
+    if not _review_source_current(job):
+        raise Refusal("source-changed", "The local film changed. Transcribe it again.", 409)
+    if session is not None and (not isinstance(session, str) or not session or job.get("review_choice") != "external" or session != job.get("external_review", {}).get("id")):
+        raise Refusal("stale-review", "This external prompt was replaced. Prepare a new prompt.", 409)
+    job["touched"] = _now()
+    return job
+
+
+def _external_view(job):
+    ext = job.get("external_review")
+    if not ext or job.get("review_choice") != "external":
+        return None
+    import asrexternal
+    index = ext["index"]
+    return {"id": ext["id"], "task": ext["task"], "index": index, "batches": len(ext["batches"]),
+            "finished": ext["finished"], "submitted": sorted(ext["answers"]),
+            "words_done": sum(len(asrexternal.ids(ext["batches"][i])) for i in ext["answers"]),
+            "words_total": sum(len(asrexternal.ids(batch)) for batch in ext["batches"]),
+            "prompt": ext["prompt"] if not ext["finished"] else "", "prompt_error": ext.get("prompt_error", "")}
+
+
+def external_start(token, source_sha256, task, word_ids=None):
+    import asrexternal
+    import asrcorrection
+    with LOCK:
+        job = _external_job(token, source_sha256)
+        sources = asrcorrection.index(job["review_evidence"])
+        if word_ids is not None and (not isinstance(word_ids, list) or not word_ids
+                or any(not isinstance(ident, str) or ident not in sources or not sources[ident]["reviewable"] for ident in word_ids)
+                or len(set(word_ids)) != len(word_ids) or len(word_ids) > len(sources)):
+            raise Refusal("bad-review", "Choose mapped words from this Whisper result.")
+        try:
+            batches = asrexternal.batches(job["review_evidence"], task, word_ids)
+            first = asrexternal.prompt(job["review_evidence"], task, batches[0]) if batches else ""
+        except Exception as error:
+            if hasattr(error, "say"):
+                raise Refusal(error.code, error.say)
+            raise Refusal("bad-review", "The external prompt could not be prepared.")
+        previous = job.get("correction_result")
+        base = previous if word_ids is not None and previous and previous.get("task") == task else None
+        job["external_review"] = {"id": secrets.token_urlsafe(18), "task": task, "index": 0,
+                                  "batches": batches, "answers": {}, "attempts": {}, "finished": not batches, "base": base, "prompt": first}
+        job["review_choice"] = "external"
+        job["state"], job["finished"] = DONE, _now()
+        job["correction"] = {"state": "awaiting-paste" if batches else "complete", "complete": not batches,
+                             "unit": "words", "task": task, "method": "external", "done": 0,
+                             "total": sum(len(asrexternal.ids(batch)) for batch in batches)}
+        _external_merge(job)
+        return result(token)
+
+
+def _external_merge(job):
+    import asrexternal
+    ext = job["external_review"]
+    selected = set().union(*(asrexternal.ids(batch) for batch in ext["batches"]))
+    base = ext["base"] or {}
+    out = {"schema_version": 1, "task": ext["task"], "method": "external-" + ext["task"],
+           "suggestions": [s for s in base.get("suggestions", []) if not selected.intersection(s.get("word_ids", [s["word_id"]]))]}
+    for field in ("failed_word_ids", "uncertain_word_ids", "reviewed_word_ids"):
+        out[field] = [ident for ident in base.get(field, []) if ident not in selected]
+    for answer in ext["answers"].values():
+        out["suggestions"].extend(answer["suggestions"])
+        for field in ("failed_word_ids", "uncertain_word_ids", "reviewed_word_ids"):
+            out[field].extend(answer[field])
+    if ext["finished"]:
+        unseen = selected - set(out["reviewed_word_ids"])
+        out["failed_word_ids"].extend(sorted(unseen))
+        out["uncertain_word_ids"].extend(sorted(unseen))
+    out["assessment"] = ("no_flagged_words" if ext["task"] == "suspect" else "no_reviewable_words") if not selected else (
+        "partial" if out["failed_word_ids"] else "suggestions" if out["suggestions"] else "kept_original")
+    out["words_reviewed"] = sum(len(asrexternal.ids(ext["batches"][i])) for i in ext["answers"])
+    out["words_total"] = sum(len(asrexternal.ids(batch)) for batch in ext["batches"])
+    job["correction_result"] = out
+    job["correction"].update(done=out["words_reviewed"], total=out["words_total"],
+                             failed_words=len(out["failed_word_ids"]), complete=ext["finished"],
+                             state="complete" if ext["finished"] else "awaiting-paste")
+
+
+def external_action(token, source_sha256, session, action, index=None, answer=None):
+    import asrexternal
+    import llmconfig
+    with LOCK:
+        if not isinstance(session, str) or not session:
+            raise Refusal("stale-review", "Prepare an external prompt before importing an answer.", 409)
+        job = _external_job(token, source_sha256, session)
+        ext = job["external_review"]
+        if action == "cancel":
+            job.pop("external_review", None); job["review_choice"] = None
+            job["correction_result"] = None; job["correction"] = {"state": "not-requested", "complete": False}
+            job["state"], job["finished"] = REVIEW_CHOICE, _now()
+            return result(token)
+        if ext["finished"]:
+            raise Refusal("stale-review", "This external review is finished. Prepare another prompt to retry.", 409)
+        # An open copy/paste review may take longer than ASR result retention.
+        # Refresh only this in-memory review; it still occupies no job slot.
+        if action == "keep-alive":
+            job["finished"] = _now()
+            return {"kept": True}
+        if action in ("prompt", "answer"):
+            if type(index) is not int or not 0 <= index < len(ext["batches"]):
+                raise Refusal("bad-review", "Choose a prompt batch from this review.")
+        if action == "answer":
+            try:
+                parsed = asrexternal.parse(job["review_evidence"], ext["task"], ext["batches"][index], answer)
+                current_prompt = asrexternal.prompt(job["review_evidence"], ext["task"], ext["batches"][index])
+            except llmconfig.LLMError as error:
+                raise Refusal(error.code, error.say)
+            ext["answers"][index] = parsed
+            ext["attempts"][index] = ext["attempts"].get(index, 0) + 1
+            ext.update(index=index, prompt=current_prompt, prompt_error="")
+            config = llmconfig.load() or {}
+            key = config.get("api_key")
+            def safe(text):
+                if key:
+                    # Raw pasted CSV and JSON can escape quotes in a key.
+                    variants = {key, key.replace('"', '""'), json.dumps(key, ensure_ascii=False)[1:-1]}
+                    for value in sorted(variants, key=len, reverse=True):
+                        text = text.replace(value, "[redacted credential]")
+                return text
+            trace = {"run": ext["id"], "sentence_id": "external-batch%d" % index, "attempt": ext["attempts"][index], "state": "complete",
+                     "source": "\n".join(unit["text"] for unit in ext["batches"][index]),
+                     "word_ids": parsed["reviewed_word_ids"], "answer": safe(answer)[:16000], "ignored_edits": parsed["ignored_edits"],
+                     "prompt": [{"role": "user", "content": safe(current_prompt)[:32000]}]}
+            # Redact strings before JSON encoding, including quoted keys in
+            # pasted explanations. Never replace JSON syntax or numeric values.
+            def redact(value):
+                if isinstance(value, str):
+                    return safe(value)
+                if isinstance(value, list):
+                    return [redact(item) for item in value]
+                if isinstance(value, dict):
+                    return {name: redact(item) for name, item in value.items()}
+                return value
+            trace = redact(trace)
+            history = job.setdefault("llm_diagnostics", [])
+            history.append(trace)
+            while len(history) > 100 or len(json.dumps(history, ensure_ascii=False).encode("utf-8")) > 512 * 1024:
+                history.pop(0); job["llm_diagnostics_clipped"] = True
+            job["llm_diagnostics_bytes"] = len(json.dumps(history, ensure_ascii=False).encode("utf-8"))
+            if len(ext["answers"]) == len(ext["batches"]):
+                ext["finished"] = True
+            else:
+                following = next(i for i in range(len(ext["batches"])) if i not in ext["answers"])
+                try:
+                    text = asrexternal.prompt(job["review_evidence"], ext["task"], ext["batches"][following])
+                    ext.update(index=following, prompt=text)
+                except llmconfig.LLMError as error:
+                    # A later prompt failure must preserve this imported batch.
+                    ext["prompt_error"] = error.say
+        elif action == "prompt":
+            try:
+                text = asrexternal.prompt(job["review_evidence"], ext["task"], ext["batches"][index])
+            except llmconfig.LLMError as error:
+                raise Refusal(error.code, error.say)
+            ext.update(index=index, prompt=text, prompt_error="")
+        elif action == "finish":
+            ext["finished"] = True
+        elif action != "prompt":
+            raise Refusal("bad-review", "Choose prompt, import answer, finish or cancel.")
+        _external_merge(job)
+        job["finished"] = _now()
+        return result(token)
+
+
+def external_files(token, source_sha256, session, index):
+    import asrexternal
+    with LOCK:
+        if not isinstance(session, str) or not session:
+            raise Refusal("stale-review", "Prepare a workspace prompt before downloading its files.", 409)
+        job = _external_job(token, source_sha256, session)
+        ext = job["external_review"]
+        if ext["task"] != "workspace" or type(index) is not int or not 0 <= index < len(ext["batches"]):
+            raise Refusal("bad-review", "Choose this workspace review's prompt batch.")
+        try:
+            units = ext["batches"][index]
+            return asrexternal.bundle(job["review_evidence"], units, asrexternal.prompt(job["review_evidence"], ext["task"], units))
+        except Exception as error:
+            if hasattr(error, "say"):
+                raise Refusal(error.code, error.say)
+            raise Refusal("external-download", "The text workspace could not be prepared.")
+
+
 def use_review(token, source_sha256, decisions, manual_edits=None):
     """Apply only chosen validated spans. Caption clocks/boundaries stay put."""
     import asrcorrection
@@ -1094,6 +1290,8 @@ def use_review(token, source_sha256, decisions, manual_edits=None):
     with LOCK:
         if job["state"] != DONE or not job.get("review_choice"):
             raise Refusal("review-first", "Choose how to review the transcript first.", 409)
+        if job.get("review_choice") == "external" and not job.get("external_review", {}).get("finished"):
+            raise Refusal("review-first", "Finish importing answers or choose Review received suggestions first.", 409)
         if not _review_source_current(job):
             raise Refusal("source-changed", "The local film changed. Transcribe it again.", 409)
         if (job["review_choice"] == "llm" and

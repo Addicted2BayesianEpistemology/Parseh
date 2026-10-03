@@ -4324,6 +4324,16 @@ class Handler(SimpleHTTPRequestHandler):
             except sttjobs.Refusal as e:
                 return self.send_json({"ok": False, "error": e.say, "code": e.code}, e.status)
             return self.send_file(path)
+        if sub == "/api/transcribe/external-files":
+            try:
+                index = (self.query.get("index") or [""])[0]
+                if not re.fullmatch(r"[0-9]{1,6}", index):
+                    raise sttjobs.Refusal("bad-review", "Choose a workspace prompt batch.")
+                data = sttjobs.external_files((self.query.get("job") or [""])[0],
+                    (self.query.get("source_sha256") or [""])[0], (self.query.get("session") or [""])[0], int(index))
+            except sttjobs.Refusal as error:
+                return self.send_json({"ok": False, "error": error.say, "code": error.code}, error.status)
+            return self.send_bytes(data, "application/zip", extra={"Content-Disposition": 'attachment; filename="parseh-review-workspace.zip"', "Cache-Control": "no-store"})
         if sub == "/api/backup":
             return self._shelf_backup("video")
         m = re.match(r"^/v/([^/]+)/__download/?$", sub)
@@ -5567,7 +5577,7 @@ class Handler(SimpleHTTPRequestHandler):
         other route takes only the token the job made.  Every answer is
         {"ok": true, ...} or {"ok": false, "error": <a sentence>, "code": <a
         slug>}, and none of them is a traceback."""
-        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "retry-review", "cancel-review", "use", "dictionary"):
+        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "retry-review", "cancel-review", "use", "dictionary", "external-start", "external-action"):
             return self.send_json({"ok": False, "error": "nothing to POST here",
                                    "code": "no-such-route"}, 404)
 
@@ -5586,6 +5596,14 @@ class Handler(SimpleHTTPRequestHandler):
                 raise sttjobs.Refusal("bad-request", getattr(e, "said", None)
                                       or "The request could not be read.")
             token = body.get("job")
+            if what in ("external-start", "external-action"):
+                allowed = ({"job", "source_sha256", "task", "word_ids"} if what == "external-start" else
+                           {"job", "source_sha256", "session", "action", "index", "answer"})
+                if set(body) - allowed:
+                    raise sttjobs.Refusal("bad-review", "The external review request contains unknown settings.")
+                if what == "external-start":
+                    return sttjobs.external_start(token, body.get("source_sha256"), body.get("task"), body.get("word_ids"))
+                return sttjobs.external_action(token, body.get("source_sha256"), body.get("session"), body.get("action"), body.get("index"), body.get("answer"))
             if what == "dictionary":
                 if set(body) - {"job", "source_sha256", "word_id"}:
                     raise sttjobs.Refusal("bad-review", "The dictionary request contains unknown settings.")

@@ -289,7 +289,7 @@
     var reviewMobile = el('p', 'fieldnote', 'Switch to the Browser interface above to choose and use the pending transcript review.');
     reviewMobile.setAttribute('data-layout', 'mobile'); reviewMobile.hidden = true;
     form.lastChild.appendChild(reviewMobile);
-    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill, task) { chooseReview(mode, null, skill, task); }, retry: retryReview, use: useReview, cancel: cancelReview,
+    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill, task) { chooseReview(mode, null, skill, task); }, retry: retryReview, external: externalReview, current: pendingCurrent, job: function () { return S.job; }, use: useReview, cancel: cancelReview,
       select: selectReviewWord, seek: seekReview, dictionary: function (wordId) {
         if (!S.held || !pendingCurrent()) return Promise.reject(new Error('This review changed.'));
         return ask(route('dictionary'), {job: S.job, source_sha256: S.held.res.review.evidence.source_sha256, word_id: wordId}, 10000)
@@ -1029,6 +1029,34 @@
       paint();
     }
     function retryReview(wordIds, skill, task) { if (wordIds.length) chooseReview('llm', wordIds, skill, task); }
+    function externalReview(action, values) {
+      if (!S.held || (S.phase !== 'choice' && S.phase !== 'review') || !pendingCurrent()) {
+        return Promise.reject(new Error('This review changed. Prepare a new Whisper result.'));
+      }
+      if (action === 'keep-alive') {
+        return post('external-action', Object.assign({job: S.job, source_sha256: S.held.res.review.evidence.source_sha256, action: action}, values || {}))
+          .then(function (r) { if (!r.j.ok) throw new Error(r.j.error); });
+      }
+      var run = S.run, held = S.held, attempt = S.reviewAttempt = (S.reviewAttempt || 0) + 1;
+      var body = Object.assign({job: S.job, source_sha256: held.res.review.evidence.source_sha256}, values || {});
+      var name = action === 'start' ? 'external-start' : 'external-action';
+      if (action !== 'start') body.action = action;
+      return post(name, body).then(function (r) {
+        if (run !== S.run || attempt !== S.reviewAttempt || S.held !== held || !pendingCurrent()) {
+          throw new Error('This review changed; the returned answer was discarded.');
+        }
+        if (!r.j.ok) {
+          if (r.j.code === 'source-changed') discardPending();
+          throw new Error(r.j.error);
+        }
+        S.held.res = r.j;
+        var external = r.j.review && r.j.review.external;
+        S.phase = r.j.review && r.j.review.choice ? 'review' : 'choice';
+        say(external && !external.finished ? 'Copy the prompt to your chosen chatbot, then paste its answer here.' : 'Review the proposals, then choose Use this transcript.');
+        paint();
+        return {res: r.j, state: external && !external.finished ? 'external' : S.phase, connection: LLM};
+      });
+    }
     function chooseReview(mode, wordIds, skill, task) {
       if (!S.held || (S.phase !== 'choice' && S.phase !== 'review')) return;
       if (!pendingCurrent()) { discardPending(); return; }

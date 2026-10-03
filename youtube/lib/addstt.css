@@ -144,6 +144,14 @@
 .stt-llm-responses{margin-block:8px;padding:8px 12px;border:1px solid var(--rule);border-radius:8px;font-size:13px}
 .stt-llm-responses details{margin-block:8px}
 .stt-review-empty{padding:16px;color:var(--dim)}
+.stt-review-external{margin-block:12px;padding:12px;border:1px solid var(--rule);border-radius:10px;background:var(--card)}
+.stt-review-external>summary{font-weight:600;cursor:pointer}
+.stt-review-external>label{display:block;margin-block:12px;font-size:13px}
+.stt-review-external select{margin-inline-start:8px;max-width:100%}
+.stt-review-external textarea{display:block;box-sizing:border-box;width:100%;min-height:120px;margin-block:6px;padding:10px;
+  border:1px solid var(--rule);border-radius:8px;background:var(--card);color:var(--ink);font:13px/1.5 ui-monospace,monospace;resize:vertical}
+.stt-review-external progress{display:block;width:100%;margin-block:8px}
+.stt-review-external #stt_external_status{margin-top:10px}
 @media(max-width:1050px){
   .stt-review-body{grid-template-columns:minmax(0,1fr)}
   .stt-review-details{max-height:300px}

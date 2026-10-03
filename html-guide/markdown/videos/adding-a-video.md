@@ -249,6 +249,13 @@ accepted/manual edits. **LLM responses** shows actual model output. The
 Unsloth skill invocation. Only **Use this transcript**
 places it in the box, timed to the video's own clock (a stop to buffer does
 not shift what follows). See [LLM Integration](../lookup-and-languages/llm-integration.md).
+All three LLM methods also offer **Use an external chatbot · copy & paste**.
+Choose the method, **Prepare external prompt**, copy it to your chatbot, then
+paste the answer and **Import answer into review**. No saved connection is
+required. The workspace method also downloads its transcript and CSV files.
+Long transcripts have several prompts and word-count progress; you can finish
+with received answers, then retry or manually edit unresolved words. Imported
+proposals still require acceptance and **Use this transcript**.
 Then the box is yours to edit by hand or in
 [the editor](mending-the-transcript.md). Parseh keeps the timed-word track
 only long enough to add this video; it is adopted as `wordtimes.json` when you

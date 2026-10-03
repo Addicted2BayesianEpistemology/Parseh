@@ -73,12 +73,13 @@ LANG_DOCS = os.path.join(ROOT, "docs", "lang")
 # others.  The two that are files handed over as they are (youtube/PROMPT.md,
 # docs/audio-sync-prompt.md) are not surfaces: there is nothing to assemble.
 SURFACES = ("studio-doc", "studio-exercises", "video-new", "video-region",
-            "book-region", "book-new", "transcript-tidy", "ask")
+            "book-region", "book-new", "transcript-tidy",
+            "asr-suspect", "asr-full", "asr-workspace", "ask")
 # the ones whose answer Parseh reads back, and which therefore always carry
 # its contract (book-new's "answer" is a book, checked by the tools the agent
 # runs)
 READS_BACK = ("studio-doc", "studio-exercises", "video-new", "video-region",
-              "book-region", "transcript-tidy")
+              "book-region", "transcript-tidy", "asr-suspect", "asr-full", "asr-workspace")
 # the words a mode adds to the version line; the default mode says nothing
 MODE_WORDS = {"regloss": "re-gloss", "perfield": "per field"}
 
@@ -93,6 +94,9 @@ TEMPLATES = {
     "video-region": os.path.join(ROOT, "docs", "region-prompt.md"),
     "book-region": os.path.join(ROOT, "docs", "region-prompt.md"),
     "book-new": os.path.join(ROOT, "docs", "new-book-prompt.md"),
+    "asr-suspect": os.path.join(ROOT, "docs", "asr-suspect-prompt.md"),
+    "asr-full": os.path.join(ROOT, "docs", "asr-full-prompt.md"),
+    "asr-workspace": os.path.join(ROOT, "docs", "asr-workspace-prompt.md"),
 }
 # a template that lives in the code that uses it (the transcript tidy's) says
 # so with register(), so that parts() finds it without importing that module
