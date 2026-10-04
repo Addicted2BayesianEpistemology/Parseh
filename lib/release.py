@@ -170,6 +170,9 @@ CONTENT = ("books/", "youtube/videos/", "markdown/library/", "exercises/", "clip
 SCAFFOLDING = (".gitkeep", "README.md")
 # never in a release, whatever .gitattributes says
 NEVER = (".tls/", "tests/", ".github/", ".runtime/", ".parseh-update/", "dist/",
+         ":memory:.ses",
+         "docs/lm-likelihood-evaluation.md",
+         "tools/", "lib/phoneticrelease.py", ".speech-release-build/",
          # the LaTeX drawings, made from their blocks and made again at will
          "markdown/latex/",
          "old stuff/", "test for books/", "Parseh-Personal/")

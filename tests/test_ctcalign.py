@@ -3,7 +3,10 @@
 """Small deterministic CTC-trellis checks; ONNX itself stays in the worker."""
 import os
 import sys
+import builtins
+import types
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -13,6 +16,25 @@ import ctcalign  # noqa: E402
 
 
 class Trellis(unittest.TestCase):
+    def test_telemetry_is_disabled_before_onnx_runtime_initializes(self):
+        imported = []
+        original_import = builtins.__import__
+        runtime = types.SimpleNamespace(InferenceSession=lambda *a, **kw: object())
+
+        def guarded_import(name, *args, **kwargs):
+            if name == "onnxruntime":
+                imported.append(os.environ.get("ORT_DISABLE_TELEMETRY"))
+                return runtime
+            return original_import(name, *args, **kwargs)
+
+        meta = {"model": {"sample_rate": 16000, "file": "model.int8.onnx"}}
+        with patch.dict(os.environ, {"ORT_DISABLE_TELEMETRY": "0"}), \
+                patch("builtins.__import__", side_effect=guarded_import), \
+                patch.object(ctcalign, "_load", return_value=(meta, {}, {"sampling_rate": 16000})):
+            self.assertEqual(ctcalign.align_segments(np.array([], dtype=np.float32), [], "unused"),
+                             ([], 0, 0))
+        self.assertEqual(imported, ["1"])
+
     def test_spaced_words_follow_their_highest_monotonic_emissions(self):
         # blank, a, b, delimiter.  The best CTC path says a | b.
         logits = np.array([[7, 0, 0, 0], [0, 9, 0, 0], [7, 0, 0, 0],

@@ -9,6 +9,11 @@ already run. It starts unconfigured. Whisper and manual transcript entry work
 without it. Parseh installs no model software, downloads no weights and starts
 no endpoint.
 
+All four transcript-correction methods are **experimental**: suspect-word
+correction, whole-text review, reasoning workspace review and LM likelihood.
+They can miss errors and suggest wrong changes. Check each proposed change
+before using the transcript.
+
 The additional [LM likelihood](lm-likelihood.md) method has its own installed
 GGUF selection and isolated scoring runtime. It uses numerical token scores
 instead of a chat request; configure it in its separate Settings door.
@@ -74,11 +79,12 @@ press **Create** and copy it while shown; Studio shows the key once.
 
 When [speech to text](speech-to-text.md) finishes on
 [Add a video](../videos/adding-a-video.md#speech-to-text), the transcript box
-stays unchanged. Choose **Review suspect words with the LLM**, **Review the whole text with the
-LLM**, **Review with reasoning & workspace tools**, or **Review Whisper result
-without the LLM**. The saved destination/model are shown before sending.
-Whisper-only review sends nothing. Remembering a browser default marks a
-button and never makes an unattended request.
+stays unchanged and the transcript workspace opens for editing immediately.
+No tool selection is required. **Suspect words**, **Whole-text review**,
+**Reasoning workspace**, **LM likelihood** and **Whisper second pass** are
+tools you can try on the same draft. Manual edits and locked words survive
+later tool runs. The saved LLM destination/model are shown before sending;
+connected LLM requests start only when you press a tool button.
 
 **⚠** marks an available Whisper score below **0.5**, not proof a word is wrong.
 Missing scores stay missing. **◇** marks a word with no meaning in the installed
@@ -114,11 +120,30 @@ shows the pending result. Only **Use this transcript** writes it into the box,
 after the existing overwrite confirmation if needed. Cancel leaves the box
 untouched. Source, language, Whisper-model or box changes discard stale review.
 Caption boundaries and video clocks stay unchanged; edited word timings need
-review in the existing timing editor because the audio has been deleted.
+review in the existing timing editor. Using the transcript deletes any
+privately held capture audio.
+
+## Choose a section, keep checked words, or pause
+
+Use **Select a section**, then click its first and last word. Select **Selected
+section** to limit any review method to that range. Surrounding text remains
+available for context. **All text** restores the full scope.
+
+**Select best for all** chooses the latest method's first alternatives in the
+pending draft. Locked words are skipped; incomplete likelihood comparisons and
+ties also remain unchanged. Check the choices before using them. **I'm sure ·
+lock word** preserves a checked word through later reviews. Unlock to edit it.
+
+**Save & pause** stops model work and keeps the original, pending corrections,
+locks, section and pasted answer drafts on disk. **Continue pending
+transcription** on Videos or Add Video restores them without automatically
+calling a model. This works across browser and server restarts. **Use this
+transcript** or discarding the review removes its temporary disk draft. Audio
+is not retained; a local source video must still exist at its original path.
 
 ## Reasoning workspace review
 
-This is an additional method; the sentence reviews and Whisper-only review
+This is an additional tool; sentence reviews and direct manual editing
 remain available. Choose a model supporting reasoning and external tool calls
 under **Models for transcript review → Reasoning workspace profile**. For
 Unsloth, save its Studio share link and select that profile. It loads only when
@@ -186,8 +211,8 @@ answer leaves previously imported batches and the answer box intact. Missing
 or invalid sentences remain unchanged and can be retried. **Review received
 suggestions** finishes with the answers received so far, marking unanswered
 words for retry or keyboard edits. **Cancel external review** returns to the
-review choice with the Whisper result intact. Keep the page open while working;
-Parseh retains the pending result in memory while this review is open.
+review choice with the Whisper result intact. Use **Save & pause** to retain the pending review on disk and reopen it from
+Videos, including after a server restart.
 
 Accept/reject and manual edits use the same pending draft as API review. Only
 **Use this transcript** fills the existing transcript box, with the same
@@ -195,8 +220,8 @@ overwrite and stale-source guards. Endpoint calls and model loading do not
 occur in this route. You send the text to an external service yourself when
 you paste the prompt or attach the ZIP; choose a destination you are comfortable
 sharing that text with. Prompts and downloads contain no audio, host paths,
-video IDs, endpoint credentials or unrelated history. Pasted drafts stay in
-page memory and are not stored in browser preferences or sync.
+video IDs, endpoint credentials or unrelated history. The last four pasted answer drafts are saved with the pending review on the
+Parseh host; they are not stored in browser preferences or sync.
 
 ## Correction skill
 

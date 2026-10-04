@@ -208,7 +208,7 @@
     // an answer that arrives after a Cancel finds it is not wanted.
     var S = {slice: null, phase: 'idle', run: 0, job: '', kind: '', key: '', lang: '', model: '',
              startHash: '', video: '', player: null, rec: null, sent: 0, timer: 0, readyTimer: 0,
-             abort: null, held: null, said: '', pct: null, responses: 0};
+             abort: null, held: null, said: '', pct: null, responses: 0, secondPass: null, phonetic: null};
     var AUTO = null;   // {source, lang, model, hash}: the box holds what THIS video, language and model made
     var WAVE = null;   // {job, source}: the shape of the sound, held by the computer for this video
     var WORDS = null;  // {job, source, lang}: the word tape, for a YouTube video or a local film
@@ -236,7 +236,7 @@
     var form = el('div', 'stt-form');
     form.id = 'stt_form';
     var intro = el('p', 'fieldnote', 'Have Whisper on this computer listen to the video and write a pending transcript. ' +
-                   'Afterwards, choose Whisper-only review or explicitly send text and evidence to your selected LLM. Audio stays on this computer.');
+                   'Then edit it in Transcribe & review and try any correction tools you need. Connected LLM tools send text only when you run them. Audio stays on this computer.');
     var selModel = el('select'), selProc = el('select');
     selModel.id = 'stt_model';
     selProc.id = 'stt_proc';
@@ -245,6 +245,8 @@
     lblModel.appendChild(selModel);
     lblProc.appendChild(selProc);
     rowModel.appendChild(lblModel);
+    var moreModels = el('a', 'fieldnote', 'Manage models'); moreModels.href = SETTINGS;
+    moreModels.target = '_blank'; moreModels.rel = 'noopener'; rowModel.appendChild(moreModels);
     rowProc.appendChild(lblProc);
     var exact = el('input');
     exact.type = 'checkbox';
@@ -279,17 +281,33 @@
     bar.setAttribute('aria-valuemin', '0');
     bar.setAttribute('aria-valuemax', '100');
     bar.appendChild(el('i'));
+    var secondProgress = el('div', 'stt-second-pass'); secondProgress.hidden = true;
+    secondProgress.id = 'stt_second_pass';
+    var secondLabel = el('p', 'fieldnote'); secondLabel.id = 'stt_second_pass_label';
+    secondLabel.setAttribute('role', 'status'); secondLabel.setAttribute('aria-live', 'polite');
+    var secondBar = el('div', 'stt-bar'); secondBar.id = 'stt_second_pass_bar';
+    secondBar.setAttribute('role', 'progressbar'); secondBar.setAttribute('aria-labelledby', secondLabel.id);
+    secondBar.setAttribute('aria-valuemin', '0'); secondBar.appendChild(el('i'));
+    secondProgress.appendChild(secondLabel); secondProgress.appendChild(secondBar);
+    var phoneticProgress = el('div', 'stt-phonetic-pass'); phoneticProgress.hidden = true;
+    phoneticProgress.id = 'stt_phonetic_pass'; phoneticProgress.setAttribute('data-layout', 'browser');
+    var phoneticLabel = el('p', 'fieldnote'); phoneticLabel.id = 'stt_phonetic_label';
+    phoneticLabel.setAttribute('role', 'status'); phoneticLabel.setAttribute('aria-live', 'polite');
+    var phoneticBar = el('div', 'stt-bar'); phoneticBar.id = 'stt_phonetic_bar';
+    phoneticBar.setAttribute('role', 'progressbar'); phoneticBar.setAttribute('aria-labelledby', phoneticLabel.id);
+    phoneticBar.setAttribute('aria-valuemin', '0'); phoneticBar.appendChild(el('i'));
+    phoneticProgress.appendChild(phoneticLabel); phoneticProgress.appendChild(phoneticBar);
     var sayEl = el('p', 'stt-say');
     sayEl.id = 'stt_say';
     sayEl.setAttribute('role', 'status');
     sayEl.setAttribute('aria-live', 'polite');
-    [intro, rowModel, modelNote, rowProc, now, gpu, rowExact, exactNote, busyNote, langNote, how, actions, frame, bar, sayEl,
+    [intro, rowModel, modelNote, rowProc, now, gpu, rowExact, exactNote, busyNote, langNote, how, actions, frame, bar, secondProgress, phoneticProgress, sayEl,
      el('div', 'row')].forEach(function (n) { form.appendChild(n); });
     form.lastChild.appendChild(reviewRoot);
     var reviewMobile = el('p', 'fieldnote', 'Switch to the Browser interface above to choose and use the pending transcript review.');
     reviewMobile.setAttribute('data-layout', 'mobile'); reviewMobile.hidden = true;
     form.lastChild.appendChild(reviewMobile);
-    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill, task) { chooseReview(mode, null, skill, task); }, retry: retryReview, external: externalReview, current: pendingCurrent, job: function () { return S.job; }, use: useReview, cancel: cancelReview,
+    var REVIEW = window.ParsehAsrReview.mount(reviewRoot, {choose: function (mode, skill, task, ids, options) { chooseReview(mode, ids, skill, task, options); }, retry: retryReview, external: externalReview, current: pendingCurrent, job: function () { return S.job; }, use: useReview, cancel: cancelReview, save: saveReviewDraft, pause: pauseReview,
       select: selectReviewWord, seek: seekReview, dictionary: function (wordId) {
         if (!S.held || !pendingCurrent()) return Promise.reject(new Error('This review changed.'));
         return ask(route('dictionary'), {job: S.job, source_sha256: S.held.res.review.evidence.source_sha256, word_id: wordId}, 10000)
@@ -343,7 +361,7 @@
     var pending = el('div', 'stt-workspace-pending');
     var pendingHeading = el('h3', null, 'Whisper is preparing your transcript');
     pending.appendChild(pendingHeading);
-    pending.appendChild(el('p', null, 'When Whisper finishes, choose how to review the words. Your transcript box stays unchanged until you choose Use this transcript.'));
+    pending.appendChild(el('p', null, 'When transcription finishes, edit the words or try any review tool. Your transcript box stays unchanged until you choose Use this transcript.'));
     var jobActions = el('div', 'row');
     var notice = el('p', 'stt-workspace-notice'); notice.setAttribute('role', 'status');
     [pending, jobActions, reviewRoot, notice].forEach(function (n) { work.appendChild(n); });
@@ -357,10 +375,10 @@
       if (!inWorkspace) {
         beforeWorkspace = document.activeElement;
         [frame, playerNote, transport, context].forEach(function (n) { media.appendChild(n); });
-        [how, bar, sayEl].forEach(function (n) { pending.appendChild(n); });
+        [how, bar, secondProgress, phoneticProgress, sayEl].forEach(function (n) { pending.appendChild(n); });
         [rec, cancel].forEach(function (n) { jobActions.appendChild(n); });
         // Progress stays above review, including during LLM requests.
-        work.insertBefore(bar, reviewRoot); work.insertBefore(sayEl, reviewRoot);
+        work.insertBefore(bar, reviewRoot); work.insertBefore(secondProgress, reviewRoot); work.insertBefore(phoneticProgress, reviewRoot); work.insertBefore(sayEl, reviewRoot);
         inWorkspace = true;
       }
       if (!workspace.open) { workspace.showModal(); heading.tabIndex = -1; heading.focus(); }
@@ -465,8 +483,13 @@
     }
 
     /* -------------------------------------------------- what is remembered */
-    var prefs = load(PREFS), exactWanted = prefs.exact !== false;
-    function savePrefs() { store(PREFS, {model: selModel.value, processing: selProc.value, exact: exactWanted}); }
+    var prefs = load(PREFS), exactWanted = prefs.exact !== false, filledLanguage = '';
+    function savePrefs() {
+      prefs.models_by_language = prefs.models_by_language || {};
+      if (selModel.value) prefs.models_by_language[o.lang().code] = selModel.value;
+      prefs.model = selModel.value; prefs.processing = selProc.value; prefs.exact = exactWanted;
+      store(PREFS, prefs);
+    }
     function persist() {
       store(STATE, {auto: AUTO, wave: WAVE, words: WORDS,
                     job: S.job ? {id: S.job, kind: S.kind, key: S.key, lang: S.lang, model: S.model,
@@ -476,7 +499,13 @@
 
     /* ------------------------------------------------------- what is asked */
     function key(src) { return src.kind + ':' + src.value; }
-    function models() { return ((S.slice && S.slice.models) || []).filter(function (m) { return m.ready; }).slice(0, 2); }
+    function models() {
+      var language = o.lang().code;
+      return ((S.slice && S.slice.models) || []).filter(function (m) {
+        var supported = m.languages || (m.language ? [m.language] : []);
+        return m.ready && (!supported.length || supported.indexOf(language) >= 0);
+      });
+    }
     function modelLabel(id) {
       var m = ((S.slice && S.slice.models) || []).filter(function (x) { return x.id === id; })[0];
       return m ? m.label : String(id || '');
@@ -492,15 +521,20 @@
     }
     function fill() {
       var have = models().map(function (m) { return m.id; });
-      var pick = selModel.value || prefs.model || (S.slice && S.slice.default_model);
+      var code = o.lang().code, saved = ((S.slice && S.slice.preferences || {}).models_by_language || {})[code];
+      var browserSaved = (prefs.models_by_language || {})[code];
+      var pick = saved || filledLanguage === code && selModel.value || browserSaved || prefs.model || (S.slice && S.slice.default_model);
       selModel.textContent = '';
       models().forEach(function (m) {
-        var op = el('option', null, m.label + ' — ' + m.tag);
+        var specific = m.languages && m.languages.length || m.language;
+        var extra = specific ? '' : m.tag;
+        var op = el('option', null, m.label + (extra && m.label.indexOf(extra) < 0 ? ' — ' + extra : ''));
         op.value = m.id;
         selModel.appendChild(op);
       });
       var dflt = S.slice && S.slice.default_model;
       selModel.value = have.indexOf(pick) >= 0 ? pick : (have.indexOf(dflt) >= 0 ? dflt : (have[0] || ''));
+      filledLanguage = code;
       var c = card(), proc = selProc.value || prefs.processing || 'auto';
       selProc.textContent = '';
       [['auto', 'Automatic — recommended'], ['cpu', 'CPU']].concat(c && c.ready ? [['cuda', 'NVIDIA GPU']] : [])
@@ -536,7 +570,7 @@
       }
       var s = S.slice, idle = S.phase === 'idle';
       var src = o.source(), lang = o.lang();
-      var ok = !!(s && s.installed);
+      var ok = !!(s && s.installed && models().length);
       var yt = src.kind === 'yt';
       var noLang = ok && s.languages && s.languages[lang.code] === false;
       var noTab = ok && yt ? tabProblem() : '';
@@ -557,7 +591,7 @@
         var rt = s.runtime || {};
         setup.href = s.settings || SETTINGS;
         // an install that needs attention says what: "built by an older Parseh"
-        var extra = rt.state === 'ready' ? ' The program is installed, but a model still has to be added.'
+        var extra = s.installed && !models().length ? ' Install a model for ' + lang.name + ', or a standard multilingual model.' : rt.state === 'ready' ? ' The program is installed, but a model still has to be added.'
           : rt.state && rt.state !== 'absent' && rt.why ? ' ' + rt.why : '';
         absent.firstChild.textContent = SAY_ABSENT + extra;
       }
@@ -565,6 +599,7 @@
         var film = src.kind === 'film', c = card(), a = autoNow(), m = selModel.value;
         var info = models().filter(function (x) { return x.id === m; })[0];
         modelNote.textContent = info ? info.hint : '';
+        if (info && info.fully_compatible === false) modelNote.textContent += ' Language-specific model; check word timings and the transcript before using it.';
         modelNote.hidden = !info || !info.hint;
         // "Processing: Automatic · currently CPU", said in the person's terms
         var proc = selProc.value, cname = (c && c.name) || 'the NVIDIA graphics card';
@@ -602,18 +637,36 @@
         reopen.textContent = S.held ? 'Resume transcript review' : 'Open transcription';
         back.disabled = captureLive();
         back.title = back.disabled ? 'Finish or cancel the recording before returning to Add Video.' : 'Keep the pending draft and return to Add Video';
-        step.textContent = S.phase === 'correcting' ? 'LLM review' : S.held ? 'Review transcript' : idle ? 'Speech to text' : 'Whisper transcription';
+        step.textContent = S.phonetic ? 'Heard pronunciation' : S.secondPass ? 'Whisper second pass' : S.phase === 'correcting' ? 'Review tool running' : S.held ? 'Review transcript' : idle ? 'Speech to text' : 'Whisper transcription';
         pending.hidden = !!S.held;
-        pendingHeading.textContent = S.kind === 'yt' && captureLive() ? 'Record this YouTube video' : 'Whisper is transcribing';
+        pendingHeading.textContent = S.phonetic ? 'PhoneticXeus is listening to suspect words' : S.secondPass ? 'Whisper second pass' : S.kind === 'yt' && captureLive() ? 'Record this YouTube video' : 'Whisper is transcribing';
         notice.textContent = noteEl.textContent;
         var live = S.phase !== 'idle' && S.said !== '';
         sayEl.hidden = !live || inWorkspace && !!S.held;
         sayEl.textContent = live ? S.said : '';
-        bar.hidden = !(S.phase === 'recording' || S.phase === 'sending' || S.phase === 'working' || S.phase === 'correcting');
+        bar.hidden = !!S.secondPass || browserLayout() && !!S.phonetic || !(S.phase === 'recording' || S.phase === 'sending' || S.phase === 'working' || S.phase === 'correcting');
         bar.classList.toggle('wait', S.pct == null);
         bar.firstChild.style.width = S.pct == null ? '' : Math.max(0, Math.min(100, S.pct)) + '%';
         if (S.pct == null) bar.removeAttribute('aria-valuenow');
         else bar.setAttribute('aria-valuenow', String(Math.round(S.pct)));
+        secondProgress.hidden = !S.secondPass;
+        if (S.secondPass) {
+          var done = S.secondPass.done || 0, total = S.secondPass.total || 0;
+          secondLabel.textContent = 'Whisper second pass · ' + done + ' / ' + total + ' suspect words processed';
+          secondBar.setAttribute('aria-valuemax', String(total || 1));
+          secondBar.setAttribute('aria-valuenow', String(done));
+          secondBar.setAttribute('aria-valuetext', done + ' of ' + total + ' suspect words processed');
+          secondBar.firstChild.style.width = (total ? 100 * done / total : 100) + '%';
+        }
+        phoneticProgress.hidden = !S.phonetic;
+        if (S.phonetic) {
+          var heard = S.phonetic.done || 0, totalHeard = S.phonetic.total || 0;
+          phoneticLabel.textContent = 'Heard IPA · ' + heard + ' / ' + totalHeard + ' suspect words processed';
+          phoneticBar.setAttribute('aria-valuemax', String(totalHeard || 1));
+          phoneticBar.setAttribute('aria-valuenow', String(heard));
+          phoneticBar.setAttribute('aria-valuetext', heard + ' of ' + totalHeard + ' suspect words processed');
+          phoneticBar.firstChild.style.width = (totalHeard ? 100 * heard / totalHeard : 100) + '%';
+        }
         reviewRoot.hidden = !S.held;
         reviewMobile.hidden = !S.held;
       }
@@ -693,12 +746,24 @@
       invalidatePending('language');
       if (AUTO && AUTO.lang !== o.lang().code) drop('language');
       if (WORDS && WORDS.lang !== o.lang().code) { WORDS = null; persist(); }
-      paint();
+      fill(); paint();
     }
     function modelChanged() {
       invalidatePending('Whisper model');
       savePrefs();
       if (AUTO && AUTO.model !== selModel.value) drop('model');
+      if (selModel.value && S.phase === 'idle') {
+        var code = o.lang().code, model = selModel.value;
+        if (S.slice) {
+          S.slice.preferences = S.slice.preferences || {};
+          S.slice.preferences.models_by_language = S.slice.preferences.models_by_language || {};
+          S.slice.preferences.models_by_language[code] = model;
+        }
+        ask('/settings/api/speech/select-model', {language:code,model:model}, DEADLINE_MS).then(function (r) {
+          if (!r.j.ok) throw new Error(r.j.error || 'The model preference could not be saved.');
+          if (S.slice && prefs.models_by_language[code] === model) S.slice.preferences.models_by_language[code] = model;
+        }).catch(function () { note('This model is selected for this transcription. Its preference could not be saved on the host.', 'warn'); });
+      }
       paint();
     }
     selModel.addEventListener('change', modelChanged);
@@ -729,6 +794,8 @@
       frame.textContent = '';
       S.job = S.kind = S.key = S.video = '';
       S.sent = 0;
+      S.secondPass = null;
+      S.phonetic = null;
       S.phase = 'idle';
       selectedWord = selectedCaption = null;
       selectedLine.textContent = 'Select a transcript word to jump to its time.';
@@ -954,6 +1021,8 @@
           misses = 0;
           if (S.phase === 'working' && noteEl.textContent === SAY_SILENT) note('');
           if (!j.ok) { fail(run, j.error || 'That transcription is not here any more.', false); return; }
+          S.secondPass = j.state === 'whisper-second-pass' || j.correction && j.correction.state === 'running' && j.correction.task === 'whisper-second' ? j.second_pass : null;
+          S.phonetic = j.state === 'phonetic-ipa' ? j.phonetic : null;
           if (j.state === 'done' || j.state === 'awaiting-review-choice') { finishJob(run); return; }
           if (j.state === 'failed') { fail(run, j.error, false); return; }
           if (j.state === 'cancelled') { fail(run, 'The transcription was cancelled.', false); return; }
@@ -1014,9 +1083,10 @@
       S.held = {res: res, t: t};
       var review = res.review || {};
       if (review.correction && review.correction.code === 'source-changed') { discardPending(); return; }
-      var ready = review.choice && (!review.correction || review.correction.state !== 'failed' && review.correction.state !== 'cancelled');
-      S.phase = ready ? 'review' : 'choice';
-      say(ready ? 'Review the transcript, then choose Use this transcript.' : 'Whisper finished. Choose how to review its transcript.');
+      S.secondPass = null;
+      S.phonetic = null;
+      S.phase = 'review';
+      say('Review and edit the transcript. Try any tool, then choose Use this transcript.');
       ask('/settings/api/llm/status', {}).then(function (r) {
         if (run !== S.run || !S.held) return;
         LLM = r.j && r.j.ok ? r.j : {configured: false};
@@ -1028,7 +1098,7 @@
       ensureReviewPlayer();
       paint();
     }
-    function retryReview(wordIds, skill, task) { if (wordIds.length) chooseReview(task === 'likelihood' ? 'likelihood' : 'llm', wordIds, skill, task); }
+    function retryReview(wordIds, skill, task, options) { if (wordIds.length) chooseReview(task === 'likelihood' ? 'likelihood' : 'llm', wordIds, skill, task, options); }
     function externalReview(action, values) {
       if (!S.held || (S.phase !== 'choice' && S.phase !== 'review') || !pendingCurrent()) {
         return Promise.reject(new Error('This review changed. Prepare a new Whisper result.'));
@@ -1051,13 +1121,13 @@
         }
         S.held.res = r.j;
         var external = r.j.review && r.j.review.external;
-        S.phase = r.j.review && r.j.review.choice ? 'review' : 'choice';
+        S.phase = 'review';
         say(external && !external.finished ? 'Copy the prompt to your chosen chatbot, then paste its answer here.' : 'Review the proposals, then choose Use this transcript.');
         paint();
         return {res: r.j, state: external && !external.finished ? 'external' : S.phase, connection: LLM};
       });
     }
-    function chooseReview(mode, wordIds, skill, task) {
+    function chooseReview(mode, wordIds, skill, task, options) {
       if (!S.held || (S.phase !== 'choice' && S.phase !== 'review')) return;
       if (!pendingCurrent()) { discardPending(); return; }
       var evidence = S.held.res.review && S.held.res.review.evidence;
@@ -1068,14 +1138,15 @@
       var run = S.run, attempt = S.reviewAttempt = (S.reviewAttempt || 0) + 1;
       task = task || 'suspect';
       var numerical = mode === 'likelihood';
+      var second = mode === 'whisper-second';
       if (!wordIds) REVIEW.resetProposals();
       S.responses = 0;
-      S.phase = mode === 'llm' || numerical ? 'correcting' : 'choosing';
+      S.phase = mode === 'llm' || numerical || second ? 'correcting' : 'choosing';
       S.pct = null;
       REVIEW.show(S.held.res, 'correcting', LLM);
-      say(numerical ? 'Loading the standalone likelihood model…' : mode === 'llm' ? 'Preparing the saved review model…' : 'Opening Whisper-only review…');
+      say(second ? 'Preparing Whisper second pass…' : numerical ? 'Loading the standalone likelihood model…' : 'Preparing the saved review model…');
       paint();
-      var started = Date.now(), preparing = mode === 'llm' && !wordIds;
+      var started = Date.now(), preparing = mode === 'llm';
       var prepareTimer = preparing ? setInterval(function () {
         if (attempt !== S.reviewAttempt || run !== S.run || !S.held) { clearInterval(prepareTimer); return; }
         REVIEW.progress('Preparing the saved model profile. Elapsed: ' + clock(Math.floor((Date.now() - started) / 1000)) + '.');
@@ -1088,13 +1159,18 @@
       if (numerical) {
         body = {job: S.job, source_sha256: evidence.source_sha256, revision: LLM && LLM.likelihood && LLM.likelihood.revision};
         if (wordIds) body.word_ids = wordIds;
+        if (options && typeof options.phonetic_filter === 'boolean') body.phonetic_filter = options.phonetic_filter;
       }
-      var prepared = numerical ? post('review-likelihood', body) : mode === 'llm' && !wordIds ? ask('/settings/api/llm/review-prepare', {task: task, connection_id: body.connection_id}, 310000).then(function (r) {
+      if (second) {
+        body = {job:S.job, source_sha256:evidence.source_sha256};
+        if (wordIds) body.word_ids = wordIds;
+      }
+      var prepared = second ? post('whisper-second-pass', body) : numerical ? post('review-likelihood', body) : mode === 'llm' ? ask('/settings/api/llm/review-prepare', {task: task, connection_id: body.connection_id}, 310000).then(function (r) {
         clearInterval(prepareTimer);
         if (attempt !== S.reviewAttempt || run !== S.run || !S.held || S.phase !== 'correcting' || !pendingCurrent()) return null;
         if (!r.j.ok) return r;
         LLM = r.j; body.connection_id = LLM.connection_id;
-        return post('review', body);
+        return post(wordIds ? 'retry-review' : 'review', body);
       }) : post(wordIds ? 'retry-review' : 'review', body);
       prepared.then(function (r) {
         clearInterval(prepareTimer);
@@ -1103,18 +1179,18 @@
         if (!r || S.phase !== 'correcting' && S.phase !== 'choosing') return;
         if (!r.j.ok) {
           if (r.j.code === 'source-changed') { discardPending(); return; }
-          S.phase = 'choice'; note(r.j.error, 'warn');
+          S.phase = 'review'; note(r.j.error, 'warn');
           if (r.j.code === 'settings-changed' || r.j.code === 'llm-unconfigured') {
             LLM = null;
             ask('/settings/api/llm/status', {}).then(function (fresh) {
-              if (run !== S.run || !S.held || S.phase !== 'choice') return;
+              if (run !== S.run || !S.held || S.phase !== 'review') return;
               LLM = fresh.j && fresh.j.ok ? fresh.j : {configured: false};
-              REVIEW.show(S.held.res, 'choice', LLM);
+              REVIEW.show(S.held.res, 'review', LLM);
             }, function () {});
           }
-          REVIEW.show(S.held.res, 'choice', LLM); paint(); return;
+          REVIEW.show(S.held.res, 'review', LLM); paint(); return;
         }
-        if (mode === 'llm' || numerical) { poll(run); } else finishJob(run);
+        if (mode === 'llm' || numerical || second) { poll(run); } else finishJob(run);
       }, function () {
         clearInterval(prepareTimer);
         if (attempt !== S.reviewAttempt) return;
@@ -1123,6 +1199,50 @@
         // resend a generation request because its answer was lost.
         note(SAY_SILENT, 'warn'); poll(run);
       });
+    }
+    function saveReviewDraft(draft) {
+      if (!S.held || !pendingCurrent()) return Promise.reject(new Error('The review source changed.'));
+      draft.browser = {transcript: o.transcript(), hash: S.startHash};
+      return post('save-draft', {job:S.job, source_sha256:S.held.res.review.evidence.source_sha256,
+        generation:S.phase === 'correcting' ? undefined : S.held.res.review.generation || 0, draft:draft}).then(function (r) {
+        if (!r.j.ok) throw new Error(r.j.error || 'The draft could not be saved.');
+      });
+    }
+    function pauseReview() {
+      var run = S.run;
+      var stopped = S.phase === 'correcting' ? post('cancel-review',{job:S.job}).then(function (r) {
+        if (!r.j.ok) throw new Error(r.j.error || 'The review could not be stopped. Keep this page open and try again.');
+      }) : Promise.resolve();
+      return stopped.then(function () {
+        if(run!==S.run)return;
+        S.held=null; REVIEW.clear();tidy();
+        note('Review saved. Continue it from Videos or the pending transcription button.');refreshPending();paint();
+      });
+    }
+    var pendingButton = button('Continue pending transcription', 'stt_continue_pending', 'wbtn small quiet');
+    pendingButton.hidden=true;pendingButton.setAttribute('data-layout','browser');root.appendChild(pendingButton);
+    var pendingList=el('div','stt-pending-list');pendingList.hidden=true;root.appendChild(pendingList);
+    function refreshPending() {
+      return post('pending',{}).then(function(r){
+        if(!r.j.ok)return; pendingButton.hidden=!r.j.pending.length;pendingList.textContent='';
+        r.j.pending.forEach(function(item){var row=el('div','stt-pending-item'),b=button(item.title+' · '+item.lang,'','wbtn small quiet');b.addEventListener('click',function(){resumeSaved(item.job);});row.appendChild(b);var discard=button('Discard saved review','','wbtn small quiet');discard.addEventListener('click',function(){if(confirmOver('Discard this saved transcription review?'))post('cancel',{job:item.job}).then(function(answer){if(answer.j.ok)refreshPending();else note(answer.j.error,'warn');});});row.appendChild(discard);pendingList.appendChild(row);});
+      },function(){});
+    }
+    pendingButton.addEventListener('click',function(){pendingList.hidden=!pendingList.hidden;refreshPending();});
+    function resumeSaved(token) {
+      if(S.phase!=='idle'){note('Pause or finish this review before opening another.','warn');return;}
+      post('resume',{job:token}).then(function(r){
+        if(!r.j.ok){note(r.j.error,'warn');return;}
+        var saved=r.j, browser=saved.draft.browser || {};
+        if(o.transcript().trim() && o.transcript() !== (browser.transcript || '') && !confirmOver('Open this saved review and restore its Add Video draft?'))return;
+        if(!o.restorePending){note('Open the matching source and language before resuming.','warn');return;}
+        o.restorePending(saved.source,saved.lang,browser.transcript || '');
+        var src=o.source();selModel.value=saved.model;
+        S.job=saved.job;S.kind=src.kind;S.key=key(src);S.lang=saved.lang;S.model=saved.model;S.startHash=hash(o.transcript());
+        S.video=saved.source.id || '';S.phase='working';var run=++S.run;persist();openWorkspace();
+        pendingList.hidden=true;finishJob(run);
+        try {var link=new URL(location.href);link.searchParams.delete('pending');history.replaceState(null,'',link);}catch(e){}
+      },function(){note('Parseh did not answer. The saved review stays on disk.','warn');});
     }
     function cancelReview() {
       S.reviewAttempt = (S.reviewAttempt || 0) + 1;
@@ -1202,6 +1322,7 @@
     cancel.addEventListener('click', function () { stop(); });
     // a page left during a recording ends it: the sound would go on arriving from nowhere
     window.addEventListener('pagehide', function () {
+      if(S.held && pendingCurrent() && navigator.sendBeacon){var draft=REVIEW.snapshot();draft.browser={transcript:o.transcript(),hash:S.startHash};try{navigator.sendBeacon(route('save-draft'),new Blob([JSON.stringify({job:S.job,source_sha256:S.held.res.review.evidence.source_sha256,generation:S.phase === 'correcting' ? undefined : S.held.res.review.generation || 0,draft:draft})],{type:'application/json'}));}catch(e){}}
       var live = S.phase === 'loading' || S.phase === 'ready' || S.phase === 'recording' || S.phase === 'sending';
       if (!live || S.kind !== 'yt' || !S.job || !navigator.sendBeacon) return;
       try { navigator.sendBeacon(route('cancel'), new Blob([JSON.stringify({job: S.job})], {type: 'application/json'})); }
@@ -1239,7 +1360,7 @@
         var s = r.j;
         function over(text, kind) {
           if (text) note(text, kind);
-          if (text && s.state !== 'failed') cancelServer(j.id);
+          if (text && (s.state === 'awaiting-audio' || s.state === 'receiving')) cancelServer(j.id);
           S.job = '';
           persist();
           paint();
@@ -1270,7 +1391,7 @@
       WORDS = was.words && was.words.source === k ? was.words : null;
     })();
     lock(false);
-    refresh().then(resume);
+    refresh().then(function(){refreshPending();var saved=new URLSearchParams(location.search).get('pending');if(saved)resumeSaved(saved);else resume();});
     return {
       sourceChanged: sourceChanged,
       langChanged: langChanged,

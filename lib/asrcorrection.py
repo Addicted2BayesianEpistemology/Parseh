@@ -56,6 +56,9 @@ def alternatives(raw):
             seq = item.get("sequence_score")
             if item.get("score_kind") == "sequence_log_score" and type(seq) in (int, float) and math.isfinite(seq) and abs(seq) <= 1e6:
                 candidate.update(sequence_score=float(seq), score_kind="sequence_log_score")
+            if isinstance(item.get('origins'), list):
+                import whispersecond
+                candidate['origins'] = whispersecond.origins(item['origins'])
             out.append(candidate)
     return out, available
 
@@ -105,6 +108,8 @@ def evidence(segments, panel, language):
                           "span_start": at + pos if eligible else None,
                           "span_end": at + pos + len(surface) if eligible else None,
                           "reviewable": eligible})
+            if isinstance(w.get('second_pass'), dict):
+                words[-1]['second_pass'] = dict(w['second_pass'])
         rows.append({"segment_id": "s%d" % i, "start": seg["start"], "end": seg["end"],
                      "text": normalized, "whisper_text": original, "words": words})
     return {"schema_version": SCHEMA_VERSION, "language": language,
@@ -195,6 +200,8 @@ def messages(request, unit, use_skill=False, task="suspect", context_limit=600):
     prompt = [{"role": "user", "content":
              "Language: %s\nBefore (context only): %s\nAfter (context only): %s\nTarget sentence: %s\nSuspect words — optional Whisper hints:\n%s" % (
                  request["language"], before, after, unit["text"], "\n".join(hint(w) for w in hints) or "No flagged words; check the target text.")}]
+    if len(unit["targets"]) < sum(w["reviewable"] for w in unit["words"]):
+        prompt[0]["content"] += "\nOnly review these words; keep all others unchanged: " + ", ".join(w["text"] for w in unit["targets"])
     if use_skill:
         prompt[0]["content"] = "@" + (AUDIT_SKILL_NAME if task == "full" else SKILL_NAME) + "\n" + prompt[0]["content"]
     else:
@@ -244,7 +251,7 @@ def sentence_result(answer, unit):
     unchanged = sum(sum(c.isalnum() for c in original[a:b]) for tag, a, b, _, _ in matcher.get_opcodes() if tag == "equal")
     untouched = sum(c.isalnum() for i, c in enumerate(original)
                     if not any(w["region_start"] <= i < w["region_end"] for w in targets))
-    if untouched and unchanged < untouched * .3:
+    if untouched and unchanged < untouched * .5:
         invalid()
     edits, ignored, replacements = {}, [], {}
     source_tokens = list(re.finditer(r"\S+", original))
@@ -353,6 +360,8 @@ def full_sentence_result(answer, unit):
     proposals = []
     for left, right in groups:
         members = words[left:right + 1]
+        if not {w["word_id"] for w in members} <= {w["word_id"] for w in unit["targets"]}:
+            continue
         if len(members) > 8 or any(not w["reviewable"] for w in members):
             invalid()
         a, b = members[0]["region_start"], members[-1]["region_end"]
@@ -386,8 +395,7 @@ def correct(request, adapter, cancel, progress, context_tokens=8192, diagnostic=
     units = sentence_units(request, limit, task)
     if target_word_ids is not None:
         selected = set(target_word_ids)
-        units = ([u for u in units if any(w["word_id"] in selected for w in u["targets"])] if task == "full" else
-                 [dict(u, targets=[w for w in u["targets"] if w["word_id"] in selected]) for u in units])
+        units = [dict(u, targets=[w for w in u["targets"] if w["word_id"] in selected]) for u in units]
         units = [u for u in units if u["targets"]]
     total = sum(len(u["targets"]) for u in units)
     progress(0, total)

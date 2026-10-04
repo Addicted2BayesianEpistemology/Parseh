@@ -136,11 +136,12 @@ SETTINGS = {
     # program Parseh already chose, and getting it, taking it away and
     # stopping either are open to any device let in.  Removing is refused in
     # code while an install or a transcription uses the part.
-    "speech.get": (None, "It puts the speech program and two models on this computer's disk. "
+    "speech.get": (None, "It puts the selected speech program or model on this computer's disk. "
                          "Whoever presses the button gets the same files: only the ones Parseh "
                          "pins can be fetched, each checked against its hash."),
     "speech.remove": (None, "It frees the space the program or a model took."),
     "speech.stop": (None, "It stops an install this page started."),
+    "speech.preferences": (None, "It chooses speech models by language and automatic checks for suspect words."),
     "llm.connection": (EXPOSE, "It chooses where feature text is sent and the saved credentials."),
     "llm.model": (None, "It selects a model at the already configured endpoint; the destination and credentials stay on the host."),
     "likelihood.worker": (RUN, "It selects local model paths, an executable and runtime backend on this host."),
@@ -178,6 +179,9 @@ KNOCK = "knock"
 # and tests/test_settings_risk.py fails when serve.py answers a route this
 # table does not name.
 ROUTES = {
+    "/settings/api/speech/save": ("speech.preferences",),
+    "/settings/api/speech/select-model": ("speech.preferences",),
+    "/settings/api/speech/import-package": ("speech.get",),
     "/settings/api/lm-likelihood/status": READ,
     "/settings/api/lm-likelihood/save": ("likelihood.worker",),
     "/settings/api/lm-likelihood/install": ("likelihood.worker",),
@@ -462,12 +466,13 @@ DOORS = (
      ("latex.theme", "latex.rename", "latex.import", "latex.packages", "latex.limit",
       "latex.forget")),
     ("/settings/speech/", "Speech to text",
-     "A transcript made on this computer, while adding a video: the program, two models",
-     ("speech.get", "speech.remove", "speech.stop")),
+     "Local transcription models and optional checks for suspect words",
+     ("speech.get", "speech.remove", "speech.stop", "speech.preferences")),
     ("/settings/llm/", "LLM Integration",
-     "A reusable model endpoint; model selection from any device let in", ("llm.connection", "llm.model")),
+     "Connect Parseh to a model service", ("llm.connection", "llm.model")),
     ("/settings/lm-likelihood/", "LM likelihood · experimental",
-     "Raw causal model scores using installed GGUF weights", ("likelihood.worker", "likelihood.model")),
+     "Review words with a model installed on this computer", ("likelihood.worker", "likelihood.model")),
+    ("/settings/about/", "About", "Version, installation paths, help and licences", ()),
 )
 
 
@@ -499,7 +504,7 @@ def settings_doors(here):
         out.append('<a class="sdoor%s" href="%s"%s><b>%s</b><small>%s</small>%s</a>'
                    % (" on" if on else "", esc(href), ' aria-current="page"' if on else "",
                       esc(name), esc(what), gate(settings)))
-        if href == "/settings/llm/":
+        if href in ("/settings/llm/", "/settings/lm-likelihood/"):
             out[-1] = out[-1].replace('<a ', '<a data-layout="browser" ', 1)
     return '<nav class="sdoors" aria-label="settings">%s</nav>' % "".join(out)
 
@@ -869,9 +874,8 @@ def hub(reading_tags="", update_tags="", speech_tags="", llm_tags=""):
   </a>
   <a class="door" href="/settings/speech/">
     <div class="dname">Speech to text</div>
-    <div class="dwhat">A transcript made on this computer while you add a video: the program and the
-    two Whisper models it reads, on the processor or the NVIDIA graphics card &mdash; fetched
-    once, kept on this computer, nothing sent anywhere.</div>
+    <div class="dwhat">Whisper transcription models for your languages, optional word timing and
+    pronunciation tools, and automatic checks for suspect words. Download once and use locally.</div>
     <div class="tags">%(speech_gate)s%(speech_tags)s</div>
   </a>
   <a class="door" data-layout="browser" href="/settings/llm/">
@@ -880,6 +884,17 @@ def hub(reading_tags="", update_tags="", speech_tags="", llm_tags=""):
     Select a served model, test the connection and keep its credentials on this host.</div>
     <div class="tags">%(llm_gate)s%(llm_tags)s</div>
   </a>
+  <a class="door" data-layout="browser" href="/settings/lm-likelihood/">
+    <div class="dname">LM likelihood &middot; experimental</div>
+    <div class="dwhat">Review transcript words with a model installed on this computer.
+    Choose a model and how it runs.</div>
+    <div class="tags">%(likelihood_gate)s</div>
+  </a>
+  <a class="door" href="/settings/about/">
+    <div class="dname">About</div>
+    <div class="dwhat">Version, installation and launch-script locations, help and licences.</div>
+    <div class="tags"><span class="tag">Information only</span></div>
+  </a>
 </div>
 </main>""" % {"name": NAME, "version": esc(parseh_version()),
               "reading_gate": gate(DOORS[0][3]), "reading_tags": reading_tags,
@@ -887,6 +902,7 @@ def hub(reading_tags="", update_tags="", speech_tags="", llm_tags=""):
               "latex_gate": gate(DOORS[3][3]),
               "speech_gate": gate(DOORS[4][3]), "speech_tags": speech_tags,
               "llm_gate": gate(DOORS[5][3]), "llm_tags": llm_tags,
+              "likelihood_gate": gate(DOORS[6][3]),
               "net_gate": gate(net),
               "where": esc(doors_said(network.settings())), "port": network.port()}
     return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", signed(main),

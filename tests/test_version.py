@@ -301,9 +301,11 @@ class DataFormats(unittest.TestCase):
         import wordtimes
         import llmconfig
         import lmlikelihoodconfig
+        import asrpending
+        import speechconfig
         got = version.formats()
         self.assertEqual(set(got), set(version.FORMATS))
-        held = {"parseh-llm": llmconfig.STORE_FORMAT, "parseh-lm-likelihood": lmlikelihoodconfig.STORE_FORMAT,
+        held = {"parseh-speech": speechconfig.STORE_FORMAT, "parseh-pending-transcription": asrpending.FORMAT, "parseh-llm": llmconfig.STORE_FORMAT, "parseh-lm-likelihood": lmlikelihoodconfig.STORE_FORMAT,
                 "parseh-timings": timestamp.TIMINGS_FORMAT, "parseh-review": timestamp.REVIEW_FORMAT,
                 "parseh-parts": merge_parts.PARTS_FORMAT, "parseh-waveform": serve.WAVEFORM_FORMAT,
                 "parseh-wordtimes": wordtimes.WORDTIMES_FORMAT,
@@ -374,13 +376,13 @@ class DataFormats(unittest.TestCase):
     KEPT = {"books/": ("parseh-book", "parseh-reading", "parseh-timings", "parseh-review",
                        "parseh-annot"),
             "youtube/videos/": ("parseh-video", "parseh-annotations", "parseh-parts",
-                                "parseh-waveform", "parseh-wordtimes"),
+                                "parseh-waveform", "parseh-wordtimes", "parseh-pending-transcription"),
             "markdown/library/": ("parseh-library",),
             "exercises/": ("parseh-exercise-deck", "parseh-schedule"),
             "clips/": ("parseh-clips",),
             "youtube/anki/": ("parseh-anki",),
             "config/": ("parseh-prefs", "parseh-network", "parseh-languages", "parseh-digests",
-                        "parseh-wheres", "parseh-updates", "parseh-latex", "parseh-llm", "parseh-lm-likelihood"),
+                        "parseh-wheres", "parseh-updates", "parseh-latex", "parseh-llm", "parseh-lm-likelihood", "parseh-speech"),
             "texmf/": ("parseh-texmf",),
             "dict/": ("parseh-dictionary",),
             "corpus/": ("parseh-corpus",),

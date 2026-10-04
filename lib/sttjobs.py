@@ -36,7 +36,8 @@ named by a path on the SERVER's disk whoever names it.  The bound is the one
 slot (409 `busy`) and Cancel.
 
 THE STATES: awaiting-audio (a YouTube job, before its first piece) ->
-receiving -> queued -> preparing -> loading -> transcribing -> done;
+receiving -> queued -> preparing -> loading -> transcribing ->
+checking-dictionary -> optional whisper-second-pass -> done (editable review);
 a film starts at `queued`.  failed and cancelled end it.  A finished job's
 answer is kept for KEEP seconds and forgotten after; a cancelled one is
 forgotten AT ONCE (only its token is remembered, so a page that asks is told
@@ -78,7 +79,8 @@ for _p in (HERE, os.path.join(ROOT, "youtube", "lib")):
         sys.path.insert(0, _p)
 
 # ------------------------------------------------------------------ the limits
-MODELS = ("large-v3-turbo", "large-v3")     # the ONLY two models, whatever getstt says
+import speechmodels
+MODELS = speechmodels.MODELS
 MODES = ("auto", "cpu", "cuda")             # and the only three ways to process
 SAMPLE_RATE = 16000
 CHUNK_MAX = 1 << 20                         # bytes of PCM16 in one audio request
@@ -98,7 +100,9 @@ AWAITING, RECEIVING, QUEUED, PREPARING, LOADING = \
 TRANSCRIBING, ALIGNING, DONE, FAILED, CANCELLED = "transcribing", "aligning", "done", "failed", "cancelled"
 REVIEW_CHOICE, CORRECTING = "awaiting-review-choice", "correcting"
 CHECKING = "checking-dictionary"
-ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING, CHECKING, CORRECTING)
+SECOND_PASS = "whisper-second-pass"
+PHONETIC = 'phonetic-ipa'
+ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING, CHECKING, SECOND_PASS, PHONETIC, CORRECTING)
 RECORDING = (AWAITING, RECEIVING)           # a YouTube job still taking audio
 
 TOKEN_BYTES = 12
@@ -286,6 +290,8 @@ def _job(token, missing=True):
     with LOCK:
         _expire()
         job = JOBS.get(token)
+        if job is None:
+            job = _restore_pending(token)
         cancelled = token in TOMBS
     if job is None and missing:
         if cancelled:
@@ -297,7 +303,7 @@ def _job(token, missing=True):
 
 # ------------------------------------------------------------------------ files
 def _files(job):
-    return [job["pcm"], job["spec"], job["log"]]
+    return [job.get("pcm"), job.get("spec"), job.get("log")]
 
 
 def _clean_files(job):
@@ -340,7 +346,10 @@ def stop_all():
     for proc in procs:
         _kill(proc)
     for job in jobs:
+        _save_pending(job)
         job["cancelled"] = True
+        if job.get('phonetic_cancel'):
+            job['phonetic_cancel'].set()
         if job.get("llm_cancel"):
             job["llm_cancel"].cancel()
         _clean_files(job)
@@ -406,11 +415,13 @@ def start(source, lang, model, processing, duration=None, exact=True):
     "need", ...}.  `source` is what source_of() made; everything here is
     checked again, because this is the door tests and other code reach too."""
     if not isinstance(model, str) or model not in MODELS:
-        raise Refusal("bad-model", "That is not one of the two speech models.")
+        raise Refusal("bad-model", "Choose a model from Speech to text settings.")
     if not isinstance(processing, str) or processing not in MODES:
         raise Refusal("bad-processing", "Processing has to be Automatic, CPU or NVIDIA GPU.")
     if not isinstance(lang, str) or not LANG_RE.match(lang):
         raise Refusal("bad-language", "That is not a language code.")
+    if not speechmodels.compatible(model, lang):
+        raise Refusal('model-language', 'The selected speech model does not support this language.')
     if not isinstance(exact, bool):
         raise Refusal("bad-exact", "Exact word times can only be on or off.")
     if not isinstance(source, dict):
@@ -501,7 +512,12 @@ def start(source, lang, model, processing, duration=None, exact=True):
             raise Refusal("busy", "Another transcription is running.", 409)
         token = secrets.token_urlsafe(TOKEN_BYTES)
         now = _now()
+        import speechconfig
+        preferences = speechconfig.load()
         job = {"id": token, "kind": kind, "source": norm, "film": film,
+               "automatic_second_pass": preferences['second_pass'],
+               "automatic_phonetic": preferences['phonetic_enabled'],
+               "model_revision": speechmodels.provenance(model),
                "lang": lang, "wlang": wlang, "model": model, "mode": processing,
                "aligner": aligner,
                "planned": device, "device": None, "device_name": name, "threads": threads,
@@ -536,6 +552,7 @@ def _started(job):
            "lang": job["lang"], "model": job["model"], "processing": job["mode"],
            "exact": bool(job.get("aligner")),
            "say": _say(job)}
+    out['model_revision'] = job.get('model_revision')
     if job.get("correction"):
         out["correction"] = dict(job["correction"])
     out.update(_who(job))
@@ -693,11 +710,19 @@ def _say(job):
         pct = _pct(job)
         return "Making exact word times…%s" % (" %d%%" % pct if pct is not None else "")
     if s == REVIEW_CHOICE:
-        return "Whisper finished. Choose how to review its transcript."
+        return "The transcript is ready to review and edit."
     if s == CHECKING:
         return "Whisper finished. Checking words in the installed dictionary…"
+    if s == SECOND_PASS:
+        p = job.get('second_pass', {})
+        return "Whisper second pass… %d / %d suspect words processed." % (p.get('done', 0), p.get('total', 0))
+    if s == PHONETIC:
+        p = job.get('phonetic', {})
+        return 'Heard IPA… %d / %d suspect words processed.' % (p.get('done', 0), p.get('total', 0))
     if s == CORRECTING:
         c = job.get("correction", {})
+        if c.get('task') == 'whisper-second':
+            return 'Whisper second pass… %d / %d words processed.' % (c.get('done', 0), c.get('total', 0))
         if c.get("total", 0):
             if c.get("task") == "likelihood":
                 return "%s… %d / %d suspect spans processed." % (c.get("phase", "Scoring likelihood"), c.get("done", 0), c["total"])
@@ -715,6 +740,12 @@ def _say(job):
 
 
 def _pct(job):
+    if job['state'] == PHONETIC:
+        p = job.get('phonetic', {})
+        return int(100*p.get('done', 0)/p['total']) if p.get('total') else None
+    if job['state'] == SECOND_PASS:
+        p = job.get('second_pass', {})
+        return int(100*p.get('done', 0)/p['total']) if p.get('total') else 100
     if job["state"] == CORRECTING:
         c = job.get("correction", {})
         return int(100 * c.get("done", 0) / c["total"]) if c.get("total", 0) > 0 else None
@@ -737,6 +768,11 @@ def _report(job):
            "have": job["have"], "stopped": job["state"] == CANCELLED}
     if job.get("correction"):
         out["correction"] = dict(job["correction"])
+    if job.get('second_pass') is not None:
+        out['second_pass'] = {k: job['second_pass'][k] for k in ('done', 'total', 'failed')}
+    if job.get('phonetic') is not None:
+        out['phonetic'] = {k: job['phonetic'].get(k) for k in ('state','done','total','failed')}
+    out['model_revision'] = job.get('model_revision')
     out.update(_who(job))
     if job["fell_back"]:
         out["note"] = FELL_BACK
@@ -771,21 +807,25 @@ def cancel(token):
     A job that is over has nothing to stop (its answer stays)."""
     import wavefile
     import wordtimes
+    import asrpending
     job = _job(token, missing=False)
     if job is None:
+        asrpending.remove(token)
         return {"cancelled": False}
     with LOCK:
-        if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") in ("llm", "likelihood")):
-            return cancel_review(token)
-        if job["state"] == DONE and job.get("review_choice") == "external":
-            # Discarding the browser review also forgets its unaccepted imports.
-            job.pop("external_review", None)
-            job["review_choice"] = None
-            job["correction_result"] = None
-            job["state"] = REVIEW_CHOICE
-        if job["state"] not in ACTIVE + (REVIEW_CHOICE,):
+        if job['state'] == DONE and job.get('review_used'):
+            asrpending.remove(token)
+            return {'cancelled':False}
+        job["review_used"] = True  # Explicit discard must not be saved again by cancel_review.
+        if job["state"] not in ACTIVE + (REVIEW_CHOICE, DONE):
+            asrpending.remove(token)
             return {"cancelled": False}
+        job['llm_generation'] = job.get('llm_generation', 0) + 1
+        if job.get('llm_cancel'):
+            job['llm_cancel'].cancel()
         job["cancelled"] = True
+        if job.get('phonetic_cancel'):
+            job['phonetic_cancel'].set()
         job["state"] = CANCELLED
         job["finished"] = _now()
         proc = job["proc"]
@@ -795,8 +835,9 @@ def cancel(token):
             proc.wait(10)                # its memory is free before the next job
         except (subprocess.TimeoutExpired, OSError):
             pass
-    with job["lock"]:                    # after a piece being written, not in it
+    with job.get("lock", LOCK):          # after a piece being written, not in it
         _clean_files(job)
+    asrpending.remove(token)
     _unhold(job)                         # with the worker dead, the part may go
     wavefile.drop(token)
     wordtimes.drop(token)
@@ -810,6 +851,7 @@ def result(token):
     """The transcript, in the add page's own format, once the job is done;
     it may be read again until the job is forgotten."""
     import wavefile
+    import asrpending
     job = _job(token, missing=False)
     if job is None:
         with LOCK:
@@ -823,13 +865,22 @@ def result(token):
             raise Refusal(job["error"]["code"], job["error"]["say"], 409)
         if state not in (DONE, REVIEW_CHOICE, CORRECTING):
             raise Refusal("not-finished", "It has not finished yet.", 409)
+        _save_pending(job)
         facts = dict(job["facts"] or {})
         return dict(facts, text=job["text"], lang=job["lang"], model=job["model"],
+                    model_revision=job.get('model_revision'), phonetic=job.get('phonetic'),
                     device=job["device"], fell_back=job["fell_back"],
                     notes=list(job["notes"]), warning=job["warning"],
                     words=dict(job["words"] or {"held": False, "count": 0}),
                     wave={"held": wavefile.held(token)},
-                    review={"evidence": job.get("review_evidence"),
+                    review={"draft": job.get("review_draft", {}),
+                            "second_pass_available": bool(job.get('whisper_source')) and
+                                (job['kind'] == 'film' or os.path.isfile(asrpending.audio_path(token))),
+                            "last_method": job.get('last_method'),
+                            "last_word_ids": job.get('last_word_ids', []),
+                            "generation": job.get("llm_generation", 0),
+                            "save_error": job.get("draft_save_error"),
+                            "evidence": job.get("review_evidence"),
                             "choice": job.get("review_choice"),
                             "correction": dict(job.get("correction") or {}),
                             "result": job.get("correction_result"),
@@ -838,12 +889,116 @@ def result(token):
                             "diagnostics_clipped": bool(job.get("llm_diagnostics_clipped"))})
 
 
+def _save_pending(job):
+    try:
+        import asrpending
+        asrpending.save(job)
+        job.pop("draft_save_error", None)
+    except (OSError, ValueError):
+        job["draft_save_error"] = "The pending review could not be saved to disk. Keep this page open; free disk space or use/discard older pending reviews before pausing."
+
+
+def _restore_pending(token):
+    import asrpending
+    try:
+        record = asrpending.load(token)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    job = record["job"]
+    job.update(state=DONE if job.get("review_choice") else REVIEW_CHOICE,
+               error=None, cancelled=False, proc=None, lock=threading.Lock(), segments=None,
+               pcm=None, spec=None, log=None, finished=_now())
+    if job.get("correction", {}).get("state") == "running":
+        if job['correction'].get('task') == 'whisper-second':
+            job['correction'] = job.pop('second_pass_previous', {}).get('correction', {'state':'not-requested', 'complete':False})
+        else:
+            job["correction"].update(state="interrupted", complete=False)
+    if job.get('phonetic', {}).get('state') == 'running':
+        job['phonetic'].update(state='interrupted', complete=False)
+    import wordtimes
+    import wavefile
+    if record.get("timings"):
+        wordtimes.hold(token, record["timings"])
+    if record.get("wave"):
+        wavefile.hold(token, record["wave"]["rate"], record["wave"]["peaks"])
+    JOBS[token] = job
+    return job
+
+
+def _review_targets(job, task, requested):
+    import asrcorrection
+    sources = asrcorrection.index(job["review_evidence"])
+    locked = set(job.get("review_draft", {}).get("locked_word_ids", []))
+    wanted = requested if requested is not None else [w["word_id"] for w in sources.values()
+        if w["reviewable"] and (task in ("full", "workspace") or asrcorrection.suspect(w))]
+    return [ident for ident in wanted if ident not in locked]
+
+
+def save_review_draft(token, source_sha256, draft, generation=None):
+    import asrcorrection
+    import llmconfig
+    job = _job(token)
+    with LOCK:
+        if not job.get("review_evidence") or source_sha256 != job["review_evidence"]["source_sha256"] or not _review_source_current(job):
+            raise Refusal("stale-review", "This draft no longer matches the source.", 409)
+        if generation is not None and generation != job.get("llm_generation", 0):
+            raise Refusal("stale-review", "The review method changed before this draft could be saved.", 409)
+        if not isinstance(draft, dict) or set(draft) - {"decisions", "manual_edits", "locked_word_ids", "selection", "scope", "selected_word", "browser", "phonetic_filter", "external_drafts"}:
+            raise Refusal("bad-draft", "The draft contains unknown fields.")
+        sources = asrcorrection.index(job["review_evidence"])
+        if 'phonetic_filter' in draft and type(draft['phonetic_filter']) is not bool:
+            raise Refusal("bad-draft", "The similar-sound option must be on or off.")
+        if draft.get('scope', 'all') not in ('all', 'selection'):
+            raise Refusal("bad-draft", "Choose all text or a selected section.")
+        if not isinstance(draft.get('selected_word'), (str, type(None))) or draft.get('selected_word') is not None and draft['selected_word'] not in sources:
+            raise Refusal("bad-draft", "Choose a word from the source transcript.")
+        pasted = draft.get('external_drafts', {})
+        if (not isinstance(pasted, dict) or len(pasted) > 4
+                or any(not isinstance(k, str) or len(k) > 100 or not isinstance(v, str)
+                       or len(v) > 131072 for k, v in pasted.items())):
+            raise Refusal("bad-draft", "The pasted answer draft is too large or invalid.")
+        locked = draft.get("locked_word_ids", [])
+        selection = draft.get("selection", [])
+        if (not isinstance(locked, list) or len(locked) > len(sources)
+                or any(not isinstance(w, str) or w not in sources or not sources[w]["reviewable"] for w in locked)
+                or len(set(locked)) != len(locked)
+                or not isinstance(selection, list) or len(selection) not in (0, 2)
+                or any(not isinstance(w, str) or w not in sources for w in selection)):
+            raise Refusal("bad-draft", "Choose locks and a section from the original transcript.")
+        try:
+            asrcorrection.apply(job["text"], job["review_evidence"], job.get("correction_result") or {"suggestions": []},
+                                draft.get("decisions", {}), draft.get("manual_edits", {}))
+        except llmconfig.LLMError as e:
+            raise Refusal(e.code, e.say)
+        browser = draft.get("browser", {})
+        if not isinstance(browser, dict) or set(browser) - {"transcript", "hash"} or any(not isinstance(v, str) or len(v) > 2 << 20 for v in browser.values()):
+            raise Refusal("bad-draft", "The browser draft is too large or invalid.")
+        job["review_draft"] = json.loads(json.dumps(draft))
+        _save_pending(job)
+        if job.get("draft_save_error"):
+            raise Refusal("disk-save-failed", job["draft_save_error"], 507)
+        return {"saved": True}
+
+
+def pending_reviews():
+    import asrpending
+    return {"pending": asrpending.listing()}
+
+
+def resume_review(token):
+    job = _job(token)
+    if not _review_source_current(job):
+        raise Refusal("source-changed", "The local video changed. Discard this draft and transcribe it again.", 409)
+    return {"job": token, "source": job["source"], "lang": job["lang"], "model": job["model"],
+            "draft": job.get("review_draft", {}), "state": job["state"]}
+
+
 def review_media(token):
     """The original local film for this job's browser review, never a caller's path.
 
     The normal admission gate still applies. The unpredictable job token grants
     access only to the already validated source, while its file identity matches.
-    No copy of the film or ASR audio is created or retained.
+    The film is read in place; this route never creates a copy.
     """
     job = _job(token)
     with LOCK:
@@ -907,13 +1062,13 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
     job = _job(token)
     with LOCK:
         if job["state"] not in (REVIEW_CHOICE, DONE):
-            raise Refusal("wrong-state", "Wait for Whisper or cancel the current LLM review.", 409)
+            raise Refusal("wrong-state", "Wait for the current tool or stop it before starting another.", 409)
         if not job.get("review_evidence") or source_sha256 != job["review_evidence"]["source_sha256"]:
             raise Refusal("stale-review", "That review no longer matches the Whisper result.", 409)
         if not _review_source_current(job):
             raise Refusal("source-changed", "The local film changed. Transcribe it again.", 409)
         if mode not in ("llm", "whisper"):
-            raise Refusal("bad-review", "Choose LLM review or Whisper-only review.")
+            raise Refusal("bad-review", "Choose an available review tool.")
         if instruction_mode not in ("prompt", "skill"):
             raise Refusal("bad-review", "Choose the short prompt or installed correction skill.")
         if task not in ("suspect", "full", "workspace"):
@@ -926,9 +1081,11 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
                     or len(word_ids) > len(sources) or any(not isinstance(w, str) for w in word_ids)
                     or len(set(word_ids)) != len(word_ids)
                     or any(w not in sources or not sources[w]["reviewable"] or
-                           (task == "suspect" and not asrcorrection.suspect(sources[w])) for w in word_ids)
-                    or (previous and previous.get("task", "suspect") != task)):
+                           (task == "suspect" and not asrcorrection.suspect(sources[w])) for w in word_ids)):
                 raise Refusal("bad-review", "Choose remaining words from this review task and Whisper result.")
+        word_ids = _review_targets(job, task, word_ids) if mode == "llm" else None
+        if previous and previous.get("task", "suspect") != task:
+            previous = None
         if mode == "whisper":
             job.pop("external_review", None)
             job["review_choice"] = "whisper"
@@ -953,13 +1110,15 @@ def review(token, mode, source_sha256, connection_id=None, word_ids=None, instru
                     raise llmconfig.LLMError("workspace-unavailable", asrworkspace.sandbox_status()["say"])
         except llmconfig.LLMError as e:
             raise Refusal(e.code, e.say, 409)
-        if word_ids is not None and previous and job.get("llm_config_fingerprint") != llmconfig.fingerprint(config):
-            raise Refusal("settings-changed", "The LLM settings changed. Start a new review before retrying words.", 409)
+        if previous and job.get("llm_config_fingerprint") != llmconfig.fingerprint(config):
+            previous = None
+        _save_pending(job)
         cancel = llmadapter.Cancellation()
         job["llm_cancel"] = cancel
         job["llm_generation"] = job.get("llm_generation", 0) + 1
         generation = job["llm_generation"]
         job["review_choice"] = "llm"
+        job['last_method'], job['last_word_ids'] = task, word_ids or []
         job.pop("external_review", None)
         job["llm_config_fingerprint"] = llmconfig.fingerprint(config)
         if word_ids is None:
@@ -1064,10 +1223,12 @@ def _correct(job, config, cancel, generation, word_ids=None, previous=None):
                 for key in ("failed_word_ids", "uncertain_word_ids"):
                     out[key] = [w for w in previous.get(key, []) if w not in selected] + out[key]
                 out["assessment"] = "suggestions" if out["suggestions"] else out["assessment"]
+            out["latest_word_ids"] = list(out.get("reviewed_word_ids", word_ids or []))
             job["correction_result"] = out
             job["correction"].update(state="complete", complete=True,
                                      failed_words=len(out.get("failed_word_ids", [])))
             job["state"], job["finished"] = DONE, _now()
+            _save_pending(job)
     except Exception as e:
         # No tracebacks here: an unexpected exception may contain model text.
         safe = e if isinstance(e, llmconfig.LLMError) else llmconfig.LLMError(
@@ -1082,20 +1243,197 @@ def _correct(job, config, cancel, generation, word_ids=None, previous=None):
 
 def cancel_review(token):
     job = _job(token)
+    proc = None
     with LOCK:
         if job["state"] == CORRECTING or (job["state"] == DONE and job.get("review_choice") in ("llm", "likelihood")):
+            second = job.get('correction', {}).get('task') == 'whisper-second'
             job["llm_generation"] = job.get("llm_generation", 0) + 1
             cancel = job.pop("llm_cancel", None)
             if cancel:
                 cancel.cancel()
-            job["correction_result"] = None
-            job["correction"].update(state="cancelled", complete=False,
-                                     error="LLM review was cancelled. The Whisper result is intact.")
-            job["state"], job["finished"] = REVIEW_CHOICE, _now()
+            if second:
+                proc = job.get('proc')
+                job['correction'] = job.pop('second_pass_previous', {}).get('correction', {'state':'not-requested', 'complete':False})
+            else:
+                job["correction_result"] = None
+                job["correction"].update(state="cancelled", complete=False,
+                                         error="Model review was cancelled. Your transcript draft is intact.")
+            job["state"], job["finished"] = DONE, _now()
+        if proc is not None:
+            _kill(proc)
+            try:
+                proc.wait(10)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        _save_pending(job)
         return _report(job)
 
 
-def review_likelihood(token, source_sha256, revision, word_ids=None):
+def review_whisper_second(token, source_sha256, word_ids=None):
+    """Recheck immutable original spans; request bodies cannot choose audio/model paths."""
+    import asrcorrection
+    import llmadapter
+    job = _job(token)
+    with LOCK:
+        if job['state'] not in (DONE, REVIEW_CHOICE) or job.get('review_used'):
+            raise Refusal('wrong-state', 'Wait for the current tool or stop it before running Whisper again.', 409)
+        evidence = job.get('review_evidence')
+        if not evidence or source_sha256 != evidence['source_sha256']:
+            raise Refusal('stale-review', 'That review no longer matches the original transcript.', 409)
+        if not _review_source_current(job):
+            raise Refusal('source-changed', 'The local film changed. Transcribe it again.', 409)
+        if any(j is not job and j['state'] in ACTIVE for j in JOBS.values()):
+            raise Refusal('busy', 'Another transcription or review tool is running.', 409)
+        source = job.get('whisper_source')
+        if not source:
+            raise Refusal('audio-gone', 'This older review has no original audio mapping. Transcribe again to use this tool.', 409)
+        sources = asrcorrection.index(evidence)
+        if word_ids is None:
+            word_ids = [ident for ident in job.get('first_suspect_word_ids', [])
+                        if sources[ident].get('second_pass', {}).get('state') != 'complete']
+        if (not isinstance(word_ids, list) or not word_ids or len(word_ids) > len(sources)
+                or any(not isinstance(w, str) or w not in sources or not sources[w]['reviewable'] for w in word_ids)
+                or len(set(word_ids)) != len(word_ids)):
+            raise Refusal('bad-review', 'Choose words from this transcript to recheck.')
+        locked = set(job.get('review_draft', {}).get('locked_word_ids', []))
+        ids = [ident for ident in word_ids if ident not in locked]
+        if not ids:
+            raise Refusal('no-targets', 'Unlock a word before rechecking it.', 409)
+        if any(ident not in source['word_map'] for ident in ids):
+            raise Refusal('missing-timestamps', 'Some selected words have no original audio timestamps.', 409)
+        gs = _getstt()
+        if not gs.runtime_ready() or not gs.model_ready(job['model']):
+            raise Refusal('not-installed', 'Install the original Whisper model in Speech to text settings first.', 409)
+        # Check the recording before taking the slot or loading any model.
+        _spec(gs, job, recheck=True)
+        job['llm_generation'] = job.get('llm_generation', 0) + 1
+        generation = job['llm_generation']
+        cancel = llmadapter.Cancellation()
+        job['llm_cancel'] = cancel
+        job['second_pass_previous'] = {'correction': dict(job.get('correction') or {})}
+        job['second_pass'] = {'done': 0, 'total': len(ids), 'failed': 0, 'failures': []}
+        job['correction'] = {'state': 'running', 'complete': False, 'task': 'whisper-second',
+                             'done': 0, 'total': len(ids), 'started': _now(), 'model': job['model']}
+        job['state'] = CORRECTING
+        answer = _report(job)
+    threading.Thread(target=_recheck_whisper, args=(job, gs, ids, cancel, generation), daemon=True,
+                     name='whisper-second-review').start()
+    return answer
+
+
+def _recheck_whisper(job, gs, ids, cancel, generation):
+    import copy
+    import asrcorrection
+    import whispersecond
+    proc = None
+    spec_path = _named(job['id'], '.review-%d.spec.json' % generation)
+    log_path = _named(job['id'], '.review-%d.log' % generation)
+    outputs, failures = {}, {}
+    worker_ids = {}
+    raw_words = {}
+    try:
+        worker_ids = {job['whisper_source']['word_map'][ident]: ident for ident in ids}
+        raw_words = {w['word_id']: w for seg in job['whisper_source']['segments'] for w in seg['asr_words']}
+        with contextlib.ExitStack() as hold:
+            hold.enter_context(_using(gs, job['model']))
+            spec = _spec(gs, job, recheck=True)
+            spec['recheck'] = {'segments': copy.deepcopy(job['whisper_source']['segments']), 'word_ids': list(worker_ids)}
+            with open(spec_path, 'w', encoding='utf-8') as f:
+                json.dump(spec, f, allow_nan=False)
+            with LOCK:
+                if cancel.event.is_set() or job.get('llm_generation') != generation:
+                    return
+                # These are private per-run files; never reuse a cancelled run's files.
+                spawn_job = dict(job, spec=spec_path, log=log_path)
+                proc = _spawn(gs, spawn_job, spec_path)
+                job['proc'] = proc
+            if proc is None:
+                return
+            while True:
+                line = proc.stdout.readline(MAX_LINE)
+                if not line:
+                    break
+                if len(line) >= MAX_LINE and not line.endswith('\n'):
+                    _kill(proc)
+                    break
+                with LOCK:
+                    if cancel.event.is_set() or job.get('llm_generation') != generation or not _review_source_current(job):
+                        _kill(proc)
+                        break
+                try:
+                    msg = json.loads(line)
+                except ValueError:
+                    continue
+                if (not isinstance(msg, dict) or msg.get('t') != 'second-pass'
+                        or not isinstance(msg.get('word_id'), str) or msg['word_id'] not in worker_ids):
+                    continue
+                wid = msg['word_id']
+                if wid in outputs or wid in failures:
+                    continue
+                before, after = raw_words[wid], msg.get('word_evidence')
+                if (not isinstance(after, dict) or any(before.get(k) != after.get(k) for k in ('text', 'start', 'end', 'score'))):
+                    failures[wid] = 'ambiguous-alignment'
+                elif msg.get('state') == 'complete':
+                    outputs[wid] = after
+                else:
+                    failures[wid] = msg.get('reason') if msg.get('reason') in whispersecond.REASONS else 'transcription-failed'
+                with LOCK:
+                    if job.get('llm_generation') == generation:
+                        job['second_pass']['done'] = len(outputs) + len(failures)
+                        job['second_pass']['failed'] = len(failures)
+                        job['correction']['done'] = job['second_pass']['done']
+            proc.wait()
+    except Exception:
+        # A failed worker affects this tool only, never the first transcript/draft.
+        pass
+    finally:
+        if proc is not None:
+            if proc.poll() is None:
+                _kill(proc)
+            try:
+                proc.wait(10)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            with LOCK:
+                CHILDREN.discard(proc)
+                if job.get('proc') is proc:
+                    job['proc'] = None
+            untrack = getattr(gs, 'untrack', None)
+            if callable(untrack):
+                untrack(proc)
+        _remove(spec_path, log_path)
+    with LOCK:
+        if cancel.event.is_set() or job.get('llm_generation') != generation or job['cancelled']:
+            return
+        if not _review_source_current(job):
+            job['correction'].update(state='failed', code='source-changed', complete=False,
+                                     error='The source changed during the Whisper second pass.')
+        else:
+            public = asrcorrection.index(job['review_evidence'])
+            if not worker_ids:
+                worker_ids = {ident: ident for ident in ids}
+            for wid, ident in worker_ids.items():
+                word = public[ident]
+                if wid in outputs:
+                    checked = _evidence_words([outputs[wid]])[0]
+                    # Keep the original confidence, source offsets and video-clock timing.
+                    for key in ('asr_alternatives', 'alternatives_available', 'second_pass'):
+                        if key in checked:
+                            word[key] = checked[key]
+                            raw_words[wid][key] = copy.deepcopy(checked[key])
+                else:
+                    reason = failures.setdefault(wid, 'worker-stopped')
+                    word['second_pass'] = {'state':'failed', 'reason':reason}
+            job['second_pass'] = {'done':len(ids), 'total':len(ids), 'failed':len(failures),
+                'failures':[{'word_id':worker_ids[wid], 'reason':reason} for wid, reason in failures.items()]}
+            job['review_evidence']['second_pass'] = copy.deepcopy(job['second_pass'])
+            job['last_method'], job['last_word_ids'] = 'whisper-second', ids
+            job['correction'] = job.pop('second_pass_previous', {}).get('correction', {'state':'not-requested', 'complete':False})
+        job['state'], job['finished'] = DONE, _now()
+        _save_pending(job)
+
+
+def review_likelihood(token, source_sha256, revision, word_ids=None, phonetic_filter=None):
     """Additional numeric method. Job input cannot choose a path or runtime."""
     import asrcorrection
     import lmlikelihoodconfig as lc
@@ -1124,23 +1462,33 @@ def review_likelihood(token, source_sha256, revision, word_ids=None):
             raise Refusal(e.code, e.say, 409)
         sources = asrcorrection.index(job["review_evidence"])
         previous = job.get("correction_result")
+        if previous and (previous.get("task") != "likelihood" or job.get("likelihood_revision") != revision):
+            previous = None
+        reset = word_ids is None or previous is None
+        if phonetic_filter is not None:
+            if type(phonetic_filter) is not bool:
+                raise Refusal("bad-review", "The similar-sound option must be on or off.")
+            config = dict(config, phonetic_filter=phonetic_filter)
         if word_ids is not None and (not isinstance(word_ids, list) or not word_ids or len(word_ids) > len(sources)
-                or any(not isinstance(w, str) or w not in sources or not sources[w]["reviewable"] or not asrcorrection.suspect(sources[w]) for w in word_ids)
-                or len(set(word_ids)) != len(word_ids) or not previous or previous.get("task") != "likelihood"
-                or job.get("likelihood_revision") != lc.revision(config)):
-            raise Refusal("bad-review", "Retry mapped suspect words from the same likelihood model and source.")
+                or any(not isinstance(w, str) or w not in sources or not sources[w]["reviewable"] for w in word_ids)
+                or len(set(word_ids)) != len(word_ids)):
+            raise Refusal("bad-review", "Choose mapped words from this Whisper result.")
+        word_ids = _review_targets(job, "likelihood", word_ids)
+        _save_pending(job)
         cancel = llmadapter.Cancellation()
         job["llm_cancel"] = cancel
         job["llm_generation"] = job.get("llm_generation", 0) + 1
         generation = job["llm_generation"]
         job["review_choice"] = "likelihood"
+        job['last_method'], job['last_word_ids'] = 'likelihood', word_ids
         job.pop("external_review", None)
-        job["likelihood_revision"] = lc.revision(config)
-        if word_ids is None:
+        job["likelihood_revision"] = revision
+        if reset:
             job["correction_result"] = None
             job["llm_diagnostics"] = []
             job["llm_diagnostics_clipped"] = False
-        total = len(word_ids) if word_ids else sum(w["reviewable"] and asrcorrection.suspect(w) for w in sources.values())
+            job["llm_diagnostics_bytes"] = 0
+        total = len(word_ids)
         job["correction"] = {"state": "running", "complete": False, "done": 0, "total": total,
             "unit": "words", "task": "likelihood", "destination": "Local standalone scoring worker",
             "model": config["model"]["model_id"], "started": _now(), "phase": "loading likelihood model"}
@@ -1155,7 +1503,7 @@ def _likelihood_correct(job, config, cancel, generation, word_ids, previous):
     import lmlikelihood
     import lmlikelihoodconfig as lc
     from lmgguf import ScoringError, revalidate
-    stamp = lc.revision(config)
+    stamp = job.get("likelihood_revision", lc.revision(config))
     def current():
         cancel.check()
         if generation != job.get("llm_generation") or job["state"] != CORRECTING:
@@ -1204,10 +1552,12 @@ def _likelihood_correct(job, config, cancel, generation, word_ids, previous):
                             out["storage_failed_word_ids"].append(ident)
                 out["suggestions"] = bounded
                 out["complete"] = not out["failed_word_ids"]
+            out["latest_word_ids"] = list(out.get("reviewed_word_ids", word_ids or []))
             job["correction_result"] = out
             job["correction"].update(state="complete" if out["complete"] else "partial", complete=out["complete"],
                                      failed_words=len(out["failed_word_ids"]))
             job["state"], job["finished"] = DONE, _now()
+            _save_pending(job)
     except Exception as e:
         with LOCK:
             if generation != job.get("llm_generation") or job["state"] != CORRECTING:
@@ -1255,6 +1605,7 @@ def external_start(token, source_sha256, task, word_ids=None):
                 or len(set(word_ids)) != len(word_ids) or len(word_ids) > len(sources)):
             raise Refusal("bad-review", "Choose mapped words from this Whisper result.")
         try:
+            word_ids = _review_targets(job, task, word_ids)
             batches = asrexternal.batches(job["review_evidence"], task, word_ids)
             first = asrexternal.prompt(job["review_evidence"], task, batches[0]) if batches else ""
         except Exception as error:
@@ -1295,6 +1646,7 @@ def _external_merge(job):
         "partial" if out["failed_word_ids"] else "suggestions" if out["suggestions"] else "kept_original")
     out["words_reviewed"] = sum(len(asrexternal.ids(ext["batches"][i])) for i in ext["answers"])
     out["words_total"] = sum(len(asrexternal.ids(batch)) for batch in ext["batches"])
+    out["latest_word_ids"] = sorted(selected)
     job["correction_result"] = out
     job["correction"].update(done=out["words_reviewed"], total=out["words_total"],
                              failed_words=len(out["failed_word_ids"]), complete=ext["finished"],
@@ -1413,8 +1765,8 @@ def use_review(token, source_sha256, decisions, manual_edits=None):
     import ytpages
     job = _job(token)
     with LOCK:
-        if job["state"] != DONE or not job.get("review_choice"):
-            raise Refusal("review-first", "Choose how to review the transcript first.", 409)
+        if job["state"] not in (DONE, REVIEW_CHOICE):
+            raise Refusal("review-first", "Wait for the current tool or stop it before using the transcript.", 409)
         if job.get("review_choice") == "external" and not job.get("external_review", {}).get("finished"):
             raise Refusal("review-first", "Finish importing answers or choose Review received suggestions first.", 409)
         if not _review_source_current(job):
@@ -1466,22 +1818,29 @@ def use_review(token, source_sha256, decisions, manual_edits=None):
                                 count=len(doc.get("atoms") or []), timings_stale=changed)
         if changed:
             # Audio has been deleted, so no exact re-alignment can be claimed.
-            out["notes"].append("Caption timings are unchanged. Changed word timings need review in Edit the transcript; the recording has been deleted.")
+            out["notes"].append("Caption timings are unchanged. Changed word timings need review in Edit the transcript.")
+        job["review_used"] = True
+        import asrpending
+        asrpending.remove(token)
         return out
 
 
 # -------------------------------------------------------------------- the child
-def _spec(gs, job):
+def _spec(gs, job, recheck=False):
     """What the worker is told: all of it made HERE, from what was checked."""
     pcm = job["kind"] == "youtube"
+    if job.get('model_revision') and job['model_revision'] != speechmodels.provenance(job['model']):
+        raise Refusal('model-changed', 'The speech model package changed. Transcribe again before running another pass.', 409)
     try:
         model_path = gs.model_dir(job["model"])
     except (ValueError, OSError):
         raise Refusal("no-model", "The selected model is not installed.", 409)
     if pcm:
-        if not os.path.isfile(job["pcm"]):
-            raise Refusal("audio-gone", "The temporary recording disappeared.", 410)
-        source = job["pcm"]
+        import asrpending
+        source = str(asrpending.audio_path(job['id'])) if recheck else job["pcm"]
+        if not source or not os.path.isfile(source):
+            raise Refusal("audio-gone", "The original recording is no longer available. Record the video again to use Whisper's second pass."
+                          if recheck else "The temporary recording disappeared.", 410)
     else:
         source = job["source"]["path"]
         try:
@@ -1492,11 +1851,13 @@ def _spec(gs, job):
             raise Refusal("film-changed", "The film changed since you named it -- name "
                           "it again.", 409)
     return {"source_path": source, "audio_kind": "pcm16" if pcm else "media",
+            "model_id": job['model'],
             "lang": job["wlang"], "model_path": model_path, "device": job["planned"],
             "cpu_threads": job["threads"],
             "compute": {"cpu": "int8", "cuda": ["int8_float16", "float16"]},
             "mode": job["mode"], "film": job["film"], "parent": os.getpid(),
-            "aligner_path": (gs.aligner_path(job["aligner"]) if job.get("aligner") else None)}
+            "second_pass": False if recheck else job.get('automatic_second_pass', True),
+            "aligner_path": (gs.aligner_path(job["aligner"]) if job.get("aligner") and not recheck else None)}
 
 
 def _spawn(gs, job, spec_path):
@@ -1509,7 +1870,7 @@ def _spawn(gs, job, spec_path):
     # runtime, and no script directory on the path in front of it
     env.update(PYTHONNOUSERSITE="1", PYTHONDONTWRITEBYTECODE="1",
                PYTHONSAFEPATH="1", PYTHONIOENCODING="utf-8")
-    kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.PIPE, "env": env,
+    kw = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "env": env,
           "text": True, "encoding": "utf-8", "errors": "replace", "bufsize": 1,
           "cwd": os.path.dirname(spec_path)}
     if WIN:
@@ -1536,6 +1897,7 @@ def _spawn(gs, job, spec_path):
 def _run(job):
     """The whole life of one job after its audio is in: the spec, the child,
     what it says, and the tidying up whatever happens."""
+    import asrpending
     proc = None
     gs = None
     try:
@@ -1553,16 +1915,29 @@ def _run(job):
             return
         got = _listen(job, proc)
         rc = proc.wait()
-        # THE WORKER HAS ENDED: its own words go to the log, and the recording
-        # -- which has done its work, and is not to be kept merely because
-        # Whisper needed it -- is deleted BEFORE the job says it is done, so
-        # that nobody who has been told "done" can find sound left on the disk
+        for pipe in (proc.stdin, proc.stdout):
+            if pipe:
+                pipe.close()
+        # Keep captured sound only with the private pending draft, for later
+        # rechecks. Use or discard deletes it; scratch files are cleaned now.
         _show_log(job)
+        if not job['cancelled'] and (got.get('done') is not None or got.get('first') is not None):
+            try:
+                asrpending.retain_audio(job)
+            except (OSError, ValueError):
+                job['notes'].append('The original recording could not be kept for later Whisper rechecks. You can still review or edit this transcript.')
         _clean_files(job)
         if job["cancelled"]:
             return
+        if got.get('first') is not None and not _review_source_current(job):
+            _end(job, FAILED, 'film-changed', 'The film changed during transcription. Name it again to transcribe the current file.')
+            return
         if got.get("done") is not None:
             _finish(job, got["done"])
+        elif got.get('first') is not None:
+            # Native crashes during a crop must not discard successful first ASR.
+            _second_pass_incomplete(job)
+            _finish(job, got['first'])
         elif got.get("error") is not None:
             _end(job, FAILED, got["error"]["code"], got["error"]["say"])
         elif rc in (-9, 137):
@@ -1579,9 +1954,13 @@ def _run(job):
         if proc is not None:
             if proc.poll() is None:
                 _kill(proc)
+            for pipe in (proc.stdin, proc.stdout):
+                if pipe and not pipe.closed:
+                    pipe.close()
             with LOCK:
                 CHILDREN.discard(proc)
-                job["proc"] = None
+                if job.get('proc') is proc:
+                    job["proc"] = None
             untrack = getattr(gs, "untrack", None)
             if callable(untrack):
                 untrack(proc)
@@ -1589,6 +1968,11 @@ def _run(job):
         # went wrong before its worker ended)
         _show_log(job)
         _clean_files(job)
+        if job.get('cancelled') or job['state'] == FAILED:
+            try:
+                asrpending.remove(job['id'])
+            except OSError:
+                pass
         _unhold(job)                     # whatever way this thread ended, the part goes
 
 
@@ -1623,6 +2007,33 @@ def _listen(job, proc):
         except ValueError:
             continue
         if isinstance(msg, dict):
+            if msg.get('t') == 'first-pass':
+                got['first'] = msg
+                _prepare_second_pass(job, msg)
+                if job['cancelled'] or job['state'] == FAILED:
+                    _kill(proc)
+                    return got
+                try:
+                    proc.stdin.write(json.dumps({'word_ids': job['second_pass_ids']})+'\n')
+                    proc.stdin.flush()
+                except (OSError, ValueError):
+                    _kill(proc)
+                    return got
+                continue
+            if msg.get('t') in ('second-pass', 'done') and got.get('first') is not None and not _review_source_current(job):
+                _kill(proc)
+                got['done'] = None
+                return got
+            if msg.get('t') == 'second-pass' and isinstance(msg.get('word_evidence'), dict) and got.get('first'):
+                # Retain completed crops even if native decoding of a later one
+                # kills the process. Only candidate evidence may change.
+                match = re.fullmatch(r's(\d+)w(\d+)', str(msg.get('word_id', '')))
+                if match and msg['word_id'] in job.get('second_pass_ids', []):
+                    si, wi = map(int, match.groups())
+                    raw_words = got['first']['segments'][si]['asr_words']
+                    before, after = raw_words[wi], msg['word_evidence']
+                    if all(before.get(k) == after.get(k) for k in ('text', 'start', 'end', 'score')):
+                        raw_words[wi] = after
             _message(job, msg, got)
 
 
@@ -1664,6 +2075,18 @@ def _message(job, msg, got):
                 job["done"] = done
                 if done > 0 and job["state"] in (PREPARING, LOADING):
                     job["state"] = TRANSCRIBING
+        elif kind == 'second-pass' and job.get('second_pass') is not None:
+            job['state'] = SECOND_PASS
+            p = job['second_pass']
+            wid = msg.get('word_id')
+            if wid in job.get('second_pass_ids', []) and wid not in job['second_pass_completed']:
+                job['second_pass_completed'].add(wid)
+                p['done'] = len(job['second_pass_completed'])
+                if msg.get('state') == 'failed':
+                    import whispersecond
+                    reason = msg.get('reason') if msg.get('reason') in whispersecond.REASONS else 'transcription-failed'
+                    p['failures'].append({'word_id': job['second_pass_map'][wid], 'reason': reason})
+                    p['failed'] = len(p['failures'])
     if kind == "done":
         got["done"] = msg
     elif kind == "error":
@@ -1676,30 +2099,42 @@ def _message(job, msg, got):
 def _evidence_words(raw):
     import asrcorrection
     words = []
-    for w in raw:
+    for source_index, w in enumerate(raw):
         if not isinstance(w, dict) or not isinstance(w.get("text"), str):
             continue
         alt, available = asrcorrection.alternatives(w.get("asr_alternatives"))
-        words.append({"text": w["text"][:400], "start": _num(w.get("start")),
+        row = {"text": w["text"][:400], "source_word_index": source_index, "start": _num(w.get("start")),
                       "end": _num(w.get("end")), "score": asrcorrection.score(w.get("score")),
                       "asr_alternatives": alt,
-                      "alternatives_available": w.get("alternatives_available", available) is True})
+                      "alternatives_available": w.get("alternatives_available", available) is True}
+        if isinstance(w.get('second_pass'), dict):
+            import whispersecond
+            record = w['second_pass']
+            row['second_pass'] = {'state': 'complete' if record.get('state') == 'complete' else 'failed'}
+            if record.get('reason') in whispersecond.REASONS:
+                row['second_pass']['reason'] = record['reason']
+            for key in ('crop_start', 'crop_end'):
+                if _num(record.get(key)) is not None:
+                    row['second_pass'][key] = _num(record[key])
+            best = record.get('best_candidate')
+            if isinstance(best, str) and any(a['text'] == best for a in alt):
+                row['second_pass']['best_candidate'] = best
+        words.append(row)
     return words
 
 
-def _finish(job, msg):
-    """The worker is done: its segments onto the video's clock, into the
-    add page's panel, and counted by the add page's own parser."""
+def _segments(job, msg):
+    """Checked first-pass source words, on the video's clock for review only."""
     import sttpanel
     segs = []
     raw = msg.get("segments")
-    for s in raw[:200000] if isinstance(raw, list) else []:
+    for source_index, s in enumerate(raw[:200000] if isinstance(raw, list) else []):
         if not isinstance(s, dict) or not isinstance(s.get("text"), str):
             continue
         a, b = _num(s.get("start")), _num(s.get("end"))
         if a is None:
             continue
-        row = {"start": a, "end": b if b is not None else a, "text": s["text"][:4000]}
+        row = {"start": a, "end": b if b is not None else a, "text": s["text"][:4000], 'source_segment_index': source_index}
         words = []
         raw_words = s.get("words", []) if isinstance(s.get("words"), list) else []
         for w in raw_words[:MAX_LINE // 32]:
@@ -1720,6 +2155,57 @@ def _finish(job, msg):
         segs.append(row)
     if job["kind"] == "youtube" and job["marks"]:
         segs = sttpanel.remap(segs, job["marks"], SAMPLE_RATE)
+    return segs
+
+
+def _prepare_second_pass(job, msg):
+    import sttpanel
+    import asrcorrection
+    import asrdictionary
+    segs = _segments(job, msg)
+    text, _ = sttpanel.segments_to_panel(segs)
+    evidence = asrcorrection.evidence(segs, text, job['lang'])
+    resolver = asrdictionary.Resolver(job['lang'])
+    with LOCK:
+        if job['cancelled']:
+            return
+        job['state'] = CHECKING
+    if not resolver.enrich(evidence, lambda: job['cancelled']):
+        return
+    with LOCK:
+        if job['cancelled']:
+            return
+        job['first_pass_evidence'], job['dictionary_resolver'] = evidence, resolver
+        mapping = {}
+        for si, segment in enumerate(evidence['segments']):
+            for wi, word in enumerate(segment['words']):
+                if asrcorrection.suspect(word):
+                    source_words = segs[si].get('asr_words', [])
+                    source_wi = source_words[wi]['source_word_index'] if wi < len(source_words) else wi
+                    mapping['s%dw%d' % (segs[si]['source_segment_index'], source_wi)] = word['word_id']
+        job['second_pass_map'] = mapping
+        job['second_pass_ids'] = list(mapping)
+        job['second_pass_completed'] = set()
+        job['second_pass'] = {'done': 0, 'total': len(job['second_pass_ids']), 'failed': 0, 'failures': []}
+        job['state'] = SECOND_PASS
+
+
+def _second_pass_incomplete(job):
+    """Mark unfinished words explicitly if a native crop kills the process."""
+    p = job.get('second_pass')
+    if p is None:
+        return
+    for wid in job.get('second_pass_ids', []):
+        if wid not in job['second_pass_completed']:
+            p['failures'].append({'word_id': job['second_pass_map'][wid], 'reason': 'worker-stopped'})
+            job['second_pass_completed'].add(wid)
+    p['done'], p['failed'] = len(job['second_pass_completed']), len(p['failures'])
+
+
+def _finish(job, msg):
+    """Both Whisper stages ended; retain source text and offer explicit review."""
+    import sttpanel
+    segs = _segments(job, msg)
     text, notes = sttpanel.segments_to_panel(segs)
     facts = sttpanel.facts(text, job["lang"]) if text.strip() else {"captions": 0}
     if not facts["captions"]:
@@ -1754,26 +2240,162 @@ def _finish(job, msg):
     import asrcorrection
     review_evidence = asrcorrection.evidence(segs, text, job["lang"])
     import asrdictionary
-    resolver = asrdictionary.Resolver(job["lang"])
+    resolver = job.get('dictionary_resolver') or asrdictionary.Resolver(job["lang"])
     with LOCK:
         if job["cancelled"]:
             return
         job["state"] = CHECKING
     _unhold(job)                         # worker is dead; dictionary work holds no model
-    if not resolver.enrich(review_evidence, lambda: job["cancelled"]):
+    if job.get('first_pass_evidence') is not None:
+        first = job['first_pass_evidence']
+        if first['source_sha256'] != review_evidence['source_sha256']:
+            _end(job, FAILED, 'source-changed', 'The source transcript changed during the Whisper second pass.')
+            return
+        before = asrcorrection.index(first)
+        for wid, word in asrcorrection.index(review_evidence).items():
+            original = before.get(wid, {})
+            if word['text'] != original.get('text'):
+                _end(job, FAILED, 'source-changed', 'The source transcript changed during the Whisper second pass.')
+                return
+            for key in ('dictionary', 'dictionary_state', 'dictionary_miss'):
+                if key in original:
+                    word[key] = original[key]
+        review_evidence['dictionary'] = first.get('dictionary', {})
+        _second_pass_incomplete(job)
+        review_evidence['second_pass'] = dict(job['second_pass'])
+        if job['second_pass']['failed']:
+            notes.append('Whisper second pass: %d of %d suspect words could not be safely processed. Their original words and earlier candidates are intact.' % (job['second_pass']['failed'], job['second_pass']['total']))
+        failures = {f['word_id']: f['reason'] for f in job['second_pass']['failures']}
+        for wid, word in asrcorrection.index(review_evidence).items():
+            if wid in failures:
+                word['second_pass'] = {**word.get('second_pass', {}), 'state': 'failed', 'reason': failures[wid]}
+    elif not resolver.enrich(review_evidence, lambda: job["cancelled"]):
         return
     with LOCK:
         if job["cancelled"]:
             return
+        if not _review_source_current(job):
+            _end(job, FAILED, 'film-changed', 'The film changed during transcription. Name it again to transcribe the current file.')
+            return
         job["review_evidence"] = review_evidence
+        raw = _segments(dict(job, marks=[]), msg)
+        for segment in raw:
+            for word in segment.get('asr_words', []):
+                word['word_id'] = 's%dw%d' % (segment['source_segment_index'], word['source_word_index'])
+        job['whisper_source'] = {'segments':raw, 'word_map':{
+            's%dw%d' % (si, wi): 's%dw%d' % (seg['source_segment_index'], w['source_word_index'])
+            for si, seg in enumerate(segs) for wi, w in enumerate(seg.get('asr_words', []))}}
+        job['first_suspect_word_ids'] = [w['word_id'] for w in asrcorrection.index(review_evidence).values() if asrcorrection.suspect(w)]
+        if review_evidence.get('second_pass', {}).get('total'):
+            job['last_method'], job['last_word_ids'] = 'whisper-second', job['first_suspect_word_ids']
+        job.pop('first_pass_evidence', None)
+        job.pop('second_pass_ids', None)
+        job.pop('second_pass_completed', None)
+        job.pop('second_pass_map', None)
         job["dictionary_resolver"] = resolver
         job["review_choice"] = None
         job["correction"] = {"state": "not-requested", "complete": False}
         job["text"], job["notes"], job["facts"], job["warning"], job["words"] = \
-            text, notes, facts, warning, word_info
+            text, list(job['notes']) + notes, facts, warning, word_info
         job["done"], job["segments"] = job["total"] or job["done"], None
-        job["state"], job["finished"] = REVIEW_CHOICE, _now()
+    if not _derive_phonetic(job):
+        return
+    with LOCK:
+        if job['cancelled']:
+            return
+        if not _review_source_current(job):
+            _end(job, FAILED, 'film-changed', 'The film changed during transcription. Transcribe the current file again.')
+            return
+        job["state"], job["finished"] = DONE, _now()
         _unhold(job)                     # in the breath that says it is done
+        _save_pending(job)
+
+
+def _derive_phonetic(job):
+    """Optional audio evidence, after Whisper has exited and released its model.
+
+    All target times refer to the original audio, independently of video-clock
+    remapping and optional CTC timing. Stage results until cancellation/source
+    guards pass; this tool never replaces text, confidence or word timestamps.
+    """
+    import copy
+    import asrcorrection
+    import asrpending
+    import getphonetic
+    import phonetic
+    if not job.get('automatic_phonetic') or not getphonetic.status()['ready']:
+        return True
+    words = asrcorrection.index(job['review_evidence'])
+    ids = list(job.get('first_suspect_word_ids', []))
+    raw = {w['word_id']: w for s in job['whisper_source']['segments'] for w in s.get('asr_words', [])}
+    targets, staged = [], {}
+    for ident in ids:
+        original = raw.get(job['whisper_source']['word_map'].get(ident))
+        a, b = (original.get('start'), original.get('end')) if original else (None, None)
+        if (_num(a) is None or _num(b) is None or a < 0 or b <= a):
+            staged[ident] = {'state':'unavailable', 'reason':'Whisper did not provide usable audio timestamps.'}
+        else:
+            targets.append({'word_id':ident, 'start':a, 'end':b})
+    cancel = threading.Event()
+    with LOCK:
+        if job['cancelled']:
+            return False
+        job['phonetic_cancel'] = cancel
+        job['phonetic'] = {'state':'running', 'done':len(staged), 'total':len(ids), 'failed':len(staged)}
+        job['state'] = PHONETIC
+
+    def current():
+        with LOCK:
+            return not job['cancelled'] and _review_source_current(job)
+
+    def on_word(item):
+        if current():
+            staged[item['word_id']] = copy.deepcopy(item['phonetic'])
+
+    def progress(done, total):
+        with LOCK:
+            if not job['cancelled']:
+                job['phonetic']['done'] = len(ids) - len(targets) + done
+                job['phonetic']['failed'] = sum(w.get('state') != 'complete' for w in staged.values())
+
+    result = None
+    try:
+        if targets:
+            source = str(asrpending.audio_path(job['id'])) if job['kind'] == 'youtube' else job['source']['path']
+            # IPA has its own CPU runtime; it does not inherit Whisper's GPU lock
+            # or force another application's model to unload.
+            result = phonetic.run(source, 'pcm16' if job['kind'] == 'youtube' else 'media', targets,
+                                  processing='auto', cancel=cancel, progress=progress,
+                                  on_word=on_word, source_check=current)
+            for item in result['words']:
+                staged[item['word_id']] = copy.deepcopy(item['phonetic'])
+    except Exception as error:
+        # Keep successful, attributable evidence on per-target failures. Global
+        # cancellation or changed sources invalidate every staged result below.
+        for target in targets:
+            reason = error.say if isinstance(error, getphonetic.PhoneticError) else 'Heard IPA could not be obtained for this word.'
+            staged.setdefault(target['word_id'], {'state':'failed', 'reason':reason})
+    finally:
+        with LOCK:
+            job.pop('phonetic_cancel', None)
+    with LOCK:
+        if job['cancelled'] or cancel.is_set():
+            return False
+        if not _review_source_current(job):
+            _end(job, FAILED, 'film-changed', 'The film changed while heard IPA was being estimated. Transcribe it again.')
+            return False
+        for ident in ids:
+            words[ident]['phonetic'] = staged.get(ident, {'state':'failed', 'reason':'No heard IPA was returned for this word.'})
+        failed = sum(words[ident]['phonetic'].get('state') != 'complete' for ident in ids)
+        stage_state = 'failed' if ids and failed == len(ids) else 'partial' if failed else 'complete'
+        job['phonetic'] = {'state':stage_state, 'done':len(ids),
+                           'total':len(ids), 'failed':failed,
+                           'revision':result.get('revision') if result else getphonetic.status()['revision'],
+                           'device':result.get('device') if result else 'cpu'}
+        job['review_evidence']['phonetic'] = dict(job['phonetic'])
+        if failed:
+            job['notes'].append('Heard IPA was unavailable for %d suspect words. Their Whisper evidence and transcript are unchanged.' % failed)
+    return True
 
 
 # ------------------------------------------------------------------ the server

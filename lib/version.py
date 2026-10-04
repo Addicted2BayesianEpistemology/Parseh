@@ -200,6 +200,8 @@ VERSION = read()
 # here, and tests/test_version.py fails when a new one is not -- a stamp
 # written anywhere, or a file kept in config/.
 FORMATS = {
+    "parseh-speech": ("lib/speechconfig.py", "STORE_FORMAT", "speech preferences (config/speech.json)"),
+    "parseh-pending-transcription": ("lib/asrpending.py", "FORMAT", "private resumable transcription drafts (youtube/videos/.pending-transcriptions/)"),
     "parseh-lm-likelihood": ("lib/lmlikelihoodconfig.py", "STORE_FORMAT", "the host-local numerical scoring settings (config/lm-likelihood.json)"),
     "parseh-llm": ("lib/llmconfig.py", "STORE_FORMAT", "the host-local reusable LLM connection (config/llm.json)"),
     "parseh-bundle": ("lib/bundle.py", "FORMAT",

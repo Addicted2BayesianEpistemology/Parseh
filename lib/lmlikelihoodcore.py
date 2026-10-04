@@ -83,6 +83,10 @@ def candidates(word, extra):
     return out
 
 
+def decoded_prefix(backend, tokens):
+    return backend.decode_prefix(tokens) if hasattr(backend, 'decode_prefix') else backend.decode(tokens)
+
+
 def safe_prefix(backend, left, streams):
     """Identical token prefix whose decoded bytes end at/before the target.
 
@@ -97,7 +101,7 @@ pieces. Merged boundary tokens are scored as part of the varying suffix.
             n += 1
         prefix = prefix[:n]
     raw = left.encode('utf-8')
-    while prefix and not raw.startswith(backend.decode(prefix)):
+    while prefix and not raw.startswith(decoded_prefix(backend, prefix)):
         prefix.pop()
     return prefix
 
@@ -163,12 +167,12 @@ def evaluate(backend, left, right, entries, check=lambda: None, deadline=None):
             'original_log_likelihood': original['log_likelihood'],
             'tied_best': [c['text'] for c in scored if c['rank'] == 1],
             'winner_scope': 'full candidate set' if complete and all(c['log_likelihood'] is not None for c in entries) else 'evaluated candidates only',
-            'excluded_prefix_tokens': len(prefix), 'excluded_prefix_bytes': len(backend.decode(prefix)) if prefix else 0,
-            'retokenized_preceding_bytes': len(left.encode()) - len(backend.decode(prefix)) if prefix else len(left.encode()),
+            'excluded_prefix_tokens': len(prefix), 'excluded_prefix_bytes': len(decoded_prefix(backend, prefix)) if prefix else 0,
+            'retokenized_preceding_bytes': len(left.encode()) - len(decoded_prefix(backend, prefix)) if prefix else len(left.encode()),
             'score_rule': 'log P(candidate + fixed following context | original preceding context); raw sum, no length normalization'}
 
 
-def beam_candidates(backend, left, word, config, check, deadline):
+def beam_candidates(backend, left, word, config, check, deadline, discovery=None):
     """Deterministic, bounded raw-token beam search; no assistant completion.
 
 A lexical string is complete only after an observed whitespace/punctuation
@@ -186,7 +190,7 @@ UTF-8 partial byte tokens are kept in beams until decodable.
     seed = safe_prefix(backend, left + attached, [backend.tokenize(left + word['text'])])
     if not seed:
         return []
-    pending = fixed[len(backend.decode(seed)):]
+    pending = fixed[len(decoded_prefix(backend, seed)):]
     beams, found = [((), 0.0)], []
     for _ in range(config['replacement_tokens'] + 1):
         check()
@@ -201,6 +205,12 @@ UTF-8 partial byte tokens are kept in beams until decodable.
             for token in top:
                 check()
                 lp = backend.log_probability(logits, token) if hasattr(backend, 'log_probability') else log_probability(logits, token)
+                # A completed path cannot gain probability as more tokens are
+                # supplied. This bound prunes only impossible extra search
+                # paths; mandatory original/ASR candidates bypass search.
+                floor = config.get('minimum_candidate_probability', 0)
+                if floor and summed + lp < math.log(floor):
+                    continue
                 nxt = tokens + (token,)
                 raw = backend.decode(nxt)
                 if not raw.startswith(pending):
@@ -220,8 +230,17 @@ UTF-8 partial byte tokens are kept in beams until decodable.
                 if complete and lexical(complete) and len(complete) <= config['replacement_chars']:
                     try:
                         c = replacement(word['text'], complete, True)
+                        if math.exp(summed + lp) < config.get('minimum_candidate_probability', 0):
+                            continue
+                        if config.get('phonetic_filter', False):
+                            from lmsound import sound_similarity
+                            sound = sound_similarity(punctuation(word['text'])[1], complete, word.get('language', ''))
+                            if sound is not None and sound < config.get('phonetic_similarity', .55):
+                                continue
                         if c not in found:
                             found.append(c)
+                            if discovery is not None:
+                                discovery.append({'text': c, 'search_probability': math.exp(summed + lp)})
                     except ScoringError:
                         pass
                 if boundary is None and not backend.is_eog(token) and len(nxt) <= config['replacement_tokens'] and len(stripped) <= config['replacement_chars']:
@@ -237,18 +256,20 @@ def target(backend, request, config, check=lambda: None):
     # Give mandatory supplied-text scoring the whole target budget. Search
     # receives a separate bounded fraction and can never consume that budget.
     extra = []
+    discovery = []
     discovery_error = None
     try:
         extra = beam_candidates(backend, request['left'], request['word'], config, check,
-                                started + min(20, config['target_seconds'] / 4))
+                                started + min(20, config['target_seconds'] / 4), discovery)
     except ScoringError as e:
         discovery_error = e.say
     result = evaluate(backend, request['left'], request['right'], candidates(request['word'], extra), check,
                       time.monotonic() + config['target_seconds'])
     result.update(elapsed_seconds=round(time.monotonic() - started, 3), discovery_error=discovery_error,
+                  discovery_candidates=discovery[:config['candidate_count']],
                   discovered_candidates=len(extra), discovery_note=None if extra else 'No additional complete replacement was found within the raw-token search bounds.',
                   alternatives_available=request['word'].get('alternatives_available', False),
                   context={'preceding_chars': len(request['left']), 'following_chars': len(request['right']),
                            'preceding': request['left'], 'following': request['right']},
-                  search={k: config[k] for k in ('beam_width', 'candidate_count', 'replacement_tokens', 'replacement_chars')})
+                  search={k: config.get(k) for k in ('beam_width', 'candidate_count', 'replacement_tokens', 'replacement_chars', 'minimum_candidate_probability', 'phonetic_filter', 'phonetic_similarity')})
     return result

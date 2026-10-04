@@ -110,14 +110,14 @@ class Tree(unittest.TestCase):
 
     def tiny_pins(self):
         """The two models, as a few bytes each: their pins patched to match."""
-        pins, made = {}, {}
-        for key in getstt.MODELS:
+        pins, made = dict(getstt.MODEL_PINS), {}
+        for key in getstt.speechmodels.STANDARD_MODELS:
             made[key] = {n: (key + "/" + n).encode() * 2 for n in getstt.MODEL_PINS[key]["files"]}
             pins[key] = {"repo": "example/" + key, "revision": "b" * 40,
                          "files": {n: (sha(b), len(b)) for n, b in made[key].items()}}
         patches = [mock.patch.object(getstt, "MODEL_PINS", pins),
                    mock.patch.dict(getstt.MEASURED, {k: sum(len(b) for b in made[k].values())
-                                                     for k in getstt.MODELS})]
+                                                     for k in made})]
         for p in patches:
             p.start()
             self.addCleanup(p.stop)
@@ -190,8 +190,10 @@ class Pins(unittest.TestCase):
     def test_each_model_is_a_commit_and_five_checked_files(self):
         for key, pin in getstt.MODEL_PINS.items():
             self.assertRegex(pin["revision"], r"^[0-9a-f]{40}$", key + ": a commit, never `main`")
-            self.assertEqual(set(pin["files"]), {"config.json", "model.bin", "preprocessor_config.json",
-                                                 "tokenizer.json", "vocabulary.json"}, key)
+            required = {"config.json", "model.bin", "preprocessor_config.json", "tokenizer.json", "vocabulary.json"}
+            self.assertTrue(required.issubset(pin["files"]), key)
+            if key in getstt.speechmodels.STANDARD_MODELS:
+                self.assertEqual(set(pin['files']), required, 'standard pins remain unchanged')
             for name, (digest, size) in pin["files"].items():
                 self.assertRegex(digest, r"^[0-9a-f]{64}$", key + "/" + name)
                 self.assertIsInstance(size, int)
@@ -201,7 +203,7 @@ class Pins(unittest.TestCase):
         self.assertEqual(getstt.MEASURED["large-v3-turbo"], 1621665983)
         self.assertEqual(getstt.MEASURED["large-v3"], 3090835702)
         # the two conversions share no file that differs: nothing is shared between folders
-        a, b = (getstt.MODEL_PINS[k]["files"] for k in getstt.MODELS)
+        a, b = (getstt.MODEL_PINS[k]["files"] for k in getstt.speechmodels.STANDARD_MODELS)
         self.assertNotEqual(a["tokenizer.json"], b["tokenizer.json"])
 
     def test_each_exact_word_times_network_is_public_pinned_and_checked(self):
@@ -330,7 +332,7 @@ class NormalParseh(unittest.TestCase):
         # numpy IN THE SERVER: only the two children (the probe and the worker) may.  Every
         # module the server can load is read, and not a list of the few it is known to load
         children = {ROOT / "lib" / "sttworker.py", ROOT / "lib" / "sttprobe.py",
-                    ROOT / "lib" / "ctcalign.py"}
+                    ROOT / "lib" / "ctcalign.py", ROOT / 'lib' / 'phoneticworker.py'}
         files = [ROOT / "serve.py"] + [p for d in ("lib", "youtube/lib", "markdown", "html-guide/engine")
                                        for p in sorted((ROOT / d).rglob("*.py"))]
         self.assertGreater(len(files), 100, "the scan found the server's modules")
@@ -424,11 +426,12 @@ class Security(Tree):
                 stack.enter_context(mock.patch.object(target, name, refuse))
             yield
 
-    def test_only_the_two_identifiers_are_accepted(self):
+    def test_only_the_catalogue_identifiers_are_accepted(self):
         for ok in getstt.MODELS:
             self.assertTrue(getstt.model_dir(ok).endswith(os.path.join("models", ok)))
             self.assertEqual(getstt.check_model(ok), ok)
-        self.assertEqual(getstt.MODELS, ("large-v3-turbo", "large-v3"))
+        self.assertEqual(getstt.MODELS, getstt.speechmodels.MODELS)
+        self.assertEqual(getstt.MODELS[:2], ('large-v3-turbo', 'large-v3'))
         self.assertEqual(getstt.ALLOWED_MODELS, frozenset(getstt.MODELS))
         self.assertEqual(getstt.DEFAULT_MODEL, "large-v3-turbo")
         self.assertEqual(getstt.MODES, ("auto", "cpu", "cuda"))
@@ -481,6 +484,7 @@ class Security(Tree):
         self.assertEqual(env["PYTHONPATH"], str(self.stt / "runtime" / ("%d-%s" % (
             getstt.PIN["generation"], getstt.PYTAG))))
         for key, want in (("HF_HUB_OFFLINE", "1"), ("TRANSFORMERS_OFFLINE", "1"),
+                          ("ORT_DISABLE_TELEMETRY", "1"),
                           ("PYTHONNOUSERSITE", "1"), ("PYTHONDONTWRITEBYTECODE", "1"),
                           ("PYTHONSAFEPATH", "1")):
             self.assertEqual(env[key], want, key)
@@ -505,7 +509,8 @@ class StatusFromTheDisk(Tree):
         self.assertEqual(st["runtime"]["state"], "absent")
         self.assertFalse(st["runtime"]["have"])
         self.assertEqual({k: m["state"] for k, m in st["models"].items()},
-                         {"large-v3-turbo": "absent", "large-v3": "absent"})
+                         {key: 'absent' if key in getstt.MODEL_PINS else 'unavailable'
+                          for key in getstt.MODELS})
         s = getstt.summary()
         self.assertFalse(s["installed"])
         self.assertIsNone(s["default_model"])
@@ -664,7 +669,7 @@ class StatusFromTheDisk(Tree):
         self.assertEqual(s["settings"], "/settings/speech/")
         self.assertTrue(s["ok"])
         self.assertEqual(s["runtime"]["state"], "ready")
-        self.assertEqual([m["id"] for m in s["models"]], ["large-v3-turbo", "large-v3"])
+        self.assertEqual([m["id"] for m in s["models"]], list(getstt.MODELS))
         self.assertEqual(s["models"][0]["tag"], "Recommended · faster and lighter")
         self.assertEqual(s["models"][1]["tag"], "Higher accuracy · larger and slower")
         self.assertEqual(s["models"][0]["label"], "faster-whisper / large-v3-turbo")

@@ -17,9 +17,47 @@ guide and rebuilds the readers by itself.
 
 ## a0.4.3 — not yet released
 
+### More Whisper models and heard IPA
+
+**Settings → Speech to text** lists standard and language-specific Whisper
+models, filters them by language, and remembers a preferred installed model for
+each language. Persian and Hindi have separate fast and accuracy-oriented
+choices. Models install independently, with cancellation, resume and verified
+files; these labels do not guarantee better recognition on every recording.
+
+Optional **PhoneticXeus** has its own program and model installation. It
+estimates IPA from audio around suspect words without changing their text or
+timestamps. Review shows the estimate and surrounding-audio caveat; the reasoning
+workspace's CSV includes the same evidence. See
+[Speech to text](../lookup-and-languages/speech-to-text.md).
+
+### A transcript workspace with reusable tools
+
+Transcription now opens straight into editing, with no review-method gate.
+Try correction tools on the same pending draft, keep manual edits and locks,
+and use the transcript when ready. **Settings → Speech to text** has an
+**Automatically run a second Whisper pass** checkbox; the second pass can
+also run later for remaining suspect words, a section, or one selected word.
+It adds audio-based alternatives without changing original text or timestamps.
+See [Adding a video](../videos/adding-a-video.md#speech-to-text).
+
+### Check, pause and continue a transcript
+
+Select a section or review one word with LM likelihood while keeping the full
+surrounding context. Lock checked words before another review, or choose
+**Select best for all** to put the latest method's first choices into the
+pending draft. The similar-sound filter starts enabled and can be turned off
+for another pass. **Save & pause** keeps the review on disk; **Continue pending
+transcription** on Videos restores it after a browser or server restart.
+Settings and ordinary review controls are shorter, with technical details
+folded away. **Settings → About** shows version, installation information and
+the locations of `serve.sh` and the Windows launcher. See
+[LM likelihood](../lookup-and-languages/lm-likelihood.md) and
+[About Parseh](../getting-started/about.md).
+
 ### Review a transcript before using it
 
-Whisper results now wait for an explicit review choice. Review its low ASR
+Whisper results now open directly in the transcript workspace. Inspect low ASR
 scores without sending text anywhere, or ask an already configured LLM for
 validated word-level proposals; accept or reject them in a pending draft.
 Only **Use this transcript** fills the box. **Settings → LLM Integration**
@@ -48,7 +86,7 @@ prompt and pasted answer. No configured endpoint is needed. Workspace review
 can download its text/CSV files for an external service with file/code tools.
 Imported proposals are checked and remain in the pending draft until accepted
 and explicitly used.
-An additional experimental [LM likelihood](../lookup-and-languages/lm-likelihood.md)
+An additional [LM likelihood](../lookup-and-languages/lm-likelihood.md)
 method searches raw model probabilities for candidate words and ranks the original,
 every Whisper alternative and those candidates using fixed original context.
 Select installed GGUF weights separately from chat models. Its isolated CPU/GPU

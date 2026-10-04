@@ -74,6 +74,10 @@ class Backend:
             raise ScoringError('unsupported-model', 'Only standalone causal decoder text-generation models are supported.')
         self.vocab = C.llama_model_get_vocab(self.model)
         self.vocab_size = C.llama_vocab_n_tokens(self.vocab)
+        # Some tokenizers add a dummy initial space to supplied text. Infer
+        # that convention from a fixed round trip, without stripping actual
+        # source whitespace or the leading space of a continuation token.
+        self.prefix_space = self.decode(self.tokenize('x')) == b' x'
         params = C.llama_context_default_params()
         params.n_ctx = config['context_tokens']
         params.n_batch = params.n_ubatch = min(128, config['context_tokens'])
@@ -134,6 +138,15 @@ class Backend:
             parts.append(b.raw[:n])
         return b''.join(parts)
 
+    def decode_prefix(self, tokens):
+        """Decode a stream beginning at the supplied text's start.
+
+        decode() remains raw for beam continuations, including UTF-8 pieces.
+        Only the verified tokenizer-added first space is removed here.
+        """
+        raw = self.decode(tokens)
+        return raw[1:] if self.prefix_space and raw.startswith(b' ') else raw
+
     def is_eog(self, token):
         return self.C.llama_vocab_is_eog(self.vocab, token)
 
@@ -188,7 +201,14 @@ class Backend:
         # Full-vocabulary raw ranking. Token-ID order resolves numerical ties.
         if self.np.isnan(logits).any() or self.np.isposinf(logits).any():
             raise ScoringError('invalid-logits', 'The model produced invalid numerical logits.')
-        return self.np.lexsort((self.np.arange(self.vocab_size), -logits))[:n].tolist()
+        n = min(n, self.vocab_size)
+        # Select a cutoff over the full vocabulary, then sort only the top
+        # group including ALL cutoff ties. This gives the identical ordering
+        # as a full sort; it changes no probabilities or search branches.
+        cutoff = self.np.partition(logits, self.vocab_size - n)[self.vocab_size - n]
+        selected = self.np.flatnonzero(logits >= cutoff)
+        order = self.np.lexsort((selected, -logits[selected]))[:n]
+        return selected[order].tolist()
 
     def close(self):
         if self.ctx:

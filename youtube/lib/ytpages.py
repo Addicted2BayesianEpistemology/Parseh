@@ -473,7 +473,12 @@ def index_page():
         "A YouTube video with its transcript underneath, glossed the way "
         "the reading editions are. Pick a channel, then a video.",
         "videos")
-    return (head + body + ADD_CARD + SYNC_CARD
+    pending = ''
+    import asrpending
+    for row in asrpending.listing():
+        pending += ('<a class="book add" data-layout="browser" href="%s/add/?pending=%s"><div class="chname">Continue pending transcription</div><div class="blurb">%s · %s</div></a>'
+                    % (BASE, esc(row['job']), esc(row['title']), esc(row['lang'])))
+    return (head + body + ADD_CARD + pending + SYNC_CARD
             + make_index.bundle_panel("video", BASE + "/api/upload")
             + make_index.shelf_panel("video", BASE + "/api/backup",
                                      BASE + "/api/restore")
@@ -2992,6 +2997,11 @@ ADD_PAGE_JS = r'''
       },
       transcript: function () { return val('transcript'); },
       setTranscript: function (text) { val('transcript', text); save(); ticks(); },
+      restorePending: function (src, lang, text) {
+        choose(src.kind === 'film' ? 'film' : 'yt', BY === 'llm' ? 'llm' : 'empty', false, false);
+        val(src.kind === 'film' ? 'path' : 'url', src.kind === 'film' ? src.path : 'https://www.youtube.com/watch?v=' + src.id);
+        val('lang', lang); val('transcript', text || ''); save(); ticks();
+      },
       invalidate: invalidatePrepared,
       focusSource: function () { $(SRC === 'film' ? 'path' : 'url').focus(); },
       // what may not change while a job runs: the video, its language

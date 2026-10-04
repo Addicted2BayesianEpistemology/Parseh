@@ -36,3 +36,8 @@ VERSION text eol=lf
 /youtube/serve.py export-ignore
 /youtube/serve.sh export-ignore
 /dist export-ignore
+# Maintainer conversion/qualification programs remain in Git, outside releases.
+/tools export-ignore
+/lib/phoneticrelease.py export-ignore
+/:memory:.ses export-ignore
+/docs/lm-likelihood-evaluation.md export-ignore

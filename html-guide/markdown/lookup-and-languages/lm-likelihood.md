@@ -1,116 +1,87 @@
 ---
-title: LM likelihood · experimental
+title: LM likelihood
 weight: 10
-description: Rank original, Whisper and model-discovered word candidates using raw causal model likelihoods and installed GGUF weights.
+description: Compare possible transcript words using a model already installed on this computer.
 ---
 
-**Settings → LM likelihood · experimental** configures a separate local
-probability worker for browser transcript review. It starts unconfigured.
-Whisper and the existing [chat review methods](llm-integration.md) remain
-independent.
+**LM likelihood** suggests words by comparing their fit with the surrounding
+transcript. It runs locally, using a model you already installed. Whisper and
+the [connected LLM methods](llm-integration.md) have separate settings.
+It is an **experimental** correction method; check suggestions by listening.
 
-## Select installed weights
+## Choose a model
 
-Install the model yourself in Unsloth Studio, Ollama or another application.
-Parseh reuses the installed GGUF file **read-only**. It never downloads, copies,
-converts or renames model weights.
+Open **Settings → LM likelihood**, press **Refresh installed models**, choose
+a model and press **Use selected model**. Model selection is available from
+any admitted browser. The selected model also appears in the review's
+**Models, preferences & skills** panel.
 
-Choose **Installed Unsloth GGUF** to read Studio’s local installation metadata,
-or **Installed Ollama model** with that manager’s URL. Press **Save worker
-settings**, **Refresh installed models**, choose a model and press **Use selected
-model**. Selection from the discovered list is available to any admitted
-browser. Source, file path, executable and hardware settings are host-only.
+The **Candidate cutoff** chooser offers **No cutoff**, **0.1 — suggested by
+preliminary experiments**, or **Custom cutoff** between 0 and 1. Press
+**Save review options** to keep your choice. The cutoff affects only extra
+model suggestions; Whisper's original and genuine alternatives are always
+compared. The suggested 0.1 is a starting point, not a proven accuracy setting.
 
-If discovery is unavailable, enter an **Explicit GGUF path on this host** and
-save it. A remote manager’s path must also be readable on the Parseh host.
-Ollama’s backing files can have content-addressed names without a `.gguf`
-extension; Parseh checks their actual format. Only complete single-file causal
-text-generation GGUFs are supported. Split models and required adapters are
-refused.
-Installed variants with a complete text decoder and separate vision-projector
-GGUFs can appear as **text only**. Scoring never uses those projectors or accepts
-vision inputs; the complete text model is loaded independently.
+For the first setup, expand **Setup & advanced options** on the Parseh computer.
+Choose **Installed Unsloth GGUF**, **Installed Ollama model**, or an explicit
+local model path. Save the settings before refreshing the list. Parseh uses
+existing weights read-only: install models yourself in Studio, Ollama or
+another application. A model on another computer must also be accessible to
+this local worker.
 
-## Install the scoring runtime
+The local scoring program is installed separately with **Install / rebuild
+isolated runtime**. It needs a C/C++ compiler; GPU builds also need the matching
+hardware toolkit. Choose **CPU** with **0 GPU layers**, or a supported GPU
+backend with **−1** for all layers. Its memory use is separate from Studio or
+Ollama, even when they share the same model file. Parseh does not unload their
+models. **Cancel scoring and unload worker** stops Parseh's scoring work.
 
-Choose **CPU** and **0 GPU layers** to start, then press **Save worker settings**
-and **Install / rebuild isolated runtime**. This installs llama-cpp-python
-0.3.35 and its compatible llama.cpp runtime into a separate folder; it installs
-no model weights and changes no packages in Parseh’s ordinary environment.
-CPU installation needs a C/C++ compiler. CUDA, Apple Metal and Vulkan builds
-also need their hardware SDK/build dependencies. Match the saved backend to
-the runtime; GPU layers **−1** requests all layers, and a positive number
-requests partial offload.
-Choose the **GPU device index** from the backend's detected devices shown on
-the page. The worker uses that device only; zero GPU layers disables model and
-context offload even with a GPU-capable runtime. Missing devices or incomplete
-requested offload produce a clear error. The word inspector reports the actual
-device and number of offloaded layers.
+Complete single-file text-generation GGUF models are supported, including
+Ollama backing files without a `.gguf` filename. Split weights and required
+adapters are refused. Models labeled **text only** use their complete text
+model without optional vision files.
 
-CUDA builds need a host C++ compiler supported by the CUDA toolkit. If the
-system compiler is too new, enter a compatible compiler's absolute path in
-**CUDA host C++ compiler**. A compatible compiler already supplied under
-`llm-scoring/toolchain/` is used when that field is empty. **CUDA build
-architectures** defaults to `native`, or accepts a list such as `75;86`. The
-Settings button builds the runtime for this computer; rebuild it when moving
-to another computer.
-For this GTX 1650 without tensor cores, llama.cpp recommends
-`61-virtual;80-virtual` with **Force CUDA quantized matrix kernels (MMQ)**
-enabled. Use a CUDA toolkit that supports those architectures. CPU/GPU
-quantized arithmetic can yield different scores or discovered candidates;
-compare scores within the selected backend and review close rankings carefully.
+## Review words
 
-CPU threads, context-token limit, preceding/following characters, beam width,
-additional candidate count and replacement-search length are explicit settings.
-Search bounds affect only additional model-derived words. Every supplied
-Whisper alternative and the exact original remain mandatory candidates.
+After Whisper finishes, choose **LM likelihood**. Click, focus or tap a word
+to inspect the alternatives. The original and every genuine Whisper alternative
+are compared alongside additional words found by the local model. No chatbot
+prompt or assistant response is used.
 
-The worker needs its **own RAM/GPU memory**, even when Studio or Ollama already
-has the same model loaded. Parseh never unloads another application’s model.
-The worker loads once per review and unloads on completion or cancellation.
-**Cancel scoring and unload worker** is also available on this settings page.
+**Prefer similar-sounding words** starts enabled. Turn it off for a second
+pass on unresolved words. The filter uses dictionary readings where available
+and otherwise a spelling approximation. When pronunciation cannot be inferred,
+such as an unfamiliar Han character, it keeps the candidate available. It
+never removes Whisper's original or supplied alternatives.
+Turning it off keeps the saved probability cutoff; lower it with the
+**Candidate cutoff** chooser if you need a wider search.
 
-## Review candidates
+Choose **Select a section**, then its first and last word. Methods review only
+unlocked targets inside that section while keeping the surrounding context.
+For one word, use **Review this word with LM likelihood** in its inspector;
+this also works for a word Whisper did not flag.
 
-After [Whisper finishes](../videos/adding-a-video.md#speech-to-text), choose
-**LM likelihood · experimental**. It searches raw next-token probabilities for
-additional complete word candidates, then evaluates each supplied substitution
-with the same original preceding and following context. It asks no chatbot
-question and sends no assistant prompt.
+Accept an alternative or enter a correction yourself. **Select best for all**
+chooses the latest method's first choices in the pending draft, skipping locked
+words, incomplete comparisons and tied first choices. Listen before trusting
+these choices: a fluent word can still be wrong. **I'm sure · lock word** keeps
+a checked word through later methods; unlock it to reconsider.
 
-Focus, hover or tap a suspect word. Its inspector shows the original, Whisper
-alternatives and model-derived candidates, their origins, ranks, raw log
-likelihoods, differences from the original and evaluated token counts. The
-score sums the log probabilities of the candidate **and the fixed following
-text**. It uses no length adjustment. Tokenization changes at the join can
-include a small preceding boundary in the evaluated suffix; diagnostics show
-that backoff.
+**Save & pause** keeps the pending transcript, decisions, edits and locks on the
+Parseh computer. Reopen it with **Continue pending transcription** in Videos,
+even after a server restart. Only **Use this transcript** fills the transcript
+box. Use or discard removes the saved review. Caption timing stays unchanged;
+changed word timing needs review in the existing timing editor.
 
-Whisper’s **0.5** threshold and dictionary marking stay unchanged. Acoustic
-scores and language-model likelihoods remain separate. These numbers are not
-probabilities that a word is correct. A raw sum can favor a different token
-length. The winner is the best among evaluated candidates, not proof of the
-words spoken.
+## When a comparison is incomplete
 
-**Complete** means every mandatory candidate was scored. **Partial** or
-**failed** evaluations identify unscored candidates and their reasons. A failure
-at one word can leave later words available for review. **Retry remaining
-suspect words** retries unaccepted targets. A model, source or settings change
-invalidates in-flight results.
+If a word cannot be fully compared, its original remains available. Other
+words can still finish. Retry unresolved words or edit them yourself. The
+ordinary inspector shows choices; **Technical details** and **LLM responses**
+hold the numerical scores, model identity, bounded context and failure reasons.
+These scores measure language-model fit, not the probability of having heard
+the right word.
 
-Accept or reject candidates in the pending draft, or type a manual correction.
-The transcript box stays unchanged until **Use this transcript**, with its
-existing overwrite and stale-text guards. Caption boundaries and timing stay
-unchanged; changed word timing is marked for review. **Cancel** discards
-unaccepted numerical results and keeps Whisper’s original intact.
-
-**LLM responses** also holds the temporary numerical diagnostics for this method:
-model identity, bounded context, search limits, coverage and scores. It contains
-no vocabulary-sized logit matrices or chatbot responses. Nothing is written
-into ordinary logs or synced preferences. Long diagnostic histories are clipped
-and visibly marked.
-
-Bounded word search can miss useful alternatives, particularly for scripts with
-no whitespace boundaries. Evaluating one target at a time cannot resolve
-several interacting mistakes jointly. This experimental method has passed
-scoring and runtime checks; improved recognition accuracy has not been measured.
+Bounded word search can miss useful alternatives, especially in languages
+without spaces. Single-word comparison cannot resolve interacting mistakes
+jointly. The installation's `docs/lm-likelihood.md` explains the numerical rule and limits.

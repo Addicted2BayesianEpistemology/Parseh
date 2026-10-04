@@ -118,6 +118,9 @@ def align_segments(audio, segments, folder, progress=None):
     The caller owns a float32, 16 kHz mono array (the exact audio Whisper was
     given) and calls this only after releasing the Whisper model.
     """
+    # Set before importing ORT: disabling events afterwards cannot prevent
+    # native telemetry initialization or its :memory:.ses fallback sidecar.
+    os.environ["ORT_DISABLE_TELEMETRY"] = "1"
     import numpy as np
     import onnxruntime as ort
     meta, vocab, preprocessor = _load(folder)

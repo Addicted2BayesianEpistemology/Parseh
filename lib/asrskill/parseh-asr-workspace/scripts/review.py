@@ -32,6 +32,12 @@ def show(offset=0, count=20):
         if hint:
             print("Blank " + hint["slot"] + " | " + hint["whisper_hints"])
             print("Context: " + hint["context"])
+            if hint.get('heard_ipa') and hint.get('ipa_state') == 'complete':
+                print('Estimated heard IPA around this word: ' + hint['heard_ipa'])
+                print('Attribution: ' + hint.get('ipa_attribution', 'unspecified') +
+                      '; may include neighboring sounds, not exact word alignment.')
+                if hint.get('ipa_audio_start') and hint.get('ipa_audio_end'):
+                    print('Original audio crop: ' + hint['ipa_audio_start'] + '–' + hint['ipa_audio_end'] + ' seconds.')
     skim = read("skim")
     if skim:
         print("Tentative first-pass edits in these captions:")

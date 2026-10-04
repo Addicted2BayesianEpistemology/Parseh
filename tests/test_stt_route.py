@@ -296,7 +296,9 @@ class Route(unittest.TestCase):
         self.assertEqual(rec["rest"], [])
         (heard,) = s.records("transcribe")
         self.assertEqual((heard["language"], heard["beam_size"], heard["vad_filter"], heard["task"],
-                          heard["rest"]), ("fa", 5, True, "transcribe", ["word_timestamps"]))
+                          heard["rest"]), ("fa", 5, True, "transcribe", ['condition_on_previous_text', 'temperature', "word_timestamps"]))
+        self.assertEqual(heard['options']['temperature'], 0)
+        self.assertNotIn('prompt', heard['options'])
 
     def test_the_job_is_on_the_activity_list_without_its_token(self):
         s = self.s

@@ -511,6 +511,10 @@ class ModelProfiles(unittest.TestCase):
 
 class Jobs(unittest.TestCase):
     def setUp(self):
+        private = tempfile.TemporaryDirectory()
+        self.addCleanup(private.cleanup)
+        videos = mock.patch('ytpages.VIDEOS', private.name)
+        videos.start(); self.addCleanup(videos.stop)
         self.panel, request = evidence()
         self.token = "ABCDEFGHIJKLMNOP"
         self.job = {"id": self.token, "kind": "film", "source": {"kind": "film", "path": "/private/film.mp4"},
@@ -523,14 +527,11 @@ class Jobs(unittest.TestCase):
         patch = mock.patch.dict(sttjobs.JOBS, {self.token: self.job}, clear=True)
         patch.start(); self.addCleanup(patch.stop)
 
-    def test_asr_only_choice_has_no_model_request_and_use_is_explicit(self):
+    def test_asr_result_can_be_used_explicitly_without_a_method_choice_gate(self):
         with mock.patch("llmadapter.adapter") as generate, mock.patch("wavefile.held", return_value=False):
-            with self.assertRaises(sttjobs.Refusal):
-                sttjobs.use_review(self.token, self.job["review_evidence"]["source_sha256"], {})
-            sttjobs.review(self.token, "whisper", self.job["review_evidence"]["source_sha256"])
-            generate.assert_not_called()
             out = sttjobs.use_review(self.token, self.job["review_evidence"]["source_sha256"], {})
             self.assertEqual(out["text"], self.panel)
+            generate.assert_not_called()
 
     def test_failed_sentences_leave_whisper_intact_and_slot_free(self):
         cancellation = llmadapter.Cancellation()
@@ -550,7 +551,7 @@ class Jobs(unittest.TestCase):
                         review_choice="llm", correction_result={"suggestions": []})
         sttjobs.cancel_review(self.token)
         self.assertTrue(token.event.is_set())
-        self.assertEqual(self.job["state"], sttjobs.REVIEW_CHOICE)
+        self.assertEqual(self.job["state"], sttjobs.DONE, 'review tools remain usable after cancelling one tool')
         self.assertEqual(self.job["text"], self.panel)
         self.assertIsNone(self.job["correction_result"])
         self.assertEqual(self.job["llm_generation"], 2)

@@ -24,6 +24,7 @@ DEFAULTS = {'format_version': STORE_FORMAT, 'source': 'unsloth', 'manager_url': 
             'cuda_host_compiler': '', 'cuda_architectures': 'native', 'cuda_force_mmq': False,
             'preceding_chars': 320, 'following_chars': 160, 'beam_width': 4,
             'candidate_count': 12, 'replacement_tokens': 6, 'replacement_chars': 80,
+            'minimum_candidate_probability': 0.1, 'phonetic_filter': True, 'phonetic_similarity': 0.55,
             'target_seconds': 120, 'load_seconds': 180, 'model': None}
 BOUNDS = {'gpu_layers': (-1, 1000), 'gpu_device': (0, 63), 'threads': (1, 128), 'context_tokens': (128, 16384),
           'preceding_chars': (0, 8000), 'following_chars': (1, 8000), 'beam_width': (1, 16),
@@ -57,6 +58,11 @@ def validate(raw):
         raise ScoringError('bad-config', 'CUDA architectures must be native or a semicolon-separated list, such as 75;86 or 61-virtual;80-virtual.')
     if type(out['cuda_force_mmq']) is not bool:
         raise ScoringError('bad-config', 'CUDA force MMQ must be a boolean.')
+    if type(out['phonetic_filter']) is not bool:
+        raise ScoringError('bad-config', 'The similar-sound filter must be a boolean.')
+    for key in ('minimum_candidate_probability', 'phonetic_similarity'):
+        if type(out[key]) not in (int, float) or not 0 <= out[key] <= 1:
+            raise ScoringError('bad-config', 'A candidate search threshold is invalid.')
     if out['model'] is not None:
         m = out['model']
         if (not isinstance(m, dict) or not isinstance(m.get('identity'), dict)
@@ -186,6 +192,7 @@ def status(host=False):
     import lmlikelihood
     out = {'configured': bool(config['model']), 'available': bool(config['model']) and not error and runtime.get('available', False),
            'revision': revision(config), 'model': config['model']['model_id'] if config['model'] else None,
+           'phonetic_filter': config['phonetic_filter'],
            'runtime': runtime, 'error': error, 'loaded_workers': lmlikelihood.loaded_count(), 'install': dict(INSTALL)}
     if host:
         out['settings'] = config

@@ -121,6 +121,41 @@ class Numerical(unittest.TestCase):
         counts = {c['text']: c['evaluated_tokens'] for c in out['candidates']}
         self.assertEqual(counts, {'x': 2, 'ab': 3})
 
+    def test_dummy_prefix_space_is_excluded_without_changing_continuations(self):
+        class SentencePieces(TinyModel):
+            def tokenize(self, text):
+                return super().tokenize(' ' + text)
+            def decode_prefix(self, tokens):
+                raw = self.decode(tokens)
+                return raw[1:] if raw.startswith(b' ') else raw
+        def probs(text):
+            return {'y': .9} if text == ' B ' else {' ': .9} if text == ' B y' else None
+        model = SentencePieces(probabilities=probs)
+        # Both real source spaces survive; only the artificial initial one
+        # disappears from prefix matching. Scores exclude constant L.
+        prefix = core.safe_prefix(model, ' B ', [model.tokenize(' B x!')])
+        self.assertEqual(core.decoded_prefix(model, prefix), b' B ')
+        out = core.evaluate(model, 'B ', '!', core.candidates(word(), ['y']))
+        self.assertEqual(out['excluded_prefix_bytes'], 2)
+        self.assertEqual(out['retokenized_preceding_bytes'], 0)
+        self.assertTrue(all(c['evaluated_tokens'] == 2 for c in out['candidates']))
+        extra = core.beam_candidates(model, 'B ', word(),
+            dict(config.DEFAULTS, beam_width=1, phonetic_filter=False, minimum_candidate_probability=0),
+            lambda: None, time.monotonic()+3)
+        self.assertEqual(extra, ['y'])
+        self.assertEqual(model.decode(model.tokenize(' B ')), b'  B ')
+        self.assertEqual(model.decode([2]), b' ')  # Continuation space retained.
+
+    def test_native_prefix_decoding_retains_real_spaces_and_partial_unicode(self):
+        backend = object.__new__(lmlikelihoodworker.Backend)
+        backend.prefix_space = True
+        backend.decode = lambda tokens: b'  \xd8' if tokens else b''
+        self.assertEqual(backend.decode_prefix([1, 2]), b' \xd8')
+        self.assertEqual(backend.decode([1, 2]), b'  \xd8')
+        self.assertEqual(backend.decode_prefix([]), b'')
+        backend.prefix_space = False
+        self.assertEqual(backend.decode_prefix([1, 2]), b'  \xd8')
+
     def test_independent_reset_and_order_isolation(self):
         model = TinyModel(probabilities=lambda text: {'!': .8} if text.endswith('x') else None)
         entries = core.candidates(word(), ['y', 'ab'])
@@ -156,10 +191,20 @@ class Numerical(unittest.TestCase):
         self.assertEqual(out['coverage']['state'], 'failed')
         self.assertIn('first token', out['coverage']['omitted'][0]['reason'])
 
+    def test_candidate_probability_and_sound_filters_never_remove_mandatory_words(self):
+        def probs(text):
+            return {'a': .9} if text == 'B ' else {'b': .9} if text == 'B a' else {' ': .9} if text == 'B ab' else None
+        cfg = dict(config.DEFAULTS, beam_width=1, candidate_count=2, replacement_tokens=2, phonetic_filter=False)
+        extra = core.beam_candidates(TinyModel(probabilities=probs), 'B ', word(), dict(cfg, minimum_candidate_probability=1), lambda: None, time.monotonic()+3)
+        self.assertEqual(extra, [])
+        extra = core.beam_candidates(TinyModel(probabilities=probs), 'B ', word(), dict(cfg, phonetic_filter=True), lambda: None, time.monotonic()+3)
+        self.assertEqual(extra, [])
+        self.assertEqual([c['text'] for c in core.candidates(word(alternatives=[{'text':'ab','score':None}]), extra)], ['x', 'ab'])
+
     def test_deterministic_beam_discovers_complete_multi_token_words(self):
         def probs(text):
             return {'a': .9} if text == 'B ' else {'b': .9} if text == 'B a' else {' ': .9} if text == 'B ab' else None
-        cfg = dict(config.DEFAULTS, beam_width=1, candidate_count=2, replacement_tokens=2)
+        cfg = dict(config.DEFAULTS, beam_width=1, candidate_count=2, replacement_tokens=2, phonetic_filter=False)
         found = core.beam_candidates(TinyModel(probabilities=probs), 'B ', word(), cfg, lambda: None, time.monotonic() + 3)
         self.assertEqual(found, ['ab'])  # a, ab fragments only complete after space
         again = core.beam_candidates(TinyModel(probabilities=probs), 'B ', word(), cfg, lambda: None, time.monotonic() + 3)
@@ -169,6 +214,16 @@ class Numerical(unittest.TestCase):
         joined = TinyModel(pieces=('B', ' ', ' x', ' ab', 'a', 'b'), probabilities=joined_probs)
         self.assertEqual(core.beam_candidates(joined, 'B ', word(), cfg, lambda: None, time.monotonic() + 3), ['ab'])
         self.assertEqual(joined.begins[0], [0, 1])  # residual space searched with word
+
+    def test_search_probability_floor_counts_whole_path_and_boundary(self):
+        def probs(text):
+            return {'a': .6} if text == 'B ' else {'b': .6} if text == 'B a' else {' ': .6} if text == 'B ab' else None
+        cfg=dict(config.DEFAULTS,beam_width=1,candidate_count=2,replacement_tokens=2,phonetic_filter=False)
+        discovery=[]
+        kept=core.beam_candidates(TinyModel(probabilities=probs),'B ',word(),dict(cfg,minimum_candidate_probability=.2),lambda:None,time.monotonic()+3,discovery)
+        self.assertEqual(kept,['ab']);self.assertAlmostEqual(discovery[0]['search_probability'],.6**3)
+        dropped=core.beam_candidates(TinyModel(probabilities=probs),'B ',word(),dict(cfg,minimum_candidate_probability=.22),lambda:None,time.monotonic()+3)
+        self.assertEqual(dropped,[])
 
     def test_unicode_apostrophes_and_attached_punctuation(self):
         self.assertEqual(core.replacement('«x,»', 'é'), '«é,»')
@@ -410,6 +465,20 @@ class SourceFlow(unittest.TestCase):
 
 
 class Hardware(unittest.TestCase):
+    def test_fast_token_ranking_matches_full_vocabulary_sort_and_ties(self):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('NumPy equivalence is also checked by the isolated real-model smoke')
+        backend = object.__new__(lmlikelihoodworker.Backend)
+        backend.np = np
+        for values in ([2., 5., 5., -1., 5., 0.], [0.] * 20, [-math.inf, -2., -3., -4.]):
+            logits = np.array(values)
+            backend.vocab_size = len(values)
+            for n in (1, 2, len(values)):
+                expected = np.lexsort((np.arange(len(values)), -logits))[:n].tolist()
+                self.assertEqual(backend.top_tokens(logits, n), expected)
+
     def test_native_gpu_work_is_synchronized_before_reset_and_free(self):
         calls = []
         backend = object.__new__(lmlikelihoodworker.Backend)
@@ -577,6 +646,19 @@ class ReviewJobs(unittest.TestCase):
                     sttjobs.review_likelihood(self.token, source, rev)
             worker.assert_not_called()
 
+    def test_new_model_drops_old_proposals_and_locks_limit_targets(self):
+        self.job.update(state=sttjobs.DONE,review_choice='likelihood',likelihood_revision='older-model',
+                        correction_result={'task':'likelihood','suggestions':[{'word_id':'s0w1'}]},
+                        review_draft={'locked_word_ids':['s0w0']})
+        with mock.patch('lmlikelihoodconfig.load',return_value=self.cfg), mock.patch('lmgguf.revalidate'), \
+                mock.patch('sttjobs.threading.Thread') as thread:
+            sttjobs.review_likelihood(self.token,self.source,config.revision(self.cfg),['s0w0','s0w1'],False)
+        args=thread.call_args.kwargs['args']
+        self.assertEqual(args[-2],['s0w1']);self.assertIsNone(args[-1])
+        self.assertFalse(args[1]['phonetic_filter'])
+        self.assertEqual(self.job['likelihood_revision'],config.revision(self.cfg))
+        self.assertIsNone(self.job['correction_result'])
+
     def test_partial_completion_keeps_asr_and_releases_single_job_slot(self):
         self.job.update(state=sttjobs.CORRECTING, review_choice='likelihood', llm_generation=1)
         out = {'task': 'likelihood', 'suggestions': [], 'complete': False, 'failed_word_ids': ['s0w1']}
@@ -605,7 +687,7 @@ class ReviewJobs(unittest.TestCase):
         sttjobs.cancel_review(self.token)
         with mock.patch('lmlikelihoodconfig.load', return_value=self.cfg), mock.patch('lmgguf.revalidate'), mock.patch('lmlikelihood.correct') as worker:
             sttjobs._likelihood_correct(self.job, self.cfg, cancel, 1, None, None)
-        self.assertEqual(self.job['state'], sttjobs.REVIEW_CHOICE)
+        self.assertEqual(self.job['state'], sttjobs.DONE, 'cancelling a tool preserves the open review workspace')
         self.assertIsNone(self.job['correction_result'])
         self.job.update(state=sttjobs.DONE, review_choice='likelihood', likelihood_revision='old-revision')
         with mock.patch('lmlikelihoodconfig.load', return_value=self.cfg), self.assertRaises(sttjobs.Refusal):

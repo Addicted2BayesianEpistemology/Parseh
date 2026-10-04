@@ -1754,6 +1754,7 @@ def update_daily():
 #   waiting              True while it waits its turn in that queue
 READING_KINDS = ("dict", "components", "corpus", "model", "synonyms", "speech")
 CANCELS = {}                    # (kind, key) -> the Event its Stop button sets
+SPEECH_START_LOCKS = {}         # validated catalogue parts; one start per part
 PLANS = {}                      # (kind, key) -> (when, plan): what it was said to cost
 PLAN_FOR = 600                  # seconds a plan is believed before it is asked again
 QUEUE = []                      # the steps "get everything" waits to run: [(kind, key)]
@@ -1815,7 +1816,7 @@ def reading_check(kind, key):
             return (("a language translated into itself is a copy" if kind == "model" else
                      "a language glossed in itself has nothing to translate"), 400)
     elif kind == "speech":
-        # a part is one of three exact names: nothing else is ever a path
+        # A part is a shared catalogue ID: nothing a browser sends becomes a path.
         if key not in getstt.PARTS:
             return "no such part of speech to text", 400
     elif key:
@@ -1888,14 +1889,30 @@ def reading_named(kind, key):
     return "the %s %s" % (_lang_pair(key), what)
 
 
-def reading_start(kind, key, queue=None, wait=False):
+def _speech_start_lock(key):
+    with DECOMPOSITION_LOCK:
+        return SPEECH_START_LOCKS.setdefault(key, threading.RLock())
+
+
+def reading_start(kind, key, queue=None, wait=False, _import_cancel=None):
+    # Different models may install independently. Simultaneous presses for
+    # the same part must share the first job's cancellation event, rather than
+    # start two writers to its resumable staging folder.
+    if kind == 'speech' and isinstance(key, str) and key in getstt.PARTS:
+        with _speech_start_lock(key):
+            return _reading_start(kind, key, queue, wait, _import_cancel)
+    return _reading_start(kind, key, queue, wait, _import_cancel)
+
+
+def _reading_start(kind, key, queue=None, wait=False, _import_cancel=None):
     """Start getting (kind, key): -> (answer, status).  In a thread of its
     own, or -- `wait`, for the queue's own worker -- in this one."""
     bad, status = reading_check(kind, key)
     if bad:
         return {"ok": False, "error": bad}, status
     job = reading_job(kind, key)
-    if job and job.get("running"):
+    if job and job.get("running") and not (
+            _import_cancel is not None and CANCELS.get((kind, key)) is _import_cancel):
         return {"ok": True, "already": True}, 200
     if job and job.get("waiting") and not wait:
         # pressed directly while it waits in a queue: it goes now, and the
@@ -1912,7 +1929,7 @@ def reading_start(kind, key, queue=None, wait=False):
             return {"ok": False, "error": "%s is written without spaces between its words, "
                     "so its dictionary comes first: the sentences are cut into words "
                     "with it" % languages.LANGS[code].name}, 409
-    if kind == "speech" and getstt.unavailable_reason():
+    if kind == "speech" and key not in getstt.PHONETIC_PARTS and getstt.unavailable_reason():
         # NO BUTTON WAS OFFERED, and a route asked anyway is told why
         return {"ok": False, "error": getstt.unavailable_reason()}, 409
     try:
@@ -1928,7 +1945,7 @@ def reading_start(kind, key, queue=None, wait=False):
         "running": True, "say": "starting…", "error": "", "started": time.time(),
         "phase": "download", "done": plan.get("have") or 0, "total": plan.get("download"),
         "stopped": False, "queue": queue, "waiting": False})
-    cancel = threading.Event()
+    cancel = _import_cancel if _import_cancel is not None else threading.Event()
     CANCELS[(kind, key)] = cancel
 
     def progress(done, total=None, phase="download"):
@@ -2972,6 +2989,14 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError:
                 self.close_connection = True
                 return self.send_json({"error": "bad Content-Length"}, 400)
+            if method == 'POST' and path == '/settings/api/speech/import-package':
+                # Model packages are gigabytes. Verify admission and the pinned
+                # release identity before streaming directly to disk.
+                refused = self._refused(path)
+                if refused:
+                    self.close_connection = True
+                    return refused
+                return self._speech_package_stream(n)
             if method == "POST" and path.endswith(("/__narration/audio", "/__narration/import")):
                 # an audiobook is hundreds of megabytes: it goes straight to
                 # a file, never through the buffer below or its cap
@@ -5579,7 +5604,7 @@ class Handler(SimpleHTTPRequestHandler):
         other route takes only the token the job made.  Every answer is
         {"ok": true, ...} or {"ok": false, "error": <a sentence>, "code": <a
         slug>}, and none of them is a traceback."""
-        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "review-likelihood", "retry-review", "cancel-review", "use", "dictionary", "external-start", "external-action"):
+        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "review-likelihood", "whisper-second-pass", "retry-review", "cancel-review", "use", "dictionary", "external-start", "external-action", "save-draft", "pending", "resume"):
             return self.send_json({"ok": False, "error": "nothing to POST here",
                                    "code": "no-such-route"}, 404)
 
@@ -5598,10 +5623,26 @@ class Handler(SimpleHTTPRequestHandler):
                 raise sttjobs.Refusal("bad-request", getattr(e, "said", None)
                                       or "The request could not be read.")
             token = body.get("job")
+            if what == "pending":
+                if body:
+                    raise sttjobs.Refusal("bad-draft", "Listing pending reviews accepts no overrides.")
+                return sttjobs.pending_reviews()
+            if what == "resume":
+                if set(body) != {"job"}:
+                    raise sttjobs.Refusal("bad-draft", "Choose a saved transcription.")
+                return sttjobs.resume_review(token)
+            if what == "save-draft":
+                if set(body) - {"job", "source_sha256", "draft", "generation"}:
+                    raise sttjobs.Refusal("bad-draft", "The draft contains unknown fields.")
+                return sttjobs.save_review_draft(token, body.get("source_sha256"), body.get("draft"), body.get("generation"))
             if what == "review-likelihood":
-                if set(body) - {"job", "source_sha256", "revision", "word_ids"}:
+                if set(body) - {"job", "source_sha256", "revision", "word_ids", "phonetic_filter"}:
                     raise sttjobs.Refusal("bad-review", "The likelihood request accepts no model, path or runtime overrides.")
-                return sttjobs.review_likelihood(token, body.get("source_sha256"), body.get("revision"), body.get("word_ids"))
+                return sttjobs.review_likelihood(token, body.get("source_sha256"), body.get("revision"), body.get("word_ids"), body.get("phonetic_filter"))
+            if what == 'whisper-second-pass':
+                if set(body) - {'job', 'source_sha256', 'word_ids'}:
+                    raise sttjobs.Refusal('bad-review', 'Whisper rechecks accept only words from the original transcript.')
+                return sttjobs.review_whisper_second(token, body.get('source_sha256'), body.get('word_ids'))
             if what in ("external-start", "external-action"):
                 allowed = ({"job", "source_sha256", "task", "word_ids"} if what == "external-start" else
                            {"job", "source_sha256", "session", "action", "index", "answer"})
@@ -6545,6 +6586,13 @@ class Handler(SimpleHTTPRequestHandler):
                                                   self._whose_device()))
         if path in ("/settings/llm", "/settings/llm/index.html"):
             return self._redirect("/settings/llm/")
+        if path in ("/settings/about", "/settings/about/index.html"):
+            return self._redirect("/settings/about/")
+        if path == "/settings/about/":
+            if method != "GET":
+                return self._method_not_allowed()
+            import aboutpage
+            return self.send_html(aboutpage.page(self._where()))
         if path == "/settings/llm/":
             if method != "GET":
                 return self._method_not_allowed()
@@ -6586,6 +6634,25 @@ class Handler(SimpleHTTPRequestHandler):
             return self._pair()
         if path.startswith("/settings/api/llm/"):
             return self._llm_api(method, path)
+        if path in ("/settings/api/speech/save", "/settings/api/speech/select-model"):
+            if method != "POST":
+                return self._method_not_allowed()
+            import speechconfig
+            try:
+                body = self._json_body()
+                if path.endswith('/select-model'):
+                    if not isinstance(body, dict) or set(body) != {'language', 'model'}:
+                        raise ValueError('Choose a language and a listed speech model.')
+                    preferences = speechconfig.select(body['language'], body['model'])
+                else:
+                    preferences = speechconfig.save(body)
+            except ValueError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 400)
+            except OSError:
+                return self.send_json({"ok": False, "error": "The speech preference could not be saved."}, 500)
+            return self.send_json({"ok": True, "preferences": preferences})
+        if path == '/settings/api/speech/import-package':
+            return self._method_not_allowed()
         if path in ("/settings/api/lm-likelihood/status", "/settings/api/lm-likelihood/save", "/settings/api/lm-likelihood/models",
                     "/settings/api/lm-likelihood/select", "/settings/api/lm-likelihood/install", "/settings/api/lm-likelihood/unload"):
             return self._likelihood_api(method, path)
@@ -6609,6 +6676,79 @@ class Handler(SimpleHTTPRequestHandler):
             gone = network.forget("" if body.get("all") else body.get("id"))
             return self.send_json({"ok": True, "forgotten": gone})
         return self._not_found()
+
+    def _speech_package_stream(self, length):
+        import download
+        import speechpackages
+        import speechmodels
+        model = (self.query.get('model') or [''])[0]
+        try:
+            if set(self.query) != {'model'} or len(self.query['model']) != 1:
+                raise speechpackages.PackageError('Choose one model from Speech to text settings.')
+            package = speechpackages.pin(model)
+            if length != package['package_size'] or length > speechpackages.MAX_ARCHIVE:
+                raise speechpackages.PackageError('This ZIP does not match the expected model package size.')
+        except speechpackages.PackageError as e:
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': str(e)}, 400)
+        # The same job entry and Stop action cover upload, verification, and
+        # installation. An upload may never replace an active install.
+        with _speech_start_lock(model), DECOMPOSITION_LOCK:
+            previous = reading_job('speech', model)
+            if previous and previous.get('running'):
+                self.close_connection = True
+                return self.send_json({'ok': False, 'error': 'This model is already being installed. Stop it first.'}, 409)
+            cancel = threading.Event()
+            state = {
+                'running': True, 'say': 'Uploading the prepared model package…', 'error': '',
+                'started': time.time(), 'phase': 'upload', 'done': 0, 'total': length,
+                'stopped': False, 'waiting': False}
+            reading_table('speech')[model] = state
+            CANCELS[('speech', model)] = cancel
+        # ZIP + extracted assets coexist during verification. Keep the previous
+        # complete model and package intact until every new asset is checked.
+        need = length + sum(size for _sha, size in package['files'].values())
+        if disk_free(getstt.STT_DIR) < need:
+            state.update(running=False, error='There is not enough disk space for this model package.')
+            CANCELS.pop(('speech', model), None)
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': state['error']}, 507)
+        timeout = self.connection.gettimeout()
+        self.connection.settimeout(30)
+        try:
+            def progress(done, total, phase):
+                state.update(done=done, total=total, phase=phase,
+                             say='Uploading the prepared model package…' if phase == 'upload' else 'Checking the model package…')
+                activity.progress(getattr(self, '_act', None), done=done, total=total, stage=phase)
+            with getstt.using(model):
+                speechpackages.import_stream(model, self.rfile, length, cancel=cancel, progress=progress)
+                self._received()
+                download.check(cancel)
+            # Finish verification before starting the normal installer. It
+            # verifies again while making a resumable local copy, uses the
+            # same immutable catalogue, and gets the runtime when needed.
+            download.check(cancel)
+            PLANS.pop(('speech', model), None)
+            answer, code = reading_start('speech', model, _import_cancel=cancel)
+            return self.send_json(answer, code)
+        except download.Cancelled:
+            state.update(stopped=True, say='stopped')
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': 'Package import cancelled. The existing model is unchanged.'}, 409)
+        except (speechpackages.PackageError, speechmodels.CatalogueError) as e:
+            state['error'] = str(e)
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': str(e)}, 400)
+        except (OSError, EOFError):
+            state['error'] = 'The package upload or disk operation did not finish. Choose the package again to retry.'
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': state['error']}, 400)
+        finally:
+            self.connection.settimeout(timeout)
+            # Once installation starts, it owns a fresh entry and event.
+            if reading_job('speech', model) is state and CANCELS.get(('speech', model)) is cancel:
+                CANCELS.pop(('speech', model), None)
+                state.update(running=False, finished=time.time())
 
     def _likelihood_api(self, method, path):
         from lmgguf import ScoringError

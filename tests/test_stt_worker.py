@@ -81,7 +81,7 @@ class Worker(unittest.TestCase):
         s.update(over)
         return s
 
-    def run_spec(self, spec, timeout=60):
+    def run_spec(self, spec, timeout=60, input_text=None):
         """The worker's own run -> (return code, the JSON lines, its stderr)."""
         path = os.path.join(self.root, "spec.json")
         with open(path, "w", encoding="utf-8") as f:
@@ -90,7 +90,7 @@ class Worker(unittest.TestCase):
         env.update(self.fake.worker_env())
         env.update(PYTHONSAFEPATH="1", PYTHONNOUSERSITE="1")
         p = subprocess.run([sys.executable, "-B", "-u", WORKER, path], env=env,
-                           capture_output=True, text=True, timeout=timeout)
+                           capture_output=True, text=True, timeout=timeout, input=input_text)
         msgs = [json.loads(line) for line in p.stdout.splitlines() if line.strip()]
         return p.returncode, msgs, p.stderr
 
@@ -309,7 +309,7 @@ class Words(Worker):
         (rec,) = stt_fakes.records(self.root, "transcribe")
         self.assertEqual((rec["beam_size"], rec["vad_filter"], rec["task"]), (5, True, "transcribe"),
                          "explicit language, beam 5, VAD on, and NO translation")
-        self.assertEqual(rec["rest"], ["word_timestamps"],
+        self.assertEqual(rec["rest"], ['condition_on_previous_text', 'temperature', "word_timestamps"],
                          "one Whisper pass asks for words, and no prompt reaches it")
         self.assertEqual((rec["audio_type"], rec["dtype"]), ("ndarray", "float32"))
         self.assertEqual(rec["samples"], 3 * 16000)
@@ -331,6 +331,27 @@ class Words(Worker):
         self.assertEqual(done["word_source"], "whisper")
         self.assertEqual([(w["text"], w["start"], w["end"]) for w in done["segments"][0]["words"]],
                          [("hello", 1.0, 2.0), ("world", 2.0, 3.0)])
+
+    def test_language_specific_profile_and_missing_required_timestamps(self):
+        rc, msgs, _ = self.go({'segments': [[0, 2, ' سلام دنیا']]}, model_id='fa-fast',
+                              decoding={'beam_size':1, 'temperature':99, 'task':'translate'})
+        self.assertEqual(rc, 0)
+        call = stt_fakes.records(self.root, 'transcribe')[-1]
+        profile = worker.catalogue().decoding('fa-fast')
+        self.assertEqual((call['language'], call['task'], call['beam_size']), ('fa', 'transcribe', profile['beam_size']))
+        self.assertEqual(call['options']['temperature'], 0)
+        self.assertEqual(call['options']['condition_on_previous_text'], profile['condition_on_previous_text'])
+        rc, msgs, _ = self.go({'segments': [[0, 2, ' سلام دنیا']], 'no_words':True}, model_id='fa-fast')
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(self.last(msgs, 'error')['code'], 'word-timestamps')
+        self.assertNotIn('done', self.kinds(msgs))
+
+    def test_numpy_word_probability_is_preserved_with_language_specific_model(self):
+        rc, msgs, _ = self.go({'segments': [[0, 2, ' سلام']], 'numpy_word_scalars':'float32',
+                              'word_evidence': {'سلام': {'score':.375}}}, model_id='fa-fast')
+        self.assertEqual(rc, 0)
+        word = self.last(msgs, 'done')['segments'][0]['words'][0]
+        self.assertEqual((word['start'], word['end'], word['score']), (0, 2, .375))
 
     def test_the_wire_is_ascii_and_gives_the_unicode_back_exactly(self):
         # a Windows console is not UTF-8: nothing but ASCII crosses the pipe

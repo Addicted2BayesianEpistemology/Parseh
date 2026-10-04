@@ -1,4 +1,7 @@
-# Experimental LM likelihood
+# LM likelihood
+
+This and the suspect-word, whole-text and reasoning-workspace correction
+methods are labeled **experimental** in the browser interface.
 
 This browser review method uses a causal model as a numerical engine. It does
 not use system/user messages, a chat template, completion APIs, prompts,
@@ -7,7 +10,7 @@ Parseh and its worker are an application protocol only.
 
 ## Configure and run
 
-Open **Settings → LM likelihood · experimental**. Its saved configuration is
+Open **Settings → LM likelihood**. Its saved configuration is
 `config/lm-likelihood.json`, format version 1, independent of `config/llm.json`.
 Missing or malformed settings load unconfigured. Source/path/executable/backend
 changes are host-only; any admitted browser can refresh the saved source’s
@@ -73,10 +76,13 @@ CUDA builds also expose a **CUDA host C++ compiler** path and build
 architectures (`native`, or a list such as `75;86`). Match the compiler to the
 toolkit: use a supported installed compiler or enter its absolute path. An
 isolated toolchain under `llm-scoring/toolchain/` is used when present and no
-override is set. Parseh does not install a compiler/SDK. Builds target the
-configured CPU and CUDA architecture; rebuild on a different host. The
-Settings button builds from source. Follow runtime device diagnostics and
-toolkit architecture support when choosing MMQ or build architectures.
+override is set. Parseh's
+Settings installer does not install a compiler/SDK itself. Builds target this
+computer's CPU and the configured CUDA architecture; rebuild on a different
+host. The Settings button builds from source. **Force CUDA quantized matrix
+kernels (MMQ)** is available for supported devices; follow the installed
+runtime's device diagnostics and the toolkit's architecture support. Do not
+set obsolete architectures for an incompatible toolkit.
 Quantized CPU/GPU arithmetic and cache precision can produce different raw
 scores and additional candidate sets. Repeats within one backend must agree;
 scores from different execution backends are not assumed bit-identical.
@@ -99,7 +105,7 @@ The Settings button uses a source build so the selected hardware flags take
 effect. No packages or weights are installed by opening settings or starting
 Whisper.
 
-After Whisper finishes, explicitly choose **LM likelihood · experimental**.
+After Whisper finishes, explicitly choose **LM likelihood**.
 The worker loads once for that review, evaluates suspects sequentially, and
 unloads when it finishes. **Cancel** kills the worker even during native loading
 or decoding; **Cancel scoring and unload worker** is also available in Settings.
@@ -122,6 +128,12 @@ context**. A boundary token that merges preceding whitespace with the
 replacement remains in the scored suffix. Diagnostics show this preceding
 boundary backoff. It is a common-prefix-conditioned token score; when a boundary
 retokenizes `L`, the residual `L` bytes necessarily participate in the suffix.
+
+Tokenizers such as PersianMind's SentencePiece can add
+an artificial initial space. The worker detects that convention with a fixed
+tokenizer round trip and removes only that space when comparing complete
+prefixes. Raw continuation decoding retains its leading spaces and partial
+Unicode bytes. Real source whitespace is preserved.
 
 For each supplied token `t_i`, the previous position's full-vocabulary raw
 logits determine its score:
@@ -183,7 +195,7 @@ Worker messages are limited to 4 MiB; retained candidate reviews to 4 MiB; detai
 job history to 100 entries / 512 KiB. Exceeding storage never silently implies
 complete coverage. Transcripts/logit matrices are not written to application
 logs; full vocabulary logits never leave the worker. The result and diagnostics
-are ephemeral job data, not preferences, release content or sync payloads.
+are private pending-review data, not preferences, release content or sync payloads.
 Very large reviews can exhaust retained-score storage; those source IDs are
 explicitly marked incomplete, including after retries. Their source alternatives
 remain available, but new ranked results cannot be retained until there is room.
@@ -194,6 +206,58 @@ continuation probabilities favor something else. One target at a time cannot
 resolve interacting errors jointly. Raw sums are sensitive to token count and
 context bounds. Whisper confidence and LM scores remain separate; neither the
 scores nor a normalized ranking are calibrated probabilities of correctness.
+
+## Search filters and saved drafts
+
+The optional minimum candidate search probability applies only to completed
+model-derived search paths. The settings page offers **No cutoff** (0),
+**0.1 — suggested by preliminary experiments**, and an editable **Custom cutoff**.
+The saved choice is used by the worker. The default is **0.1**, suggested as a
+conservative first-pass cutoff from preliminary experiments; it is not a
+universal accuracy threshold. It is the product of full-vocabulary next-token
+probabilities along that path, including any reproduced prefix-boundary bytes
+and the completion-boundary token. It is length-sensitive and is not a
+probability of transcription correctness. Search branches already below this
+cutoff are pruned because extending them cannot increase path probability.
+It does not change supplied-text
+scoring, renormalize logits, or filter any mandatory candidate.
+
+The similar-sound filter is on by default, with a 0.55 similarity bound.
+Installed dictionary readings are compared by normalized edit distance when
+both words have readings. Otherwise modest Latin/Persian/Arabic spelling
+folding and kana equivalence are used. Unknown Han pronunciation bypasses
+filtering instead of inventing a reading. This is a conservative approximation,
+not an acoustic model or a universal multilingual phonetic recognizer.
+The review checkbox changes only that run. Unfiltered single-word or selected
+second passes retain the same original context and exact application guards.
+Turning off the sound filter leaves the saved search-probability cutoff in
+place. Lower it with the Candidate cutoff chooser (zero disables it) for a wider search.
+
+Locked stable IDs are excluded on the server for all methods. Selected targets
+retain full original bounded context. A single-word likelihood call may also
+review a mapped confident word. Bulk acceptance uses the last run's targets,
+skips locks, incomplete mandatory coverage and top-score ties, and changes only
+the draft. Manual and accepted edits survive switching methods.
+
+Pending reviews are atomically saved under
+`youtube/videos/.pending-transcriptions/`, with a versioned format and a 16 MiB
+record bound, a 256 MiB total budget and a 100-record limit. Existing drafts
+are never deleted to make room; a full store is reported. Only allowlisted source/evidence/review fields, held timing,
+waveform peaks and browser draft data are retained, never temporary audio,
+credentials, executables or processes. The directory is protected from static
+HTTP serving and excluded from Git. At most 100 drafts are listed; each draft
+is retained until explicit Use or discard. Four pasted-answer drafts of at most
+131072 characters each are retained. There is no transcript text in ordinary
+logs or sync preferences. Files and folder request owner-only permissions
+(on Windows, access follows the containing user's filesystem permissions).
+
+A restart restores pending state without loading a model or resuming inference.
+Interrupted model work is marked incomplete. Source identity is checked on
+resume, before review and on Use; changing or deleting the original local film
+prevents applying that draft. Save & pause cancels the active worker, releases
+its model memory and keeps decisions. A failed disk save is shown explicitly.
+Use removes the temporary record while preserving the ordinary word timing and
+waveform handoff. Recording must finish before there is a resumable transcript.
 
 ## Validation
 
@@ -207,8 +271,9 @@ immutable spans and stale source/model rejection. The browser smoke script is
 `tests/lm_likelihood.mjs` (Node + Playwright core and Chrome).
 
 Runtime/scoring integration checks do not establish correction accuracy.
-Accuracy requires labeled real errors and correctly recognized words across
-relevant languages. Keep evaluation data outside source and releases.
+Accuracy requires labeled real errors **and correctly recognized words** across
+relevant languages. Keep recordings, reference labels and evaluation reports
+outside the source checkout and release artifacts.
 
 The optional reproducible live check is:
 
@@ -218,11 +283,13 @@ python3 tests/lm_likelihood_real.py --model /absolute/path/to/installed.gguf \
   --output /tmp/parseh-likelihood-smoke.json
 ```
 
-The live check compares CPU, partial/full GPU, independent repeats, changed
-candidate order, mandatory coverage, cancellation and unchanged model identity.
-It reports backend differences and an explicit numerical tolerance for its
-example, not an accuracy criterion. Near ties can change order across quantized
-backends. Hardware validation does not establish improved ASR accuracy.
+The live check compares CPU, partial GPU and full GPU evaluation, independent
+repeats, changed candidate order, mandatory coverage, cancellation and unchanged
+model identity. It reports backend score differences and its explicit numerical
+tolerance. That example's tolerance is not a general accuracy criterion or an
+adjustment to the score. Near-tied candidates can change order across quantized
+backends. Hardware validation establishes lifecycle and numerical scoring
+behavior, not improved ASR accuracy.
 
 Upstream references: [low-level llama.cpp binding](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/),
 [GGUF specification](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md),

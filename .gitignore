@@ -1,4 +1,9 @@
 # runtime
+/:memory:.ses
+/docs/lm-likelihood-evaluation.md
+config/speech.json
+config/speech-*.tmp
+.speech-release-build/
 # what this person has settled -- the reading place per book, the narration
 # settings and the theme (lib/prefs.py, TO-DO §4.9): this machine's, not the
 # software's, and not any book's either (it is not in bundle.SHAPE)
@@ -255,4 +260,5 @@ config/llm.json
 config/llm.json.tmp
 config/lm-likelihood.json
 config/lm-likelihood.json.tmp
+youtube/videos/.pending-transcriptions/
 llm-scoring/

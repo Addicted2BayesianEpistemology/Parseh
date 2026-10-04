@@ -88,6 +88,8 @@ LICENCE_URLS = {
     "LPPL-1.3": "https://www.latex-project.org/lppl/",
     "MIT": "https://opensource.org/license/mit",
     "CC BY-SA 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/",
+    "CC-BY-NC-SA-4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
     "CC BY-SA 3.0": "https://creativecommons.org/licenses/by-sa/3.0/",
     "CC BY 2.0 FR": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
     "MPL 2.0": "https://www.mozilla.org/MPL/2.0/",
@@ -189,7 +191,15 @@ def speech_credits():
                + esc(getstt.RUNTIME_REST))
     out = {"speech:runtime": (esc(getstt.SOURCE), licence)}
     for model in getstt.MODELS:
-        out["speech:" + model] = (esc(getstt.MODEL_SOURCE), licence_link(getstt.MODEL_LICENCE))
+        info = getstt.MODEL_INFO[model]
+        out["speech:" + model] = (esc(info.get('source', getstt.MODEL_SOURCE)),
+                                  licence_link(info.get('licence', getstt.MODEL_LICENCE)))
+    import getphonetic
+    phonetic = getphonetic.status()
+    out['speech:phonetic-runtime'] = (esc('PyTorch CPU runtime and dependencies'),
+                                    licence_link('BSD-3-Clause') + '; dependency licences travel with the program')
+    out['speech:phonetic-model'] = (esc(phonetic['source']),
+                                   licence_link(phonetic['licence']))
     for code, pin in getstt.ALIGN_PINS.items():
         out["speech:align-" + code] = (
             esc("Parseh %s CTC alignment network" % code), licence_link(pin["licence"]))

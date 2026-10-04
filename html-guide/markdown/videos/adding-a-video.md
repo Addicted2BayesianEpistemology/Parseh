@@ -138,19 +138,24 @@ has.
 
 **Where you install it.** In Settings, the door
 [Speech to text](../lookup-and-languages/speech-to-text.md) — a program and
-two models, fetched only when you press a button there. Until then the block
+a catalogue of standard and language-specific models, fetched only when you press a button there. Until then the block
 is one sentence and a link, **Set up speech to text**, which opens that page
 in a tab of its own; opening the add page never downloads anything. Once it
 is installed, this page notices the next time you come back to it, with no
 reload. Any device that has been let in may use it, a phone or another
 computer, and the transcript is still made on the computer Parseh runs on.
+Six language-specific choices use verified prepared ZIPs via **Import & install…**:
+the two Persian models, Arabic dialectal, Italian, Hindi fast and Spanish.
+The packages already contain converted weights and any merged adapters;
+no conversion software is needed on your computer.
 
 **What you choose.**
 
-- **Model.** Only what is installed is offered, never more than two:
-  *faster-whisper / large-v3-turbo* (*Recommended · faster and lighter*, and
-  the one chosen first) and *faster-whisper / large-v3* (*Higher accuracy ·
-  larger and slower*). A short line says what the trade is.
+- **Model.** Installed standard models and installed models for the selected
+  language are offered. Standard *large-v3-turbo* and *large-v3* stay available;
+  Persian and Hindi can also have separate fast and accuracy-oriented choices.
+  A short line explains the intended trade-off, which is not an accuracy guarantee.
+  **Manage models** opens installation and the per-language preferred-model settings.
 - **Processing.** *Automatic — recommended*, *CPU*, or *NVIDIA GPU*, a choice
   of its own, not another model. It says what it means in words: *Processing:
   Automatic · currently CPU*. **The CPU works on an ordinary computer, needs
@@ -175,7 +180,8 @@ computer, and the transcript is still made on the computer Parseh runs on.
   own word times instead. The choice is remembered in this browser; an absent
   network says **not installed — Settings** and Whisper still works normally.
 
-What you chose is remembered in this browser, for the next video.
+The model selection is remembered on this host for each language. Processing
+and exact-word-time preferences are remembered in this browser.
 
 **A film on this machine.** Press **Transcribe**. The computer reads the file
 itself, so **nothing is played and any browser will do** — a phone's too. The
@@ -206,9 +212,9 @@ will not play here, the page says so at once, before anything is recorded, and
 you can press again. If YouTube plays an ad, or the video stops moving, the
 recording is stopped and nothing is written. **Cancel** stops the video and
 the recording, throws away what was sent and leaves the transcript box
-exactly as it was. The recording is kept only while it is made: **it is
-deleted as soon as the transcript is**, and the same when you cancel or leave
-the page.
+exactly as it was. The recording is kept privately with the pending review
+so Whisper can recheck words later, including after **Save & pause**. It is
+deleted when you use or discard the review. Local films are read in place.
 
 **What arrives.** The words wait for review; **Transcript** stays unchanged.
 In the Browser interface, **Transcribe** opens a dedicated window within the
@@ -228,11 +234,12 @@ pauses playback and keeps the pending draft; **Resume transcript review**
 opens it again. A live YouTube recording must finish or be cancelled before
 returning to the page. **Discard review** leaves the transcript box untouched.
 
-Choose **Review suspect words with the LLM** or **Review the whole text with the
-LLM**, or add a two-pass **Review with reasoning & workspace tools**, sending
-text and Whisper
-evidence to the destination shown, or **Review Whisper result without the
-LLM**, which sends nothing to a model endpoint. Both open review. A low
+The transcript workspace opens immediately: edit by hand, listen, lock checked
+words, or use the transcript without running another tool. The **Review tools**
+buttons stay available together. Try **Whisper second pass**, **Suspect words**,
+**Whole-text review**, **Reasoning workspace**, or **LM likelihood** in any
+order on the same draft. Connected LLM tools send text and Whisper evidence
+to the destination shown only when you press their buttons. A low
 Whisper score below 0.5 is marked **⚠**, a word with no meaning in an installed
 dictionary is marked **◇**, and an LLM edit proposal **✎**. The threshold stays
 0.5. Dictionary lookup uses the same normalization and base-form rules as
@@ -241,6 +248,22 @@ the original word's dictionary meanings and the meanings of each native Whisper
 alternative and proposed LLM replacement. Native Whisper beam alternatives, when an exact word mapping
 is possible, have whole-hypothesis log scores rather than word probabilities.
 Hover, focus or click/tap any word to inspect or edit it with the keyboard.
+**Automatically run a second Whisper pass**, in **Settings → Speech to text**,
+controls whether suspect words are rechecked immediately after the first pass
+and dictionary checks. It starts checked; turn it off to begin reviewing sooner.
+Use **Whisper second pass** later for remaining unlocked suspect words in all
+text or the selected section, or **Whisper second pass for this word** in the
+word inspector. It adds alternatives from an independent audio crop; original
+words and their timestamps stay intact. Its progress counts processed words.
+Choose **Use this Whisper alternative** to put a candidate into the draft.
+If the independent **PhoneticXeus** program and model are installed and enabled
+in Speech to text settings, a further **Heard IPA** stage listens to suspect
+words. The word inspector displays an audio-derived IPA estimate, which can
+include nearby sounds from approximately half a second of context on each side.
+**Heard IPA around this word** is not aligned to the exact word.
+It is a listening aid, not a spelling decision or a
+dictionary pronunciation; the original timestamps remain intact. Available IPA
+also accompanies the reasoning workspace's CSV evidence.
 Accept or reject proposals in the pending draft. LLM progress counts suspect
 words; failed sentences leave their words intact while the run continues.
 **Retry all remaining suspect words** retries unresolved words while retaining
@@ -250,7 +273,7 @@ Unsloth skill invocation. Only **Use this transcript**
 places it in the box, timed to the video's own clock (a stop to buffer does
 not shift what follows). See [LLM Integration](../lookup-and-languages/llm-integration.md).
 All three LLM methods also offer **Use an external chatbot · copy & paste**.
-The additional [LM likelihood · experimental](../lookup-and-languages/lm-likelihood.md)
+The additional [LM likelihood](../lookup-and-languages/lm-likelihood.md)
 method searches raw token probabilities for candidate words and ranks the
 original, all Whisper alternatives and those candidates using fixed surrounding
 text. It has separate installed-model settings and sends no chatbot prompt.

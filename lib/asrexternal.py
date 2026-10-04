@@ -80,7 +80,7 @@ def workspace_files(request, units):
     files = {"input/transcript.txt": transcript, "input/active.txt": text,
              "input/allowed.txt": " ".join(row["word_id"] for row in words if row["word_id"] in allowed),
              "input/suspects.csv": asrworkspace._csv([r for r in suspects if r["word_id"] in allowed],
-                 ["slot", "word_id", "guess", "whisper_score", "low_asr_score", "dictionary_miss", "alternatives_available", "context", "whisper_hints"]),
+                 asrworkspace.SUSPECT_FIELDS),
              "input/words.csv": asrworkspace._csv(current_words,
                  ["word_id", "segment_id", "original", "slot", "char_start", "char_end"]),
              "input/captions.csv": asrworkspace._csv(current_captions, ["segment_id", "text"]),

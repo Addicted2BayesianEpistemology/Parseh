@@ -139,7 +139,7 @@ def requests(evidence, panel, config, word_ids=None):
     import asrcorrection
     sources = asrcorrection.index(evidence)
     wanted = set(word_ids) if word_ids is not None else {w['word_id'] for w in sources.values() if w['reviewable'] and asrcorrection.suspect(w)}
-    if any(ident not in sources or not sources[ident]['reviewable'] or not asrcorrection.suspect(sources[ident]) for ident in wanted):
+    if any(ident not in sources or not sources[ident]['reviewable'] for ident in wanted):
         raise ScoringError('invalid-target', 'Choose mapped suspect words from the immutable Whisper result.')
     text, mapping, cursor = '', {}, 0
     for seg in evidence['segments']:
@@ -164,7 +164,7 @@ def requests(evidence, panel, config, word_ids=None):
         if ident not in wanted:
             continue
         a, b = mapping[ident]
-        out.append({'word': sources[ident], 'left': text[max(0, a - config['preceding_chars']):a],
+        out.append({'word': dict(sources[ident], language=evidence['language']), 'left': text[max(0, a - config['preceding_chars']):a],
                     'right': text[b:b + config['following_chars']], 'source_sha256': evidence['source_sha256']})
     return out
 
@@ -233,7 +233,7 @@ def proposal(request, data, model):
     return dict(asr_word=w['text'], word_id=w['word_id'], segment_id=w['segment_id'], original=w['text'],
                 span_start=w['span_start'], span_end=w['span_end'], start=w.get('start'), end=w.get('end'),
                 asr_confidence=w.get('asr_confidence'), asr_alternatives=w.get('asr_alternatives', []),
-                error_likelihood=None, candidates=actual, reason='Experimental raw language-model likelihood; this is not acoustic evidence or calibrated correctness.',
+                error_likelihood=None, candidates=actual, reason='Language-model likelihood; this is not acoustic evidence or calibrated correctness.',
                 likelihood={k: v for k, v in data.items() if k != 'candidates'})
 
 

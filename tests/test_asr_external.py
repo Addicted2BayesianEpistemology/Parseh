@@ -9,6 +9,7 @@ import io
 import json
 from pathlib import Path
 import sys
+import tempfile
 import time
 import unittest
 from unittest import mock
@@ -135,6 +136,10 @@ class ExternalAnswers(unittest.TestCase):
 
 class ExternalJobs(unittest.TestCase):
     def setUp(self):
+        private = tempfile.TemporaryDirectory()
+        self.addCleanup(private.cleanup)
+        videos = mock.patch('ytpages.VIDEOS', private.name)
+        videos.start(); self.addCleanup(videos.stop)
         self.panel, self.request = source(*("Loro anno detto ciao." for _ in range(13)))
         self.token = "ABCDEFGHIJKLMNOP"
         self.job = {"id": self.token, "kind": "film", "source": {"kind": "film", "path": "/private/film.mp4"},

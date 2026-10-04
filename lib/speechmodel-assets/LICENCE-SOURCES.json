@@ -1,0 +1,21 @@
+{
+  "repository": "https://github.com/spdx/license-list-data",
+  "revision": "31ba1a50e5397e00a304dbadc76531740e89ee48",
+  "files": {
+    "LICENSE-Apache-2.0.txt": {
+      "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+      "size": 10280
+    },
+    "LICENSE-MIT.txt": {
+      "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+      "size": 1063,
+      "repository": "https://github.com/openai/whisper",
+      "revision": "31243bad24cc746f07d4c8bfdd2d974872cb1803",
+      "file": "LICENSE"
+    },
+    "LICENSE-CC-BY-4.0.txt": {
+      "sha256": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+      "size": 17023
+    }
+  }
+}

@@ -71,6 +71,12 @@ def _csv(rows, fields):
     return out.getvalue()
 
 
+SUSPECT_FIELDS = ['slot', 'word_id', 'guess', 'whisper_score', 'low_asr_score',
+                  'dictionary_miss', 'alternatives_available', 'context', 'whisper_hints',
+                  'heard_ipa', 'ipa_state', 'ipa_attribution', 'ipa_target_start',
+                  'ipa_target_end', 'ipa_audio_start', 'ipa_audio_end']
+
+
 def _files(request):
     transcript, rows, originals, captions, slots = [], [], [], [], {}
     for segment_at, segment in enumerate(request["segments"]):
@@ -84,6 +90,7 @@ def _files(request):
                 continue
             slot = ""
             if correction.suspect(word):
+                phonetic = word.get('phonetic') or {}
                 slot = str(len(slots) + 1); slots[word["word_id"]] = slot
                 patches.append((at, local, "[" + slot + "]"))
                 rows.append({"slot": slot, "word_id": word["word_id"], "guess": word["text"],
@@ -91,7 +98,14 @@ def _files(request):
                              "low_asr_score": word["low_asr_score"], "dictionary_miss": word.get("dictionary_miss", False),
                              "alternatives_available": word["alternatives_available"],
                              "context": " ".join([request["segments"][segment_at - 1]["text"][-100:] if segment_at else "", text[max(0, at - 150):min(len(text), local + 150)], request["segments"][segment_at + 1]["text"][:100] if segment_at + 1 < len(request["segments"]) else ""]).strip(),
-                             "whisper_hints": correction.hint(word, 10)})
+                             "whisper_hints": correction.hint(word, 10),
+                             'heard_ipa': phonetic.get('ipa', '') if phonetic.get('state') == 'complete' else '',
+                             'ipa_state': phonetic.get('state', 'unavailable'),
+                             'ipa_attribution': phonetic.get('attribution', '') if phonetic.get('state') == 'complete' else '',
+                             'ipa_target_start': phonetic.get('target_start', '') if phonetic.get('state') == 'complete' else '',
+                             'ipa_target_end': phonetic.get('target_end', '') if phonetic.get('state') == 'complete' else '',
+                             'ipa_audio_start': phonetic.get('audio_start', '') if phonetic.get('state') == 'complete' else '',
+                             'ipa_audio_end': phonetic.get('audio_end', '') if phonetic.get('state') == 'complete' else ''})
             originals.append({"word_id": word["word_id"], "segment_id": word["segment_id"],
                               "original": word["text"], "slot": slot, "char_start": at, "char_end": local})
         for a, b, replacement in reversed(patches):
@@ -334,7 +348,7 @@ def correct(request, adapter, cancel, progress, context_tokens=8192, diagnostic=
                 active = "Target region:\n" + "\n".join(lines[left:right + 1]) + "\nBefore (context only): " + before + "\nAfter (context only): " + after
                 (root / "input/active.txt").write_text(active, encoding="utf-8")
                 rows = [r for r in suspects if r["word_id"] in ids]
-                (root / "input/suspects.csv").write_text(_csv(rows, ["slot", "word_id", "guess", "whisper_score", "low_asr_score", "dictionary_miss", "alternatives_available", "context", "whisper_hints"]), encoding="utf-8")
+                (root / "input/suspects.csv").write_text(_csv(rows, SUSPECT_FIELDS), encoding="utf-8")
                 (root / "input/words.csv").write_text(_csv([r for r in originals if r["word_id"] in region], ["word_id", "segment_id", "original", "slot", "char_start", "char_end"]), encoding="utf-8")
                 (root / "input/captions.csv").write_text(_csv([r for r in captions if r["segment_id"] in segment_ids], ["segment_id", "text"]), encoding="utf-8")
                 allowed = ids - set(slots) if phase == "skim" else ids & set(slots)

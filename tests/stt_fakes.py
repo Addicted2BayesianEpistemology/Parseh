@@ -23,6 +23,7 @@ THE FAKE faster-whisper is tests/fixtures/stt_runtime/faster_whisper, which
 import contextlib
 import json
 import os
+from pathlib import Path
 import signal
 import sys
 import types
@@ -31,7 +32,10 @@ import wave
 HERE = os.path.dirname(os.path.realpath(__file__))
 FIXTURE_RUNTIME = os.path.join(HERE, "fixtures", "stt_runtime")
 
-MODELS = ("large-v3-turbo", "large-v3")
+sys.path.insert(0, str(Path(HERE).parent / 'lib'))
+import speechmodels
+MODELS = speechmodels.MODELS
+DEFAULT_INSTALLED = speechmodels.STANDARD_MODELS
 MODES = ("auto", "cpu", "cuda")
 # Whisper's own list is 100 codes; the ones the tests need, and one it lacks
 WHISPER = frozenset("fa ar it ja fr de tr en hi es zh af ko yue".split())
@@ -56,7 +60,7 @@ def _read(root, name, default):
 def configure(root, runtime=None, models=None, cuda_ready=None, cuda_name=None, fake=None):
     """Change what the fake reports; anything left out is kept."""
     os.makedirs(root, exist_ok=True)
-    state = _read(root, "state.json", {"runtime": True, "models": list(MODELS),
+    state = _read(root, "state.json", {"runtime": True, "models": list(DEFAULT_INSTALLED),
                                        "cuda": {"ready": False, "name": "Fake GPU 8 GB"}})
     if runtime is not None:
         state["runtime"] = bool(runtime)
@@ -123,7 +127,7 @@ def make(root):
     mod.asked = {"model_dir": [], "resolve": [], "whisper_code": []}
 
     def state():
-        return _read(root, "state.json", {"runtime": True, "models": list(MODELS),
+        return _read(root, "state.json", {"runtime": True, "models": list(DEFAULT_INSTALLED),
                                           "cuda": {"ready": False}})
 
     def runtime_dir():
@@ -248,9 +252,13 @@ def installed(root):
     fake = make(root)
     before = sys.modules.get("getstt")
     sys.modules["getstt"] = fake
+    import speechconfig
+    config_before = speechconfig.CONFIG
+    speechconfig.CONFIG = Path(root) / 'speech.json'
     try:
         yield fake
     finally:
+        speechconfig.CONFIG = config_before
         if before is None:
             sys.modules.pop("getstt", None)
         else:

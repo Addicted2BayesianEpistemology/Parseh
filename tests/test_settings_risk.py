@@ -143,7 +143,7 @@ class Table(unittest.TestCase):
         self.assertIn('/settings/llm/', doors)
         self.assertIn('/settings/lm-likelihood/', doors)
         href, name, what, keys = doors["/settings/speech/"]
-        self.assertEqual((name, keys), ("Speech to text", ("speech.get", "speech.remove", "speech.stop")))
+        self.assertEqual((name, keys), ("Speech to text", ("speech.get", "speech.remove", "speech.stop", "speech.preferences")))
         self.assertTrue(settingspage.open_to_all(keys))
         self.assertIn("any device let in", settingspage.gate(keys))
         # ...and it is NOT on the reading help's door (the owner: not a section of that page)
@@ -156,7 +156,7 @@ class Table(unittest.TestCase):
                          "every setting is on some door")
         self.assertEqual(sorted(set(settingspage.ELSEWHERE) & set(listed)), [])
         row = settingspage.settings_doors("/settings/speech/")
-        self.assertEqual(row.count('<a class="sdoor'), len(settingspage.DOORS) - 1)
+        self.assertEqual(row.count('<a class="sdoor'), len(settingspage.DOORS) - 2)
         self.assertIn('class="sdoor on" href="/settings/speech/" aria-current="page"', row)
 
     def test_the_route_finder_sees_every_speech_route(self):
@@ -841,7 +841,7 @@ class Served(unittest.TestCase):
             self.assertIn('href="/settings/reading-help/"', text, "Settings' doors, in a row")
             self.assertIn('aria-current="page"', text)
         state = json.loads(phone.split('<script id="sp-state" type="application/json">', 1)[1].split("</script>", 1)[0])
-        self.assertEqual(state["may"], {"speech.get": True, "speech.remove": True, "speech.stop": True})
+        self.assertEqual(state["may"], {"speech.get": True, "speech.remove": True, "speech.stop": True, "speech.preferences": True})
         self.assertEqual(state["where"], network.LAN)
         card = hub.split('href="/settings/speech/"', 1)[1].split("</a>", 1)[0]
         self.assertIn("Speech to text", card)
@@ -860,7 +860,9 @@ class Served(unittest.TestCase):
         status, _, got = self.ask("POST", "/lookup/api/status", {})
         self.assertEqual(status, 200)
         self.assertEqual(got["speech"]["runtime"]["state"], "absent")
-        self.assertEqual(sorted(got["speech"]["models"]), ["large-v3", "large-v3-turbo"])
+        import getstt
+        self.assertEqual(sorted(got["speech"]["models"]), sorted(getstt.MODELS))
+        self.assertTrue({'large-v3', 'large-v3-turbo'}.issubset(got['speech']['models']))
         self.assertEqual(got["jobs"]["speech"], {})
         for part in ("runtime", "large-v3-turbo", "large-v3"):
             self.assertIn("speech:" + part, got["sizes"])
@@ -878,7 +880,9 @@ class Served(unittest.TestCase):
                           "busy", "settings"} - set(got), set())
         self.assertFalse(got["installed"])
         self.assertEqual(got["settings"], "/settings/speech/")
-        self.assertEqual([m["id"] for m in got["models"]], ["large-v3-turbo", "large-v3"])
+        import getstt
+        self.assertEqual([m["id"] for m in got["models"]], list(getstt.MODELS))
+        self.assertEqual([m['id'] for m in got['models'][:2]], ['large-v3-turbo', 'large-v3'])
         self.assertEqual([m["id"] for m in got["processing"]], ["auto", "cpu", "cuda"])
         status, _, full = self.ask("POST", "/lookup/api/speech", {"full": True})
         self.assertEqual({"ok", "speech", "jobs", "sizes", "credits", "languages", "kept", "free", "may"}

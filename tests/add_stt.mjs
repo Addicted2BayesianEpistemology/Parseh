@@ -114,6 +114,8 @@ tmp, port = Path(sys.argv[1]), sys.argv[2]
 import addstt_fakes
 sys.modules['getstt'] = addstt_fakes.make(str(tmp.parent / 'fake'))
 import prefs, network, offline, llmconfig
+import speechconfig
+speechconfig.CONFIG = tmp / 'config/speech.json'
 llmconfig.ROOT = str(tmp)
 prefs.STORE = str(tmp / 'config' / 'prefs.json')
 network.STORE = str(tmp / 'config' / 'network.json')
@@ -224,10 +226,8 @@ const phase = page => page.evaluate(() => document.getElementById('stt').getAttr
 const inPhase = (page, ph, what, ms = 20000) => until(async () => (await phase(page)) === ph, what || `the block is ${ph}`, ms);
 async function reviewAndUse(page) {
   const before = await value(page, '#transcript');
-  await inPhase(page, 'choice', 'explicit post-ASR review choice', 60000);
+  await inPhase(page, 'review', 'post-ASR transcript workspace', 60000);
   eq(await value(page, '#transcript'), before, 'ASR completion does not insert text');
-  await page.click('#stt_review_whisper');
-  await inPhase(page, 'review', 'Whisper-only review opens');
   eq(await value(page, '#transcript'), before, 'opening review does not insert text');
   await page.click('#stt_use');
   await inPhase(page, 'idle', 'explicit Use finishes the review');
@@ -430,7 +430,7 @@ await section('c', 'a film: Transcribe, the text in the box, the video not added
   const before = await names(VIDEOS + '/persian');
   await page.click('#stt_go');
   // its own words as it goes, and a bar that moves
-  const lines = await saysOver(page, async () => (await phase(page)) === 'choice');
+  const lines = await saysOver(page, async () => (await phase(page)) === 'review');
   await reviewAndUse(page);
   assert(lines.some(l => /^Transcribing on CPU… \d+%$/.test(l)), 'it says how far it is: ' + JSON.stringify(lines));
   assert(lines.some(l => /^Loading large-v3-turbo…$/.test(l)), 'and that it loads the model first');
@@ -699,7 +699,7 @@ await section('d', 'failures are sentences, and nothing is left stuck', async ()
   // Automatic: the same card, and the same failure, is no failure
   await page.selectOption('#stt_proc', 'auto');
   await page.click('#stt_go');
-  const lines = await saysOver(page, async () => (await phase(page)) === 'choice');
+  const lines = await saysOver(page, async () => (await phase(page)) === 'review');
   await reviewAndUse(page);
   assert(lines.some(l => l.startsWith('The graphics card could not start this model, so Parseh continued on the CPU.')),
          'Automatic says that it fell back to the CPU: ' + JSON.stringify(lines));
