@@ -99,6 +99,12 @@ class PersianCopulaLookUpTests(unittest.TestCase):
         _dict(self.dict_path, "fa", [
             ("کوچیک", "", "adj", ["small"], []),
             ("کتاب", "", "noun", ["book"], []),
+            ("خسته", "", "adj", ["tired"], []),
+            ("دانشجو", "", "noun", ["student"], []),
+            ("اینجا", "", "adv", ["here"], []),
+            ("پریدن", "", "verb", ["jump"], [(form, "present") for form in
+                ("میپرد", "میپرند", "میپرید", "نمیپرد", "نمیپرند", "نمیپرید")]),
+            ("آمدن", "", "verb", ["come"], [("میآد", "colloquial present")]),
             ("دید", "", "verb", ["saw"], []),
             ("در", "", "prep", ["in"], []),
             ("نام", "", "name", ["a name"], []),
@@ -151,6 +157,56 @@ class PersianCopulaLookUpTests(unittest.TestCase):
         self.assertFalse(any(", then the colloquial copula -e" in r.how for r in routes))
         self.assertEqual(self.row("نکوچیکه")["hits"], [])
         self.assertEqual(self.row("زکوچیکه")["hits"], [])
+
+    def test_nominal_copula_paradigms_and_vowel_hosts(self):
+        for base, endings in (("کوچیک", ("م", "ی", "ه", "یم", "ید", "ند", "ین", "ن")),
+                              ("خسته", ("ام", "ای", "ایم", "اید", "اند", "ست")),
+                              ("دانشجو", ("ییم", "یید", "ست")),
+                              ("اینجا", ("ست",))):
+            for ending in endings:
+                with self.subTest(base=base, ending=ending):
+                    row = self.row(base + ending)
+                    self.assertEqual([h["headword"] for h in row["hits"]], [base])
+        self.assertEqual(self.row("کوچیکست")["hits"], [],
+                         "contracted -st needs a vowel-ending host")
+
+    def test_ordered_nominal_combinations(self):
+        for base, forms in (("کتاب", ("کتابمونه", "کتابمونن", "کتابامون", "کتابامونه",
+                                     "کتابهامونه", "کتابهایمونه")),
+                            ("کوچیک", ("کوچیکتره", "کوچیکترینشونه"))):
+            for word in forms:
+                with self.subTest(word=word):
+                    self.assertEqual([h["headword"] for h in self.row(word)["hits"]], [base])
+        self.assertEqual(lookup.MAX_PEEL, 2)
+
+    def test_nominal_guards_and_order_are_not_bypassed(self):
+        for word in ("دیده", "دیدین", "دیدن", "نامه", "درن", "نکوچیکین", "نکوچیکن",
+                     "کوچیکهتر", "کوچیکهه", "کتابمونهاه", "کتابا", "زززززین"):
+            with self.subTest(word=word):
+                self.assertEqual(self.row(word)["hits"], [])
+        for word in ("دیده", "درن", "کتابا"):
+            self.assertFalse(lookup._is_word(lookup._conn("fa"), word, languages.get("fa")))
+
+    def test_spoken_verbs_require_an_attested_full_verb_form(self):
+        for word in ("میپره", "میپرن", "میپرین", "نمیپره", "نمیپرن", "نمیپرین"):
+            with self.subTest(word=word):
+                self.assertEqual([h["headword"] for h in self.row(word)["hits"]], ["پریدن"])
+        for word in ("میاد", "نمیاد"):
+            self.assertEqual([h["headword"] for h in self.row(word)["hits"]], ["آمدن"])
+        for word in ("پره", "میززززه", "میززززین", "نمیززززن"):
+            self.assertEqual(self.row(word)["hits"], [])
+
+    def test_all_direct_forms_still_have_precedence(self):
+        with sqlite3.connect(self.dict_path) as c:
+            for word in ("کوچیکین", "کوچیکن", "کتابمونه", "کوچیکتره", "میاد"):
+                cur = c.execute("INSERT INTO entry (headword, pos, sense) VALUES (?,?,?)",
+                                (word, "name", "the exact fixture form"))
+                c.execute("INSERT INTO form (form, entry_id) VALUES (?,?)", (word, cur.lastrowid))
+        _forget()
+        for word in ("کوچیکین", "کوچیکن", "کتابمونه", "کوچیکتره", "میاد"):
+            with self.subTest(word=word):
+                self.assertEqual([h["headword"] for h in self.row(word)["hits"]], [word])
+                self.assertEqual(self.row(word)["kind"], "surface")
 
 
 class LookUpTests(unittest.TestCase):

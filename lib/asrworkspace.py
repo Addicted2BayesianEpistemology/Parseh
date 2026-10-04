@@ -6,6 +6,7 @@ Nothing is installed. Only one bounded CSV file is writable. Files are destroyed
 on completion/cancellation; provider transport never receives real host paths.
 """
 import csv
+import importlib.util
 import io
 import json
 import os
@@ -23,8 +24,22 @@ from llmconfig import LLMError
 
 SKILL_NAME = "parseh-asr-workspace"
 FIELDS = ["word_ids", "original", "replacement", "reason"]
+WORD_FIELDS = ["word_id", "segment_id", "original", "slot", "char_start", "char_end", "source_index"]
 _STATUS = None
 _STATUS_LOCK = threading.Lock()
+_CHECKER = None
+
+
+def checker():
+    """Use the shipped checker against server-owned evidence, never uploaded code."""
+    global _CHECKER
+    if _CHECKER is None:
+        path = Path(__file__).parent / "asrskill" / SKILL_NAME / "scripts/review.py"
+        spec = importlib.util.spec_from_file_location("parseh_workspace_checker", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _CHECKER = module
+    return _CHECKER
 
 
 def instructions():
@@ -80,7 +95,7 @@ def _files(request):
     for segment_at, segment in enumerate(request["segments"]):
         text, local, patches = segment["text"], 0, []
         captions.append({"segment_id": segment["segment_id"], "text": text})
-        for word in segment["words"]:
+        for source_index, word in enumerate(segment["words"]):
             at = text.find(word["text"], local) if word["text"] else -1
             if at >= 0:
                 local = at + len(word["text"])
@@ -97,7 +112,8 @@ def _files(request):
                              "context": " ".join([request["segments"][segment_at - 1]["text"][-100:] if segment_at else "", text[max(0, at - 150):min(len(text), local + 150)], request["segments"][segment_at + 1]["text"][:100] if segment_at + 1 < len(request["segments"]) else ""]).strip(),
                              "whisper_hints": correction.hint(word, 10)})
             originals.append({"word_id": word["word_id"], "segment_id": word["segment_id"],
-                              "original": word["text"], "slot": slot, "char_start": at, "char_end": local})
+                              "original": word["text"], "slot": slot, "char_start": at, "char_end": local,
+                              "source_index": source_index})
         for a, b, replacement in reversed(patches):
             text = text[:a] + replacement + text[b:]
         transcript.append(segment["segment_id"] + ": " + text)
@@ -105,7 +121,7 @@ def _files(request):
 
 
 TOOLS = [{"type": "function", "function": {"name": "read_file", "description": "Read a bounded portion of a workspace input file.",
-         "parameters": {"type": "object", "properties": {"path": {"type": "string", "enum": ["input/transcript.txt", "input/active.txt", "input/allowed.txt", "input/targets.txt", "input/suspects.csv", "input/words.csv", "input/captions.csv", "input/skim.csv"]},
+         "parameters": {"type": "object", "properties": {"path": {"type": "string", "enum": ["input/transcript.txt", "input/active.txt", "input/allowed.txt", "input/targets.txt", "input/required.txt", "input/suspects.csv", "input/words.csv", "input/captions.csv", "input/skim.csv"]},
                           "offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 4000}}, "required": ["path"], "additionalProperties": False}}},
          {"type": "function", "function": {"name": "python", "description": "Run short Python code in /work. Read input files; write only out/result.csv. No network or host access.",
           "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"], "additionalProperties": False}}},
@@ -164,17 +180,27 @@ class Workspace:
         raise LLMError("invalid-tools", "Invalid workspace tool arguments.")
 
 
-def _proposals(root, request, allowed, targets=None):
+def _proposals(root, request, allowed, targets=None, required=(), complete=False):
     path = root / "out/result.csv"
     if path.stat().st_size > 65536:
         raise LLMError("too-large", "The workspace CSV exceeds its size limit.")
     sources = correction.index(request)
     proposals, seen = [], set()
     try:
-        reader = csv.DictReader(io.StringIO(path.read_text(encoding="utf-8"), newline=""))
-        if reader.fieldnames != FIELDS:
-            raise ValueError()
-        for n, row in enumerate(reader):
+        # The downloadable checker is also Parseh's first validation layer.
+        # Its input here is rebuilt from the immutable ASR request; uploaded or
+        # model-edited evidence files are never trusted by the server.
+        _, _, words, captions, _ = _files(request)
+        try:
+            rows, _ = checker().validate_rows(checker().parse_csv(path.read_text(encoding="utf-8")),
+                     {word["word_id"]: word for word in words},
+                     {caption["segment_id"]: caption["text"] for caption in captions},
+                     allowed, targets, required=required, complete=complete)
+        except ValueError as error:
+            # The trusted helper uses bounded structural errors, never source
+            # or replacement text. Give the model enough detail to repair a row.
+            raise LLMError("invalid-workspace-csv", "The workspace CSV needs correction: " + str(error)[:600]) from None
+        for n, row in enumerate(rows):
             if n > len(allowed) or set(row) != set(FIELDS) or any(not isinstance(v, str) for v in row.values()):
                 raise ValueError()
             ids = row["word_ids"].split()
@@ -212,7 +238,11 @@ def _proposals(root, request, allowed, targets=None):
                      candidates=[{"text": replacement, "confidence": None, "reason": row["reason"]}],
                      error_likelihood=None, reason=row["reason"], method="workspace-code")
             proposals.append(p)
-    except (OSError, UnicodeError, ValueError, csv.Error, LLMError, StopIteration):
+    except LLMError as error:
+        if error.code == "invalid-workspace-csv":
+            raise
+        raise LLMError("invalid-workspace-csv", "The workspace CSV has invalid IDs, duplicate entries or mismatched source spans. Its proposals were not applied.") from None
+    except (OSError, UnicodeError, ValueError, csv.Error, StopIteration):
         raise LLMError("invalid-workspace-csv", "The workspace CSV has invalid IDs, duplicate entries or mismatched source spans. Its proposals were not applied.")
     return proposals, seen
 
@@ -221,7 +251,8 @@ def _phase(workspace, request, adapter, phase, allowed, context_tokens, diagnost
     targets = getattr(workspace, 'targets', allowed)
     initial = [{"role": "system", "content": instructions()}, {"role": "user", "content":
                "Language: %s. Phase: %s. Start with python: import review; review.show(). %s "
-               "Next call python: import review; review.save(rows), then finish_review. "
+               "Next call python: import review; review.save(rows); review.check(). "
+               "Correct any structural errors or missing required entries; run review.check(require_complete=True) before finish_review. "
                "Phase target IDs: %s. Editable IDs: %s. Each edit must include a phase target; "
                "join adjacent editable words when Whisper split one word." % (request["language"], phase,
                "Resolve every numbered entry; keep its original when unsure." if phase == "resolve" else "Skim unblanked words only; an empty edits list is valid.",
@@ -240,8 +271,8 @@ def _phase(workspace, request, adapter, phase, allowed, context_tokens, diagnost
                 state = [{"role": "user", "content": "Python succeeded. The current result.csv contains %d valid entries. %s" %
                           (len(seen), "Call finish_review now if your skim is complete." if phase == "skim" else
                            "Resolve still needs these IDs: " + " ".join(sorted(targets - seen)) + ". If none remain, call finish_review now.")}]
-            except LLMError:
-                state = [{"role": "user", "content": "The current result.csv is invalid. Correct it with Python before finishing."}]
+            except LLMError as error:
+                state = [{"role": "user", "content": error.say + " Correct result.csv with Python before finishing."}]
         prompt = initial + history + state
         # Conservative byte budget, reserving tool schema and reasoning output.
         output = min(4096, max(1024, context_tokens // 4))
@@ -270,7 +301,8 @@ def _phase(workspace, request, adapter, phase, allowed, context_tokens, diagnost
                     if name == "finish_review":
                         if args or not workspace.ran:
                             raise LLMError("code-required", "Run Python to create the result CSV before finishing.")
-                        proposals, seen = _proposals(workspace.root, request, allowed, targets)
+                        proposals, seen = _proposals(workspace.root, request, allowed, targets,
+                                                     required=targets if phase == "resolve" else (), complete=True)
                         if phase == "resolve" and not targets <= seen:
                             raise LLMError("incomplete-entries", "Some numbered entries are missing. Add unchanged originals for uncertain words before finishing.")
                         finished = proposals, seen
@@ -343,7 +375,7 @@ def correct(request, adapter, cancel, progress, context_tokens=8192, diagnostic=
                 (root / "input/active.txt").write_text(active, encoding="utf-8")
                 rows = [r for r in suspects if r["word_id"] in ids]
                 (root / "input/suspects.csv").write_text(_csv(rows, SUSPECT_FIELDS), encoding="utf-8")
-                (root / "input/words.csv").write_text(_csv([r for r in originals if r["word_id"] in region], ["word_id", "segment_id", "original", "slot", "char_start", "char_end"]), encoding="utf-8")
+                (root / "input/words.csv").write_text(_csv([r for r in originals if r["word_id"] in region], WORD_FIELDS), encoding="utf-8")
                 (root / "input/captions.csv").write_text(_csv([r for r in captions if r["segment_id"] in segment_ids], ["segment_id", "text"]), encoding="utf-8")
                 phase_ids = ids - set(slots) if phase == "skim" else ids & set(slots)
                 # A skim can discover a split word straddling a suspect and a
@@ -361,6 +393,7 @@ def correct(request, adapter, cancel, progress, context_tokens=8192, diagnostic=
                 allowed = ids - protected
                 (root / "input/allowed.txt").write_text(" ".join(r["word_id"] for r in originals if r["word_id"] in allowed), encoding="utf-8")
                 (root / "input/targets.txt").write_text(" ".join(r["word_id"] for r in originals if r["word_id"] in targets), encoding="utf-8")
+                (root / "input/required.txt").write_text(" ".join(r["word_id"] for r in originals if phase == "resolve" and r["word_id"] in targets), encoding="utf-8")
                 progress(done, total, "Skimming unblanked words" if phase == "skim" else "Resolving numbered entries")
                 (root / "out/result.csv").write_text(_csv([], FIELDS), encoding="utf-8")
                 workspace = Workspace(root, cancel)
@@ -403,5 +436,5 @@ def correct(request, adapter, cancel, progress, context_tokens=8192, diagnostic=
             "assessment": "partial" if failed else "suggestions" if suggestions else "kept_original",
             "method": "workspace-code", "task": "workspace", "reviewed_word_ids": reviewed,
             "words_reviewed": done, "words_total": total,
-            "workspace": {"files": ["transcript.txt", "active.txt", "allowed.txt", "targets.txt", "suspects.csv", "words.csv", "captions.csv", "skim.csv", "review.py"],
+            "workspace": {"files": ["transcript.txt", "active.txt", "allowed.txt", "targets.txt", "required.txt", "suspects.csv", "words.csv", "captions.csv", "skim.csv", "review.py"],
                           "reasoning_requested": True, "isolated_python": True, "removed": True}}

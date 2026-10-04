@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Offline copy/paste contracts. No endpoint, recognizer or code execution.
-
-Added for the next check run; the current user request defers the rehearsal
-and does not run test suites.
-"""
+"""Offline copy/paste and dependency-free downloadable workspace contracts."""
 import copy
 import io
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import time
 import unittest
@@ -115,12 +112,48 @@ class ExternalAnswers(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(asrexternal.bundle(request, units, asrexternal.prompt(request, "workspace", units)))) as archive:
             self.assertIn("parseh-review/PROMPT.txt", archive.namelist())
             self.assertIn("parseh-review/review.py", archive.namelist())
+            self.assertIn("parseh-review/input/required.txt", archive.namelist())
+            self.assertIn("parseh-review/README.txt", archive.namelist())
             self.assertTrue(all(name.startswith("parseh-review/") and ".." not in name for name in archive.namelist()))
             text = "\n".join(archive.read(name).decode("utf-8") for name in archive.namelist())
             self.assertIn("Loro [1] detto ciao.", text)
             self.assertNotIn("0:00", text)
             self.assertNotIn("/private/", text)
             self.assertNotIn("api_key", text)
+
+    def test_extracted_workspace_checker_runs_without_dependencies_and_distinguishes_completion(self):
+        _, request = source()
+        units = asrexternal.batches(request, 'workspace')[0]
+        content = asrexternal.bundle(request, units, asrexternal.prompt(request, 'workspace', units))
+        with tempfile.TemporaryDirectory() as folder:
+            with zipfile.ZipFile(io.BytesIO(content)) as archive:
+                archive.extractall(folder)
+            root = Path(folder) / 'parseh-review'
+            self.assertEqual((root / 'input/required.txt').read_text(), 's0w1')
+            self.assertEqual(len((root / 'input/targets.txt').read_text().split()), 4)
+            def check(*args):
+                return subprocess.run([sys.executable, '-I', '-S', '-B', 'review.py', '--check', *args],
+                                      cwd=root, capture_output=True, text=True, timeout=10)
+            draft = check()
+            self.assertEqual(draft.returncode, 0, draft.stderr)
+            self.assertIn('s0w1', draft.stdout)
+            self.assertNotEqual(check('--complete').returncode, 0)
+            row = {'word_ids': 's0w1', 'original': 'anno', 'replacement': 'hanno', 'reason': 'Synthetic fixture.'}
+            (root / 'out/result.csv').write_text(asrworkspace._csv([row], asrworkspace.FIELDS), encoding='utf-8')
+            complete = check('--complete')
+            self.assertEqual(complete.returncode, 0, complete.stderr)
+            # The helper checks all rows, even after an otherwise valid target.
+            unsafe = dict(row, word_ids='s0w2', original='detto', replacement='detto!')
+            (root / 'out/result.csv').write_text(asrworkspace._csv([row, unsafe], asrworkspace.FIELDS), encoding='utf-8')
+            self.assertNotEqual(check('--complete').returncode, 0)
+            with self.assertRaises(llmconfig.LLMError):
+                asrexternal.parse(request, 'workspace', units, (root / 'out/result.csv').read_text())
+            # Uploaded evidence files cannot authorize additional edits. Server
+            # revalidates the immutable request, not the mutable extracted ZIP.
+            tampered = dict(row, original='other')
+            (root / 'input/words.csv').write_text('tampered evidence', encoding='utf-8')
+            with self.assertRaises(llmconfig.LLMError):
+                asrexternal.parse(request, 'workspace', units, asrworkspace._csv([tampered], asrworkspace.FIELDS))
 
     def test_workspace_join_and_selected_span_are_validated(self):
         panel, request = source('A note book arrived.', language='en')

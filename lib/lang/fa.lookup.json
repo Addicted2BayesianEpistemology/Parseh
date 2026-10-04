@@ -6,6 +6,28 @@
   "_join_next": "THE VERB PREFIX WRITTEN APART.  The joiner is what the spelling wants -- نمی‌سوزانند -- and a plain space is what a typewriter, an old printing and much of the Web give instead: the fixture book writes `نِمی سوزانَند` and `کَسی نِمی بینَد` (13 of its 299 chunks), and 1,500 Tatoeba sentences have 210 such words.  Split at the space, می was `wine` (and a preposition, a conjunction and a name), نمی was نم `moisture` with an -i taken off, and the verb was looked for without its prefix: `می کنم` offered کندن (to dig) beside کردن, `می برد` رفتن, بریدن and خواب رفتن beside بردن.  So these are looked up JOINED to the next word, as one (lib/lookup.py _joined): the reader sees both words as written, and the next is looked up alone only when the two together find no verb.  Measured: 11 of the book's 13 and 207 of the 210 are read as their verb, and every answer that goes was wrong where it stood (the four pages of می from 157 chunks, نم from 46, کندن from 26).  The two the book keeps apart are سوزاندن, which this dictionary does not have: Wiktionary names it only as a derived term of سوختن.\n`pos` IS WHAT A PREFIX OF THE VERB MAKES.  Without it, می being a prefix rule of its own, any word at all was found again behind it -- `می ناب` (pure wine) as ناب, the fixture's `با هَم می سوزانَد` as سوزان `burning`.\nNOT همی.  The literary hami- would need a prefix rule of its own to reach anything, and with one, five of the six headwords beginning همی, each hidden in turn, were explained away as something else -- همیشه (always) as شدن, همین (this very) as بودن -- while neither the fixture nor the 1,500 sentences has a single همی to gain.",
   "join_next": {"words": ["می", "نمی"], "pos": ["verb"]},
   "_colloquial_copula": "Spoken Persian writes the third-person copula -e as final ه: کوچیکه is کوچیک + -e. Direct dictionary forms still win. The fallback requires at least two stem letters and a nominal or adjectival dictionary entry; it runs on the surface spelling only, without other affix guesses before or after it.",
+  "_nominal_endings": "Dictionary-backed nominal chains, in the order plural/comparative, possessive, copula. They do not raise the general peeling depth. -ا is tried only inside a possessive/copula sequence, never as an unrestricted one-letter plural guess. Copula allomorphs beginning ا and contracted -ست are restricted to vowel-ending hosts. Sources: https://sites.la.utexas.edu/persian_online_resources/verbs/verb-to-be/ and https://sites.la.utexas.edu/persian_online_resources/language-specific-grammar/diglossia-readings/6/ and /9/.",
+  "_spoken_verbs": "Most spoken forms are supplied by dictionary conjugation tables. If absent, endings -ین/-ن/-ه on a می-/نمی- verb can be tried as written -ید/-ند/-د only when that complete form is in a verb entry. Joined میا-/نمیا- also tries the dictionary's میآ-/نمیآ- spelling, so میاد can reach the attested میآد. These are lookup routes, never changes to transcript text or global vowel guessing. Source: https://sites.la.utexas.edu/persian_online_resources/language-specific-grammar/diglossia-readings/8/.",
+  "nominal_endings": {
+    "plural": ["هایی", "های", "ها", "ان"],
+    "reduced_plural": ["ا"],
+    "degree": ["ترین", "تر"],
+    "possessive": ["مان", "تان", "شان", "مون", "تون", "شون", "ام", "ات", "اش", "م", "ت", "ش"],
+    "copula": [
+      {"suffix": "است"},
+      {"suffix": "ایم", "after": ["ه", "ا", "و", "ی"]},
+      {"suffix": "اید", "after": ["ه", "ا", "و", "ی"]},
+      {"suffix": "اند", "after": ["ه", "ا", "و", "ی"]},
+      {"suffix": "ام", "after": ["ه", "ا", "و", "ی"]},
+      {"suffix": "ای", "after": ["ه", "ا", "و", "ی"]},
+      {"suffix": "ییم", "after": ["ا", "و", "ی"]},
+      {"suffix": "یید", "after": ["ا", "و", "ی"]},
+      {"suffix": "ست", "after": ["ه", "ا", "و", "ی"]},
+      {"suffix": "یم"}, {"suffix": "ید"}, {"suffix": "ند"},
+      {"suffix": "ین"}, {"suffix": "ن"}, {"suffix": "ه"},
+      {"suffix": "م"}, {"suffix": "ی"}
+    ]
+  },
   "_affixes": "What is left after the folding is the transparent morphology docs/lang/fa.md already teaches an annotator. Order is longest first, because the rules are tried in file order and -هایشان must be reached before -شان and -شان before -ش. `add` is empty for the enclitics: a Persian stem loses nothing when one of those goes.  It is not empty for the past tense, and that is the second reason this file exists -- see below.\nTHE ENCLITICS ARE WHY THIS FILE EXISTS. Wiktionary's conjugation and possessive tables are good: می‌سازم, می‌رویم, دیدند, کتابت are all listed outright, so a rule for them would never fire. What it does NOT list is a form carrying an object enclitic -- می‌سازمت, نمی‌بینمش, پولشان -- and those are what these reach. The bare -م -ت -ش are the dangerous ones, being a single letter that ends a great many words; they are last, and they can only ever fire on a word the dictionary does not already have.\nTHE PAST TENSE IS REBUILT, NOT SHAVED.  456 of Persian's 1402 verbs reach Wiktionary with no conjugation table at all, so their entire past paradigm -- every person, every number -- is absent from the form table and no amount of taking letters off a word will find it.  What does find it is putting letters back: a Persian past stem is the infinitive minus its ن, so پوسیدم is پوسید + -am and پوسید is پوسیدن minus ن.  Strip the ending, add the ن, ask again.  Measured over the 1116 past forms the dictionary omits, this moves 1% found to 100% found with nothing wrong; measured over 590 words of running Persian it loses nothing and changes nothing.\nORDER INSIDE THE SEVEN MATTERS.  The bare stem (ت->تن, د->دن) comes before -ند, because سوزاند is سوزاندن with its ن gone and not سوزان with -and added; reversed, it answers سوزان (burning) for a verb.  And these rebuild rules sit in front of the enclitics because they reconstruct a whole word rather than shave one, so the reading they propose deserves to be tried first.\nTHE JOINED PREVERB.  برمی‌گردم is bar + mi + gard + -am written as one word, and Wiktionary's tables write it `بر میگردم`, preverb apart: taking بر off leaves a verb that is not this one (گشتن, to turn, where برگشتن is to return), so the preverb and mi- come off together and are PUT BACK in front the way the table spells them (`front`).  One rule per preverb docs/lang/fa.md lists: بر در فرا فرو باز وا ور.\nWHAT THIS DELIBERATELY IS NOT.  Not the bare personal endings -ید -ند -یم without the ن: those fire on the negative past and answer نزدیم (we did not hit) with نزد, the preposition `near`.  Because every rule here rebuilds an infinitive, نزدیم still reaches زدن by the ordinary road -- ending off, then the negative na- off.",
   "affixes": [
     {
@@ -197,6 +219,36 @@
     {
       "prefix": "ن",
       "note": "the negative na- taken off"
+    },
+    {
+      "suffix": "ین", "add": "ید", "begins": ["می", "نمی"],
+      "pos": ["verb"], "surface_only": true, "terminal": true,
+      "note": "the spoken verb ending -in tried as written -id"
+    },
+    {
+      "suffix": "ن", "add": "ند", "begins": ["می", "نمی"],
+      "pos": ["verb"], "surface_only": true, "terminal": true,
+      "note": "the spoken verb ending -an tried as written -and"
+    },
+    {
+      "suffix": "ه", "add": "د", "begins": ["می", "نمی"],
+      "pos": ["verb"], "surface_only": true, "terminal": true,
+      "note": "the spoken verb ending -e tried as written -ad"
+    },
+    {
+      "prefix": "میا", "front": "میآ", "pos": ["verb"],
+      "surface_only": true, "terminal": true,
+      "note": "the joined mi- plus ā spelling tried as the dictionary writes it"
+    },
+    {
+      "prefix": "نمیا", "front": "نمیآ", "pos": ["verb"],
+      "surface_only": true, "terminal": true,
+      "note": "the joined nemi- plus ā spelling tried as the dictionary writes it"
+    },
+    {
+      "prefix": "نمیا", "front": "میآ", "pos": ["verb"],
+      "surface_only": true, "terminal": true,
+      "note": "negative na- taken off and mi- plus ā tried as the dictionary writes it"
     }
   ]
 }

@@ -19,7 +19,13 @@ Extract the ZIP and use parseh-review as your working directory.
 With the workspace, use Python: import review; review.show()
 Read further rows with review.show(offset=20), etc. Then review.save(rows),
 where rows is a list of (word_ids, replacement, reason) tuples. The helper
-copies exact originals. Inspect out/result.csv and return its contents.
+copies exact originals and validates every row before replacing the draft.
+Use review.check() while editing: it reports format/span errors, missing
+required IDs and a bounded preview; it does not judge linguistic accuracy.
+Before returning the CSV, run review.check(require_complete=True) (or
+python review.py --check --complete) and fix every reported issue. Required
+entries are listed in input/required.txt. Inspect out/result.csv and return
+its contents, not the check report.
 There is no Parseh finish_review tool in this external workflow; paste the CSV.
 
 {{?contract}}

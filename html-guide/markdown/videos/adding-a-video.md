@@ -279,6 +279,9 @@ text. It has separate installed-model settings and sends no chatbot prompt.
 Choose the method, **Prepare external prompt**, copy it to your chatbot, then
 paste the answer and **Import answer into review**. No saved connection is
 required. The workspace method also downloads its transcript and CSV files.
+Its Python helper checks edits during work and checks required entries before
+the model returns its answer. Parseh independently validates imported proposals;
+no checker applies changes without your approval.
 Long transcripts have several prompts and word-count progress; you can finish
 with received answers, then retry or manually edit unresolved words. Imported
 proposals still require acceptance and **Use this transcript**.

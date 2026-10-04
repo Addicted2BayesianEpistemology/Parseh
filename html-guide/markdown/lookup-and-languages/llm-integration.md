@@ -199,7 +199,12 @@ For **Reasoning workspace**, **Download transcript & CSV workspace** supplies a
 ZIP containing the entire blanked transcript without timestamps, current-batch
 evidence, source IDs, the skill and Python helper. Attach it to a chatbot with
 file/code tools and use the copied prompt. Extract it with `parseh-review` as
-the working directory; paste the resulting proposals CSV back. A chatbot
+the working directory. Its `review.py` helper can check edits as work proceeds
+with `review.check()`. Before returning the CSV, run
+`python review.py --check --complete`: it reports invalid spans, overlapping
+edits, punctuation changes and missing required entries. These checks protect
+the transcript structure; you still review whether the proposed words are right.
+Paste the resulting proposals CSV back. A chatbot
 without file tools can use the current-region evidence included in the prompt.
 This external route does not require bubblewrap on the Parseh host: any code
 tools run in the external service's environment.

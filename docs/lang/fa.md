@@ -92,7 +92,8 @@ by a reader who has learnt it once.
 `voc` is written in the voice of the books' gloss blocks: headword +
 transliteration + meaning. Name what was stripped from the form in the text:
 indefinite *-i*, plural *-hā*/*-ān*, enclitics *-am -at -aš …*, the ezafe,
-comparative *-tar*, Arabic broken plurals (give singular **and** plural).
+comparative *-tar*, the attached copula (including spoken *-e*, *-in*, *-an*),
+Arabic broken plurals (give singular **and** plural).
 No etymologies of headwords, one equivalent in the gloss language rather
 than a string of synonyms, and **an empty `voc` is the right answer** for a
 chunk needing nothing.

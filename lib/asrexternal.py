@@ -56,6 +56,7 @@ def ids(units):
 def workspace_files(request, units):
     transcript, suspects, words, captions, slots = asrworkspace._files(request)
     allowed = ids(units)
+    required = allowed.intersection(slots)
     region = {word["word_id"] for unit in units for word in unit["words"]}
     current_words = [dict(row) for row in words if row["word_id"] in region]
     current_captions, active = [], []
@@ -80,15 +81,27 @@ def workspace_files(request, units):
     files = {"input/transcript.txt": transcript, "input/active.txt": text,
              "input/allowed.txt": " ".join(row["word_id"] for row in words if row["word_id"] in allowed),
              "input/targets.txt": " ".join(row["word_id"] for row in words if row["word_id"] in allowed),
+             "input/required.txt": " ".join(row["word_id"] for row in words if row["word_id"] in required),
              "input/suspects.csv": asrworkspace._csv([r for r in suspects if r["word_id"] in allowed],
                  asrworkspace.SUSPECT_FIELDS),
              "input/words.csv": asrworkspace._csv(current_words,
-                 ["word_id", "segment_id", "original", "slot", "char_start", "char_end"]),
+                 asrworkspace.WORD_FIELDS),
              "input/captions.csv": asrworkspace._csv(current_captions, ["segment_id", "text"]),
              "input/skim.csv": asrworkspace._csv([], asrworkspace.FIELDS),
              "out/result.csv": asrworkspace._csv([], asrworkspace.FIELDS),
              "review.py": (Path(asrworkspace.__file__).parent / "asrskill" / asrworkspace.SKILL_NAME / "scripts/review.py").read_text(encoding="utf-8"),
-             "SKILL.md": (Path(asrworkspace.__file__).parent / "asrskill" / asrworkspace.SKILL_NAME / "SKILL.md").read_text(encoding="utf-8")}
+             "SKILL.md": (Path(asrworkspace.__file__).parent / "asrskill" / asrworkspace.SKILL_NAME / "SKILL.md").read_text(encoding="utf-8"),
+             "README.txt": "Parseh transcript review workspace\n\n"
+                "Run Python from this directory. review.py needs only Python's standard library.\n"
+                "Inspect evidence with: python review.py --show\n"
+                "Check work in progress with: python review.py --check\n"
+                "Before returning out/result.csv, run: python review.py --check --complete\n"
+                "For tools using Python directly: import review; review.show(); review.save(rows); review.check()\n"
+                "Include every ID in input/required.txt, keeping the exact original when unsure. "
+                "Unchanged unflagged words do not need result rows.\n"
+                "This checks source spans, limits, punctuation and required coverage; it cannot decide "
+                "whether a transcription is linguistically correct. Parseh independently validates imported edits.\n"
+                "Keep input files unchanged. Only out/result.csv contains your proposed edits.\n"}
     if sum(len(value.encode("utf-8")) for value in files.values()) > MAX_BUNDLE:
         raise LLMError("too-large", "This text workspace exceeds the download limit. The sentence review methods remain available.")
     return files
@@ -97,7 +110,7 @@ def workspace_files(request, units):
 def assembled(request, task, units):
     if task == "workspace":
         files = workspace_files(request, units)
-        data = "\n\n".join(name + ":\n" + files[name] for name in ("input/active.txt", "input/allowed.txt", "input/words.csv", "input/suspects.csv", "input/captions.csv"))
+        data = "\n\n".join(name + ":\n" + files[name] for name in ("input/active.txt", "input/allowed.txt", "input/targets.txt", "input/required.txt", "input/words.csv", "input/suspects.csv", "input/captions.csv"))
     else:
         regions = []
         for unit in units:

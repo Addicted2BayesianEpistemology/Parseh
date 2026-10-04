@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Offline workspace contracts, added but not run in the release rehearsal."""
+"""Offline workspace, source-span and completion contracts."""
 import copy
 import csv
 import json
@@ -66,7 +66,7 @@ class WorkspaceContracts(unittest.TestCase):
         phases = []
         def phase(workspace, request, adapter, name, allowed, context, diagnostic, key):
             phases.append(name); self.assertEqual(name, 'skim')
-            row = {'word_ids': 's0w1 s0w2', 'original': 'note book', 'replacement': 'notebook', 'reason': ''}
+            row = {'word_ids': 's0w1 s0w2', 'original': 'note book', 'replacement': 'notebook', 'reason': 'Synthetic split word.'}
             (workspace.root / 'out/result.csv').write_text(asrworkspace._csv([row], asrworkspace.FIELDS))
             return asrworkspace._proposals(workspace.root, request, allowed, workspace.targets)
         with mock.patch('asrworkspace.sandbox_status', return_value={'available': True}), mock.patch('asrworkspace._phase', side_effect=phase):
@@ -82,7 +82,7 @@ class WorkspaceContracts(unittest.TestCase):
             for word in text.split()]}], text, 'en')
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); (root / 'out').mkdir()
-            row = {'word_ids': 's0w1 s0w2', 'original': 'note book', 'replacement': 'notebook', 'reason': ''}
+            row = {'word_ids': 's0w1 s0w2', 'original': 'note book', 'replacement': 'notebook', 'reason': 'Synthetic split word.'}
             (root / 'out/result.csv').write_text(asrworkspace._csv([row], asrworkspace.FIELDS))
             for allowed, targets in [({'s0w1'}, {'s0w1'}), ({'s0w1', 's0w2', 's0w3'}, {'s0w3'})]:
                 with self.assertRaises(llmconfig.LLMError):
@@ -96,7 +96,7 @@ class WorkspaceContracts(unittest.TestCase):
         _, suspects, words, captions, _ = asrworkspace._files(request)
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); (root / 'input').mkdir(); (root / 'out').mkdir()
-            for name, rows, fields in [('words', words, ['word_id', 'segment_id', 'original', 'slot', 'char_start', 'char_end']),
+            for name, rows, fields in [('words', words, asrworkspace.WORD_FIELDS),
                                        ('suspects', suspects, asrworkspace.SUSPECT_FIELDS),
                                        ('captions', captions, ['segment_id', 'text']), ('skim', [], asrworkspace.FIELDS)]:
                 (root / 'input' / (name + '.csv')).write_text(asrworkspace._csv(rows, fields))
@@ -122,7 +122,7 @@ class WorkspaceContracts(unittest.TestCase):
             workspace = asrworkspace.Workspace(root, llmadapter.Cancellation()); workspace.targets = {'s0w1'}
             def tool(name, args):
                 workspace.ran = True
-                row = {'word_ids': 's0w1 s0w2', 'original': 'note book', 'replacement': 'notebook', 'reason': ''}
+                row = {'word_ids': 's0w1 s0w2', 'original': 'note book', 'replacement': 'notebook', 'reason': 'Synthetic split word.'}
                 (root / 'out/result.csv').write_text(asrworkspace._csv([row], asrworkspace.FIELDS))
                 return 'CSV saved.'
             adapter = mock.Mock()
@@ -196,6 +196,55 @@ class WorkspaceContracts(unittest.TestCase):
                 with self.assertRaises(llmconfig.LLMError):
                     asrworkspace._proposals(root, request, {"s0w1"})
 
+    def test_csv_checker_and_server_reject_unsafe_rows_before_returning_proposals(self):
+        text = 'ما "کو چیکه" گفتیم.'
+        request = asrcorrection.evidence([{'text': text, 'start': 0, 'end': 4, 'words': [
+            {'text': word, 'score': .2, 'start': i, 'end': i + .5}
+            for i, word in enumerate(text.split())]}], text, 'fa')
+        words = asrcorrection.index(request)
+        allowed = set(words)
+        valid = {'word_ids': 's0w1 s0w2', 'original': '"کو چیکه"', 'replacement': '"کوچیکه"',
+                 'reason': 'Synthetic split-word fixture.'}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); (root / 'out').mkdir()
+            def proposals(rows, **kwargs):
+                (root / 'out/result.csv').write_text(asrworkspace._csv(rows, asrworkspace.FIELDS), encoding='utf-8')
+                return asrworkspace._proposals(root, request, allowed, {'s0w1'}, **kwargs)
+            edits, seen = proposals([valid])
+            self.assertEqual(seen, {'s0w1', 's0w2'})
+            self.assertEqual(edits[0]['original'], valid['original'])
+            legacy, _ = proposals([dict(valid, reason='')])
+            self.assertEqual(legacy[0]['reason'], '')
+            for rows in ([valid, dict(valid, word_ids='s0w2', original='چیکه"', replacement='چیکه"')],
+                         [dict(valid, replacement='کوچیکه')], [dict(valid, replacement='"کو\nچیکه"')],
+                         [dict(valid, reason='\x01')], [dict(valid, reason='x' * 501)],
+                         [dict(valid, original='"کو\u200cچیکه"')],
+                         [valid, dict(valid, word_ids='s0w0', original='ما', replacement='آن')]):
+                with self.subTest(rows=rows), self.assertRaises(llmconfig.LLMError):
+                    proposals(rows)
+            proposals([valid], required={'s0w1'}, complete=True)
+            with self.assertRaises(llmconfig.LLMError):
+                proposals([valid], required={'s0w1', 's0w3'}, complete=True)
+
+    def test_finish_rechecks_missing_targets_and_does_not_trust_prior_python_success(self):
+        _, request = evidence()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); (root / 'out').mkdir()
+            workspace = asrworkspace.Workspace(root, llmadapter.Cancellation())
+            workspace.ran = True; workspace.targets = {'s0w1'}
+            (root / 'out/result.csv').write_text(asrworkspace._csv([], asrworkspace.FIELDS), encoding='utf-8')
+            adapter = mock.Mock()
+            adapter.agent_turn.return_value = {'role': 'assistant', 'content': None, 'tool_calls': [
+                {'id': 'finish', 'type': 'function', 'function': {'name': 'finish_review', 'arguments': '{}'}}]}
+            with self.assertRaises(llmconfig.LLMError) as error:
+                asrworkspace._phase(workspace, request, adapter, 'resolve', {'s0w1'}, 8192, None, 'region0')
+            self.assertEqual(error.exception.code, 'tool-limit')
+            self.assertTrue(any('s0w1' in json.dumps(call.args[0]) for call in adapter.agent_turn.call_args_list))
+            # The same empty edit list is valid for a skim phase; numbering
+            # coverage applies only to resolution, never unrelated context.
+            edits, seen = asrworkspace._phase(workspace, request, adapter, 'skim', {'s0w1'}, 8192, None, 'region0')
+            self.assertEqual(edits, []); self.assertEqual(seen, set())
+
     def test_two_pass_order_failure_salvage_progress_and_cleanup(self):
         text, request = evidence()
         original = copy.deepcopy(request)
@@ -203,6 +252,9 @@ class WorkspaceContracts(unittest.TestCase):
         def phase(workspace, request, adapter, name, allowed, context, diagnostic, key):
             calls.append(name); folders.append(workspace.root)
             self.assertIn("[1]", (workspace.root / "input/transcript.txt").read_text())
+            required = (workspace.root / 'input/required.txt').read_text().split()
+            self.assertEqual(set(required), workspace.targets if name == 'resolve' else set())
+            self.assertTrue((workspace.root / 'review.py').is_file())
             row = {"word_ids": "s0w0", "original": "Thay", "replacement": "They", "reason": "Synthetic fixture"} if name == "skim" else {
                   "word_ids": "s0w1", "original": "anno", "replacement": "hanno", "reason": "Synthetic fixture"}
             (workspace.root / "out/result.csv").write_text(asrworkspace._csv([row], asrworkspace.FIELDS))

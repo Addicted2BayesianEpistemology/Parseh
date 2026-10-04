@@ -110,6 +110,15 @@ exact original text and stable IDs. Spans cannot cross caption boundaries,
 include locked/out-of-section words, or overlap another final proposal. A split
 already repaired during skim is kept and counted without a second resolve edit.
 
+The downloadable workspace and skill include a standalone standard-library
+`review.py`. `review.check()` validates the draft CSV and reports missing required
+IDs with a bounded preview; `review.check(require_complete=True)` or
+`python review.py --check --complete` additionally requires full coverage.
+`review.save(rows)` validates the entire proposed file before opening the output,
+so an invalid row cannot erase earlier work. The checker and server share row
+validation, while the server uses its immutable source evidence and current
+scope. Helper success establishes structural validity, not linguistic accuracy.
+
 Offline fake HTTP/worker coverage is in `tests/test_llm_integration.py` and the
 browser review contract in `tests/add_stt.mjs`. Private evaluation recordings,
 transcripts and benchmark diagnostics belong outside source and release archives.

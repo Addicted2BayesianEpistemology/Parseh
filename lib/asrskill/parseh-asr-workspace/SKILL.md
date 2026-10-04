@@ -27,7 +27,16 @@ For a split word such as "note book", use both IDs in source order:
 Use an empty list for a skim with no errors. Resolve must include unchanged
 originals for uncertain entries. Up to eight consecutive IDs from one caption
 can be separated by spaces. The helper copies exact originals to out/result.csv.
-Then call finish_review. Humans approve all edits; never return a whole transcript.
+save() validates all rows before replacing the CSV, so invalid edits leave the
+previous draft intact. Use review.check() while editing to inspect structural
+errors, missing required IDs and a short preview. The checker does not decide
+whether a transcription is linguistically correct.
+
+Before finishing, use review.check(require_complete=True) and resolve any
+reported errors or missing required entries. Then call finish_review. Humans
+approve all edits; never return a whole transcript. The equivalent command is
+python review.py --check --complete; it exits unsuccessfully for invalid or
+incomplete output. input/required.txt records this phase's required source IDs.
 
 The helper source is scripts/review.py. Parseh supplies it in the workspace as
 review.py. Other software must supply an isolated Python/file environment too.

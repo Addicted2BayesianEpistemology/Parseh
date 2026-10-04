@@ -1,5 +1,6 @@
 ## [a0.4.3] - unreleased
 ### Added
+- A standalone reasoning-workspace CSV checker, shipped with the helper and skill, for draft checks, exact source spans and required-entry coverage
 - Standard and language-specific Whisper models in one pinned catalogue, with independent resumable installs, per-language model choices and model provenance in transcription jobs
 - Optional Hugging Face downloads for Persian fast/accuracy, Arabic, Italian, Hindi fast and Spanish, including merged LoRA models, matching offline assets and original licence notices
 - Settings → About with version, author, launch-script locations and installation information using the host's native paths
@@ -33,7 +34,7 @@
 - Studio and exported word clouds are linguistic only; foreground colour is applied from the source editor
 
 ### Fixed
-- Persian dictionary lookup recognizes the colloquial copula ending in forms such as کوچیکه through کوچیک, with direct entries preferred
+- Persian dictionary lookup recognizes colloquial copulas and combined nominal endings, with direct entries preferred and dictionary-backed stem guards
 - LM likelihood candidate search preserves source whitespace with SentencePiece tokenizers, including PersianMind
 - Partial-word colours compile and remain visible in PDFs, including headings, target-language blocks and exercise prompts
 

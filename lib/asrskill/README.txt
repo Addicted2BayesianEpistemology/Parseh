@@ -25,3 +25,9 @@ review. Parseh loads it automatically for workspace review and provides isolated
 Python tools. Download it from Correction skill for other software; that software
 must provide its own file/code environment. The installed-skill checkbox applies
 to the two sentence-review methods above.
+
+The workspace package includes scripts/review.py, supplied as review.py in each
+downloaded text/CSV workspace. It needs only Python's standard library. Use
+review.check() while editing and review.check(require_complete=True), or
+python review.py --check --complete, before returning the result CSV. These
+checks preserve source spans and required coverage, not linguistic accuracy.
