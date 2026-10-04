@@ -17,9 +17,8 @@ const socket=createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r))
 const base='http://127.0.0.1:'+port;
 let boot=(await readFile('tests/add_stt.mjs','utf8')).match(/const BOOT = String.raw`([\s\S]*?)`;/)[1];
 boot=boot.replace("import addstt_fakes\nsys.modules['getstt'] = addstt_fakes.make(str(tmp.parent / 'fake'))",String.raw`
-import getstt, getphonetic, speechpackages, copy
+import getstt, speechpackages, copy
 getstt.STT_DIR=str(tmp/'stt')
-getphonetic.DIRECTORY=tmp/'stt/phonetic'
 speechpackages.PREPARED_ROOT=tmp/'no-prepared-weights'
 ready={'large-v3-turbo','fa-fast','fa-accuracy','hi-accuracy','it-turbo'}
 getstt.runtime=lambda:{'state':'ready','ready':True,'have':True,'version':'1.2.1','ctranslate2':'4.8.2','python':'cp312','size':431000000,'why':''}
@@ -45,13 +44,11 @@ try{
  const state=await page.locator('#sp-state').textContent();const models=JSON.parse(state).speech.models;
  ok(Object.keys(models).length===15,'real shared catalogue contains15 entries');
  ok(Object.values(models).every(model=>model.available===true),'all real catalogue packages are pinned');
- ok((await page.locator('#sp .it').count())>=18,'real page renders models and independent optional parts');
+ ok((await page.locator('#sp .it').count())>=16,'real page renders models and independent optional parts');
  ok(await page.locator('#sp img[src=x]').count()===0,'real model hints are escaped');
  ok(!(await page.evaluate(()=>window.badEscape)),'escaped catalogue text cannot run script');
- ok(await page.locator('[data-row="ar-dialectal"] [data-import]').count()===1,'unimported prepared package has explicit Import & install');
+ ok(await page.locator('[data-row="ar-dialectal"] [data-get]').count()===1,'published Arabic package has a direct verified install control');
  ok(await page.locator('[data-row="de-turbo"] [data-get]').count()===1,'direct pinned package has ordinary install action');
- ok(await page.locator('[data-row="phonetic-runtime"] [data-get]').count()===1,'independent phonetic runtime is installable');
- ok(await page.locator('[data-row="phonetic-model"] [data-get]').count()===1,'independent phonetic weights are installable');
  await page.selectOption('#sp_language','fa');
  ok(await page.locator('[data-row="hi-accuracy"]').count()===0,'real catalogue language filtering excludes Hindi in Persian settings');
  ok(await page.inputValue('#sp_preferred_model')==='fa-fast','saved Persian preference appears in settings');
@@ -70,8 +67,6 @@ try{
  await page.locator('#sp_language').evaluate(element=>element.closest('section').scrollIntoView({block:'start'}));
  await page.screenshot({path:'/tmp/parseh-speech-catalogue-narrow.png',fullPage:false});
  await page.setViewportSize({width:1280,height:960});
- await page.locator('[data-row="phonetic-runtime"]').scrollIntoViewIfNeeded();
- await page.screenshot({path:'/tmp/parseh-speech-phonetic-desktop.png',fullPage:false});
  await page.goto(base+'/youtube/add/?src=film&by=empty');
  await page.waitForSelector('#transcript',{state:'attached'});await page.selectOption('#lang','fa');await page.fill('#path','/tmp/fake-local-video.mp4');
  await page.waitForFunction(()=>document.querySelector('#stt_model').options.length===3);
@@ -81,7 +76,6 @@ try{
  ok(await page.inputValue('#stt_model')==='hi-accuracy','Hindi retains its independent preferred model');
  ok(await page.locator('#stt_model option[value="fa-accuracy"]').count()===0,'language change refreshes the real installed selector');
  ok(await page.locator('#stt_review').getAttribute('data-layout')==='browser','correction workspace stays explicitly browser-only');
- ok(await page.locator('#stt_phonetic_pass').getAttribute('data-layout')==='browser','IPA progress stays explicitly browser-only');
  ok(errors.length===0,'real catalogue settings and Add Video have no script errors');
  console.log(`${checks} real catalogue visual/browser checks passed`);
 }finally{

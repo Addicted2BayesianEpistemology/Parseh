@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Private, atomic, bounded drafts and original capture audio for review tools."""
+import copy
 import hashlib
 import json
 import os
@@ -23,8 +24,7 @@ FIELDS = ('id', 'kind', 'source', 'film', 'lang', 'wlang', 'model', 'mode', 'ali
           'llm_diagnostics_clipped', 'llm_diagnostics_bytes', 'llm_config_fingerprint',
           'likelihood_revision', 'review_draft', 'external_review', 'whisper_source',
           'automatic_second_pass', 'first_suspect_word_ids', 'second_pass',
-          'last_method', 'last_word_ids', 'second_pass_previous', 'model_revision',
-          'automatic_phonetic', 'phonetic')
+          'last_method', 'last_word_ids', 'second_pass_previous', 'model_revision')
 
 
 def folder():
@@ -60,12 +60,37 @@ def retain_audio(job):
         shutil.move(str(source), str(dest))
 
 
+def _current_audio_evidence(job):
+    """Retire removed audio-to-IPA data without changing a saved review draft."""
+    job = copy.deepcopy({k: job[k] for k in FIELDS if k in job})
+
+    def clean(value):
+        if isinstance(value, dict):
+            value.pop('phonetic', None)
+            value.pop('automatic_phonetic', None)
+            for item in value.values():
+                clean(item)
+        elif isinstance(value, list):
+            for item in value:
+                clean(item)
+
+    # Prepared copy/paste prompts may contain the retired CSV evidence as text.
+    # Regenerate those sessions with the current format; keep the user's draft.
+    external = job.get('external_review')
+    if external and any(marker in json.dumps(external, ensure_ascii=False)
+                        for marker in ('heard_ipa', 'ipa_attribution', 'ipa_audio_start',
+                                       'Heard IPA', 'PhoneticXeus')):
+        job.pop('external_review', None)
+    clean(job)
+    return job
+
+
 def save(job):
     if not job.get('review_evidence') or job.get('review_used'):
         return
     import wordtimes
     import wavefile
-    record = {'format_version': FORMAT, 'job': {k: job[k] for k in FIELDS if k in job},
+    record = {'format_version': FORMAT, 'job': _current_audio_evidence(job),
               'timings': wordtimes.load(job['id']), 'wave': None}
     wave_path = wavefile.hold_path(job['id'])
     wave = wavefile.read(wave_path) if wave_path and os.path.isfile(wave_path) else None
@@ -100,6 +125,7 @@ def load(token):
             or not isinstance(j.get('text'), str) or j.get('kind') not in ('film', 'youtube')
             or hashlib.sha256(j['text'].encode()).hexdigest() != j['review_evidence']['source_sha256']):
         raise ValueError('Pending review is invalid')
+    record['job'] = j = _current_audio_evidence(j)
     ext = j.get('external_review')
     if ext:
         for name in ('answers', 'attempts'):

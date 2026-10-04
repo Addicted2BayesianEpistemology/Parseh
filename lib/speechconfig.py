@@ -27,7 +27,7 @@ def _selections(raw):
 
 def load():
     defaults = {'format_version': STORE_FORMAT, 'second_pass': True,
-                'phonetic_enabled': True, 'models_by_language': {}}
+                'models_by_language': {}}
     try:
         if CONFIG.stat().st_size > 16384:
             return defaults
@@ -35,11 +35,7 @@ def load():
         if (not isinstance(raw, dict) or raw.get('format_version') != STORE_FORMAT
                 or type(raw.get('second_pass')) is not bool):
             return defaults
-        phonetic = raw.get('phonetic_enabled', True)
-        if type(phonetic) is not bool:
-            return defaults
         return {'format_version': STORE_FORMAT, 'second_pass': raw['second_pass'],
-                'phonetic_enabled': phonetic,
                 'models_by_language': _selections(raw.get('models_by_language', {}))}
     except (OSError, ValueError, TypeError):
         return defaults
@@ -60,12 +56,11 @@ def _write(value):
 
 
 def save(raw):
-    allowed = {'second_pass', 'phonetic_enabled', 'models_by_language'}
+    allowed = {'second_pass', 'models_by_language'}
     if not isinstance(raw, dict) or not raw or set(raw) - allowed:
         raise ValueError('Choose a speech preference from this page.')
-    for key in ('second_pass', 'phonetic_enabled'):
-        if key in raw and type(raw[key]) is not bool:
-            raise ValueError('Automatic speech checks must be on or off.')
+    if 'second_pass' in raw and type(raw['second_pass']) is not bool:
+        raise ValueError('Automatic speech checks must be on or off.')
     patch = dict(raw)
     if 'models_by_language' in patch:
         patch['models_by_language'] = _selections(patch['models_by_language'])

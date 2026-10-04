@@ -122,6 +122,18 @@ class ExternalAnswers(unittest.TestCase):
             self.assertNotIn("/private/", text)
             self.assertNotIn("api_key", text)
 
+    def test_workspace_join_and_selected_span_are_validated(self):
+        panel, request = source('A note book arrived.', language='en')
+        units = asrexternal.batches(request, 'workspace')[0]
+        row = {'word_ids': 's0w1 s0w2', 'original': 'note book', 'replacement': 'notebook', 'reason': 'Split word.'}
+        answer = asrworkspace._csv([row], asrworkspace.FIELDS)
+        result = asrexternal.parse(request, 'workspace', units, answer)
+        edited, _ = correction.apply(panel, request, result, {'s0w1': 0})
+        self.assertEqual(edited, panel.replace('note book', 'notebook'))
+        selected = asrexternal.batches(request, 'workspace', ['s0w1'])[0]
+        with self.assertRaises(llmconfig.LLMError):
+            asrexternal.parse(request, 'workspace', selected, answer)
+
     def test_hint_heavy_batches_cover_source_words_once(self):
         _, request = source(" ".join("anno" for _ in range(48)))
         for word in correction.index(request).values():

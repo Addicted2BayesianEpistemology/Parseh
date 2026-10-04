@@ -13,6 +13,8 @@ words = {row["word_id"]: row for row in read("words")}
 suspects = {row["word_id"]: row for row in read("suspects")}
 captions = {row["segment_id"]: row["text"] for row in read("captions")}
 allowed = Path("input/allowed.txt").read_text().split()
+target_file = Path("input/targets.txt")
+targets = target_file.read_text().split() if target_file.exists() else allowed
 
 
 def show(offset=0, count=20):
@@ -27,17 +29,11 @@ def show(offset=0, count=20):
     print("Allowed words %d–%d of %d:" % (offset, min(offset + count, len(allowed)), len(allowed)))
     for ident in allowed[offset:offset + count]:
         word = words[ident]
-        print(ident + " | " + word["original"])
+        print(ident + " | " + word["original"] + (" | phase target" if ident in targets else " | adjacent context"))
         hint = suspects.get(ident)
         if hint:
             print("Blank " + hint["slot"] + " | " + hint["whisper_hints"])
             print("Context: " + hint["context"])
-            if hint.get('heard_ipa') and hint.get('ipa_state') == 'complete':
-                print('Estimated heard IPA around this word: ' + hint['heard_ipa'])
-                print('Attribution: ' + hint.get('ipa_attribution', 'unspecified') +
-                      '; may include neighboring sounds, not exact word alignment.')
-                if hint.get('ipa_audio_start') and hint.get('ipa_audio_end'):
-                    print('Original audio crop: ' + hint['ipa_audio_start'] + '–' + hint['ipa_audio_end'] + ' seconds.')
     skim = read("skim")
     if skim:
         print("Tentative first-pass edits in these captions:")
@@ -53,12 +49,17 @@ def save(rows):
         writer.writerow(["word_ids", "original", "replacement", "reason"])
         for id_text, replacement, reason in rows:
             ids = id_text.split()
-            if not ids or any(ident not in allowed for ident in ids):
-                raise ValueError("Use only allowed word IDs.")
+            if (not ids or len(ids) > 8 or len(set(ids)) != len(ids)
+                    or any(ident not in allowed for ident in ids) or not set(ids).intersection(targets)):
+                raise ValueError("Use up to eight editable word IDs including a phase target.")
             members = [words[ident] for ident in ids]
             segment = members[0]["segment_id"]
             if any(word["segment_id"] != segment for word in members):
                 raise ValueError("An edit cannot cross caption boundaries.")
+            ordered = [ident for ident, word in words.items() if word['segment_id'] == segment]
+            first = ordered.index(ids[0])
+            if ordered[first:first + len(ids)] != ids:
+                raise ValueError("Use consecutive word IDs in source order.")
             original = captions[segment][int(members[0]["char_start"]):int(members[-1]["char_end"])]
             writer.writerow([id_text, original, replacement, reason])
     print("Result CSV saved. Call finish_review when every required entry is present.")

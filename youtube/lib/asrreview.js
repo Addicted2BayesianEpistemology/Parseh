@@ -17,7 +17,7 @@
     var result = null, phase = '', config = null, decisions = {}, manualEdits = {}, suggestions = {}, words = {}, selected = null;
     var choice, inspect, details, preview, status, use, responses, retry, useSkill = false, useBusy = false, disabledBefore = [];
     var wordButtons = {}, captions = {}, captionRows = [], filter = 'all', search = '', summary, activeCaption = null;
-    var dictionaryCache = new Map();
+    var dictionaryCache = new Map(), editRanges = {};
     var locked = {}, selection = [], selecting = false, scope = 'all', phonetic = true, scopeNote, saveTimer, saveQueue = Promise.resolve(), hydrated = false;
     function snapshot() { return {decisions: Object.assign({}, decisions), manual_edits: Object.assign({}, manualEdits), locked_word_ids: Object.keys(locked), selection: selection.length === 2 ? selection.slice() : [], scope: scope, selected_word: selected, phonetic_filter: phonetic, external_drafts: Object.assign({}, externalDrafts)}; }
     function saveNow() {
@@ -373,20 +373,6 @@
         recheck.id = 'stt_whisper_word'; recheck.disabled = !!locked[w.word_id] || !result.review.second_pass_available;
         wordActions.appendChild(recheck);
       }
-      if (w.phonetic && w.phonetic.state === 'complete' && w.phonetic.ipa) {
-        var heard = el('section', null, 'stt-heard-ipa'); heard.id = 'stt_heard_ipa';
-        heard.appendChild(el('h4', 'Heard IPA around this word'));
-        var ipa = el('bdi', w.phonetic.ipa, 'stt-ipa'); ipa.dir = 'auto'; heard.appendChild(ipa);
-        heard.appendChild(el('p', 'Estimated from an audio crop with about half a second of context on each side. Nearby sounds may be included; the IPA is not aligned to the exact word.', 'fieldnote'));
-        var phoneticDetails = el('details'); phoneticDetails.appendChild(el('summary', 'Audio and model details'));
-        if (w.phonetic.audio_start != null && w.phonetic.audio_end != null)
-          phoneticDetails.appendChild(el('p', 'Audio crop: ' + time(w.phonetic.audio_start) + ' – ' + time(w.phonetic.audio_end) + '. Original word timestamps are unchanged.'));
-        if (w.phonetic.model_revision) phoneticDetails.appendChild(el('p', 'Model version: ' + w.phonetic.model_revision));
-        heard.appendChild(phoneticDetails); details.appendChild(heard);
-      } else if (w.phonetic && (w.phonetic.state === 'failed' || w.phonetic.state === 'unavailable')) {
-        var unavailable = el('p', 'Heard IPA unavailable. ' + (typeof w.phonetic.reason === 'string' ? w.phonetic.reason.slice(0, 600) : 'This word could not be checked.'), 'fieldnote');
-        unavailable.id = 'stt_ipa_unavailable'; details.appendChild(unavailable);
-      }
       var evidenceDetails = el('details'); evidenceDetails.appendChild(el('summary', 'Recognition details'));
       var usualDetails = details; details = evidenceDetails;
       details.appendChild(el('p', 'Whisper timestamp: ' + time(w.start) + ' – ' + time(w.end) +
@@ -421,11 +407,13 @@
       }
       if (!w.reviewable) details.appendChild(el('p', 'This word could not be matched to an exact transcript span. Review it manually.'));
       if (!s && result.review.result && (result.review.result.storage_failed_word_ids || []).indexOf(w.word_id) >= 0) details.appendChild(el('p', 'This target exceeded the bounded numerical-review storage. Its candidate coverage is incomplete; the Whisper alternatives above are intact. Reduce optional search/context bounds and start a new review, or edit it manually.', 'warn'));
-      var editId = s ? s.word_id : manualKey || w.word_id, editIds = s && s.word_ids || (manualKey ? idsFor(manualKey) : [w.word_id]);
+      var proposalId = s ? s.word_id : w.word_id, proposalIds = s && s.word_ids || [w.word_id];
+      var editIds = (editRanges[w.word_id] || (manualKey ? idsFor(manualKey) : proposalIds)).slice(), editId = editIds[0];
+      if (!locked[w.word_id] && editIds.some(function (id) { return locked[id]; })) { editIds = [w.word_id]; editId = w.word_id; }
       var sourceSpan = Array.from(result.text).slice(words[editIds[0]].span_start, words[editIds[editIds.length - 1]].span_end).join('');
       if (s && phase === 'review') {
         if (s.likelihood && s.likelihood.coverage.state !== 'complete') details.appendChild(el('p', 'Comparison incomplete: some alternatives could not be checked. You can retry or choose a word yourself.', 'warn'));
-        if (editIds.length > 1) { details.appendChild(el('p', 'Proposed source span: ' + s.original)); (s.asr_evidence || []).forEach(function (piece) { details.appendChild(el('p', piece.text + ' · Whisper ASR score: ' + estimate(piece.asr_confidence) + ' · ' + time(piece.start) + ' – ' + time(piece.end))); }); }
+        if (proposalIds.length > 1) { details.appendChild(el('p', 'Proposed source span: ' + s.original)); (s.asr_evidence || []).forEach(function (piece) { details.appendChild(el('p', piece.text + ' · Whisper ASR score: ' + estimate(piece.asr_confidence) + ' · ' + time(piece.start) + ' – ' + time(piece.end))); }); }
         details.appendChild(el('p', s.likelihood ? 'Suggested words' : 'Suggested correction' + (s.error_likelihood == null ? '' : ' · Error likelihood (model estimate): ' + estimate(s.error_likelihood))));
         if (s.likelihood) {
           var numerical = el('details'); numerical.appendChild(el('summary', 'Technical details'));
@@ -454,43 +442,75 @@
           if (c.confidence != null || c.reason) li.appendChild(el('p', (c.confidence == null ? '' : 'Confidence (model estimate): ' + estimate(c.confidence) + '. ') + (c.reason || '')));
           var candidateDictionary = el('div', 'Looking up this alternative…', 'stt-review-dictionary'); candidateDictionary.setAttribute('role', 'status');
           li.appendChild(candidateDictionary); candidateDictionaries.push(candidateDictionary);
-          var accept = btn(decisions[editId] === i ? 'Accepted in draft' : 'Accept this alternative', function () {
-            clearOverlaps(editIds); decisions[editId] = i; updateDraft(); detail(w);
-          }); accept.disabled = !!s.likelihood && !c.applicable || editIds.some(function (id) { return locked[id]; }); li.appendChild(accept);
+          var accept = btn(decisions[proposalId] === i ? 'Accepted in draft' : 'Accept this alternative', function () {
+            clearOverlaps(proposalIds); decisions[proposalId] = i; updateDraft(); detail(w);
+          }); accept.disabled = !!s.likelihood && !c.applicable || proposalIds.some(function (id) { return locked[id]; }); li.appendChild(accept);
           alternatives.appendChild(li);
         });
         details.appendChild(alternatives);
-        var reject = btn('Reject this edit / keep Whisper word', function () { delete decisions[editId]; updateDraft(); detail(w); });
-        reject.disabled = editIds.some(function (id) { return locked[id]; }); details.appendChild(reject);
+        var reject = btn('Reject this edit / keep Whisper word', function () { delete decisions[proposalId]; updateDraft(); detail(w); });
+        reject.disabled = proposalIds.some(function (id) { return locked[id]; }); details.appendChild(reject);
       } else if (suspect(w)) details.appendChild(el('p', 'No LLM edit is proposed for this word. It stays unchanged.'));
       dictionaryDetails(w, originalDictionary, candidateDictionaries, asrDictionaries, s);
       if (w.reviewable && phase === 'review') {
         var contextDetails = details; details = wordActions;
         var lock = btn(locked[w.word_id] ? 'Unlock word' : 'I’m sure · lock word', function () {
-          keepAccepted(); if (locked[w.word_id]) editIds.forEach(function (id) { delete locked[id]; }); else editIds.forEach(function (id) { locked[id] = true; });
+          keepAccepted();
+          var savedKey = Object.keys(manualEdits).find(function (key) { return idsFor(key).indexOf(w.word_id) >= 0; });
+          var lockIds = savedKey ? idsFor(savedKey) : [w.word_id];
+          if (locked[w.word_id]) lockIds.forEach(function (id) { delete locked[id]; }); else lockIds.forEach(function (id) { locked[id] = true; });
           updateDraft(); detail(w);
         }); lock.id = 'stt_lock_word'; details.appendChild(lock);
         var one = btn('Review this word with LM likelihood · experimental', function () { runMethod('likelihood', 'likelihood', w.word_id); }); one.id = 'stt_likelihood_word';
         one.disabled = !!locked[w.word_id] || !config || !config.likelihood || !config.likelihood.available; details.appendChild(one);
         one.hidden = !config || !config.likelihood || !config.likelihood.available;
         if (locked[w.word_id]) { details.appendChild(el('p', 'Locked words are kept when you run another method. Unlock to edit or review this word.')); details = contextDetails; return; }
-        var label = el('label', editIds.length > 1 ? 'Enter the correct short span ' : 'Enter the correct word '), input = el('input');
+        var label = el('label'), labelText = document.createTextNode(''), input = el('input'); label.appendChild(labelText);
         input.type = 'text'; input.id = 'stt_manual_word'; input.dir = 'auto'; input.maxLength = 200;
-        var manual = manualEdits[editId]; input.value = manual != null ? typeof manual === 'object' ? manual.text : manual : s && decisions[editId] != null ? s.candidates[decisions[editId]].text : s ? s.original : sourceSpan; label.appendChild(input); details.appendChild(label);
-        var note = el('p', 'Manual edits change only the selected word or span in the pending draft.'); note.setAttribute('role', 'status'); details.appendChild(note);
+        var manual = manualEdits[editId], sameProposal = editIds.join(' ') === proposalIds.join(' ');
+        input.value = manual != null ? typeof manual === 'object' ? manual.text : manual : s && sameProposal && decisions[proposalId] != null ? s.candidates[decisions[proposalId]].text : sourceSpan; label.appendChild(input); details.appendChild(label);
+        var note = el('p', 'If Whisper split a word, include its neighbor and type the joined word.'); note.setAttribute('role', 'status'); details.appendChild(note);
+        var spanDisplay = el('bdi', null, 'stt-edit-span'); spanDisplay.dir = 'auto'; spanDisplay.id = 'stt_manual_span';
+        var range = el('div', null, 'stt-edit-range'), captionWords = (captions[w.word_id] || {}).words || [w];
+        function neighbor(direction) {
+          var edge = editIds[direction < 0 ? 0 : editIds.length - 1];
+          var at = captionWords.findIndex(function (member) { return member.word_id === edge; });
+          return at < 0 ? null : captionWords[at + direction];
+        }
+        function canInclude(member) { return member && member.reviewable && !locked[member.word_id] && editIds.length < 8; }
+        function updateRange(resetInput) {
+          editId = editIds[0]; sourceSpan = Array.from(result.text).slice(words[editId].span_start, words[editIds[editIds.length - 1]].span_end).join('');
+          editRanges[w.word_id] = editIds.slice(); spanDisplay.textContent = sourceSpan;
+          labelText.nodeValue = editIds.length > 1 ? 'Enter the corrected words ' : 'Enter the correct word ';
+          saveWord.textContent = editIds.length > 1 ? 'Save correction in draft' : 'Save word in draft';
+          restoreWord.textContent = editIds.length > 1 ? 'Restore Whisper words' : 'Restore Whisper word';
+          previous.disabled = !canInclude(neighbor(-1)); next.disabled = !canInclude(neighbor(1));
+          reset.disabled = editIds.length === 1 && editId === w.word_id;
+          var hasLock = editIds.some(function (id) { return locked[id]; }); saveWord.disabled = hasLock; restoreWord.disabled = hasLock; input.disabled = hasLock;
+          Object.keys(wordButtons).forEach(function (id) { wordButtons[id].classList.toggle('asr-editing', editIds.indexOf(id) >= 0); });
+          if (resetInput) { input.value = sourceSpan; note.textContent = 'Only these original words will change when you save.'; input.focus(); }
+        }
+        function include(direction) { var member = neighbor(direction); if (!canInclude(member)) return; if (direction < 0) editIds.unshift(member.word_id); else editIds.push(member.word_id); updateRange(true); }
+        var previous = btn('Include previous word', function () { include(-1); }); previous.id = 'stt_manual_previous';
+        var next = btn('Include next word', function () { include(1); }); next.id = 'stt_manual_next';
+        var reset = btn('This word only', function () { editIds = [w.word_id]; updateRange(true); }); reset.id = 'stt_manual_reset';
+        range.appendChild(el('span', 'Words to replace', 'fieldnote')); range.appendChild(spanDisplay);
+        [previous, next, reset].forEach(function (node) { range.appendChild(node); });
         function saveManual() {
           var value = input.value.trim();
+          if (editIds.some(function (id) { return locked[id]; })) { note.textContent = 'Unlock the words before changing this span.'; return; }
           if (!value || editIds.length === 1 && /\s/.test(value) || Array.from(value).length > 200 || /[\x00-\x1f]/.test(value)) { note.textContent = 'Enter a nonempty word or selected short span, without line breaks.'; return; }
           clearOverlaps(editIds);
-          if (value !== (s ? s.original : sourceSpan)) manualEdits[editId] = editIds.length > 1 ? {text: value, word_ids: editIds.slice()} : value;
-          updateDraft(); note.textContent = 'Word saved in the pending draft.';
+          if (value !== sourceSpan) manualEdits[editId] = editIds.length > 1 ? {text: value, word_ids: editIds.slice()} : value;
+          updateDraft(); note.textContent = 'Correction saved in the pending draft. Caption times are kept; changed word timings need review.';
         }
         input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); saveManual(); } });
         var saveWord = btn('Save word in draft', saveManual);
         var restoreWord = btn('Restore Whisper word', function () { clearOverlaps(editIds); updateDraft(); detail(w); });
         var editor = el('div', null, 'stt-word-editor');
-        [label, note, saveWord, restoreWord].forEach(function (node) { editor.appendChild(node); });
+        [range, label, note, saveWord, restoreWord].forEach(function (node) { editor.appendChild(node); });
         details.insertBefore(editor, details.firstChild);
+        updateRange(false);
         details = contextDetails;
       }
       if (phase !== 'review') details.appendChild(el('p', 'You can listen and inspect the evidence while this tool works. Stop it or wait for it to finish before editing.'));
@@ -560,9 +580,7 @@
       var likelihoodSettings = el('a', 'Choose local model'); likelihoodSettings.href = '/settings/lm-likelihood/'; likelihoodSettings.target = '_blank'; likelihoodSettings.rel = 'noopener'; advanced.appendChild(likelihoodSettings);
       advanced.appendChild(el('p', 'Whisper rechecks use the original transcription model: ' + result.model + '.'));
       if (result.model_revision) advanced.appendChild(el('p', 'Whisper model version: ' + result.model_revision));
-      var ipaWords = Object.keys(words).filter(function (id) { return words[id].phonetic && words[id].phonetic.state === 'complete'; });
-      advanced.appendChild(el('p', ipaWords.length ? 'PhoneticXeus: heard IPA available for ' + ipaWords.length + ' suspect words. It also accompanies reasoning-workspace evidence.' : 'PhoneticXeus: optional heard pronunciation can be installed in Speech to text settings.'));
-      var speechSettings = el('a', 'Whisper models & heard pronunciation'); speechSettings.href = '/settings/speech/'; speechSettings.target = '_blank'; speechSettings.rel = 'noopener'; advanced.appendChild(speechSettings);
+      var speechSettings = el('a', 'Whisper models'); speechSettings.href = '/settings/speech/'; speechSettings.target = '_blank'; speechSettings.rel = 'noopener'; advanced.appendChild(speechSettings);
       skillControls(); advanced.appendChild(root.lastChild);
       externalControls();
       if (optionsDock) optionsDock.appendChild(root.lastChild);
@@ -670,7 +688,7 @@
         var previousExternal = result && result.review && result.review.external;
         var nextExternal = res.review && res.review.external;
         if ((previousExternal && previousExternal.id) !== (nextExternal && nextExternal.id)) externalDrafts = {};
-        if (before !== after) { decisions = {}; manualEdits = {}; locked = {}; selection = []; selected = null; externalDrafts = {}; hydrated = false; }
+        if (before !== after) { decisions = {}; manualEdits = {}; locked = {}; selection = []; selected = null; editRanges = {}; externalDrafts = {}; hydrated = false; }
         if (before !== after) { filter = 'all'; search = ''; }
         var previousSuggestions = suggestions; result = res; phase = res.review && res.review.external && !res.review.external.finished ? 'external' : state === 'choice' ? 'review' : state; config = connection; suggestions = {}; words = {};
         keepExternal(res.review && res.review.external);
@@ -700,7 +718,7 @@
       resetProposals: keepAccepted,
       snapshot: snapshot, flush: saveNow,
       disableUse: function (on) { useBusy = on; disableControls(on); },
-      clear: function () { if(saveTimer)clearTimeout(saveTimer);hydrated=false;locked={};selection=[];keepExternal(null); if (externalRow) externalRow.destroy(); externalRow = null; externalAttempt++; externalBusy = false; externalDrafts = {}; result = null; decisions = {}; manualEdits = {}; dictionaryCache.clear(); useBusy = false; disabledBefore = []; root.textContent = ''; root.hidden = true; }
+      clear: function () { if(saveTimer)clearTimeout(saveTimer);hydrated=false;locked={};selection=[];editRanges={};keepExternal(null); if (externalRow) externalRow.destroy(); externalRow = null; externalAttempt++; externalBusy = false; externalDrafts = {}; result = null; decisions = {}; manualEdits = {}; dictionaryCache.clear(); useBusy = false; disabledBefore = []; root.textContent = ''; root.hidden = true; }
     };
     return handle;
   }

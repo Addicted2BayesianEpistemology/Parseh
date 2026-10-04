@@ -172,7 +172,7 @@ SCAFFOLDING = (".gitkeep", "README.md")
 NEVER = (".tls/", "tests/", ".github/", ".runtime/", ".parseh-update/", "dist/",
          ":memory:.ses",
          "docs/lm-likelihood-evaluation.md",
-         "tools/", "lib/phoneticrelease.py", ".speech-release-build/",
+         "tools/", ".speech-release-build/",
          # the LaTeX drawings, made from their blocks and made again at will
          "markdown/latex/",
          "old stuff/", "test for books/", "Parseh-Personal/")

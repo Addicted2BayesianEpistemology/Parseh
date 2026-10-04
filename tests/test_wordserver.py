@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -86,6 +87,70 @@ def _forget():
 
 
 ZH_LINE = "我(wǒ) 要(yào) 一(yì) 杯(bēi) 茶(chá)"
+
+
+class PersianCopulaLookUpTests(unittest.TestCase):
+    """Colloquial -e uses the ordinary dictionary route, with safe fallbacks."""
+
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.dict_path = os.path.join(td.name, "fa.db")
+        _dict(self.dict_path, "fa", [
+            ("کوچیک", "", "adj", ["small"], []),
+            ("کتاب", "", "noun", ["book"], []),
+            ("دید", "", "verb", ["saw"], []),
+            ("در", "", "prep", ["in"], []),
+            ("نام", "", "name", ["a name"], []),
+            ("ب", "", "noun", ["a fixture one-letter stem"], []),
+        ])
+        was = lookup.DICT_DIR
+        lookup.DICT_DIR = td.name
+        _forget()
+
+        def restore():
+            _forget()
+            lookup.DICT_DIR = was
+        self.addCleanup(restore)
+
+    def row(self, word):
+        return lookup.look_up("fa", word)["words"][0]
+
+    def test_colloquial_copula_reaches_existing_stem(self):
+        for word in ("کوچیکه", "کوچیکه،", "کوچیک‌ه", "کُوچیکه"):
+            with self.subTest(word=word):
+                row = self.row(word)
+                self.assertEqual([h["headword"] for h in row["hits"]], ["کوچیک"])
+                self.assertEqual(row["word"], word)
+                self.assertEqual(row["kind"], "affix")
+                self.assertIn("colloquial copula -e", row["via"])
+        self.assertEqual(self.row("کتابه")["hits"][0]["headword"], "کتاب")
+
+    def test_direct_entry_still_wins(self):
+        # Add the exact spelling only to the scratch dictionary, never a real one.
+        with sqlite3.connect(self.dict_path) as c:
+            cur = c.execute("INSERT INTO entry (headword, pos, sense) VALUES (?,?,?)",
+                            ("کوچیکه", "adj", "the exact fixture form"))
+            c.execute("INSERT INTO form (form, entry_id) VALUES (?,?)",
+                      ("کوچیکه", cur.lastrowid))
+        _forget()
+        row = self.row("کوچیکه")
+        self.assertEqual([h["headword"] for h in row["hits"]], ["کوچیکه"])
+        self.assertEqual(row["kind"], "surface")
+
+    def test_short_or_non_nominal_stems_do_not_count_as_copulas(self):
+        for word in ("به", "دیده", "دره", "نامه"):
+            with self.subTest(word=word):
+                self.assertEqual(self.row(word)["hits"], [])
+
+    def test_copula_route_does_not_peel_its_stem_again(self):
+        routes = lookup._routes("نکوچیکه", languages.get("fa"))
+        copula_routes = [r for r in routes if "copula -e" in r.how]
+        self.assertTrue(copula_routes)
+        self.assertFalse(any("copula -e taken off, then" in r.how for r in routes))
+        self.assertFalse(any(", then the colloquial copula -e" in r.how for r in routes))
+        self.assertEqual(self.row("نکوچیکه")["hits"], [])
+        self.assertEqual(self.row("زکوچیکه")["hits"], [])
 
 
 class LookUpTests(unittest.TestCase):

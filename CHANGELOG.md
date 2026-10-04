@@ -2,7 +2,6 @@
 ### Added
 - Standard and language-specific Whisper models in one pinned catalogue, with independent resumable installs, per-language model choices and model provenance in transcription jobs
 - Optional Hugging Face downloads for Persian fast/accuracy, Arabic, Italian, Hindi fast and Spanish, including merged LoRA models, matching offline assets and original licence notices
-- Independently installed PhoneticXeus heard-IPA evidence for suspect words, separate progress and contextual IPA in transcript review and reasoning CSVs
 - Settings → About with version, author, launch-script locations and installation information using the host's native paths
 - Saved pending transcription reviews, with pause/resume from Videos across server and browser restarts
 - Checked-word locks, selected-section review, single-word LM likelihood and bulk selection of the latest method's best choices
@@ -26,6 +25,7 @@
 - Partial-word foreground colours in Studio, with selection-first editing, Unicode-safe boundaries, one-word linguistic clouds, PDF and standalone-HTML output
 
 ### Changed
+- Transcript word editors can include adjacent words for a short-span correction; reasoning workspaces can join split words across suspect/confident neighbors
 - Transcription opens directly into a shared editing workspace; correction methods are reusable tools, with optional automatic and later per-word/section Whisper rechecks
 - All four transcript-correction methods are labeled experimental; LM likelihood offers no-cutoff, suggested 0.1 and custom cutoff choices
 - LLM settings and transcript review show simpler controls, with technical setup and numerical diagnostics folded away
@@ -33,6 +33,7 @@
 - Studio and exported word clouds are linguistic only; foreground colour is applied from the source editor
 
 ### Fixed
+- Persian dictionary lookup recognizes the colloquial copula ending in forms such as کوچیکه through کوچیک, with direct entries preferred
 - LM likelihood candidate search preserves source whitespace with SentencePiece tokenizers, including PersianMind
 - Partial-word colours compile and remain visible in PDFs, including headings, target-language blocks and exercise prompts
 

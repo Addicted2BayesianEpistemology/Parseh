@@ -208,7 +208,7 @@
     // an answer that arrives after a Cancel finds it is not wanted.
     var S = {slice: null, phase: 'idle', run: 0, job: '', kind: '', key: '', lang: '', model: '',
              startHash: '', video: '', player: null, rec: null, sent: 0, timer: 0, readyTimer: 0,
-             abort: null, held: null, said: '', pct: null, responses: 0, secondPass: null, phonetic: null};
+             abort: null, held: null, said: '', pct: null, responses: 0, secondPass: null};
     var AUTO = null;   // {source, lang, model, hash}: the box holds what THIS video, language and model made
     var WAVE = null;   // {job, source}: the shape of the sound, held by the computer for this video
     var WORDS = null;  // {job, source, lang}: the word tape, for a YouTube video or a local film
@@ -289,19 +289,11 @@
     secondBar.setAttribute('role', 'progressbar'); secondBar.setAttribute('aria-labelledby', secondLabel.id);
     secondBar.setAttribute('aria-valuemin', '0'); secondBar.appendChild(el('i'));
     secondProgress.appendChild(secondLabel); secondProgress.appendChild(secondBar);
-    var phoneticProgress = el('div', 'stt-phonetic-pass'); phoneticProgress.hidden = true;
-    phoneticProgress.id = 'stt_phonetic_pass'; phoneticProgress.setAttribute('data-layout', 'browser');
-    var phoneticLabel = el('p', 'fieldnote'); phoneticLabel.id = 'stt_phonetic_label';
-    phoneticLabel.setAttribute('role', 'status'); phoneticLabel.setAttribute('aria-live', 'polite');
-    var phoneticBar = el('div', 'stt-bar'); phoneticBar.id = 'stt_phonetic_bar';
-    phoneticBar.setAttribute('role', 'progressbar'); phoneticBar.setAttribute('aria-labelledby', phoneticLabel.id);
-    phoneticBar.setAttribute('aria-valuemin', '0'); phoneticBar.appendChild(el('i'));
-    phoneticProgress.appendChild(phoneticLabel); phoneticProgress.appendChild(phoneticBar);
     var sayEl = el('p', 'stt-say');
     sayEl.id = 'stt_say';
     sayEl.setAttribute('role', 'status');
     sayEl.setAttribute('aria-live', 'polite');
-    [intro, rowModel, modelNote, rowProc, now, gpu, rowExact, exactNote, busyNote, langNote, how, actions, frame, bar, secondProgress, phoneticProgress, sayEl,
+    [intro, rowModel, modelNote, rowProc, now, gpu, rowExact, exactNote, busyNote, langNote, how, actions, frame, bar, secondProgress, sayEl,
      el('div', 'row')].forEach(function (n) { form.appendChild(n); });
     form.lastChild.appendChild(reviewRoot);
     var reviewMobile = el('p', 'fieldnote', 'Switch to the Browser interface above to choose and use the pending transcript review.');
@@ -375,10 +367,10 @@
       if (!inWorkspace) {
         beforeWorkspace = document.activeElement;
         [frame, playerNote, transport, context].forEach(function (n) { media.appendChild(n); });
-        [how, bar, secondProgress, phoneticProgress, sayEl].forEach(function (n) { pending.appendChild(n); });
+        [how, bar, secondProgress, sayEl].forEach(function (n) { pending.appendChild(n); });
         [rec, cancel].forEach(function (n) { jobActions.appendChild(n); });
         // Progress stays above review, including during LLM requests.
-        work.insertBefore(bar, reviewRoot); work.insertBefore(secondProgress, reviewRoot); work.insertBefore(phoneticProgress, reviewRoot); work.insertBefore(sayEl, reviewRoot);
+        work.insertBefore(bar, reviewRoot); work.insertBefore(secondProgress, reviewRoot); work.insertBefore(sayEl, reviewRoot);
         inWorkspace = true;
       }
       if (!workspace.open) { workspace.showModal(); heading.tabIndex = -1; heading.focus(); }
@@ -637,14 +629,14 @@
         reopen.textContent = S.held ? 'Resume transcript review' : 'Open transcription';
         back.disabled = captureLive();
         back.title = back.disabled ? 'Finish or cancel the recording before returning to Add Video.' : 'Keep the pending draft and return to Add Video';
-        step.textContent = S.phonetic ? 'Heard pronunciation' : S.secondPass ? 'Whisper second pass' : S.phase === 'correcting' ? 'Review tool running' : S.held ? 'Review transcript' : idle ? 'Speech to text' : 'Whisper transcription';
+        step.textContent = S.secondPass ? 'Whisper second pass' : S.phase === 'correcting' ? 'Review tool running' : S.held ? 'Review transcript' : idle ? 'Speech to text' : 'Whisper transcription';
         pending.hidden = !!S.held;
-        pendingHeading.textContent = S.phonetic ? 'PhoneticXeus is listening to suspect words' : S.secondPass ? 'Whisper second pass' : S.kind === 'yt' && captureLive() ? 'Record this YouTube video' : 'Whisper is transcribing';
+        pendingHeading.textContent = S.secondPass ? 'Whisper second pass' : S.kind === 'yt' && captureLive() ? 'Record this YouTube video' : 'Whisper is transcribing';
         notice.textContent = noteEl.textContent;
         var live = S.phase !== 'idle' && S.said !== '';
         sayEl.hidden = !live || inWorkspace && !!S.held;
         sayEl.textContent = live ? S.said : '';
-        bar.hidden = !!S.secondPass || browserLayout() && !!S.phonetic || !(S.phase === 'recording' || S.phase === 'sending' || S.phase === 'working' || S.phase === 'correcting');
+        bar.hidden = !!S.secondPass || !(S.phase === 'recording' || S.phase === 'sending' || S.phase === 'working' || S.phase === 'correcting');
         bar.classList.toggle('wait', S.pct == null);
         bar.firstChild.style.width = S.pct == null ? '' : Math.max(0, Math.min(100, S.pct)) + '%';
         if (S.pct == null) bar.removeAttribute('aria-valuenow');
@@ -657,15 +649,6 @@
           secondBar.setAttribute('aria-valuenow', String(done));
           secondBar.setAttribute('aria-valuetext', done + ' of ' + total + ' suspect words processed');
           secondBar.firstChild.style.width = (total ? 100 * done / total : 100) + '%';
-        }
-        phoneticProgress.hidden = !S.phonetic;
-        if (S.phonetic) {
-          var heard = S.phonetic.done || 0, totalHeard = S.phonetic.total || 0;
-          phoneticLabel.textContent = 'Heard IPA · ' + heard + ' / ' + totalHeard + ' suspect words processed';
-          phoneticBar.setAttribute('aria-valuemax', String(totalHeard || 1));
-          phoneticBar.setAttribute('aria-valuenow', String(heard));
-          phoneticBar.setAttribute('aria-valuetext', heard + ' of ' + totalHeard + ' suspect words processed');
-          phoneticBar.firstChild.style.width = (totalHeard ? 100 * heard / totalHeard : 100) + '%';
         }
         reviewRoot.hidden = !S.held;
         reviewMobile.hidden = !S.held;
@@ -795,7 +778,6 @@
       S.job = S.kind = S.key = S.video = '';
       S.sent = 0;
       S.secondPass = null;
-      S.phonetic = null;
       S.phase = 'idle';
       selectedWord = selectedCaption = null;
       selectedLine.textContent = 'Select a transcript word to jump to its time.';
@@ -1022,7 +1004,6 @@
           if (S.phase === 'working' && noteEl.textContent === SAY_SILENT) note('');
           if (!j.ok) { fail(run, j.error || 'That transcription is not here any more.', false); return; }
           S.secondPass = j.state === 'whisper-second-pass' || j.correction && j.correction.state === 'running' && j.correction.task === 'whisper-second' ? j.second_pass : null;
-          S.phonetic = j.state === 'phonetic-ipa' ? j.phonetic : null;
           if (j.state === 'done' || j.state === 'awaiting-review-choice') { finishJob(run); return; }
           if (j.state === 'failed') { fail(run, j.error, false); return; }
           if (j.state === 'cancelled') { fail(run, 'The transcription was cancelled.', false); return; }
@@ -1084,7 +1065,6 @@
       var review = res.review || {};
       if (review.correction && review.correction.code === 'source-changed') { discardPending(); return; }
       S.secondPass = null;
-      S.phonetic = null;
       S.phase = 'review';
       say('Review and edit the transcript. Try any tool, then choose Use this transcript.');
       ask('/settings/api/llm/status', {}).then(function (r) {

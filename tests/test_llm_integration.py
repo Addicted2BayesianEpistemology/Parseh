@@ -291,6 +291,34 @@ class Schema(unittest.TestCase):
         self.assertTrue(skill_prompt[0]["content"].startswith("@" + correction.SKILL_NAME))
         self.assertNotIn(correction.SYSTEM, skill_prompt[0]["content"])
 
+    def test_manual_neighbor_merge_is_exact_and_rejects_invalid_ranges(self):
+        text = 'A note book arrived.'
+        segments = [{'text': text, 'start': 0, 'end': 4, 'words': [
+            {'text': word, 'score': .95, 'start': i, 'end': i + .5}
+            for i, word in enumerate(text.split())]},
+            {'text': 'Keep this caption.', 'start': 5, 'end': 8, 'words': []}]
+        panel, _ = sttpanel.segments_to_panel(segments)
+        req = correction.evidence(segments, panel, 'en'); before = copy.deepcopy(req)
+        edited, changed = correction.apply(panel, req, {'suggestions': []}, {},
+            {'s0w1': {'text': 'notebook', 'word_ids': ['s0w1', 's0w2']}})
+        self.assertEqual(edited, panel.replace('note book', 'notebook'))
+        self.assertTrue(changed); self.assertEqual(req, before)
+        for ids in (['s0w1', 's0w3'], ['s0w2', 's0w1'], ['s0w1', 's0w1'], ['s0w1', 's1w0']):
+            with self.subTest(ids=ids), self.assertRaises(llmconfig.LLMError):
+                correction.apply(panel, req, {'suggestions': []}, {}, {'s0w1': {'text': 'notebook', 'word_ids': ids}})
+        with self.assertRaises(llmconfig.LLMError):
+            correction.apply(panel, req, {'suggestions': []}, {}, {
+                's0w1': {'text': 'notebook', 'word_ids': ['s0w1', 's0w2']}, 's0w2': 'volume'})
+
+    def test_manual_persian_merge_keeps_unicode_and_source_evidence(self):
+        panel, request = evidence('این کو چیکه و خوبه.')
+        before = copy.deepcopy(request)
+        result, changed = correction.apply(panel, request, {'suggestions': []}, {}, {
+            's0w1': {'text': 'کوچیکه', 'word_ids': ['s0w1', 's0w2']}})
+        self.assertTrue(changed)
+        self.assertEqual(result, panel.replace('کو چیکه', 'کوچیکه'))
+        self.assertEqual(request, before)
+
     def test_long_caption_splits_keep_each_target_owned_once(self):
         _, req = evidence(" ".join("word%d" % i for i in range(240)))
         for w in correction.index(req).values():

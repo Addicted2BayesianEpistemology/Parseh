@@ -248,6 +248,13 @@ the original word's dictionary meanings and the meanings of each native Whisper
 alternative and proposed LLM replacement. Native Whisper beam alternatives, when an exact word mapping
 is possible, have whole-hypothesis log scores rather than word probabilities.
 Hover, focus or click/tap any word to inspect or edit it with the keyboard.
+If Whisper split a word into neighboring pieces, use **Include previous word**
+or **Include next word** in the word editor, then type the corrected word or
+short phrase. The editor shows exactly which original words will be replaced.
+You can include up to eight consecutive words in one caption; locked words are
+protected. **Save correction in draft** keeps the change pending until **Use this
+transcript**. The reasoning workspace can also propose a correction for these
+neighboring pieces, including a confident neighbor beside a suspect word.
 **Automatically run a second Whisper pass**, in **Settings → Speech to text**,
 controls whether suspect words are rechecked immediately after the first pass
 and dictionary checks. It starts checked; turn it off to begin reviewing sooner.
@@ -256,14 +263,6 @@ text or the selected section, or **Whisper second pass for this word** in the
 word inspector. It adds alternatives from an independent audio crop; original
 words and their timestamps stay intact. Its progress counts processed words.
 Choose **Use this Whisper alternative** to put a candidate into the draft.
-If the independent **PhoneticXeus** program and model are installed and enabled
-in Speech to text settings, a further **Heard IPA** stage listens to suspect
-words. The word inspector displays an audio-derived IPA estimate, which can
-include nearby sounds from approximately half a second of context on each side.
-**Heard IPA around this word** is not aligned to the exact word.
-It is a listening aid, not a spelling decision or a
-dictionary pronunciation; the original timestamps remain intact. Available IPA
-also accompanies the reasoning workspace's CSV evidence.
 Accept or reject proposals in the pending draft. LLM progress counts suspect
 words; failed sentences leave their words intact while the run continues.
 **Retry all remaining suspect words** retries unresolved words while retaining

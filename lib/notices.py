@@ -194,12 +194,6 @@ def speech_credits():
         info = getstt.MODEL_INFO[model]
         out["speech:" + model] = (esc(info.get('source', getstt.MODEL_SOURCE)),
                                   licence_link(info.get('licence', getstt.MODEL_LICENCE)))
-    import getphonetic
-    phonetic = getphonetic.status()
-    out['speech:phonetic-runtime'] = (esc('PyTorch CPU runtime and dependencies'),
-                                    licence_link('BSD-3-Clause') + '; dependency licences travel with the program')
-    out['speech:phonetic-model'] = (esc(phonetic['source']),
-                                   licence_link(phonetic['licence']))
     for code, pin in getstt.ALIGN_PINS.items():
         out["speech:align-" + code] = (
             esc("Parseh %s CTC alignment network" % code), licence_link(pin["licence"]))

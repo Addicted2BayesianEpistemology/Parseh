@@ -17,7 +17,7 @@ guide and rebuilds the readers by itself.
 
 ## a0.4.3 — not yet released
 
-### More Whisper models and heard IPA
+### More Whisper models
 
 **Settings → Speech to text** lists standard and language-specific Whisper
 models, filters them by language, and remembers a preferred installed model for
@@ -25,11 +25,7 @@ each language. Persian and Hindi have separate fast and accuracy-oriented
 choices. Models install independently, with cancellation, resume and verified
 files; these labels do not guarantee better recognition on every recording.
 
-Optional **PhoneticXeus** has its own program and model installation. It
-estimates IPA from audio around suspect words without changing their text or
-timestamps. Review shows the estimate and surrounding-audio caveat; the reasoning
-workspace's CSV includes the same evidence. See
-[Speech to text](../lookup-and-languages/speech-to-text.md).
+See [Speech to text](../lookup-and-languages/speech-to-text.md).
 
 ### A transcript workspace with reusable tools
 

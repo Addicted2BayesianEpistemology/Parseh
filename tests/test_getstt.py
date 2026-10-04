@@ -332,7 +332,7 @@ class NormalParseh(unittest.TestCase):
         # numpy IN THE SERVER: only the two children (the probe and the worker) may.  Every
         # module the server can load is read, and not a list of the few it is known to load
         children = {ROOT / "lib" / "sttworker.py", ROOT / "lib" / "sttprobe.py",
-                    ROOT / "lib" / "ctcalign.py", ROOT / 'lib' / 'phoneticworker.py'}
+                    ROOT / "lib" / "ctcalign.py"}
         files = [ROOT / "serve.py"] + [p for d in ("lib", "youtube/lib", "markdown", "html-guide/engine")
                                        for p in sorted((ROOT / d).rglob("*.py"))]
         self.assertGreater(len(files), 100, "the scan found the server's modules")

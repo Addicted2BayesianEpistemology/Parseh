@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Versioned language choices and optional audio tools, with isolated host state."""
+"""Versioned language choices and optional second pass, with isolated host state."""
 import contextlib
 import json
 from pathlib import Path
@@ -25,23 +25,33 @@ class Preferences(unittest.TestCase):
         patched.start()
         self.addCleanup(patched.stop)
 
-    def test_previous_second_pass_format_gains_optional_ipa_and_empty_language_choices(self):
+    def test_previous_second_pass_format_gains_empty_language_choices(self):
         self.path.parent.mkdir()
         self.path.write_text(json.dumps({'format_version': 1, 'second_pass': False}))
         loaded = speechconfig.load()
         self.assertFalse(loaded['second_pass'])
-        self.assertTrue(loaded['phonetic_enabled'])
         self.assertEqual(loaded['models_by_language'], {})
+
+    def test_obsolete_optional_tool_setting_does_not_reset_whisper_preferences(self):
+        self.path.parent.mkdir()
+        self.path.write_text(json.dumps({'format_version': 1, 'second_pass': False,
+                                        'phonetic_enabled': 'obsolete',
+                                        'models_by_language': {'fa': 'fa-fast'}}))
+        loaded = speechconfig.load()
+        self.assertEqual(loaded, {'format_version': 1, 'second_pass': False,
+                                  'models_by_language': {'fa': 'fa-fast'}})
+        saved = speechconfig.save({'second_pass': True})
+        self.assertEqual(saved, {'format_version': 1, 'second_pass': True,
+                                 'models_by_language': {'fa': 'fa-fast'}})
+        self.assertEqual(json.loads(self.path.read_text()), saved)
 
     def test_partial_preferences_preserve_each_other_and_language_choices(self):
         speechconfig.select('fa', 'fa-fast')
         speechconfig.select('hi', 'hi-accuracy')
-        speechconfig.save({'phonetic_enabled': False})
         speechconfig.save({'second_pass': False})
         loaded = speechconfig.load()
         self.assertEqual(loaded['models_by_language'], {'fa': 'fa-fast', 'hi': 'hi-accuracy'})
         self.assertFalse(loaded['second_pass'])
-        self.assertFalse(loaded['phonetic_enabled'])
         speechconfig.select('fa', '')
         self.assertEqual(speechconfig.load()['models_by_language'], {'hi': 'hi-accuracy'})
         self.assertEqual(list(self.path.parent.glob('speech-*.tmp')), [])
@@ -55,7 +65,7 @@ class Preferences(unittest.TestCase):
         self.assertEqual(speechconfig.load()['models_by_language'], {})
 
     def test_preferences_reject_runtime_model_path_or_truthy_boolean_overrides(self):
-        for raw in [{'phonetic_enabled': 1}, {'phonetic_enabled': 'yes'},
+        for raw in [{'second_pass': 1}, {'second_pass': 'yes'},
                     {'second_pass': False, 'path': '/model'}, {'model': 'fa-fast'},
                     {'models_by_language': []}, {'models_by_language': {'it': 'fa-fast'}},
                     {'models_by_language': {'fa': 'unlisted'}}, {}]:
@@ -68,8 +78,7 @@ class Preferences(unittest.TestCase):
         self.path.parent.mkdir()
         for raw in ['{bad', 'x' * 17000,
                     json.dumps({'format_version': 99, 'second_pass': False}),
-                    json.dumps({'format_version': 1, 'second_pass': False,
-                                'phonetic_enabled': 1}),
+                    json.dumps({'format_version': 1, 'second_pass': 1}),
                     json.dumps({'format_version': 1, 'second_pass': False,
                                 'models_by_language': {'it': 'fa-fast'}})]:
             self.path.write_text(raw)
@@ -81,7 +90,7 @@ class Preferences(unittest.TestCase):
         previous = self.path.read_bytes()
         with patch.object(speechconfig.os, 'replace', side_effect=OSError('disk unavailable')):
             with self.assertRaises(OSError):
-                speechconfig.save({'phonetic_enabled': False})
+                speechconfig.save({'second_pass': False})
         self.assertEqual(self.path.read_bytes(), previous)
         self.assertEqual(list(self.path.parent.glob('speech-*.tmp')), [])
 
@@ -111,7 +120,7 @@ class SettingsAPI(unittest.TestCase):
         patched.start()
         self.addCleanup(patched.stop)
 
-    def test_admitted_remote_device_can_choose_language_model_and_toggle_independent_tools(self):
+    def test_admitted_remote_device_can_choose_language_model_and_toggle_second_pass(self):
         with contextlib.ExitStack() as stack:
             for mocked in self.as_phone():
                 stack.enter_context(mocked)
@@ -119,10 +128,9 @@ class SettingsAPI(unittest.TestCase):
                                         {'language': 'fa', 'model': 'fa-fast'})
             self.assertEqual(status, 200, answer)
             self.assertEqual(answer['preferences']['models_by_language'], {'fa': 'fa-fast'})
-            for preference in ('phonetic_enabled', 'second_pass'):
+            for preference in ('second_pass',):
                 status, _, answer = self.ask('POST', '/settings/api/speech/save', {preference: False})
                 self.assertEqual(status, 200, answer)
-            self.assertFalse(answer['preferences']['phonetic_enabled'])
             self.assertFalse(answer['preferences']['second_pass'])
             self.assertEqual(answer['preferences']['models_by_language'], {'fa': 'fa-fast'})
 
@@ -130,7 +138,7 @@ class SettingsAPI(unittest.TestCase):
         invalid = [('/settings/api/speech/select-model', {'language': 'fa', 'model': 'fa-fast',
                                                         'path': '/other/model'}),
                    ('/settings/api/speech/select-model', {'language': 'fa', 'model': 'hi-fast'}),
-                   ('/settings/api/speech/save', {'phonetic_enabled': 1}),
+                   ('/settings/api/speech/save', {'second_pass': 1}),
                    ('/settings/api/speech/save', {'endpoint': 'https://elsewhere.invalid'}),
                    ('/settings/api/speech/save', {'models_by_language': {'fa': 'unknown'}})]
         for route, body in invalid:

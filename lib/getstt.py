@@ -148,8 +148,7 @@ ALLOWED_MODELS = speechmodels.ALLOWED_MODELS
 DEFAULT_MODEL = speechmodels.DEFAULT_MODEL
 ALIGNERS = tuple(sorted(ALIGN_PINS))
 ALIGN_PARTS = tuple("align-" + code for code in ALIGNERS)
-PHONETIC_PARTS = ("phonetic-runtime", "phonetic-model")
-PARTS = ("runtime",) + MODELS + ALIGN_PARTS + PHONETIC_PARTS
+PARTS = ("runtime",) + MODELS + ALIGN_PARTS
 SETTINGS_PAGE = "/settings/speech/"
 GUIDE = "/guide/site/lookup-and-languages/speech-to-text.html"
 
@@ -1195,9 +1194,6 @@ def plan(key, *, probe=True):
     and what they unpack to) and what stays plus the model still to come."""
     if key not in PARTS:
         raise ValueError("%r is not a part of speech to text" % (key,))
-    if key in PHONETIC_PARTS:
-        import getphonetic
-        return getphonetic.plan(key)
     if key in ALLOWED_MODELS and key not in MODEL_PINS:
         return dict(download.plan(None), why=MODEL_INFO[key]['availability_reason'])
     rt_dl, rt_kept = _runtime_plan()
@@ -1228,8 +1224,6 @@ def part_name(key):
     """What a part is called in a sentence."""
     if key == "runtime":
         return "the speech-to-text program"
-    if key in PHONETIC_PARTS:
-        return 'the PhoneticXeus ' + ('program' if key == 'phonetic-runtime' else 'model')
     if key.startswith("align-"):
         return "the %s exact-word-times network" % aligner_code(key)
     return "the %s speech model" % key
@@ -1588,9 +1582,6 @@ def build(key, say=print, progress=None, cancel=None):
     download.Cancelled.  Returns the bytes it now takes."""
     if key not in PARTS:
         raise ValueError("%r is not a part of speech to text" % (key,))
-    if key in PHONETIC_PARTS:
-        import getphonetic
-        return getphonetic.build(key, say=say, progress=progress, cancel=cancel)
     if key in ALLOWED_MODELS and key not in MODEL_PINS:
         raise SystemExit('getstt: ' + MODEL_INFO[key]['availability_reason'])
     if key in ALLOWED_MODELS and MODEL_PINS[key].get('distribution') == 'local-package' and not model_ready(key):
@@ -1649,9 +1640,6 @@ def discard(key):
     The installed part, if any, is untouched.  Returns the bytes freed."""
     if not isinstance(key, str) or key not in PARTS:
         raise ValueError("%r is not a part of speech to text" % (key,))
-    if key in PHONETIC_PARTS:
-        import getphonetic
-        return getphonetic.discard(key)
     if key == "runtime":
         freed = _tree_size(_stage_folder()) if os.path.isdir(_stage_folder()) else 0
         _rmtree(_stage_folder())
@@ -1668,12 +1656,6 @@ def remove(key):
     transcription holds it."""
     if key not in PARTS:
         raise SpeechError("bad-part", "There is no such part of speech to text.")
-    if key in PHONETIC_PARTS:
-        import getphonetic
-        try:
-            return getphonetic.remove(key)
-        except getphonetic.PhoneticError as e:
-            raise SpeechError(e.code, str(e)) from None
     if in_use(key):
         raise SpeechError("in-use", "It is being used right now: an install or a transcription "
                                     "is running. Stop that first.")
@@ -1780,7 +1762,6 @@ def status():
     rt = runtime()
     needs = gpu_needs_text()
     import speechconfig
-    import getphonetic
     return {
         "dir": "stt/",
         "pin": {"generation": PIN["generation"], "python": PIN["python"],
@@ -1789,7 +1770,6 @@ def status():
         "runtime": dict(rt, download=_runtime_plan()[0]),
         "models": _models_status(),
         "preferences": speechconfig.load(),
-        "phonetic": getphonetic.status(),
         "aligners": _aligners_status(),
         "hardware": hw,
         "requirements": [{"what": w, "link": l} for w, l in needs],
@@ -1814,7 +1794,6 @@ def summary(where=None):
     hw = hardware()
     ready = [k for k in MODELS if models[k]["ready"]]
     import speechconfig
-    import getphonetic
     return {"ok": True,
             "installed": bool(rt["ready"] and ready),
             "runtime": {"state": rt["state"], "version": rt["version"], "why": rt["why"]},
@@ -1824,7 +1803,6 @@ def summary(where=None):
                          'source','revision','package_revision','licence','fully_compatible',
                          'distribution','package','package_imported')} for k in MODELS],
             "preferences": speechconfig.load(),
-            "phonetic": getphonetic.status(),
             "aligners": [{"id": "align-" + k, "language": k, "name": aligners[k]["name"],
                           "native": aligners[k]["native"], "have": aligners[k]["have"],
                           "ready": aligners[k]["ready"], "files_ready": aligners[k]["files_ready"],

@@ -72,9 +72,7 @@ def _csv(rows, fields):
 
 
 SUSPECT_FIELDS = ['slot', 'word_id', 'guess', 'whisper_score', 'low_asr_score',
-                  'dictionary_miss', 'alternatives_available', 'context', 'whisper_hints',
-                  'heard_ipa', 'ipa_state', 'ipa_attribution', 'ipa_target_start',
-                  'ipa_target_end', 'ipa_audio_start', 'ipa_audio_end']
+                  'dictionary_miss', 'alternatives_available', 'context', 'whisper_hints']
 
 
 def _files(request):
@@ -90,7 +88,6 @@ def _files(request):
                 continue
             slot = ""
             if correction.suspect(word):
-                phonetic = word.get('phonetic') or {}
                 slot = str(len(slots) + 1); slots[word["word_id"]] = slot
                 patches.append((at, local, "[" + slot + "]"))
                 rows.append({"slot": slot, "word_id": word["word_id"], "guess": word["text"],
@@ -98,14 +95,7 @@ def _files(request):
                              "low_asr_score": word["low_asr_score"], "dictionary_miss": word.get("dictionary_miss", False),
                              "alternatives_available": word["alternatives_available"],
                              "context": " ".join([request["segments"][segment_at - 1]["text"][-100:] if segment_at else "", text[max(0, at - 150):min(len(text), local + 150)], request["segments"][segment_at + 1]["text"][:100] if segment_at + 1 < len(request["segments"]) else ""]).strip(),
-                             "whisper_hints": correction.hint(word, 10),
-                             'heard_ipa': phonetic.get('ipa', '') if phonetic.get('state') == 'complete' else '',
-                             'ipa_state': phonetic.get('state', 'unavailable'),
-                             'ipa_attribution': phonetic.get('attribution', '') if phonetic.get('state') == 'complete' else '',
-                             'ipa_target_start': phonetic.get('target_start', '') if phonetic.get('state') == 'complete' else '',
-                             'ipa_target_end': phonetic.get('target_end', '') if phonetic.get('state') == 'complete' else '',
-                             'ipa_audio_start': phonetic.get('audio_start', '') if phonetic.get('state') == 'complete' else '',
-                             'ipa_audio_end': phonetic.get('audio_end', '') if phonetic.get('state') == 'complete' else ''})
+                             "whisper_hints": correction.hint(word, 10)})
             originals.append({"word_id": word["word_id"], "segment_id": word["segment_id"],
                               "original": word["text"], "slot": slot, "char_start": at, "char_end": local})
         for a, b, replacement in reversed(patches):
@@ -115,7 +105,7 @@ def _files(request):
 
 
 TOOLS = [{"type": "function", "function": {"name": "read_file", "description": "Read a bounded portion of a workspace input file.",
-         "parameters": {"type": "object", "properties": {"path": {"type": "string", "enum": ["input/transcript.txt", "input/active.txt", "input/suspects.csv", "input/words.csv", "input/captions.csv", "input/skim.csv"]},
+         "parameters": {"type": "object", "properties": {"path": {"type": "string", "enum": ["input/transcript.txt", "input/active.txt", "input/allowed.txt", "input/targets.txt", "input/suspects.csv", "input/words.csv", "input/captions.csv", "input/skim.csv"]},
                           "offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 4000}}, "required": ["path"], "additionalProperties": False}}},
          {"type": "function", "function": {"name": "python", "description": "Run short Python code in /work. Read input files; write only out/result.csv. No network or host access.",
           "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"], "additionalProperties": False}}},
@@ -174,7 +164,7 @@ class Workspace:
         raise LLMError("invalid-tools", "Invalid workspace tool arguments.")
 
 
-def _proposals(root, request, allowed):
+def _proposals(root, request, allowed, targets=None):
     path = root / "out/result.csv"
     if path.stat().st_size > 65536:
         raise LLMError("too-large", "The workspace CSV exceeds its size limit.")
@@ -188,7 +178,8 @@ def _proposals(root, request, allowed):
             if n > len(allowed) or set(row) != set(FIELDS) or any(not isinstance(v, str) for v in row.values()):
                 raise ValueError()
             ids = row["word_ids"].split()
-            if not ids or not set(ids) <= allowed or seen.intersection(ids):
+            if (not ids or not set(ids) <= allowed or seen.intersection(ids)
+                    or targets is not None and not set(ids).intersection(targets)):
                 raise ValueError()
             p = {"word_id": ids[0], "word_ids": ids, "original": row["original"]}
             a, b, original = correction.proposal_span(p, sources)
@@ -227,11 +218,14 @@ def _proposals(root, request, allowed):
 
 
 def _phase(workspace, request, adapter, phase, allowed, context_tokens, diagnostic, key):
+    targets = getattr(workspace, 'targets', allowed)
     initial = [{"role": "system", "content": instructions()}, {"role": "user", "content":
                "Language: %s. Phase: %s. Start with python: import review; review.show(). %s "
                "Next call python: import review; review.save(rows), then finish_review. "
-               "Work only on these IDs: %s." % (request["language"], phase,
+               "Phase target IDs: %s. Editable IDs: %s. Each edit must include a phase target; "
+               "join adjacent editable words when Whisper split one word." % (request["language"], phase,
                "Resolve every numbered entry; keep its original when unsure." if phase == "resolve" else "Skim unblanked words only; an empty edits list is valid.",
+               " ".join(sorted(targets)),
                " ".join(sorted(allowed)))}]
     history = []
     deadline = time.monotonic() + 300
@@ -242,10 +236,10 @@ def _phase(workspace, request, adapter, phase, allowed, context_tokens, diagnost
         state = []
         if workspace.ran:
             try:
-                _, seen = _proposals(workspace.root, request, allowed)
+                _, seen = _proposals(workspace.root, request, allowed, targets)
                 state = [{"role": "user", "content": "Python succeeded. The current result.csv contains %d valid entries. %s" %
                           (len(seen), "Call finish_review now if your skim is complete." if phase == "skim" else
-                           "Resolve still needs these IDs: " + " ".join(sorted(allowed - seen)) + ". If none remain, call finish_review now.")}]
+                           "Resolve still needs these IDs: " + " ".join(sorted(targets - seen)) + ". If none remain, call finish_review now.")}]
             except LLMError:
                 state = [{"role": "user", "content": "The current result.csv is invalid. Correct it with Python before finishing."}]
         prompt = initial + history + state
@@ -276,8 +270,8 @@ def _phase(workspace, request, adapter, phase, allowed, context_tokens, diagnost
                     if name == "finish_review":
                         if args or not workspace.ran:
                             raise LLMError("code-required", "Run Python to create the result CSV before finishing.")
-                        proposals, seen = _proposals(workspace.root, request, allowed)
-                        if phase == "resolve" and seen != allowed:
+                        proposals, seen = _proposals(workspace.root, request, allowed, targets)
+                        if phase == "resolve" and not targets <= seen:
                             raise LLMError("incomplete-entries", "Some numbered entries are missing. Add unchanged originals for uncertain words before finishing.")
                         finished = proposals, seen
                         result = "Phase complete; proposals await human review."
@@ -351,19 +345,34 @@ def correct(request, adapter, cancel, progress, context_tokens=8192, diagnostic=
                 (root / "input/suspects.csv").write_text(_csv(rows, SUSPECT_FIELDS), encoding="utf-8")
                 (root / "input/words.csv").write_text(_csv([r for r in originals if r["word_id"] in region], ["word_id", "segment_id", "original", "slot", "char_start", "char_end"]), encoding="utf-8")
                 (root / "input/captions.csv").write_text(_csv([r for r in captions if r["segment_id"] in segment_ids], ["segment_id", "text"]), encoding="utf-8")
-                allowed = ids - set(slots) if phase == "skim" else ids & set(slots)
-                if not allowed:
+                phase_ids = ids - set(slots) if phase == "skim" else ids & set(slots)
+                # A skim can discover a split word straddling a suspect and a
+                # confident neighbor. Do not review that same span a second time.
+                covered = {ident for proposal in suggestions for ident in proposal['word_ids']}
+                resolved = phase_ids & covered if phase == 'resolve' else set()
+                targets = phase_ids - resolved
+                if resolved:
+                    done += len(resolved); reviewed.extend(sorted(resolved))
+                if not targets:
+                    progress(done, total, "Reviewing workspace")
                     continue
+                protected = {ident for proposal in suggestions if resolved.intersection(proposal['word_ids'])
+                             for ident in proposal['word_ids']}
+                allowed = ids - protected
                 (root / "input/allowed.txt").write_text(" ".join(r["word_id"] for r in originals if r["word_id"] in allowed), encoding="utf-8")
+                (root / "input/targets.txt").write_text(" ".join(r["word_id"] for r in originals if r["word_id"] in targets), encoding="utf-8")
                 progress(done, total, "Skimming unblanked words" if phase == "skim" else "Resolving numbered entries")
                 (root / "out/result.csv").write_text(_csv([], FIELDS), encoding="utf-8")
                 workspace = Workspace(root, cancel)
+                workspace.targets = targets
                 workspace.output_bytes = max(1200, min(4000, (context_tokens - 4000) // 2))
                 try:
                     proposals, _ = _phase(workspace, request, adapter, phase, allowed, context_tokens, diagnostic, "region%d" % i)
+                    new_ids = {word for proposal in proposals for word in proposal['word_ids']}
+                    suggestions = [proposal for proposal in suggestions if not new_ids.intersection(proposal['word_ids'])]
                     suggestions.extend(proposals)
                     proposed = {w for s in proposals for w in s["word_ids"]}
-                    uncertain.extend(sorted(allowed - proposed))
+                    uncertain.extend(sorted(targets - proposed))
                 except Exception as error:
                     safe = error if isinstance(error, LLMError) else LLMError("workspace-failed", "This workspace region could not be reviewed.")
                     if safe.code in ("cancelled", "source-changed", "settings-changed"):
@@ -373,21 +382,26 @@ def correct(request, adapter, cancel, progress, context_tokens=8192, diagnostic=
                     proposals, seen = [], set()
                     if workspace.ran:
                         try:
-                            proposals, seen = _proposals(root, request, allowed)
+                            proposals, seen = _proposals(root, request, allowed, targets)
                         except LLMError:
                             pass
+                    new_ids = {word for proposal in proposals for word in proposal['word_ids']}
+                    suggestions = [proposal for proposal in suggestions if not new_ids.intersection(proposal['word_ids'])]
                     suggestions.extend(proposals)
-                    failed.extend(sorted(allowed - seen))
+                    failed.extend(sorted(targets - seen))
                     proposed = {word for proposal in proposals for word in proposal["word_ids"]}
-                    uncertain.extend(sorted(allowed - proposed))
+                    uncertain.extend(sorted(targets - proposed))
                     if diagnostic:
                         diagnostic({"sentence_id": "region%d:%s" % (i, phase), "attempt": 13, "phase": phase,
                                     "word_ids": sorted(allowed), "state": "failed", "code": safe.code, "error": safe.say})
-                done += len(allowed); reviewed.extend(sorted(allowed)); progress(done, total, "Reviewing workspace")
+                done += len(targets); reviewed.extend(sorted(targets)); progress(done, total, "Reviewing workspace")
     cancel.check()
+    proposed_ids = {ident for proposal in suggestions for ident in proposal['word_ids']}
+    uncertain = sorted(set(uncertain) - proposed_ids)
+    failed = sorted(set(failed) - proposed_ids)
     return {"schema_version": 1, "suggestions": suggestions, "uncertain_word_ids": uncertain, "failed_word_ids": failed,
             "assessment": "partial" if failed else "suggestions" if suggestions else "kept_original",
             "method": "workspace-code", "task": "workspace", "reviewed_word_ids": reviewed,
             "words_reviewed": done, "words_total": total,
-            "workspace": {"files": ["transcript.txt", "suspects.csv", "words.csv", "captions.csv", "skim.csv", "review.py"],
+            "workspace": {"files": ["transcript.txt", "active.txt", "allowed.txt", "targets.txt", "suspects.csv", "words.csv", "captions.csv", "skim.csv", "review.py"],
                           "reasoning_requested": True, "isolated_python": True, "removed": True}}

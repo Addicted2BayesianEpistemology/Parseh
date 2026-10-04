@@ -101,8 +101,7 @@ TRANSCRIBING, ALIGNING, DONE, FAILED, CANCELLED = "transcribing", "aligning", "d
 REVIEW_CHOICE, CORRECTING = "awaiting-review-choice", "correcting"
 CHECKING = "checking-dictionary"
 SECOND_PASS = "whisper-second-pass"
-PHONETIC = 'phonetic-ipa'
-ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING, CHECKING, SECOND_PASS, PHONETIC, CORRECTING)
+ACTIVE = (AWAITING, RECEIVING, QUEUED, PREPARING, LOADING, TRANSCRIBING, ALIGNING, CHECKING, SECOND_PASS, CORRECTING)
 RECORDING = (AWAITING, RECEIVING)           # a YouTube job still taking audio
 
 TOKEN_BYTES = 12
@@ -348,8 +347,6 @@ def stop_all():
     for job in jobs:
         _save_pending(job)
         job["cancelled"] = True
-        if job.get('phonetic_cancel'):
-            job['phonetic_cancel'].set()
         if job.get("llm_cancel"):
             job["llm_cancel"].cancel()
         _clean_files(job)
@@ -516,7 +513,6 @@ def start(source, lang, model, processing, duration=None, exact=True):
         preferences = speechconfig.load()
         job = {"id": token, "kind": kind, "source": norm, "film": film,
                "automatic_second_pass": preferences['second_pass'],
-               "automatic_phonetic": preferences['phonetic_enabled'],
                "model_revision": speechmodels.provenance(model),
                "lang": lang, "wlang": wlang, "model": model, "mode": processing,
                "aligner": aligner,
@@ -716,9 +712,6 @@ def _say(job):
     if s == SECOND_PASS:
         p = job.get('second_pass', {})
         return "Whisper second pass… %d / %d suspect words processed." % (p.get('done', 0), p.get('total', 0))
-    if s == PHONETIC:
-        p = job.get('phonetic', {})
-        return 'Heard IPA… %d / %d suspect words processed.' % (p.get('done', 0), p.get('total', 0))
     if s == CORRECTING:
         c = job.get("correction", {})
         if c.get('task') == 'whisper-second':
@@ -740,9 +733,6 @@ def _say(job):
 
 
 def _pct(job):
-    if job['state'] == PHONETIC:
-        p = job.get('phonetic', {})
-        return int(100*p.get('done', 0)/p['total']) if p.get('total') else None
     if job['state'] == SECOND_PASS:
         p = job.get('second_pass', {})
         return int(100*p.get('done', 0)/p['total']) if p.get('total') else 100
@@ -770,8 +760,6 @@ def _report(job):
         out["correction"] = dict(job["correction"])
     if job.get('second_pass') is not None:
         out['second_pass'] = {k: job['second_pass'][k] for k in ('done', 'total', 'failed')}
-    if job.get('phonetic') is not None:
-        out['phonetic'] = {k: job['phonetic'].get(k) for k in ('state','done','total','failed')}
     out['model_revision'] = job.get('model_revision')
     out.update(_who(job))
     if job["fell_back"]:
@@ -824,8 +812,6 @@ def cancel(token):
         if job.get('llm_cancel'):
             job['llm_cancel'].cancel()
         job["cancelled"] = True
-        if job.get('phonetic_cancel'):
-            job['phonetic_cancel'].set()
         job["state"] = CANCELLED
         job["finished"] = _now()
         proc = job["proc"]
@@ -868,7 +854,7 @@ def result(token):
         _save_pending(job)
         facts = dict(job["facts"] or {})
         return dict(facts, text=job["text"], lang=job["lang"], model=job["model"],
-                    model_revision=job.get('model_revision'), phonetic=job.get('phonetic'),
+                    model_revision=job.get('model_revision'),
                     device=job["device"], fell_back=job["fell_back"],
                     notes=list(job["notes"]), warning=job["warning"],
                     words=dict(job["words"] or {"held": False, "count": 0}),
@@ -913,8 +899,6 @@ def _restore_pending(token):
             job['correction'] = job.pop('second_pass_previous', {}).get('correction', {'state':'not-requested', 'complete':False})
         else:
             job["correction"].update(state="interrupted", complete=False)
-    if job.get('phonetic', {}).get('state') == 'running':
-        job['phonetic'].update(state='interrupted', complete=False)
     import wordtimes
     import wavefile
     if record.get("timings"):
@@ -2298,8 +2282,6 @@ def _finish(job, msg):
         job["text"], job["notes"], job["facts"], job["warning"], job["words"] = \
             text, list(job['notes']) + notes, facts, warning, word_info
         job["done"], job["segments"] = job["total"] or job["done"], None
-    if not _derive_phonetic(job):
-        return
     with LOCK:
         if job['cancelled']:
             return
@@ -2309,93 +2291,6 @@ def _finish(job, msg):
         job["state"], job["finished"] = DONE, _now()
         _unhold(job)                     # in the breath that says it is done
         _save_pending(job)
-
-
-def _derive_phonetic(job):
-    """Optional audio evidence, after Whisper has exited and released its model.
-
-    All target times refer to the original audio, independently of video-clock
-    remapping and optional CTC timing. Stage results until cancellation/source
-    guards pass; this tool never replaces text, confidence or word timestamps.
-    """
-    import copy
-    import asrcorrection
-    import asrpending
-    import getphonetic
-    import phonetic
-    if not job.get('automatic_phonetic') or not getphonetic.status()['ready']:
-        return True
-    words = asrcorrection.index(job['review_evidence'])
-    ids = list(job.get('first_suspect_word_ids', []))
-    raw = {w['word_id']: w for s in job['whisper_source']['segments'] for w in s.get('asr_words', [])}
-    targets, staged = [], {}
-    for ident in ids:
-        original = raw.get(job['whisper_source']['word_map'].get(ident))
-        a, b = (original.get('start'), original.get('end')) if original else (None, None)
-        if (_num(a) is None or _num(b) is None or a < 0 or b <= a):
-            staged[ident] = {'state':'unavailable', 'reason':'Whisper did not provide usable audio timestamps.'}
-        else:
-            targets.append({'word_id':ident, 'start':a, 'end':b})
-    cancel = threading.Event()
-    with LOCK:
-        if job['cancelled']:
-            return False
-        job['phonetic_cancel'] = cancel
-        job['phonetic'] = {'state':'running', 'done':len(staged), 'total':len(ids), 'failed':len(staged)}
-        job['state'] = PHONETIC
-
-    def current():
-        with LOCK:
-            return not job['cancelled'] and _review_source_current(job)
-
-    def on_word(item):
-        if current():
-            staged[item['word_id']] = copy.deepcopy(item['phonetic'])
-
-    def progress(done, total):
-        with LOCK:
-            if not job['cancelled']:
-                job['phonetic']['done'] = len(ids) - len(targets) + done
-                job['phonetic']['failed'] = sum(w.get('state') != 'complete' for w in staged.values())
-
-    result = None
-    try:
-        if targets:
-            source = str(asrpending.audio_path(job['id'])) if job['kind'] == 'youtube' else job['source']['path']
-            # IPA has its own CPU runtime; it does not inherit Whisper's GPU lock
-            # or force another application's model to unload.
-            result = phonetic.run(source, 'pcm16' if job['kind'] == 'youtube' else 'media', targets,
-                                  processing='auto', cancel=cancel, progress=progress,
-                                  on_word=on_word, source_check=current)
-            for item in result['words']:
-                staged[item['word_id']] = copy.deepcopy(item['phonetic'])
-    except Exception as error:
-        # Keep successful, attributable evidence on per-target failures. Global
-        # cancellation or changed sources invalidate every staged result below.
-        for target in targets:
-            reason = error.say if isinstance(error, getphonetic.PhoneticError) else 'Heard IPA could not be obtained for this word.'
-            staged.setdefault(target['word_id'], {'state':'failed', 'reason':reason})
-    finally:
-        with LOCK:
-            job.pop('phonetic_cancel', None)
-    with LOCK:
-        if job['cancelled'] or cancel.is_set():
-            return False
-        if not _review_source_current(job):
-            _end(job, FAILED, 'film-changed', 'The film changed while heard IPA was being estimated. Transcribe it again.')
-            return False
-        for ident in ids:
-            words[ident]['phonetic'] = staged.get(ident, {'state':'failed', 'reason':'No heard IPA was returned for this word.'})
-        failed = sum(words[ident]['phonetic'].get('state') != 'complete' for ident in ids)
-        stage_state = 'failed' if ids and failed == len(ids) else 'partial' if failed else 'complete'
-        job['phonetic'] = {'state':stage_state, 'done':len(ids),
-                           'total':len(ids), 'failed':failed,
-                           'revision':result.get('revision') if result else getphonetic.status()['revision'],
-                           'device':result.get('device') if result else 'cpu'}
-        job['review_evidence']['phonetic'] = dict(job['phonetic'])
-        if failed:
-            job['notes'].append('Heard IPA was unavailable for %d suspect words. Their Whisper evidence and transcript are unchanged.' % failed)
-    return True
 
 
 # ------------------------------------------------------------------ the server

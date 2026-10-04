@@ -17,8 +17,7 @@ It does not run in the Parseh environment. Generated weights, scratch files and
 credentials are ignored by Git; no main-branch merge is required to publish them.
 
 Weight licences remain independent of Parseh's GPL code licence. The six local
-conversions declare MIT or Apache-2.0. PhoneticXeus remains a direct upstream
-download under CC-BY-NC-SA-4.0; Collabora Hindi remains under CC-BY-4.0.
+conversions declare MIT or Apache-2.0; Collabora Hindi remains under CC-BY-4.0.
 
 See [Hugging Face model cards](https://huggingface.co/docs/hub/model-cards) and
 [licence metadata](https://huggingface.co/docs/hub/repositories-licenses).

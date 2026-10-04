@@ -73,8 +73,7 @@ def page(jobs=None, where="", device=""):
     main = """<main class="settings rh sp tools">
 %(doors)s
 <h1 class="idx">speech to text</h1>
-<p class="sub">Choose a Whisper model for each language. Transcription and optional phonetic
-recognition run on this computer; your audio stays here.</p>
+<p class="sub">Choose a Whisper model for each language. Transcription runs on this computer; your audio stays here.</p>
 <p class="whomay">%(gate)s <span>Install only what you need. Downloads are checked before use.</span></p>
 <div id="sp-band" class="band"></div>
 <section class="shared about"><label><input type="checkbox" id="sp_second_pass"%(second_checked)s>
@@ -104,7 +103,7 @@ STYLE = r"""
 .sp .catalogue-controls label{display:flex;flex-direction:column;gap:5px;font-size:13px;margin:0;min-width:0}
 .sp .catalogue-controls select{max-width:100%;min-width:180px}
 .sp .catalogue-controls .installed-filter{flex-direction:row;align-items:center;padding-bottom:8px}
-.sp .catalogue-controls input[type=checkbox],.sp #sp_phonetic_enabled{width:auto;margin-inline-end:5px}
+.sp .catalogue-controls input[type=checkbox]{width:auto;margin-inline-end:5px}
 .sp .catalogue-section{font-size:13px;font-weight:600;color:var(--dim);padding:10px 16px;margin:0;border-top:1px solid var(--rule)}
 .sp .catalogue-section:first-child{border-top:0}
 .sp .catalogue-empty{padding:14px 16px;color:var(--dim);font-size:14px}
@@ -112,8 +111,6 @@ STYLE = r"""
 .sp .catalogue-selection label{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 .sp .catalogue-selection select{max-width:100%;width:auto}
 .sp .catalogue-selection p{margin:6px 0 0;color:var(--dim)}
-.sp .phonetic-preference{padding:12px 16px;border-top:1px solid var(--rule);font-size:14px}
-.sp .phonetic-preference p{font-size:13px;color:var(--dim);margin:5px 0 0}
 .sp .whomay{display:flex;gap:8px 10px;align-items:baseline;flex-wrap:wrap;margin:.2rem 0 1rem;font-size:13.5px;color:var(--dim)}
 .sp .whomay .gate{flex:none}
 .sp section.about{padding:14px 16px}
@@ -302,41 +299,6 @@ SCRIPT = r"""
     html += '</section><p class="foot">Fast and accuracy choices describe intended trade-offs; a larger model can still make mistakes. Unavailable packages stay listed so their limits are clear.</p>';
     return html;
   }
-  function phoneticParts() {
-    var p = S.speech.phonetic;
-    if (!p) return [];
-    return ['runtime', 'model'].map(function (kind) {
-      var st = p[kind] || {}, id = 'phonetic-' + kind, runtime = kind === 'runtime';
-      return {id:id, name:runtime ? 'PhoneticXeus program' : 'PhoneticXeus model',
-        'for':runtime ? 'A separate optional speech recognizer. Installing it does not change Whisper.' : 'Estimates IPA from audio around suspect words, including nearby speech.',
-        have:!!st.ready || !!st.have, state:st.state || (st.ready ? 'ready' : 'absent'), why:st.say || st.why,
-        na:p.available === false || st.available === false, naWhy:st.say || st.why || p.say,
-        usable:!!st.ready, kept:st.kept || st.size || 0, noResume:false,
-        memory:st.memory, needsProgram:false,
-        facts:st.ready ? GB(st.kept || st.size) : '',
-        job:J()[id] || null,
-        credit:(S.credits || {})['speech:' + id] || (!runtime && p.licence ? {who:'PhoneticXeus', licence:esc(p.licence)} : null)};
-    });
-  }
-  function phoneticPanel(rows) {
-    if (!rows.length) return '';
-    var p = S.speech.phonetic || {}, info = '';
-    if (p.limits || p.revision) {
-      info = '<details class="tech"><summary>Model and resource details</summary>' +
-        (p.limits ? '<p>' + esc(p.limits) + '</p>' : '') + '<dl>' +
-        (p.source ? '<dt>Source</dt><dd>' + esc(p.source) + '</dd>' : '') +
-        (p.revision ? '<dt>Model version</dt><dd>' + esc(p.revision) + '</dd>' : '') +
-        (p.licence ? '<dt>Licence</dt><dd>' + (/^https:\/\//.test(p.licence_url || '') ? '<a href="' + esc(p.licence_url) + '" target="_blank" rel="noopener">' + esc(p.licence) + '</a>' : esc(p.licence)) + '</dd>' : '') + '</dl></details>';
-    }
-    return '<h2 class="part">Heard pronunciation <span class="aside">— optional PhoneticXeus</span></h2><section class="shared">' +
-      '<div class="about"><p>Install both parts to see pronunciation symbols (IPA) around suspect words. This listening aid can include nearby speech.</p>' +
-      (p.licence === 'CC-BY-NC-SA-4.0' ? '<p class="help">The model is licensed for non-commercial use. See its licence in the details below.</p>' : '') + '</div>' +
-      rows.map(row).join('') + '<div class="phonetic-preference"><label><input type="checkbox" id="sp_phonetic_enabled" data-phonetic-enabled' +
-      ((S.preferences || {}).phonetic_enabled !== false ? ' checked' : '') + '>Show heard IPA after Whisper, when installed</label>' +
-      '<p>Runs once on suspect words. Estimates can include nearby sounds; original words and timestamps stay unchanged. Available IPA also accompanies reasoning-workspace reviews.</p>' +
-      '<p id="sp_phonetic_preference_status" role="status" aria-live="polite"></p>' + info + '</div></section>';
-  }
-
   /* ---- the size line of a part not installed: measured, said before anything starts */
   function sizeLine(r) {
     var p = size(r.id), bits = [];
@@ -556,9 +518,8 @@ SCRIPT = r"""
     ROWS = {};
     var rows = parts();
     var alignRows = alignerParts();
-    var phoneticRows = phoneticParts();
-    rows.concat(alignRows, phoneticRows).forEach(function (r) { ROWS[r.id] = r; });
-    var html = catalogue(rows) + phoneticPanel(phoneticRows) +
+    rows.concat(alignRows).forEach(function (r) { ROWS[r.id] = r; });
+    var html = catalogue(rows) +
       '<h2 class="part">Whisper program</h2><section class="shared">' + row(rows[0]) + '</section>' +
       processor() + languages(alignRows);
     drawBand();
@@ -691,7 +652,6 @@ SCRIPT = r"""
     if ((id = b.getAttribute('data-remove'))) {
       var r = ROWS[id], what = id === 'runtime' ? 'the speech program'
         : id.indexOf('align-') === 0 ? 'exact word times for ' + id.slice(6)
-        : id.indexOf('phonetic-') === 0 ? 'the ' + r.name
         : 'the ' + id + ' model';
       asking[id] = {kind: 'remove', said: 'Remove ' + esc(what) + '? It frees ' + (GB(r.kept) || 'a little room') +
                     '; getting it back is a ' + GB(size(id).download) + ' download.' +
@@ -729,16 +689,6 @@ SCRIPT = r"""
         control.value = old; preferenceSay = err.message || 'Could not save this choice.'; drawn = null; draw();
       });
       return;
-    }
-    if (control.hasAttribute('data-phonetic-enabled')) {
-      var previous = (S.preferences || {}).phonetic_enabled !== false;
-      control.disabled = true;
-      var status = document.getElementById('sp_phonetic_preference_status'); status.textContent = 'Saving…';
-      savePreference('/settings/api/speech/save', {phonetic_enabled:control.checked}).then(function () {
-        status.textContent = 'Saved. Applies to new transcriptions.';
-      }).catch(function (err) {
-        control.checked = previous; status.textContent = err.message || 'Could not save this preference.';
-      }).then(function () { control.disabled = false; });
     }
   });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });

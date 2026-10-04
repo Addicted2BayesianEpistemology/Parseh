@@ -1,7 +1,7 @@
 ---
 title: Speech to text
 weight: 12
-description: Install standard and language-specific Whisper models, choose a preferred model per language, and optionally add second-pass checks, heard IPA and exact word times.
+description: Install standard and language-specific Whisper models, choose a preferred model per language, and optionally add second-pass checks and exact word times.
 ---
 
 A video you add needs a transcript, and the transcript is usually what
@@ -96,17 +96,6 @@ These prepared packages already contain CTranslate2 weights and matching
 tokenizer, audio-preprocessing and licence assets. Italian and Hindi adapters
 have already been merged. You do not need PyTorch, PEFT, conversion commands or
 a model-hosting application to install a Whisper model in Parseh.
-
-**Heard pronunciation — optional PhoneticXeus** is installed independently from
-Whisper. Its separate program and model estimate IPA directly from audio around
-suspect words. Once both are installed, **Show heard IPA after Whisper, when
-installed** controls automatic processing. A separate completed/total-word bar
-shows this stage. **Heard IPA around this word** displays the estimate from a
-crop with approximately half a second of context on either side. Neighboring
-speech can be included; the IPA is not aligned to the exact word. This does not replace words, shift their timestamps
-or supply a dictionary pronunciation. Available IPA is also included in the
-reasoning workspace's CSV. The model's licence and download size are shown
-before installation.
 
 **Whisper program** is installed with the first Whisper model.
 **Processor** says what the transcript will be made on — [below](#the-processor).
@@ -268,10 +257,9 @@ characters is refused with a sentence, unless Windows has long paths turned on.
 | `stt/models/<model>/` | a model's weights, offline tokenizer/preprocessing assets and licence files, plus `meta.json` recording source and package revisions. |
 | `stt/models/<model>.part/` | a model that was stopped, kept for the next press. |
 | `stt/packages/<model>/<revision>/` | temporary verified ZIP assets, kept for retry until installation succeeds. The installed model and your original ZIP remain afterwards. |
-| `stt/phonetic/` | PhoneticXeus's independent program, model and resumable downloads. |
 | `stt/tmp/` | temporary transcription work. Captured audio needed for a pending review is moved privately before this folder is cleaned. |
 | `youtube/videos/.pending-transcriptions/` | private saved review drafts and their captured audio, deleted when you use or discard the transcript. Local films are read in place. |
-| `config/speech.json` | per-language model choices and the two optional automatic-check settings. |
+| `config/speech.json` | per-language model choices and the optional automatic second-pass setting. |
 
 None of it is in Parseh's own environment: the program is never on the
 server's own path (it brings its own numpy), and everything that uses it —
@@ -307,8 +295,6 @@ Each row says whose work it is and its licence, linked, and
 - Language-specific models retain their source authors, checkpoints and
   licences in the catalogue, installation rows and complete packages. The
   converted package's identity is recorded separately from its source checkpoint.
-- PhoneticXeus is by **changelinglab**, under **CC-BY-NC-SA-4.0**.
-  Its independent CPU runtime has the licences of the pinned libraries it installs.
 - Exact-word-time networks: Parseh's `aligner-zh`, `aligner-ja`, `aligner-hi`,
   `aligner-ar`, `aligner-fa`, `aligner-tr`, `aligner-es`, `aligner-de`,
   `aligner-fr`, `aligner-it` and `aligner-en` repositories on Hugging Face,

@@ -45,6 +45,37 @@ class Pending(unittest.TestCase):
         self.assertEqual(asrpending.load(self.token)['job']['text'],self.panel)
         self.assertEqual(asrpending.listing()[0]['job'],self.token)
 
+    def test_obsolete_audio_evidence_is_not_restored_or_saved(self):
+        draft = {'manual_edits': {'s0w1': 'hanno'}, 'locked_word_ids': ['s0w1'],
+                 'phonetic_filter': False}
+        self.job['review_draft'] = draft
+        self.job['external_review'] = {'task': 'workspace', 'prompt': 'heard_ipa,ipa_attribution'}
+        self.job['automatic_phonetic'] = True
+        self.job['phonetic'] = {'state': 'complete'}
+        self.evidence['phonetic'] = {'state': 'complete'}
+        self.evidence['segments'][0]['words'][1]['phonetic'] = {'state': 'complete', 'ipa': 'old'}
+        asrpending.save(self.job)
+        stored = json.loads(asrpending.path(self.token).read_text())
+        self.assertNotIn('phonetic', stored['job'])
+        self.assertNotIn('external_review', stored['job'])
+        self.assertNotIn('automatic_phonetic', stored['job'])
+        self.assertNotIn('phonetic', stored['job']['review_evidence'])
+        self.assertNotIn('phonetic', stored['job']['review_evidence']['segments'][0]['words'][1])
+        self.assertEqual(stored['job']['review_draft'], draft)
+        # Also migrate a pre-removal record, retaining text, times and edits.
+        stored['job']['external_review'] = {'prompt': 'heard_ipa,ipa_audio_start'}
+        stored['job']['automatic_phonetic'] = True
+        stored['job']['phonetic'] = {'state': 'complete'}
+        stored['job']['review_evidence']['segments'][0]['words'][1]['phonetic'] = {'ipa': 'old'}
+        asrpending.path(self.token).write_text(json.dumps(stored))
+        restored = asrpending.load(self.token)['job']
+        self.assertNotIn('phonetic', restored)
+        self.assertNotIn('external_review', restored)
+        self.assertNotIn('phonetic', restored['review_evidence']['segments'][0]['words'][1])
+        self.assertEqual(restored['review_draft'], draft)
+        self.assertEqual(restored['text'], self.panel)
+        self.assertIn('phonetic', self.evidence['segments'][0]['words'][1])
+
     def test_restore_after_server_memory_loss_never_starts_model(self):
         asrpending.save(self.job);sttjobs.JOBS.pop(self.token)
         with mock.patch('lmlikelihood.Session') as worker:

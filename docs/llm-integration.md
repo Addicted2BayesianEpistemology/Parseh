@@ -89,8 +89,11 @@ claim that the endpoint actually read a skill when no evidence is returned.
 literal keyboard edits to exact source spans. A manual edit may target any
 reviewable word, including those with no score, alternatives or LLM suggestion.
 Unknown IDs, overlapping decisions/manual edits, control characters, empty or
-oversized substitutions are rejected. Single-word manual edits disallow spaces;
-an explicitly selected multi-piece proposal can be typed as a short span. Caption clocks/boundaries are
+oversized substitutions are rejected. The manual editor lets the user include
+previous/next words (up to eight in one caption), independently of model
+suggestions. This repairs a word split into neighboring Whisper pieces. Locked
+neighbors cannot be included. Single-word manual edits disallow spaces; an
+explicitly selected span accepts a short phrase. Caption clocks/boundaries are
 checked against the original. Changed word timings use the existing timing
 editor and need review because retained audio has already been deleted.
 
@@ -99,6 +102,13 @@ provides accessible details, response inspection and one retry button excluding
 accepted/manual words. `addstt.js` owns stale transcript/source/language/model
 guards and the only explicit Use handoff with overwrite confirmation. ASR
 completion and remembered defaults never send a request or populate the box.
+
+Reasoning workspace phase targets are separate from editable words. Skim and
+resolve may join adjacent selected words, including a confident neighbor, while
+each proposal must include a target of the active phase. Every span retains its
+exact original text and stable IDs. Spans cannot cross caption boundaries,
+include locked/out-of-section words, or overlap another final proposal. A split
+already repaired during skim is kept and counted without a second resolve edit.
 
 Offline fake HTTP/worker coverage is in `tests/test_llm_integration.py` and the
 browser review contract in `tests/add_stt.mjs`. Private evaluation recordings,

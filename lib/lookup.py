@@ -382,6 +382,11 @@ def rules(code):
                    `prefer`, notes that put an entry first when this rule is
                    the one that answered (after -mashita, the entry reached
                    through its `stem` row is the verb: 来ました is 来る).
+                   `min_stem_length` and `pos` can restrict a short ending
+                   to stems of a given length and part of speech. `terminal`
+                   ends that route, so a copula cannot be peeled off and then
+                   explained away through another, unrelated affix;
+                   `surface_only` prevents earlier affix guesses as well.
 
     And, where the language needs them, what the source's rows mean that
     the rows cannot say themselves:
@@ -534,11 +539,15 @@ def _peel(form, rule):
     after = rule.get("after") or ()
     if suf and form.endswith(suf) and len(form) > len(suf):
         rest = _trim(form[:-len(suf)])
+        if len(rest) < rule.get("min_stem_length", 1):
+            return None
         if after and not rest.endswith(tuple(after)):
             return None
         return _trim(front + rest + add)
     if pre and form.startswith(pre) and len(form) > len(pre):
         rest = _trim(form[len(pre):])
+        if len(rest) < rule.get("min_stem_length", 1):
+            return None
         if not rest or (after and not rest.endswith(tuple(after))):
             return None
         return _trim(front + rest + add)
@@ -625,6 +634,8 @@ def _routes(word, L):
         nxt = []
         for form, why, path, prefixed in frontier:
             for rule in affixes:
+                if rule.get("surface_only") and path:
+                    continue
                 # ONE PREFIX PER WORD.  A word has one prefix slot in every
                 # language here -- Persian's نمی is already ne+mi as a single
                 # rule -- so a second one is always the search eating the
@@ -639,8 +650,9 @@ def _routes(word, L):
                     continue
                 seen.add(stem)
                 took = path + [rule.get("note") or ""]
-                nxt.append((stem, why, took,
-                            prefixed + (1 if rule.get("prefix") else 0)))
+                if not rule.get("terminal"):
+                    nxt.append((stem, why, took,
+                                prefixed + (1 if rule.get("prefix") else 0)))
                 # `affix` marks a route the LANGUAGE accounts for -- an
                 # ending it knows how to take off -- as against one that
                 # merely found the string.  _resolve uses the difference, and
@@ -1187,8 +1199,9 @@ def _is_word(c, piece, L):
     dozen, so a chunk costs a few thousand of them -- milliseconds, once,
     behind a click.
     """
-    for form, _why, _kind, _rule, _base in _routes(piece, L):
-        if _known(c, form):
+    for form, _why, _kind, rule, _base in _routes(piece, L):
+        if (_route_hits(c, form, rule) if (rule or {}).get("pos")
+                else _known(c, form)):
             return True
     return False
 
@@ -1573,7 +1586,7 @@ def _joined(c, raw, nxt, L, rule):
     tried = []
     for rt in _routes(whole, L):
         tried.append(rt.form)
-        hits = [h for h in _hits_for(c, rt.form, (rt.rule or {}).get("prefer") or ())
+        hits = [h for h in _route_hits(c, rt.form, rt.rule)
                 if not pos or (h.get("pos") or "") in pos]
         if hits:
             return {"word": word, "hits": hits, "tried": tried, "kind": rt.kind,
@@ -1592,6 +1605,19 @@ def _only_spellings(hits, L):
         return False
     return all((h.get("pos") in pos)
                or any(x in (h.get("note") or "") for x in has) for h in hits)
+
+
+def _route_hits(c, form, rule):
+    """Apply optional grammatical guards to one affix route's dictionary hits.
+
+    The Persian colloquial copula -e is a nominal/adjectival ending. Merely
+    sharing the remaining letters with a verb, a name or a preposition is
+    insufficient evidence that the dictionary recognises this form.
+    """
+    rule = rule or {}
+    hits = _hits_for(c, form, rule.get("prefer") or ())
+    pos = rule.get("pos") or ()
+    return [h for h in hits if not pos or h.get("pos") in pos]
 
 
 def _resolve(c, raw, alts, L, from_model, initial=False):
@@ -1616,7 +1642,7 @@ def _resolve(c, raw, alts, L, from_model, initial=False):
     routes = _routes(w, L)
     for n, rt in enumerate(routes):
         tried.append(rt.form)
-        found = _hits_for(c, rt.form, (rt.rule or {}).get("prefer") or ())
+        found = _route_hits(c, rt.form, rt.rule)
         if not found:
             continue
         hits, via, kind = found, rt.how, rt.kind
@@ -1637,7 +1663,7 @@ def _resolve(c, raw, alts, L, from_model, initial=False):
                 if low.base == "as written":
                     continue
                 tried.append(low.form)
-                more = _hits_for(c, low.form, (low.rule or {}).get("prefer") or ())
+                more = _route_hits(c, low.form, low.rule)
                 if more and not all(h["pos"] == "name" for h in more):
                     have = {h["entry"] for h in more}
                     for h in found:
@@ -1659,8 +1685,7 @@ def _resolve(c, raw, alts, L, from_model, initial=False):
                 if part.kind != "affix" or not (part.rule or {}).get("prefix"):
                     continue
                 tried.append(part.form)
-                more = _hits_for(c, part.form,
-                                 (part.rule or {}).get("prefer") or ())
+                more = _route_hits(c, part.form, part.rule)
                 if more:
                     # the whole word's pages first, as the text writes it
                     # (n'avait: ne, then avoir) -- except a capital's lower
@@ -1685,7 +1710,7 @@ def _resolve(c, raw, alts, L, from_model, initial=False):
                 continue
             for form, why, k, rule, _base in _routes(a, L):
                 tried.append(form)
-                found = _hits_for(c, form, (rule or {}).get("prefer") or ())
+                found = _route_hits(c, form, rule)
                 if found:
                     hits, kind = found, k
                     via = ("under %s" % alt if why == "as written"
