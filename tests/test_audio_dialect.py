@@ -8,7 +8,8 @@ A recording is written like a picture, `![caption](audio/word.mp3){...}`,
 and is laid out and numbered like one.  A jolly flashcard's field may hold
 any block content through `key: |`; a field that is one plain paragraph
 renders exactly as every card did before, which COMPAT_* below pin byte for
-byte against the renderer as it was (commit 95048d0), apart from the card's
+byte against the renderer as it was before block fields (the strings are
+kept here, since the commit they came from is gone), apart from the card's
 wrapper, which stopped being a <button>.
 
 The PDF of tests/fixtures/studio/audio/audio.md is built by

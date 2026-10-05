@@ -78,28 +78,6 @@ const LINES = {
        '3:0':'绿茶(lǜchá) ，'},
 };
 const PROPOSALS = {'いいですね':'いい です ね'};
-// ParsehWordline.aloud comes from a parallel branch; until lib/wordline.js has
-// it, the page gets one written from its spec
-const ALOUD = `
-;(function () {
-  if (!window.ParsehWordline || ParsehWordline.aloud) return;
-  var R = [[0x21,0x2F],[0x3A,0x40],[0x5B,0x60],[0x7B,0x7E],[0xA1,0xBF],[0x2010,0x2027],[0x2030,0x205E],
-           [0x3001,0x3003],[0x3008,0x3011],[0x3014,0x301F],[0x30FB,0x30FB],[0xFF01,0xFF0F],[0xFF1A,0xFF20],
-           [0xFF3B,0xFF40],[0xFF5B,0xFF65]];
-  function punct(c) { var n = c.codePointAt(0); return R.some(function (r) { return n >= r[0] && n <= r[1]; }); }
-  function space(c) { return /\\s/.test(c); }
-  ParsehWordline.aloud = function (reading, fa) {
-    reading = reading == null ? '' : String(reading); fa = fa == null ? '' : String(fa);
-    if (!reading.trim()) return fa;
-    var t = Array.from(fa), i = t.length;
-    while (i > 0 && (punct(t[i - 1]) || space(t[i - 1]))) i--;
-    var tail = t.slice(i).filter(function (c) { return !space(c); }), r = reading.replace(/\\s+$/, '');
-    for (var k = tail.length; k > 0; k--)
-      if (r.endsWith(tail.slice(0, k).join(''))) return reading + tail.slice(k).join('');
-    return reading + tail.join('');
-  };
-})();`;
-
 const eq = (got, want, msg) => {
   if (JSON.stringify(got) !== JSON.stringify(want)) throw Error(msg + ': got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want));
 };
@@ -158,7 +136,7 @@ async function open(lang, storage = {}, {build = 'mine', available = true} = {})
     if (build === 'base' && (p === '/youtube/lib/player.js' || p === '/youtube/lib/style.css'))
       return route.fulfill({body:BASE[p], contentType:p.endsWith('.js') ? 'text/javascript' : 'text/css'});
     if (p === '/lib/wordline.js')
-      return route.fulfill({body:(await Deno.readTextFile('lib/wordline.js')) + ALOUD, contentType:'text/javascript'});
+      return route.fulfill({body:(await Deno.readTextFile('lib/wordline.js')), contentType:'text/javascript'});
     if (p === '/anki/decks') return json([]);
     // no translation model: one answered by the catch-all below would be a
     // model that never translates, and the look-ahead would wait on it forever
