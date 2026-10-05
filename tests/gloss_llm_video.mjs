@@ -1163,6 +1163,21 @@ try {
          `${key}: the caption's own text is the transcript's, and the phrases the answer did not gloss are not touched, though it vowelled them`);
       eq((await text(page, W(mi, mj))).replace(/\s+/g, ' ').trim(), vow(first.was.fa, FATHA), `${key}: the phrase on the page shows its marks, drawn again where it stands`);
       assert(await stayed(page), `${key}: with no reload`);
+      if (SHOTS) {
+        // what a person looks at, in the window and at a phone's width, in the light theme and the dark
+        await page.locator(W(mi, mj)).scrollIntoViewIfNeeded();
+        for (const [w, h, scheme, name] of [[1280, 900, 'light', 'marks'], [1280, 900, 'dark', 'marks-dark'],
+                                            [390, 800, 'light', 'marks-390'], [390, 800, 'dark', 'marks-390-dark']]) {
+          await page.emulateMedia({colorScheme: scheme});
+          await page.setViewportSize({width: w, height: h});
+          await sleep(300);
+          await page.locator(W(mi, mj)).scrollIntoViewIfNeeded();
+          await shot(page, key + '-' + name);
+        }
+        await page.emulateMedia({colorScheme: null});
+        await page.setViewportSize({width: 1280, height: 900});
+        await sleep(200);
+      }
       // the same phrase asked for again, answered with other marks: it has its own, and keeps them
       const second = await round(mi, mj, 'marks', vow(first.was.fa, DAMMA));
       eq(second.rep.tally, 'filled 1 · completed 0 · replaced 0 · vowelled 0', `${key}: a phrase that has marks keeps them: vowelled 0`);

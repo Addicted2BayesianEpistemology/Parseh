@@ -26,6 +26,13 @@ chunks as they stand -- a paragraph or a caption freed from its source is
 sent as the page shows it, never as source/paras/ or transcript.txt has it --
 with a paragraph folded away in the reader left out and counted.
 
+And the short vowels of Persian and Arabic (ShortVowels, brief 3.10): asked for in the request, an answer's
+fa is written with its gloss ONLY when it is the page's text with marks added and nothing else, and only into
+a chunk that has none -- the edition is itself again byte for byte, the keys of timings.json are the same,
+a video with vowelled phrases passes the checker; a letter, a joiner or a stop changed drops the chunk, a
+space changed keeps the gloss and not the marks, a chunk with marks keeps them and says so; unasked, or in a
+language with no marks, not one mark is written.
+
 Every fixture is copied to a temporary directory first: nothing under
 tests/fixtures/ is ever written.  Standard library only.
 """
