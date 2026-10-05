@@ -29,11 +29,11 @@ it falls in.) **Never correct the text in `fa`**{{?new}} — the correction goes
 vocabulary line{{/book}}{{/new}}.
 
 Nothing comes off a Chinese character: there is no layer of marks here as
-there is in Persian and Arabic. What a reading edition writes over it is
+there is in Persian and Arabic. {{?book}}What a reading edition writes over it is
 **pinyin, one word at a time**, in its first pass, from the chunk's `words`
 (below) — and then the same sentence with nothing over it, the way a Chinese
 book prints it, and once more set vertically, all from these same
-characters. **No pinyin ever goes into `fa`**: the
+characters.{{/book}} **No pinyin ever goes into `fa`**: the
 sound is a field of its own, and a Chinese book that printed pinyin between
 the characters would be teaching a page nobody in China prints.
 
@@ -163,17 +163,16 @@ the unit a reader looks up, marks as known, and sees pinyin over:
   two normally say the same syllables — a machine compares them with the tones
   and the spacing set aside, and warns when they differ.
 
-In a book the line is the last argument of `\chw`,
-`\chw{}{我想要一杯茶}{wǒ xiǎng yào yì bēi chá}{…}{…}{我(wǒ) 想(xiǎng) 要(yào) 一(yì) 杯(bēi) 茶(chá)}`;
-in a video it is the chunk's `"words"`. **Every chunk of Chinese text carries
+{{?new}}{{?book}}In a book the line is the last argument of `\chw`,
+`\chw{}{我想要一杯茶}{wǒ xiǎng yào yì bēi chá}{…}{…}{我(wǒ) 想(xiǎng) 要(yào) 一(yì) 杯(bēi) 茶(chá)}`.{{/book}}{{?video}}In a video it is the chunk's `"words"`.{{/video}} {{/new}}**Every chunk of Chinese text carries
 its words, and they start from the machine's**: the toolbox proposes the
 division and the pinyin when a text is added, and they are a draft to
 correct. A draft made from pasted text also starts each chunk's `tr` as its
 words' pinyin, parted by spaces, with the text's punctuation in ASCII as above
-(`wǒ xiǎng yào yì bēi chá.`). An annotator starts the same way — `python3
+(`wǒ xiǎng yào yì bēi chá.`). {{?new}}An annotator starts the same way — `python3
 lib/fill_words.py --lang zh --json <file>` on the chunks it has cut, a book's
 paragraph or a video's part — and then corrects every line; a video's prompt
-lists the machine's division under each caption for the same reason. Never
+lists the machine's division under each caption for the same reason.{{/new}} Never
 write the words from nothing. Where the chunk already has its `tr`, each
 word's pinyin is cut from it, tones, capitals and all; where it has none yet,
 a word of one character takes its commonest reading, so `很长` comes back
@@ -294,7 +293,7 @@ Three more things a Chinese line must name, because the characters do not:
   and are verbs by origin, and two of them restructure the sentence:
   `\dw{把}{bǎ} puts the object before the verb, of doing something to it`
   and `\dw{被}{bèi} by, marks the doer of something suffered`. Give each of
-  these an entry the first time it appears in a book.
+  these an entry the first time it appears.
 
 Which words the reader already owns turns on the gloss language, and here
 Chinese has one relationship no other language in the toolbox has. A book
