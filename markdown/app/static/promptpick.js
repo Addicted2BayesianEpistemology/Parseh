@@ -231,7 +231,7 @@
       const s = root.ParsehLLMRow ? root.ParsehLLMRow.promptSize(text) : null;
       if (!s || !s.chars) return;
       totalEl.textContent = "the prompt, without your question: " + s.line +
-        (always ? " · " + said(always) + " characters of it are there whatever you tick" : "");
+        (always ? " · " + said(always) + " characters of it are always there, whatever you tick" : "");
       totalEl.dataset.chars = String(s.chars);
       totalEl.dataset.tokens = String(s.tokens);
     }

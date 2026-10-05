@@ -358,6 +358,12 @@ async function suite(mode) {
       eq(await ticked(page), shownIds(fa).filter(id => mine.includes(id)), 'after a reload the same boxes are ticked');
       assert((await read(page)).text === norm((await promptRoute('fa', {boxes: mine})).prompt), 'and the prompt is the one for them');
       eq((await read(page)).presets.filter(p => p.on).map(p => p.id), [], 'with no preset showing');
+      // none ticked is a choice too, and is kept as one (an empty set is not "nothing remembered")
+      await page.click('#prompt-boxes [data-preset="none"]'); await settle(page);
+      await page.reload(); await page.waitForSelector('#prompt-boxes .pp-box'); await settle(page);
+      const none = await read(page);
+      eq([none.boxes.filter(b => b.on).length, none.presets.filter(p => p.on).map(p => p.id)], [0, ['none']], 'none ticked, kept: after a reload still none, and "none" shows');
+      assert(none.text === norm((await promptRoute('fa', {boxes: []})).prompt), 'and the prompt is the always-in part alone');
       await ctx.close();
 
       // storage refused: every access throws
