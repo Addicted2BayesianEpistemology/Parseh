@@ -131,7 +131,7 @@ MIN_COVERAGE = 0.02
 
 # THE FACTS KEPT OF EACH PICTOGRAM, and the bit each is.  They are the API's own
 # names; `violence` and `sex` are what the studio may leave out of what a model
-# is offered, `schematic` the line-drawn version, `skin` and `hair` the ones
+# is offered, `schematic` the simpler drawing of the same thing, `skin` and `hair` the ones
 # whose colours the API can change.
 FLAGS = ("schematic", "aac", "aacColor", "skin", "hair", "violence", "sex")
 

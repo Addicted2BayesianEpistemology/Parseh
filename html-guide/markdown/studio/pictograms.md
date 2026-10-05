@@ -168,7 +168,7 @@ works with no connection.
 |---|---|
 | `arasaac/pictograms/<number>.png` | The pictures, all at the one size the manifest says. A file is there only when it is whole. |
 | `arasaac/index.<language>.json` | One language's words: the keywords of each pictogram, with their plurals and meanings. |
-| `arasaac/pictograms.json` | One record per pictogram: when ARASAAC last changed it, its flags (line-drawn, skin and hair that can change colour, *violence*, *sex*) and its WordNet numbers. A record marked as still to be fetched is how a stopped download knows where it stopped. |
+| `arasaac/pictograms.json` | One record per pictogram: when ARASAAC last changed it, its flags (a simpler drawing of the same thing, skin and hair that can change colour, *violence*, *sex*) and its WordNet numbers. A record marked as still to be fetched is how a stopped download knows where it stopped. |
 | `arasaac/manifest.json` | Which size, which languages, when, and whether it is whole. |
 | `arasaac/LICENSE-ARASAAC.txt` | The credit and the licence, written when a download ends. |
 
