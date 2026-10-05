@@ -216,13 +216,13 @@ try {
       if (!onScreen(p)) off.push(`${p.what} ${JSON.stringify(p)}`);
     }
     assert(n >= 25 && !off.length, `${width} px: all ${n} controls of the bar are on the screen and a tap reaches each` + (off.length ? ':\n    ' + off.join('\n    ') : ''));
-    for (const [sel, name] of [['#btn-save', 'Save'], ['#btn-save-view', 'Save & view'], ['details.dropdown > summary', 'Exercises ▾'],
+    for (const [sel, name] of [['#btn-save', 'Save'], ['#btn-save-view', 'Save & view'], ['details.dropdown:has(#btn-exercise) > summary', 'Exercises ▾'],
                                ['label[for="audio-upload"]', 'Audio'], ['#btn-audios', 'Recordings…'], ['#btn-stop', 'Stop server']]) {
       const p = await placed(page, page.locator(sel));
       assert(onScreen(p), `${width} px: ${name} is on the screen (${p.l}–${p.r} × ${p.t}–${p.b})`);
     }
     // Exercises ▾: its menu opens on the screen, and the page stays put
-    await page.locator('details.dropdown > summary').tap();
+    await page.locator('details.dropdown:has(#btn-exercise) > summary').tap();
     await page.locator('#btn-exercise').waitFor({state: 'visible'});
     await sleep(150);
     if (SHOTS) await page.screenshot({path: `${SHOTS}/editor-${width}-exercises.png`});
@@ -232,7 +232,7 @@ try {
       assert(onScreen(p), `${width} px: the menu's ${name} is on the screen (${p.l}–${p.r})`);
     }
     assert(await page.evaluate(() => scrollX === 0), `${width} px: opening the menu does not move the page sideways`);
-    await page.locator('details.dropdown > summary').tap();
+    await page.locator('details.dropdown:has(#btn-exercise) > summary').tap();
     // a tap on Save saves
     const src = page.locator('#src');
     await src.evaluate((t, w) => { t.value = t.value.replace(/^Some text.*$/m, `Some text, saved at ${w} px.`); t.dispatchEvent(new Event('input', {bubbles: true})); }, width);

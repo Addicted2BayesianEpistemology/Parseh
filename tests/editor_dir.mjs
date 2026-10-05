@@ -485,7 +485,8 @@ try {
     const page = await ctx.newPage();
     page.on('pageerror', e => pageErrors.push(e.message));
     await openEditor(page, docs.Persian);
-    await page.click('details.dropdown > summary');
+    // (a0.4.3 put a colour palette, itself a details.dropdown, before the exercises menu: this is the exercises menu's)
+    await page.click('details.dropdown:has(#btn-exercise) > summary');
     await page.click('#btn-exercise');
     await page.locator('.ex-type', {hasText: 'Embedded vocabulary flashcard'}).click();
     await page.waitForSelector('.ex-form-modal');
