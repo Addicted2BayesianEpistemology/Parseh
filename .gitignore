@@ -235,6 +235,11 @@ mt/
 # made on demand; none of it belongs in the repository.
 stt/
 
+# The ARASAAC pictograms (lib/getarasaac.py, a0.4.2): about 160 MB of somebody
+# else's pictures (CC BY-NC-SA) and the words that name them, fetched on request
+# from api.arasaac.org and static.arasaac.org; none of it belongs in the repository.
+arasaac/
+
 # Optional, locally installed character component packs (licences stored in each pack).
 components/*.db
 components/.build-*/

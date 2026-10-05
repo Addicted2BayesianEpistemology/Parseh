@@ -96,6 +96,8 @@ LICENCE_URLS = {
     "GPL-2.0": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
     # PyAV, which speech to text's program carries (lib/getstt.py)
     "BSD-3-Clause": "https://opensource.org/license/bsd-3-clause",
+    # the ARASAAC pictograms (lib/getarasaac.py): the deed ARASAAC's own terms page links
+    "CC BY-NC-SA 4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
 }
 
 
@@ -193,6 +195,22 @@ def speech_credits():
     return out
 
 
+def arasaac_credits():
+    """Whose work the pictograms are: {"arasaac": (whose, the licence as HTML)}.  Read from
+    lib/getarasaac.py's constants, so the credit beside the pictograms on their page, in the
+    folder (LICENSE-ARASAAC.txt) and here is the same words.
+
+    THE LICENCE IS SAID WITH ITS TERMS, because it is the one licence here that asks something
+    of what a person makes with the files: a credit wherever they are used, nothing sold, and
+    the same licence for what is shared."""
+    import getarasaac
+    return {"arasaac": (esc(getarasaac.CREDIT),
+                        licence_link(getarasaac.LICENCE) + " &mdash; free for non-profit use, with a credit "
+                        "wherever the pictograms are used, never for commercial use, and what is made with "
+                        "them shared on the same licence; <a href=\"%s\" rel=\"noopener\" target=\"_blank\">"
+                        "ARASAAC&rsquo;s terms of use</a>" % esc(getarasaac.TERMS))}
+
+
 def credits():
     """Whose work each download of the reading help is, and under which
     licence: {what: (whose, the licence as HTML)} -- "dict", "corpus",
@@ -215,6 +233,7 @@ def credits():
     for key, pack in decomposition.PACKS.items():
         out["components:" + key] = (esc(pack["attribution"]), licence_link(pack["licence"]))
     out.update(speech_credits())
+    out.update(arasaac_credits())
     return out
 
 
@@ -251,6 +270,14 @@ def fetched():
         "CTranslate2&rsquo;s format, fetched from Hugging Face at a fixed version when you ask "
         "for them under <a href=\"/settings/speech/\">Speech to text</a>. Every file is checked "
         "against its own hash.", *who["speech:large-v3-turbo"]))
+    out.append(work(
+        "ARASAAC pictograms",
+        "In <code>arasaac/</code>: some fourteen thousand pictograms and the words that name them in "
+        "each language you ask for, fetched from <code>api.arasaac.org</code> and "
+        "<code>static.arasaac.org</code> when you ask for them under "
+        "<a href=\"/settings/arasaac/\">Pictograms (ARASAAC)</a>, in Settings. The credit "
+        "ARASAAC asks for is written beside them, in <code>arasaac/LICENSE-ARASAAC.txt</code>.",
+        *who["arasaac"]))
     return "".join(out)
 
 
@@ -306,8 +333,9 @@ its own licence, which travels with it.</p>
 %(carried)s
 <h2>What it fetches when you ask</h2>
 <p class="intro">Not in the %(app)s folder: each is downloaded from its source when you
-ask for it (<a href="/settings/reading-help/">reading help</a> and <a
-href="/settings/speech/">speech to text</a>, in Settings), and keeps its own
+ask for it (<a href="/settings/reading-help/">reading help</a>, <a
+href="/settings/speech/">speech to text</a> and <a
+href="/settings/arasaac/">pictograms</a>, in Settings), and keeps its own
 licence, which %(app)s writes into the file it builds from it. So do the programs the
 installer fetches &mdash; micromamba, Python and the packages <code>environment.yml</code>
 lists &mdash; each under the licence it comes with.</p>

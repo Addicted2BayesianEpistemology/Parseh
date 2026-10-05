@@ -21,7 +21,7 @@ person does is a button on Settings > Updating Parseh (lib/updatepage.py).
 
 WHY IT IS NOT "UNZIP OVER THE TOP".  A person's work lives inside the
 install: books/, youtube/videos/, markdown/library/, exercises/,
-youtube/anki/, clips/, dict/, corpus/, mt/, components/, stt/, config/, .tls/,
+youtube/anki/, clips/, dict/, corpus/, mt/, components/, stt/, arasaac/, config/, .tls/,
 .runtime/.  A release zip is, by definition, the exact list of what belongs
 to Parseh at one version -- everything else in the folder is the person's.
 So an update is: write the new version's files, AND DELETE THE PATHS THE OLD
@@ -202,7 +202,8 @@ LIMIT = 1 << 30                 # a release zip is some 15 MB; a gigabyte is a m
 # byte is written, and the same test guards every deletion -- an OLD
 # manifest is a zip's too.
 PERSONAL = ("books/", "youtube/videos/", "youtube/anki/", "markdown/library/", "exercises/",
-            "clips/", "config/", "dict/", "corpus/", "mt/", "components/", "texmf/", "stt/")
+            "clips/", "config/", "dict/", "corpus/", "mt/", "components/", "texmf/", "stt/",
+            "arasaac/")
 SCAFFOLDING = (".gitkeep", "README.md")
 NEVER = (".tls/", ".runtime/", ".git/", WORK + "/", ".claude/")
 NEVER_FILES = (".serve.pid", "serve.log", ".setup-done", ".git")
@@ -212,7 +213,9 @@ NEVER_FILES = (".serve.pid", "serve.log", ".setup-done", ".git")
 # picture, a PDF, a font or an archive -- the narrations and the films are
 # what is big, and no data format is kept in them.  NOT stt/ (speech to text's
 # program and models): gigabytes, and no data format of Parseh's is kept in
-# them -- a step back leaves it exactly as it is.
+# them -- a step back leaves it exactly as it is.  Nor arasaac/ (the ARASAAC
+# pictograms): somebody else's pictures, fetched again by a button, and an
+# older Parseh that does not know the folder simply leaves it alone.
 CONTENT = ("books/", "youtube/videos/", "youtube/anki/", "markdown/library/", "exercises/",
            "clips/", "config/")
 MEDIA = {".mp3", ".ogg", ".opus", ".oga", ".m4a", ".aac", ".wav", ".flac", ".weba", ".webm",

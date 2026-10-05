@@ -29,7 +29,7 @@ Parseh/
   build.sh  environment.yml
   VERSION  CHANGELOG.md  README.md  LICENSE
   lib/  books/  youtube/  markdown/  exercises/  clips/
-  dict/  corpus/  mt/  components/  texmf/  stt/  config/
+  dict/  corpus/  mt/  components/  texmf/  stt/  arasaac/  config/
   docs/  html-guide/
   .runtime/  .tls/  .parseh-release.json  .parseh-update/
 ```
@@ -51,6 +51,7 @@ Parseh/
 | `dict/` | The reading help's downloads, with `corpus/`, `mt/` and `components/` (below). |
 | `texmf/` | The TeX packages Parseh got for the LaTeX drawings, with the list of them, `parseh-packages.json`. |
 | `stt/` | Speech to text's program and models, fetched on Settings → Speech to text (below). Made on demand; git ignores it. |
+| `arasaac/` | The ARASAAC pictograms and the words that name them, fetched on Settings → Pictograms (ARASAAC) (below). Made on demand; git ignores it. |
 | `config/` | Your settings, and the devices let in (below). |
 | `docs/` | The design notes: `languages.md`, `lang/<code>.md` (each language's conventions), `mobile.md`, `installer.md`, `studio-exercises.md`, the notes on character components, the prompts, and `releasing.md`, the checklist a new version is released by. |
 | `html-guide/` | These pages: `markdown/` (their source), `build.py` and `engine/` (the compiler), `assets/` and `index.html` (the front page); `site/` is what a compile makes. |
@@ -82,6 +83,7 @@ Parseh/
 | `release.py` | Building a release's zip and its list of files, for whoever releases Parseh (`docs/releasing.md`). |
 | `getdict.py` | With `getcorpus.py`, `getmt.py`, `getsyn.py` and the components' getter: the reading help's downloads, each through `download.py`, which stops them and carries them on. |
 | `getstt.py` | Speech to text's manager: the pinned program and models, what is installed (read from the folders' names, never by importing the program), the processor, and the children it starts. With `stt-requirements.txt` (the hash-pinned list of the program's packages), `sttprobe.py` (the look at the graphics card, in a process of its own) and `speechpage.py` (the page, Settings → Speech to text). |
+| `getarasaac.py` | The ARASAAC pictograms' manager: the word lists from `api.arasaac.org`, the pictures from `static.arasaac.org` one at a time on one connection, what is installed (read from the files), an update that fetches only what ARASAAC changed, and the credit its licence asks for. With `arasaacpage.py`, the page (Settings → Pictograms (ARASAAC)). |
 | `guidebuild.py` | Serving the guide at `/guide/`, and its **Compile the guide** button. |
 | `fonts/` | Vazirmatn, Noto Nastaliq Urdu, Noto Naskh Arabic, Noto Serif Devanagari. The Japanese and Chinese faces are the system's own. |
 
@@ -255,6 +257,21 @@ in `.part`, with a small `.part.json` saying where it came from; a model's
 They are got and removed on **Settings → Speech to text**,
 `/settings/speech/` ([Speech to text](../lookup-and-languages/speech-to-text.md)).
 No release carries a file of `stt/`, and no update touches it.
+
+## The pictograms' downloads
+
+| Path | What it is |
+|---|---|
+| `arasaac/pictograms/<number>.png` | One pictogram, at the one size the manifest says (300 or 500 pixels). A file is there only when it is whole: it appears under its name by one rename. |
+| `arasaac/index.<language>.json` | One language's words: for each pictogram that has any, its keywords with their kinds, plurals and meanings. |
+| `arasaac/pictograms.json` | One record per pictogram: when ARASAAC last changed it, its flags and its WordNet numbers; a record marked as still to be fetched is how a stopped download knows where to carry on. |
+| `arasaac/manifest.json` | The shape (a format number), the size, the languages, when, and whether it is whole. |
+| `arasaac/LICENSE-ARASAAC.txt` | The credit and the licence, word for word as ARASAAC's terms give them, written when a download ends. |
+| `arasaac/tmp/` | A word list on its way (a `.part` and its small `.part.json`), so that a cut download carries on. |
+
+They are got, updated and removed on **Settings → Pictograms (ARASAAC)**,
+`/settings/arasaac/` ([Pictograms](../studio/pictograms.md)). No release
+carries a file of `arasaac/`, and no update touches it.
 
 ## Your settings: config/
 
