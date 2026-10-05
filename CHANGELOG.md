@@ -4,7 +4,19 @@
 - Every prompt is assembled by one kit from its instructions, its answer contract and its data, and opens with a version line
 - The LLM row: one control for every prompt, saying its size before the copy, on the studio, the exercise dialog, the add page, the tidy, the player, the reader and Ask LLM
 - A video's vocabulary in the books' entries, asked of the chatbots and drawn as in the reader, with macro buttons that say what they write
-- A book made by an agent in place, watched from the library, steered through asks, finished with one button
+- A book made by an agent in place, from any device, its text given in parts, watched from the library, steered through asks, finished with one button
+- Prompts of your own, from a menu at every copy button, exported and imported under Settings → Your prompts
+- The studio's prompt in parts you tick, with presets, a level and a length, and the exercise dialog pre-ticking what the page uses
+- Options of a prompt: the transliteration in IPA, and the short vowels of Persian and Arabic
+- Every language's conventions carry a worked example and one vocabulary convention
+- Skills for your chatbot: gloss, markdown and book, built on request and downloaded under Settings → Skills
+- A sound in place of a video, with its waveform
+- A video phrase's note can be edited, and a ✱ notes button lights every phrase that has one
+- A vocabulary or opposites flashcard's example, notes and source go on the side the card turns to
+- Settings → Pictograms (ARASAAC): the symbols and their words fetched on request, with their licence
+
+### Changed
+- The LLM prompt page's Edit prompt, Save custom prompt and Reset to default give way to the prompt menu
 
 ## [a0.4.1] - 2026-09-29
 ### Added
