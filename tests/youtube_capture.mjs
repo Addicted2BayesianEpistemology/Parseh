@@ -2129,6 +2129,24 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     assert(got.every(e => re.test(e)), `${what}: only refusals that were meant (${JSON.stringify(got)})`);
     return got.length;
   };
+  // The page goes to the video's own page on the answer of /api/empty, and Playwright cannot read the body
+  // of a response of a page it has left (Network.getResponseBody: "No resource with given identifier
+  // found"): reading it after the click, or chained onto waitForResponse, is a race the page wins whenever
+  // it navigates first.  So the test answers for the page: it fetches the door's answer itself, keeps its
+  // body, and hands the same answer on.  Set before the click; the promise holds the door's body.
+  async function watchEmpty(page) {
+    let kept, lost;
+    const body = new Promise((ok, bad) => { kept = ok; lost = bad; });
+    body.catch(() => {});
+    await page.route(/\/api\/empty$/, async route => {
+      try {
+        const r = await route.fetch();
+        kept(await r.json());
+        await route.fulfill({response: r});
+      } catch (e) { lost(e); }
+    });
+    return body;
+  }
   const fakeLog = () => Deno.readTextFile(STTF + '/fake.log').then(t => t.split('\n').filter(Boolean).map(l => JSON.parse(l)), () => []);
   const status = (page, job) => page.request.post(`${BASE}/youtube/api/transcribe/status`, {data: {job}}).then(r => r.json());
   // the add page on a YouTube video, with a transcript in the box or not
@@ -2281,9 +2299,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
            `the marks and the shape went before the last piece: ${JSON.stringify(calls.filter(x => !/^status/.test(x)))}`);
     assert(lastAt > -1 && calls.indexOf('result') > lastAt, 'and the words were asked for after it');
     // and now the video, the way a pasted transcript adds one
-    // the body is read the moment the answer comes: the page goes to the video's own page on it, and
-    // Playwright cannot read the body of a response of the page it has left (as tests/timings.mjs)
-    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url())).then(r => r.json());
+    const empty = await watchEmpty(page);
     await page.click('#empty');
     const made = await empty;
     eq([made.ok, made.waveform], [true, {kept: true, buckets: wave.peaks.length}], 'the door that made the video was given the token and kept the waveform');
@@ -2473,9 +2489,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     assert(await page.evaluate(() => document.getElementById('stt_tied').hidden), 'a different address: no longer tied');
     assert(/no longer tied to speech to text: the video changed/.test(await text(page, '#stt_note')), await text(page, '#stt_note'));
     await page.selectOption('#lang', 'fa');
-    // the body is read the moment the answer comes: the page goes to the video's own page on it, and
-    // Playwright cannot read the body of a response of the page it has left (as tests/timings.mjs)
-    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url())).then(r => r.json());
+    const empty = await watchEmpty(page);
     await page.click('#empty');
     const made = await empty;
     eq([made.ok, 'waveform' in made], [true, false], 'the video that is not the recorded one is made without its waveform (the token was not sent)');
