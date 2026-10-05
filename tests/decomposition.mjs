@@ -13,11 +13,22 @@ const setupHTML = new TextDecoder().decode(setupResult.stdout);
 // the reading help draws itself from the state it carries, and asks /lookup/api/status
 // for it again after every change (lib/lookuppage.py): answered here from the same state
 const setupState = JSON.parse(setupHTML.match(/<script id="rh-state" type="application\/json">([\s\S]*?)<\/script>/)[1].replace(/<\\\//g, '</'));
+const assert = (condition, message) => {if (!condition) throw Error(message);};
+// THE PLAYER PAGE is the one the server sends, made by the server's own function
+// (youtube/lib/ytpages.py player_page, which fills every placeholder of player.html:
+// the language and its text direction, the title and channel, the id, the config the
+// script reads): a hand-assembled page filled two of the ten and was a different
+// page.  Its videos are the fixture folder, which has the shape of youtube/videos/.
+const VIDEO_ID = 'aB3dE5fG7hI';
+const videoResult = await new Deno.Command(python,{args:['-c',
+  "import sys;sys.path.insert(0,'youtube/lib');sys.path.insert(0,'lib');import ytpages;ytpages.VIDEOS='tests/fixtures/videos';sys.stdout.write(ytpages.player_page(sys.argv[1]) or '')",VIDEO_ID],stdout:'piped',stderr:'piped'}).output();
+if (!videoResult.success) throw Error(new TextDecoder().decode(videoResult.stderr));
+const videoHTML = new TextDecoder().decode(videoResult.stdout);
+assert(videoHTML.length>0&&!/__[A-Z_]+__/.test(videoHTML),'the real player page has every placeholder filled');
 const browser = await chromium.launch({executablePath:Deno.env.get('CHROME_BIN'),headless:true});
 const artifacts = Deno.env.get('PARSEH_TEST_ARTIFACTS') || await Deno.makeTempDir({prefix:'parseh-decomposition-'});
 await Deno.mkdir(artifacts,{recursive:true});
 const errors = [];
-const assert = (condition, message) => {if (!condition) throw Error(message);};
 const leaf = character => ({character,source:'kanjivg'});
 const tree = {character:'想',source:'kanjivg',operator:'⿱',children:[{character:'相',source:'kanjivg',operator:'⿰',children:[leaf('木'),leaf('目')]},leaf('心')]};
 let installed = true, failure = false, selectedRequests = 0, installs = 0, drops = 0;
@@ -54,7 +65,9 @@ async function wire(page) {
       return route.fulfill({json:payload});
     }
     try {
-      const path = root + decodeURIComponent(url.pathname);
+      // the page asks for BASE/videos/<folder>/<id>/..., which the server answers from youtube/videos/
+      const asked = decodeURIComponent(url.pathname).replace(/^\/youtube\/videos\//, '/tests/fixtures/videos/');
+      const path = root + asked;
       const body = await Deno.readTextFile(path);
       const mime = {html:'text/html',js:'text/javascript',css:'text/css',json:'application/json'}[path.split('.').pop()];
       return route.fulfill({body,contentType:mime || 'text/plain'});
@@ -69,6 +82,27 @@ async function extra(page, selector) {
     document.addEventListener('click',()=>window.readerClicks++);
     document.addEventListener('keydown',()=>window.readerKeys++);
   }, selector);
+}
+// What a person does when the text they want sits under a bar: they scroll it.  The
+// player keeps its header and its video stuck to the top of the window, and the mode
+// bar floats over the bottom; the text between them is what can be clicked, and a
+// 720-pixel window leaves 250 pixels of it.  Playwright's own scrolling puts the element
+// at the bottom, the middle and the top of the window in turn -- under the bar, the
+// video and the header -- and never between, so the test scrolls the way a hand does.
+async function clearOfBars(page, selector) {
+  const seen = await page.locator(selector).evaluate(element => {
+    const bottom = ['header', '#playerwrap'].map(s => document.querySelector(s)).filter(Boolean)
+      .map(e => getComputedStyle(e).position === 'sticky' || getComputedStyle(e).position === 'fixed' ? e.getBoundingClientRect().bottom : 0);
+    const bar = document.querySelector('.cd-modebar');
+    const from = Math.max(0, ...bottom), to = bar && !bar.hidden ? bar.getBoundingClientRect().top : innerHeight;
+    const r = element.getBoundingClientRect();
+    scrollBy(0, r.top + r.height / 2 - (from + to) / 2);
+    return new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const now = element.getBoundingClientRect(), top = document.elementFromPoint(now.x + now.width / 2, now.y + now.height / 2);
+      done(top === element || element.contains(top) ? '' : String(top && (top.id || top.className || top.tagName)));
+    })));
+  });
+  assert(seen === '', 'a bar still covers ' + selector + ' after scrolling it between the bars: ' + seen);
 }
 try {
   const page = await browser.newPage(); await wire(page);
@@ -111,12 +145,14 @@ try {
   failure=false; await page.getByRole('button',{name:'Try again',exact:true}).click();
   await page.waitForSelector('.cd-root > .cd-node > .cd-glyph');
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
-  const cfg = await page.evaluate(()=>({id:'aB3dE5fG7hI',ann:'/tests/fixtures/videos/japanese/aB3dE5fG7hI/annotations.json',lang:LANG,gloss:GLOSS,local:true,notes:'/notes',editable:{}}));
-  const videoHTML=(await Deno.readTextFile('youtube/lib/player.html')).replace('__YTFRANK__',JSON.stringify(cfg)).replaceAll('__BASE__','/youtube');
-  await page.route('http://parseh.test/video',route=>route.fulfill({body:videoHTML,contentType:'text/html'}));
-  await page.goto('http://parseh.test/video');await page.waitForSelector('#segs .fa');await extra(page,'#segs .fa');
+  // the page the server sends for this video, at its own address
+  await page.route('http://parseh.test/youtube/v/'+VIDEO_ID,route=>route.fulfill({body:videoHTML,contentType:'text/html'}));
+  await page.goto('http://parseh.test/youtube/v/'+VIDEO_ID);await page.waitForSelector('#segs .fa');await extra(page,'#segs .fa');
   await page.getByRole('button',{name:'Decompose Kanji',exact:true}).click();
-  await page.evaluate(()=>window.readerClicks=0);await page.locator('.test-extra [data-character="想"]').click({modifiers:['Shift']});
+  await page.waitForSelector('body.cd-mode');
+  await page.evaluate(()=>window.readerClicks=0);
+  await clearOfBars(page,'.test-extra [data-character="想"]');
+  await page.locator('.test-extra [data-character="想"]').click({modifiers:['Shift']});
   await page.waitForSelector('.cd-root > .cd-node > .cd-glyph');
   assert(await page.evaluate(()=>window.readerClicks)===0,'video seek/copy suppressed');
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
