@@ -237,6 +237,17 @@ and what is left to you:
   draft is the pronominal verb, *aux. être* and a reflexive sense; `il s'en va`
   is *s'en aller*. Where Wiktionary lists two forms (`paye` and `paie`, `assois`
   and `assieds`) the draft offers the first.
+  A verbal locution the chunk makes — `j'ai peur`, `il fait attention`, even with
+  the negation (`je n'ai pas peur`) — is recognised as the locution it is: the
+  verb comes with its seventh argument already empty, the row names the `\bw`
+  still to add (*bw for peur after it: to be afraid*), and a button of its own,
+  headed *verbal locution*, puts the pair in as the one entry the file asks for,
+  `\vb{avoir}{avwar}{ai}{é}{eu}{ü}{}\bw{peur}{peur}{to be afraid}`, with the
+  `\bw` run straight onto the `\vb`. The noun's sound is the noun's own
+  pronunciation respelt; where it is missing the slot stays empty. It is found
+  only where the noun stands right after the verb in the same chunk and the
+  dictionary has the pair as a verb page of its own; a locution it has not got
+  comes as the plain verb with its own meaning, and emptying that is yours.
 - **German.** The three principal parts, the third person where it changes, the
   auxiliary, and the case or preposition where the dictionary gives one for the
   meaning; `sich` in front where the chunk holds the reflexive pronoun (or the
