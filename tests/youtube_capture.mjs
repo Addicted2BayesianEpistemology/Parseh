@@ -2200,6 +2200,22 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     }
     return bad;
   });
+  // the workspace's own title bar and "Return to Add Video": inside the window, on the screen, nothing over
+  // them, and the window's content begins below them.  (The page's stylesheet knows a bare <header> as the
+  // player's fixed bar that slides away when the page is scrolled: it took the workspace's out of the window,
+  // over the top of its content, and, on a phone's width, off the screen.)
+  const headOk = page => page.evaluate(() => {
+    const w = document.getElementById('stt_workspace'), h = w.querySelector('.stt-workspace-head'), bad = [];
+    const wr = w.getBoundingClientRect(), hr = h.getBoundingClientRect();
+    if (hr.left < wr.left - 1 || hr.right > wr.right + 1 || hr.top < wr.top - 1 || hr.bottom > wr.bottom + 1) bad.push('the title bar is not inside the window');
+    if (w.querySelector('.stt-workspace-columns').getBoundingClientRect().top < hr.bottom - 1) bad.push('the content begins under the title bar');
+    for (const id of ['stt_workspace_title', 'stt_back']) {
+      const r = document.getElementById(id).getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      if (!(r.top >= 0 && r.bottom <= innerHeight && hit && document.getElementById(id).contains(hit))) bad.push(id + ' is not on the screen, or something is over it');
+    }
+    return bad;
+  });
   const captured = page => page.evaluate(() => ({
     tracks: __streams.map(s => s.getTracks().map(t => t.readyState)),
     contexts: __contexts.map(c => c.state), busy: ParsehTabCapture.busy(), asked: __asked.length,
@@ -2251,6 +2267,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     eq(behind, {open: true, modal: true, framed: true, coveredBy: 'the workspace', focusable: false},
        'the video waits in the modal workspace: "Edit the transcript…" behind it is covered, and cannot be focused');
     eq(await page.locator('.se-box').count(), 0, 'and no editor is open');
+    eq(await headOk(page), [], 'the workspace\'s title bar and "Return to Add Video" are in the window, on the screen, over nothing');
     await shotN(page, 'n1-ready');
     await page.click('#stt_rec');
     eq((await captured(page)).asked, 1, 'the browser was asked to share the tab, in answer to that press');
@@ -2467,6 +2484,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     assert(/Persian/.test(await text(page, '#stt_lang')) && /فارسی/.test(await text(page, '#stt_lang')), 'the language names itself: ' + await text(page, '#stt_lang'));
     await toReady(page);
     eq(await fits(page), [], 'the video is loaded: it fits, on 390 px');
+    eq(await headOk(page), [], 'and its title bar and "Return to Add Video" are on the screen, though the page behind was scrolled');
     const frame = await page.$eval('#stt_frame iframe', f => { const r = f.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
     assert(frame[0] >= 200 && frame[1] >= 200, `and the frame is ${frame[0]} x ${frame[1]}: no smaller than YouTube plays`);
     await shotN(page, 'n6-ready-390-rtl');
