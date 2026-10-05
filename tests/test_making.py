@@ -1642,6 +1642,16 @@ class TheProjectSkill(unittest.TestCase):
                 making.make(FIELDS, {"name": "a.txt", "data": TEXT}, None, into=into)
             self.assertFalse(os.path.exists(os.path.join(into, "italian")), bad)
 
+    def test_a_skill_builder_that_fails_refuses_in_words_and_writes_nothing(self):
+        class Broken(object):
+            @staticmethod
+            def build(name, parts):
+                raise KeyError("references")
+        into = os.path.join(tmpdir(self), "books")
+        with patch.dict(sys.modules, {"skills": Broken}), self.assertRaisesRegex(ValueError, "the project skill could not be made"):
+            making.make(FIELDS, {"name": "a.txt", "data": TEXT}, None, into=into)
+        self.assertFalse(os.path.exists(os.path.join(into, "italian")))
+
     def test_without_the_skill_builder_the_folder_holds_the_instructions_alone(self):
         with patch.dict(sys.modules, {"skills": None}):
             _into, r = made(self)

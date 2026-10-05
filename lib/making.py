@@ -1025,7 +1025,11 @@ def skill_files(facts, options=None):
         import skills
     except ImportError:
         return {}
-    return skills.build(SKILL, parts=resolved_parts(facts, options))
+    parts = resolved_parts(facts, options)
+    try:
+        return skills.build(SKILL, parts=parts)
+    except Exception as e:                  # a bug of Parseh's, said in words and not as a stack, and nothing is written
+        raise ValueError("the project skill could not be made (%s): nothing was written" % (e or type(e).__name__))
 
 
 def _write_text(path, text):
