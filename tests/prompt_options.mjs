@@ -649,7 +649,9 @@ try {
       await page.waitForFunction(() => { const c = document.querySelector('#cloud'); return !c.hidden && c.querySelector('.tr'); });
       const tr = await page.evaluate(() => document.querySelector('#cloud .tr').textContent.trim());
       assert(IPA_OF[key].includes(tr), `${key} player: the cloud of a phrase says its IPA as written (${tr})`);
-      await themed(page, `player-${key}-ipa-cloud`, page.locator('#cloud'));
+      // the IPA line is judged, not the cloud's place: the cloud was put by the 1280 px layout where it was pointed at,
+      // and the window is then narrowed under it (the player puts it again at the next hover)
+      await themed(page, `player-${key}-ipa-cloud`, page.locator('#cloud .tr').first());
       await page.close();
     }
     // the studio: a heading's transliteration is drawn on the sheet, and a mark's is carried for the reader to point at
