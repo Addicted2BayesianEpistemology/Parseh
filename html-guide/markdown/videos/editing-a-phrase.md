@@ -50,7 +50,7 @@ The fields are named the way this video's language names them:
 | **kana** (Japanese) | the reading of the whole phrase |
 | **transliteration**, **pronunciation**, **rōmaji** or **pinyin** | its romanisation, called what the language calls it |
 | **vocabulary** | the vocabulary line: the dictionary form, the root, what it is made of — plain text, or in the books' entries ([below](#the-vocabulary-box)) |
-| the gloss language's name (**english**, **italian**…) | what the phrase means here — called **meaning** when the video is glossed in the language it teaches |
+| the gloss language's name (**english**, **italian**…) | what *this phrase's own words* say, in the order of the captions — a gloss, not a translation of the sentence ([What the meaning says](glossing-with-an-llm.md#what-the-meaning-says)) — called **meaning** when the video is glossed in the language it teaches |
 | **note** | the aside under the meaning — what the automatic transcript really heard, a cultural point; on every phrase, empty until somebody writes one ([below](#the-note)) |
 | **the transcript** | the one checkbox: below |
 
@@ -275,7 +275,25 @@ It holds four blocks, in this order:
   same caption.
 
 A button **adds** to its field rather than replacing it, since a vocabulary
-line is built entry by entry. Nothing is saved until **save**.
+line is built entry by entry. Nothing is saved until **save**. What a verb's
+draft does, and where it is weak, differs from one language to the next:
+[What the verb draft does in each language](../books/unglossed.md#what-the-verb-draft-does-in-each-language),
+in the book's page on the same sidebar.
+
+### The gloss and the fluent translation {#the-gloss-and-the-fluent-translation}
+
+What the machine's reading and **Ask LLM** bring is a fluent translation of
+the whole caption, and that is what they are for: to understand it. The
+meaning you save under a phrase is another thing, a **gloss**: it says what
+*that* phrase's own words say, in the order of the captions, so that read in
+a row the meanings are stiff, and may be poor English, and you can point from
+each word of them to the word it renders and see how the language builds its
+sentence. That is why **the marked words → meaning** and **the whole caption →
+meaning** only start the box: they put in a share of a fluent sentence, and it
+is yours to cut down to what this phrase's words say and to bring into line
+with the vocabulary line. It is also why **Ask LLM** asks for a translation
+and stays so, while **gloss with an LLM** asks a chatbot for glosses
+([What the meaning says](glossing-with-an-llm.md#what-the-meaning-says)).
 
 ## The refusals
 

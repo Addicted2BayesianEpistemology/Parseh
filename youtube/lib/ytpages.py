@@ -801,12 +801,6 @@ DOCS = os.path.join(HERE, "docs")
 YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 LEVELS = ("beginner", "lower-intermediate", "intermediate",
           "upper-intermediate", "advanced")
-# the example shown in the prompt: a real video of the same language, four
-# consecutive glossed captions -- the repetition rule and the note field
-# both visible.  For Persian the captions are chosen (they show a note and
-# a bare English run); for a language whose first video is not known in
-# advance, the first four glossed captions of its first video serve.
-EXAMPLE_VIDEO, EXAMPLE_STARTS = "nFoM8JraEek", (116, 124, 130, 135)
 PART_SIZE = 25
 
 
@@ -1133,78 +1127,6 @@ def caption_lines(captions, lang=None):
     return "\n".join(lines)
 
 
-def _example_video(L):
-    """The video the worked example is taken from: one of the language,
-    with glossed captions, when the player has one -- the Persian
-    reference video otherwise.  Returns (meta, path, same_language)."""
-    for folder, name, path in video_dirs():
-        if folder != L.folder:
-            continue
-        meta = _load_video(folder, name, path)
-        # nothing left blank: the example is quoted into the prompt as what
-        # an answer looks like, and a video with chunks nobody has glossed
-        # would teach the LLM to leave them so (a chunk half glossed is kept
-        # out caption by caption, in _example)
-        if meta and meta["_glossed"] and not meta["_blank"]:
-            if L.code == languages.DEFAULT and name != EXAMPLE_VIDEO:
-                continue                 # Persian keeps its chosen example
-            return meta, path, True
-    for folder, name, path in video_dirs():
-        if name == EXAMPLE_VIDEO:
-            meta = _load_video(folder, name, path)
-            if meta:
-                return meta, path, meta["_lang"] == L.code
-    return None, None, False
-
-
-def _example(lang=None):
-    """The worked example: what the list looks like for four captions of a
-    video already in the player, and what the answer for them looks like.
-    Returns (received, answered, intro) -- the intro is a sentence for the
-    prompt when the example had to be borrowed from another language."""
-    L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
-    meta, path, same = _example_video(L)
-    if meta is None:
-        return None, None, ""
-    ann = read_json(os.path.join(path, "annotations.json")) or {}
-    segs = ann.get("segments") or []
-    chosen = EXAMPLE_STARTS if meta["id"] == EXAMPLE_VIDEO else None
-    EL = languages.get_or_default(meta.get("_lang"))
-    lines, out, i = [], [], 0
-    for sg in segs:
-        if sg.get("plain"):
-            continue
-        # only a caption every chunk of which is glossed in full: the player
-        # saves a chunk a box at a time, and one still missing its tr would
-        # teach the LLM the very answer the page then refuses
-        whole = isinstance(sg.get("chunks"), list) and all(
-            isinstance(ch, dict) and CA.complete(ch, EL) for ch in sg["chunks"])
-        if whole and sg.get("chunks") and (sg.get("start") in chosen if chosen else len(out) < 4):
-            lines.append("[%d] %ss  %s" % (i, secs_str(sg["start"]), sg["text"]))
-            # the machine's division under it, as the real list has one
-            w = proposed_words(sg["text"], languages.get_or_default(meta.get("_lang")))
-            if w:
-                lines.append("    words: %s" % w)
-            # the chunks as they stand, a word line with them where the video
-            # has one: the example shows what is there and invents nothing
-            out.append({"i": i, "start": sg["start"], "chunks": sg["chunks"]})
-        i += 1
-    if not out:
-        return None, None, ""
-    answer = {"video": {"title_native": native_title(meta),
-                        "level": meta.get("level", "beginner"),
-                        "blurb": meta.get("blurb", "")},
-              "captions": out}
-    intro = ""
-    if not same:
-        intro = ("There is no %s video in the player yet, so the example below is "
-                 "from a %s one. The method and the shape of the answer are exactly "
-                 "the same; the transliteration scheme and the other conventions of "
-                 "%s are the ones given above, not the %s ones the example follows."
-                 % (L.name, EL.name, L.name, EL.name))
-    return "\n".join(lines), json.dumps(answer, ensure_ascii=False, indent=1), intro
-
-
 def lang_conventions(L):
     """docs/lang/<code>.md, the language's own conventions (the docs agent
     writes them; docs/languages.md section 9), without its H1, as the video
@@ -1218,7 +1140,8 @@ def assembled_chat(glossary=None, lang=None, gloss=None, data=None, instructions
                    custom=None):
     """docs/chat-prompt.md with its placeholders filled: the language's
     name, the generic conventions verbatim (the binding spec, one copy of
-    it), the language's own block, the example, a word list -- and the
+    it), the language's own block -- which holds the language's worked
+    example (docs/lang/<code>.md, Example) -- a word list, and the
     language the meanings are to be WRITTEN in, which the template names
     where it asks for them.  In its three parts (lib/promptkit.py), the
     `data` the last one, and the `instructions` a person's own where they
@@ -1231,12 +1154,6 @@ def assembled_chat(glossary=None, lang=None, gloss=None, data=None, instructions
         conv = f.read()
     # its own H1 would break the prompt's outline; the rest is the spec
     conv = re.sub(r"^# .*\n+", "", conv, count=1).strip()
-    ex_in, ex_out, ex_intro = _example(L)
-    # Nothing in the player to quote yet -- a fresh clone, or a language whose
-    # first video this is.  The template cuts the worked example (its block
-    # `example`) rather than leave its heading standing over a hole: the shape
-    # of an answer is in the conventions just above it, which are the binding
-    # spec anyway.
     gl = ""
     if glossary and re.match(r"^[a-z0-9-]+$", glossary):
         gp = os.path.join(DOCS, "glossary-%s.md" % glossary)
@@ -1288,14 +1205,11 @@ def assembled_chat(glossary=None, lang=None, gloss=None, data=None, instructions
                else "`en` on every chunk of %s text (`tr` is optional here)" % L.name)
     if L.reading:
         tr_rule = "`kana`, " + tr_rule
-    # THE EXAMPLE IS A VIDEO'S, not the template's: a caption that says `{{` is
-    # a caption, and is put in as one
     return promptkit.assemble(
-        "video-new", L, G, flags={"example": ex_in is not None},
+        "video-new", L, G,
         values={"KANA_LINE": kana_line, "WORDS_LINE": words_line,
                 "WORDS_CHECK": words_check, "WORDS_RECEIVED": words_received,
-                "TR_RULE": tr_rule, "EXAMPLE_INTRO": ex_intro, "GLOSSARY": gl},
-        verbatim={"EXAMPLE_IN": ex_in or "", "EXAMPLE_OUT": ex_out or ""},
+                "TR_RULE": tr_rule, "GLOSSARY": gl},
         includes={"CONVENTIONS": conv}, data=data, instructions=instructions, custom=custom)
 
 

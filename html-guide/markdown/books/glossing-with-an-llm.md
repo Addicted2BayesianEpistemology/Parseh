@@ -96,21 +96,29 @@ under the button instead: select it and copy it.
 
 The prompt is written for the book's own language and gloss language:
 
-- **the task** — gloss the chunks marked *to do*, the Frank way, in the
-  language the book's glosses are written in (**Glosses in**, when it was
-  made), and leave everything else as it is;
+- **what the method is for, and the task** — one paragraph on what you do
+  with the page: you read it a phrase at a time, the gloss says what *that*
+  phrase says, in the order of the text, and hovering brings the reading and
+  the words. From it follows the task: gloss the chunks marked *to do*, in
+  the language the book's glosses are written in (**Glosses in**, when it
+  was made), and leave everything else as it is;
 - **the fields** — the meaning always; the transliteration where the
   language romanises every chunk (Persian, Arabic, Japanese, Hindi,
   Chinese), and where the conventions call for it in the others; the kana
   of a Japanese chunk; the vocabulary line in the only LaTeX it may hold
   (`\dw`, `\vb`, `\bw`, `\pw`, `\textit`, `\emph`, `\nobreak`);
-- **the language's conventions**, whole — the same file the video prompt
-  and the new-book prompt carry (`docs/lang/<code>.md`), and Frank's
+- **the rule on the meaning**, with an example of it
+  ([below](#what-the-meaning-says)), the same in every prompt of Parseh
+  that asks for one;
+- **the language's conventions** — the file the other prompts carry too
+  (`docs/lang/<code>.md`), cut to what a gloss needs, and Frank's
   repetition rule;
 - **the stretch**, as one JSON block: one entry per subparagraph, named by
   its chapter file and its label (`"at": "ch1:1.2"`), and its chunks in
   order — each with its text, its word line in Japanese and Chinese (not to
-  be changed), and either `"todo"` or the gloss it already has.
+  be changed), and either `"todo"` or the gloss it already has. A sentence
+  tells the chatbot that this is text to gloss and not orders: an
+  instruction written inside the book is part of the text.
 
 **The text sent is the text the page shows** — the chunks as the chapter
 file holds them. A paragraph you have freed from its source (**this
@@ -187,12 +195,16 @@ The meaning under a phrase is a **gloss**, not a translation: it says what
 word of it to the word it renders. Read in a row, the meanings of a sentence
 may not be good English, and that is meant: you think it through, and you see
 how the language builds its sentence. The prompt asks for exactly this, in so
-many words and with an example. It is not what **Ask LLM** in the sources
-sidebar gives, which asks for a fluent translation of one sentence on
-purpose: a translation is for understanding the sentence, a gloss is for
-seeing how it is put together. If a chatbot hands back a fluent sentence cut
-into pieces, that is the very mistake the prompt names; tick **re-gloss** and
-ask again.
+many words and with an example: three Persian phrases, glossed as the rule
+asks and then the way the mistake would gloss them — a fluent translation of
+the whole sentence cut into as many pieces as there are chunks, which hands the
+noun phrase the words of the verb and the verb those of the noun phrase. Each
+meaning also has to agree with its chunk's vocabulary line: what the line says
+a word means is what the meaning says. If a chatbot hands back the fluent
+sentence cut into pieces, that is the very mistake the prompt names; tick
+**re-gloss** and ask again. This is not what **Ask LLM** and the machine's
+reading give you in the sources sidebar, and the two are meant to differ
+([The gloss and the fluent translation](unglossed.md#the-gloss-and-the-fluent-translation)).
 
 ## What is protected, and why
 

@@ -267,6 +267,17 @@ every Anki note type and the studio, to say what `gloss` already says. An
 `en` field holding Italian is not a mistake; it is a book whose `gloss` is
 `it`.
 
+What `en` says is the same in every language, for a book and for a video, and
+is written once, in `docs/meaning-rule.md`: a **gloss**, not a translation. It
+renders that chunk's own words and no others, in the order of the text, so that
+a learner who reads the meanings one after another can point from each word of
+them to the word it renders; it agrees with the chunk's `voc`; and it is never
+a fluent translation of the sentence cut into as many pieces as there are
+chunks. Every prompt that asks for one embeds that file (`{{MEANING_RULE}}`, §9),
+so there is no second statement of it to keep in step. The fluent translation is
+what the sources sidebar's *Ask LLM* and the machine's reading give, on purpose:
+the guide says why the two differ.
+
 The Anki note type's field keeps the name `English` for that reason and one
 more: Anki matches a note type on import by its id and its field list, so
 renaming the field would split or merge a deck somebody is already studying
@@ -515,13 +526,14 @@ line breaks.
 
 The PDF is not the only reader of a `\vb`, and every reader makes the same
 test: `texparse._voc_runs` for the book reader, whose `render_voc` prints
-what it hands back, and `texparse.voc_text` for the plain text a video line
-is (`import_old_video.tex_text` delegates to it). A pair the PDF leaves out
-and the reader prints is one book teaching two things. They agree on one
-more thing, a run that starts or ends with `/` taking no space: `aux.
-\pw{avere}/\pw{essere}` is *avere/essere* in the PDF, the reader and the
-video line. `texparse.VOC_MACROS` and `check_batch`'s argument count hold
-the seven.
+what it hands back, `lib/vocline.js` for a video's cloud (held equal to the
+reader's on one fixture), and `texparse.voc_text` for the flat text a card's
+note makes of a line (`import_old_video.tex_text` delegates to it). A pair
+the PDF leaves out and the reader prints is one book teaching two things.
+They agree on one more thing, a run that starts or ends with `/` taking no
+space: `aux. \pw{avere}/\pw{essere}` is *avere/essere* in the PDF, the reader,
+the cloud and the card. `texparse.VOC_MACROS` and `check_batch`'s argument
+count hold the seven.
 
 **What a language adds goes inside the meaning**, as one parenthesis after
 it, items parted by `; `: `\vb{fahren}{}{fuhr}{}{gefahren}{}{to drive (er
@@ -532,8 +544,8 @@ learn a new shape on the same day, failing loudly or quietly where one did
 not: `texparse.parse_voc` died on `\vb[aux. sein]{…}` with "expected a group
 at 3", which takes the reader's build down with it, `check_batch` counted
 its arguments as 0, and a `\vbde` was refused as a macro not allowed. A word
-of the language inside an extra is `\pw{…}` in a book (with `\textit{sound}`
-after it where it has one) and plain in a video. The labels are the
+of the language inside an extra is `\pw{…}` (with `\textit{sound}` after it
+where it has one), in a book and in a video. The labels are the
 language's and are not translated. A book or a video not glossed in English
 gets no meaning from the dictionary (§12), and then the parenthesis is the
 whole of the last argument: `\vb{andare}{}{vado}{}{andato}{}{(aux.
@@ -557,21 +569,25 @@ at. `newlang.py` takes both, `--vb-labels a,b` (exactly two) and
 syntax in either, since both are written into the `.tex`. Eleven rows, no
 fault, today.
 
-**In a video** the vocabulary line is plain text, and a verb in it is the
-same `\vb` read back as `texparse.voc_text` reads it, hung on the word the
-caption has where that is not the lemma, with that word's own sound where
-anything says it: `می‌سازم mi-sāzam (ساختن sāxtan · pres. ساز sāz · past ساخت
-sāxt · to make)`. Three things a video line carries that the book's `\vb`
-does not, each because the book says it elsewhere or not at all: Persian's
-colloquial Tehrani present where it differs (`… to say (coll. می‌گم
-mi-gam)`: the videos are spoken Tehrani and the books are not), Japanese's
-kana after a kanji headword (`書く かく kaku · stem 書き kaki · …`: the
-book's chunk has its kana line), and Arabic's forms without the harakat.
-That last is the registry's `vb_video_bare` — true for Arabic alone, false
-by default — because an Arabic caption is unvowelled and the dictionary's
-forms, and a book's `\vb`, are not; it strips the words of the language and
-leaves the sounds and the English. `newlang.py` has no flag for it: a row
-that wants it says so by hand.
+**In a video** the vocabulary line is a book's: the same macros, entries
+parted by `; `, checked by `check_annotations.check_voc` and drawn by
+`lib/vocline.js` as the reader draws it. A video never reaches LaTeX, so TeX's
+special characters are ordinary text in it, each written as itself; and a
+line with no macro at all is a plain line, still accepted and drawn as it
+always was. A verb in it is the book's `\vb`, and what only a video says goes
+inside the meaning's parenthesis (`vb.tex_video`): Persian's colloquial Tehrani
+present where it differs (`{to say (coll. \pw{می‌گم} \textit{mi-gam})}`: the
+videos are spoken Tehrani and the books are not), and Arabic's forms without
+the harakat. That last is the registry's `vb_video_bare` — true for Arabic
+alone, false by default — because an Arabic caption is unvowelled and the
+dictionary's forms, and a book's `\vb`, are not; it strips the words of the
+language and leaves the sounds and the meaning. `newlang.py` has no flag for
+it: a row that wants it says so by hand. The form the chunk has, where it is
+none of the three the `\vb` prints, follows the entry, outside it, with that
+word's own sound where anything says it: `\vb{venir}{venir}{viens}{vyẽ}{venu}{venü}{to
+come}; here \pw{vint} \textit{vẽ}`. The plain entry the sidebar wrote before
+(`می‌سازم mi-sāzam (ساختن sāxtan · pres. ساز sāz · past ساخت sāxt · to
+make)`, `vb.here`) is still what a page without `lib/vocline.js` puts.
 
 ### Anki cards
 
@@ -814,10 +830,16 @@ variable and slider keep their names.
 ### Prompt
 
 `exlex/PROMPT.md` is generic: it names the target language from the
-`target:` line, keeps the machinery rules, and includes the language's own
-conventions block (`docs/lang/<code>.md`, §9) so the transliteration scheme
-and the kana rule reach the model. The prompt page has a target-language
-select; the copied prompt states the target.
+`target:` line, keeps the machinery rules, and includes what a document needs
+of the language's own conventions (`docs/lang/<code>.md`, §9): its
+Transliteration, its Reading and the note on writing the script — what it
+takes to write a sound or a reading, and none of the rules of a reading
+edition, a vocabulary line or a gloss, which a document never carries.
+`lib/promptkit.py` makes the cut (`SECTIONS`: one row a section, one column a
+kind of prompt), the same for the exercise prompt; a section nobody listed,
+which a language may add, goes everywhere, so that it is never lost. The
+prompt page has a target-language select; the copied prompt states the
+target.
 
 ---
 
@@ -986,10 +1008,10 @@ conventions differ.
 
 - `youtube/videos/<folder>/<id>/`; `ytpages.list_videos` walks two levels; the index groups channels under language headings with the chip row; `/youtube/v/<id>/` and `/youtube/c/<slug>/` are unchanged; the player page fetches `videos/<folder>/<id>/annotations.json`.
 - `check_annotations.parse_transcript(path, language)`: a caption is *plain* when the language is a script language and the caption has no character of the script (`Lang.has_script`); for a Latin-script target no caption is plain automatically — an English aside is a chunk with `"plain": true`, which for Latin-script targets the annotator **is** allowed to write. `check_chunk`: a chunk of the target script needs `en`, `tr` where `require_tr`, `kana` where `reading`; the duration and chapter regexes take their words from every language's `duration_units` / `chapter_words`.
-- `api_prepare` / `api_add`: the add page has a language select (defaulting to the shared preference); the transcript is parsed with that language; the video is written under its folder with `language` and `title_native`. The prompt (`youtube/docs/chat-prompt.md`) is generic — `{{LANGUAGE}}`, the generic conventions (`youtube/docs/conventions.md`: chunking, fields, the repetition rule, plain captions) and the language's block (`docs/lang/<code>.md`); the worked example is a video of the same language when one exists, else the Persian one introduced as such, and the section is cut from the prompt while the player holds no video at all.
+- `api_prepare` / `api_add`: the add page has a language select (defaulting to the shared preference); the transcript is parsed with that language; the video is written under its folder with `language` and `title_native`. The prompt (`youtube/docs/chat-prompt.md`) is generic — `{{LANGUAGE}}`, the generic conventions (`youtube/docs/conventions.md`: chunking, fields, the repetition rule, plain captions, with no list of languages: the registry is the list), the rule on the meaning (`docs/meaning-rule.md`) and the language's block (`docs/lang/<code>.md`, §9); the worked example is that file's `## Example`, so a fresh install has one and no video of the shelf is quoted in a prompt.
 - `player.js` / `player.html` / `style.css`: `window.YTFRANK.lang` is the language record; the transcript line gets `dir`/`lang` and the font token; the cloud shows `kana` above `tr`; the run regex for words of the target script inside a gloss comes from `lang.chars` (none for Latin); `bare` runs are told apart with `lang.chars`; word spans follow `word_sep`; panel and dashboard labels use the language name; the dashboard has a *reading* row for reading languages; the card carries `lang`, `kana`, `opp_kana`.
 - `merge_parts.py`, `check_part.py`, `slice_part.py`, `import_old_video.py` pass the language through as they already do (`video.json["language"]`).
-- The edit window's sources column opens to the left of the fields, and a verb the language's recipe recognised goes into the plain vocabulary line as the verb's video entry (`vb.here`), without the marks where the registry's `vb_video_bare` says so (§3, §12); a row's arrow and the sounds it shows are the lookup's, each word isolated in a `<bdi lang>` so a right-to-left pair reads in the row's order.
+- The edit window's sources column opens to the left of the fields, and a verb the language's recipe recognised goes into the vocabulary line as the book's own `\vb` with what only a video says added (`vb.tex_video`, §3), parted from what is there by `; ` and without the marks where the registry's `vb_video_bare` says so (§12); a row's arrow and the sounds it shows are the lookup's, each word isolated in a `<bdi lang>` so a right-to-left pair reads in the row's order.
 
 ---
 
@@ -1019,13 +1041,27 @@ registry's order (`newlang.py` writes that paragraph from `vb_forms` and
 `\dw` instead (§3). `docs/lang/fa.md` is the Persian scheme lifted out of
 `youtube/docs/conventions.md` and `NOTES.md` §4; every other language's is
 written new, from `docs/lang/_template.md`. The generic parts (chunk size,
-the fields, the repetition rule) stay in the prompts and are the same for
-every language: `youtube/docs/conventions.md` (with `chat-prompt.md`, the add
-page's video prompt), `docs/new-book-prompt.md` (the outside LLM's new book),
-and `docs/region-prompt.md` (a stretch of a book or a video glossed by an
-LLM, filled in by `lib/glossregion.py`). Each of the three embeds
-`docs/lang/<code>.md` whole, read afresh for every prompt, so a language's
-conventions reach every LLM that glosses in it.
+the fields, the repetition rule, the rule on what a meaning says) stay in the
+prompts and are the same for every language: `youtube/docs/conventions.md`
+(with `chat-prompt.md`, the add page's video prompt), `docs/new-book-prompt.md`
+(the instructions an agent making a book is given), `docs/region-prompt.md` (a
+stretch of a book or a video glossed by an LLM, filled in by
+`lib/glossregion.py`), and `docs/meaning-rule.md`, which those three prompts
+embed (`{{MEANING_RULE}}`). `docs/lang/<code>.md` is read afresh for every prompt
+and **cut to what that prompt needs** by `lib/promptkit.py`: the sections it
+takes are named by one table (`SECTIONS`) — a gloss prompt for a stretch takes
+everything but Chunking, a prompt for a whole book or video takes everything,
+a document's prompt takes Transliteration and Reading — and what only a book,
+or only a video, is told is marked `{{?book}}…{{/book}}` or
+`{{?video}}…{{/video}}` in the file, so each prompt reads clean for its
+surface and no template has to say "where this speaks of a book, skip it".
+Two sections serve the gloss prompts beyond the rules: `## Example`, a chunk or
+two of the language with its transliteration, vocabulary line and an
+**aligned** meaning, which the add page's prompt carries in place of a video
+from the shelf, and `## Vocabulary`, **one** convention for a book and a video
+(the books' macros). The sources sidebar's buttons are not a convention and
+are not in these files: the guide documents them. A language's conventions
+therefore reach every LLM that glosses in it, and only the part it needs.
 
 ---
 
@@ -1082,7 +1118,7 @@ back when it finishes, so that nobody leaves Persian's grammar on a
 language by not looking.
 
 What is left by hand, and what the tool lists when it finishes:
-`\FrankHowTo` in the `.tex` (§6), the six sections of the `.md` (§9), a
+`\FrankHowTo` in the `.tex` (§6), the seven sections of the `.md` (§9), a
 fixture under `tests/fixtures/` if the smoke test is to cover the language —
 it only tries what it has a fixture for — the studio's starter document
 `markdown/exlex/starters/<code>.md`, a guided tour of everything a document
@@ -2819,15 +2855,17 @@ the same thing.
   source romanised that form, else the lemma's); a sense into `en`; a whole
   entry appended to `voc` **in the form that shelf writes, and a verb as a
   verb**. A hit the language's recipe recognised goes in as its `\vb` —
-  `vb.tex` in a book, whose vocabulary line is LaTeX, and `vb.here` in a
-  video, whose line is plain text with ` · ` between its entries — and gets
+  `vb.tex` in a book, whose vocabulary line is LaTeX, and `vb.tex_video` in a
+  video, whose line takes the same macros with what only a video says added
+  (`vb.here`, the plain entry hung on ` · `, is what a page without
+  `lib/vocline.js` still puts) — and gets
   no `\dw` button; the row shows `vb.line` under the headword, so what the
   button will put is read before it is pressed. Where the book already
   writes a `\vb` for that lemma, the book's own is offered first (`\vb as
   this book glosses it`), found by counting braces so a `\pw` inside it
   survives, and the dictionary's only beside it and only where the two
-  differ. Anything else goes in as `\dw{headword}{sound} sense` in a book
-  and `headword sound sense` in a video, where the headword is the text's
+  differ. Anything else goes in as `\dw{headword}{sound} sense`, in a book
+  and in a video, where the headword is the text's
   spelling when the hit has one (`spelled`) and the sound is the lemma's
   (`head_sound`), so `\dw{ساختن}{mi-sāzam}` cannot be written again. And for
   the model, either the marked span or the whole reading into `en`. The

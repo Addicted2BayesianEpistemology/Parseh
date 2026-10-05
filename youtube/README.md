@@ -212,12 +212,12 @@ card on the videos page. No Claude Code, no access to the project:
    player its transcript is what its annotations were checked against, and
    there is no route here that rewrites it.
 2. *Prepare & copy the prompt* puts a self-contained prompt on the
-   clipboard — the generic conventions, the language's own conventions, a
-   worked example from a video already here (one of the same language when
-   there is one, else a Persian one introduced as such; while the player is
-   empty the section is left out altogether), the word list, the captions
-   numbered with their start times, the plain ones marked as plain. Paste
-   it to any LLM.
+   clipboard — what the method is for, the generic conventions, the rule on
+   what a meaning says (`../docs/meaning-rule.md`), the language's own
+   conventions with its worked example (`## Example` in its file, so a fresh
+   install has one and no video of the shelf is quoted), the word list, the
+   captions numbered with their start times, the plain ones marked as plain.
+   Paste it to any LLM.
 3. Paste the answer back (one message or several) and *Check & add*. The
    page checks it with the pipeline's own tools, parsing the transcript
    with the language you picked, writes `videos/<language>/<id>/`
@@ -230,7 +230,8 @@ card on the videos page. No Claude Code, no access to the project:
 The prompt's text is [`docs/chat-prompt.md`](docs/chat-prompt.md), a generic
 recipe naming the language; it embeds [`docs/conventions.md`](docs/conventions.md)
 — what is the same for every language: the chunk size, the fields, the
-repetition rule, plain captions — and then the language's own block,
+repetition rule, plain captions — then the rule on the meaning, and then the
+language's own block,
 [`../docs/lang/<code>.md`](../docs/lang/): what the text field carries, the
 transliteration scheme, the vocabulary line, what never to gloss, how to
 chunk that language. Both are about the language being **taught**; what

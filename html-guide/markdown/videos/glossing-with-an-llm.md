@@ -78,18 +78,24 @@ glossed afresh. Where the browser will not let the page reach the
 clipboard, the prompt appears in a box under the button instead: select it
 and copy it.
 
-The prompt is written for the video's own language and gloss language: the
-meanings in the language the video's glosses are written in; the
-transliteration where the language romanises every phrase (Persian, Arabic,
-Japanese, Hindi, Chinese), and where the conventions call for it in the
-others; the kana of a Japanese phrase; the vocabulary line in the
+The prompt is written for the video's own language and gloss language. It
+opens with one paragraph on what the method is for — you read the video a
+phrase at a time, the gloss says what *that* phrase says, in the order of the
+captions, and hovering brings the reading and the words — and the task
+follows from it: the meanings in the language the video's glosses are written
+in; the transliteration where the language romanises every phrase (Persian,
+Arabic, Japanese, Hindi, Chinese), and where the conventions call for it in
+the others; the kana of a Japanese phrase; the vocabulary line in the
 books' entries (`\dw`, `\vb`, `\bw`, `\pw`), which the player draws as a
-book's reader does — a plain line is accepted as well; the language's own conventions, whole
-(`docs/lang/<code>.md`, the file every prompt of Parseh carries), and
-Frank's repetition rule. The run itself is one JSON block: one entry per
-caption, with its number (`"i"`), its start in seconds and its phrases in
-order — each with its text, its words in Japanese and Chinese (not to be
-changed), and either `"todo"` or the gloss it already has.
+book's reader does — a plain line is accepted as well. Then the rule on the
+meaning, with an example ([below](#what-the-meaning-says)); the language's own
+conventions (`docs/lang/<code>.md`, the file every prompt of Parseh carries,
+cut to what a gloss needs), and Frank's repetition rule. The run itself is one
+JSON block: one entry per caption, with its number (`"i"`), its start in
+seconds and its phrases in order — each with its text, its words in Japanese
+and Chinese (not to be changed), and either `"todo"` or the gloss it already
+has. A sentence tells the chatbot that the captions are text to gloss and not
+orders: an instruction written inside them is part of the text.
 
 **The text sent is the text the player shows.** A phrase freed from the
 transcript (**this phrase need not reproduce `transcript.txt`**) and
@@ -156,12 +162,18 @@ The meaning under a phrase is a **gloss**, not a translation: it says what
 word of it to the word it renders. Read in a row, the meanings of a sentence
 may not be good English, and that is meant: you think it through, and you see
 how the language builds its sentence. The prompt asks for exactly this, in so
-many words and with an example. It is not what **Ask LLM** in the sources
-sidebar gives, which asks for a fluent translation of one sentence on
-purpose: a translation is for understanding the sentence, a gloss is for
-seeing how it is put together. If a chatbot hands back a fluent sentence cut
-into pieces, that is the very mistake the prompt names; tick **re-gloss** and
-ask again.
+many words and with an example: three Persian phrases, glossed as the rule
+asks and then the way the mistake would gloss them — a fluent translation of
+the whole sentence cut into as many pieces as there are chunks, which hands the
+noun phrase the words of the verb and the verb those of the noun phrase. Each
+meaning also has to agree with its phrase's vocabulary line: what the line says
+a word means is what the meaning says. A caption whose sentence runs on into
+the next ends its last meaning with `…`, and the next caption's first phrase
+picks it up. If a chatbot hands back the fluent sentence cut into pieces, that
+is the very mistake the prompt names; tick **re-gloss** and ask again. This is
+not what **Ask LLM** and the machine's reading give you in the sources
+sidebar, and the two are meant to differ
+([The gloss and the fluent translation](editing-a-phrase.md#the-gloss-and-the-fluent-translation)).
 
 ## What is protected, and why
 

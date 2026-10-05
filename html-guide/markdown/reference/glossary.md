@@ -81,7 +81,10 @@ Fidelity
 Gloss
 : What a chunk carries besides its text: the transliteration, the
   vocabulary line (the words one by one, a verb with its principal parts)
-  and the meaning. **delete gloss**, in the chunk sheet or the player's
+  and the meaning, which says what *that* chunk's own words say, in the order
+  of the text, and is not a translation of the sentence
+  ([What the meaning says](../books/glossing-with-an-llm.md#what-the-meaning-says)).
+  **delete gloss**, in the chunk sheet or the player's
   ✎ form, takes all of it off at once. In the studio, `word = *meaning*`
   is a gloss, and the document's **⇄ Glosses** table collects them.
 

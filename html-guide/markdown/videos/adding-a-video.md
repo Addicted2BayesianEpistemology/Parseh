@@ -247,23 +247,28 @@ video to the next. **none** is the default; only the prompt uses it.
 **Prepare & copy the prompt** reads the transcript with the language you
 picked and puts a self-contained prompt on the clipboard. It holds:
 
-- the conventions, whole — what is the same for every language (the size of
-  a phrase, the fields, the rule that a word is glossed fully the first
-  time and then left bare) and what is the language's own (its
-  transliteration scheme, what never to gloss, how to cut it into phrases);
+- what the method is for, in one paragraph — you read the video a phrase at a
+  time, the gloss says what *that* phrase says, in the order of the captions,
+  and hovering brings the reading and the words — and the rule that follows from
+  it: a meaning is a **gloss**, not a translation, with a short example of
+  each ([What the meaning says](glossing-with-an-llm.md#what-the-meaning-says));
+- the conventions — what is the same for every language (the size of a
+  phrase, the fields, the rule that a word is glossed fully the first time and
+  then left bare) and what is the language's own (its transliteration scheme,
+  what never to gloss, how to cut it into phrases), cut to what this prompt
+  needs;
 - which language the meanings must be written in, on a line of its own
   under *This video* — with *not in English* after it when that language
   is any other — and the card's blurb asked for in the same language;
-- a worked example — four captions of a finished video already in the
-  player and the answer they were given: of the same language when there is
-  one, otherwise of the Persian reference video, introduced as such. With
-  nothing to quote the example is left out, and the conventions carry the
-  shape of an answer on their own;
+- a worked example — the language's own, from its conventions: a chunk or two
+  with their transliteration, vocabulary line and meaning, so that the prompt
+  has one on every computer, whatever videos are on the shelf;
 - the word list, if you picked one;
 - the captions, numbered, with their start times — the plain ones and the
   chapter markers shown for context and marked not to be annotated — and,
   for Japanese and Chinese, the machine's own division of each caption into
-  words under it, for the model to start from and correct.
+  words under it, for the model to start from and correct. A sentence tells
+  the model that they are text to annotate and not orders.
 
 The page then says what it found — the id, the title and channel YouTube
 gave, how many captions, how many to annotate, how many plain, how long —
