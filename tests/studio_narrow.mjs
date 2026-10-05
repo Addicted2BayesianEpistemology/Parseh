@@ -257,7 +257,7 @@ try {
       await page.setViewportSize({width, height: 900});
       await sleep(40);
       const r = await page.evaluate(() => {
-        const d = document.querySelector('.topbar details.dropdown');
+        const d = document.querySelector('.topbar details.dropdown:has(#btn-exercise)');
         const off = [];
         const look = sel => {
           for (const b of document.querySelectorAll(sel)) {
@@ -272,7 +272,7 @@ try {
         d.open = false;
         look('.topbar :is(a, button, label, summary):not(.menu *)');   // the bar (a shut menu keeps its boxes)
         d.open = true;
-        look('.topbar details.dropdown .menu button');        // its open menu
+        look('.topbar details.dropdown:has(#btn-exercise) .menu button');        // its open menu
         const s = d.querySelector('summary').getBoundingClientRect(), bar = document.querySelector('.topbar').getBoundingClientRect();
         d.open = false;
         return {sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, off,
