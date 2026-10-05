@@ -183,11 +183,13 @@ async function suite(phone) {
       has(big, 'faster-whisper / large-v3', 'the higher-accuracy model');
       has(big, 'Higher accuracy · larger and slower', 'and its trade-off');
       has(big, '3.2 GB', 'its download');
-      eq(await page.locator('[data-row] [data-get]').count(), 14,
-         'a Get it for the program, both models and every language\'s optional exact-word-times network');
+      // the program, the two standard models, a0.4.3's thirteen language-specific ones, and the optional
+      // exact-word-times network of each of the eleven languages
+      eq(await page.locator('[data-row] [data-get]').count(), 27,
+         'a Get it for the program, every model and every language\'s optional exact-word-times network');
       // LABEL IN NAME (WCAG 2.5.3): a person who says "click Get it" reaches every row, and each
       // still says which part it is for
-      eq(await page.getByRole('button', {name: 'Get it'}).count(), 14, 'each "Get it" is named by the words it shows');
+      eq(await page.getByRole('button', {name: 'Get it'}).count(), 27, 'each "Get it" is named by the words it shows');
       eq((await page.locator('[data-row="runtime"] [data-get]').getAttribute('aria-label')), 'Get it: the speech program',
          'and names its part after them');
       eq((await page.locator('[data-row="large-v3"] [data-get]').getAttribute('aria-label')), 'Get it: faster-whisper / large-v3',
