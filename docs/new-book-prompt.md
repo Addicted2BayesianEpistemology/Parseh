@@ -97,7 +97,7 @@ One small object that you and Parseh keep between you; the panel on the book's c
 - `stage`: `source` (the original recovered), `chapters` (the chapter table written), `batch`, `done` (every part so far is in, and every batch), `waiting` (the same, and more text is coming).
 - `on`: one line, what you are on now.
 - `chapters`: `[{"chapter": 1, "paragraphs": 24, "part": 1}, ...]` (`part`, the part its first paragraphs came from, is optional).
-- `batches`: `{"done": 3, "of": 12}`; `of` grows when a part is added.
+- `batches`: `{"done": 3, "of": 12}`: `of` is every batch the table needs (ten paragraphs each, the last of a chapter what is left) and grows when a part is added.
 - `checks`: what the tools last said, e.g. `{"check_batch": "0 errors", "assemble": "ALL PARAGRAPHS CLEAN", "verify_book": "clean"}`.
 - `sources`: which parts of the text you have recovered, `{"done": [1, 2], "of": 3, "decided": {"2": "a new chapter: it opens with a heading"}}`; see **The text in parts**.
 - `asks_read`: how many entries of `ASKS.md` you have read, notices included.
@@ -118,6 +118,8 @@ Parseh's own tool reads a PDF with a text layer, an epub and a plain text file a
 ```
 
 It writes `source/clean.txt` (one paragraph a line) and one file a paragraph, `source/paras/ch1_pNN.txt`, all in chapter 1 for now, and says what it found: an epub's headings, pages where the paragraph breaks may be wrong, a PDF with no text layer.
+
+Write `making.json` as soon as it is recovered (`stage`: `source`, and `on`).
 
 **A PDF with no text layer is a scan, and you stop there.** Do not read it with an OCR of your own and annotate the result: OCR confuses letters in systematic ways, and in a learning edition every such error is a word the learner memorises that does not exist. Tell the person and ask for a text version: an epub, a plain text, or a PDF with a text layer.
 
