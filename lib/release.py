@@ -23,6 +23,10 @@
     python3 lib/release.py compare A B
         whether two builds -- two zips, two manifests, or one of each -- ship
         the same files; a zip is first held to its own manifest
+    python3 lib/release.py links [--expect TAG] [--old]
+        what every address Parseh names answers, asked live, by hand: the
+        update feed, the site, the guide and its icons, the addresses the
+        documents give; non-zero when one of them is wrong
 
 A DEVELOPER'S TOOL.  Releasing is a developer's act, so this is a command of
 one line; nobody who uses Parseh ever runs it.  docs/releasing.md says when
@@ -125,21 +129,53 @@ engine's own fingerprint.py says which) -- are not what the committed
 site/build.json was compiled from, or when that compile had errors; asked
 of the tree's own engine in a Python of its own, as the data formats are.
 
-Standard library only: CI runs it with a bare Python.
+THE LIVE CHECK, `links` (docs/releasing.md says when).  It is the one command
+here that asks the internet, and is therefore run BY HAND: never by a
+workflow that gates a release (a site that is down must not stop a release)
+and never by the unit suite (tests/test_release_links.py drives it offline,
+and over a local socket).  Every address lib/project.py names is asked and
+printed with the chain that answered -- the first hop and where it ends --
+and the command exits non-zero when one of these is wrong: the update feed
+(its tag_name is --expect's tag, when one is given) and the latest-release
+page; the site; the guide, which must END at the guide's own address with 200
+without leaving the domain (the one hop allowed is GitHub's own from /guide to
+/guide/, and a person's http:// or www. is sent to https and the bare
+domain); a deep link into the guide, 200 at its own address, with the
+published bar in it and, with a tag, the tag's version; the four icons the
+phone app is installed with, each 200 image/png with NO redirect at all, since
+a machine fetches those and a failure there is silent; and every address of
+the project written in README.md, docs/ and the guide's sources, 200 at its
+end.  It REPORTS, and never fails on, what the organisation site's own address
+for the guide and the old repository's path under the domain answer, and with
+--old what the OLD places answer now (how GitHub's redirect after the move is
+proved).  Redirects are followed here, by hand, so the chain can be printed
+and judged; each request has 15 seconds, at most six redirects are followed,
+nothing is retried, and one failure never stops the rest.
+
+Standard library only: CI runs it with a bare Python.  Of Parseh's own modules
+it reads lib/version.py and lib/changelog.py as always, and lib/project.py,
+only inside `links`.
 """
 import argparse
+import collections
 import datetime
 import hashlib
+import http.client
 import io
 import json
 import os
 import re
+import socket
+import ssl
 import struct
 import subprocess
 import sys
 import tarfile
 import tempfile
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import zipfile
 
 LIB = os.path.dirname(os.path.realpath(__file__))
@@ -810,6 +846,545 @@ def _sha256_of(path):
     return h.hexdigest()
 
 
+# ------------------------------------------------------------------ links: what every address answers, asked live
+# THE OLD PLACE, written here and ONLY here, and in halves: a test keeps the old
+# account's name out of the whole tree (tests/test_project.py), and this command
+# alone has to ask the old addresses what they answer now -- `--old`, the proof
+# that GitHub's redirect after the transfer works and that the old Pages
+# address is dead.  Never write it whole.
+OLD_ACCOUNT = "Addicted2" + "Bayesian" + "Epistemology"
+
+REDIRECTS = (301, 302, 303, 307, 308)     # the answers that send a request on
+HOP_LIMIT = 6              # redirects followed by hand; a seventh is a fault
+TIMEOUT = 15               # seconds for each request
+PAUSE = 0.25               # seconds between two requests: courtesy, never a retry
+PAGE_KEEP = 256 * 1024     # how much of a page is read: its first part holds the bar
+FEED_KEEP = 1 << 20        # and of the feed's JSON
+BAR_WITHIN = 8000          # the bar is a link to the site this far into the page's body
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+# THE PHONE APP'S ICONS and the side of each, which `links` asks for under
+# project.ICONS_URL.  lib/mobile.py names them and lib/icons/ holds them
+# (tests/test_release_links.py holds the three lists to one another).
+ICON_FILES = {"parseh-192.png": 192, "parseh-512.png": 512,
+              "parseh-maskable-512.png": 512, "apple-touch-icon.png": 180}
+DEEP_LINK = "site/reference/whats-new.html"     # a page of the published guide, under project.SITE
+LINK_TEXT = (".md", ".html", ".txt")
+
+# one answer: the address asked, its status (None: nobody answered), the
+# Location of a redirect, the media type, and in words what went wrong, if
+# anything did
+Hop = collections.namedtuple("Hop", "url status location ctype error")
+
+
+class Answer:
+    """What one address answered: EVERY hop of the chain, in order, and the
+    body of the last one, as much of it as was asked for."""
+
+    def __init__(self, hops, body=b""):
+        self.hops = hops
+        self.body = body
+
+    @property
+    def last(self):
+        return self.hops[-1]
+
+    @property
+    def redirects(self):
+        return len(self.hops) - 1
+
+
+class _NoFollow(urllib.request.HTTPRedirectHandler):
+    """urllib's opener without its following: a 3xx is handed back as it is,
+    to be followed -- or judged -- here, by hand."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoFollow)
+
+
+def _ctype(headers):
+    return (headers.get("Content-Type") or "").split(";")[0].strip().lower()
+
+
+def _why(error, timeout):
+    """A failed request, in a few words."""
+    reason = getattr(error, "reason", error)
+    if isinstance(reason, (socket.timeout, TimeoutError)):
+        return "no answer within %g s" % timeout
+    if isinstance(reason, socket.gaierror):
+        return "the name does not resolve"
+    if isinstance(reason, ConnectionRefusedError):
+        return "connection refused"
+    if isinstance(reason, ssl.SSLError):
+        return "TLS: %s" % reason
+    return "%s: %s" % (type(reason).__name__, reason) if str(reason) else type(reason).__name__
+
+
+def _once(url, keep=0, agent=None, timeout=TIMEOUT):
+    """ONE request, followed nowhere -> (the Hop, as much of the body as KEEP
+    bytes).  Never raises for the network's sake: a failure is a hop with
+    nothing but its reason."""
+    try:
+        parts = urllib.parse.urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.netloc:
+            return Hop(url, None, None, "", "not an http or https address"), b""
+        req = urllib.request.Request(url, headers={"User-Agent": agent or "Parseh", "Accept": "*/*"})
+        with _OPENER.open(req, timeout=timeout) as r:
+            return Hop(url, r.status, None, _ctype(r.headers), None), (r.read(keep) if keep else b"")
+    except urllib.error.HTTPError as e:           # every answer that is not a 2xx, a redirect included
+        hop = Hop(url, e.code, e.headers.get("Location") if e.code in REDIRECTS else None, _ctype(e.headers), None)
+        e.close()
+        return hop, b""
+    except (OSError, http.client.HTTPException, ValueError) as e:
+        return Hop(url, None, None, "", _why(e, timeout)), b""
+
+
+def fetch(url, keep=0, agent=None, timeout=TIMEOUT, once=_once):
+    """URL -> its Answer: the redirects are followed here, by hand, at most
+    HOP_LIMIT of them, and every hop is kept so that the chain can be printed
+    and judged.  KEEP is how many bytes of the last body to read (0: none).
+    A chain that loops, has no Location to follow or does not end is a last
+    hop that says so.  Nothing is retried: a failure is the answer."""
+    hops, seen, body = [], set(), b""
+    for _ in range(HOP_LIMIT + 1):
+        hop, body = once(url, keep, agent, timeout)
+        hops.append(hop)
+        seen.add(url)
+        if hop.status not in REDIRECTS:
+            return Answer(hops, body)
+        if not hop.location:
+            hops[-1] = hop._replace(error="a redirect with no Location")
+            return Answer(hops)
+        url = urllib.parse.urljoin(url, hop.location)
+        if url in seen:
+            hops[-1] = hop._replace(error="a redirect loop: %s was asked already" % url)
+            return Answer(hops)
+    hops[-1] = hops[-1]._replace(error="more than %d redirects" % HOP_LIMIT)
+    return Answer(hops)
+
+
+# -------------------------------------------------- judging: pure, over an Answer
+def _end(ans):
+    """Why a chain does not end in 200, in words; [] when it does."""
+    last = ans.last
+    if last.status is None:
+        return ["no answer: %s" % last.error]
+    if last.error:
+        return [last.error]
+    if last.status != 200:
+        return ["answers %d%s, not 200" % (last.status, " at %s" % last.url if ans.redirects else "")]
+    return []
+
+
+def _sent_on(ans):
+    return "it was sent on (%d redirect%s)" % (ans.redirects, "" if ans.redirects == 1 else "s")
+
+
+def _bare(netloc):
+    netloc = netloc.lower()
+    return netloc[4:] if netloc.startswith("www.") else netloc
+
+
+def _allowed_step(a, b):
+    """May the guide's address send a request from A to B?  Only by what
+    GitHub itself does: http to https, www to the bare domain, and /guide to
+    /guide/ -- any of the three, or all, and nothing else."""
+    pa, pb = urllib.parse.urlsplit(a), urllib.parse.urlsplit(b)
+    host = pa.netloc.lower()
+    return (a != b
+            and pb.scheme in {pa.scheme, "https" if pa.scheme == "http" else pa.scheme}
+            and pb.netloc.lower() in {host, _bare(host)}
+            and pb.path in {pa.path, pa.path if pa.path.endswith("/") else pa.path + "/"}
+            and pb.query == pa.query)
+
+
+def _tag_name(ans):
+    """The tag_name of a release's JSON, or None."""
+    try:
+        data = json.loads(ans.body.decode("utf-8"))
+    except ValueError:                                 # not JSON, not even text
+        return None
+    tag = data.get("tag_name") if isinstance(data, dict) else None
+    return tag if isinstance(tag, str) and tag else None
+
+
+def _base_version(tag):
+    """A tag's version: a rehearsal's is its version's (lib/version.py's rule)."""
+    try:
+        return _version().base(tag)
+    except (ValueError, Refused):
+        return tag
+
+
+def _has_bar(text, website):
+    """Does the page carry the published guide's bar -- a link to the site, in
+    the first part of its body?"""
+    start = max(text.find("<body"), 0)
+    return re.search(r"<a\b[^>]*\bhref\s*=\s*[\"']%s[\"']" % re.escape(website),
+                     text[start:start + BAR_WITHIN]) is not None
+
+
+def _names(text, version):
+    return re.search(r"(?<![0-9A-Za-z])%s(?![0-9A-Za-z])" % re.escape(version), text) is not None
+
+
+class Result:
+    """One address, what answered, and the verdict: PROBLEMS (empty: it is as
+    it should be), NOTES (facts worth a line) and whether it is only
+    REPORTED, which never fails."""
+
+    def __init__(self, section, label, url, answer=None, problems=(), notes=(), report=False):
+        self.section, self.label, self.url, self.answer, self.report = section, label, url, answer, report
+        self.notes = list(notes) + (list(problems) if report else [])
+        self.problems = [] if report else list(problems)
+
+    @property
+    def failed(self):
+        return bool(self.problems)
+
+
+def _check_feed(ask, project, expect):
+    ans = ask(project.FEED, FEED_KEEP)
+    problems, notes = _end(ans), []
+    if ans.redirects:
+        problems.append("the update road leans on a redirect: the feed must answer where it is written, "
+                        "and %s" % _sent_on(ans))
+    tag = _tag_name(ans) if ans.last.status == 200 else None
+    if ans.last.status == 200:
+        if tag is None:
+            problems.append("the answer is not a release: it has no tag_name")
+        else:
+            notes.append("tag_name %s" % tag)
+    if expect and tag and tag != expect:
+        problems.append("tag_name is %s, not %s" % (tag, expect))
+    return ans, problems, notes
+
+
+def _check_latest(ask, project, expect):
+    ans = ask(project.LATEST_URL)
+    problems = _end(ans)
+    if (expect and ans.last.status == 200
+            and not urllib.parse.urlsplit(ans.last.url).path.endswith("/releases/tag/" + expect)):
+        problems.append("the latest release is not %s: it ends at %s" % (expect, ans.last.url))
+    return ans, problems, []
+
+
+def _check_site(ask, project):
+    ans = ask(project.WEBSITE_URL)
+    problems = _end(ans)
+    if ans.redirects:
+        problems.append("the site's own address must answer 200 itself, and %s" % _sent_on(ans))
+    return ans, problems, []
+
+
+def _check_guide(ask, project, url):
+    """The guide's address must END at project.SITE with 200, by nothing but
+    GitHub's own hops, and never leave the domain."""
+    ans = ask(url)
+    domain = _bare(urllib.parse.urlsplit(project.SITE).netloc)
+    problems = []
+    for a, b in zip(ans.hops, ans.hops[1:]):
+        if _bare(urllib.parse.urlsplit(b.url).netloc) != domain:
+            problems.append("it leaves %s for %s: %s -> %s" % (domain, urllib.parse.urlsplit(b.url).netloc,
+                                                              a.url, b.url))
+        elif not _allowed_step(a.url, b.url):
+            problems.append("a hop it may not make: %s -> %s (only http to https, www to the bare "
+                            "domain and /guide to /guide/ are GitHub's own)" % (a.url, b.url))
+    if ans.last.status == 200 and urllib.parse.urldefrag(ans.last.url)[0] != project.SITE:
+        problems.append("it ends at %s, not at %s" % (ans.last.url, project.SITE))
+    return ans, problems + _end(ans), []
+
+
+def _variants(project):
+    """The guide as a person may type it, when it is on an https domain of its own."""
+    site = urllib.parse.urlsplit(project.SITE)
+    if site.scheme != "https" or ":" in site.netloc or not project.GUIDE_URL.startswith("https://"):
+        return []
+    return [("guide typed with http", "http://" + project.GUIDE_URL[len("https://"):]),
+            ("guide typed with www", "https://www." + project.SITE[len("https://"):])]
+
+
+def _check_deep(ask, project, expect):
+    """A page deep in the guide: 200 at its own address, the bar in it, and --
+    with a tag -- the release's version, which says the guide published is the
+    one of that release."""
+    ans = ask(project.SITE + DEEP_LINK, PAGE_KEEP)
+    problems, notes = _end(ans), []
+    if ans.redirects:
+        problems.append("a deep link must answer 200 at its own address, and %s" % _sent_on(ans))
+    elif ans.last.status == 200:
+        text = ans.body.decode("utf-8", "replace")
+        if _has_bar(text, project.WEBSITE_URL):
+            notes.append("the bar is there: a link to %s near the top of the page" % project.WEBSITE_URL)
+        elif expect:
+            problems.append("no bar: there is no link to %s in the first part of the page" % project.WEBSITE_URL)
+        else:
+            notes.append("no bar (a failure only when --expect is given)")
+        if expect:
+            version = _base_version(expect)
+            if _names(text, version):
+                notes.append("the page names %s" % version)
+            else:
+                problems.append("the page does not name %s: the guide published is older than the release"
+                                % version)
+    return ans, problems, notes
+
+
+def _check_icon(ask, project, name, side):
+    """An icon is fetched by a MACHINE (Chrome's WebAPK server): 200 image/png
+    as written, no redirect at all, and the PNG it says it is."""
+    ans = ask(project.ICONS_URL + name, 64)
+    problems, notes = [], ["redirects: %d" % ans.redirects]
+    if ans.redirects:
+        problems.append("a machine fetches this: no redirect may stand before it, and %s" % _sent_on(ans))
+    problems += _end(ans)
+    if ans.last.status == 200:
+        if ans.last.ctype != "image/png":
+            problems.append("it is %s, not image/png" % (ans.last.ctype or "of no type"))
+        if not ans.body.startswith(PNG_SIGNATURE) or len(ans.body) < 24:
+            problems.append("the bytes are not those of a PNG")
+        else:
+            wide, high = struct.unpack(">II", ans.body[16:24])
+            if (wide, high) == (side, side):
+                notes.append("%dx%d" % (wide, high))
+            else:
+                problems.append("it is %dx%d, not %dx%d" % (wide, high, side, side))
+    return ans, problems, notes
+
+
+def _addresses_in(text, bases):
+    """The addresses of the project written in a text: those that start with
+    one of BASES and go on as a path, an anchor or a query -> a list of
+    addresses, anchors cut off.  A pattern is no address (<version>, ${TAG},
+    ..., an ellipsis), and nor is another place's that quotes one."""
+    found = []
+    for base in bases:
+        for m in re.finditer(r"""(?<![A-Za-z0-9/_.-])%s[^\s<>"'`()\[\]{}|\\^]*""" % re.escape(base), text):
+            raw = m.group(0)
+            if raw[len(base):len(base) + 1] not in ("", "/", "#", "?"):
+                continue                                  # a longer name: <repository>-fork
+            token = raw.rstrip(".,;:!?*")                 # a sentence's or an emphasis's end
+            if (text[m.end():m.end() + 1] in ("<", "{") or "$" in token or "*" in token
+                    or raw.rstrip("*").endswith("...") or not token.isascii()):
+                continue
+            address = token.split("#", 1)[0].rstrip(".,;:!?*")
+            if address and address not in found:
+                found.append(address)
+    return found
+
+
+def link_files(root):
+    """The files whose addresses are held to the live check: README.md and the
+    other documents at the top, docs/, and the guide's sources (its pages, its
+    README and its hand-written front page) -- never the compiled guide."""
+    found = [n for n in sorted(os.listdir(root))
+             if n.endswith((".md", ".html")) and os.path.isfile(os.path.join(root, n))]
+    for base in ("docs", "html-guide/markdown"):
+        for folder, dirs, names in os.walk(os.path.join(root, base)):
+            dirs.sort()
+            found += [os.path.relpath(os.path.join(folder, n), root).replace(os.sep, "/")
+                      for n in sorted(names) if n.endswith(LINK_TEXT)]
+    found += [n for n in ("html-guide/README.md", "html-guide/index.html")
+              if os.path.isfile(os.path.join(root, n))]
+    return found
+
+
+def scan_links(root, project):
+    """{address: [the files that write it]}, by address: every address based
+    on the repository or on the domain (the site and the guide under it)."""
+    bases = (project.GITHUB_URL, project.WEBSITE_URL.rstrip("/"))
+    where = {}
+    for rel in link_files(root):
+        with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
+            for address in _addresses_in(f.read(), bases):
+                where.setdefault(address, []).append(rel)
+    return dict(sorted(where.items()))
+
+
+def _check_link(ask, address, files):
+    ans = ask(address)
+    named = ", ".join(files[:3]) + (" and %d more" % (len(files) - 3) if len(files) > 3 else "")
+    return ans, _end(ans), ["written in %s" % named]
+
+
+def report_addresses(project):
+    """What is REPORTED and never judged: [(label, address, what is expected)]."""
+    pages_host = project.SITE_REPO.split("/", 1)[1]        # the organisation site's own Pages address
+    guide_path = project.GUIDE_REPO.split("/", 1)[1]
+    return [("default Pages address", "https://%s/%s/" % (pages_host, guide_path),
+             "a redirect to the domain (%s)" % project.SITE),
+            ("Parseh's Pages path", project.WEBSITE_URL + project.NAME + "/",
+             "404 once Pages is switched off in %s" % project.NAME)]
+
+
+def old_addresses(project):
+    """The OLD places, for --old: [(label, address, what is expected, read the tag)]."""
+    name = project.NAME
+    return [("old repository", "https://github.com/%s/%s" % (OLD_ACCOUNT, name),
+             "a redirect to the new repository, ending in 200 at %s" % project.GITHUB_URL),
+            ("old feed", "https://api.github.com/repos/%s/%s/releases/latest" % (OLD_ACCOUNT, name),
+             "a 301 from the API to .../repositories/<id>/releases/latest, then 200", True),
+            ("old guide address", "https://%s.github.io/%s/" % (OLD_ACCOUNT.lower(), name),
+             "404 (GitHub does not redirect Pages: the old guide address is dead)")]
+
+
+def _asker(fetcher, agent, pause):
+    """ask(url, keep) -> Answer: each address is asked once (asked again with
+    a longer KEEP only if more of its body is wanted), PAUSE seconds after the
+    one before."""
+    memo, state = {}, {"asked": False}
+
+    def ask(url, keep=0):
+        known = memo.get(url)
+        if known and known[0] >= keep:
+            return known[1]
+        if pause and state["asked"]:
+            time.sleep(pause)
+        state["asked"] = True
+        memo[url] = (keep, fetcher(url, keep=keep, agent=agent))
+        return memo[url][1]
+    return ask
+
+
+def live_checks(root, expect, old, fetcher, project, agent, pause=0.0, reports=None, olds=None):
+    """Ask every address Parseh names -> [Result], in the order they are shown.
+    FETCHER(url, keep=, agent=) -> Answer is injected: the judging above is
+    pure, and a test gives it a table of answers."""
+    expect = _tag(expect) if expect else None
+    ask = _asker(fetcher, agent, pause)
+    out = []
+
+    def add(section, label, url, check, report=False):
+        try:
+            ans, problems, notes = check()
+        except Exception as e:      # one broken check must not stop the others: it is a failure, said
+            ans, problems, notes = None, ["the check itself failed: %s: %s" % (type(e).__name__, e)], []
+        out.append(Result(section, label, url, ans, problems, notes, report))
+
+    road = "The update road"
+    add(road, "feed", project.FEED, lambda: _check_feed(ask, project, expect))
+    add(road, "latest", project.LATEST_URL, lambda: _check_latest(ask, project, expect))
+    site = "The site and the guide"
+    add(site, "site", project.WEBSITE_URL, lambda: _check_site(ask, project))
+    add(site, "guide", project.GUIDE_URL, lambda: _check_guide(ask, project, project.GUIDE_URL))
+    add(site, "guide/", project.SITE, lambda: _check_guide(ask, project, project.SITE))
+    for label, url in _variants(project):
+        add(site, label, url, lambda url=url: _check_guide(ask, project, url))
+    add(site, "deep link", project.SITE + DEEP_LINK, lambda: _check_deep(ask, project, expect))
+    icons = "The phone app's icons (a machine fetches them: no redirect at all)"
+    for name, side in ICON_FILES.items():
+        add(icons, "icon " + name, project.ICONS_URL + name,
+            lambda name=name, side=side: _check_icon(ask, project, name, side))
+    where = scan_links(root, project)
+    carriers = len({f for files in where.values() for f in files})
+    docs = "Addresses written in the documents (%d, from %d file%s)" % (
+        len(where), carriers, "" if carriers == 1 else "s")
+    for address, files in where.items():
+        add(docs, "link", address, lambda address=address, files=files: _check_link(ask, address, files))
+
+    def report(section, entries):
+        for label, url, expected, *more in entries:
+            def look(url=url, expected=expected, more=more):
+                ans = ask(url, FEED_KEEP if more and more[0] else 0)
+                tag = _tag_name(ans) if more and more[0] and ans.last.status == 200 else None
+                return ans, [], ["expected: %s" % expected] + (["tag_name %s" % tag] if tag else [])
+            add(section, label, url, look, report=True)
+    report("Reported, never failing", report_addresses(project) if reports is None else reports)
+    if old:
+        report("The old addresses (--old), reported, never failing",
+               old_addresses(project) if olds is None else olds)
+    return out
+
+
+def _chain_lines(ans):
+    """The chain, a line a hop: the status and where it sends, or what the last one is."""
+    if ans is None:
+        return []
+    lines = []
+    for hop in ans.hops:
+        if hop.status is None:
+            lines.append("no answer: %s" % hop.error)
+        elif hop.status in REDIRECTS and hop.location:
+            lines.append("%d -> %s" % (hop.status, urllib.parse.urljoin(hop.url, hop.location))
+                         + (" (%s)" % hop.error if hop.error else ""))
+        else:
+            lines.append(("%d %s" % (hop.status, hop.ctype)).strip() + (" (%s)" % hop.error if hop.error else ""))
+    end = ans.last
+    if end.status is not None and end.status not in REDIRECTS:
+        lines[-1] += ", no redirect" if not ans.redirects else ", %d redirect%s" % (
+            ans.redirects, "" if ans.redirects == 1 else "s")
+    return lines
+
+
+def show(results, say=print):
+    """The results as lines: a heading for each section, a line for each
+    address (ok / FAIL / info), its chain, its facts, and what is wrong."""
+    section = None
+    for r in results:
+        if r.section != section:
+            section = r.section
+            say("")
+            say(section + ":")
+        say("  %-5s %-30s %s" % ("info" if r.report else "FAIL" if r.failed else "ok", r.label, r.url))
+        for line in _chain_lines(r.answer):
+            say("        " + line)
+        for note in r.notes:
+            say("        - " + note)
+        for problem in r.problems:
+            say("        ! " + problem)
+
+
+def _project():
+    """lib/project.py -- where Parseh lives, every address it names -> the
+    module.  Read here and nowhere else in this file."""
+    if LIB not in sys.path:
+        sys.path.insert(0, LIB)
+    import project
+    return project
+
+
+def _own_version(root):
+    """The version of this checkout, for the User-Agent."""
+    text = read_file(VERSION_FILE, root=root)
+    return text.strip() if text and text.strip() else "unknown"
+
+
+def _links_tag(expect):
+    """--expect's tag: a version's own, never a rehearsal's (GitHub's "latest"
+    never answers with one) -> the tag, or None; Refused otherwise."""
+    if not expect:
+        return None
+    tag = _tag(expect)
+    if prerelease(tag) == "true":
+        raise Refused("--expect takes a version's own tag: GitHub's latest release is never a "
+                      "rehearsal's (%s)" % tag)
+    return tag
+
+
+def links(root=ROOT, expect=None, old=False, fetcher=None, project=None, agent=None, say=print,
+          pause=0.0, reports=None, olds=None):
+    """`release.py links`: ask every address Parseh names, print what answers,
+    and say how many are wrong -> the exit code, 0 when none is."""
+    project = project or _project()
+    agent = agent or project.agent(_own_version(root))
+    say("Asking every address Parseh names, live, as %s." % agent)
+    say("Redirects are followed by hand (at most %d), %d s for each request, nothing is retried."
+        % (HOP_LIMIT, TIMEOUT))
+    if expect:
+        say("Expecting the release %s." % expect)
+    results = live_checks(root, expect, old, fetcher or fetch, project, agent, pause, reports, olds)
+    show(results, say)
+    bad = [r for r in results if r.failed]
+    reported = sum(1 for r in results if r.report)
+    say("")
+    say("%d addresses asked, %d only reported, %d failed." % (len(results) - reported, reported, len(bad)))
+    for r in bad:
+        say("FAIL  %-30s %s: %s" % (r.label, r.url, r.problems[0]))
+    return 1 if bad else 0
+
+
 # ------------------------------------------------------------------ the command
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="release.py", description=__doc__.split("\n\n")[0])
@@ -833,6 +1408,12 @@ def main(argv=None):
     m = sub.add_parser("compare", help="whether two builds (zips or manifests) ship the same files")
     m.add_argument("a")
     m.add_argument("b")
+    k = sub.add_parser("links", help="ask, live, what every address Parseh names answers (by hand)")
+    k.add_argument("--expect", metavar="TAG", default=None,
+                   help="the release the feed, the latest-release page and the published guide must name "
+                        "(a version's own tag, never a rehearsal's)")
+    k.add_argument("--old", action="store_true",
+                   help="also report what the OLD addresses answer now (the transfer's redirects)")
     args = ap.parse_args(argv)
     try:
         if args.command == "build":
@@ -855,6 +1436,8 @@ def main(argv=None):
                   % info.get("pages", "?"))
         elif args.command == "prerelease":
             print(prerelease(args.tag))
+        elif args.command == "links":
+            return links(ROOT, _links_tag(args.expect), args.old, pause=PAUSE)
         else:
             agree, said = compare(args.a, args.b)
             print("\n".join(said if agree else ["They DISAGREE:"] + ["  " + s for s in said]))
