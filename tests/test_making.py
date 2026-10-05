@@ -568,9 +568,16 @@ class TheToolsTakeAGrowingBook(unittest.TestCase):
                     seen.append(making.describe(d)["words"])
                     got, out = self.run_tool("lib/tex2html.py", "--book", d)
                     self.assertEqual(got, 0, "the reader must build at every rest point: " + out)
-                self.assertEqual(seen, ["source recovered", "chapter table", "batch 2 of 2", "all batches in", "all batches in"])
+                # the folder starts as "more text may come later": every part is in and the agent waits for the next
+                self.assertEqual(seen, ["source recovered", "chapter table", "batch 2 of 2", "all batches in", "waiting for the next part"])
                 self.assertNotIn("subparagraphs: 0", out, "the reader of the whole book has its chunks")
                 self.assertEqual(making.describe(d)["to_come"], [])
+                # and once the person says this is all the text, the same agent ends
+                making.set_more_coming(d, False)
+                got, out2 = self.run_tool("tests/making_agent.py", "step", d, model)
+                self.assertEqual(got, 0, out2)
+                self.assertEqual(making.describe(d)["words"], "all batches in")
+                self.assertEqual(making.finish_blockers(d), [], "every part taken, the agent idle: nothing to wait for")
                 got, out = self.run_tool("lib/verify_book.py", "--book", d)
                 self.assertEqual(got, 0, out)
                 self.assertIn("2 reproduce their source exactly", out)
@@ -1021,7 +1028,12 @@ class Reopen(unittest.TestCase):
         making._end_making(d)
         self.assertEqual((making.state(d), making.is_making(d)), ("finished", False))
         self.assertTrue(record(d)["finished"])
+        # the Finish that ended it is a job the server still holds, and the panel reads it every few seconds
+        making.FINISH[os.path.realpath(d)] = {"state": "done", "steps": [], "said": "", "started": 0, "finished": 0, "ok": True}
+        self.addCleanup(making.FINISH.pop, os.path.realpath(d), None)
         making.reopen(d)
+        self.assertEqual(making.finish_status(d)["state"], "idle",
+                         "or the reopened panel would take the making for ended and reload itself for ever")
         doc = record(d)
         self.assertEqual((making.state(d), making.is_making(d)), ("making", True), "the lock on editing is back")
         self.assertEqual(("finished" in doc, doc["stage"], doc["checks"], doc["sources"], len(doc["parts"])),

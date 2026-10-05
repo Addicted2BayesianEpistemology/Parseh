@@ -560,6 +560,8 @@ class Served(unittest.TestCase):
             self.assertEqual((status, got["ok"], got["part"]["n"], got["part"]["chapter"]), (200, True, 2, "new"), got)
             status, got = self.ask_raw("POST", book + "/__making/part?name=due.txt&chapter=last&join=paragraph&label=from+a+phone", b"E poi dorme.\n")
             self.assertEqual((status, got["ok"], got["part"]["file"], got["part"]["join"]), (200, True, "original/part-003-due.txt", "paragraph"), got)
+            status, _, got = self.ask("POST", book + "/__making/more", {})
+            self.assertEqual(status, 400, "a body that does not say which is not taken to mean 'this is all the text'")
             status, _, got = self.ask("POST", book + "/__making/more", {"more_coming": False})
             self.assertEqual((status, got), (200, {"ok": True, "more_coming": False}))
             status, _, got = self.ask("GET", book + "/__making")
@@ -627,9 +629,13 @@ class Served(unittest.TestCase):
         self.assertNotEqual(status, 409, got)
         # the moment the making is over the same doors answer as they do for any book
         making._end_making(made["path"])
-        for method, path, body in locked:
+        # ... and so does the door that adds text by hand, which is the add page's way 2 as it always was
+        # (answered here for want of a chapter to add to, which is not the lock)
+        for method, path, body in locked + [("POST", book + "/__append", {"text": "more"})]:
             status, _, got = self.ask(method, path, body)
             self.assertNotEqual(status, 409, (path, got))
+        self.assertEqual(self.ask("POST", book + "/__append", {"text": "more"})[2]["error"],
+                         "this book has no chapters to add to (no chN.tex)")
         self.assertEqual(self.ask("GET", book + "/__making")[2]["making"], False)
 
     def test_every_device_is_shown_the_same_add_page_and_the_book_being_made_is_one_to_add_to(self):

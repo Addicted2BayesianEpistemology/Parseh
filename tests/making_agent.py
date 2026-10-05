@@ -312,6 +312,10 @@ def do_part(book):
         raise SystemExit("this script makes a chapter of every paragraph: give a part `new` or `auto`, not %r/%r"
                          % (part.get("chapter"), part.get("join")))
     before = len(glob.glob(os.path.join(book, "source", "paras", "ch*_p00.txt")))
+    # LOOK FIRST, as the instructions say (it writes nothing), and only then recover it -- once
+    looked = recover(book, part, "--book", book, "--chapter", "new", "--look")
+    if "nothing written" not in looked or len(glob.glob(os.path.join(book, "source", "paras", "ch*_p*.txt"))) != before:
+        raise SystemExit("--look wrote something:\n" + looked)
     said = recover(book, part, "--book", book, "--chapter", "new")
     count = int(re.match(r"(\d+) paragraphs", said).group(1))
     one_chapter_each(book, before + 1, count)

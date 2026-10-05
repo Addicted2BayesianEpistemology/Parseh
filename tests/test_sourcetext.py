@@ -247,6 +247,24 @@ class Numbering(unittest.TestCase):
         code, said = self.run_cli(write(self, "q.txt", "Poi mangia.\n"), "--lang", "it", "--book", d)
         self.assertNotIn("warning", said, "a part that starts a sentence after a sentence's end is nothing to look at")
 
+    def test_look_says_what_is_there_and_where_it_would_go_and_writes_nothing(self):
+        d = self.book({1: 2})
+        Path(d, "source", "paras", "ch1_p01.txt").write_text("Il gatto dorme sul divano e poi\n", encoding="utf-8")
+        before = sorted(os.listdir(os.path.join(d, "source", "paras")))
+        for _ in range(2):                              # as often as it is asked: it changes nothing
+            code, said = self.run_cli(write(self, "p.txt", "si sveglia lentamente.\n\nPoi mangia."), "--lang", "it",
+                                      "--book", d, "--chapter", "last", "--look")
+            self.assertEqual(code, 0, said)
+        self.assertIn("2 paragraphs", said)
+        self.assertIn("nothing written (--look): with --chapter last it would be ch1, paragraphs 02-03", said)
+        self.assertIn("starts with a lowercase letter", said)
+        self.assertEqual(sorted(os.listdir(os.path.join(d, "source", "paras"))), before)
+        self.assertFalse(os.path.exists(os.path.join(d, "source", "clean.txt")))
+        # and the same command without --look then writes it, where it said it would
+        code, said = self.run_cli(write(self, "p.txt", "si sveglia lentamente.\n\nPoi mangia."), "--lang", "it",
+                                  "--book", d, "--chapter", "last")
+        self.assertIn("wrote ch1, paragraphs 02-03", said)
+
     def test_without_a_book_the_cli_writes_where_it_is_told_like_extract_pdf(self):
         out = os.path.join(tmp(self), "clean.txt")
         paras = os.path.join(tmp(self), "paras")

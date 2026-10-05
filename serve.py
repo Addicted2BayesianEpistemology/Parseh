@@ -3777,6 +3777,8 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError as e:
                 return self.send_json({"ok": False, "error": str(e)}, 400)
         if what == "more":
+            if not isinstance(body.get("more_coming"), bool):
+                return self.send_json({"ok": False, "error": "say whether more text is coming: more_coming is true or false"}, 400)
             try:
                 return self.send_json({"ok": True, "more_coming": making.set_more_coming(book, bool(body.get("more_coming")))})
             except ValueError as e:

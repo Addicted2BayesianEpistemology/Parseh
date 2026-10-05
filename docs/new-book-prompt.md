@@ -50,16 +50,17 @@ The person may give the text a bit at a time, from any device, as files or paste
 
 **Before every batch**, with `ASKS.md` (a new part is noted there too), read `making.json` again and take, in order, every part whose `n` is not in `sources.done`:
 
-1. Recover it, numbered on from what the book holds -- `--book` tells the tool where:
+1. Look at it first -- `--look` writes nothing, and `--book` lets the tool number the paragraphs on from what the book holds:
 
    ```bash
-   {{PYTHON}} {{LIB}}/sourcetext.py "{{BOOK_DIR}}/original/part-002-name.pdf" --lang {{LANG}} --from A --to B --book {{BOOK_DIR}} --chapter new
+   {{PYTHON}} {{LIB}}/sourcetext.py "{{BOOK_DIR}}/original/part-002-name.pdf" --lang {{LANG}} --from A --to B --book {{BOOK_DIR}} --look
    ```
 
-   `--from`/`--to` only for a PDF with `pages`; `--chapter` is `new`, `last`, or a chapter's number. It writes `source/paras/chN_pNN.txt`, adds to `source/clean.txt`, and says what to look at: an epub's headings, a text that starts in lower case, a book whose last paragraph ends without a full stop.
-2. Decide what `auto` leaves to you: a heading opens a new chapter; a start in the middle of a sentence is a part cut in the middle of a paragraph. Then join its first paragraph to the last one of the part before (the file and `clean.txt`) and annotate THAT paragraph again: its source changed, so its batch is redone (Step 2, e-h). A part may hold several chapters: split it where the source does. Write what you decided, part by part, in `NOTES.md`.
-3. Make the chapter lists again (`chapter_src.py --book {{BOOK_DIR}} --all`), bring the chapter table in `NOTES.md` and `making.json` (`chapters`; `batches.of` grows) up to date and show it to the person in your own chat, as after Step 1.
-4. Write `sources`, which is yours alone: `{"done": [1, 2], "of": 3, "decided": {"2": "a new chapter: it opens with a heading"}}`.
+   (`--from`/`--to` only for a PDF with `pages`.) It says how many paragraphs there are and what to look at: an epub's headings, a text that starts in lower case, a book whose last paragraph ends without a full stop.
+2. Decide what `auto` leaves to you: a heading opens a new chapter; a start in the middle of a sentence is a part cut in the middle of a paragraph. A part may hold several chapters: split it where the source does. Write what you decided, part by part, in `NOTES.md`.
+3. Recover it: the same command without `--look`, with `--chapter new`, `last` or a chapter's number. It writes `source/paras/chN_pNN.txt` and adds to `source/clean.txt`. Run it once: run again, it would put the part in twice. For a part cut in the middle of a paragraph, join its first paragraph to the last one of the part before (the file and `clean.txt`) and annotate THAT paragraph again: its source changed, so its batch is redone (Step 2, e-h).
+4. Make the chapter lists again (`chapter_src.py --book {{BOOK_DIR}} --all`), bring the chapter table in `NOTES.md` and `making.json` (`chapters`; `batches.of` grows) up to date and show it to the person in your own chat, as after Step 1.
+5. Write `sources`, which is yours alone: `{"done": [1, 2], "of": 3, "decided": {"2": "a new chapter: it opens with a heading"}}`.
 
 Then the batches of the new paragraphs, as Step 2 says. When every part is in `sources.done` and every batch is in: with `more_coming` false, write `stage`: `done`, say **the text is complete** and stop (Finish is the person's); with it true, write `stage`: `waiting`, say you are waiting for the next part, and read `making.json` again when you are told one has come.
 

@@ -31,8 +31,8 @@ import {chromium} from 'npm:playwright-core@1.52.0';
 //  e) STEERING: what to change from now on, written to ASKS.md; the agent reads it before its next
 //     batch and says in NOTES.md what it did; Parseh updated during the making is said
 //  f) ANOTHER DEVICE: on a phone (390 px, the mobile interface) the panel is read and an ask
-//     written; from a device that is not the computer the folder and Finish are refused, in the
-//     table's words, and the panel says so where the buttons would be
+//     written; every device let in does all of it but open the folder, which is the computer's own
+//     act: refused in a sentence that says why, with the path to copy, and no file manager started
 //  g) NO SH (Windows): the PDF of these chapters is said not to be available and the reader is;
 //     look at it now still builds it
 //  h) FINISH: a paragraph that no longer reproduces its source stops it, in words, and the making
@@ -43,6 +43,13 @@ import {chromium} from 'npm:playwright-core@1.52.0';
 //     is on the Persian shelf, book.json keeps the letters), read on a phone before it has a chapter
 //     at all, worked by the stand-in, watched in the panel, its chunk shut with the ask offered, and
 //     an ask in Persian reaches ASKS.md as written
+//  k) THE TEXT IN PARTS, from another origin (a phone let in, on a computer with no TeX): it makes the
+//     folder from a file and is shown the path and why there is nothing to open; gives the agent part
+//     2 between two batches (a file, a label, where it goes); the scripted stand-in takes it BEFORE its
+//     next batch with lib/sourcetext.py, numbered on, and writes `sources`; Finish says what it waits
+//     for and a second press passes it; "this is all the text" makes the agent end and not wait; a
+//     phone finishes the book; the add page reopens it and gives it a third part; and a PDF with its
+//     pages is sent onto a book nobody is making, as blank chunks
 //  j) and last: no page threw, and the owner's books/ and config/ are as they were
 // and every view it looks at (1280 and 390 px, light and dark) is measured too: the page does not
 // scroll sideways and the making panel lies inside the window
@@ -701,6 +708,11 @@ await views(page, 'C-fa-chunk-sheet');
 
 /* ================= k) the text in parts, from another device ================= */
 console.log('k) the text in parts: made from a phone, a part given while the agent works, all the text, Finish, reopen');
+// The computer's own pages are closed first: the four servers of this suite share ONE scratch config/, and the
+// preferences file is written through a temporary name every process shares (lib/prefs.py), so a page of
+// another server following a theme this section changes could make two of them write at once -- a harness
+// matter, which nothing here is about
+await ctx.close();
 // a phone let in over the Wi-Fi, on a computer with no TeX: Finish builds the reader alone, which is quick
 const PN = await serve(['--phone'], {PATH: '/nonexistent'});
 await agent('original', MODEL, TMP + '/part1.txt', '--first', '0', '--count', '1');
@@ -790,6 +802,21 @@ eq(JSON.parse(await Deno.readTextFile(PARTS + '/making.json')).stage, 'done', '"
 await kp.evaluate(() => window.ParsehMaking.refresh());
 await waitText(kp, '.mk-where', /all batches in/);
 await views(kp, 'K-panel-parts');
+// the third theme: the panel with its parts list and its box, in sepia, on a phone and on a computer's window
+for (const [w, h] of [[390, 844], [1280, 900]]) {
+  await kp.setViewportSize({width: w, height: h});
+  await kp.evaluate(() => Parseh.theme.set('sepia'));
+  await kp.evaluate(() => { document.querySelector('#mkbox').scrollTop = 0; });          // the panel was scrolled to its end
+  await sleep(300);
+  const sepia = [await inView(kp, '#mkbox'), await onTop(kp, '#mkbox h2'),
+    await kp.evaluate(() => { const b = document.querySelector('#mkbox').getBoundingClientRect(), p = document.querySelector('#mkparts').getBoundingClientRect();
+                              return p.width > 0 && p.left >= b.left - 1 && p.right <= b.right + 1; })];
+  assert(sepia.every(Boolean), `the panel with its parts list is in the window at ${w} px in the sepia theme, and the list lies inside the panel ` +
+         `(in the window, nothing over its title, list inside: ${sepia.join(', ')})`);
+  await shot(kp, `K-panel-parts-${w}-sepia`);
+}
+await kp.evaluate(() => Parseh.theme.set('light'));
+await kp.setViewportSize({width: 390, height: 844});
 // FINISH, from the phone: nothing is waited for, and a Finish ends the making
 await kp.click('#mkbox button:has-text("finish…")');
 assert(!/Before you finish:/.test(await kp.$eval('#mkbox', e => e.textContent)), 'with every part taken and the agent idle, Finish waits for nothing');
@@ -824,9 +851,11 @@ await kr.goto(PN + '/books/english/two-parts/reader/');
 await kr.waitForSelector('.mk-btn[data-layout=mobile]');
 await kr.click('.mk-btn[data-layout=mobile]');
 await waitText(kr, '#mkparts', /part 3.*pasted\.txt.*the agent decides.*not taken by the agent yet/s);
-assert(/part 3 has not been taken by the agent yet/.test(await kr.$eval('#mkbox', e => e.textContent)) === false, 'the panel lists the blocker only when Finish is asked');
+assert(/Before you finish:[\s\S]*part 3 has not been taken by the agent yet/.test(await kr.$eval('#mkbox', e => e.textContent)),
+       'a reopened book says, before Finish is pressed, that it waits for its new part');
+assert(!/the agent has not said it is done/.test(await kr.$eval('#mkbox', e => e.textContent)), '... and not that the agent is busy: it said it was done, and was reopened after');
 await kr.click('#mkbox button:has-text("finish…")');
-assert(/Before you finish:[\s\S]*part 3 has not been taken by the agent yet/.test(await kr.$eval('#mkbox', e => e.textContent)), 'a reopened book waits for its new part');
+assert(/Finish anyway\?/.test(await kr.$eval('#mkbox', e => e.textContent)), 'and the press asks again, since a second one goes through');
 await views(kr, 'K-reopened-panel');
 await kr.close();
 // an agent that was stopped by "finished" goes on at "reopened": the stand-in reads both entries and takes the new part

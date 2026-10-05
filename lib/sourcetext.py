@@ -5,7 +5,7 @@
     sourcetext.recover(path, lang, pages=None, drop=(), info=None) -> [paragraph, ...]
 
     python3 lib/sourcetext.py <file> --lang fa [--from N] [--to N] [--drop REGEX]
-                              [--book DIR --chapter new|last|N]
+                              [--book DIR --chapter new|last|N] [--look]
                               [--out FILE [--append]] [--paras DIR --tag ch1 [--start NN]]
 
 Two callers, so that a text is recovered the same way wherever it comes in: the agent that makes a book
@@ -33,7 +33,8 @@ THE NUMBERING.  `--book DIR --chapter new` writes the paragraphs as the next cha
 on from what the folder already holds (the folder is the one place the numbering lives), with
 source/clean.txt added to.  And with the book in hand the tool says what it cannot decide for the person
 who reads its output: a text that starts in lower case, or a book whose last paragraph ends without a
-stop, may be a part cut in the middle of a paragraph.
+stop, may be a part cut in the middle of a paragraph.  `--look` says all of it and writes nothing, so that
+a part can be looked at, decided on, and only then written (written twice, it would be in the book twice).
 
 Standard library, and what extract_pdf.py already needs (PyMuPDF, and pdftotext for a right-to-left PDF).
 """
@@ -342,6 +343,10 @@ def write_paras(folder, tag, start, paras):
 
 
 def main(argv=None):
+    try:
+        sys.stdout.reconfigure(errors="replace")        # a console that cannot show a script says ? and goes on
+    except (AttributeError, ValueError):
+        pass
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("file")
     ap.add_argument("--lang", default=languages.DEFAULT, choices=languages.CODES,
@@ -356,6 +361,8 @@ def main(argv=None):
     ap.add_argument("--paras", default=None, help="a directory for one file per paragraph")
     ap.add_argument("--tag", default="ch1")
     ap.add_argument("--start", type=int, default=0, help="the number of the first paragraph file")
+    ap.add_argument("--look", action="store_true",
+                    help="write nothing: say what is in the text and what to look at, and where it would go")
     a = ap.parse_args(argv)
     pages = None if a.first is None and a.last is None else [a.first or 0, a.last if a.last is not None else 10 ** 6]
     info = {}
@@ -378,11 +385,16 @@ def main(argv=None):
         tag, folder = "ch%d" % n, os.path.join(book, "source", "paras")
         out, a.append = out or os.path.join(book, "source", "clean.txt"), True
         warnings += joins(paras, last_paragraph(book))
-    if out and paras:
+    # LOOKING FIRST IS WHAT LETS A PART BE DECIDED BEFORE IT IS WRITTEN: run twice with --book, the numbering
+    # would go on from the first run's chapter, and the text would be in the book twice
+    if a.look:
+        print("nothing written (--look)%s" % ((": with --chapter %s it would be %s, paragraphs %02d-%02d" % (
+            a.chapter, tag, start, start + len(paras) - 1)) if a.book and paras else ""))
+    elif out and paras:
         with open(out, "a" if a.append else "w", encoding="utf-8", newline="\n") as f:
             f.write("\n".join(paras) + "\n")
         print("%s %s" % ("added to" if a.append else "wrote", out))
-    if folder and paras:
+    if folder and paras and not a.look:
         names = write_paras(folder, tag, start, paras)
         print("wrote %s, paragraphs %02d-%02d: %s ... %s" % (tag, start, start + len(paras) - 1, names[0], names[-1]))
     if info.get("documents") and len(info["documents"]) > 1:

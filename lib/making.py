@@ -746,6 +746,10 @@ def reopen(book_dir):
         doc = dict(doc or {}, state="making")
         doc.pop("finished", None)
         _write_json(path_of(book_dir, MAKING), doc)
+    # THE FINISH THAT ENDED IT IS OVER: a panel that still found it "done" would take the making for ended
+    # and reload itself for ever
+    with _FINISH_LOCK:
+        FINISH.pop(os.path.realpath(book_dir), None)
     _note_asks(book_dir, "reopened",
                "The person reopened the making: the entry above that said to stop is taken back. Read "
                "`parts` in making.json: new text may be waiting.")
