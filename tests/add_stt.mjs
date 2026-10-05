@@ -325,7 +325,8 @@ await section('b', 'installed: the models, the processor, and what is remembered
   eq(await shown(page, '#stt_gpu'), false, 'and nothing about a card that is not there');
   const form = await text(page, '#stt');
   eq(form.match(IMPLEMENTATION), null, 'not one implementation word in the form: ' + (form.match(IMPLEMENTATION) || ['none'])[0]);
-  eq(await live(page).then(l => l.filter(x => x !== 'stt_model' && x !== 'stt_proc')), ['stt_go'],
+  // (a0.4.3 added a link, "Manage models", to Settings: a way out of the block, not an action of it)
+  eq(await live(page).then(l => l.filter(x => x !== 'stt_model' && x !== 'stt_proc' && x !== 'A')), ['stt_go'],
      'the one action is Transcribe (a film needs nothing else)');
   assert(/Reads? the film|film named above/.test(await text(page, '#stt_how')), 'the film way says what it does: ' + await text(page, '#stt_how'));
   await shot(page, 'b-installed-1280');
