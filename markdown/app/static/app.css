@@ -454,12 +454,24 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 .pv-status.err { color: var(--danger); }
 .preview-scroll { overflow-y: auto; flex: 1; }
 .preview-scroll .sheet { margin: 1rem auto 3rem; }
-.insert-group { display: inline-flex; gap: .15rem; margin-right: .3rem; }
+/* A group of insert buttons wraps among themselves at every width.  The bar's
+   buttons sit in .topbar-actions, which a flex row cannot narrow below its
+   widest item: with the group a single unbreakable line (some 640 px with the
+   colour buttons, more where a language adds its reading mark) the bar was
+   wider than the window from 721 px, the width the phone layout below begins
+   under, to about 780 px -- the end of the group, and Save & view with it, off
+   the right edge.  Free to wrap, the widest item is one button wide, and the
+   bar fits whatever is added to it. */
+.insert-group { display: inline-flex; flex-wrap: wrap; gap: .15rem; margin-right: .3rem; }
 .insert-group .btn { padding: .3rem .45rem; }
 .colour-tool { display: inline-flex; position: relative; }
 .colour-tool .colour-main { display: inline-flex; align-items: center; gap: .3rem; border-radius: 6px 0 0 6px; }
 .colour-tool .colour-pick > summary { border-radius: 0 6px 6px 0; padding-inline: .32rem; }
-.colour-tool .menu { left: 0; right: auto; min-width: 11rem; }
+/* The palette hangs from the right end of its ▾ as the other menus do, so it
+   opens toward the room the bar's right-hand column always has on its left,
+   never past the window's right edge (hung from its left end, as it was, it
+   ran off the screen wherever the ▾ stood within 11 rem of the edge). */
+.colour-tool .menu { min-width: 11rem; }
 .colour-tool .menu button, .colour-custom { display: flex; align-items: center; gap: .48rem; }
 .colour-active, .colour-chip { display: inline-block; width: .78rem; height: .78rem; flex: none; border-radius: 50%; background: var(--fac-teal); }
 .colour-active.fac-crimson,
@@ -491,8 +503,8 @@ body.links-open .linkspane { transform: none; visibility: visible; }
   body[data-page="edit"] .topbar { flex-wrap: wrap; gap: .4rem; }
   body[data-page="edit"] .topbar-actions { display: contents; }
   body[data-page="edit"] .doc-title { flex: 1 1 0; min-width: 3rem; }
-  body[data-page="edit"] .insert-group { flex-wrap: wrap; margin-right: 0; }
-  body[data-page="edit"] .topbar .dropdown { position: static; }
+  body[data-page="edit"] .insert-group { margin-right: 0; }
+  body[data-page="edit"] .topbar .colour-tool, body[data-page="edit"] .topbar .dropdown { position: static; }
   body[data-page="edit"] .topbar .dropdown .menu { right: .9rem; }
 }
 
