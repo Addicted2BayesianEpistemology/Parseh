@@ -47,17 +47,19 @@ class AnIpaEditionInThePdf(unittest.TestCase):
         cls.addClassCleanup(cls.td.cleanup)
         root = Path(cls.td.name)
         (root / "lib").symlink_to(ROOT / "lib")
-        cls.book = root / "books" / "persian" / "mini-fa"
+        # the fixture's main.tex reaches lib/ by climbing five levels from the book: two more than the tree
+        # of the books has under its root, so the book stands two levels down
+        cls.book = root / "a" / "b" / "books" / "persian" / "mini-fa"
         shutil.copytree(FIXTURE, cls.book, ignore=shutil.ignore_patterns("reader", "*.pdf", "*.aux", "*.log", "*.toc", "*.out"))
         chunks = [r for r in texwrite.read_chunks(str(cls.book / "ch1.tex")) if r["macro"] != "chp"]
         for r, line in zip(chunks, LINES):
             texwrite.edit_chunk(str(cls.book / "ch1.tex"), r["index"], {"tr": line})
-        cls.run = subprocess.run(["lualatex", "-interaction=nonstopmode", "main.tex"], cwd=str(cls.book),
+        cls.built = subprocess.run(["lualatex", "-interaction=nonstopmode", "main.tex"], cwd=str(cls.book),
                                  capture_output=True, text=True, timeout=900)
         cls.log = (cls.book / "main.log").read_text(encoding="utf-8", errors="replace") if (cls.book / "main.log").exists() else ""
 
     def test_it_builds(self):
-        self.assertTrue((self.book / "main.pdf").exists(), self.run.stdout[-1500:])
+        self.assertTrue((self.book / "main.pdf").exists(), self.built.stdout[-1500:])
 
     def test_no_letter_of_the_ipa_is_a_hole_in_the_page(self):
         holes = [l for l in self.log.splitlines() if l.startswith("Missing character")]
