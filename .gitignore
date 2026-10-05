@@ -231,18 +231,19 @@ stt/
 components/*.db
 components/.build-*/
 
-# The working list of what is left to do, at the top of the checkout: notes
-# for whoever works on the toolbox, not part of it.
+# TODOs/ holds the working notes of whoever works on the toolbox, none of it
+# part of it: TO-DO.md, the list of what is left to do, and the per-round
+# TO-DO-*.md beside it; the briefs, PROMPT-*.md (one file per piece of work
+# waiting to be handed to a session, written out in full so that nothing has
+# to be remembered; the TO-DO item that each one belongs to names its file);
+# and todoview.py, the little reader for TO-DO.md (python3 TODOs/todoview.py:
+# a browser page on 127.0.0.1 that parses that file and shows it, searchable,
+# with its §references as links).
+/TODOs/
+# They used to sit at the top of the checkout.  These rules stay so that a
+# copy written there by habit is still never committed.
 /TO-DO.md
-# And the briefs beside it: one file per piece of work waiting to be handed
-# to a session, written out in full so that nothing has to be remembered.
-# Notes about the toolbox, like TO-DO.md, and not part of it.  The TO-DO
-# item that each one belongs to names its file.
 /PROMPT-*.md
-# And the little reader for TO-DO.md (python3 todoview.py): a browser page
-# on 127.0.0.1 that parses that file and shows it, searchable, with its
-# §references as links.  A tool for whoever works on the toolbox, like the
-# list it reads, and no more part of Parseh than the list is.
 /todoview.py
 # xelatex leaves texput.log where markdown/exlex/envsetup.py probes whether a font is
 # registered (a dot-file probe it refuses in nonstop mode): a by-product, never content
