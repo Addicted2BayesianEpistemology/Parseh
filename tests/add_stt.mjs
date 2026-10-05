@@ -253,6 +253,9 @@ async function section(id, title, fn) {
   console.log(`${id}) ${title}`);
   await setState();
   await setFake();
+  // every section starts on a host that has remembered nothing: since a0.4.3 the model chosen for a language is kept
+  // by the host (config/speech.json), so a section that picks large-v3 would otherwise decide the next one's model
+  await Deno.remove(TMP + '/config/speech.json').catch(() => {});
   await fn();
 }
 
@@ -441,8 +444,7 @@ await section('c', 'a film: Transcribe, the text in the box, the video not added
   const lines = await saysOver(page, async () => (await phase(page)) === 'review');
   await reviewAndUse(page);
   assert(lines.some(l => /^Transcribing on CPU… \d+%$/.test(l)), 'it says how far it is: ' + JSON.stringify(lines));
-  // (a0.4.3 remembers on this host the model chosen for the language, so an earlier section's choice of large-v3 is the one loaded here)
-  assert(lines.some(l => /^Loading large-v3(-turbo)?…$/.test(l)), 'and that it loads the model first');
+  assert(lines.some(l => /^Loading large-v3-turbo…$/.test(l)), 'and that it loads the model first');
   eq(await inBox(page), PANEL_FA, 'the transcript is in the box, in the panel format: a clock line and the caption');
   // the page's own door reads it
   const read = await api('/youtube/api/transcript', {transcript: await inBox(page), lang: 'fa'});
