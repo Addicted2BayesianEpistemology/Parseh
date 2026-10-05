@@ -95,12 +95,20 @@ const studioFiles = {
   '/static/promptpick.js': [await Deno.readTextFile(root+'/markdown/app/static/promptpick.js'), 'text/javascript'],
   '/static/mathjax.js': [await Deno.readTextFile(root+'/lib/mathjax.js'), 'text/javascript'],
   '/static/mathjax.css': [await Deno.readTextFile(root+'/lib/mathjax.css'), 'text/css'],
+  '/static/mobile.css': [await Deno.readTextFile(root+'/markdown/app/static/mobile.css'), 'text/css'],
+  '/static/mode.js': [await Deno.readTextFile(root+'/markdown/app/static/mode.js'), 'text/javascript'],
+  '/static/latexwait.js': [await Deno.readTextFile(root+'/markdown/app/static/latexwait.js'), 'text/javascript'],
   '/lib/llmrow.js': [await Deno.readTextFile(root+'/lib/llmrow.js'), 'text/javascript'],
 };
-const studioFile = (route, u) => {
-  const f = studioFiles[u.pathname];
+const studioFile = (route, u, path=u.pathname) => {
+  const f = studioFiles[path];
   return f ? route.fulfill({body:f[0], contentType:f[1]}) : null;
 };
+// the three snippets every studio page carries in its head and its bar (the
+// interface mode, the switch, the app tags), the very text deckroutes fills in
+const pageSnippets = JSON.parse(new TextDecoder().decode((await new Deno.Command(python,{
+  args:['-c',"import sys,json;sys.path[:0]=['markdown/app','markdown/exlex','lib'];import deckroutes as d;print(json.dumps({'MODE_SCRIPT':d.MODE_SCRIPT,'MODE_SWITCH':d.MODE_SWITCH,'APP_HEAD':d.APP_HEAD}))"],
+  stdout:'piped',stderr:'piped'}).output()).stdout));
 try {
   const page = await browser.newPage();
   const errors=[]; page.on('pageerror', e=>errors.push(e.message));
@@ -887,8 +895,10 @@ explanation-incorrect: No, north.
     if(path==='/page')return new Response(`<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head>
       <body data-page="noop"><article id="sheet" class="sheet" data-lang="ar">${picsHtml}</article>
       <div id="modal-root"></div><div id="toast" class="toast" hidden></div>
-      <script src="/app.js"></script></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8'}});
+      <script src="/app.js"></script><script src="/exform.js"></script></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8'}});
     if(path==='/app.js')return new Response(appScript,{headers:{'Content-Type':'text/javascript'}});
+    // the exercise form (openExercisePicker, openExerciseMarkdown) is exform.js's since the split
+    if(path==='/exform.js')return new Response(studioFiles['/static/exform.js'][0],{headers:{'Content-Type':'text/javascript'}});
     if(path==='/app.css')return new Response(appCss,{headers:{'Content-Type':'text/css'}});
     if(/^\/media\/x\/images\/[a-z]+\.png$/.test(path))return new Response(PNG_1PX,{headers:{'Content-Type':'image/png'}});
     return new Response('no',{status:404});
@@ -1261,7 +1271,7 @@ print(json.dumps({'errors':b['errors'],'raw':b['raw_fields'],'card':h[h.index('<
   const docMeta={id:'browser-doc-abc123',uid:'0123456789ab',title:'Browser exercises',tags:[],
     created:'2026-09-01T10:00:00',updated:'2026-09-01T10:00:00',build:{status:'none'}};
   let docHtml=await Deno.readTextFile(root+'/markdown/app/templates/doc.html');
-  const docMap={BASE:'',DECKS_BASE:'/exercises',NOTES_SOURCE:'',DOC_ID:docMeta.id,TITLE:docMeta.title,TARGET:'ar',TARGET_NAME:'Arabic',
+  const docMap={...pageSnippets,BASE:'',STUDIO:'',DECKS_BASE:'/exercises',NOTES_SOURCE:'',DOC_ID:docMeta.id,TITLE:docMeta.title,TARGET:'ar',TARGET_NAME:'Arabic',
     LANG:'en',ARTICLE:docRender.html,TOC:'',BACKLINKS:'',BACKLINKS_N:'0',META_JSON:JSON.stringify(docMeta),LANG_JSON:JSON.stringify(docRender.lang_record),
     LANGS_JSON:JSON.stringify([docRender.lang_record]),
     GLOSSES_JSON:JSON.stringify([{fa:'كتاب',kana:'',translit:'kitāb',tr:'book',guessed:false,lemma:false}])};
@@ -1285,9 +1295,7 @@ print(json.dumps({'errors':b['errors'],'raw':b['raw_fields'],'card':h[h.index('<
     if(u.pathname==='/plain')return route.fulfill({body:plainHtml,contentType:'text/html'});
     if(u.pathname==='/books/arabic/grammar/notes/doc')return route.fulfill({body:notesHtml,contentType:'text/html'});
     const asset=u.pathname.replace(/^\/books\/arabic\/grammar\/notes(?=\/)/,'');
-    if(asset==='/static/app.js')return route.fulfill({body:appScript,contentType:'text/javascript'});
-    if(asset==='/static/app.css')return route.fulfill({body:appCss,contentType:'text/css'});
-    if(asset==='/static/langs.css')return route.fulfill({body:langsCss,contentType:'text/css'});
+    if(studioFile(route,u,asset))return;
     if(asset==='/api/tags')return route.fulfill({json:{tags:[]}});
     if(u.pathname.startsWith('/exercises/')){
       const body=req.postData()?req.postDataJSON():null;
