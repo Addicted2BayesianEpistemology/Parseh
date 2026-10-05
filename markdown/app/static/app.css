@@ -489,17 +489,22 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 .colour-custom { padding: .45rem .6rem; cursor: pointer; font-size: .88rem; }
 .colour-custom:hover { background: var(--chrome-bg); border-radius: 5px; }
 .colour-custom input { width: 1.5rem; height: 1.2rem; margin-left: auto; padding: 0; border: 0; background: transparent; }
-/* The editor's bar on a phone.  Its controls in a row are wider than a
-   phone's window, and the end of the row -- Exercises ▾, Save, Save & view --
-   was past the right edge, reached only by panning the whole editor
-   sideways.  In a window that narrow the bar wraps instead: the way back,
-   the title and Undo/Redo on the first line, every other control on the
-   lines under it, the insert buttons wrapping among themselves -- all of
-   them on the screen, in the order they have on a desktop.  Exercises ▾
-   may then start a line, where its menu, hung from its right end, would
-   open past the left edge: there the menu hangs from the bar's right end
-   instead, under the bar. */
-@media (max-width: 720px) {
+/* The editor's bar in a window under 1100 px: a phone, a tablet standing, a
+   phone on its side.  Its controls in a row are wider than such a window,
+   and the end of the row -- Exercises ▾, Save, Save & view -- was past the
+   right edge, reached only by panning the whole editor sideways.  In a window
+   that narrow the bar wraps instead: the way back, the title and Undo/Redo on
+   the first line, every other control on the lines under it, the insert
+   buttons wrapping among themselves -- all of them on the screen, in the
+   order they have on a desktop.  Exercises ▾ may then start a line, where its
+   menu, hung from its right end, would open past the left edge: there the
+   menu hangs from the bar's right end instead, under the bar, and so does the
+   colour palette.  Wider, the controls keep the column at the right of the
+   way back and the title.  Narrower than 1100 px that column left the title a
+   letter or two and stood six rows high (224 px at 800 px, wrapped it is 163,
+   the title whole), and from 721 to 780 px, with the one-line group of insert
+   buttons it then held, wider than the window itself. */
+@media (max-width: 1100px) {
   body[data-page="edit"] .topbar { flex-wrap: wrap; gap: .4rem; }
   body[data-page="edit"] .topbar-actions { display: contents; }
   body[data-page="edit"] .doc-title { flex: 1 1 0; min-width: 3rem; }
