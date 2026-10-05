@@ -573,7 +573,11 @@ try {
     const layout = await desk.evaluate(() => ({bar: getComputedStyle(document.querySelector('#typobar')).flexWrap,
                                                actions: getComputedStyle(document.querySelector('.topbar-actions')).flexWrap,
                                                topWrap: getComputedStyle(document.querySelector('.topbar')).flexWrap}));
-    assert(s.top.pos === 'static' && s.tool.pos === 'sticky' && s.topbarH === '',
+    // "in the flow" is static or relative: a reading page's topbar has been
+    // relative on a desktop since the export's progress card hangs from it
+    // (app.css, `@media (min-width: 561px)`, commit 0c69216); what matters is
+    // that it is neither sticky nor fixed, and the scroll below shows it going
+    assert((s.top.pos === 'static' || s.top.pos === 'relative') && s.tool.pos === 'sticky' && s.topbarH === '',
            `desktop: the topbar is in the flow and only the toolbar is pinned, as before (${s.top.pos}, ${s.tool.pos}, --topbar-h "${s.topbarH}")`);
     assert(layout.bar === 'wrap' && layout.actions === 'wrap' && layout.topWrap === 'nowrap',
            `desktop: both bars keep their layout (${JSON.stringify(layout)})`);
