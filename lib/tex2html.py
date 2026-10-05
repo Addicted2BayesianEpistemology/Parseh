@@ -8621,7 +8621,10 @@ async function rgText() {
   const p = rgPicker && rgPicker.get();
   if (!p) return '';
   const range = await rgRange();
-  const j = range ? await rgPost('prompt', Object.assign(range, rgFlags(), rgRow.options ? rgRow.options() : {}))
+  // the prompt of the person's own that the menu in the row chose goes with this request, and only with it: the
+  // answer is read the same way whoever wrote the prompt
+  const own = rgRow.promptId && rgRow.promptId() ? {prompt: rgRow.promptId()} : {};
+  const j = range ? await rgPost('prompt', Object.assign(range, rgFlags(), rgRow.options ? rgRow.options() : {}, own))
                   : {ok: false, error: 'what is picked holds no chunk to send'};
   // a refusal is the server's sentence, shown as it came
   if (!j.ok) throw new Error(j.error || 'the prompt was refused');
@@ -9285,13 +9288,19 @@ function sideLLM(box, n, text, ctx, evidence, live) {
         return j;
       });
   }
-  const build = () => ParsehLLM.prompt({
+  // THE PROMPT, made when it is asked for: Parseh's words, or -- where the menu in the row chose one of the
+  // person's own -- theirs, read from the computer each time (ParsehLLM.own), so a prompt written again a
+  // moment ago is the one used
+  const build = () => ParsehLLM.own(row.promptId()).then(mine => ParsehLLM.prompt({
     sourceName: LANG.name, targetName: GLOSS.name, sourceCode: LANG.code, targetCode: GLOSS.code,
+    sourceNative: LANG.native, trLabel: LANG.translit_label,
     version: ver, sentence: sentence, before: around.before, after: around.after,
-    words: evidence.words || [], pairs: allPairs
-  });
+    words: evidence.words || [], pairs: allPairs,
+    instructions: mine && mine.text, instructionsKind: mine && mine.kind, custom: mine && mine.name
+  }));
   const row = ParsehLLMRow.mount(askBox, {
     surface: 'ask', label: 'Ask LLM', title: 'copy a prompt for an external chatbot',
+    lang: LANG.code, options: false,
     remind: 'paste it into a chatbot, then paste its translation below.',
     // a failed preparing has said why in the line below, and gives no prompt
     getText: () => allPairs ? build() : preparePairs().then(() => allPairs ? build() : ''),
@@ -9313,7 +9322,13 @@ function sideLLM(box, n, text, ctx, evidence, live) {
         row.enable();
         status.textContent = LLM.sent.has(sentence)
           ? 'Reusing the translation pasted for this sentence.' : '';
-        row.update(build());
+        return build().then(text => {
+          if (live() && box.isConnected) row.update(text);
+        }, err => {
+          // the person's own prompt could not be made: its words, not the corpus, are what failed
+          if (!live() || !box.isConnected) return;
+          status.textContent = err.message; status.classList.add('bad');
+        });
       }).catch(() => {
         if (!live() || !box.isConnected) return;
         allPairs = null; row.enable();

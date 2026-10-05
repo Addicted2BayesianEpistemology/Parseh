@@ -2288,6 +2288,7 @@ ADD_PAGE_HEAD = r'''
   </div>
   <span class="fieldnote">A per-family list that keeps the transliteration consistent with the
     videos already here. Only the prompt uses it.</span>
+  <div id="pmenu"></div>
   <div id="popts"></div>
   <div class="row">
     <button type="button" class="wbtn" id="prepare">Prepare the prompt</button>
@@ -2484,7 +2485,7 @@ ADD_PAGE_JS = r'''
   // box below shows.  Without its script there is nothing to copy with, and
   // the page says so.
   var promptRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('prow'), {
-    surface: 'video-new', cls: 'wbtn',
+    surface: 'video-new', cls: 'wbtn', menu: false,
     ids: {copy: 'pcopy', size: 'psize', say: 'pcopysay'},
     remind: 'paste it into a chatbot, then paste its whole answer in step 4 below.',
     box: function () { $('pshow').open = true; return $('prompt'); }
@@ -2501,6 +2502,13 @@ ADD_PAGE_JS = r'''
     surface: 'video-new',
     onOption: function () { forgetPrompt(); $('pinfo').hidden = true; }
   }) : {options: function () { return {}; }, setLang: function () {}};
+  // THE PROMPT TO PREPARE, Parseh's or one of the person's own, is chosen above the button, as the options are
+  // (the row has no prompt to hold until one is prepared): the choice goes into the request `prepare` makes,
+  // the menu lists the prompts for the language chosen above, and a prompt prepared for another is out of date
+  var promptMenu = window.ParsehLLMRow && ParsehLLMRow.menu ? ParsehLLMRow.menu($('pmenu'), {
+    surface: 'video-new', lang: val('lang') || undefined,
+    onPrompt: function () { forgetPrompt(); $('pinfo').hidden = true; }
+  }) : {id: function () { return ''; }, setLang: function () {}};
   // The id a local film's video will have, given by `prepare` and handed
   // back to `add`, so the prompt's `id:` line and the directory finally
   // written are the same id.
@@ -2691,6 +2699,7 @@ ADD_PAGE_JS = r'''
     else $('ov_title_native').removeAttribute('dir');
     forgetPrompt();          // the prompt was prepared for the previous language
     promptOpts.setLang(code); // and the choices for it are the new language's own
+    promptMenu.setLang(code); // and so are the prompts of the person's own it is offered
     if (stt) stt.langChanged();
   }
   $('lang').addEventListener('change', langChanged);
@@ -2781,7 +2790,8 @@ ADD_PAGE_JS = r'''
     $('pstat').textContent = 'preparing…'; $('pinfo').hidden = true;
     post('/api/prepare', Object.assign({url: w.url, path: w.path, id: w.id,
                           transcript: val('transcript'), glossary: val('glossary'),
-                          lang: val('lang'), gloss: val('gloss')}, promptOpts.options()))
+                          lang: val('lang'), gloss: val('gloss')}, promptOpts.options(),
+                          promptMenu.id() ? {prompt: promptMenu.id()} : {}))
       .then(function (j) {
         $('pstat').textContent = '';
         if (!j.ok) { $('pinfo').hidden = false; $('pinfo').className = 'note bad';

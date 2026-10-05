@@ -698,16 +698,18 @@ class TheStudiosOldPrompt(Stored):
     def test_the_old_routes_go_on_working_on_the_prompt_that_was_moved(self):
         self.file.write_text("My studio rules.", encoding="utf-8")
         store.move_prompt()
-        h = Handler(query={"target": ["fa"]})
+        # what the menu chose is what the page is made from: this prompt is one of the person's own now, chosen
+        # by its id like the others (tests/test_prompts_menu.py), and the route says so
+        h = Handler(query={"target": ["fa"], "prompt": [P.STUDIO_ID]})
         studio_server.api_prompt_get(h)
-        self.assertEqual((h.answer["custom"], h.answer["text"]), (True, "My studio rules."))
-        self.assertTrue(h.answer["prompt"].startswith(K.version_line("studio-doc", "fa", None, None, True)))
+        self.assertEqual((h.answer["custom"]["name"], h.answer["text"]), (P.STUDIO_NAME, "My studio rules."))
+        self.assertTrue(h.answer["prompt"].startswith(K.version_line("studio-doc", "fa", None, None, P.STUDIO_NAME)))
         studio_server.api_prompt_put(Handler({"text": "Changed."}))
         self.assertEqual([p["text"] for p in P.all_of()], ["Changed."], "the one prompt, changed in the store")
         self.assertEqual(P.all_of()[0]["id"], P.STUDIO_ID)
-        h = Handler(query={"target": ["fa"]})
+        h = Handler(query={"target": ["fa"], "prompt": [P.STUDIO_ID]})
         studio_server.api_prompt_get(h)
-        self.assertEqual((h.answer["custom"], h.answer["text"]), (True, "Changed."))
+        self.assertEqual((h.answer["custom"]["name"], h.answer["text"]), (P.STUDIO_NAME, "Changed."))
         studio_server.api_prompt_delete(h)
         self.assertFalse(h.answer["custom"])
         self.assertEqual(P.all_of(), [], "reset is the old route's word for taking it away")
@@ -1337,7 +1339,11 @@ class TheStudioOnItsOwn(Stored):
             (self.tmp / "library").mkdir()
             P.set_studio_text("Kept in the store.")
             status, got, _ = self.ask("GET", "/api/prompt?target=fa")
-            self.assertEqual((status, got["custom"], got["text"]), (200, True, "Kept in the store."))
+            self.assertEqual((status, got["custom"], got["text"]), (200, False, "Kept in the store."),
+                             "the prompt is Parseh's own until the menu chooses another; the text is the old field")
+            status, got, _ = self.ask("GET", "/api/prompt?target=fa&prompt=" + P.STUDIO_ID)
+            self.assertEqual((status, got["custom"]["id"]), (200, P.STUDIO_ID))
+            self.assertIn("Kept in the store.", got["prompt"])
 
 
 if __name__ == "__main__":

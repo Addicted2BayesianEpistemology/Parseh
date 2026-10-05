@@ -185,7 +185,11 @@
 
     function paint() {
       if (!answer || !answer.boxes) return;
-      busyEl.textContent = busyWhy;
+      // A REASON THAT IS THE SAME FOR EVERY BOX is said once, above them, and not under each of twenty: a prompt
+      // copied whole turns all the boxes off for one reason, and the server sends it with every one
+      const reasons = new Set([...answer.boxes, ...(answer.types || [])].filter(x => x.disabled).map(x => x.disabled));
+      const once = reasons.size === 1 ? [...reasons][0] : "";
+      busyEl.textContent = busyWhy || once;
       const sizes = (x, label) => {
         const input = label.querySelector("input");
         input.checked = (label.dataset.type !== undefined ? typesOn : ticked).has(x.id);
@@ -194,7 +198,7 @@
         const size = label.querySelector(".pp-size");
         size.textContent = x.disabled ? "" : said(x.chars) + (x.chars === 1 ? " character" : " characters");
         size.dataset.chars = String(x.chars);
-        label.querySelector(".pp-offwhy").textContent = x.disabled || "";
+        label.querySelector(".pp-offwhy").textContent = once ? "" : x.disabled || "";
       };
       el.querySelectorAll("[data-box]").forEach(label => {
         const b = answer.boxes.find(x => x.id === label.dataset.box);

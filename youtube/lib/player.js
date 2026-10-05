@@ -2200,15 +2200,23 @@
         return j;
       });
     }
+    // THE PROMPT, made when it is asked for: Parseh's words, or -- where the menu in the row chose one of the
+    // person's own -- theirs, read from the computer each time (ParsehLLM.own), so a prompt written again a
+    // moment ago is the one used
     function build() {
-      return ParsehLLM.prompt({
-        sourceName: L.name, targetName: G.name, sourceCode: L.code, targetCode: G.code,
-        version: ver, sentence: sentence, before: around.before, after: around.after,
-        words: evidence.words || [], pairs: allPairs
+      return ParsehLLM.own(row.promptId()).then(function (mine) {
+        return ParsehLLM.prompt({
+          sourceName: L.name, targetName: G.name, sourceCode: L.code, targetCode: G.code,
+          sourceNative: L.native, trLabel: L.translit_label,
+          version: ver, sentence: sentence, before: around.before, after: around.after,
+          words: evidence.words || [], pairs: allPairs,
+          instructions: mine && mine.text, instructionsKind: mine && mine.kind, custom: mine && mine.name
+        });
       });
     }
     var row = ParsehLLMRow.mount(askBox, {
       surface: 'ask', label: 'Ask LLM', title: 'copy a prompt for an external chatbot',
+      lang: L.code, options: false,
       remind: 'paste it into a chatbot, then paste its translation below.',
       // a failed preparing has said why in the line below, and gives no prompt
       getText: function () {
@@ -2232,7 +2240,13 @@
           row.enable();
           status.textContent = LLM.sent[sentence] !== undefined
             ? 'Reusing the translation pasted for this caption.' : '';
-          row.update(build());
+          return build().then(function (text) {
+            if (gen === srcGen && box.isConnected) row.update(text);
+          }, function (err) {
+            // the person's own prompt could not be made: its words, not the corpus, are what failed
+            if (gen !== srcGen || !box.isConnected) return;
+            status.textContent = err.message; status.classList.add('bad');
+          });
         }).catch(function () {
           if (gen !== srcGen || !box.isConnected) return;
           allPairs = null; row.enable();
@@ -5607,6 +5621,8 @@
     // server for this video's language, and start from what the video's own record says of them; a
     // choice made against that record may be made the video's (through the door the video's info sheet uses)
     lang: L.code, video: CFG.id,
+    // (THE PROMPT MENU -- the person's own prompts for a stretch of a video, in this video's language -- is the
+    // row's too, and what it chooses goes into the request as `prompt`: rgText)
     setFact: function (name, value) {
       var fields = {}; fields[name] = value;
       return fetch('/youtube/api/editmeta', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5833,7 +5849,11 @@
      given nothing to do answers nothing (the row is given an empty text). */
   function rgText() {
     if (rgFrom === null) return '';
-    return rgAsk('prompt', rgBody(rgRow.options ? rgRow.options() : {})).then(function (j) {
+    // the prompt of the person's own that the menu chose goes with the prompt's request, and only with it: the
+    // answer is read the same way whoever wrote the prompt
+    var extra = rgRow.options ? rgRow.options() : {};
+    if (rgRow.promptId && rgRow.promptId()) extra.prompt = rgRow.promptId();
+    return rgAsk('prompt', rgBody(extra)).then(function (j) {
       if (!j || !j.ok) throw new Error((j && j.error) || 'the prompt could not be made');
       var text = j.fill ? j.prompt : '';
       // by its text, since two askings can overlap and be answered out of order

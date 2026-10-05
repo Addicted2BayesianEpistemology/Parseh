@@ -431,10 +431,14 @@
     var madeFrom = '';
     var llmRow = window.ParsehLLMRow ? ParsehLLMRow.mount(llmMount, {
       surface: 'transcript-tidy', cls: 'se-btn se-quiet', remind: '',
+      // the prompt menu lists the person's own prompts for the tidy in this video's language; the tidy has no
+      // options (no transliteration is asked for), so none are asked of the server
+      lang: lang, options: false,
       getText: function () {
         var key = capsKey();
         var was = caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
-        return post('/api/transcript', {lang: lang, prompt: true, captions: was}).then(function (j) {
+        // `prompt: true` is Parseh's own; an id is one of the person's, chosen in the menu
+        return post('/api/transcript', {lang: lang, prompt: llmRow.promptId() || true, captions: was}).then(function (j) {
           if (!j.ok) throw new Error(j.error || 'the prompt could not be written');
           madeFrom = key;
           return j.prompt || '';
@@ -544,6 +548,9 @@
       if (e.key !== 'Escape' || done) return;
       // the cut editor is over this one, and Escape is its own
       if (document.querySelector('.pc-root')) return;
+      // and so is the editor of a prompt of the person's, in the panel of the LLM: it closes itself, and the
+      // captions being mended are not given up with it
+      if (e.target && e.target.closest && e.target.closest('.llmrow-editor')) return;
       e.preventDefault();
       finish(null);
     }
