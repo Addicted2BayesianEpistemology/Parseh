@@ -13,6 +13,13 @@
     making.ask(book_dir, line, chunk=None)
                                     one dated entry more in ASKS.md
     making.finish_start(book_dir)   verify_book and the full build, as a job the page polls
+    making.finish_blockers(book_dir)
+                                    what stands between the person and a Finish, in sentences
+    making.add_part(book_dir, source, options)
+                                    more text for the agent, a part at a time: a file or a pasted text
+    making.set_more_coming(book_dir, flag)
+                                    "this is all the text" (False), or that more is coming (True)
+    making.reopen(book_dir)         a finished book's making taken up again
     making.open_folder(path)        the system's file manager, on the folder
 
 PARSEH NEVER STARTS AN AGENT (TO-DO §18, the owner, 2026-09-28).  It prepares a
@@ -52,12 +59,34 @@ panel says so instead of stopping:
     updated   when the AGENT last wrote the file: it writes it every time it
               finishes something
     stage     the agent's: "source" (the original recovered), "chapters" (the
-              chapter table written), "batch", "done" (every batch is in)
+              chapter table written), "batch", "done" (every batch is in),
+              "waiting" (every part is in and more is coming: it waits for the next)
     on        the agent's: one line, what it is on now
-    chapters  the agent's chapter table: [{"chapter": 1, "paragraphs": 24}, ...]
+    chapters  the agent's chapter table: [{"chapter": 1, "paragraphs": 24, "part": 1}, ...]
+              ("part", the part its first paragraphs came from, is optional)
     batches   the agent's: {"done": 3, "of": 12}
     checks    the agent's: what the tools last said, {"check_batch": "0 errors",
               "assemble": "ALL PARAGRAPHS CLEAN", "verify_book": "clean"}
+    sources   the agent's alone: which parts of the text it has recovered,
+              {"done": [1, 2], "of": 3, "decided": {"3": "a new chapter: it opens with a heading"}}
+
+THE TEXT COMES IN PARTS (brief 5.10): the person gives it a bit at a time, from any
+device, as a file or pasted, and the agent takes each part before its next batch.
+These two are PARSEH'S ALONE to write, never the agent's:
+
+    parts       [{"n": 1, "file": "original/part-001-x.pdf", "pages": [0, 9], "chapter":
+                "new", "join": "", "label": "", "added": "2026-10-05T10:00:00Z", "bytes":
+                1234}, ...] -- the first original is part 1.  `chapter` says where the part
+                goes: "auto" (the agent decides from the text and says what it decided in
+                `sources.decided`), "new" (a chapter of its own) or "last" (more of the last
+                chapter); `join` is "paragraph" when the part was cut in the middle of a
+                paragraph and its first paragraph goes on the last one of the part before
+    more_coming true while the person may still add text: they say "this is all the text"
+                to set it false, and may set it true again
+
+WHAT FINISH WAITS FOR is not decided (the owner, 2026-09-29: more detail, next week): it is
+ONE function, finish_blockers, and two settings beside it (FINISH_WAITS_FOR,
+FINISH_CONFIRMABLE), so that every option the owner is offered is a small change here.
 
 WHILE A BOOK IS BEING MADE its reader does not edit (serve.py refuses LOCKED
 doors, lib/making.js says why): the pipeline's truth is annot/*.json and the
@@ -130,6 +159,25 @@ FIELD_MAX = 300                             # what the panel keeps of an agent's
 ASK_MAX = 4000
 NOTES_TAIL = 2500                           # characters of NOTES.md the panel shows
 TEX_SPECIAL = re.compile(r"[\\{}$%&#_^~]")
+
+# THE TEXT IN PARTS (brief 5.10).  Where a part goes: the agent's call from the text ("auto", the
+# recommended default), or the person's ("new", "last").  `join` is "paragraph" for a part cut in the
+# middle of a paragraph, whose first paragraph goes on the last one of the part before.  Both are
+# fields of the list already, so that whatever the owner decides about "auto" and about a cut
+# paragraph is a change of the words the agent reads, not of this module.
+PARTS_COPY = "parts.json"                   # original/parts.json, see _store
+CHAPTER_WAYS = ("auto", "new", "last")
+JOINS = ("", "paragraph")
+LABEL_MAX = 120
+TEXT_MAX = 32 * 1024 * 1024                 # a pasted part: the ceiling of any JSON body
+
+# WHAT FINISH WAITS FOR is the owner's to decide (brief 5.10; the options are in the report of lane C2):
+#   A  nothing: "agent" and "parts" left out of the tuple; the person's second press is all there is
+#   B  the person's "this is all the text" and every part taken: add "text", and FINISH_CONFIRMABLE False
+#   C  the agent's word that everything given so far is in (RECOMMENDED, and what is on): "agent",
+#      "parts"; and a second press goes through where the agent has not said it is idle
+FINISH_WAITS_FOR = ("parts", "agent")
+FINISH_CONFIRMABLE = True
 
 
 # ------------------------------------------------------------------ time
@@ -231,7 +279,8 @@ def stage_words(doc):
             return "all batches in"
         return "batch %d of %d" % (done + 1, of) if of else "batch %d" % (done + 1)
     return {"folder": "not started yet", "source": "source recovered",
-            "chapters": "chapter table", "done": "all batches in"}.get(stage, stage)
+            "chapters": "chapter table", "done": "all batches in",
+            "waiting": "waiting for the next part"}.get(stage, stage)
 
 
 def _chapter_table(doc):
@@ -242,6 +291,8 @@ def _chapter_table(doc):
             n = _int(row.get("chapter"), -1)
             if n >= 0:
                 out.append({"chapter": n, "paragraphs": _int(row.get("paragraphs"))})
+                if _int(row.get("part")) > 0:
+                    out[-1]["part"] = _int(row.get("part"))
         elif isinstance(row, int) and not isinstance(row, bool) and row >= 0:
             out.append({"chapter": row, "paragraphs": 0})
     return out
@@ -335,6 +386,7 @@ def describe(book_dir):
     if doc is None:
         return {"ok": True, "making": False, "state": "none", "now": now}
     finished = doc.get("state") == "finished"
+    store = _heal(book_dir)
     inputs = chapter_inputs(book_dir)
     present = sorted({n for n in map(_chapter_number, inputs) if n is not None})
     table = _chapter_table(doc)
@@ -358,6 +410,9 @@ def describe(book_dir):
         "on": _line(doc.get("on")), "batches": {"done": _int(b.get("done")), "of": _int(b.get("of"))},
         "chapters": table, "present": present,
         "to_come": [n for n in wanted if n not in present],
+        "parts": _parts_view(store, doc, present, table),
+        "more_coming": bool(store and store["more_coming"]),
+        "blockers": [] if finished else finish_blockers(book_dir), "confirmable": FINISH_CONFIRMABLE,
         "stale": bool(newest and (built is None or newest > built)),
         "checks": {_line(k, 40): _line(v) for k, v in list(checks.items())[:12]},
         "started": _epoch(doc.get("started")),
@@ -406,6 +461,331 @@ def ask(book_dir, line, chunk=None, when=None):
         with open(path, "a", encoding="utf-8", newline="\n") as f:
             f.write(("\n" if need_gap else "") + entry)
     return {"ok": True, "at": stamp, "count": _asks(book_dir)["count"]}
+
+
+# ------------------------------------------------------------------ the text, in parts
+_PARTS_LOCK = threading.Lock()              # one writer of the list at a time: two devices adding together
+
+
+def _store(book_dir):
+    """Parseh's own copy of the list of parts, and the flag -> {"parts": [...], "more_coming": bool}, or
+    None for a book made before the text could come in parts.
+
+    WHY A COPY: making.json is the agent's file too, and an agent that writes it whole from what it
+    read minutes ago erases a part that arrived meanwhile -- silently, for that part is then never
+    taken.  The copy lies in original/, where the agent is not told to write, and whenever the two
+    differ what Parseh keeps is put back into making.json (_publish)."""
+    doc = None
+    try:
+        with open(os.path.join(book_dir, ORIGINAL, PARTS_COPY), encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError):
+        pass
+    if not (isinstance(doc, dict) and isinstance(doc.get("parts"), list)):
+        doc, _bad = read(book_dir)
+    if isinstance(doc, dict) and isinstance(doc.get("parts"), list):
+        return {"parts": [p for p in doc["parts"] if isinstance(p, dict)], "more_coming": bool(doc.get("more_coming"))}
+    return None
+
+
+def _publish(book_dir, store):
+    """Parseh's list into making.json, where the agent reads it -> whether it had to be written.  A
+    file the agent is half way through writing is left alone: the next call puts it right."""
+    doc, bad = read(book_dir)
+    if doc is None or bad or (doc.get("parts") == store["parts"] and doc.get("more_coming") == store["more_coming"]):
+        return False
+    _write_json(path_of(book_dir, MAKING), dict(doc, parts=store["parts"], more_coming=store["more_coming"]))
+    return True
+
+
+def _heal(book_dir):
+    """The list as Parseh keeps it, made true in making.json as well -> the list (None: this book has none)."""
+    store = _store(book_dir)
+    if store is not None:
+        _publish(book_dir, store)
+    return store
+
+
+def _save(book_dir, store):
+    os.makedirs(os.path.join(book_dir, ORIGINAL), exist_ok=True)
+    _write_json(os.path.join(book_dir, ORIGINAL, PARTS_COPY), store)
+    _publish(book_dir, store)
+
+
+def _entry(n, file, pages, chapter, join, label, added, size):
+    return {"n": n, "file": file, "pages": pages, "chapter": chapter, "join": join, "label": label,
+            "added": added, "bytes": size}
+
+
+def _first_part(book_dir):
+    """The list of a book made before parts: the original it was made from is part 1."""
+    meta = {}
+    try:
+        with open(path_of(book_dir, "book.json"), encoding="utf-8") as f:
+            meta = json.load(f)
+    except (OSError, ValueError):
+        pass
+    meta = meta if isinstance(meta, dict) else {}
+    rel = meta.get("source_pdf")
+    full = os.path.join(book_dir, *str(rel).split("/")) if rel else ""
+    if not (rel and os.path.isfile(full)):
+        return {"parts": [], "more_coming": True}
+    pages = meta.get("source_pages") if isinstance(meta.get("source_pages"), list) else None
+    return {"parts": [_entry(1, str(rel), pages, "new", "", "", _iso(os.path.getmtime(full)), os.path.getsize(full))],
+            "more_coming": True}
+
+
+def _taken(doc):
+    """The part numbers the agent says it has recovered, and what it said it decided for each."""
+    src = doc.get("sources") if isinstance(doc.get("sources"), dict) else {}
+    done = src.get("done") if isinstance(src.get("done"), list) else []
+    said = src.get("decided") if isinstance(src.get("decided"), dict) else {}
+    return ({_int(n, -1) for n in done if not isinstance(n, bool)} - {-1},
+            {_int(k, -1): _line(v, 200) for k, v in said.items()}, _int(src.get("of")))
+
+
+def _parts_view(store, doc, present, table):
+    """The list, for the panel: each part with where it stands.  `added` (waiting for the agent),
+    `recovered` (the agent has taken it: its numbered paragraphs are in source/), `worked` (and a
+    chapter its table says came from the part is in the reader)."""
+    if store is None:
+        return []
+    done, said, _of = _taken(doc)
+    in_book = {row["part"] for row in table if row.get("part") and row["chapter"] in present}
+    out = []
+    for p in store["parts"]:
+        n = _int(p.get("n"))
+        if n < 1:
+            continue
+        pages = p.get("pages")
+        out.append({"n": n, "file": _line(p.get("file"), 200), "label": _line(p.get("label"), LABEL_MAX),
+                    "name": _line(os.path.basename(str(p.get("file") or "")), 120),
+                    "chapter": p.get("chapter") if p.get("chapter") in CHAPTER_WAYS else "auto",
+                    "join": p.get("join") if p.get("join") in JOINS else "",
+                    "pages": [_int(pages[0]), _int(pages[1])] if isinstance(pages, list) and len(pages) == 2 else None,
+                    "added": _epoch(p.get("added")), "bytes": _int(p.get("bytes")),
+                    "state": ("worked" if n in in_book else "recovered") if n in done else "added",
+                    "decided": said.get(n, "")})
+    return out
+
+
+def _on_disk(book_dir):
+    out = set()
+    for name in os.listdir(os.path.join(book_dir, ORIGINAL)) if os.path.isdir(os.path.join(book_dir, ORIGINAL)) else ():
+        m = re.match(r"part-(\d+)-", name)
+        if m:
+            out.add(int(m.group(1)))
+    return out
+
+
+def _note_asks(book_dir, title, body):
+    """One dated entry in ASKS.md that is not an ask: the file an agent reads again before every
+    batch, so that a part, or a word that no more text is coming, reaches an agent that does not
+    parse making.json too."""
+    with _ASKS_LOCK:
+        path = path_of(book_dir, ASKS)
+        gap = "\n" if os.path.isfile(path) and os.path.getsize(path) else ""
+        with open(path, "a", encoding="utf-8", newline="\n") as f:
+            f.write("%s## %s — %s\n\n%s\n" % (gap, time.strftime("%Y-%m-%d %H:%M"), title, body))
+
+
+def add_part(book_dir, source, options=None):
+    """More text for the agent, a part at a time -> the part's entry (see `parts` in the docstring).
+
+    `source` is {"name", "data"} or {"name", "path"} -- a file, sent and not named, a PDF with a text layer,
+    an epub or a plain text file -- or {"text": "..."}, pasted.  `options`: "pages" (a PDF's "3-9",
+    counted from 0), "chapter" ("auto" by default, "new" or "last"), "join" ("" or "paragraph") and
+    "label".  Refused in the words make() uses for the first original -- empty, wrong kind -- and for a
+    book that is finished (reopen it first) or was never made by an agent.
+
+    Whole or not at all: the file is written beside its place and renamed, then the list is written, so
+    a disk that fills leaves the folder as it was, and the agent never reads an entry whose file is not
+    there.  The text goes into ASKS.md as well as the list: that file is read before every batch."""
+    options = options or {}
+    st = state(book_dir)
+    if st == "none":
+        raise ValueError("this book was not made by an agent, so there is nobody to give a part to")
+    if st == "finished":
+        raise ValueError("this book is finished: reopen the making to give the agent more text, or add the "
+                         "text by hand from the add page")
+    chapter = _line(options.get("chapter") or "auto", 12).lower()
+    join = _line(options.get("join"), 12).lower()
+    if chapter not in CHAPTER_WAYS:
+        raise ValueError("no such place for a part: %r (%s)" % (chapter, ", ".join(CHAPTER_WAYS)))
+    if join not in JOINS:
+        raise ValueError("a part is joined to the paragraph before it as %s, or not at all" % " or ".join(JOINS[1:]))
+    if join and chapter == "new":
+        raise ValueError("a part that goes on in the paragraph before it cannot start a new chapter")
+    label = _line(options.get("label"), LABEL_MAX)
+    if "text" in source:
+        text = _clean_text(source.get("text"), TEXT_MAX)
+        if not text:
+            raise ValueError("the text is empty: there is nothing to add")
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", label).strip("-.")[:40] or "pasted"
+        name, data, size, pages = stem + ".txt", text.encode("utf-8"), len(text.encode("utf-8")), None
+    else:
+        name = _original_name(source.get("name"))
+        data = source.get("data")
+        pages = _pages(options.get("pages")) if name.endswith(".pdf") else None
+        if data is not None:
+            size, head = len(data), data[:4096]
+        else:
+            size = os.path.getsize(source["path"])
+            with open(source["path"], "rb") as f:
+                head = f.read(4096)
+        _refuse_original(name, size, head)
+    with _PARTS_LOCK:
+        store = _store(book_dir) or _first_part(book_dir)
+        n = max([_int(p.get("n")) for p in store["parts"]] + list(_on_disk(book_dir)) + [0]) + 1
+        rel = "%s/part-%03d-%s" % (ORIGINAL, n, name)
+        target = os.path.join(book_dir, *rel.split("/"))
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        try:
+            with open(target + ".part", "wb") as f:
+                if data is not None:
+                    f.write(data)
+                else:
+                    with open(source["path"], "rb") as src:
+                        shutil.copyfileobj(src, f, 1 << 20)
+            os.replace(target + ".part", target)
+        except OSError as e:
+            try:
+                os.unlink(target + ".part")
+            except OSError:
+                pass
+            raise ValueError("the part could not be written (%s); nothing was changed" % e)
+        entry = _entry(n, rel, pages, chapter, join, label, _iso(), size)
+        store["parts"].append(entry)
+        _save(book_dir, store)
+    _note_asks(book_dir, "a part was added",
+               "Part %d%s was added: `%s`. Read `parts` in making.json before your next batch, and take it "
+               "as its `chapter` says." % (n, " (%s)" % label if label else "", rel))
+    return entry
+
+
+def recovered_text(source, lang, pages=None):
+    """The text of a SENT file, for the door that adds text onto a book that is already here -> one string,
+    the paragraphs parted by blank lines, which lib/draft.py takes as it takes a pasted text.  The same
+    kinds and the same refusals as the first original and every part, and the recovery is
+    lib/sourcetext.py's -- the agent's own -- so that a text is read one way wherever it comes in."""
+    import sourcetext
+    name = _original_name(source.get("name"))
+    ext = os.path.splitext(name)[1]
+    page_range = _pages(pages) if ext == ".pdf" else None
+    path, made = source.get("path"), None
+    if path is None:
+        data = source["data"]
+        _refuse_original(name, len(data), data[:4096])
+        fd, path = tempfile.mkstemp(prefix="parseh-text-", suffix=ext)
+        made = path
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+    else:
+        with open(path, "rb") as f:
+            _refuse_original(name, os.path.getsize(path), f.read(4096))
+    try:
+        paras = sourcetext.recover(path, lang, page_range, kind=ext.lstrip("."))
+    finally:
+        if made:
+            os.unlink(made)
+    if not paras:
+        raise ValueError("no text could be recovered from %s" % name)
+    return "\n\n".join(paras)
+
+
+def set_more_coming(book_dir, flag):
+    """"This is all the text" (False), or that more is coming after all (True) -> the flag."""
+    st = state(book_dir)
+    if st != "making":
+        raise ValueError("this book is finished: reopen the making first" if st == "finished"
+                         else "this book was not made by an agent")
+    with _PARTS_LOCK:
+        store = _store(book_dir) or _first_part(book_dir)
+        if store["more_coming"] == bool(flag):
+            return bool(flag)
+        store["more_coming"] = bool(flag)
+        _save(book_dir, store)
+    _note_asks(book_dir, "more text is coming" if flag else "this is all the text",
+               "The person says more text will be given: after the parts in making.json, wait for the next "
+               "(`stage`: `waiting`)." if flag else
+               "The person says there is no more text. When every part in making.json is taken and the "
+               "batches are in, say \"the text is complete\" and stop.")
+    return bool(flag)
+
+
+def _library_again():
+    """The library page written again, so that a card says what the book is now; it catches up at the
+    next build where this cannot be done."""
+    try:
+        subprocess.run([sys.executable, os.path.join(LIB, "make_index.py")], cwd=booklib.ROOT,
+                       capture_output=True, timeout=300)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def reopen(book_dir):
+    """A finished book's making taken up again, so that a part added next month goes on where it stopped.
+
+    `state` is "making" again, which brings the lock on editing back; `finished` is removed.  annot/,
+    original/ and NOTES.md are untouched, and the reader and the .tex stay as they are until the agent
+    assembles again.  The agent is told in ASKS.md, after the entry that told it to stop."""
+    if state(book_dir) != "finished":
+        raise ValueError("this book is not finished: there is nothing to reopen" if state(book_dir) == "making"
+                         else "this book was not made by an agent")
+    with _PARTS_LOCK:
+        doc, _bad = read(book_dir)
+        doc = dict(doc or {}, state="making")
+        doc.pop("finished", None)
+        _write_json(path_of(book_dir, MAKING), doc)
+    _note_asks(book_dir, "reopened",
+               "The person reopened the making: the entry above that said to stop is taken back. Read "
+               "`parts` in making.json: new text may be waiting.")
+    _library_again()
+    return {"state": "making"}
+
+
+# WHAT FINISH WAITS FOR, one small function to each thing it may wait for (FINISH_WAITS_FOR)
+def _waits_text(book_dir, doc):
+    store = _store(book_dir)
+    return ["you have not said that this is all the text: more may be coming"] if store and store["more_coming"] else []
+
+
+def _waits_parts(book_dir, doc):
+    store = _store(book_dir)
+    done, _said, _of = _taken(doc)
+    return ["part %d%s has not been taken by the agent yet" % (_int(p.get("n")), " (%s)" % _line(p.get("label"), 60)
+                                                                if p.get("label") else "")
+            for p in (store["parts"] if store else ()) if _int(p.get("n")) > 0 and _int(p.get("n")) not in done]
+
+
+def _waits_agent(book_dir, doc):
+    stage = _line(doc.get("stage")).lower() or "folder"
+    if stage in ("done", "waiting"):
+        return []
+    return ["the agent has not said it is done: its record says \"%s\", and what it writes next is lost "
+            "once the book is finished" % stage_words(doc)]
+
+
+_WAITS = {"text": _waits_text, "parts": _waits_parts, "agent": _waits_agent}
+
+
+def finish_blockers(book_dir):
+    """What stands between the person and a Finish, in sentences ([] when nothing does).  WHAT IT
+    WAITS FOR IS THE OWNER'S TO DECIDE (FINISH_WAITS_FOR above): a book is finished when everything
+    given so far is in it, and with parts that is not a thing Parseh can know by itself."""
+    doc, bad = read(book_dir)
+    if doc is None or doc.get("state") == "finished":
+        return []
+    if bad:
+        return [bad]
+    return [s for key in FINISH_WAITS_FOR for s in _WAITS[key](book_dir, doc)]
+
+
+def finish_gate(book_dir, confirmed=False):
+    """May a Finish start? -> (yes or no, the sentences that stand in the way).  A second press, with
+    `confirmed`, goes through unless FINISH_CONFIRMABLE says the sentences are not to be passed."""
+    blockers = finish_blockers(book_dir)
+    return (not blockers or (FINISH_CONFIRMABLE and bool(confirmed))), blockers
 
 
 # ------------------------------------------------------------------ the instructions (the seam)
@@ -596,6 +976,15 @@ def _looks_like(ext, head):
     return b"\x00" not in head[:4096]
 
 
+def _refuse_original(name, size, head):
+    """What the first original and every part are refused for, in the same words."""
+    if not size:
+        raise ValueError("the original is empty: choose the file again")
+    if not _looks_like(os.path.splitext(name)[1], head):
+        raise ValueError("%s does not look like %s: choose the right file" % (
+            name, {"pdf": "a PDF", "epub": "an epub"}.get(name.rsplit(".", 1)[1], "a text file")))
+
+
 def facts_for(identity, orig_file, pages, options, dest, shelf=None):
     """Everything the instructions may need, as one plain dict.  `dest` is the
     folder's final place; the Python is the environment's (runtime.find_env) and
@@ -670,7 +1059,8 @@ def make(fields, original, options=None, into=None):
     `fields` is the book's facts (the ones the add page asks, and `pages`);
     `original` is {"name": the file's name, "data": bytes} or {"name", "path"} for
     an upload spooled to disk; `options` is {"reference": "<folder>/<slug>" or "",
-    "examples": bool}.  Every refusal is a ValueError with a sentence to show.
+    "examples": bool, "more_coming": bool (True unless it says False)}.  Every refusal
+    is a ValueError with a sentence to show.
 
     The tree is built beside its place, in a directory with a dot in front (which
     nothing on the shelf reads as a book), and renamed into place at the end: a
@@ -688,11 +1078,7 @@ def make(fields, original, options=None, into=None):
         size = os.path.getsize(original["path"])
         with open(original["path"], "rb") as f:
             head = f.read(4096)
-    if not size:
-        raise ValueError("the original is empty: choose the file again")
-    if not _looks_like(os.path.splitext(name)[1], head):
-        raise ValueError("%s does not look like %s: choose the right file" % (
-            name, {"pdf": "a PDF", "epub": "an epub"}.get(name.rsplit(".", 1)[1], "a text file")))
+    _refuse_original(name, size, head)
     L = ident["lang"]
     parent = os.path.join(into, L.folder)
     dest = os.path.join(parent, ident["slug"])
@@ -740,10 +1126,15 @@ def make(fields, original, options=None, into=None):
                 when=time.strftime("%Y-%m-%d")))
         open(os.path.join(tree, ASKS), "w", encoding="utf-8").close()
         now = _iso()
-        _write_json(os.path.join(tree, MAKING), {
+        # THE ORIGINAL IS PART 1, so that the list is whole from the first minute; "more text later" is
+        # what a folder starts with, and the make page may say "this is all the text" at once
+        first = {"parts": [_entry(1, "%s/%s" % (ORIGINAL, name), pages, "new", "", "", now, size)],
+                 "more_coming": options.get("more_coming") is not False}
+        _write_json(os.path.join(tree, ORIGINAL, PARTS_COPY), first)
+        _write_json(os.path.join(tree, MAKING), dict({
             "state": "making", "parseh": version.VERSION, "started": now, "updated": now,
             "stage": "folder", "on": "", "chapters": [], "batches": {"done": 0, "of": 0},
-            "checks": {}})
+            "checks": {}}, **first))
         written = write_instructions(tree, facts, options)
         try:
             os.rename(tree, dest)
@@ -766,6 +1157,13 @@ def make(fields, original, options=None, into=None):
 
 
 # ------------------------------------------------------------------ opening the folder
+# A FACT AND NOT A PERMISSION (the owner, 2026-09-29: everything else is open to every device let in):
+# the file manager opens on the screen of the computer Parseh runs on, so only a request from that
+# computer asks for it (serve.py).  What any other device is told:
+OPEN_SAID = ("Opening the folder shows it on the screen of the computer Parseh runs on, so that is where it "
+             "is done: from this device, copy the path.")
+
+
 def open_program(path):
     """The command that shows a folder in this system's file manager, or None."""
     if os.name == "nt":
@@ -951,11 +1349,7 @@ def _end_making(book_dir):
             f.write("%s## %s \u2014 finished\n\nThe person finished this book from Parseh. Stop: the "
                     ".tex is the book now. Do not assemble or write anything more in this folder.\n"
                     % (gap, time.strftime("%Y-%m-%d %H:%M")))
-    try:
-        subprocess.run([sys.executable, os.path.join(LIB, "make_index.py")], cwd=booklib.ROOT,
-                       capture_output=True, timeout=300)
-    except (OSError, subprocess.SubprocessError):
-        pass                                # the card catches up at the next build
+    _library_again()
 
 
 if __name__ == "__main__":

@@ -811,6 +811,295 @@ class Finish(unittest.TestCase):
         self.assertIn("could not run", said)
 
 
+def record(d):
+    return json.loads(Path(d, "making.json").read_text(encoding="utf-8"))
+
+
+def agent_writes(d, **fields):
+    """What an agent does to making.json: reads it, changes its own fields, writes it whole."""
+    doc = record(d)
+    doc.update(fields)
+    Path(d, "making.json").write_text(json.dumps(doc), encoding="utf-8")
+
+
+class TheTextInParts(unittest.TestCase):
+    """The text a bit at a time (brief 5.10): the original is part 1, every later part is sent or pasted,
+    written whole and listed, and the list is Parseh's to write -- the agent's own record is `sources`."""
+
+    def folder(self, **fields):
+        _into, r = made(self, fields)
+        return r["path"]
+
+    def test_the_original_is_part_one_and_more_text_is_expected_unless_the_page_says_it_is_all(self):
+        d = self.folder()
+        doc = record(d)
+        self.assertEqual(doc["more_coming"], True)
+        self.assertEqual(len(doc["parts"]), 1)
+        first = doc["parts"][0]
+        self.assertEqual((first["n"], first["file"], first["chapter"], first["join"], first["bytes"]),
+                         (1, "original/Il-Gatto.txt", "new", "", len(TEXT)))
+        self.assertTrue(making._epoch(first["added"]))
+        # Parseh's own copy, in original/ where the agent is not told to write
+        self.assertEqual(json.loads(Path(d, "original", "parts.json").read_text(encoding="utf-8"))["parts"], doc["parts"])
+        _into, r = made(self, options={"more_coming": False})
+        self.assertEqual(record(r["path"])["more_coming"], False)
+
+    def test_a_part_from_a_file_is_written_whole_numbered_and_listed(self):
+        d = self.folder()
+        got = making.add_part(d, {"name": "Chapter Two!.txt", "data": TEXT}, {"label": "the second book", "chapter": "last"})
+        self.assertEqual((got["n"], got["file"], got["chapter"], got["label"]), (2, "original/part-002-Chapter-Two.txt", "last", "the second book"))
+        self.assertEqual(Path(d, got["file"]).read_bytes(), TEXT)
+        # a spooled upload is copied, not read into memory, and what the caller spooled is left to it
+        spool = os.path.join(tmpdir(self), "spool")
+        Path(spool).write_bytes(PDF)
+        third = making.add_part(d, {"name": "big.pdf", "path": spool}, {"pages": "2-5"})
+        self.assertEqual((third["n"], third["pages"], third["chapter"], third["bytes"]), (3, [2, 5], "auto", len(PDF)))
+        self.assertTrue(os.path.exists(spool))
+        doc = record(d)
+        self.assertEqual([p["n"] for p in doc["parts"]], [1, 2, 3], "the list is complete, from the first original on")
+        self.assertEqual(sorted(os.listdir(os.path.join(d, "original"))),
+                         ["Il-Gatto.txt", "part-002-Chapter-Two.txt", "part-003-big.pdf", "parts.json"], "no .part left behind")
+        # the file that is read before every batch says so, whatever the agent does with making.json
+        asks = Path(d, "ASKS.md").read_text(encoding="utf-8")
+        self.assertIn("a part was added", asks)
+        self.assertIn("original/part-002-Chapter-Two.txt", asks)
+        self.assertEqual(making.describe(d)["asks"]["count"], 2)
+
+    def test_pasted_text_is_a_part_named_from_its_label(self):
+        d = self.folder()
+        got = making.add_part(d, {"text": "  Il gatto torna.\r\n\r\nE dorme.\x00 "}, {"label": "last page"})
+        self.assertEqual((got["file"], got["pages"]), ("original/part-002-last-page.txt", None))
+        self.assertEqual(Path(d, got["file"]).read_text(encoding="utf-8"), "Il gatto torna.\n\nE dorme.")
+        self.assertEqual(making.add_part(d, {"text": "Ancora."})["file"], "original/part-003-pasted.txt")
+
+    def test_a_part_that_is_refused_is_refused_in_the_words_of_the_first_original_and_writes_nothing(self):
+        d = self.folder()
+        before = (sorted(os.listdir(os.path.join(d, "original"))), record(d)["parts"], (Path(d) / "ASKS.md").read_bytes())
+        for source, options, said in (
+                ({"name": "a.txt", "data": b""}, None, "the original is empty"),
+                ({"name": "a.pdf", "data": TEXT}, None, "does not look like a PDF"),
+                ({"name": "a.epub", "data": TEXT[:0] + b"not a zip"}, None, "does not look like an epub"),
+                ({"name": "a.docx", "data": TEXT}, None, "has to be a PDF with a text layer"),
+                ({"name": "a.txt", "data": b"x\x00y"}, None, "does not look like a text file"),
+                ({"name": "a.pdf", "data": PDF}, {"pages": "9-2"}, "the first not after the last"),
+                ({"text": "   "}, None, "the text is empty"),
+                ({"text": "x"}, {"chapter": "middle"}, "no such place for a part"),
+                ({"text": "x"}, {"join": "line"}, "joined to the paragraph before"),
+                ({"text": "x"}, {"chapter": "new", "join": "paragraph"}, "cannot start a new chapter")):
+            with self.assertRaisesRegex(ValueError, said):
+                making.add_part(d, source, options)
+        after = (sorted(os.listdir(os.path.join(d, "original"))), record(d)["parts"], (Path(d) / "ASKS.md").read_bytes())
+        self.assertEqual(after, before)
+
+    def test_a_disk_that_fills_leaves_the_folder_as_it_was(self):
+        d = self.folder()
+        before = sorted(os.listdir(os.path.join(d, "original")))
+        with patch.object(making.os, "replace", side_effect=OSError(28, "No space left on device")):
+            with self.assertRaisesRegex(ValueError, "nothing was changed"):
+                making.add_part(d, {"name": "a.txt", "data": TEXT})
+        self.assertEqual(sorted(os.listdir(os.path.join(d, "original"))), before)
+        self.assertEqual(len(record(d)["parts"]), 1)
+
+    def test_a_finished_book_or_one_nobody_made_this_way_takes_no_part_and_a_reopened_one_does(self):
+        d = self.folder()
+        making._end_making(d)
+        with self.assertRaisesRegex(ValueError, "reopen the making"):
+            making.add_part(d, {"text": "x"})
+        with self.assertRaisesRegex(ValueError, "reopen the making first"):
+            making.set_more_coming(d, False)
+        making.reopen(d)
+        self.assertEqual(making.add_part(d, {"text": "x"})["n"], 2)
+        os.unlink(os.path.join(d, "making.json"))
+        with self.assertRaisesRegex(ValueError, "not made by an agent"):
+            making.add_part(d, {"text": "x"})
+
+    def test_numbering_goes_past_a_file_the_list_lost_and_two_devices_get_two_numbers(self):
+        d = self.folder()
+        Path(d, "original", "part-004-lost.txt").write_bytes(b"x")
+        self.assertEqual(making.add_part(d, {"text": "x"})["n"], 5)
+        got = []
+
+        def add():
+            got.append(making.add_part(d, {"text": "again"})["n"])
+        threads = [threading.Thread(target=add) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(sorted(got), list(range(6, 14)))
+        self.assertEqual([p["n"] for p in record(d)["parts"]], [1, 5] + list(range(6, 14)))
+
+    def test_an_agent_that_writes_making_json_whole_from_what_it_read_cannot_lose_a_part(self):
+        d = self.folder()
+        stale = record(d)
+        making.add_part(d, {"text": "Ancora."}, {"chapter": "new"})
+        making.set_more_coming(d, False)
+        # the agent writes its own fields from the file as it read it a while ago
+        Path(d, "making.json").write_text(json.dumps(dict(stale, stage="batch", on="batch 3")), encoding="utf-8")
+        self.assertEqual([p["n"] for p in record(d)["parts"]], [1], "what the agent wrote is what is there ...")
+        got = making.describe(d)                       # ... until Parseh looks, which puts its own list back
+        self.assertEqual([p["n"] for p in got["parts"]], [1, 2])
+        doc = record(d)
+        self.assertEqual(([p["n"] for p in doc["parts"]], doc["more_coming"], doc["stage"]), ([1, 2], False, "batch"),
+                         "the agent's fields are the agent's, and Parseh's are put back")
+        # a file the agent is half way through writing is left alone, to be put right at the next look
+        Path(d, "making.json").write_text('{"stage": "ba', encoding="utf-8")
+        making.describe(d)
+        self.assertEqual(Path(d, "making.json").read_text(encoding="utf-8"), '{"stage": "ba')
+
+    def test_where_each_part_stands_is_the_agents_word_and_its_chapter_table(self):
+        d = self.folder()
+        making.add_part(d, {"text": "due"}, {"label": "two"})
+        making.add_part(d, {"text": "tre"}, {"chapter": "last", "join": "paragraph"})
+        for name in ("ch1", "ch2"):
+            Path(d, name + ".tex").write_text("% x\n", encoding="utf-8")
+        main = Path(d, "main.tex")
+        main.write_text(main.read_text(encoding="utf-8").replace("\\end{document}", "\\input{ch1.tex}\n\\input{ch2.tex}\n\\end{document}"),
+                        encoding="utf-8")
+        agent_writes(d, sources={"done": [1, 2], "of": 3, "decided": {"2": "a new chapter: it opens with a heading"}},
+                     chapters=[{"chapter": 1, "paragraphs": 3, "part": 1}, {"chapter": 2, "paragraphs": 2, "part": 2},
+                               {"chapter": 3, "paragraphs": 1, "part": 3}])
+        parts = making.describe(d)["parts"]
+        self.assertEqual([(p["n"], p["state"]) for p in parts], [(1, "worked"), (2, "worked"), (3, "added")])
+        self.assertEqual(parts[1]["decided"], "a new chapter: it opens with a heading")
+        self.assertEqual((parts[1]["label"], parts[2]["chapter"], parts[2]["join"]), ("two", "last", "paragraph"))
+        agent_writes(d, sources={"done": [1, 2, 3]}, chapters=[])
+        self.assertEqual([p["state"] for p in making.describe(d)["parts"]], ["recovered"] * 3,
+                         "taken by the agent, and no chapter of its table says which part it came from")
+        agent_writes(d, sources="every part", chapters=None)          # an agent's wrong shape reads as nothing taken
+        self.assertEqual([p["state"] for p in making.describe(d)["parts"]], ["added"] * 3)
+
+    def test_a_book_made_before_parts_gets_its_list_when_the_first_part_is_added(self):
+        d = self.folder()
+        doc = record(d)
+        doc.pop("parts"), doc.pop("more_coming")
+        Path(d, "making.json").write_text(json.dumps(doc), encoding="utf-8")
+        os.unlink(os.path.join(d, "original", "parts.json"))
+        self.assertEqual(making.describe(d)["parts"], [], "nothing to list, and nothing to wait for")
+        self.assertEqual(making.finish_blockers(d), ["the agent has not said it is done: its record says "
+                                                     "\"not started yet\", and what it writes next is lost once the book is finished"])
+        self.assertEqual(making.add_part(d, {"text": "x"})["n"], 2)
+        self.assertEqual([p["n"] for p in record(d)["parts"]], [1, 2], "the original it was made from is part 1")
+        self.assertEqual(record(d)["parts"][0]["file"], "original/Il-Gatto.txt")
+
+    def test_this_is_all_the_text_and_more_is_coming_are_the_persons_to_say_and_to_take_back(self):
+        d = self.folder()
+        self.assertEqual(making.set_more_coming(d, False), False)
+        self.assertEqual((record(d)["more_coming"], making.describe(d)["more_coming"]), (False, False))
+        self.assertIn("this is all the text", Path(d, "ASKS.md").read_text(encoding="utf-8"))
+        self.assertEqual(making.set_more_coming(d, True), True)
+        self.assertEqual(record(d)["more_coming"], True)
+        asks = Path(d, "ASKS.md").read_text(encoding="utf-8")
+        self.assertIn("more text is coming", asks)
+        making.set_more_coming(d, True)
+        self.assertEqual(Path(d, "ASKS.md").read_text(encoding="utf-8"), asks, "no entry for what did not change")
+
+    def test_the_stage_words_know_the_agent_is_waiting_for_the_next_part(self):
+        self.assertEqual(making.stage_words({"stage": "waiting"}), "waiting for the next part")
+
+    def test_a_sent_file_is_recovered_as_blank_line_paragraphs_for_the_add_page(self):
+        got = making.recovered_text({"name": "a.txt", "data": b"Il gatto\ndorme.\n\nIl cane corre.\n"}, "it")
+        self.assertEqual(got, "Il gatto dorme.\n\nIl cane corre.")
+        spool = os.path.join(tmpdir(self), "parseh-upload-xyz.zip")          # what a server spools a big body as
+        Path(spool).write_bytes(b"Uno.\nDue.\n")
+        self.assertEqual(making.recovered_text({"name": "b.txt", "path": spool}, "it"), "Uno.\n\nDue.")
+        with self.assertRaisesRegex(ValueError, "the original is empty"):
+            making.recovered_text({"name": "a.txt", "data": b""}, "it")
+        with self.assertRaisesRegex(ValueError, "PDF could not be read"):
+            making.recovered_text({"name": "a.pdf", "data": b"%PDF-1.4\nno\n"}, "it")
+
+
+class Reopen(unittest.TestCase):
+    def test_a_finished_book_is_making_again_with_its_record_kept_and_the_agent_told(self):
+        _into, r = made(self)
+        d = r["path"]
+        Path(d, "annot").joinpath("ch1_p00.json").write_text("{}", encoding="utf-8")
+        Path(d, "NOTES.md").write_text("# notes\n", encoding="utf-8")
+        agent_writes(d, stage="done", checks={"verify_book": "clean"}, sources={"done": [1], "of": 1})
+        making._end_making(d)
+        self.assertEqual((making.state(d), making.is_making(d)), ("finished", False))
+        self.assertTrue(record(d)["finished"])
+        making.reopen(d)
+        doc = record(d)
+        self.assertEqual((making.state(d), making.is_making(d)), ("making", True), "the lock on editing is back")
+        self.assertEqual(("finished" in doc, doc["stage"], doc["checks"], doc["sources"], len(doc["parts"])),
+                         (False, "done", {"verify_book": "clean"}, {"done": [1], "of": 1}, 1))
+        self.assertEqual(Path(d, "annot", "ch1_p00.json").read_text(encoding="utf-8"), "{}")
+        self.assertEqual(Path(d, "NOTES.md").read_text(encoding="utf-8"), "# notes\n")
+        asks = Path(d, "ASKS.md").read_text(encoding="utf-8")
+        self.assertLess(asks.index("\u2014 finished"), asks.index("\u2014 reopened"))
+        self.assertIn("is taken back", asks)
+
+    def test_only_a_finished_book_is_reopened(self):
+        _into, r = made(self)
+        with self.assertRaisesRegex(ValueError, "not finished"):
+            making.reopen(r["path"])
+        os.unlink(os.path.join(r["path"], "making.json"))
+        with self.assertRaisesRegex(ValueError, "not made by an agent"):
+            making.reopen(r["path"])
+
+
+class WhatFinishWaitsFor(unittest.TestCase):
+    """The owner has not decided it (brief 5.10): ONE function says what stands in the way, and each option
+    he is offered is a change of a setting beside it -- shown here, so that none of them is more than that."""
+
+    def folder(self, **fields):
+        _into, r = made(self)
+        d = r["path"]
+        agent_writes(d, **fields)
+        return d
+
+    def test_recommended_the_agent_has_taken_every_part_and_said_it_is_idle_and_more_text_does_not_stop_it(self):
+        d = self.folder(stage="batch", on="batch 4 of 12", batches={"done": 3, "of": 12})
+        making.add_part(d, {"text": "x"}, {"label": "the last chapters"})
+        self.assertEqual(making.finish_blockers(d), [
+            "part 1 has not been taken by the agent yet", "part 2 (the last chapters) has not been taken by the agent yet",
+            "the agent has not said it is done: its record says \"batch 4 of 12\", and what it writes next is lost "
+            "once the book is finished"])
+        agent_writes(d, sources={"done": [1, 2]}, stage="waiting")
+        self.assertEqual(making.finish_blockers(d), [], "waiting for the next part is idle, and more_coming is true")
+        self.assertTrue(making.describe(d)["more_coming"])
+        agent_writes(d, stage="done")
+        self.assertEqual(making.finish_blockers(d), [])
+        self.assertEqual(making.describe(d)["blockers"], [])
+
+    def test_a_second_press_goes_through_where_the_agent_has_not_said_it_is_idle(self):
+        d = self.folder(stage="batch")
+        self.assertEqual(making.finish_gate(d)[0], False)
+        allowed, blockers = making.finish_gate(d, confirmed=True)
+        self.assertEqual((allowed, len(blockers)), (True, 2))
+        with patch.object(making, "FINISH_CONFIRMABLE", False):
+            self.assertEqual(making.finish_gate(d, confirmed=True)[0], False)
+
+    def test_option_a_nothing_but_the_second_press(self):
+        d = self.folder(stage="batch")
+        with patch.object(making, "FINISH_WAITS_FOR", ()):
+            self.assertEqual((making.finish_blockers(d), making.finish_gate(d)[0]), ([], True))
+
+    def test_option_b_the_persons_this_is_all_the_text_and_every_part_taken(self):
+        d = self.folder(stage="done", sources={"done": [1]})
+        with patch.object(making, "FINISH_WAITS_FOR", ("text", "parts", "agent")), patch.object(making, "FINISH_CONFIRMABLE", False):
+            self.assertEqual(making.finish_blockers(d), ["you have not said that this is all the text: more may be coming"])
+            self.assertEqual(making.finish_gate(d, confirmed=True)[0], False, "no second press passes it")
+            making.set_more_coming(d, False)
+            self.assertEqual(making.finish_blockers(d), [])
+            making.add_part(d, {"text": "x"})
+            self.assertEqual(making.finish_blockers(d), ["part 2 has not been taken by the agent yet"])
+
+    def test_a_book_that_is_finished_or_has_no_record_waits_for_nothing(self):
+        d = self.folder()
+        making._end_making(d)
+        self.assertEqual(making.finish_blockers(d), [])
+        os.unlink(os.path.join(d, "making.json"))
+        self.assertEqual(making.finish_blockers(d), [])
+
+    def test_a_record_the_agent_is_writing_just_now_is_said_and_not_guessed_at(self):
+        d = self.folder()
+        Path(d, "making.json").write_text('{"stage": "ba', encoding="utf-8")
+        self.assertEqual(len(making.finish_blockers(d)), 1)
+        self.assertIn("cannot be read just now", making.finish_blockers(d)[0])
+
+
 class TheBundle(unittest.TestCase):
     """What a finished book carries in its download and its backup (brief 5.9): its
     original and annot/ beside what it carried before, and never the agent's own files."""

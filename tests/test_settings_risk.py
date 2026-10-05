@@ -129,14 +129,14 @@ class Table(unittest.TestCase):
         for route, key in (("getspeech", "speech.get"), ("dropspeech", "speech.remove"),
                            ("stopspeech", "speech.stop")):
             self.assertEqual(settingspage.ROUTES["/lookup/api/" + route], (key,))
-        # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2): making its folder (which also
-        # opens the folder on this computer's screen, and shows the instructions, which name this
-        # computer's paths) and Finish (its checks and its full build, here) change what Parseh will
-        # run, so they are the computer's alone.  Reading the making panel, looking at the reader,
-        # the draft PDF and writing an ask are not settings at all: any device let in.
+        # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) HAS NO SETTING any more: it had two,
+        # making the folder and Finish, both the computer's alone, and the owner took that back on
+        # 2026-09-29 ("there is no actual reason to restrict the operations of W7 to the local").
+        # Making the folder, giving it text a part at a time, the panel, an ask, Finish and reopening
+        # are any device's; opening the folder is the computer's as a FACT about the request, and no key
         for key in ("making.folder", "making.finish"):
-            self.assertEqual(S[key][0], settingspage.RUN, key)
-            self.assertIn(key, settingspage.ELSEWHERE, "its control is not on a page of Settings")
+            self.assertNotIn(key, S, "a key nobody is refused by is a key nobody needs")
+        self.assertEqual(settingspage.ELSEWHERE, (), "no setting is left whose control is on another page")
         # YOUR OWN PROMPTS (brief §8.4, a0.4.2) are NOT risky: a prompt is text a person
         # copies into a chatbot -- keeping, importing and deleting one decides nothing
         # Parseh will run -- so both keys are open to any device that has been let in
@@ -512,59 +512,96 @@ class Served(unittest.TestCase):
             self.addCleanup(p.stop)
         return root, made
 
-    def test_a_phone_is_refused_making_a_folder_opening_it_and_finish_and_the_computer_is_not(self):
-        """A book made by an agent (TO-DO §8.40): making its folder, showing the instructions (they
-        name this computer's paths), opening the folder and Finish are the computer's alone --
-        refused a phone in the entry's own words, before the request is even looked at."""
+    def ask_raw(self, method, path, data, content_type="application/octet-stream"):
+        c = http.client.HTTPConnection("127.0.0.1", self.srv.server_address[1], timeout=60)
+        c.request(method, path, body=data, headers={"Content-Type": content_type})
+        r = c.getresponse()
+        raw = r.read()
+        c.close()
+        return r.status, json.loads(raw.decode("utf-8"))
+
+    def test_a_phone_does_everything_a_book_made_by_an_agent_has_but_open_the_folder(self):
+        """A book made by an agent (TO-DO §8.40) is open to every device let in (the owner, 2026-09-29):
+        the folder, the instructions, the panel, an ask, the text a part at a time, 'this is all the
+        text', Finish and reopening -- from a phone as from the computer.  Only opening the folder is the
+        computer's, as a fact about the request: the panel is told, and given the path to copy."""
+        import books as booklib
+        import making
         root, made = self.making_tree()
+        # nothing a door does may land in the checkout: the shelf is the temporary one, and the library page
+        # (a file make_index writes) is stood in for
+        for p in (patch.object(booklib, "BOOKS_DIR", str(root / "books")), patch.object(making, "_library_again", lambda: None),
+                  patch.object(self.serve.Handler, "_write_library", lambda s: {"ok": True, "error": ""})):
+            p.start()
+            self.addCleanup(p.stop)
         shelf_before = sorted(os.listdir(root / "books" / "italian"))
         book = "/books/italian/il-gatto"
-        computer = ((("POST", "/books/__making/instructions", {"book": {"lang": "fa", "gloss": "en"}}), 200),
-                    (("POST", "/books/__make?name=a.txt&book=%7B%7D", {}), 400),    # went on, and asked for a title
-                    (("POST", "/books/italian/nothing/__making/finish", {}), 404),  # went on, to a book that is not there
-                    (("POST", "/books/italian/nothing/__making/open", {}), 404))    # ... and so did this: no file manager was started
+        facts = '%7B%22lang%22%3A%22it%22%2C%22gloss%22%3A%22en%22%2C%22title%22%3A%22Il%20cane%22%7D'
         ps = self.as_phone()
         for p in ps:
             p.start()
         try:
-            for (method, path, body), _ok in computer:
-                status, _, got = self.ask(method, path, body)
-                key = "making.finish" if path.endswith("finish") else "making.folder"
-                self.assertEqual((status, got["error"]), (403, settingspage.refusal(key)), path)
-                self.assertIn(settingspage.RUN, got["error"])
-            # the real book's own doors are refused the same, before it is looked at
-            for door, key in (("/__making/finish", "making.finish"), ("/__making/open", "making.folder")):
-                status, _, got = self.ask("POST", book + door, {})
-                self.assertEqual((status, got["error"]), (403, settingspage.refusal(key)), door)
-            # and what it may: read the panel, write an ask, look at the draft (refused for want of a
-            # chapter, which is not a refusal of the phone)
+            status, _, got = self.ask("POST", "/books/__making/instructions", {"book": {"lang": "fa", "gloss": "en"}})
+            self.assertEqual((status, got["ok"]), (200, True), "the instructions are shown to a phone too")
+            status, got = self.ask_raw("POST", "/books/__make?name=cane.txt&book=" + facts, b"Il cane corre.\n")
+            self.assertEqual((status, got["ok"], got["here"], got["open_said"]), (200, True, False, making.OPEN_SAID), got)
+            self.assertTrue((root / "books" / "italian" / "il-cane" / "original" / "cane.txt").is_file(), "a phone made a folder")
             status, _, got = self.ask("GET", book + "/__making")
-            self.assertEqual((status, got["making"], got["may"], "path" in got),
-                             (200, True, {"folder": False, "finish": False}, False))
-            self.assertEqual(got["said"], {"folder": settingspage.refusal("making.folder"),
-                                           "finish": settingspage.refusal("making.finish")},
-                             "the panel is told the reason in the table's own words, and draws no button that would only fail")
+            self.assertEqual((status, got["making"], got["here"], got["path"]), (200, True, False, made["path"]))
+            self.assertEqual(got["open_said"], making.OPEN_SAID)
+            self.assertNotIn("may", got)
             self.assertEqual(got["name"], "Il gatto")
             status, _, got = self.ask("GET", book + "/reader/__making")
             self.assertEqual((status, got["making"]), (200, True), "the reader asks relative to itself")
             status, _, got = self.ask("POST", book + "/__making/ask", {"line": "shorter glosses"})
             self.assertEqual((status, got["ok"], got["count"]), (200, True, 1))
+            # the text, a part at a time: pasted, and as a file that is the body of the request
+            status, _, got = self.ask("POST", book + "/__making/part", {"text": "Il gatto torna.", "chapter": "new", "label": "p2"})
+            self.assertEqual((status, got["ok"], got["part"]["n"], got["part"]["chapter"]), (200, True, 2, "new"), got)
+            status, got = self.ask_raw("POST", book + "/__making/part?name=due.txt&chapter=last&join=paragraph&label=from+a+phone", b"E poi dorme.\n")
+            self.assertEqual((status, got["ok"], got["part"]["file"], got["part"]["join"]), (200, True, "original/part-003-due.txt", "paragraph"), got)
+            status, _, got = self.ask("POST", book + "/__making/more", {"more_coming": False})
+            self.assertEqual((status, got), (200, {"ok": True, "more_coming": False}))
+            status, _, got = self.ask("GET", book + "/__making")
+            self.assertEqual([(p["n"], p["state"]) for p in got["parts"]], [(1, "added"), (2, "added"), (3, "added")])
+            self.assertEqual(got["more_coming"], False)
             status, _, got = self.ask("POST", book + "/__build", {"what": "draft"})
             self.assertEqual(status, 409)
             self.assertIn("no chapter", got["error"])
-            status, _, got = self.ask("GET", book + "/__making")
-            self.assertEqual((status, got["finish"]["state"]), (200, "idle"), "no Finish ran for a refused device")
+            # opening the folder is the computer's own act: refused in words, and no file manager was started
+            status, _, got = self.ask("POST", book + "/__making/open", {})
+            self.assertEqual((status, got["ok"], got["error"], got["path"]), (403, False, making.OPEN_SAID, made["path"]))
+            self.assertFalse((root / "opened.txt").exists())
+            # Finish: the first press answers with what it waits for, and a second one starts it
+            status, _, got = self.ask("POST", book + "/__making/finish", {})
+            self.assertEqual((status, got["ok"], got["confirm"]), (409, False, True))
+            self.assertTrue(any("part 1 has not been taken" in s for s in got["blockers"]), got)
+            self.assertEqual(self.ask("GET", book + "/__making")[2]["finish"]["state"], "idle", "nothing started on the first press")
         finally:
             for p in reversed(ps):
                 p.stop()
-        for (method, path, body), want in computer:
-            status, _, got = self.ask(method, path, body)
-            self.assertEqual(status, want, (path, got))
-        status, _, got = self.ask("GET", book + "/__making")
-        self.assertEqual((got["may"], got["path"], got["said"]), ({"folder": True, "finish": True}, made["path"], {}))
-        self.assertEqual(sorted(os.listdir(root / "books" / "italian")), shelf_before,
-                         "nothing was made by a refusal, or by a request that went on and asked for more")
+        self.assertEqual(sorted(os.listdir(root / "books" / "italian")), sorted(shelf_before + ["il-cane"]))
         self.assertIn("shorter glosses", (Path(made["path"]) / "ASKS.md").read_text(encoding="utf-8"))
+        # the computer opens it, and is told it may
+        with patch.object(making, "open_folder", lambda path: None):
+            status, _, got = self.ask("POST", book + "/__making/open", {})
+        self.assertEqual((status, got["ok"], got["path"]), (200, True, made["path"]))
+        status, _, got = self.ask("GET", book + "/__making")
+        self.assertEqual((got["here"], got["path"]), (True, made["path"]))
+        # and a finished book is reopened from a phone
+        making._end_making(made["path"])
+        for p in ps:
+            p.start()
+        try:
+            status, _, got = self.ask("POST", book + "/__making/part", {"text": "x"})
+            self.assertEqual((status, got["ok"]), (409, False), "a finished book takes no part until it is reopened")
+            self.assertIn("reopen the making", got["error"])
+            status, _, got = self.ask("POST", book + "/__making/reopen", {})
+            self.assertEqual((status, got["ok"], got["state"]), (200, True, "making"))
+            self.assertEqual(self.ask("POST", book + "/__making/reopen", {})[0], 409, "only a finished book is reopened")
+        finally:
+            for p in reversed(ps):
+                p.stop()
 
     def test_the_doors_that_write_a_book_being_made_are_shut_and_say_why_until_it_is_finished(self):
         import making
@@ -573,10 +610,17 @@ class Served(unittest.TestCase):
         locked = [("POST", book + "/reader/" + door, {}) for door in
                   ("__edit/chunk", "__edit/meta", "__divide/chunk", "__struct/section",
                    "__struct/chapter", "__region/apply", "__reading/free")]
-        locked.append(("POST", book + "/__append", {"text": "more"}))
         for method, path, body in locked:
             status, _, got = self.ask(method, path, body)
             self.assertEqual((status, got.get("making"), got["error"]), (409, True, making.LOCK_SAID), path)
+        # text added to it by hand (blank chunks) would be erased by the next assembly, so it is not written:
+        # it becomes a PART, which the agent takes -- not the lock's refusal, and no chunk was touched
+        before = (Path(made["path"]) / "main.tex").read_bytes()
+        status, _, got = self.ask("POST", book + "/__append", {"text": "Il cane corre.", "chapter": "last"})
+        self.assertEqual((status, got["ok"], got["making"], got["part"]["n"], got["part"]["chapter"]), (200, True, True, 2, "last"), got)
+        self.assertEqual((Path(made["path"]) / "main.tex").read_bytes(), before)
+        status, _, got = self.ask("POST", book + "/__append", {"text": "Ancora."})
+        self.assertEqual((status, got["part"]["chapter"]), (200, "new"), "the door's own default, as it always was")
         # the doors that do not write what an agent writes are not shut: the reading place, folding a
         # run away, the builds -- each answers as it always did (here: it has nothing to act on)
         status, _, got = self.ask("POST", book + "/reader/__reading/fold", {})
@@ -588,7 +632,7 @@ class Served(unittest.TestCase):
             self.assertNotEqual(status, 409, (path, got))
         self.assertEqual(self.ask("GET", book + "/__making")[2]["making"], False)
 
-    def test_a_phone_is_shown_the_add_page_with_the_button_shut_and_the_reason(self):
+    def test_every_device_is_shown_the_same_add_page_and_the_book_being_made_is_one_to_add_to(self):
         ps = self.as_phone()
         for p in ps:
             p.start()
@@ -598,10 +642,14 @@ class Served(unittest.TestCase):
             for p in reversed(ps):
                 p.stop()
         _, _, computer = self.ask("GET", "/books/add/")
-        for page, may in ((phone, False), (computer, True)):
+        self.assertEqual(phone, computer, "no part of the page is shut by who is asking")
+        for page in (phone, computer):
             data = json.loads(page.split('<script id="data" type="application/json">', 1)[1].split("</script>", 1)[0])
-            self.assertEqual(data["may_make"], may)
-            self.assertEqual(data["may_said"], settingspage.refusal("making.folder"))
+            self.assertNotIn("may_make", data)
+            self.assertNotIn("may_said", data)
+            self.assertNotIn("computer only", page.lower())
+            self.assertIn('id="apfile"', page, "text may be sent as a file, with its PDF pages")
+            self.assertIn('id="alltext"', page, "this is all the text, said where the folder is made")
 
     def test_a_phone_may_get_and_remove_a_download(self):
         import download
