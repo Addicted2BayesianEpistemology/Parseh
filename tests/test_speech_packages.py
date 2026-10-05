@@ -9,7 +9,6 @@ import stat
 import sys
 import tempfile
 import threading
-import time
 import types
 import unittest
 from unittest.mock import patch
@@ -224,9 +223,27 @@ class Starts(unittest.TestCase):
 
     def test_simultaneous_starts_share_one_job_and_cancellation_event(self):
         planning, continue_plan, building = threading.Event(), threading.Event(), threading.Event()
-        seen, answers = [], []
+        first_ready = threading.Event()
+        seen, answers, errors, workers = [], [], [], []
+        thread_type = threading.Thread
+
+        def start(first=False):
+            try:
+                answers.append(self.serve.reading_start('speech', 'fa-fast'))
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                if first:
+                    first_ready.set()
+
+        def worker_thread(*args, **kwargs):
+            worker = thread_type(*args, **kwargs)
+            workers.append(worker)
+            return worker
+
         def plan(*_args, **_kw):
             planning.set()
+            first_ready.set()
             self.assertTrue(continue_plan.wait(3))
             return {'download': 10, 'disk_peak': 10}
         def build(*_args, cancel=None, **_kw):
@@ -237,25 +254,45 @@ class Starts(unittest.TestCase):
         fake = types.SimpleNamespace(plan=plan, build=build)
         with patch.object(self.serve, '_reading_module', return_value=fake), \
                 patch.object(self.serve, 'disk_free', return_value=1 << 30), \
-                patch.object(getstt, 'unavailable_reason', return_value=''):
-            first = threading.Thread(target=lambda: answers.append(self.serve.reading_start('speech', 'fa-fast')))
-            second = threading.Thread(target=lambda: answers.append(self.serve.reading_start('speech', 'fa-fast')))
-            first.start()
-            self.assertTrue(planning.wait(3))
-            second.start()
-            continue_plan.set()
-            self.assertTrue(building.wait(3))
-            first.join(3); second.join(3)
-            self.assertFalse(first.is_alive() or second.is_alive())
-            self.assertEqual(len(seen), 1)
-            self.assertEqual(sum(answer.get('already', False) for answer, _code in answers), 1)
-            self.assertIs(self.serve.CANCELS[('speech', 'fa-fast')], seen[0])
-            self.assertTrue(self.serve.reading_stop('speech', 'fa-fast'))
-            deadline = time.monotonic() + 3
-            while self.serve.STT_JOBS['fa-fast']['running'] and time.monotonic() < deadline:
-                time.sleep(.01)
+                patch.object(getstt, 'unavailable_reason', return_value=''), \
+                patch.object(self.serve.threading, 'Thread', side_effect=worker_thread):
+            first = thread_type(target=start, kwargs={'first': True})
+            second = thread_type(target=start)
+            callers = [first]
+            try:
+                first.start()
+                # A failed start signals immediately too, exposing its actual
+                # exception rather than reporting a misleading planning timeout.
+                self.assertTrue(first_ready.wait(3))
+                self.assertEqual(errors, [])
+                self.assertTrue(planning.is_set(), answers)
+                second.start()
+                callers.append(second)
+                continue_plan.set()
+                for caller in callers:
+                    caller.join(3)
+                    self.assertFalse(caller.is_alive())
+                self.assertEqual(errors, [])
+                self.assertTrue(building.wait(3))
+                self.assertEqual(len(workers), 1)
+                self.assertEqual(len(seen), 1)
+                self.assertEqual(sum(answer.get('already', False) for answer, _code in answers), 1)
+                self.assertIs(self.serve.CANCELS[('speech', 'fa-fast')], seen[0])
+                self.assertTrue(self.serve.reading_stop('speech', 'fa-fast'))
+                workers[0].join(3)
+                self.assertFalse(workers[0].is_alive())
+            finally:
+                continue_plan.set()
+                for caller in callers:
+                    caller.join(3)
+                for cancel in seen:
+                    cancel.set()
+                for worker in workers:
+                    worker.join(3)
         self.assertTrue(self.serve.STT_JOBS['fa-fast']['stopped'])
         self.assertFalse(self.serve.STT_JOBS['fa-fast']['running'])
+        self.assertEqual(self.serve.STT_JOBS['fa-fast']['error'], '')
+        self.assertNotIn(('speech', 'fa-fast'), self.serve.CANCELS)
 
     def test_installed_model_restores_missing_runtime_without_copying_weights(self):
         ready = [False]

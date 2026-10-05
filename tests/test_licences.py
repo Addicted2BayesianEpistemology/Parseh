@@ -241,11 +241,24 @@ class Page(unittest.TestCase):
                                 (getmt.MODEL_SOURCE, getmt.MODEL_LICENCE),
                                 ("bergamot-translator " + getmt.ENGINE_VERSION, getmt.ENGINE_LICENCE),
                                 (getsyn.SOURCE, getsyn.LICENCE),
-                                # speech to text: the program, and the two models
-                                (getstt.SOURCE, getstt.LICENCE),
-                                (getstt.MODEL_SOURCE, getstt.MODEL_LICENCE)):
+                                # Speech to text's program; model sources now come
+                                # from the shared catalogue, rather than one old line.
+                                (getstt.SOURCE, getstt.LICENCE)):
             self.assertIn(source, text)
             self.assertIn(licence, text)
+        self.assertIn('OpenAI Whisper large-v3-turbo and large-v3', text)
+        for model in getstt.MODELS:
+            info = getstt.MODEL_INFO[model]
+            self.assertIn(info['label'], text)
+            self.assertIn(info['source'], text)
+            self.assertIn(info['licence'], text)
+            self.assertIn(info['licence'], notices.LICENCE_URLS)
+            package = getstt.MODEL_PINS.get(model)
+            if package:
+                self.assertIn(package['repo'], text)
+                package_licence = info.get('package_licence') or info['licence']
+                self.assertIn(package_licence, text)
+                self.assertIn(package_licence, notices.LICENCE_URLS)
         # the program carries more than one licence, each said with what carries it
         for what, licence in getstt.RUNTIME_LICENCES:
             self.assertIn(what, text)
@@ -271,6 +284,20 @@ class Page(unittest.TestCase):
         named += [p["licence"] for p in decomposition.PACKS.values()]
         for licence in named:
             self.assertIn(licence, notices.LICENCE_URLS, licence)
+
+    def test_speech_model_credits_distinguish_source_and_package_licences(self):
+        import getstt
+        import notices
+        credits = notices.speech_credits()
+        for model in getstt.MODELS:
+            info = getstt.MODEL_INFO[model]
+            source, licence = credits['speech:' + model]
+            self.assertIn(info['source'], source)
+            self.assertIn(notices.licence_link(info['licence']), licence)
+            package_licence = info.get('package_licence')
+            if package_licence and package_licence != info['licence']:
+                self.assertIn('(source)', licence)
+                self.assertIn(notices.licence_link(package_licence) + ' (CTranslate2 package)', licence)
 
 
 def hub_html():

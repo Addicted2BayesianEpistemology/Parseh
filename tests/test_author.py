@@ -12,6 +12,8 @@ section carry his name beside "the author", the two links and the line
 "Copyright (c) 2026 Bruno Ursino".  Never in what a person makes or keeps --
 a book's reader, a document, a deck, a card, a PDF, an exported page.  Links
 only: nothing is fetched from either address.
+The installation's About settings page also carries his name and the two
+links; it is Parseh's own chrome, rather than user-authored content.
 
 Here: the two addresses and the name live once, and GitHub's is the account
 Parseh's own repository is under; the module needs nothing but the standard
@@ -250,6 +252,15 @@ class TheFoots(unittest.TestCase):
         self.assertIn('<p class="by">Copyright &copy; 2026 Bruno Ursino, the author of Parseh &mdash; %s</p>' % author.links(), page)
         self.assertEqual(len(external(page[page.index("<h2>Parseh</h2>"):page.index("<h2>What it carries</h2>")])), 2)
 
+    def test_about_names_the_author_and_links_both_on_its_own_page(self):
+        import aboutpage
+        page = aboutpage.page('host')
+        main = page[page.index('<main class="settings tools">'):page.index('</main>')]
+        self.assertIn('<dt>Author</dt><dd><code>' + author.NAME + '</code></dd>', main)
+        self.check_two(main, 'About settings')
+        self.assertEqual(page.count(GITHUB), 1)
+        self.assertEqual(page.count(SITE), 1)
+
     def test_the_readme_says_it_in_its_license_section(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         head, licence = readme.split("\n## License", 1)
@@ -284,11 +295,11 @@ class NotInWhatAPersonMakes(unittest.TestCase):
                 self.assertEqual(self.has(path.read_text(encoding="utf-8")), [], rel)
 
     # THE FILES THAT MAY IMPORT lib/author.py, and no others: Parseh's own chrome (the hub, the
-    # Settings hub, the Licences page) and the guide's compiler.  The signature's words live in that
+    # Settings hub, About and Licences pages) and the guide's compiler. The signature's words live in that
     # one module, so a writer of what a person keeps -- a shelf's backup, a bundle, a PDF's source, a
     # deck -- could add it by importing it, and contain none of the words the list above looks for.
     # Widening this list is the owner's decision.
-    IMPORTERS = {"serve.py", "lib/notices.py", "lib/settingspage.py",
+    IMPORTERS = {"serve.py", "lib/notices.py", "lib/settingspage.py", "lib/aboutpage.py",
                  "html-guide/engine/studio.py", "html-guide/engine/site.py"}
 
     @staticmethod

@@ -1929,9 +1929,11 @@ def _reading_start(kind, key, queue=None, wait=False, _import_cancel=None):
             return {"ok": False, "error": "%s is written without spaces between its words, "
                     "so its dictionary comes first: the sentences are cut into words "
                     "with it" % languages.LANGS[code].name}, 409
-    if kind == "speech" and key not in getstt.PHONETIC_PARTS and getstt.unavailable_reason():
-        # NO BUTTON WAS OFFERED, and a route asked anyway is told why
-        return {"ok": False, "error": getstt.unavailable_reason()}, 409
+    if kind == "speech":
+        unavailable = getstt.unavailable_reason()
+        if unavailable:
+            # NO BUTTON WAS OFFERED, and a route asked anyway is told why.
+            return {"ok": False, "error": unavailable}, 409
     try:
         plan = reading_plan(kind, key)
     except Exception as e:

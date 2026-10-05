@@ -34,6 +34,9 @@
 - Studio and exported word clouds are linguistic only; foreground colour is applied from the source editor
 
 ### Fixed
+- Speech program and model downloads no longer fail before their progress starts
+- Exported guides include the segmented-colour parser needed for independent builds
+- Speech model notices list every catalogue source and converted package with its own licence
 - Persian dictionary lookup recognizes colloquial copulas and combined nominal endings, with direct entries preferred and dictionary-backed stem guards
 - LM likelihood candidate search preserves source whitespace with SentencePiece tokenizers, including PersianMind
 - Partial-word colours compile and remain visible in PDFs, including headings, target-language blocks and exercise prompts

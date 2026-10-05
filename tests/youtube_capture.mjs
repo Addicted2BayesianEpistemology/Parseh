@@ -362,6 +362,9 @@ os.chdir(str(REPO))
 if os.environ.get("ADD_STT_FAKE"):
     import addstt_fakes
     sys.modules["getstt"] = addstt_fakes.make(os.environ["ADD_STT_FAKE"])
+    import speechconfig
+    speechconfig.CONFIG = tmp / "config" / "speech.json"
+    sys.modules["getstt"].preferences_file = speechconfig.CONFIG
 import audiofile, clips, decks, store
 clips.set_dir(tmp / "tray")
 import serve, ytpages

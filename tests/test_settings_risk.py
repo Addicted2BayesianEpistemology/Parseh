@@ -966,10 +966,14 @@ class Served(unittest.TestCase):
     def test_a_computer_that_cannot_run_the_program_is_told_why_and_nothing_starts(self):
         import getstt
         with patch.object(getstt, "unavailable_reason", lambda: "This Parseh runs on Python 3.11, and the "
-                                                                "speech program is built for Python 3.12 only."):
-            status, _, got = self.ask("POST", "/lookup/api/getspeech", {"key": "runtime"})
-        self.assertEqual(status, 409)
-        self.assertIn("Python 3.12", got["error"])
+                                                                "speech program is built for Python 3.12 only."), \
+                patch.object(self.serve, "reading_plan") as plan:
+            for key in getstt.PARTS:
+                with self.subTest(key=key):
+                    status, _, got = self.ask("POST", "/lookup/api/getspeech", {"key": key})
+                    self.assertEqual(status, 409)
+                    self.assertIn("Python 3.12", got["error"])
+            plan.assert_not_called()
         self.assertEqual(self.serve.STT_JOBS, {})
 
     def test_a_name_that_is_not_a_part_never_reaches_a_folder(self):

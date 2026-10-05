@@ -13,6 +13,7 @@ without loading the studio's renderer into its own process.
 MODULE_FILES = ("lib/languages.py", "lib/languages.json", "lib/latexthemes.py",
                 "lib/author.py",
                 "markdown/exlex/mdparser.py", "markdown/exlex/texgen.py",
+                "markdown/exlex/segcolour.py",
                 "markdown/app/htmlgen.py")
 # the licences the fonts travel with (lib/fonts/): copied into
 # site/_parseh/fonts/ beside the fonts themselves

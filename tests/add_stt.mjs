@@ -116,6 +116,7 @@ sys.modules['getstt'] = addstt_fakes.make(str(tmp.parent / 'fake'))
 import prefs, network, offline, llmconfig
 import speechconfig
 speechconfig.CONFIG = tmp / 'config/speech.json'
+sys.modules['getstt'].preferences_file = speechconfig.CONFIG
 llmconfig.ROOT = str(tmp)
 prefs.STORE = str(tmp / 'config' / 'prefs.json')
 network.STORE = str(tmp / 'config' / 'network.json')

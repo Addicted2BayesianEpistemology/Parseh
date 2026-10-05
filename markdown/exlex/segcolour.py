@@ -6,6 +6,8 @@ module deliberately uses a small scanner, rather than a regular expression:
 ``[[slot]]`` was Parseh's exercise-blank syntax first, and only a complete
 run containing at least one valid inner colour piece belongs to this feature.
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 import re
 

@@ -25,13 +25,15 @@ def _selections(raw):
     return dict(raw)
 
 
-def load():
+def load(path=None):
+    """Read host preferences, or an explicitly isolated fixture's file."""
+    path = CONFIG if path is None else Path(path)
     defaults = {'format_version': STORE_FORMAT, 'second_pass': True,
                 'models_by_language': {}}
     try:
-        if CONFIG.stat().st_size > 16384:
+        if path.stat().st_size > 16384:
             return defaults
-        raw = json.loads(CONFIG.read_text(encoding='utf-8'))
+        raw = json.loads(path.read_text(encoding='utf-8'))
         if (not isinstance(raw, dict) or raw.get('format_version') != STORE_FORMAT
                 or type(raw.get('second_pass')) is not bool):
             return defaults

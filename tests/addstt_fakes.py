@@ -24,14 +24,17 @@ state.json:
     no_lang   [code]   languages Whisper does not know (a person's own, say)
     busy      bool     an install or a transcription is running elsewhere
 """
+from copy import deepcopy
 import json
 import os
+from pathlib import Path
 import sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import stt_fakes                                              # noqa: E402
+import speechconfig                                          # noqa: E402
 
 MODELS = stt_fakes.MODELS
 NOT_READY = ("The graphics card is not ready for speech to text: it needs cuBLAS for CUDA 12 "
@@ -59,6 +62,7 @@ def make(root):
     no graphics card (stt_fakes' own default is a card that is not ready)."""
     fresh = not os.path.exists(os.path.join(root, "state.json"))
     mod = stt_fakes.make(root)
+    mod.preferences_file = Path(root) / 'speech.json'
     if fresh:
         configure(root, cuda={"ready": False, "name": "", "why": ""})
 
@@ -73,6 +77,24 @@ def make(root):
         ready = bool(cuda["ready"])
         why = "" if ready else (NOT_READY if cuda["name"] else NO_CARD)
         info = mod.MODEL_INFO
+        models = []
+        for key in MODELS:
+            # Preserve the real catalogue's language restrictions, provenance
+            # and package availability. Only installation state is invented.
+            model = deepcopy(info[key])
+            model.update(id=key, have=key in have, ready=key in have,
+                         size=1 << 30 if key in have else 0,
+                         download=mod.MEASURED.get(key))
+            pin = mod.MODEL_PINS.get(key, {})
+            model['revision'] = pin.get('revision', '') if key in have else ''
+            if pin.get('distribution') == 'local-package':
+                model.update(package={'name': pin['package_name'], 'size': pin['package_size'],
+                                      'sha256': pin['package_sha256']}, package_imported=False)
+            models.append({name: model.get(name) for name in
+                           ('id','label','tag','hint','have','ready','size','download','languages',
+                            'language','option','available','availability_reason','compatibility',
+                            'source','revision','package_revision','licence','fully_compatible',
+                            'distribution','package','package_imported')})
         no = set(st.get("no_lang") or [])
         import languages
         aligners = []
@@ -88,10 +110,8 @@ def make(root):
                 "installed": bool(runtime and have),
                 "runtime": {"state": "ready" if runtime else "absent",
                             "version": "1.2.1" if runtime else "", "why": ""},
-                "models": [{"id": k, "label": info[k]["label"], "tag": info[k]["tag"],
-                            "hint": info[k]["hint"], "have": k in have, "ready": k in have,
-                            "size": 1 << 30 if k in have else 0,
-                            "download": 1 << 30} for k in MODELS],
+                "models": models,
+                "preferences": speechconfig.load(mod.preferences_file),
                 "aligners": aligners,
                 "default_model": have[0] if have else None,
                 "processing": [

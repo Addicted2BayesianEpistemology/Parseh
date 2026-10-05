@@ -12,6 +12,7 @@ in a few places and no more --
   * his name beside "the author", and the same two links, on the Licences
     page (lib/notices.py) and in the README's License section, where the
     copyright line is "Copyright (c) 2026 Bruno Ursino".
+  * his name and the two links on the installation's About settings page.
 
 NEVER in what a person makes or keeps: a book's reader, a document, a deck, a
 card, a printed page, an exported page.  tests/test_author.py holds that.
