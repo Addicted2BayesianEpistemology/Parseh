@@ -27,8 +27,8 @@ chat yourself, and **Parseh never starts anything** for you.
 
 Each is made **when you ask for it**, from the same parts the prompts are made of, with
 the languages this computer has — one you added included — and kept nowhere. So a skill
-never says one thing where the prompt says another: the tests make both for every
-language, mode and choice and hold them equal.
+and a prompt never say different things: for the same request they hand the chatbot the
+same words.
 
 ## Downloading one
 

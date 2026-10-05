@@ -398,8 +398,8 @@ def _gloss_sym():
                            "english", "ltr")
 
 
-def _scratch_file(L, translit, marks):
-    """references/scratch/<code>.md: the instructions for a video from its captions, in this language."""
+def _whole_video_file(L, translit, marks):
+    """references/whole-video/<code>.md: the instructions for a video from its captions, in this language."""
     import ytpages
     a = ytpages.assembled_chat(None, L, _gloss_sym(), options=_opts(translit, marks))
     body = "\n\n".join(x for x in (a.instructions, a.contract) if x)
@@ -423,7 +423,7 @@ def _gloss_table():
 def _build_gloss():
     refs, rows, notes = {}, [], {}
     for L in _langs():
-        kinds = (("stretch", "video-region", _stretch_file), ("scratch", "video-new", _scratch_file))
+        kinds = (("stretch", "video-region", _stretch_file), ("whole-video", "video-new", _whole_video_file))
         files = []
         for folder, surface, make in kinds:
             for translit, marks in _variants(surface, L):
@@ -459,7 +459,7 @@ def _build_gloss():
         "1. This skill's hash is `%s` (Parseh `@@version@@`). If the header's hash is another one, say in ONE line "
         "that the request is for a newer parseh-gloss than the one installed, and go on as well as you can." % MARK_HASH,
         "2. Open the ONE file the header points to, and no other. For a stretch of a book or of a video: "
-        "`references/stretch/<language><choices>.md`; for a video from scratch: `references/scratch/<language>"
+        "`references/stretch/<language><choices>.md`; for a video from scratch: `references/whole-video/<language>"
         "<choices>.md`. `<language>` is the code before the arrow. `<choices>` is `-ipa` when the header says "
         "`translit: ipa`, then `-marks` when it says `marks: on`, and nothing otherwise. The files that exist "
         "are listed under \"Languages\" below; a language that is not listed has none, and you say so.",
@@ -504,8 +504,8 @@ def read_gloss(files, request):
     the header, as one text (its whole instructions and contract, `squeeze`d as a prompt's parts are)."""
     h = parse_header(request)
     what, lang = h["what"], h["lang"]
-    folder = "scratch" if what == WHAT["video-new"] else "stretch"
-    surface = "video-new" if folder == "scratch" else "video-region"
+    folder = "whole-video" if what == WHAT["video-new"] else "stretch"
+    surface = "video-new" if folder == "whole-video" else "video-region"
     suffix = ("-ipa" if h.get("translit") == "ipa" else "") + ("-marks" if h.get("marks") == "on" else "")
     path = "references/%s/%s%s.md" % (folder, lang, suffix)
     if path not in files:
@@ -953,6 +953,8 @@ def build(name, sources=None):
     if name not in BUILDERS:
         raise SkillError("%r is not a skill of Parseh's (they are: %s)" % (name, ", ".join(NAMES)))
     if sources is not None:
+        if name != "parseh-book":
+            raise SkillError("only the book's skill is made from a folder of sources")
         return _build_book(sources)
     fp = _fingerprint()
     if name not in _CACHE or _CACHE[name][0] != fp:
@@ -1087,7 +1089,8 @@ def compose(header, data, added=None):
 
 def _fields(surface, L, options, name):
     out = [tuple(f.split(": ", 1)) for f in promptkit.header_fields(surface, L, options)]
-    return out + ([("custom", name.replace(SEP.strip(), "-"))] if name else [])
+    # THE NAME IS FREE TEXT in a line whose fields are parted by ` · ` and which ends at ` — `: neither is let in it
+    return out + ([("custom", re.sub(r"\s*[·—\n]+\s*", " - ", name).strip())] if name else [])
 
 
 def for_region(surface, a, L, G, mode, chosen=None):

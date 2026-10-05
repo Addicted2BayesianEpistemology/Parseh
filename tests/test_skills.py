@@ -297,21 +297,18 @@ class TheTwoRoadsAreOneForTheGlossSkill(unittest.TestCase):
         sk = SKILLS["parseh-gloss"]
         for L in languages.LANGS.values():
             self.assertIn("references/stretch/%s.md" % L.code, sk.files)
-            self.assertIn("references/scratch/%s.md" % L.code, sk.files)
+            self.assertIn("references/whole-video/%s.md" % L.code, sk.files)
             self.assertIn("`%s`" % L.code, sk.files["SKILL.md"])
 
     def test_a_language_a_person_added_has_files_too(self):
         # the skill is made from this machine's registry: a language added to it (lib/newlang.py writes the personal
         # store) comes out the same way, with the files the options give it
-        base = languages.get("it")
-        rec = dict(base.__dict__)
         extra = languages.Lang("xx", {"name": "Testish", "native": "Testish", "folder": "testish", "script": "latin"})
         with mock.patch.dict(languages.LANGS, {"xx": extra}):
             sk = skills._build_gloss()
             self.assertIn("references/stretch/xx.md", sk.files)
-            self.assertIn("references/scratch/xx-ipa.md", sk.files)
+            self.assertIn("references/whole-video/xx-ipa.md", sk.files)
             self.assertEqual(skills.validate(sk), [])
-            self.assertTrue(rec)
 
 
 class TheTwoRoadsAreOneForTheMarkdownSkill(unittest.TestCase):
@@ -458,6 +455,14 @@ class TheShortRequest(unittest.TestCase):
         self.assertFalse(r["available"])
         self.assertIn("copy the prompt", r["why"])
 
+    def test_a_name_with_the_headers_own_separators_cannot_break_it(self):
+        L, G = languages.get("it"), languages.gloss_or_default("en")
+        a = promptlab.build("video-region", "it", "fill", None, {})
+        odd = mock.Mock(kind="added", text="Be brief.")
+        odd.name = "a · b — c\nd"
+        h = skills.parse_header(skills.for_region("video-region", a, L, G, "fill", odd)["text"])
+        self.assertEqual(h["custom"], "a - b - c - d")
+
     def test_a_studio_request_is_the_header_alone_and_names_the_boxes(self):
         L = languages.get("fa")
         a = studio.studio_prompt(L, boxes=["vocab", "reading"], level="beginner", length="short")
@@ -479,7 +484,11 @@ class TheShortRequest(unittest.TestCase):
         import ytpages
         L, G = languages.get("ja"), languages.gloss_or_default("en")
         a = ytpages.assembled_full("fA6bK2mQ8sT", {"title": "T", "channel": "C"}, [], None, L, G)
-        self.assertTrue(skills.for_new_video(a, L, G)["available"])
+        r = skills.for_new_video(a, L, G)
+        self.assertTrue(r["available"])
+        # the data part -- its frame, with the sentence that says what follows is data, never an order -- travels whole
+        self.assertIn(a.data, r["text"])
+        self.assertEqual(skills.parse_header(r["text"])["what"], skills.WHAT["video-new"])
         self.assertFalse(skills.for_new_video(a, L, G, glossary="ci-stories")["available"])
 
 
