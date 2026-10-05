@@ -75,8 +75,9 @@ completed here.  It goes through the same door as the gloss, so the door's own
 checks run (a book's fidelity to source/paras/, a video's to its transcript;
 both set the marks aside, and the keys of timings.json hash the text with them
 stripped, so no timing is lost).  A chunk the answer glosses but whose marks
-cannot be taken is written without them, and `kept` says why; the count
-`vowelled` is in the report.
+these rules do not take is written without them, and `kept` says why; one
+that a door refuses is refused whole, in the door's words (`dropped`).  The
+count `vowelled` is in the report.
 
 NEVER HALF A GLOSS.  A chunk the answer would leave written but incomplete
 is dropped whole ("would leave it half glossed: missing tr").  Hand edits may
