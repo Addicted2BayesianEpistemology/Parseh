@@ -1,6 +1,6 @@
 # French — the annotation conventions
 
-How a French sentence becomes a glossed line: what goes into each field and
+{{?new}}How a French sentence becomes a glossed line: what goes into each field and
 how it is written. These rules bind both the reading editions and the video
 captions; they are embedded whole into every prompt that asks for French
 annotation, so they are written as instructions to the annotator.
@@ -14,7 +14,7 @@ in is the book's or the video's own choice, `"gloss"` in `book.json` /
 `video.json`, and English when the key is absent. This file is about French
 as the language being **taught**: the examples below gloss into English
 because they must gloss into something, and every rule that turns on the
-gloss language says so.
+gloss language says so.{{/new}}
 
 ## The text field
 
@@ -23,12 +23,12 @@ apostrophes, same punctuation, the source's own oddities included — a
 nineteenth-century spelling, a reform spelling, a regionalism, an ASR slip in
 a caption. Chunks split only at spaces; joined back with single spaces they
 must reproduce the sentence exactly, and a machine checks that. **Never
-correct the text in `fa`** — the correction goes in `note` (videos) or in the
-vocabulary line (books).
+correct the text in `fa`**{{?new}} — the correction goes in
+{{?video}}`note`{{/video}}{{?book}}the vocabulary line{{/book}}{{/new}}.
 
-French is plain text: nothing is written in for the first pass and nothing
-comes off for a bare one, because every mark on the page is spelling and not
-help. Keep, exactly as the source has them:
+French is plain text: nothing is written in and nothing comes off, because
+every mark on the page is spelling and not help. Keep, exactly as the source
+has them:
 
 - the **accents**, including the ones that are the whole difference between
   two words (`ou` / `où`, `a` / `à`, `sur` / `sûr`, `du` / `dû`), and their
@@ -53,7 +53,7 @@ ordinary space and the no-break space a well-set source uses both pass;
 deleting one does not. How wide it is printed is the edition's business, not
 yours. Keep `«` and `»` themselves as well, and never swap them for `"`.
 
-French has no character range of its own in the registry and could not be
+{{?studio}}French has no character range of its own in the registry and could not be
 given one: it is written in the alphabet the toolbox's own prose is written
 in, and its accents are a few letters of a word rather than a script. So
 nothing detects a run of French — and where the glosses are in another
@@ -61,7 +61,7 @@ Latin-script language, English or Italian or Turkish, a `é` or a `ç` is the
 only thing that ever tells the two apart by eye, on the words that have one.
 Wherever the format asks you to mark the target text (a studio document's
 `[…]{tl}` mark), mark every French run; in a book chunk or a video chunk `fa`
-is French by definition and needs no mark.
+is French by definition and needs no mark.{{/studio}}
 
 ## Reading
 
@@ -79,9 +79,9 @@ nothing can be got wrong — a figure (`1914`), an interjection (`Ah !`), a word
 the gloss language says the same way (`le film`) — not a licence to skip a
 chunk because its words are common: `Oui` and `Bonjour` both need one. Write
 it for the **whole chunk** or not at all, in lower case even where it has a
-capital (`Paris` → `pari`), and without punctuation.
+capital ({{?classic}}`Paris` → `pari`{{/classic}}{{?ipa}}`Paris` → `paʁi`{{/ipa}}), and without punctuation.
 
-The scheme is a respelling, not IPA. Every symbol it uses is below, and it
+{{?classic}}The scheme is a respelling, not IPA. Every symbol it uses is below, and it
 uses no other. It is one scheme for every French edition whatever the
 glosses are written in, and the English words a symbol is explained by here
 (*yes*, *wet*) are there to fix the sound, not to say who the reader is.
@@ -162,7 +162,54 @@ The rules the symbols are used by:
 7. **No letter is doubled.** French does not hold a consonant: `elle` → `èl`,
    `donner` → `dòné`, `attendre` → `atãdr`.
 8. Words are spaced as the chunk spaces them, except where an elision or a
-   liaison has joined two of them.
+   liaison has joined two of them.{{/classic}}{{?ipa}}The scheme is **IPA**: broad (phonemic), for standard French, with no slashes
+and no square brackets round it. It is one scheme for every French edition
+whatever the glosses are written in. One symbol is one sound, and the letters
+`a b d e f i k l m n o p s t v z` keep the values they have in French, `g` being
+the ordinary letter; the others are:
+
+- the vowels the letter does not give: `ɛ` the open e (`mère` → `mɛʁ`), `e` the
+  closed one (`été` → `ete`), `ɔ` the open o (`botte` → `bɔt`) and `o` the
+  closed one (`beau` → `bo`), `y` for *u* (`tu` → `ty`), `u` for *ou* (`tout` →
+  `tu`), `ø` and `œ` for *eu* (`peu` → `pø`, `peur` → `pœʁ`), `ə` the mute e;
+- the **nasal vowels**, each one sound with its tilde: `ɑ̃` (`grand` → `gʁɑ̃`),
+  `ɛ̃` (`vin` → `vɛ̃`, `brun` → `bʁɛ̃`: `un` and `in` have fallen together for
+  most speakers) and `ɔ̃` (`bon` → `bɔ̃`);
+- the glides `j` (`bien` → `bjɛ̃`, `billet` → `bijɛ`), `w` (`moi` → `mwa`) and
+  `ɥ` (`lui` → `lɥi`, `huit` → `ɥit`);
+- the consonants `ʁ`, the French r (`rue` → `ʁy`), `ʃ` (`chat` → `ʃa`), `ʒ`
+  (`je` → `ʒə`, `gens` → `ʒɑ̃`) and `ɲ` (`agneau` → `aɲo`); `c`, `h`, `q`, `r`
+  and `x` never appear in the line, so write the sound: `cinq` → `sɛ̃k`, `exact`
+  → `ɛgza`.
+
+The rules the symbols are used by:
+
+1. **Only sounds are written**, so a silent letter is simply not there:
+   `petit` → `pəti`, `les livres` → `le livʁ`, `ils parlent` → `il paʁl`; the
+   `-ment` of an adverb is sounded (`lentement` → `lɑ̃tmɑ̃`).
+2. **A liaison takes the tie `‿`.** A consonant that is silent alone but
+   sounded before a vowel is written at the head of the word it moves to,
+   joined to the word before it by `‿` — and the tie is used for nothing else:
+   `les amis` → `le‿zami`, `vous avez` → `vu‿zave`, `c'est un` → `sɛ‿tɛ̃`,
+   `un grand homme` → `ɛ̃ gʁɑ̃‿tɔm`. Where the liaison is *not* made the words
+   stay apart: after `et` (`et il` → `e il`) and before an aspirate h (`les
+   héros` → `le eʁo`).
+3. **An elision makes one word**, and the apostrophe does not survive into the
+   line: `l'homme` → `lɔm`, `j'ai` → `ʒe`, `qu'il` → `kil`, `d'abord` →
+   `dabɔʁ`.
+4. **A nasal vowel is one sound**: nothing is sounded after the tilde, and a
+   following vowel or a doubled consonant undoes the nasal. `bon` → `bɔ̃` but
+   `bonne` → `bɔn`; `an` → `ɑ̃` but `Anne` → `an`; `plein` → `plɛ̃` but
+   `pleine` → `plɛn`.
+5. **The mute e is written `ə` where it is said and left out where it is
+   not.** In `petit` it is said (`pəti`); in `samedi` and `maintenant` it is
+   not (`samdi`, `mɛ̃tnɑ̃`). A page read carefully keeps more of them than a
+   speaker does, so a caption follows the speaker.
+6. **Nothing marks stress or length.** French stresses the last full syllable
+   of the group and nowhere else, and holds no consonant: `elle` → `ɛl`,
+   `donner` → `dɔne`.
+7. Words are spaced as the chunk spaces them, except where an elision or a
+   liaison has joined two of them.{{/ipa}}
 
 ## Vocabulary
 
@@ -182,8 +229,9 @@ the gloss language rather than a string of synonyms, no etymologies, and
   carries its pronoun in the first two slots — `se lever`, `me lève`;
   `s'approcher`, `m'approche` — and its participle bare. A verb with **no
   first person** (`falloir`, `pleuvoir`, `neiger`) gives its third, with
-  `il`: `\vb{falloir}{falwar}{il faut}{il fo}{fallu}{falü}{to be necessary
-  (fut. \pw{il faudra} \textit{il fodra})}`.
+  `il`: {{?classic}}`\vb{falloir}{falwar}{il faut}{il fo}{fallu}{falü}{to be necessary
+  (fut. \pw{il faudra} \textit{il fodra})}`{{/classic}}{{?ipa}}`\vb{falloir}{falwaʁ}{il faut}{il fo}{fallu}{faly}{to be necessary
+  (fut. \pw{il faudra} \textit{il fodʁa})}`{{/ipa}}.
 - What the three cannot say goes in **one parenthesis after the meaning**,
   items parted by `; `, in this order and these words, each **only where it
   is not the ordinary case**:
@@ -191,41 +239,48 @@ the gloss language rather than a string of synonyms, no etymologies, and
     pronominal verb — or `aux. être/avoir` for one that takes both
     (`monter`, `passer`, `sortir`). *avoir* is the default and is never
     printed.
-  - `nous \pw{prenons} \textit{prenõ}`, the first person plural, where it
+  - {{?classic}}`nous \pw{prenons} \textit{prenõ}`{{/classic}}{{?ipa}}`nous \pw{prenons} \textit{pʁənɔ̃}`{{/ipa}}, the first person plural, where it
     is not the infinitive's stem + `-ons` — `prendre` (prenons), `boire`
     (buvons), `faire` (faisons), `écrire` (écrivons), `être` (sommes);
     nothing where it is (`parlons`, `venons`, `voulons`, `avons`), nor for
     the spelling of `commençons` and `mangeons`, nor for `finir`'s
     `finissons`. So a reader shown no *nous* form builds the plural, and the
     imperfect with it, from the infinitive — and is right.
-  - `fut. \pw{irai} \textit{iré}`, the first person of the future, where it
+  - {{?classic}}`fut. \pw{irai} \textit{iré}`{{/classic}}{{?ipa}}`fut. \pw{irai} \textit{iʁe}`{{/ipa}}, the first person of the future, where it
     is not built on the infinitive (`irai`, `viendrai`, `ferai`, `pourrai`,
     `saurai`, `verrai`, `cueillerai`). An `-er` verb's future built on its
     own present counts as built on it: `lèverai`, `jetterai`, `appellerai`
     need nothing, since the second slot already shows `lève`, `jette`,
     `appelle`.
 
-  `\vb{aller}{alé}{vais}{vè}{allé}{alé}{to go (aux. être; fut. \pw{irai}
+  {{?classic}}`\vb{aller}{alé}{vais}{vè}{allé}{alé}{to go (aux. être; fut. \pw{irai}
   \textit{iré})}`, `\vb{prendre}{prãdr}{prends}{prã}{pris}{pri}{to take (nous
   \pw{prenons} \textit{prenõ})}`,
-  `\vb{regarder}{regardé}{regarde}{regard}{regardé}{regardé}{to look at}` —
+  `\vb{regarder}{regardé}{regarde}{regard}{regardé}{regardé}{to look at}`{{/classic}}{{?ipa}}`\vb{aller}{ale}{vais}{vɛ}{allé}{ale}{to go (aux. être; fut. \pw{irai}
+  \textit{iʁe})}`, `\vb{prendre}{pʁɑ̃dʁ}{prends}{pʁɑ̃}{pris}{pʁi}{to take (nous
+  \pw{prenons} \textit{pʁənɔ̃})}`,
+  `\vb{regarder}{ʁəgaʁde}{regarde}{ʁəgaʁd}{regardé}{ʁəgaʁde}{to look at}`{{/ipa}} —
   the last with nothing in brackets, because nothing about it is irregular.
 - A form in the text that is **none of the three** is named after the entry,
-  outside it, with its sound: `\vb{venir}{venir}{viens}{vyẽ}{venu}{venü}{to
+  outside it, with its sound: {{?classic}}`\vb{venir}{venir}{viens}{vyẽ}{venu}{venü}{to
   come (aux. être; fut. \pw{viendrai} \textit{vyẽdré})}; here \pw{vint}
-  \textit{vẽ}, past historic`. The past historic a book narrates in and a
+  \textit{vẽ}, past historic`{{/classic}}{{?ipa}}`\vb{venir}{vəniʁ}{viens}{vjɛ̃}{venu}{vəny}{to
+  come (aux. être; fut. \pw{viendrai} \textit{vjɛ̃dʁe})}; here \pw{vint}
+  \textit{vɛ̃}, past historic`{{/ipa}}. The past historic a book narrates in and a
   subjunctive (`qu'il vienne`) both need this.
 - A **verbal locution** — a verb welded to a bare noun with no article
   (`avoir peur`, `faire attention`, `prendre garde`, `rendre visite`) — is a
   `\vb` for the verb with an **empty seventh argument**, then a `\bw` for the
   noun, which carries the meaning of the whole:
-  `\vb{avoir}{avwar}{ai}{é}{eu}{ü}{}\bw{peur}{peur}{to be afraid}`. The verb
+  {{?classic}}`\vb{avoir}{avwar}{ai}{é}{eu}{ü}{}\bw{peur}{peur}{to be afraid}`{{/classic}}{{?ipa}}`\vb{avoir}{avwaʁ}{ai}{e}{eu}{y}{}\bw{peur}{pœʁ}{to be afraid}`{{/ipa}}. The verb
   is not given a meaning of its own: it has none there.
 - A **noun** carries its **gender**, every time, because nothing in the word
   shows it — and least of all where the article is elided or plural and hides
   it (`l'eau` is feminine, `l'homme` masculine, `les yeux` masculine). An
-  irregular plural is given with it: `journal, pl. journaux`; `œil, pl.
-  yeux`; `travail, pl. travaux`.
+  irregular plural is given with it, in the meaning:
+  {{?classic}}`\dw{journal}{ʒurnal} newspaper, m., pl. \pw{journaux}`; `\dw{œil}{euy} eye, m., pl.
+  \pw{yeux}`; `\dw{travail}{travay} work, m., pl. \pw{travaux}`{{/classic}}{{?ipa}}`\dw{journal}{ʒuʁnal} newspaper, m., pl. \pw{journaux}`; `\dw{œil}{œj} eye, m., pl.
+  \pw{yeux}`; `\dw{travail}{tʁavaj} work, m., pl. \pw{travaux}`{{/ipa}}.
 - An **adjective** is given in the masculine singular, with the feminine when
   it is not simply `-e` (`beau / belle`, `vieux / vieille`, `blanc /
   blanche`) and with the form it takes before a vowel (`bel homme`, `vieil
@@ -234,39 +289,7 @@ the gloss language rather than a string of synonyms, no etymologies, and
 The line uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
 `\vb{inf}{rom}{pres}{rom}{p.p.}{rom}{meaning}` · `\bw{base}{rom}{meaning}` ·
 `\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted by
-`; `. **Every** verb gets a `\vb`, no exceptions.{{?video}} A video's line is
-written exactly as a book's; a line with no macro at all is plain text, and is
-also accepted.{{/video}}
-
-The gloss editor's sources sidebar, in the reader and in the player, now
-proposes this entry from the dictionary for a verb it recognises — the
-three forms with their sounds, the auxiliary, an irregular *nous* form and
-an irregular future, all read from Wiktionary's conjugation table. It is a
-**draft for you to correct**. Its sounds are Wiktionary's pronunciations
-written into this file's scheme by rule: they follow the scheme, and they
-say what Wiktionary says — where it gives `aurai` as /ɔ.ʁe/ the draft has
-`òré`. Its meaning is a dictionary's first sense rather than the text's. It
-takes a verb as pronominal only where the chunk shows the pronoun — `se`,
-`s'`, or `me`, `te`, `nous`, `vous` agreeing with the subject (`je me lève`,
-not `il me regarde`) — and then gives the pronominal verb, *aux. être* and
-a reflexive sense; `il s'en va` is *s'en aller*. Where Wiktionary lists two
-forms (`paye` and `paie`, `assois` and `assieds`) it offers the first. It
-never writes the *here* note for a form that is none of the three: that is
-yours to add. Correct it before it is saved; where it could not fill a slot,
-the button says which.
-
-**A verbal locution the chunk makes** — `j'ai peur`, `il fait attention`,
-and the negation is no obstacle (`je n'ai pas peur`) — is now recognised as
-the locution it is: the verb comes with its seventh argument **already
-empty**, the row names the `\bw` still to add (*bw for peur after it: to be
-afraid*), and a **button of its own**, headed *verbal locution*, puts the
-pair in as the one entry this file asks for —
-`\vb{avoir}{avwar}{ai}{é}{eu}{ü}{}\bw{peur}{peur}{to be afraid}`, the `\bw`
-run straight onto the `\vb`. The noun's sound is the noun's own
-pronunciation respelt; where it is missing the slot stays empty. It is found
-only where the noun stands right after the verb in the same chunk and the
-dictionary has the pair as a verb page of its own; a locution it has not got
-comes as the plain verb with its own meaning, and emptying that is yours.
+`; `. **Every** verb gets a `\vb`, no exceptions.
 
 The meaning is what the gloss language is for; the labels around it are not.
 *pres.* and *p.p.* are printed by the edition itself — the same two words in
@@ -343,3 +366,32 @@ Never split:
   between two words a liaison joins (`les amis`, `vous avez`, `c'est un`,
   `deux ans`, `grand homme`). A chunk ending in `les` would have to write a
   `z` in its pronunciation line with nowhere to put it.
+
+## Example
+
+One sentence of French, answered: its chunks as they stand in the list of your
+answer. The `en` of each chunk says only what that chunk says, in the order of
+the French.
+
+{{?classic}}```json
+{"chunks": [
+  {"fa": "Mon frère", "tr": "mõ frèr", "voc": "\\dw{frère}{frèr} brother, m.", "en": "my brother"},
+  {"fa": "ne veut pas", "tr": "ne veu pa", "voc": "\\vb{vouloir}{voulwar}{veux}{veu}{voulu}{voulü}{to want (fut. \\pw{voudrai} \\textit{voudré})}; here \\pw{veut} \\textit{veu}, 3rd person present", "en": "does not want"},
+  {"fa": "venir avec nous.", "tr": "venir avèk nou", "voc": "\\vb{venir}{venir}{viens}{vyẽ}{venu}{venü}{to come (aux. être; fut. \\pw{viendrai} \\textit{vyẽdré})}", "en": "to come with us."}
+]}
+```{{/classic}}{{?ipa}}```json
+{"chunks": [
+  {"fa": "Mon frère", "tr": "mɔ̃ fʁɛʁ", "voc": "\\dw{frère}{fʁɛʁ} brother, m.", "en": "my brother"},
+  {"fa": "ne veut pas", "tr": "nə vø pa", "voc": "\\vb{vouloir}{vulwaʁ}{veux}{vø}{voulu}{vuly}{to want (fut. \\pw{voudrai} \\textit{vudʁe})}; here \\pw{veut} \\textit{vø}, 3rd person present", "en": "does not want"},
+  {"fa": "venir avec nous.", "tr": "vəniʁ avɛk nu", "voc": "\\vb{venir}{vəniʁ}{viens}{vjɛ̃}{venu}{vəny}{to come (aux. être; fut. \\pw{viendrai} \\textit{vjɛ̃dʁe})}", "en": "to come with us."}
+]}
+```{{/ipa}}
+
+Notice: `ne veut pas` is one chunk, the negation kept with its verb, and its `en`
+says the negation (*does not want*); the `\vb` carries a sound in every slot,
+and `veut`, which is none of the three forms it prints, is named after the
+entry, outside it; the third chunk's `voc` holds the verb only, because `avec`
+and `nous` are words French never glosses; and `tr` is written for the whole of
+each chunk.
+
+{{?note}}No speaker has reviewed this example yet.{{/note}}

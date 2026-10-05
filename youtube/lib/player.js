@@ -139,7 +139,8 @@
     follow: store('yt_follow', true),
     hoverpause: store('yt_hoverpause', false),
     pin: store('yt_pin', true),
-    sbs: store('yt_sbs', false),
+    // a SOUND has no picture to put beside the text: the bar stays above it
+    sbs: store('yt_sbs', false) && CFG.kind !== 'audio',
     // Defaults OFF, and stays hidden until the server says there is
     // something behind it.  A reader who does not want it never sees it
     // and the page never asks anything of the server.
@@ -185,7 +186,7 @@
     return document.documentElement.getAttribute('data-mode') === 'mobile';
   }
   function sideOn() {
-    if (!window.matchMedia) return false;
+    if (!window.matchMedia || CFG.kind === 'audio') return false;
     if (mobileMode()) return window.matchMedia(WIDE_M).matches;
     return opts.sbs && window.matchMedia(WIDE).matches;
   }
@@ -574,6 +575,107 @@
     COLOURS.forEach(function (c) { el.classList.remove('hl-' + c); });
     if (ch.col && COLOURS.indexOf(ch.col) >= 0) el.classList.add('hl-' + ch.col);
   }
+
+  /* ---------------- ✱ notes: the phrases that carry a note ----------------
+     A phrase's `note` is the aside under its meaning -- what the automatic
+     transcript really heard, a cultural point -- and an LLM leaves one when
+     something needs saying.  The button lights every phrase that has one, to
+     see where a model may have flagged a problem, and walks from one to the
+     next (‹ ›): a highlight over a long transcript is not a list.  It is a
+     reviewing tool and nothing else -- it writes nothing, asks nothing, hides
+     nothing, and no click means something else while it is on -- and it is OFF
+     on every visit: a remembered highlight would leave a transcript looking
+     marked for ever by something nobody recalls turning on.  Not in the mobile
+     mode, which writes nothing and has no button for it.
+
+     THE PHRASE'S OWN CLASS, has-note, and not an hl- colour: the four colours
+     are the person's marks and go on showing beside it.  A class and nothing
+     more -- the dashed underline and the ✱ are drawn by the stylesheet, so no
+     text is added to the line, and selection, copy, the dictionary's sentence
+     and the timings read what they always read -- and it is on the page only
+     while the switch is, so that with it off a transcript is exactly what it
+     was before there was a switch.  What counts is a note that is not blank
+     once trimmed, on any chunk the line draws: a chunk drawn bare (one marked
+     plain) has no cloud and its note is shown nowhere else.  The count and the
+     walk read the page, which is the one thing that is always as drawn: a save,
+     a cut and a redraw all end in pnPaint(). */
+  // the switch, the phrase last walked to, whether any phrase wears the class, whether the bar is held
+  var pn = { on: false, cur: null, swept: false, held: false };
+  function hasNote(ch) {
+    return !!ch && typeof ch.note === 'string' && ch.note.trim() !== '';
+  }
+  // every phrase the lines draw, with its chunk: the n-th phrase of a line is the
+  // n-th chunk, and what lies between two is text
+  function pnEach(fn) {
+    Array.prototype.forEach.call($('#segs').querySelectorAll('.seg'), function (d) {
+      var sg = segs[+d.dataset.i], fa = d.querySelector('.fa');
+      if (!sg || !sg.chunks || !fa) return;
+      var kids = Array.prototype.filter.call(fa.children, function (e) {
+        return e.classList.contains('w') || e.classList.contains('bare');
+      });
+      sg.chunks.forEach(function (ch, j) { if (kids[j]) fn(kids[j], ch); });
+    });
+  }
+  function paintNote(el, ch) {
+    var lit = pn.on && hasNote(ch);
+    el.classList.toggle('has-note', lit);
+    if (!lit) el.classList.remove('note-here');
+  }
+  function pnList() {
+    return Array.prototype.slice.call($('#segs').querySelectorAll('.has-note'));
+  }
+  function pnPaint() {
+    if (mobileNow()) pn.on = false;       // the mobile mode has no button, so it is left off there
+    var on = pn.on;
+    if (on || pn.swept) { pnEach(paintNote); pn.swept = on; }
+    var list = on ? pnList() : [];
+    if (!on && pn.cur) { pn.cur.classList.remove('note-here'); pn.cur = null; }
+    // the arrows are in the bar, which a narrow screen puts away as the page moves
+    // down (lib/parseh.js, "the bar, on a phone"): while the walk is on it stays, or
+    // the second press would have to wait for a scroll up
+    if (on !== pn.held) { pn.held = on; document.body.toggleAttribute('data-bars-held', on); }
+    var b = $('#notesbtn');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.textContent = '✱ notes' + (on ? ' ' + list.length : '');
+    ['#notesprev', '#notesnext'].forEach(function (s) {
+      $(s).hidden = !on; $(s).disabled = !list.length;
+    });
+  }
+  // the line the transcript is read below: the bar, and the video where it is
+  // pinned over the text (what measure() hands the stylesheet as --headh and --vidh)
+  function pnReadFrom() {
+    return $('header').offsetHeight + (opts.pin && !sideOn() ? $('#playerwrap').offsetHeight : 0);
+  }
+  // one phrase on, in document order, wrapping at the ends.  From the phrase
+  // last walked to; and where there is none (not walked yet, or its note has
+  // gone) from where the page is being read, so that the first press goes to
+  // the next note on the way and not back to the top of a long transcript
+  function pnStep(dir) {
+    var list = pnList();
+    if (!list.length) return;
+    var at = list.indexOf(pn.cur), to;
+    if (at >= 0) to = (at + dir + list.length) % list.length;
+    else {
+      var edge = pnReadFrom(), below = list.filter(function (el) {
+        return el.getBoundingClientRect().top > edge;
+      }).length;
+      to = dir > 0 ? (below ? list.length - below : 0)
+                   : (list.length - below ? list.length - below - 1 : list.length - 1);
+    }
+    if (pn.cur) pn.cur.classList.remove('note-here');
+    pn.cur = list[to];
+    pn.cur.classList.add('note-here');
+    // follow stands down for a moment, as it does for a hand on the wheel
+    lastUserScroll = Date.now();
+    pn.cur.closest('.seg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  $('#notesbtn').onclick = function () { pn.on = !pn.on; pnPaint(); };
+  $('#notesprev').onclick = function () { pnStep(-1); };
+  $('#notesnext').onclick = function () { pnStep(1); };
+  // the mode switched under the page: the highlight goes with the button
+  if (window.Parseh && Parseh.mode && Parseh.mode.onChange) Parseh.mode.onChange(pnPaint);
+
   // the words of a chunk as spans of their own, so a modifier-click can
   // name the WORD even though the hover gloss belongs to the whole phrase
   // (a Japanese chunk is one word: its card is the phrase).  A function
@@ -1389,6 +1491,9 @@
       if (done) done(ch);
       paintWords(at.w, ch);
       paintCol(at.w, ch);
+      // a note written, changed or taken off lights or dims its phrase now (with
+      // ✱ notes on), and the count follows
+      pnPaint();
       // the answer may arrive after the pointer has moved to the next
       // phrase, whose cloud must not be told about this one
       if (cloudFor !== at.w) return;
@@ -1429,13 +1534,15 @@
      in.  The third column is what the field holds: 'tl' target text, so
      it takes the language's face and direction, 'gl' gloss prose, so it
      takes the gloss language's -- and the vocabulary is 'gl' too, being a
-     line of that prose with target words quoted inside it. */
+     line of that prose with target words quoted inside it.  The note, last, is
+     prose in the gloss language as well, and is called what it is. */
   function editRows() {
     var rows = [['fa', L.name.toLowerCase(), 'tl']];
     if (L.reading) rows.push(['kana', L.reading_label || 'reading', 'tl']);
     rows.push(['tr', L.translit_label || 'transliteration', ''],
               ['voc', 'vocabulary', 'gl'],
-              ['en', GLOSS_LABEL, 'gl']);
+              ['en', GLOSS_LABEL, 'gl'],
+              ['note', 'note', 'gl']);
     return rows;
   }
   // Each box the size of what is in it before the cloud is placed: a phrase,
@@ -1529,6 +1636,16 @@
            '<code>\\textit</code>, <code>\\emph</code> and <code>\\nobreak</code> may be written; ' +
            '<code>% &amp; # _ $</code> are ordinary characters in a video.</div></div>';
   }
+  /* THE NOTE ROW: the aside under the meaning, offered on every phrase -- a note
+     is as much written here as changed.  One row that grows with what is in it,
+     and under it the line that says how a note is taken off: there is no button
+     for that, an emptied box is how every field of this form is cleared. */
+  function noteRow(at, f) {
+    return '<div class="erow"><label class="elab" for="enote">' + esc(f[1]) + '</label>' +
+           '<textarea id="enote" class="ef gl" data-f="note" rows="1">' + esc(at.ch.note || '') +
+           '</textarea><div class="efnote">Shown under the meaning in the cloud. ' +
+           'Empty it to take the note off.</div></div>';
+  }
   // what the box holds, drawn: a macro line as the reader draws it, any other
   // as the cloud draws a plain one; a line not finished says what is short
   function vocNow(ta, el) {
@@ -1587,6 +1704,7 @@
             '<div class="emain">';
     editRows().forEach(function (f) {
       if (f[0] === 'voc' && window.ParsehVocButtons) { h += vocRow(at, f); return; }
+      if (f[0] === 'note') { h += noteRow(at, f); return; }
       h += '<label class="erow"><span class="elab">' + esc(f[1]) + '</span>' +
            '<textarea class="ef' + (f[2] ? ' ' + f[2] : '') + '" data-f="' + f[0] +
            '" rows="' + (f[0] === 'voc' || f[0] === 'en' ? 2 : 1) + '">' +
@@ -1652,6 +1770,15 @@
     }
     paintDel(at);
     fitFields();
+    // the note's row grows as it is typed into, and the form is placed again
+    // when that takes it past the foot of the window (as the vocabulary's does)
+    var nbox = cloud.querySelector('.ef[data-f="note"]');
+    if (nbox) nbox.addEventListener('input', function () {
+      nbox.style.height = ''; nbox.style.height = (nbox.scrollHeight + 2) + 'px';
+      var r = cloud.getBoundingClientRect();
+      if (cloudFor && r.bottom > (document.documentElement.clientHeight || window.innerHeight) - 4)
+        placeCloud(cloudFor);
+    });
     wordsInto(at);
     var srcBtn = cloud.querySelector('.esrc');
     if (srcBtn) {
@@ -2073,15 +2200,23 @@
         return j;
       });
     }
+    // THE PROMPT, made when it is asked for: Parseh's words, or -- where the menu in the row chose one of the
+    // person's own -- theirs, read from the computer each time (ParsehLLM.own), so a prompt written again a
+    // moment ago is the one used
     function build() {
-      return ParsehLLM.prompt({
-        sourceName: L.name, targetName: G.name, sourceCode: L.code, targetCode: G.code,
-        version: ver, sentence: sentence, before: around.before, after: around.after,
-        words: evidence.words || [], pairs: allPairs
+      return ParsehLLM.own(row.promptId()).then(function (mine) {
+        return ParsehLLM.prompt({
+          sourceName: L.name, targetName: G.name, sourceCode: L.code, targetCode: G.code,
+          sourceNative: L.native, trLabel: L.translit_label,
+          version: ver, sentence: sentence, before: around.before, after: around.after,
+          words: evidence.words || [], pairs: allPairs,
+          instructions: mine && mine.text, instructionsKind: mine && mine.kind, custom: mine && mine.name
+        });
       });
     }
     var row = ParsehLLMRow.mount(askBox, {
       surface: 'ask', label: 'Ask LLM', title: 'copy a prompt for an external chatbot',
+      lang: L.code, options: false,
       remind: 'paste it into a chatbot, then paste its translation below.',
       // a failed preparing has said why in the line below, and gives no prompt
       getText: function () {
@@ -2105,7 +2240,13 @@
           row.enable();
           status.textContent = LLM.sent[sentence] !== undefined
             ? 'Reusing the translation pasted for this caption.' : '';
-          row.update(build());
+          return build().then(function (text) {
+            if (gen === srcGen && box.isConnected) row.update(text);
+          }, function (err) {
+            // the person's own prompt could not be made: its words, not the corpus, are what failed
+            if (gen !== srcGen || !box.isConnected) return;
+            status.textContent = err.message; status.classList.add('bad');
+          });
         }).catch(function () {
           if (gen !== srcGen || !box.isConnected) return;
           allPairs = null; row.enable();
@@ -3119,10 +3260,12 @@
     fa.textContent = ch.fa || ''; c.appendChild(fa);
     // the colour is the one field the sheet draws no box for and still sends:
     // it is a field a page may set (annwrite.EDITABLE), and a page that left
-    // it out would be saying "no colour".  The note and the plain mark are
-    // not a page's to set at all -- the server refuses a divide that names
-    // them ("cannot set 'note' on a chunk") -- and it carries both across
-    // itself, from the chunk being divided or joined, so they stay here.
+    // it out would be saying "no colour".  The note is a field a page may set
+    // too and the sheet has no box for it, so a page that leaves it out is not
+    // saying "no note": the server carries it across itself (a cut leaves it on
+    // the first half, a join joins both).  The plain mark is not a page's to set
+    // at all -- the server refuses a divide that names it -- and is carried
+    // the same way, so it stays here.
     if (ch.col) c.dataset.xcol = String(ch.col);
     var add = function (key, label, rows, kind) {
       var l = document.createElement('label'); l.textContent = label;
@@ -3146,8 +3289,8 @@
     Array.prototype.forEach.call(col.querySelectorAll('textarea'), function (t) {
       out[t.dataset.k] = t.value.trim();
     });
-    // only what annwrite lets a page set: a note, and the plain mark, sent
-    // back here made a phrase with a note impossible to cut or join
+    // only the boxes the sheet draws and the colour: the plain mark sent back
+    // here would be refused, and the note is the server's to carry across
     if (col.dataset.xcol) out.col = col.dataset.xcol;
     return out;
   }
@@ -3386,6 +3529,7 @@
     rgPaint();
     measure();
     markGlossed();
+    pnPaint();
   }
   /* ONE CAPTION'S LINE, whole: its time, its phrases, and every listener the
      line and its phrases carry.  A function of its own because two things
@@ -3507,6 +3651,7 @@
     old.parentNode.replaceChild(d, old);
     els[i] = d;
     markGlossed();
+    pnPaint();
   }
 
   // shift-click copies: the phrase under the cursor (the hoverable unit),
@@ -3884,7 +4029,8 @@
   }
   var TARGET_NOTE = {
     anki: '',
-    deck: 'an exercise in the deck, studied on its page; the recording and the frame go in with it',
+    deck: 'an exercise in the deck, studied on its page; ' +
+          (CFG.kind === 'audio' ? 'the recording goes' : 'the recording and the frame go') + ' in with it',
     md: 'one :::exercise block on the clipboard, for a studio document or a deck’s “Add exercise”'
   };
   // the name typed for a new deck, per destination: an Anki name nests with
@@ -4543,6 +4689,9 @@
   /* Why there is no frame to take, or '' when there is -- said under the
      button, as the recording's reason is, because a phone shows no title. */
   function noShot() {
+    // A SOUND HAS NO FRAME, and the sheet steps aside (the row is not drawn:
+    // style.css) -- this is for anything that asks all the same
+    if (CFG.kind === 'audio') return 'this is a sound: there is no picture';
     if (CFG.media) return '';        // the film is here: the canvas reads it
     if (CFG.local)
       return 'the film of this video is not on this machine any more, so there is no frame to take';
@@ -5468,6 +5617,19 @@
   var rgByHand = false;        // the summary points at the box under the row
   var rgRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('#rgrow'), {
     surface: 'video-region',
+    // THE OPTIONS OF THE PROMPT (the scheme of the transliteration, the short vowels) are asked of the
+    // server for this video's language, and start from what the video's own record says of them; a
+    // choice made against that record may be made the video's (through the door the video's info sheet uses)
+    lang: L.code, video: CFG.id,
+    // (THE PROMPT MENU -- the person's own prompts for a stretch of a video, in this video's language -- is the
+    // row's too, and what it chooses goes into the request as `prompt`: rgText)
+    setFact: function (name, value) {
+      var fields = {}; fields[name] = value;
+      return fetch('/youtube/api/editmeta', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video: CFG.id, fields: fields }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (!j.ok) throw new Error(j.error || 'the edit was refused'); });
+    },
     ids: {copy: 'rgcopy', size: 'rgsize', say: 'rgcopysay', hand: 'rgprompt', handRow: 'rgpromptrow'},
     remind: 'paste it into the LLM, then paste its answer into the box below.',
     getText: rgText, onCopied: rgCopied,
@@ -5644,6 +5806,13 @@
     Object.keys(extra || {}).forEach(function (k) { b[k] = extra[k]; });
     return b;
   }
+  // THE SHORT VOWELS the row shows now go with the answer as they went with the prompt: whether the
+  // answer's `fa` may be written is the server's to decide, from this word and the language's record
+  function rgMarks(body) {
+    var o = rgRow.options ? rgRow.options() : {};
+    if (o.marks) body.marks = o.marks;
+    return body;
+  }
   // through the ask that cannot hang (lib/parseh.js): a computer gone quiet
   // is said at once rather than waited on for ever, and a write is not even
   // tried while the page knows it is away
@@ -5680,9 +5849,15 @@
      given nothing to do answers nothing (the row is given an empty text). */
   function rgText() {
     if (rgFrom === null) return '';
-    return rgAsk('prompt', rgBody()).then(function (j) {
+    // the prompt of the person's own that the menu chose goes with the prompt's request, and only with it: the
+    // answer is read the same way whoever wrote the prompt
+    var extra = rgRow.options ? rgRow.options() : {};
+    if (rgRow.promptId && rgRow.promptId()) extra.prompt = rgRow.promptId();
+    return rgAsk('prompt', rgBody(extra)).then(function (j) {
       if (!j || !j.ok) throw new Error((j && j.error) || 'the prompt could not be made');
       var text = j.fill ? j.prompt : '';
+      // THE SHORT REQUEST for a chat that has the skill is made with the prompt: the row holds it beside it
+      if (rgRow.skillOf) rgRow.skillOf(j.fill ? j.skill : null);
       // by its text, since two askings can overlap and be answered out of order
       rgMade.push({j: j, text: text});
       if (rgMade.length > 4) rgMade.shift();
@@ -5730,7 +5905,7 @@
     rgDisarm();
     rgBusy = true; rgPaint();
     rgSay(RG.report, confirm ? 'replacing…' : 'reading the answer…');
-    rgAsk('apply', rgBody({ answer: answer, confirm: confirm })).then(function (j) {
+    rgAsk('apply', rgBody(rgMarks({ answer: answer, confirm: confirm }))).then(function (j) {
       if (!j || !j.ok) throw new Error((j && j.error) || 'the answer was refused');
       rgBusy = false;
       rgApplied(j);
@@ -5785,7 +5960,8 @@
         '. Nothing is written yet: press the button again within four seconds to go ahead.'));
     } else {
       tally.textContent = 'filled ' + (+j.filled || 0) + ' · completed ' + (+j.completed || 0) +
-                          ' · replaced ' + (+j.replaced || 0);
+                          ' · replaced ' + (+j.replaced || 0) +
+                          (j.marks ? ' · vowelled ' + (+j.vowelled || 0) : '');
       if (!j.wrote) tally.appendChild(document.createTextNode('\nnothing was written'));
     }
     box.appendChild(tally);
@@ -5974,16 +6150,187 @@
     if (t > 0 && player.seekTo) player.seekTo(t, true);
   }
 
+  /* A SOUND, IN A VIDEO'S PLACE.  A video whose media is a sound alone (video.json
+     says "kind": "audio", written when it was attached) has no frame to show.
+     What fills the video's place is a bar: the shape of the sound, whole, with
+     the playhead on it -- a press anywhere on it goes there, a drag scrubs -- and
+     the element's own controls under it, the caption starts as hairlines at its
+     foot.  The shape is read by the server with ffmpeg (/youtube/api/film/wave);
+     without ffmpeg, or away from the computer, the bar is a plain track and says
+     why.  Nothing here writes. */
+  function soundBar(film) {
+    var box = document.createElement('div');
+    box.id = 'sndbar';
+    var cv = document.createElement('canvas');
+    cv.id = 'sndwave';
+    cv.setAttribute('aria-label', 'the sound: press anywhere on it to go there');
+    var say = document.createElement('div');
+    say.className = 'sndsay';
+    box.appendChild(cv);
+    box.appendChild(say);
+    film.parentNode.insertBefore(box, film);
+    var wave = null, shown = '', pressed = false;
+    function ink(name, fall) {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+      return (v && v.trim()) || fall;
+    }
+    function span() {
+      return film.duration && isFinite(film.duration) ? film.duration : (wave ? wave.seconds : 0);
+    }
+    function draw(force) {
+      var w = cv.clientWidth, h = cv.clientHeight;
+      if (!w || !h) return;
+      var on = ink('--accent', '#be3455'), off = ink('--faint', '#a2949a');
+      var dur = span(), now = film.currentTime || 0;
+      // drawn again only when something it shows has changed
+      var sig = [w, h, Math.round(now * 10), Math.round(dur), wave ? wave.peaks.length : 0,
+                 segs.length, on, off].join('|');
+      if (!force && sig === shown) return;
+      shown = sig;
+      var dpr = window.devicePixelRatio || 1;
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+        cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      }
+      var g = cv.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      var at = dur ? Math.min(1, now / dur) * w : 0, mid = (h - 6) / 2;
+      // what is drawn, for whoever looks: the shape of the sound, or a plain track
+      cv.setAttribute('data-shape', wave && wave.peaks.length ? 'wave' : 'plain');
+      if (wave && wave.peaks.length) {
+        var n = wave.peaks.length, bw = w / n;
+        for (var i = 0; i < n; i++) {
+          var x = i * bw, v = Math.max(0.05, wave.peaks[i]) * (h - 12) / 2;
+          g.fillStyle = x + bw / 2 <= at ? on : off;
+          g.fillRect(x, mid - v, Math.max(1, bw - 0.6), v * 2);
+        }
+      } else {
+        g.fillStyle = off; g.fillRect(0, mid - 1, w, 2);
+        g.fillStyle = on; g.fillRect(0, mid - 1.5, at, 3);
+      }
+      if (dur) {
+        g.fillStyle = off;
+        for (var k = 0; k < segs.length; k++) {
+          var sx = Math.round((+segs[k].start || 0) / dur * w);
+          if (sx >= 0 && sx <= w) g.fillRect(sx, h - 5, 1, 5);
+        }
+      }
+      g.fillStyle = on;
+      g.fillRect(Math.min(w - 2, Math.max(0, at - 1)), 0, 2, h - 6);
+    }
+    function go(e) {
+      var r = cv.getBoundingClientRect(), d = span();
+      if (!d || !r.width) return;
+      try { film.currentTime = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * d; }
+      catch (err) {}
+      draw(true);
+    }
+    cv.addEventListener('pointerdown', function (e) {
+      pressed = true;
+      try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+      go(e);
+      e.preventDefault();
+    });
+    cv.addEventListener('pointermove', function (e) { if (pressed) go(e); });
+    ['pointerup', 'pointercancel'].forEach(function (name) {
+      cv.addEventListener(name, function () { pressed = false; });
+    });
+    ['timeupdate', 'seeked', 'durationchange', 'loadedmetadata'].forEach(function (name) {
+      film.addEventListener(name, function () { draw(); });
+    });
+    window.addEventListener('resize', function () { draw(true); });
+    // the transcript arrives after the page, the theme can change under it, and a
+    // paused sound has no event to say so: a look every so often costs nothing
+    setInterval(draw, 400);
+    fetch('/youtube/api/film/wave', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                     body: JSON.stringify({video: CFG.id, buckets: 900})})
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (j) {
+        if (j && j.ok && j.peaks && j.peaks.length) wave = j;
+        else say.textContent = ((j && j.error) || 'the shape of the sound could not be drawn') +
+                               ' — the bar is a plain track';
+        draw(true);
+      }, function () {
+        say.textContent = 'the shape of the sound could not be drawn here — the bar is a plain track';
+        draw(true);
+      });
+    draw(true);
+  }
+
+  /* THE FILM OR THE SOUND OF A VIDEO THAT IS NOT THERE ANY MORE: sent again, from
+     the box that says so, to the same door the add page sends by (its own script,
+     youtube/lib/addfilm.js, is not on this page: the player is kept on a phone and
+     what it loads is a list).  Whole or not at all, and the page is opened again
+     on it.  Browser mode only: a phone's page writes nothing (lib/mobile.css). */
+  function sendAgain(box) {
+    var pick = document.createElement('input');
+    pick.type = 'file';
+    pick.hidden = true;
+    pick.accept = CFG.accept || 'audio/*,video/*';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'novid-again';
+    btn.textContent = 'send the film or sound again…';
+    var said = document.createElement('div');
+    said.className = 'novid-said';
+    said.setAttribute('aria-live', 'polite');
+    var row = document.createElement('div');
+    row.className = 'novid-send';
+    row.appendChild(btn);
+    row.appendChild(pick);
+    row.appendChild(said);
+    box.appendChild(row);
+    btn.addEventListener('click', function () { pick.click(); });
+    pick.addEventListener('change', function () {
+      var f = pick.files && pick.files[0];
+      if (!f) return;
+      btn.disabled = true;
+      var label = f.name + ' (' + (f.size >= 1e6 ? Math.round(f.size / 1e6) + ' MB'
+                                                 : Math.max(1, Math.round(f.size / 1e3)) + ' kB') + ')';
+      said.textContent = 'sending ' + label + '…';
+      var act = window.Parseh && Parseh.working ? Parseh.working('Sending ' + f.name) : null;
+      var x = new XMLHttpRequest();
+      var url = '/youtube/api/film?video=' + encodeURIComponent(CFG.id) + '&name=' + encodeURIComponent(f.name);
+      x.open('POST', act ? act.url(url) : url);
+      x.setRequestHeader('Content-Type', 'application/octet-stream');
+      x.upload.onprogress = function (e) {
+        if (!e.lengthComputable) return;
+        said.textContent = 'sending ' + label + ' — ' + Math.floor(100 * e.loaded / e.total) + ' %';
+        if (act) act.progress(e.loaded, e.total);
+      };
+      x.onload = function () {
+        var j = null;
+        try { j = JSON.parse(x.responseText); } catch (err) {}
+        if (act) act.end(!!(j && j.ok));
+        if (j && j.ok) { said.textContent = 'sent — opening it…'; location.reload(); return; }
+        btn.disabled = false;
+        said.textContent = (j && j.error) || ('the server refused it (' + x.status + ')');
+      };
+      x.onerror = function () {
+        if (act) act.end(false);
+        btn.disabled = false;
+        said.textContent = 'the server did not answer — nothing was sent';
+      };
+      x.send(f);
+    });
+  }
+
   if (CFG.media) {
-    var film = document.createElement('video');
+    // A SOUND is an <audio> and is still `#film`: everything that asks the film
+    // for its time, its rate or its sound asks it as before.  What fills the
+    // video's place is a bar (soundBar), and the word for it on the page is
+    // "sound" where the video's own would say "film".
+    var SOUND = CFG.kind === 'audio';
+    var film = document.createElement(SOUND ? 'audio' : 'video');
     film.id = 'film';
     film.controls = true;
     film.preload = 'metadata';
-    film.playsInline = true;
+    if (!SOUND) film.playsInline = true;
     film.src = CFG.media;
     var slot = $('#yt');
     slot.parentNode.insertBefore(film, slot);
     slot.remove();
+    if (SOUND) soundBar(film);
     player = {
       // YT's states, of which the six callers read only 1 = playing
       getPlayerState: function () { return (film.paused || film.ended) ? 2 : 1; },
@@ -6026,8 +6373,8 @@
       var big = !n ? '' : ' (about ' + (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB'
         : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + ' MB'
         : Math.max(1, Math.round(n / 1e3)) + ' kB') + ')';
-      dl.title = 'download this video as a bundle: the film itself and its ' +
-                 'glosses in one zip' + big + ', which another Parseh installs whole. ' +
+      dl.title = 'download this video as a bundle: the ' + (SOUND ? 'sound' : 'film') +
+                 ' itself and its glosses in one zip' + big + ', which another Parseh installs whole. ' +
                  'Add ?media=text to the address for the words alone.';
     }
     // the same meaning as YT's state 1: the person pressed play, so the
@@ -6041,13 +6388,16 @@
       // file that is sitting exactly where they put it.
       var code = (film.error && film.error.code) || 0;
       var n = $('#novid');
+      var what = SOUND ? 'sound' : 'film';
       n.innerHTML = (code === 4
-        ? 'this browser cannot play that file —<br>' +
+        ? 'this browser cannot play that ' + (SOUND ? 'sound' : 'file') + ' —<br>' +
+          (SOUND ? 'a playable copy is made where ffmpeg is installed: add it again once it is<br>'
+                 : '') +
           'the transcript below still works'
         : code === 3
-          ? 'the film is there but will not decode —<br>' +
+          ? 'the ' + what + ' is there but will not decode —<br>' +
             'the transcript below still works'
-          : 'the film is not where this video says it is —<br>' +
+          : 'the ' + what + ' is not where this video says it is —<br>' +
             'the transcript below still works');
       n.hidden = false;
     });
@@ -6055,10 +6405,11 @@
     // A VIDEO THAT IS A FILE, WHOSE FILE IS NOT THERE.  Reaching for YouTube
     // here would ask it for a video at an id it has never heard of, and the
     // reader would be told, wrongly, that they need an internet connection.
-    $('#novid').innerHTML = 'the film that belongs to this video is not ' +
-      'here any more —<br>put it back beside the transcript, or add the ' +
+    $('#novid').innerHTML = 'the film (or sound) that belongs to this video is not ' +
+      'here any more —<br>send it again, put it back beside the transcript, or add the ' +
       'video again<br>— the transcript below still works';
     $('#novid').hidden = false;
+    sendAgain($('#novid'));
   } else {
     // The IFrame API calls a global when it is ready.  If it never loads
     // (offline), say so in the frame; the transcript works regardless.

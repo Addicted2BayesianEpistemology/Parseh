@@ -133,6 +133,11 @@ import lookuppage         # noqa: E402  the page that sets the dictionaries up
 import speechpage         # noqa: E402  Settings -> Speech to text (§7.23)
 import latexpage          # noqa: E402  Settings -> LaTeX drawings (§8.39)
 import latexthemes        # noqa: E402  the themes a latex block is drawn with
+import prompts            # noqa: E402  the prompts a person wrote for a chatbot (§8, a0.4.2)
+import promptkit          # noqa: E402  the choices a person makes for one prompt (lib/promptkit.py OPTIONS)
+import promptspage        # noqa: E402  Settings -> Your prompts
+import getarasaac         # noqa: E402  the ARASAAC pictograms: their words and their pictures (§8.40, W9)
+import arasaacpage        # noqa: E402  Settings -> Pictograms (ARASAAC)
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
 import make_index           # noqa: E402  what a built reader says about itself
 import mobile               # noqa: E402  the mobile interface's own pages (/m/books/)
@@ -140,6 +145,7 @@ import notices              # noqa: E402  the licences page: Parseh's, and its f
 import newbook              # noqa: E402  the "add a book" recipe page
 import anki_store           # noqa: E402  the shared card store
 import ytpages              # noqa: E402  the video player's pages + Anki endpoints
+import filmdoor             # noqa: E402  a film or a sound SENT, and the picture of its sound (youtube/lib/filmdoor.py)
 import timestamp as tstamp  # noqa: E402  the aligner: its transcript parser, for the panel
 import bundle              # noqa: E402  a book or a video as one file, out and back
 import shelf               # noqa: E402  a whole shelf of either, backed up and put back
@@ -200,6 +206,9 @@ studio.set_base(STUDIO_BASE)
 # a latex block that cannot be drawn names the page that mends it: this
 # server's Settings -> LaTeX drawings (the studio alone has none)
 import latexdraw                                               # noqa: E402
+# AFTER THE STUDIO, which puts its own folders on sys.path: the skills read its box catalogue (§9, a0.4.2)
+import skills             # noqa: E402  the prompts as skills for a chatbot
+import skillspage         # noqa: E402  Settings -> Skills for your chatbot
 studio.htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings="/settings/latex/",
                          peek=latexdraw.peek)
 
@@ -509,7 +518,9 @@ STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js"
                 "/youtube/lib/subedit.js", "/youtube/lib/subedit.css",
                 # and its speech to text (optional: drawn only where the
                 # computer has it, and the only page that has it)
-                "/youtube/lib/addstt.js", "/youtube/lib/addstt.css"}
+                "/youtube/lib/addstt.js", "/youtube/lib/addstt.css",
+                # and the way a film or a sound is SENT when it is not named by a path
+                "/youtube/lib/addfilm.js", "/youtube/lib/addfilm.css"}
 BODY_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 MAX_BODY = 32 * 1024 * 1024             # a JSON body: an edit, a chunk, an answer
 
@@ -543,6 +554,12 @@ UPLOAD_ROUTES = ("/anki/sync/upload", "/books/__upload", "/exercises/api/import"
                  # a release of Parseh itself, chosen on Settings > Updating
                  # Parseh: some 15 MB today, and nothing says it stays so
                  "/settings/api/update/upload")
+
+# THE TEXT OF A BOOK COMES IN AS A FILE TOO (lib/making.py add_part, lib/sourcetext.py): a part for
+# the agent that makes a book, and more text onto a book that is already here -- a PDF of a whole
+# book, chosen with a file picker, past the JSON cap.  The route is under the book's own path, so
+# it is a pattern and not a name: UPLOAD_ROUTES cannot hold it.
+TEXT_FILE_ROUTES = re.compile(r"^/books/.+/(?:__append|__making/part)/?$")
 
 # WHAT IS SPOOLED AND THEN READ BACK.  A route in UPLOAD_ROUTES gets a file on
 # disk and reads it as a file; `/api/docs/zip` reads its body whole
@@ -1615,6 +1632,42 @@ LATEX_ROUTES = {
     "/settings/api/latex/forget": "forget",
 }
 
+# SETTINGS -> YOUR PROMPTS (§8, lib/promptspage.py), and the routes the row beside
+# every copy button calls: what each does is lib/prompts.py api(), and who may is
+# lib/settingspage.py ROUTES, like every route under /settings/api/
+PROMPTS_PAGE = "/settings/prompts/"
+PROMPTS_ROUTES = {
+    "/settings/api/prompts/state": "state",
+    "/settings/api/prompts/list": "list",
+    "/settings/api/prompts/get": "get",
+    "/settings/api/prompts/parseh": "parseh",
+    "/settings/api/prompts/export": "export",
+    "/settings/api/prompts/save": "save",
+    "/settings/api/prompts/uptodate": "uptodate",
+    "/settings/api/prompts/import": "import",
+    "/settings/api/prompts/delete": "delete",
+}
+
+# SETTINGS -> PICTOGRAMS (ARASAAC) (§8.40, W9, lib/arasaacpage.py): the page, and each of its routes,
+# every one of them in lib/settingspage.py ROUTES
+ARASAAC_PAGE = "/settings/arasaac/"
+ARASAAC_ROUTES = {
+    "/settings/api/arasaac/state": "state",
+    "/settings/api/arasaac/plan": "plan",
+    "/settings/api/arasaac/get": "get",
+    "/settings/api/arasaac/update": "update",
+    "/settings/api/arasaac/stop": "stop",
+    "/settings/api/arasaac/remove": "remove",
+}
+
+# SETTINGS -> SKILLS FOR YOUR CHATBOT (§9.5, lib/skillspage.py): the page, and its two reads -- what each skill is now,
+# and the zip of one, made when it is asked for and stored nowhere
+SKILLS_PAGE = "/settings/skills/"
+SKILLS_ROUTES = {
+    "/settings/api/skills/state": "state",
+    "/settings/api/skills/download": "download",
+}
+
 
 def notes_libraries():
     """(folder, label) of every notes library there is -- each book's and each
@@ -2319,6 +2372,8 @@ def long_work(method, path, query, length=0):
     if path.startswith("/books/"):
         if re.match(r"^/books/.+/__append/?$", path):
             return "build", "Adding text to " + _book_named(path), None
+        if re.match(r"^/books/.+/__making/part/?$", path):
+            return "upload", "Adding a part of the text to %s from %s" % (_book_named(path), file), "writing it"
         m = re.search(r"/__narration/([a-z]+)/?$", path)
         if m:
             say = NARRATION_WORK.get(m.group(1), "Working on the narration of %(book)s")
@@ -2341,6 +2396,8 @@ def long_work(method, path, query, length=0):
         return "upload", "Uploading " + file, "installing"
     if path == yt + "/api/restore":
         return "restore", "Restoring videos from " + file, "putting them back"
+    if path == yt + "/api/film":
+        return "upload", "Receiving " + file, "looking at it"
     if path == yt + "/api/local":
         return "install", "Adding a video from a file on this machine", None
     if path == yt + "/api/add":
@@ -2504,6 +2561,8 @@ def activity_now():
     # estimating by the sound, so every page's pill and the stop button's
     # question know the computer is busy
     extra.extend(sttjobs.activity_entries(activity.entry, activity.KEEP, now))
+    # THE PICTOGRAMS' DOWNLOAD (lib/getarasaac.py), one job: kept in that module and not in a table of this one
+    extra.extend(getarasaac.activity_entries(activity.entry, activity.KEEP, now))
     return dict(activity.snapshot(extra), ok=True)
 
 
@@ -2984,6 +3043,11 @@ class Handler(SimpleHTTPRequestHandler):
                     except Exception:
                         pass
                     return
+            if method == "POST" and path == ytpages.BASE + "/api/film":
+                # a film or a sound SENT, as a narration is: straight to a file
+                # beside where it will live, never held and never capped
+                self._raw = b""
+                return filmdoor.receive(self, n)
             # A BUNDLE MAY BE THE WHOLE OF A FILM.  The two bundle doors used
             # to take the Anki wizard's 400 MB cap and read the body into a
             # bytearray, which meant the download button here handed somebody
@@ -2992,7 +3056,7 @@ class Handler(SimpleHTTPRequestHandler):
             # They are streamed to a file instead, exactly as a narration
             # upload is, and take the budget lib/bundle.py already keeps for
             # the media inside them.
-            big = path in UPLOAD_ROUTES + (ytpages.BASE + "/api/upload",)
+            big = path in UPLOAD_ROUTES + (ytpages.BASE + "/api/upload",) or bool(TEXT_FILE_ROUTES.match(path))
             if n < 0:
                 self.close_connection = True
                 return self.send_json({"error": "bad Content-Length"}, 400)
@@ -3152,6 +3216,14 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_json({"version": version.VERSION})
+        if path == "/__prompt/options":
+            # THE CHOICES A PERSON MAKES FOR ONE PROMPT, which lib/llmrow.js draws beside
+            # the copy button: the scheme of its transliteration, the short vowels.  Read
+            # only, and decided here (lib/promptkit.py OPTIONS) so that no page holds a
+            # table of which language has what
+            if method != "GET":
+                return self._method_not_allowed()
+            return self._prompt_options()
         if path == "/guide":
             return self._redirect("/guide/")
         if path.startswith("/guide/"):
@@ -3335,10 +3407,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path in ("/books/add", "/books/add/"):
             if method != "GET":
                 return self._method_not_allowed()
-            # a device that may not make a book's folder is shown the page with
-            # the button shut and the reason under it, not a button that fails
-            return self.send_html(newbook.page(
-                may_make=settingspage.may("making.folder", self._where())))
+            return self.send_html(newbook.page())
         if path == "/lib/langs.css":
             # generated from the registry on every request (it is tiny, and
             # no-store like every page), never a file on disk
@@ -3354,8 +3423,8 @@ class Handler(SimpleHTTPRequestHandler):
             return (self._bundle_upload("book") if path.endswith("upload")
                     else self._book_empty())
         # A BOOK MADE BY AN AGENT, IN PLACE (lib/making.py, a0.4.2): the folder
-        # (computer only, and the original is the body), what the instructions
-        # would say, and everything about one book being made below
+        # (the original is the body), what the instructions would say, and
+        # everything about one book being made below -- any device let in
         if path in ("/books/__make", "/books/__making/instructions"):
             if method != "POST":
                 return self._method_not_allowed()
@@ -3388,7 +3457,9 @@ class Handler(SimpleHTTPRequestHandler):
             if not book:
                 return self.send_json({"ok": False, "error": "no book here"}, 404)
             if making.is_making(book):
-                return self._making_locked()
+                # what an agent makes is not written to by hand (blank chunks put into a book whose
+                # truth is annot/ would be erased by the next assembly): the text becomes a part
+                return self._making_part(book, appended=True)
             return self._book_append(book)
         # a book built from a page: the PDF and the reader (./build.sh), or
         # the reader alone, as a job the page polls (lib/bookbuild.py).
@@ -3408,16 +3479,13 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._method_not_allowed()
             return self._book_build(book)
         # the panel of a book being made, from its card, its reader (which asks
-        # relative to itself) and the add page: what it is on, an ask, the
-        # folder opened, Finish -- addressed by the book's own path like __build
+        # relative to itself) and the add page: what it is on, an ask, a part of
+        # the text, the folder opened, Finish -- addressed by the book's own path
+        # like __build.  Every device let in may do all of it; only opening the
+        # folder is the computer's, as a fact and not a permission (_making)
         m = re.match(r"^(/books/.+?)(?:/reader)?/__making(/[a-z/]+?)?/?$", path)
         if m:
             what = (m.group(2) or "").strip("/")
-            # the two doors that change what Parseh will run are asked BEFORE the
-            # book is looked up: a device that may not is told so, whatever it names
-            gate = {"open": "making.folder", "finish": "making.finish"}.get(what)
-            if gate and method == "POST" and not self._may(gate):
-                return
             book = book_dir(m.group(1))
             if not book:
                 return self.send_json({"ok": False, "error": "no book here"}, 404)
@@ -3501,7 +3569,7 @@ class Handler(SimpleHTTPRequestHandler):
         if bundle.is_media_name(base):
             ext = os.path.splitext(base)[1].lower()
             self.extensions_map = dict(type(self).extensions_map)
-            self.extensions_map[ext] = "video/" + {
+            self.extensions_map[ext] = bundle.SOUND_TYPES.get(ext) or "video/" + {
                 ".m4v": "mp4", ".mkv": "x-matroska", ".ogv": "ogg",
                 ".avi": "x-msvideo"}.get(ext, ext.lstrip("."))
         fs = self.translate_path(path)
@@ -3655,14 +3723,6 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_json(dict(job, ok=True, activity=act))
 
     # ---- a book made by an agent, in place (lib/making.py)
-    def _may(self, key):
-        """May this device do what the table's `key` says (lib/settingspage.py)?
-        True, or the refusal already sent, in the entry's own words."""
-        if settingspage.may(key, self._where()):
-            return True
-        self.send_json({"ok": False, "error": settingspage.refusal(key)}, 403)
-        return False
-
     def _making_locked(self):
         """The answer to a door that writes the .tex of a book being made."""
         self.send_json({"ok": False, "making": True, "error": making.LOCK_SAID}, 409)
@@ -3670,10 +3730,9 @@ class Handler(SimpleHTTPRequestHandler):
     def _making_make(self):
         """The book's folder, from the add page's third way.  The original is the
         request's body -- streamed to a file when it is big, like every file that
-        comes in -- and the book's facts are one JSON in the query.  Computer
-        only: what is made here is what an agent will be told to run tools in."""
-        if not self._may("making.folder"):
-            return
+        comes in -- and the book's facts are one JSON in the query.  Any device
+        let in (the owner, 2026-09-29): the folder only holds files, and the agent
+        that runs tools in it is started by the person, on the computer."""
         try:
             fields = json.loads((self.query.get("book") or ["{}"])[0])
             if not isinstance(fields, dict):
@@ -3681,7 +3740,10 @@ class Handler(SimpleHTTPRequestHandler):
         except ValueError:
             return self.send_json({"ok": False, "error": "the book's facts did not arrive as JSON"}, 400)
         options = {"reference": str(fields.pop("reference", "") or ""),
-                   "examples": bool(fields.pop("examples", False))}
+                   "examples": bool(fields.pop("examples", False)),
+                   "marks": fields.pop("marks", None),
+                   "prompt": str(fields.pop("prompt", "") or ""),
+                   "more_coming": bool(fields.pop("more_coming", True))}
         name = (self.query.get("name") or [""])[0]
         original = {"name": name, "path": self._spool} if self._spool else {"name": name, "data": self._raw}
         try:
@@ -3691,49 +3753,63 @@ class Handler(SimpleHTTPRequestHandler):
         except OSError as e:
             return self.send_json({"ok": False, "error": "the folder could not be written (%s); "
                                    "nothing was changed" % e}, 500)
-        # on the library page and in its reader from the first minute
+        # on the library page and in its reader from the first minute; and whether this device is the
+        # computer, which is the only one that is offered to open the folder
         r["reader"] = self._rebuild_reader(r["path"])
         r["library"] = self._write_library()
-        self.send_json(dict(r, ok=True))
+        self.send_json(dict(r, ok=True, here=self._where() == network.SELF, open_said=making.OPEN_SAID))
 
     def _making_instructions(self):
         """What the folder's AGENTS.md would say for the form as it stands, for the
-        page to show and copy.  It names this computer's paths, so it is the
-        computer's, like the folder itself."""
-        if not self._may("making.folder"):
-            return
+        page to show and copy.  It names this computer's paths, which the agent
+        on this computer is told."""
         body = self._json_body()
         fields = body.get("book") if isinstance(body.get("book"), dict) else {}
-        options = {"reference": str(body.get("reference") or ""), "examples": bool(body.get("examples"))}
+        options = {"reference": str(body.get("reference") or ""), "examples": bool(body.get("examples")),
+                   "marks": body.get("marks"), "prompt": str(body.get("prompt") or "")}
         try:
-            text = making.instructions_for(fields, options)
+            facts = making.form_facts(fields, options)
+            text = making.instructions_text(facts, options)
         except ValueError as e:
             return self.send_json({"ok": False, "error": str(e)}, 400)
-        self.send_json({"ok": True, "text": text, "chars": len(text)})
+        self.send_json({"ok": True, "text": text, "chars": len(text),
+                        "skill": making.skill_request_for(facts, options, len(text))})
 
     def _making(self, book, method, what):
         """One book being made: what its panel shows (GET), an ask written to
-        ASKS.md, the folder opened, Finish and how it is going."""
+        ASKS.md, a part of the text, the folder opened, Finish and how it is going.
+        Every device let in does all of it but one thing: OPEN THE FOLDER is
+        the computer's own act -- it opens a file manager on the screen of the
+        computer Parseh runs on -- so it is a fact about the request (`here`),
+        not a permission, and from another device the panel shows the path to copy."""
+        here = self._where() == network.SELF
         if what == "":
             if method != "GET":
                 return self._method_not_allowed()
             out = making.describe(book)
-            where = self._where()
-            out["may"] = {"folder": settingspage.may("making.folder", where),
-                          "finish": settingspage.may("making.finish", where)}
-            # what a device that may not is told, in the table's own words, so that the
-            # panel says the reason and does not draw a button that would only fail
-            out["said"] = {k: settingspage.refusal("making." + k) for k, ok in out["may"].items() if not ok}
+            out["here"], out["open_said"] = here, making.OPEN_SAID
             out["name"] = booklib.Book(book).title_latin or booklib.Book(book).title
-            if out["may"]["folder"]:
-                out["path"] = book          # this computer's own path, for a device with the computer's rights
+            out["path"] = book
             out["build"] = bookbuild.status(book)
             out["finish"] = making.finish_status(book)      # how a Finish is going: the panel polls this one door
             return self.send_json(out)
-        if what not in ("ask", "open", "finish"):
+        if what not in ("ask", "open", "finish", "part", "more", "reopen", "instructions"):
             return self._not_found("no such door")
         if method != "POST":
             return self._method_not_allowed()
+        if what == "part":
+            return self._making_part(book)             # a file may be the body: it is not JSON
+        if what == "instructions":
+            # WHAT THE AGENT READS, written again from the book's own facts and the way the folder was made:
+            # only AGENTS.md, CLAUDE.md and the skill folders (lib/making.py), open to every device let in
+            # as making the folder is
+            try:
+                return self.send_json(dict(making.rewrite_instructions(book), ok=True))
+            except ValueError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 409)
+            except OSError as e:
+                return self.send_json({"ok": False, "error": "the instructions could not be written (%s); "
+                                       "nothing else was changed" % e}, 500)
         body = self._json_body()
         if what == "ask":
             chunk = body.get("chunk") if isinstance(body.get("chunk"), dict) else None
@@ -3741,14 +3817,64 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(making.ask(book, body.get("line"), chunk))
             except ValueError as e:
                 return self.send_json({"ok": False, "error": str(e)}, 400)
+        if what == "more":
+            if not isinstance(body.get("more_coming"), bool):
+                return self.send_json({"ok": False, "error": "say whether more text is coming: more_coming is true or false"}, 400)
+            try:
+                return self.send_json({"ok": True, "more_coming": making.set_more_coming(book, bool(body.get("more_coming")))})
+            except ValueError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 409)
+        if what == "reopen":
+            try:
+                return self.send_json(dict(making.reopen(book), ok=True))
+            except ValueError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 409)
         if what == "open":
+            if not here:
+                return self.send_json({"ok": False, "error": making.OPEN_SAID, "path": book}, 403)
             err = making.open_folder(book)
             return self.send_json({"ok": not err, "error": err or "", "path": book}, 200 if not err else 500)
+        # Finish waits for what making.finish_blockers says (the owner has not decided what it should
+        # wait for): the first press answers with the sentences, a second one (`confirm`) goes through
+        allowed, blockers = making.finish_gate(book, bool(body.get("confirm")))
+        if not allowed:
+            return self.send_json({"ok": False, "blockers": blockers, "confirm": making.FINISH_CONFIRMABLE,
+                                   "error": "Finish is not started: " + "; ".join(blockers)}, 409)
         try:
             job, started = making.finish_start(book)
         except ValueError as e:
             return self.send_json({"ok": False, "error": str(e)}, 409)
         self.send_json(dict(job, ok=True, started=started))
+
+    def _sent_text(self):
+        """Text that comes in as a file or pasted -> (what lib/making.py takes as a source, the options).
+        A FILE is the body of the request, named in ?name= and with its options in the query
+        (a PDF's page range among them): streamed to disk when it is big, like the first original, and
+        never a path typed on the server.  PASTED text is the JSON body {"text": ..., ...}."""
+        q = lambda k: (self.query.get(k) or [""])[0]
+        keys = ("pages", "chapter", "join", "label", "how")
+        if self._spool or q("name"):
+            return ({"name": q("name"), "path": self._spool} if self._spool
+                    else {"name": q("name"), "data": self._raw}), {k: q(k) for k in keys}
+        body = self._json_body()
+        return {"text": body.get("text")}, {k: body.get(k) or "" for k in keys}
+
+    def _making_part(self, book, appended=False):
+        """More text for the agent of a book being made, a part at a time (lib/making.py add_part).
+        `appended` is the add page's own door, __append, answered for a book being made: its `chapter`
+        defaults to a new one, as it always did there."""
+        source, options = self._sent_text()
+        if appended:
+            options["chapter"] = options.get("chapter") or "new"
+        try:
+            entry = making.add_part(book, source, options)
+        except ValueError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 400 if making.is_making(book) else 409)
+        except OSError as e:
+            return self.send_json({"ok": False, "error": "the part could not be written (%s); nothing "
+                                   "was changed" % e}, 500)
+        self.send_json({"ok": True, "part": entry, "making": True,
+                        "more_coming": making.describe(book)["more_coming"]})
 
     def _video_delete(self):
         """Take one video off the shelf, into videos/.trash/ -- the very
@@ -4268,6 +4394,10 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._video_empty()
             if sub == "/api/local":
                 return self._video_local()
+            if sub == "/api/film/look":
+                return filmdoor.look(self)
+            if sub == "/api/film/wave":
+                return filmdoor.wave(self)
             if sub == "/api/edit":
                 return self._video_edit_chunk()
             if sub == "/api/region/prompt":
@@ -4998,11 +5128,14 @@ class Handler(SimpleHTTPRequestHandler):
         and the page must not be behind it, and the PDF is stale for the same
         reason it is after a divide.
         """
-        body = self._json_body()
+        # pasted, or SENT as a file the way the first original of a book an agent makes is (a PDF's
+        # pages in the query): lib/sourcetext.py recovers it, the agent's own recovery
+        source, options = self._sent_text()
         try:
-            r = draft.add_to_book(book, body.get("text") or "",
-                                  how=chunk_way(body),
-                                  chapter=body.get("chapter") or "new")
+            text = source["text"] or "" if "text" in source else making.recovered_text(
+                source, booklib.Book(book).language, options.get("pages"))
+            r = draft.add_to_book(book, text, how=chunk_way(options),
+                                  chapter=options.get("chapter") or "new")
         except ValueError as e:
             return self.send_json({"ok": False, "error": str(e)}, 400)
         except OSError as e:
@@ -5323,6 +5456,36 @@ class Handler(SimpleHTTPRequestHandler):
             flags[k] = v
         return flags, None
 
+    def _prompt_options(self):
+        """The options of a prompt, for ?surface=<surface>&lang=<code>: the ones that apply
+        there, each with its words, its default and what stands now.  With ?book=<its address,
+        /books/persian/mini-fa> or ?video=<its id> what that book's or video's own record says
+        of the scheme of its transliteration is what stands (`fact`: true)."""
+        q = lambda key: (self.query.get(key) or [""])[0]
+        surface = q("surface")
+        if surface not in promptkit.SURFACES:
+            return self.send_json({"ok": False, "error": "%r is not a place a prompt is handed out from"
+                                   % surface}, 400)
+        L = languages.LANGS.get(q("lang"))
+        if L is None:
+            return self.send_json({"ok": False, "error": "%r is not a language of Parseh" % q("lang")}, 400)
+        # NO FACTS WITHOUT A RECORD: the page that asks for a book or a video that is not made yet
+        # (the add page) has nothing a prompt could mix with, and a record that will not read says
+        # nothing of the scheme
+        facts = None
+        try:
+            if q("book"):
+                where = book_dir(q("book") if q("book").startswith("/books/") else "/books/" + q("book").strip("/"))
+                if where:
+                    facts = {"translit": booklib.Book(where).meta.get("translit")}
+            elif q("video"):
+                where = video_dir(q("video"))
+                if where:
+                    facts = {"translit": annwrite._meta(where).get("translit")}
+        except (OSError, ValueError):
+            facts = None
+        self.send_json({"ok": True, "options": promptkit.describe(surface, L, None, facts)})
+
     def _book_region(self, what):
         """Part of a book glossed by an LLM (lib/glossregion.py): `prompt`
         is what the page copies for the chatbot, `apply` the chatbot's
@@ -5356,9 +5519,11 @@ class Handler(SimpleHTTPRequestHandler):
                                    "reply, pasted as it came"}, 400)
         try:
             if what == "prompt":
-                r = glossregion.book_prompt(book, first, last, **flags)
+                r = glossregion.book_prompt(book, first, last, prompt=body.get("prompt"),
+                                            translit=body.get("translit"), marks=body.get("marks"), **flags)
             else:
-                r = glossregion.book_apply(book, first, last, answer, **flags)
+                r = glossregion.book_apply(book, first, last, answer,
+                                           marks=body.get("marks"), **flags)
         except glossregion.NotFound as e:
             return self.send_json({"ok": False, "error": str(e)}, 404)
         except (glossregion.Refused, texwrite.Refused) as e:
@@ -5704,9 +5869,11 @@ class Handler(SimpleHTTPRequestHandler):
                                    "reply, pasted as it came"}, 400)
         try:
             if what == "prompt":
-                r = glossregion.video_prompt(d, frm, to, **flags)
+                r = glossregion.video_prompt(d, frm, to, prompt=body.get("prompt"),
+                                             translit=body.get("translit"), marks=body.get("marks"), **flags)
             else:
-                r = glossregion.video_apply(d, frm, to, answer, **flags)
+                r = glossregion.video_apply(d, frm, to, answer,
+                                            marks=body.get("marks"), **flags)
         except glossregion.NotFound as e:
             return self.send_json({"ok": False, "error": str(e)}, 404)
         except glossregion.Refused as e:
@@ -6455,7 +6622,7 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(settingspage.hub(dict_tags(), updatepage.door_tags(ROOT),
-                                                   speechpage.door_tags()))
+                                                   speechpage.door_tags(), arasaacpage.door_tags()))
         if path in ("/settings/network", "/settings/network/index.html"):
             return self._redirect("/settings/network/")
         if path == "/settings/network/":
@@ -6490,6 +6657,24 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(latexpage.page(self._where()))
+        if path == PROMPTS_PAGE.rstrip("/"):
+            return self._redirect(PROMPTS_PAGE)
+        if path == PROMPTS_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(promptspage.page(self._where()))
+        if path == ARASAAC_PAGE.rstrip("/"):
+            return self._redirect(ARASAAC_PAGE)
+        if path == ARASAAC_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(arasaacpage.page(self._where(), self._whose_device()))
+        if path == SKILLS_PAGE.rstrip("/"):
+            return self._redirect(SKILLS_PAGE)
+        if path == SKILLS_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(skillspage.page(self._where()))
         if path.startswith("/settings/api/") and method == "POST":
             # WHO MAY IS A PROPERTY OF THE SETTING (TO-DO §11.10, the owner,
             # 2026-09-24), and the table in lib/settingspage.py says it for
@@ -6517,6 +6702,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self._update_api(method, path)
         if path in LATEX_ROUTES:
             return self._latex_api(method, path)
+        if path in PROMPTS_ROUTES:
+            return self._prompts_api(method, path)
+        if path in ARASAAC_ROUTES:
+            return self._arasaac_api(method, path)
+        if path in SKILLS_ROUTES:
+            return self._skills_api(method, path)
         if path not in ("/settings/api/network", "/settings/api/code",
                         "/settings/api/forget"):
             return self._not_found()
@@ -6704,6 +6895,48 @@ class Handler(SimpleHTTPRequestHandler):
             return self._method_not_allowed()
         code, out = latexpage.api(what, self._json_body(), self._where(), notes_libraries(),
                                   rename=studio.latexrename, used=latex_used)
+        return self.send_json(out, code)
+
+    def _prompts_api(self, method, path):
+        """Settings -> Your prompts (lib/promptspage.py), and the row's menu.  A
+        prompt's export is a download, and a read; everything else is a POST,
+        gated above (lib/settingspage.py ROUTES)."""
+        what = PROMPTS_ROUTES[path]
+        if what == "export":
+            if method != "GET":
+                return self._method_not_allowed()
+            return prompts.send_export(self, (self.query.get("id") or [""])[0])
+        if method != "POST":
+            return self._method_not_allowed()
+        code, out = prompts.api(what, self._json_body())
+        return self.send_json(out, code)
+
+    def _skills_api(self, method, path):
+        """Settings -> Skills for your chatbot (lib/skillspage.py): how each skill stands, and the zip of one, built
+        now and stored nowhere.  Both are reads (lib/settingspage.py ROUTES): nothing here changes anything."""
+        if method != "GET":
+            return self._method_not_allowed()
+        if SKILLS_ROUTES[path] == "state":
+            return self.send_json(skillspage.view())
+        name = (self.query.get("name") or [""])[0]
+        if name not in skills.available():
+            return self.send_json({"ok": False, "error": "%r is not a skill this Parseh makes" % name}, 404)
+        try:
+            data = skills.build(name).zip_bytes()
+        except skills.SkillError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 500)
+        return self.send_bytes(data, "application/zip", 200,
+                               {"Content-Disposition": 'attachment; filename="%s.zip"' % name})
+
+    def _arasaac_api(self, method, path):
+        """Settings -> Pictograms (ARASAAC) (lib/arasaacpage.py).  Every route is a POST, gated above
+        (lib/settingspage.py ROUTES) and held to this site by _dispatch (lib/crosssite.py)."""
+        if method != "POST":
+            return self._method_not_allowed()
+        body = self._json_body()
+        if ARASAAC_ROUTES[path] == "state":
+            body = dict(body, device=self._whose_device())
+        code, out = arasaacpage.api(ARASAAC_ROUTES[path], body, self._where())
         return self.send_json(out, code)
 
     def _refused(self, route):
@@ -7423,6 +7656,8 @@ def main():
     # and the held waveforms nobody adopted -- cleared off the way in, here,
     # never at import
     threading.Thread(target=sttjobs.startup, daemon=True).start()
+    # and the films and sounds that were sent and never made a video
+    threading.Thread(target=filmdoor.sweep, daemon=True).start()
 
     def _stop_drawings(*_a):
         latexdraw.stop_all()
@@ -7435,6 +7670,11 @@ def main():
         # look at the graphics card: none of them may outlive the server
         try:
             getstt.stop_all()
+        except Exception:                                     # noqa: BLE001
+            pass
+        # a download of the pictograms is stopped between two pictures, and carries on next time
+        try:
+            getarasaac.stop_all()
         except Exception:                                     # noqa: BLE001
             pass
     import atexit

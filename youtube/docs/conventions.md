@@ -5,10 +5,9 @@ same for every video in every language; what a language decides for
 itself — its transliteration scheme, what its vowelled and bare forms
 are, what never to gloss, whether it has a reading — is in that
 language's own conventions file, `docs/lang/<code>.md` at the root of the
-toolbox (`fa.md` for Persian, and `ar.md`, `hi.md`, `ja.md`, `zh.md`,
-`it.md`, `fr.md`, `de.md`, `tr.md`, `en.md`, `es.md` — one for every
-language in `lib/languages.json`), which the prompt includes after this
-one. The per-video word lists live beside this file.
+toolbox (one for every language in `lib/languages.json`, under the code
+that registry gives it), which the prompt includes after this one. The
+per-video word lists live beside this file.
 
 *The Persian transliteration scheme and the Persian examples that used to
 stand here are now `docs/lang/fa.md`.*
@@ -71,11 +70,11 @@ That is normal in these videos and is not a fault.
   punctuation, same joiners (ZWNJ), ASR mistakes included. The key is
   named `fa` after Persian, the toolbox's first language: it holds the
   caption's text in the target language, whatever that language is.
-  Chunks split only at the language's word separator (a space; for
-  Japanese, anywhere between two characters); joined back with that
-  separator they must reproduce the caption exactly
-  (`lib/check_part.py` enforces this). **Never correct the caption in
-  `fa`** — the correction goes in `note`.
+  Chunks split only at the language's word separator (a space; for a
+  language written without spaces, such as Japanese or Chinese, anywhere
+  between two characters); joined back with that separator they must
+  reproduce the caption exactly (`lib/check_part.py` enforces this).
+  **Never correct the caption in `fa`** — the correction goes in `note`.
 - **`kana`** — only for a language with a reading (Japanese): the
   reading of the **whole chunk** in kana, never a per-character
   alignment (`漢字を書く` → `かんじをかく`). Required on every chunk of
@@ -83,11 +82,10 @@ That is normal in these videos and is not a fault.
 - **`tr`** — transliteration of what is actually said, colloquial forms
   as heard, in the language's scheme (its conventions file gives it,
   and how to hyphenate transparent morphology). Required on every chunk
-  of the target language for Persian, Arabic, Japanese, Hindi and Chinese
-  (for Chinese it is the pinyin); optional for Italian, French, German,
-  Turkish, English and Spanish, where it is a pronunciation hint — for
-  the odd word in Italian, for most of them in French. The language's
-  file says which.
+  of the target language where the language romanises every chunk (for
+  Chinese it is the pinyin); optional where it is only a pronunciation
+  hint — for the odd word in one language, for most in another. The
+  language's file says which.
 - **`voc`** — the vocabulary line, in the voice of the books' gloss
   blocks: headword + transliteration + meaning; verbs with their stems
   or forms as the language's file shows; colloquial ↔ written pairs
@@ -106,8 +104,8 @@ That is normal in these videos and is not a fault.
   names it), lower-case, like the books' third line ("there are wounds",
   "in solitude"). The key is named `en` after the first gloss language,
   whatever the gloss is written in. What it says is what THAT chunk's own
-  words say, in the order of the caption (the rule on the meaning, in the
-  prompt, is the whole of it).
+  words say, in the order of the caption (the rule on the meaning, which
+  comes with these conventions, is the whole of it).
 - **`note`** — optional, sparingly: ASR slips, garbled words, culture
   notes, sounds (`[laughter]`). The caption stays wrong in `fa`; the
   note is where the truth goes.
@@ -126,48 +124,23 @@ after that only when the form itself is new (a new tense, a new clitic).
 
 ## Plain captions, and another language inside a caption
 
-For a language written in its own script (Persian, Arabic, Hindi,
-Japanese, Chinese) a caption with **not one character of that script** —
-the framing these teaching videos open with, usually in English — is
-*plain*: the pipeline fills it in from the transcript and it is not in
-your batch at all. A run with no
-target script *inside* a caption (`welcome to a new session of`) is one
-chunk with **only `fa`** — no `tr`, no `en`. The player shows it as plain
-text and never offers it as a card.
+For a language written in a script of its own, not the Latin alphabet
+(Persian, Japanese and the like), a caption with **not one character of
+that script** — the framing these teaching videos open with, usually in
+English — is *plain*: the pipeline fills it in from the transcript and it
+is not in your batch at all. A run with no target script *inside* a
+caption (`welcome to a new session of`) is one chunk with **only `fa`** —
+no `tr`, no `en`. The player shows it as plain text and never offers it
+as a card.
 
-For a Latin-script language (Italian, French, German, Turkish, English,
-Spanish) the software cannot tell an aside in another language from the
-target by its letters, so **every caption wants glossing**, and such an
-aside — a
-whole caption of it, or a run inside one — is a chunk carrying
-`"plain": true` beside its `fa`, and nothing else. Only there may an
-annotator write `plain`; for a script language it exists solely for
-imports from the older format. A chunk left with no gloss is not plain:
-it is a chunk still to be glossed, and the software counts it as one —
-so gloss every chunk that is not plain.
-
-## The output
-
-*This is the shape of a batch file, `parts/NN.json`, for a video written
-by hand from `youtube/PROMPT.md`. The add page's prompt asks for a shape
-of its own — one JSON object holding `video` and `captions`, each caption
-with its `i` — and shows it after these conventions: answering that
-prompt, follow that one.*
-
-A part file is a JSON **array**, one entry per caption, in order:
-
-```json
-[ {"start": 27, "chunks": [ {"fa": "…", "tr": "…", "voc": "…", "en": "…"} ]} ]
-```
-
-with `"kana": "…"` on every chunk when the language has a reading:
-
-```json
-[ {"start": 27, "chunks": [ {"fa": "…", "kana": "…", "tr": "…", "voc": "…", "en": "…"} ]} ]
-```
-
-Nothing else: no `text`, no `plain` on a caption, no `chapter` —
-`merge_parts.py` fills those from `transcript.txt`.
+For a language written in the Latin alphabet the software cannot tell an
+aside in another language from the target by its letters, so **every
+caption wants glossing**, and such an aside — a whole caption of it, or a
+run inside one — is a chunk carrying `"plain": true` beside its `fa`, and
+nothing else. Only there may an annotator write `plain`; for a script
+language it exists solely for imports from the older format. A chunk left
+with no gloss is not plain: it is a chunk still to be glossed, and the
+software counts it as one — so gloss every chunk that is not plain.
 
 ## The colour mark
 

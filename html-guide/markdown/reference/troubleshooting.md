@@ -22,7 +22,7 @@ the rule or the button they are about.
 |---|---|
 | The browser says the connection is not private, or the certificate is not trusted. | Expected, once per browser. Parseh makes its own certificate the first time it starts, and nobody else vouches for it — it is your server on your network. Choose **Advanced** and go on to the address. If the machine's addresses have changed (a new network, a new Tailscale address) and a device refuses the old certificate, make a fresh one: `./serve.sh cert` (Windows: `serve.bat cert`), then restart. |
 | A page will not load at all. | The server is not running, or it runs on another port. On Linux and macOS, `./serve.sh status` says `running: pid …, https port …` or `not running`, and `./serve.sh log` shows its last lines. On Windows the server runs in its own window: that window is the log. Start it again with `./serve.sh`, **Parseh.command** on a Mac, or a double-click on **serve.bat**. |
-| *Parseh stopped. Start it again with ./serve.sh in the project directory and reload this page.* (the studio says *Server stopped*) | Somebody pressed a stop button: **⏻ stop** on the hub, ⏻ in the video player, **stop server** in a book's reader, **Stop server** in the studio and the exercises. Nothing is lost. Start Parseh again as above — on Windows with a double-click on **serve.bat** — and reload the page. |
+| *Parseh stopped. Start it again on the computer it runs on, the way you started it before (Parseh.command on a Mac, serve.bat on Windows), and reload this page.* (the studio says *Server stopped*) | Somebody pressed a stop button: **⏻ stop** on the hub, ⏻ in the video player, **stop server** in a book's reader, **Stop server** in the studio and the exercises. Nothing is lost. Start Parseh again as above — on Windows with a double-click on **serve.bat** — and reload the page. |
 | Stopping asks *1 task is still running* (or *N tasks are*) and lists them. | The server is still doing something you started — a build, an upload, a backup, a download being packed. Stopping now cuts it off. Answer **Cancel**, wait for the **Working…** pill to go, then stop. |
 | `./serve.sh` says `already running: pid … on port …` | A server is already up. Use it, or `./serve.sh restart` to replace it (after changing a file of Parseh's by hand, say; an update from Settings restarts it by itself). |
 | `./serve.sh` says `failed to start -- the log says:` and quotes the log. | Usually the port is taken by another program (`Address already in use`). Start on another port — `./serve.sh 9000`, `serve.bat 9000` — or stop the other program. |
@@ -106,7 +106,9 @@ More in [Books](../books/_index.md).
 
 | What you see | What it means, and what to do |
 |---|---|
-| **make the book's folder**, on the add page, is greyed, and a note says *That is changed on the computer Parseh runs on and nowhere else, because it changes what Parseh will run…* | The folder is made, and later opened and finished, by the computer Parseh runs on: an agent runs Parseh's own tools in it, and Finish runs a build. A phone or another computer that has been let in can watch the making and steer it, but not begin one or end it. Do it on that computer's own browser. |
+| **open the folder** is not there on another device, and the panel says *Opening the folder shows it on the screen of the computer Parseh runs on…* | Opening a folder is the computer's own act: it shows it in the file manager on that computer's screen. Everything else — making the folder, giving the agent text, **this is all the text**, **finish**, reopening — is done from any device let in; here, copy the folder's path. |
+| **finish…** lists *part 3 has not been taken by the agent yet* or *the agent has not said it is done* | Finish says what it would not wait for: the agent has not taken every part you gave it, or has not said it is done (its stage is not *all batches in* or *waiting for the next part*). Tell the agent to carry on, or press **finish anyway** if it forgot to record. |
+| The agent does not take a part you added. | It reads `making.json` and `ASKS.md` before each batch, so tell it to carry on (a part is noted in both). A folder made before text could come in parts has instructions that do not mention them: tell the agent to read `parts` in `making.json`, or make the folder again. |
 | *choose the original first* | The file picker is empty. Choose the PDF, the epub or the text file the book is made from. |
 | *a book is already at books/english/mini-en/ — choose another slug* | A book with that name is on the shelf, or an earlier folder was made for it. Give the new one another slug, or take the other off the shelf with **✕** on its card (it goes to the trash, not away). |
 | *the original has to be a PDF with a text layer, an epub or a plain text file (.pdf, .epub, .txt): 'letter.docx' is none of them*, or *letter.pdf does not look like a PDF: choose the right file* | The original is one of three kinds, and its first bytes have to say what its name says. The agent reads text, so a PDF that is only pictures of pages — a scan — has nothing to read: save the text as a plain text file, or choose a PDF that has a text layer. |
@@ -251,3 +253,13 @@ backup](../exercises/export-import-backup.md).
 More in [The Working… indicator](../getting-started/working-indicator.md)
 and [Browser and Mobile](../getting-started/mobile-mode.md).
 
+
+## Skills for your chatbot
+
+| What you see | What it means, and what to do |
+|---|---|
+| The chatbot answers a request with *I do not have the parseh-gloss skill*. | The skill is not installed in that chat. Install it ([Skills for your chatbot](../studio/skills.md)), or use **copy the prompt**, which needs no skill. |
+| The chatbot says the request is for a newer skill than the one installed. | You updated Parseh after downloading the skill. Download it again from **Settings → Skills for your chatbot** and install it over the old one. |
+| The row says *your skill may be older than this Parseh — download it again*. | This device remembers the last skill it downloaded, and Parseh would make another one now. Download it again. |
+| **copy the request for the skill** is off and says the prompt takes the place of Parseh's. | A prompt of yours that is *in place of* Parseh's cannot travel in a request: the skill carries Parseh's instructions. Use **copy the prompt**, or choose Parseh's own or an *added* prompt. |
+| A skill uploaded to claude.ai is not used. | Check the skill's switch in **Customize → Skills**, and that code execution is on in **Settings → Capabilities**; on a Team or Enterprise plan an Owner decides ([Skills for your chatbot](../studio/skills.md)). |

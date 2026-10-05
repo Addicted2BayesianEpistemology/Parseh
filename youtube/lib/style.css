@@ -112,6 +112,36 @@ body.sized #vid iframe,body.sized #vid video,body.sized:not(.nopin) #vid iframe,
 /* while dragging, the iframe must not swallow the pointer */
 body.resizing #vid iframe,body.resizing #vid video{pointer-events:none}
 
+/* ---------------- a SOUND in the video's place ----------------
+   html[data-kind=audio]: the media is a sound alone (video.json's "kind"), so
+   there is no frame to matte on black.  A bar fills the place -- the shape of
+   the sound with the playhead on it (player.js soundBar) and the element's own
+   controls under it -- drawn in the page's own tokens, so the three themes are
+   one rule.  What needs a picture steps aside: the grip that resizes it, the
+   side-by-side button, the card's frame row.  Written after the video's rules
+   above, which it overrides at equal weight. */
+html[data-kind="audio"] #vid{aspect-ratio:auto;max-height:none;width:auto!important;
+  background:var(--card);padding:6px 8px 4px}
+html[data-kind="audio"] #vid audio{display:block;width:100%;height:42px;margin-top:2px;
+  color-scheme:light}
+/* the browser's own controls follow the page's dark theme, set by the attribute or
+   by the system (parseh.css: the same two selectors) */
+:root[data-theme=dark][data-kind="audio"] #vid audio{color-scheme:dark}
+@media (prefers-color-scheme:dark){
+  :root[data-kind="audio"]:not([data-theme=light]):not([data-theme=sepia]) #vid audio{color-scheme:dark}
+}
+#sndbar{position:relative}
+#sndwave{display:block;width:100%;height:64px;cursor:pointer;touch-action:none;
+  border-radius:6px}
+.sndsay{position:absolute;inset:auto 0 8px 0;text-align:center;font-size:11.5px;
+  color:var(--faint);pointer-events:none}
+html[data-kind="audio"] #novid{position:static;padding:6px 8px;color:var(--dim)}
+html[data-kind="audio"] #grip,html[data-kind="audio"] #sbs,
+html[data-kind="audio"] #ashotrow{display:none}
+/* the film or sound that is not there any more, and the way to send it again */
+#novid .novid-send{margin-top:6px}
+#novid .novid-said{font-size:12.5px;margin-top:6px}
+
 /* ---------------- the transcript ---------------- */
 /* the Aa panel in the header sets --yt-fa (the target text), --yt-gl (the
    gloss cloud), --yt-width (the column) and --yt-lead (a line-height
@@ -382,6 +412,30 @@ html[data-theme=dark]{
 .hl-blue{color:var(--hl-blue)}
 .hl-orange{color:var(--hl-orange)}
 .hl-green{color:var(--hl-green)}
+
+/* ---------------- ✱ notes: the phrases that carry a note ----------------
+   The bar's switch (player.js, "the phrases that carry a note") puts .has-note
+   on every phrase that has one, and only while it is on.  NOT AN hl- COLOUR,
+   and drawn without touching the text: the four colours are the person's own
+   marks and keep showing -- the underline and the ✱ are the accent's, and the
+   phrase's own ink is left to the colour -- and the ✱ is generated content, so
+   selecting, copying, the dictionary's sentence and the timings read the line as
+   they always did.  The ✱ is set in the quiet sans the bare runs use, because
+   the language's own face has none and the browser would pick whichever font has
+   it; it is placed logically, so it follows a right-to-left line to its left.
+   .note-here is the phrase the walk has just arrived at, and is an outline
+   because the line in play has a tinted ground. */
+.fa .has-note{text-decoration:underline dashed var(--accent) 1.5px;
+  text-decoration-skip-ink:none;text-underline-offset:7px}
+.fa .has-note::after{content:"\2731";color:var(--accent);
+  font:normal 600 .62em/0 -apple-system,'Segoe UI',Roboto,sans-serif;
+  vertical-align:.95em;margin-inline-start:.18em;pointer-events:none}
+.fa .has-note.note-here{outline:2px solid var(--accent);outline-offset:3px;
+  border-radius:4px}
+/* the switch and its two arrows, kept together when the bar wraps; the arrows
+   are drawn only while the highlight is on, and greyed when no phrase has a note */
+#notesgrp{display:inline-flex;gap:3px}
+#notesgrp button:disabled{opacity:.5;cursor:default}
 
 /* the colour row at the foot of the cloud, in both its states: five
    buttons, the first of them "no colour" */

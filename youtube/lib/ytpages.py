@@ -56,6 +56,7 @@ import bundle       # noqa: E402  which file of a video's own is its film
 import chunker      # noqa: E402  the two ways a draft may be cut
 import languages    # noqa: E402  the registry: folders, names, scripts, chips
 import promptkit    # noqa: E402  the three parts every prompt is made of
+import prompts      # noqa: E402  the prompts a person wrote, chosen by their id
 import words        # noqa: E402  a word line proposed where an answer left one out
 import wordline     # noqa: E402  and proved against the checker before it is given
 import make_index   # noqa: E402  the bundle panel both index pages share
@@ -68,6 +69,7 @@ import tidy as tidier          # noqa: E402  an automatic transcript, cut into s
 import texwrite      # noqa: E402  NOT_TEXT and Refused -- edit_meta reuses both rather
                      # than restating them (its own docstring says why)
 import wavefile      # noqa: E402  the shape of a sound a transcription held for a video
+import filmkind      # noqa: E402  what a video's own media is, and a playable copy of a sound
 
 APP_NAME = "Parseh"
 
@@ -162,6 +164,8 @@ def _load_video(folder, name, path):
     # asked for a gloss (a plain caption's, a chunk marked plain and a run of
     # the video's own English are legitimately blank and are not counted).
     meta["_blank"], meta["_glossable"] = CA.gloss_state(path)
+    # "audio" for a sound with no picture, which the shelf's card says
+    meta["_kind"] = bundle.film_kind(path, meta)
     return meta
 
 
@@ -365,6 +369,9 @@ def video_card(m):
         tags.append('<span class="tag">%s</span>' % esc(m["level"]))
     if m.get("duration"):
         tags.append('<span class="tag">%s</span>' % esc(m["duration"]))
+    if m.get("_kind") == "audio":
+        # a sound has no thumbnail to be: the card says what it is
+        tags.append('<span class="tag">&#9834; a sound</span>')
     if pending:
         tags.append('<span class="tag no">no annotations yet</span>')
     elif m.get("_blank"):
@@ -441,7 +448,7 @@ def lang_head(L, n):
 ADD_CARD = (
     '<a class="book sync add" href="%s/add/">\n'
     '  <div class="chname">&#65291; Add a video</div>\n'
-    '  <div class="blurb">From YouTube, or a film already on this machine. '
+    '  <div class="blurb">From YouTube, or a video or a sound already on this machine. '
     'The page asks where the video is and who writes the glosses &mdash; an '
     'LLM whose answer it checks, or you, in the player.</div>\n'
     '</a>' % BASE)
@@ -555,6 +562,16 @@ def player_page(vid):
            # before local ones existed has a URL and is not one.
            "local": bool(film) or (is_local_id(meta.get("id", ""))
                                    and not (meta.get("url") or "").strip()),
+           # A SOUND WITH NO PICTURE says "audio": video.json's "kind", decided
+           # once when the film was attached, or the extension for a video
+           # made before there was one (bundle.film_kind).  The player draws a
+           # bar with the waveform in place of a frame for it.
+           # (A sound whose file has gone says so all the same, so that the page
+           # is the bar's small box and not a black frame with nothing in it.)
+           "kind": bundle.film_kind(_path, meta)
+                   or ("audio" if meta.get("kind") == "audio" else "video"),
+           # what the box that sends a film or a sound again may offer
+           "accept": "audio/*,video/*," + ",".join(bundle.MEDIA_EXTS),
            # HOW BIG THE ⤓ DOWNLOAD IS: what the bundle will carry in the
            # shape the button asks for (lib/bundle.py's payload) -- for a
            # film on this machine, the film, which may be gigabytes and
@@ -587,6 +604,7 @@ def player_page(vid):
                      ("__LANG__", L.code),
                      ("__LANG_NAME__", L.name),
                      ("__LANG_DIR__", L.dir),
+                     ("__KIND__", cfg["kind"]),
                      ("__GLOSS_NAME__", G.name)):
         page = page.replace(key, esc(val))
     return (page.replace("__YTFRANK__", cfg_js)
@@ -800,12 +818,6 @@ DOCS = os.path.join(HERE, "docs")
 YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 LEVELS = ("beginner", "lower-intermediate", "intermediate",
           "upper-intermediate", "advanced")
-# the example shown in the prompt: a real video of the same language, four
-# consecutive glossed captions -- the repetition rule and the note field
-# both visible.  For Persian the captions are chosen (they show a note and
-# a bare English run); for a language whose first video is not known in
-# advance, the first four glossed captions of its first video serve.
-EXAMPLE_VIDEO, EXAMPLE_STARTS = "nFoM8JraEek", (116, 124, 130, 135)
 PART_SIZE = 25
 
 
@@ -865,7 +877,8 @@ def check_film(raw):
     Raises ValueError with a sentence for the page.  A film is named by a
     PATH and never by an upload's filename, and it is read here and nowhere
     else: what a URL carries is the video's id, and the film is found by
-    listing the video's own directory.
+    listing the video's own directory.  A SOUND is named the same way and is
+    accepted wherever a film is (bundle.MEDIA_EXTS).
     """
     if raw is not None and not isinstance(raw, str):
         raise ValueError("the film's path has to be text, and that is a %s"
@@ -877,9 +890,11 @@ def check_film(raw):
     ext = os.path.splitext(path)[1].lower()
     if not os.path.isfile(path):
         raise ValueError("no file at %s" % path)
-    if ext not in bundle.VIDEO_EXTS:
-        raise ValueError("%s is not a video this can play (%s)"
-                         % (ext or "that", ", ".join(bundle.VIDEO_EXTS)))
+    if ext not in bundle.MEDIA_EXTS:
+        raise ValueError("%s is not a video this can play, nor a sound (videos: %s; "
+                         "sounds: %s)" % (ext or "that", ", ".join(bundle.VIDEO_EXTS),
+                                          ", ".join(e for e in bundle.SOUND_EXTS
+                                                    if e not in bundle.VIDEO_EXTS)))
     return path, ext
 
 
@@ -891,6 +906,10 @@ def attach_film(video_dir, path):
     filesystem has no link to make).  Either way what lands is a real file,
     so the bundle the download button writes carries it like any other
     content, and the video plays on the machine that unpacks it.
+
+    A SOUND goes the same way, and what is decided about it -- whether it is a
+    sound at all, whether a browser plays it, the playable copy where one is
+    needed -- is decided here, once, by youtube/lib/filmkind.py.
     """
     path, ext = check_film(path)
     into = os.path.join(video_dir, "media" + ext)
@@ -908,12 +927,16 @@ def attach_film(video_dir, path):
     except OSError:
         shutil.copy2(path, part)
         how = "copied"
-    os.replace(part, into)
-    for old in sorted(os.listdir(video_dir)):
-        if bundle.is_media_name(old) and old != os.path.basename(into):
-            os.unlink(os.path.join(video_dir, old))
-    return {"film": os.path.basename(into), "how": how,
-            "bytes": os.path.getsize(into)}
+    try:
+        got = filmkind.settle(video_dir, part)
+    except (OSError, ValueError):
+        if os.path.exists(part):
+            os.unlink(part)
+        raise
+    # a film that was SENT waited in .incoming/ for this: it is the video's now
+    filmkind.release(path, VIDEOS)
+    return {"film": got["film"], "how": how, "bytes": got["bytes"], "kind": got["kind"],
+            "converted": got["converted"], "original": got["original"], "note": got["note"]}
 
 
 def local_target(data, taken=None):
@@ -1132,78 +1155,6 @@ def caption_lines(captions, lang=None):
     return "\n".join(lines)
 
 
-def _example_video(L):
-    """The video the worked example is taken from: one of the language,
-    with glossed captions, when the player has one -- the Persian
-    reference video otherwise.  Returns (meta, path, same_language)."""
-    for folder, name, path in video_dirs():
-        if folder != L.folder:
-            continue
-        meta = _load_video(folder, name, path)
-        # nothing left blank: the example is quoted into the prompt as what
-        # an answer looks like, and a video with chunks nobody has glossed
-        # would teach the LLM to leave them so (a chunk half glossed is kept
-        # out caption by caption, in _example)
-        if meta and meta["_glossed"] and not meta["_blank"]:
-            if L.code == languages.DEFAULT and name != EXAMPLE_VIDEO:
-                continue                 # Persian keeps its chosen example
-            return meta, path, True
-    for folder, name, path in video_dirs():
-        if name == EXAMPLE_VIDEO:
-            meta = _load_video(folder, name, path)
-            if meta:
-                return meta, path, meta["_lang"] == L.code
-    return None, None, False
-
-
-def _example(lang=None):
-    """The worked example: what the list looks like for four captions of a
-    video already in the player, and what the answer for them looks like.
-    Returns (received, answered, intro) -- the intro is a sentence for the
-    prompt when the example had to be borrowed from another language."""
-    L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
-    meta, path, same = _example_video(L)
-    if meta is None:
-        return None, None, ""
-    ann = read_json(os.path.join(path, "annotations.json")) or {}
-    segs = ann.get("segments") or []
-    chosen = EXAMPLE_STARTS if meta["id"] == EXAMPLE_VIDEO else None
-    EL = languages.get_or_default(meta.get("_lang"))
-    lines, out, i = [], [], 0
-    for sg in segs:
-        if sg.get("plain"):
-            continue
-        # only a caption every chunk of which is glossed in full: the player
-        # saves a chunk a box at a time, and one still missing its tr would
-        # teach the LLM the very answer the page then refuses
-        whole = isinstance(sg.get("chunks"), list) and all(
-            isinstance(ch, dict) and CA.complete(ch, EL) for ch in sg["chunks"])
-        if whole and sg.get("chunks") and (sg.get("start") in chosen if chosen else len(out) < 4):
-            lines.append("[%d] %ss  %s" % (i, secs_str(sg["start"]), sg["text"]))
-            # the machine's division under it, as the real list has one
-            w = proposed_words(sg["text"], languages.get_or_default(meta.get("_lang")))
-            if w:
-                lines.append("    words: %s" % w)
-            # the chunks as they stand, a word line with them where the video
-            # has one: the example shows what is there and invents nothing
-            out.append({"i": i, "start": sg["start"], "chunks": sg["chunks"]})
-        i += 1
-    if not out:
-        return None, None, ""
-    answer = {"video": {"title_native": native_title(meta),
-                        "level": meta.get("level", "beginner"),
-                        "blurb": meta.get("blurb", "")},
-              "captions": out}
-    intro = ""
-    if not same:
-        intro = ("There is no %s video in the player yet, so the example below is "
-                 "from a %s one. The method and the shape of the answer are exactly "
-                 "the same; the transliteration scheme and the other conventions of "
-                 "%s are the ones given above, not the %s ones the example follows."
-                 % (L.name, EL.name, L.name, EL.name))
-    return "\n".join(lines), json.dumps(answer, ensure_ascii=False, indent=1), intro
-
-
 def lang_conventions(L):
     """docs/lang/<code>.md, the language's own conventions (the docs agent
     writes them; docs/languages.md section 9), without its H1, as the video
@@ -1213,26 +1164,27 @@ def lang_conventions(L):
     return promptkit.language_text("video-new", L)
 
 
-def assembled_chat(glossary=None, lang=None, gloss=None, data=None):
+def assembled_chat(glossary=None, lang=None, gloss=None, data=None, instructions=None,
+                   custom=None, options=None):
     """docs/chat-prompt.md with its placeholders filled: the language's
     name, the generic conventions verbatim (the binding spec, one copy of
-    it), the language's own block, the example, a word list -- and the
+    it), the language's own block -- which holds the language's worked
+    example (docs/lang/<code>.md, Example) -- a word list, and the
     language the meanings are to be WRITTEN in, which the template names
     where it asks for them.  In its three parts (lib/promptkit.py), the
-    `data` the last one.  -> promptkit.Assembled"""
+    `data` the last one, and the `instructions` a person's own where they
+    are given (lib/prompts.py), named `custom` in the version line.  `options`
+    is what the request chose of the scheme of the transliteration and the
+    short vowels (promptkit.OPTIONS).
+    -> promptkit.Assembled"""
     L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
     G = gloss if isinstance(gloss, languages.Gloss) \
         else languages.gloss_or_default(gloss)
+    chosen = promptkit.resolve("video-new", L, options)
     with open(os.path.join(DOCS, "conventions.md"), encoding="utf-8") as f:
         conv = f.read()
     # its own H1 would break the prompt's outline; the rest is the spec
     conv = re.sub(r"^# .*\n+", "", conv, count=1).strip()
-    ex_in, ex_out, ex_intro = _example(L)
-    # Nothing in the player to quote yet -- a fresh clone, or a language whose
-    # first video this is.  The template cuts the worked example (its block
-    # `example`) rather than leave its heading standing over a hole: the shape
-    # of an answer is in the conventions just above it, which are the binding
-    # spec anyway.
     gl = ""
     if glossary and re.match(r"^[a-z0-9-]+$", glossary):
         gp = os.path.join(DOCS, "glossary-%s.md" % glossary)
@@ -1284,27 +1236,28 @@ def assembled_chat(glossary=None, lang=None, gloss=None, data=None):
                else "`en` on every chunk of %s text (`tr` is optional here)" % L.name)
     if L.reading:
         tr_rule = "`kana`, " + tr_rule
-    # THE EXAMPLE IS A VIDEO'S, not the template's: a caption that says `{{` is
-    # a caption, and is put in as one
     return promptkit.assemble(
-        "video-new", L, G, flags={"example": ex_in is not None},
+        "video-new", L, G,
         values={"KANA_LINE": kana_line, "WORDS_LINE": words_line,
                 "WORDS_CHECK": words_check, "WORDS_RECEIVED": words_received,
-                "TR_RULE": tr_rule, "EXAMPLE_INTRO": ex_intro, "GLOSSARY": gl},
-        verbatim={"EXAMPLE_IN": ex_in or "", "EXAMPLE_OUT": ex_out or ""},
-        includes={"CONVENTIONS": conv}, data=data)
+                "TR_RULE": tr_rule, "GLOSSARY": gl},
+        includes={"CONVENTIONS": conv}, data=data, instructions=instructions, custom=custom,
+        options=chosen)
 
 
-def chat_prompt(glossary=None, lang=None, gloss=None):
+def chat_prompt(glossary=None, lang=None, gloss=None, options=None):
     """The prompt for a video before its captions -> str (assembled_chat)."""
-    return assembled_chat(glossary, lang, gloss).text
+    return assembled_chat(glossary, lang, gloss, options=options).text
 
 
-def full_prompt(vid, meta, captions, glossary=None, lang=None, gloss=None):
-    return assembled_full(vid, meta, captions, glossary, lang, gloss).text
+def full_prompt(vid, meta, captions, glossary=None, lang=None, gloss=None, instructions=None,
+                custom=None, options=None):
+    return assembled_full(vid, meta, captions, glossary, lang, gloss, instructions, custom,
+                          options).text
 
 
-def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None):
+def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None, instructions=None,
+                   custom=None, options=None):
     """The whole prompt of a video from scratch: its captions and the facts
     about the video are the data, the last part.  -> promptkit.Assembled"""
     L = languages.get_or_default(lang if isinstance(lang, str) else (lang.code if lang else None))
@@ -1315,7 +1268,8 @@ def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None):
     if not is_local_id(vid):
         head.append("- url: https://www.youtube.com/watch?v=%s" % vid)
     else:
-        head.append("- a film on the reader's own machine, not on YouTube")
+        head.append("- a %s on the reader's own machine, not on YouTube"
+                    % ("recording" if meta.get("kind") == "audio" else "film"))
     if meta.get("title"):
         head.append("- title: %s" % meta["title"])
     if meta.get("channel"):
@@ -1333,7 +1287,8 @@ def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None):
                                    fmt_time(captions[-1]["start"]) if captions else "?"))
     head += ["", "## The captions", "", "```", caption_lines(captions, L), "```", "",
              "Now answer with the JSON, and nothing else."]
-    return assembled_chat(glossary, L, G, data="\n".join(head))
+    return assembled_chat(glossary, L, G, data="\n".join(head), instructions=instructions,
+                          custom=custom, options=options)
 
 
 def _json_blocks(text):
@@ -1610,6 +1565,24 @@ def posted_gloss(value):
     return languages.gloss(CA.lang_code(value) or None)
 
 
+def _tidy_prompt(h, captions, L, asked):
+    """The tidy's prompt, answered: Parseh's own where `asked` is true, and made
+    from one of the person's where it is that prompt's id (lib/prompts.py)."""
+    try:
+        chosen = prompts.resolve("transcript-tidy", asked, L)
+        made = tidier.prompt(captions, L.code, chosen and chosen.instructions,
+                             chosen and chosen.name)
+    except prompts.PromptsError as e:
+        return h.send_json({"ok": False, "error": str(e)}, e.status)
+    except promptkit.PromptError as e:
+        return h.send_json({"ok": False, "error": prompts.unmade(chosen, e) if chosen else
+                            "the prompt could not be made: %s" % e}, 400)
+    out = {"ok": True, "prompt": made, "lang": L.code}
+    if chosen:
+        out["custom"] = {"id": chosen.id, "name": chosen.name, "kind": chosen.kind}
+    return h.send_json(out)
+
+
 def api_transcript(h):
     """The transcript the add page is editing, read or written.
 
@@ -1633,7 +1606,11 @@ def api_transcript(h):
                              for whoever would rather have a model read the
                              transcript than an algorithm.  The answer comes
                              back into the box as an ordinary panel, by the
-                             first form above.
+                             first form above.  `prompt` is true for Parseh's
+                             own, or the id of one of the person's prompts
+                             (lib/prompts.py), whose text goes after Parseh's
+                             instructions or in place of them, as it says;
+                             the contract and the transcript stay Parseh's.
 
     Every answer carries `can_tidy` and, where it cannot, `why`.  The tidy
     button is there for every language the toolbox teaches and works once
@@ -1677,8 +1654,7 @@ def api_transcript(h):
                                     "error": "caption %d: chapter must be text" % i}, 400)
             clean.append({"start": start, "text": c["text"], "chapter": chapter})
         if data.get("prompt"):
-            return h.send_json({"ok": True, "prompt": tidier.prompt(clean, L.code),
-                                "lang": L.code})
+            return _tidy_prompt(h, clean, L, data["prompt"])
         if data.get("tidy"):
             clean, notes = tidier.tidy(clean, L.code)
         text = CA.transcript_text(clean)
@@ -1687,8 +1663,7 @@ def api_transcript(h):
             return h.send_json({"ok": False, "error": "transcript must be text"}, 400)
         got = parse_transcript_text(as_transcript(data["transcript"]), L)
         if data.get("prompt"):
-            return h.send_json({"ok": True, "prompt": tidier.prompt(got, L.code),
-                                "lang": L.code})
+            return _tidy_prompt(h, got, L, data["prompt"])
         if data.get("tidy"):
             got, notes = tidier.tidy(got, L.code)
         text = CA.transcript_text(got)
@@ -1748,10 +1723,39 @@ def api_prepare(h):
         return h.send_json({"ok": False, "error": "every caption is plain (not one "
                             "character of %s script) -- nothing to annotate; is the "
                             "language right?" % L.name}, 400)
+    # THE PERSON'S OWN PROMPT, by its id (lib/prompts.py): refused in words when
+    # it is gone, or is for another place or another language
+    try:
+        chosen = prompts.resolve("video-new", data.get("prompt"), L)
+    except prompts.PromptsError as e:
+        return h.send_json({"ok": False, "error": str(e)}, e.status)
     meta = {} if local else oembed(vid)
+    # BY THE NAME ALONE, NEVER BY LOOKING INSIDE THE FILE: the page asks for this
+    # prompt again and again as the person types, and an ffprobe on every ask made
+    # the answer arrive after the next keystroke (tests/add_stt.mjs caught it).
+    # The kind that counts is decided once, when the file is attached.
+    if local and filmkind.kind_of(os.path.splitext(_p)[1].lower()) == "audio":
+        meta = {"kind": "audio"}        # the prompt says "a recording", not "a film"
     exists = find_video(vid)[0] is not None
-    prompt = full_prompt(vid, meta, captions, data.get("glossary") or None, L, G)
+    try:
+        made = assembled_full(vid, meta, captions, data.get("glossary") or None, L, G,
+                              chosen and chosen.instructions, chosen and chosen.name,
+                              promptkit.given(data))
+    except promptkit.OptionError as e:
+        return h.send_json({"ok": False, "error": str(e)}, 400)
+    except promptkit.PromptError as e:
+        return h.send_json({"ok": False, "error": prompts.unmade(chosen, e) if chosen else
+                            "the prompt could not be made: %s" % e}, 400)
+    prompt = made.text
+    import skills
     return h.send_json({"ok": True, "id": vid, "lang": L.code, "folder": L.folder,
+                        # the short request for a chat that has the skill (lib/skills.py), made from the same prompt
+                        "skill": skills.safe(lambda: skills.for_new_video(made, L, G, chosen,
+                                                                          data.get("glossary") or None),
+                                             "parseh-gloss"),
+                        "options": promptkit.describe("video-new", L, made.options),
+                        "custom": chosen and {"id": chosen.id, "name": chosen.name,
+                                              "kind": chosen.kind},
                         "gloss": G.code, "gloss_name": G.name,
                         "url": "" if local else "https://www.youtube.com/watch?v=" + vid,
                         "local": local,
@@ -1793,13 +1797,19 @@ def trash_video(path):
 # main.tex-style second copy to keep in step and nothing here refuses a
 # LaTeX special; only texwrite.NOT_TEXT, the same control-character refusal
 # every field in this toolbox answers to
-EDITABLE_META = ("title", "title_native", "channel", "level", "blurb", "reorders")
+EDITABLE_META = ("title", "title_native", "channel", "level", "blurb", "reorders", "translit")
 
 # the ones of those that are a switch, not text: "reorders", a text read out
 # of its written order (kanbun), whose words' readings are not held to the
 # chunk's reading (lib/wordline.py's check).  true, or not written at all --
 # check_annotations and the player read a missing key as false
 SWITCHES_META = ("reorders",)
+
+# ...and the one that is a choice among words: "translit", the scheme the video's
+# transliteration is written in -- "ipa", or "" for the language's usual one,
+# which is no key at all (the prompts and the checks read a missing key as the
+# usual scheme).  An older Parseh ignores the key, so VIDEO_FORMAT stays
+CHOICES_META = {"translit": ("", "ipa")}
 
 
 def edit_meta(vdir, fields):
@@ -1828,6 +1838,14 @@ def edit_meta(vdir, fields):
                                        % (field, type(value).__name__))
             checked[field] = value
             continue
+        if field in CHOICES_META:
+            said = value.strip().lower() if isinstance(value, str) else None
+            said = "" if said == "classic" else said
+            if said not in CHOICES_META[field]:
+                raise texwrite.Refused("%s is %s, not %r" % (
+                    field, " or ".join(repr(c) for c in CHOICES_META[field]), value))
+            checked[field] = said
+            continue
         if not isinstance(value, str):
             raise texwrite.Refused("%s must be a string, not %s"
                                    % (field, type(value).__name__))
@@ -1852,6 +1870,9 @@ def edit_meta(vdir, fields):
     meta.update(checked)
     for field in SWITCHES_META:
         if checked.get(field) is False:         # a switch turned off is not written
+            meta.pop(field, None)
+    for field in CHOICES_META:
+        if checked.get(field) == "":            # the usual way is no key at all
             meta.pop(field, None)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -1890,6 +1911,10 @@ def api_add(h):
         G = posted_gloss(data.get("gloss"))
     except KeyError as e:
         return h.send_json({"ok": False, "error": str(e.args[0] if e.args else e)}, 400)
+    try:
+        translit = promptkit.resolve("video-new", L, promptkit.given(data)).get("translit")
+    except promptkit.OptionError as e:
+        return h.send_json({"ok": False, "error": str(e)}, 400)
     transcript = as_transcript(data.get("transcript")) \
         .replace("\r\n", "\n").replace("\r", "\n")
     captions = parse_transcript_text(transcript, L)
@@ -1989,6 +2014,11 @@ def api_add(h):
         "added": datetime.date.today().isoformat(),
         "blurb": pick("blurb"),
     }
+    # THE SCHEME OF ITS TRANSLITERATION is a fact of the video, written when it is chosen and only when
+    # it is not the usual one (a key an older Parseh ignores, like "reorders"): the player's prompts ask
+    # for it from then on, so that one video does not mix two schemes
+    if translit == "ipa":
+        meta["translit"] = "ipa"
 
     vdir = os.path.join(VIDEOS, L.folder, vid)
     # the id may already be in the player -- under this folder, another
@@ -2023,6 +2053,7 @@ def api_add(h):
     # video's annotation, and it is annotations.json.
     os.makedirs(VIDEOS, exist_ok=True)
     waveform = None              # what the door says of the sound's shape, if it was asked
+    film_got = None              # what became of the film or the sound, if there is one
     stage = tempfile.mkdtemp(prefix=".staging-", dir=VIDEOS)
     sdir = os.path.join(stage, vid)
     os.makedirs(os.path.join(sdir, "parts"))
@@ -2052,7 +2083,7 @@ def api_add(h):
             # move into videos/ carries the whole video at once
             if film:
                 try:
-                    attach_film(sdir, film)
+                    film_got = attach_film(sdir, film)
                 except (OSError, ValueError) as e:
                     return h.send_json({"ok": False, "error": "the annotation is "
                                         "good, but the film could not be put "
@@ -2087,6 +2118,9 @@ def api_add(h):
     # said only where it was asked for, as the two other doors that make a video say it
     if waveform is not None:
         answer["waveform"] = waveform if answer["ok"] else {"kept": False}
+    # and what became of the film or the sound, for the page to say
+    if film_got is not None and answer["ok"]:
+        answer["film"] = film_got
     return h.send_json(answer)
 
 
@@ -2101,10 +2135,10 @@ ADD_PAGE_HEAD = r'''
     <em>needs: the URL, and the transcript panel</em>
   </button>
   <button type="button" class="path" role="radio" aria-checked="false" tabindex="-1" data-src="film">
-    <b>A film already on this machine</b>
+    <b>A video or a sound on this machine</b>
     <span>The file is linked beside the transcript and travels with it &mdash; the download
-      button then hands over the film and the glosses as one zip.</span>
-    <em>needs: the file&rsquo;s path, and a transcript or a .srt/.vtt</em>
+      button then hands over the video (or the sound) and the glosses as one zip.</span>
+    <em>needs: the file&rsquo;s path, or the file sent, and a transcript or a .srt/.vtt</em>
   </button>
 </div>
 
@@ -2148,10 +2182,17 @@ ADD_PAGE_HEAD = r'''
       or the bare 11-character id.</span>
   </div>
   <div id="src-film" hidden>
-    <label>The film <input id="path" placeholder="/home/you/films/lesson-1.mp4" autocomplete="off" spellcheck="false"></label>
-    <span class="fieldnote"><code>.mp4</code>, <code>.webm</code>, <code>.mkv</code>,
-      <code>.mov</code> or <code>.m4v</code>. It is <b>hardlinked</b> beside the transcript, so
-      it costs no disk and no time even for a two-hour film.</span>
+    <label>The video or sound <input id="path" placeholder="/home/you/films/lesson-1.mp4" autocomplete="off" spellcheck="false"></label>
+    <span class="fieldnote">A video: <code>.mp4</code>, <code>.webm</code>, <code>.mkv</code>,
+      <code>.mov</code> or <code>.m4v</code>. A sound: <code>.mp3</code>, <code>.m4a</code>,
+      <code>.wav</code>, <code>.ogg</code>, <code>.flac</code> and the others listed below. It is
+      <b>hardlinked</b> beside the transcript, so it costs no disk and no time even for a
+      two-hour film.</span>
+    <!-- what the path names, said once it is left: a video or a sound, how big, and what
+         will be done about a sound a browser cannot play (youtube/lib/addfilm.js) -->
+    <div id="filmlook" class="filmsay" aria-live="polite" hidden></div>
+    <!-- and the option beside the path: send the file instead (the same script draws it) -->
+    <div id="filmsend" class="filmsend" data-base="__BASE__" data-accept="__ACCEPT__"></div>
   </div>
 
   <div class="row">
@@ -2175,13 +2216,29 @@ ADD_PAGE_HEAD = r'''
     </div>
   </details>
 
-  <button type="button" class="hbtn" aria-expanded="false" aria-controls="how-film" id="filmhow" hidden>what happens to the film</button>
+  <button type="button" class="hbtn" aria-expanded="false" aria-controls="how-film" id="filmhow" hidden>what happens to the film or the sound</button>
   <div class="hbox" id="how-film" hidden>
-    <p><b>The film is hardlinked</b> beside the transcript as <code>media.&lt;ext&gt;</code>, so
+    <p><b>The file is hardlinked</b> beside the transcript as <code>media.&lt;ext&gt;</code>, so
       it costs no disk and no time; where the filesystem forbids a link (another disk) it is
       copied instead, and the answer says which happened.</p>
-    <p><b>Either way the film is part of the video</b> from then on, so a video that came out
+    <p><b>Either way it is part of the video</b> from then on, so a video that came out
       of one machine plays on the next.</p>
+    <p><b>A sound is a video with no picture.</b> Any of <code>.mp3</code>, <code>.m4a</code>,
+      <code>.aac</code>, <code>.ogg</code>, <code>.oga</code>, <code>.opus</code>,
+      <code>.wav</code>, <code>.flac</code>, <code>.weba</code>, <code>.wma</code>,
+      <code>.aiff</code>, <code>.aif</code>, <code>.amr</code>, <code>.mka</code> and
+      <code>.caf</code> is taken. The player shows a bar with its waveform where a video shows a
+      frame, a card takes the recording and no picture, and what the speech to text and the
+      timings do with a video they do with a sound.</p>
+    <p><b>A sound the browser cannot play</b> (<code>.wma</code>, <code>.aiff</code>,
+      <code>.amr</code>, <code>.mka</code>, <code>.caf</code>) gets a playable copy made by
+      ffmpeg when the video is added, and the original is kept beside it as
+      <code>media-orig.&lt;ext&gt;</code>. Without ffmpeg the sound is added as it is, and this
+      page says so before you go on.</p>
+    <p><b>Sent, or named.</b> The path stays the way to name a file on this machine. The other
+      way, <i>Choose a video or a sound</i>, sends the file from this device into this
+      computer&rsquo;s disk and puts its path in the box; it works from another device and on
+      Windows, and the only limit is the disk.</p>
   </div>
   </div>
 </section>
@@ -2236,6 +2293,8 @@ ADD_PAGE_HEAD = r'''
   </div>
   <span class="fieldnote">A per-family list that keeps the transliteration consistent with the
     videos already here. Only the prompt uses it.</span>
+  <div id="pmenu"></div>
+  <div id="popts"></div>
   <div class="row">
     <button type="button" class="wbtn" id="prepare">Prepare the prompt</button>
     <span id="pstat" class="stat"></span>
@@ -2300,8 +2359,8 @@ ADD_PAGE_HEAD = r'''
     <button type="button" class="wbtn" id="empty">Start it empty</button>
     <span id="estat" class="stat"></span>
   </div>
-  <span class="fieldnote" id="emptynote" hidden>The film is linked beside the transcript as
-    part of the video.</span>
+  <span class="fieldnote" id="emptynote" hidden>The film or the sound is linked beside the
+    transcript as part of the video.</span>
   <div id="eresult" aria-live="polite" hidden></div>
   <button type="button" class="hbtn" aria-expanded="false" aria-controls="how-empty">how this works</button>
   <div class="hbox" id="how-empty" hidden>
@@ -2431,7 +2490,7 @@ ADD_PAGE_JS = r'''
   // box below shows.  Without its script there is nothing to copy with, and
   // the page says so.
   var promptRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('prow'), {
-    surface: 'video-new', cls: 'wbtn',
+    surface: 'video-new', cls: 'wbtn', menu: false,
     ids: {copy: 'pcopy', size: 'psize', say: 'pcopysay'},
     remind: 'paste it into a chatbot, then paste its whole answer in step 4 below.',
     box: function () { $('pshow').open = true; return $('prompt'); }
@@ -2440,6 +2499,21 @@ ADD_PAGE_JS = r'''
     var no = function () {};
     return {update: no, forget: no};
   }());
+  // THE OPTIONS OF THE PROMPT (the scheme of the transliteration, the short vowels) are chosen BEFORE it
+  // is prepared, so they sit above the button that prepares it and not in the row, which only appears
+  // with a prompt.  They follow the language chosen above (langChanged); a prompt prepared for other
+  // choices is out of date, like one prepared for another language
+  var promptOpts = window.ParsehLLMRow && ParsehLLMRow.options ? ParsehLLMRow.options($('popts'), {
+    surface: 'video-new',
+    onOption: function () { forgetPrompt(); $('pinfo').hidden = true; }
+  }) : {options: function () { return {}; }, setLang: function () {}};
+  // THE PROMPT TO PREPARE, Parseh's or one of the person's own, is chosen above the button, as the options are
+  // (the row has no prompt to hold until one is prepared): the choice goes into the request `prepare` makes,
+  // the menu lists the prompts for the language chosen above, and a prompt prepared for another is out of date
+  var promptMenu = window.ParsehLLMRow && ParsehLLMRow.menu ? ParsehLLMRow.menu($('pmenu'), {
+    surface: 'video-new', lang: val('lang') || undefined,
+    onPrompt: function () { forgetPrompt(); $('pinfo').hidden = true; }
+  }) : {id: function () { return ''; }, setLang: function () {}};
   // The id a local film's video will have, given by `prepare` and handed
   // back to `add`, so the prompt's `id:` line and the directory finally
   // written are the same id.
@@ -2629,6 +2703,8 @@ ADD_PAGE_JS = r'''
     if (L.dir === 'rtl') $('ov_title_native').setAttribute('dir', 'rtl');
     else $('ov_title_native').removeAttribute('dir');
     forgetPrompt();          // the prompt was prepared for the previous language
+    promptOpts.setLang(code); // and the choices for it are the new language's own
+    promptMenu.setLang(code); // and so are the prompts of the person's own it is offered
     if (stt) stt.langChanged();
   }
   $('lang').addEventListener('change', langChanged);
@@ -2652,7 +2728,7 @@ ADD_PAGE_JS = r'''
     var film = SRC === 'film';
     var s = source().trim();
     if (!s) {
-      Parseh.toast(film ? 'name the film on this machine' : 'paste the URL', true);
+      Parseh.toast(film ? 'name the video or sound on this machine' : 'paste the URL', true);
       $(film ? 'path' : 'url').focus();
       return null;
     }
@@ -2717,9 +2793,10 @@ ADD_PAGE_JS = r'''
     if (!w) return;
     if (!needTranscript()) return;
     $('pstat').textContent = 'preparing…'; $('pinfo').hidden = true;
-    post('/api/prepare', {url: w.url, path: w.path, id: w.id,
+    post('/api/prepare', Object.assign({url: w.url, path: w.path, id: w.id,
                           transcript: val('transcript'), glossary: val('glossary'),
-                          lang: val('lang'), gloss: val('gloss')})
+                          lang: val('lang'), gloss: val('gloss')}, promptOpts.options(),
+                          promptMenu.id() ? {prompt: promptMenu.id()} : {}))
       .then(function (j) {
         $('pstat').textContent = '';
         if (!j.ok) { $('pinfo').hidden = false; $('pinfo').className = 'note bad';
@@ -2741,6 +2818,8 @@ ADD_PAGE_JS = r'''
         // (a prompt of numbered captions and fenced JSON keeps its line breaks)
         $('prow').hidden = false;
         promptRow.update(PROMPT);
+        // the short request for a chat that has the skill was made with the prompt: the row holds it beside it
+        if (promptRow.skillOf) promptRow.skillOf(j.skill);
       }).catch(function (e) { $('pstat').textContent = ''; Parseh.toast(String(e), true); });
   };
   // A stray line some copies of the transcript panel repeat on every
@@ -2804,6 +2883,7 @@ ADD_PAGE_JS = r'''
           ? ' The film was copied (' + Math.round((j.bytes || 0) / 1048576) +
             ' MB) — this filesystem would not take a link.'
           : '';
+        if (j.note) film += ' ' + j.note + '.';
         res.innerHTML = '<div class="note good"><b>Drafted.</b> ' + j.captions + ' captions, ' +
           j.glossed + ' to gloss, ' + j.plain + ' plain, ' + j.chunks + ' blank chunks, in <code>videos/' +
           esc(j.folder) + '/' + esc(j.id) + '/</code>.' + esc(film) + ' <a href="' + esc(href) +
@@ -2821,11 +2901,12 @@ ADD_PAGE_JS = r'''
     if (!val('answer').trim()) { Parseh.toast('paste the answer first', true); $('answer').focus(); return; }
     $('astat').textContent = 'checking…'; $('add').disabled = true;
     var res = $('result'); res.hidden = true;
-    var body = {url: w.url, path: w.path, id: w.id,
+    // the scheme the prompt asked for is the video's own from now on (video.json "translit")
+    var body = Object.assign({url: w.url, path: w.path, id: w.id,
                 transcript: val('transcript'), answer: val('answer'),
                 replace: $('replace').checked,
                 overrides: overrides(), lang: val('lang'),
-                gloss: val('gloss')};
+                gloss: val('gloss')}, promptOpts.options());
     var held = stt && stt.wave();
     if (held) body.wave = held;
     post('/api/add', body)
@@ -2844,6 +2925,8 @@ ADD_PAGE_JS = r'''
               ' had the words proposed by machine, to correct in the player. ' : '') +
             // the shape of the sound recorded while the transcript was made
             (j.waveform && j.waveform.kept ? 'Its waveform came with it. ' : '') +
+            // what became of a sound a browser cannot play
+            (j.film && j.film.note ? esc(j.film.note) + '. ' : '') +
             '<a href="' + esc(j.href) + '"><b>Open the video &rarr;</b></a></div>';
           try { localStorage.removeItem(KEY); } catch (e) {}
           if (stt) stt.videoAdded();
@@ -2969,13 +3052,16 @@ def add_page():
                      "index wizard",
                      '<link rel="stylesheet" href="%s/lib/subedit.css">\n'
                      '<link rel="stylesheet" href="%s/lib/addstt.css">\n'
+                     '<link rel="stylesheet" href="%s/lib/addfilm.css">\n'
                      '<script src="%s/lib/subedit.js"></script>\n'
                      '<script src="%s/lib/tabcapture.js"></script>\n'
                      '<script src="%s/lib/addstt.js"></script>\n'
-                     '<script src="/lib/llmrow.js"></script>\n' % ((BASE,) * 5))
+                     '<script src="%s/lib/addfilm.js"></script>\n'
+                     '<script src="/lib/llmrow.js"></script>\n' % ((BASE,) * 7))
     return (head + ADD_PAGE_HEAD.replace("__GLOSSARIES__", gl)
                 .replace("__HOWS__", hows).replace("__LANGS__", langs)
                                 .replace("__GLOSSES__", glosses)
+                                .replace("__ACCEPT__", esc("audio/*,video/*," + ",".join(bundle.MEDIA_EXTS)))
                                 .replace("__BASE__", BASE)
             + ADD_PAGE_JS.replace("__BASE__", json.dumps(BASE))
                          .replace("__LANGS_JSON__", langs_json.replace("</", "<\\/"))

@@ -57,6 +57,8 @@ import mdparser       # noqa: E402
 import texgen         # noqa: E402
 import languages      # noqa: E402
 import promptkit      # noqa: E402  the three parts every prompt is made of
+import promptboxes    # noqa: E402  the studio's prompts in parts a person chooses
+import prompts        # noqa: E402  the prompts a person wrote (lib/prompts.py)
 import anki_store     # noqa: E402
 import decks          # noqa: E402  the exercise decks (serve.py's hub reads it)
 import deckroutes     # noqa: E402  and their routes, mounted at /exercises
@@ -295,6 +297,15 @@ def migrate_library():
     # a rename as the documents do (registered here, not at import, so no
     # test's library can ever rewrite the decks on this machine)
     store.follow_renames(decks.rename_doc_links)
+    # THE CUSTOM PROMPT THE STUDIO KEPT AS A FILE until a0.4.2 goes into the
+    # person's own prompts, once (lib/prompts.py): what is said here is the one
+    # place a person who never opens Settings would hear of it
+    try:
+        if store.move_prompt():
+            print("studio: your custom prompt (library/_prompt.md) is now one of your "
+                  "prompts, \"%s\"; the file is gone from the library" % prompts.STUDIO_NAME)
+    except Exception as e:           # noqa: BLE001 -- a start-up chore
+        print("!! the studio's custom prompt could not be moved into your prompts: %s" % e)
     try:
         out = store.migrate_once()
     except Exception as e:           # noqa: BLE001 -- a start-up chore
@@ -1018,6 +1029,20 @@ def serve_llmrow_js(h):
         return h.send_json({"error": "not found"}, 404)
     h.send_bytes(data, "text/javascript; charset=utf-8", 200,
                  {"Cache-Control": "no-cache"})
+
+
+def serve_prompt_options(h):
+    """The choices a person makes for one prompt, which the row (lib/llmrow.js)
+    draws beside the copy button: the scheme of the transliteration.  The
+    toolbox answers this path itself (serve.py, with a book's or a video's own
+    record as well); run on its own the studio answers it here, for
+    ?surface=<studio-doc|studio-exercises>&lang=<code>."""
+    surface, L = _q1(h, "surface"), languages.LANGS.get(_q1(h, "lang"))
+    if surface not in promptkit.SURFACES:
+        return h.send_json({"ok": False, "error": "%r is not a place a prompt is handed out from" % surface}, 400)
+    if L is None:
+        return h.send_json({"ok": False, "error": "%r is not a language of Parseh" % _q1(h, "lang")}, 400)
+    h.send_json({"ok": True, "options": promptkit.describe(surface, L)})
 
 
 def serve_app_css(h):
@@ -1792,8 +1817,11 @@ def api_tags(h):
 
 
 def api_exercise_decks(h):
-    """The optional known-vocabulary sources for exercise prompting."""
-    h.send_json({"decks": anki_store.decks(str(ANKI_DIR))})
+    """The optional known-vocabulary sources for exercise prompting; with
+    ?target=<code>, only the decks of that language -- the page's."""
+    target = _q1(h, "target")
+    lang = languages.get_or_default(target).code if target else None
+    h.send_json({"decks": anki_store.decks(str(ANKI_DIR), lang=lang)})
 
 
 def _deck_vocabulary(paths):
@@ -1924,42 +1952,82 @@ answer needs a different flow from the target language. This is separate from
 
 
 def api_exercise_prompt(h):
+    """The exercise prompt, and what the dialog draws from it: `boxes` (the dialect's, default the ones
+    the page already uses), `types` (the exercise types, default the ones it has, or all), `level` and
+    `length`; answered with the prompt, its size, every box and type with its size and whether it is on,
+    and what the page uses (`preticked`)."""
     body = h._json_body()
+    chosen = None
     try:
-        a, rows = exercise_prompt(str(body.get("markdown") or ""), body.get("decks") or [])
+        markdown = str(body.get("markdown") or "")
+        # THE PROMPT OF THE PERSON'S THAT THE MENU CHOSE (`prompt`, an id), judged against the page's language
+        fm, _blocks = mdparser.parse(markdown)
+        chosen = prompts.resolve("studio-exercises", body.get("prompt"), languages.get_or_default(fm["target"]))
+        a, rows = exercise_prompt(markdown, body.get("decks") or [], boxes=body.get("boxes"),
+                                  types=body.get("types"), level=body.get("level"),
+                                  length=body.get("length"), translit=body.get("translit"), chosen=chosen)
+    except prompts.PromptsError as e:
+        return h.send_json({"error": str(e)}, e.status)
+    except (promptboxes.Refused, promptkit.OptionError) as e:
+        return h.send_json({"error": str(e)}, 400)
     except promptkit.PromptError as e:
-        return h.send_json({"error": "the prompt could not be made: %s" % e}, 400)
-    h.send_json({"prompt": a.text, "vocabulary": len(rows)})
+        return h.send_json({"error": prompts.unmade(chosen, e) if chosen
+                            else "the prompt could not be made: %s" % e}, 400)
+    boxes = promptboxes.catalog(a.target, a.boxes, exercising=True)
+    types = promptboxes.types_catalog(a.target, a.types)
+    _inert(chosen, boxes + types, exercising=True)
+    h.send_json({"prompt": a.text, "vocabulary": len(rows), "boxes": boxes, "types": types,
+                 "preticked": {"boxes": a.page_boxes, "types": a.page_types},
+                 "options": promptkit.describe("studio-exercises", a.target, a.options),
+                 "custom": _custom(chosen), "size": promptboxes.size(a.text),
+                 # the short request for a chat that has the skill (lib/skills.py), made from the same prompt
+                 "skill": _skill(lambda s: s.for_exercises(a.target, a, a.boxes, a.types, body.get("level"),
+                                                           body.get("length"), chosen), "parseh-markdown")})
 
 
-def exercise_prompt(markdown, decks=()):
+def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length="", translit=None, chosen=None):
     """The prompt that has a model add exercises to a page, in its three
     parts (lib/promptkit.py), and the known words from the Anki decks it
-    carries.  -> (promptkit.Assembled, rows)"""
+    carries.  Its dialect is built from the boxes ticked -- by default the
+    ones the page already uses -- and its exercises from the types ticked;
+    `translit` is the scheme of the transliteration the request chose
+    ("ipa" or "classic", promptkit.OPTIONS).  `chosen` is a prompt of the person's own for this place
+    (prompts.resolve): one added to Parseh's takes the boxes and the types like Parseh's own; one in place
+    of it takes them only if it carries their blocks, and is otherwise copied whole (_takes_boxes).
+    -> (promptkit.Assembled, rows); what the request came to is on the Assembled, for the route that
+    answers with it: `target`, `boxes` and `types` ticked, and what the page uses as `page_boxes` and
+    `page_types` (all the types, when it holds no exercise)"""
     rows = _deck_vocabulary(decks)
     fm, _blocks = mdparser.parse(markdown)
     target = languages.get_or_default(fm["target"])
+    options = promptkit.resolve("studio-exercises", target, promptkit.given({"translit": translit}))
+    page_boxes, page_types = promptboxes.page_uses(markdown)
+    page_types = page_types or list(promptboxes.TYPE_IDS)
+    on_boxes = page_boxes if boxes is None else promptboxes.ticked(boxes)
+    on_types = page_types if types is None else promptboxes.ticked_types(types)
+    if not on_types:
+        raise promptboxes.Refused("tick at least one exercise type: there is nothing to ask for without one")
     extras = []
     if target.dir == "rtl":
         extras.append(_rtl_markdown_guidance(target, exercises=True))
-    # The whole dialect, as the authoring prompt teaches it (the custom one
-    # when there is one), and the language's own conventions: a jolly card
-    # takes any block of it, so the model has to know all of it -- but it is
-    # asked for exercises here, not a page, and the instructions above say
-    # what to return.  ONLY THE AUTHORING PROMPT'S INSTRUCTIONS come in: its
-    # contract asks for a file, and this prompt's asks for a fence.
-    authoring = store.get_prompt()
-    authoring = (authoring["text"] if authoring.get("custom")
-                 else promptkit.instructions_of(authoring["text"])).strip()
-    conventions = promptkit.language_text("studio-exercises", target)
+    # THE DIALECT IS BUILT FROM THE BOXES, NOT EMBEDDED WHOLE: a jolly card takes any block of it, so the
+    # model has to know what the page uses, and the person ticks the rest -- but it is asked for exercises
+    # here, not a page, and the instructions above say what to return (the studio's own contract, which
+    # asks for a file, is not part of it).  The custom authoring prompt is the studio page's choice and
+    # does not carry over: the dialog has its own.
+    conventions = promptkit.language_text("studio-exercises", target, options=options)
     promptkit.check("\n".join(extras + [conventions]), "studio-exercises")  # Parseh's own
-    dialect = [authoring, conventions]
-    extras.append("## The page's Markdown dialect\n\n"
-                  "What follows is the complete description of the Markdown dialect "
-                  "the page is written in; where it differs from the output "
-                  "instructions above, the instructions above win.\n\n"
-                  + "\n\n".join(x for x in dialect if x))
-    data = []
+    if _takes_boxes(chosen, exercising=True):
+        extras.append("## The page's Markdown dialect\n\n"
+                      "What follows describes what the page's Markdown dialect lets an exercise use; where it "
+                      "differs from the output instructions above, the instructions above win.\n\n"
+                      + "\n\n".join(x for x in (promptboxes.dialect_text(target, on_boxes, on_types, options),
+                                                conventions) if x))
+    elif conventions:
+        # A PROMPT COPIED WHOLE says what the page's dialect lets an exercise use in its own words: what the
+        # boxes teach is not added after it, and what is true of the language still is
+        extras.append(conventions)
+    data = [promptboxes.level_length(level, length)]
     if rows:
         data.extend([
             "Known vocabulary from the selected Anki decks follows as tab-separated "
@@ -1969,16 +2037,24 @@ def exercise_prompt(markdown, decks=()):
                 "\t".join(x.replace("\t", " ").replace("\n", " ") for x in row)
                 for row in rows),
         ])
-    data.append("Here is the complete Markdown page to augment:\n```markdown\n%s\n```" % markdown.rstrip())
-    return promptkit.assemble("studio-exercises", target, extras=extras,
-                              data="\n\n".join(data)), rows
+    data.append("Here is the complete Markdown page to augment. Add the exercises now, and answer with the "
+                "whole page:\n```markdown\n%s\n```" % markdown.rstrip())
+    a = promptkit.assemble("studio-exercises", target,
+                           flags=promptboxes.flags(target, on_boxes, on_types, exercising=True),
+                           extras=extras, data="\n\n".join(x for x in data if x), options=options,
+                           instructions=chosen.instructions if chosen else None,
+                           custom=chosen.name if chosen else None)
+    a.target, a.boxes, a.types = target, on_boxes, on_types
+    a.page_boxes, a.page_types = page_boxes, page_types
+    return a, rows
 
 
-def lang_block(code):
+def lang_block(code, options=None):
     """The language's conventions (docs/lang/<code>.md) for the prompt page,
     cut to what a document needs (lib/promptkit.py) and read at request time;
-    empty when the file is not there."""
-    return promptkit.language_text("studio-doc", languages.get_or_default(code))
+    empty when the file is not there.  `options`: what the request chose of the
+    scheme of the transliteration (promptkit.OPTIONS)."""
+    return promptkit.language_text("studio-doc", languages.get_or_default(code), options=options)
 
 
 def _target_line(L):
@@ -1988,21 +2064,22 @@ def _target_line(L):
             "front matter." % (L.code, L.name, L.code))
 
 
-def _prompt_record():
-    """The stored prompt as the page has it, {text, custom}: the page edits and
-    copies a text and knows no marks, so the default's marks of the answer
-    contract are taken out where they stand (lib/promptkit.py flat)."""
+def _prompt_record(L):
+    """The stored prompt as an older page has it, {text, custom}: it edits and
+    copies a text and knows no marks and no boxes, so the default is the whole
+    prompt for this language, every box it is offered ticked, its answer
+    contract after it (promptboxes.legacy_text)."""
     out = store.get_prompt()
     if not out.get("custom"):
-        out["text"] = promptkit.flat(out["text"])
+        out["text"] = promptboxes.legacy_text(L)
     return out
 
 
-def _prompt_tail(L, text, custom):
+def _prompt_tail(L, text, custom, options=None):
     """What follows the instructions on the prompt page: the language's
     conventions and, where the text lacks it, the rule for the boxes of a
     right-to-left target."""
-    blocks = [lang_block(L.code)]
+    blocks = [lang_block(L.code, options)]
     # The shipped prompt contains this rule itself so it also works when
     # copied directly from disk. Add it here for every custom override (and
     # for an older shipped prompt that lacks it), preserving the guarantee
@@ -2014,42 +2091,133 @@ def _prompt_tail(L, text, custom):
     return "\n\n".join(x for x in blocks if x)
 
 
-def studio_prompt(L, custom_text=None):
+def studio_prompt(L, custom_text=None, boxes=None, level="", length="", translit=None, chosen=None):
     """The authoring prompt for a target language, in its three parts
-    (lib/promptkit.py): the instructions -- Parseh's, or the text of a custom
-    prompt -- with the language's conventions after them, then the answer
-    contract.  The question is the data, and is added by whoever copies.
+    (lib/promptkit.py): the instructions -- Parseh's, with only the boxes
+    ticked (by default the lesson's), or the text of a custom prompt -- with
+    the language's conventions after them, then the answer contract, then
+    the learner's level and the length asked for, one line each.  The
+    question is the data, and is added by whoever copies.  `translit` is the
+    scheme of the transliteration the request chose ("ipa" or "classic",
+    promptkit.OPTIONS).  `chosen` is a prompt of the person's own for this
+    place (prompts.resolve), in place of `custom_text`: the version line names
+    it, one added to Parseh's goes after the instructions and takes the boxes
+    like them, one in place of them takes the boxes only if it carries their
+    blocks (promptboxes.has_box_marks).
     -> promptkit.Assembled"""
+    if chosen is not None:
+        custom_text = chosen.instructions
     custom = custom_text is not None
-    text = custom_text if custom else promptkit.flat(store.default_prompt())
-    tail = _prompt_tail(L, text, custom)
+    on = promptboxes.ticked(boxes)
+    options = promptkit.resolve("studio-doc", L, promptkit.given({"translit": translit}))
+    # a person's own text in place of Parseh's may lack what the shipped prompt carries (the rule for a
+    # right-to-left target); Parseh's words and then theirs do not (_prompt_tail)
+    tail = (_prompt_tail(L, custom_text, chosen is None or chosen.kind == "replace", options)
+            if custom else lang_block(L.code, options))
     promptkit.check(tail, "studio-doc")         # Parseh's own, put in by hand
-    return promptkit.assemble("studio-doc", L, custom=custom, lead=_target_line(L),
-                              instructions=custom_text, extras=[tail])
+    return promptkit.assemble("studio-doc", L, custom=chosen.name if chosen else custom, lead=_target_line(L),
+                              instructions=custom_text, flags=promptboxes.flags(L, on),
+                              values=promptboxes.values(L), includes=promptboxes.includes(),
+                              extras=[tail], data=promptboxes.level_length(level, length),
+                              options=options)
+
+
+def _query_or_none(h, key):
+    """A query value that may be BLANK: `boxes=` says none ticked, and the
+    parsed query drops it (urllib's default), so the raw one is asked too.
+    None where the request does not carry the key at all."""
+    if key in h.query:
+        return h.query[key][0]
+    raw = urllib.parse.parse_qs(urllib.parse.urlsplit(getattr(h, "path", "") or "").query,
+                                keep_blank_values=True)
+    return raw[key][0] if key in raw else None
+
+
+# WHY EVERY BOX IS GREYED for a prompt of the person's that is copied whole (brief 8.6): said once, beside each
+INERT = ("your prompt is copied just as you wrote it, so these boxes change nothing in it: it has no "
+         "{{?name}} blocks for them to switch")
+
+
+def _takes_boxes(chosen, exercising=False):
+    """Whether the boxes (and, for the exercise prompt, the exercise types) act on a person's prompt: Parseh's
+    own and one added to it, yes; one in place of Parseh's only if it carries their blocks -- `{{?id}}` of a
+    box, of its `no_<id>`, or of a type -- and otherwise it is copied whole."""
+    if chosen is None or chosen.kind == "added":
+        return True
+    if promptboxes.has_box_marks(chosen.text):
+        return True
+    return exercising and any(m.startswith("type_") for m in prompts.markers(chosen.text))
+
+
+def _inert(chosen, rows, exercising=False):
+    """Grey what a prompt copied whole cannot use: every box this language is offered (and every type), with the
+    one sentence that says why (static/promptpick.js draws `disabled`)."""
+    if _takes_boxes(chosen, exercising):
+        return
+    for row in rows:
+        if row.get("shown", True):
+            row["disabled"] = INERT
+
+
+def _skill(make, name):
+    """The short request for a chat that has the skill (lib/skills.py), or why there is none: the studio run alone
+    has lib/ beside it, and a fault in making the request never takes the prompt with it."""
+    import skills
+    return skills.safe(lambda: make(skills), name)
+
+
+def _custom(chosen):
+    """What an answer says of the prompt it carries: false for Parseh's own, else which of the person's."""
+    return {"id": chosen.id, "name": chosen.name, "kind": chosen.kind} if chosen else False
 
 
 def api_prompt_get(h):
     """The prompt, plus -- for ?target=<code> -- that language's own
     conventions block, kept apart from the editable text.
 
-    `text` (the editable prompt, its parts' marks taken out in place),
-    `custom` and `lang_block` are what the page has always composed a prompt
-    from, the block after the text.  `prompt` is the whole of it as
-    lib/promptkit.py assembles it -- version line, target line, instructions,
-    the language's conventions, the answer contract -- which is what a page
-    copies; `header` and `contract` are two of its parts, for showing them."""
-    out = _prompt_record()
+    `prompt` is the whole of it as lib/promptkit.py assembles it -- version
+    line, target line, instructions with only the boxes ticked
+    (?boxes=<id,id,...>: none given, the lesson's; empty, none), the
+    language's conventions, the answer contract, the learner's level
+    (?level=) and the length asked for (?length=) -- which is what a page
+    copies; `header` and `contract` are two of its parts, for showing them.
+    `boxes`, `presets`, `levels` and `lengths` are what the page draws its
+    choices from, `size` and `always_chars` what it says of the cost.
+
+    `text` (the editable prompt), `custom` and `lang_block` are what a page
+    of before the boxes composed a prompt from, the block after the text:
+    kept for it, and never used by the page that draws the boxes."""
     L = languages.get_or_default(_q1(h, "target"))
+    out = _prompt_record(L)
     out["target"] = L.code
     out["target_name"] = L.name
-    custom = bool(out.get("custom"))
-    out["lang_block"] = _prompt_tail(L, out["text"], custom)
+    out["lang_block"] = _prompt_tail(L, out["text"], bool(out.get("custom")))
+    chosen = None
     try:
-        a = studio_prompt(L, out["text"] if custom else None)
-        out.update(prompt=a.text, header=a.header, contract=a.contract)
+        # THE PROMPT THE MENU CHOSE, `prompt=<id>`, is what the answer is made from: the one custom prompt this
+        # page used to keep is a prompt among the others now, and is chosen like them.  `custom` says which
+        chosen = prompts.resolve("studio-doc", _q1(h, "prompt"), L)
+        on = promptboxes.ticked(_query_or_none(h, "boxes"))
+        level, length, translit = _q1(h, "level"), _q1(h, "length"), _q1(h, "translit")
+        a = studio_prompt(L, None, on, level, length, translit, chosen=chosen)
+        out.update(prompt=a.text, header=a.header, contract=a.contract,
+                   boxes=promptboxes.catalog(L, on), presets=promptboxes.presets(),
+                   levels=promptboxes.levels(), lengths=promptboxes.lengths(),
+                   options=promptkit.describe("studio-doc", L, a.options),
+                   always_chars=len(studio_prompt(L, None, [], translit=translit, chosen=chosen).text),
+                   size=promptboxes.size(a.text), custom=_custom(chosen),
+                   # the short request for a chat that has the skill (lib/skills.py), made from the same prompt
+                   skill=_skill(lambda s: s.for_studio(L, a, on, level, length, chosen), "parseh-markdown"))
+        _inert(chosen, out["boxes"])
+    except prompts.PromptsError as e:
+        return h.send_json({"error": str(e)}, e.status)
+    except (promptboxes.Refused, promptkit.OptionError) as e:
+        return h.send_json({"error": str(e)}, 400)
     except promptkit.PromptError as e:
-        # a custom prompt from before the kit may say what the kit refuses; the
-        # page still has its text and its block, and is told
+        if chosen:
+            return h.send_json({"error": prompts.unmade(chosen, e)}, 400)
+        # an older page's own prompt may say what the kit refuses; the page still has its text and its
+        # block, and is told
         out["prompt_error"] = str(e)
     h.send_json(out)
 
@@ -2057,12 +2225,25 @@ def api_prompt_get(h):
 def api_prompt_put(h):
     body = h._json_body()
     store.set_prompt(body.get("text", ""))
-    h.send_json(_prompt_record())
+    h.send_json(_prompt_record(languages.get_or_default(_q1(h, "target"))))
 
 
 def api_prompt_delete(h):
     store.reset_prompt()
-    h.send_json(_prompt_record())
+    h.send_json(_prompt_record(languages.get_or_default(_q1(h, "target"))))
+
+
+def api_prompts(h, what):
+    """The prompts a person wrote (lib/prompts.py): the studio's own copy of the
+    routes Settings' page and the row beside every copy button call at
+    /settings/api/prompts/ in the toolbox -- the studio run alone has no
+    Settings, and one shared module answers for both."""
+    code, out = prompts.api(what, h._json_body())
+    h.send_json(out, code)
+
+
+def api_prompts_export(h):
+    prompts.send_export(h, _q1(h, "id"))
 
 
 def api_status(h):
@@ -2327,6 +2508,7 @@ ROUTES = [
     ("GET",    r"^/static/app\.css$",                     serve_app_css),
     ("GET",    r"^/static/app\.js$",                      serve_app_js),
     ("GET",    r"^/lib/llmrow\.js$",                      serve_llmrow_js),
+    ("GET",    r"^/__prompt/options$",                    serve_prompt_options),
     ("GET",    r"^/static/mathjax\.js$",                  serve_math_js),
     ("GET",    r"^/static/mathjax\.css$",                 serve_math_css),
     ("GET",    r"^/static/mathjax/(.+)$",                  serve_math_lib),
@@ -2379,6 +2561,8 @@ ROUTES = [
     ("GET",    r"^/api/prompt$",                          api_prompt_get),
     ("PUT",    r"^/api/prompt$",                          api_prompt_put),
     ("DELETE", r"^/api/prompt$",                          api_prompt_delete),
+    ("POST",   r"^/api/prompts/(state|list|get|parseh|save|uptodate|import|delete)$", api_prompts),
+    ("GET",    r"^/api/prompts/export$",                  api_prompts_export),
     ("GET",    r"^/api/status$",                          api_status),
     ("GET",    r"^/api/export$",                          api_export),
     ("POST",   r"^/api/download$",                        api_download),

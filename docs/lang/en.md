@@ -1,6 +1,6 @@
 # English — the annotation conventions
 
-How an English sentence becomes a glossed line: what goes into each field and
+{{?new}}How an English sentence becomes a glossed line: what goes into each field and
 how it is written. These rules bind both the reading editions and the video
 captions; they are embedded whole into every prompt that asks for English
 annotation, so they are written as instructions to the annotator.
@@ -13,22 +13,12 @@ two keys in every book and every video. Which language the gloss is written
 in is the book's or the video's own choice, `"gloss"` in `book.json` /
 `video.json`, and English when the key is absent.
 
-An English edition therefore comes in two shapes, and it is worth knowing
-which one you are writing before the first chunk. Glossed **in English** —
-the default, and what an absent `"gloss"` means — it is a monolingual
-edition: `en` is a definition rather than a translation, and `voc` is a
-dictionary's work of saying a word in commoner words. Glossed in **anything
-else** it is an ordinary edition of this series, and `en` is a translation
-like every other book's. Neither shape is English's privilege or English's
-burden: any language may be glossed in itself, and a Persian book glossed in
-Persian is the same monolingual thing.
-
-What is English's own, and holds in both shapes, is what most of this file is
-about. Its spelling hides its sound, so the pronunciation line earns its keep
+What is English's own, and holds whichever language the glosses are in, is what most of
+this file is about. Its spelling hides its sound, so the pronunciation line earns its keep
 on every chunk and this file requires one where the machinery does not. Its
 verbs have three principal parts and no way to guess them. And it welds a
 verb to a particle it need not stand next to, which is a fact about the
-language and not about the reader.
+language and not about the reader.{{/new}}
 
 ## The text field
 
@@ -36,12 +26,11 @@ language and not about the reader.
 hyphens, same capitals, same punctuation, the source's own oddities included —
 an older spelling, a dialect form, an ASR slip in a caption. Chunks split only
 at spaces; joined back with single spaces they must reproduce the sentence
-exactly, and a machine checks that. **Never correct the text in `fa`** — the
-correction goes in `note` (videos) or in the vocabulary line (books).
+exactly, and a machine checks that. **Never correct the text in `fa`**{{?new}} —
+the correction goes in {{?video}}`note`{{/video}}{{?book}}the vocabulary line{{/book}}{{/new}}.
 
-English is plain text: nothing is written in for the first pass and nothing
-comes off for a bare one, so there is no third pass. Keep, exactly as the
-source has them:
+English is plain text: nothing is written in and nothing comes off{{?book}}, so
+there is no third pass{{/book}}. Keep, exactly as the source has them:
 
 - the **national spelling** the source uses, whichever it is (`colour` /
   `color`, `realise` / `realize`, `travelled` / `traveled`, `centre` /
@@ -58,22 +47,22 @@ source has them:
 - **numerals** as figures where the source has figures and as words where it
   has words (`1914` stays `1914`, `nineteen fourteen` stays spelled out).
 
-English has no character range of its own in the registry and could not be
+{{?studio}}English has no character range of its own in the registry and could not be
 given one, so nothing detects a run of English. Where the glosses are English
 too, nothing tells the two apart at all — not even, as with French or Turkish
 inside English prose, an accent or a letter the prose does not use; where
 they are in another Latin-script language it is no better. Wherever the
 format asks you to mark the target text (a studio document's `[…]{tl}` mark),
 mark every run; in a book chunk or a video chunk `fa` is the text being
-taught by definition and needs no mark.
+taught by definition and needs no mark.{{/studio}}
 
-In a **video**, `"plain": true` means a chunk that is not part of the passage
+{{?video}}In a **video**, `"plain": true` means a chunk that is not part of the passage
 being taught: a sponsor read, a "like and subscribe", a title card read aloud.
 For a language written in its own script the key usually carries an aside in
 some other language, and the checker recognises one by the script it has not
 got; here there is no script to go by and nothing is ever plain by itself, so
 the key is yours alone to write — use it sparingly and never to excuse a
-chunk you did not want to gloss.
+chunk you did not want to gloss.{{/video}}
 
 ## Reading
 
@@ -231,6 +220,16 @@ pronunciation + meaning. One sense — the one the text uses — rather than a
 string of synonyms, no etymologies, and **an empty `voc` is the right
 answer** for a chunk needing nothing.
 
+An English edition comes in two shapes, and it is worth knowing which one you
+are writing before the first chunk. Glossed **in English** — the default, and
+what an absent `"gloss"` means — it is a monolingual edition: `en` is a
+definition rather than a translation, and `voc` is a dictionary's work of
+saying a word in commoner words. Glossed in **anything else** it is an
+ordinary edition of this series, and `en` is a translation like every other
+book's. Neither shape is English's privilege or English's burden: any language
+may be glossed in itself, and a Persian book glossed in Persian is the same
+monolingual thing.
+
 Where the gloss language is **English**, the meaning is a definition and not
 a translation, and the work is a monolingual dictionary's: say what the word
 means in words simpler and commoner than the word itself, and never define a
@@ -289,18 +288,19 @@ is built from commoner words than the headword.
   A translating edition takes one word of the gloss language for the whole
   (`give up` is *rinunciare*, never *dare* + *su*) and a monolingual one
   takes one definition; neither ever glosses the two halves apart.
-- A **noun** is given with an irregular plural where it has one (`child, pl.
-  children`; `foot, pl. feet`; `mouse, pl. mice`) and with a note when it is
-  uncountable and the reader might expect otherwise (`information`, `advice`,
-  `news` — singular).
+- A **noun** is given with an irregular plural where it has one, in the
+  meaning (`\dw{child}{tʃaɪld} a young person, pl. \pw{children}`; so `foot`,
+  `feet` and `mouse`, `mice`) and with a note when it is uncountable and the
+  reader might expect otherwise (`information`, `advice`, `news` — singular).
 - An **adjective** is given with an irregular comparative (`good, better,
   best`; `bad, worse, worst`) and otherwise plain.
 - A **homograph** — a word spelled one way and said two — is the English case
   that most needs the vocabulary line, and the entry must say which one is on
-  the page, with its sound: `read` `rɛd` here the past, not `rid`; `lead`
-  `lɛd` the metal, not `lid` to go in front; `live` `laɪv` the adjective, not
-  `lɪv` the verb; `wind` `waɪnd` to turn, not `wɪnd` the air; `tear` `tɛr` to
-  rip, not `tɪr` from the eye.
+  the page, with its sound: `\dw{read}{rɛd} here the past, not \textit{rid}`;
+  `\dw{lead}{lɛd} the metal, not \textit{lid}, to go in front`; `\dw{live}{laɪv}
+  the adjective, not \textit{lɪv}, the verb`; `\dw{wind}{waɪnd} to turn, not
+  \textit{wɪnd}, the air`; `\dw{tear}{tɛr} to rip, not \textit{tɪr}, from the
+  eye`.
 - Name what was stripped from the form in the text: the plural or third-person
   `-s`, the past `-ed`, the `-ing`, the comparative `-er` and superlative
   `-est`, the adverb's `-ly`, and the word a contraction is hiding (`'d` for
@@ -311,39 +311,16 @@ The line uses four macros and nothing else: `\dw{fa}{sound} gloss` ·
 `\vb{plain}{sound}{past}{sound}{p.p.}{sound}{meaning}` ·
 `\bw{base}{sound}{meaning}` · `\pw{fa}` — plus `\textit`, `\emph`,
 `\nobreak` — and its entries are parted by `; `. **Every** verb but a modal
-gets a `\vb`, no exceptions.{{?video}} A video's line is written exactly as a
-book's; a line with no macro at all is plain text, and is also accepted. What
-a video adds is the form its chunk has, where it is none of the three the
-`\vb` prints, nor one its parenthesis names: it is named after the entry,
-outside it, with its sound,
-`\vb{go}{goʊ}{went}{wɛnt}{gone}{gɔn}{to move from here to there}; here \pw{going} \textit{ˈgoʊɪŋ}, -ing form`.{{/video}}
+gets a `\vb`, no exceptions. A form in the text that is none of the three the
+`\vb` prints, nor one its parenthesis names, is named after the entry, outside
+it, with its sound,
+`\vb{go}{goʊ}{went}{wɛnt}{gone}{gɔn}{to move from here to there}; here \pw{going} \textit{ˈgoʊɪŋ}, -ing form`.
 `\pw` quotes a word of the text inside the meaning — it is what `\dw`, `\vb`
 and `\bw` set their headwords with — and how much it does depends on the
 gloss language: in an edition glossed in another language it is what tells
 the English word from the prose around it, while in a monolingual one the
 two are one language in one face and the mark says only "this is a word of
 the text".
-
-The gloss editor's sources sidebar, in the reader and in the player, now
-proposes the `\vb` from the dictionary for a verb it recognises — the three
-principal parts with their sounds, and the present of the four above — and
-never offers one for a modal, nor for the particle of a phrasal verb (the
-`down` of `put it down` is not the verb *to down*). Where the dictionary
-lists two pasts it takes the one the chunk has, and otherwise the first
-listed, which is the American one (`dreamed`, `learned`). A phrasal verb is
-proposed whole when its particle ends the chunk (`came in`, `put it down`,
-`what he was waiting for`); one with words after its particle (`gave up
-smoking`) is proposed as the plain verb, for you to lengthen. The sound of a
-regular past is worked out by rule 5 above; an irregular one is the
-dictionary's own transcription of that form, and a phrasal verb with none of
-its own is said as its verb and its particle (`give up` `gɪv ʌp`). It is a
-**draft for you to correct**: the dictionary's transcription of many a word
-is British only (`stop` `/stɒp/`, `wrote` `/ɹəʊt/`, and `was` and `were`
-have no American one at all), and such a slot is left empty rather than
-converted from one accent into the other; and its meaning is the
-dictionary's first sense, which is not always the one in the text, nor
-built of words commoner than the headword. Correct it before it is saved;
-where it could not fill a slot, the button says which.
 
 The repetition rule is Frank's own: a full entry the **first time** a word
 appears, briefer or none on later appearances.
@@ -410,3 +387,26 @@ Never split:
   up`, `take the coat off`, `look after her` are each one chunk. The particle
   is half of the word; a chunk that ends before it would give the reader a
   verb that means something else.
+
+## Example
+
+One sentence of English, answered: its chunks as they stand in the list of your
+answer, glossed in English (in a book or a video glossed in another language
+the `en` lines and the meanings in `voc` are in that language, and nothing
+else changes). The `en` of each chunk says only what that chunk says, in the
+order of the English, in plainer words.
+
+```json
+{"chunks": [
+  {"fa": "Can you", "tr": "kən jə", "en": "are you able to"},
+  {"fa": "look after the kids", "tr": "lʊk ˈæftər ðə kɪdz", "voc": "\\vb{look after}{lʊk ˈæftər}{looked after}{lʊkt ˈæftər}{looked after}{lʊkt ˈæftər}{to take care of someone or something}", "en": "take care of the children"},
+  {"fa": "for a minute?", "tr": "fər ə ˈmɪnɪt", "en": "for a short time?"}
+]}
+```
+
+Notice: every chunk has its `tr`, with the function words weak (`kən`, `jə`,
+`fər`, `ə`, `ðə`) and a stress mark on every word of more than one syllable;
+the phrasal verb is one headword, with its three forms and their sounds; the
+chunks with nothing to explain have no `voc`; and each `en` renders its own
+chunk and no more — *are you able to* is left open, as the English leaves it,
+for the next chunk to finish.

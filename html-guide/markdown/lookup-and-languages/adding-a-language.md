@@ -56,6 +56,7 @@ The fields of the row that carry a decision:
 | `words` | chunks carry a word line, each word with its reading (Japanese, Chinese) — and a reading-alone pass follows pass 1 |
 | `vertical` | it can be set in columns: a vertical last pass, and the studio's `vertical` |
 | `require_tr`, `translit_label` | whether every chunk needs a transliteration, and what the line is called |
+| `ipa` | what the prompts' IPA setting makes of the language: left out, a person may ask for IPA in place of the usual scheme; `usual` says the usual scheme already is IPA (English); `none` offers no setting (Chinese, whose words are written in pinyin) |
 | `vocal_label`, `bare_label` | what pass 1 and the bare pass are called |
 | `vb_forms`, `vb_labels` | what a verb entry's three forms are, and the two labels it prints ([Verb entries](language-by-language.md#verb-entries)) |
 | `vb_video_bare` | a video's verb entries written without the marks (Arabic's are unvowelled); set by hand, there is no flag |
@@ -149,7 +150,7 @@ what is yours:
    **TODO** blocks — the ruby over a word, the reading pass, the rotated
    columns — to copy from `lib/lang/ja.tex` and `zh.tex`; copy them rather
    than writing your own, since both are tuned against real pages.
-2. **`docs/lang/<code>.md`** — the conventions, in six sections (below).
+2. **`docs/lang/<code>.md`** — the conventions, in seven sections (below).
 3. **A fixture**, if the test suite is to cover the language: a small book
    under `tests/fixtures/books/<folder>/`, a video under
    `tests/fixtures/videos/<folder>/`, a card in `tests/fixtures/anki/`. The
@@ -176,9 +177,13 @@ language may have, read only where they exist: `lib/lang/<code>.lookup.json`
 language's name, labels and verb forms filled in. It is **instructions to an
 annotator** — and the annotator is usually a model: the video prompt, the
 new-book prompt and the prompt that has an LLM gloss a stretch of a book or
-a video (**gloss with an LLM**) paste it in whole when that language is
-chosen. Keep all six
-sections, even one that only says the language has no such thing:
+a video (**gloss with an LLM**) take it in when that language is chosen, each
+the sections it needs — a stretch, whose chunks are already cut, has no use
+for **Chunking**, and the studio's prompts take only the transliteration, the
+reading and the note on writing the script. What only a book is told, or only
+a video, is marked in the template, so that each prompt reads clean for its
+own. Keep all seven sections, even one that only says the language has no
+such thing:
 
 1. **The text field** — what `fa` must reproduce, verbatim, and what it
    must never silently correct. The fidelity checks are measured against it.
@@ -190,6 +195,14 @@ sections, even one that only says the language has no such thing:
    the order `\vb` prints them.
 5. **Never gloss** — the function words that never get an entry, as a list.
 6. **Chunking** — how big a chunk is, and what must never be split.
+7. **Example** — a chunk or two of the language, each with its
+   transliteration, its vocabulary line and a meaning that is **aligned**: it
+   says what that chunk's own words say, in the order of the text, and read in
+   a row may not be good prose
+   ([What the meaning says](../books/glossing-with-an-llm.md#what-the-meaning-says)).
+   The prompts that ask a model for glosses carry it, so that a model sees the
+   shape of an answer in your language, and the add page's prompt uses it in
+   place of a video from the shelf. Have a speaker of the language read it.
 
 `\FrankHowTo` says the same things to the reader; the two must agree. The
 nearest existing file is the one to model yours on: `docs/lang/it.md` for a
@@ -288,7 +301,7 @@ python3 lib/newlang.py sv --name Swedish --native svenska --script latin \
 
 Two passes, *the sentence* and *chunks and glosses*; an optional
 *pronunciation* line; no font, no ranges, no marks to strip. What is left is
-the prose: `\FrankHowTo` and the six sections.
+the prose: `\FrankHowTo` and the seven sections.
 
 **A right-to-left language with its own digits and a face to carry:**
 

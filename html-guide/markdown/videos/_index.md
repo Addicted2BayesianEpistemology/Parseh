@@ -64,8 +64,8 @@ the videos have no mobile version of their own yet.
   subtitle editor on the add page: timings to a tenth of a second,
   **✨ tidy up**, and the same job done by a model.
 - [A film on this machine](a-film-on-this-machine.md) — a video that is a
-  file: subtitles, the hardlink, playing offline, downloading it with its
-  film.
+  file, a film or a sound alone: sending it instead of naming it, subtitles,
+  the hardlink, playing offline, downloading it with its film.
 - [Editing a phrase in the player](editing-a-phrase.md) — the four colours,
   the ✎ form, the sources beside it, and every refusal.
 - [Cutting and joining phrases](cutting-and-joining.md) — moving where a

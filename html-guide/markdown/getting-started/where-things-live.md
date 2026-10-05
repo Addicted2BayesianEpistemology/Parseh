@@ -33,6 +33,7 @@ Parseh/
   dict/  corpus/  mt/  components/
                          what the reading help fetches
   stt/                   speech to text: its program and its two models
+  arasaac/               the ARASAAC pictograms and the words that name them
   texmf/                 the TeX packages Parseh got for its drawings
   markdown/latex/        the LaTeX drawings, made again when missing
   config/                your settings, the devices let in
@@ -69,6 +70,11 @@ Parseh/
   `runtime/` (the program, in a folder named for the pinned list and the
   Python it was made for), `models/` (the two Whisper models) and `tmp/` (the
   sound of a video while it is being transcribed, deleted afterwards).
+- `arasaac/` — **the ARASAAC pictograms**, fetched on **Settings →
+  Pictograms (ARASAAC)** ([Pictograms](../studio/pictograms.md)):
+  `pictograms/` (the pictures), `index.<language>.json` (the words that
+  name them), a manifest, and `LICENSE-ARASAAC.txt`, which carries the credit
+  their licence asks for.
 - `texmf/` — **the TeX packages Parseh got** on **Settings → LaTeX
   drawings**, for the [latex blocks](../dialect/latex-drawings.md) of a
   theme, with `parseh-packages.json`, the list of them.
@@ -79,8 +85,9 @@ Parseh/
   who may reach Parseh, its port, and every device you let in, each with
   the secret token it carries — keep it to yourself, as you would a key;
   `languages.json`, the languages you added, when you have; `updates.json`,
-  whether Parseh looks for a new version once a day; and `digests.json`
-  with `wheres.json`, what a phone checks the things it keeps against.
+  whether Parseh looks for a new version once a day; `prompts.json`, the
+  prompts you wrote for a chatbot; and `digests.json` with `wheres.json`, what a
+  phone checks the things it keeps against.
 
 **The files at the top**:
 
@@ -148,6 +155,8 @@ it — a download, a backup, a book kept on your phone:
 - the TeX packages Parseh got for its drawings: `texmf/`;
 - speech to text's program and models — somebody else's work, and gigabytes:
   `stt/`;
+- the ARASAAC pictograms — somebody else's pictures, under a licence that asks
+  for a credit: `arasaac/`;
 - your settings and the devices you let in: `config/`;
 - the environment, the certificate, the log: `.runtime/`, `.tls/`,
   `serve.log`;

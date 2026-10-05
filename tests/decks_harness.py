@@ -50,6 +50,9 @@ network.STORE = str(tmp / "config" / "network.json")
 # and the LaTeX drawings' themes, their drawings and their packages
 import latexthemes, latexdraw, texpackages
 latexthemes.STORE = str(tmp / "config" / "latex.json")
+# and the prompts a person wrote (lib/prompts.py)
+import prompts
+prompts.STORE = str(tmp / "config" / "prompts.json")
 latexdraw.DRAWN = str(tmp / "latex-drawn")
 texpackages.TREE = str(tmp / "texmf")
 import texmf_fixture  # noqa: E402  what the themes add to the base, as if Parseh had got it

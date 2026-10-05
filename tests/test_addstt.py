@@ -106,8 +106,10 @@ class ThePage(unittest.TestCase):
                          "the add page records through tabcapture.js and never loads the card kit")
         scripts = re.findall(r'<script src="([^"]+)"', self.page)
         js = [s for s in scripts if s.startswith("/youtube/lib/")]
+        # (addfilm.js, which looks at the path and sends a file, comes after them: it
+        # reads the path box and records nothing)
         self.assertEqual(js, ["/youtube/lib/subedit.js", "/youtube/lib/tabcapture.js",
-                              "/youtube/lib/addstt.js"],
+                              "/youtube/lib/addstt.js", "/youtube/lib/addfilm.js"],
                          "the recording is loaded before the block that uses it")
         self.assertIn('href="/youtube/lib/addstt.css"', self.page)
         src = read(ADDSTT_JS)

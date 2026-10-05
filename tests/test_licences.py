@@ -235,6 +235,7 @@ class Page(unittest.TestCase):
         import getmt
         import getstt
         import getsyn
+        import getarasaac
         import notices
         text = html.unescape(self.html)
         for source, licence in ((getdict.SOURCE, getdict.LICENCE), (getcorpus.SOURCE, getcorpus.LICENCE),
@@ -243,7 +244,9 @@ class Page(unittest.TestCase):
                                 (getsyn.SOURCE, getsyn.LICENCE),
                                 # speech to text: the program, and the two models
                                 (getstt.SOURCE, getstt.LICENCE),
-                                (getstt.MODEL_SOURCE, getstt.MODEL_LICENCE)):
+                                (getstt.MODEL_SOURCE, getstt.MODEL_LICENCE),
+                                # the ARASAAC pictograms: the credit ARASAAC's terms give, word for word
+                                (getarasaac.CREDIT, getarasaac.LICENCE)):
             self.assertIn(source, text)
             self.assertIn(licence, text)
         # the program carries more than one licence, each said with what carries it
@@ -267,7 +270,11 @@ class Page(unittest.TestCase):
             self.assertIn(pack["licence"], text)
         # and every licence named has somewhere to be read
         named = [getdict.LICENCE, getcorpus.LICENCE, getmt.MODEL_LICENCE, getmt.ENGINE_LICENCE,
-                 getstt.LICENCE, getstt.MODEL_LICENCE]
+                 getstt.LICENCE, getstt.MODEL_LICENCE, getarasaac.LICENCE]
+        # the pictograms' licence asks something of what is made with them, and says so here
+        for said in ("ARASAAC pictograms", "arasaac/LICENSE-ARASAAC.txt", "never for commercial use",
+                     "shared on the same licence", "api.arasaac.org", "static.arasaac.org"):
+            self.assertIn(said, text)
         named += [p["licence"] for p in decomposition.PACKS.values()]
         for licence in named:
             self.assertIn(licence, notices.LICENCE_URLS, licence)
@@ -331,7 +338,7 @@ class Served(unittest.TestCase):
         local = sorted(set(re.findall(r'href="(/[^"]*)"', main)))
         self.assertEqual(local, ["/lib/fonts/GUST-FONT-LICENSE.txt", "/lib/fonts/OFL.txt",
                                  "/lib/mathjax/LICENSE", "/licences/LICENSE",
-                                 "/settings/reading-help/", "/settings/speech/"])
+                                 "/settings/arasaac/", "/settings/reading-help/", "/settings/speech/"])
         for href in local:
             self.assertEqual(self.get(href)[0], 200, href)
         # and the ones to the licences' own pages are the web's, opened apart.

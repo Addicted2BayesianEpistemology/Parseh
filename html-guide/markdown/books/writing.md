@@ -39,7 +39,7 @@ and **✕**.
 | **kana** | Japanese only: the reading of the whole chunk |
 | ***the transliteration*** | named as the language names it: **transliteration** for Persian, Arabic and Hindi, **rōmaji** for Japanese, **pinyin** for Chinese, **pronunciation** for the Latin-script languages. Plain text. |
 | **vocabulary** | **the one field that is LaTeX** (below), with **reads as** above the box: the line set exactly as the gloss and the cloud set it |
-| ***the gloss language*** (**english**…) | what the chunk means. Plain text, typed in the gloss language's direction. It is called **meaning** in a book glossed in the language it teaches, where two rows both called *english* would say of neither which is which. |
+| ***the gloss language*** (**english**…) | what *this chunk's own words* say, in the order of the text — a gloss, not a translation of the sentence: read in a row the meanings may be stiff, and you can point from each word of them to the word it renders ([What the meaning says](glossing-with-an-llm.md#what-the-meaning-says)). Plain text, typed in the gloss language's direction. It is called **meaning** in a book glossed in the language it teaches, where two rows both called *english* would say of neither which is which. |
 | **the source** | the checkbox **this paragraph need not reproduce `source/paras/`** (below) |
 | **where it ends** | **cut this chunk in two…**, **join it to the next…**, **join the previous to it…** — [Cutting and joining chunks](doc:Cutting and joining chunks) |
 | **an LLM** | **gloss around here with an LLM…** — the sheet that has an LLM gloss a stretch, opened on this chunk's subparagraph: [Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM) |

@@ -431,6 +431,9 @@
     var madeFrom = '';
     var llmRow = window.ParsehLLMRow ? ParsehLLMRow.mount(llmMount, {
       surface: 'transcript-tidy', cls: 'se-btn se-quiet', remind: '',
+      // the prompt menu lists the person's own prompts for the tidy in this video's language; the tidy has no
+      // options (no transliteration is asked for), so none are asked of the server
+      lang: lang, options: false,
       getText: function () {
         var key = capsKey();
         var was = caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
@@ -544,6 +547,9 @@
       if (e.key !== 'Escape' || done) return;
       // the cut editor is over this one, and Escape is its own
       if (document.querySelector('.pc-root')) return;
+      // and so is the editor of a prompt of the person's, in the panel of the LLM: it closes itself, and the
+      // captions being mended are not given up with it
+      if (e.target && e.target.closest && e.target.closest('.llmrow-editor')) return;
       e.preventDefault();
       finish(null);
     }
@@ -551,6 +557,11 @@
 
     /* ---- the server, and the video ---- */
     function post(path, body) {
+      // `prompt: true` asks for Parseh's own prompt for the tidy; where the menu in the LLM panel has chosen one of
+      // the person's own, its id goes in its place (and nothing else about the request changes)
+      if (body && body.prompt === true && llmRow && llmRow.promptId && llmRow.promptId()) {
+        body = Object.assign({}, body, {prompt: llmRow.promptId()});
+      }
       return fetch(base + path, {method: 'POST', headers: {'Content-Type': 'application/json'},
                                  body: JSON.stringify(body)})
         .then(function (r) { return r.json().catch(function () { return {ok: false, error: r.status + ' ' + r.statusText}; }); });

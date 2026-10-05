@@ -90,6 +90,10 @@ MINE = {"books/english/x/book.json": b'{"slug": "x"}',
         "stt/runtime/1-cp312/ctranslate2/_ext.so": b"\x7fELF" + b"\x05" * 3000,
         "stt/runtime/1-cp312/faster_whisper-1.2.1.dist-info/METADATA": b"Name: faster-whisper\n",
         "stt/tmp/job.pcm": b"\x06" * 500,
+        # the ARASAAC pictograms (a0.4.2): a picture, a word list and the manifest
+        "arasaac/pictograms/6964.png": b"\x89PNG\r\n\x1a\n" + b"\x07" * 3000,
+        "arasaac/index.en.json": b'{"format": 1, "locale": "en", "words": {"6964": [{"k": "house"}]}}',
+        "arasaac/manifest.json": b'{"format": 1, "resolution": 300, "complete": true}',
         "config/prefs.json": b'{"settings": {"parseh_theme": {"v": "dark"}}}',
         "config/network.json": b'{"port": 7961, "devices": {"tok": {"name": "Pixel"}}}',
         ".tls/key.pem": b"-----BEGIN PRIVATE KEY-----\nxyz\n",
@@ -196,7 +200,7 @@ class Rules(unittest.TestCase):
                     "config/network.json", "books/english/x/book.json", "dict/fa.db",
                     "mt/fa-en/model.bin", "youtube/videos/en/v/video.json", updater.MANIFEST,
                     "stt/models/large-v3/model.bin", "stt/runtime/1-cp312/ctranslate2/_ext.so",
-                    "stt/tmp/job.pcm",
+                    "stt/tmp/job.pcm", "arasaac/pictograms/6964.png", "arasaac/manifest.json",
                     "serve.log", ".serve.pid", ""):
             self.assertTrue(updater.guard(rel), rel)
         for rel in ("lib/a.py", "books/.gitkeep", "config/.gitkeep", "clips/README.md",
@@ -723,6 +727,7 @@ class Helper(Case):
         self.assertTrue((content / "config/prefs.json").is_file())
         self.assertFalse((content / "books/english/x/narration.mp3").exists(), "no narration")
         self.assertFalse((content / "stt").exists(), "and no speech model: gigabytes, and no format of Parseh's in them")
+        self.assertFalse((content / "arasaac").exists(), "and no ARASAAC picture: fetched again by a button")
         journal = Path(self.root, updater.WORK, "jobs", job["id"], "journal.jsonl").read_text()
         self.assertLess(journal.index('"content"'), journal.index('"backup"'),
                         "the content is copied before anything else is done")

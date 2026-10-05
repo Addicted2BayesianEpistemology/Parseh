@@ -31,7 +31,7 @@ toolbox can reason about instead of guess at; only its format is believed on
 its word, and everything else in it is checked against the files inside.
 
 **Never in a bundle**: the files an agent keeps beside a book it makes —
-`AGENTS.md`, `CLAUDE.md`, `.claude/`, `ASKS.md`, `making.json`, which are
+`AGENTS.md`, `CLAUDE.md`, `.claude/`, `.agents/`, `ASKS.md`, `making.json`, which are
 about one making on one computer — and `main.pdf`, `reader/`, LaTeX's `.aux`,
 `.log` and `.toc`, and the build keys by which a build knows the book has
 changed.

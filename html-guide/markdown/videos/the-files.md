@@ -24,7 +24,10 @@ youtube/videos/
       markdown/persian/<note>/    the notes, one studio document each
       waveform.json               the drawn picture of a YouTube video's sound
       media.mp4                   the film, for a film on this machine
+      media.mp3                   or the sound: media.<ext> is either
+      media-orig.wma              the original of a sound made playable
   .trash/                         videos taken off the shelf, or replaced
+  .incoming/                      files sent and not yet used: cleared after two days
 ```
 
 `<id>` is the YouTube id, eleven characters, or for a film the id made from
@@ -48,6 +51,7 @@ needed; the others appear when there is something to put in them.
 | `added` | the day it was added |
 | `blurb` | one sentence for the card |
 | `reorders` | `true` for a text read out of its written order ([kanbun](video-info-and-drafts.md#kanbun)) |
+| `kind` | `"audio"` for a video whose media is a **sound** with no picture, written once, when the file was attached; absent for a film or a YouTube video, and then the media is a picture, as it always was. A video made before the key reads it from the extension of `media.<ext>` ([A film on this machine](a-film-on-this-machine.md#a-sound-instead-of-a-film)) |
 
 `language` and `gloss` are never to be read for each other: an Italian
 learning English watches a video with `"language": "en", "gloss": "it"`. The
@@ -120,13 +124,13 @@ language — which then has no phrases — and its `chunks`, the phrases:
 
 | Field | Holds |
 |---|---|
-| `fa` | the phrase's text — named after Persian, the toolbox's first language, whatever the language is |
+| `fa` | the phrase's text — named after Persian, the toolbox's first language, whatever the language is. In Persian and Arabic it is the caption's text as YouTube has it, bare, unless somebody wrote the short vowels into it — by hand in the ✎ form, or with an LLM's answer when **write them** was chosen ([glossing with an LLM](glossing-with-an-llm.md#the-short-vowels)); the timings and the fidelity check set the marks aside, so either way the phrase is the same phrase |
 | `words` | Japanese, Chinese: the phrase's words, each with its reading in ASCII parentheses; joined with nothing they must be `fa` exactly |
 | `kana` | Japanese: the reading of the whole phrase |
 | `tr` | the transliteration — required where the language wants one, optional for a language in Latin letters |
 | `voc` | the vocabulary line, in the books' entries (`\dw`, `\vb`, `\bw`, `\pw`) or plain text: a word's first appearance in the video, and rarely after |
 | `en` | the meaning — named after English, and written in the video's `gloss` language |
-| `note` | anything else worth saying: what the automatic transcript really heard, a cultural point |
+| `note` | anything else worth saying: what the automatic transcript really heard, a cultural point; the ✎ form edits it, and emptying its box takes the key out ([The note](editing-a-phrase.md#the-note)) |
 | `plain` | `true` for a phrase asked for nothing: an aside in another language, in a language written in Latin letters |
 | `col` | `red`, `blue`, `orange` or `green`: your own mark |
 | `free` | `true`: this phrase need not reproduce `transcript.txt` ([When YouTube heard wrong](editing-a-phrase.md#when-youtube-heard-wrong)) |
@@ -184,6 +188,9 @@ have lost.
   A film has none: the server reads the film.
 - **`media.<ext>`** is the film of [a film on this machine](a-film-on-this-machine.md).
   It is kept out of git; the rest can be.
+- **`media-orig.<ext>`** exists only for a sound a browser could not play: the
+  person's own file, kept beside the playable copy that is `media.<ext>`. It is
+  never taken for the film and a download does not carry it.
 
 ## For the command line {#for-the-command-line}
 

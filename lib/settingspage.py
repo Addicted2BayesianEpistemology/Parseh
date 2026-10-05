@@ -2,15 +2,19 @@
 """The Settings section, and the page a device that has not been let in sees.
 
 Settings opens from the hub, says which Parseh this is (its version), and
-holds five pages: **Network** -- who may reach this Parseh, on which port,
+holds seven pages: **Network** -- who may reach this Parseh, on which port,
 with which certificate (lib/network.py keeps the answers; TO-DO §1.1, §3.3,
 §3.4, and the owner's decisions of 2026-09-23) -- **Reading help**, the
 dictionaries, corpora, models and component packs this computer has fetched
 (lib/lookuppage.py draws it; TO-DO §11.10) -- and **Updating Parseh**, another
 version in place of this one (lib/updatepage.py draws it, lib/updater.py does
-it; TO-DO §13.16), **LaTeX drawings** (lib/latexpage.py) and **Speech to
+it; TO-DO §13.16), **LaTeX drawings** (lib/latexpage.py), **Speech to
 text**, the program and the two models that turn a video's sound into a
-transcript (lib/speechpage.py draws it, lib/getstt.py does it; TO-DO §7.23).
+transcript (lib/speechpage.py draws it, lib/getstt.py does it; TO-DO §7.23)
+**Your prompts**, the ones a person wrote for a chatbot (lib/promptspage.py
+draws it, lib/prompts.py keeps them) and **Pictograms (ARASAAC)**, the pictures
+a studio exercise may carry (lib/arasaacpage.py draws it, lib/getarasaac.py
+fetches them; TO-DO §8.40).
 The section was a section rather than a page from the start because the next
 settings to come out of the pages were always going to live beside the first.
 
@@ -141,25 +145,47 @@ SETTINGS = {
                          "pins can be fetched, each checked against its hash."),
     "speech.remove": (None, "It frees the space the program or a model took."),
     "speech.stop": (None, "It stops an install this page started."),
-    # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) puts two things
-    # under the computer's roof.  Making the book's folder writes a folder
-    # under books/ in which an agent will be told to run Parseh's own tools
-    # -- so what it makes is what Parseh will run -- and opening that folder
-    # starts the system's file manager on this computer's own screen.  Finish
-    # runs the book's checks and its full build on this computer, and hands
-    # the book to the reader's doors.  Reading the making panel, looking at
-    # the reader (a build of it), the draft PDF and writing an ask are not
-    # here: any device that has been let in may.
-    "making.folder": (RUN, "An agent opened in the folder it makes runs %s's own tools there, "
-                           "and the folder is opened on this computer's own screen." % NAME),
-    "making.finish": (RUN, "Finish runs the book's checks and its full build on this computer, "
-                           "and ends the making."),
+    # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) HAS NO KEY HERE.
+    # It had two (making the folder, and Finish), both the computer's alone, and
+    # the owner took that back on 2026-09-29: "there is no actual reason to
+    # restrict it to the local and make it impossible from remote".  Making the
+    # folder, giving it text a part at a time, the making panel, an ask, Finish
+    # and reopening are open to every device that has been let in; the agent
+    # that runs tools in the folder is started by the person, on the computer.
+    # Only OPENING THE FOLDER stays the computer's, because it opens a file
+    # manager on that computer's own screen: a fact about the request
+    # (serve.py's `here`), not a permission, so it is no setting.
+    # YOUR OWN PROMPTS ARE NOT RISKY (brief §8.4, a0.4.2).  A prompt is text
+    # that a person copies into a chatbot: writing one, or taking one away,
+    # decides nothing Parseh will run -- no model of Parseh's own runs, nothing
+    # is sent anywhere, and the answer contract and the data that Parseh reads
+    # back are its own whatever is written (lib/prompts.py).  So any device
+    # that has been let in may keep, import and delete them, from a phone as
+    # from the computer.
+    "prompts.save": (None, "It keeps a prompt of yours, or changes one: text that is copied "
+                           "into a chatbot, and decides nothing Parseh runs."),
+    "prompts.delete": (None, "It takes a prompt of yours away."),
+    # THE ARASAAC PICTOGRAMS ARE NOT RISKY (brief §9C.2, a0.4.2), for the reason speech to text is
+    # not: nothing a device sends becomes anything that is fetched.  The only bytes that can arrive
+    # are ARASAAC's own word lists (a language is one of the forty names its API lists) and
+    # pictures (a size is one of two numbers, an id an integer out of the list it gave), from the
+    # two hosts lib/getarasaac.py names, each picture checked to be a whole PNG before it is put in
+    # place.  Whoever presses the button -- the computer, a phone, another computer that has been
+    # let in -- gets the same files, so getting them, looking for what changed, stopping and
+    # taking them away are open to any device let in.  Removing is refused in code while they are
+    # being fetched.
+    "arasaac.get": (None, "It puts ARASAAC's word lists and pictures on this computer's disk. "
+                          "Whoever presses the button gets the same files, from the two hosts "
+                          "Parseh names."),
+    "arasaac.remove": (None, "It frees the space the pictograms took."),
+    "arasaac.stop": (None, "It stops a download this page started."),
 }
 
 # SETTINGS WHOSE CONTROL IS NOT ON A PAGE OF SETTINGS, because it sits on the
 # page of the thing it acts on (the add-a-book page, a book's reader): no door
 # lists them, and tests/test_settings_risk.py says so instead of losing them.
-ELSEWHERE = ("making.folder", "making.finish")
+# None today: the two a book made by an agent had are gone (see above).
+ELSEWHERE = ()
 
 # Asking how things stand is not a setting: open to every device let in, and
 # a phone may always SEE what it may not change.
@@ -245,6 +271,31 @@ ROUTES = {
     "/settings/api/latex/package-remove": ("latex.packages",),
     "/settings/api/latex/package-stop": ("latex.packages",),
     "/settings/api/latex/forget": ("latex.forget",),
+    # your own prompts (lib/prompts.py, lib/promptspage.py): reading them, what
+    # Parseh's own says and an export, open; keeping, importing and deleting one,
+    # open to any device let in (SETTINGS says why)
+    "/settings/api/prompts/state": READ,
+    "/settings/api/prompts/list": READ,
+    "/settings/api/prompts/get": READ,
+    "/settings/api/prompts/parseh": READ,
+    "/settings/api/prompts/export": READ,
+    "/settings/api/prompts/save": ("prompts.save",),
+    "/settings/api/prompts/uptodate": ("prompts.save",),
+    "/settings/api/prompts/import": ("prompts.save",),
+    "/settings/api/prompts/delete": ("prompts.delete",),
+    # the ARASAAC pictograms (lib/getarasaac.py, its own door: lib/arasaacpage.py): how they
+    # stand and what a choice would cost, open; getting them, looking for what changed, stopping
+    # and removing them, open to any device let in (SETTINGS says why)
+    "/settings/api/arasaac/state": READ,
+    "/settings/api/arasaac/plan": READ,
+    "/settings/api/arasaac/get": ("arasaac.get",),
+    "/settings/api/arasaac/update": ("arasaac.get",),
+    "/settings/api/arasaac/stop": ("arasaac.stop",),
+    "/settings/api/arasaac/remove": ("arasaac.remove",),
+    # the skills for a chatbot (lib/skills.py, lib/skillspage.py): what each is now, and the zip of one, built when
+    # it is asked for -- reads, open to any device let in; nothing here changes anything Parseh runs
+    "/settings/api/skills/state": READ,
+    "/settings/api/skills/download": READ,
 }
 
 
@@ -437,7 +488,25 @@ DOORS = (
     ("/settings/speech/", "Speech to text",
      "A transcript made on this computer, while adding a video: the program, two models",
      ("speech.get", "speech.remove", "speech.stop")),
+    ("/settings/prompts/", "Your prompts",
+     "The prompts you wrote for a chatbot: export, import, delete",
+     ("prompts.save", "prompts.delete")),
+    ("/settings/arasaac/", "Pictograms (ARASAAC)",
+     "Pictures for the studio's exercises: ARASAAC's pictograms, with their licence",
+     ("arasaac.get", "arasaac.remove", "arasaac.stop")),
+    # NO SETTING BEHIND THIS DOOR: a skill is built when it is asked for and downloaded as a file; what is done with
+    # it afterwards is the person's own step in the chatbot (lib/skillspage.py)
+    ("/settings/skills/", "Skills for your chatbot",
+     "The prompts as skills a chatbot can keep: download one, and how to install it",
+     ()),
 )
+
+
+def door_keys(href):
+    """The settings behind the door at `href`: a card on the hub asks for its own
+    by its address, so that a door added between two of them never gives a card
+    another's pill."""
+    return next(d[3] for d in DOORS if d[0] == href)
 
 
 def gate(settings):
@@ -792,12 +861,12 @@ def signed(main):
     return main[:end] + '<p class="foot">%s</p>\n' % author.links() + main[end:]
 
 
-def hub(reading_tags="", update_tags="", speech_tags=""):
+def hub(reading_tags="", update_tags="", speech_tags="", arasaac_tags=""):
     """/settings/ -- the section itself.  Each door says what is behind it
     rather than only naming it, and who may change it, in the words of the
     table above; `reading_tags` is what the reading help has (serve.py knows
     it: the hub's own door says the same; `speech_tags` is what speech to text
-    has).  And which Parseh this is: the version, from the one file that holds
+    has, `arasaac_tags` what the pictograms have).  And which Parseh this is: the version, from the one file that holds
     it."""
     net = DOORS[1][3]
     main = """<main class="settings">
@@ -839,12 +908,35 @@ def hub(reading_tags="", update_tags="", speech_tags=""):
     once, kept on this computer, nothing sent anywhere.</div>
     <div class="tags">%(speech_gate)s%(speech_tags)s</div>
   </a>
+  <a class="door" href="/settings/prompts/">
+    <div class="dname">Your prompts</div>
+    <div class="dwhat">The prompts you wrote for the buttons that copy a prompt for a chatbot
+    &mdash; a rule of yours after %(name)s&rsquo;s, or a prompt of your own in its place &mdash;
+    kept on this computer, and exported and imported as files.</div>
+    <div class="tags">%(prompts_gate)s</div>
+  </a>
+  <a class="door" href="/settings/arasaac/">
+    <div class="dname">Pictograms (ARASAAC)</div>
+    <div class="dwhat">Pictures for the exercises the studio asks a chatbot to write: ARASAAC&rsquo;s
+    pictograms and the words that name them, fetched once and kept on this computer &mdash; shared
+    under a licence that asks for a credit and rules out selling what is made with them.</div>
+    <div class="tags">%(arasaac_gate)s%(arasaac_tags)s</div>
+  </a>
+  <a class="door" href="/settings/skills/">
+    <div class="dname">Skills for your chatbot</div>
+    <div class="dwhat">The prompts as skills a chatbot that keeps skills can hold: download one, install it once, and
+    paste a short request in place of the whole prompt &mdash; built when you ask, from the same parts as the prompts.</div>
+    <div class="tags">%(skills_gate)s</div>
+  </a>
 </div>
 </main>""" % {"name": NAME, "version": esc(parseh_version()),
+              "skills_gate": gate(door_keys("/settings/skills/")),
               "reading_gate": gate(DOORS[0][3]), "reading_tags": reading_tags,
               "update_gate": gate(DOORS[2][3]), "update_tags": update_tags,
               "latex_gate": gate(DOORS[3][3]),
               "speech_gate": gate(DOORS[4][3]), "speech_tags": speech_tags,
+              "prompts_gate": gate(door_keys("/settings/prompts/")),
+              "arasaac_gate": gate(door_keys("/settings/arasaac/")), "arasaac_tags": arasaac_tags,
               "net_gate": gate(net),
               "where": esc(doors_said(network.settings())), "port": network.port()}
     return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", signed(main),

@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<html lang="en" data-lang="__LANG__" data-dir="__LANG_DIR__"><head>
+<html lang="en" data-lang="__LANG__" data-dir="__LANG_DIR__" data-kind="__KIND__"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TITLE__ — __APP__ videos</title>
@@ -74,6 +74,14 @@
   <span id="pos"></span>
   <button id="follow" title="keep the playing caption in view">follow</button>
   <button id="hoverpause" title="pause the video while a gloss is open">hover&nbsp;⏸</button>
+  <!-- every phrase that carries a note, lit and counted, and ‹ › to walk from one
+       to the next: to see where a model flagged a problem.  It writes nothing,
+       asks nothing and is off on every visit; the mobile mode, which has no
+       such control, hides the whole span (lib/mobile.css names what stays) -->
+  <span id="notesgrp"><button id="notesbtn" aria-pressed="false"
+    title="light up every phrase that carries a note — what a model or a hand left under a meaning — and count them; it writes nothing and is off on every visit">✱ notes</button><button id="notesprev" hidden aria-label="the previous phrase with a note"
+    title="the previous phrase with a note">‹</button><button id="notesnext" hidden aria-label="the next phrase with a note"
+    title="the next phrase with a note">›</button></span>
   <button id="dictmode" hidden title="look the words of an unglossed phrase up in a dictionary">dictionary</button>
   <!-- only where the dictionary defines its words in their own language
        (English's): its definitions, and the definitions translated; the
@@ -119,8 +127,8 @@
   Edge.
   The cloud is where a phrase is <b>written</b> too: the four
   dots mark it in the reading editions' own colours, and <b>✎ edit</b> opens
-  its fields — the text, the transliteration, the vocabulary, the meaning —
-  and saves them into this video's annotations.</p>
+  its fields — the text, the transliteration, the vocabulary, the meaning, the
+  note — and saves them into this video's annotations.</p>
   <div id="segs"><p class="hint">loading the annotations…</p></div>
 </main>
 
@@ -283,7 +291,7 @@
       <button type="button" class="dbtn" data-dir="forward" id="adirfwd" title="one card: __LANG_NAME__ → __GLOSS_NAME__">→ __LANG_NAME__ → __GLOSS_NAME__</button>
       <button type="button" class="dbtn" data-dir="reverse" id="adirrev" title="one card: __GLOSS_NAME__ → __LANG_NAME__ — for a meaning whose __LANG_NAME__ side lists several words, each asked separately by its own forward-only card">← __GLOSS_NAME__ → __LANG_NAME__ only</button>
     </div></div>
-  <div class="arow"><span class="alab">frame</span>
+  <div class="arow" id="ashotrow"><span class="alab">frame</span>
     <div class="actl">
       <button type="button" id="ashot">📷 capture the current frame</button>
       <!-- why the button is disabled, said under it too: a phone shows no

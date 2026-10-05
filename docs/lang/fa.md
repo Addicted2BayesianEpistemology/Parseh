@@ -1,6 +1,6 @@
 # Persian — the annotation conventions
 
-How a Persian sentence becomes a glossed line: what goes into each field
+{{?new}}How a Persian sentence becomes a glossed line: what goes into each field
 and how it is written. These rules bind both the reading editions and the
 video captions; they are embedded into every prompt that asks for Persian
 annotation, so they are written as instructions to the annotator.
@@ -13,7 +13,7 @@ video. Which language the gloss is written in is the book's or the video's
 own choice, `"gloss"` in `book.json` / `video.json`, and English when the
 key is absent. This file is about Persian as the language being **taught**:
 the examples below gloss into English because they must gloss into
-something, and every rule that turns on the gloss language says so.
+something, and every rule that turns on the gloss language says so.{{/new}}
 
 ## The text field
 
@@ -22,15 +22,24 @@ same ZWNJs, the source's own oddities included (a compound written with a
 space, a 1921 printing's `ة` for the ezafe after `ه`, an ASR slip in a
 caption). Chunks split only at spaces; joined back with single spaces they
 must reproduce the sentence exactly, and a machine checks that. **Never
-correct the text in `fa`** — the correction goes in `note` (videos) or in
-the vocabulary line (books).
+correct the text in `fa`**{{?new}} — the correction goes in {{?video}}`note`{{/video}}{{?book}}the
+vocabulary line{{/book}}{{/new}}.{{?nomarks}} It carries no short vowels of your making: the
+text is copied as the source has it{{?video}}, a caption as YouTube has it{{/video}}.{{/nomarks}}{{?marks}} The short
+vowels are asked for in this prompt: `fa` is then the source's text WITH the
+harakat added and nothing else changed — by the rules under Reading.{{/marks}}
 
-In a reading edition `fa` carries the **harakat**, and the vowel marks exist
-to agree with the romanisation printed beside them — if a mark and the
-romanisation disagree, the mark is what misleads. In a video caption `fa`
-carries no marks at all: the caption is copied as YouTube has it.
+## Reading
 
-| sound | written | note |
+This language has no reading field.
+
+{{?marks}}What stands in its place is the short vowels, which `fa` itself carries when they are
+asked for: the harakat exist to agree with the `tr` printed beside them — if a
+mark and `tr` disagree, the mark is what misleads.{{?video}} A caption is then
+YouTube's text with the marks added and nothing else changed: not a letter, not
+a space, not a ZWNJ, not a stop.{{/video}}{{?book}} A reading edition's `fa`
+carries them on every word.{{/book}}
+
+{{?classic}}| sound | written | note |
 |---|---|---|
 | a | fatha َ | |
 | e | kasra ِ | |
@@ -41,7 +50,18 @@ carries no marks at all: the caption is copied as YouTube has it.
 | sukun | **never** | not used |
 
 `/ey/` is kasra: a fatha there tells the reader to say *paydā* where the
-page prints *peydā*. `/ow/` stays fatha + vav. Every short vowel must be
+page prints *peydā*.{{/classic}}{{?ipa}}| sound | written | note |
+|---|---|---|
+| æ | fatha َ | |
+| e | kasra ِ | |
+| o | damma ُ | |
+| **ej** | **kasra + ya** | `پِیدا` *pejdɒː*, `خِیلی` *xejli*, `بِینِ` *bejn-e* |
+| **ow** | **fatha + vav** | `جِلَوِ` *dʒelow*, `رَوزَنِه` *ɾowzæne*, `تَولید` *towlid* |
+| long ɒː/i/u | unmarked | ا و ی carry themselves |
+| sukun | **never** | not used |
+
+`/ej/` is kasra: a fatha there tells the reader to say *pæjdɒː* where the
+page prints *pejdɒː*.{{/ipa}} `/ow/` stays fatha + vav. Every short vowel must be
 marked — an unmarked consonant is a claim that no vowel is there. **A mark
 on a letter carrying a long vowel is an error, not extra precision.**
 
@@ -49,29 +69,25 @@ Other settled points:
 
 - final ه pronounced *-e* takes its kasra on the **preceding** consonant:
   `خانِه`, `آهِستِه`;
-- conjunction و: `وَ` when read *va*, `وُ` when read *o*;
-- `چشم` is **`چِشم` / *češm*** — Tehrani /tʃeʃm/;
+- conjunction و: `وَ` when read {{?classic}}*va*{{/classic}}{{?ipa}}*væ*{{/ipa}}, `وُ` when read *o*;
+- `چشم` is **`چِشم` / {{?classic}}*češm*{{/classic}}{{?ipa}}*tʃeʃm*{{/ipa}}**{{?classic}} — Tehrani /tʃeʃm/{{/classic}};
 - `بودن`'s present stem is **`باش`**; `هست` is the suppletive existential;
-- one spelling can be two words (`دورِ` *dowr-e* "around" / *dur-e*
-  "distant"): refuse any form printed with two different romanisations, but
+- one spelling can be two words (`دورِ` {{?classic}}*dowr-e* "around" / *dur-e* "distant"{{/classic}}{{?ipa}}*dowɾ-e* "around" / *duɾ-e* "distant"{{/ipa}}):
+  refuse any form printed with two different {{?classic}}romanisations{{/classic}}{{?ipa}}transcriptions{{/ipa}}, but
   never "harmonise" two words into one.
 
 **The ezafe** is marked as a kasra on the **governing** word, every time:
 `مِثلِ خورِه`. After a final ه keep the hamza (or the ة) the text already
-has. Where it is the glide *-ye*, the kasra goes on the ی: `دارویِ آن`,
+has. Where it is the glide {{?classic}}*-ye*{{/classic}}{{?ipa}}*-je*{{/ipa}}, the kasra goes on the ی: `دارویِ آن`,
 `هیچ جایِ دُنیا`. The ezafe that is easiest to lose is the one whose
 qualifier falls into the **next** chunk: the chunk looks complete, and the
-kasra is dropped. Read across every seam.
-
-## Reading
-
-This language has no reading field.
+kasra is dropped. Read across every seam.{{/marks}}
 
 ## Transliteration
 
-`tr` is the transliteration of what is actually said or printed: colloquial
-forms as heard (`mi-kone`, not `mi-konad`, when that is what is spoken;
-`umad`, not *āmad*, when the page prints `اومد`).
+{{?classic}}`tr` is the transliteration of what is actually said or printed:
+colloquial forms as heard (`mi-kone`, not `mi-konad`, when that is what is
+spoken; `umad`, not *āmad*, when the page prints `اومد`).
 
 Scheme: long **ā**, short a e o; **š** = ش, **č** = چ, **ž** = ژ, **x** = خ,
 **q** = both ق and غ, **'** = both ع and ء; emphatics flattened
@@ -85,102 +101,98 @@ The scheme does not follow the gloss language: `š` is `š` and `x` is `x` in
 a book glossed in Italian or in French as much as in one glossed in
 English. It transliterates the Persian rather than respelling it in
 somebody's orthography, and every edition of this series must be readable
-by a reader who has learnt it once.
+by a reader who has learnt it once.{{/classic}}{{?ipa}}`tr` is the pronunciation of what is actually said or printed,
+written in **IPA**: the broad (phonemic) IPA of standard Tehrani Persian, with
+no slashes and no square brackets, and one scheme from the first chunk to the
+last. Colloquial forms are written as heard (`mi-kone`, not *mi-konæd*, when
+that is what is spoken; `umæd`, not *ɒːmæd*, when the page prints `اومد`).
+
+Symbols: the vowels are **i e æ o u** and **ɒː** for ā (never ɑ, and never a
+plain a); **tʃ** is چ, **dʒ** is ج, **ʃ** is ش, **ʒ** is ژ, **x** is خ, **ɢ** is
+both ق and غ, **ʔ** is both ع and ء, **ɾ** is ر, **ɡ** is گ, **j** is ی as a
+consonant; the rest are IPA's own (p b t d k f v s z h m n l). The emphatics
+are flattened as Persian flattens them (one s for س ص ث, one z for ز ذ ض ظ, one
+t for ت ط, one h for ه ح). Stress: write ˈ before the stressed syllable of a
+word of two or more syllables where you are sure of it — the last syllable of a
+noun, an adjective or an adverb; the prefix of a verb that has mi-, ne- or
+be- — and leave it out where in doubt. The hyphens that part transparent
+morphology stay, because they part the word and are no sounds:
+`mi-`, `nemi-`, `be-`, `na-`, ezafe `-e`/`-je`, plural `-hɒː`/colloquial
+`-ɒː`, indefinite `-i`, clitic pronouns `-æm -et -eʃ -emun -etun -eʃun`, object
+clitic `-o` (رو `ɾo` when a separate word). A ZWNJ inside a word becomes a hyphen
+(`می‌کنه` → `mi-kone`).
+
+IPA does not follow the gloss language: it is the same in a book glossed in
+Italian or in French as in one glossed in English, and every edition of this
+series must be readable by a reader who has learnt it once.{{/ipa}}
 
 ## Vocabulary
 
-`voc` is written in the voice of the books' gloss blocks: headword +
+{{?classic}}`voc` is written in the voice of the books' gloss blocks: headword +
 transliteration + meaning. Name what was stripped from the form in the text:
 indefinite *-i*, plural *-hā*/*-ān*, enclitics *-am -at -aš …*, the ezafe,
-comparative *-tar*, Arabic broken plurals (give singular **and** plural).
+comparative *-tar*, the attached copula (including spoken *-e*, *-in*, *-an*),
+Arabic broken plurals (give singular **and** plural).
 No etymologies of headwords, one equivalent in the gloss language rather
 than a string of synonyms, and **an empty `voc` is the right answer** for a
-chunk needing nothing.
+chunk needing nothing.{{/classic}}{{?ipa}}`voc` is written in the voice of the books' gloss blocks: headword +
+IPA + meaning. Name what was stripped from the form in the text: indefinite
+*-i*, plural *-hɒː*/*-ɒn*, enclitics *-æm -æt -æʃ …*, the ezafe, comparative *-tæɾ*,
+the attached copula (including spoken *-e*, *-in*, *-ɒn*), Arabic broken plurals
+(give singular **and** plural). No etymologies of headwords, one equivalent in
+the gloss language rather than a string of synonyms, and **an empty `voc` is
+the right answer** for a chunk needing nothing.{{/ipa}}
 
 The line uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
 `\vb{inf}{rom}{pres}{rom}{past}{rom}{meaning}` · `\bw{base}{rom}{meaning}` ·
 `\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted
 by `; `. **Every** verb gets a `\vb`, no exceptions: the infinitive, the
 present stem — the one nobody can guess — and the past stem, each with its
-romanisation. A compound verb (کردن/شدن/داشتن/بردن/زدن…) is a `\vb` for the
+{{?classic}}romanisation{{/classic}}{{?ipa}}IPA{{/ipa}}. A compound verb (کردن/شدن/داشتن/بردن/زدن…) is a `\vb` for the
 light verb with an **empty 7th argument**, then a `\bw` for the word it
-carries; never gloss the light verb's own meaning.
+carries; never gloss the light verb's own meaning:
+{{?classic}}`\vb{زدن}{zadan}{زن}{zan}{زد}{zad}{}\bw{لبخند}{labxand}{to smile}`{{/classic}}{{?ipa}}`\vb{زدن}{zædæn}{زن}{zæn}{زد}{zæd}{}\bw{لبخند}{læbxænd}{to smile}`{{/ipa}},
+the `\bw` run straight onto the `\vb` with no `; ` between them, which is what
+makes the pair one entry in the line.
 
-{{?video}}A video's line is written exactly as a book's; a line with no macro at
-all is plain text, and is also accepted. What a video adds is the form its chunk
-has, where it is none of the three the `\vb` prints, nor one its parenthesis
-names: it is named after the entry, outside it, with its sound,
-`\vb{بخشیدن}{baxšidan}{بخش}{baxš}{بخشید}{baxšid}{to forgive}; here \pw{ببخشید}
-\textit{bebaxšid}, imperative`. Colloquial ↔ written pairs are spelled out
-(`\dw{خونه}{xune} = \pw{خانه} \textit{xāne} house`, and after a `\vb`
-`; here \pw{میاد} \textit{mi-yād} = \pw{می‌آید} \textit{mi-āyad}`); loanwords are
-flagged with the language they came **from**, which has nothing to do with the
-language the gloss is written in (`\dw{تکست}{tekst} — Eng. "text"`,
-`\dw{مرسی}{mersi} — Fr. "merci"`). Persian script inside `voc` is fine — the
-player isolates it. A video is spoken Tehrani, and the commonest verbs contract
-their present beyond recognition (گو → *mi-gam*, رو → *mi-ram*, شو → *mi-šam*,
-دان → *mi-dunam*): where the speaker says one and the chunk does not already
+{{?video}}What a video adds is the form its chunk has, where it is none of the
+three the `\vb` prints, nor one its parenthesis names: it is named after the
+entry, outside it, with its sound,
+{{?classic}}`\vb{بخشیدن}{baxšidan}{بخش}{baxš}{بخشید}{baxšid}{to forgive}; here \pw{ببخشید}
+\textit{bebaxšid}, imperative`{{/classic}}{{?ipa}}`\vb{بخشیدن}{bæxʃidæn}{بخش}{bæxʃ}{بخشید}{bæxʃid}{to forgive}; here \pw{ببخشید}
+\textit{bebæxʃid}, imperative`{{/ipa}}. Colloquial ↔ written pairs are spelled out
+({{?classic}}`\dw{خونه}{xune} = \pw{خانه} \textit{xāne} house`, and after a `\vb`
+`; here \pw{میاد} \textit{mi-yād} = \pw{می‌آید} \textit{mi-āyad}`{{/classic}}{{?ipa}}`\dw{خونه}{xune} = \pw{خانه} \textit{xɒːne} house`, and after a `\vb`
+`; here \pw{میاد} \textit{mi-jɒːd} = \pw{می‌آید} \textit{mi-ɒːjæd}`{{/ipa}}).
+{{/video}}Loanwords are flagged with the language they came **from**, which has
+nothing to do with the language the gloss is written in
+({{?classic}}`\dw{تکست}{tekst} — Eng. "text"`, `\dw{مرسی}{mersi} — Fr. "merci"`{{/classic}}{{?ipa}}`\dw{تکست}{tekst} — Eng. "text"`, `\dw{مرسی}{meɾsi} — Fr. "merci"`{{/ipa}}).
+{{?video}}A video is spoken Tehrani, and the commonest verbs contract their
+present beyond recognition ({{?classic}}گو → *mi-gam*, رو → *mi-ram*, شو → *mi-šam*,
+دان → *mi-dunam*{{/classic}}{{?ipa}}گو → *mi-ɡæm*, رو → *mi-ɾæm*, شو → *mi-ʃæm*,
+دان → *mi-dunæm*{{/ipa}}): where the speaker says one and the chunk does not already
 show it, the entry takes the colloquial first person present as its extra, **in
 videos only**, in the parenthesis after the meaning —
-`\vb{گفتن}{goftan}{گو}{gu}{گفت}{goft}{to say (coll. \pw{می‌گم} \textit{mi-gam})}`;
+{{?classic}}`\vb{گفتن}{goftan}{گو}{gu}{گفت}{goft}{to say (coll. \pw{می‌گم} \textit{mi-gam})}`{{/classic}}{{?ipa}}`\vb{گفتن}{ɡoftæn}{گو}{ɡu}{گفت}{ɡoft}{to say (coll. \pw{می‌گم} \textit{mi-ɡæm})}`{{/ipa}};
 a compound's light verb has no meaning, so there the parenthesis stands alone —
-`\vb{شدن}{šodan}{شو}{šav}{شد}{šod}{(coll. \pw{می‌شم} \textit{mi-šam})}\bw{معلوم}{ma'lum}{evident}`.
+{{?classic}}`\vb{شدن}{šodan}{شو}{šav}{شد}{šod}{(coll. \pw{می‌شم} \textit{mi-šam})}\bw{معلوم}{ma'lum}{evident}`{{/classic}}{{?ipa}}`\vb{شدن}{ʃodæn}{شو}{ʃæv}{شد}{ʃod}{(coll. \pw{می‌شم} \textit{mi-ʃæm})}\bw{معلوم}{mæʔlum}{evident}`{{/ipa}}.
 
 {{/video}}What the three forms cannot say goes in **one parenthesis after the
 meaning**, items parted by `; `, and in Persian that is a closed list:
 
 - **داشتن**, whose present takes no *mi-* (`دارم`, never `می‌دارم`):
-  `\vb{داشتن}{dāštan}{دار}{dār}{داشت}{dāšt}{to have (pres. without mi-)}`.
+  {{?classic}}`\vb{داشتن}{dāštan}{دار}{dār}{داشت}{dāšt}{to have (pres. without mi-)}`{{/classic}}{{?ipa}}`\vb{داشتن}{dɒːʃtæn}{دار}{dɒːɾ}{داشت}{dɒːʃt}{to have (pres. without mi-)}`{{/ipa}}.
   No other verb carries it; بودن keeps `باش` as its stem and `هست` its own
   `\dw`, as above.
 - the colloquial present, in a video only{{?video}} (above){{/video}}{{?book}}:
   a book keeps to the written stems and never carries it{{/book}}.
 
 A verb with a **preverb** (برگشتن, درآوردن, فراگرفتن) is hyphenated after
-the preverb in all three romanisations, because *mi-*, *be-* and *na-* go in
-there (*bar-mi-gardam*, *bar-gard*):
-`\vb{برگشتن}{bar-gaštan}{برگرد}{bar-gard}{برگشت}{bar-gašt}{to return}`.
-A stem this book has already given is given the same way again — the same
-spelling, the same romanisation — whatever a dictionary offers.
-
-The gloss editor's sources sidebar, in the reader and in the player, now
-proposes this entry from the dictionary for a verb it recognises — the
-infinitive and the two stems with their sounds — ready to put into the line
-with one click; in a book that already has a `\vb` for the same infinitive
-it offers the book's own first. It is a **draft for you to correct**, not an
-answer: its stems are Wiktionary's, from the literary Iranian table where
-there is one, and need not be this book's (it has *dah* for دادن where this
-series writes *deh*), so check them against this file; trim the meaning to
-the one sense the text uses;
-and fill what it could not — the button names what is missing. For a
-compound the dictionary knows (فکر کردن, عوض کردن — not every one it
-should), the draft is the light verb's `\vb` with the meaning already empty,
-and a **button of its own** puts the whole compound in — headed *compound
-verb*, and saying in so many words that لبخند زدن is one verb written in
-two words and not two entries. What it writes is the entry this file asks
-for and nothing else:
-
-```
-\vb{زدن}{zadan}{زن}{zan}{زد}{zad}{}\bw{لبخند}{labxand}{to smile}
-```
-
-— the `\bw` run straight onto the `\vb`, with no `; ` between them, which is
-what makes the pair one entry in the line.{{?video}} In a **video** it writes
-the same pair, with the colloquial present in the light verb's parenthesis where
-there is one (above).{{/video}}
-The plain `\vb` button is untouched beside it — the light verb alone, still
-drawn unfinished — and the row goes on naming the `\bw` under *to fill in*,
-so you see what the entry is about to become before pressing. Where the
-dictionary gave no meaning the compound still goes in, with that slot empty
-and the button dashed; where it does not know the compound at all (گمان
-کردن, معلوم شدن), the light verb comes with its own meaning, and emptying it
-is yours. It hyphenates a preverb only where the dictionary
-marks one (برگشتن, برداشتن, درآوردن, فراگرفتن and a few more): برخاستن comes
-as *barxāstan*, and the hyphen is yours to put in. A preverb verb the text
-writes apart (`بر می‌گردم`, `در آورده`) is offered whole, as برگشتن and
-درآوردن.{{?video}} In a video it adds the colloquial present wherever the
-dictionary's colloquial Tehrani table spells it differently (18 verbs, the four
-above among them); take it out where the speaker does not say it.{{/video}}
+the preverb in all three {{?classic}}romanisations{{/classic}}{{?ipa}}transcriptions{{/ipa}}, because *mi-*, *be-* and *na-* go in
+there ({{?classic}}*bar-mi-gardam*, *bar-gard*{{/classic}}{{?ipa}}*bæɾ-mi-ɡæɾdæm*, *bæɾ-ɡæɾd*{{/ipa}}):
+{{?classic}}`\vb{برگشتن}{bar-gaštan}{برگرد}{bar-gard}{برگشت}{bar-gašt}{to return}`{{/classic}}{{?ipa}}`\vb{برگشتن}{bæɾ-ɡæʃtæn}{برگرد}{bæɾ-ɡæɾd}{برگشت}{bæɾ-ɡæʃt}{to return}`{{/ipa}}.
+A stem already given is given the same way again — the same
+spelling, the same {{?classic}}romanisation{{/classic}}{{?ipa}}transcription{{/ipa}} — whatever a dictionary offers.
 
 The meaning is what the gloss language is for; the labels around it are
 not. *pres.* and *past* are printed by the edition itself — the same two
@@ -223,3 +235,29 @@ hovers and that *means* something on its own. Never split a compound verb
 (`فکر کردن`), an ezafe pair (`کوه قاف`), or a verb from its negation. A very
 short sentence (`۲`, `شاه`, `می‌بینید`) is one chunk; that is normal and
 not a fault.
+
+## Example
+
+Three chunks of one caption, as an answer writes them: the same shape in every
+prompt. The meanings here are written in English because an example has to be
+written in something; yours are written in the gloss language of this prompt.
+
+{{?classic}}```json
+{"chunks": [
+  {"fa": "{{?marks}}چِشم،{{/marks}}{{?nomarks}}چشم،{{/nomarks}}", "tr": "češm", "voc": "\\dw{چشم}{češm} certainly, at once (lit. eye)", "en": "certainly,"},
+  {"fa": "{{?marks}}چیز دیگَری{{/marks}}{{?nomarks}}چیز دیگری{{/nomarks}}", "tr": "čiz digar-i", "en": "anything else"},
+  {"fa": "{{?marks}}نِمی‌خواهید{{/marks}}{{?nomarks}}نمی‌خواهید{{/nomarks}}", "tr": "nemi-xāhid", "voc": "\\vb{خواستن}{xāstan}{خواه}{xāh}{خواست}{xāst}{to want}", "en": "you do not want"}
+]}
+```{{/classic}}{{?ipa}}```json
+{"chunks": [
+  {"fa": "{{?marks}}چِشم،{{/marks}}{{?nomarks}}چشم،{{/nomarks}}", "tr": "tʃeʃm", "voc": "\\dw{چشم}{tʃeʃm} certainly, at once (lit. eye)", "en": "certainly,"},
+  {"fa": "{{?marks}}چیز دیگَری{{/marks}}{{?nomarks}}چیز دیگری{{/nomarks}}", "tr": "tʃiz diɡæɾ-i", "en": "anything else"},
+  {"fa": "{{?marks}}نِمی‌خواهید{{/marks}}{{?nomarks}}نمی‌خواهید{{/nomarks}}", "tr": "nemi-xɒːhid", "voc": "\\vb{خواستن}{xɒːstæn}{خواه}{xɒːh}{خواست}{xɒːst}{to want}", "en": "you do not want"}
+]}
+```{{/ipa}}
+
+What to notice: the negative verb is a chunk of its own and its `en` says only
+the negation and the person, while `voc` gives the verb whole; the idiom `چشم`
+is glossed as the idiom (*certainly*) and not as the word *eye*; `چیز دیگری`
+needs nothing (a common word, and دیگر is never glossed), so it has no `voc`; the
+hyphens in `tr` part the morphemes (`nemi-`, the indefinite `-i`).

@@ -46,10 +46,17 @@ need. Nor is [speech to text](../lookup-and-languages/speech-to-text.md#who-may-
 any device that has been let in — a phone, a tablet, another computer — may get,
 stop and remove its program and its models, because the only files that can
 ever arrive are the ones Parseh pins, each checked against its hash.
-Nor is watching [a book being made by an agent](../books/made-by-an-agent.md#who-may-do-what):
-a device that has been let in may read the making panel, look at what is
-written so far and write what to change — but making the folder, opening it
-and finishing the book run something on the computer, and are its own.
+Nor are the [ARASAAC pictograms](../studio/pictograms.md#who-may-use-it): any
+device that has been let in may get, update, stop and remove them, because the
+only files that can arrive are ARASAAC's own, from two hosts Parseh names.
+Nor is [a book being made by an agent](../books/made-by-an-agent.md#who-may-do-what):
+a device that has been let in may do all of it — make the folder, give the
+agent its text a part at a time, read the making panel, look at what is
+written so far, write what to change, finish the book and reopen it — because
+these only write files under `books/` and start Parseh's own build, and the
+agent itself is started by you, on the computer. One thing is the computer's
+own, and is not a permission: opening the folder shows it on that computer's
+screen, so from another device the panel gives the path to copy.
 Installing another version of Parseh changes what it runs: a phone may look
 for a new version, but only the computer installs one
 ([Updating Parseh](updating.md#from-a-phone)).

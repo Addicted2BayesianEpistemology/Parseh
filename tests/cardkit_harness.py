@@ -148,6 +148,9 @@ def serve_it(tmp, port, no_ffmpeg, tray):
     # and the LaTeX drawings' themes, their drawings and their packages
     import latexthemes, latexdraw, texpackages
     latexthemes.STORE = str(tmp / "config" / "latex.json")
+    # and the prompts a person wrote (lib/prompts.py)
+    import prompts
+    prompts.STORE = str(tmp / "config" / "prompts.json")
     latexdraw.DRAWN = str(tmp / "latex-drawn")
     texpackages.TREE = str(tmp / "texmf")
     import texmf_fixture  # what the themes add to the base, as if Parseh had got it

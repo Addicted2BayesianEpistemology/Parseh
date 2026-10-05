@@ -127,7 +127,9 @@ front-audio: audio/clock-710aea.mp3
   button that reads **⇄ both** for Anki), `direction: both-random` for
   **⇄ both (random)**, `direction: reverse` for the reverse-only card, and
   nothing for the forward one. What each means for a flashcard is in
-  [Which side comes first](../dialect-exercises/flashcards.md#which-side-comes-first).
+  [Which side comes first](../dialect-exercises/flashcards.md#which-side-comes-first);
+  on a reverse card the context, the notes and the source are on the side
+  that answers, with the word ([where they go](../dialect-exercises/flashcards.md#where-the-extras-go)).
 - The recording and the frame (from a video only: a book has no frame
   to capture) are named by their names in the [clip tray](clip-tray.md),
   `audio/…` and `images/…`; a document or a deck the block is pasted into

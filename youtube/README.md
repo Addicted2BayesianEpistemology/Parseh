@@ -42,7 +42,9 @@ seek.
 
 A video does not have to be on YouTube. Give `/youtube/add/` the **path to a
 file** instead of a URL — `.mp4`, `.webm`, `.mkv`, `.mov`, `.m4v`, `.avi`,
-`.ogv` — and its transcript may then be a **`.srt` or `.vtt` subtitle file**,
+`.ogv`, or a **sound** (`.mp3`, `.m4a`, `.wav`, `.ogg`, `.flac`, … `bundle.MEDIA_EXTS`),
+which `video.json` then marks `"kind": "audio"` and the player draws as a bar of
+its waveform instead of a frame — and its transcript may then be a **`.srt` or `.vtt` subtitle file**,
 pasted whole: it is translated into the transcript format the rest of this
 door already reads, cue numbers dropped, `<i>` tags stripped, and the rolling
 repetition of automatic captions collapsed to what is new in each cue.
@@ -212,12 +214,12 @@ card on the videos page. No Claude Code, no access to the project:
    player its transcript is what its annotations were checked against, and
    there is no route here that rewrites it.
 2. *Prepare & copy the prompt* puts a self-contained prompt on the
-   clipboard — the generic conventions, the language's own conventions, a
-   worked example from a video already here (one of the same language when
-   there is one, else a Persian one introduced as such; while the player is
-   empty the section is left out altogether), the word list, the captions
-   numbered with their start times, the plain ones marked as plain. Paste
-   it to any LLM.
+   clipboard — what the method is for, the generic conventions, the rule on
+   what a meaning says (`../docs/meaning-rule.md`), the language's own
+   conventions with its worked example (`## Example` in its file, so a fresh
+   install has one and no video of the shelf is quoted), the word list, the
+   captions numbered with their start times, the plain ones marked as plain.
+   Paste it to any LLM.
 3. Paste the answer back (one message or several) and *Check & add*. The
    page checks it with the pipeline's own tools, parsing the transcript
    with the language you picked, writes `videos/<language>/<id>/`
@@ -230,7 +232,8 @@ card on the videos page. No Claude Code, no access to the project:
 The prompt's text is [`docs/chat-prompt.md`](docs/chat-prompt.md), a generic
 recipe naming the language; it embeds [`docs/conventions.md`](docs/conventions.md)
 — what is the same for every language: the chunk size, the fields, the
-repetition rule, plain captions — and then the language's own block,
+repetition rule, plain captions — then the rule on the meaning, and then the
+language's own block,
 [`../docs/lang/<code>.md`](../docs/lang/): what the text field carries, the
 transliteration scheme, the vocabulary line, what never to gloss, how to
 chunk that language. Both are about the language being **taught**; what
@@ -360,7 +363,9 @@ The dots mark the phrase in the reading editions' own four colours — red,
 blue, orange, green — which no tool does anything with but check that it is
 one of the four: it is the reader's own mark, and the two doors show them in
 the same shades. The ✎ opens the
-chunk's fields, each named the way this language names them, and
+chunk's fields, each named the way this language names them — the note
+under the meaning among them: a model's aside is the person's to change, and
+emptying its box takes it off — and
 <kbd>Ctrl</kbd>+<kbd>↵</kbd> saves. `lib/annwrite.py` writes it: the edit
 goes through `check_annotations.py` **before** anything is written and is
 refused, in the checker's own words, if it introduces an error the file does
@@ -648,7 +653,9 @@ line a chapter marker or a duration line (`1 minuto e 6 secondi`, `۱ دقیقه
 و ۳ ثانیه`) come from every language's entry in the registry.
 
 In the player: **follow** keeps the playing caption in view, **hover ⏸**
-pauses the video while a gloss cloud is open, **pin** keeps the video stuck
+pauses the video while a gloss cloud is open, **✱ notes** lights every phrase
+that carries a note and counts them, with **‹ ›** to walk from one to the next
+(browser interface only, and off every time the page opens), **pin** keeps the video stuck
 under the header while you scroll, **◐** cycles light / dark / sepia — one setting for the whole toolbox,
 **Aa** opens the text-and-margins panel (the target text — the slider is
 labelled with the language's name — the gloss cloud, the column width, the

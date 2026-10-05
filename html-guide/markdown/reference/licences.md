@@ -80,6 +80,15 @@ onnxruntime under the MIT licence, PyAV under BSD-3-Clause with the
 FFmpeg libraries and codecs it carries under their own) from PyPI, and its
 two models (OpenAI's Whisper, under the MIT licence) from Hugging Face.
 
+**The ARASAAC pictograms**, which also have a page of their own,
+[Settings → Pictograms (ARASAAC)](../studio/pictograms.md#whose-pictures-these-are),
+are fetched from ARASAAC's own hosts, and are under a licence that asks
+something of what you make with them: **CC BY-NC-SA 4.0**. They were drawn by
+Sergio Palao for ARASAAC and are the property of the Government of Aragón.
+Name them wherever you use them (the credit is written, word for word, in
+`arasaac/LICENSE-ARASAAC.txt`), never use them for commercial purposes, and
+share what you make with them on the same licence.
+
 The installer fetches micromamba, Python and the packages
 `environment.yml` lists. Each of them is under the licence it comes with.
 

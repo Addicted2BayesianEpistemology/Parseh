@@ -36,13 +36,19 @@ from texwrite import Refused                                     # noqa: E402
 
 # every field the sheet may change, in the order the form shows them
 EDITABLE = ("title", "title_latin", "title_en", "author", "author_latin",
-            "year", "blurb", "reorders")
+            "year", "blurb", "reorders", "translit")
 
 # the ones of those that are a switch, not text: "reorders", a text read out
 # of its written order (kanbun), whose words' readings are not held to the
 # chunk's reading (lib/wordline.py's check).  true, or not written at all --
 # books.Book.reorders reads a missing key as false, and so does every checker
 SWITCHES = ("reorders",)
+
+# ...and the one that is a choice among words: "translit", the scheme the book's
+# transliteration is written in.  "ipa", or "" for the language's usual one, which is
+# not written at all -- books.Book.translit reads a missing key as the usual scheme.
+# A key an older Parseh ignores, so BOOK_FORMAT stays as it is
+CHOICES = {"translit": ("", "ipa")}
 
 # the four of those also written into main.tex at creation time, and the
 # macro each becomes -- lib/draft.py's MAIN_TEX and lib/newbook.py's agree
@@ -79,6 +85,13 @@ def _check_field(field, value):
             raise Refused("%s must be true or false, not %s"
                           % (field, type(value).__name__))
         return value
+    if field in CHOICES:
+        said = value.strip().lower() if isinstance(value, str) else None
+        said = "" if said == "classic" else said
+        if said not in CHOICES[field]:
+            raise Refused("%s is %s, not %r" % (field, " or ".join(repr(c) for c in CHOICES[field]),
+                                                value))
+        return said
     if not isinstance(value, str):
         raise Refused("%s must be a string, not %s" % (field, type(value).__name__))
     m = texwrite.NOT_TEXT.search(value)
@@ -164,6 +177,9 @@ def edit_meta(book_dir, fields):
     meta.update(checked)
     for field in SWITCHES:
         if checked.get(field) is False:         # a switch turned off is not written
+            meta.pop(field, None)
+    for field in CHOICES:
+        if checked.get(field) == "":            # the usual way is no key at all
             meta.pop(field, None)
     _write(os.path.join(book.dir, "book.json"),
            json.dumps(meta, ensure_ascii=False, indent=2) + "\n")

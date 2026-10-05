@@ -15,10 +15,6 @@
   <a class="btn ghost" href="{{BASE}}/">← Library</a>
   <div class="doc-title">LLM authoring prompt</div>
   <div class="topbar-actions">
-    <button class="btn" id="btn-edit-prompt">Edit prompt</button>
-    <button class="btn primary hidden" id="btn-save-prompt">Save custom prompt</button>
-    <button class="btn hidden" id="btn-cancel-edit">Cancel</button>
-    <button class="btn" id="btn-reset-prompt" title="Discard the custom prompt and go back to exlex/PROMPT.md">Reset to default</button>
     <button class="btn danger ghost" id="btn-stop">Stop server</button>
   </div>
 </header>
@@ -28,29 +24,39 @@
   and open it here with <em>Upload .md</em> to read it typeset and compile the
   verified PDF.</p>
 
+  <label class="prompt-target" title="The language the document is about: the copied prompt states it, and the language's own conventions are appended">target language
+    <select id="prompt-target"></select></label>
+
+  <!-- what the model is taught to write: the boxes, the presets and their sizes, drawn by
+       static/promptpick.js from the server's answer (the same panel is in the editor's exercise dialog) -->
+  <div id="prompt-boxes"></div>
+
   <div class="prompt-box">
     <div class="prompt-box-head">
       <span>Prompt <span id="prompt-badge" class="badge"></span></span>
-      <label class="prompt-target" title="The language the document is about: the copied prompt states it, and the language's own conventions are appended">target language
-        <select id="prompt-target"></select></label>
     </div>
     <textarea id="prompt-text" readonly rows="18" spellcheck="false"></textarea>
   </div>
 
   <h3 class="qlabel">Your question</h3>
   <textarea id="question" rows="4"
-    placeholder="Es.: Le parole persiane per «caldo» e «freddo»: usi, registri, opposti, composti."></textarea>
+    placeholder="e.g. the words for hot and cold: uses, registers, opposites, compounds."></textarea>
+  <!-- for a learner at, length, and the options of the language (the scheme of its transliteration): one line
+       of choices under the question, each copied into the prompt as a line of its own -->
+  <div id="prompt-under"></div>
 
   <!-- copy the prompt, its size and what to do next: drawn by /lib/llmrow.js,
        the one place these controls are built (the studio run on its own serves
        that file too).  It copies the prompt shown above, and your question
-       after it when you have written one. -->
+       after it when you have written one.  Its prompt menu is where a prompt
+       of your own is chosen, written, changed and deleted. -->
   <div id="llm-row"></div>
 
   <div class="workflow-hint">
-    <strong>Workflow</strong> — ① copy the prompt, with your question after it · ② ask your LLM ·
-    ③ download the <code>.md</code> file it writes · ④ back in the
-    <a href="{{BASE}}/">library</a>, <em>Upload .md</em> · ⑤ read it typeset, tag it,
+    <strong>Workflow</strong> — ① tick what the document may use, or pick a preset ·
+    ② copy the prompt, with your question after it · ③ ask your LLM ·
+    ④ download the <code>.md</code> file it writes · ⑤ back in the
+    <a href="{{BASE}}/">library</a>, <em>Upload .md</em> · ⑥ read it typeset, tag it,
     build the verified PDF.
     <br><span class="pv-status">If a model answers inline instead of writing a
     file, <em>Paste LLM answer</em> still works: the markdown is pulled out of
@@ -61,14 +67,15 @@
 <div id="modal-root"></div>
 <div id="toast" class="toast" hidden></div>
 <div id="shutdown-overlay" class="shutdown-overlay" hidden>
-  <div><h2>Server stopped</h2><p>You can close this tab. Start Parseh again with
-  <code>./serve.sh</code> in the project directory.</p></div>
+  <div><h2>Server stopped</h2><p>You can close this tab. To use Parseh again, start it on the computer it
+  runs on, the way you started it before (<b>Parseh.command</b> on a Mac, <b>serve.bat</b> on Windows).</p></div>
 </div>
 <link rel="stylesheet" href="{{BASE}}/static/mathjax.css">
 <script src="{{BASE}}/static/mathjax.js"></script>
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
 <script src="/lib/llmrow.js"></script>
+<script src="{{BASE}}/static/promptpick.js"></script>
 <script src="{{BASE}}/static/app.js"></script>
 </body>
 </html>

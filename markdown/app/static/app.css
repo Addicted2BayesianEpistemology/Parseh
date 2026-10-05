@@ -494,7 +494,7 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 #prompt-text[readonly] { opacity: .92; }
 #question { font-family: inherit; font-size: .95rem; }
 .prompt-target { display: inline-flex; align-items: center; gap: .4rem;
-  font-size: .8rem; font-weight: 400; color: var(--chrome-mut); margin-left: auto; margin-right: .8rem; }
+  font-size: .8rem; font-weight: 400; color: var(--chrome-mut); }
 .prompt-target select { padding: .2rem .4rem; font-size: .82rem; }
 .qlabel { margin: 1.2rem 0 .4rem; }
 .row { display: flex; gap: .8rem; align-items: center; margin: .8rem 0; }
@@ -503,6 +503,68 @@ body.links-open .linkspane { transform: none; visibility: visible; }
   background: var(--chrome-panel); border: 1px solid var(--chrome-line);
   color: var(--chrome-mut); font-size: .86rem; line-height: 1.6;
 }
+
+/* ---------- what the prompt teaches: the boxes, the presets, level and length
+   (static/promptpick.js; the prompt page and the editor's exercise dialog) -- */
+.pp {
+  background: var(--chrome-panel); border: 1px solid var(--chrome-line);
+  border-radius: 10px; padding: .8rem 1rem; margin: .8rem 0 1rem;
+}
+.pp-title { margin: 0 0 .25rem; font-size: 1rem; }
+.pp .pp-why { margin: 0 0 .7rem; color: var(--chrome-mut); font-size: .84rem; }
+.pp-busy { margin: 0 0 .7rem; color: var(--warn); font-size: .84rem; }
+.pp-busy:empty { display: none; }
+.pp-presets { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 .8rem; }
+.pp-preset {
+  border: 1px solid var(--chrome-line); background: var(--chrome-panel);
+  color: var(--chrome-mut); border-radius: 99px; padding: .22rem .75rem;
+  font-size: .82rem; cursor: pointer;
+}
+.pp-preset:not([aria-pressed="true"]):hover:not(:disabled) { border-color: var(--accentlt); color: var(--accent); }
+.pp-preset[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.pp-preset:disabled { opacity: .5; cursor: not-allowed; }
+.pp-group { border: 0; margin: 0 0 .55rem; padding: 0; min-width: 0; }
+.pp-group legend { padding: 0; margin: 0 0 .1rem; color: var(--chrome-mut); font-size: .76rem; font-weight: 700; }
+/* a box: the tick, its name, its size, and under them what it lets the model write */
+.pp-box {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: .55rem;
+  align-items: baseline; padding: .3rem .35rem; border-radius: 6px; cursor: pointer;
+}
+.pp-box:hover { background: var(--chrome-bg); }
+.pp-box input { grid-row: 1 / span 3; align-self: start; margin: .2rem 0 0; accent-color: var(--accent); }
+.pp-name { font-weight: 600; overflow-wrap: anywhere; }
+.pp-size { color: var(--chrome-mut); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pp-says { grid-column: 2 / 4; color: var(--chrome-mut); font-size: .8rem; overflow-wrap: anywhere; }
+.pp-offwhy { grid-column: 2 / 4; color: var(--warn); font-size: .78rem; font-style: italic; }
+.pp-offwhy:empty { display: none; }
+.pp-box.pp-off { cursor: not-allowed; }
+.pp-box.pp-off .pp-name, .pp-box.pp-off .pp-says { opacity: .55; }
+/* the live total stays at the foot of the window while the boxes are being ticked */
+.pp-total {
+  position: sticky; bottom: 0; margin: .6rem -1rem -.8rem; padding: .55rem 1rem;
+  background: var(--chrome-panel); border-top: 1px solid var(--chrome-line);
+  border-radius: 0 0 10px 10px; font-size: .84rem; color: var(--chrome-fg);
+}
+.pp-total:empty { display: none; }
+/* level, length and the options of the language, one wrapping line under the question */
+.pp-under { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: .6rem 0 0; }
+.pp-under:empty { display: none; }
+.pp-pick { display: inline-flex; align-items: center; gap: .4rem; font-size: .84rem; color: var(--chrome-mut); }
+.pp-pick select, .pp-options select {
+  max-width: 100%; padding: .2rem .4rem; font: inherit; font-size: .84rem;
+  border: 1px solid var(--chrome-line); border-radius: 6px;
+  background: var(--chrome-panel); color: var(--chrome-fg);
+}
+.pp-options .llmrow, .pp-options .llmrow-opts { margin: 0; }
+.pp-options .llmrow-opt { color: var(--chrome-mut); font-size: .84rem; }
+/* in the editor's dialog the body scrolls and the copy row under it stays in view; the dialog takes the
+   height the window has, since its lists are long */
+.modal.ex-prompt-modal { max-height: calc(100vh - 2rem); }
+.ex-prompt-body { display: flex; flex-direction: column; gap: .8rem; min-height: 0; overflow-y: auto; }
+.ex-prompt-body > * { flex-shrink: 0; }       /* the body scrolls; its parts keep their height */
+.ex-prompt-body .pp { margin: 0; background: var(--chrome-bg); }
+.ex-prompt-body .pp-box:hover { background: var(--chrome-panel); }
+.ex-prompt-body .pp-under { margin: 0; }
 
 /* ---------- modal, toast, shutdown --------------------------------- */
 .modal-overlay {

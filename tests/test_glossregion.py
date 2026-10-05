@@ -26,6 +26,13 @@ chunks as they stand -- a paragraph or a caption freed from its source is
 sent as the page shows it, never as source/paras/ or transcript.txt has it --
 with a paragraph folded away in the reader left out and counted.
 
+And the short vowels of Persian and Arabic (ShortVowels, brief 3.10): asked for in the request, an answer's
+fa is written with its gloss ONLY when it is the page's text with marks added and nothing else, and only into
+a chunk that has none -- the edition is itself again byte for byte, the keys of timings.json are the same,
+a video with vowelled phrases passes the checker; a letter, a joiner or a stop changed drops the chunk, a
+space changed keeps the gloss and not the marks, a chunk with marks keeps them and says so; unasked, or in a
+language with no marks, not one mark is written.
+
 Every fixture is copied to a temporary directory first: nothing under
 tests/fixtures/ is ever written.  Standard library only.
 """
@@ -1002,6 +1009,257 @@ class VideoRegion(unittest.TestCase):
         self.assertEqual(a["written"], [[v.i, v.k]], a)
         self.assertEqual((v.chunk()["fa"], v.chunk()["en"], v.chunk()["free"]),
                          (departed, v.old["en"], True))
+
+
+# --- the short vowels (brief 3.10) --------------------------------------------
+# With the request's `marks` an answer's fa is written, with its chunk's gloss, ONLY WHEN it is the page's text with
+# marks added and nothing else, and ONLY INTO A CHUNK THAT HAS NONE; the doors' own checks run, and timings survive.
+FATHA = "َ"
+NBSP = " "
+
+
+def vowelled(text):
+    """The text with a fatha after every letter: the mechanical answer these tests need -- the applier
+    judges whether only marks were added, never whether they are the right ones (a person reads those
+    beside tr)."""
+    return "".join(c + FATHA if c.isalpha() else c for c in text)
+
+
+def keys_of(path, L):
+    """Every chunk's key in a chapter: what timings.json is addressed by."""
+    import texparse
+    return [c.key for s in texparse.parse_chapter(path, L).subs for c in s.chunks]
+
+
+def fixtures(kind, *codes):
+    out = []
+    for path in BOOKS if kind == "books" else VIDEOS:
+        with io.open(path, encoding="utf-8") as f:
+            if json.load(f)["language"] in codes:
+                out.append(path)
+    return out
+
+
+class ShortVowels(unittest.TestCase):
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.td = td.name
+
+    # a book edition that is vowelled, made what a book is before it is: bare, and nothing glossed
+    def book_ready(self, bj):
+        b = Book(self, bj)
+        r = b.recs()[b.k]
+        b.vowels = r["fa"]
+        self.assertNotEqual(b.L.strip(b.vowels), b.vowels, "a fixture edition carries its marks")
+        X.edit_chunk(b.p, b.k, dict({f: "" for f in GLOSS if f in r["fields"] and (f != "kana" or b.L.reading)},
+                                    fa=b.L.strip(b.vowels)))
+        b.bare = snap(b.d)
+        return b
+
+    def book_answer(self, b, fa, **ask):
+        """The chunk asked for, answered with the gloss it had and this fa -> the apply's report."""
+        doc = data_of(b.prompt(**ask)["prompt"])
+        (u, j, c), = [x for x in todos(doc, "sentences") if x[2]["fa"] == b.L.strip(b.vowels)]
+        c.pop("todo")
+        c.update(b.old, fa=fa)
+        return b.apply(doc, **ask)
+
+    def test_a_vowelled_fa_that_adds_only_marks_lands_with_its_gloss_in_a_book_byte_for_byte(self):
+        for bj in fixtures("books", "fa", "ar"):
+            with self.subTest(os.path.relpath(os.path.dirname(bj), FIX)):
+                b = self.book_ready(bj)
+                keys = keys_of(b.p, b.L)
+                a = self.book_answer(b, b.vowels, marks="1")
+                self.assertEqual((a["written"], a["filled"], a["vowelled"], a["marks"], a["dropped"], a["kept"]),
+                                 ([b.n], 1, 1, True, [], []), a)
+                self.assertEqual(b.recs()[b.k]["fa"], b.vowels)
+                self.assertEqual(a["chunks"][str(b.n)]["fa"], b.vowels, "the page is handed the chunk as written")
+                self.assertEqual(snap(b.d), b.before, "the edition is itself again, byte for byte")
+                self.assertEqual(keys_of(b.p, b.L), keys, "the keys of timings.json hash the stripped text")
+
+    def test_the_same_answer_without_the_option_writes_the_gloss_and_not_one_mark(self):
+        for bj in fixtures("books", "fa", "ar"):
+            for ask in ({}, {"marks": "0"}, {"marks": "nomarks"}):
+                with self.subTest(os.path.relpath(os.path.dirname(bj), FIX), ask=ask):
+                    b = self.book_ready(bj)
+                    a = self.book_answer(b, b.vowels, **ask)
+                    self.assertEqual((a["written"], a["filled"], a["vowelled"], a["marks"], a["kept"]),
+                                     ([b.n], 1, 0, False, []), a)
+                    self.assertEqual(b.recs()[b.k]["fa"], b.L.strip(b.vowels), "fa is the page's, as it always was")
+
+    def test_a_letter_a_joiner_or_a_stop_changed_drops_the_chunk_and_a_space_changed_keeps_it_without_marks(self):
+        for bj in fixtures("books", "fa", "ar"):
+            with self.subTest(os.path.relpath(os.path.dirname(bj), FIX)):
+                b = self.book_ready(bj)
+                bare = b.L.strip(b.vowels)
+                first = next(c for c in bare if c.isalpha())
+                other = "ب" if first != "ب" else "ت"
+                for what, fa in (("a letter", vowelled(bare).replace(first, other, 1)),
+                                 ("a stop", vowelled(bare) + "."),
+                                 ("a joiner", vowelled(bare[:1] + "‌" + bare[1:]))):
+                    a = self.book_answer(b, fa, marks="1")
+                    self.assertEqual((a["written"], a["vowelled"]), ([], 0), (what, a))
+                    self.assertTrue(a["dropped"] and a["dropped"][0]["why"].startswith("text does not match"),
+                                    (what, a["dropped"]))
+                    self.assertEqual(snap(b.d), b.bare, "%s changed: nothing is written, not even the gloss" % what)
+                if " " in bare:
+                    a = self.book_answer(b, vowelled(bare).replace(" ", NBSP, 1), marks="1")
+                    self.assertEqual((a["written"], a["filled"], a["vowelled"], a["dropped"]), ([b.n], 1, 0, []), a)
+                    self.assertEqual([k["why"] for k in a["kept"]],
+                                     ["`fa` differs from the page's in more than its marks (a space, say) -- left as it is"])
+                    self.assertEqual(b.recs()[b.k]["fa"], bare, "the gloss landed, fa did not move")
+
+    def test_a_chunk_that_has_marks_already_keeps_its_own_and_says_so(self):
+        for bj in fixtures("books", "fa", "ar"):
+            with self.subTest(os.path.relpath(os.path.dirname(bj), FIX)):
+                b = Book(self, bj)
+                b.delete()                              # unglossed, and vowelled as the edition has it
+                had = b.recs()[b.k]["fa"]
+                a = self.book_answer_for_vowelled(b, vowelled(b.L.strip(had)))
+                self.assertEqual((a["written"], a["filled"], a["vowelled"]), ([b.n], 1, 0), a)
+                self.assertEqual([k["why"] for k in a["kept"]], ["`fa` already has its marks -- left as it is"])
+                self.assertEqual(b.recs()[b.k]["fa"], had)
+                self.assertEqual(snap(b.d), b.before)
+                # a model that sends it back as it is, or bare, is no case at all
+                for same in (had, b.L.strip(had)):
+                    b.delete()
+                    a = self.book_answer_for_vowelled(b, same)
+                    self.assertEqual((a["written"], a["vowelled"], a["kept"], a["dropped"]), ([b.n], 0, [], []), a)
+
+    def book_answer_for_vowelled(self, b, fa):
+        doc = data_of(b.prompt(marks="1")["prompt"])
+        (u, j, c), = [x for x in todos(doc, "sentences") if x[2]["fa"] == b.recs()[b.k]["fa"]]
+        c.pop("todo")
+        c.update(b.old, fa=fa)
+        return b.apply(doc, marks="1")
+
+    def test_a_glossed_chunk_is_kept_whole_and_its_fa_with_it(self):
+        b = Book(self, fixtures("books", "fa")[0])
+        b.delete()
+        r = b.recs()[b.k]
+        X.edit_chunk(b.p, b.k, {"fa": b.L.strip(r["fa"])})
+        doc = data_of(b.prompt(marks="1")["prompt"])
+        (u, j, c), = [x for x in todos(doc, "sentences") if x[2]["fa"] == b.L.strip(r["fa"])]
+        # glossed by a hand since the prompt was made: whatever the answer says of it is kept out
+        X.edit_chunk(b.p, b.k, b.old)
+        before = snap(b.d)
+        c.pop("todo")
+        c.update(b.old, fa=vowelled(c["fa"]))
+        a = b.apply(doc, marks="1")
+        self.assertEqual((a["written"], a["vowelled"], snap(b.d)), ([], 0, before), a)
+
+    def test_a_word_that_is_none_of_the_options_is_refused_before_anything_is_read(self):
+        b = self.book_ready(fixtures("books", "fa")[0])
+        with self.assertRaises(GR.Refused) as e:
+            b.apply(fence({"sentences": []}), marks="maybe")
+        self.assertIn("nomarks or marks", str(e.exception))
+        self.assertEqual(snap(b.d), b.bare)
+
+    def test_a_language_with_no_short_vowels_never_has_them_written(self):
+        for bj in fixtures("books", "it", "ja", "de"):
+            with self.subTest(os.path.relpath(os.path.dirname(bj), FIX)):
+                b = Book(self, bj)
+                b.delete()
+                doc = data_of(b.prompt(marks="1")["prompt"])
+                (u, j, c), = [x for x in todos(doc, "sentences") if x[2]["fa"] == b.recs()[b.k]["fa"]]
+                c.pop("todo")
+                c.update(b.old)
+                a = b.apply(doc, marks="1")
+                self.assertEqual((a["written"], a["vowelled"], a["marks"]), ([b.n], 0, False), a)
+                self.assertEqual(snap(b.d), b.before)
+
+    # a video: the captions are YouTube's, bare, and the chunks may carry the marks the caption's text lacks
+    def video_ready(self, vj, with_joiner=False):
+        v = Video(self, vj)
+        if with_joiner:
+            segs = v.segs()
+            found = [(i, k) for i, sg in enumerate(segs) for k, c in enumerate(sg.get("chunks") or [])
+                     if "‌" in c["fa"] and CA.required(c, v.L) and CA.complete(c, v.L)]
+            self.assertTrue(found, "the Persian fixture has a chunk with a joiner")
+            v.i, v.k = found[0]
+            c = v.chunk()
+            v.old = {f: c[f] for f in GLOSS if (c.get(f) or "").strip()}
+            v.frm, v.to = max(0, v.i - 1), min(len(segs) - 1, v.i + 1)
+            v.before = snap(v.d)
+        v.delete()
+        v.bare = snap(v.d)
+        v.page = v.chunk()["fa"]
+        return v
+
+    def video_answer(self, v, fa, **ask):
+        doc = data_of(v.prompt(**ask)["prompt"])
+        u, j, c = v.todo(doc)
+        c.pop("todo")
+        c.update(v.old, fa=fa)
+        return v.apply(doc, **ask)
+
+    def test_a_vowelled_fa_that_adds_only_marks_lands_with_its_gloss_in_a_video(self):
+        for vj in fixtures("videos", "fa", "ar"):
+            with self.subTest(os.path.relpath(os.path.dirname(vj), FIX)):
+                v = self.video_ready(vj)
+                caption = v.segs()[v.i]["text"]
+                a = self.video_answer(v, vowelled(v.page), marks="1")
+                self.assertEqual((a["written"], a["filled"], a["vowelled"], a["marks"], a["dropped"], a["kept"]),
+                                 ([[v.i, v.k]], 1, 1, True, [], []), a)
+                self.assertEqual(v.chunk()["fa"], vowelled(v.page))
+                self.assertEqual(a["segments"][str(v.i)]["chunks"][v.k]["fa"], vowelled(v.page),
+                                 "the player is handed the caption as written, to draw again")
+                self.assertEqual(v.segs()[v.i]["text"], caption, "the caption's text is the transcript's, as it was")
+                errors, _warns, _n = CA.check(v.d)
+                self.assertEqual(errors, [], "a video with vowelled captions passes check_annotations")
+
+    def test_a_video_answer_with_the_option_off_or_unsaid_writes_the_gloss_and_not_one_mark(self):
+        for vj in fixtures("videos", "fa", "ar"):
+            for ask in ({}, {"marks": "0"}):
+                with self.subTest(os.path.relpath(os.path.dirname(vj), FIX), ask=ask):
+                    v = self.video_ready(vj)
+                    a = self.video_answer(v, vowelled(v.page), **ask)
+                    self.assertEqual((a["written"], a["vowelled"], a["marks"], a["kept"]),
+                                     ([[v.i, v.k]], 0, False, []), a)
+                    self.assertEqual(v.chunk()["fa"], v.page)
+
+    def test_a_video_answer_that_changes_more_than_marks_is_dropped_or_kept_without_them(self):
+        for vj in fixtures("videos", "fa", "ar"):
+            with self.subTest(os.path.relpath(os.path.dirname(vj), FIX)):
+                v = self.video_ready(vj, with_joiner=vj.endswith("fA6bK2mQ8sT/video.json"))
+                for what, fa in (("a joiner", vowelled(v.page).replace("‌", " ")),
+                                 ("a stop", vowelled(v.page) + "."),
+                                 ("a letter", vowelled(v.page.replace(v.page[0], "ب" if v.page[0] != "ب" else "ت", 1)))):
+                    if what == "a joiner" and "‌" not in v.page:
+                        continue
+                    a = self.video_answer(v, fa, marks="1")
+                    self.assertEqual((a["written"], a["vowelled"]), ([], 0), (what, a))
+                    self.assertTrue(a["dropped"][0]["why"].startswith("text does not match"), (what, a["dropped"]))
+                    self.assertEqual(snap(v.d), v.bare, what)
+                if " " in v.page:
+                    a = self.video_answer(v, vowelled(v.page).replace(" ", NBSP, 1), marks="1")
+                    self.assertEqual((a["written"], a["vowelled"], a["dropped"]), ([[v.i, v.k]], 0, []), a)
+                    self.assertIn("more than its marks", a["kept"][0]["why"])
+                    self.assertEqual(v.chunk()["fa"], v.page)
+
+    def test_a_video_chunk_that_has_marks_already_keeps_them(self):
+        v = self.video_ready(fixtures("videos", "fa")[0])
+        A.edit_chunk(v.d, v.i, v.k, {"fa": vowelled(v.page)})
+        had = v.chunk()["fa"]
+        a = self.video_answer(v, vowelled(v.page).replace(FATHA, "ُ"), marks="1")
+        self.assertEqual((a["written"], a["vowelled"]), ([[v.i, v.k]], 0), a)
+        self.assertEqual([k["why"] for k in a["kept"]], ["`fa` already has its marks -- left as it is"])
+        self.assertEqual(v.chunk()["fa"], had)
+
+    def test_a_regloss_waits_for_its_yes_and_writes_the_marks_with_the_replacement(self):
+        v = Video(self, fixtures("videos", "fa")[0])
+        page = v.chunk()["fa"]
+        doc = data_of(v.prompt(regloss=True, marks="1")["prompt"])
+        (u, j, c), = [x for x in todos(doc, "captions") if x[0]["i"] == v.i and x[1] == v.k]
+        c.pop("todo")
+        c.update(v.old, en="a new meaning", fa=vowelled(page))
+        first = v.apply(doc, regloss=True, marks="1")
+        self.assertEqual((first["confirm_needed"], first["replace"], first["vowelled"], first["wrote"]), (True, 1, 0, False), first)
+        self.assertEqual(snap(v.d), v.before, "nothing is written before the yes")
+        again = v.apply(doc, regloss=True, confirm=True, marks="1")
+        self.assertEqual((again["replaced"], again["vowelled"], again["wrote"]), (1, 1, True), again)
+        self.assertEqual((v.chunk()["fa"], v.chunk()["en"]), (vowelled(page), "a new meaning"))
 
 
 if __name__ == "__main__":

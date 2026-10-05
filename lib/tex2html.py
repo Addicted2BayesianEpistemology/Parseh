@@ -8515,6 +8515,10 @@ const rgN = (k, one, many) => k + ' ' + (k === 1 ? one : many);
 let rgMade = [], rgByHand = false;
 const rgRow = window.ParsehLLMRow ? ParsehLLMRow.mount($('#rgrow'), {
   surface: 'book-region', cls: {copy: 'primary'},
+  // THE OPTIONS OF THE PROMPT (the scheme of the transliteration, the short vowels) are asked of the
+  // server for this book's language, and start from what the book's own record says of them
+  lang: LANG.code, book: (/^(\/books\/[^\/]+\/[^\/]+)\//.exec(location.pathname) || [])[1],
+  setFact: (name, value) => rgSetFact(name, value),
   ids: {copy: 'rgcopy', size: 'rgsize', say: 'rgcopysay', hand: 'rgout', handRow: 'rgoutrow'},
   remind: 'paste it into a chatbot, then paste its whole answer into the box below.',
   getText: () => rgText(), onCopied: (ok, text) => rgCopied(ok, text),
@@ -8556,6 +8560,14 @@ async function rgRange() {
   const first = +a.dataset.from, last = +b.dataset.to;
   return Number.isInteger(first) && Number.isInteger(last) && first >= 0 && last >= first
     ? {first, last} : null;
+}
+// A CHOICE MADE AGAINST THE BOOK'S OWN RECORD may be made the book's (the row offers the button):
+// written through the door the book's info sheet uses, which says in words why when it refuses
+async function rgSetFact(name, value) {
+  const r = await fetch('__edit/meta', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify({fields: {[name]: value}})});
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'the edit was refused');
 }
 // relative, like __edit/chunk: the path says which book
 async function rgPost(what, body) {
@@ -8609,11 +8621,16 @@ async function rgText() {
   const p = rgPicker && rgPicker.get();
   if (!p) return '';
   const range = await rgRange();
-  const j = range ? await rgPost('prompt', Object.assign(range, rgFlags()))
+  // the prompt of the person's own that the menu in the row chose goes with this request, and only with it: the
+  // answer is read the same way whoever wrote the prompt
+  const own = rgRow.promptId && rgRow.promptId() ? {prompt: rgRow.promptId()} : {};
+  const j = range ? await rgPost('prompt', Object.assign(range, rgFlags(), rgRow.options ? rgRow.options() : {}, own))
                   : {ok: false, error: 'what is picked holds no chunk to send'};
   // a refusal is the server's sentence, shown as it came
   if (!j.ok) throw new Error(j.error || 'the prompt was refused');
   const text = j.fill ? j.prompt : '';
+  // THE SHORT REQUEST for a chat that has the skill is made with the prompt: the row holds it beside it
+  if (rgRow.skillOf) rgRow.skillOf(j.fill ? j.skill : null);
   // by its text, since two askings can overlap and be answered out of order
   rgMade.push({j, text});
   if (rgMade.length > 4) rgMade.shift();
@@ -8693,7 +8710,7 @@ function rgReport(j, missed) {
       ' — press the button again to write them; nothing has been written yet';
   } else {
     text += 'filled ' + (j.filled || 0) + ' · completed ' + (j.completed || 0) +
-            ' · replaced ' + (j.replaced || 0);
+            ' · replaced ' + (j.replaced || 0) + (j.marks ? ' · vowelled ' + (j.vowelled || 0) : '');
     if (!j.wrote) text += ' — nothing was written';
     if (j.reader && !j.reader.ok)
       text += '\nthe .tex files are written, but the reader would not rebuild: ' +
@@ -8730,7 +8747,10 @@ async function rgFill() {
   btn.disabled = true;
   rgSay(confirm ? 'replacing…' : 'reading the answer…', false);
   const range = await rgRange();
-  const j = range ? await rgPost('apply', Object.assign(range, flags, {answer, confirm}))
+  // THE SHORT VOWELS the row shows now go with the answer as they went with the prompt: whether the
+  // answer's `fa` may be written is the server's to decide, from this word and the language's record
+  const marks = rgRow.options ? rgRow.options().marks : undefined;
+  const j = range ? await rgPost('apply', Object.assign(range, flags, {answer, confirm}, marks ? {marks} : {}))
                   : {ok: false, error: 'what is picked holds no chunk to fill'};
   btn.disabled = !(rgPicker && rgPicker.get());
   if (!j.ok) { rgSay(j.error || 'the answer was refused', true); return; }
@@ -9270,13 +9290,19 @@ function sideLLM(box, n, text, ctx, evidence, live) {
         return j;
       });
   }
-  const build = () => ParsehLLM.prompt({
+  // THE PROMPT, made when it is asked for: Parseh's words, or -- where the menu in the row chose one of the
+  // person's own -- theirs, read from the computer each time (ParsehLLM.own), so a prompt written again a
+  // moment ago is the one used
+  const build = () => ParsehLLM.own(row.promptId()).then(mine => ParsehLLM.prompt({
     sourceName: LANG.name, targetName: GLOSS.name, sourceCode: LANG.code, targetCode: GLOSS.code,
+    sourceNative: LANG.native, trLabel: LANG.translit_label,
     version: ver, sentence: sentence, before: around.before, after: around.after,
-    words: evidence.words || [], pairs: allPairs
-  });
+    words: evidence.words || [], pairs: allPairs,
+    instructions: mine && mine.text, instructionsKind: mine && mine.kind, custom: mine && mine.name
+  }));
   const row = ParsehLLMRow.mount(askBox, {
     surface: 'ask', label: 'Ask LLM', title: 'copy a prompt for an external chatbot',
+    lang: LANG.code, options: false,
     remind: 'paste it into a chatbot, then paste its translation below.',
     // a failed preparing has said why in the line below, and gives no prompt
     getText: () => allPairs ? build() : preparePairs().then(() => allPairs ? build() : ''),
@@ -9298,7 +9324,13 @@ function sideLLM(box, n, text, ctx, evidence, live) {
         row.enable();
         status.textContent = LLM.sent.has(sentence)
           ? 'Reusing the translation pasted for this sentence.' : '';
-        row.update(build());
+        return build().then(text => {
+          if (live() && box.isConnected) row.update(text);
+        }, err => {
+          // the person's own prompt could not be made: its words, not the corpus, are what failed
+          if (!live() || !box.isConnected) return;
+          status.textContent = err.message; status.classList.add('bad');
+        });
       }).catch(() => {
         if (!live() || !box.isConnected) return;
         allPairs = null; row.enable();

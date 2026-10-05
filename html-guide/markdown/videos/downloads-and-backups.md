@@ -23,7 +23,7 @@ Parseh can install whole**. It holds a folder named after the video's id:
 | `parts/*.json` | the answer an LLM gave, on a video added before `parts/` was [retired](the-files.md#parts) |
 | `markdown/**` | the [notes](notes-in-the-seam.md), with their pictures and recordings (an `.svg` figure excepted: it stays on the machine it was drawn on) |
 | `waveform.json` | the picture of the sound, [where one was drawn](the-timings.md#the-picture-of-the-sound) |
-| `media.<ext>` | the film, for [a film on this machine](a-film-on-this-machine.md) |
+| `media.<ext>` | the film, or the sound, for [a film on this machine](a-film-on-this-machine.md) (its playable copy where one was made; `media-orig.<ext>`, the original, stays where it is) |
 
 and at its root `parseh-bundle.json`, a small manifest saying what the zip
 is: a video bundle, its language, the language its glosses are written in,

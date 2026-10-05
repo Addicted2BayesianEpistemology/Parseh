@@ -34,6 +34,10 @@ config/updates.json.*.tmp
 # settings above
 config/latex.json
 config/latex.json.tmp
+# the prompts this person wrote for the chatbots (lib/prompts.py, a0.4.2): the
+# person's own words, kept by every update
+config/prompts.json
+config/prompts.json.tmp
 # the drawings LaTeX made of the latex blocks (lib/latexdraw.py): derived, made
 # again from their blocks whenever they are missing -- never content
 markdown/latex/
@@ -148,6 +152,10 @@ youtube/videos/*/.trash/
 # reason a few lines down.
 youtube/videos/*/*/media.*
 youtube/videos/*/media.*
+# and the original of a sound that had to be made playable (media-orig.<ext>),
+# and a film or a sound that was SENT and has not been used yet
+youtube/videos/*/*/media-orig.*
+youtube/videos/.incoming/
 tests/fixtures/videos/*/*/media.*
 tests/fixtures/videos/*/media.*
 # what the studio builds and remembers, not what it holds: a document under
@@ -226,6 +234,11 @@ mt/
 # (stt/tmp/).  All of it is somebody else's work, downloaded on request and
 # made on demand; none of it belongs in the repository.
 stt/
+
+# The ARASAAC pictograms (lib/getarasaac.py, a0.4.2): about 160 MB of somebody
+# else's pictures (CC BY-NC-SA) and the words that name them, fetched on request
+# from api.arasaac.org and static.arasaac.org; none of it belongs in the repository.
+arasaac/
 
 # Optional, locally installed character component packs (licences stored in each pack).
 components/*.db

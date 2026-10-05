@@ -10,6 +10,10 @@
     placeholders(surface)                 [(NAME, meaning)]: what a template may name
     blocks(text, flags), flat(text), instructions_of(text)
                                           the {{?flag}}...{{/flag}} blocks of a text
+    OPTIONS, resolve(surface, lang, asked, facts), describe(...), header_fields(...)
+                                          the choices a person makes for ONE prompt: the
+                                          scheme of the transliteration (usual or IPA) and the
+                                          short vowels (Persian, Arabic)
 
 docs/prompt-kit.md is the guide; this is what it rests on.
 
@@ -45,7 +49,10 @@ fills, a bug, and it is refused in words (PromptError) rather than sent to a
 chatbot.  A block whose flag the caller never gave is refused the same way,
 because a mistyped flag would otherwise take its text out without a word.
 The data, and what a caller marks `verbatim`, are never looked into: a
-book's title or a caption may say `{{` and be right.
+book's title or a caption may say `{{` and be right.  A flag or a placeholder
+given `Open(words)` is the one thing resolved NOT here but by whoever reads the
+text (lib/skills.py writes a skill once, for every request): it stays as
+`⟦if words⟧ … ⟦end words⟧` or `⟨words⟩`.
 
 WHAT THE MARKS COST.  Taking the marks out of a template gives the file as it
 was before it was split (flat() does exactly that, for a page that fills a
@@ -70,8 +77,8 @@ LANG_DOCS = os.path.join(ROOT, "docs", "lang")
 # The prompts of the toolbox, by where a person gets them.  `ask` is assembled
 # in the browser (lib/llm.js); it is named here so that the version line, a
 # person's saved prompts and the editor speak of it as they speak of the
-# others.  The two that are files handed over as they are (youtube/PROMPT.md,
-# docs/audio-sync-prompt.md) are not surfaces: there is nothing to assemble.
+# others.  The one that is a file handed over as it is (youtube/PROMPT.md) is
+# not a surface: there is nothing to assemble.
 SURFACES = ("studio-doc", "studio-exercises", "video-new", "video-region",
             "book-region", "book-new", "transcript-tidy", "ask")
 # the ones whose answer Parseh reads back, and which therefore always carry
@@ -106,6 +113,18 @@ _HELD = "\x00%d\x00"
 _HELD_AT = re.compile("\x00(\\d+)\x00")
 
 Parts = namedtuple("Parts", "instructions contract data")
+
+
+class Open(object):
+    """WHAT A FLAG OR A PLACEHOLDER IS GIVEN WHEN THE REQUEST, NOT THE CALLER, SAYS WHAT IT IS (lib/skills.py).
+    A skill is written once and read for many requests: where the answer is the request's own, the
+    block stays in the text between two visible marks, `⟦if <words>⟧ … ⟦end <words>⟧`, and the
+    placeholder as `⟨<words>⟩`, and whoever reads the skill settles them from the request's header.
+    `words` is how the condition is said to that reader.  Everything else is resolved here as ever."""
+    IF, END, SLOT = "⟦if %s⟧", "⟦end %s⟧", "⟨%s⟩"
+
+    def __init__(self, words):
+        self.words = words
 
 
 class PromptError(ValueError):
@@ -173,6 +192,10 @@ def _walk(block, flags, want, inside=None):
         elif kid.name not in flags:
             raise PromptError("{{?%s}} is a block this prompt does not know (it knows: %s)"
                               % (kid.name, ", ".join(sorted(flags)) or "none"))
+        elif isinstance(flags[kid.name], Open):
+            inner = _walk(kid, flags, want, inside)
+            if inner.strip():
+                out.append(Open.IF % flags[kid.name].words + inner + Open.END % flags[kid.name].words)
         elif flags[kid.name]:
             out.append(_walk(kid, flags, want, inside))
     return "".join(out)
@@ -202,6 +225,38 @@ def _spaces(text):
     """A block taken out leaves its line behind, blank or holding only the
     indent; three or more newlines collapse to a paragraph break."""
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+\n", "\n", text))
+
+
+def squeeze(text):
+    """What assemble() does to each of its parts once the blocks are resolved."""
+    return _spaces(text).strip()
+
+
+def render(text, flags=None, values=None, includes=None, what="text"):
+    """A piece of text with its blocks and placeholders resolved and nothing else done to it: its
+    whitespace is its own, so that lib/skills.py can write a skill's files from the pieces of a
+    template and a reader can put them back together.  `{{` left in it is refused, as assemble()
+    refuses it."""
+    fill = _Fill(dict(flags or {}), dict(values or {}), dict(includes or {}), {})
+    out = fill.render(text)
+    check(out, what)
+    return out
+
+
+def take_out(text, names):
+    """(text, pieces): `text` with each block named in `names` that stands at its top level (not inside
+    another block) kept as it is but for what is inside it -- one placeholder, {{BLOCK_<name>}} -- and
+    `pieces`, {name: the raw text that was inside}.  What a skill's SKILL.md keeps in its place and what
+    it sends to a file of its own."""
+    tree = _tree(text)
+    pieces = {}
+    for i, kid in enumerate(tree.kids):
+        if isinstance(kid, _Block) and kid.name in names:
+            if kid.name in pieces:
+                raise PromptError("{{?%s}} stands twice at the top level of the text" % kid.name)
+            pieces[kid.name] = _serial(kid, False)
+            tree.kids[i] = "{{?%s}}{{BLOCK_%s}}{{/%s}}" % (kid.name, kid.name, kid.name)
+    return _serial(tree, False), pieces
 
 
 def _serial(block, inside):
@@ -287,17 +342,31 @@ _REGION = ("video-region", "book-region")
 _GLOSSED = ("video-new", "video-region", "book-region", "book-new")
 _WITH_FILE = ("studio-doc", "studio-exercises") + _GLOSSED      # the ones that take a language file
 _NEW_VIDEO, _TIDY, _NEW_BOOK = ("video-new",), ("transcript-tidy",), ("book-new",)
+_STUDIO = ("studio-doc",)
+# THE PROMPTS THAT ASK FOR A TRANSLITERATION, and the ones that write or read a book's or a video's
+# own text (where the short vowels of a language have a place): the surfaces of the two OPTIONS below
+_TRANSLIT_SURFACES = ("studio-doc", "studio-exercises") + _GLOSSED
+_MARKS_SURFACES = _GLOSSED
 _PLACEHOLDERS = (
     ("LANGUAGE", "the language's name, in English (Persian)", "*"),
     ("LANGUAGE_NATIVE", "its name in itself", "*"),
     ("LANGUAGE_CODE", "its code in the registry (fa)", "*"),
-    ("TR_LABEL", "what its transliteration is called: transliteration, pronunciation, "
-                 "rōmaji, pinyin", "*"),
+    ("TR_LABEL", "what its transliteration is called (rōmaji, pinyin ...), or IPA where the "
+                 "prompt asks for it", "*"),
+    ("TR_SCHEME", "the scheme the transliteration is written in: IPA, or the language's usual one",
+     _TRANSLIT_SURFACES),
+    ("MARKS_RULE", "what is asked of the short vowels: write them, or leave the text as it is "
+                   "(empty if none)", _MARKS_SURFACES),
     ("LANG_CONVENTIONS", "the language's conventions (docs/lang/<code>.md), cut to what "
                          "this prompt needs", _WITH_FILE),
     ("GLOSS_LANGUAGE", "the language the meanings are written in (English)", _GLOSSED),
     ("GLOSS_CODE", "its code (en)", _GLOSSED),
     ("MEANING_RULE", "the rule for what a chunk's meaning says (docs/meaning-rule.md)", _GLOSSED),
+    # the studio's own prompt (markdown/app/promptboxes.py fills them)
+    ("OWN_MARKS", "the target's own punctuation marks, said in words", _STUDIO),
+    ("ALT_FONT", "the key of the language's alternate face (nastaliq, gothic)", _STUDIO),
+    ("LATEX_THEMES", "the LaTeX themes this machine has, each with what it adds", _STUDIO),
+    ("EXERCISE_BLOCKS", "what an exercise is, per type (EXERCISES_PROMPT.md's shared section)", _STUDIO),
     # a stretch of a book or a video (lib/glossregion.py)
     ("A_LANGUAGE", "the language's name with its article: a Persian, an Italian", _REGION),
     ("SURFACE", "what is glossed: a Persian reading edition, the captions of a Persian "
@@ -326,9 +395,6 @@ _PLACEHOLDERS = (
     ("WORDS_RECEIVED", "the paragraph about the machine's word division under a caption",
      _NEW_VIDEO),
     ("TR_RULE", "which fields every chunk carries in this language", _NEW_VIDEO),
-    ("EXAMPLE_INTRO", "a sentence for an example borrowed from another language", _NEW_VIDEO),
-    ("EXAMPLE_IN", "the example's captions, as they are received", _NEW_VIDEO),
-    ("EXAMPLE_OUT", "the example's answer", _NEW_VIDEO),
     ("GLOSSARY", "the word list of a family of videos, when one is asked for", _NEW_VIDEO),
     # the transcript tidy (youtube/lib/tidy.py)
     ("BARE", "a sentence for a transcript that carries almost no punctuation", _TIDY),
@@ -377,6 +443,276 @@ def placeholders(surface=None):
         _known(surface)
     return [(n, m) for n, m, s in _PLACEHOLDERS
             if surface is None or s == "*" or surface in s]
+
+
+# --- the options of a prompt -----------------------------------------------
+# AN OPTION IS A CHOICE A PERSON MAKES FOR ONE PROMPT, explicitly (brief 3.9, 3.10): the scheme
+# a transliteration is written in -- the language's usual one, or IPA -- and whether a Persian or
+# an Arabic text is given its short vowels.  Both are rows of ONE table, so that the row of
+# controls beside a prompt, the routes that make it, the flags a text may use, the version line,
+# the header of a skill's request and a person's own prompts all say the same thing about each,
+# and a third option is another row here and nothing more.  Where an option is asked is DATA
+# (`surfaces`, `offered`), and the condition is the language's record in the registry and never
+# its code: a language added later gets the options its record earns.
+class OptionError(PromptError):
+    """A request that names a value no option has, said to whoever asked; and an option that is
+    not one."""
+
+
+class Option(object):
+    """What the kit knows of one option.  `values` are its ids, in the order the row shows them, and
+    each is the NAME OF A FLAG that is true while it is chosen (`{{?ipa}}...{{/ipa}}`)."""
+    name = ""
+    noun = ""                # what it is, for a sentence refusing a value of it
+    values = ()
+    surfaces = ()            # the prompts that ask it
+    aliases = {}             # other spellings of a value a request may use (lower case)
+    inactive = None          # the value whose flag stays true where the option does not apply; None: none
+    memory = "surface"       # what a device keeps a choice for: "lang" or "surface"
+    meaning = {}             # value -> what its flag is for, one line (the editor of a person's own prompt)
+
+    def default(self, surface):
+        return self.values[0]
+
+    def offered(self, L):
+        """Whether this language has the option at all."""
+        return True
+
+    def records(self, L):
+        """Whether a book's or a video's own record can hold this option in this language, so that a
+        prompt asking for the other value is told that the book would mix the two.  An option that
+        is a choice of the moment (the short vowels) is held by none."""
+        return False
+
+    def applies(self, surface, L):
+        return surface in self.surfaces and L is not None and self.offered(L)
+
+    def label(self, L):
+        raise NotImplementedError
+
+    def choices(self, L):
+        """[(id, what the row says)] for this language."""
+        raise NotImplementedError
+
+    def sentence(self, L):
+        """{id: how a sentence names the choice} for the ids the row's words do not fit into one
+        ("usual scheme" is "the usual scheme" in a sentence); the others are said as the row says them."""
+        return {}
+
+    def suffix(self, value):
+        """What the version line ends with for this value ('' says nothing)."""
+        return ""
+
+    def header(self, value):
+        """The field a skill's request carries for this value ('' says nothing)."""
+        return ""
+
+    def parse(self, value):
+        """The id a request's value stands for; None where it says none.  OptionError for anything else."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        said = str(value).strip().lower()
+        if said in self.values:
+            return said
+        if said in self.aliases:
+            return self.aliases[said]
+        raise OptionError("%r is not %s: it is %s" % (value, self.noun, " or ".join(self.values)))
+
+
+class _Translit(Option):
+    """The scheme of a transliteration: the language's usual one, or IPA.  Asked wherever a prompt asks
+    for a transliteration -- not on the transcript tidy, and not on Ask LLM, which asks for none."""
+    name, noun = "translit", "a way to write the transliteration"
+    values = ("classic", "ipa")
+    surfaces = _TRANSLIT_SURFACES
+    aliases = {"usual": "classic", "default": "classic"}
+    inactive = "classic"
+    memory = "lang"
+    meaning = {"classic": "kept while the transliteration is written in the language's usual scheme",
+               "ipa": "kept while the prompt asks for IPA in place of the usual scheme"}
+
+    def offered(self, L):
+        return L.ipa != "none"
+
+    def records(self, L):
+        # WHERE THE USUAL SCHEME IS IPA (English) THE TWO ARE ONE, and a book cannot mix them
+        return L.ipa == "offered"
+
+    def label(self, L):
+        return L.translit_label
+
+    def choices(self, L):
+        return [("classic", "IPA (already the usual)" if L.ipa == "usual" else "usual scheme"),
+                ("ipa", "IPA")]
+
+    def sentence(self, L):
+        """{id: how a sentence names the choice}, where that is not what the row says."""
+        return {"classic": "the usual scheme"}
+
+    def suffix(self, value):
+        return "IPA" if value == "ipa" else ""
+
+    def header(self, value):
+        return "translit: ipa" if value == "ipa" else ""
+
+
+class _Marks(Option):
+    """Whether the short vowels are written: for a language whose record has `strip` (Persian and Arabic
+    today), on the prompts that write or read a book's or a video's own text."""
+    name, noun = "marks", "a setting for the short vowels"
+    values = ("nomarks", "marks")
+    surfaces = _MARKS_SURFACES
+    aliases = {"0": "nomarks", "off": "nomarks", "no": "nomarks", "false": "nomarks",
+               "1": "marks", "on": "marks", "yes": "marks", "true": "marks"}
+    memory = "surface"
+    meaning = {"marks": "kept while the prompt asks for the short vowels to be written",
+               "nomarks": "kept while the prompt leaves the text as it is, with no short vowels added"}
+
+    def default(self, surface):
+        # THE DEFAULTS KEEP TODAY'S BEHAVIOUR: a book made in place asks for the marks (a reading
+        # edition's first pass is the vowelled attempt), and a stretch of a book or a video, or a
+        # video from scratch, never changes the text
+        return "marks" if surface == "book-new" else "nomarks"
+
+    def offered(self, L):
+        return bool(L.strip_range)
+
+    def label(self, L):
+        return "short vowels"
+
+    def choices(self, L):
+        return [("nomarks", "as they are"), ("marks", "write them")]
+
+    def suffix(self, value):
+        return "marks" if value == "marks" else "no marks"
+
+    def header(self, value):
+        return "marks: on" if value == "marks" else "marks: off"
+
+
+OPTIONS = (_Translit(), _Marks())
+OPTION_BY_NAME = {o.name: o for o in OPTIONS}
+
+
+def given(source):
+    """The options a request names, as it said them -> {name: value}: from a body, or from a parsed
+    query (a value that is a list, as a query holds it, is its first); nothing for what is left out
+    or blank.  resolve() reads the values."""
+    out = {}
+    for opt in OPTIONS:
+        value = source.get(opt.name) if hasattr(source, "get") else None
+        if isinstance(value, (list, tuple)):
+            value = value[0] if value else None
+        if value is not None and value != "":
+            out[opt.name] = value
+    return out
+
+
+def resolve(surface, lang=None, asked=None, facts=None):
+    """The options of a prompt as they stand -> {name: id}, only for those that APPLY to this surface
+    in this language: what the request asked, else what the book's or the video's own record says
+    (`facts`, {name: value}), else the surface's default.
+
+    A value that is none of the option's is refused in words (OptionError), whether the option
+    applies or not: a typo is never hidden.  An option that does not apply -- the short vowels of
+    Italian, a transliteration on the tidy, IPA for a language whose record offers none -- is left out
+    of the answer rather than refused: what a device remembers of one prompt must not stop another,
+    and the answer says what was applied.  A fact that cannot be read is data and not a request, and
+    is passed over."""
+    asked = dict(asked or {})
+    stray = sorted(set(asked) - set(OPTION_BY_NAME))
+    if stray:
+        raise OptionError("%s is not an option of a prompt (they are: %s)"
+                          % (", ".join(repr(n) for n in stray), ", ".join(OPTION_BY_NAME)))
+    L = _language(lang) if lang is not None else None
+    out = {}
+    for opt in OPTIONS:
+        value = opt.parse(asked.get(opt.name))
+        if not opt.applies(surface, L):
+            continue
+        if value is None:
+            try:
+                value = opt.parse((facts or {}).get(opt.name))
+            except OptionError:
+                value = None
+        out[opt.name] = value or opt.default(surface)
+    return out
+
+
+def option_flags(surface, lang=None, options=None):
+    """The flags the options give a text -> {flag: bool}: one per value, true for the value in force.
+    Where an option does not apply its `inactive` value stands (the usual scheme), or none of them
+    does (no short-vowel paragraph of a language file is kept for a language that has no marks)."""
+    chosen = resolve(surface, lang, options)
+    out = {}
+    for opt in OPTIONS:
+        now = chosen.get(opt.name, opt.inactive)
+        for value in opt.values:
+            out[value] = value == now
+    return out
+
+
+def option_words(surface, lang, options=None):
+    """What the options add to the version line, in the order of the table: ['IPA', 'no marks']."""
+    chosen = resolve(surface, lang, options)
+    return [w for opt in OPTIONS if opt.name in chosen for w in [opt.suffix(chosen[opt.name])] if w]
+
+
+def header_fields(surface, lang, options=None):
+    """What the options add to the header of a skill's request -> ['translit: ipa', 'marks: on']:
+    the usual scheme says nothing, as it does in the version line.  The seam lane G builds the
+    request on: every text that says which options a prompt had is this, so that a skill and a
+    prompt cannot say two things."""
+    chosen = resolve(surface, lang, options)
+    return [h for opt in OPTIONS if opt.name in chosen for h in [opt.header(chosen[opt.name])] if h]
+
+
+def describe(surface, lang, options=None, facts=None):
+    """The options a page offers for this prompt -> [{name, label, value, default, fact, record,
+    choices, remember}], those that apply and no others: `label` is the language's own word
+    (rōmaji, pinyin, transliteration, pronunciation) or the option's, `value` what stands now (the
+    request's, else the record's `facts`, else the default), `fact` whether that value is the book's
+    or the video's own, `record` whether the book or the video this is asked for holds the option at
+    all (it does where `facts` has its key, and the language's scheme can differ from the usual's:
+    a prompt that asks for the other value is then told that the book would mix the two, and offered
+    to change the book), `remember` what the row keeps the person's choice under on this device.  A
+    choice whose name in a sentence is not the row's word has it in `as`."""
+    L = _language(lang)
+    chosen = resolve(surface, L, options, facts)
+    out = []
+    for opt in OPTIONS:
+        if opt.name not in chosen:
+            continue
+        try:
+            own = opt.parse((facts or {}).get(opt.name))
+        except OptionError:
+            own = None
+        said = opt.sentence(L)
+        choices = []
+        for i, t in opt.choices(L):
+            choice = {"id": i, "label": t}
+            if i in said:
+                choice["as"] = said[i]
+            choices.append(choice)
+        out.append({"name": opt.name, "label": opt.label(L), "value": chosen[opt.name],
+                    "default": opt.default(surface), "fact": own is not None and chosen[opt.name] == own,
+                    "record": opt.name in (facts or {}) and opt.records(L),
+                    "choices": choices, "remember": L.code if opt.memory == "lang" else surface})
+    return out
+
+
+def flag_meanings(surface=None):
+    """{flag: what it is for}: the options' flags that a text of this surface may use to some purpose
+    (every one for None), for the editor of a person's own prompt."""
+    return {value: opt.meaning[value] for opt in OPTIONS for value in opt.values
+            if surface is None or surface in opt.surfaces}
+
+
+def unasked_flags(surface):
+    """The options' flags a prompt of this surface never has any use for: the other surfaces' (the
+    short vowels on the studio's prompt).  They are still known to every text -- a person's prompt
+    that names one is not refused -- and only the editor's list leaves them out."""
+    return {value for opt in OPTIONS if surface not in opt.surfaces for value in opt.values}
 
 
 # --- the language's conventions, cut per prompt -------------------------
@@ -434,15 +770,20 @@ _MISSING = {
 _MISSING["book-region"] = _MISSING["video-region"]
 
 
-def surface_flags(surface):
+def surface_flags(surface, lang=None, options=None):
     """The flags every text of a surface may use -- its template, the language's
     file, a person's instructions: book and video, and the kind of prompt it
     is (studio, region, new: what cuts the language's file and what takes it
     all).  `note` is never true: {{?note}}...{{/note}} is a word to whoever
-    maintains the file, and no prompt carries it."""
-    return {"book": surface.startswith("book-"), "video": surface.startswith("video-"),
-            "studio": surface.startswith("studio-"), "region": surface.endswith("-region"),
-            "new": surface.endswith("-new"), "note": False}
+    maintains the file, and no prompt carries it.  With a language, and the
+    options a request chose (resolve()), the options' flags too: ipa or
+    classic, marks or nomarks -- the last pair false for a language that has no
+    short vowels; without a language, the usual scheme and neither of them."""
+    flags = {"book": surface.startswith("book-"), "video": surface.startswith("video-"),
+             "studio": surface.startswith("studio-"), "region": surface.endswith("-region"),
+             "new": surface.endswith("-new"), "note": False}
+    flags.update(option_flags(surface, lang, options))
+    return flags
 
 
 def _outline(lines):
@@ -539,16 +880,17 @@ def _language_file(L):
         return None
 
 
-def language_sections(surface, lang, flags=None):
+def language_sections(surface, lang, flags=None, options=None):
     """[(section, text)] of docs/lang/<code>.md as this surface takes it, the
-    flags of the file (book, video, studio ...) resolved; None where the file is
-    not there."""
+    flags of the file (book, video, studio, and the options' ipa, classic,
+    marks, nomarks) resolved; None where the file is not there."""
     if surface not in KIND:
         raise PromptError("%s takes no language file" % surface)
-    text = _language_file(_language(lang))
+    L = _language(lang)
+    text = _language_file(L)
     if text is None:
         return None
-    return _cut(blocks(text, dict(surface_flags(surface), **(flags or {}))),
+    return _cut(blocks(text, dict(surface_flags(surface, L, options), **(flags or {}))),
                 KIND[surface], LAYOUT[surface][0])
 
 
@@ -557,25 +899,114 @@ def _meaning_rule():
         return f.read()
 
 
-def _common(L, G):
+def _tr_scheme(L, ipa):
+    """TR_SCHEME: the scheme the transliteration is written in."""
+    if ipa or L.ipa == "usual":
+        return "IPA"
+    return "the usual %s scheme for %s" % (L.translit_label, L.name)
+
+
+def _marks_rule(L, value):
+    """MARKS_RULE: what is asked of the short vowels, nothing where the language has none."""
+    if not L.strip_range or value not in ("marks", "nomarks"):
+        return ""
+    return ("write the short vowels in `fa`" if value == "marks"
+            else "leave `fa` as it is, with no short vowels added")
+
+
+def _common(surface, L, G, chosen=None):
     """The placeholders the kit fills in every prompt of a language (and of a
-    gloss language, where the prompt has one)."""
+    gloss language, where the prompt has one), the options in force among them:
+    what the transliteration is called, and in which scheme, and the rule for
+    the short vowels -- each only for the prompts that publish it."""
+    chosen = chosen or {}
+    ipa = chosen.get("translit") == "ipa"
     values = {"LANGUAGE": L.name, "LANGUAGE_NATIVE": L.native, "LANGUAGE_CODE": L.code,
-              "TR_LABEL": L.translit_label}
+              "TR_LABEL": "IPA" if ipa else L.translit_label}
+    if surface in _TRANSLIT_SURFACES:
+        values["TR_SCHEME"] = _tr_scheme(L, ipa)
+    if surface in _MARKS_SURFACES:
+        values["MARKS_RULE"] = _marks_rule(L, chosen.get("marks"))
     if G is not None:
         values.update(GLOSS_LANGUAGE=G.name, GLOSS_CODE=G.code)
     return values
 
 
-def language_text(surface, lang, flags=None, gloss=None):
+# WHAT A PROMPT SAYS OF IPA WHEN THE LANGUAGE'S OWN FILE HAS NOT WRITTEN ITS IPA NOTE (`{{?ipa}}` in
+# its Transliteration section), so that the setting works for every language a person has -- one
+# they added, one whose note is not written yet -- and never leaves a prompt that says IPA in its
+# fields and describes the usual scheme in its conventions with nothing between them.  It says only
+# what holds for any language; the file's note, where there is one, says which IPA.  It stands where
+# the usual scheme is described (the first words of the Transliteration section) and is said again, in
+# one line, after the conventions: a stand-in chatbot that was given it only in front, ahead of a long
+# section on the usual scheme and its examples, went on writing the usual scheme (Hindi, nine chunks
+# in ten).
+_IPA_SAYS = {
+    "studio": ("**This prompt asks for IPA, not for the scheme below.** Wherever the rules of this section, or an "
+               "example of them, spell a sound in the usual %(label)s scheme of %(lang)s -- in the "
+               "transliteration of a `##` heading and in `[word]{translit:…}` -- write IPA instead, and keep "
+               "of them only what is not the spelling of a sound. Write broad (phonemic) IPA for the standard "
+               "pronunciation of %(lang)s, with no slashes or square brackets around it, and the stress mark "
+               "ˈ and the length mark ː where %(lang)s has them. The words themselves are not changed."),
+    "gloss": ("**This prompt asks for IPA, not for the scheme below.** Wherever the rules of this section or of "
+              "the ones after it, or an example in them, spell a sound in the usual %(label)s scheme of "
+              "%(lang)s -- in `tr`, in the sound of every vocabulary entry (`\\dw{word}{sound}`, `\\vb{…}`, "
+              "`\\bw{base}{sound}{meaning}`) and in every other place a transliteration is asked for -- write "
+              "IPA instead, and keep of them only what is not the spelling of a sound (which chunks carry a "
+              "`tr`, how words are parted). Write broad (phonemic) IPA for the standard pronunciation of "
+              "%(lang)s, with no slashes or square brackets around it, and the stress mark ˈ and the length "
+              "mark ː where %(lang)s has them, one scheme from the first chunk to the last. The text itself, "
+              "any reading in kana and the language of the meanings are not changed."),
+}
+_IPA_AGAIN = {
+    "studio": "*This prompt asks for IPA: a sound written above in the usual scheme is written in IPA in "
+              "your answer.*",
+    "gloss": "*This prompt asks for IPA: a sound written above in the usual scheme -- in a rule or in an "
+             "example -- is written in IPA in your answer, in `tr` and in every vocabulary entry.*",
+}
+
+
+def _says_ipa(L):
+    """What a prompt says of IPA for a language whose file has no IPA note of its own, or None."""
+    text = _language_file(L)
+    if text is not None and re.search(r"\{\{\?ipa\}\}", text):
+        return None
+    return {"label": L.translit_label, "lang": L.name}
+
+
+def _with_ipa(secs, kind, said):
+    """The sections of a language's conventions with what a prompt says of IPA put in: after the heading
+    of the Transliteration section (in front of everything where there is none), and once more at the
+    end."""
+    way = "studio" if kind == "studio" else "gloss"
+    out, put = [], False
+    for name, text in secs:
+        if name == "Transliteration" and not put:
+            head, _, rest = text.partition("\n")
+            text, put = "%s\n\n%s\n\n%s" % (head, _IPA_SAYS[way] % said, rest.lstrip("\n")), True
+        out.append((name, text))
+    if not put:
+        out.insert(0, ("(IPA)", _IPA_SAYS[way] % said))
+    out.append(("(IPA again)", _IPA_AGAIN[way]))
+    return out
+
+
+def language_text(surface, lang, flags=None, gloss=None, options=None):
     """The language's conventions as this surface takes them, with the names
     the kit knows (LANGUAGE, and GLOSS_LANGUAGE where a gloss is given) filled
     in; where the file is not there, the one line the prompt has always said
-    instead."""
+    instead.  With IPA chosen (`options`, as resolve() reads them) a file that
+    has no IPA note of its own gets the general paragraph above, where it
+    describes the usual scheme and once more at its end."""
     L = _language(lang)
-    secs = language_sections(surface, L, flags)
+    chosen = resolve(surface, L, options)
+    secs = language_sections(surface, L, flags, chosen)
     if secs is None:
         return _MISSING[surface] % (L.name, L.code) if _MISSING[surface] else ""
+    if chosen.get("translit") == "ipa" and secs:
+        said = _says_ipa(L)
+        if said:
+            secs = _with_ipa(secs, KIND[surface], said)
     down, fenced, out = LAYOUT[surface][1], False, []
     for line in "\n\n".join(t for _, t in secs).split("\n"):
         if line.lstrip().startswith("```"):
@@ -583,34 +1014,42 @@ def language_text(surface, lang, flags=None, gloss=None):
         elif down and not fenced and re.match(r"#{2,5} ", line):
             line = "#" * down + line
         out.append(line)
-    known = _common(L, _gloss(gloss))
+    known = _common(surface, L, _gloss(gloss), chosen)
     return _PLACEHOLDER.sub(lambda m: known.get(m.group(1), m.group(0)), "\n".join(out).strip())
 
 
 # --- the version line ---------------------------------------------------
-def version_line(surface, lang=None, gloss=None, mode=None, custom=None):
+def version_line(surface, lang=None, gloss=None, mode=None, custom=None, options=None):
     """The one line every copied prompt opens with, so that an answer can be
     traced to what asked for it: which prompt, in which languages, from which
-    Parseh; then the mode where there is one, and the name of a person's own
-    prompt.  The version is read from lib/version.py when the line is made."""
+    Parseh; then the mode where there is one, what the options say -- `IPA`
+    where the transliteration is in IPA, `marks` or `no marks` where the
+    language has short vowels (the defaults where `options` says nothing) --
+    and last the name of a person's own prompt, which is free text and so
+    stands where nothing can be mistaken for it.  The version is read from
+    lib/version.py when the line is made."""
     said = ""
     if lang is not None:
         said = _language(lang).code
         if gloss is not None:
             said += " → " + _gloss(gloss).code
     words = ["Parseh prompt", surface, said, version.VERSION,
-             MODE_WORDS.get(mode, mode) if mode and mode != "fill" else "",
-             "custom: " + custom if isinstance(custom, str) else "custom" if custom else ""]
+             MODE_WORDS.get(mode, mode) if mode and mode != "fill" else ""]
+    if lang is not None:
+        words += option_words(surface, lang, options)
+    words.append("custom: " + custom if isinstance(custom, str) else "custom" if custom else "")
     return " · ".join(w for w in words if w)
 
 
 # --- the assembled prompt -----------------------------------------------
 class Assembled(object):
-    """A prompt and the parts it is made of; str() of it is the prompt."""
+    """A prompt and the parts it is made of; str() of it is the prompt.  `options` is what the
+    options came to for it ({name: id}, resolve()): only those that applied."""
 
-    def __init__(self, surface, header, instructions, contract, data):
+    def __init__(self, surface, header, instructions, contract, data, options=None):
         self.surface, self.header = surface, header
         self.instructions, self.contract, self.data = instructions, contract, data
+        self.options = dict(options or {})
 
     @property
     def text(self):
@@ -645,7 +1084,8 @@ class _Fill(object):
             self.held.append(self.verbatim[name])
             return _HELD % (len(self.held) - 1)
         if name in self.values:
-            return self.values[name]
+            got = self.values[name]
+            return Open.SLOT % got.words if isinstance(got, Open) else got
         if name in self.includes:
             if depth > 5:
                 raise PromptError("{{%s}} holds itself" % name)
@@ -671,7 +1111,7 @@ def check(text, surface):
 
 def assemble(surface, lang=None, gloss=None, *, flags=None, values=None, verbatim=None,
              includes=None, lead=None, extras=(), data=None, instructions=None,
-             mode=None, custom=None, template=None):
+             mode=None, custom=None, template=None, options=None):
     """The prompt of a surface, from its three parts.
 
     lang, gloss   Lang / Gloss objects or their codes; the gloss only where the
@@ -688,18 +1128,23 @@ def assemble(surface, lang=None, gloss=None, *, flags=None, values=None, verbati
     instructions  a person's instructions, in place of Parseh's; the contract
                   and the data stay Parseh's and come after them
     mode, custom  what the version line adds
-    template      the template's text, where it is not a file's"""
+    template      the template's text, where it is not a file's
+    options       what a request chose, {name: value} (the options' table, resolve()): the
+                  scheme of the transliteration and the short vowels.  What they came to is
+                  on the Assembled (`options`); a value that is none of an option's is refused"""
     _known(surface)
     L, G = _language(lang), _gloss(gloss)
-    flags = dict(surface_flags(surface), **(flags or {}))
+    chosen = resolve(surface, L, options)
+    flags = dict(surface_flags(surface, L, chosen), **(flags or {}))
     if instructions is not None and any(m.group(2) in _MARKS for m in _TAG.finditer(instructions)):
         raise PromptError("instructions cannot carry the answer contract or the data: "
                           "Parseh adds those itself, after them")
     given = parts(surface, template)
-    values = dict(_common(L, G), **(values or {}))
+    values = dict(_common(surface, L, G, chosen), **(values or {}))
     includes = dict(includes or {})
     if surface in KIND:
-        includes.setdefault("LANG_CONVENTIONS", lambda: language_text(surface, L, flags))
+        includes.setdefault("LANG_CONVENTIONS",
+                            lambda: language_text(surface, L, flags, options=chosen))
     if surface in _GLOSSED:
         includes.setdefault("MEANING_RULE", _meaning_rule)
     fill = _Fill(flags, values, includes, dict(verbatim or {}))
@@ -713,7 +1158,7 @@ def assemble(surface, lang=None, gloss=None, *, flags=None, values=None, verbati
     # caption that happens to hold the mark of one is data and stays as it is
     lines = [lead, fill.close(made[0])] + list(extras)
     frame = [fill.close(made[2]), data]
-    return Assembled(surface, version_line(surface, L, G, mode, custom),
+    return Assembled(surface, version_line(surface, L, G, mode, custom, chosen),
                      "\n\n".join(x.strip() for x in lines if x and x.strip()),
                      fill.close(made[1]),
-                     "\n\n".join(x.strip() for x in frame if x and x.strip()))
+                     "\n\n".join(x.strip() for x in frame if x and x.strip()), chosen)

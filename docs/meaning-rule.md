@@ -32,7 +32,8 @@ Before you answer, cover the {{LANGUAGE}} and read one sentence's `en` lines in
 a row. If they read like a fluent translation, it was translated first. If a
 chunk's `en` reads better with words from its neighbour, move them back.
 
-An example, the Persian `چشم، | چیز دیگری | نمی‌خواهید`:
+An example, the Persian `چشم، | چیز دیگری | نمی‌خواهید`, with its meanings in
+English (yours are written in {{GLOSS_LANGUAGE}}):
 
 ```
 aligned:   certainly,      | anything else   | you do not want

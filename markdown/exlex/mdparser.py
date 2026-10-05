@@ -210,6 +210,11 @@ JOLLY_FIELDS = ("front-primary", "front-secondary", "back-primary", "back-second
 # which side a flashcard shows first; only a flashcard's `direction` says
 # this (a matching exercise's is another field with other values)
 FLASHCARD_DIRECTIONS = ("forward", "reverse", "both-random", "both-repeat")
+# which of a vocab or opposites card's fields go with the answer or with the
+# question (card_extras), in the order they are drawn; the card says so with
+# `<field>-side`
+CARD_EXTRAS = {"vocab": ("context", "notes", "source"), "opposites": ("notes", "source")}
+CARD_SIDES = ("answer", "question")
 _EX_FIELD_RE = re.compile(r"^([a-z][a-z0-9-]*):\s*(.*)$", re.I)
 _EX_MARKED_RE = re.compile(r"^-\s*\[([^\]]*)\]\s*(.*)$")
 
@@ -448,6 +453,10 @@ def parse_exercise(lines, start):
                 fields["direction"].strip().lower() not in FLASHCARD_DIRECTIONS:
             errors.append("direction must be forward, reverse, both-random "
                           "or both-repeat")
+        for key in CARD_EXTRAS["vocab"]:
+            if fields.get(key + "-side") and \
+                    fields[key + "-side"].strip().lower() not in CARD_SIDES:
+                errors.append("%s-side must be answer or question" % key)
         for key in ("front-audio", "back-audio"):
             if fields.get(key) and not AUDIO_PATH_RE.match(fields[key]):
                 errors.append(AUDIO_FIELD_ERROR % key)
@@ -544,6 +553,37 @@ def plain_para(text, target=None):
                     or is_fa_only_paragraph(t) or _is_pure_fa_paragraph(t))
     finally:
         set_target(was)
+
+
+def card_extras(fields):
+    """Where a vocab or opposites card draws its `context`, `notes` and
+    `source`, as both renderers read it: (the keys that go with the word --
+    its target, reading and transliteration -- and the keys that go with its
+    meaning), each in the order they are drawn, after the half's own fields.
+    The halves are the ones a card is composed in, the word's first; a
+    `reverse` card is turned round after, by the renderers.
+
+    THEY GO ON THE ANSWER, the side the flip reveals.  A card turned round
+    asks its meaning and answers with the word, so the example, the notes
+    and the source would give the word away on the side that opens the card:
+    on that card they are the word's.  `<field>-side: question` puts one on
+    the side shown first instead.  A both-random card is composed forward and
+    its page moves them with the draw (app.js drawFirstSide); a both-repeat
+    one is two cards in a deck, each with its own direction (decks._faces).
+    A custom `back` replaces them all, as it always did.  The value is read
+    in any case; one that is neither is the default here, and an error of the
+    card itself (parse_exercise)."""
+    kind = (fields.get("card-type") or "vocab").strip().lower()
+    keys = CARD_EXTRAS.get(kind)
+    if not keys or (kind == "vocab" and fields.get("back")):
+        return (), ()
+    turned = (fields.get("direction") or "").strip().lower() == "reverse"
+    word, meaning = [], []
+    for key in keys:
+        question = (fields.get(key + "-side") or "").strip().lower() == "question"
+        # the answer is the meaning's half, and on a card turned round the word's
+        (meaning if question == turned else word).append(key)
+    return tuple(word), tuple(meaning)
 
 
 def card_field(block, key, target=None):

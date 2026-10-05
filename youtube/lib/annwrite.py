@@ -64,26 +64,29 @@ from check_annotations import (CHUNK_FIELDS, COLOURS,      # noqa: E402,F401
                                check_segments, departs, parse_transcript,
                                required, unwritten, video_language)
 
-# The fields the player may set.  Not every field a chunk can carry:
-# "plain" and "note" belong to whoever authored the video, have no box in
-# the player, and "plain" in particular decides whether a chunk is asked
-# for a gloss at all -- flipping it from an edit box would silently drop
-# a chunk out of the checker's sight.  Refusing everything else also
-# means a mistyped key ("col0r") is answered on the spot instead of
-# settling into the file, where only the checker's unknown-field warning
-# would ever mention it again.  The word line is one of these, although the
-# divide sheet draws no box for it (_settle says what that changes).
-EDITABLE = ("fa", "words", "kana", "tr", "voc", "en", "col", "free")
+# The fields the player may set.  Not every field a chunk can carry: "plain"
+# is the author's, has no box in the player, and decides whether a chunk is
+# asked for a gloss at all -- flipping it from an edit box would silently
+# drop a chunk out of the checker's sight.  The note is the person's: it is
+# the aside under the meaning (what the transcript really heard, a cultural
+# point), a model leaves one, and it goes stale the moment the transcript is
+# mended -- and it used to be the one field only the file could take off.
+# Refusing everything else also means a mistyped key ("col0r") is answered on
+# the spot instead of settling into the file, where only the checker's
+# unknown-field warning would ever mention it again.  The word line and the
+# note are two of these, although the divide sheet draws no box for either
+# (_settle says what that changes).
+EDITABLE = ("fa", "words", "kana", "tr", "voc", "en", "note", "col", "free")
 # ...of which "free" is the one that is not text: true or gone (a chunk that
 # departs from transcript.txt, check_annotations.departs)
 _FLAGS = ("free",)
-# ...and of those, the ones a page may leave out without clearing them.
 # ...and of those, the ones a page may leave out without clearing them: the
-# divide sheet draws a box for neither, so a divide that says nothing about
-# them must leave what chunkdiv carried across rather than read the silence
-# as "take it off" -- which for "free" would quietly put a caption the
-# annotator has taken charge of back under transcript.txt.
-_CARRIED = ("words", "free")
+# divide sheet draws a box for none of them, so a divide that says nothing
+# about them must leave what chunkdiv carried across rather than read the
+# silence as "take it off" -- which for "free" would quietly put a caption the
+# annotator has taken charge of back under transcript.txt, and for the note
+# would wipe every note a cut or a join touches.
+_CARRIED = ("words", "note", "free")
 
 # What merge_parts.py writes, and so the shape of every annotations.json
 # in the toolbox until a hand reformats one: a single space of indent,
@@ -389,6 +392,21 @@ def _introduced(before, after):
     return out
 
 
+def _cannot(bad, divide=False):
+    """The refusal of a key a page may not set: the keys it may, and -- for
+    "plain", the one a person might reach for -- why it is not among them.  A
+    mistyped key is told the list alone, which is all there is to say of it."""
+    why = []
+    if "plain" in bad:
+        why.append("plain decides whether a phrase is asked for a gloss at all, "
+                   "so it belongs to whoever authored the video")
+    if divide:
+        why.append("what a divide does not name is carried across unchanged")
+    return "cannot set %s on a chunk: %s%s" % (
+        ", ".join(map(repr, bad)), ", ".join(EDITABLE),
+        " -- " + "; ".join(why) if why else "")
+
+
 def edit_chunk(video_dir, seg, chunk, fields):
     """Change some of one chunk's fields; return the chunk as it now is.
 
@@ -397,6 +415,11 @@ def edit_chunk(video_dir, seg, chunk, fields):
     from the chunk.  Values are text, and are trimmed -- a text box hands
     back whatever spaces the typist left, and a gloss differing from its
     neighbour by a trailing space is a diff nobody can read.
+
+    The note is one of them: the aside under the meaning is the person's to
+    change or to take off (an emptied box removes the key), and it is no gloss
+    -- a phrase with only a note is still one nobody has glossed
+    (check_annotations.unwritten), and "delete gloss" leaves it where it is.
 
     Setting "col" to one of check_annotations.COLOURS marks the chunk;
     setting it to "" clears the mark.  The colour means nothing to any
@@ -438,8 +461,7 @@ def edit_chunk(video_dir, seg, chunk, fields):
     clean = {}
     for k, v in fields.items():
         if k not in EDITABLE:
-            raise ValueError("cannot set %r on a chunk: %s"
-                             % (k, ", ".join(EDITABLE)))
+            raise ValueError(_cannot([k]))
         if v is None:                      # JSON null: the player's way of
             v = ""                         # saying "clear this box"
         if k in _FLAGS:
@@ -648,10 +670,7 @@ def _asked(side, name):
         raise ValueError("the %s chunk must be an object" % name)
     bad = sorted(k for k in side if k not in EDITABLE)
     if bad:
-        raise ValueError("cannot set %s on a chunk: %s -- %s"
-                         % (", ".join(map(repr, bad)), ", ".join(EDITABLE),
-                            "the rest belong to whoever authored the video "
-                            "and are carried across unchanged"))
+        raise ValueError(_cannot(bad, divide=True))
     out = {}
     for k, v in side.items():
         if v is None:
@@ -667,15 +686,16 @@ def _settle(proposed, asked, was):
 
     The fields a page may set are the page's, absence included: what it sends
     IS the gloss, so a field it leaves out is a field the chunk has not got.
-    Everything else -- `plain`, the note, a key a later format added -- comes
-    from what chunkdiv proposed, which is to say from the chunk being divided,
-    and no page has a say in it.  `asked` is None for a caller that wants the
-    proposal whole (the command line, and the tests).
+    Everything else -- `plain`, a key a later format added -- comes from what
+    chunkdiv proposed, which is to say from the chunk being divided, and no page
+    has a say in it.  `asked` is None for a caller that wants the proposal whole
+    (the command line, and the tests).
 
-    The word line and the transcript mark are the exceptions (_CARRIED).
-    The divide sheet draws no box for either, so a page that leaves one out
-    has said nothing about it, and what chunkdiv divided or joined stands; a
-    line the page does send replaces it, and an empty one removes it.
+    The word line, the note and the transcript mark are the exceptions
+    (_CARRIED).  The divide sheet draws no box for any of them, so a page that
+    leaves one out has said nothing about it, and what chunkdiv divided or
+    joined stands -- the note on the first half of a cut, both notes joined by a
+    join; one the page does send replaces it, and an empty one removes it.
 
     Then emptied fields are dropped, as every writer here drops them, and the
     slots the old chunk kept explicitly blank are kept blank.

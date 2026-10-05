@@ -59,6 +59,20 @@ A few lines look different on purpose:
   ([Editing a phrase](editing-a-phrase.md)) or looked up
   ([Reading help](reading-help.md)).
 
+## A sound instead of a video {#a-sound}
+
+A video whose media is a **sound** — a recording added by its path or sent
+([A film on this machine](a-film-on-this-machine.md#a-sound-instead-of-a-film))
+— has no frame to show. A **bar** fills the video's place: the shape of the
+sound, whole, with the playing place on it. **Press anywhere on it** to go
+there, or drag along it to scrub; the browser's own play controls are under
+it, and a hairline at its foot marks where each caption starts. On a phone
+it fills the same place. Everything on this page works as it does for a film
+— the lit line, **follow**, **hover ⏸**, a click to replay, the clouds, the
+cards — except what needs a picture: the grip and **◫ side** are not drawn,
+and a card has no *frame*, only the recording cut out of the sound. Without
+ffmpeg the bar is a plain track, and says so.
+
 ## Copying, and making cards
 
 - **Shift-click a phrase** to copy its text; **Shift-click beside the
@@ -94,11 +108,12 @@ Every control, left to right:
 | `0:14 / 0:40` | where the video is, and how long it is |
 | **follow** | keeps the spoken line in view (on until you turn it off) |
 | **hover ⏸** | pauses the video while a cloud is open (off until you turn it on) |
+| **✱ notes** | lights every phrase that carries a note, counts them, and walks from one to the next with **‹** and **›** (off on every visit; not in the mobile interface) |
 | **dictionary** | reading help under a phrase nobody glossed; shown once there is something to help with ([Reading help](reading-help.md)) |
 | **definitions**, **in english** | the dictionary's own definitions, and the same translated; only where the dictionary defines its words in their own language |
 | **kana** / **pinyin** | Japanese and Chinese: the transcript as its reading alone |
 | **reading help** | the page that sets up dictionaries, corpora and translation models, in Settings: `/settings/reading-help/` |
-| **◫ side** | the video beside the transcript instead of above it |
+| **◫ side** | the video beside the transcript instead of above it (not drawn for [a sound](#a-sound), which has no picture to put there) |
 | **pin** | keeps the video in view while you scroll (on until you turn it off) |
 | **○** / **●** / **◐** | the theme — light, dark, sepia — one setting for the whole toolbox |
 | **Aa** | text and margins |
@@ -106,7 +121,9 @@ Every control, left to right:
 | **Decompose Kanji** / **Decompose Hanzi** | Japanese and Chinese: a character's components ([Reading help](reading-help.md#decomposing-a-character)) |
 
 A button that is lit (filled with the accent colour) is on. Every one of
-these switches is remembered in this browser and holds for every video.
+these switches is remembered in this browser and holds for every video —
+except **✱ notes**, which is a tool for looking and is off every time the page
+opens.
 
 **There is no speech to text here.** The player has no *transcribe* button,
 no *transcribe again* and no speech model to choose, and none of it is
@@ -134,6 +151,38 @@ you press play yourself in the meantime, it leaves that alone.
 A book read aloud has the same switch in its reader, worded the same, in the
 browser interface and on a phone
 ([Playing and listening](doc:Playing and listening)).
+
+### ✱ notes {#notes}
+
+A phrase can carry a **note**: the aside under its meaning, which a model
+leaves when something needs saying — a slip it noticed in the transcript, what
+was really said, a cultural point
+([The note](editing-a-phrase.md#the-note)). A highlight over a long transcript
+is for seeing where those are, after an LLM has glossed a video for instance.
+It is about what is written on a phrase: the notes you write in the seam
+between two captions ([Notes in the seam](notes-in-the-seam.md)) are marked in
+the seams already, and are not what this button lights.
+
+With **✱ notes** on, every phrase that has a note is underlined with a dashed
+line in the accent colour and followed by a small **✱**, and the button says
+how many there are (*✱ notes 7*). **‹** and **›** appear beside it and walk from
+one such phrase to the next, in the order of the transcript, scrolling each into
+view below the bar and the video, and going round from the last to the first.
+(In a window as narrow as a phone's, where the bar slides away as the page
+moves down, it stays while **✱ notes** is on, so that the arrows are in reach.)
+Point at a lit phrase and its cloud shows the note as its last line; **✎ edit**
+changes it or empties it, and the lit phrases and the count follow a save at
+once.
+
+It is a way of looking and changes nothing: a colour mark shows beside it (the
+phrase keeps its own colour, and the underline and the ✱ are the accent's), no
+text is added to the line — selecting, copying and the timings read it as they
+always did — nothing is hidden, and a click on a lit phrase does what it always
+does. It writes nothing and asks the server nothing, and it is **off every time
+the page opens**. A note of nothing but spaces is no note. A phrase drawn
+bare — one marked plain, which has no cloud — is lit and counted too if the
+file gives it a note, since there is nowhere else to see it. It is a button of
+the browser interface: the mobile interface, which writes nothing, has none.
 
 ### pin, and the grip
 
@@ -209,9 +258,10 @@ moment they were made at.
   DNS**, not a broken connection, and the box says where to read about it:
   [a phone on Tailscale that cannot reach the
   internet](../getting-started/other-devices.md#a-phone-on-tailscale-that-cannot-reach-the-internet).
-- **A film on this machine** needs no internet at all. If its file has gone
-  missing the page says *the film that belongs to this video is not here any
-  more*; if the browser cannot play or decode it, it says that instead
+- **A film or a sound on this machine** needs no internet at all. If its file
+  has gone missing the page says *the film (or sound) that belongs to this
+  video is not here any more* and offers to have it sent again; if the browser
+  cannot play or decode it, it says that instead
   ([A film on this machine](a-film-on-this-machine.md#when-the-film-will-not-play)).
 
 Only what needs the video itself waits for it. [The timings](the-timings.md)

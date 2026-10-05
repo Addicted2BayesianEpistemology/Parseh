@@ -53,9 +53,84 @@ folder, which Parseh makes for you: the library shows it as **being made**,
 its reader shows the batches as they arrive, you steer it by writing asks, and
 **Finish** ends the making. Nothing to copy into a terminal. The folder holds
 `AGENTS.md`, the whole method (the tools with their full paths, the shape of an
-annotation, the checks), so that any agent that can work in a folder can make the
-book. See [A book made
-by an agent](../books/made-by-an-agent.md).
+annotation, the checks), made from the ten parts of one method, and the same
+method as a project skill, so that any agent that can work in a folder can make
+the book. Every device you let in can do all of it, bar opening the folder on
+the computer's own screen; the text may be given **a part at a time**, a file or
+pasted, and the agent takes each part before its next batch. You can write the
+instructions again from the page. See [A book made by an
+agent](../books/made-by-an-agent.md).
+
+### Prompts of your own
+
+Before **copy the prompt**, on every page that has one, a menu keeps the prompts
+you write: one added after Parseh's, or one in place of it, for a language or
+for all, saved and deleted there, with a line that says when Parseh's own has
+changed since you started from it. **Settings → Your prompts** exports and
+imports them as files. The LLM prompt page's Edit prompt, Save custom prompt and
+Reset to default are gone: the menu does it, and the custom prompt you had is in
+it as *my studio prompt (from before a0.4.2)*. See [Your own
+prompts](../studio/your-prompts.md).
+
+### The studio's prompt, in parts you tick
+
+The prompt that asks a chatbot for a document is built from boxes you tick (a
+short answer, a lesson, a vocabulary study, or your own set), with a level and a
+length, and says its size as you tick; the exercise dialog ticks beforehand
+what the page already uses and the exercise types you want. See [The LLM prompt
+page](../studio/llm-prompt.md).
+
+### The transliteration in IPA, and the short vowels
+
+A prompt has options you set for that prompt: the scheme of the transliteration
+(the language's usual one, or IPA) and, for Persian and Arabic, whether the
+chatbot writes the short vowels. A book's or a video's own file keeps the scheme
+it was made in, and an answer that only added the short vowels is written with
+its gloss. See [Glossing a book with an
+LLM](../books/glossing-with-an-llm.md) and [the same for a
+video](../videos/glossing-with-an-llm.md).
+
+### A worked example in every language's conventions
+
+Each of the eleven languages' conventions now carries a worked example, one
+vocabulary convention for books and videos, and its IPA variant, and the
+sources sidebar's paragraph left the prompts for the guide. See [Adding a
+language](../lookup-and-languages/adding-a-language.md).
+
+### Skills for your chatbot
+
+Parseh builds three skills on request, from the same parts as its prompts:
+**parseh-gloss**, **parseh-markdown** and **parseh-book**. **Settings → Skills**
+downloads them with the steps to install each in the tools that take skills, and
+the row's **copy the request for the skill** copies a short request, a few lines
+instead of the whole prompt. See [Skills for your chatbot](../studio/skills.md).
+
+### A sound in a video's place
+
+A recording, from a file or a link, can stand where a video stands: it plays in
+the player with its waveform, keeps its timings, and travels in a bundle and a
+backup like a video. See [Adding a video](../videos/adding-a-video.md).
+
+### Notes on a video's phrases
+
+The note a model leaves on a phrase can be edited or taken off in the ✎ form,
+and a **✱ notes** button in the browser player lights every phrase that has one,
+to see where an LLM may have flagged a doubt. See [Editing a
+phrase](../videos/editing-a-phrase.md).
+
+### Flashcards that turn
+
+On a vocabulary or opposites flashcard the example, the notes and the source go
+by default on the side the card turns to; a `-side` field and a box in the
+exercise form say otherwise. See
+[Flashcards](../dialect-exercises/flashcards.md).
+
+### Pictograms (ARASAAC)
+
+**Settings → Pictograms (ARASAAC)** fetches ARASAAC's pictograms and the words
+that name them, only when you ask, with their licence said first and their credit
+kept beside them. The studio does not use them yet. See
+[Pictograms](../studio/pictograms.md).
 
 ## a0.4.1 — 29 September 2026
 

@@ -1,6 +1,6 @@
 # Chinese — the annotation conventions
 
-How a Chinese sentence becomes a glossed line: what goes into each field and
+{{?new}}How a Chinese sentence becomes a glossed line: what goes into each field and
 how it is written. These rules bind both the reading editions and the video
 captions; they are embedded whole into every prompt that asks for Chinese
 annotation, so they are written as instructions to the annotator.
@@ -14,7 +14,7 @@ in is the book's or the video's own choice, `"gloss"` in `book.json` /
 `video.json`, and English when the key is absent. This file is about Chinese
 as the language being **taught**: the examples below gloss into English
 because they must gloss into something, and every rule that turns on the
-gloss language says so.
+gloss language says so.{{/new}}
 
 ## The text field
 
@@ -25,15 +25,15 @@ into chunks at the character boundaries you choose, and the chunks joined
 back with **nothing between them** must reproduce the sentence exactly,
 character for character — a machine checks that. (A source that does put a
 space in — around a Latin word, a figure, a date — keeps it, inside the chunk
-it falls in.) **Never correct the text in `fa`** — the correction goes in
-`note` (videos) or in the vocabulary line (books).
+it falls in.) **Never correct the text in `fa`**{{?new}} — the correction goes in {{?video}}`note`{{/video}}{{?book}}the
+vocabulary line{{/book}}{{/new}}.
 
 Nothing comes off a Chinese character: there is no layer of marks here as
-there is in Persian and Arabic. What a reading edition writes over it is
+there is in Persian and Arabic. {{?book}}What a reading edition writes over it is
 **pinyin, one word at a time**, in its first pass, from the chunk's `words`
 (below) — and then the same sentence with nothing over it, the way a Chinese
 book prints it, and once more set vertically, all from these same
-characters. **No pinyin ever goes into `fa`**: the
+characters.{{/book}} **No pinyin ever goes into `fa`**: the
 sound is a field of its own, and a Chinese book that printed pinyin between
 the characters would be teaching a page nobody in China prints.
 
@@ -163,17 +163,16 @@ the unit a reader looks up, marks as known, and sees pinyin over:
   two normally say the same syllables — a machine compares them with the tones
   and the spacing set aside, and warns when they differ.
 
-In a book the line is the last argument of `\chw`,
-`\chw{}{我想要一杯茶}{wǒ xiǎng yào yì bēi chá}{…}{…}{我(wǒ) 想(xiǎng) 要(yào) 一(yì) 杯(bēi) 茶(chá)}`;
-in a video it is the chunk's `"words"`. **Every chunk of Chinese text carries
+{{?new}}{{?book}}In a book the line is the last argument of `\chw`,
+`\chw{}{我想要一杯茶}{wǒ xiǎng yào yì bēi chá}{…}{…}{我(wǒ) 想(xiǎng) 要(yào) 一(yì) 杯(bēi) 茶(chá)}`.{{/book}}{{?video}}In a video it is the chunk's `"words"`.{{/video}} {{/new}}**Every chunk of Chinese text carries
 its words, and they start from the machine's**: the toolbox proposes the
 division and the pinyin when a text is added, and they are a draft to
 correct. A draft made from pasted text also starts each chunk's `tr` as its
 words' pinyin, parted by spaces, with the text's punctuation in ASCII as above
-(`wǒ xiǎng yào yì bēi chá.`). An annotator starts the same way — `python3
+(`wǒ xiǎng yào yì bēi chá.`). {{?new}}An annotator starts the same way — `python3
 lib/fill_words.py --lang zh --json <file>` on the chunks it has cut, a book's
 paragraph or a video's part — and then corrects every line; a video's prompt
-lists the machine's division under each caption for the same reason. Never
+lists the machine's division under each caption for the same reason.{{/new}} Never
 write the words from nothing. Where the chunk already has its `tr`, each
 word's pinyin is cut from it, tones, capitals and all; where it has none yet,
 a word of one character takes its commonest reading, so `很长` comes back
@@ -193,9 +192,7 @@ The line uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
 `\vb{verb}{rom}{A了B}{rom}{A不B}{rom}{meaning}` · `\bw{base}{rom}{meaning}` ·
 `\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted by
 `; `. Of the four, **`\vb` is for two kinds of verb only**, for the reason two
-paragraphs down.{{?video}} A video's line is written exactly as a book's; a line
-with no macro at all is plain text, and is also accepted. Chinese characters
-inside it are fine, the player shows them in the target font.{{/video}}
+paragraphs down.
 
 **A character is not a word.** 中国 is one word written with two characters,
 and it is glossed once, as a word: `\dw{中国}{Zhōngguó} China`. Never gloss
@@ -296,35 +293,7 @@ Three more things a Chinese line must name, because the characters do not:
   and are verbs by origin, and two of them restructure the sentence:
   `\dw{把}{bǎ} puts the object before the verb, of doing something to it`
   and `\dw{被}{bèi} by, marks the doer of something suffered`. Give each of
-  these an entry the first time it appears in a book.
-
-The gloss editor's sources sidebar, in the reader and in the player, now
-proposes a `\vb` from the dictionary for a verb the dictionary marks as
-separable or as a verb with a complement, and a `\dw` for everything else
-(`lib/verbs/zh.py`). The characters are the dictionary's own simplified
-spelling, the pinyin its standard Mandarin reading, the split always the
-plain A了B. It is a **draft for you to correct**, and it knows what it cannot
-do:
-
-- The dictionary **marks fewer verbs than there are**. The commonest it
-  misses — 散步, 跑步, 唱歌, 请客, 听懂, 看懂, 回来, 进来, 学会, 记住 and
-  some fifty more — are kept by hand in `lib/lang/zh.verbs.json`, which is
-  also where its one common mistake is put right: it marks 想到 as
-  verb-object, and 想了到 is not Chinese (想不到 is). A verb in neither —
-  吃完 and 找到 are not in the dictionary as words at all, and come back as
-  吃 and 完 — is offered as `\dw`s, and the `\vb` is yours to write.
-- A **word the dictionary has only in another lect** — Cantonese 揸车, whose
-  perfective is 揸咗车 — gets no `\vb`, because the 了 of the split is
-  Mandarin grammar; nor does a word with no standard pinyin, which is how
-  the dictionary says a word is not standard Mandarin. Nor does a split that
-  belongs only to an old reading of a word whose plain reading does not
-  split: 知道 "to know the Way" is marked separable, 知道 "to know" is not.
-- A verb that has **come apart in the sentence** (结了婚, 见过面, 睡了一觉)
-  is not found as one word, and a **potential** the dictionary lists as a
-  word of its own (看不见, 听不懂) comes back as that word, with a `\dw`: in
-  both cases the `\vb` is the dictionary form's, and yours to write.
-- Where the dictionary's only sense for a verb is a pointer (聊天儿 is
-  "erhua form of 聊天") the meaning is left empty and the button says so.
+  these an entry the first time it appears.
 
 Which words the reader already owns turns on the gloss language, and here
 Chinese has one relationship no other language in the toolbox has. A book
@@ -388,3 +357,25 @@ Never split:
 - a **fixed expression**, whether it is four characters of literary Chinese
   (马马虎虎, 一举两得) or an ordinary idiom: the meaning is not in the parts,
   and showing the parts teaches the reader something untrue.
+
+## Example
+
+{{?note}}No speaker has reviewed this example yet: a Chinese reader should read the chunks, the pinyin and the word
+lines before the prompt is trusted.{{/note}}Four chunks of one sentence, as an answer writes them: the same shape in every prompt.
+The meanings here are written in English because an example has to be written in something; yours are written in
+the gloss language of this prompt.
+
+```json
+{"chunks": [
+  {"fa": "我昨天", "tr": "wǒ zuótiān", "voc": "\\dw{昨天}{zuótiān} yesterday", "en": "I yesterday", "words": "我(wǒ) 昨天(zuótiān)"},
+  {"fa": "在图书馆", "tr": "zài túshūguǎn", "voc": "\\dw{在}{zài} at, in: the coverb of where it happens; \\dw{图书馆}{túshūguǎn} library", "en": "at library", "words": "在(zài) 图书馆(túshūguǎn)"},
+  {"fa": "看了", "tr": "kànle", "voc": "\\dw{看}{kàn} to look at, to read", "en": "read", "words": "看了(kànle)"},
+  {"fa": "一本书。", "tr": "yì běn shū.", "voc": "\\dw{一}{yī} one; \\dw{本}{běn} measure word for books; \\dw{书}{shū} book", "en": "a book.", "words": "一(yì) 本(běn) 书(shū) 。"}
+]}
+```
+
+What to notice: a verb takes `\dw`, not `\vb` (a Chinese verb has no forms); the coverb 在 has an entry the first
+time it appears, and the measure word 本 is named and never glossed as a number; `tr` writes words, not syllables,
+with the changed tone of 一 (`yì`) and the sentence's stop in ASCII; the words run together give `fa` exactly,
+the punctuation bare; the aspect particle 了 stays with its verb (`看了`) and the meaning carries it (here the
+past of *read*, the time being the sentence's own 昨天), with no entry of its own.

@@ -20,10 +20,11 @@ answered — only the steps your two answers need come after them.
 
 - **From YouTube** — an address. The title and the channel are fetched from
   YouTube.
-- **A film already on this machine** — a video file. It is linked beside the
-  transcript and travels with it, and the download button then hands over
-  the film and the glosses as one zip. See
-  [A film on this machine](a-film-on-this-machine.md).
+- **A video or a sound on this machine** — a video file, or a recording with
+  no picture (an `.mp3`, say). It is linked beside the transcript and travels
+  with it, and the download button then hands over the film (or the sound)
+  and the glosses as one zip. It is named by its path, or **sent** from
+  another device. See [A film on this machine](a-film-on-this-machine.md).
 
 **Who writes the glosses?**
 
@@ -40,7 +41,7 @@ All four pairs are real:
 | | An LLM | Nobody |
 |---|---|---|
 | **From YouTube** | the prompt, the answer, **Check & add the video** | **Start it empty** |
-| **A film on this machine** | the same, with the film put beside the transcript | **Start it empty**, with the film put beside it |
+| **A video or a sound on this machine** | the same, with the film or the sound put beside the transcript | **Start it empty**, with it put beside the transcript |
 
 A video is glossed in the player, never extended: there is no “add to a
 video already here”. The address remembers your two answers
@@ -52,9 +53,12 @@ to the videos page for a video you already have as a zip.
 - **YouTube URL** takes any of the ways a YouTube address is written —
   `watch?v=…`, `youtu.be/…`, `/shorts/…`, `/embed/…` — or the bare
   11-character id.
-- **The film** takes the full path of the file on this machine
-  (`/home/you/films/lesson-1.mp4`); see
-  [A film on this machine](a-film-on-this-machine.md).
+- **The video or sound** takes the full path of the file on this machine
+  (`/home/you/films/lesson-1.mp4`, `/home/you/lesson-1.mp3`); when you leave
+  the box the page says what the file is. Under it, **Choose a video or a
+  sound…** sends the file instead — from another device, or where there is
+  no path to type — and puts its path in the box; see
+  [A film on this machine](a-film-on-this-machine.md#sending-the-file-instead-of-naming-it).
 - **Language** is the language the video **teaches**. It starts on the
   language the toolbox's chips last picked. It decides which captions count
   as *plain* — for a language with its own script, a caption with not one
@@ -244,26 +248,49 @@ refused, *Another transcription is running.*
 family of videos that keeps names and transliterations the same from one
 video to the next. **none** is the default; only the prompt uses it.
 
+**The scheme of the transliteration** is chosen above the button, with the
+language's own word for it (*transliteration*, *rōmaji*, *pronunciation*):
+**usual scheme** or **IPA**. With IPA the prompt asks for IPA wherever the
+answer carries a transliteration, and the video is then kept in IPA — every
+later prompt for a stretch of it asks for it too. Persian and Arabic have a
+second choice, **short vowels: as they are** or **write them**. Both are
+remembered on this device, and the first line of the prompt says what was
+chosen (**· IPA**, **· marks**, **· no marks**). With *write them* the answer's
+phrases carry the caption's text with its short vowels put in and nothing else
+changed; the page's checks set the marks aside, so such an answer passes them,
+and the caption's own text stays what YouTube had
+([more](glossing-with-an-llm.md#the-short-vowels)).
+
+Above the button, **prompt: Parseh's ▾** chooses which prompt is made:
+Parseh's own, or one of [your own](../studio/your-prompts.md) for this
+language, which you can write there with **new**. A prompt made for another
+choice is out of date, as it is when the language changes.
+
 **Prepare & copy the prompt** reads the transcript with the language you
 picked and puts a self-contained prompt on the clipboard. It holds:
 
-- the conventions, whole — what is the same for every language (the size of
-  a phrase, the fields, the rule that a word is glossed fully the first
-  time and then left bare) and what is the language's own (its
-  transliteration scheme, what never to gloss, how to cut it into phrases);
+- what the method is for, in one paragraph — you read the video a phrase at a
+  time, the gloss says what *that* phrase says, in the order of the captions,
+  and hovering brings the reading and the words — and the rule that follows from
+  it: a meaning is a **gloss**, not a translation, with a short example of
+  each ([What the meaning says](glossing-with-an-llm.md#what-the-meaning-says));
+- the conventions — what is the same for every language (the size of a
+  phrase, the fields, the rule that a word is glossed fully the first time and
+  then left bare) and what is the language's own (its transliteration scheme,
+  what never to gloss, how to cut it into phrases), cut to what this prompt
+  needs;
 - which language the meanings must be written in, on a line of its own
   under *This video* — with *not in English* after it when that language
   is any other — and the card's blurb asked for in the same language;
-- a worked example — four captions of a finished video already in the
-  player and the answer they were given: of the same language when there is
-  one, otherwise of the Persian reference video, introduced as such. With
-  nothing to quote the example is left out, and the conventions carry the
-  shape of an answer on their own;
+- a worked example — the language's own, from its conventions: a chunk or two
+  with their transliteration, vocabulary line and meaning, so that the prompt
+  has one on every computer, whatever videos are on the shelf;
 - the word list, if you picked one;
 - the captions, numbered, with their start times — the plain ones and the
   chapter markers shown for context and marked not to be annotated — and,
   for Japanese and Chinese, the machine's own division of each caption into
-  words under it, for the model to start from and correct.
+  words under it, for the model to start from and correct. A sentence tells
+  the model that they are text to annotate and not orders.
 
 The page then says what it found — the id, the title and channel YouTube
 gave, how many captions, how many to annotate, how many plain, how long —

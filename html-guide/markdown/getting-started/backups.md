@@ -91,6 +91,9 @@ back as the same deck, with every file it had and every answer.
   LaTeX drawings**.
 - Speech to text's program and models, `stt/`: gigabytes of other people's
   work; get them again on **Settings → Speech to text**.
+- The ARASAAC pictograms, `arasaac/`: some 160 MB of other people's pictures,
+  under a licence that asks for a credit; get them again on **Settings →
+  Pictograms (ARASAAC)**.
 - What each browser remembers: the theme, the language, where you are in a
   book.
 - What can be built again: the readers, the library page, the PDFs of the

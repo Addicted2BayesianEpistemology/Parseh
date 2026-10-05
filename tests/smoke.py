@@ -2283,8 +2283,9 @@ def test_divide():
                     check(bool(str(e).strip()),
                           "annwrite refuses %s, and says why" % name)
             # what a page may set is EDITABLE and nothing else: `plain`
-            # decides whether a chunk is asked for a gloss at all, the note
-            # is the author's, and both are carried across by the writer
+            # decides whether a chunk is asked for a gloss at all, and is the
+            # author's; the note is the person's to edit, and a divide that
+            # sends none carries it across (annwrite._CARRIED)
             pv = next((A.divide_preview(d, i, k)
                        for i, sg in enumerate(ann["segments"])
                        for k in range(len(sg.get("chunks") or []))
@@ -2297,7 +2298,7 @@ def test_divide():
                 cut = pv["cuts"][0]
                 half = lambda side: {k: cut[side].get(k, "")
                                      for k in ("fa", "tr", "voc", "en")}
-                for key, val in (("plain", True), ("note", "mine"), ("zz", "x")):
+                for key, val in (("plain", True), ("zz", "x")):
                     try:
                         A.split_chunk(d, pv["segment"], pv["index"],
                                       dict(half("first"), **{key: val}),
@@ -2305,8 +2306,10 @@ def test_divide():
                         bad("annwrite refuses a page setting %r" % key,
                             "it was written")
                     except ValueError as e:
-                        check("cannot set" in str(e),
-                              "annwrite refuses a page setting %r" % key,
+                        check("cannot set" in str(e)
+                              and ("gloss at all" in str(e)) == (key == "plain"),
+                              "annwrite refuses a page setting %r%s" % (key,
+                              ", and says why" if key == "plain" else ""),
                               str(e)[:160])
                 # and a field that is not text is a sentence, not a traceback
                 broke = json.load(io.open(os.path.join(d, "annotations.json"),
@@ -5885,6 +5888,9 @@ prefs.STORE = os.path.join(config, "prefs.json")
 network.STORE = os.path.join(config, "network.json")
 import latexthemes, latexdraw, texpackages
 latexthemes.STORE = os.path.join(config, "latex.json")
+# and the prompts a person wrote (lib/prompts.py)
+import prompts
+prompts.STORE = os.path.join(config, "prompts.json")
 latexdraw.DRAWN = os.path.join(os.path.dirname(config), "latex-drawn")
 texpackages.TREE = os.path.join(os.path.dirname(config), "texmf")
 sys.path.insert(0, os.path.join(os.getcwd(), "tests"))
@@ -6334,6 +6340,30 @@ def test_server():
                                {"action": "preview", "video": vid,
                                 "segment": si, "chunk": 0},
                                "the player's divide route")
+                    # --- THE NOTE a model leaves on a phrase is the person's to
+                    # edit: written through the ✎ form's own route, answered with
+                    # the chunk as it now stands, and taken off by an empty box
+                    where_ann = os.path.join(dst, "annotations.json")
+                    edit = {"video": vid, "segment": si, "chunk": 0}
+                    j = _post_json(port, "/youtube/api/edit",
+                                   dict(edit, fields={"note": "  an aside of mine  "}),
+                                   "the player's edit route, a note written")
+                    on_disk = json.load(open(where_ann, encoding="utf-8")
+                                        )["segments"][si]["chunks"][0].get("note")
+                    check((j.get("chunk_now") or {}).get("note") == "an aside of mine"
+                          == on_disk,
+                          "which answers with the note trimmed, and the file says "
+                          "the same", repr((j.get("chunk_now"), on_disk)))
+                    _post_json(port, "/youtube/api/edit",
+                               dict(edit, fields={"note": ""}),
+                               "and an emptied box")
+                    check("note" not in json.load(open(where_ann, encoding="utf-8")
+                                                  )["segments"][si]["chunks"][0],
+                          "which takes the key out of the file")
+                    _post_json(port, "/youtube/api/edit",
+                               dict(edit, fields={"plain": True}),
+                               "a page setting plain, which stays the author's",
+                               want=400)
                     # --- THE VIDEO'S OWN METADATA: title, channel, level,
                     # blurb -- video.json, not a chunk.  The concrete case
                     # this route exists for: api_add's YouTube lookup got

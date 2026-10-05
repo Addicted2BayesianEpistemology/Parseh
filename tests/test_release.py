@@ -370,6 +370,12 @@ class WhatABuildRefuses(unittest.TestCase):
         files["stt/models/large-v3/model.bin"] = "x\n"
         self.refused(files, "stt/models/large-v3/model.bin is somebody's content",
                      forced=("dist/parseh-old.zip", "stt/models/large-v3/model.bin"))
+        # the ARASAAC pictograms (a0.4.2): somebody else's pictures under a licence that is not
+        # Parseh's to give, fetched on request, and git ignores them
+        files = miniature()
+        files["arasaac/pictograms/6964.png"] = "x\n"
+        self.refused(files, "arasaac/pictograms/6964.png is somebody's content",
+                     forced=("dist/parseh-old.zip", "arasaac/pictograms/6964.png"))
 
     def test_a_bat_with_bare_lf(self):
         files = miniature()

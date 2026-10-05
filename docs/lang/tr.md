@@ -1,6 +1,6 @@
 # Turkish — the annotation conventions
 
-How a Turkish sentence becomes a glossed line: what goes into each field and
+{{?new}}How a Turkish sentence becomes a glossed line: what goes into each field and
 how it is written. These rules bind both the reading editions and the video
 captions; they are embedded whole into every prompt that asks for Turkish
 annotation, so they are written as instructions to the annotator.
@@ -14,7 +14,7 @@ in is the book's or the video's own choice, `"gloss"` in `book.json` /
 `video.json`, and English when the key is absent. This file is about Turkish
 as the language being **taught**: the examples below gloss into English
 because they must gloss into something, and every rule that turns on the
-gloss language says so.
+gloss language says so.{{/new}}
 
 ## The text field
 
@@ -22,12 +22,12 @@ gloss language says so.
 source's own oddities included — a dialect form, an Ottoman spelling, an ASR
 slip in a caption. Chunks split only at spaces; joined back with single spaces
 they must reproduce the sentence exactly, and a machine checks that. **Never
-correct the text in `fa`** — the correction goes in `note` (videos) or in the
-vocabulary line (books).
+correct the text in `fa`**{{?new}} — the correction goes in
+{{?video}}`note`{{/video}}{{?book}}the vocabulary line{{/book}}{{/new}}.
 
-Turkish is plain text: there is nothing to write in and nothing to strip. One
+Turkish is plain text: there is nothing to write in and nothing to strip.{{?book}} One
 pass gives the sentence, one gives the chunks, and there is no bare pass
-because the text is already bare.
+because the text is already bare.{{/book}}
 
 **The dotted and the dotless i are different letters.** `i`/`İ` and `ı`/`I`
 are four letters, not two, and they tell words apart: `ılık` lukewarm against
@@ -38,7 +38,7 @@ goes to `ç ğ ş ö ü` and to the circumflex — write `kâğıt` where the so
 writes `kâğıt` and `kagit` where it writes `kagit`.
 
 A caption stripped of its Turkish letters (`Turkce ogrenmek cok guzel`) is
-**kept as it is** and reported in `note`; do not put the diacritics back in
+**kept as it is** and reported {{?video}}in `note`{{/video}}{{?book}}in the vocabulary line{{/book}}; do not put the diacritics back in
 `fa`. So are:
 
 - the apostrophe a proper noun takes before its ending: `İstanbul'da`,
@@ -57,7 +57,7 @@ appears, and nothing asks for one.
 
 ## Transliteration
 
-`tr` is a **pronunciation aid, given only where it helps**, and it may be left
+{{?classic}}`tr` is a **pronunciation aid, given only where it helps**, and it may be left
 empty — most chunks need none, and `require_tr` is false for Turkish. The
 spelling is phonemic: one letter, one sound. **Never respell the alphabet.**
 `c` is the *j* of *jam*, `ç` the *ch* of *church*, `ş` the *sh* of *ship*, `j`
@@ -111,7 +111,48 @@ Every symbol the scheme uses, and there are no others:
 that `e` and no learner is misled by it. Write it wherever it falls inside a
 chunk you are giving a `tr` for anyway, and nowhere else. Capitals stay as the
 text has them and the orthographic apostrophe is dropped: `İstanbul'da` is
-*İsˈtanbulda*.
+*İsˈtanbulda*.{{/classic}}{{?ipa}}`tr` is the pronunciation in **IPA**: broad (phonemic), for standard
+Istanbul Turkish, with no slashes and no square brackets round it, **given only
+where it helps**, and it may be left empty — most chunks need none, and
+`require_tr` is false for Turkish. The spelling is phonemic: one letter, one
+sound, so a reader learns the alphabet once and a `tr` that writes it out again
+is noise. It is one scheme for every Turkish edition, whatever the glosses are
+written in. Write one only where one of three cases fires, and then write the
+**whole chunk**, not the one word in it:
+
+1. **`ğ`**, which is never a consonant. After `a ı o u` it dissolves and
+   lengthens the vowel: `dağ` → `daː`, `yağmur` → `jaːmuɾ`, `oğlu` → `oːlu`,
+   `sağ` → `saː`. After `e i` it is `j`: `değil` → `dejil`, `eğer` → `ejeɾ`,
+   `iğne` → `ijne`. After `ö ü` it lengthens again: `öğle` → `øːle`, `düğün` →
+   `dyːn` — which is what the length mark is for, since `dün` is *yesterday*,
+   `dyn`.
+2. **A long vowel the spelling does not show**, which means an Arabic or Persian
+   loan. The circumflex marks it where the source writes one, and modern Turkish
+   often writes none: `kâr` → `kaːɾ` profit against `kaɾ` snow, `hâlâ` →
+   `haːlaː` still against `hala` aunt, `âdet` → `aːdet` custom against `adet`
+   number, `usûl` → `usuːl`. After `k`, `g` or `l` that long vowel also softens
+   the consonant, and the length mark is the only mark given for it.
+3. **Stress that is not on the last syllable.** Turkish stresses the last
+   syllable and marks nothing; where it does not, `ˈ` goes immediately before the
+   stressed syllable.
+   - The negative `-ma/-me` and the impotential `-ama/-eme` throw the stress back
+     onto the syllable in front of them: `ˈgelme` do not come against `gelˈme`
+     coming; `ˈgelmijoɾ`, `jaˈpamam`.
+   - `-ken`, `-ce/-ca`, `-le/-la`, `-ki`, and the separately written
+     `mi/mı/mu/mü` and `de/da`, never take it: `geˈliɾken`, `gelˈdi mi`, `ˈben de`.
+   - Place names, and a short closed list of adverbs, are stressed early:
+     `ˈankaɾa`, `isˈtanbul`, `ˈbodɾum`, `ˈʃimdi`, `ˈøndʒe`, `ˈsonɾa`, `ˈbelki`,
+     `ˈnasɯl`.
+
+The letters IPA writes differently: `ı` is `ɯ`, `ö` is `ø`, `ü` is `y`, `ş` is
+`ʃ`, `ç` is `tʃ`, `c` is `dʒ`, `j` is `ʒ`, `y` is `j`, `r` is `ɾ`; every other
+letter keeps its value, `g` being the ordinary letter. The open `e` before a
+syllable-final `l m n r` is `ɛ` (`gɛl`, `bɛn`), and is never on its own a reason
+to write a `tr`: write it wherever it falls inside a chunk you are giving a `tr`
+for anyway, and nowhere else. A `tr` is lower case and drops the orthographic
+apostrophe: `İstanbul'da` is `isˈtanbulda`. The vocabulary line has no sound to
+write in IPA: the middle slot of its macros is a segmentation, and the sound slots
+of `\vb` stay empty.{{/ipa}}
 
 ## Vocabulary
 
@@ -272,53 +313,14 @@ light verb's own meaning.
 \vb{olmak}{}{oluyor}{}{olur}{}{}\bw{mutlu}{}{happy}
 ```
 
-The gloss editor's sources sidebar, in the reader and in the player, now
-proposes this entry from the dictionary for a verb it recognises: the
-aorist from the dictionary's head line, the present from its conjugation
-table, the first equivalent of its first sense, and the government where the
-dictionary tags that sense — which is seldom, 78 verbs in 2 559 (`bakmak`
--e, `korkmak` -den, `evlenmek` ile), so most of it is yours to add, and
-`beklemek`'s `(-i)` always is. It stops there: the segmented form the text
-has (`; \textit{…}`) is yours as well. It is a **draft for you to correct**:
-
-- a homograph comes as two entries, each with its own forms — `yenmek` *to
-  defeat*, `yener`, and `yenmek` *to be eaten*, `yenir` — and you keep the
-  one the text means;
-- the meaning is a dictionary's first sense, not the text's;
-- for a compound it proposes the light verb's `\vb` with the empty meaning,
-  and the row names the `\bw` still to add, with the compound's own
-  meaning and government (*bw for teşekkür after it: to thank (-e)*). A
-  **button of its own**, headed *compound verb*, puts the pair in as the one
-  entry it is —
-  `\vb{etmek}{}{ediyor}{}{eder}{}{}\bw{teşekkür}{}{to thank (-e)}`, the `\bw`
-  run straight onto the `\vb` — and says in so many words that teşekkür
-  etmek is one verb written in two words and not two entries. What it writes
-  in the `\bw` is the **compound's** meaning, which is the one the
-  dictionary's entry is for; an edition that would rather gloss the noun
-  itself (`thanks (-e)`, as above) trims it there, as
-  it trims every other draft this sidebar proposes. Nothing is romanised:
-  both sound slots stay empty, and the segmentation is yours. It
-  finds the compound only where the noun stands right before the verb in the
-  same chunk, which is where the chunking rules put it;
-- a derived verb the dictionary has only as a note on its base (`yapılmak`,
-  *passive of yapmak*) comes as its infinitive alone, the forms and the
-  meaning left to you — never with `yapar` under it;
-- about one verb in twelve has no conjugation table in the dictionary
-  (`ilerlemek`, `incelemek`, `hedeflemek`) and comes without its present,
-  or without both forms.
-
-Correct it before it is saved; where it could not fill a slot, the button
-says which, and why where the dictionary contradicts itself (`hafifletmek`:
-its head says `hafifletir`, its table `hafiflediyor`).
-
 ### Everything else
 
 A **noun** is the dictionary form and one word of the gloss language; Turkish
 has no gender, no article and one plural, so there is nothing else to carry.
-A **postposition** is named with the case it governs: `göre · according to,
-after -e`; `gibi · like, after the bare form`. An **adjective** is given as it
-stands. A **proper noun** gets a line saying what it is: `Beyoğlu · a district
-of İstanbul`. A **loanword the reader already owns** needs no more than one
+A **postposition** is named with the case it governs: `\dw{göre}{} according
+to, after -e`; `\dw{gibi}{} like, after the bare form`. An **adjective** is
+given as it stands. A **proper noun** gets a line saying what it is:
+`\dw{Beyoğlu}{} a district of İstanbul`. A **loanword the reader already owns** needs no more than one
 naming — but which words those are is the gloss language's business, not
 English's. `otobüs`, `tren` and `telefon` say themselves to a reader of
 English, French or Italian; a Persian reader has the Arabic half of the
@@ -329,10 +331,8 @@ this book's reader cannot get, and let the rest go.
 The line uses four macros and nothing else: `\dw{fa}{segmentation} gloss` ·
 `\vb{inf}{}{pres}{}{aorist}{}{meaning}` · `\bw{base}{segmentation}{meaning}` ·
 `\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted by
-`; `.{{?video}} A video's line is written exactly as a book's, a word as
-`\dw{evlerimizden}{ev-ler-imiz-den} house + plural + our + from` and a verb as
-`\vb{bakmak}{}{bakıyor}{}{bakar}{}{to look at (-e)}`; a line with no macro at
-all is plain text, and is also accepted.{{/video}}
+`; `. A word is written `\dw{evlerimizden}{ev-ler-imiz-den} house + plural + our
++ from` and a verb `\vb{bakmak}{}{bakıyor}{}{bakar}{}{to look at (-e)}`.
 
 One equivalent in the gloss language rather than a string of synonyms; no
 etymologies; **an empty `voc` is the right answer** for a chunk needing
@@ -398,7 +398,32 @@ Never split:
 A very short sentence (`Evet.`, `Gel!`, `Bilmiyorum.`) is one chunk; that is
 normal.
 
-Runs of Turkish are **marked** in the studio (`[word]{tl}`): Turkish has no
+{{?studio}}Runs of Turkish are **marked** in the studio (`[word]{tl}`): Turkish has no
 character range of its own in the registry — it is written in the alphabet
 the toolbox's own prose is written in — so nothing detects a run of it, and
-`ı ğ ş` aside, nothing tells it from Latin-script prose by eye either.
+`ı ğ ş` aside, nothing tells it from Latin-script prose by eye either.{{/studio}}
+
+## Example
+
+One sentence of Turkish, answered: its chunks as they stand in the list of your
+answer. The `en` of each chunk says only what that chunk says, in the order of
+the Turkish.
+
+```json
+{"chunks": [
+  {"fa": "Dün arkadaşlarımla", "voc": "\\dw{dün}{} yesterday; \\dw{arkadaşlarımla}{arkadaş-lar-ım-la} friend + plural + my + with", "en": "yesterday with my friends"},
+  {"fa": "okula", "voc": "\\dw{okula}{okul-a} school + to", "en": "to school"},
+  {"fa": "gitmedim.", "tr": "ˈgitmedim", "voc": "\\vb{gitmek}{}{gidiyor}{}{gider}{}{to go (-e); \\textit{git-me-di-m} I did not go}", "en": "I did not go."}
+]}
+```
+
+Notice: the verb comes last, and the `en` lines keep that order — *yesterday with
+my friends | to school | I did not go* — stiff, and right; the middle slot of
+`\dw` is a segmentation that joins back to the word, its pieces named after it in
+the same order; the sound slots of the `\vb` are empty and its government `(-e)`
+stands in brackets, with the form the text has, `gitmedim`, segmented after a
+semicolon at the end of the meaning; and the only `tr` is the stress the negative
+throws back onto the verb's first syllable.
+
+{{?note}}No speaker has reviewed this example yet. The `tr` is the same string in
+both schemes (`ˈ` and plain letters), so the example has no second variant.{{/note}}
