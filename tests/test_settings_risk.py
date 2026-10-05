@@ -147,6 +147,38 @@ class Table(unittest.TestCase):
         for route, key in (("save", "prompts.save"), ("uptodate", "prompts.save"),
                            ("import", "prompts.save"), ("delete", "prompts.delete")):
             self.assertEqual(settingspage.ROUTES["/settings/api/prompts/" + route], (key,))
+        # THE ARASAAC PICTOGRAMS (brief §9C.2, a0.4.2) are NOT risky, for speech to text's reason:
+        # nothing a device sends becomes anything that is fetched -- the only bytes that can arrive
+        # are ARASAAC's own word lists and pictures, from the two hosts lib/getarasaac.py names
+        for key in ("arasaac.get", "arasaac.remove", "arasaac.stop"):
+            self.assertIsNone(S[key][0], key)
+        for route in ("state", "plan"):
+            self.assertEqual(settingspage.ROUTES["/settings/api/arasaac/" + route], settingspage.READ)
+        for route, key in (("get", "arasaac.get"), ("update", "arasaac.get"), ("stop", "arasaac.stop"),
+                           ("remove", "arasaac.remove")):
+            self.assertEqual(settingspage.ROUTES["/settings/api/arasaac/" + route], (key,))
+
+    def test_pictograms_is_a_door_of_its_own_open_to_any_device_let_in(self):
+        doors = {d[0]: d for d in settingspage.DOORS}
+        href, name, what, keys = doors["/settings/arasaac/"]
+        self.assertEqual((name, keys), ("Pictograms (ARASAAC)", ("arasaac.get", "arasaac.remove", "arasaac.stop")))
+        self.assertTrue(settingspage.open_to_all(keys))
+        self.assertIn("any device let in", settingspage.gate(keys))
+        self.assertIn('href="/settings/arasaac/"', settingspage.settings_doors("/settings/"))
+        hub = settingspage.hub(arasaac_tags='<span class="tag on">13,829 pictograms</span>')
+        card = re.search(r'<a class="door" href="/settings/arasaac/">.*?</a>', hub, re.S).group(0)
+        self.assertIn("Pictograms (ARASAAC)", card)
+        self.assertIn("any device let in", card, "the card's pill is its own door's, found by its address")
+        self.assertIn("13,829 pictograms", card, "and what the page says it has")
+        self.assertEqual(settingspage.door_keys("/settings/arasaac/"), keys)
+        # a door of its own: no other door lists its keys, and it lists nobody else's
+        listed = [k for d in settingspage.DOORS if d[0] != "/settings/arasaac/" for k in d[3]]
+        self.assertFalse([k for k in keys if k in listed])
+
+    def test_the_route_finder_sees_every_pictogram_route(self):
+        found = routes_in_serve()
+        for route in ("state", "plan", "get", "update", "stop", "remove"):
+            self.assertIn("/settings/api/arasaac/" + route, found)
 
     def test_your_prompts_is_a_door_of_its_own_open_to_any_device_let_in(self):
         doors = {d[0]: d for d in settingspage.DOORS}
@@ -360,6 +392,7 @@ class Served(unittest.TestCase):
         import getstt
         import decomposition
         import prompts
+        import getarasaac
         cls.serve = serve
         cls._td = tempfile.TemporaryDirectory()
         tmp = Path(cls._td.name)
@@ -368,6 +401,7 @@ class Served(unittest.TestCase):
             patch.object(serve.Handler, "log_request", lambda *a, **k: None),
             patch.object(network, "STORE", str(tmp / "config" / "network.json")),
             patch.object(prompts, "STORE", str(tmp / "config" / "prompts.json")),
+            patch.object(getarasaac, "ARASAAC_DIR", str(tmp / "arasaac")),
             patch.object(lookup, "DICT_DIR", str(tmp / "dict")),
             patch.object(corpus, "CORPUS_DIR", str(tmp / "corpus")),
             patch.object(getmt, "MT_DIR", str(tmp / "mt")),

@@ -136,6 +136,8 @@ import latexthemes        # noqa: E402  the themes a latex block is drawn with
 import prompts            # noqa: E402  the prompts a person wrote for a chatbot (§8, a0.4.2)
 import promptkit          # noqa: E402  the choices a person makes for one prompt (lib/promptkit.py OPTIONS)
 import promptspage        # noqa: E402  Settings -> Your prompts
+import getarasaac         # noqa: E402  the ARASAAC pictograms: their words and their pictures (§8.40, W9)
+import arasaacpage        # noqa: E402  Settings -> Pictograms (ARASAAC)
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
 import make_index           # noqa: E402  what a built reader says about itself
 import mobile               # noqa: E402  the mobile interface's own pages (/m/books/)
@@ -1637,6 +1639,18 @@ PROMPTS_ROUTES = {
     "/settings/api/prompts/delete": "delete",
 }
 
+# SETTINGS -> PICTOGRAMS (ARASAAC) (§8.40, W9, lib/arasaacpage.py): the page, and each of its routes,
+# every one of them in lib/settingspage.py ROUTES
+ARASAAC_PAGE = "/settings/arasaac/"
+ARASAAC_ROUTES = {
+    "/settings/api/arasaac/state": "state",
+    "/settings/api/arasaac/plan": "plan",
+    "/settings/api/arasaac/get": "get",
+    "/settings/api/arasaac/update": "update",
+    "/settings/api/arasaac/stop": "stop",
+    "/settings/api/arasaac/remove": "remove",
+}
+
 
 def notes_libraries():
     """(folder, label) of every notes library there is -- each book's and each
@@ -2528,6 +2542,8 @@ def activity_now():
     # estimating by the sound, so every page's pill and the stop button's
     # question know the computer is busy
     extra.extend(sttjobs.activity_entries(activity.entry, activity.KEEP, now))
+    # THE PICTOGRAMS' DOWNLOAD (lib/getarasaac.py), one job: kept in that module and not in a table of this one
+    extra.extend(getarasaac.activity_entries(activity.entry, activity.KEEP, now))
     return dict(activity.snapshot(extra), ok=True)
 
 
@@ -6530,7 +6546,7 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(settingspage.hub(dict_tags(), updatepage.door_tags(ROOT),
-                                                   speechpage.door_tags()))
+                                                   speechpage.door_tags(), arasaacpage.door_tags()))
         if path in ("/settings/network", "/settings/network/index.html"):
             return self._redirect("/settings/network/")
         if path == "/settings/network/":
@@ -6571,6 +6587,12 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(promptspage.page(self._where()))
+        if path == ARASAAC_PAGE.rstrip("/"):
+            return self._redirect(ARASAAC_PAGE)
+        if path == ARASAAC_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(arasaacpage.page(self._where(), self._whose_device()))
         if path.startswith("/settings/api/") and method == "POST":
             # WHO MAY IS A PROPERTY OF THE SETTING (TO-DO §11.10, the owner,
             # 2026-09-24), and the table in lib/settingspage.py says it for
@@ -6600,6 +6622,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._latex_api(method, path)
         if path in PROMPTS_ROUTES:
             return self._prompts_api(method, path)
+        if path in ARASAAC_ROUTES:
+            return self._arasaac_api(method, path)
         if path not in ("/settings/api/network", "/settings/api/code",
                         "/settings/api/forget"):
             return self._not_found()
@@ -6801,6 +6825,17 @@ class Handler(SimpleHTTPRequestHandler):
         if method != "POST":
             return self._method_not_allowed()
         code, out = prompts.api(what, self._json_body())
+        return self.send_json(out, code)
+
+    def _arasaac_api(self, method, path):
+        """Settings -> Pictograms (ARASAAC) (lib/arasaacpage.py).  Every route is a POST, gated above
+        (lib/settingspage.py ROUTES) and held to this site by _dispatch (lib/crosssite.py)."""
+        if method != "POST":
+            return self._method_not_allowed()
+        body = self._json_body()
+        if ARASAAC_ROUTES[path] == "state":
+            body = dict(body, device=self._whose_device())
+        code, out = arasaacpage.api(ARASAAC_ROUTES[path], body, self._where())
         return self.send_json(out, code)
 
     def _refused(self, route):
@@ -7534,6 +7569,11 @@ def main():
         # look at the graphics card: none of them may outlive the server
         try:
             getstt.stop_all()
+        except Exception:                                     # noqa: BLE001
+            pass
+        # a download of the pictograms is stopped between two pictures, and carries on next time
+        try:
+            getarasaac.stop_all()
         except Exception:                                     # noqa: BLE001
             pass
     import atexit

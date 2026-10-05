@@ -299,6 +299,7 @@ class DataFormats(unittest.TestCase):
         import making
         import prompts
         import texpackages
+        import getarasaac
         got = version.formats()
         self.assertEqual(set(got), set(version.FORMATS))
         held = {"parseh-timings": timestamp.TIMINGS_FORMAT, "parseh-review": timestamp.REVIEW_FORMAT,
@@ -322,6 +323,7 @@ class DataFormats(unittest.TestCase):
                 "parseh-latex-theme": latexthemes.EXPORT_FORMAT,
                 "parseh-prompts": prompts.STORE_FORMAT, "parseh-prompt": prompts.EXPORT_FORMAT,
                 "parseh-texmf": texpackages.MANIFEST_FORMAT,
+                "parseh-arasaac": getarasaac.ARASAAC_FORMAT,
                 "parseh-annot": making.ANNOT_FORMAT}
         self.assertEqual(set(held) - set(got), set(), "held here, with no row")
         self.assertEqual(set(got) - set(held), set(), "a row this test does not hold")
@@ -388,7 +390,10 @@ class DataFormats(unittest.TestCase):
             # meta.json of the kind mt/'s have, and lib/getstt.py judges both (older,
             # newer, another Python) -- so there is no row, and a step back to a
             # version that lacks the folder has nothing to warn about
-            "stt/": ()}
+            "stt/": (),
+            # the ARASAAC pictograms keep a manifest, their facts and each language's words
+            # in one shape, which an older Parseh does not know
+            "arasaac/": ("parseh-arasaac",)}
     # the rows that are not a store but a file made to travel: each is read
     # back by its own stamp, whatever wrote it
     TRAVEL = {"parseh-bundle", "parseh-shelf", "parseh-narration", "parseh-exercise-shelf",
@@ -410,6 +415,8 @@ class DataFormats(unittest.TestCase):
         import updater
         self.assertEqual(set(updater.PERSONAL), set(release.CONTENT))
         self.assertIn("stt/", updater.PERSONAL)
+        self.assertIn("arasaac/", updater.PERSONAL)
+        self.assertNotIn("arasaac/", updater.CONTENT, "somebody else's pictures: fetched again by a button")
         # updater.CONTENT is a third, different list: the folders whose SMALL files are
         # copied before a step back.  Speech to text's program and models are gigabytes
         # and no data format of Parseh's is kept in them

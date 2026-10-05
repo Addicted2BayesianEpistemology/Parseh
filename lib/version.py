@@ -255,6 +255,9 @@ FORMATS = {
                        "(config/prompts.json)"),
     "parseh-prompt": ("lib/prompts.py", "EXPORT_FORMAT",
                       "a prompt of yours exported to a file"),
+    # the ARASAAC pictograms, fetched on Settings (a0.4.2, W9)
+    "parseh-arasaac": ("lib/getarasaac.py", "ARASAAC_FORMAT",
+                       "the ARASAAC pictograms, their words and their manifest (arasaac/)"),
     # a book's narration, as the aligner leaves it beside the book
     "parseh-timings": ("lib/timestamp.py", "TIMINGS_FORMAT",
                        "where each sentence of a book's narration begins and ends "

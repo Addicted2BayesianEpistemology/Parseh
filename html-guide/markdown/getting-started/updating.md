@@ -129,6 +129,10 @@ afterwards:
   it is**: that version has no page to remove it, so if you do not want the
   gigabytes while you are on it, take the folder off by hand — and fetch
   speech to text again on a version that has the page.
+- **The ARASAAC pictograms.** `arasaac/`, the pictures and the words fetched
+  on **Settings → Pictograms (ARASAAC)**: some 160 MB, and no update, forward
+  or back, opens a file in it. A version that does not know the folder
+  leaves it exactly as it is.
 - **The TeX packages** Parseh got for its drawings, `texmf/`, and the
   drawings themselves, `markdown/latex/`.
 - **Your settings.** `config/`: the preferences that follow you from
@@ -185,6 +189,7 @@ few minutes and downloads nothing of yours again.
    - `dict/`, `corpus/`, `mt/` and `components/`: the reading help's
      downloads;
    - `stt/`: speech to text's program and models;
+   - `arasaac/`: the ARASAAC pictograms;
    - `texmf/`: the TeX packages Parseh got for its drawings;
    - `config/`: your settings and the devices you let in;
    - `.tls/`: the certificate, so that no browser and no phone is asked to

@@ -2,7 +2,7 @@
 """The Settings section, and the page a device that has not been let in sees.
 
 Settings opens from the hub, says which Parseh this is (its version), and
-holds six pages: **Network** -- who may reach this Parseh, on which port,
+holds seven pages: **Network** -- who may reach this Parseh, on which port,
 with which certificate (lib/network.py keeps the answers; TO-DO §1.1, §3.3,
 §3.4, and the owner's decisions of 2026-09-23) -- **Reading help**, the
 dictionaries, corpora, models and component packs this computer has fetched
@@ -11,8 +11,10 @@ version in place of this one (lib/updatepage.py draws it, lib/updater.py does
 it; TO-DO §13.16), **LaTeX drawings** (lib/latexpage.py), **Speech to
 text**, the program and the two models that turn a video's sound into a
 transcript (lib/speechpage.py draws it, lib/getstt.py does it; TO-DO §7.23)
-and **Your prompts**, the ones a person wrote for a chatbot (lib/promptspage.py
-draws it, lib/prompts.py keeps them).
+**Your prompts**, the ones a person wrote for a chatbot (lib/promptspage.py
+draws it, lib/prompts.py keeps them) and **Pictograms (ARASAAC)**, the pictures
+a studio exercise may carry (lib/arasaacpage.py draws it, lib/getarasaac.py
+fetches them; TO-DO §8.40).
 The section was a section rather than a page from the start because the next
 settings to come out of the pages were always going to live beside the first.
 
@@ -166,6 +168,20 @@ SETTINGS = {
     "prompts.save": (None, "It keeps a prompt of yours, or changes one: text that is copied "
                            "into a chatbot, and decides nothing Parseh runs."),
     "prompts.delete": (None, "It takes a prompt of yours away."),
+    # THE ARASAAC PICTOGRAMS ARE NOT RISKY (brief §9C.2, a0.4.2), for the reason speech to text is
+    # not: nothing a device sends becomes anything that is fetched.  The only bytes that can arrive
+    # are ARASAAC's own word lists (a language is one of the forty names its API lists) and
+    # pictures (a size is one of two numbers, an id an integer out of the list it gave), from the
+    # two hosts lib/getarasaac.py names, each picture checked to be a whole PNG before it is put in
+    # place.  Whoever presses the button -- the computer, a phone, another computer that has been
+    # let in -- gets the same files, so getting them, looking for what changed, stopping and
+    # taking them away are open to any device let in.  Removing is refused in code while they are
+    # being fetched.
+    "arasaac.get": (None, "It puts ARASAAC's word lists and pictures on this computer's disk. "
+                          "Whoever presses the button gets the same files, from the two hosts "
+                          "Parseh names."),
+    "arasaac.remove": (None, "It frees the space the pictograms took."),
+    "arasaac.stop": (None, "It stops a download this page started."),
 }
 
 # SETTINGS WHOSE CONTROL IS NOT ON A PAGE OF SETTINGS, because it sits on the
@@ -269,6 +285,15 @@ ROUTES = {
     "/settings/api/prompts/uptodate": ("prompts.save",),
     "/settings/api/prompts/import": ("prompts.save",),
     "/settings/api/prompts/delete": ("prompts.delete",),
+    # the ARASAAC pictograms (lib/getarasaac.py, its own door: lib/arasaacpage.py): how they
+    # stand and what a choice would cost, open; getting them, looking for what changed, stopping
+    # and removing them, open to any device let in (SETTINGS says why)
+    "/settings/api/arasaac/state": READ,
+    "/settings/api/arasaac/plan": READ,
+    "/settings/api/arasaac/get": ("arasaac.get",),
+    "/settings/api/arasaac/update": ("arasaac.get",),
+    "/settings/api/arasaac/stop": ("arasaac.stop",),
+    "/settings/api/arasaac/remove": ("arasaac.remove",),
 }
 
 
@@ -464,6 +489,9 @@ DOORS = (
     ("/settings/prompts/", "Your prompts",
      "The prompts you wrote for a chatbot: export, import, delete",
      ("prompts.save", "prompts.delete")),
+    ("/settings/arasaac/", "Pictograms (ARASAAC)",
+     "Pictures for the studio's exercises: ARASAAC's pictograms, with their licence",
+     ("arasaac.get", "arasaac.remove", "arasaac.stop")),
 )
 
 
@@ -826,12 +854,12 @@ def signed(main):
     return main[:end] + '<p class="foot">%s</p>\n' % author.links() + main[end:]
 
 
-def hub(reading_tags="", update_tags="", speech_tags=""):
+def hub(reading_tags="", update_tags="", speech_tags="", arasaac_tags=""):
     """/settings/ -- the section itself.  Each door says what is behind it
     rather than only naming it, and who may change it, in the words of the
     table above; `reading_tags` is what the reading help has (serve.py knows
     it: the hub's own door says the same; `speech_tags` is what speech to text
-    has).  And which Parseh this is: the version, from the one file that holds
+    has, `arasaac_tags` what the pictograms have).  And which Parseh this is: the version, from the one file that holds
     it."""
     net = DOORS[1][3]
     main = """<main class="settings">
@@ -880,6 +908,13 @@ def hub(reading_tags="", update_tags="", speech_tags=""):
     kept on this computer, and exported and imported as files.</div>
     <div class="tags">%(prompts_gate)s</div>
   </a>
+  <a class="door" href="/settings/arasaac/">
+    <div class="dname">Pictograms (ARASAAC)</div>
+    <div class="dwhat">Pictures for the exercises the studio asks a chatbot to write: ARASAAC&rsquo;s
+    pictograms and the words that name them, fetched once and kept on this computer &mdash; shared
+    under a licence that asks for a credit and rules out selling what is made with them.</div>
+    <div class="tags">%(arasaac_gate)s%(arasaac_tags)s</div>
+  </a>
 </div>
 </main>""" % {"name": NAME, "version": esc(parseh_version()),
               "reading_gate": gate(DOORS[0][3]), "reading_tags": reading_tags,
@@ -887,6 +922,7 @@ def hub(reading_tags="", update_tags="", speech_tags=""):
               "latex_gate": gate(DOORS[3][3]),
               "speech_gate": gate(DOORS[4][3]), "speech_tags": speech_tags,
               "prompts_gate": gate(door_keys("/settings/prompts/")),
+              "arasaac_gate": gate(door_keys("/settings/arasaac/")), "arasaac_tags": arasaac_tags,
               "net_gate": gate(net),
               "where": esc(doors_said(network.settings())), "port": network.port()}
     return frame("Settings &mdash; %s" % NAME, "settings", "Settings", "/guide/", signed(main),
