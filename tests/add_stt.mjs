@@ -255,7 +255,7 @@ async function section(id, title, fn) {
   await setFake();
   // every section starts on a host that has remembered nothing: since a0.4.3 the model chosen for a language is kept
   // by the host (config/speech.json), so a section that picks large-v3 would otherwise decide the next one's model
-  await Deno.remove(TMP + '/config/speech.json').catch(() => {});
+  await Deno.remove(TREE + '/config/speech.json').catch(() => {});
   await fn();
 }
 
