@@ -354,9 +354,8 @@ CHECKS = (
     Check("has_no_harakat_rule_of_a_reading_edition_in_a_video",
           "a reading edition's harakat are a book's (brief 3.8) UNLESS the marks option is on, and these prompts "
           "are built in the default state, `no marks` (3.10: TheContractOfTheShortVowels holds the other); the "
-          "language files still say them in unmarked paragraphs (the text field, the sources sidebar's) which D "
-          "marks {{?marks}} or {{?nomarks}}, or moves",
-          ("video-region", "video-new"), {"video-region": "D", "video-new": "D"},
+          "language files say them under {{?marks}}, never in an unmarked paragraph",
+          ("video-region", "video-new"), {},
           has_no_harakat_rule_of_a_reading_edition),
     Check("says_a_plain_line_is_accepted_once",
           "a video's vocabulary line with no macro is also accepted, said once by the template; the "
@@ -2617,10 +2616,9 @@ class TheContentOfTheOptions(ControlledMachine):
                 for c in languages.CODES if languages.get(c).strip_range
                 for flag in ("marks", "nomarks") if "{{?%s}}" % flag not in _file(c)]
 
-    def test_the_harakat_paragraphs_of_persian_and_arabic_carry_the_marks_flags__PENDING_D2(self):
-        failures = self.files_without_the_marks_paragraphs()
-        waits_for(self, "D2", "the harakat paragraphs are marked by the option and not by the surface (brief 3.10)",
-                  failures, sum(1 for c in languages.CODES if languages.get(c).strip_range) * 2)
+    def test_the_harakat_paragraphs_of_persian_and_arabic_carry_the_marks_flags(self):
+        # the harakat paragraphs are marked by the option and not by the surface (brief 3.10)
+        self.assertEqual(self.files_without_the_marks_paragraphs(), [])
 
     def test_a_language_with_no_short_vowels_has_no_marks_block_in_its_file(self):
         # a language WITHOUT `strip` never gets the option: no block of its file is for it
