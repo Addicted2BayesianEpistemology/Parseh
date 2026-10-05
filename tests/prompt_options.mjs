@@ -601,7 +601,9 @@ try {
     await until(() => page.evaluate(() => document.querySelector('#prow').hidden), 'the prepared prompt forgotten');
     assert(true, 'choosing another setting forgets the prompt prepared for the first');
     await page.click('#prepare');
-    await until(() => page.evaluate(() => document.querySelector('#prompt').value.length > 1000), 'the prompt prepared again');
+    // the old prompt stays in the box while the row is hidden: wait for the one that says what was chosen
+    await until(() => page.evaluate(() => !document.querySelector('#prow').hidden && / · IPA · marks\n/.test(document.querySelector('#prompt').value)),
+                'the prompt prepared again');
     assert(/ · IPA · marks\n/.test(await page.evaluate(() => document.querySelector('#prompt').value)), 'and the next one says "· IPA · marks"');
     await page.close();
   });
