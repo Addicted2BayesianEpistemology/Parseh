@@ -48,7 +48,7 @@ which the editions are set with — writes ß after a long vowel or a diphthong
 before 1996 has `daß`, `muß`, `Fluß`; a Swiss source has no ß at all
 (`Strasse`, `heissen`); a line set in capitals has `STRASSE`. Never normalise
 in either direction — the modern spelling, where it is worth knowing, is said
-in `note` or in the vocabulary line.
+in {{?video}}`note` or in {{/video}}the vocabulary line.
 
 Everything else the source prints stays as printed: the German quotation
 marks (`„…“`, `»…«`), the comma before a subordinate clause, the hyphen of
