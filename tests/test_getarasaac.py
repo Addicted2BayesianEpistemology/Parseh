@@ -511,6 +511,32 @@ class Trouble(Tree):
         self.assertEqual((self.dir / "pictograms.json").read_bytes(), facts_before)
         self.assertEqual(len(self.files()), self.n, "and no picture was let go")
 
+    def test_a_picture_is_written_beside_and_moved_over_never_written_under_its_name(self):
+        # A FILE THERE IS A WHOLE ONE (the module's promise): a killed Parseh leaves a .part, never half a picture
+        # under a number.  The only way to see it is to watch the rename: the name is free, and what is moved is a .part.
+        seen = []
+        real = os.replace
+
+        def watch(src, dst):
+            if str(dst).endswith(".png"):
+                seen.append((os.path.exists(dst), str(src).endswith(".part"), os.path.getsize(src)))
+            return real(src, dst)
+        with mock.patch.object(os, "replace", watch):
+            self.build(("en",), 300)
+        self.assertEqual(len(seen), self.n, "every picture arrived by a rename")
+        self.assertEqual([s for s in seen if s[0] or not s[1] or s[2] < 64], [], seen)
+
+    def test_a_dead_host_at_update_time_leaves_a_whole_install_whole(self):
+        # PRESSING UPDATE WITH NO LINE CHANGES NOTHING: what was installed is still installed, not "part of it"
+        self.build(("en",), 300)
+        self.assertEqual(ga.status()["state"], "installed")
+        self.world.fail(r"/all/en", "500", times=99)
+        with self.assertRaises(OSError):
+            self.build(("en",), 300, update=True)
+        self.assertTrue(ga.manifest()["complete"], "the manifest still says it is whole")
+        self.assertEqual(ga.status()["state"], "installed")
+        self.assertEqual(self.files(), sorted(self.world.dates))
+
     def test_a_dead_host_is_said_in_a_sentence_by_the_job_and_nothing_is_raised_on_its_thread(self):
         self.fake.stop()
         with mock.patch.object(ga, "API", "http://127.0.0.1:9/v1"):
@@ -563,6 +589,25 @@ class Update(Tree):
         for pid in ids:
             if pid not in (picture_too, gone):
                 self.assertEqual(os.path.getmtime(self.dir / "pictograms" / ("%d.png" % pid)), stamps[pid])
+
+    def test_a_list_far_shorter_than_what_is_here_is_a_half_answer_and_changes_nothing(self):
+        # SIX OF TEN COME BACK: enough records to be a list (MIN_RECORDS is five here), far too few to be the
+        # same set -- a half answer must not let go of four pictures and their words
+        self.build(("en",), 300)
+        ids = sorted(self.world.dates)
+        before = {name: (self.dir / name).read_bytes() for name in ("index.en.json", "pictograms.json", "manifest.json")}
+        for pid in ids[:4]:
+            self.world.drop(pid)
+        with mock.patch.object(ga, "MIN_RECORDS", 5):
+            with self.assertRaises(ga.ArasaacError) as cm:
+                self.build(("en",), 300, update=True)
+        self.assertEqual(cm.exception.code, "bad-list")
+        self.assertIn("far fewer", cm.exception.say)
+        self.assertIn("Nothing was changed", cm.exception.say)
+        for name, data in before.items():
+            self.assertEqual((self.dir / name).read_bytes(), data, name + " is as it was")
+        self.assertEqual(self.files(), ids, "and no picture was let go")
+        self.assertEqual(ga.status()["state"], "installed")
 
     def test_an_update_with_nothing_changed_asks_for_the_lists_and_nothing_else(self):
         self.build(("en", "fr"), 300)

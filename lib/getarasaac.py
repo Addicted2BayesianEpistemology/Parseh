@@ -767,10 +767,14 @@ def build(locales, resolution=DEFAULT_RESOLUTION, *, update=False, say=print, pr
     mine = manifest()
     records = dict(facts())
     started = mine.get("started") or time.strftime("%Y-%m-%d")
+    resized = bool(mine) and mine.get("resolution") != resolution
+    # A WHOLE INSTALL STAYS WHOLE UNTIL SOMETHING IN IT CHANGES: an update pressed with no line, or answered
+    # with a list that is refused, has changed nothing, and must not turn "installed" into "part of it"
+    whole = bool(mine.get("complete")) and not resized
     # A CHANGE OF SIZE REPLACES THE PICTURES: they sit under one name each, so they are all of
     # one size.  Taken away first, and the manifest says so at once, so that a stop in the
     # middle leaves a record that is true.
-    if mine and mine.get("resolution") != resolution:
+    if resized:
         say("the pictures are fetched again, at %d pixels" % resolution)
         shutil.rmtree(pictures_dir(), ignore_errors=True)
         for r in records.values():
@@ -787,7 +791,8 @@ def build(locales, resolution=DEFAULT_RESOLUTION, *, update=False, say=print, pr
             "pictograms": len(records), "locales": fetched, "source": SOURCE, "licence": LICENCE,
             "terms": TERMS, "measured": MEASURED["date"]})
 
-    write_manifest(False)
+    if not whole:
+        write_manifest(False)
     # ---- the word lists, one at a time: each is put in place whole before the next is asked for
     first = True
     for loc in locales:
@@ -799,6 +804,9 @@ def build(locales, resolution=DEFAULT_RESOLUTION, *, update=False, say=print, pr
         # THE FACTS ARE WRITTEN BEFORE THE WORDS: a run killed between the two finds the list
         # missing and asks for it again, and never a list whose pictograms nobody knows
         records = _merge(records, got_facts, say, drop=first)
+        if whole:
+            write_manifest(False)
+            whole = False
         _save_facts(records)
         today = time.strftime("%Y-%m-%d")
         _write_json(index_path(loc), {"format": ARASAAC_FORMAT, "locale": loc, "fetched": today,
