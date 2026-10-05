@@ -69,6 +69,7 @@ import tidy as tidier          # noqa: E402  an automatic transcript, cut into s
 import texwrite      # noqa: E402  NOT_TEXT and Refused -- edit_meta reuses both rather
                      # than restating them (its own docstring says why)
 import wavefile      # noqa: E402  the shape of a sound a transcription held for a video
+import filmkind      # noqa: E402  what a video's own media is, and a playable copy of a sound
 
 APP_NAME = "Parseh"
 
@@ -163,6 +164,8 @@ def _load_video(folder, name, path):
     # asked for a gloss (a plain caption's, a chunk marked plain and a run of
     # the video's own English are legitimately blank and are not counted).
     meta["_blank"], meta["_glossable"] = CA.gloss_state(path)
+    # "audio" for a sound with no picture, which the shelf's card says
+    meta["_kind"] = bundle.film_kind(path, meta)
     return meta
 
 
@@ -366,6 +369,9 @@ def video_card(m):
         tags.append('<span class="tag">%s</span>' % esc(m["level"]))
     if m.get("duration"):
         tags.append('<span class="tag">%s</span>' % esc(m["duration"]))
+    if m.get("_kind") == "audio":
+        # a sound has no thumbnail to be: the card says what it is
+        tags.append('<span class="tag">&#9834; a sound</span>')
     if pending:
         tags.append('<span class="tag no">no annotations yet</span>')
     elif m.get("_blank"):
@@ -442,7 +448,7 @@ def lang_head(L, n):
 ADD_CARD = (
     '<a class="book sync add" href="%s/add/">\n'
     '  <div class="chname">&#65291; Add a video</div>\n'
-    '  <div class="blurb">From YouTube, or a film already on this machine. '
+    '  <div class="blurb">From YouTube, or a video or a sound already on this machine. '
     'The page asks where the video is and who writes the glosses &mdash; an '
     'LLM whose answer it checks, or you, in the player.</div>\n'
     '</a>' % BASE)
@@ -556,6 +562,16 @@ def player_page(vid):
            # before local ones existed has a URL and is not one.
            "local": bool(film) or (is_local_id(meta.get("id", ""))
                                    and not (meta.get("url") or "").strip()),
+           # A SOUND WITH NO PICTURE says "audio": video.json's "kind", decided
+           # once when the film was attached, or the extension for a video
+           # made before there was one (bundle.film_kind).  The player draws a
+           # bar with the waveform in place of a frame for it.
+           # (A sound whose file has gone says so all the same, so that the page
+           # is the bar's small box and not a black frame with nothing in it.)
+           "kind": bundle.film_kind(_path, meta)
+                   or ("audio" if meta.get("kind") == "audio" else "video"),
+           # what the box that sends a film or a sound again may offer
+           "accept": "audio/*,video/*," + ",".join(bundle.MEDIA_EXTS),
            # HOW BIG THE ⤓ DOWNLOAD IS: what the bundle will carry in the
            # shape the button asks for (lib/bundle.py's payload) -- for a
            # film on this machine, the film, which may be gigabytes and
@@ -588,6 +604,7 @@ def player_page(vid):
                      ("__LANG__", L.code),
                      ("__LANG_NAME__", L.name),
                      ("__LANG_DIR__", L.dir),
+                     ("__KIND__", cfg["kind"]),
                      ("__GLOSS_NAME__", G.name)):
         page = page.replace(key, esc(val))
     return (page.replace("__YTFRANK__", cfg_js)
@@ -860,7 +877,8 @@ def check_film(raw):
     Raises ValueError with a sentence for the page.  A film is named by a
     PATH and never by an upload's filename, and it is read here and nowhere
     else: what a URL carries is the video's id, and the film is found by
-    listing the video's own directory.
+    listing the video's own directory.  A SOUND is named the same way and is
+    accepted wherever a film is (bundle.MEDIA_EXTS).
     """
     if raw is not None and not isinstance(raw, str):
         raise ValueError("the film's path has to be text, and that is a %s"
@@ -872,9 +890,11 @@ def check_film(raw):
     ext = os.path.splitext(path)[1].lower()
     if not os.path.isfile(path):
         raise ValueError("no file at %s" % path)
-    if ext not in bundle.VIDEO_EXTS:
-        raise ValueError("%s is not a video this can play (%s)"
-                         % (ext or "that", ", ".join(bundle.VIDEO_EXTS)))
+    if ext not in bundle.MEDIA_EXTS:
+        raise ValueError("%s is not a video this can play, nor a sound (videos: %s; "
+                         "sounds: %s)" % (ext or "that", ", ".join(bundle.VIDEO_EXTS),
+                                          ", ".join(e for e in bundle.SOUND_EXTS
+                                                    if e not in bundle.VIDEO_EXTS)))
     return path, ext
 
 
@@ -886,6 +906,10 @@ def attach_film(video_dir, path):
     filesystem has no link to make).  Either way what lands is a real file,
     so the bundle the download button writes carries it like any other
     content, and the video plays on the machine that unpacks it.
+
+    A SOUND goes the same way, and what is decided about it -- whether it is a
+    sound at all, whether a browser plays it, the playable copy where one is
+    needed -- is decided here, once, by youtube/lib/filmkind.py.
     """
     path, ext = check_film(path)
     into = os.path.join(video_dir, "media" + ext)
@@ -903,12 +927,16 @@ def attach_film(video_dir, path):
     except OSError:
         shutil.copy2(path, part)
         how = "copied"
-    os.replace(part, into)
-    for old in sorted(os.listdir(video_dir)):
-        if bundle.is_media_name(old) and old != os.path.basename(into):
-            os.unlink(os.path.join(video_dir, old))
-    return {"film": os.path.basename(into), "how": how,
-            "bytes": os.path.getsize(into)}
+    try:
+        got = filmkind.settle(video_dir, part)
+    except (OSError, ValueError):
+        if os.path.exists(part):
+            os.unlink(part)
+        raise
+    # a film that was SENT waited in .incoming/ for this: it is the video's now
+    filmkind.release(path, VIDEOS)
+    return {"film": got["film"], "how": how, "bytes": got["bytes"], "kind": got["kind"],
+            "converted": got["converted"], "original": got["original"], "note": got["note"]}
 
 
 def local_target(data, taken=None):
@@ -1240,7 +1268,8 @@ def assembled_full(vid, meta, captions, glossary=None, lang=None, gloss=None, in
     if not is_local_id(vid):
         head.append("- url: https://www.youtube.com/watch?v=%s" % vid)
     else:
-        head.append("- a film on the reader's own machine, not on YouTube")
+        head.append("- a %s on the reader's own machine, not on YouTube"
+                    % ("recording" if meta.get("kind") == "audio" else "film"))
     if meta.get("title"):
         head.append("- title: %s" % meta["title"])
     if meta.get("channel"):
@@ -1701,6 +1730,12 @@ def api_prepare(h):
     except prompts.PromptsError as e:
         return h.send_json({"ok": False, "error": str(e)}, e.status)
     meta = {} if local else oembed(vid)
+    # BY THE NAME ALONE, NEVER BY LOOKING INSIDE THE FILE: the page asks for this
+    # prompt again and again as the person types, and an ffprobe on every ask made
+    # the answer arrive after the next keystroke (tests/add_stt.mjs caught it).
+    # The kind that counts is decided once, when the file is attached.
+    if local and filmkind.kind_of(os.path.splitext(_p)[1].lower()) == "audio":
+        meta = {"kind": "audio"}        # the prompt says "a recording", not "a film"
     exists = find_video(vid)[0] is not None
     try:
         made = assembled_full(vid, meta, captions, data.get("glossary") or None, L, G,
@@ -2013,6 +2048,7 @@ def api_add(h):
     # video's annotation, and it is annotations.json.
     os.makedirs(VIDEOS, exist_ok=True)
     waveform = None              # what the door says of the sound's shape, if it was asked
+    film_got = None              # what became of the film or the sound, if there is one
     stage = tempfile.mkdtemp(prefix=".staging-", dir=VIDEOS)
     sdir = os.path.join(stage, vid)
     os.makedirs(os.path.join(sdir, "parts"))
@@ -2042,7 +2078,7 @@ def api_add(h):
             # move into videos/ carries the whole video at once
             if film:
                 try:
-                    attach_film(sdir, film)
+                    film_got = attach_film(sdir, film)
                 except (OSError, ValueError) as e:
                     return h.send_json({"ok": False, "error": "the annotation is "
                                         "good, but the film could not be put "
@@ -2077,6 +2113,9 @@ def api_add(h):
     # said only where it was asked for, as the two other doors that make a video say it
     if waveform is not None:
         answer["waveform"] = waveform if answer["ok"] else {"kept": False}
+    # and what became of the film or the sound, for the page to say
+    if film_got is not None and answer["ok"]:
+        answer["film"] = film_got
     return h.send_json(answer)
 
 
@@ -2091,10 +2130,10 @@ ADD_PAGE_HEAD = r'''
     <em>needs: the URL, and the transcript panel</em>
   </button>
   <button type="button" class="path" role="radio" aria-checked="false" tabindex="-1" data-src="film">
-    <b>A film already on this machine</b>
+    <b>A video or a sound on this machine</b>
     <span>The file is linked beside the transcript and travels with it &mdash; the download
-      button then hands over the film and the glosses as one zip.</span>
-    <em>needs: the file&rsquo;s path, and a transcript or a .srt/.vtt</em>
+      button then hands over the video (or the sound) and the glosses as one zip.</span>
+    <em>needs: the file&rsquo;s path, or the file sent, and a transcript or a .srt/.vtt</em>
   </button>
 </div>
 
@@ -2138,10 +2177,17 @@ ADD_PAGE_HEAD = r'''
       or the bare 11-character id.</span>
   </div>
   <div id="src-film" hidden>
-    <label>The film <input id="path" placeholder="/home/you/films/lesson-1.mp4" autocomplete="off" spellcheck="false"></label>
-    <span class="fieldnote"><code>.mp4</code>, <code>.webm</code>, <code>.mkv</code>,
-      <code>.mov</code> or <code>.m4v</code>. It is <b>hardlinked</b> beside the transcript, so
-      it costs no disk and no time even for a two-hour film.</span>
+    <label>The video or sound <input id="path" placeholder="/home/you/films/lesson-1.mp4" autocomplete="off" spellcheck="false"></label>
+    <span class="fieldnote">A video: <code>.mp4</code>, <code>.webm</code>, <code>.mkv</code>,
+      <code>.mov</code> or <code>.m4v</code>. A sound: <code>.mp3</code>, <code>.m4a</code>,
+      <code>.wav</code>, <code>.ogg</code>, <code>.flac</code> and the others listed below. It is
+      <b>hardlinked</b> beside the transcript, so it costs no disk and no time even for a
+      two-hour film.</span>
+    <!-- what the path names, said once it is left: a video or a sound, how big, and what
+         will be done about a sound a browser cannot play (youtube/lib/addfilm.js) -->
+    <div id="filmlook" class="filmsay" aria-live="polite" hidden></div>
+    <!-- and the option beside the path: send the file instead (the same script draws it) -->
+    <div id="filmsend" class="filmsend" data-base="__BASE__" data-accept="__ACCEPT__"></div>
   </div>
 
   <div class="row">
@@ -2165,13 +2211,29 @@ ADD_PAGE_HEAD = r'''
     </div>
   </details>
 
-  <button type="button" class="hbtn" aria-expanded="false" aria-controls="how-film" id="filmhow" hidden>what happens to the film</button>
+  <button type="button" class="hbtn" aria-expanded="false" aria-controls="how-film" id="filmhow" hidden>what happens to the film or the sound</button>
   <div class="hbox" id="how-film" hidden>
-    <p><b>The film is hardlinked</b> beside the transcript as <code>media.&lt;ext&gt;</code>, so
+    <p><b>The file is hardlinked</b> beside the transcript as <code>media.&lt;ext&gt;</code>, so
       it costs no disk and no time; where the filesystem forbids a link (another disk) it is
       copied instead, and the answer says which happened.</p>
-    <p><b>Either way the film is part of the video</b> from then on, so a video that came out
+    <p><b>Either way it is part of the video</b> from then on, so a video that came out
       of one machine plays on the next.</p>
+    <p><b>A sound is a video with no picture.</b> Any of <code>.mp3</code>, <code>.m4a</code>,
+      <code>.aac</code>, <code>.ogg</code>, <code>.oga</code>, <code>.opus</code>,
+      <code>.wav</code>, <code>.flac</code>, <code>.weba</code>, <code>.wma</code>,
+      <code>.aiff</code>, <code>.aif</code>, <code>.amr</code>, <code>.mka</code> and
+      <code>.caf</code> is taken. The player shows a bar with its waveform where a video shows a
+      frame, a card takes the recording and no picture, and what the speech to text and the
+      timings do with a video they do with a sound.</p>
+    <p><b>A sound the browser cannot play</b> (<code>.wma</code>, <code>.aiff</code>,
+      <code>.amr</code>, <code>.mka</code>, <code>.caf</code>) gets a playable copy made by
+      ffmpeg when the video is added, and the original is kept beside it as
+      <code>media-orig.&lt;ext&gt;</code>. Without ffmpeg the sound is added as it is, and this
+      page says so before you go on.</p>
+    <p><b>Sent, or named.</b> The path stays the way to name a file on this machine. The other
+      way, <i>Choose a video or a sound</i>, sends the file from this device into this
+      computer&rsquo;s disk and puts its path in the box; it works from another device and on
+      Windows, and the only limit is the disk.</p>
   </div>
   </div>
 </section>
@@ -2291,8 +2353,8 @@ ADD_PAGE_HEAD = r'''
     <button type="button" class="wbtn" id="empty">Start it empty</button>
     <span id="estat" class="stat"></span>
   </div>
-  <span class="fieldnote" id="emptynote" hidden>The film is linked beside the transcript as
-    part of the video.</span>
+  <span class="fieldnote" id="emptynote" hidden>The film or the sound is linked beside the
+    transcript as part of the video.</span>
   <div id="eresult" aria-live="polite" hidden></div>
   <button type="button" class="hbtn" aria-expanded="false" aria-controls="how-empty">how this works</button>
   <div class="hbox" id="how-empty" hidden>
@@ -2652,7 +2714,7 @@ ADD_PAGE_JS = r'''
     var film = SRC === 'film';
     var s = source().trim();
     if (!s) {
-      Parseh.toast(film ? 'name the film on this machine' : 'paste the URL', true);
+      Parseh.toast(film ? 'name the video or sound on this machine' : 'paste the URL', true);
       $(film ? 'path' : 'url').focus();
       return null;
     }
@@ -2804,6 +2866,7 @@ ADD_PAGE_JS = r'''
           ? ' The film was copied (' + Math.round((j.bytes || 0) / 1048576) +
             ' MB) — this filesystem would not take a link.'
           : '';
+        if (j.note) film += ' ' + j.note + '.';
         res.innerHTML = '<div class="note good"><b>Drafted.</b> ' + j.captions + ' captions, ' +
           j.glossed + ' to gloss, ' + j.plain + ' plain, ' + j.chunks + ' blank chunks, in <code>videos/' +
           esc(j.folder) + '/' + esc(j.id) + '/</code>.' + esc(film) + ' <a href="' + esc(href) +
@@ -2845,6 +2908,8 @@ ADD_PAGE_JS = r'''
               ' had the words proposed by machine, to correct in the player. ' : '') +
             // the shape of the sound recorded while the transcript was made
             (j.waveform && j.waveform.kept ? 'Its waveform came with it. ' : '') +
+            // what became of a sound a browser cannot play
+            (j.film && j.film.note ? esc(j.film.note) + '. ' : '') +
             '<a href="' + esc(j.href) + '"><b>Open the video &rarr;</b></a></div>';
           try { localStorage.removeItem(KEY); } catch (e) {}
           if (stt) stt.videoAdded();
@@ -2970,13 +3035,16 @@ def add_page():
                      "index wizard",
                      '<link rel="stylesheet" href="%s/lib/subedit.css">\n'
                      '<link rel="stylesheet" href="%s/lib/addstt.css">\n'
+                     '<link rel="stylesheet" href="%s/lib/addfilm.css">\n'
                      '<script src="%s/lib/subedit.js"></script>\n'
                      '<script src="%s/lib/tabcapture.js"></script>\n'
                      '<script src="%s/lib/addstt.js"></script>\n'
-                     '<script src="/lib/llmrow.js"></script>\n' % ((BASE,) * 5))
+                     '<script src="%s/lib/addfilm.js"></script>\n'
+                     '<script src="/lib/llmrow.js"></script>\n' % ((BASE,) * 7))
     return (head + ADD_PAGE_HEAD.replace("__GLOSSARIES__", gl)
                 .replace("__HOWS__", hows).replace("__LANGS__", langs)
                                 .replace("__GLOSSES__", glosses)
+                                .replace("__ACCEPT__", esc("audio/*,video/*," + ",".join(bundle.MEDIA_EXTS)))
                                 .replace("__BASE__", BASE)
             + ADD_PAGE_JS.replace("__BASE__", json.dumps(BASE))
                          .replace("__LANGS_JSON__", langs_json.replace("</", "<\\/"))

@@ -216,6 +216,7 @@ NEVER_FILES = (".serve.pid", "serve.log", ".setup-done", ".git")
 CONTENT = ("books/", "youtube/videos/", "youtube/anki/", "markdown/library/", "exercises/",
            "clips/", "config/")
 MEDIA = {".mp3", ".ogg", ".opus", ".oga", ".m4a", ".aac", ".wav", ".flac", ".weba", ".webm",
+         ".wma", ".aiff", ".aif", ".amr", ".mka", ".caf",      # the other sounds a video may be (bundle.SOUND_EXTS)
          ".mp4", ".m4v", ".mkv", ".mov", ".avi", ".jpg", ".jpeg", ".png", ".gif", ".webp",
          ".avif", ".bmp", ".tif", ".tiff", ".heic", ".pdf", ".woff", ".woff2", ".ttf", ".otf",
          ".zip", ".apkg", ".colpkg", ".gz", ".bz2", ".xz", ".zst", ".tar"}

@@ -139,7 +139,8 @@
     follow: store('yt_follow', true),
     hoverpause: store('yt_hoverpause', false),
     pin: store('yt_pin', true),
-    sbs: store('yt_sbs', false),
+    // a SOUND has no picture to put beside the text: the bar stays above it
+    sbs: store('yt_sbs', false) && CFG.kind !== 'audio',
     // Defaults OFF, and stays hidden until the server says there is
     // something behind it.  A reader who does not want it never sees it
     // and the page never asks anything of the server.
@@ -185,7 +186,7 @@
     return document.documentElement.getAttribute('data-mode') === 'mobile';
   }
   function sideOn() {
-    if (!window.matchMedia) return false;
+    if (!window.matchMedia || CFG.kind === 'audio') return false;
     if (mobileMode()) return window.matchMedia(WIDE_M).matches;
     return opts.sbs && window.matchMedia(WIDE).matches;
   }
@@ -4014,7 +4015,8 @@
   }
   var TARGET_NOTE = {
     anki: '',
-    deck: 'an exercise in the deck, studied on its page; the recording and the frame go in with it',
+    deck: 'an exercise in the deck, studied on its page; ' +
+          (CFG.kind === 'audio' ? 'the recording goes' : 'the recording and the frame go') + ' in with it',
     md: 'one :::exercise block on the clipboard, for a studio document or a deck’s “Add exercise”'
   };
   // the name typed for a new deck, per destination: an Anki name nests with
@@ -4673,6 +4675,9 @@
   /* Why there is no frame to take, or '' when there is -- said under the
      button, as the recording's reason is, because a phone shows no title. */
   function noShot() {
+    // A SOUND HAS NO FRAME, and the sheet steps aside (the row is not drawn:
+    // style.css) -- this is for anything that asks all the same
+    if (CFG.kind === 'audio') return 'this is a sound: there is no picture';
     if (CFG.media) return '';        // the film is here: the canvas reads it
     if (CFG.local)
       return 'the film of this video is not on this machine any more, so there is no frame to take';
@@ -6115,16 +6120,187 @@
     if (t > 0 && player.seekTo) player.seekTo(t, true);
   }
 
+  /* A SOUND, IN A VIDEO'S PLACE.  A video whose media is a sound alone (video.json
+     says "kind": "audio", written when it was attached) has no frame to show.
+     What fills the video's place is a bar: the shape of the sound, whole, with
+     the playhead on it -- a press anywhere on it goes there, a drag scrubs -- and
+     the element's own controls under it, the caption starts as hairlines at its
+     foot.  The shape is read by the server with ffmpeg (/youtube/api/film/wave);
+     without ffmpeg, or away from the computer, the bar is a plain track and says
+     why.  Nothing here writes. */
+  function soundBar(film) {
+    var box = document.createElement('div');
+    box.id = 'sndbar';
+    var cv = document.createElement('canvas');
+    cv.id = 'sndwave';
+    cv.setAttribute('aria-label', 'the sound: press anywhere on it to go there');
+    var say = document.createElement('div');
+    say.className = 'sndsay';
+    box.appendChild(cv);
+    box.appendChild(say);
+    film.parentNode.insertBefore(box, film);
+    var wave = null, shown = '', pressed = false;
+    function ink(name, fall) {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+      return (v && v.trim()) || fall;
+    }
+    function span() {
+      return film.duration && isFinite(film.duration) ? film.duration : (wave ? wave.seconds : 0);
+    }
+    function draw(force) {
+      var w = cv.clientWidth, h = cv.clientHeight;
+      if (!w || !h) return;
+      var on = ink('--accent', '#be3455'), off = ink('--faint', '#a2949a');
+      var dur = span(), now = film.currentTime || 0;
+      // drawn again only when something it shows has changed
+      var sig = [w, h, Math.round(now * 10), Math.round(dur), wave ? wave.peaks.length : 0,
+                 segs.length, on, off].join('|');
+      if (!force && sig === shown) return;
+      shown = sig;
+      var dpr = window.devicePixelRatio || 1;
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+        cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      }
+      var g = cv.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      var at = dur ? Math.min(1, now / dur) * w : 0, mid = (h - 6) / 2;
+      // what is drawn, for whoever looks: the shape of the sound, or a plain track
+      cv.setAttribute('data-shape', wave && wave.peaks.length ? 'wave' : 'plain');
+      if (wave && wave.peaks.length) {
+        var n = wave.peaks.length, bw = w / n;
+        for (var i = 0; i < n; i++) {
+          var x = i * bw, v = Math.max(0.05, wave.peaks[i]) * (h - 12) / 2;
+          g.fillStyle = x + bw / 2 <= at ? on : off;
+          g.fillRect(x, mid - v, Math.max(1, bw - 0.6), v * 2);
+        }
+      } else {
+        g.fillStyle = off; g.fillRect(0, mid - 1, w, 2);
+        g.fillStyle = on; g.fillRect(0, mid - 1.5, at, 3);
+      }
+      if (dur) {
+        g.fillStyle = off;
+        for (var k = 0; k < segs.length; k++) {
+          var sx = Math.round((+segs[k].start || 0) / dur * w);
+          if (sx >= 0 && sx <= w) g.fillRect(sx, h - 5, 1, 5);
+        }
+      }
+      g.fillStyle = on;
+      g.fillRect(Math.min(w - 2, Math.max(0, at - 1)), 0, 2, h - 6);
+    }
+    function go(e) {
+      var r = cv.getBoundingClientRect(), d = span();
+      if (!d || !r.width) return;
+      try { film.currentTime = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * d; }
+      catch (err) {}
+      draw(true);
+    }
+    cv.addEventListener('pointerdown', function (e) {
+      pressed = true;
+      try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+      go(e);
+      e.preventDefault();
+    });
+    cv.addEventListener('pointermove', function (e) { if (pressed) go(e); });
+    ['pointerup', 'pointercancel'].forEach(function (name) {
+      cv.addEventListener(name, function () { pressed = false; });
+    });
+    ['timeupdate', 'seeked', 'durationchange', 'loadedmetadata'].forEach(function (name) {
+      film.addEventListener(name, function () { draw(); });
+    });
+    window.addEventListener('resize', function () { draw(true); });
+    // the transcript arrives after the page, the theme can change under it, and a
+    // paused sound has no event to say so: a look every so often costs nothing
+    setInterval(draw, 400);
+    fetch('/youtube/api/film/wave', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                     body: JSON.stringify({video: CFG.id, buckets: 900})})
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (j) {
+        if (j && j.ok && j.peaks && j.peaks.length) wave = j;
+        else say.textContent = ((j && j.error) || 'the shape of the sound could not be drawn') +
+                               ' — the bar is a plain track';
+        draw(true);
+      }, function () {
+        say.textContent = 'the shape of the sound could not be drawn here — the bar is a plain track';
+        draw(true);
+      });
+    draw(true);
+  }
+
+  /* THE FILM OR THE SOUND OF A VIDEO THAT IS NOT THERE ANY MORE: sent again, from
+     the box that says so, to the same door the add page sends by (its own script,
+     youtube/lib/addfilm.js, is not on this page: the player is kept on a phone and
+     what it loads is a list).  Whole or not at all, and the page is opened again
+     on it.  Browser mode only: a phone's page writes nothing (lib/mobile.css). */
+  function sendAgain(box) {
+    var pick = document.createElement('input');
+    pick.type = 'file';
+    pick.hidden = true;
+    pick.accept = CFG.accept || 'audio/*,video/*';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'novid-again';
+    btn.textContent = 'send the film or sound again…';
+    var said = document.createElement('div');
+    said.className = 'novid-said';
+    said.setAttribute('aria-live', 'polite');
+    var row = document.createElement('div');
+    row.className = 'novid-send';
+    row.appendChild(btn);
+    row.appendChild(pick);
+    row.appendChild(said);
+    box.appendChild(row);
+    btn.addEventListener('click', function () { pick.click(); });
+    pick.addEventListener('change', function () {
+      var f = pick.files && pick.files[0];
+      if (!f) return;
+      btn.disabled = true;
+      var label = f.name + ' (' + (f.size >= 1e6 ? Math.round(f.size / 1e6) + ' MB'
+                                                 : Math.max(1, Math.round(f.size / 1e3)) + ' kB') + ')';
+      said.textContent = 'sending ' + label + '…';
+      var act = window.Parseh && Parseh.working ? Parseh.working('Sending ' + f.name) : null;
+      var x = new XMLHttpRequest();
+      var url = '/youtube/api/film?video=' + encodeURIComponent(CFG.id) + '&name=' + encodeURIComponent(f.name);
+      x.open('POST', act ? act.url(url) : url);
+      x.setRequestHeader('Content-Type', 'application/octet-stream');
+      x.upload.onprogress = function (e) {
+        if (!e.lengthComputable) return;
+        said.textContent = 'sending ' + label + ' — ' + Math.floor(100 * e.loaded / e.total) + ' %';
+        if (act) act.progress(e.loaded, e.total);
+      };
+      x.onload = function () {
+        var j = null;
+        try { j = JSON.parse(x.responseText); } catch (err) {}
+        if (act) act.end(!!(j && j.ok));
+        if (j && j.ok) { said.textContent = 'sent — opening it…'; location.reload(); return; }
+        btn.disabled = false;
+        said.textContent = (j && j.error) || ('the server refused it (' + x.status + ')');
+      };
+      x.onerror = function () {
+        if (act) act.end(false);
+        btn.disabled = false;
+        said.textContent = 'the server did not answer — nothing was sent';
+      };
+      x.send(f);
+    });
+  }
+
   if (CFG.media) {
-    var film = document.createElement('video');
+    // A SOUND is an <audio> and is still `#film`: everything that asks the film
+    // for its time, its rate or its sound asks it as before.  What fills the
+    // video's place is a bar (soundBar), and the word for it on the page is
+    // "sound" where the video's own would say "film".
+    var SOUND = CFG.kind === 'audio';
+    var film = document.createElement(SOUND ? 'audio' : 'video');
     film.id = 'film';
     film.controls = true;
     film.preload = 'metadata';
-    film.playsInline = true;
+    if (!SOUND) film.playsInline = true;
     film.src = CFG.media;
     var slot = $('#yt');
     slot.parentNode.insertBefore(film, slot);
     slot.remove();
+    if (SOUND) soundBar(film);
     player = {
       // YT's states, of which the six callers read only 1 = playing
       getPlayerState: function () { return (film.paused || film.ended) ? 2 : 1; },
@@ -6167,8 +6343,8 @@
       var big = !n ? '' : ' (about ' + (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB'
         : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + ' MB'
         : Math.max(1, Math.round(n / 1e3)) + ' kB') + ')';
-      dl.title = 'download this video as a bundle: the film itself and its ' +
-                 'glosses in one zip' + big + ', which another Parseh installs whole. ' +
+      dl.title = 'download this video as a bundle: the ' + (SOUND ? 'sound' : 'film') +
+                 ' itself and its glosses in one zip' + big + ', which another Parseh installs whole. ' +
                  'Add ?media=text to the address for the words alone.';
     }
     // the same meaning as YT's state 1: the person pressed play, so the
@@ -6182,13 +6358,16 @@
       // file that is sitting exactly where they put it.
       var code = (film.error && film.error.code) || 0;
       var n = $('#novid');
+      var what = SOUND ? 'sound' : 'film';
       n.innerHTML = (code === 4
-        ? 'this browser cannot play that file —<br>' +
+        ? 'this browser cannot play that ' + (SOUND ? 'sound' : 'file') + ' —<br>' +
+          (SOUND ? 'a playable copy is made where ffmpeg is installed: add it again once it is<br>'
+                 : '') +
           'the transcript below still works'
         : code === 3
-          ? 'the film is there but will not decode —<br>' +
+          ? 'the ' + what + ' is there but will not decode —<br>' +
             'the transcript below still works'
-          : 'the film is not where this video says it is —<br>' +
+          : 'the ' + what + ' is not where this video says it is —<br>' +
             'the transcript below still works');
       n.hidden = false;
     });
@@ -6196,10 +6375,11 @@
     // A VIDEO THAT IS A FILE, WHOSE FILE IS NOT THERE.  Reaching for YouTube
     // here would ask it for a video at an id it has never heard of, and the
     // reader would be told, wrongly, that they need an internet connection.
-    $('#novid').innerHTML = 'the film that belongs to this video is not ' +
-      'here any more —<br>put it back beside the transcript, or add the ' +
+    $('#novid').innerHTML = 'the film (or sound) that belongs to this video is not ' +
+      'here any more —<br>send it again, put it back beside the transcript, or add the ' +
       'video again<br>— the transcript below still works';
     $('#novid').hidden = false;
+    sendAgain($('#novid'));
   } else {
     // The IFrame API calls a global when it is ready.  If it never loads
     // (offline), say so in the frame; the transcript works regardless.

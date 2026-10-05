@@ -20,10 +20,11 @@ answered — only the steps your two answers need come after them.
 
 - **From YouTube** — an address. The title and the channel are fetched from
   YouTube.
-- **A film already on this machine** — a video file. It is linked beside the
-  transcript and travels with it, and the download button then hands over
-  the film and the glosses as one zip. See
-  [A film on this machine](a-film-on-this-machine.md).
+- **A video or a sound on this machine** — a video file, or a recording with
+  no picture (an `.mp3`, say). It is linked beside the transcript and travels
+  with it, and the download button then hands over the film (or the sound)
+  and the glosses as one zip. It is named by its path, or **sent** from
+  another device. See [A film on this machine](a-film-on-this-machine.md).
 
 **Who writes the glosses?**
 
@@ -40,7 +41,7 @@ All four pairs are real:
 | | An LLM | Nobody |
 |---|---|---|
 | **From YouTube** | the prompt, the answer, **Check & add the video** | **Start it empty** |
-| **A film on this machine** | the same, with the film put beside the transcript | **Start it empty**, with the film put beside it |
+| **A video or a sound on this machine** | the same, with the film or the sound put beside the transcript | **Start it empty**, with it put beside the transcript |
 
 A video is glossed in the player, never extended: there is no “add to a
 video already here”. The address remembers your two answers
@@ -52,9 +53,12 @@ to the videos page for a video you already have as a zip.
 - **YouTube URL** takes any of the ways a YouTube address is written —
   `watch?v=…`, `youtu.be/…`, `/shorts/…`, `/embed/…` — or the bare
   11-character id.
-- **The film** takes the full path of the file on this machine
-  (`/home/you/films/lesson-1.mp4`); see
-  [A film on this machine](a-film-on-this-machine.md).
+- **The video or sound** takes the full path of the file on this machine
+  (`/home/you/films/lesson-1.mp4`, `/home/you/lesson-1.mp3`); when you leave
+  the box the page says what the file is. Under it, **Choose a video or a
+  sound…** sends the file instead — from another device, or where there is
+  no path to type — and puts its path in the box; see
+  [A film on this machine](a-film-on-this-machine.md#sending-the-file-instead-of-naming-it).
 - **Language** is the language the video **teaches**. It starts on the
   language the toolbox's chips last picked. It decides which captions count
   as *plain* — for a language with its own script, a caption with not one
