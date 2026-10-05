@@ -77,14 +77,14 @@ SIZES = {
     #        studio-doc     studio-exercises  video-new      video-region   book-region    transcript-tidy  book-new
     "fa": ((16413, 18900), (19715, 22700), (27766, 32000), (19276, 22200), (18222, 21000), (2815, 3300), (31910, 36700)),
     "ar": ((17075, 19700), (20376, 23500), (29674, 34200), (20968, 24200), (19641, 22600), (2806, 3300), (33625, 38700)),
-    "it": ((16408, 18900), (14541, 16800), (30602, 35200), (21032, 24200), (20710, 23900), (2747, 3200), (32652, 37600)),
+    "it": ((16774, 19300), (15268, 17600), (30115, 34700), (20905, 24100), (19894, 22900), (2866, 3300), (33488, 38600)),
     "ja": ((17921, 20700), (16184, 18700), (33735, 38800), (24171, 27800), (23448, 27000), (2755, 3200), (35330, 40700)),
-    "fr": ((20407, 23500), (18543, 21400), (38721, 44600), (26973, 31100), (26605, 30600), (2795, 3300), (40715, 46900)),
-    "de": ((19954, 23000), (18090, 20900), (39098, 45000), (27027, 31100), (26485, 30500), (2758, 3200), (41124, 47300)),
-    "tr": ((18181, 21000), (16314, 18800), (39560, 45500), (28881, 33300), (28618, 33000), (2746, 3200), (41614, 47900)),
-    "en": ((22378, 25800), (20511, 23600), (41797, 48100), (30411, 35000), (29982, 34500), (2811, 3300), (43779, 50400)),
+    "fr": ((20683, 23800), (19180, 22100), (36659, 42200), (25311, 29200), (24254, 27900), (2914, 3400), (39862, 45900)),
+    "de": ((20230, 23300), (18727, 21600), (38483, 44300), (26776, 30800), (25545, 29400), (2877, 3400), (41768, 48100)),
+    "tr": ((18457, 21300), (16951, 19500), (37675, 43400), (27125, 31200), (26173, 30100), (2865, 3300), (41064, 47300)),
+    "en": ((22654, 26100), (21148, 24400), (40876, 47100), (29596, 34100), (28478, 32800), (2930, 3400), (43600, 50200)),
     "hi": ((18521, 21300), (16923, 19500), (33252, 38300), (22678, 26100), (21961, 25300), (2811, 3300), (36274, 41800)),
-    "es": ((18075, 20800), (16208, 18700), (39886, 45900), (28935, 33300), (29167, 33600), (2664, 3100), (41928, 48300)),
+    "es": ((18139, 20900), (16633, 19200), (38592, 44400), (27945, 32200), (27276, 31400), (2783, 3300), (41707, 48000)),
     "zh": ((19334, 22300), (17761, 20500), (41768, 48100), (28888, 33300), (28305, 32600), (2739, 3200), (43751, 50400)),
 }
 MEASURED = ("studio-doc", "studio-exercises", "video-new", "video-region", "book-region",
@@ -915,16 +915,19 @@ class LanguageCut(unittest.TestCase):
             self.assertEqual(("Words" in secs), languages.get(code).words, code)
 
     def test_the_note_on_writing_the_script_is_found_where_it_stands(self):
+        # THE NOTE IS THE STUDIO'S: a file marks it {{?studio}} (lane D2), and a prompt that glosses never has it
         for code in ("it", "de", "fr", "es", "en"):
             text = K.language_text("studio-doc", code)
             self.assertIn("[…]{tl}", text, code)
             self.assertIn("## The text field", text, code)
-            self.assertNotIn("{tl}", K.language_text("video-region", code), code)
-            self.assertIn("{tl}", K.language_text("video-new", code), code)
+            for surface in ("video-region", "book-region", "video-new", "book-new"):
+                self.assertNotIn("{tl}", K.language_text(surface, code), (code, surface))
         tr = K.language_text("studio-doc", "tr")
         self.assertIn("Runs of Turkish are **marked** in the studio", tr)
         self.assertTrue(tr.index("## The text field") < tr.index("Runs of Turkish"))
         self.assertNotIn("Chunking", tr)
+        for surface in ("video-region", "book-region", "video-new", "book-new"):
+            self.assertNotIn("{tl}", K.language_text(surface, "tr"), surface)
         for code in ("fa", "ar", "hi", "ja", "zh"):
             self.assertNotIn("The text field", _names("studio-doc", code), code)
 

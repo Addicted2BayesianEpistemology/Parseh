@@ -1,6 +1,6 @@
 # German — the annotation conventions
 
-How a German sentence becomes a glossed line: what goes into each field and
+{{?new}}How a German sentence becomes a glossed line: what goes into each field and
 how it is written. These rules bind both the reading editions and the video
 captions; they are embedded whole into every prompt that asks for German
 annotation, so they are written as instructions to the annotator.
@@ -14,7 +14,7 @@ in is the book's or the video's own choice, `"gloss"` in `book.json` /
 `video.json`, and English when the key is absent. This file is about German
 as the language being **taught**: the examples below gloss into English
 because they must gloss into something, and every rule that turns on the
-gloss language says so.
+gloss language says so.{{/new}}
 
 ## The text field
 
@@ -23,12 +23,12 @@ gloss language says so.
 spelling, a Swiss one, a dialect form, an ASR slip in a caption. Chunks split
 only at spaces; joined back with single spaces they must reproduce the
 sentence exactly, and a machine checks that. **Never correct the text in
-`fa`** — the correction goes in `note` (videos) or in the vocabulary line
-(books).
+`fa`**{{?new}} — the correction goes in {{?video}}`note`{{/video}}{{?book}}the vocabulary
+line{{/book}}{{/new}}.
 
-A reading edition adds nothing to the German: there are no vowel marks to
-write in, and so nothing to take off again, which is why German has two
-passes and not three. **A mark you add is an error, not extra precision**: no
+German takes no marks: there are no vowel marks to write in, and so nothing to
+take off again{{?book}}, which is why German has two passes and not three{{/book}}.
+**A mark you add is an error, not extra precision**: no
 stress marks, no length marks, no hyphen slipped into a compound to show its
 parts (that belongs in `voc`), no `ae oe ue` for the umlauts, and no umlauts
 put back into a source that writes `ae oe ue`.
@@ -48,21 +48,21 @@ which the editions are set with — writes ß after a long vowel or a diphthong
 before 1996 has `daß`, `muß`, `Fluß`; a Swiss source has no ß at all
 (`Strasse`, `heissen`); a line set in capitals has `STRASSE`. Never normalise
 in either direction — the modern spelling, where it is worth knowing, is said
-in `note` or in the vocabulary line.
+in {{?video}}`note` or in {{/video}}the vocabulary line.
 
 Everything else the source prints stays as printed: the German quotation
 marks (`„…“`, `»…«`), the comma before a subordinate clause, the hyphen of
 `Kfz-Werkstatt`, the apostrophe of `geht's`, the space inside `z. B.`, the
 decimal comma of `3,5` and the full stop of `1.000`.
 
-German has no character range of its own in the registry and could not be
+{{?studio}}German has no character range of its own in the registry and could not be
 given one: it is written in the alphabet the toolbox's own prose is written
 in. So nothing detects a run of German — and where the glosses are in
 another Latin-script language, a capitalised German noun standing in a
 sentence of English or Italian or Turkish reads as a proper name rather than
 as a foreign word. Wherever the format asks you to mark the target text (a
 studio document's `[…]{tl}` mark), mark every German run; in a book chunk or
-a video chunk `fa` is German by definition and needs no mark.
+a video chunk `fa` is German by definition and needs no mark.{{/studio}}
 
 ## Reading
 
@@ -70,7 +70,7 @@ This language has no reading field.
 
 ## Transliteration
 
-`tr` is a **pronunciation line, given only where the spelling misleads**, and
+{{?classic}}`tr` is a **pronunciation line, given only where the spelling misleads**, and
 it may be omitted — most chunks need none. German says most of what it
 writes; what it does not show is how long a vowel is, which of the two *ch*
 sounds is meant, where the stress falls, and that a final *-er* is a vowel.
@@ -126,23 +126,69 @@ The letters that change:
   **`eu`** and **`äu`** are `oy` (`'hoyte` *heute*, `'boyme` *Bäume*); an
   **`h`** after a vowel is silent and only says the vowel is long (`tsa:n`
   *Zahn*, `'ge:en` *gehen*); **`ng`** is one sound with no g after it
-  (`'zingen` *singen*).
+  (`'zingen` *singen*).{{/classic}}{{?ipa}}`tr` is the pronunciation in **IPA**: broad (phonemic), for standard
+German, with no slashes and no square brackets round it, and **given only where
+the spelling misleads**; it may be omitted — most chunks need none. German says
+most of what it writes; what it does not show is how long a vowel is, which of
+the two *ch* sounds is meant, where the stress falls, and that a final *-er* is a
+vowel.
+
+When you give a line, write the **whole chunk**, never one word out of it, in
+small letters — a capital would be read as a symbol. It is one scheme for every
+German edition whatever the glosses are written in. `ː` after a vowel says it is
+long (`ʃtaːt` *Staat* against `ʃtat` *Stadt*; `ˈoːfən` *Ofen* against `ˈɔfən`
+*offen*), and `ˈ` before a syllable says the stress falls there (`bəˈzuːxən`
+*besuchen*, `yːbɐˈzɛtsən` *übersetzen*); a word of one syllable carries no stress
+mark. The letters and the sounds the spelling hides:
+
+- **`ch`** is `x` after a, o, u, au (`bax` *Bach*, `buːx` *Buch*, `ˈkɔxən`
+  *kochen*, `ʁaʊx` *Rauch*) and `ç` everywhere else — after e, i, ä, ö, ü, ei,
+  eu, after a consonant, and always in `-chen` (`ɪç` *ich*, `mɪlç` *Milch*,
+  `ˈmɛːtçən` *Mädchen*, `ˈbyːçɐ` *Bücher*). A real German x is `ks` (`ˈtaksi`
+  *Taxi*). Final `-ig` is `ɪç`: `ˈkøːnɪç` *König*, `ˈʁɪçtɪç` *richtig*.
+- A **doubled consonant is written single** (`ˈɔfən` *offen*, `ˈvasɐ`
+  *Wasser*): the doubling in German spelling is there to say the vowel before it
+  is short, and the line says that already by leaving the length mark off.
+- **`v`** is `f` (`ˈfaːtɐ` *Vater*, `fiːl` *viel*), except in loanwords where it
+  stays `v` (`ˈvaːzə` *Vase*); **`w`** is `v` (`ˈvasɐ` *Wasser*); **`z`** and
+  **`tz`** are `ts` (`tsaɪt` *Zeit*, `ˈzɛtsən` *setzen*).
+- **`s`** before a vowel is voiced and written `z` (`ˈzɔnə` *Sonne*, `ˈzeːən`
+  *sehen*); `s`, `ss` and `ß` elsewhere are `s` (`ˈʃtʁaːsə` *Straße*, `haʊs`
+  *Haus*). The line does not keep the ß; `fa` always does.
+- **`st`** and **`sp`** at the start of a word or of a stem are `ʃt` and `ʃp`
+  (`ʃtaːt` *Staat*, `ˈʃpiːlən` *spielen*, `fɛɐˈʃteːən` *verstehen*); `sch` is
+  `ʃ`; **`ʒ`** is the *s* of *measure*, for the words German took from French
+  (`gaˈʁaːʒə` *Garage*, `ʒʊʁnaˈlɪst` *Journalist*).
+- A final **`b`, `d`, `g`** hardens to `p`, `t`, `k`: `taːk` *Tag*, `baːt` *Bad*,
+  `gɛlp` *gelb*, `ʊnt` *und* — which is why *Rad* and *Rat* are both `ʁaːt`.
+- **`r`** is `ʁ` before a vowel and `ɐ` after a vowel or at the end of a word,
+  and a final **`-er`** is `ɐ`: `ˈfaːtɐ` *Vater*, `ˈkɪndɐ` *Kinder*, `ˈaːbɐ`
+  *aber*, `uːɐ` *Uhr*; the prefix `ver-` is `fɛɐ` (`fɛɐˈʃteːən`). A final `-e` is
+  `ə` (`ˈbluːmə` *Blume*), and so is the vowel of `-en` (`ˈmaxən` *machen*).
+- **`ei`** is `aɪ` (`tsaɪt` *Zeit*), **`ie`** is `iː` (`ˈliːbən` *lieben*),
+  **`eu`** and **`äu`** are `ɔʏ` (`ˈhɔʏtə` *heute*, `ˈbɔʏmə` *Bäume*); an **`h`**
+  after a vowel is silent and only says the vowel is long (`tsaːn` *Zahn*,
+  `ˈgeːən` *gehen*); **`ng`** is one sound, `ŋ`, with no g after it (`ˈzɪŋən`
+  *singen*).{{/ipa}}
 
 **Give a line** for: a vowel length the sense turns on (*Stadt* / *Staat*,
 *Ofen* / *offen*); any word with a `ch` — *ich* and *nicht* included, the
 line being where the reader is told which of the two sounds it is, and the
 digraph `sch` not being one; a stress that is not on the first syllable
-(`bäke'rai` *Bäckerei*, `ja:r'hundat` *Jahrhundert*, `univerzi'tä:t`
-*Universität*); **every verb with a prefix, the first time it appears**,
-because the stress is the whole difference between the two kinds
-(`'umfa:ren` *umfahren*, to run over, against `um'fa:ren`, to drive round);
-the `-tion` ending (`na'tsio:n` *Nation*); and a loanword that keeps a
-foreign sound (`schef` *Chef*, `kom'pju:ta` *Computer*).
+({{?classic}}`bäke'rai` *Bäckerei*, `ja:r'hundat` *Jahrhundert*, `univerzi'tä:t`
+*Universität*{{/classic}}{{?ipa}}`bɛkəˈʁaɪ` *Bäckerei*, `jaːɐˈhʊndɐt` *Jahrhundert*,
+`univɛʁziˈtɛːt` *Universität*{{/ipa}}); **every verb with a prefix, the first time it
+appears**, because the stress is the whole difference between the two kinds
+({{?classic}}`'umfa:ren` *umfahren*, to run over, against `um'fa:ren`, to drive
+round{{/classic}}{{?ipa}}`ˈʊmfaːʁən` *umfahren*, to run over, against `ʊmˈfaːʁən`, to drive
+round{{/ipa}}); the `-tion` ending ({{?classic}}`na'tsio:n`{{/classic}}{{?ipa}}`naˈtsjoːn`{{/ipa}} *Nation*); and a
+loanword that keeps a foreign sound ({{?classic}}`schef` *Chef*, `kom'pju:ta`
+*Computer*{{/classic}}{{?ipa}}`ʃɛf` *Chef*, `kɔmˈpjuːtɐ` *Computer*{{/ipa}}).
 
 **Leave it empty** for a chunk whose spelling already says it — `der Mann`,
 `im Garten`, `und dann` — which is most chunks. A chunk holding a `ch` is
-never one of them, common as the word may be: `ich habe` earns `iç 'ha:be`.
-A line given for one word and half a chunk is worse than none.
+never one of them, common as the word may be: `ich habe` earns
+{{?classic}}`iç 'ha:be`{{/classic}}{{?ipa}}`ɪç ˈhaːbə`{{/ipa}}. A line given for one word and half a chunk is worse than none.
 
 How much a spelling "already says" depends a little on who is reading it. A
 book glossed in Japanese, Persian or Arabic is read by somebody with no
@@ -194,22 +240,27 @@ at all; elsewhere they are left empty.
   What to do when the sentence has pulled a separable verb apart is under
   **Chunking**, and it matters more than anything else on this page.
 - A **noun** is given in the nominative singular, **with its article and its
-  plural**: `der Tisch, -e` · table; `die Frau, -en` · woman; `das Fenster,
-  -` · window. Write the plural out in full where it takes an umlaut (`das
-  Buch, Bücher`; `die Mutter, Mütter`). A weak masculine takes `-n` in every
-  case but the nominative singular, and that is worth saying: `der Student,
-  -en (den Studenten)` · student.
+  plural**, the article and the plural inside the headword slot: `\dw{der Tisch,
+  -e}{} table`; `\dw{die Frau, -en}{} woman`; `\dw{das Fenster, -}{} window`.
+  Write the plural out in full where it takes an umlaut (`das Buch, Bücher`;
+  `die Mutter, Mütter`). A weak masculine takes `-n` in every case but the
+  nominative singular, and that is worth saying: `\dw{der Student, -en}{}
+  student; here \pw{den Studenten}, weak masculine`.
 - **Case** is carried by the article and the endings, and the line always
   shows the nominative singular whatever case the text has. Where the form in
-  the text is not that, name the case and what put it there: `dem Mann · der
-  Mann, Männer, dat. after mit`; `des Hauses · das Haus, Häuser, gen.`. An
-  adjective ending is a case mark and not part of the word, so the headword
-  is the bare adjective: `großen · groß, big`.
-- A **preposition** is glossed with the case it takes: `mit · with (+ dat.)`,
-  `für · for (+ acc.)`, `wegen · because of (+ gen.)`. The nine that take
-  both take both: `in · in (+ acc. where it is motion into, + dat. where it
-  is a place)`. A contraction is spelled out: `im = in dem`, `zum = zu dem`,
-  `ins = in das`.
+  the text is not that, name the case and what put it there, after the entry:
+  `\dw{der Mann, Männer}{} man; here \pw{dem Mann}, dat. after \pw{mit}`;
+  `\dw{das Haus, Häuser}{} house; here \pw{des Hauses}, gen.`. An adjective
+  ending is a case mark and not part of the word, so the headword is the bare
+  adjective: `\dw{groß}{} big; here \pw{großen}`.
+- A **preposition** that is not on the *Never gloss* list below is glossed with
+  the case it takes: `\dw{wegen}{} because of (+ gen.)`, `\dw{trotz}{} despite
+  (+ gen.)`, `\dw{außer}{} except (+ dat.)`. One that is on the list gets no
+  entry of its own: the noun it governs says the case and what put it there
+  (the bullet above) and, for the nine that take either case, which one:
+  `\dw{der Garten, Gärten}{} garden; here \pw{im Garten} = \pw{in dem}, dat.
+  after \pw{in}, where it is a place` (acc. where it is motion into). A
+  contraction is spelled out the same way: `zum = zu dem`, `ins = in das`.
 - A **compound** is broken into the words it is made of, because a dictionary
   may not have the compound itself: `\dw{die Geschwindigkeitsbegrenzung,
   -en}{} speed limit \bw{Geschwindigkeit}{}{speed}
@@ -217,13 +268,13 @@ at all; elsewhere they are left empty.
   genitive.
 - A **modal particle** — `doch`, `mal`, `ja`, `eben`, `halt`, `wohl`,
   `schon` — is glossed by what it is doing and not by a dictionary word:
-  `doch · particle, contradicts what was just said`; `mal · particle, softens
-  an order`.
+  `\dw{doch}{} particle, contradicts what was just said`; `\dw{mal}{}
+  particle, softens an order`.
 - Name what was stripped or added: the plural, the diminutive `-chen` /
   `-lein` (with the umlaut and the neuter gender it brings: `das Brötchen`
-  from `das Brot`), the comparative `-er` and superlative `-st` (`größer ·
-  groß, comp.`), the `zu` of an infinitive, the adverb that is simply the
-  bare adjective (`schnell`).
+  from `das Brot`), the comparative `-er` and superlative `-st` (`\dw{groß}{}
+  big; here \pw{größer}, comparative`), the `zu` of an infinitive, the adverb
+  that is simply the bare adjective (`schnell`).
 - The line uses the four macros `\dw` `\vb` `\bw` `\pw` (plus `\textit`,
   `\emph`, `\nobreak`), as the Persian editions do, and its entries are
   parted by `; `: `\vb` for every verb, `\dw` for every other headword — the
@@ -231,31 +282,9 @@ at all; elsewhere they are left empty.
   table`) — `\bw` for the parts of a compound, and `\pw` for a German word
   quoted inside a remark in the gloss language (`\pw{auf} at the end of the
   clause`).
-{{?video}}- A video's line is written exactly as a book's; a line with no macro at all
-  is plain text, and is also accepted. What a video adds is the form its chunk
-  has, where it is none of the three the `\vb` prints, nor one its parenthesis
-  names: it is named after the entry, outside it,
+- A form in the text that is none of the three the `\vb` prints, nor one its
+  parenthesis names, is named after the entry, outside it, with what it is:
   `\vb{geben}{}{gab}{}{gegeben}{}{to give (er gibt)}; here \pw{gaben}, pret. plural`.
-{{/video}}
-The gloss editor's sources sidebar, in the reader and in the player, now
-proposes the `\vb` from the dictionary for a verb it recognises: the three
-principal parts, the third person where it changes, the auxiliary, and the
-case or preposition where the dictionary gives one for the meaning; `sich`
-in front where the chunk holds the reflexive pronoun (or the verb has no
-other use); and a separable verb put back together — at `stand`,
-aufstehen's entry — where its prefix ends the clause in the text that was
-looked up. It offers no `\vb` for `hat`, `ist` or `wird` where the clause
-ends in the participle or the infinitive they make a tense with: write the
-pointer. It is a **draft for you to correct**: a verb the dictionary gives
-both auxiliaries says `aux. haben/sein` until you strike one for the sense in
-the text (*fahren*, and *liegen*, *sitzen*, *stehen*, whose perfect the south
-makes with *sein*); a preposition that takes either case is printed `auf + …`
-where the dictionary does not say which; a prefix outside the text that was
-looked up is not seen, and the finite verb then comes as its plain stem
-(`stand`, stehen); the sound slots are
-empty, for you to fill where a pronunciation line is given; and the meaning
-is the dictionary's first sense rather than the text's. Correct it before it
-is saved; where it could not fill a slot, the button says which.
 
 One equivalent in the gloss language rather than a string of synonyms; no
 etymologies; **an empty `voc` is the right answer** for a chunk needing
@@ -342,4 +371,29 @@ meaning, the other half gets a pointer to it:
 - **A perfect or a modal.** Here the meaning is at the end, in the participle
   or the infinitive, so the entry goes there — `gesehen`:
   `\vb{sehen}{}{sah}{}{gesehen}{}{to see}` — and the auxiliary is named where
-  it stands: `hat · haben, makes the perfect with gesehen below`.
+  it stands: `\dw{hat}{} \pw{haben}, makes the perfect with \pw{gesehen} below`.
+
+## Example
+
+One sentence of German, answered: its chunks as they stand in the list of your
+answer. The `en` of each chunk says only what that chunk says, in the order of
+the German.
+
+```json
+{"chunks": [
+  {"fa": "Wir sind", "voc": "\\dw{sind}{} \\pw{sein}, makes the perfect with \\pw{gefahren} below", "en": "we are"},
+  {"fa": "mit dem Zug", "voc": "\\dw{der Zug, Züge}{} train; here \\pw{dem Zug}, dat. after \\pw{mit}", "en": "with the train"},
+  {"fa": "nach München", "tr": "{{?classic}}nax 'münçen{{/classic}}{{?ipa}}nax ˈmʏnçən{{/ipa}}", "en": "to Munich"},
+  {"fa": "gefahren.", "voc": "\\vb{fahren}{}{fuhr}{}{gefahren}{}{to drive, to travel (er fährt; aux. sein)}", "en": "travelled."}
+]}
+```
+
+Notice: read in a row the `en` lines keep the German order — *we are | with the
+train | to Munich | travelled* — stiff, and right: the verb's two halves stand where
+German puts them, the full entry goes with the participle that carries the
+meaning, and the auxiliary is only named where it stands. `mit dem Zug` names the
+case and what put it there; the sound slots of the `\vb` stay empty; and only
+the third chunk has a `tr`, for its `ch`, the spelling saying all there is to say
+in the others.
+
+{{?note}}No speaker has reviewed this example yet.{{/note}}
