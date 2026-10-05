@@ -23,7 +23,7 @@ html-guide/
   engine/         the compiler: standard-library Python
   assets/         guide.css, guide.js, favicon.svg: loaded by every page, tracked
   markdown/       the pages (tracked); a folder is a section; pictures beside them
-  site/           what a compile makes (tracked: GitHub Pages publishes it): the pages, nav.js,
+  site/           what a compile makes (tracked: every install carries it): the pages, nav.js,
                   search-index.js, build.json, _parseh/ (the studio's runtime)
 ```
 
