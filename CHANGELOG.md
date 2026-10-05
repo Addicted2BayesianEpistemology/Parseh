@@ -6,10 +6,15 @@
 - Every address Parseh writes for itself is kept in one place, lib/project.py
 - release.py links asks every address Parseh names and says what each answers
 - Settings → About shows a few friendly numbers: cards answered, videos and books on the shelves, since when
+- From a0.4.2: prompts of your own, the studio's prompt in parts, IPA and short-vowel options, skills for your chatbot, a book made by an agent from any device, pictograms (ARASAAC)
+- From a0.4.2: a video's vocabulary in the books' entries, notes on a video's phrases, a sound in place of a video, flashcards that turn
+- From a0.4.3: Whisper models for each language, optional exact word times kept through every edit of a transcript
+- From a0.4.3: a transcript workspace with LM likelihood, an LLM connection, a reasoning workspace and chatbot copy-and-paste review
+- From a0.4.3: partial-word colours in the studio, mobile arrow keys that skip, a card maker for books and videos
 
 ### Changed
 - Speech to text lists the Whisper program first, above the second pass and the models
-- Includes a0.4.2 and a0.4.3, which were finished but not released on their own: their entries follow
+- a0.4.2 and a0.4.3 were finished but not released on their own: their full entries follow
 
 ### Fixed
 - LLM Integration, LM likelihood and About are drawn with their own stylesheet and end in a foot like the other doors
