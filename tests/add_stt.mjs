@@ -1003,6 +1003,10 @@ await section('f', 'every language, two widths, three themes, left to right and 
       if (wr.left < -1 || wr.right > vw + 1 || wr.top < -1 || wr.bottom > vh + 1)
         bad.push('the window leaves the screen: ' + [wr.left, wr.top, wr.right, wr.bottom].map(Math.round) + ' of ' + vw + 'x' + vh);
       if (w.scrollWidth > w.clientWidth + 1) bad.push('the window overflows itself sideways: ' + w.scrollWidth + ' > ' + w.clientWidth);
+      // its head is part of it, above its columns (the page's bare `header` rule once pinned it to the top of the screen)
+      const head = w.querySelector('header'), cols = w.querySelector('.stt-workspace-columns');
+      if (head && cols && (getComputedStyle(head).position === 'fixed' || head.getBoundingClientRect().bottom > cols.getBoundingClientRect().top + 1))
+        bad.push('the window\'s head is not above its columns: ' + getComputedStyle(head).position + ' ' + Math.round(head.getBoundingClientRect().bottom) + ' > ' + Math.round(cols.getBoundingClientRect().top));
       for (const e of w.querySelectorAll('*')) {
         if (!e.getClientRects().length || e.closest('[hidden]')) continue;
         const b = e.getBoundingClientRect();
@@ -1049,9 +1053,9 @@ await section('f', 'every language, two widths, three themes, left to right and 
     await chooseFilm(page, {lang: 'ja', seconds: 4});
     await page.click('#stt_go');
     await until(async () => /Loading|Transcribing/.test(await say(page)), `${label}: at work`, 30000);
+    await shot(page, `f-working-${width}-${theme}-${dir}`);
     eq(await fits(page), [], `${label}: the block at work fits`);
     assert(await shown(page, '#stt_bar') && await shown(page, '#stt_cancel'), `${label}: a bar and Cancel`);
-    await shot(page, `f-working-${width}-${theme}-${dir}`);
     await page.click('#stt_cancel');
     await inPhase(page, 'idle', `${label}: cancelled`);
     await context.close();
