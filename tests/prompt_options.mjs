@@ -643,7 +643,9 @@ try {
       const page = await open(`/youtube/v/${T['v' + key]}/`, `player ${key} IPA`);
       await page.waitForSelector('#segs .seg .fa .w');
       await page.waitForFunction(() => window.__yt && document.querySelector('#novid').hidden);
-      await page.hover('#segs .seg[data-i="0"] .fa .w[data-j="0"]');
+      await page.hover('#segs .seg[data-i="0"] .fa .w[data-j="0"]', {timeout: 8000}).catch(async e => {
+        throw Error(e.message.split('\n')[0] + '\nthe first caption: ' + (await page.evaluate(() => (document.querySelector('#segs .seg') || {outerHTML: 'no .seg'}).outerHTML.slice(0, 700))));
+      });
       await page.waitForFunction(() => { const c = document.querySelector('#cloud'); return !c.hidden && c.querySelector('.tr'); });
       const tr = await page.evaluate(() => document.querySelector('#cloud .tr').textContent.trim());
       assert(IPA_OF[key].includes(tr), `${key} player: the cloud of a phrase says its IPA as written (${tr})`);
