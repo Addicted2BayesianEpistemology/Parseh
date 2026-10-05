@@ -78,13 +78,16 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     and a real tab capture, against the real transcription job (its worker a
 //     stand-in for faster-whisper, lib/getstt.py a file: tests/addstt_fakes.py):
 //     what the page says before anything is recorded, the video loaded in a
-//     frame on screen, the tab shared only in answer to the second press, the
-//     recording to its end and the words in the transcript box, the shape of
-//     the sound held and put beside the video when it is added; no sound in the
-//     share, a share refused, Cancel in the middle (playback, tracks, upload,
-//     the temporary sound, the box), a second start refused, a video whose
-//     player rounds its length up (it was cancelled as stopped), and the same
-//     in a right-to-left language on a phone's width
+//     frame on screen (since a0.4.3 in the transcription workspace, a modal
+//     window over the page; on a phone's layout, in the page), the tab shared
+//     only in answer to the second press, the recording to its end, the words
+//     put up for review and in the transcript box only when the person presses
+//     "Use this transcript", the shape of the sound held and put beside the
+//     video when it is added; no sound in the share, a share refused, Cancel
+//     in the middle (playback, tracks, upload, the temporary sound, the box), a
+//     second start refused, a video whose player rounds its length up (it was
+//     cancelled as stopped), and the same in a right-to-left language on a
+//     phone's width
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
@@ -2126,6 +2129,26 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     assert(got.every(e => re.test(e)), `${what}: only refusals that were meant (${JSON.stringify(got)})`);
     return got.length;
   };
+  // The page goes to the video's own page on the answer of /api/empty, and Playwright cannot read the body
+  // of a response of a page it has left (Network.getResponseBody: "No resource with given identifier
+  // found"): reading it after the click, or chained onto waitForResponse, is a race the page wins whenever
+  // it navigates first.  So the test answers for the page: it fetches the door's answer itself, keeps its
+  // body, and hands the same answer on.  Set before the click; `.body` is a promise of the door's body.
+  async function watchEmpty(page) {
+    let kept, lost;
+    const body = new Promise((ok, bad) => { kept = ok; lost = bad; });
+    body.catch(() => {});
+    const timer = setTimeout(() => lost(Error('FAIL: the door /api/empty was never asked, 40 s after it was watched (the page is at ' + page.url() + ')')), 40000);
+    body.then(() => clearTimeout(timer), () => clearTimeout(timer));
+    await page.route(/\/api\/empty$/, async route => {
+      try {
+        const r = await route.fetch();
+        kept(await r.json());
+        await route.fulfill({response: r});
+      } catch (e) { lost(e); }
+    });
+    return {body};       // (not the promise itself: an async function would wait for it before returning)
+  }
   const fakeLog = () => Deno.readTextFile(STTF + '/fake.log').then(t => t.split('\n').filter(Boolean).map(l => JSON.parse(l)), () => []);
   const status = (page, job) => page.request.post(`${BASE}/youtube/api/transcribe/status`, {data: {job}}).then(r => r.json());
   // the add page on a YouTube video, with a transcript in the box or not
@@ -2162,9 +2185,13 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     });
     return j;
   }
+  // what must fit: the block on the page, or -- while the transcription workspace is open, a modal
+  // window over the page that is the whole screen -- the window, which must itself be on the screen
   const fits = page => page.evaluate(() => {
-    const s = document.getElementById('stt'), r = s.getBoundingClientRect(), bad = [];
+    const w = document.getElementById('stt_workspace'), open = !!(w && w.open);
+    const s = open ? w : document.getElementById('stt'), r = s.getBoundingClientRect(), bad = [];
     const vw = document.documentElement.clientWidth;
+    if (open && (r.left < -1 || r.right > vw + 1)) bad.push('the workspace sticks out of the screen: ' + Math.round(r.left) + ' to ' + Math.round(r.right) + ' of ' + vw);
     if (document.documentElement.scrollWidth > vw + 1) bad.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + vw);
     for (const e of s.querySelectorAll('*')) {
       if (!e.getClientRects().length || e.closest('[hidden]')) continue;
@@ -2173,10 +2200,34 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     }
     return bad;
   });
+  // the workspace's own title bar and "Return to Add Video": inside the window, on the screen, nothing over
+  // them, and the window's content begins below them.  (The page's stylesheet knows a bare <header> as the
+  // player's fixed bar that slides away when the page is scrolled: it took the workspace's out of the window,
+  // over the top of its content, and, on a phone's width, off the screen.)
+  const headOk = page => page.evaluate(() => {
+    const w = document.getElementById('stt_workspace'), h = w.querySelector('.stt-workspace-head'), bad = [];
+    const wr = w.getBoundingClientRect(), hr = h.getBoundingClientRect();
+    if (hr.left < wr.left - 1 || hr.right > wr.right + 1 || hr.top < wr.top - 1 || hr.bottom > wr.bottom + 1) bad.push('the title bar is not inside the window');
+    if (w.querySelector('.stt-workspace-columns').getBoundingClientRect().top < hr.bottom - 1) bad.push('the content begins under the title bar');
+    for (const id of ['stt_workspace_title', 'stt_back']) {
+      const r = document.getElementById(id).getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      if (!(r.top >= 0 && r.bottom <= innerHeight && hit && document.getElementById(id).contains(hit))) bad.push(id + ' is not on the screen, or something is over it');
+    }
+    return bad;
+  });
   const captured = page => page.evaluate(() => ({
     tracks: __streams.map(s => s.getTracks().map(t => t.readyState)),
     contexts: __contexts.map(c => c.state), busy: ParsehTabCapture.busy(), asked: __asked.length,
     frames: document.querySelectorAll('#stt_frame iframe').length, calls: window.__calls || []}));
+  // Since a0.4.3 every result is PENDING: the words are put up for review in the workspace, and the box
+  // is written only when the person presses "Use this transcript" (and, if it holds words of their
+  // own that the result would replace, asked first: the dialog the page counts in page.dialogs).
+  const inReview = (page, what, ms = 90000) => inPh(page, 'review', what, ms);
+  async function useIt(page) {
+    await page.click('#stt_use');
+    await inPh(page, 'idle', '"Use this transcript" ends the review');
+  }
   const panelStarts = async (page, lang = 'it') => {
     const r = await (await page.request.post(`${BASE}/youtube/api/transcript`, {data: {transcript: await page.inputValue('#transcript'), lang}})).json();
     return r.captions.map(c => [c.start, c.text]);
@@ -2200,10 +2251,23 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     eq((await captured(page)).asked, 0, 'the tab is still not shared: the browser asks only in answer to a press');
     const how2 = await text(page, '#stt_how');
     assert(/Start recording/.test(how2) && /Share tab audio/.test(how2) && /in front/.test(how2), 'and the page says what the press will do: ' + how2);
-    // the editor would play a second copy of the video: not while this one waits
-    await page.click('#subedit');
-    eq([await page.locator('.se-box').count(), await page.evaluate(() => document.getElementById('parseh-toast').textContent)],
-       [0, 'the video in the frame above is being recorded — finish or cancel that first'], '"Edit the transcript…" is put off while the video is loaded here');
+    // The editor would play a second copy of the video: it cannot be reached while this one waits.  Since
+    // a0.4.3 the video is loaded in the transcription workspace, a modal window that is the whole screen
+    // and cannot be closed until the recording is cancelled or done: the page behind it is inert, so
+    // "Edit the transcript…" is under the window and nothing can focus or press it (the sentence that
+    // says "finish or cancel that first" is for the layout where the video stays in the page: n1c).
+    const behind = await page.evaluate(() => {
+      const w = document.getElementById('stt_workspace'), b = document.getElementById('subedit');
+      b.scrollIntoView({block: 'center'});
+      const r = b.getBoundingClientRect(), top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      b.focus();
+      return {open: w.open, modal: w.matches(':modal'), framed: w.contains(document.getElementById('stt_frame')),
+              coveredBy: top && w.contains(top) ? 'the workspace' : top && (top.id || top.tagName), focusable: document.activeElement === b};
+    });
+    eq(behind, {open: true, modal: true, framed: true, coveredBy: 'the workspace', focusable: false},
+       'the video waits in the modal workspace: "Edit the transcript…" behind it is covered, and cannot be focused');
+    eq(await page.locator('.se-box').count(), 0, 'and no editor is open');
+    eq(await headOk(page), [], 'the workspace\'s title bar and "Return to Add Video" are in the window, on the screen, over nothing');
     await shotN(page, 'n1-ready');
     await page.click('#stt_rec');
     eq((await captured(page)).asked, 1, 'the browser was asked to share the tab, in answer to that press');
@@ -2217,12 +2281,23 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     const sz = await page.$eval('#stt_frame iframe', f => { const r = f.getBoundingClientRect(); return [r.width, r.height]; });
     assert(sz[0] >= 200 && sz[1] >= 200, 'the frame stays on screen while it records');
     await shotN(page, 'n1-recording');
-    await inPh(page, 'idle', 'the recording ends and the words arrive', 90000);
+    await inReview(page, 'the recording ends and the words are put up for review');
+    eq(await page.inputValue('#transcript'), BOX, 'the words wait in the review: the box is exactly as it was');
+    eq(page.dialogs.length, 1, 'and it asked no second time: the box did not change while it ran');
+    await shotN(page, 'n1-review');
+    {
+      const c = await captured(page);
+      eq([c.busy, c.contexts.every(x => x === 'closed'), c.tracks.every(t => t.every(x => x === 'ended'))], [false, true, true],
+         'the tab, both contexts and every track are let go as soon as the recording is done');
+    }
+    await useIt(page);
+    // the box held words of the person's own, which the result replaces: asked, in the words of the review, before it did
+    eq([page.dialogs.length, /^Replace the transcript in the box with this reviewed transcript\?/.test(page.dialogs[1] || '')], [2, true],
+       'a box with words in it was asked about a second time, when they were to be replaced: ' + JSON.stringify(page.dialogs));
     const read = await panelStarts(page);
     eq(read.map(r => r[1]), ['Buongiorno a tutti', 'oggi andiamo al mercato', 'compriamo la frutta'], 'the words are in the transcript box, one caption each');
     assert(read.every((r, i) => Math.abs(r[0] - [0, 2.5, 6][i]) < 0.75), `on the video's own clock, within the start of the recording: ${JSON.stringify(read.map(r => r[0]))}`);
     assert(/The transcript is in the box: 3 captions/.test(await text(page, '#stt_note')), await text(page, '#stt_note'));
-    eq(page.dialogs.length, 1, 'and it asked no second time: the box did not change while it ran');
     const c = await captured(page);
     eq([c.frames, c.busy, c.contexts.every(x => x === 'closed'), c.tracks.every(t => t.every(x => x === 'ended'))], [0, false, true, true],
        'the video is out of its frame, and the tab, both contexts and every track are let go');
@@ -2243,15 +2318,36 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
            `the marks and the shape went before the last piece: ${JSON.stringify(calls.filter(x => !/^status/.test(x)))}`);
     assert(lastAt > -1 && calls.indexOf('result') > lastAt, 'and the words were asked for after it');
     // and now the video, the way a pasted transcript adds one
-    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url()));
+    const empty = await watchEmpty(page);
     await page.click('#empty');
-    const made = await (await empty).json();
+    const made = await empty.body;
     eq([made.ok, made.waveform], [true, {kept: true, buckets: wave.peaks.length}], 'the door that made the video was given the token and kept the waveform');
     await page.waitForURL(new RegExp(`/youtube/v/${NID}/$`), {timeout: 30000});
     const beside = await readJson(`${VIDEOS}/italian/${NID}/waveform.json`);
     eq(beside, wave, 'waveform.json lands beside the video, as the player\'s own door writes it');
     eq(Object.keys(beside), ['rate', 'peaks'], 'in the shape it has always had');
     eq(await names(HOLD, /\.json$/), [], 'and the hold is spent');
+    await context.close();
+  }
+
+  {
+    console.log('   n1c) on the phone\'s layout the video stays in the page: "Edit the transcript…" is put off while it is loaded');
+    // the layout is the person's choice (parseh_mode); there is no workspace over the page, the frame is
+    // where the block put it, and the second copy of the video the editor would play is refused (with a
+    // transcript in the box: with none, the editor says "paste the transcript first" before anything)
+    const {context, page} = await addPage({width: 390, box: BOX, init: () => { try { localStorage.setItem('parseh_mode', 'mobile'); } catch (_) {} }});
+    eq(await page.evaluate(() => document.documentElement.getAttribute('data-mode')), 'mobile', 'the page is in the phone\'s layout');
+    await toReady(page);
+    eq(await page.evaluate(() => { const w = document.getElementById('stt_workspace'); return [w.open, w.contains(document.getElementById('stt_frame'))]; }),
+       [false, false], 'no workspace is over the page, and the frame is in the page');
+    await page.evaluate(() => document.getElementById('subedit').scrollIntoView({block: 'center'}));
+    assert(await onScreen(page, '#subedit'), '"Edit the transcript…" is there to be pressed: nothing is over it');
+    await page.click('#subedit');
+    eq([await page.locator('.se-box').count(), await page.evaluate(() => document.getElementById('parseh-toast').textContent)],
+       [0, 'the video in the frame above is being recorded — finish or cancel that first'], '"Edit the transcript…" is put off while the video is loaded here');
+    await shotN(page, 'n1c-ready-390-mobile');
+    await page.click('#stt_cancel');
+    await inPh(page, 'idle', 'Cancel');
     await context.close();
   }
 
@@ -2263,7 +2359,9 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     await toReady(page);
     await page.click('#stt_rec');
     await inPh(page, 'recording', 'recording');
-    await inPh(page, 'idle', 'the recording ends and the words arrive', 40000);
+    await inReview(page, 'the recording ends and the words are put up for review', 40000);
+    assert(!/stopped moving/.test(await text(page, '#stt_note')), 'the page did not say the video stopped moving: ' + await text(page, '#stt_note'));
+    await useIt(page);
     const note = await text(page, '#stt_note');
     assert(/The transcript is in the box: 3 captions/.test(note) && !/stopped moving/.test(note),
            'the words are in the box, and the page did not say the video stopped moving: ' + note);
@@ -2386,6 +2484,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     assert(/Persian/.test(await text(page, '#stt_lang')) && /فارسی/.test(await text(page, '#stt_lang')), 'the language names itself: ' + await text(page, '#stt_lang'));
     await toReady(page);
     eq(await fits(page), [], 'the video is loaded: it fits, on 390 px');
+    eq(await headOk(page), [], 'and its title bar and "Return to Add Video" are on the screen, though the page behind was scrolled');
     const frame = await page.$eval('#stt_frame iframe', f => { const r = f.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
     assert(frame[0] >= 200 && frame[1] >= 200, `and the frame is ${frame[0]} x ${frame[1]}: no smaller than YouTube plays`);
     await shotN(page, 'n6-ready-390-rtl');
@@ -2394,7 +2493,10 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     await until(async () => /^Recording \d+:\d\d \/ 0:12…$/.test(await text(page, '#stt_say')), 'counting', 40000);
     eq(await fits(page), [], 'recording: it fits');
     await shotN(page, 'n6-recording-390-rtl');
-    await inPh(page, 'idle', 'the words arrive', 90000);
+    await inReview(page, 'the words are put up for review');
+    eq(await fits(page), [], 'in review: it fits');
+    await shotN(page, 'n6-review-390-rtl');
+    await useIt(page);
     const box = await page.inputValue('#transcript');
     assert(/سلام دنیا/.test(box) && /میوه/.test(box), 'the Persian text is in the box, as Whisper wrote it: ' + JSON.stringify(box));
     eq(await fits(page), [], 'done: it fits');
@@ -2408,9 +2510,9 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     assert(await page.evaluate(() => document.getElementById('stt_tied').hidden), 'a different address: no longer tied');
     assert(/no longer tied to speech to text: the video changed/.test(await text(page, '#stt_note')), await text(page, '#stt_note'));
     await page.selectOption('#lang', 'fa');
-    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url()));
+    const empty = await watchEmpty(page);
     await page.click('#empty');
-    const made = await (await empty).json();
+    const made = await empty.body;
     eq([made.ok, 'waveform' in made], [true, false], 'the video that is not the recorded one is made without its waveform (the token was not sent)');
     eq((await names(HOLD, /\.json$/)).length, 1, 'and the held one is not spent on it');
     await context.close();

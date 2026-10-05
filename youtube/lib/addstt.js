@@ -319,7 +319,9 @@
     var workspace = el('dialog', 'stt-workspace');
     workspace.id = 'stt_workspace'; workspace.setAttribute('data-layout', 'browser');
     workspace.setAttribute('aria-labelledby', 'stt_workspace_title');
-    var head = el('header', 'stt-workspace-head');
+    // a <div>, not a <header>: the page's stylesheet and scripts (youtube/lib/style.css, lib/*.js) know a bare <header> as
+    // the player's fixed bar that slides away on scroll, and took this one out of the window, over its top, and off it
+    var head = el('div', 'stt-workspace-head');
     var heading = el('h2', null, 'Transcribe & review'); heading.id = 'stt_workspace_title';
     var step = el('span', 'stt-workspace-step');
     var back = button('Return to Add Video', 'stt_back', 'wbtn small quiet');
