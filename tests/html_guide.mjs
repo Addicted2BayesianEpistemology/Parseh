@@ -28,8 +28,13 @@ import jsQR from 'npm:jsqr@1.4.0';
 //      and what may not be fetched;
 //   3. as GitHub Pages publishes it: build.py --pages, served under
 //      /Parseh/ by a static server that knows nothing of Parseh -- and under
-//      /guide/ too, where a website would put it, which must not make the
-//      pages take that server for Parseh.
+//      /guide/ too, where a website would put it (a folder of that name, as
+//      parseh.io/guide is), which must not make the pages take that server
+//      for Parseh; and the PUBLISHED layout's bar, the website's own, at the
+//      top of the front page and of a compiled page, on a desktop and on a
+//      phone, light and dark: where it stands, what it is made of, that
+//      nothing of the guide's own header, contents drawer or search runs
+//      under it, and that it fetches nothing from another host.
 //
 // Every check is on what the browser drew -- computed styles, rectangles,
 // elementFromPoint, the clipboard's text -- not on what the HTML says.
@@ -1082,7 +1087,10 @@ serve.main()
   }
   // the same site under /guide/, where a website would put it: the address
   // alone once made the pages take this host for Parseh
-  await Deno.symlink(`${GH}/Parseh`, `${GH}/guide`);
+  {
+    const r = await run([PY, `${DISK}/build.py`, '--pages', `${GH}/guide`]);
+    assert(r.code === 0, 'build.py --pages lays the site out in a folder named guide: ' + r.out.trim());
+  }
   const H = `http://127.0.0.1:${gport}/guide/`;
   const herr = [];
   gp.on('pageerror', e => herr.push(e.message));
@@ -1098,6 +1106,128 @@ serve.main()
   }
   assert(herr.length === 0, 'and no script error: ' + herr.join('; '));
   await gctx.close();
+
+  // ---- the bar of the published layout, under /guide/
+  console.log('the bar of the published guide, under /guide/');
+  const WEB = (await run([PY, '-c', 'import sys; sys.path.insert(0, "lib"); import project; print(project.WEBSITE_URL)'])).out.trim();
+  assert(/^https:\/\/[a-z.]+\/$/.test(WEB), 'the website\'s address is project.WEBSITE_URL: ' + WEB);
+  assert((await fetch(H + 'lib/icons/parseh-192.png')).ok && !(await fetch(H + 'lib/icons/make.mjs')).ok,
+         'the phone app\'s icon is served at lib/icons/ under the guide\'s address, and the script that drew it is not');
+  for (const [width, height, scheme] of [[1280, 800, 'light'], [1280, 800, 'dark'], [390, 844, 'light'], [390, 844, 'dark']]) {
+    const phone = width < 520;
+    const bctx = await browser.newContext({viewport: {width, height}, colorScheme: scheme});
+    const bp = await bctx.newPage();
+    const foreign = [], berrs = [], missing = [];
+    bp.on('request', r => { if (!r.url().startsWith(`http://127.0.0.1:${gport}/`)) foreign.push(r.url()); });
+    bp.on('pageerror', e => berrs.push(e.message));
+    bp.on('response', r => { if (r.status() >= 400 && !r.url().endsWith('/__status')) missing.push(r.status() + ' ' + r.url()); });
+    const tag = `${phone ? 'phone' : 'desktop'}, ${scheme}`;
+    const state = () => bp.evaluate(() => {
+      const q = s => document.querySelector(s);
+      const rect = e => { const r = e.getBoundingClientRect(); return {top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height}; };
+      const bar = q('.ps-bar'), top = q('.g-top'), cs = getComputedStyle(bar);
+      // the guide's own tokens, asked of the page: the accent and the text on it
+      const probe = document.createElement('i');
+      probe.style.cssText = 'background-color:var(--accent);color:var(--accent-fg)';
+      document.body.append(probe);
+      const want = getComputedStyle(probe), wantBg = want.backgroundColor, wantFg = want.color;
+      probe.remove();
+      const kids = [...bar.querySelectorAll('a, button')].filter(e => e.getClientRects().length).map(rect);
+      const cur = q('.ps-nav a[aria-current]');
+      return {bars: document.querySelectorAll('.ps-bar').length, bar: rect(bar), top: rect(top), bg: cs.backgroundColor, fg: cs.color, wantBg, wantFg,
+        scrollW: document.documentElement.scrollWidth, innerW: innerWidth, position: cs.position,
+        kids: kids.length, inside: kids.every(k => k.left >= -.5 && k.right <= innerWidth + .5 && k.top >= -.5 && k.bottom <= rect(bar).bottom + .5),
+        home: q('.ps-home').href, current: cur.textContent, guide: cur.href,
+        others: [...bar.querySelectorAll('.ps-nav a:not([aria-current])')].map(a => a.textContent + ' ' + a.href),
+        name: getComputedStyle(q('.ps-name')).display, font: [...document.fonts].some(f => f.family.includes('Nastaliq') && f.status === 'loaded'),
+        side: rect(q('.g-side')), seen: document.documentElement.style.getPropertyValue('--ps-bar-seen')};
+    });
+    // (the showcase embeds a YouTube video, which is its own business and not the bar's: a page with none)
+    for (const [what, url] of [['the front page', H], ['a page of the guide', H + 'site/books/index.html']]) {
+      await bp.goto(url);
+      await bp.evaluate(() => document.fonts.ready);
+      await sleep(150);
+      let st = await state();
+      const here = `${what}, ${tag}`;
+      assert(st.bars === 1 && Math.abs(st.bar.height - (phone ? 44 : 56)) < 1 && st.bar.top === 0,
+             `${here}: one bar, ${phone ? 44 : 56}px high, at the very top: ` + JSON.stringify(st.bar));
+      assert(st.bar.bottom <= st.top.top + .5 && Math.abs(st.top.height - 48) < 1,
+             `${here}: the guide's own header stands under it, whole, and does not overlap it: bar ${st.bar.bottom}, header ${st.top.top}`);
+      assert(st.bg === st.wantBg && st.fg === st.wantFg, `${here}: the guide's own tokens, accent ${st.bg} with ${st.fg}`);
+      assert(st.scrollW <= st.innerW && st.inside && st.kids === 5 && st.position !== 'fixed' && st.position !== 'sticky',
+             `${here}: nothing runs past the window, nothing is fixed over the text: ` + JSON.stringify([st.scrollW, st.innerW, st.kids, st.position]));
+      assert(st.home === WEB && st.current === 'Guide' && st.guide === H + 'index.html' &&
+             st.others.join('|') === `Examples ${WEB}examples/|Downloads ${WEB}downloads/`,
+             `${here}: the logo leads to the website, Guide is where one is and leads to the guide's front page: ` + [st.home, st.guide, ...st.others].join(' '));
+      assert((st.name === 'none') === phone && st.font, `${here}: the name is ${phone ? 'put away' : 'there'}, the letter's face is loaded`);
+      assert(foreign.length === 0, `${here}: nothing was fetched from another host: ` + foreign.join(' '));
+      if (scheme === 'dark') {
+        assert(st.bg !== 'rgb(190, 52, 85)', `${here}: the dark theme's accent, not the light one's: ${st.bg}`);
+      }
+      // the contents and the search, under the bar
+      if (!phone) {
+        assert(st.side.top >= st.top.bottom - 1 && st.side.bottom <= height + 1,
+               `${here}: the contents column stands under the header and ends inside the window: ` + JSON.stringify(st.side));
+        await bp.mouse.wheel(0, 700);
+        await sleep(250);
+        st = await state();
+        assert(st.bar.bottom <= 0 && Math.abs(st.top.top) < 1 && st.seen === '0px' && Math.abs(st.side.top - 48) < 1 && Math.abs(st.side.bottom - height) < 2,
+               `${here}: scrolled, the bar goes and the header sticks, the contents column fills the window: ` + JSON.stringify([st.bar.bottom, st.top.top, st.seen, st.side]));
+        await bp.mouse.wheel(0, -2000);
+        await sleep(250);
+        await bp.click('[data-guide-side]');
+        assert(await bp.$eval('.g-side', s => getComputedStyle(s).display) === 'none', `${here}: the ☰ button still puts the contents away`);
+        await bp.click('[data-guide-side]');
+      } else {
+        assert(await bp.$eval('.g-side', s => s.getBoundingClientRect().right <= 0), `${here}: the contents drawer is out of the window`);
+        await bp.click('[data-guide-side]');
+        await sleep(350);
+        st = await state();
+        const open = await bp.evaluate(() => {
+          const btn = document.querySelector('[data-guide-side]').getBoundingClientRect();
+          const hit = document.elementFromPoint(btn.left + btn.width / 2, btn.top + btn.height / 2);
+          const bd = document.querySelector('.g-backdrop').getBoundingClientRect();
+          return {drawer: document.documentElement.classList.contains('g-drawer'), btnFree: !!hit && hit.closest('[data-guide-side]') !== null, backdropTop: bd.top};
+        });
+        assert(open.drawer && st.side.left >= 0 && st.side.top >= st.top.bottom - 1 && st.side.right > 200 && open.btnFree && Math.abs(open.backdropTop - st.side.top) < 1,
+               `${here}: the drawer opens under the header, not over it, the ☰ button that closes it stays reachable: ` + JSON.stringify([st.side, open]));
+      }
+      await bp.fill('[data-guide-search]', 'exercise');
+      await bp.waitForFunction(() => !document.querySelector('.g-results').hidden, null, {timeout: 5000}).catch(() => {});
+      const found = await bp.evaluate(() => {
+        const box = document.querySelector('.g-results'), r = box.getBoundingClientRect(), first = box.querySelector('a');
+        const f = first && first.getBoundingClientRect();
+        const hit = f && document.elementFromPoint(f.left + f.width / 2, f.top + f.height / 2);
+        return {shown: !box.hidden, n: box.querySelectorAll('a').length, reachable: !!hit && box.contains(hit), top: r.top};
+      });
+      assert(found.shown && found.n > 0 && found.reachable, `${here}: the search finds pages, and the first is where a click reaches it: ` + JSON.stringify(found));
+      if (phone) {
+        await bp.keyboard.press('Escape');
+        await sleep(250);
+        assert(await bp.evaluate(() => !document.documentElement.classList.contains('g-drawer')), `${here}: Escape puts the drawer away`);
+        // scrolled, the bar is gone and the drawer opens at the header again
+        await bp.evaluate(() => scrollTo(0, 500));
+        await sleep(250);
+        await bp.click('[data-guide-side]');
+        await sleep(350);
+        st = await state();
+        assert(st.bar.bottom <= 0 && Math.abs(st.top.top) < 1 && st.seen === '0px' && Math.abs(st.side.top - 48) < 1,
+               `${here}: scrolled, the bar is gone and the drawer opens at the header: ` + JSON.stringify([st.bar.bottom, st.top.top, st.seen, st.side.top]));
+        await bp.click('.g-backdrop', {position: {x: 370, y: 700}});
+        await sleep(250);
+      }
+      // the text is reached under the bar: the heading answers a point
+      await bp.evaluate(() => scrollTo(0, 0));
+      await sleep(150);
+      const text = await bp.evaluate(() => { const h = document.querySelector('h1').getBoundingClientRect();
+        const hit = document.elementFromPoint(h.left + h.width / 2, h.top + h.height / 2);
+        return {top: h.top, hit: !!hit && !!hit.closest('main')}; });
+      assert(text.hit && text.top > 90, `${here}: the heading is under the bar and the header, and is what a click there reaches: ` + JSON.stringify(text));
+    }
+    assert(berrs.length === 0, `${tag}: no script error: ` + berrs.join('; '));
+    assert(missing.length === 0, `${tag}: no address the pages ask for is missing under /guide/: ` + missing.join('; '));
+    await bctx.close();
+  }
   statik.kill('SIGTERM'); await statik.status;
 } finally {
   await browser.close();

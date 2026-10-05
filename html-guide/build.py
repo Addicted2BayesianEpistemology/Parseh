@@ -9,7 +9,10 @@
     python3 html-guide/build.py --clean         remove site/ and stop
     python3 html-guide/build.py --pages DIR     a whole deployable site in DIR:
                                                 index.html + assets/ + site/
-                                                (what GitHub Pages publishes)
+                                                (what GitHub Pages publishes;
+                                                in Parseh's own checkout also
+                                                lib/icons/ and the slim bar
+                                                that leads to parseh.io)
     python3 html-guide/build.py --export DIR    copy the guide, with a snapshot of
                                                 the studio it needs, into a
                                                 project of its own
@@ -76,11 +79,40 @@ def say_report(report, where, quiet=False):
 PAGES_MARKER = ".parseh-guide-pages"
 
 
+def _parseh_s_own():
+    """lib/project.py -- where Parseh lives, its one list of addresses -- of
+    the checkout this guide stands in, or None.
+
+    None is a guide copied into a project of its own (`--export`): that
+    project has no lib/ beside its build.py, and its guide is somebody's, not
+    Parseh's, so the layout it publishes has neither Parseh's bar nor Parseh's
+    icons.  project.py is standard library only, as this script is."""
+    lib = HERE.parent / "lib"
+    if not (lib / "project.py").is_file():
+        return None
+    if str(lib) not in sys.path:
+        sys.path.append(str(lib))
+    import project
+    return project
+
+
 def assemble_pages(dest):
-    """index.html, assets/ and site/ in one directory, as GitHub Pages (or any
-    static host) publishes them -> the Report.  The folder is emptied first,
-    so it must be new, empty, or an earlier --pages (its marker file says
-    so): any other is refused (NotOurs), untouched."""
+    """index.html, assets/, lib/icons/ and site/ in one directory, as GitHub
+    Pages (or any static host) publishes them -> the Report.  The folder is
+    emptied first, so it must be new, empty, or an earlier --pages (its marker
+    file says so): any other is refused (NotOurs), untouched.
+
+    THIS IS PARSEH'S PUBLISHED GUIDE, the one at project.GUIDE_URL, and it
+    differs from the guide an install carries (html-guide/site/, which this
+    never touches) in two things:
+      * the phone app's icons.  Chrome's WebAPK server fetches them from the
+        internet, from project.ICONS_URL, so the site serves them where that
+        says: lib/icons/*.png, and only those (lib/icons/make.mjs says how
+        they were drawn and is not part of the site);
+      * a slim bar on every page, with Parseh's logo and a link to
+        project.WEBSITE_URL (engine/bar.py).
+    A copy exported into a project of its own has neither (_parseh_s_own)."""
+    from engine import bar
     from engine.site import NotOurs, Site
     dest = Path(dest).resolve()
     marker = dest / PAGES_MARKER
@@ -95,11 +127,20 @@ def assemble_pages(dest):
     marker.write_text("This folder was laid out by html-guide/build.py --pages, and the next\n"
                       "--pages into it empties it whole: keep nothing else here.\n",
                       encoding="utf-8")
-    shutil.copyfile(HERE / "index.html", dest / "index.html")
+    project = _parseh_s_own()
+    front = (HERE / "index.html").read_bytes()
+    if project:
+        front = bar.put_on_the_front_page(front.decode("utf-8"), project.WEBSITE_URL).encode("utf-8")
+    (dest / "index.html").write_bytes(front)
     shutil.copytree(HERE / "assets", dest / "assets")
+    icons = HERE.parent / "lib" / "icons"
+    if project and icons.is_dir():
+        (dest / "lib" / "icons").mkdir(parents=True)
+        for png in sorted(icons.glob("*.png")):
+            shutil.copyfile(png, dest / "lib" / "icons" / png.name)
     # GitHub Pages would otherwise run Jekyll, which drops site/_parseh/
     (dest / ".nojekyll").write_text("", encoding="utf-8")
-    return Site(HERE).build(dest / "site")
+    return Site(HERE, bar_home=project.WEBSITE_URL if project else None).build(dest / "site")
 
 
 def main(argv=None):
