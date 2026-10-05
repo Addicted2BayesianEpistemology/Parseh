@@ -264,11 +264,11 @@ class EverythingSaysIt(unittest.TestCase):
         # is released, and the hub's foot says which one is running -- so it
         # cannot go stale, and a version written back into it fails here
         # instead of being forgotten on the next release day.
-        import updater
+        import project
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertEqual(re.findall(r"\b[ab]\d+\.\d+(?:\.\d+)?\b", readme), [],
                          "README.md names a version: link to the newest release instead")
-        self.assertIn(updater.RELEASES_PAGE + "/latest", readme)
+        self.assertIn(project.LATEST_URL, readme)
 
 
 # ------------------------------------------------------------------ the data's numbers

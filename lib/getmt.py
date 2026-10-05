@@ -49,6 +49,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import languages                                              # noqa: E402
 import version                                                # noqa: E402  who is asking: UA
+import project        # noqa: E402  where Parseh lives, for the line a download introduces itself with: UA
 import download       # noqa: E402  resumable, stoppable, and says how far
 
 MT_DIR = os.path.join(ROOT, "mt")
@@ -118,7 +119,7 @@ MEASURED = {
 # vocabulary; a few pairs split the vocabulary in two and name the halves
 # separately, which is why both spellings are looked for.
 WANT = ("model", "lex", "vocab", "srcvocab", "trgvocab")
-UA = "Parseh/%s (+https://github.com/Addicted2BayesianEpistemology/Parseh)" % version.VERSION
+UA = project.agent(version.VERSION)
 
 
 def _get(url, dest, say=print, progress=None, cancel=None, sha256=None,

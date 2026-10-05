@@ -80,6 +80,7 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import download       # noqa: E402  resumable, stoppable, and says how far
 import version        # noqa: E402  who is asking: UA
+import project        # noqa: E402  where Parseh lives, for the line a download introduces itself with: UA
 from alignerpins import ALIGN_PINS  # noqa: E402  public, immutable CTC networks
 import speechmodels  # noqa: E402  the shared immutable model catalogue
 
@@ -210,7 +211,7 @@ RUNTIME_REST = ("the rest of the packages the list names, and the backends CTran
 MODEL_SOURCE = ("OpenAI Whisper large-v3 and large-v3-turbo, converted to CTranslate2 "
                 "(Systran; Mobius Labs)")
 MODEL_LICENCE = "MIT"
-UA = "Parseh/%s (+https://github.com/Addicted2BayesianEpistemology/Parseh)" % version.VERSION
+UA = project.agent(version.VERSION)
 
 # WHISPER'S LANGUAGES at the pinned program (faster_whisper/tokenizer.py,
 # _LANGUAGE_CODES: 100 of them) -- kept here and not as a field of

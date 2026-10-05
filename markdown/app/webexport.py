@@ -69,6 +69,7 @@ for _p in (str(LIB), str(HERE.parent / "exlex")):
 import audiofile            # noqa: E402  the clips, cut where ffmpeg is here
 import htmlgen              # noqa: E402
 import languages            # noqa: E402
+import project              # noqa: E402  where Parseh lives: the two links of the foot
 
 
 class ExportError(Exception):
@@ -857,8 +858,8 @@ def _contents_html(toc):
 # page on GitHub and its guide.  Links, followed only when clicked, and each
 # into a tab of its own: this page keeps nothing, so leaving it would lose
 # every answer given on it.
-GITHUB = "https://github.com/Addicted2BayesianEpistemology/Parseh"
-GUIDE = "https://addicted2bayesianepistemology.github.io/Parseh/"
+GITHUB = project.GITHUB_URL
+GUIDE = project.GUIDE_URL
 
 
 def _footer():

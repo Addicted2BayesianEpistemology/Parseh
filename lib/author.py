@@ -32,8 +32,10 @@ import html
 
 NAME = "Bruno Ursino"
 
-# The ACCOUNT Parseh lives under, not the repository: lib/updater.py's REPO is
-# "<this account>/Parseh", and tests/test_author.py holds the two together.
+# The PERSON's GitHub profile, not the project's repository.  The project lives in
+# an organisation (lib/project.py, since a0.4.4) and he stays where he is, so this
+# is a person's address and that one an organisation's: tests/test_author.py holds
+# the two apart, and the export's foot links the project, never the person.
 GITHUB_URL = "https://github.com/Addicted2BayesianEpistemology"
 SITE_URL = "https://imbrunoursino.net/"
 

@@ -89,6 +89,7 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import download       # noqa: E402  resumable, stoppable, and says how far
 import version        # noqa: E402  who is asking: UA
+import project        # noqa: E402  where Parseh lives, for the line a download introduces itself with: UA
 
 ARASAAC_DIR = os.path.join(ROOT, "arasaac")
 # the shape of manifest.json, pictograms.json and index.<locale>.json, as a
@@ -99,7 +100,7 @@ API = "https://api.arasaac.org/v1"
 STATIC = "https://static.arasaac.org/pictograms"
 HOSTS = ("api.arasaac.org", "static.arasaac.org")
 TERMS = "https://arasaac.org/terms-of-use"
-UA = "Parseh/%s (+https://github.com/Addicted2BayesianEpistemology/Parseh)" % version.VERSION
+UA = project.agent(version.VERSION)
 SETTINGS_PAGE = "/settings/arasaac/"
 GUIDE = "/guide/site/studio/pictograms.html"
 

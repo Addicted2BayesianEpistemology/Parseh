@@ -41,12 +41,13 @@ import corpus                                                 # noqa: E402
 import languages                                              # noqa: E402
 import lookup                                                 # noqa: E402
 import version                                                # noqa: E402  who is asking: UA
+import project        # noqa: E402  where Parseh lives, for the line a download introduces itself with: UA
 import download       # noqa: E402  resumable, stoppable, and says how far
 
 SOURCE = "Tatoeba (tatoeba.org)"
 LICENCE = "CC BY 2.0 FR"
 BASE = "https://downloads.tatoeba.org/exports/per_language"
-UA = "Parseh/%s (+https://github.com/Addicted2BayesianEpistemology/Parseh)" % version.VERSION
+UA = project.agent(version.VERSION)
 
 # WHAT A CORPUS COSTS, MEASURED: (its three exports' download, the built
 # corpus), in bytes, for the pairs somebody has built.  Read by plan(), so

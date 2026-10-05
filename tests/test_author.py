@@ -100,13 +100,16 @@ class TheModule(unittest.TestCase):
                          ("Bruno Ursino on GitHub", "imbrunoursino.net, Bruno Ursino's website"))
         self.assertEqual(author.YEAR, 2026)
 
-    def test_the_github_address_is_the_account_parseh_lives_under(self):
-        import updater
+    def test_the_author_s_address_is_a_person_s_and_the_project_s_an_organisation_s(self):
+        import project
         import webexport
-        # updater.REPO is "<account>/Parseh", the repository the updates come from
-        self.assertEqual(author.GITHUB_URL, "https://github.com/" + updater.REPO.split("/")[0])
-        # and the export's footer, which links to the repository itself, is under it
-        self.assertTrue(webexport.GITHUB.startswith(author.GITHUB_URL + "/"))
+        # since a0.4.4 the project lives in an organisation (lib/project.py); the author's link is HIS profile
+        # and stays where he is, so the two are no longer the same account's
+        self.assertNotEqual(author.GITHUB_URL.split("/")[3], project.ORG)
+        self.assertFalse(project.GITHUB_URL.startswith(author.GITHUB_URL + "/"))
+        self.assertFalse(author.GITHUB_URL.startswith(project.GITHUB_URL))
+        # and the export's footer links the project, never the person
+        self.assertEqual(webexport.GITHUB, project.GITHUB_URL)
         self.assertNotEqual(webexport.GITHUB, author.GITHUB_URL)
 
     def test_a_link_opens_apart_tells_the_site_nothing_and_names_the_person(self):
@@ -279,8 +282,9 @@ class NotInWhatAPersonMakes(unittest.TestCase):
 
     def has(self, text):
         found = [n for n in self.NEEDLES if n in text]
-        # the account, but not the repository under it (an export links to that one)
-        if re.search(r"github\.com/Addicted2BayesianEpistemology(?!/Parseh)", text):
+        # the account, whatever follows: an export links to the project, which is not under it any more, and a
+        # stale address of the old place would only have been hidden by an exception here
+        if re.search(r"github\.com/Addicted2BayesianEpistemology", text):
             found.append("the account's address")
         return found
 

@@ -39,9 +39,10 @@ const root = await Deno.realPath(new URL('..', import.meta.url));
 const python = Deno.env.get('PARSEH_PYTHON') || 'python3';
 const modes = (Deno.env.get('EXPORT_MODES') || 'studio,parseh').split(',');
 const SHOTS = Deno.env.get('SHOTS') || '';
-// where the foot of every exported page points: the owner's own addresses
-const GITHUB = 'https://github.com/Addicted2BayesianEpistemology/Parseh';
-const GUIDE = 'https://addicted2bayesianepistemology.github.io/Parseh/';
+// where the foot of every exported page points: the project's repository and the guide's permanent address
+// (lib/project.py; pinned here as literals, because a page exported today carries them for ever)
+const GITHUB = 'https://github.com/parseh-io/Parseh';
+const GUIDE = 'https://parseh.io/guide';
 const FOOT = 'This page was exported from Parseh. Parseh on GitHub · Parseh’s guide';
 const YOUTUBE = 'https://www.youtube-nocookie.com/';
 // the starter's film on YouTube itself, from where its window begins

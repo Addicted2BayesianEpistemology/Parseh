@@ -59,6 +59,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import version                                                # noqa: E402  who is asking: UA
+import project        # noqa: E402  where Parseh lives, for the line a download introduces itself with: UA
 import download       # noqa: E402  resumable, stoppable, and says how far
 
 MT_DIR = os.path.join(ROOT, "mt")
@@ -71,7 +72,7 @@ FORMAT = 1
 WORDNET_URL = "https://wordnetcode.princeton.edu/wn3.1.dict.tar.gz"
 SOURCE = "WordNet 3.1 (Princeton University)"
 LICENCE = "WordNet 3.0 licence (free redistribution and modification)"
-UA = "Parseh/%s (+https://github.com/Addicted2BayesianEpistemology/Parseh)" % version.VERSION
+UA = project.agent(version.VERSION)
 
 # WHAT IT COSTS, MEASURED: WordNet 3.1's archive (16 358 468 bytes, as its
 # server gave them on 2026-09-25 -- the file has not changed since February

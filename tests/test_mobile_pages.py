@@ -1087,24 +1087,27 @@ class AppTests(unittest.TestCase):
         self.assertEqual(a, b)
 
     def test_the_icons_named_outside_are_ones_the_project_publishes(self):
-        """PUBLIC_ICONS is the project's GitHub Pages, and that serves what
-        the repository holds.  An icon named there but never committed is a
-        404 to the server that builds the phone's app, and the app is not
-        built -- the fault this address was put here to mend.  The one an
+        """PUBLIC_ICONS is the project's address under the domain
+        (lib/project.py ICONS_URL), and the guide's site serves what
+        html-guide/build.py --pages puts in it: lib/icons/*.png.  An icon
+        named there and not published is a 404 to the server that builds
+        the phone's app, and the app is not built -- the fault this address
+        was put here to mend.  (That the PUBLISHED site has them is
+        tests/test_project.py's: it builds the site.  Here: every name is a
+        PNG file of the tree, which is what that build copies.)  The one an
         iPhone takes is named on this server, so that a phone away from it
         still has it."""
         import mobile
-        if not mobile.PUBLIC_ICONS:
-            self.skipTest('the manifest names the icons on this server')
-        tracked = subprocess.run(['git', 'ls-files', 'lib/icons'], cwd=str(ROOT),
-                                 capture_output=True, text=True).stdout.split()
-        self.assertTrue(tracked, 'no file list: is this a checkout?')
+        import project
+        self.assertEqual(mobile.PUBLIC_ICONS, project.ICONS_URL)
         # asked as the one browser that is sent outside asks (mobile.mints)
         named = mobile.manifest('Mozilla/5.0 (Linux; Android 14) Chrome/126.0.0.0 Mobile')['icons']
         outside = [i for i in named if i['src'].startswith(mobile.PUBLIC_ICONS)]
         self.assertEqual(len(outside), 3)
         for i in outside:
-            self.assertIn('lib/icons/' + i['src'][len(mobile.PUBLIC_ICONS):], tracked)
+            icon = ROOT / 'lib' / 'icons' / i['src'][len(mobile.PUBLIC_ICONS):]
+            self.assertTrue(icon.is_file(), icon)
+            self.assertEqual(icon.read_bytes()[:8], b'\x89PNG\r\n\x1a\n', icon)
         for i in named:
             if i not in outside:
                 self.assertTrue(i['src'].startswith(mobile.ICONS), i['src'])

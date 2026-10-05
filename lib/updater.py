@@ -173,12 +173,15 @@ NAME = "Parseh"
 MANIFEST = ".parseh-release.json"
 RELEASE_FORMAT = "parseh-release/1"
 WORK = ".parseh-update"
-REPO = "Addicted2BayesianEpistemology/Parseh"
-# releases/latest is GitHub's newest PUBLISHED release that is not a
-# prerelease -- which every Parseh release is (the owner, 2026-09-24:
-# releases are not marked as prereleases), and never a draft.
-FEED = "https://api.github.com/repos/%s/releases/latest" % REPO
-RELEASES_PAGE = "https://github.com/%s/releases" % REPO
+# WHERE PARSEH LIVES -- the repository, the feed asked for the newest release, the
+# releases page the refusals name -- is lib/project.py's, and nobody else's: read
+# when an address is wanted (feed_url(), _releases()), never here at the top.  This
+# file is also the HELPER, run on its own from .parseh-update/ beside an install that
+# may be half replaced, and the helper never needs an address: so it imports nothing
+# of Parseh's at the top (tests/test_project.py holds it to that).
+# The feed is releases/latest: GitHub's newest PUBLISHED release that is not a
+# prerelease -- which every Parseh release is (the owner, 2026-09-24: releases are
+# not marked as prereleases), and never a draft.
 # the one setting the updater has, and what the last look found
 # (config/updates.json).  RAISE IT when the shape changes so that the Parseh
 # before this one would read the file wrong (lib/version.py FORMATS).
@@ -472,7 +475,7 @@ def installed(root):
             "a release. Git keeps its files, and an update from here would fight it. "
             "Updating from Settings is for a %s installed from a release: download the "
             "release's zip from %s, unpack it into a folder of its own, and move your things "
-            "into it." % (NAME, NAME, RELEASES_PAGE))
+            "into it." % (NAME, NAME, _releases()))
         return out
     path = os.path.join(root, MANIFEST)
     if not os.path.isfile(path):
@@ -481,17 +484,17 @@ def installed(root):
             "update itself, or unpacked by hand. Without that list an update cannot tell %s's "
             "files from yours, so it will not guess. Install this version fresh from a "
             "release (%s) and move your things into it; every install made from a release "
-            "can then be updated from here." % (NAME, MANIFEST, NAME, NAME, RELEASES_PAGE))
+            "can then be updated from here." % (NAME, MANIFEST, NAME, NAME, _releases()))
         return out
     m = _read_json(path)
     if not isinstance(m, dict) or not isinstance(m.get("files"), dict):
         out["refused"] = ("%s cannot be read, so an update cannot tell %s's files from yours. "
                           "Install this version fresh from a release (%s)."
-                          % (MANIFEST, NAME, RELEASES_PAGE))
+                          % (MANIFEST, NAME, _releases()))
         return out
     if m.get("format") != RELEASE_FORMAT:
         out["refused"] = ("%s is of a kind this %s does not know (%s). Install fresh from a "
-                          "release (%s)." % (MANIFEST, NAME, m.get("format"), RELEASES_PAGE))
+                          "release (%s)." % (MANIFEST, NAME, m.get("format"), _releases()))
         return out
     out["manifest"] = m
     out["version"] = m.get("version") or out["version"]
@@ -540,9 +543,22 @@ def _agent():
         return NAME
 
 
+def _releases():
+    """The releases page, where the refusals send a person: lib/project.py's."""
+    try:
+        import project
+        return project.RELEASES_URL
+    except ImportError:             # an install half replaced: say where, without the address
+        return "the releases page of the project on GitHub"
+
+
 def feed_url():
     # PARSEH_UPDATE_FEED stands in for GitHub: a mirror, or a test's own server
-    return os.environ.get("PARSEH_UPDATE_FEED") or FEED
+    got = os.environ.get("PARSEH_UPDATE_FEED")
+    if got:
+        return got
+    import project
+    return project.FEED
 
 
 def latest(timeout=20):

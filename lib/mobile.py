@@ -49,6 +49,7 @@ if LIB not in sys.path:
 import books as booklib                                      # noqa: E402
 import languages                                             # noqa: E402
 import make_index                                            # noqa: E402
+import project                                               # noqa: E402  where Parseh lives: the phone app's icons
 
 APP_NAME = "Parseh"
 
@@ -78,7 +79,7 @@ ICONS = "/lib/icons/"
 # anyone can reach, and the manifest names them there.  Nothing else moves:
 # the pages, the apple-touch icon and what is kept on the phone all stay on
 # this server.  Empty this to name them here again.
-PUBLIC_ICONS = "https://addicted2bayesianepistemology.github.io/Parseh/lib/icons/"
+PUBLIC_ICONS = project.ICONS_URL
 # the light palette's ground (lib/parseh.css --bg), which the app's splash
 # screen and the pages start on; and the dark one's, for a phone set dark
 LIGHT_BG, DARK_BG = "#f3eff1", "#171214"

@@ -142,7 +142,7 @@ class Names(unittest.TestCase):
         self.assertRegex(ga.UA, r"^Parseh/a\d+\.\d+\.\d+ \(\+https://github\.com/[^/]+/Parseh\)$")
         # and the line is the same line: the version it names is the one VERSION file's
         src = (ROOT / "lib" / "getarasaac.py").read_text(encoding="utf-8")
-        self.assertIn('UA = "Parseh/%s (+https://github.com/Addicted2BayesianEpistemology/Parseh)" % version.VERSION', src)
+        self.assertIn('UA = project.agent(version.VERSION)', src, "the line is lib/project.py's, not a copy of it")
 
     def test_which_languages_are_offered_is_said_from_what_was_measured(self):
         self.assertEqual(ga.offered("en"), (True, ""))
