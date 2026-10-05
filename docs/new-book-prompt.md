@@ -21,7 +21,7 @@ What the folder holds, and the three files you keep in it (`NOTES.md`, `ASKS.md`
 
 ## The rules
 
-1. Write only inside this folder. Read anything of Parseh's; change nothing of it. A script of your own goes in `{{BOOK_DIR}}/scratch/`.
+1. Write only inside this folder. Read anything of Parseh's; change nothing of it (run its tools with `PYTHONDONTWRITEBYTECODE=1`, so that Python leaves no bytecode in its folder). A script of your own goes in `{{BOOK_DIR}}/scratch/`.
 2. Never run the full build (`build.sh <book>`): the person's page does. The draft (`build.sh <book> --draft chN ...`) is allowed: it writes `frankdraft.pdf` beside the book, never `main.pdf`. It is a convenience and not a check: if it is refused, skip the look and say so in `NOTES.md`.
 3. `annot/*.json` is the truth; the `.tex` chapters are assembled from it by `assemble.py` and never edited by hand. A correction goes into the JSON and the `.tex` is built again.
 4. The source is never corrected: every chunk of {{LANG_NAME}} reproduces it **character for character {{STRIP_NOTE}}**. Its oddities are reproduced and, where they would mislead, explained in a gloss.
@@ -40,7 +40,7 @@ Read `making.json`, `NOTES.md` and `ASKS.md`. No `stage`, or `folder`: a new boo
 
 ### Step 1 -- The source text, once and carefully
 
-Recover the text, read what came out against the original itself, decide the paragraphs and the chapters, and show the person the table before you annotate a word: re-dividing afterwards means annotating again. **The source text** says how. The original is part 1; the person may add more later, a part at a time: **The text in parts** says how each is taken.
+Recover the text, read what came out against the original itself, decide the paragraphs and the chapters, and show the person the table before you annotate a word: re-dividing afterwards means annotating again. **The source text** says how. The original is part 1; the person may add more later, a part at a time: **The text in parts** says how each is taken. If a later part is already waiting when you begin, take it too before you show the table: one table for every part you hold.
 
 ### Step 2 -- Annotate, {{BATCH}} paragraphs at a time
 
@@ -246,7 +246,7 @@ The repetition rule is Frank's: a full entry the first time a word, a name or a 
 
 ### What a chunk is
 
-A chunk is a phrase: the smallest span that still means something on its own and that a gloss can translate as one thing. **Cut at the edges of phrases, never inside one**, and aim for **2-5 words** (the conventions may give another range for the language). The average falls where it falls -- about two and a half to three source words a chunk on the editions measured, lower where a language packs a clause into a word -- and chasing a number is how a book ends up with one word per chunk: chase the sense group and keep what the conventions say stays together.
+A chunk is a phrase: the smallest span that still means something on its own and that a gloss can translate as one thing. **Cut at the edges of phrases, never inside one**, and aim for the range the conventions give for the language (**2-5 words** where they give none). The average falls where it falls -- about two and a half to three source words a chunk on the editions measured, lower where a language packs a clause into a word -- and chasing a number is how a book ends up with one word per chunk: chase the sense group and keep what the conventions say stays together.
 
 **Keep together, always** -- an **adposition with its noun** (`in the house`), which alone cannot be glossed at all; a **noun with everything that modifies it** (articles, demonstratives, numerals, adjectives, possessives, and whatever the language uses to link a noun to its modifiers); a **verb with everything that makes its tense** -- auxiliaries, negation, a separable prefix, the light verb of a compound: **the unit is the verb group, not the verb**, and a verb group cut in half is two halves that mean nothing; a **word with its particles and clitics**; and a **fixed expression or idiom even where that breaks the syntax**, because the meaning is not in the pieces and showing the pieces teaches something untrue. That last one is the most valuable chunk in the book and the one only a reader of the language can find.
 

@@ -21,7 +21,7 @@ What the folder holds, and the three files you keep in it (`NOTES.md`, `ASKS.md`
 
 ## The rules
 
-1. Write only inside this folder. Read anything of Parseh's; change nothing of it. A script of your own goes in `{{BOOK_DIR}}/scratch/`.
+1. Write only inside this folder. Read anything of Parseh's; change nothing of it (run its tools with `PYTHONDONTWRITEBYTECODE=1`, so that Python leaves no bytecode in its folder). A script of your own goes in `{{BOOK_DIR}}/scratch/`.
 2. Never run the full build (`build.sh <book>`): the person's page does. The draft (`build.sh <book> --draft chN ...`) is allowed: it writes `frankdraft.pdf` beside the book, never `main.pdf`. It is a convenience and not a check: if it is refused, skip the look and say so in `NOTES.md`.
 3. `annot/*.json` is the truth; the `.tex` chapters are assembled from it by `assemble.py` and never edited by hand. A correction goes into the JSON and the `.tex` is built again.
 4. The source is never corrected: every chunk of {{LANG_NAME}} reproduces it **character for character {{STRIP_NOTE}}**. Its oddities are reproduced and, where they would mislead, explained in a gloss.
@@ -40,7 +40,7 @@ Read `making.json`, `NOTES.md` and `ASKS.md`. No `stage`, or `folder`: a new boo
 
 ### Step 1 -- The source text, once and carefully
 
-Recover the text, read what came out against the original itself, decide the paragraphs and the chapters, and show the person the table before you annotate a word: re-dividing afterwards means annotating again. [The source text](source.md) says how. The original is part 1; the person may add more later, a part at a time: [The text in parts](parts.md) says how each is taken.
+Recover the text, read what came out against the original itself, decide the paragraphs and the chapters, and show the person the table before you annotate a word: re-dividing afterwards means annotating again. [The source text](source.md) says how. The original is part 1; the person may add more later, a part at a time: [The text in parts](parts.md) says how each is taken. If a later part is already waiting when you begin, take it too before you show the table: one table for every part you hold.
 
 ### Step 2 -- Annotate, {{BATCH}} paragraphs at a time
 
