@@ -441,7 +441,8 @@ await section('c', 'a film: Transcribe, the text in the box, the video not added
   const lines = await saysOver(page, async () => (await phase(page)) === 'review');
   await reviewAndUse(page);
   assert(lines.some(l => /^Transcribing on CPU… \d+%$/.test(l)), 'it says how far it is: ' + JSON.stringify(lines));
-  assert(lines.some(l => /^Loading large-v3-turbo…$/.test(l)), 'and that it loads the model first');
+  // (a0.4.3 remembers on this host the model chosen for the language, so an earlier section's choice of large-v3 is the one loaded here)
+  assert(lines.some(l => /^Loading large-v3(-turbo)?…$/.test(l)), 'and that it loads the model first');
   eq(await inBox(page), PANEL_FA, 'the transcript is in the box, in the panel format: a clock line and the caption');
   // the page's own door reads it
   const read = await api('/youtube/api/transcript', {transcript: await inBox(page), lang: 'fa'});
