@@ -123,7 +123,12 @@ exists and added to its end.
    only choice that changes a *chapter* already written — **A new chapter**
    edits one existing file too, `main.tex`, adding its `\input` line after
    the others.
-3. **The text** — pasted as above, with **Cut the text into**.
+3. **The text** — pasted as above, with **Cut the text into** — or **a file**:
+   a PDF with a text layer, an epub or a plain text file, sent from the page
+   (so it works from any device, and no path is typed on the server), with
+   **PDF pages, first–last**, counted from 0, for a PDF. The file is read
+   with the same tool the agent that makes a book uses, and with a file
+   chosen the box above is not used.
 4. **Add it** — *adding…*, then *Added. 1 paragraphs, 1 sentences, 1 blank
    chunks, as chapter 2* (or *onto the end of chapter 1*), with *the PDF is
    out of date until the next build* under it, and three buttons: **Open
@@ -134,7 +139,18 @@ exists and added to its end.
 Nothing written before is touched or re-cut: the old chapters are read only
 to be numbered on from. The reader is rebuilt at once. The new chunks
 arrive blank, for you to fill, in a book finished or not: a blank gloss is
-legal anywhere (below).
+legal anywhere (below), and a region at a time with an LLM
+([Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM)).
+
+**A book an agent made or is making** is listed too, with *(being made)* or
+*(made by an agent)*, and the page asks who glosses the text. For a book
+still being made it is **the agent makes it**: the text becomes the next
+*part*, which the agent takes before its next batch, and **Where it goes**
+gains **Let the agent decide**; *I gloss it myself* waits until the making is
+finished, because what the agent writes would erase blank chunks put in by
+hand. For a finished one either: *I gloss it myself* is the way above, and *the
+agent makes it* reopens the making and gives it the text as a part
+([A book made by an agent](doc:A book made by an agent)).
 
 ## Let an agent make it
 
@@ -173,19 +189,21 @@ live.
 
 **2. Make the book's folder.** **make the book's folder** stays shut until
 there is a title and an original, and says why (*the title comes first*,
-*choose the original first*). It is the computer's alone: on a phone or on
-another computer let in, the button is shut and the page says why, in the
-words the server refuses with ([who may do what](doc:A book made by an agent)).
+*choose the original first*). It is open to every device let in. Beside it,
+**this is all the text** — unticked, you may give the agent more text later
+(the file you chose is part 1; [more below](doc:A book made by an agent)).
 Pressed, it says *making the folder…*, and then:
 
 > **The folder is made**, and the book is on the library page, marked
 > **being made**.
 > `/home/you/Parseh/books/english/the-clock`
 
-with **copy the path**, **open the folder** (your system's own file manager)
-and **open the reader →**, and one sentence: *Open this folder in the agent
-you use, and tell it: **read AGENTS.md and begin**.* A second press names the
-slug that is now taken instead of being refused.
+with **copy the path**, **open the folder** (your system's own file manager,
+on the computer; from another device the page says why there is no button
+and gives the path to copy) and **open the reader →**, and one sentence:
+*Open this folder in the agent you use, and tell it: **read AGENTS.md and
+begin**.* A second press names the slug that is now taken instead of being
+refused.
 
 What it writes, in `books/<language>/<slug>/`: `book.json`, the `main.tex`
 skeleton (with no chapter in it yet), your original in `original/`, `NOTES.md`
@@ -222,7 +240,7 @@ inside it is part of the text.
 | *the original is empty: choose the file again* | the file has no bytes |
 | *the page range is two numbers, the first not after the last: 13-21* | the range is written some other way |
 | *there is no book called … on the shelf to learn from* | the edition chosen under **Learn from** has gone since the page was opened: reload it |
-| *That is changed on the computer Parseh runs on and nowhere else, because it changes what Parseh will run.* | you pressed it from a phone, or another computer let in: making the folder is done on the computer |
+| *this book is finished: reopen the making to give the agent more text …* | you chose *the agent makes it* for a finished book through a door that does not reopen it; the add page does both in one press |
 
 Nothing is left behind by a refusal: the folder is built beside its place and
 renamed into it only when it is whole.

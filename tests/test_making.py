@@ -863,7 +863,9 @@ class TheTextInParts(unittest.TestCase):
         asks = Path(d, "ASKS.md").read_text(encoding="utf-8")
         self.assertIn("a part was added", asks)
         self.assertIn("original/part-002-Chapter-Two.txt", asks)
-        self.assertEqual(making.describe(d)["asks"]["count"], 2)
+        self.assertEqual(making.describe(d)["asks"], {"count": 0, "last": ""}, "what Parseh writes there is no ask of the person's")
+        making.ask(d, "shorter glosses")
+        self.assertEqual(making.describe(d)["asks"]["count"], 1)
 
     def test_pasted_text_is_a_part_named_from_its_label(self):
         d = self.folder()
@@ -1136,6 +1138,19 @@ class TheBundle(unittest.TestCase):
         # and every shape carries them, because they are the book's own record
         for mode in bundle.MODES:
             self.assertIn("annot/ch1_p00.json", self.names(bundle.pack_book(str(d), audio=mode)[0])[0], mode)
+
+    def test_every_part_of_the_text_travels_with_the_book_and_parseh_s_copy_of_the_list_does_not(self):
+        d = self.book()
+        making.add_part(str(d), {"name": "Chapter Two.txt", "data": TEXT}, {"label": "two"})
+        making.add_part(str(d), {"name": "x.pdf", "data": PDF}, {"pages": "0-1"})
+        making.add_part(str(d), {"text": "Pasted."})
+        data, _name = bundle.pack_book(str(d))
+        got, _man = self.names(data)
+        for want in ("original/Il-Gatto.txt", "original/part-002-Chapter-Two.txt", "original/part-003-x.pdf",
+                     "original/part-004-pasted.txt"):
+            self.assertIn(want, got)
+        self.assertNotIn("original/parts.json", got, "the list is about one making on one computer, like making.json")
+        self.assertFalse([n for n in got if n.endswith(".part")])
 
     def test_the_backup_of_the_shelf_carries_them_too(self):
         d = self.book()

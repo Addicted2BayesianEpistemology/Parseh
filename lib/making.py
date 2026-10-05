@@ -366,15 +366,21 @@ def _tail(path, chars):
     return text.strip("\n")
 
 
+# what Parseh itself writes into ASKS.md, because the agent reads that file before every batch: not the
+# person's asks, and not counted as such
+NOT_ASKS = ("finished", "reopened", "a part was added", "this is all the text", "more text is coming")
+
+
 def _asks(book_dir):
-    """How many entries ASKS.md holds, and the last of them."""
+    """How many asks ASKS.md holds, and the last of them."""
     try:
         with open(path_of(book_dir, ASKS), encoding="utf-8", errors="replace") as f:
             text = f.read()
     except OSError:
         return {"count": 0, "last": ""}
     parts = re.split(r"(?m)^(?=## )", text)
-    entries = [p.strip() for p in parts if p.startswith("## ")]
+    entries = [p.strip() for p in parts if p.startswith("## ")
+               and not p.split("\n", 1)[0].strip().endswith(NOT_ASKS)]
     return {"count": len(entries), "last": entries[-1][:ASK_MAX] if entries else ""}
 
 
@@ -499,11 +505,14 @@ def _publish(book_dir, store):
 
 
 def _heal(book_dir):
-    """The list as Parseh keeps it, made true in making.json as well -> the list (None: this book has none)."""
-    store = _store(book_dir)
-    if store is not None:
-        _publish(book_dir, store)
-    return store
+    """The list as Parseh keeps it, made true in making.json as well -> the list (None: this book has none).
+    Under the lock the writers take, so that a look that read the list just before a part was added cannot
+    put the old one back over it."""
+    with _PARTS_LOCK:
+        store = _store(book_dir)
+        if store is not None:
+            _publish(book_dir, store)
+        return store
 
 
 def _save(book_dir, store):

@@ -867,6 +867,9 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     if (!$('addwho')) return;
     $('addwho').hidden = st === 'none';
     $('addwho_me').disabled = st === 'making';
+    // a finished book starts at "I gloss it myself": nothing is being made, so the plain way is the default
+    if (st !== lastState) { $('addwho_me').checked = st === 'finished'; $('addwho_agent').checked = st !== 'finished'; }
+    lastState = st;
     if (st === 'making') $('addwho_agent').checked = true;
     $('addwho_agent_note').textContent = st === 'making'
       ? 'The text becomes the next part: the agent takes it before its next batch, as the place below says.'
@@ -882,7 +885,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     wasAgent = agent;
     $('ahowrow').hidden = $('ahownote').hidden = agent;
   }
-  var wasAgent = false;
+  var wasAgent = false, lastState = '';
   function render() {
     // THE NOTE UNDER THE SLUG IS NOT WAY 3'S ALONE: "Write it here, by hand"
     // names a slug in the same identity block, and its door creates the very
