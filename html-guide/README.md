@@ -236,38 +236,60 @@ there was an error. The same sources always give the same bytes.
 
 ## Publishing on GitHub Pages
 
-The compiled pages are committed (`site/` is tracked), and the repository's
-root holds the two files GitHub Pages needs to serve them as they are: an
-`index.html` that sends a visitor on to `html-guide/index.html`, and an
-empty `.nojekyll`, without which GitHub would run the files through Jekyll
-and leave out every folder whose name starts with `_` — `site/_parseh/`,
-the studio's runtime, among them.
+**Parseh's own guide** is at `https://parseh.io/guide`, and it is not
+published from this repository (GitHub Pages is off here). The organisation's
+domain serves every repository of it that publishes Pages at
+`parseh.io/<repository name>`, so the guide has a repository of its own,
+`parseh-io/guide`, named for the address and never renamed. It holds no pages:
+only a workflow, **publish the guide**, which the owner runs by hand
+(**Actions → publish the guide → Run workflow**; the inputs are `ref`, `main`
+by default, and `repository`). It checks this repository out, runs
+`python3 html-guide/build.py --pages _site` and publishes the result, so a
+changed page reaches the web when it is on `main` and that workflow has been
+run — not before. `.github/workflows/guide-pages.yml` here only compiles the
+guide on every push that touches it, as a check that it still builds on a
+clean machine, and publishes nothing.
 
-Once, on GitHub:
+`--pages` lays out `index.html`, `assets/` and `site/` in one folder (plus
+`.nojekyll`, and the `.parseh-guide-pages` that lets the next `--pages` empty
+it), the same shape as `html-guide/`, so every relative address holds — on
+GitHub Pages under `/guide/`, on any static host, or opened from the disk.
+Every file in it is readable by all, as Pages demands (the workflow also runs
+the `chmod -R +rX` that `upload-pages-artifact` recommends). In a checkout of
+Parseh it lays out two things more than the guide an install carries, and they
+are the only differences:
 
-1. **Settings → Pages → Build and deployment → Source: Deploy from a
-   branch.**
-2. **Branch: `main`, folder: `/ (root)`, Save.**
+- **`lib/icons/`**, the phone app's four PNG icons (not `make.mjs`, which says
+  how they were drawn). Chrome's WebAPK server fetches them from the internet,
+  from `https://parseh.io/guide/lib/icons/`, and must be answered there
+  directly: without them the install button of the phone app vanishes.
+- **A bar at the top of every page**, the one the website's own pages have: the
+  Parseh logo and name (a link to `https://parseh.io`), Guide marked as where
+  one is, Examples and Downloads, the flag. `engine/bar.py` draws it, and says
+  how it differs from the site's (the name's face). The committed
+  `html-guide/site/`, which every install carries and reads from the computer,
+  has no bar, and neither has a guide exported into a project of its own
+  (below): the bar is Parseh's, in Parseh's own layout only.
 
-The guide is then at `https://<user>.github.io/Parseh/` (the front page
-itself at `…/Parseh/html-guide/`), a minute or two after the first save,
-and again after every push to `main`: GitHub publishes what is committed.
-So a changed page reaches the web when it is compiled and committed —
-`python3 html-guide/build.py` (or `./install.sh --guide`), then commit
-`html-guide/markdown/` and `html-guide/site/` together.
-
-**Letting GitHub compile it instead.** `.github/workflows/guide-pages.yml`
-compiles the guide on every push to `main` that touches it (or the studio's
-renderer, the registry, the fonts, MathJax), as a check that it still
-builds. Run by hand (**Actions → guide on GitHub Pages → Run workflow**),
-it also publishes what it compiled — for that, set **Source** to **GitHub
-Actions** first. It runs `python3 html-guide/build.py --pages _site`, which
-lays out `index.html`, `assets/` and `site/` in one folder (plus
-`.nojekyll`, and the `.parseh-guide-pages` that lets the next `--pages`
-empty it), the same shape as `html-guide/`, so every relative address holds
-— on GitHub Pages, any static host, or opened from the disk. Every file in
-it is readable by all, as Pages demands (the workflow also runs the
-`chmod -R +rX` that `upload-pages-artifact` recommends).
+**Your own copy**, on a GitHub account's own Pages (`https://<account>.github.io/Parseh/`;
+the account is a person's or an organisation's), is a fork's to set up, one of
+two ways. The committed pages are served as they are — the repository's
+root holds the two files GitHub Pages needs for that: an `index.html` that
+sends a visitor on to `html-guide/index.html`, and an empty `.nojekyll`,
+without which GitHub would run the files through Jekyll and leave out every
+folder whose name starts with `_` (`site/_parseh/`, the studio's runtime,
+among them). Once, on GitHub: **Settings → Pages → Build and deployment →
+Source: Deploy from a branch**, **Branch: `main`, folder: `/ (root)`, Save**.
+The guide is then at `…/Parseh/` a minute or two after the first save, and
+again after every push to `main`; a changed page reaches the web when it is
+compiled and committed — `python3 html-guide/build.py` (or
+`./install.sh --guide`), then commit `html-guide/markdown/` and
+`html-guide/site/` together. Or **Source: GitHub Actions** and a workflow of
+the fork's own that does what `parseh-io/guide`'s does: check out, Python
+3.12, `fonts-texgyre`, `python3 html-guide/build.py --pages _site`,
+`chmod -R +rX _site`, `configure-pages`, `upload-pages-artifact`,
+`deploy-pages` (that layout, from a checkout of Parseh, carries the bar and the
+icons above).
 
 ## A project of its own
 

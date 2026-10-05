@@ -93,38 +93,53 @@ them is relative:
 2. **From the disk**: open `html-guide/index.html` in a browser. Nothing
    needs a server — not the list of pages, the search, the exercises or
    the formulas.
-3. **On GitHub Pages**, below.
+3. **On the web**, below: Parseh's own guide at `https://parseh.io/guide`, or a copy of your own on GitHub Pages.
 
 ## Publishing on GitHub Pages
 
-The compiled pages, `html-guide/site/`, are committed with the Markdown
-they come from, and the repository's root holds the two small files GitHub
-Pages needs to serve them as they are: `index.html`, which sends a visitor
-on to the guide's front page, and an empty `.nojekyll`, without which
-GitHub would leave out the folders whose names start with `_` (the studio's
-runtime among them). Switching it on is one setting, once:
+**Parseh's own guide** is at `https://parseh.io/guide`. It is not published
+from the Parseh repository: the organisation's domain serves each repository
+of it that publishes Pages at `parseh.io/<repository name>`, so the guide has a
+repository of its own, `parseh-io/guide`, whose name is the address and is
+never changed. It holds no pages, only one workflow, **publish the guide**,
+which the owner runs by hand (**Actions → publish the guide → Run workflow**).
+It checks Parseh out at `main`, runs `python3 html-guide/build.py --pages
+_site` and publishes the result: a changed page reaches the web when it is on
+`main` and that workflow has been run. The workflow in Parseh,
+`.github/workflows/guide-pages.yml`, only compiles the guide on every push
+that changes it, as a check that it still builds, and publishes nothing.
+
+`--pages` puts the front page, `assets/` and the compiled `site/` together in
+one folder — the same layout as `html-guide/`, so the same relative
+addresses hold, and the same folder can be put on any static host. In a
+checkout of Parseh it also lays out the phone app's icons (`lib/icons/`, which
+Chrome fetches from the internet when it builds the app) and gives every page
+a bar at the top, the website's own: the Parseh logo and name, which lead to
+`https://parseh.io`, with Guide marked as where you are. The guide that comes
+with an install, `html-guide/site/`, has neither, and a guide exported into a
+project of its own (below) has neither.
+
+**A copy of your own** on a GitHub account's Pages — a person's or an
+organisation's — is one setting away in your fork, because the repository's
+root holds the two small files GitHub Pages needs to serve the committed pages
+as they are: `index.html`, which sends a visitor on to the guide's front page,
+and an empty `.nojekyll`, without which GitHub would leave out the folders
+whose names start with `_` (the studio's runtime among them):
 
 1. On GitHub, open the repository's **Settings → Pages**.
 2. Under **Build and deployment**, set **Source** to **Deploy from a
    branch**, pick the branch **main** and the folder **/ (root)**, and
    press **Save**.
 
-The guide is then at `https://<your user name>.github.io/Parseh/`, a minute
-or two later, and each push to `main` publishes it again. A changed page
-reaches the web once it is compiled and committed: compile (the front
-page's button, `./install.sh --guide` or `python3 html-guide/build.py`),
-then commit `html-guide/markdown/` and `html-guide/site/` together.
-
-The repository also carries a workflow, `.github/workflows/guide-pages.yml`,
-that compiles the guide on every push to `main` that changes it, the
-studio's renderer or the language registry — a check that it still builds.
-To have GitHub publish a guide it compiled itself instead of the committed
-one, set **Source** to **GitHub Actions** and press **Actions → guide on
-GitHub Pages → Run workflow**. It runs `python3 html-guide/build.py --pages
-_site`, which puts the front page, `assets/` and the compiled `site/`
-together in one folder — the same layout as `html-guide/`, so the same
-relative addresses hold. The same folder can be put on any other static
-host.
+The guide is then at `https://<your account>.github.io/Parseh/`, a minute or
+two later, and each push to `main` publishes it again. A changed page reaches
+the web once it is compiled and committed: compile (the front page's button,
+`./install.sh --guide` or `python3 html-guide/build.py`), then commit
+`html-guide/markdown/` and `html-guide/site/` together. To have GitHub compile
+the guide instead, set **Source** to **GitHub Actions** and give your fork a
+workflow like the one in `parseh-io/guide`: check Parseh out, set up Python,
+run `python3 html-guide/build.py --pages _site`, and publish `_site` with
+GitHub's Pages actions.
 
 ## A project of its own
 
