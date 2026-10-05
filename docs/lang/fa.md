@@ -191,7 +191,7 @@ A verb with a **preverb** (برگشتن, درآوردن, فراگرفتن) is hy
 the preverb in all three {{?classic}}romanisations{{/classic}}{{?ipa}}transcriptions{{/ipa}}, because *mi-*, *be-* and *na-* go in
 there ({{?classic}}*bar-mi-gardam*, *bar-gard*{{/classic}}{{?ipa}}*bæɾ-mi-ɡæɾdæm*, *bæɾ-ɡæɾd*{{/ipa}}):
 {{?classic}}`\vb{برگشتن}{bar-gaštan}{برگرد}{bar-gard}{برگشت}{bar-gašt}{to return}`{{/classic}}{{?ipa}}`\vb{برگشتن}{bæɾ-ɡæʃtæn}{برگرد}{bæɾ-ɡæɾd}{برگشت}{bæɾ-ɡæʃt}{to return}`{{/ipa}}.
-A stem this book has already given is given the same way again — the same
+A stem already given is given the same way again — the same
 spelling, the same {{?classic}}romanisation{{/classic}}{{?ipa}}transcription{{/ipa}} — whatever a dictionary offers.
 
 The meaning is what the gloss language is for; the labels around it are
