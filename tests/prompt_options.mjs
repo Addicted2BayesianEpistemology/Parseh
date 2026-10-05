@@ -169,6 +169,16 @@ sys.argv = ['serve.py', '--http', '--local', port]
 serve.main()
 `;
 // the owner's own files, which nothing here may touch
+// A reader the hub has rebuilt after a write (the sheet's "make IPA the book's setting") links lib/ by the climb from
+// where it stands to the checkout, which a page served from the temporary root cannot follow: built again here, the
+// climb written as the hub's own path, before the book is opened in a new page (tests/gloss_llm_book.mjs's RELINK).
+const RELINK = String.raw`
+import sys
+from pathlib import Path
+sys.path[:0] = ['tests', 'lib']
+import mobile_harness
+mobile_harness.built_reader(Path(sys.argv[1]))
+`;
 const OWN = String.raw`
 import hashlib, json, os, sys
 tmp = sys.argv[1]
@@ -476,7 +486,9 @@ try {
     await page.waitForFunction(() => rgShown);
     await page.check('#rgregloss');
   }
+  const relink = key => py(RELINK, T['d' + key]);
   async function reader(key, name, more) {
+    await relink(key);
     const page = await open(T['b' + key] + '/reader/', name, more);
     await openSheet(page);
     return page;
@@ -517,6 +529,7 @@ try {
     await page.click(SHEET + ' .llmrow-optnote button');
     await until(async () => (await noteOf(page, SHEET)) === null, 'the note gone (the reader is built again first)', 60000);
     eq(await record(bookJson('fa'), '?'), 'ipa', 'pressed: book.json says IPA');
+    await relink('fa');
     await page.reload();
     await openSheet(page);
     await until(async () => (await optionsOf(page, SHEET)).length === 2, 'the options after a reload');
@@ -616,6 +629,7 @@ try {
   await section('g', 'IPA on the reader, the player and the studio', async () => {
     await page_clear();
     for (const key of ['fa', 'it']) {
+      await relink(key);
       const page = await open(T['b' + key] + '/reader/', `reader ${key} IPA`);
       await page.waitForSelector('.pass.p2 .row .gl .tr');
       const said = await page.evaluate(() => [...document.querySelectorAll('.pass.p2 .row .gl .tr')].map(e => e.textContent.trim()).filter(Boolean));
