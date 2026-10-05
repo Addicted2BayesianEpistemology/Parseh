@@ -22,6 +22,10 @@
 //   i) 1280 and 390, light, dark and sepia: never a sideways scroll, targets big enough, words readable against
 //      their ground, nothing wider than the screen, from both devices
 //   j) the keyboard reaches every control, and a redraw never drops it
+//   k) the menu in the row, on the studio's prompt page, from both devices: what one device writes the other chooses,
+//      and each remembers its own choice; a prompt in place of Parseh's says when Parseh's own changed and shows what
+//      (+ and - lines), and "mine stands" ends it; a prompt another device deleted is said to be gone, and Parseh's
+//      own is chosen (every surface's own tour is tests/llmrow.mjs, section `own`)
 // Run:  CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/your_prompts.mjs
 //   PROMPTS_WHO=computer (or phone) runs one device; SECTIONS=ah runs only those; SHOTS=<dir> saves the screenshots.
 import {chromium} from 'npm:playwright-core@1.52.0';
@@ -111,7 +115,7 @@ async function suite(h) {
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
       page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text()); });
-      page.on('response', r => { if (r.status() >= 400 && !/favicon/.test(r.url()) && !r.url().includes('/settings/api/prompts/')) errors.push(`http ${r.status()} ${r.url()}`); });
+      page.on('response', r => { if (r.status() >= 400 && !/favicon/.test(r.url()) && !/\/api\/prompts?(\/|\?)/.test(r.url())) errors.push(`http ${r.status()} ${r.url()}`); });
       seat[name] = {name, page, context, origin: d.origin, errors, request: context.request};
     }
     const on = seat[who[0]];
@@ -460,6 +464,99 @@ async function suite(h) {
         eq(await s.page.evaluate(() => (document.activeElement.textContent || '').trim()), 'Delete…', `${s.name}: Enter on Keep it, and it is back where it was`);
         eq((await names()).length, 2, `${s.name}: nothing went`);
       }
+    });
+
+    await section('k) the menu in the row: what one device writes, the other chooses; and keeping up with Parseh', async () => {
+      await world();
+      await h.send({cmd: 'parseh', changed: false, surface: 'studio-doc'});
+      // THE STUDIO'S PROMPT PAGE, mounted in this Parseh, from both devices: its row has the menu (lib/llmrow.js)
+      const rowSel = '#llm-row .llmrow-pm select', ED = '#llm-row .llmrow-editor';
+      const open = async s => {
+        await s.page.goto(s.origin + '/studio/prompt');
+        await s.page.waitForSelector(rowSel);
+        await until(async () => /^Parseh prompt/.test(await s.page.inputValue('#prompt-text')), 'the page has its prompt');
+      };
+      const options = s => s.page.evaluate(() => [...document.querySelectorAll('#llm-row .llmrow-pm select option')].map(o => o.textContent));
+      const chosen = s => s.page.evaluate(() => { const e = document.querySelector('#llm-row .llmrow-pm select'); return e.options[e.selectedIndex].textContent; });
+      const box = s => s.page.inputValue('#prompt-text');
+      const first = async s => (await box(s)).split('\n')[0];
+      const write = async (s, {name, kind, add}) => {
+        await s.page.click('#llm-row .llmrow-pbtn:has-text("new")');
+        await s.page.waitForSelector(ED);
+        if (kind === 'replace') await s.page.check(ED + ' input[value=replace]');
+        await s.page.fill(ED + ' input[type=text]', name);
+        const kept = kind === 'replace' ? await s.page.inputValue(ED + ' textarea') + '\n\n' : '';
+        await s.page.fill(ED + ' textarea', kept + add);
+        await s.page.locator(ED).getByRole('button', {name: 'save', exact: true}).click();
+        await s.page.waitForSelector(ED, {state: 'detached'});
+      };
+      const [computer, phone] = [seat.computer, seat.phone].filter(Boolean);
+      if (!computer || !phone) { console.log('  (this section needs both devices)'); return; }
+      await open(computer);
+      eq(await options(computer), ['Parseh\u2019s'], 'the computer: before any prompt of yours the menu has Parseh\u2019s own and nothing else');
+      await write(computer, {name: 'from the computer', kind: 'added', add: 'ZZ-FROM-THE-COMPUTER never gloss names.'});
+      await write(computer, {name: 'whole, from the computer', kind: 'replace', add: 'ZZ-WHOLE-ADDITION.'});
+      await until(async () => /custom: whole, from the computer$/.test(await first(computer)), 'the computer chose what it wrote last');
+      eq(await options(computer), ['Parseh\u2019s', 'from the computer', 'whole, from the computer'], 'the computer: both are in its menu');
+      // the other device: the same store, its own memory of what it chose
+      await open(phone);
+      eq(await options(phone), ['Parseh\u2019s', 'from the computer', 'whole, from the computer'], 'the phone: the prompts the computer wrote are in its menu');
+      eq(await chosen(phone), 'Parseh\u2019s', 'the phone: and it has chosen nothing yet: what a device chose is its own');
+      await phone.page.selectOption(rowSel, {label: 'from the computer'});
+      await until(async () => /custom: from the computer$/.test(await first(phone)), 'the phone chose it');
+      has(await box(phone), 'ZZ-FROM-THE-COMPUTER never gloss names.', 'the phone: its page is made from the prompt the computer wrote');
+      eq(await chosen(computer), 'whole, from the computer', 'the computer: its own choice stands');
+      await shot(phone, 'k-phone-chosen');
+      // each device comes back on what it chose last
+      await open(phone);
+      await until(async () => (await chosen(phone)) === 'from the computer', 'the phone remembered');
+      eq(await first(phone).then(l => l.endsWith('custom: from the computer')), true, 'the phone: reloaded, it is on the prompt it chose');
+      await open(computer);
+      await until(async () => (await chosen(computer)) === 'whole, from the computer', 'the computer remembered');
+      assert(true, 'the computer: reloaded, it is on the prompt it chose');
+      // a device let in may write too: it is the same store
+      await write(phone, {name: 'from the phone', kind: 'added', add: 'ZZ-FROM-THE-PHONE.'});
+      await shot(phone, 'k-phone-wrote');
+      eq((await names()), ['from the computer', 'from the phone', 'whole, from the computer'], 'the phone wrote one, and the store has it');
+      await open(computer);
+      eq(await options(computer), ['Parseh\u2019s', 'from the computer', 'whole, from the computer', 'from the phone'], 'the computer: and its menu has the one the phone wrote');
+
+      // KEEPING UP WITH PARSEH: the prompt in place of Parseh's began from Parseh's words; they change
+      eq((await api(phone, 'list', {surface: 'studio-doc'})).prompts.filter(p => p.stale).length, 0, 'nothing is out of date while Parseh\u2019s words are the ones it began from');
+      await h.send({cmd: 'parseh', changed: true, surface: 'studio-doc'});
+      await open(computer);
+      eq(await options(computer), ['Parseh\u2019s', 'from the computer', 'whole, from the computer \u00b7 Parseh\u2019s has changed', 'from the phone'],
+         'the computer: Parseh\u2019s own changed, and the menu says which of the prompts began from it');
+      // the computer is on that very prompt (it chose it last): the row says so under the buttons
+      await until(async () => await computer.page.locator('#llm-row .llmrow-pmnote').isVisible(), 'the note is said');
+      const note = await text(computer, '#llm-row .llmrow-pmnote');
+      assert(note.startsWith('Parseh\u2019s prompt changed since you started from it') && note.includes('see what changed') && note.includes('mine stands'),
+             'the computer: chosen, it says that Parseh\u2019s prompt changed since it started from it, and offers to show what and to say that mine stands');
+      await shot(computer, 'k-stale-note');
+      await computer.page.click('#llm-row .llmrow-pmnote button:has-text("see what changed")');
+      await computer.page.waitForSelector(ED + ' .llmrow-diff');
+      const diff = await computer.page.evaluate(() => [...document.querySelectorAll('#llm-row .llmrow-diff div')].map(d => [d.className, d.textContent]));
+      assert(diff.some(([c, t]) => c === 'add' && /^\+ .*You are writing a document, for/.test(t)) && diff.some(([c, t]) => c === 'del' && /^- .*You are writing a document for/.test(t)),
+             `the computer: the editor shows what changed, line by line: what Parseh added (+) and what it took away (-) (${JSON.stringify(diff.map(([c, t]) => [c, t.slice(0, 50)]))})`);
+      assert(diff.length <= 12, `and only the lines that changed, with a little round them (${diff.length} lines)`);
+      await shot(computer, 'k-stale-diff');
+      await computer.page.locator(ED).getByRole('button', {name: 'mine stands as it is', exact: true}).click();
+      await until(async () => await computer.page.locator('#llm-row .llmrow-pmnote').isHidden(), 'the note goes');
+      assert((await options(computer)).includes('whole, from the computer') && !(await options(computer)).some(o => /has changed/.test(o)), 'the computer: mine stands: the note and the mark in the menu go');
+      await h.send({cmd: 'parseh', changed: false, surface: 'studio-doc'});
+
+      // A PROMPT THE OTHER DEVICE DELETED, while this one has it chosen: the page says so and Parseh's own is chosen
+      await open(phone);
+      eq(await chosen(phone), 'from the phone', 'the phone: still on the prompt it wrote');
+      const gone = (await stored()).prompts.find(p => p.name === 'from the phone').id;
+      eq((await api(computer, 'delete', {id: gone})).ok, true, 'the computer deletes it');
+      await phone.page.locator('#prompt-boxes [data-box="math"] .pp-name').click();
+      await until(async () => /gone/.test(await text(phone, '#llm-row .llmrow-pmsay')), 'the phone says it is gone');
+      has(await text(phone, '#llm-row .llmrow-pmsay'), 'Parseh\u2019s own prompt is chosen', 'the phone: the row says the prompt is gone and that Parseh\u2019s own is chosen');
+      eq(await chosen(phone), 'Parseh\u2019s', 'the phone: and the menu is on Parseh\u2019s own');
+      await until(async () => !/custom/.test(await first(phone)) && !(await phone.page.locator('#llm-row .llmrow-copy').isDisabled()), 'the page asks again, for Parseh\u2019s own');
+      assert(true, 'the phone: its page shows Parseh\u2019s own prompt again, and the copy button is on');
+      await shot(phone, 'k-phone-gone');
     });
 
     for (const s of Object.values(seat)) {

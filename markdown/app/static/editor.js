@@ -292,9 +292,15 @@ function initEdit() {
     const row = window.ParsehLLMRow ? ParsehLLMRow.mount($('[data-x="row"]', ov), {
       surface: "studio-exercises", cls: "btn primary",
       remind: "paste it into your chatbot, then put the exercises it writes into this page.",
+      // THE PROMPT MENU lists the person's own prompts for exercises, in this page's language; its choice is
+      // this dialog's own (the studio page's prompt has a menu of its own, and a choice of its own)
+      lang: lang().code, options: false, promptsUrl: BASE + "/api/prompts/",
+      // the editor of a prompt opens at the top of the part of the dialog that scrolls: the row has no room for it
+      editorHost: () => $(".ex-prompt-body", ov),
       getText: async () => {
         const decks = $$('input[type="checkbox"]:checked', list).map(x => x.value);
         const body = Object.assign({markdown: src.value, decks}, under.params());
+        if (row && row.promptId()) body.prompt = row.promptId();
         if (teach.boxes()) body.boxes = teach.boxes();
         if (teach.types()) body.types = teach.types();
         if (body.types && !body.types.length) {
@@ -316,7 +322,7 @@ function initEdit() {
     if (row) {
       list.addEventListener("change", () => row.invalidate());
       // the first prompt waits for the options, so that it is made the way it will be asked for
-      under.ready().then(() => row.refresh());
+      Promise.all([under.ready(), row.promptReady()]).then(() => row.refresh());
     } else $('[data-x="row"]', ov).textContent = "The prompt helper could not be loaded.";
   }
 

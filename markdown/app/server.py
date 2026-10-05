@@ -1957,30 +1957,40 @@ def api_exercise_prompt(h):
     `length`; answered with the prompt, its size, every box and type with its size and whether it is on,
     and what the page uses (`preticked`)."""
     body = h._json_body()
+    chosen = None
     try:
         markdown = str(body.get("markdown") or "")
+        # THE PROMPT OF THE PERSON'S THAT THE MENU CHOSE (`prompt`, an id), judged against the page's language
+        fm, _blocks = mdparser.parse(markdown)
+        chosen = prompts.resolve("studio-exercises", body.get("prompt"), languages.get_or_default(fm["target"]))
         a, rows = exercise_prompt(markdown, body.get("decks") or [], boxes=body.get("boxes"),
                                   types=body.get("types"), level=body.get("level"),
-                                  length=body.get("length"), translit=body.get("translit"))
+                                  length=body.get("length"), translit=body.get("translit"), chosen=chosen)
+    except prompts.PromptsError as e:
+        return h.send_json({"error": str(e)}, e.status)
     except (promptboxes.Refused, promptkit.OptionError) as e:
         return h.send_json({"error": str(e)}, 400)
     except promptkit.PromptError as e:
-        return h.send_json({"error": "the prompt could not be made: %s" % e}, 400)
-    h.send_json({"prompt": a.text, "vocabulary": len(rows),
-                 "boxes": promptboxes.catalog(a.target, a.boxes, exercising=True),
-                 "types": promptboxes.types_catalog(a.target, a.types),
+        return h.send_json({"error": prompts.unmade(chosen, e) if chosen
+                            else "the prompt could not be made: %s" % e}, 400)
+    boxes = promptboxes.catalog(a.target, a.boxes, exercising=True)
+    types = promptboxes.types_catalog(a.target, a.types)
+    _inert(chosen, boxes + types, exercising=True)
+    h.send_json({"prompt": a.text, "vocabulary": len(rows), "boxes": boxes, "types": types,
                  "preticked": {"boxes": a.page_boxes, "types": a.page_types},
                  "options": promptkit.describe("studio-exercises", a.target, a.options),
-                 "size": promptboxes.size(a.text)})
+                 "custom": _custom(chosen), "size": promptboxes.size(a.text)})
 
 
-def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length="", translit=None):
+def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length="", translit=None, chosen=None):
     """The prompt that has a model add exercises to a page, in its three
     parts (lib/promptkit.py), and the known words from the Anki decks it
     carries.  Its dialect is built from the boxes ticked -- by default the
     ones the page already uses -- and its exercises from the types ticked;
     `translit` is the scheme of the transliteration the request chose
-    ("ipa" or "classic", promptkit.OPTIONS).
+    ("ipa" or "classic", promptkit.OPTIONS).  `chosen` is a prompt of the person's own for this place
+    (prompts.resolve): one added to Parseh's takes the boxes and the types like Parseh's own; one in place
+    of it takes them only if it carries their blocks, and is otherwise copied whole (_takes_boxes).
     -> (promptkit.Assembled, rows); what the request came to is on the Assembled, for the route that
     answers with it: `target`, `boxes` and `types` ticked, and what the page uses as `page_boxes` and
     `page_types` (all the types, when it holds no exercise)"""
@@ -2004,11 +2014,16 @@ def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length
     # does not carry over: the dialog has its own.
     conventions = promptkit.language_text("studio-exercises", target, options=options)
     promptkit.check("\n".join(extras + [conventions]), "studio-exercises")  # Parseh's own
-    extras.append("## The page's Markdown dialect\n\n"
-                  "What follows describes what the page's Markdown dialect lets an exercise use; where it "
-                  "differs from the output instructions above, the instructions above win.\n\n"
-                  + "\n\n".join(x for x in (promptboxes.dialect_text(target, on_boxes, on_types, options),
-                                            conventions) if x))
+    if _takes_boxes(chosen, exercising=True):
+        extras.append("## The page's Markdown dialect\n\n"
+                      "What follows describes what the page's Markdown dialect lets an exercise use; where it "
+                      "differs from the output instructions above, the instructions above win.\n\n"
+                      + "\n\n".join(x for x in (promptboxes.dialect_text(target, on_boxes, on_types, options),
+                                                conventions) if x))
+    elif conventions:
+        # A PROMPT COPIED WHOLE says what the page's dialect lets an exercise use in its own words: what the
+        # boxes teach is not added after it, and what is true of the language still is
+        extras.append(conventions)
     data = [promptboxes.level_length(level, length)]
     if rows:
         data.extend([
@@ -2023,7 +2038,9 @@ def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length
                 "whole page:\n```markdown\n%s\n```" % markdown.rstrip())
     a = promptkit.assemble("studio-exercises", target,
                            flags=promptboxes.flags(target, on_boxes, on_types, exercising=True),
-                           extras=extras, data="\n\n".join(x for x in data if x), options=options)
+                           extras=extras, data="\n\n".join(x for x in data if x), options=options,
+                           instructions=chosen.instructions if chosen else None,
+                           custom=chosen.name if chosen else None)
     a.target, a.boxes, a.types = target, on_boxes, on_types
     a.page_boxes, a.page_types = page_boxes, page_types
     return a, rows
@@ -2071,7 +2088,7 @@ def _prompt_tail(L, text, custom, options=None):
     return "\n\n".join(x for x in blocks if x)
 
 
-def studio_prompt(L, custom_text=None, boxes=None, level="", length="", translit=None):
+def studio_prompt(L, custom_text=None, boxes=None, level="", length="", translit=None, chosen=None):
     """The authoring prompt for a target language, in its three parts
     (lib/promptkit.py): the instructions -- Parseh's, with only the boxes
     ticked (by default the lesson's), or the text of a custom prompt -- with
@@ -2079,14 +2096,23 @@ def studio_prompt(L, custom_text=None, boxes=None, level="", length="", translit
     the learner's level and the length asked for, one line each.  The
     question is the data, and is added by whoever copies.  `translit` is the
     scheme of the transliteration the request chose ("ipa" or "classic",
-    promptkit.OPTIONS).
+    promptkit.OPTIONS).  `chosen` is a prompt of the person's own for this
+    place (prompts.resolve), in place of `custom_text`: the version line names
+    it, one added to Parseh's goes after the instructions and takes the boxes
+    like them, one in place of them takes the boxes only if it carries their
+    blocks (promptboxes.has_box_marks).
     -> promptkit.Assembled"""
+    if chosen is not None:
+        custom_text = chosen.instructions
     custom = custom_text is not None
     on = promptboxes.ticked(boxes)
     options = promptkit.resolve("studio-doc", L, promptkit.given({"translit": translit}))
-    tail = _prompt_tail(L, custom_text, True, options) if custom else lang_block(L.code, options)
+    # a person's own text in place of Parseh's may lack what the shipped prompt carries (the rule for a
+    # right-to-left target); Parseh's words and then theirs do not (_prompt_tail)
+    tail = (_prompt_tail(L, custom_text, chosen is None or chosen.kind == "replace", options)
+            if custom else lang_block(L.code, options))
     promptkit.check(tail, "studio-doc")         # Parseh's own, put in by hand
-    return promptkit.assemble("studio-doc", L, custom=custom, lead=_target_line(L),
+    return promptkit.assemble("studio-doc", L, custom=chosen.name if chosen else custom, lead=_target_line(L),
                               instructions=custom_text, flags=promptboxes.flags(L, on),
                               values=promptboxes.values(L), includes=promptboxes.includes(),
                               extras=[tail], data=promptboxes.level_length(level, length),
@@ -2102,6 +2128,37 @@ def _query_or_none(h, key):
     raw = urllib.parse.parse_qs(urllib.parse.urlsplit(getattr(h, "path", "") or "").query,
                                 keep_blank_values=True)
     return raw[key][0] if key in raw else None
+
+
+# WHY EVERY BOX IS GREYED for a prompt of the person's that is copied whole (brief 8.6): said once, beside each
+INERT = ("your prompt is copied just as you wrote it, so these boxes change nothing in it: it has no "
+         "{{?name}} blocks for them to switch")
+
+
+def _takes_boxes(chosen, exercising=False):
+    """Whether the boxes (and, for the exercise prompt, the exercise types) act on a person's prompt: Parseh's
+    own and one added to it, yes; one in place of Parseh's only if it carries their blocks -- `{{?id}}` of a
+    box, of its `no_<id>`, or of a type -- and otherwise it is copied whole."""
+    if chosen is None or chosen.kind == "added":
+        return True
+    if promptboxes.has_box_marks(chosen.text):
+        return True
+    return exercising and any(m.startswith("type_") for m in prompts.markers(chosen.text))
+
+
+def _inert(chosen, rows, exercising=False):
+    """Grey what a prompt copied whole cannot use: every box this language is offered (and every type), with the
+    one sentence that says why (static/promptpick.js draws `disabled`)."""
+    if _takes_boxes(chosen, exercising):
+        return
+    for row in rows:
+        if row.get("shown", True):
+            row["disabled"] = INERT
+
+
+def _custom(chosen):
+    """What an answer says of the prompt it carries: false for Parseh's own, else which of the person's."""
+    return {"id": chosen.id, "name": chosen.name, "kind": chosen.kind} if chosen else False
 
 
 def api_prompt_get(h):
@@ -2124,24 +2181,31 @@ def api_prompt_get(h):
     out = _prompt_record(L)
     out["target"] = L.code
     out["target_name"] = L.name
-    custom = bool(out.get("custom"))
-    out["lang_block"] = _prompt_tail(L, out["text"], custom)
+    out["lang_block"] = _prompt_tail(L, out["text"], bool(out.get("custom")))
+    chosen = None
     try:
+        # THE PROMPT THE MENU CHOSE, `prompt=<id>`, is what the answer is made from: the one custom prompt this
+        # page used to keep is a prompt among the others now, and is chosen like them.  `custom` says which
+        chosen = prompts.resolve("studio-doc", _q1(h, "prompt"), L)
         on = promptboxes.ticked(_query_or_none(h, "boxes"))
         level, length, translit = _q1(h, "level"), _q1(h, "length"), _q1(h, "translit")
-        a = studio_prompt(L, out["text"] if custom else None, on, level, length, translit)
+        a = studio_prompt(L, None, on, level, length, translit, chosen=chosen)
         out.update(prompt=a.text, header=a.header, contract=a.contract,
                    boxes=promptboxes.catalog(L, on), presets=promptboxes.presets(),
                    levels=promptboxes.levels(), lengths=promptboxes.lengths(),
                    options=promptkit.describe("studio-doc", L, a.options),
-                   always_chars=len(studio_prompt(L, out["text"] if custom else None, [],
-                                                  translit=translit).text),
-                   size=promptboxes.size(a.text))
+                   always_chars=len(studio_prompt(L, None, [], translit=translit, chosen=chosen).text),
+                   size=promptboxes.size(a.text), custom=_custom(chosen))
+        _inert(chosen, out["boxes"])
+    except prompts.PromptsError as e:
+        return h.send_json({"error": str(e)}, e.status)
     except (promptboxes.Refused, promptkit.OptionError) as e:
         return h.send_json({"error": str(e)}, 400)
     except promptkit.PromptError as e:
-        # a custom prompt from before the kit may say what the kit refuses; the
-        # page still has its text and its block, and is told
+        if chosen:
+            return h.send_json({"error": prompts.unmade(chosen, e)}, 400)
+        # an older page's own prompt may say what the kit refuses; the page still has its text and its
+        # block, and is told
         out["prompt_error"] = str(e)
     h.send_json(out)
 

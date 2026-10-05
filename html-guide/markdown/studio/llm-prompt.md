@@ -214,22 +214,26 @@ your document* has that line in it.
 
 ## Your own prompt
 
-- **Edit prompt** makes the prompt box editable. It shows the prompt alone,
-  without the language's conventions, which belong to the language and are
-  added again when you copy. While you edit, the boxes and the choices under
-  the question are greyed, with the reason: they work again when you save or
-  cancel.
-- **Save custom prompt** keeps your version: from then on it is the prompt
-  this page shows and copies, for every language, and the badge says
-  **custom**. **Cancel** leaves editing without saving.
-- **Reset to default** throws your version away, after asking, and goes
-  back to the prompt that ships with Parseh.
+The menu in front of **copy the prompt**, **prompt: Parseh's ▾**, chooses
+which prompt this page makes: Parseh's own, or one of [your own
+prompts](your-prompts.md), written, changed, kept under another name and
+deleted with **new**, **edit** and **delete** beside it. The badge over the
+prompt says which is shown (*your prompt: British spellings · Persian*), and
+the first line of the prompt says it too (`· custom: British spellings`).
 
-A custom prompt is your text as you wrote it: the boxes do not change it. The
-answer contract is still added after it, so that the model's answer lands the
-same way. It is one of [your own prompts](your-prompts.md), kept in
-`config/prompts.json` and no longer a file in the library, so the library's
-**Backup** does not carry it: export it from **Settings → Your prompts** if you
-want a copy. The editor's **Exercises ▾ → Generate with LLM…** has its own boxes
+- **Added to Parseh's** goes after Parseh's instructions and takes the boxes
+  exactly as Parseh's own does: tick a box, and what it says is there, before
+  your text.
+- **In place of Parseh's** is your text as you wrote it. It begins as a copy
+  of Parseh's own words, with the boxes' blocks in it
+  (`{{?vocab}}…{{/vocab}}`): leave them and the boxes work on it. Take them out
+  and the prompt is **copied whole**: the boxes are greyed, with one sentence
+  that says why, and what you tick changes nothing in it. The level and the
+  length are still added, under the contract, which is Parseh's.
+
+Either way the answer contract is added after your text, so that the model's
+answer lands the same way. Your prompts are kept in `config/prompts.json` and
+not in the library, so the library's **Backup** does not carry them: export
+them from **Settings → Your prompts** if you want a copy. The editor's **Exercises ▾ → Generate with LLM…** has its own boxes
 and does not use it: see [Exercises in the
 editor](editor-exercises.md#generate-with-llm).

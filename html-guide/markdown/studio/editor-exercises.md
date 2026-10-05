@@ -195,6 +195,13 @@ description of the dialect, the target language's conventions, the known
 vocabulary, and the page. The line beside the button says how many known
 words went in.
 
+In front of the button, **prompt: Parseh's ▾** chooses between Parseh's prompt
+for exercises and [your own](your-prompts.md): the list is the dialog's own,
+apart from the one on the LLM prompt page, and its editor opens at the top of
+what scrolls. A prompt of yours in place of Parseh's, with none of the boxes'
+or the exercise types' blocks in it, is copied whole, and the boxes and types
+are greyed with the reason.
+
 Paste it to your model. It answers with the whole page, exercises added,
 in one Markdown block, opened and closed with four backticks: copy that block, select all the text in the editor,
 paste it in place, look it over in the preview and **Save** — or undo, if

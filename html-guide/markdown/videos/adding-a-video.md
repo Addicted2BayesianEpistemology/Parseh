@@ -261,6 +261,11 @@ changed; the page's checks set the marks aside, so such an answer passes them,
 and the caption's own text stays what YouTube had
 ([more](glossing-with-an-llm.md#the-short-vowels)).
 
+Above the button, **prompt: Parseh's ▾** chooses which prompt is made:
+Parseh's own, or one of [your own](../studio/your-prompts.md) for this
+language, which you can write there with **new**. A prompt made for another
+choice is out of date, as it is when the language changes.
+
 **Prepare & copy the prompt** reads the transcript with the language you
 picked and puts a self-contained prompt on the clipboard. It holds:
 

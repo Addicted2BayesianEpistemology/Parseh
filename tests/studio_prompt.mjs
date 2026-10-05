@@ -415,11 +415,27 @@ async function suite(mode) {
       });
       await page.goto(url('/prompt')); await page.waitForSelector('#prompt-boxes .pp-box'); await settle(page);
       let s = await read(page);
-      assert(s.boxes.length && s.boxes.every(b => b.off && b.greyed && b.why === SAY && b.said === ''),
-             'every box with a `disabled` sentence is greyed, unticking-proof, with that sentence beside it and no size');
+      assert(s.boxes.length && s.boxes.every(b => b.off && b.greyed && b.said === ''),
+             'every box with a `disabled` sentence is greyed, unticking-proof, with no size');
+      eq([s.boxes.filter(b => b.why !== '').length, await page.textContent('#prompt-boxes .pp-busy')], [0, SAY],
+         'a sentence that is the same for every box is said once above them, and not under each of twenty');
       assert(s.presets.every(p => p.off), 'and the presets, which can change nothing, are off');
       await page.click(`#prompt-boxes [data-box="${s.boxes[0].id}"] .pp-name`, {force: true});
       eq((await read(page)).boxes.map(b => b.on), s.boxes.map(b => b.on), 'a click on one changes nothing');
+      // two reasons: each box says its own, beside it, and nothing is said above
+      const OTHER = 'this one is off for another reason';
+      page = watch(await ctx.newPage(), 'a8-two-reasons');
+      await page.route(u => u.pathname.endsWith('/api/prompt') && u.search.length > 0, async route => {
+        const res = await route.fetch();
+        const j = await res.json();
+        j.boxes.forEach((b, i) => { if (b.shown) b.disabled = i % 2 ? SAY : OTHER; });
+        await route.fulfill({response: res, json: j});
+      });
+      await page.goto(url('/prompt')); await page.waitForSelector('#prompt-boxes .pp-box'); await settle(page);
+      s = await read(page);
+      assert(s.boxes.every(b => b.greyed && [SAY, OTHER].includes(b.why)) && new Set(s.boxes.map(b => b.why)).size === 2,
+             'two different reasons: each box says its own beside it');
+      eq(await page.textContent('#prompt-boxes .pp-busy'), '', 'and nothing is said above them');
       await ctx.close();
 
       // 2) a box the page has never heard of, in a group nobody has heard of, and a slow answer
@@ -471,24 +487,21 @@ async function suite(mode) {
       await ctx.close();
     });
 
-    await section('a9', 'Edit prompt greys the boxes, Cancel gives them back', async () => {
+    await section('a9', 'the page has no Edit prompt of its own: the row\'s menu is the way to a prompt of yours, and the boxes stay on while its editor is open', async () => {
       const ctx = await context();
       const page = await prompt(ctx, 'a9');
+      eq(await page.evaluate(() => ['btn-edit-prompt', 'btn-save-prompt', 'btn-cancel-edit', 'btn-reset-prompt'].map(i => !!document.getElementById(i))),
+         [false, false, false, false], 'the four buttons of the old way are gone: one way to a prompt of your own, not two');
+      await page.waitForSelector('#llm-row .llmrow-pm select');
       const was = await read(page);
-      await page.click('#btn-edit-prompt');
+      await page.click('#llm-row .llmrow-pbtn:has-text("new")');
+      await page.waitForSelector('#llm-row .llmrow-editor');
       const s = await read(page);
-      assert(s.boxes.every(b => b.off) && s.presets.every(p => p.off), 'editing: every box and every preset is off');
-      assert(await page.evaluate(() => document.querySelector('#prompt-level').disabled && document.querySelector('#prompt-length').disabled
-        && [...document.querySelectorAll('.pp-under .llmrow-opt select')].every(x => x.disabled)), 'and level, length and the options too');
-      const why = await page.textContent('#prompt-boxes .pp-busy');
-      assert(/editing the whole prompt/.test(why), `with the reason said (${why})`);
-      assert(!(await page.$eval('#prompt-text', t => t.readOnly)), 'the box is the person\'s to write in');
-      await page.click('#btn-cancel-edit');
-      await settle(page);
-      const back = await read(page);
-      assert(back.boxes.every(b => !b.off) && back.presets.every(p => !p.off) && back.text === was.text, 'Cancel: the boxes work again and the prompt is the one the boxes make');
-      eq(back.boxes.map(b => b.on), was.boxes.map(b => b.on), 'with the same boxes ticked');
-      assert(await page.evaluate(() => document.querySelector('#prompt-boxes .pp-busy').textContent === ''), 'and no reason is left on the page');
+      assert(s.boxes.every(b => !b.off) && s.presets.every(p => !p.off), 'the editor open: the boxes and the presets still work (it writes a prompt of yours, not the page\'s own)');
+      assert(await page.evaluate(() => document.querySelector('#prompt-text').readOnly), 'and the box that shows the prompt is never the person\'s to write in');
+      await page.click('#llm-row .llmrow-editor button:has-text("close")');
+      await page.waitForSelector('#llm-row .llmrow-editor', {state: 'detached'});
+      eq((await read(page)).text, was.text, 'closed again: the prompt is as it was');
       await ctx.close();
     });
 

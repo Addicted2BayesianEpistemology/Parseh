@@ -20,7 +20,8 @@ change the world under an open page:
 
     {"cmd": "save", "prompt": {surface, name, kind, text, languages}}   made through lib/prompts.py
     {"cmd": "clear"}                       the store emptied
-    {"cmd": "parseh", "changed": true}     Parseh's own prompt for a stretch of a video changed (or put back)
+    {"cmd": "parseh", "changed": true}     Parseh's own prompt for a stretch of a video changed (or put back);
+                                           "surface": "studio-doc" does it for the studio's page instead
     {"cmd": "stored"}                      OK <the store's file, as JSON>
 
 Prints `READY {json}` once listening.  SIGTERM or SIGINT removes the temp tree."""
@@ -61,6 +62,8 @@ serve.Handler._where = where
 
 REGION = promptkit.TEMPLATES["video-region"]
 CHANGED = tmp / "region-prompt.md"
+STUDIO = promptkit.TEMPLATES["studio-doc"]
+STUDIO_CHANGED = tmp / "studio-prompt.md"
 
 
 def command(line):
@@ -71,6 +74,15 @@ def command(line):
     if what == "clear":
         if os.path.exists(prompts.STORE):
             os.remove(prompts.STORE)
+        return None
+    if what == "parseh" and c.get("surface") == "studio-doc":
+        if c.get("changed"):
+            text = Path(STUDIO).read_text(encoding="utf-8")
+            STUDIO_CHANGED.write_text(text.replace("You are writing a document for", "You are writing a document, for", 1),
+                                      encoding="utf-8")
+            promptkit.TEMPLATES["studio-doc"] = str(STUDIO_CHANGED)
+        else:
+            promptkit.TEMPLATES["studio-doc"] = STUDIO
         return None
     if what == "parseh":
         if c.get("changed"):

@@ -15,10 +15,6 @@
   <a class="btn ghost" href="{{BASE}}/">← Library</a>
   <div class="doc-title">LLM authoring prompt</div>
   <div class="topbar-actions">
-    <button class="btn" id="btn-edit-prompt">Edit prompt</button>
-    <button class="btn primary hidden" id="btn-save-prompt">Save custom prompt</button>
-    <button class="btn hidden" id="btn-cancel-edit">Cancel</button>
-    <button class="btn" id="btn-reset-prompt" title="Discard the custom prompt and go back to exlex/PROMPT.md">Reset to default</button>
     <button class="btn danger ghost" id="btn-stop">Stop server</button>
   </div>
 </header>
@@ -52,7 +48,8 @@
   <!-- copy the prompt, its size and what to do next: drawn by /lib/llmrow.js,
        the one place these controls are built (the studio run on its own serves
        that file too).  It copies the prompt shown above, and your question
-       after it when you have written one. -->
+       after it when you have written one.  Its prompt menu is where a prompt
+       of your own is chosen, written, changed and deleted. -->
   <div id="llm-row"></div>
 
   <div class="workflow-hint">

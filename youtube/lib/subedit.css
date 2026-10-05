@@ -69,8 +69,11 @@
   border:1px solid var(--se-rule);border-radius:5px;background:var(--se-bg);color:var(--se-ink)}
 
 /* the other road: the prompt copied out, the answer pasted back */
-.se-llm{flex:none;margin:0 0 8px;padding:8px 10px;border:1px dashed var(--se-rule);
+.se-llm{flex:0 1 auto;min-height:0;overflow:auto;margin:0 0 8px;padding:8px 10px;border:1px dashed var(--se-rule);
   border-radius:8px;background:var(--se-boxbg)}
+/* the editor of a prompt of the person's (lib/llmrow.js) opens inside this panel: it takes the room there is and
+   scrolls inside it, so that the captions under it keep a place of their own */
+.se-llm .llmrow-editor{max-height:50vh;overflow:auto}
 .se-llmnote{font-size:12px;line-height:1.5;color:var(--se-dim);margin-bottom:6px}
 .se-llmrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 0}
 /* the row that copies the prompt (lib/llmrow.js) takes the width of the box it stands in */
