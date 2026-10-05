@@ -2316,8 +2316,9 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
   {
     console.log('   n1c) on the phone\'s layout the video stays in the page: "Edit the transcript…" is put off while it is loaded');
     // the layout is the person's choice (parseh_mode); there is no workspace over the page, the frame is
-    // where the block put it, and the second copy of the video the editor would play is refused
-    const {context, page} = await addPage({width: 390, init: () => { try { localStorage.setItem('parseh_mode', 'mobile'); } catch (_) {} }});
+    // where the block put it, and the second copy of the video the editor would play is refused (with a
+    // transcript in the box: with none, the editor says "paste the transcript first" before anything)
+    const {context, page} = await addPage({width: 390, box: BOX, init: () => { try { localStorage.setItem('parseh_mode', 'mobile'); } catch (_) {} }});
     eq(await page.evaluate(() => document.documentElement.getAttribute('data-mode')), 'mobile', 'the page is in the phone\'s layout');
     await toReady(page);
     eq(await page.evaluate(() => { const w = document.getElementById('stt_workspace'); return [w.open, w.contains(document.getElementById('stt_frame'))]; }),
