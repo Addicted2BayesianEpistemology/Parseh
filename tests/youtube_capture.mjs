@@ -2138,6 +2138,8 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     let kept, lost;
     const body = new Promise((ok, bad) => { kept = ok; lost = bad; });
     body.catch(() => {});
+    const timer = setTimeout(() => lost(Error('FAIL: the door /api/empty was never asked, 40 s after it was watched (the page is at ' + page.url() + ')')), 40000);
+    body.then(() => clearTimeout(timer), () => clearTimeout(timer));
     await page.route(/\/api\/empty$/, async route => {
       try {
         const r = await route.fetch();
