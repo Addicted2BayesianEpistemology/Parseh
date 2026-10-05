@@ -20,8 +20,11 @@ does not**, and touches nothing that is in neither list — that is yours.
 
 ## Where a version comes from
 
-- **The newest release.** *Check now* asks GitHub which release of Parseh
-  is newest, and says whether it is newer than yours. *Download* fetches its
+- **The newest release.** *Check now* asks GitHub, in Parseh's own
+  repository (`parseh-io/Parseh`), which release of Parseh is newest, and says
+  whether it is newer than yours. (Parseh moved there in a0.4.4. A Parseh
+  from before asks the old address, which GitHub sends on to the new one, so
+  it finds the newest release too.) *Download* fetches its
   zip and checks it against the checksum published beside it. Ticking *Look
   once a day* makes Parseh ask by itself, once a day; it is off until you
   tick it. Asking sends nothing about you: one question, with Parseh's name
@@ -178,7 +181,7 @@ few minutes and downloads nothing of yours again.
 1. **Stop Parseh**: **⏻ stop** on the hub.
 2. **Rename its folder** — `Parseh` becomes `Parseh-old`, say.
 3. **Get the new version**: download `parseh-<version>.zip` from the
-   [releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest)
+   [releases page](https://github.com/parseh-io/Parseh/releases/latest)
    and unpack it. Put the folder it holds, `parseh-<version>`, where the old
    one was, and give it the old one's name.
 4. **Move your things across.** From the old folder into the new one,

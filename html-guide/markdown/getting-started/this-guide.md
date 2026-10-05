@@ -30,10 +30,13 @@ one inside a page only when the page was served, so from the disk each
 video is a card, **Watch on YouTube** (on a phone, **YouTube** and the
 time the clip starts at), that opens it on YouTube in a new tab.
 
-**On the web**, when the project publishes it on GitHub Pages: the same
-pages, at `https://<the user's name>.github.io/Parseh/`.
-[Compiling and publishing](../writing-this-guide/compiling.md) says how
-that is switched on.
+**On the web**, the project publishes it at <https://parseh.io/guide/>: the
+same pages, under a slim bar that leads to Parseh's site. That is the address
+a page exported from Parseh gives for the guide, and it stays. Anyone's own
+copy can be published the same way, to GitHub Pages, at
+`https://<account>.github.io/<repository>/`;
+[Compiling and publishing](../writing-this-guide/compiling.md) says how that
+is switched on.
 
 ## When it needs compiling
 

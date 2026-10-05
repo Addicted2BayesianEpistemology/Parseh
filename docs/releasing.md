@@ -51,6 +51,7 @@ it is only ever a tag's name.
   10. [Publish](#10-publish)
   11. [Parseh-mine, from GitHub](#11-parseh-mine-from-github)
   12. [Afterwards](#12-afterwards)
+- [Where Parseh lives](#where-parseh-lives)
 - [When a draft is wrong](#when-a-draft-is-wrong)
 - [When a published release is bad](#when-a-published-release-is-bad)
 - [The first managed release](#the-first-managed-release)
@@ -360,7 +361,7 @@ through, and to prove that what is theirs survives it.
 1. **Parseh-test runs `<previous>`, as released.** The hub's foot says
    which version it is. If it is anything else, put `<previous>` back:
    download `parseh-<previous>.zip` from its page on
-   [GitHub's releases](https://github.com/Addicted2BayesianEpistemology/Parseh/releases),
+   [GitHub's releases](https://github.com/parseh-io/Parseh/releases),
    then **Settings → Updating Parseh → A zip of your own**, choose it, and
    press the button (**Go back to…** or **Install … again**).
 2. **It has something to lose**, and something new since last time:
@@ -600,16 +601,20 @@ before you tag.
    `parseh-<version>.zip.sha256` (and GitHub's own *Source code* archives,
    which are not the release and never get a checksum). Its notes are the
    changelog's section.
-4. **The guide on GitHub Pages: your own step, by hand, in the browser.**
-   The guide is published when you launch its workflow, and only then: on
-   GitHub, **Actions → guide on GitHub Pages → Run workflow**, branch
-   **`main`**, **Run workflow**. It compiles the guide from what `main`
-   holds and its **deploy** job puts it on the site, in a minute or two;
-   step 12.3 looks at the result. Do it on the day you publish the draft
-   (step 10), with the release commit on `main`, and before step 12.6 puts
-   the next version's *not yet released* heading there. Nothing else
-   publishes it (a push only compiles it), and whoever follows the rest of
-   this page for you does not launch it: they stop here and tell you.
+4. **The guide on `parseh.io/guide`: your own step, by hand, in the browser.**
+   The guide is published when you launch its workflow, and only then — and
+   the workflow is in **another repository**, `parseh-io/guide` (see [Where
+   Parseh lives](#where-parseh-lives)): on GitHub, `parseh-io/guide` →
+   **Actions → publish the guide → Run workflow**, `ref` **`main`**,
+   `repository` left as it is (`parseh-io/Parseh`), **Run workflow**. It
+   checks out this repository's `main`, compiles the guide there and its
+   **deploy** job puts it on the site, in a minute or two; step 12.3 looks
+   at the result. Do it on the day you publish the draft (step 10), with
+   the release commit on `main`, and before step 12.7 puts the next
+   version's *not yet released* heading there. Nothing else publishes it
+   (a push to `Parseh` runs `guide-pages.yml`, which only compiles the guide
+   as a check), and whoever follows the rest of this page for you does not
+   launch it: they stop here and tell you.
 
 ### 9. The draft is what you built
 
@@ -651,16 +656,21 @@ The moment the world sees it.
    draft (`-rc1`) is a pre-release, and it is deleted, never published.
    **Set as the latest release**: ticked.
 4. **Publish release**.
-5. **Check it is the latest**, in a minute or two, from the terminal:
+5. **Check it is the latest**, in a minute or two, from the terminal. The
+   command asks every address Parseh names — the feed first — and prints
+   what each answers:
 
    ```bash
-   curl -s https://api.github.com/repos/Addicted2BayesianEpistemology/Parseh/releases/latest | grep '"tag_name"'
+   python3 lib/release.py links --expect <version>
    ```
 
-   It must name `<version>`. (If the box was ticked after all, GitHub's
-   *release* workflow runs its guard on publishing, takes the mark off and
-   makes the release the latest — **Actions → release**, the run named after
-   the release, says so in a warning — and this then names `<version>` too.)
+   The first lines are the feed and the releases page: the feed's
+   `tag_name` must be `<version>`. (If the box was ticked after all,
+   GitHub's *release* workflow runs its guard on publishing, takes the mark
+   off and makes the release the latest — **Actions → release**, the run
+   named after the release, says so in a warning — and the feed then names
+   `<version>` too.) The lines about the guide are step 12.4's: they are red
+   until step 8.4's run has finished.
 
 From now on this release is somebody's download: it is never replaced, and
 its tag never moves. GitHub's workflow refuses to build over it.
@@ -673,7 +683,14 @@ updater's public road, never from a zip you downloaded or built — and it is
 the first to take it.
 
 1. On Parseh-mine (`https://localhost:7654/`), **Settings → Updating Parseh
-   → Check now**: it names `<version>` as the newest release.
+   → Check now**: it names `<version>` as the newest release. (A Parseh
+   built before the move to `parseh-io` — a0.4.3 and before — asks the old
+   address of the repository, which GitHub redirects to the new one for as
+   long as nobody takes the old name again: this step is that redirect's
+   proof, and its result goes in [Where Parseh lives](#where-parseh-lives).
+   If it says it cannot reach GitHub, take the release's zip by hand
+   (**A zip of your own**): that is the whole of the owner's rule for his own
+   copy.)
 2. **Download**: the zip GitHub built comes down and is checked against the
    `.sha256` published beside it.
 3. Read **Ready to install** as in step 5.4: ↑ newer, nothing changed by
@@ -696,21 +713,40 @@ releases, **Go back to <previous>**).
    `<previous>` with its zip, then **Check now**, **Download** and **Update
    to <version>**: the whole road a user takes, checksum included, from the
    other direction. (Parseh-test then runs `<version>`, ready for the next
-   rehearsal.)
+   rehearsal.) On a version that moved the project, Parseh-test runs the
+   previous release, which asks the OLD address: it is the same proof as
+   step 11's, made on a copy.
 2. **The releases page, signed out** (a private window): the release is
    there, with the zip and its `.sha256`, and no rehearsal.
-3. **Pages is current** — the run you launched in step 8.4. GitHub,
-   **Actions**: the *guide on GitHub Pages* run is green, its **deploy** job
-   too (a run for a push only compiles: its deploy job is skipped). Then
-   `https://addicted2bayesianepistemology.github.io/Parseh/site/reference/whats-new.html`
-   shows `<version>` with its day. If it shows the version before, the run
-   was not launched: launch it now, from `main`.
-4. **README.md** needs nothing: it names no version and links to the newest
+3. **The guide is current** — the run you launched in step 8.4. GitHub,
+   `parseh-io/guide` → **Actions**: the *publish the guide* run is green,
+   its **deploy** job too. Then
+   `https://parseh.io/guide/site/reference/whats-new.html`
+   shows `<version>` with its day, under the bar with Parseh's logo. If it
+   shows the version before, the run was not launched: launch it now, from
+   `main`.
+4. **Every address answers.** From the checkout, once the run is done:
+
+   ```bash
+   python3 lib/release.py links --expect <version>
+   ```
+
+   It must print nothing red and exit with 0: the feed names `<version>`;
+   `https://parseh.io/` answers; `https://parseh.io/guide` ends at
+   `https://parseh.io/guide/` with the only hop GitHub's own; the deep link
+   above answers at its own address with the bar in it; the phone app's
+   icons answer `200 image/png` **with no redirect at all**; every link of
+   `README.md`, `docs/` and the guide's sources ends in 200. Add `--old` to
+   see what the old addresses answer. The first lines also report, without
+   failing, what `https://parseh-io.github.io/guide/` (a redirect to the
+   domain) and `https://parseh.io/Parseh/` (404: Pages is off in `Parseh`)
+   say.
+5. **README.md** needs nothing: it names no version and links to the newest
    release (a test holds it so).
-5. **The baseline.** If step 1 found the reds different from the table
+6. **The baseline.** If step 1 found the reds different from the table
    above — one mended, a new known one accepted — write the new table, with
    its date.
-6. **Open the next version.** Decide its number (the next `a0.x.y`; it can
+7. **Open the next version.** Decide its number (the next `a0.x.y`; it can
    be renamed while it is unreleased), then, in one commit:
    - `VERSION` — the next version;
    - `CHANGELOG.md` — a new heading at the very top,
@@ -722,10 +758,83 @@ releases, **Go back to <previous>**).
 
    `python3 -m unittest tests/test_version.py tests/test_html_guide.py`
    must be `OK`. Commit, push.
-7. **Clear up**: `dist/` (ignored by git, and made again at will), the two
+8. **Clear up**: `dist/` (ignored by git, and made again at will), the two
    fingerprints `../parseh-test-*.txt`, and the downloads.
-8. **An announcement**, if this version is one to announce, is a piece of
+9. **An announcement**, if this version is one to announce, is a piece of
    work of its own, not a step of this list.
+
+## Where Parseh lives
+
+*Since a0.4.4 (decided with the owner on 2026-09-30 and 2026-10-05).*
+
+**The project is the repository `parseh-io/Parseh`**, in the GitHub
+organisation `parseh-io`. It was moved there by a *transfer* of the
+repository the owner's own account held, not by making a new one, so that its
+releases, its tags and the road every earlier install updates by came along.
+The author's profile (`Bruno Ursino on GitHub`, at the foot of the hub) is a
+**person's** address and stays where he is; it is not the project's, and
+`lib/author.py` and `lib/project.py` say so.
+
+**One module says where Parseh lives: `lib/project.py`.** The update road
+(the feed Settings → Updating Parseh asks, the releases page its refusals
+name), the two links at the foot of every page exported from the studio, the
+phone app's icons and the line each download introduces itself with are all
+built from it, and nothing else in the tree spells the organisation or the
+domain. **A move is one edit there**, then:
+
+```bash
+python3 lib/release.py links --old
+```
+
+which asks every address Parseh names and prints what answers (step 12.4).
+`tests/test_project.py` pins the literal addresses and keeps the old place
+out of the tree.
+
+**Three repositories and one domain.** The domain `parseh.io` is the
+owner's, served by GitHub Pages: its records at Cloudflare are *DNS only*
+(grey cloud, never proxied: GitHub cannot renew its certificate through
+Cloudflare's), and the mail records are not touched.
+
+| Repository | Served at | What it holds |
+|---|---|---|
+| `parseh-io/parseh-io.github.io` | `https://parseh.io/` | Parseh's site (its own repository, its own design). Its custom domain, `parseh.io`, is what puts every other Pages site of the organisation under the domain. |
+| `parseh-io/guide` | `https://parseh.io/guide/` | No pages of its own: a README and ONE workflow, *publish the guide*, run by hand (step 8.4). It checks out `parseh-io/Parseh` at a ref, compiles the guide with `html-guide/build.py --pages` and publishes it. The guide's path under the domain is **this repository's name**. |
+| `parseh-io/Parseh` | nothing | Pages is switched OFF here (an old copy of the guide would stay at `parseh.io/Parseh/`). `guide-pages.yml` only compiles the guide on every push to `main`, as a check that it still builds on a clean machine. |
+
+**The guide's address is `https://parseh.io/guide`**, and a page exported
+from Parseh carries it for ever in its foot: so the domain must **never
+lapse** (auto-renew on, the registrar lock on, two-factor authentication on
+the Cloudflare account, the renewal price known) — a lapsed domain would put
+a stranger's page behind the guide link of every export. The old address of
+the guide, `https://addicted2bayesianepistemology.github.io/Parseh/`, is
+**dead** and stays so: GitHub does not redirect Pages after a transfer. A page
+exported by Parseh before a0.4.4 carries it; nothing can mend that.
+
+**What an old install does.** A Parseh built before a0.4.4 asks the feed at
+the old repository's name. After a transfer GitHub answers it with a `301`
+to the repository's number, which `urllib` follows, and the release's zip
+and `.sha256` still download from the old address: so an old install's
+**Check now** finds the new release, for as long as nobody takes the old
+name again. (Measured on other repositories on 2026-09-26; for this one it
+is step 11's first look, and `links --old` shows the `301`.) Record here what
+it did, with the date: *not yet recorded — the first release from the new
+home is its test.* The owner's rule (2026-09-30) is that nobody but him had
+installed Parseh, so no bridge release stands in the old repository: his own
+copy takes the release by the public road if the redirect holds, and by the
+zip if it does not.
+
+**Never** (each of these deletes something for good or breaks it silently):
+
+- create a repository named `Parseh` under `Addicted2BayesianEpistemology` —
+  or **fork** `parseh-io/Parseh` into that account under its default name,
+  which is the same thing: it deletes GitHub's redirect from the old address
+  for good. Rename the fork in the dialog, or do not fork;
+- rename or delete the personal account;
+- rename the repository `guide`: its name IS the guide's address;
+- proxy the domain's records at Cloudflare (orange cloud), or give
+  `parseh-io/guide` a custom domain of its own;
+- publish the guide from anywhere but the hand-run workflow of
+  `parseh-io/guide`, or let a push do it.
 
 ## When a draft is wrong
 

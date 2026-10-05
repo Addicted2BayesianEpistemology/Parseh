@@ -1,4 +1,21 @@
-## [a0.4.3] - unreleased
+## [a0.4.4] - unreleased
+### Added
+- Parseh lives in the parseh-io organisation on GitHub; Settings → Updating Parseh looks in the new repository
+- The guide is at parseh.io/guide, under a bar that leads to Parseh's site; pages exported from Parseh link to it for good
+- The phone app's icons are published with the guide again
+- Every address Parseh writes for itself is kept in one place, lib/project.py
+- release.py links asks every address Parseh names and says what each answers
+- Settings → About shows a few friendly numbers: cards answered, videos and books on the shelves, since when
+
+### Changed
+- Speech to text lists the Whisper program first, above the second pass and the models
+- Includes a0.4.2 and a0.4.3, which were finished but not released on their own: their entries follow
+
+### Fixed
+- LLM Integration, LM likelihood and About are drawn with their own stylesheet and end in a foot like the other doors
+- The README and the settings pages link to guide pages that exist
+
+## [a0.4.3] - 2026-10-05
 ### Added
 - A standalone reasoning-workspace CSV checker, shipped with the helper and skill, for draft checks, exact source spans and required-entry coverage
 - Standard and language-specific Whisper models in one pinned catalogue, with independent resumable installs, per-language model choices and model provenance in transcription jobs

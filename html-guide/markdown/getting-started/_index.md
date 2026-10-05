@@ -38,7 +38,7 @@ nothing of anybody's, so its shelves are empty until you fill them.
 
 1. **Get it, and install it, once.** Download the newest release's zip,
    `parseh-<version>.zip`, from the
-   [releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest)
+   [releases page](https://github.com/parseh-io/Parseh/releases/latest)
    and unpack it where Parseh will live. Then, on Linux, run `./install.sh`
    in that folder; on a Mac, double-click **Parseh.command**; on Windows,
    double-click **install.bat**. [Installing Parseh](installing.md) says

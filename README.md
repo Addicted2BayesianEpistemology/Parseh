@@ -20,18 +20,18 @@ Italian, Japanese, French, German, Turkish, English, Hindi, Spanish and
 Chinese.
 
 **In alpha: bugs are to be expected.** The newest version is on the
-[releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest),
+[releases page](https://github.com/parseh-io/Parseh/releases/latest),
 with what it changed; the one you are running is written at the foot of
 Parseh's hub. ([`CHANGELOG.md`](CHANGELOG.md) lists every version.)
 
 **The guide — installing, using and extending Parseh, and the full reference
 of its Markdown dialect — is at
-<https://addicted2bayesianepistemology.github.io/Parseh/>.**
+<https://parseh.io/guide/>.**
 
 ## Quick start
 
 Download **`parseh-<version>.zip`** from the newest release's *Assets* on the
-[releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest)
+[releases page](https://github.com/parseh-io/Parseh/releases/latest)
 — not *Code → Download ZIP*, which is the source code — and unpack it where
 Parseh will live. In that folder:
 
@@ -57,9 +57,9 @@ Then read on the phone. The mobile interface installs **as an app**:
 | **2.** Chrome offers **Install Parseh** on that page; or its **⋮** menu → *Install app*. | **2.** In Safari, the **Share** button → *Add to Home Screen*. |
 
 The guide has the details:
-[Installing Parseh](https://addicted2bayesianepistemology.github.io/Parseh/html-guide/site/getting-started/installing.html),
-[Reaching Parseh from other devices](https://addicted2bayesianepistemology.github.io/Parseh/html-guide/site/getting-started/other-devices.html)
-and [Browser and Mobile](https://addicted2bayesianepistemology.github.io/Parseh/html-guide/site/getting-started/mobile-mode.html).
+[Installing Parseh](https://parseh.io/guide/site/getting-started/installing.html),
+[Reaching Parseh from other devices](https://parseh.io/guide/site/getting-started/other-devices.html)
+and [Browser and Mobile](https://parseh.io/guide/site/getting-started/mobile-mode.html).
 
 ## License
 

@@ -12,7 +12,7 @@ Parseh, all but the few things [Removing it](#removing-it) lists.
 
 ## Getting Parseh
 
-1. Open the [releases page](https://github.com/Addicted2BayesianEpistemology/Parseh/releases/latest)
+1. Open the [releases page](https://github.com/parseh-io/Parseh/releases/latest)
    and download the zip of the newest release, **`parseh-<version>.zip`**
    (under *Assets*). The `.sha256` file beside it is its checksum, for
    those who check one.

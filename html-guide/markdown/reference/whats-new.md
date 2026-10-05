@@ -15,7 +15,47 @@ change. A new version comes in from **Settings → Updating Parseh**
 ([Updating Parseh](../getting-started/updating.md)), which compiles this
 guide and rebuilds the readers by itself.
 
-## a0.4.3 — not yet released
+## a0.4.4 — not yet released
+
+### Parseh has a home of its own on GitHub
+
+Parseh's repository moved to the **parseh-io** organisation
+(`github.com/parseh-io/Parseh`). Nothing you keep changes. **Settings →
+Updating Parseh** now asks the new place for the newest release; a Parseh
+from before the move asks the old address, which GitHub sends on to the new
+one, so it finds this release too — and when it cannot, **A zip of your own**
+takes the release's zip by hand. See [Updating Parseh](../getting-started/updating.md).
+
+### The guide at parseh.io/guide
+
+The guide has an address of its own, <https://parseh.io/guide/>, under a slim
+bar with Parseh's logo that leads to **parseh.io**, Parseh's site. A page
+exported from Parseh now links there in its foot, for good; a page exported
+before this version still says the old `github.io` address, which no longer
+answers. The guide installed with Parseh is read from your computer and is
+unchanged. See [This guide](../getting-started/this-guide.md).
+
+On Android, Chrome offers to install Parseh with Parseh's own icons again: they
+had been named at an address that stopped answering when the guide was
+published another way, and an app whose icons cannot be fetched is not built.
+
+### A friendlier Settings
+
+**LLM Integration**, **LM likelihood** and **About** had lost their stylesheet:
+their forms were drawn bare and the links of their feet ran together. They look
+like the other doors now, and end in a foot like theirs, with the links that
+reach the guide. On **Speech to text** the **Whisper program** is the first
+thing on the page, since every model runs on it. **About** adds a few rough
+numbers for the pleasure of it — cards answered, videos and books on the
+shelves, and since when Parseh has been here — counted from what is on the
+computer, with nothing recorded. See [About Parseh](../getting-started/about.md).
+
+### a0.4.2 and a0.4.3 come with it
+
+Those two versions were finished and not released on their own: this release
+carries both, and their entries follow.
+
+## a0.4.3 — 5 October 2026
 
 ### More Whisper models
 

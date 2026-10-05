@@ -334,7 +334,7 @@ CHROME_BIN=/path/to/chrome PARSEH_PYTHON=/path/to/python3 \
 ## Releasing a version
 
 For whoever releases Parseh, from a copy of its source code;
-[`docs/releasing.md`](https://github.com/Addicted2BayesianEpistemology/Parseh/blob/main/docs/releasing.md)
+[`docs/releasing.md`](https://github.com/parseh-io/Parseh/blob/main/docs/releasing.md)
 is the whole procedure, step by step. The one tool it uses:
 
 ```bash
