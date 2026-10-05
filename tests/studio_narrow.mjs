@@ -251,39 +251,53 @@ try {
     await page.goto(`${B}/doc/${info.doc_id}/edit`);
     await page.waitForFunction(() => /rendered/.test(document.querySelector('#pv-status')?.textContent || ''), null, {timeout: 15000});
     await page.evaluate(() => document.fonts.ready);
-    const bad = [];
-    let starts = 0;
-    for (let width = 280; width <= 1440; width += 10) {
-      await page.setViewportSize({width, height: 900});
-      await sleep(40);
-      const r = await page.evaluate(() => {
-        const d = document.querySelector('.topbar details.dropdown:has(#btn-exercise)');
-        const off = [];
-        const look = sel => {
-          for (const b of document.querySelectorAll(sel)) {
-            const q = b.getBoundingClientRect();
-            if (!q.width) continue;
-            const hit = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2);
-            const reach = b.disabled ? !!hit && b.closest('.topbar').contains(hit) : !!hit && (hit === b || b.contains(hit));
-            if (q.left < 0 || q.right > innerWidth || q.top < 0 || q.bottom > innerHeight || !reach)
-              off.push((b.id || b.textContent).trim().slice(0, 20));
-          }
-        };
-        d.open = false;
-        look('.topbar :is(a, button, label, summary):not(.menu *)');   // the bar (a shut menu keeps its boxes)
-        d.open = true;
-        look('.topbar details.dropdown:has(#btn-exercise) .menu button');        // its open menu
-        const s = d.querySelector('summary').getBoundingClientRect(), bar = document.querySelector('.topbar').getBoundingClientRect();
-        d.open = false;
-        return {sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, off,
-                startsLine: s.left - bar.left < 30};
-      });
-      if (r.startsLine) starts++;
-      if (r.sw > r.cw || r.off.length) bad.push(`${width} px: page ${r.sw}, off screen or unreachable: ${r.off.join(', ')}`);
+    // the bar as a document in this language has it, and as a Japanese one has it,
+    // with the reading-mark button the editor shows for a language that has
+    // one: the widest the bar gets
+    for (const reading of [false, true]) {
+      await page.evaluate(on => { document.querySelector('#ins-kana').hidden = !on; }, reading);
+      const bad = [];
+      let starts = 0;
+      for (let width = 280; width <= 1440; width += 10) {
+        await page.setViewportSize({width, height: 900});
+        await sleep(40);
+        const r = await page.evaluate(() => {
+          const d = document.querySelector('.topbar details.dropdown:has(#btn-exercise)');
+          const colour = document.querySelector('.topbar details.colour-pick');
+          const off = [];
+          const look = (sel, what) => {
+            for (const b of document.querySelectorAll(sel)) {
+              const q = b.getBoundingClientRect();
+              if (!q.width) continue;
+              const hit = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2);
+              const reach = b.disabled ? !!hit && b.closest('.topbar').contains(hit) : !!hit && (hit === b || b.contains(hit));
+              if (q.left < 0 || q.right > innerWidth || q.top < 0 || q.bottom > innerHeight || !reach)
+                off.push(what + (b.id || b.textContent).trim().slice(0, 20));
+            }
+          };
+          d.open = false;
+          colour.open = false;
+          look('.topbar :is(a, button, label, summary):not(.menu *)', '');   // the bar (a shut menu keeps its boxes)
+          d.open = true;
+          look('.topbar details.dropdown:has(#btn-exercise) .menu button', 'Exercises ▾ menu: ');   // its open menu
+          const s = d.querySelector('summary').getBoundingClientRect(), bar = document.querySelector('.topbar').getBoundingClientRect();
+          d.open = false;
+          colour.open = true;
+          look('.topbar details.colour-pick .menu :is(button, label)', 'colour menu: ');   // the palette, open
+          const sideways = document.documentElement.scrollWidth;
+          colour.open = false;
+          return {sw: Math.max(document.documentElement.scrollWidth, sideways), cw: document.documentElement.clientWidth, off,
+                  startsLine: s.left - bar.left < 30};
+        });
+        if (r.startsLine) starts++;
+        if (r.sw > r.cw || r.off.length) bad.push(`${width} px: page ${r.sw}, off screen or unreachable: ${r.off.join(', ')}`);
+      }
+      assert(!bad.length, 'from 280 to 1440 px the editor never scrolls sideways' + (reading ? ' (with the reading-mark button)' : '')
+                          + ', and every control of its bar, of the open Exercises ▾ menu and of the open colour menu, is on the screen and reachable '
+                          + `(${starts} widths put Exercises ▾ at the start of a line)`
+                          + (bad.length ? ':\n    ' + bad.join('\n    ') : ''));
     }
-    assert(!bad.length, 'from 280 to 1440 px the editor never scrolls sideways, and every control of its bar, and of the '
-                        + `open Exercises ▾ menu, is on the screen and reachable (${starts} widths put Exercises ▾ at the start of a line)`
-                        + (bad.length ? ':\n    ' + bad.join('\n    ') : ''));
+    await page.evaluate(() => { document.querySelector('#ins-kana').hidden = true; });
     await page.setViewportSize({width: 1400, height: 900});
     await sleep(40);
     const bar = await page.evaluate(() => ({wrap: getComputedStyle(document.querySelector('.topbar')).flexWrap,
@@ -559,7 +573,11 @@ try {
     const layout = await desk.evaluate(() => ({bar: getComputedStyle(document.querySelector('#typobar')).flexWrap,
                                                actions: getComputedStyle(document.querySelector('.topbar-actions')).flexWrap,
                                                topWrap: getComputedStyle(document.querySelector('.topbar')).flexWrap}));
-    assert(s.top.pos === 'static' && s.tool.pos === 'sticky' && s.topbarH === '',
+    // "in the flow" is static or relative: a reading page's topbar has been
+    // relative on a desktop since the export's progress card hangs from it
+    // (app.css, `@media (min-width: 561px)`, commit 0c69216); what matters is
+    // that it is neither sticky nor fixed, and the scroll below shows it going
+    assert((s.top.pos === 'static' || s.top.pos === 'relative') && s.tool.pos === 'sticky' && s.topbarH === '',
            `desktop: the topbar is in the flow and only the toolbar is pinned, as before (${s.top.pos}, ${s.tool.pos}, --topbar-h "${s.topbarH}")`);
     assert(layout.bar === 'wrap' && layout.actions === 'wrap' && layout.topWrap === 'nowrap',
            `desktop: both bars keep their layout (${JSON.stringify(layout)})`);

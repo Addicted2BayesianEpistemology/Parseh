@@ -454,12 +454,24 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 .pv-status.err { color: var(--danger); }
 .preview-scroll { overflow-y: auto; flex: 1; }
 .preview-scroll .sheet { margin: 1rem auto 3rem; }
-.insert-group { display: inline-flex; gap: .15rem; margin-right: .3rem; }
+/* A group of insert buttons wraps among themselves at every width.  The bar's
+   buttons sit in .topbar-actions, which a flex row cannot narrow below its
+   widest item: with the group a single unbreakable line (some 640 px with the
+   colour buttons, more where a language adds its reading mark) the bar was
+   wider than the window from 721 px, the width the phone layout below begins
+   under, to about 780 px -- the end of the group, and Save & view with it, off
+   the right edge.  Free to wrap, the widest item is one button wide, and the
+   bar fits whatever is added to it. */
+.insert-group { display: inline-flex; flex-wrap: wrap; gap: .15rem; margin-right: .3rem; }
 .insert-group .btn { padding: .3rem .45rem; }
 .colour-tool { display: inline-flex; position: relative; }
 .colour-tool .colour-main { display: inline-flex; align-items: center; gap: .3rem; border-radius: 6px 0 0 6px; }
 .colour-tool .colour-pick > summary { border-radius: 0 6px 6px 0; padding-inline: .32rem; }
-.colour-tool .menu { left: 0; right: auto; min-width: 11rem; }
+/* The palette hangs from the right end of its ▾ as the other menus do, so it
+   opens toward the room the bar's right-hand column always has on its left,
+   never past the window's right edge (hung from its left end, as it was, it
+   ran off the screen wherever the ▾ stood within 11 rem of the edge). */
+.colour-tool .menu { min-width: 11rem; }
 .colour-tool .menu button, .colour-custom { display: flex; align-items: center; gap: .48rem; }
 .colour-active, .colour-chip { display: inline-block; width: .78rem; height: .78rem; flex: none; border-radius: 50%; background: var(--fac-teal); }
 .colour-active.fac-crimson,
@@ -477,22 +489,27 @@ body.links-open .linkspane { transform: none; visibility: visible; }
 .colour-custom { padding: .45rem .6rem; cursor: pointer; font-size: .88rem; }
 .colour-custom:hover { background: var(--chrome-bg); border-radius: 5px; }
 .colour-custom input { width: 1.5rem; height: 1.2rem; margin-left: auto; padding: 0; border: 0; background: transparent; }
-/* The editor's bar on a phone.  Its controls in a row are wider than a
-   phone's window, and the end of the row -- Exercises ▾, Save, Save & view --
-   was past the right edge, reached only by panning the whole editor
-   sideways.  In a window that narrow the bar wraps instead: the way back,
-   the title and Undo/Redo on the first line, every other control on the
-   lines under it, the insert buttons wrapping among themselves -- all of
-   them on the screen, in the order they have on a desktop.  Exercises ▾
-   may then start a line, where its menu, hung from its right end, would
-   open past the left edge: there the menu hangs from the bar's right end
-   instead, under the bar. */
-@media (max-width: 720px) {
+/* The editor's bar in a window under 1100 px: a phone, a tablet standing, a
+   phone on its side.  Its controls in a row are wider than such a window,
+   and the end of the row -- Exercises ▾, Save, Save & view -- was past the
+   right edge, reached only by panning the whole editor sideways.  In a window
+   that narrow the bar wraps instead: the way back, the title and Undo/Redo on
+   the first line, every other control on the lines under it, the insert
+   buttons wrapping among themselves -- all of them on the screen, in the
+   order they have on a desktop.  Exercises ▾ may then start a line, where its
+   menu, hung from its right end, would open past the left edge: there the
+   menu hangs from the bar's right end instead, under the bar, and so does the
+   colour palette.  Wider, the controls keep the column at the right of the
+   way back and the title.  Narrower than 1100 px that column left the title a
+   letter or two and stood six rows high (224 px at 800 px, wrapped it is 163,
+   the title whole), and from 721 to 780 px, with the one-line group of insert
+   buttons it then held, wider than the window itself. */
+@media (max-width: 1100px) {
   body[data-page="edit"] .topbar { flex-wrap: wrap; gap: .4rem; }
   body[data-page="edit"] .topbar-actions { display: contents; }
   body[data-page="edit"] .doc-title { flex: 1 1 0; min-width: 3rem; }
-  body[data-page="edit"] .insert-group { flex-wrap: wrap; margin-right: 0; }
-  body[data-page="edit"] .topbar .dropdown { position: static; }
+  body[data-page="edit"] .insert-group { margin-right: 0; }
+  body[data-page="edit"] .topbar .colour-tool, body[data-page="edit"] .topbar .dropdown { position: static; }
   body[data-page="edit"] .topbar .dropdown .menu { right: .9rem; }
 }
 
