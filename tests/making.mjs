@@ -950,6 +950,58 @@ await views(kc, 'K-add-extend-file', {full: true});
 await kc.close();
 await kctx.close();
 
+/* ================= l) a prompt of the person's own for the instructions ================= */
+console.log('l) a prompt of the person\'s own for the instructions, chosen in the row\'s menu');
+{
+  const lctx = await context(B);
+  const own = await lctx.newPage();
+  watch(own, 'computer');
+  await own.goto(B + '/books/add/');
+  await own.click('.path[data-path="llm"]');
+  await own.waitForSelector('#lane-llm:not([hidden])');
+  await own.waitForSelector('#instrmount .llmrow');
+  const MENU = '#instrmount .llmrow-pm select';
+  // THE MENU IS THE ROW'S (lane F's): where this tree has none there is nothing to drive, and the server's own side
+  // of it -- a prompt written into AGENTS.md when the folder is made -- is held by tests/test_making.py
+  let hasMenu = true;
+  try { await own.waitForSelector(MENU, {timeout: 6000}); } catch (e) { hasMenu = false; }
+  if (!hasMenu) {
+    console.log('   (this row has no prompt menu in this tree: nothing to drive here)');
+  } else {
+    await own.evaluate(async () => (await fetch('/settings/api/prompts/save', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({surface: 'book-new', kind: 'added', name: 'my book rules', text: 'Never gloss the names of people.'})})).json());
+    await own.reload();
+    await own.click('.path[data-path="llm"]');
+    await own.waitForSelector('#lane-llm:not([hidden])');
+    await own.waitForFunction(sel => [...document.querySelectorAll(sel + ' option')].some(o => o.textContent === 'my book rules'), MENU);
+    assert(true, 'a prompt of mine for the instructions is in the menu beside copy the instructions');
+    await own.selectOption('#lang', 'en');
+    await own.fill('#title', 'The Bell');
+    await own.fill('#title_latin', 'The Bell');
+    await own.fill('#slug', '');
+    await own.fill('#author', 'a fable');
+    await own.fill('#author_latin', 'a fable');
+    await own.setInputFiles('#original', TMP + '/the-clock.txt');
+    await own.waitForFunction(() => !document.querySelector('#mkfolder').disabled);
+    await own.selectOption(MENU, {label: 'my book rules'});
+    if (!await own.$eval('#ishow', d => d.open)) await own.click('#ishow summary');
+    await own.waitForFunction(() => /· custom: my book rules/.test(document.querySelector('#itext').textContent.split('\n')[0]) &&
+                                     /Never gloss the names of people\.\s*$/.test(document.querySelector('#itext').textContent), null, {timeout: 20000});
+    const bellShown = await own.$eval('#itext', e => e.textContent);
+    assert(/Write only inside this folder/.test(bellShown), 'the person\'s words come after Parseh\'s, which are all there');
+    await own.click('#mkfolder');
+    await own.waitForSelector('#mkcopy', {timeout: 60000});
+    const BELL = INSTALL + '/books/english/the-bell';
+    eq(await own.$eval('.bigpath', e => e.textContent), BELL, 'the folder is made');
+    eq(await Deno.readTextFile(BELL + '/AGENTS.md'), bellShown, 'its AGENTS.md is the text the page showed, with the person\'s prompt in it');
+    assert(JSON.parse(await Deno.readTextFile(BELL + '/making.json')).instructions.prompt.length > 3,
+           'making.json keeps which prompt it was, so that the instructions can be written again with it');
+  }
+  await own.close();
+  await lctx.close();
+}
+
 /* ================= j) last ================= */
 console.log('j) nothing broke, nothing of the owner\'s was touched');
 const rest = [...errors];
