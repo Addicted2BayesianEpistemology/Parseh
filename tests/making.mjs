@@ -116,6 +116,7 @@ async function views(pg, name, {full = false} = {}) {
   // a tab that is not in front is not drawn, and a screenshot of it waits for a frame that never comes
   await pg.bringToFront();
   const was = pg.viewportSize();
+  const release = await quietOthers(pg);
   for (const [w, h] of [[1280, 900], [390, 844]])
     for (const theme of ['light', 'dark']) {
       await pg.setViewportSize({width: w, height: h});
@@ -155,6 +156,17 @@ async function views(pg, name, {full = false} = {}) {
   await pg.evaluate(() => Parseh.theme.set('light'));
   await pg.setViewportSize(was);
   await sleep(250);
+  await release();
+}
+// THE OTHER PAGES OF THIS BROWSER STAY QUIET while the theme is changed on one: each follows it and writes it back
+// to the server, and two writes at once are more than lib/prefs.py's one temporary file takes (a 400 from
+// /__prefs, logged as an error) -- nothing this suite is about.  -> the function that lets them speak again
+async function quietOthers(pg) {
+  const quiet = r => r.request().method() === 'POST'
+    ? r.fulfill({status: 200, contentType: 'application/json', body: '{"ok":true}'}) : r.continue();
+  const others = pg.context().pages().filter(p => p !== pg);
+  for (const p of others) await p.route('**/__prefs', quiet);
+  return async () => { for (const p of others) await p.unroute('**/__prefs', quiet); };
 }
 const shot = async (page, name) => { if (SHOTS) { await page.bringToFront(); await page.screenshot({path: `${SHOTS}/${name}.png`}); } };
 async function exists(p) { try { await Deno.stat(p); return true; } catch { return false; } }
@@ -472,6 +484,7 @@ await waitNoText(page, '#mkbox', /cannot be read just now/, 20000);
 
 /* ================= the themes and the widths ================= */
 console.log('   themes and widths');
+const hush = await quietOthers(page);
 for (const theme of ['dark', 'sepia']) {
   await page.evaluate(t => Parseh.theme.set(t), theme);
   await sleep(300);
@@ -479,6 +492,8 @@ for (const theme of ['dark', 'sepia']) {
   await shot(page, 'C-panel-batch-2-1280-' + theme);
 }
 await page.evaluate(() => Parseh.theme.set('light'));
+await sleep(300);
+await hush();
 await page.setViewportSize({width: 390, height: 844});
 await sleep(400);
 assert(await inView(page, '#mkbox'), 'the panel fits a 390 px window (the browser interface)');
@@ -711,7 +726,8 @@ console.log('k) the text in parts: made from a phone, a part given while the age
 // The computer's own pages are closed first: the four servers of this suite share ONE scratch config/, and the
 // preferences file is written through a temporary name every process shares (lib/prefs.py), so a page of
 // another server following a theme this section changes could make two of them write at once -- a harness
-// matter, which nothing here is about
+// matter, which nothing here is about -- and one at a time, for a page that is closed writes its place back
+for (const pg of [lib, page]) { await pg.close(); await sleep(700); }
 await ctx.close();
 // a phone let in over the Wi-Fi, on a computer with no TeX: Finish builds the reader alone, which is quick
 const PN = await serve(['--phone'], {PATH: '/nonexistent'});
@@ -823,6 +839,10 @@ assert(!/Before you finish:/.test(await kp.$eval('#mkbox', e => e.textContent)),
 await kp.click('#mkbox button:has-text("yes, finish now")');
 await kp.waitForFunction(() => !document.querySelector('.mk-btn'), null, {timeout: 400000});
 eq(JSON.parse(await Deno.readTextFile(PARTS + '/making.json')).state, 'finished', 'a phone finished the book');
+// ONE PAGE OF THE PHONE'S BROWSER AT A TIME from here on: pages of one browser share their preferences, and each
+// one that follows a theme another changes writes it back -- two writes at once are what lib/prefs.py's one
+// temporary file cannot take (a 400 from /__prefs), which is nothing this section is about
+await kp.close();
 // REOPEN, from the add page: the agent makes the next part
 const kadd = await kctx.newPage();
 watch(kadd, 'phone');
@@ -845,6 +865,7 @@ eq([k3.state, k3.finished, k3.parts.map(p => [p.n, p.chapter]), k3.sources.done,
 assert(await exists(PARTS + '/annot/ch1_p00.json') && await exists(PARTS + '/annot/ch2_p00.json'), 'annot/ is as it was');
 assert(/— reopened[\s\S]*is taken back/.test(await Deno.readTextFile(PARTS + '/ASKS.md')), 'the agent is told in ASKS.md, after the entry that said to stop');
 eq(await Deno.readTextFile(PARTS + '/original/part-003-pasted.txt'), 'Chapter three begins here. The clock had stopped.', 'the pasted text is the third part');
+await kadd.close();
 const kr = await kctx.newPage();
 watch(kr, 'phone');
 await kr.goto(PN + '/books/english/two-parts/reader/');
@@ -888,8 +909,6 @@ eq(ch3.trim(), 'Il cane corre nel giardino con la palla rossa e salta sopra sopr
 assert(await exists(BOOK + '/ch3.tex'), 'a new chapter was written');
 await views(kc, 'K-add-extend-file', {full: true});
 await kc.close();
-await kadd.close();
-await kp.close();
 await kctx.close();
 
 /* ================= j) last ================= */

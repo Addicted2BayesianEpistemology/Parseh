@@ -622,7 +622,7 @@ def add_part(book_dir, source, options=None):
     if chapter not in CHAPTER_WAYS:
         raise ValueError("no such place for a part: %r (%s)" % (chapter, ", ".join(CHAPTER_WAYS)))
     if join not in JOINS:
-        raise ValueError("a part is joined to the paragraph before it as %s, or not at all" % " or ".join(JOINS[1:]))
+        raise ValueError("a part is joined to the paragraph before it with %s, or not at all (empty)" % " or ".join(JOINS[1:]))
     if join and chapter == "new":
         raise ValueError("a part that goes on in the paragraph before it cannot start a new chapter")
     label = _line(options.get("label"), LABEL_MAX)
