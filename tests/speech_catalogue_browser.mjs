@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
-const {chromium}=await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const {chromium}=await import(process.env.PLAYWRIGHT_CORE || 'npm:playwright-core@1.52.0');
 const python=process.env.PARSEH_PYTHON || 'python3';
 const rendered=spawnSync(python,['-c',"import sys,json;sys.path[:0]=['lib','youtube/lib','.'];import speechpage;print(json.dumps({'script':speechpage.SCRIPT,'style':speechpage.lookuppage.STYLE+speechpage.STYLE}))"],{encoding:'utf8'});
 assert.equal(rendered.status,0,rendered.stderr);

@@ -3,7 +3,7 @@
 // PLAYWRIGHT_CORE=/path/to/playwright-core/index.mjs node tests/lm_likelihood.mjs
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-const { chromium } = await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const { chromium } = await import(process.env.PLAYWRIGHT_CORE || 'npm:playwright-core@1.52.0');
 const browser = await chromium.launch({executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox']});
 const fixture = JSON.parse(await readFile('/tmp/parseh-likelihood-browser-fixture.json', 'utf8'));
 let checks = 0;

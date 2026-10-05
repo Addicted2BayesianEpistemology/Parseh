@@ -141,7 +141,7 @@ async function suite(phone) {
       eq(await page.locator('h1.idx').textContent(), 'speech to text', 'the page says what it is');
       const st = await state();
       eq(st.where, phone ? 'lan' : 'self', 'and knows where it is asked from');
-      eq(JSON.stringify(st.may), JSON.stringify({'speech.get': true, 'speech.remove': true, 'speech.stop': true}),
+      eq(JSON.stringify(st.may), JSON.stringify({'speech.get': true, 'speech.remove': true, 'speech.stop': true, 'speech.preferences': true}),
          'every button is allowed, from here too');
       has(await page.locator('.whomay').innerText(), 'any device let in', "the door's pill says who may");
       has(await page.locator('.whomay').innerText(), 'only the files Parseh pins can be fetched',
@@ -367,9 +367,17 @@ async function suite(phone) {
       await h.send({cmd: 'wheel', has: false});
       await h.send({cmd: 'unavailable', why: 'There is no speech program for this kind of computer (freebsd14, amd64).'});
       await door();
-      const about = (await page.locator('#sp .about').innerText()).replace(/\s+/g, ' ');
-      has(about, 'The models are large: 1.6 GB and 3.1 GB.', 'the sizes of what can be got are said, and the sentence ends there');
-      lacks(about, 'the program is', 'and no size of a program that has no build');
+      // a0.4.3's page gives every model its own row (the old paragraph "The models are large: 1.6 GB and 3.1 GB." is
+      // gone): what a computer with no build of the program says is on the rows, and none of them promises a size
+      const rt = await text('runtime');
+      has(rt, 'Not available', 'the program says it is not available here');
+      has(rt, 'There is no speech program for this kind of computer', 'and why');
+      lacks(rt, 'to download', 'and no size of a program that has no build');
+      for (const id of ['large-v3-turbo', 'large-v3']) {
+        const m = await text(id);
+        has(m, 'Not available', id + ' says so too');
+        lacks(m, 'GB to download', 'and promises no download that nobody can make');
+      }
       await h.send({cmd: 'wheel', has: true});
       await h.send({cmd: 'unavailable', why: ''});
 

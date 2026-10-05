@@ -3,7 +3,7 @@
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import assert from 'node:assert/strict';
-const {chromium} = await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const {chromium} = await import(process.env.PLAYWRIGHT_CORE || 'npm:playwright-core@1.52.0');
 const browser = await chromium.launch({executablePath:process.env.CHROME_BIN || '/usr/bin/google-chrome',
   headless:true,args:['--no-sandbox']});
 let checks = 0;

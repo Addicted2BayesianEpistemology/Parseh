@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
-const {chromium}=await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const {chromium}=await import(process.env.PLAYWRIGHT_CORE || 'npm:playwright-core@1.52.0');
 const root=resolve('.'),temporary=await mkdtemp(join(tmpdir(),'parseh-catalogue-visual-'));
 const tree=join(temporary,'tree'),install=join(tree,'root');
 const python=process.env.PARSEH_PYTHON || 'python3';

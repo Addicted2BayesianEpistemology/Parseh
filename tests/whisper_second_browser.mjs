@@ -6,7 +6,7 @@ import {join,resolve} from 'node:path';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
 import assert from 'node:assert/strict';
-const {chromium}=await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const {chromium}=await import(process.env.PLAYWRIGHT_CORE || 'npm:playwright-core@1.52.0');
 const root=resolve('.'), temp=await mkdtemp(join(tmpdir(),'parseh-whisper-second-'));
 const tree=join(temp,'tree'), fake=join(temp,'fake'), install=join(tree,'root');
 const python=process.env.PARSEH_PYTHON || 'python3';
