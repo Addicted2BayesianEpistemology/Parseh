@@ -253,12 +253,14 @@ at all; elsewhere they are left empty.
   `\dw{das Haus, Häuser}{} house; here \pw{des Hauses}, gen.`. An adjective
   ending is a case mark and not part of the word, so the headword is the bare
   adjective: `\dw{groß}{} big; here \pw{großen}`.
-- A **preposition** — where it is glossed at all, which the *Never gloss* list
-  below says — is glossed with the case it takes: `\dw{wegen}{} because
-  of (+ gen.)`, `\dw{mit}{} with (+ dat.)`, `\dw{für}{} for (+ acc.)`. The nine
-  that take both take both: `\dw{in}{} in (+ acc. where it is motion into, +
-  dat. where it is a place)`. A contraction is spelled out: `\dw{im}{} in
-  dem`, `\dw{zum}{} zu dem`, `\dw{ins}{} in das`.
+- A **preposition** that is not on the *Never gloss* list below is glossed with
+  the case it takes: `\dw{wegen}{} because of (+ gen.)`, `\dw{trotz}{} despite
+  (+ gen.)`, `\dw{außer}{} except (+ dat.)`. One that is on the list gets no
+  entry of its own: the noun it governs says the case and what put it there
+  (the bullet above) and, for the nine that take either case, which one:
+  `\dw{der Garten, Gärten}{} garden; here \pw{im Garten} = \pw{in dem}, dat.
+  after \pw{in}, where it is a place` (acc. where it is motion into). A
+  contraction is spelled out the same way: `zum = zu dem`, `ins = in das`.
 - A **compound** is broken into the words it is made of, because a dictionary
   may not have the compound itself: `\dw{die Geschwindigkeitsbegrenzung,
   -en}{} speed limit \bw{Geschwindigkeit}{}{speed}
