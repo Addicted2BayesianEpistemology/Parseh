@@ -28,18 +28,26 @@
   and open it here with <em>Upload .md</em> to read it typeset and compile the
   verified PDF.</p>
 
+  <label class="prompt-target" title="The language the document is about: the copied prompt states it, and the language's own conventions are appended">target language
+    <select id="prompt-target"></select></label>
+
+  <!-- what the model is taught to write: the boxes, the presets and their sizes, drawn by
+       static/promptpick.js from the server's answer (the same panel is in the editor's exercise dialog) -->
+  <div id="prompt-boxes"></div>
+
   <div class="prompt-box">
     <div class="prompt-box-head">
       <span>Prompt <span id="prompt-badge" class="badge"></span></span>
-      <label class="prompt-target" title="The language the document is about: the copied prompt states it, and the language's own conventions are appended">target language
-        <select id="prompt-target"></select></label>
     </div>
     <textarea id="prompt-text" readonly rows="18" spellcheck="false"></textarea>
   </div>
 
   <h3 class="qlabel">Your question</h3>
   <textarea id="question" rows="4"
-    placeholder="e.g. the Persian words for hot and cold: uses, registers, opposites, compounds."></textarea>
+    placeholder="e.g. the words for hot and cold: uses, registers, opposites, compounds."></textarea>
+  <!-- for a learner at, length, and the options of the language (the scheme of its transliteration): one line
+       of choices under the question, each copied into the prompt as a line of its own -->
+  <div id="prompt-under"></div>
 
   <!-- copy the prompt, its size and what to do next: drawn by /lib/llmrow.js,
        the one place these controls are built (the studio run on its own serves
@@ -48,9 +56,10 @@
   <div id="llm-row"></div>
 
   <div class="workflow-hint">
-    <strong>Workflow</strong> — ① copy the prompt, with your question after it · ② ask your LLM ·
-    ③ download the <code>.md</code> file it writes · ④ back in the
-    <a href="{{BASE}}/">library</a>, <em>Upload .md</em> · ⑤ read it typeset, tag it,
+    <strong>Workflow</strong> — ① tick what the document may use, or pick a preset ·
+    ② copy the prompt, with your question after it · ③ ask your LLM ·
+    ④ download the <code>.md</code> file it writes · ⑤ back in the
+    <a href="{{BASE}}/">library</a>, <em>Upload .md</em> · ⑥ read it typeset, tag it,
     build the verified PDF.
     <br><span class="pv-status">If a model answers inline instead of writing a
     file, <em>Paste LLM answer</em> still works: the markdown is pulled out of
@@ -69,6 +78,7 @@
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
 <script src="/lib/llmrow.js"></script>
+<script src="{{BASE}}/static/promptpick.js"></script>
 <script src="{{BASE}}/static/app.js"></script>
 </body>
 </html>

@@ -5057,12 +5057,72 @@ function initPrompt() {
     badge.textContent = (p.custom ? "custom" : "default (exlex/PROMPT.md)")
       + ` · ${p.target_name}`;
     badge.className = "badge " + (p.custom ? "warn" : "");
+    teach.draw(p);
+    choices.draw(p);
+    teach.total(p.prompt || "", p.always_chars);
     sync();
   }
-  const load = () => api("/api/prompt?target=" + encodeURIComponent(sel.value))
-    .then(show).catch(e => toast(e.message, true));
-  sel.addEventListener("change", load);
-  load();
+
+  /* WHAT THE MODEL IS TAUGHT TO WRITE, and for whom (static/promptpick.js): the boxes, the
+     presets, the level and the length are drawn from the server's answer, and the choice is
+     asked of the server again a moment after the last change -- only the newest answer is
+     shown, a slow one that comes late is dropped.  The ticked boxes, the level and the length
+     are remembered on this device, one set for every language; the scheme of the
+     transliteration is the row's own control, remembered per language. */
+  const teach = ParsehPromptPick.boxes($("#prompt-boxes"), {presets: true, total: true, remember: "boxes", onChange: ask});
+  const choices = ParsehPromptPick.line($("#prompt-under"), {
+    surface: "studio-doc", lang: sel.value, remember: "",
+    ids: {level: "prompt-level", length: "prompt-length"}, onChange: ask});
+  let timer = 0, seq = 0, making = false;
+  function query(plain) {
+    const q = ["target=" + encodeURIComponent(sel.value)];
+    // a `boxes=` with nothing after it is "none ticked" -- the key stays when the list is empty
+    if (!plain && teach.boxes()) q.push("boxes=" + encodeURIComponent(teach.boxes().join(",")));
+    if (!plain) for (const [k, v] of Object.entries(choices.params()))
+      q.push(k + "=" + encodeURIComponent(v));
+    return "/api/prompt?" + q.join("&");
+  }
+  // WHAT IS HELD WAS MADE FOR THE CHOICES BEFORE THIS ONE: not to be copied meanwhile
+  function outdated() {
+    making = true;
+    if (row) row.disable("the prompt is being made again for what you changed");
+  }
+  function ask() {
+    clearTimeout(timer);
+    outdated();
+    timer = setTimeout(() => load(), 150);
+  }
+  async function load(plain = false, again = 0) {
+    clearTimeout(timer);
+    const mine = ++seq;
+    let p;
+    try {
+      p = await api(query(plain));
+    } catch (e) {
+      if (mine !== seq) return;
+      // WHAT THIS DEVICE REMEMBERED can be something a newer Parseh refuses (a box it no longer
+      // has): the plain ask gets the default, the draw puts back the ids the server does know
+      // and the ask below is made once more with them
+      if (e.status === 400 && !plain) { teach.stale(); return load(true, again); }
+      toast(e.message, true);
+      if (row) row.disable("the prompt could not be made again: change a box to try once more");
+      return;
+    }
+    if (mine !== seq || editing) return;
+    // WHAT THE ANSWER CORRECTED (a remembered set the server only partly knew, a plain ask made for the
+    // default, a box it turned off) is asked for once more -- and what is shown meanwhile is not the
+    // prompt for the choices yet, so it is not to be copied
+    const more = (plain || !teach.agrees(p)) && again < 2;
+    if (more) outdated(); else making = false;
+    show(p);
+    if (more) load(false, again + 1);
+  }
+  sel.addEventListener("change", async () => {
+    clearTimeout(timer);
+    outdated();
+    await choices.setLang(sel.value);     // the scheme of the transliteration is chosen per language
+    load();
+  });
 
   /* WHAT IS COPIED: the prompt as the box shows it -- while it is being edited
      the box holds the editable text alone, and the target line and the
@@ -5086,6 +5146,8 @@ function initPrompt() {
   const sync = () => {
     if (!row || !current.text) return;
     row.update(copyText());
+    // the button stays off while the prompt is being made again for a choice just changed (ask)
+    if (!making) row.enable();
     row.label(question.value.trim() ? "copy the prompt and your question" : "copy the prompt");
   };
   question.addEventListener("input", sync);
@@ -5095,6 +5157,11 @@ function initPrompt() {
         btnCancel = $("#btn-cancel-edit"), btnReset = $("#btn-reset-prompt");
   btnEdit.addEventListener("click", () => {
     editing = true;
+    // the box holds the text being edited, not the prompt the choices make: nothing asked for
+    // is drawn over it, and the boxes and choices are off, with the reason, until it is saved or given up
+    clearTimeout(timer); seq++; making = false;
+    teach.busy("you are editing the whole prompt: the boxes work again when you save or cancel");
+    choices.busy(true);
     ta.value = current.text;        // the text alone, without the block
     ta.readOnly = false; ta.focus();
     sync();
@@ -5104,6 +5171,9 @@ function initPrompt() {
   });
   const endEdit = () => {
     editing = false;
+    outdated();                     // the text in the row is the edited one: not to be copied before the prompt is asked for again
+    teach.busy("");
+    choices.busy(false);
     ta.readOnly = true;
     btnEdit.classList.remove("hidden");
     btnSave.classList.add("hidden");
@@ -5116,13 +5186,16 @@ function initPrompt() {
               {method: "PUT", json: {text: ta.value}});
     endEdit(); await load(); toast("Custom prompt saved");
   });
-  btnCancel.addEventListener("click", () => { endEdit(); show(current); });
+  btnCancel.addEventListener("click", () => { endEdit(); load(); });
   btnReset.addEventListener("click", async () => {
     if (current.custom &&
         !confirm("Discard the custom prompt and return to the default?")) return;
     await api("/api/prompt?target=" + encodeURIComponent(sel.value), {method: "DELETE"});
     endEdit(); await load(); toast("Prompt reset to default");
   });
+
+  // the first prompt is asked for once the options are known, so that it is made the way it will be asked for
+  choices.ready().then(() => load());
 }
 
 /* ---------------- boot ---------------- */

@@ -772,8 +772,9 @@ try {
       const ed = await open(c2, `${origin}${base}/doc/${id}/edit`, `dialog ${what}`, p => p.waitForSelector('#btn-exercise-prompt', {state: 'attached'}));
       await ed.click('summary:has-text("Exercises")');
       await ed.click('#btn-exercise-prompt');
-      await ed.waitForSelector('.ex-prompt-modal .llmrow');
-      const rd = await sized(ed, '.ex-prompt-modal');
+      // THE ROW IS THE ONE IN [data-x=row]: the dialog also draws the options (lib/llmrow.js options()) beside level and length, in a .llmrow of their own
+      await ed.waitForSelector('.ex-prompt-modal [data-x="row"] .llmrow');
+      const rd = await sized(ed, '.ex-prompt-modal [data-x="row"]');
       const route = await (await c2.request.post(`${origin}${base}/api/exercise-prompt`, {data: {markdown: await ed.inputValue('#src'), decks: []}})).json();
       eq(rd.chars, String(codePoints(route.prompt)), `${what}: the dialog says the size of what the route hands out, before the copy (${rd.chars} characters)`);
       await setClip(ed, SENTINEL);
@@ -781,7 +782,7 @@ try {
       await ed.waitForFunction(() => /^copied/.test(document.querySelector('.ex-prompt-modal .llmrow-say').textContent));
       eq(await clip(ed), route.prompt, `${what}: the dialog's copy is that prompt exactly`);
       eq(await text(ed, '.ex-copy-status'), '', `${what}: no deck ticked, so nothing is said of known items`);
-      await look(ed, `studio-dialog-${what.startsWith('mounted') ? 'mounted' : 'alone'}`, {scope: '.ex-prompt-modal', studio: true});
+      await look(ed, `studio-dialog-${what.startsWith('mounted') ? 'mounted' : 'alone'}`, {scope: '.ex-prompt-modal [data-x="row"]', studio: true});
       await ed.click('[data-x="cancel"]');
       eq(await ed.evaluate(() => document.querySelectorAll('.ex-prompt-modal, .llmrow').length), 0, `${what}: "Close" takes the dialog and its row away`);
       await c2.close();

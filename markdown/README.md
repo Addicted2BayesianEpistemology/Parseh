@@ -1049,12 +1049,15 @@ model writes it only when it was taught. The answer contract comes last
 for, one line each. The routes are `GET /api/prompt?target=&boxes=&level=&length=`
 and, for the editor's **Generate with LLM…**, `POST /api/exercise-prompt`,
 which builds its dialect from the same boxes (ticked from what the page
-already uses) and its exercises from one box per type.
+already uses) and its exercises from one box per type. The page and the
+dialog draw the boxes, the presets and the sizes from those answers, and
+nothing else (`static/promptpick.js`: no list of boxes lives in the
+browser, so one the server gains is drawn the day it exists).
 
 The prompt is written in **no particular prose language** — it tells the
 model to answer in the language of the question, and its own rules and
 examples avoid naming one. The **target language** is chosen on the page:
-a select beside the question box; the copied prompt states the target,
+a select above the boxes; the copied prompt states the target,
 asks for the matching `target:` line, and includes that language's own
 conventions block (`../docs/lang/<code>.md`) so the transliteration scheme
 — and, for Japanese, the kana rule — reach the model. A prompt for a
