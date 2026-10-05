@@ -34,6 +34,9 @@ import texwrite                                                 # noqa: E402
 D2A = ("fa", "ar", "hi", "ja", "zh")
 OWNER_READS = ("fa", "it", "en")
 SURFACES = ("video-new", "book-new", "video-region", "book-region")
+# a language whose Example has no sound that depends on the scheme (Turkish: its `tr` line is the stress, the same
+# string in both): tests/test_example_per_scheme.py names it too and holds that nothing of the usual scheme is shown
+SCHEME_FREE = ("tr",)
 KEYS = {"fa", "kana", "tr", "voc", "en", "words"}
 # WHAT ONLY THE USUAL SCHEME WRITES, by language: a sign of it that an IPA example must never carry and that
 # the usual one does (so that the list cannot rot).  The six languages of lane D2b add theirs where their
@@ -145,7 +148,7 @@ class TheExample(unittest.TestCase):
     def test_with_ipa_chosen_it_shows_ipa_and_never_the_usual_scheme(self):
         for code in self.with_example():
             L = languages.get(code)
-            if L.ipa != "offered":
+            if L.ipa != "offered" or code in SCHEME_FREE:
                 continue
             for surface in SURFACES:
                 for marks in (("0", "1") if L.strip_range else (None,)):

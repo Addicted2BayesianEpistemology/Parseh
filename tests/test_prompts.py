@@ -358,15 +358,14 @@ CHECKS = (
           ("video-region", "video-new"), {},
           has_no_harakat_rule_of_a_reading_edition),
     Check("says_a_plain_line_is_accepted_once",
-          "a video's vocabulary line with no macro is also accepted, said once by the template; the "
-          "language files repeat it in their `{{?video}}` paragraph, which D2's one convention replaces "
-          "(brief 6.5)",
-          ("video-region", "video-new"), {"video-region": "D", "video-new": "D"},
+          "a video's vocabulary line with no macro is also accepted, said once by the template and "
+          "never again by a language file (brief 6.5)",
+          ("video-region", "video-new"), {},
           says_a_plain_line_is_accepted_once),
     Check("sends_no_correction_to_note",
-          "a region prompt never sends a correction to `note`, which its answer never writes; "
-          "the language files' verbatim paragraph still says so, which D rewrites (brief 3.8, 6.6)",
-          REGIONS, {"video-region": "D", "book-region": "D"}, sends_no_correction_to_note),
+          "a region prompt never sends a correction to `note`, which its answer never writes "
+          "(brief 3.8, 6.6)",
+          REGIONS, {}, sends_no_correction_to_note),
     Check("has_the_meaning_rule_once",
           "the meaning rule once in every prompt that asks for `en` (brief 6.1)",
           GLOSSED, {}, has_the_meaning_rule_once),
@@ -395,7 +394,7 @@ CHECKS = (
     Check("has_no_sidebar_paragraph",
           "the sources sidebar's paragraph is documentation of a button and leaves every language "
           "file for the guide (brief 6.5); the studio's prompts no longer receive it",
-          ALL_SURFACES, {s: "D" for s in GLOSSED}, has_no_sidebar_paragraph),
+          ALL_SURFACES, {}, has_no_sidebar_paragraph),
 )
 
 
@@ -2546,11 +2545,9 @@ class AnswerShapes(unittest.TestCase):
                 studio_server.store.use_library(was)
 
 
-# --- the content of the options, which waits for lane D2 (brief 3.9, 3.10) -----------------------------------------
-# The MECHANISM of the two options is lane T's (tests/test_prompt_options.py); what a language file SAYS under each
-# value is lane D2's, and these rows hold it.  A row marked PENDING("D2") is run all the same, and skipped with its
-# reason and the number of prompts that still fail it; the day it passes everywhere it fails, until D2 turns its
-# `waits_for` into the assertion beneath (`self.assertEqual(failures, [])`) -- the check is written, only the mark is theirs.
+# --- the content of the options (brief 3.9, 3.10) ------------------------------------------------------------------
+# The MECHANISM of the two options is tests/test_prompt_options.py's; what a language file SAYS under each value is
+# held here, and by tests/test_language_examples.py and tests/test_example_per_scheme.py (the Examples).
 #
 # THE USUAL SCHEME'S OWN WORDS, by language: one phrase of the Transliteration section as it stands today that only the
 # usual scheme says, so that an IPA prompt which still carries it still describes the scheme it was asked to leave.
@@ -2562,13 +2559,6 @@ USUAL_SCHEME_SAYS = {
     "tr": "**Never respell the alphabet.**",
 }
 TAKE_THE_FILE = ("studio-doc", "studio-exercises", "video-region", "book-region", "video-new", "book-new")
-
-
-def waits_for(test, lane, why, failures, total):
-    """A row that waits for a lane: skipped, with its reason, while it fails; a failure the day it passes."""
-    if not failures:
-        test.fail("PENDING(%s) %s passes on all %d: take the mark off, so that it is checked from now on" % (lane, why, total))
-    test.skipTest("PENDING(%s): %s -- still fails on %d of %d (%s)" % (lane, why, len(failures), total, "; ".join(failures[:3])))
 
 
 class TheContentOfTheOptions(ControlledMachine):
@@ -2591,10 +2581,9 @@ class TheContentOfTheOptions(ControlledMachine):
                     failures.append("%s %s still says %r" % (surface, code, phrase))
         return failures, total
 
-    def test_the_ipa_prompt_carries_no_rule_of_the_usual_scheme__PENDING_D2(self):
+    def test_the_ipa_prompt_carries_no_rule_of_the_usual_scheme(self):
         failures, total = self.usual_rules_in_ipa()
-        waits_for(self, "D2", "an IPA prompt describes no rule of the usual scheme (brief 3.9)", failures, total)
-        # D2: replace the line above with  self.assertEqual(failures, [])
+        self.assertEqual(failures, [], "an IPA prompt describes no rule of the usual scheme (brief 3.9)")
 
     def files_without_an_ipa_note(self):
         missing = []
@@ -2609,10 +2598,9 @@ class TheContentOfTheOptions(ControlledMachine):
                 missing.append("docs/lang/_template.md has no {{?%s}} block: a language added later would start without it" % flag)
         return missing
 
-    def test_every_language_file_and_the_template_carry_the_ipa_note_and_the_usual_text__PENDING_D2(self):
-        failures = self.files_without_an_ipa_note()
-        waits_for(self, "D2", "every language file says IPA in a block of its own beside the usual scheme",
-                  failures, 2 * (len(self.ipa_languages()) + 1))
+    def test_every_language_file_and_the_template_carry_the_ipa_note_and_the_usual_text(self):
+        # every language file says IPA in a block of its own beside the usual scheme
+        self.assertEqual(self.files_without_an_ipa_note(), [])
 
     def files_without_the_marks_paragraphs(self):
         return ["docs/lang/%s.md has no {{?%s}} block" % (c, flag)
