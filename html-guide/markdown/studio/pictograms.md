@@ -18,9 +18,9 @@ away; nothing else in Parseh needs them, and nothing breaks without them.
 
 It is **optional** in every sense. Until you press a button on its page
 nothing is fetched, Parseh's own installation is exactly the size it was, and
-no page of Parseh asks for a pictogram. Nothing you write is sent anywhere:
-the page asks two of ARASAAC's own hosts for ARASAAC's own files, and tells
-them nothing of yours.
+no page of Parseh asks for a pictogram. Nothing you write goes with the
+request: the page asks two of ARASAAC's own hosts for ARASAAC's own files, and
+tells them nothing of yours.
 
 ## Getting there
 

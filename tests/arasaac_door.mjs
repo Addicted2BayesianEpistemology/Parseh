@@ -342,13 +342,19 @@ async function suite(phone) {
       await h.send({cmd: 'change', ids: [2], picture: true});
       await h.send({cmd: 'change', add: [99999], drop: [3]});
       await h.send({cmd: 'reset_stats'});
+      // THREE PICTURES ARE A FEW MILLISECONDS AT THE FAKE HOST'S SPEED, and the page asks how things stand once a second:
+      // slowed, the pictures are there to be seen (without it the count was read before the pictures began, or after
+      // they were over, and an `or it is over` let the second pass for the count)
+      await h.send({cmd: 'slow', seconds: 0.6});
       await door();
       eq(await page.locator('#ar [data-update]').count(), 1, 'Update is offered');
       await page.click('#ar [data-update]');
       await page.waitForSelector('[data-row="job"]');
       has(await text('[data-row="job"]'), 'Looking for what has changed', 'the row says what it is doing');
-      assert(/\b\d of 3 pictures\b/.test(await text('[data-row="job"]')) || (await state()).arasaac.job.running === false, 'and counts what it has to fetch: three, not all of them');
+      await until(async () => /\b\d of 3 pictures\b/.test(await text('[data-row="job"]')), 'the row counts the pictures');
+      assert(true, 'and counts what it has to fetch: three, not all of them');
       await until(async () => !(await state()).arasaac.job.running, 'it is over', 30000);
+      await h.send({cmd: 'slow', seconds: 0});
       const s = await stats();
       eq(s.lists, 1, 'the list was asked for once');
       eq(s.pictures, 3, 'and only the pictures a record named: the two that moved and the new one');

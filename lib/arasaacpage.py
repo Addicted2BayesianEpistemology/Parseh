@@ -158,8 +158,8 @@ def page(where="", device=""):
 %(doors)s
 <h1 class="idx">pictograms (ARASAAC)</h1>
 <p class="sub">Pictures for the exercises the studio asks a chatbot to write: the ARASAAC pictograms, kept on this
-computer. It is optional: nothing is fetched until you press a button here, and what is fetched is ARASAAC&rsquo;s
-own words and pictures &mdash; nothing of yours is sent to them or anywhere else.</p>
+computer. It is optional: nothing is fetched until you press a button here, and what comes is ARASAAC&rsquo;s
+own words and pictures &mdash; what goes with the request is Parseh&rsquo;s name and nothing of yours.</p>
 <p class="whomay">%(gate)s <span>Any device that has been let in may get, update, stop or remove what is on this
 page. Whoever presses the button, only ARASAAC&rsquo;s own word lists and pictures can be fetched, from the two
 hosts named below.</span></p>
