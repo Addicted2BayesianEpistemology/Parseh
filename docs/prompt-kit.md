@@ -307,6 +307,27 @@ record of what it began from. The store's marker (`moved`) makes it once and onl
 the file's return, written by an older Parseh, is never moved again. The studio's old
 single-prompt routes (`GET/PUT/DELETE /api/prompt`) keep working on that prompt.
 
+## Skills
+
+`lib/skills.py` makes the prompts again as **skills** for a chatbot that keeps them (`parseh-gloss`,
+`parseh-markdown`, `parseh-book`), when one is asked for and from the same parts, never from a copy.
+The kit lets it leave open what only a request knows: a flag given `promptkit.Open(words)` stays in the
+text as `⟦if words⟧ … ⟦end words⟧`, a placeholder given one as `⟨name⟩`; `render` and `take_out` do the same
+for a piece of a template (the studio's box blocks become files of their own). What the person chooses
+(the language, the options) is a file already resolved, so a model never reads two variants and picks.
+`skills.read_*` does what a skill tells a model to do, mechanically, and `tests/test_skills.py` holds its
+result to the prompt road for every surface, language, mode, box and exercise type.
+
+The short request is `Parseh request · <skill> · <version> · <hash> · …` (`parse_header`), then the data;
+`for_region`, `for_new_video`, `for_studio`, `for_exercises` and `for_book` make it from a prompt's own
+`Assembled`, and the routes that hand a prompt out answer with it as `skill`. A prompt of the person's of
+kind `added` follows the header; one in place of Parseh's cannot travel (`available: false`). A book made in
+place keeps its own copy of the book's skill in its folder (`skills.build_for_book(L, G, options, values).files`:
+every mark settled for that book, only its language's file), where an agent that looks for a skill finds it.
+A skill is checked by `skills.validate` (front matter with `name` and `description` only; a description of 200
+characters at most, no `<` or `>`; SKILL.md under 500 lines; every reference named in it) and its zip by
+`skills.check_zip`. Do not scan, list or touch `lib/asrskill/`: those skills are the a0.4.3 branch's own.
+
 ## Adding a surface
 
 1. Write its template, marking the contract and the data.

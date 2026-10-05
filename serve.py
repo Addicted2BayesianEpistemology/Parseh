@@ -206,6 +206,9 @@ studio.set_base(STUDIO_BASE)
 # a latex block that cannot be drawn names the page that mends it: this
 # server's Settings -> LaTeX drawings (the studio alone has none)
 import latexdraw                                               # noqa: E402
+# AFTER THE STUDIO, which puts its own folders on sys.path: the skills read its box catalogue (§9, a0.4.2)
+import skills             # noqa: E402  the prompts as skills for a chatbot
+import skillspage         # noqa: E402  Settings -> Skills for your chatbot
 studio.htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings="/settings/latex/",
                          peek=latexdraw.peek)
 
@@ -1655,6 +1658,14 @@ ARASAAC_ROUTES = {
     "/settings/api/arasaac/update": "update",
     "/settings/api/arasaac/stop": "stop",
     "/settings/api/arasaac/remove": "remove",
+}
+
+# SETTINGS -> SKILLS FOR YOUR CHATBOT (§9.5, lib/skillspage.py): the page, and its two reads -- what each skill is now,
+# and the zip of one, made when it is asked for and stored nowhere
+SKILLS_PAGE = "/settings/skills/"
+SKILLS_ROUTES = {
+    "/settings/api/skills/state": "state",
+    "/settings/api/skills/download": "download",
 }
 
 
@@ -6656,6 +6667,12 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(arasaacpage.page(self._where(), self._whose_device()))
+        if path == SKILLS_PAGE.rstrip("/"):
+            return self._redirect(SKILLS_PAGE)
+        if path == SKILLS_PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(skillspage.page(self._where()))
         if path.startswith("/settings/api/") and method == "POST":
             # WHO MAY IS A PROPERTY OF THE SETTING (TO-DO §11.10, the owner,
             # 2026-09-24), and the table in lib/settingspage.py says it for
@@ -6687,6 +6704,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._prompts_api(method, path)
         if path in ARASAAC_ROUTES:
             return self._arasaac_api(method, path)
+        if path in SKILLS_ROUTES:
+            return self._skills_api(method, path)
         if path not in ("/settings/api/network", "/settings/api/code",
                         "/settings/api/forget"):
             return self._not_found()
@@ -6889,6 +6908,23 @@ class Handler(SimpleHTTPRequestHandler):
             return self._method_not_allowed()
         code, out = prompts.api(what, self._json_body())
         return self.send_json(out, code)
+
+    def _skills_api(self, method, path):
+        """Settings -> Skills for your chatbot (lib/skillspage.py): how each skill stands, and the zip of one, built
+        now and stored nowhere.  Both are reads (lib/settingspage.py ROUTES): nothing here changes anything."""
+        if method != "GET":
+            return self._method_not_allowed()
+        if SKILLS_ROUTES[path] == "state":
+            return self.send_json(skillspage.view())
+        name = (self.query.get("name") or [""])[0]
+        if name not in skills.available():
+            return self.send_json({"ok": False, "error": "%r is not a skill this Parseh makes" % name}, 404)
+        try:
+            data = skills.build(name).zip_bytes()
+        except skills.SkillError as e:
+            return self.send_json({"ok": False, "error": str(e)}, 500)
+        return self.send_bytes(data, "application/zip", 200,
+                               {"Content-Disposition": 'attachment; filename="%s.zip"' % name})
 
     def _arasaac_api(self, method, path):
         """Settings -> Pictograms (ARASAAC) (lib/arasaacpage.py).  Every route is a POST, gated above

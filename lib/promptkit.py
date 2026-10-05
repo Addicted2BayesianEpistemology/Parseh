@@ -49,7 +49,10 @@ fills, a bug, and it is refused in words (PromptError) rather than sent to a
 chatbot.  A block whose flag the caller never gave is refused the same way,
 because a mistyped flag would otherwise take its text out without a word.
 The data, and what a caller marks `verbatim`, are never looked into: a
-book's title or a caption may say `{{` and be right.
+book's title or a caption may say `{{` and be right.  A flag or a placeholder
+given `Open(words)` is the one thing resolved NOT here but by whoever reads the
+text (lib/skills.py writes a skill once, for every request): it stays as
+`⟦if words⟧ … ⟦end words⟧` or `⟨words⟩`.
 
 WHAT THE MARKS COST.  Taking the marks out of a template gives the file as it
 was before it was split (flat() does exactly that, for a page that fills a
@@ -110,6 +113,18 @@ _HELD = "\x00%d\x00"
 _HELD_AT = re.compile("\x00(\\d+)\x00")
 
 Parts = namedtuple("Parts", "instructions contract data")
+
+
+class Open(object):
+    """WHAT A FLAG OR A PLACEHOLDER IS GIVEN WHEN THE REQUEST, NOT THE CALLER, SAYS WHAT IT IS (lib/skills.py).
+    A skill is written once and read for many requests: where the answer is the request's own, the
+    block stays in the text between two visible marks, `⟦if <words>⟧ … ⟦end <words>⟧`, and the
+    placeholder as `⟨<words>⟩`, and whoever reads the skill settles them from the request's header.
+    `words` is how the condition is said to that reader.  Everything else is resolved here as ever."""
+    IF, END, SLOT = "⟦if %s⟧", "⟦end %s⟧", "⟨%s⟩"
+
+    def __init__(self, words):
+        self.words = words
 
 
 class PromptError(ValueError):
@@ -177,6 +192,10 @@ def _walk(block, flags, want, inside=None):
         elif kid.name not in flags:
             raise PromptError("{{?%s}} is a block this prompt does not know (it knows: %s)"
                               % (kid.name, ", ".join(sorted(flags)) or "none"))
+        elif isinstance(flags[kid.name], Open):
+            inner = _walk(kid, flags, want, inside)
+            if inner.strip():
+                out.append(Open.IF % flags[kid.name].words + inner + Open.END % flags[kid.name].words)
         elif flags[kid.name]:
             out.append(_walk(kid, flags, want, inside))
     return "".join(out)
@@ -206,6 +225,38 @@ def _spaces(text):
     """A block taken out leaves its line behind, blank or holding only the
     indent; three or more newlines collapse to a paragraph break."""
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+\n", "\n", text))
+
+
+def squeeze(text):
+    """What assemble() does to each of its parts once the blocks are resolved."""
+    return _spaces(text).strip()
+
+
+def render(text, flags=None, values=None, includes=None, what="text"):
+    """A piece of text with its blocks and placeholders resolved and nothing else done to it: its
+    whitespace is its own, so that lib/skills.py can write a skill's files from the pieces of a
+    template and a reader can put them back together.  `{{` left in it is refused, as assemble()
+    refuses it."""
+    fill = _Fill(dict(flags or {}), dict(values or {}), dict(includes or {}), {})
+    out = fill.render(text)
+    check(out, what)
+    return out
+
+
+def take_out(text, names):
+    """(text, pieces): `text` with each block named in `names` that stands at its top level (not inside
+    another block) kept as it is but for what is inside it -- one placeholder, {{BLOCK_<name>}} -- and
+    `pieces`, {name: the raw text that was inside}.  What a skill's SKILL.md keeps in its place and what
+    it sends to a file of its own."""
+    tree = _tree(text)
+    pieces = {}
+    for i, kid in enumerate(tree.kids):
+        if isinstance(kid, _Block) and kid.name in names:
+            if kid.name in pieces:
+                raise PromptError("{{?%s}} stands twice at the top level of the text" % kid.name)
+            pieces[kid.name] = _serial(kid, False)
+            tree.kids[i] = "{{?%s}}{{BLOCK_%s}}{{/%s}}" % (kid.name, kid.name, kid.name)
+    return _serial(tree, False), pieces
 
 
 def _serial(block, inside):
@@ -1033,7 +1084,8 @@ class _Fill(object):
             self.held.append(self.verbatim[name])
             return _HELD % (len(self.held) - 1)
         if name in self.values:
-            return self.values[name]
+            got = self.values[name]
+            return Open.SLOT % got.words if isinstance(got, Open) else got
         if name in self.includes:
             if depth > 5:
                 raise PromptError("{{%s}} holds itself" % name)

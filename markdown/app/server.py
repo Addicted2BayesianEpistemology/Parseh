@@ -1979,7 +1979,10 @@ def api_exercise_prompt(h):
     h.send_json({"prompt": a.text, "vocabulary": len(rows), "boxes": boxes, "types": types,
                  "preticked": {"boxes": a.page_boxes, "types": a.page_types},
                  "options": promptkit.describe("studio-exercises", a.target, a.options),
-                 "custom": _custom(chosen), "size": promptboxes.size(a.text)})
+                 "custom": _custom(chosen), "size": promptboxes.size(a.text),
+                 # the short request for a chat that has the skill (lib/skills.py), made from the same prompt
+                 "skill": _skill(lambda s: s.for_exercises(a.target, a, a.boxes, a.types, body.get("level"),
+                                                           body.get("length"), chosen), "parseh-markdown")})
 
 
 def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length="", translit=None, chosen=None):
@@ -2156,6 +2159,13 @@ def _inert(chosen, rows, exercising=False):
             row["disabled"] = INERT
 
 
+def _skill(make, name):
+    """The short request for a chat that has the skill (lib/skills.py), or why there is none: the studio run alone
+    has lib/ beside it, and a fault in making the request never takes the prompt with it."""
+    import skills
+    return skills.safe(lambda: make(skills), name)
+
+
 def _custom(chosen):
     """What an answer says of the prompt it carries: false for Parseh's own, else which of the person's."""
     return {"id": chosen.id, "name": chosen.name, "kind": chosen.kind} if chosen else False
@@ -2195,7 +2205,9 @@ def api_prompt_get(h):
                    levels=promptboxes.levels(), lengths=promptboxes.lengths(),
                    options=promptkit.describe("studio-doc", L, a.options),
                    always_chars=len(studio_prompt(L, None, [], translit=translit, chosen=chosen).text),
-                   size=promptboxes.size(a.text), custom=_custom(chosen))
+                   size=promptboxes.size(a.text), custom=_custom(chosen),
+                   # the short request for a chat that has the skill (lib/skills.py), made from the same prompt
+                   skill=_skill(lambda s: s.for_studio(L, a, on, level, length, chosen), "parseh-markdown"))
         _inert(chosen, out["boxes"])
     except prompts.PromptsError as e:
         return h.send_json({"error": str(e)}, e.status)

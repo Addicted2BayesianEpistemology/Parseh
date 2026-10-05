@@ -292,6 +292,10 @@ ROUTES = {
     "/settings/api/arasaac/update": ("arasaac.get",),
     "/settings/api/arasaac/stop": ("arasaac.stop",),
     "/settings/api/arasaac/remove": ("arasaac.remove",),
+    # the skills for a chatbot (lib/skills.py, lib/skillspage.py): what each is now, and the zip of one, built when
+    # it is asked for -- reads, open to any device let in; nothing here changes anything Parseh runs
+    "/settings/api/skills/state": READ,
+    "/settings/api/skills/download": READ,
 }
 
 
@@ -490,6 +494,11 @@ DOORS = (
     ("/settings/arasaac/", "Pictograms (ARASAAC)",
      "Pictures for the studio's exercises: ARASAAC's pictograms, with their licence",
      ("arasaac.get", "arasaac.remove", "arasaac.stop")),
+    # NO SETTING BEHIND THIS DOOR: a skill is built when it is asked for and downloaded as a file; what is done with
+    # it afterwards is the person's own step in the chatbot (lib/skillspage.py)
+    ("/settings/skills/", "Skills for your chatbot",
+     "The prompts as skills a chatbot can keep: download one, and how to install it",
+     ()),
 )
 
 
@@ -913,8 +922,15 @@ def hub(reading_tags="", update_tags="", speech_tags="", arasaac_tags=""):
     under a licence that asks for a credit and rules out selling what is made with them.</div>
     <div class="tags">%(arasaac_gate)s%(arasaac_tags)s</div>
   </a>
+  <a class="door" href="/settings/skills/">
+    <div class="dname">Skills for your chatbot</div>
+    <div class="dwhat">The prompts as skills a chatbot that keeps skills can hold: download one, install it once, and
+    paste a short request in place of the whole prompt &mdash; built when you ask, from the same parts as the prompts.</div>
+    <div class="tags">%(skills_gate)s</div>
+  </a>
 </div>
 </main>""" % {"name": NAME, "version": esc(parseh_version()),
+              "skills_gate": gate(door_keys("/settings/skills/")),
               "reading_gate": gate(DOORS[0][3]), "reading_tags": reading_tags,
               "update_gate": gate(DOORS[2][3]), "update_tags": update_tags,
               "latex_gate": gate(DOORS[3][3]),

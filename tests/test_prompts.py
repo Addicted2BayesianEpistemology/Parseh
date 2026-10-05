@@ -1101,8 +1101,10 @@ class Assemblers(ControlledMachine):
     def test_the_exercise_route_keeps_its_shape_and_the_authoring_prompts_contract_is_not_in_it(self):
         h = Handler({"markdown": "---\ntitle: T\ntarget: fa\n---\n\nLesson", "decks": []})
         studio_server.api_exercise_prompt(h)
-        # the old keys are kept, and what the dialog draws its boxes and types from is added (E-CONTRACT)
-        self.assertEqual(sorted(h.answer), ["boxes", "custom", "options", "preticked", "prompt", "size", "types", "vocabulary"])
+        # the old keys are kept, and what the dialog draws its boxes and types from is added (E-CONTRACT), and the
+        # short request for a chat that has the skill (lib/skills.py, a0.4.2 W6)
+        self.assertEqual(sorted(h.answer), ["boxes", "custom", "options", "preticked", "prompt", "size", "skill", "types",
+                                            "vocabulary"])
         self.assertIs(h.answer["custom"], False, "Parseh's own: no prompt of the person's was asked for")
         p = h.answer["prompt"]
         self.assertTrue(p.startswith(K.version_line("studio-exercises", "fa")))

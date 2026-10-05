@@ -5856,6 +5856,8 @@
     return rgAsk('prompt', rgBody(extra)).then(function (j) {
       if (!j || !j.ok) throw new Error((j && j.error) || 'the prompt could not be made');
       var text = j.fill ? j.prompt : '';
+      // THE SHORT REQUEST for a chat that has the skill is made with the prompt: the row holds it beside it
+      if (rgRow.skillOf) rgRow.skillOf(j.fill ? j.skill : null);
       // by its text, since two askings can overlap and be answered out of order
       rgMade.push({j: j, text: text});
       if (rgMade.length > 4) rgMade.shift();

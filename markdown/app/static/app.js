@@ -5161,6 +5161,12 @@ function initPrompt() {
   const sync = () => {
     if (!row || !current.text) return;
     row.update(copyText());
+    // the short request for a chat that has the skill: its header (the server's) and, after a blank line, the question
+    const k = current.skill;
+    if (row.skillOf) {
+      const q = question.value.trim();
+      row.skillOf(k && k.available ? Object.assign({}, k, {text: k.text.replace(/\n*$/, "\n\n") + (q ? q + "\n" : "")}) : k);
+    }
     // the button stays off while the prompt is being made again for a choice just changed (ask)
     if (!making) row.enable();
     row.label(question.value.trim() ? "copy the prompt and your question" : "copy the prompt");

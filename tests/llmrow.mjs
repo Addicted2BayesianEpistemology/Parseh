@@ -739,7 +739,7 @@ try {
       const page = await open(ctx, `${origin}${base}/prompt`, `studio ${what}`, p => p.waitForSelector('#llm-row .llmrow'));
       const r = await sized(page, '#llm-row');
       const box = await page.inputValue('#prompt-text');
-      eq([r.copy, r.skill, r.menu], ['copy the prompt', false, false], `${what}: the prompt page has the row, and no menu or skill button before they are supplied`);
+      eq([r.copy, r.skill, r.menu], ['copy the prompt', true, false], `${what}: the prompt page has the row, with the skill button the server's answer supplies (lib/skills.py) and no old-style menu slot`);
       eq(await page.evaluate(() => ['btn-copy-prompt', 'copy-info'].map(i => !!document.getElementById(i))), [false, false],
          `${what}: and the two buttons it replaces are gone`);
       eq([r.chars, r.size], [String(codePoints(box)), sizeWords(codePoints(box), Number(r.tokens))],
@@ -789,6 +789,9 @@ try {
       const rd = await sized(ed, '.ex-prompt-modal [data-x="row"]');
       const route = await (await c2.request.post(`${origin}${base}/api/exercise-prompt`, {data: {markdown: await ed.inputValue('#src'), decks: []}})).json();
       eq(rd.chars, String(codePoints(route.prompt)), `${what}: the dialog says the size of what the route hands out, before the copy (${rd.chars} characters)`);
+      eq(rd.skill, true, `${what}: the dialog has the button that copies the request for the skill (lib/skills.py), supplied with the prompt`);
+      assert(route.skill && route.skill.available && route.skill.text.startsWith('Parseh request · parseh-markdown · ') && route.skill.chars < route.prompt.length / 5,
+             `${what}: the route hands out the short request beside the prompt (${route.skill && route.skill.chars} characters)`);
       await setClip(ed, SENTINEL);
       await ed.click('.ex-prompt-modal .llmrow-copy');
       await ed.waitForFunction(() => /^copied/.test(document.querySelector('.ex-prompt-modal .llmrow-say').textContent));
@@ -821,6 +824,7 @@ try {
     await until(async () => /captions/.test(await text(page, '#pinfo')), 'the prompt is prepared');
     const r = await sized(page, '#prow');
     eq(await clip(page), SENTINEL, 'preparing copied nothing: the size is said first');
+    eq(r.skill, true, 'the add page has the button that copies the request for the skill, supplied with the prepared prompt');
     assert(!/Prompt: \d+ characters/.test(await text(page, '#pinfo')), 'and what was found no longer counts characters after the fact: the row does, before');
     const box = await page.inputValue('#prompt');
     eq([r.chars, r.size], [String(codePoints(box)), sizeWords(codePoints(box), Number(r.tokens))], `the size is the size of the box "The prompt, as it will be copied" (${r.chars} characters)`);
@@ -927,6 +931,7 @@ try {
     await page.check('#rgregloss');
     r = await sized(page, '#rgpanel');
     eq(await clip(page), SENTINEL, 're-gloss ticked: the size is said, and nothing was copied');
+    eq(r.skill, true, "the player's panel has the button that copies the request for the skill, supplied with the stretch's prompt");
     await page.click('#rgcopy');
     await page.waitForFunction(() => /^copied/.test(document.querySelector('#rgcopysay').textContent));
     const prompt = await clip(page);
@@ -976,6 +981,7 @@ try {
     await page.check('#rgregloss');
     r = await sized(page, '#rgbox');
     eq(await clip(page), SENTINEL, 're-gloss ticked: the size is said, and nothing was copied');
+    eq(r.skill, true, "the reader's sheet has the button that copies the request for the skill, supplied with the stretch's prompt");
     await page.click('#rgcopy');
     await page.waitForFunction(() => /^copied/.test(document.querySelector('#rgcopysay').textContent));
     const prompt = await clip(page);

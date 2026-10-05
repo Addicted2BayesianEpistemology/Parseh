@@ -686,17 +686,12 @@ def _about(ctx, counts):
     return "\n".join(out)
 
 
-def assembled(ctx, units, mode, instructions=None, custom=None, options=None):
-    """The prompt for these units, in the parts the kit made it of.  The
-    instructions are a person's own where they are given (lib/prompts.py),
-    and `custom` names them in the version line.  `options` is what the
-    request chose of the scheme of the transliteration and the short vowels
-    (lib/promptkit.py OPTIONS); what it leaves unsaid is the book's or the
-    video's own record of the scheme (its `translit`), else the default.
-    -> (promptkit.Assembled, counts)"""
+def substitutions(ctx, mode):
+    """What fills a region prompt's blocks and placeholders for this book or video in this mode:
+    (flags, values).  Beside `assembled`, lib/skills.py reads it, to say once what each name stands
+    for in a book and in a video, in each mode, and for each language the meanings are written in."""
     L, G = ctx["L"], ctx["G"]
     book = ctx["surface"] == "book"
-    data, counts = _data(ctx, units, mode)
     fields = (["kana"] if L.reading else []) + ["tr", "voc", "en"]
     flags = {"keep": mode != "regloss", "regloss": mode == "regloss",
              "perfield": mode == "perfield", "reading": L.reading, "words": L.words,
@@ -718,10 +713,27 @@ def assembled(ctx, units, mode, instructions=None, custom=None, options=None):
         "LIST_KEY": "sentences" if book else "captions",
         "ADDRESS": "`at`" if book else "`i` and `start`",
     }
+    return flags, subs
+
+
+def assembled(ctx, units, mode, instructions=None, custom=None, options=None, flags=None, values=None):
+    """The prompt for these units, in the parts the kit made it of.  The
+    instructions are a person's own where they are given (lib/prompts.py),
+    and `custom` names them in the version line.  `options` is what the
+    request chose of the scheme of the transliteration and the short vowels
+    (lib/promptkit.py OPTIONS); what it leaves unsaid is the book's or the
+    video's own record of the scheme (its `translit`), else the default.
+    `flags` and `values` take the place of what `substitutions` says, for a
+    caller that has its reason (lib/skills.py leaves open what only a request knows).
+    -> (promptkit.Assembled, counts)"""
+    L, G = ctx["L"], ctx["G"]
+    data, counts = _data(ctx, units, mode)
+    fl, subs = substitutions(ctx, mode)
     # THE TITLE AND THE CHUNKS ARE THE BOOK'S OR THE VIDEO'S, not the template's:
     # a title that says `{{DATA}}` is a title, and is put in as one
     return promptkit.assemble(
-        "%s-region" % ctx["surface"], L, G, mode=mode, flags=flags, values=subs,
+        "%s-region" % ctx["surface"], L, G, mode=mode, flags=dict(fl, **(flags or {})),
+        values=dict(subs, **(values or {})),
         verbatim={"ABOUT": _about(ctx, counts), "DATA": data},
         instructions=instructions, custom=custom,
         options=promptkit.resolve("%s-region" % ctx["surface"], L, options, _facts(ctx))), counts
@@ -769,6 +781,10 @@ def _prompt(ctx, units, mode, prompt=None, options=None):
              **ctx["echo"])
     if chosen:
         r["custom"] = {"id": chosen.id, "name": chosen.name, "kind": chosen.kind}
+    # THE SHORT REQUEST for a chat that has the skill (lib/skills.py), made from the same prompt
+    import skills
+    r["skill"] = skills.safe(lambda: skills.for_region("%s-region" % ctx["surface"], made, ctx["L"], ctx["G"], mode,
+                                                       chosen), "parseh-gloss")
     notes = []
     if not counts["fill"]:
         notes.append("nothing here is left to gloss: every chunk is glossed already"

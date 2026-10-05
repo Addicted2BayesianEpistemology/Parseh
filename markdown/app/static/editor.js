@@ -311,6 +311,8 @@ function initEdit() {
         teach.draw(result);
         const known = result.vocabulary;
         say(known ? `${known} known item${known === 1 ? "" : "s"} from your decks ${known === 1 ? "is" : "are"} in it` : "");
+        // the short request for a chat that has the skill is made with the prompt, and the row holds it beside it
+        if (row && row.skillOf) row.skillOf(result.skill);
         return result.prompt;
       },
       measure: () => ov.isConnected,
