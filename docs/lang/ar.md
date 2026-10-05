@@ -1,6 +1,6 @@
 # Arabic — the annotation conventions
 
-How an Arabic sentence becomes a glossed line: what goes into each field
+{{?new}}How an Arabic sentence becomes a glossed line: what goes into each field
 and how it is written. These rules bind both the reading editions and the
 video captions; they are embedded into every prompt that asks for Arabic
 annotation, so they are written as instructions to the annotator.
@@ -14,7 +14,7 @@ gloss is written in is the book's or the video's own choice, `"gloss"` in
 `book.json` / `video.json`, and English when the key is absent. This file
 is about Arabic as the language being **taught**: the examples below gloss
 into English because they must gloss into something, and every rule that
-turns on the gloss language says so.
+turns on the gloss language says so.{{/new}}
 
 ## The text field
 
@@ -23,35 +23,38 @@ same hamza seats and alif forms (`أ إ آ ا ى ة` exactly as the source has
 them), the source's own oddities included — a dialect word in a caption, a
 misspelling the ASR made. Chunks split only at spaces; joined back with
 single spaces they must reproduce the sentence exactly, and a machine
-checks that. **Never correct the text in `fa`** — the correction goes in
-`note` (videos) or in the vocabulary line (books).
-
-In a reading edition `fa` carries **full tashkil on every word**: fatha,
-kasra, damma on every short vowel, **sukun** on every vowelless consonant,
-**shadda** on every doubled one (with its own vowel on top), **tanwin** on
-every indefinite case ending (`كِتَابٌ`, `كِتَابًا`, `كِتَابٍ`), the dagger alif
-where the orthography has it (`هَٰذَا`, `لَٰكِنْ`). A word is either fully
-vowelled or it is wrong; a half-vowelled word tells the reader nothing about
-which half was left out. The bare pass is made by stripping these marks, so
-nothing but the marks may differ between the vowelled text and the plain
-one. The marks agree with the transliteration beside them: the
-transliteration is what the marks are checked against.
-
-Case endings are written as the text is read: full iʿrāb in classical and
-literary prose (`الْكِتَابُ جَدِيدٌ`), pausal form at a pause (`جَدِيدْ`), and
-what is actually said in a caption of spoken Arabic. There is no ezafe in
-Arabic; the annexation (idafa) is shown by the case marks alone.
-
-In a video caption `fa` carries no marks at all: the caption is copied as
-YouTube has it.
+checks that. **Never correct the text in `fa`**{{?new}} — the correction goes in {{?video}}`note`{{/video}}{{?book}}the
+vocabulary line{{/book}}{{/new}}.{{?nomarks}} It carries no short vowels of your making: the
+text is copied as the source has it{{?video}}, a caption as YouTube has it{{/video}}.{{/nomarks}}{{?marks}} The short
+vowels are asked for in this prompt: `fa` is then the source's text WITH the
+tashkil added and nothing else changed — by the rules under Reading.{{/marks}}
 
 ## Reading
 
 This language has no reading field.
 
+{{?marks}}What stands in its place is the short vowels, which `fa` itself carries when they are
+asked for: **full tashkil on every word** — fatha, kasra, damma on every short
+vowel, **sukun** on every vowelless consonant, **shadda** on every doubled one
+(with its own vowel on top), **tanwin** on every indefinite case ending
+(`كِتَابٌ`, `كِتَابًا`, `كِتَابٍ`), the dagger alif where the orthography has it
+(`هَٰذَا`, `لَٰكِنْ`). A word is either fully vowelled or it is wrong; a
+half-vowelled word tells the reader nothing about which half was left out. The
+bare pass is made by stripping these marks, so nothing but the marks may differ
+between the vowelled text and the plain one.{{?video}} A caption is then
+YouTube's text with the marks added and nothing else changed: not a letter, not
+a hamza seat, not a space, not a stop.{{/video}} The marks agree with the
+transliteration beside them: the transliteration is what the marks are checked
+against.
+
+Case endings are written as the text is read: full iʿrāb in classical and
+literary prose (`الْكِتَابُ جَدِيدٌ`), pausal form at a pause (`جَدِيدْ`), and
+what is actually said in a caption of spoken Arabic. There is no ezafe in
+Arabic; the annexation (idafa) is shown by the case marks alone.{{/marks}}
+
 ## Transliteration
 
-`tr` is a consistent scholarly transliteration of what is actually said or
+{{?classic}}`tr` is a consistent scholarly transliteration of what is actually said or
 printed — Modern Standard Arabic as written, the dialect form as heard when
 the video speaks dialect.
 
@@ -80,23 +83,49 @@ they are in a book glossed in Italian or in Turkish as much as in one
 glossed in English, and never `sh`, `kh` or a dropped mark. It is a
 transliteration of the Arabic, not a respelling in somebody's orthography,
 and a reader who has learnt it once must be able to read the next edition
-with it.
+with it.{{/classic}}{{?ipa}}`tr` is the pronunciation of what is actually said or printed, written in
+**IPA**: the broad (phonemic) IPA of Modern Standard Arabic as it is read, and
+of the dialect as heard when the video speaks dialect — the speaker's own
+vowels and consonants, not the standard's. No slashes, no square brackets, and
+one scheme from the first chunk to the last.
+
+- Vowels: short **a i u**, long **aː iː uː**; the diphthongs **aw** and **aj**.
+- Hamza is **ʔ**, written at the start of a word too (`ʔamal`); ʿayn is **ʕ**.
+- Consonants: **ħ** = ح, **x** = خ, **ɣ** = غ, **q** = ق, **ʃ** = ش, **dʒ** = ج,
+  **θ** = ث, **ð** = ذ; the emphatics carry ˤ: **tˤ dˤ sˤ ðˤ**; the rest are
+  IPA's own (b t d k f s z h m n l r w j).
+- A doubled consonant (a shadda) is written long, **ː**: `muʕalːim`, `ʃidːa`;
+  so is the article assimilated before a sun letter (`ʃːams`, `nːuːr`,
+  `rːadʒul`), while `l-` stays before a moon letter (`l-qamar`).
+- Tā marbūṭa is **-a** in pause and at the end of a phrase (`madiːna`), **-at**
+  when the word is the first term of an idafa or carries a case ending that is
+  read (`madiːnat l-malik`, `madiːnatun`).
+- Stress is not written: it follows from the syllables and differs with the
+  reader.
+- The hyphens that part clitics stay: the conjunctions `wa-` `fa-`, the
+  prepositions `bi-` `li-` `ka-`, the pronoun suffixes `-hu -haː -ka -ki -iː
+  -naː -kum -hum`, the future `sa-`.
+- Case endings only where `fa` has them and they are read.
+
+IPA does not follow the gloss language: it is the same in a book glossed in
+Italian or in Turkish as in one glossed in English, and a reader who has learnt
+it once must be able to read the next edition with it.{{/ipa}}
 
 ## Vocabulary
 
-`voc` is written in the voice of the books' gloss blocks: headword +
-transliteration + meaning.
+{{?classic}}`voc` is written in the voice of the books' gloss blocks: headword +
+transliteration + meaning.{{/classic}}{{?ipa}}`voc` is written in the voice of the books' gloss blocks: headword +
+IPA + meaning.{{/ipa}} The Arabic of `voc` is written as `fa` is: with its marks
+where the text has them, bare where it has none{{?nomarks}} (a caption has none, and then the
+transliteration carries the vowels and the case endings; the examples below are vowelled only so
+that an entry can be read){{/nomarks}}.
 
-- A **noun** gives the singular with its plural (`{{?book}}\dw{كِتَاب}{kitāb} book, pl.
-  \pw{كُتُب} \textit{kutub}{{/book}}{{?video}}\dw{كتاب}{kitāb} book, pl. \pw{كتب}
-  \textit{kutub}{{/video}}`) and the **root in parentheses** (`(\pw{ك ت ب})`).
+- A **noun** gives the singular with its plural
+  ({{?classic}}`\dw{كِتَاب}{kitāb} book, pl. \pw{كُتُب} \textit{kutub}`{{/classic}}{{?ipa}}`\dw{كِتَاب}{kitaːb} book, pl. \pw{كُتُب} \textit{kutub}`{{/ipa}}) and the
+  **root in parentheses** (`(\pw{ك ت ب})`).
 - A **verb** is given as the perfect with its form, the imperfect and the
-  masdar: `كَتَبَ kataba (I) · impf. يَكْتُبُ yaktubu · masdar كِتَابَة kitāba ·
-  to write`; a derived form names its number the same way (`عَلَّمَ ʿallama
-  (II) · impf. يُعَلِّمُ yuʿallimu · masdar تَعْلِيم taʿlīm · to teach`). Every
-  verb in the text gets this entry the first time it appears. What each slot
-  holds is set out under the book's macros below, and it is the same in a
-  video.
+  masdar, in the seven slots of its `\vb` (below), and every verb in the text
+  gets this entry the first time it appears.
 - A **participle**, a **verbal noun** or a broken plural is tied to its
   verb or singular, not glossed as a word of its own.
 - Name what was stripped from the form in the text: the pronoun suffix, the
@@ -105,63 +134,47 @@ transliteration + meaning.
   `\emph`, `\nobreak`), as the Persian editions do, and its entries are
   parted by `; `: `\vb` for every verb, `\dw` for every other headword. The
   seven slots of `\vb` are, in this order, **perfect, imperfect, masdar**,
-  each with its transliteration, then the meaning —
-  `{{?book}}\vb{كَتَبَ}{kataba (I)}{يَكْتُبُ}{yaktubu}{كِتَابَة}{kitāba}{to write}{{/book}}{{?video}}\vb{كتب}{kataba (I)}{يكتب}{yaktubu}{كتابة}{kitāba}{to write}{{/video}}` — and
-  the edition prints its own label before the second and third forms, so
-  never put another form into those slots:
-  - the **perfect** is the third person masculine singular, {{?book}}fully vowelled{{/book}}{{?video}}written bare{{/video}},
-    and its transliteration carries the verb's **form** in brackets, Roman
-    numerals I–X (Iq–IVq for a four-letter root): `kataba (I)`, `arāda (IV)`,
-    `ištarā (VIII)`, `tarjama (Iq)`. The number is what makes the other two
+  each with its {{?classic}}transliteration{{/classic}}{{?ipa}}IPA{{/ipa}}, then the meaning —
+  {{?classic}}`\vb{كَتَبَ}{kataba (I)}{يَكْتُبُ}{yaktubu}{كِتَابَة}{kitāba}{to write}`{{/classic}}{{?ipa}}`\vb{كَتَبَ}{kataba (I)}{يَكْتُبُ}{jaktubu}{كِتَابَة}{kitaːba}{to write}`{{/ipa}} — and
+  the edition prints its own label before the second and third forms,
+  so never put another form into those slots:
+  - the **perfect** is the third person masculine singular,
+    {{?marks}}fully vowelled{{/marks}}{{?nomarks}}written as `fa` is{{/nomarks}},
+    and its {{?classic}}transliteration{{/classic}}{{?ipa}}IPA{{/ipa}} carries the verb's **form** in brackets, Roman
+    numerals I–X (Iq–IVq for a four-letter root):
+    {{?classic}}`kataba (I)`, `arāda (IV)`, `ištarā (VIII)`, `tarjama (Iq)`{{/classic}}{{?ipa}}`kataba (I)`, `ʔaraːda (IV)`, `ʔiʃtaraː (VIII)`, `tardʒama (Iq)`{{/ipa}}. The number is what makes the other two
     slots a pattern for every form but the first; write it every time.
   - the **imperfect** is the third person masculine singular indicative,
-    with its final *-u*: `yaktubu`, `yaqūlu`, `yaṣilu`, `yarā`. For form I its
+    with its final *-u*: {{?classic}}`yaktubu`, `yaqūlu`, `yaṣilu`, `yarā`{{/classic}}{{?ipa}}`jaktubu`, `jaquːlu`, `jasˤilu`, `jaraː`{{/ipa}}. For form I its
     vowel is the one thing nobody can guess.
   - the **masdar** is the verbal noun **that goes with the sense in the
-    text**, one only: `وُصُول wuṣūl` for وَصَلَ *to arrive*, not the صِلَة of
-    its other sense; `رُؤْيَة ruʾya` for رَأَى *to see*. It is **never the
+    text**, one only: {{?classic}}`وُصُول wuṣūl` for وَصَلَ *to arrive*, not the صِلَة of
+    its other sense; `رُؤْيَة ruʾya` for رَأَى *to see*{{/classic}}{{?ipa}}`وُصُول wusˤuːl` for وَصَلَ *to arrive*, not the صِلَة of
+    its other sense; `رُؤْيَة ruʔja` for رَأَى *to see*{{/ipa}}. It is **never the
     perfect written again** — a masdar slot that repeats the perfect prints
-    `masdar رَأَى raʾā` and teaches something false. A verb with no masdar in
+    {{?classic}}`masdar رَأَى raʾā`{{/classic}}{{?ipa}}`masdar رَأَى raʔaː`{{/ipa}} and teaches something false. A verb with no masdar in
     use leaves the pair empty, `{}{}`, and the edition prints nothing there,
     label and all.
-{{?video}}- A video's line is written exactly as a book's; a line with no macro at
-  all is plain text, and is also accepted. Its Arabic is written as the caption
-  has it, **without vowel marks**: the transliteration carries the vowels and
-  the case endings, and Arabic script is fine, the player isolates it. What a
-  video adds is the form its chunk has, where it is none of the three the `\vb`
+{{?video}}- What a video adds is the form its chunk has, where it is none of the three the `\vb`
   prints, nor one its parenthesis names: it is named after the entry, outside
   it, with its sound,
-  `\vb{أراد}{arāda (IV)}{يريد}{yurīdu}{إرادة}{irāda}{to want}; here \pw{يريدون}
-  \textit{yurīdūna}, sound plural`.
+  {{?classic}}`\vb{أَرَادَ}{arāda (IV)}{يُرِيدُ}{yurīdu}{إِرَادَة}{irāda}{to want}; here \pw{يُرِيدُونَ}
+  \textit{yurīdūna}, sound plural`{{/classic}}{{?ipa}}`\vb{أَرَادَ}{ʔaraːda (IV)}{يُرِيدُ}{juriːdu}{إِرَادَة}{ʔiraːda}{to want}; here \pw{يُرِيدُونَ}
+  \textit{juriːduːna}, sound plural`{{/ipa}}.
 {{/video}}- What the three forms cannot say goes in **one parenthesis after the
   meaning**, items parted by `; `. Arabic has one such item: the
   **preposition the verb governs**, where the verb does not simply take a
-  direct object — `+ \pw{إِلَى}` in a book, `+ \pw{إلى}` in a video:
-  `\vb{وَصَلَ}{waṣala (I)}{يَصِلُ}{yaṣilu}{وُصُول}{wuṣūl}{to arrive (+
-  \pw{إِلَى})}`; so `رَغِبَ … (+ \pw{فِي})`, `بَحَثَ … (+ \pw{عَنْ})`. Two
+  direct object — `+ \pw{إِلَى}`:
+  {{?classic}}`\vb{وَصَلَ}{waṣala (I)}{يَصِلُ}{yaṣilu}{وُصُول}{wuṣūl}{to arrive (+
+  \pw{إِلَى})}`{{/classic}}{{?ipa}}`\vb{وَصَلَ}{wasˤala (I)}{يَصِلُ}{jasˤilu}{وُصُول}{wusˤuːl}{to arrive (+
+  \pw{إِلَى})}`{{/ipa}}; so `رَغِبَ … (+ \pw{فِي})`, `بَحَثَ … (+ \pw{عَنْ})`. Two
   prepositions that are alternatives take one `+` and a slash (`بَعُدَ … (+
   \pw{مِنْ}/\pw{عَنْ})`), a second object a second `+` (`سَمَحَ … (+ \pw{لِ}
   + \pw{بِ})`). Nothing else goes in the parenthesis: not the root, not a
   transitivity label.
 - A verb that is perfect only — `لَيْسَ` — is a `\dw` and not a `\vb`, with
-  what it does in the meaning: `\dw{لَيْسَ}{laysa} is not, perfect in form and
-  present in meaning`.
-- The gloss editor's sources sidebar, in the reader and in the player, now
-  proposes this entry from the dictionary for a verb it recognises: the
-  vowelled perfect with its form, the imperfect, a masdar, and a governed
-  preposition where the dictionary has one, each transliteration respelt in
-  the scheme above (the dictionary writes `ʔ ʕ ḵ ḡ` and an initial hamza).
-  It is a **draft for you to correct**: where the dictionary lists several
-  masdars — it does for about one verb in six — the draft has the first,
-  which is often the one for another sense (`صِلَة` where *to arrive* wants
-  `وُصُول`); the meaning and the preposition are those of the sense the
-  dictionary gives first, and its meaning runs to a line of synonyms; and a
-  hit reached through an unvowelled word may be the wrong verb altogether.
-  Fix it before it is saved; where it could not fill a slot — a masdar the
-  dictionary does not know, which it does not tell apart from a verb that
-  has none — the pair goes in blank and the button says which.{{?video}} In a video
-  the draft comes without the vowel marks, as a video's line is written
-  (above); the transliterations keep the vowels.{{/video}}
+  what it does in the meaning:
+  {{?classic}}`\dw{لَيْسَ}{laysa} is not, perfect in form and present in meaning`{{/classic}}{{?ipa}}`\dw{لَيْسَ}{lajsa} is not, perfect in form and present in meaning`{{/ipa}}.
 
 One equivalent in the gloss language rather than a string of synonyms; no
 etymologies; **an empty `voc` is the right answer** for a chunk needing
@@ -209,3 +222,44 @@ joined and cannot be split anyway, but a phrase like `هَٰذَا الْكِت�
 chunk. A negation stays with its verb (`لَمْ يَكْتُبْ`, `لَا أَعْرِف`), a
 conjunction clitic with the word it is written on. A very short sentence
 (`نَعَمْ`, `اُكْتُبْ`) is one chunk; that is normal and not a fault.
+
+## Example
+
+{{?note}}No speaker has reviewed this example yet: an Arabic reader should read the
+chunks, the transliteration and the IPA before the prompt is trusted.{{/note}}Three chunks of one caption of formal Modern Standard Arabic, read with its case endings,
+as an answer writes them: the same shape in every prompt. The meanings here are written in English because
+an example has to be written in something; yours are written in the gloss language of this prompt. The Arabic
+of `fa` and of `voc` is shown {{?marks}}with its marks, as this prompt asks for them{{/marks}}{{?nomarks}}without marks, as the caption has it (a text that
+is vowelled keeps its marks, and so does the Arabic of its `voc`){{/nomarks}}.
+
+{{?classic}}{{?marks}}```json
+{"chunks": [
+  {"fa": "ذَهَبَ الطُّلَّابُ", "tr": "ḏahaba ṭ-ṭullābu", "voc": "\\vb{ذَهَبَ}{ḏahaba (I)}{يَذْهَبُ}{yaḏhabu}{ذَهَاب}{ḏahāb}{to go (+ \\pw{إِلَى})}; \\dw{طَالِب}{ṭālib} student, pl. \\pw{طُلَّاب} \\textit{ṭullāb} (\\pw{ط ل ب})", "en": "went the students"},
+  {"fa": "إِلَى الْمَكْتَبَةِ", "tr": "ilā l-maktabati", "voc": "\\dw{مَكْتَبَة}{maktaba} library, pl. \\pw{مَكَاتِب} \\textit{makātib} (\\pw{ك ت ب})", "en": "to the library"},
+  {"fa": "بَعْدَ الدَّرْسِ", "tr": "baʿda d-darsi", "voc": "\\dw{دَرْس}{dars} lesson, pl. \\pw{دُرُوس} \\textit{durūs} (\\pw{د ر س})", "en": "after the lesson"}
+]}
+```{{/marks}}{{?nomarks}}```json
+{"chunks": [
+  {"fa": "ذهب الطلاب", "tr": "ḏahaba ṭ-ṭullābu", "voc": "\\vb{ذهب}{ḏahaba (I)}{يذهب}{yaḏhabu}{ذهاب}{ḏahāb}{to go (+ \\pw{إلى})}; \\dw{طالب}{ṭālib} student, pl. \\pw{طلاب} \\textit{ṭullāb} (\\pw{ط ل ب})", "en": "went the students"},
+  {"fa": "إلى المكتبة", "tr": "ilā l-maktabati", "voc": "\\dw{مكتبة}{maktaba} library, pl. \\pw{مكاتب} \\textit{makātib} (\\pw{ك ت ب})", "en": "to the library"},
+  {"fa": "بعد الدرس", "tr": "baʿda d-darsi", "voc": "\\dw{درس}{dars} lesson, pl. \\pw{دروس} \\textit{durūs} (\\pw{د ر س})", "en": "after the lesson"}
+]}
+```{{/nomarks}}{{/classic}}{{?ipa}}{{?marks}}```json
+{"chunks": [
+  {"fa": "ذَهَبَ الطُّلَّابُ", "tr": "ðahaba tˤːulːaːbu", "voc": "\\vb{ذَهَبَ}{ðahaba (I)}{يَذْهَبُ}{jaðhabu}{ذَهَاب}{ðahaːb}{to go (+ \\pw{إِلَى})}; \\dw{طَالِب}{tˤaːlib} student, pl. \\pw{طُلَّاب} \\textit{tˤulːaːb} (\\pw{ط ل ب})", "en": "went the students"},
+  {"fa": "إِلَى الْمَكْتَبَةِ", "tr": "ʔilaː l-maktabati", "voc": "\\dw{مَكْتَبَة}{maktaba} library, pl. \\pw{مَكَاتِب} \\textit{makaːtib} (\\pw{ك ت ب})", "en": "to the library"},
+  {"fa": "بَعْدَ الدَّرْسِ", "tr": "baʕda dːarsi", "voc": "\\dw{دَرْس}{dars} lesson, pl. \\pw{دُرُوس} \\textit{duruːs} (\\pw{د ر س})", "en": "after the lesson"}
+]}
+```{{/marks}}{{?nomarks}}```json
+{"chunks": [
+  {"fa": "ذهب الطلاب", "tr": "ðahaba tˤːulːaːbu", "voc": "\\vb{ذهب}{ðahaba (I)}{يذهب}{jaðhabu}{ذهاب}{ðahaːb}{to go (+ \\pw{إلى})}; \\dw{طالب}{tˤaːlib} student, pl. \\pw{طلاب} \\textit{tˤulːaːb} (\\pw{ط ل ب})", "en": "went the students"},
+  {"fa": "إلى المكتبة", "tr": "ʔilaː l-maktabati", "voc": "\\dw{مكتبة}{maktaba} library, pl. \\pw{مكاتب} \\textit{makaːtib} (\\pw{ك ت ب})", "en": "to the library"},
+  {"fa": "بعد الدرس", "tr": "baʕda dːarsi", "voc": "\\dw{درس}{dars} lesson, pl. \\pw{دروس} \\textit{duruːs} (\\pw{د ر س})", "en": "after the lesson"}
+]}
+```{{/nomarks}}{{/ipa}}
+
+What to notice: the verb comes first and its subject follows in the same chunk, so
+its `en` keeps that order (*went the students*); the `\vb` gives the form number,
+the imperfect, the masdar and, in its parenthesis, the preposition the verb
+governs; a noun gives its plural and its root in parentheses; the article and
+the prepositions are never glossed.

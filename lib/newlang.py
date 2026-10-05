@@ -1390,13 +1390,16 @@ def add(a):
     print("     comes %s (%s), and the reader is told why."
           % (times, ", ".join(p["title"] for p in entry["passes"])))
     print("     lib/lang/fa.tex is the voice.%s" % todo_note)
-    print("  2. docs/lang/%s.md  -- the six sections.  They are read by the video prompt"
+    print("  2. docs/lang/%s.md  -- the seven sections, the last a worked Example.  They"
           % code)
-    print("     (youtube/docs/chat-prompt.md), the new-book prompt")
-    print("     (docs/new-book-prompt.md) and the prompt that has an LLM gloss a stretch")
-    print("     of a book or a video (docs/region-prompt.md, through lib/glossregion.py),")
-    print("     each of which embeds them whole: they are instructions to an")
-    print("     annotator, so write them so.")
+    print("     are read by the video prompt (youtube/docs/chat-prompt.md), the new-book")
+    print("     prompt (docs/new-book-prompt.md) and the prompt that has an LLM gloss a")
+    print("     stretch of a book or a video (docs/region-prompt.md, through")
+    print("     lib/glossregion.py), each of which takes what it needs of them")
+    print("     (lib/promptkit.py cuts them): they are instructions to an annotator, so")
+    print("     write them so.  Every sound they show is written twice, for the usual")
+    print("     scheme and for IPA, as docs/lang/fa.md does; a language with short vowels")
+    print("     to mark (a `strip` in its row) writes its marks paragraphs twice as well.")
     print("     Its verb paragraph starts from the row: a \\vb gives %s, then"
           % ", ".join(entry["vb_forms"]))
     print("     the meaning, and prints %s / %s before the second and third (vb_forms,"

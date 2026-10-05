@@ -75,17 +75,17 @@ WAITS = "waits for the a0.4.3 dialect (markdown/exlex/segcolour.py)"
 # (`StudioBoxes` measures the other presets against the old prompt).
 SIZES = {
     #        studio-doc     studio-exercises  video-new      video-region   book-region    transcript-tidy  book-new
-    "fa": ((16137, 18600), (19078, 22000), (30695, 35300), (20604, 23700), (19730, 22700), (2696, 3200), (32808, 37800)),
-    "ar": ((16799, 19400), (19739, 22700), (30569, 35200), (21027, 24200), (20705, 23900), (2687, 3100), (32685, 37600)),
+    "fa": ((16413, 18900), (19715, 22700), (27766, 32000), (19276, 22200), (18222, 21000), (2815, 3300), (31910, 36700)),
+    "ar": ((17075, 19700), (20376, 23500), (29674, 34200), (20968, 24200), (19641, 22600), (2806, 3300), (33625, 38700)),
     "it": ((16408, 18900), (14541, 16800), (30602, 35200), (21032, 24200), (20710, 23900), (2747, 3200), (32652, 37600)),
-    "ja": ((17663, 20400), (15565, 17900), (33877, 39000), (24592, 28300), (24866, 28600), (2636, 3100), (34581, 39800)),
+    "ja": ((17921, 20700), (16184, 18700), (33735, 38800), (24171, 27800), (23448, 27000), (2755, 3200), (35330, 40700)),
     "fr": ((20407, 23500), (18543, 21400), (38721, 44600), (26973, 31100), (26605, 30600), (2795, 3300), (40715, 46900)),
     "de": ((19954, 23000), (18090, 20900), (39098, 45000), (27027, 31100), (26485, 30500), (2758, 3200), (41124, 47300)),
     "tr": ((18181, 21000), (16314, 18800), (39560, 45500), (28881, 33300), (28618, 33000), (2746, 3200), (41614, 47900)),
     "en": ((22378, 25800), (20511, 23600), (41797, 48100), (30411, 35000), (29982, 34500), (2811, 3300), (43779, 50400)),
-    "hi": ((18245, 21000), (16286, 18800), (33993, 39100), (23691, 27300), (23945, 27600), (2692, 3100), (36086, 41500)),
+    "hi": ((18521, 21300), (16923, 19500), (33252, 38300), (22678, 26100), (21961, 25300), (2811, 3300), (36274, 41800)),
     "es": ((18075, 20800), (16208, 18700), (39886, 45900), (28935, 33300), (29167, 33600), (2664, 3100), (41928, 48300)),
-    "zh": ((19058, 22000), (17124, 19700), (42340, 48700), (29741, 34300), (29847, 34400), (2620, 3100), (43126, 49600)),
+    "zh": ((19334, 22300), (17761, 20500), (41768, 48100), (28888, 33300), (28305, 32600), (2739, 3200), (43751, 50400)),
 }
 MEASURED = ("studio-doc", "studio-exercises", "video-new", "video-region", "book-region",
             "transcript-tidy", "book-new")
@@ -946,14 +946,15 @@ class LanguageCut(unittest.TestCase):
         self.assertIn("\n## Transliteration\n", "\n" + K.language_text("studio-doc", "fa"))
 
     def test_the_cuts_take_out_what_the_brief_expects_of_them(self):
-        # the studio prompt loses 10 - 15 K of the language file (9.8 K in Italian, 18 K in Chinese:
-        # the files differ); a region prompt loses Chunking and most of The text field -- what
+        # the studio prompt loses 8 - 15 K of the language file (9.8 K in Italian, 18 K in Chinese:
+        # the files differ, and one that lost the sources sidebar's paragraph is shorter by it: lane D2);
+        # a region prompt loses Chunking and most of The text field -- what
         # D's marking of the sources sidebar's paragraph and the opening adds is D's.  `whole`
         # is a book's file, which holds no sentence that only a video's line needs, and a region
         # prompt is measured against the whole of its own surface's file for the same reason.
         for code in self.CODES:
             whole = len(K.language_text("book-new", code))
-            self.assertGreater(whole - len(K.language_text("studio-doc", code)), 9000, code)
+            self.assertGreater(whole - len(K.language_text("studio-doc", code)), 8000, code)
             self.assertLess(whole - len(K.language_text("studio-doc", code)), 18500, code)
             for who in ("book", "video"):
                 own = len(K.language_text(who + "-new", code))
