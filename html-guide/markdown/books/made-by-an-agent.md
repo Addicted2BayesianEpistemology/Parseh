@@ -28,9 +28,20 @@ but in that folder. Beside the book's own files the folder holds:
 
 - **`original/`** The text the book is made from, as you chose it: the first
   file, and a file for every part you add later.
-- **`AGENTS.md`** The instructions: where the tools are, the rules, what to
-  keep. A plain file any agent can be told to read, and several read by
-  themselves; `CLAUDE.md` is one line pointing at it.
+- **`AGENTS.md`** The instructions, one plain file written for this book
+  alone: its language and the language of its glosses, where the tools and
+  the folder are (the full paths), the order of the work, the rules, and what
+  the agent keeps. Any agent that works in a folder can be told to read it,
+  and several read it by themselves. **`CLAUDE.md`** is one line pointing at
+  it, which Claude Code reads without being told.
+- **`.claude/skills/parseh-book/`** and **`.agents/skills/parseh-book/`** The
+  same method as a *skill*: a folder of notes that some agents look for in the
+  folder they are working in, and open only when they need a part. The first
+  is the one Claude Code looks in, the second the one most of the others do.
+  They are copies of one another, written with `AGENTS.md`, and an agent that
+  reads `AGENTS.md` has no need of them. None of these files is a setting:
+  Parseh writes no permission file for any agent, because what an agent may
+  do on your computer is yours to decide.
 - **`NOTES.md`** The book's journal: the source's oddities, the decisions
   taken, what is open. The agent keeps it, and its last lines are shown in the
   making panel.
@@ -83,6 +94,25 @@ phone too, and it is drawn again by itself every few seconds while it is open:
 - **The agent's notes.** The end of `NOTES.md`.
 - **The text**, **what to change from now on**, **the folder** and
   **finish** — below.
+
+## Writing the instructions again
+
+The instructions in the folder were written when the folder was made. If
+Parseh has been updated since, or you changed your own prompt for them (the
+menu beside **copy the instructions** on the add page, [Your own
+prompts](doc:Your own prompts)), the agent is still reading the old words.
+**write the instructions again**, in the folder part of the making panel,
+writes `AGENTS.md`, `CLAUDE.md` and the skill folders again, from the book's
+own facts and the way the folder was made: the same finished edition and
+examples, the same short vowels and transliteration, the same prompt of yours
+with its latest words. It touches nothing else — not `NOTES.md`, not
+`ASKS.md`, not `making.json`, nothing the agent made.
+
+Then **tell the agent**. It read the old file when it began, in its own chat,
+and Parseh cannot reach into that chat: say *read AGENTS.md again before your
+next batch*. The panel says so after you press. A finished book has no agent
+reading its instructions any more; reopen it first
+([Reopening a finished book](#reopening-a-finished-book)).
 
 ## While it is made, the reader does not edit
 
@@ -218,8 +248,8 @@ takes the first back; tell it to carry on.
 
 Every device let in may do all of it: make the book's folder and see the
 instructions, give the agent text, say it is all the text, read the panel,
-**look at it now**, make the PDF of the chapters, write an ask, **finish** and
-reopen. These doors only write files under `books/` and start Parseh's own
+**look at it now**, make the PDF of the chapters, write an ask, write the
+instructions again, **finish** and reopen. These doors only write files under `books/` and start Parseh's own
 build, like the doors every device already has; the agent that runs Parseh's
 tools in the folder is started by you, on the computer.
 
@@ -239,6 +269,8 @@ first thing to read if you hand the folder to another agent:
 | `state` | Parseh's | `making`, or `finished`: written when the folder is made and by Finish, never by the agent |
 | `parseh`, `started` | Parseh's | the version of Parseh the folder was made under, and when |
 | `parts`, `more_coming` | Parseh's | the text given so far, part by part (the first original is part 1), and whether more may come |
+| `instructions` | Parseh's | how the instructions were written (the finished edition, the examples, the short vowels, your own prompt), so that they can be written again the same way |
+| `asks_read` | the agent's | how many entries of `ASKS.md` it has read |
 | `stage` | the agent's | `source`, `chapters`, `batch`, `done` or `waiting` |
 | `on` | the agent's | one line: what it is on now |
 | `chapters` | the agent's | the chapter table: `[{"chapter": 1, "paragraphs": 24}, …]`, each row may say which `part` it came from |
@@ -258,7 +290,7 @@ Its **download** and **Backup every book** carry the original and `annot/`
 beside what they always carried — the chapters, `book.json`, `NOTES.md`,
 `source/`, the notes — so a copy on another computer keeps how it was made
 and what it was made from ([Taking a book away](doc:Taking a book away)). The
-agent's own files — `AGENTS.md`, `CLAUDE.md`, `.claude/`, `ASKS.md` and
+agent's own files — `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.agents/`, `ASKS.md` and
 `making.json` — never travel: they are about one making on one computer. The
 bundle's format number went up with this; an older Parseh refuses such a
 bundle in words, and going back to an older Parseh asks you to tick *I

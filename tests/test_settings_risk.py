@@ -589,6 +589,10 @@ class Served(unittest.TestCase):
             self.assertEqual((status, got["making"]), (200, True), "the reader asks relative to itself")
             status, _, got = self.ask("POST", book + "/__making/ask", {"line": "shorter glosses"})
             self.assertEqual((status, got["ok"], got["count"]), (200, True, 1))
+            # what the agent reads, written again: from a phone as from the computer, a book being made only
+            status, _, got = self.ask("POST", book + "/__making/instructions", {})
+            self.assertEqual((status, got["ok"], got["written"][:2], got["said"]),
+                             (200, True, ["AGENTS.md", "CLAUDE.md"], making.INSTRUCTIONS_AGAIN_SAID), got)
             # the text, a part at a time: pasted, and as a file that is the body of the request
             status, _, got = self.ask("POST", book + "/__making/part", {"text": "Il gatto torna.", "chapter": "new", "label": "p2"})
             self.assertEqual((status, got["ok"], got["part"]["n"], got["part"]["chapter"]), (200, True, 2, "new"), got)

@@ -152,8 +152,9 @@ made from and `annot/` the annotation JSON (`ch1_p00.json`, one paragraph
 each, and a batch's `ch1_batchA.json`) its chapters were assembled from: while
 the book is made that JSON is the truth and the `.tex` is output, and once it
 is finished the `.tex` is the truth and `annot/` stays as the record. The rest
-of the agent's files — `NOTES.md`, `ASKS.md`, `making.json`, `AGENTS.md` — are
-described on that page.
+of the agent's files — `NOTES.md`, `ASKS.md`, `making.json`, `AGENTS.md`, `CLAUDE.md`
+and the `parseh-book` skill folders in `.claude/` and `.agents/` — are described on that
+page.
 
 ## The comments
 

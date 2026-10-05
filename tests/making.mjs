@@ -306,7 +306,11 @@ eq(await clip(page), shown, 'the instructions copied are exactly the ones shown'
 assert(shown.includes(INSTALL + '/books/english/the-clock') && shown.includes(INSTALL + '/lib') &&
        /Write only inside this folder/.test(shown) && /ASKS\.md/.test(shown) && /making\.json/.test(shown),
        'they name this folder, this Parseh\'s tools, ASKS.md and making.json by their full paths');
-assert(/^\d[\d,]* characters$/.test(await page.$eval('#ilen', e => e.textContent)), 'and say how long they are');
+await page.waitForFunction(() => /^about \d[\d,]* characters \(about \d[\d,]* tokens\)/.test(document.querySelector('#ilen').textContent),
+                           null, {timeout: 20000});
+assert(true, 'and say how long they are, before the copy: the row\'s one size line');
+assert(await page.$eval('#instrmount .llmrow', e => !!e) && await inView(page, '#icopy'),
+       'the controls are the LLM row\'s, in the window');
 await views(page, 'C-add', {full: true});
 // make the folder
 await page.click('#mkfolder');
@@ -322,7 +326,8 @@ eq(await clip(page), BOOK, 'copy the path copies the path');
 await page.click('#mkopen');
 for (let i = 0; i < 30 && !(await exists(INSTALL + '/opened.txt')); i++) await sleep(100);
 eq((await Deno.readTextFile(INSTALL + '/opened.txt')).trim(), BOOK, 'open the folder asks the system\'s file manager for it');
-eq(await tree(BOOK), ['AGENTS.md', 'ASKS.md', 'CLAUDE.md', 'NOTES.md', 'annot/', 'book.json', 'main.tex',
+// (the project skill, in .claude/skills/ and .agents/skills/, is written beside them where lane G's builder is: not listed here)
+eq((await tree(BOOK)).filter(n => !/^\.(claude|agents)\//.test(n)), ['AGENTS.md', 'ASKS.md', 'CLAUDE.md', 'NOTES.md', 'annot/', 'book.json', 'main.tex',
                       'making.json', 'original/parts.json', 'original/the-clock.txt', 'reader/index.html', 'source/paras/'].filter(n => !n.endsWith('/')),
    'the folder holds what the brief says, Parseh\'s list of the parts, and the reader');
 eq(await Deno.readTextFile(BOOK + '/original/the-clock.txt'), ORIGINAL_TEXT, 'the original is the uploaded file, byte for byte');
@@ -481,6 +486,21 @@ await waitText(page, '#mkbox', /cannot be read just now/, 20000);
 assert(await page.$eval('#bookinfo', b => b.disabled), 'a half-written making.json does not lift the lock');
 await Deno.writeTextFile(BOOK + '/making.json', JSON.stringify(mk, null, 2));
 await waitNoText(page, '#mkbox', /cannot be read just now/, 20000);
+// THE INSTRUCTIONS WRITTEN AGAIN, from the panel: what the agent reads is made again, nothing the agent made is
+// touched, and the person is told that the agent must be told (its chat has read the old file)
+const agentsMade = await Deno.readTextFile(BOOK + '/AGENTS.md');
+const kept = [await Deno.readTextFile(BOOK + '/NOTES.md'), await Deno.readTextFile(BOOK + '/ASKS.md'),
+              await Deno.readTextFile(BOOK + '/making.json'), await Deno.readTextFile(BOOK + '/ch1.tex')];
+await Deno.writeTextFile(BOOK + '/AGENTS.md', 'an old one, from before an update of Parseh');
+await page.click('#mkbox button:has-text("write the instructions again")');
+await waitText(page, '#mkbox', /tell it to read AGENTS\.md again/, 20000);
+eq(await Deno.readTextFile(BOOK + '/AGENTS.md'), agentsMade, 'the instructions are written again, as they were made');
+eq([await Deno.readTextFile(BOOK + '/NOTES.md'), await Deno.readTextFile(BOOK + '/ASKS.md'),
+    await Deno.readTextFile(BOOK + '/making.json'), await Deno.readTextFile(BOOK + '/ch1.tex')], kept,
+   'and the journal, the asks, the record and the chapters are exactly as they were');
+assert(/were written (just now|\d+ minutes? ago)/.test(await page.$eval('#mkbox', e => e.textContent)), 'the panel says when they were written');
+await shot(page, 'H-panel-instructions-again-1280');
+await page.evaluate(() => { document.querySelector('#mkbox').scrollTop = 0; });      // the click scrolled the panel to its button
 
 /* ================= the themes and the widths ================= */
 console.log('   themes and widths');
@@ -498,6 +518,8 @@ await page.setViewportSize({width: 390, height: 844});
 await sleep(400);
 assert(await inView(page, '#mkbox'), 'the panel fits a 390 px window (the browser interface)');
 await shot(page, 'C-panel-390-browser-light');
+await page.locator('#mkbox button:has-text("write the instructions again")').scrollIntoViewIfNeeded();
+await shot(page, 'H-panel-instructions-again-390-light');
 await page.setViewportSize({width: 1280, height: 900});
 
 /* ================= f) another device ================= */
@@ -664,12 +686,28 @@ await page.fill('#author_latin', 'Mohammad-Ali Jamalzadeh');
 eq(await page.$eval('#title', e => getComputedStyle(e).direction), 'rtl', 'the title box reads right to left');
 await page.setInputFiles('#original', TMP + '/farsi.txt');
 await page.waitForFunction(() => !document.querySelector('#mkfolder').disabled);
+// THE ROW'S CHOICES, for a language that has them: a book made in place writes the short vowels unless it is
+// told not to, and its transliteration is in the usual scheme unless it is told IPA; both are the book's own facts
+const MARKS = '#instrmount .llmrow-opt[data-option="marks"] select', TRANSLIT = '#instrmount .llmrow-opt[data-option="translit"] select';
+await page.waitForSelector(MARKS);
+eq(await page.$eval(MARKS, s => s.value), 'marks', 'a book made in place writes the short vowels unless it is told otherwise');
+await page.click('#ishow summary');
+await page.waitForFunction(() => /The short vowels are written/.test(document.querySelector('#itext').textContent));
+await page.selectOption(MARKS, 'nomarks');
+await page.selectOption(TRANSLIT, 'ipa');
+await page.waitForFunction(() => /The short vowels are left alone/.test(document.querySelector('#itext').textContent) &&
+                                 /is written in IPA/.test(document.querySelector('#itext').textContent));
+const farsiShown = await page.$eval('#itext', e => e.textContent);
+assert(farsiShown.split('\n')[0].endsWith('· IPA · no marks'), 'the instructions\' first line says which choices they were written with');
 await page.click('#mkfolder');
 await page.waitForSelector('#mkcopy', {timeout: 60000});
 eq(await page.$eval('.bigpath', e => e.textContent), FA, 'the folder is on the Persian shelf, named from the transliterated title');
 const faJson = JSON.parse(await Deno.readTextFile(FA + '/book.json'));
 eq([faJson.language, faJson.title, faJson.author], ['fa', 'فارسی شکر است', 'محمدعلی جمال‌زاده'], 'book.json keeps the Persian, letter for letter');
+eq(faJson.translit, 'ipa', 'the scheme the row said is a fact of the book');
 assert(/Persian/.test(await Deno.readTextFile(FA + '/AGENTS.md')), 'the instructions say it is a Persian book');
+eq(await Deno.readTextFile(FA + '/AGENTS.md'), farsiShown, 'and they are the text the page showed, with the choices made');
+eq(JSON.parse(await Deno.readTextFile(FA + '/making.json')).instructions.marks, 'nomarks', 'making.json keeps how they were written, so that they can be written again');
 await views(page, 'C-fa-add-made', {full: true});
 await lib.goto(B + '/books/');
 await lib.waitForSelector('a.book[data-making*="persian"]');
@@ -704,6 +742,8 @@ await page.waitForFunction(() => document.querySelector('#mkbox') && !document.q
 assert(await inView(page, '.mk-btn[data-layout=browser]') && await onTop(page, '.mk-btn[data-layout=browser]') && await inView(page, '#mkbox'),
        'the making button and the panel of a right-to-left book lie inside the window, and nothing over them');
 eq(await page.$eval('.mk-btn[data-layout=browser] .mk-txt', e => e.textContent), 'being made · batch 2 of 2', 'the button says where it is');
+assert(/The instructions in this folder were written (just now|\d+ minutes? ago), with the short vowels left as the source has them and the transliteration in IPA\./.test(await page.$eval('#mkbox', e => e.textContent)),
+       'the panel says how the instructions were written: the two choices that are the book\'s own facts');
 await views(page, 'C-fa-panel');
 await page.keyboard.press('Escape');
 await page.waitForFunction(() => document.querySelector('#mkbox').hidden);
@@ -910,6 +950,58 @@ assert(await exists(BOOK + '/ch3.tex'), 'a new chapter was written');
 await views(kc, 'K-add-extend-file', {full: true});
 await kc.close();
 await kctx.close();
+
+/* ================= l) a prompt of the person's own for the instructions ================= */
+console.log('l) a prompt of the person\'s own for the instructions, chosen in the row\'s menu');
+{
+  const lctx = await context(B);
+  const own = await lctx.newPage();
+  watch(own, 'computer');
+  await own.goto(B + '/books/add/');
+  await own.click('.path[data-path="llm"]');
+  await own.waitForSelector('#lane-llm:not([hidden])');
+  await own.waitForSelector('#instrmount .llmrow');
+  const MENU = '#instrmount .llmrow-pm select';
+  // THE MENU IS THE ROW'S (lane F's): where this tree has none there is nothing to drive, and the server's own side
+  // of it -- a prompt written into AGENTS.md when the folder is made -- is held by tests/test_making.py
+  let hasMenu = true;
+  try { await own.waitForSelector(MENU, {timeout: 6000}); } catch (e) { hasMenu = false; }
+  if (!hasMenu) {
+    console.log('   (this row has no prompt menu in this tree: nothing to drive here)');
+  } else {
+    await own.evaluate(async () => (await fetch('/settings/api/prompts/save', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({surface: 'book-new', kind: 'added', name: 'my book rules', text: 'Never gloss the names of people.'})})).json());
+    await own.reload();
+    await own.click('.path[data-path="llm"]');
+    await own.waitForSelector('#lane-llm:not([hidden])');
+    await own.waitForFunction(sel => [...document.querySelectorAll(sel + ' option')].some(o => o.textContent === 'my book rules'), MENU);
+    assert(true, 'a prompt of mine for the instructions is in the menu beside copy the instructions');
+    await own.selectOption('#lang', 'en');
+    await own.fill('#title', 'The Bell');
+    await own.fill('#title_latin', 'The Bell');
+    await own.fill('#slug', '');
+    await own.fill('#author', 'a fable');
+    await own.fill('#author_latin', 'a fable');
+    await own.setInputFiles('#original', TMP + '/the-clock.txt');
+    await own.waitForFunction(() => !document.querySelector('#mkfolder').disabled);
+    await own.selectOption(MENU, {label: 'my book rules'});
+    if (!await own.$eval('#ishow', d => d.open)) await own.click('#ishow summary');
+    await own.waitForFunction(() => /· custom: my book rules/.test(document.querySelector('#itext').textContent.split('\n')[0]) &&
+                                     /Never gloss the names of people\.\s*$/.test(document.querySelector('#itext').textContent), null, {timeout: 20000});
+    const bellShown = await own.$eval('#itext', e => e.textContent);
+    assert(/Write only inside this folder/.test(bellShown), 'the person\'s words come after Parseh\'s, which are all there');
+    await own.click('#mkfolder');
+    await own.waitForSelector('#mkcopy', {timeout: 60000});
+    const BELL = INSTALL + '/books/english/the-bell';
+    eq(await own.$eval('.bigpath', e => e.textContent), BELL, 'the folder is made');
+    eq(await Deno.readTextFile(BELL + '/AGENTS.md'), bellShown, 'its AGENTS.md is the text the page showed, with the person\'s prompt in it');
+    assert(JSON.parse(await Deno.readTextFile(BELL + '/making.json')).instructions.prompt.length > 3,
+           'making.json keeps which prompt it was, so that the instructions can be written again with it');
+  }
+  await own.close();
+  await lctx.close();
+}
 
 /* ================= j) last ================= */
 console.log('j) nothing broke, nothing of the owner\'s was touched');

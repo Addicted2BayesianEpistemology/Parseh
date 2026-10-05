@@ -7,7 +7,10 @@
     making.instructions_text(fields, options=None)
                                     what AGENTS.md would say, before any folder is made
     making.write_instructions(book_dir, facts, options)
-                                    THE SEAM: AGENTS.md and CLAUDE.md into the folder
+                                    THE SEAM: AGENTS.md, CLAUDE.md and the project skill into the folder
+    making.rewrite_instructions(book_dir)
+                                    "write the instructions again": the same, for a folder already made
+    making.method_template()        what docs/new-book-prompt.md says, made from docs/book-method/
     making.is_making(book_dir)      True while an agent may still be writing the .tex
     making.describe(book_dir)       everything the making panel shows
     making.ask(book_dir, line, chunk=None)
@@ -44,6 +47,11 @@ annot/, the chapters):
     AGENTS.md         the instructions, in words any agent can be told to read
     CLAUDE.md         one line pointing at AGENTS.md, which Claude Code reads
                       by itself
+    .claude/skills/parseh-book/, .agents/skills/parseh-book/
+                      the same method as a project skill, for the agents that look for one
+                      (Claude Code reads the first and not the second; Codex, Gemini CLI,
+                      Cursor, GitHub Copilot and VS Code read the second).  Copies and not
+                      links, for Windows.  Written by lib/skills.py where it is there
 
 making.json is ONE small object that Parseh and the agent keep between them.
 Every field is optional to read -- an agent's file may be half written, and the
@@ -69,6 +77,8 @@ panel says so instead of stopping:
               "assemble": "ALL PARAGRAPHS CLEAN", "verify_book": "clean"}
     sources   the agent's alone: which parts of the text it has recovered,
               {"done": [1, 2], "of": 3, "decided": {"3": "a new chapter: it opens with a heading"}}
+    asks_read the agent's: how many entries of ASKS.md it has read, so that the agent that takes
+              over (or the same one, after a pause) starts at the next
 
 THE TEXT COMES IN PARTS (brief 5.10): the person gives it a bit at a time, from any
 device, as a file or pasted, and the agent takes each part before its next batch.
@@ -83,6 +93,13 @@ These two are PARSEH'S ALONE to write, never the agent's:
                 paragraph and its first paragraph goes on the last one of the part before
     more_coming true while the person may still add text: they say "this is all the text"
                 to set it false, and may set it true again
+
+AND THIS ONE, written once when the folder is made, so that "write the instructions again" can
+write them the same way (writing them again never touches making.json):
+
+    instructions {"reference": "persian/farsi" or "", "examples": false, "marks": "marks" or
+                "nomarks" where the language has them, "prompt": the id of the person's own
+                prompt or ""}
 
 WHAT FINISH WAITS FOR is not decided (the owner, 2026-09-29: more detail, next week): it is
 ONE function, finish_blockers, and two settings beside it (FINISH_WAITS_FOR,
@@ -384,6 +401,26 @@ def _asks(book_dir):
     return {"count": len(entries), "last": entries[-1][:ASK_MAX] if entries else ""}
 
 
+def _mtime(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return None
+
+
+def _instructions_view(book_dir, doc):
+    """What the panel says of the instructions in the folder: when they were written, and the two choices
+    that are the book's own facts (the short vowels, the scheme of the transliteration)."""
+    kept = doc.get("instructions") if isinstance(doc.get("instructions"), dict) else {}
+    try:
+        with open(path_of(book_dir, "book.json"), encoding="utf-8") as f:
+            meta = json.load(f)
+    except (OSError, ValueError):
+        meta = {}
+    return {"written": _mtime(path_of(book_dir, AGENTS)), "marks": kept.get("marks") or "",
+            "translit": "ipa" if isinstance(meta, dict) and meta.get("translit") == "ipa" else ""}
+
+
 def describe(book_dir):
     """What the making panel shows of a book -> a plain dict.  For a book that
     was never made this way it says so and nothing else."""
@@ -427,6 +464,7 @@ def describe(book_dir):
         "parseh": ran_under, "parseh_now": version.VERSION,
         "updated_by_parseh": bool(ran_under and ran_under != version.VERSION),
         "notes": _tail(path_of(book_dir, NOTES), NOTES_TAIL), "asks": _asks(book_dir),
+        "instructions": _instructions_view(book_dir, doc),
         "draft": draft_state(book_dir), "broken": bad, "now": now}
 
 
@@ -848,10 +886,45 @@ def _reading_and_words(L, folder_python, lib, book_dir):
     return rule, step, example
 
 
-def instructions_text(facts, options=None):
-    """What AGENTS.md says for these facts -> str: docs/new-book-prompt.md, assembled by the prompt kit
-    (the language's conventions and the rule on the meaning come in by it).  The seam is
-    write_instructions, which calls this."""
+# THE METHOD IS AUTHORED ONCE, as parts (docs/book-method/): method.md is the entry -- what the agent does,
+# in order -- and every other *.md there is a reference the entry points to, in the order of METHOD_ORDER.
+# They are resolved two ways, and neither is written twice: AGENTS.md is the whole of them in one file,
+# filled in for this book; the project skill parseh-book (lib/skills.py) is the entry as SKILL.md and the
+# references as its references.  docs/new-book-prompt.md -- the one readable template the kit, the person's
+# editor ("prompt: Parseh's") and the tests all read -- is made from the parts by method_template(), and
+# a test holds the two equal: edit the parts, then run `python3 lib/making.py template`.
+# THE PARTS' RULES (the skill is made from them by someone else, and a test holds each): a part is
+# markdown that starts with its `##` title; only the placeholders the kit lists for book-new
+# (promptkit.placeholders) and the kit's flags are in it; and only the entry links to the others, as
+# [Title](name.md), the text being the title of that part -- a reference never sends the reader to another.
+METHOD_DIR = os.path.join(booklib.ROOT, "docs", "book-method")
+METHOD_ENTRY = "method"
+METHOD_ORDER = ("files", "source", "parts", "batch-recipe", "fields", "meaning", "error-classes",
+                "verification", "language")
+METHOD_LINK = re.compile(r"\[([^\]\n]+)\]\(([a-z][a-z0-9-]*)\.md\)")
+
+
+def method_parts():
+    """The parts of the method -> [(name, text)], the entry first and then the references in
+    METHOD_ORDER; the text as written, placeholders and all."""
+    out = []
+    for name in (METHOD_ENTRY,) + METHOD_ORDER:
+        with open(os.path.join(METHOD_DIR, name + ".md"), encoding="utf-8", newline="") as f:
+            out.append((name, f.read().replace("\r\n", "\n").strip("\n")))
+    return out
+
+
+def method_template():
+    """What docs/new-book-prompt.md says -> str: the parts in one file, each reference a section of it.  A
+    link between parts, [Title](name.md), says where the section is when they are separate files; in
+    one file the section is under that very title, so it is written as the title and nothing more."""
+    return "\n\n".join(METHOD_LINK.sub(lambda m: "**%s**" % m.group(1), text)
+                       for _name, text in method_parts()) + "\n"
+
+
+def method_values(facts):
+    """Every placeholder of the book's instructions that is a fact of this book -> {NAME: text}: where
+    things are, who the book is by, how a chunk of its language is told, what the page chose to show."""
     book, orig = facts["book"], facts["original"]
     ref = facts.get("reference")
     ex = facts.get("examples") or []
@@ -881,28 +954,195 @@ def instructions_text(facts, options=None):
         "LANG_DIGIT_EXAMPLE": L.to_native_digits("3"), "LANG_LABEL_EXAMPLE": L.to_native_digits("3.1"),
         "KANA_RULE": rule, "WORDS_STEP": step, "KANA_EXAMPLE": example,
     }
-    # the book's own scheme for its transliteration, and what the page chose of the short vowels
-    asked = promptkit.given({"translit": book.get("translit"), "marks": (options or {}).get("marks")})
-    return promptkit.assemble("book-new", L, G, values=values, options=asked).text
+    return values
+
+
+def _asked(facts, options):
+    """The kit's options for this book: the scheme of its transliteration is the book's own fact, and the
+    short vowels are what the page chose."""
+    return promptkit.given({"translit": facts["book"].get("translit"), "marks": (options or {}).get("marks")})
+
+
+def _chosen(prompt_id, L):
+    """The person's own prompt for the book's instructions, by its id (lib/prompts.py), or None for Parseh's.
+    Refused in words when it is gone, or is for another place or another language."""
+    if not prompt_id:
+        return None
+    import prompts
+    try:
+        return prompts.resolve("book-new", str(prompt_id), L)
+    except prompts.PromptsError as e:
+        raise ValueError(str(e))
+
+
+def resolved_parts(facts, options=None):
+    """The parts of the method filled in for THIS book -> [(name, text)], entry first: the placeholders and
+    the flags resolved by the kit, the rule on the meaning and the language's conventions in, the links
+    between parts left as they are.  What a project skill is made from (skill_files), and the same words
+    as AGENTS.md's -- a person's own prompt apart, which is theirs."""
+    book = facts["book"]
+    L, G = languages.get(book["language"]), languages.gloss_or_default(book["gloss"])
+    values, asked = method_values(facts), _asked(facts, options)
+    return [(name, promptkit.assemble("book-new", L, G, values=values, options=asked, template=text).instructions)
+            for name, text in method_parts()]
+
+
+def instructions_text(facts, options=None):
+    """What AGENTS.md says for these facts -> str: docs/new-book-prompt.md, assembled by the prompt kit
+    (the language's conventions and the rule on the meaning come in by it), or the person's own prompt
+    for it (`options["prompt"]`, an id).  The seam is write_instructions, which calls this."""
+    book = facts["book"]
+    L, G = languages.get(book["language"]), languages.gloss_or_default(book["gloss"])
+    chosen = _chosen((options or {}).get("prompt"), L)
+    try:
+        made = promptkit.assemble("book-new", L, G, values=method_values(facts), options=_asked(facts, options),
+                                  instructions=chosen and chosen.instructions, custom=chosen and chosen.name)
+    except promptkit.PromptError as e:
+        import prompts
+        raise ValueError(prompts.unmade(chosen, e) if chosen else "the instructions could not be made: %s" % e)
+    return made.text
 
 
 CLAUDE_LINE = "Read AGENTS.md in this folder before anything else, and follow it.\n"
+# THE PROJECT SKILL, where the agents that look for one look: Claude Code reads .claude/skills/<name>/ and
+# does not read .agents/skills/; Codex, Gemini CLI, Cursor, GitHub Copilot and VS Code read the second (the
+# last three the first as well), so the same folder is written to both.  Copies, not links: Windows
+SKILL = "parseh-book"
+SKILL_HOMES = (".claude/skills", ".agents/skills")
+INSTRUCTIONS_AGAIN_SAID = ("The instructions are written again. The agent you opened in this folder has already "
+                           "read the old ones: tell it to read AGENTS.md again before its next batch.")
+
+
+def skill_files(facts, options=None):
+    """THE SEAM FOR LANE G (lib/skills.py): the project skill of this book -> {path inside the skill's folder:
+    text}, `SKILL.md` and its `references/`; empty where lib/skills.py is not there.
+
+    The contract is `skills.build("parseh-book", parts=[(name, text), ...])` -> that dict: the parts are
+    resolved_parts() -- the entry first, then the references in METHOD_ORDER -- so the skill is the same words
+    as the instructions, never a copy written by hand.  Only the import may fail quietly: whatever else goes
+    wrong in the skill is a bug and says so."""
+    try:
+        import skills
+    except ImportError:
+        return {}
+    parts = resolved_parts(facts, options)
+    try:
+        return skills.build(SKILL, parts=parts)
+    except Exception as e:                  # a bug of Parseh's, said in words and not as a stack, and nothing is written
+        raise ValueError("the project skill could not be made (%s): nothing was written" % (e or type(e).__name__))
+
+
+def _write_text(path, text):
+    """A file replaced whole or not at all, as making.json is: an agent that reads AGENTS.md while it is
+    written again must not find half of it."""
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def _skill_names(files):
+    """The skill's files, refused before any is written when one would land outside the skill's folder."""
+    for name in files:
+        parts = name.split("/")
+        if not parts[0] or os.path.isabs(name) or ".." in parts or "\\" in name:
+            raise ValueError("a skill file named %r would land outside the skill's folder" % name)
+    return files
+
+
+def _write_skill(book_dir, home, files):
+    """One copy of the skill, written whole: its own folder replaced and nothing beside it touched (the
+    person may keep other skills of their own in the same place) -> [the relative paths written]."""
+    folder = os.path.join(book_dir, *home.split("/"), SKILL)
+    shutil.rmtree(folder, ignore_errors=True)
+    out = []
+    for name, text in sorted(files.items()):
+        parts = name.split("/")
+        target = os.path.join(folder, *parts)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        out.append("/".join([home, SKILL] + parts))
+    return out
 
 
 def write_instructions(book_dir, facts, options=None):
-    """THE SEAM for the agent's instructions -> [the relative paths written].
+    """THE SEAM for the agent's instructions -> [the relative paths written]: AGENTS.md, CLAUDE.md, and
+    the project skill in both places agents look for one.
 
     `book_dir` is where to write, which may not be the folder's final name yet
     (make() writes into a staging directory and renames it); everything the text
     says about places comes from `facts`.  `facts` is what make() knows -- see
-    facts_for -- and `options` what the page chose ("reference", "examples").
-    Written again at any time, it replaces only its own files.  Parseh writes no
-    tool's permission file: the agent and its permissions are the person's."""
-    with open(path_of(book_dir, AGENTS), "w", encoding="utf-8", newline="\n") as f:
-        f.write(instructions_text(facts, options))
-    with open(path_of(book_dir, CLAUDE), "w", encoding="utf-8", newline="\n") as f:
-        f.write(CLAUDE_LINE)
-    return [AGENTS, CLAUDE]
+    facts_for -- and `options` what the page chose ("reference", "examples", "marks", "prompt").
+    Written again at any time, it replaces only its own files -- never NOTES.md, ASKS.md,
+    making.json or anything the agent made.  Whatever can be refused is refused before the
+    first file is written.  Parseh writes no tool's permission file: the agent and its
+    permissions are the person's."""
+    text, skill = instructions_text(facts, options), _skill_names(skill_files(facts, options))
+    for name, body in ((AGENTS, text), (CLAUDE, CLAUDE_LINE)):
+        _write_text(path_of(book_dir, name), body)
+    written = [AGENTS, CLAUDE]
+    if skill:
+        for home in SKILL_HOMES:
+            written += _write_skill(book_dir, home, skill)
+    return written
+
+
+def rewrite_instructions(book_dir):
+    """THE INSTRUCTIONS WRITTEN AGAIN for a folder that is made -> {"written": [relative paths], "said":
+    what the person is to do next, "notes": [what could not be as it was]}.
+
+    What an agent reads is made from Parseh's words (which an update, or the person's editing of their own
+    prompt, may have changed) and from the book's facts (book.json, and what making.json recorded of how the
+    folder was made), so it is made again from the same places: nothing is asked of the person.  Only the
+    agent's reading is written -- AGENTS.md, CLAUDE.md, the skill folders -- and never NOTES.md, ASKS.md,
+    making.json or anything the agent made.  The agent whose chat has already read the old file is not
+    told by this: `said` says that it must be."""
+    state_now = state(book_dir)
+    if state_now == "none":
+        raise ValueError("this book was not made by an agent, so it has no instructions to write")
+    if state_now == "finished":
+        raise ValueError("this book is finished: no agent is reading its instructions any more")
+    try:
+        with open(path_of(book_dir, "book.json"), encoding="utf-8") as f:
+            meta = json.load(f)
+        meta = meta if isinstance(meta, dict) else {}
+    except (OSError, ValueError):
+        raise ValueError("book.json cannot be read, so the instructions cannot be written again")
+    made_with = (read(book_dir)[0] or {}).get("instructions")
+    made_with = made_with if isinstance(made_with, dict) else {}
+    notes = []
+    options = {"examples": bool(made_with.get("examples")), "marks": made_with.get("marks") or None,
+               "reference": str(made_with.get("reference") or ""), "prompt": str(made_with.get("prompt") or "")}
+    shelf = os.path.dirname(os.path.dirname(os.path.abspath(book_dir)))
+    if options["reference"]:
+        try:
+            _shelf_book(options["reference"], shelf)
+        except ValueError:
+            notes.append("the finished edition it was told to learn from (%s) is not on the shelf any more: "
+                         "left out" % options["reference"])
+            options["reference"] = ""
+    ident = _identity({"lang": meta.get("language"), "gloss": meta.get("gloss"), "title": meta.get("title"),
+                       "title_latin": meta.get("title_latin"), "title_en": meta.get("title_en"),
+                       "author": meta.get("author"), "author_latin": meta.get("author_latin"),
+                       "year": meta.get("year"), "blurb": meta.get("blurb"), "slug": meta.get("slug"),
+                       "translit": meta.get("translit") or ""})
+    first = str(meta.get("source_pdf") or "")
+    if not first.startswith(ORIGINAL + "/"):
+        raise ValueError("book.json does not say which file the book is made from, so the instructions "
+                         "cannot be written again")
+    pages = meta.get("source_pages") if isinstance(meta.get("source_pages"), list) else None
+    if options["prompt"]:
+        import prompts
+        try:
+            prompts.resolve("book-new", options["prompt"], ident["lang"])
+        except prompts.PromptsError as e:
+            notes.append("the prompt of yours it was written with cannot be used now (%s): Parseh's own "
+                         "was written" % e)
+            options["prompt"] = ""
+    facts = facts_for(ident, first.split("/", 1)[1], pages, options, os.path.abspath(book_dir), shelf)
+    return {"written": write_instructions(book_dir, facts, options), "said": INSTRUCTIONS_AGAIN_SAID,
+            "notes": notes}
 
 
 # ------------------------------------------------------------------ making the folder
@@ -1072,8 +1312,9 @@ def make(fields, original, options=None, into=None):
     `fields` is the book's facts (the ones the add page asks, and `pages`);
     `original` is {"name": the file's name, "data": bytes} or {"name", "path"} for
     an upload spooled to disk; `options` is {"reference": "<folder>/<slug>" or "",
-    "examples": bool, "more_coming": bool (True unless it says False)}.  Every refusal
-    is a ValueError with a sentence to show.
+    "examples": bool, "marks": the short vowels' option as the page chose it, "prompt": the id
+    of the person's own prompt for the instructions, "more_coming": bool (True unless it says
+    False)}.  Every refusal is a ValueError with a sentence to show.
 
     The tree is built beside its place, in a directory with a dot in front (which
     nothing on the shelf reads as a book), and renamed into place at the end: a
@@ -1144,10 +1385,16 @@ def make(fields, original, options=None, into=None):
         first = {"parts": [_entry(1, "%s/%s" % (ORIGINAL, name), pages, "new", "", "", now, size)],
                  "more_coming": options.get("more_coming") is not False}
         _write_json(os.path.join(tree, ORIGINAL, PARTS_COPY), first)
+        # HOW THE INSTRUCTIONS WERE WRITTEN, kept so that they can be written again the same way
+        kept = {"reference": (facts["reference"] or {}).get("rel", ""), "examples": bool(options.get("examples")),
+                "prompt": str(options.get("prompt") or "")}
+        marks = promptkit.resolve("book-new", L, _asked(facts, options)).get("marks")
+        if marks:
+            kept["marks"] = marks
         _write_json(os.path.join(tree, MAKING), dict({
             "state": "making", "parseh": version.VERSION, "started": now, "updated": now,
             "stage": "folder", "on": "", "chapters": [], "batches": {"done": 0, "of": 0},
-            "checks": {}}, **first))
+            "checks": {}, "instructions": kept}, **first))
         written = write_instructions(tree, facts, options)
         try:
             os.rename(tree, dest)
@@ -1155,6 +1402,9 @@ def make(fields, original, options=None, into=None):
             raise ValueError("the folder could not be put in place (%s); nothing was written" % e)
     except BaseException:
         if made_parent:
+            # THE STAGING DIRECTORY GOES FIRST: while it is there the language's folder is not empty, and
+            # a refusal would leave that folder behind
+            shutil.rmtree(stage, ignore_errors=True)
             try:
                 os.rmdir(parent)
             except OSError:
@@ -1366,6 +1616,20 @@ def _end_making(book_dir):
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["template"]:
+        # THE ONE COMMAND OF THE METHOD: docs/new-book-prompt.md written from docs/book-method/
+        # (`--check` writes nothing and says whether the file is what the parts make)
+        made = method_template()
+        with open(promptkit.TEMPLATES["book-new"], encoding="utf-8", newline="") as f:
+            same = f.read() == made
+        if "--check" in sys.argv:
+            sys.exit(0 if same else "docs/new-book-prompt.md is not what docs/book-method/ makes: "
+                                    "run python3 lib/making.py template")
+        if not same:
+            with open(promptkit.TEMPLATES["book-new"], "w", encoding="utf-8", newline="\n") as f:
+                f.write(made)
+        print("docs/new-book-prompt.md %s" % ("is what docs/book-method/ makes" if same else "written"))
+        sys.exit(0)
     for b in booklib.all_books():
         s = state(b.dir)
         if s != "none":

@@ -3731,6 +3731,7 @@ class Handler(SimpleHTTPRequestHandler):
         options = {"reference": str(fields.pop("reference", "") or ""),
                    "examples": bool(fields.pop("examples", False)),
                    "marks": fields.pop("marks", None),
+                   "prompt": str(fields.pop("prompt", "") or ""),
                    "more_coming": bool(fields.pop("more_coming", True))}
         name = (self.query.get("name") or [""])[0]
         original = {"name": name, "path": self._spool} if self._spool else {"name": name, "data": self._raw}
@@ -3754,7 +3755,7 @@ class Handler(SimpleHTTPRequestHandler):
         body = self._json_body()
         fields = body.get("book") if isinstance(body.get("book"), dict) else {}
         options = {"reference": str(body.get("reference") or ""), "examples": bool(body.get("examples")),
-                   "marks": body.get("marks")}
+                   "marks": body.get("marks"), "prompt": str(body.get("prompt") or "")}
         try:
             text = making.instructions_for(fields, options)
         except ValueError as e:
@@ -3779,12 +3780,23 @@ class Handler(SimpleHTTPRequestHandler):
             out["build"] = bookbuild.status(book)
             out["finish"] = making.finish_status(book)      # how a Finish is going: the panel polls this one door
             return self.send_json(out)
-        if what not in ("ask", "open", "finish", "part", "more", "reopen"):
+        if what not in ("ask", "open", "finish", "part", "more", "reopen", "instructions"):
             return self._not_found("no such door")
         if method != "POST":
             return self._method_not_allowed()
         if what == "part":
             return self._making_part(book)             # a file may be the body: it is not JSON
+        if what == "instructions":
+            # WHAT THE AGENT READS, written again from the book's own facts and the way the folder was made:
+            # only AGENTS.md, CLAUDE.md and the skill folders (lib/making.py), open to every device let in
+            # as making the folder is
+            try:
+                return self.send_json(dict(making.rewrite_instructions(book), ok=True))
+            except ValueError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 409)
+            except OSError as e:
+                return self.send_json({"ok": False, "error": "the instructions could not be written (%s); "
+                                       "nothing else was changed" % e}, 500)
         body = self._json_body()
         if what == "ask":
             chunk = body.get("chunk") if isinstance(body.get("chunk"), dict) else None

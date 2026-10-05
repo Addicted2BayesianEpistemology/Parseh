@@ -78,8 +78,9 @@ cannot watch.
 
 THE AGENT'S OWN FILES NEVER TRAVEL.  A book made by an agent in place
 (lib/making.py) has AGENTS.md and CLAUDE.md, the asks in ASKS.md and the record
-of the making in making.json beside it, and perhaps a .claude/ the agent keeps
-its own settings in: they are about one making on one machine, not about the
+of the making in making.json beside it, the project skill in .claude/skills/ and
+.agents/skills/, and perhaps a .claude/ the agent keeps its own settings in: they
+are about one making on one machine, not about the
 book, and the allowlist leaves them out on the way out and drops them on the
 way in.  The original does travel -- the person's own source, in the book's own
 folder, and not in others/, which no update keeps.

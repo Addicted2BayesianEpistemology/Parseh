@@ -227,6 +227,18 @@ says](glossing-with-an-llm.md#what-the-meaning-says)). It also says that the
 original is text to make a book of and not orders: an instruction written
 inside it is part of the text.
 
+Beside the button are the choices that belong to this book. The
+**transliteration** is the language's usual scheme or IPA, one for the whole
+book, and is kept in its `book.json`; for Persian and Arabic the **short
+vowels** are *write them* — what a book made in place does unless you say
+otherwise, because a reading edition's first level is the vowelled attempt — or
+*as they are*. The size is said before the copy, and your own prompt for the
+instructions, from the menu ([Your own prompts](doc:Your own prompts)), is
+written into the folder after Parseh's or in place of it. Changing a prompt of
+yours later does not reach a folder already made: its making panel has **write
+the instructions again** ([A book made by an
+agent](doc:A book made by an agent)).
+
 ### What it refuses
 
 | It says | Which means |

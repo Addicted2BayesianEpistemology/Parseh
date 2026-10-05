@@ -201,7 +201,11 @@ def version_of(text):
 def whole(surface, flags=None):
     """A template's whole text, in its own order and with the marks of its
     parts taken out: what a prompt with nothing locked (a book from scratch)
-    begins as.  `flags` for a template that has blocks of its own."""
+    begins as.  `flags` for a template that has blocks of its own; without them
+    the blocks stay as written (the book's instructions keep `{{?marks}}`, which
+    the kit settles for each book, and a person's copy keeps it too)."""
+    if flags is None:
+        return promptkit.parts(surface).instructions
     with io.open(promptkit.TEMPLATES[surface], encoding="utf-8") as f:
         return promptkit.flat(f.read(), flags)
 

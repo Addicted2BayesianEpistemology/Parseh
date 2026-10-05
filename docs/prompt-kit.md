@@ -15,7 +15,7 @@ file, and the file is the whole prompt.
 | `studio-exercises` | `markdown/exlex/EXERCISES_PROMPT.md` | `server.py` `exercise_prompt` |
 | `video-new` | `youtube/docs/chat-prompt.md` + `conventions.md` | `ytpages.assembled_chat`, `assembled_full` |
 | `video-region`, `book-region` | `docs/region-prompt.md` | `glossregion.assembled` |
-| `book-new` | `docs/new-book-prompt.md` | the page (in the browser); `newbook.conventions` |
+| `book-new` | `docs/new-book-prompt.md`, made from the parts in `docs/book-method/` | `making.instructions_text`: the folder's `AGENTS.md`, the page's preview and the `parseh-book` skill |
 | `transcript-tidy` | `PROMPT` in `youtube/lib/tidy.py` | `tidy.assembled` |
 | `ask` | `lib/llm.js` | the browser |
 
@@ -60,6 +60,18 @@ paragraph. Mark what belongs to one surface with `{{?book}}`, `{{?video}}`,
 `{{?studio}}`, `{{?region}}` or `{{?new}}`; the kit resolves them. A word to whoever
 maintains the file ("no speaker has reviewed this example yet") goes in
 `{{?note}}…{{/note}}`: that flag is never true, so no prompt carries it.
+
+## What the book's instructions are made from
+
+The method of a book made in place is written once, as parts in `docs/book-method/`:
+`method.md` is the entry (what the agent does, in order) and every other file a
+reference it points to, in the order of `making.METHOD_ORDER`. `docs/new-book-prompt.md`
+is those parts in one file (`python3 lib/making.py template` writes it, and
+`tests/test_making.py` holds the two equal), so that the kit, the person's own prompts
+and `promptlab` find the whole prompt where they look for it; the project skill
+`parseh-book` is made from the same parts (`making.skill_files`). The parts use only the
+placeholders this table publishes for `book-new` and the two blocks `{{?marks}}` and
+`{{?nomarks}}`, and only the entry links to the others, as `[Title](name.md)`.
 
 ## What every gloss prompt says once
 

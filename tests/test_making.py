@@ -84,7 +84,8 @@ class TheFolder(unittest.TestCase):
         # the original is where the book's own folder says it is: not others/, which no update keeps
         self.assertEqual(meta["source_pdf"], "original/Il-Gatto.txt")
         self.assertNotIn("source_pages", meta, "a page range is a PDF's")
-        self.assertEqual(sorted(r["files"]), sorted(
+        # the project skill (lane G's lib/skills.py) is written beside them where it is there: its own tests say how
+        self.assertEqual(sorted(f for f in r["files"] if not f.startswith((".claude/", ".agents/"))), sorted(
             ["AGENTS.md", "ASKS.md", "CLAUDE.md", "NOTES.md", "book.json", "main.tex",
              "making.json", "original/Il-Gatto.txt"]))
 
@@ -1119,7 +1120,7 @@ class TheBundle(unittest.TestCase):
     original and annot/ beside what it carried before, and never the agent's own files."""
 
     AGENTS_OWN = ("AGENTS.md", "CLAUDE.md", "ASKS.md", "making.json", ".claude/settings.json",
-                  ".claude/skills/parseh-book/SKILL.md", "frankdraft.tex", "frankdraft.pdf",
+                  ".claude/skills/parseh-book/SKILL.md", ".agents/skills/parseh-book/SKILL.md", "frankdraft.tex", "frankdraft.pdf",
                   "frankdraft.log", "main.pdf", "main.aux")
 
     def book(self, original=None):
@@ -1244,18 +1245,18 @@ class TheBundle(unittest.TestCase):
             for n in z.namelist():
                 w.writestr(n, z.read(n))
             for extra in ("original/page.html", "annot/page.html", "original/evil.svg", "annot/x.js",
-                          "original/.hidden.txt/x", "AGENTS.md", ".claude/skills/x/SKILL.md"):
+                          "original/.hidden.txt/x", "AGENTS.md", ".claude/skills/x/SKILL.md", ".agents/skills/x/SKILL.md"):
                 w.writestr("%s/%s" % (d.name, extra), "<script>alert(1)</script>")
         root = tmpdir(self)
         what = bundle.inspect(out.getvalue(), root=root)
         for extra in ("original/page.html", "annot/page.html", "original/evil.svg", "annot/x.js",
-                      "AGENTS.md", ".claude/skills/x/SKILL.md"):
+                      "AGENTS.md", ".claude/skills/x/SKILL.md", ".agents/skills/x/SKILL.md"):
             self.assertIn(extra, what["dropped"], extra)
         self.assertNotIn("original/page.html", what["files"])
         done = bundle.install(out.getvalue(), root=root)
         got = Path(root, done["dir"])
         for extra in ("original/page.html", "annot/page.html", "original/evil.svg", "annot/x.js",
-                      "AGENTS.md", ".claude"):
+                      "AGENTS.md", ".claude", ".agents"):
             self.assertFalse((got / extra).exists(), extra)
 
     def test_the_originals_kinds_are_the_tools_own_in_both_places(self):
@@ -1301,6 +1302,362 @@ class OpeningTheFolder(unittest.TestCase):
             self.assertEqual(making.open_program("/b")[0], "open")
         with patch.object(making.os, "name", "posix"), patch.object(making.sys, "platform", "linux"):
             self.assertTrue(making.open_program("/b")[0].endswith("xdg-open"))
+
+
+# ----------------------------------------------------------------------------------------------------------
+# WHAT THE AGENT READS (lane H): the method authored once, the instructions assembled from it for every
+# language, a person's own prompt for them, the project skill, and "write the instructions again"
+import re                                                      # noqa: E402
+import languages                                               # noqa: E402
+import promptkit                                               # noqa: E402
+
+METHOD = ROOT / "docs" / "book-method"
+TITLE = re.compile(r"^#{1,2} (.+)$", re.M)
+
+
+def facts_of(code, gloss="en", **more):
+    fields = dict({"lang": code, "gloss": gloss, "title": "Titolo", "title_latin": "Titolo", "author": "Autore",
+                   "author_latin": "Autore", "original": "libro.txt"}, **more)
+    return fields
+
+
+class TheMethodIsAuthoredOnce(unittest.TestCase):
+    """docs/book-method/ is the one place the method is written: method.md is the entry, every other file a
+    reference, in the order METHOD_ORDER names.  docs/new-book-prompt.md -- the readable template every
+    reader of the kit finds -- is made from them, and the project skill is made from the same parts."""
+
+    def test_the_template_is_what_the_parts_make(self):
+        with open(promptkit.TEMPLATES["book-new"], encoding="utf-8", newline="") as f:
+            written = f.read()
+        self.assertEqual(written, making.method_template(),
+                         "docs/new-book-prompt.md is made from docs/book-method/: edit the parts, then run "
+                         "python3 lib/making.py template")
+
+    def test_the_folder_holds_the_entry_and_the_references_and_nothing_else(self):
+        self.assertEqual(sorted(p.name for p in METHOD.iterdir()),
+                         sorted(n + ".md" for n in (making.METHOD_ENTRY,) + making.METHOD_ORDER))
+        self.assertEqual([n for n, _ in making.method_parts()], [making.METHOD_ENTRY] + list(making.METHOD_ORDER))
+
+    def test_each_part_starts_with_its_title_and_only_the_entry_links_to_the_others(self):
+        # the skill is made from these files: its SKILL.md is the entry, its references the rest, and a
+        # reference never sends the reader to another one
+        parts = dict(making.method_parts())
+        titles = {}
+        for name, text in parts.items():
+            first = text.split("\n", 1)[0]
+            self.assertTrue(first.startswith("# " if name == making.METHOD_ENTRY else "## "), (name, first))
+            titles[name] = TITLE.match(first).group(1)
+        linked = []
+        for name, text in parts.items():
+            for m in making.METHOD_LINK.finditer(text):
+                if name != making.METHOD_ENTRY:
+                    self.fail("%s sends the reader to %s: only the entry links to the others" % (name, m.group(2)))
+                self.assertIn(m.group(2), making.METHOD_ORDER, m.group(0))
+                self.assertEqual(m.group(1), titles[m.group(2)], "a link says the title of the part it goes to")
+                linked.append(m.group(2))
+        self.assertEqual(sorted(set(linked)), sorted(making.METHOD_ORDER), "the entry says where every reference is")
+
+    def test_the_parts_name_only_what_the_kit_fills_in(self):
+        known = {n for n, _ in promptkit.placeholders("book-new")}
+        for name, text in making.method_parts():
+            for placeholder in set(re.findall(r"\{\{([A-Z_]+)\}\}", text)):
+                self.assertIn(placeholder, known, "%s names {{%s}}, which the kit does not fill in for a book" % (name, placeholder))
+            self.assertLessEqual(set(re.findall(r"\{\{\?(\w+)\}\}", text)), {"marks", "nomarks"}, name)
+
+    def test_the_rule_on_the_meaning_is_in_once_and_never_copied(self):
+        rule = (ROOT / "docs" / "meaning-rule.md").read_text(encoding="utf-8")
+        sentence = "A chunk's `en` renders that chunk's own words and only those."
+        self.assertIn(sentence, rule)
+        for name, text in making.method_parts():
+            self.assertNotIn(sentence, text, name)
+        for code in languages.CODES:
+            text = making.instructions_for(facts_of(code))
+            self.assertEqual(text.count(sentence.replace("{{GLOSS_LANGUAGE}}", "")), 1, code)
+
+    def test_every_part_is_filled_for_every_language_and_says_the_same_as_the_instructions(self):
+        for code in languages.CODES:
+            with self.subTest(code=code):
+                into = tmpdir(self)
+                ident = making._identity(facts_of(code), need=False)
+                facts = making.facts_for(ident, "libro.txt", None, {}, os.path.join(into, "b", "libro"), into)
+                parts = making.resolved_parts(facts, {})
+                self.assertEqual([n for n, _ in parts], [making.METHOD_ENTRY] + list(making.METHOD_ORDER))
+                for name, text in parts:
+                    self.assertNotIn("{{", text, name)
+                # the parts, joined as the template joins them, are the instructions after the version line
+                joined = "\n\n".join(making.METHOD_LINK.sub(lambda m: "**%s**" % m.group(1), t) for _n, t in parts)
+                whole = making.instructions_text(facts, {}).split("\n\n", 1)[1]
+                self.assertEqual(" ".join(joined.split()), " ".join(whole.split()))
+
+
+class TheInstructionsOfEveryLanguage(unittest.TestCase):
+    def test_a_stranger_finds_what_it_needs_in_the_instructions_of_every_language(self):
+        import runtime
+        python = runtime.find_env()[1] or sys.executable
+        for code in languages.CODES:
+            with self.subTest(code=code):
+                into = tmpdir(self)
+                r = making.make(dict(FIELDS, lang=code, gloss="fr" if code != "fr" else "en", title="T", title_latin="T",
+                                     slug="libro-" + code),
+                                {"name": "libro.txt", "data": TEXT}, None, into=os.path.join(into, "books"))
+                text = (Path(r["path"]) / "AGENTS.md").read_text(encoding="utf-8")
+                L, G = languages.get(code), languages.gloss_or_default("fr" if code != "fr" else "en")
+                self.assertNotIn("{{", text)
+                for must in (L.name, G.name, python, making.LIB, r["path"], "Write only inside this folder", "Never run the full build",
+                             "ASKS.md", "NOTES.md", "making.json", "docs/lang/%s.md" % code, "frankdraft.pdf",
+                             "**The batch recipe**", "**The errors no tool finds**", "**How to check**", "Step 0"):
+                    self.assertIn(must, text, code)
+                # every command is the agent's to copy: absolute, and nothing for the person to type
+                for gone in ("conda activate", "conda env create", "others/", "PROMPT.md", "cp -r"):
+                    self.assertNotIn(gone, text, code)
+                self.assertIsNone(re.search(r"\]\([a-z-]+\.md\)", text), "a link between the parts is the title of the section")
+                # the one rule, once: the book's own transliteration, and the short vowels where the language has them
+                self.assertIn("The transliteration is written in", text)
+                if L.strip_range:
+                    self.assertIn("**The short vowels are written**", text, code)
+                else:
+                    self.assertNotIn("short vowels are", text, code)
+
+    def test_the_short_vowels_and_the_scheme_are_the_books_facts_and_the_text_says_so(self):
+        into = tmpdir(self)
+        books = os.path.join(into, "books")
+        r = making.make(dict(FIELDS, lang="fa", gloss="en", title="T", title_latin="T", slug="t-fa", translit="ipa"),
+                        {"name": "x.txt", "data": TEXT}, {"marks": "nomarks"}, into=books)
+        text = (Path(r["path"]) / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("**The short vowels are left alone**", text)
+        self.assertNotIn("**The short vowels are written**", text)
+        self.assertIn("is written in IPA", text)
+        self.assertIn("· IPA · no marks", text.split("\n", 1)[0])
+        record = json.loads((Path(r["path"]) / "making.json").read_text(encoding="utf-8"))["instructions"]
+        self.assertEqual((record["marks"], record["examples"], record["reference"], record["prompt"]), ("nomarks", False, "", ""))
+        # and the default of a book made in place is to write them
+        r = making.make(dict(FIELDS, lang="fa", gloss="en", title="T", title_latin="T", slug="t-fa2"),
+                        {"name": "x.txt", "data": TEXT}, None, into=books)
+        self.assertIn("**The short vowels are written**", (Path(r["path"]) / "AGENTS.md").read_text(encoding="utf-8"))
+
+    def test_the_panel_knows_how_the_instructions_were_written(self):
+        into = os.path.join(tmpdir(self), "books")
+        r = making.make(dict(FIELDS, lang="fa", gloss="en", title="T", title_latin="T", slug="t-fa", translit="ipa"),
+                        {"name": "x.txt", "data": TEXT}, {"marks": "nomarks"}, into=into)
+        seen = making.describe(r["path"])["instructions"]
+        self.assertEqual((seen["marks"], seen["translit"]), ("nomarks", "ipa"))
+        self.assertAlmostEqual(seen["written"], os.path.getmtime(os.path.join(r["path"], "AGENTS.md")), delta=1)
+        _into, plain = made(self)
+        seen = making.describe(plain["path"])["instructions"]
+        self.assertEqual((seen["marks"], seen["translit"]), ("", ""), "Italian has no short vowels, and its scheme is the usual one")
+
+    def test_the_words_of_the_lessons_are_in(self):
+        # the general lessons of the editions made by hand, folded in: each is a sentence the instructions must still say
+        _into, r = made(self)
+        text = (Path(r["path"]) / "AGENTS.md").read_text(encoding="utf-8")
+        for lesson in ("A PDF with no text layer is a scan", "Never merge or split a source paragraph silently", "Where are you?",
+                       "Introduced so far", "chosen, not confirmed", "is not zero things to check",
+                       "A word dropped at a chunk seam", "Two fields agreeing on the wrong reading",
+                       "The book disagreeing with itself", "one sceptic a batch", "cost three times as much for the same findings",
+                       "read the whole book against itself once"):
+            self.assertIn(lesson, text)
+            self.assertIn(lesson, making.method_template(), "and in the parts the template is made from")
+
+
+class AnOwnPromptForTheInstructions(unittest.TestCase):
+    """A prompt of the person's own for `book-new` (lib/prompts.py) is written into AGENTS.md when the folder is
+    made: added after Parseh's, or in place of it -- the whole text may be theirs, nothing of it is read back."""
+
+    def setUp(self):
+        import prompts
+        self.P = prompts
+        patcher = patch.object(prompts, "STORE", os.path.join(tmpdir(self), "config", "prompts.json"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def save(self, kind, text, name="my book rules"):
+        return self.P.save({"surface": "book-new", "name": name, "kind": kind, "text": text})["id"]
+
+    def test_one_added_goes_after_parsehs_and_one_in_place_of_it_is_alone(self):
+        added = self.save("added", "Never gloss the names of people.", "mine after")
+        instead = self.save("replace", "Make the book of {{TITLE_LATIN}} in {{LANG_NAME}}. Nothing else.", "mine instead")
+        _into, r = made(self, options={"prompt": added})
+        text = (Path(r["path"]) / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertTrue(text.split("\n", 1)[0].endswith("· custom: mine after"), text.split("\n", 1)[0])
+        self.assertIn("Write only inside this folder", text)
+        self.assertTrue(text.rstrip().endswith("Never gloss the names of people."))
+        self.assertEqual(json.loads((Path(r["path"]) / "making.json").read_text(encoding="utf-8"))["instructions"]["prompt"], added)
+        _into, r = made(self, options={"prompt": instead})
+        text = (Path(r["path"]) / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertTrue(text.split("\n", 1)[0].endswith("· custom: mine instead"))
+        self.assertEqual(text.split("\n", 1)[1].strip(), "Make the book of Il gatto in Italian. Nothing else.")
+
+    def test_a_prompt_that_is_gone_or_for_another_place_refuses_the_folder_and_writes_nothing(self):
+        other = self.P.save({"surface": "ask", "name": "for ask", "kind": "added", "text": "x"})["id"]
+        for bad in ("p-nothing-here", other):
+            into = os.path.join(tmpdir(self), "books")
+            with self.assertRaises(ValueError):
+                making.make(FIELDS, {"name": "a.txt", "data": TEXT}, {"prompt": bad}, into=into)
+            self.assertFalse(os.path.exists(os.path.join(into, "italian")), "nothing is left behind")
+
+
+class WriteTheInstructionsAgain(unittest.TestCase):
+    def snapshot(self, d):
+        return {str(p.relative_to(d)): p.read_bytes() for p in sorted(Path(d).rglob("*")) if p.is_file()
+                and p.name not in ("AGENTS.md", "CLAUDE.md")}
+
+    def worked_on(self, **options):
+        into, r = made(self, options=options or None)
+        d = Path(r["path"])
+        (d / "NOTES.md").write_text("# journal\n\n- chose the first reading\n", encoding="utf-8")
+        (d / "ASKS.md").write_text("## 2026-10-05 14:20 \u2014 what to change from now on\n\nshorter\n", encoding="utf-8")
+        doc = json.loads((d / "making.json").read_text(encoding="utf-8"))
+        doc.update(stage="batch", batches={"done": 2, "of": 5}, on="batch 3", asks_read=1)
+        (d / "making.json").write_text(json.dumps(doc), encoding="utf-8")
+        (d / "annot").mkdir(exist_ok=True)
+        (d / "annot" / "ch1_p00.json").write_text('{"idx": 0}', encoding="utf-8")
+        (d / "scratch").mkdir()
+        (d / "scratch" / "sweep.py").write_text("print(1)\n", encoding="utf-8")
+        return into, d
+
+    def test_only_the_agents_reading_is_written_and_every_other_file_is_left_byte_for_byte(self):
+        _into, d = self.worked_on()
+        (d / "AGENTS.md").write_text("an old one, from before an update", encoding="utf-8")
+        (d / "CLAUDE.md").write_text("old", encoding="utf-8")
+        before = self.snapshot(d)
+        asked = making.rewrite_instructions(str(d))
+        self.assertEqual(asked["written"], ["AGENTS.md", "CLAUDE.md"])
+        self.assertEqual(asked["said"], making.INSTRUCTIONS_AGAIN_SAID)
+        self.assertIn("tell it to read AGENTS.md again", asked["said"])
+        self.assertEqual(self.snapshot(d), before, "NOTES.md, ASKS.md, making.json, annot/ and the agent's scripts are untouched")
+        self.assertEqual([p.name for p in d.rglob("*.tmp")], [], "the files are replaced whole, and no half-written one is left")
+        self.assertIn("Write only inside this folder", (d / "AGENTS.md").read_text(encoding="utf-8"))
+        self.assertEqual((d / "CLAUDE.md").read_text(encoding="utf-8"), making.CLAUDE_LINE)
+
+    def test_written_again_it_is_the_text_the_folder_was_made_with(self):
+        # the reference and the examples, the short vowels and the scheme come from what the folder was made with
+        into = os.path.join(tmpdir(self), "books")
+        for folder, slug, lang in (("persian", "farsi", "fa"), ("persian", "other-fa", "fa")):
+            d = Path(into, folder, slug)
+            d.mkdir(parents=True)
+            (d / "book.json").write_text(json.dumps({"slug": slug, "language": lang, "title": slug, "title_latin": slug}), encoding="utf-8")
+            (d / "main.tex").write_text("\\end{document}\n", encoding="utf-8")
+        r = making.make(dict(FIELDS, lang="fa", gloss="en", title="T", title_latin="T", slug="t-fa", translit="ipa"),
+                        {"name": "x.txt", "data": TEXT}, {"reference": "persian/farsi", "examples": True, "marks": "nomarks"}, into=into)
+        d = Path(r["path"])
+        first = (d / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn(str(Path(into, "persian", "farsi")), first)
+        self.assertIn("**The short vowels are left alone**", first, "the choice of the page is in the first text")
+        (d / "AGENTS.md").unlink()
+        making.rewrite_instructions(str(d))
+        self.assertEqual((d / "AGENTS.md").read_text(encoding="utf-8"), first)
+
+    def test_it_takes_the_prompt_as_it_is_now_and_says_when_it_is_gone(self):
+        import prompts
+        with patch.object(prompts, "STORE", os.path.join(tmpdir(self), "config", "prompts.json")):
+            pid = prompts.save({"surface": "book-new", "name": "mine", "kind": "added", "text": "First words."})["id"]
+            _into, d = self.worked_on(prompt=pid)
+            self.assertTrue((d / "AGENTS.md").read_text(encoding="utf-8").rstrip().endswith("First words."))
+            prompts.save({"id": pid, "surface": "book-new", "name": "mine", "kind": "added", "text": "Second words."})
+            making.rewrite_instructions(str(d))
+            self.assertTrue((d / "AGENTS.md").read_text(encoding="utf-8").rstrip().endswith("Second words."),
+                            "editing the prompt reaches the folder when the instructions are written again")
+            prompts.delete(pid)
+            asked = making.rewrite_instructions(str(d))
+            self.assertTrue(any("cannot be used now" in n for n in asked["notes"]), asked)
+            text = (d / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertNotIn("custom:", text.split("\n", 1)[0])
+            self.assertIn("Write only inside this folder", text)
+
+    def test_a_finished_book_and_a_book_nobody_made_by_agent_are_refused_in_words(self):
+        _into, d = self.worked_on()
+        doc = json.loads((d / "making.json").read_text(encoding="utf-8"))
+        (d / "making.json").write_text(json.dumps(dict(doc, state="finished")), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "is finished"):
+            making.rewrite_instructions(str(d))
+        (d / "making.json").unlink()
+        with self.assertRaisesRegex(ValueError, "not made by an agent"):
+            making.rewrite_instructions(str(d))
+
+    def test_a_folder_made_before_the_options_were_kept_is_written_again_with_the_defaults(self):
+        _into, d = self.worked_on()
+        doc = json.loads((d / "making.json").read_text(encoding="utf-8"))
+        doc.pop("instructions")
+        (d / "making.json").write_text(json.dumps(doc), encoding="utf-8")
+        making.rewrite_instructions(str(d))
+        self.assertIn("Il gatto", (d / "AGENTS.md").read_text(encoding="utf-8"))
+        self.assertNotIn("instructions", json.loads((d / "making.json").read_text(encoding="utf-8")), "making.json is not written")
+
+    def test_a_reference_that_left_the_shelf_is_left_out_and_said(self):
+        into = os.path.join(tmpdir(self), "books")
+        ref = Path(into, "italian", "finished")
+        ref.mkdir(parents=True)
+        (ref / "book.json").write_text(json.dumps({"slug": "finished", "language": "it", "title": "f", "title_latin": "f"}), encoding="utf-8")
+        (ref / "main.tex").write_text("\\end{document}\n", encoding="utf-8")
+        r = making.make(FIELDS, {"name": "a.txt", "data": TEXT}, {"reference": "italian/finished"}, into=into)
+        shutil.rmtree(ref)
+        asked = making.rewrite_instructions(r["path"])
+        self.assertTrue(any("not on the shelf any more" in n for n in asked["notes"]), asked)
+        self.assertNotIn("learn the method from", (Path(r["path"]) / "AGENTS.md").read_text(encoding="utf-8"))
+
+
+class TheProjectSkill(unittest.TestCase):
+    """The method as a skill the agents that look for one find in the folder (lane G's lib/skills.py builds it
+    from the same parts): a copy for Claude Code in .claude/skills/ and one for the others in .agents/skills/."""
+
+    def stand_in(self, files):
+        calls = []
+
+        class Skills(object):
+            @staticmethod
+            def build(name, parts):
+                calls.append((name, [n for n, _ in parts]))
+                return files
+        return mock.patch.dict(sys.modules, {"skills": Skills}), calls
+
+    def test_the_skill_is_written_whole_into_both_places_and_nothing_beside_it_is_touched(self):
+        files = {"SKILL.md": "---\nname: parseh-book\ndescription: \"x\"\n---\nthe entry\n", "references/a.md": "a\n"}
+        patcher, calls = self.stand_in(files)
+        with patcher:
+            into, r = made(self)
+        d = Path(r["path"])
+        self.assertEqual(calls, [("parseh-book", [making.METHOD_ENTRY] + list(making.METHOD_ORDER))])
+        for home in (".claude/skills", ".agents/skills"):
+            self.assertEqual((d / home / "parseh-book" / "SKILL.md").read_text(encoding="utf-8"), files["SKILL.md"], home)
+            self.assertEqual((d / home / "parseh-book" / "references" / "a.md").read_text(encoding="utf-8"), "a\n")
+        self.assertEqual(r["instructions"], ["AGENTS.md", "CLAUDE.md", ".claude/skills/parseh-book/SKILL.md",
+                                             ".claude/skills/parseh-book/references/a.md",
+                                             ".agents/skills/parseh-book/SKILL.md", ".agents/skills/parseh-book/references/a.md"])
+        # a skill of the person's own beside it survives, and the old files of this one are replaced
+        mine = d / ".claude" / "skills" / "mine" / "SKILL.md"
+        mine.parent.mkdir(parents=True)
+        mine.write_text("mine", encoding="utf-8")
+        (d / ".claude" / "skills" / "parseh-book" / "stale.md").write_text("old", encoding="utf-8")
+        with patcher:
+            making.rewrite_instructions(str(d))
+        self.assertEqual(mine.read_text(encoding="utf-8"), "mine")
+        self.assertFalse((d / ".claude" / "skills" / "parseh-book" / "stale.md").exists())
+        self.assertTrue((d / ".agents" / "skills" / "parseh-book" / "SKILL.md").is_file())
+
+    def test_a_skill_that_would_land_outside_its_folder_is_refused_before_a_file_is_written(self):
+        for bad in ("../x.md", "/etc/x.md", "a/../../x.md", "a\\b.md"):
+            patcher, _calls = self.stand_in({"SKILL.md": "x", bad: "y"})
+            into = os.path.join(tmpdir(self), "books")
+            with patcher, self.assertRaisesRegex(ValueError, "outside the skill's folder"):
+                making.make(FIELDS, {"name": "a.txt", "data": TEXT}, None, into=into)
+            self.assertFalse(os.path.exists(os.path.join(into, "italian")), bad)
+
+    def test_a_skill_builder_that_fails_refuses_in_words_and_writes_nothing(self):
+        class Broken(object):
+            @staticmethod
+            def build(name, parts):
+                raise KeyError("references")
+        into = os.path.join(tmpdir(self), "books")
+        with patch.dict(sys.modules, {"skills": Broken}), self.assertRaisesRegex(ValueError, "the project skill could not be made"):
+            making.make(FIELDS, {"name": "a.txt", "data": TEXT}, None, into=into)
+        self.assertFalse(os.path.exists(os.path.join(into, "italian")))
+
+    def test_without_the_skill_builder_the_folder_holds_the_instructions_alone(self):
+        with patch.dict(sys.modules, {"skills": None}):
+            _into, r = made(self)
+        self.assertEqual(r["instructions"], ["AGENTS.md", "CLAUDE.md"])
+        self.assertFalse((Path(r["path"]) / ".claude").exists())
+        self.assertFalse((Path(r["path"]) / ".agents").exists())
 
 
 if __name__ == "__main__":
