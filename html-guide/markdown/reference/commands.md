@@ -347,4 +347,7 @@ python3 lib/release.py check <version>
 python3 lib/release.py notes <version>
 # whether two builds -- zips, lists of files, or one of each -- ship the same
 python3 lib/release.py compare dist/parseh-<version>.zip ~/Downloads/parseh-<version>.zip
+# asks every address Parseh names -- the update feed, the site, the guide, the phone app's
+# icons, the links in the documents -- and prints what each answers (needs the network)
+python3 lib/release.py links --expect <version>
 ```
