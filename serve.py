@@ -3832,7 +3832,7 @@ class Handler(SimpleHTTPRequestHandler):
         except OSError as e:
             return self.send_json({"ok": False, "error": "the part could not be written (%s); nothing "
                                    "was changed" % e}, 500)
-        self.send_json({"ok": True, "part": entry, "making": True, "name": entry["file"],
+        self.send_json({"ok": True, "part": entry, "making": True,
                         "more_coming": making.describe(book)["more_coming"]})
 
     def _video_delete(self):

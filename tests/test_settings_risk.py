@@ -579,6 +579,14 @@ class Served(unittest.TestCase):
             self.assertEqual((status, got["ok"], got["confirm"]), (409, False, True))
             self.assertTrue(any("part 1 has not been taken" in s for s in got["blockers"]), got)
             self.assertEqual(self.ask("GET", book + "/__making")[2]["finish"]["state"], "idle", "nothing started on the first press")
+            # the second press, which says it knows, goes through: here to the check, which finds no chapter to finish
+            status, _, got = self.ask("POST", book + "/__making/finish", {"confirm": True})
+            self.assertEqual((status, got["ok"], got["started"]), (200, True, True), got)
+            self.wait(lambda: making.finish_status(made["path"])["state"] != "running", "the check", limit=60)
+            job = making.finish_status(made["path"])
+            self.assertEqual(job["state"], "failed")
+            self.assertIn("no chapter", job["steps"][0]["said"])
+            self.assertEqual(making.state(made["path"]), "making", "a Finish that found nothing to finish ends nothing")
         finally:
             for p in reversed(ps):
                 p.stop()
