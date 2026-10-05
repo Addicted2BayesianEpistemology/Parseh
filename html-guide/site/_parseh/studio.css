@@ -1090,12 +1090,12 @@ body.links-open :is(.pz,.modal-overlay) .linkspane{transform: none; visibility: 
 :is(.pz,.modal-overlay) .pv-status.err{color: var(--danger);}
 :is(.pz,.modal-overlay) .preview-scroll{overflow-y: auto; flex: 1;}
 :is(.pz,.modal-overlay) .preview-scroll .sheet{margin: 1rem auto 3rem;}
-:is(.pz,.modal-overlay) .insert-group{display: inline-flex; gap: .15rem; margin-right: .3rem;}
+:is(.pz,.modal-overlay) .insert-group{display: inline-flex; flex-wrap: wrap; gap: .15rem; margin-right: .3rem;}
 :is(.pz,.modal-overlay) .insert-group .btn{padding: .3rem .45rem;}
 :is(.pz,.modal-overlay) .colour-tool{display: inline-flex; position: relative;}
 :is(.pz,.modal-overlay) .colour-tool .colour-main{display: inline-flex; align-items: center; gap: .3rem; border-radius: 6px 0 0 6px;}
 :is(.pz,.modal-overlay) .colour-tool .colour-pick > summary{border-radius: 0 6px 6px 0; padding-inline: .32rem;}
-:is(.pz,.modal-overlay) .colour-tool .menu{left: 0; right: auto; min-width: 11rem;}
+:is(.pz,.modal-overlay) .colour-tool .menu{min-width: 11rem;}
 :is(.pz,.modal-overlay) .colour-tool .menu button,:is(.pz,.modal-overlay) .colour-custom{display: flex; align-items: center; gap: .48rem;}
 :is(.pz,.modal-overlay) .colour-active,:is(.pz,.modal-overlay) .colour-chip{display: inline-block; width: .78rem; height: .78rem; flex: none; border-radius: 50%; background: var(--fac-teal);}
 :is(.pz,.modal-overlay) .colour-active.fac-crimson,:is(.pz,.modal-overlay) .colour-chip.fac-crimson{background: var(--fac-crimson);}
@@ -1108,12 +1108,12 @@ body.links-open :is(.pz,.modal-overlay) .linkspane{transform: none; visibility: 
 :is(.pz,.modal-overlay) .colour-custom{padding: .45rem .6rem; cursor: pointer; font-size: .88rem;}
 :is(.pz,.modal-overlay) .colour-custom:hover{background: var(--chrome-bg); border-radius: 5px;}
 :is(.pz,.modal-overlay) .colour-custom input{width: 1.5rem; height: 1.2rem; margin-left: auto; padding: 0; border: 0; background: transparent;}
-@media (max-width: 720px){
+@media (max-width: 1100px){
 body[data-page="edit"] :is(.pz,.modal-overlay) .topbar{flex-wrap: wrap; gap: .4rem;}
 body[data-page="edit"] :is(.pz,.modal-overlay) .topbar-actions{display: contents;}
 body[data-page="edit"] :is(.pz,.modal-overlay) .doc-title{flex: 1 1 0; min-width: 3rem;}
-body[data-page="edit"] :is(.pz,.modal-overlay) .insert-group{flex-wrap: wrap; margin-right: 0;}
-body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .dropdown{position: static;}
+body[data-page="edit"] :is(.pz,.modal-overlay) .insert-group{margin-right: 0;}
+body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .colour-tool,body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .dropdown{position: static;}
 body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .dropdown .menu{right: .9rem;}
 }
 :is(.pz,.modal-overlay) .hint{color: var(--chrome-mut);}
