@@ -1434,6 +1434,17 @@ class TheInstructionsOfEveryLanguage(unittest.TestCase):
                         {"name": "x.txt", "data": TEXT}, None, into=books)
         self.assertIn("**The short vowels are written**", (Path(r["path"]) / "AGENTS.md").read_text(encoding="utf-8"))
 
+    def test_the_panel_knows_how_the_instructions_were_written(self):
+        into = os.path.join(tmpdir(self), "books")
+        r = making.make(dict(FIELDS, lang="fa", gloss="en", title="T", title_latin="T", slug="t-fa", translit="ipa"),
+                        {"name": "x.txt", "data": TEXT}, {"marks": "nomarks"}, into=into)
+        seen = making.describe(r["path"])["instructions"]
+        self.assertEqual((seen["marks"], seen["translit"]), ("nomarks", "ipa"))
+        self.assertAlmostEqual(seen["written"], os.path.getmtime(os.path.join(r["path"], "AGENTS.md")), delta=1)
+        _into, plain = made(self)
+        seen = making.describe(plain["path"])["instructions"]
+        self.assertEqual((seen["marks"], seen["translit"]), ("", ""), "Italian has no short vowels, and its scheme is the usual one")
+
     def test_the_words_of_the_lessons_are_in(self):
         # the general lessons of the editions made by hand, folded in: each is a sentence the instructions must still say
         _into, r = made(self)
@@ -1444,6 +1455,7 @@ class TheInstructionsOfEveryLanguage(unittest.TestCase):
                        "The book disagreeing with itself", "one sceptic a batch", "cost three times as much for the same findings",
                        "read the whole book against itself once"):
             self.assertIn(lesson, text)
+            self.assertIn(lesson, making.method_template(), "and in the parts the template is made from")
 
 
 class AnOwnPromptForTheInstructions(unittest.TestCase):
@@ -1512,6 +1524,7 @@ class WriteTheInstructionsAgain(unittest.TestCase):
         self.assertEqual(asked["said"], making.INSTRUCTIONS_AGAIN_SAID)
         self.assertIn("tell it to read AGENTS.md again", asked["said"])
         self.assertEqual(self.snapshot(d), before, "NOTES.md, ASKS.md, making.json, annot/ and the agent's scripts are untouched")
+        self.assertEqual([p.name for p in d.rglob("*.tmp")], [], "the files are replaced whole, and no half-written one is left")
         self.assertIn("Write only inside this folder", (d / "AGENTS.md").read_text(encoding="utf-8"))
         self.assertEqual((d / "CLAUDE.md").read_text(encoding="utf-8"), making.CLAUDE_LINE)
 
@@ -1528,6 +1541,7 @@ class WriteTheInstructionsAgain(unittest.TestCase):
         d = Path(r["path"])
         first = (d / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn(str(Path(into, "persian", "farsi")), first)
+        self.assertIn("**The short vowels are left alone**", first, "the choice of the page is in the first text")
         (d / "AGENTS.md").unlink()
         making.rewrite_instructions(str(d))
         self.assertEqual((d / "AGENTS.md").read_text(encoding="utf-8"), first)

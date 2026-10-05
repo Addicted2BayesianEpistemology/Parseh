@@ -741,6 +741,8 @@ await page.waitForFunction(() => document.querySelector('#mkbox') && !document.q
 assert(await inView(page, '.mk-btn[data-layout=browser]') && await onTop(page, '.mk-btn[data-layout=browser]') && await inView(page, '#mkbox'),
        'the making button and the panel of a right-to-left book lie inside the window, and nothing over them');
 eq(await page.$eval('.mk-btn[data-layout=browser] .mk-txt', e => e.textContent), 'being made · batch 2 of 2', 'the button says where it is');
+assert(/The instructions in this folder were written (just now|\d+ minutes? ago), with the short vowels left as the source has them and the transliteration in IPA\./.test(await page.$eval('#mkbox', e => e.textContent)),
+       'the panel says how the instructions were written: the two choices that are the book\'s own facts');
 await views(page, 'C-fa-panel');
 await page.keyboard.press('Escape');
 await page.waitForFunction(() => document.querySelector('#mkbox').hidden);

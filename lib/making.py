@@ -408,6 +408,19 @@ def _mtime(path):
         return None
 
 
+def _instructions_view(book_dir, doc):
+    """What the panel says of the instructions in the folder: when they were written, and the two choices
+    that are the book's own facts (the short vowels, the scheme of the transliteration)."""
+    kept = doc.get("instructions") if isinstance(doc.get("instructions"), dict) else {}
+    try:
+        with open(path_of(book_dir, "book.json"), encoding="utf-8") as f:
+            meta = json.load(f)
+    except (OSError, ValueError):
+        meta = {}
+    return {"written": _mtime(path_of(book_dir, AGENTS)), "marks": kept.get("marks") or "",
+            "translit": "ipa" if isinstance(meta, dict) and meta.get("translit") == "ipa" else ""}
+
+
 def describe(book_dir):
     """What the making panel shows of a book -> a plain dict.  For a book that
     was never made this way it says so and nothing else."""
@@ -451,7 +464,7 @@ def describe(book_dir):
         "parseh": ran_under, "parseh_now": version.VERSION,
         "updated_by_parseh": bool(ran_under and ran_under != version.VERSION),
         "notes": _tail(path_of(book_dir, NOTES), NOTES_TAIL), "asks": _asks(book_dir),
-        "instructions": {"written": _mtime(path_of(book_dir, AGENTS))},
+        "instructions": _instructions_view(book_dir, doc),
         "draft": draft_state(book_dir), "broken": bad, "now": now}
 
 
@@ -1015,6 +1028,15 @@ def skill_files(facts, options=None):
     return skills.build(SKILL, parts=resolved_parts(facts, options))
 
 
+def _write_text(path, text):
+    """A file replaced whole or not at all, as making.json is: an agent that reads AGENTS.md while it is
+    written again must not find half of it."""
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
 def _skill_names(files):
     """The skill's files, refused before any is written when one would land outside the skill's folder."""
     for name in files:
@@ -1054,8 +1076,7 @@ def write_instructions(book_dir, facts, options=None):
     permissions are the person's."""
     text, skill = instructions_text(facts, options), _skill_names(skill_files(facts, options))
     for name, body in ((AGENTS, text), (CLAUDE, CLAUDE_LINE)):
-        with open(path_of(book_dir, name), "w", encoding="utf-8", newline="\n") as f:
-            f.write(body)
+        _write_text(path_of(book_dir, name), body)
     written = [AGENTS, CLAUDE]
     if skill:
         for home in SKILL_HOMES:
