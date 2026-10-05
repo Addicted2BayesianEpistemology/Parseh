@@ -30,8 +30,8 @@ that. (A source that does put spaces in the text keeps them, inside the
 chunk they fall in.) **Never correct the text in `fa`**{{?new}} — the correction goes in {{?video}}`note`{{/video}}{{?book}}the
 vocabulary line{{/book}}{{/new}}.
 
-There are no marks to strip: the plain pass shows the same text without
-the reading over it.
+There are no marks to strip{{?book}}: the plain pass shows the same text without
+the reading over it{{/book}}.
 
 ## Reading
 
@@ -96,17 +96,16 @@ over:
 - A `(` or `)` inside a word is written twice, `((` `))`; the fullwidth
   `（` `）` are ordinary text.
 
-In a book the line is the last argument of `\chrw`,
-{{?classic}}`\chrw{}{山へ柴刈りに、}{やまへしばかりに、}{yama e shibakari ni,}{…}{…}{山(やま) へ 柴刈り(しばかり) に 、}`{{/classic}}{{?ipa}}`\chrw{}{山へ柴刈りに、}{やまへしばかりに、}{jama e ɕibakaɾi ni,}{…}{…}{山(やま) へ 柴刈り(しばかり) に 、}`{{/ipa}};
-in a video it is the chunk's `"words"`. **Every chunk of Japanese text
+{{?new}}{{?book}}In a book the line is the last argument of `\chrw`,
+{{?classic}}`\chrw{}{山へ柴刈りに、}{やまへしばかりに、}{yama e shibakari ni,}{…}{…}{山(やま) へ 柴刈り(しばかり) に 、}`{{/classic}}{{?ipa}}`\chrw{}{山へ柴刈りに、}{やまへしばかりに、}{jama e ɕibakaɾi ni,}{…}{…}{山(やま) へ 柴刈り(しばかり) に 、}`{{/ipa}}.{{/book}}{{?video}}In a video it is the chunk's `"words"`.{{/video}} {{/new}}**Every chunk of Japanese text
 carries its words, and they start from the machine's**: the toolbox proposes
 the division and the readings when a text is added, and they are a draft to
 correct. A draft made from pasted text also starts each chunk's `kana` as its
-words' readings run together, the punctuation where the text has it. An
+words' readings run together, the punctuation where the text has it. {{?new}}An
 annotator starts the same way — `python3
 lib/fill_words.py --lang ja --json <file>` on the chunks it has cut, a book's
 paragraph or a video's part — and then corrects every line; a video's prompt
-lists the machine's division under each caption for the same reason. Never
+lists the machine's division under each caption for the same reason.{{/new}} Never
 write the words from nothing. Where the chunk already has its `kana`, each
 word's reading is cut from it, so the furigana say what `kana` says; where it
 has none yet, the readings are a dictionary's, which is not the sentence's
