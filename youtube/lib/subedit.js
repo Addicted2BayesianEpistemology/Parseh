@@ -437,8 +437,7 @@
       getText: function () {
         var key = capsKey();
         var was = caps.map(function (c) { return {start: c.start, text: c.text, chapter: c.chapter}; });
-        // `prompt: true` is Parseh's own; an id is one of the person's, chosen in the menu
-        return post('/api/transcript', {lang: lang, prompt: llmRow.promptId() || true, captions: was}).then(function (j) {
+        return post('/api/transcript', {lang: lang, prompt: true, captions: was}).then(function (j) {
           if (!j.ok) throw new Error(j.error || 'the prompt could not be written');
           madeFrom = key;
           return j.prompt || '';
@@ -558,6 +557,11 @@
 
     /* ---- the server, and the video ---- */
     function post(path, body) {
+      // `prompt: true` asks for Parseh's own prompt for the tidy; where the menu in the LLM panel has chosen one of
+      // the person's own, its id goes in its place (and nothing else about the request changes)
+      if (body && body.prompt === true && llmRow && llmRow.promptId && llmRow.promptId()) {
+        body = Object.assign({}, body, {prompt: llmRow.promptId()});
+      }
       return fetch(base + path, {method: 'POST', headers: {'Content-Type': 'application/json'},
                                  body: JSON.stringify(body)})
         .then(function (r) { return r.json().catch(function () { return {ok: false, error: r.status + ' ' + r.statusText}; }); });

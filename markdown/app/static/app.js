@@ -5105,12 +5105,15 @@ function initPrompt() {
       // has): the plain ask gets the default, the draw puts back the ids the server does know
       // and the ask below is made once more with them
       if (e.status === 400 && !plain) { teach.stale(); return load(true, again); }
-      toast(e.message, true);
-      if (row) {
-        row.disable("the prompt could not be made again: change a box to try once more");
-        // the prompt chosen may be one another device deleted since: the row finds out, and Parseh's own is chosen
-        row.verifyPrompt();
+      // THE PROMPT CHOSEN MAY BE ONE ANOTHER DEVICE DELETED SINCE (the route says it is gone): the row finds out,
+      // says so in its own words, chooses Parseh's own and asks again -- and then nothing more need be said here
+      if (row && row.promptId() && e.status === 404) {
+        const was = row.promptId();
+        await row.verifyPrompt();
+        if (row.promptId() !== was) return;
       }
+      toast(e.message, true);
+      if (row) row.disable("the prompt could not be made again: change a box to try once more");
       return;
     }
     if (mine !== seq) return;
