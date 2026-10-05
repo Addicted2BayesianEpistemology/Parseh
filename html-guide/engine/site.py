@@ -48,6 +48,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from . import bar
 from . import render as R
 from . import shortcodes
 from .cssscope import scope as scope_css
@@ -372,8 +373,13 @@ class PageContext:
 
 
 class Site:
-    def __init__(self, guide=GUIDE, src=None):
+    def __init__(self, guide=GUIDE, src=None, bar_home=None):
+        """`bar_home`: the address of the site the PUBLISHED guide belongs to,
+        which gives every page the slim bar that leads there (engine/bar.py).
+        None -- the default, and what the installed guide is compiled with --
+        draws no bar and not a byte of it."""
         self.guide = Path(guide)
+        self.bar_home = bar_home
         self.src = Path(src) if src else self.guide / "markdown"
         self.report = Report()
         self.pages = []
@@ -757,6 +763,9 @@ class Site:
             "lang": esc(ctx.prose_lang), "up": up, "run": run,
             "title": esc(title), "site": esc(self.title),
             "desc": ('<meta name="description" content="%s">\n' % esc(desc)) if desc else "",
+            # the published layout's bar (engine/bar.py); nothing at all otherwise
+            "barcss": bar.head_css() if self.bar_home else "",
+            "bar": bar.bar(self.bar_home, up) if self.bar_home else "",
             "crumbs": ('<span class="g-crumbs">%s</span><span class="g-sep">›</span>' % esc(crumbs))
             if crumbs else "",
             "nav": self._nav_html(page, root),
@@ -855,10 +864,10 @@ PAGE = """<!DOCTYPE html>
 <link rel="stylesheet" href="%(run)smathjax.css">
 <link rel="stylesheet" href="%(up)sassets/guide.css">
 <script src="%(up)sassets/guide.js"></script>
-</head>
+%(barcss)s</head>
 <body class="guide" data-page="guide">
 <a class="g-skip" href="#g-content">Skip to the text</a>
-<header class="g-top">
+%(bar)s<header class="g-top">
   <button type="button" class="g-menu" data-guide-side aria-controls="g-side" aria-expanded="true" title="Show or hide the list of pages">☰</button>
   <a class="g-brand" href="%(up)sindex.html"><span class="g-glyph" lang="fa">پ</span><span class="g-name">%(site)s</span></a>
   <span class="g-where">%(crumbs)s<span class="g-title">%(title)s</span></span>
