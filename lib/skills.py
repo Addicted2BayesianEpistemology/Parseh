@@ -909,13 +909,60 @@ def read_book(files, request, values):
     if path not in files:
         raise SkillError("the skill has no %s" % path)
 
-    def truth(words):
-        return {"translit ipa": h.get("translit") == "ipa", "translit usual": h.get("translit") != "ipa",
-                "marks on": h.get("marks") == "on", "marks off": h.get("marks") == "off"}[words]
-
     text = _region(files["SKILL.md"], RULES_OPEN, RULES_CLOSE).replace("⟦read references/lang/<language>.md⟧",
                                                                       "⟦read %s⟧" % path)
-    return promptkit.squeeze(resolve(_splice(text, files), truth, lambda n: values[n]))
+    return promptkit.squeeze(resolve(_splice(text, files), _book_truth(h), lambda n: values[n]))
+
+
+def _book_truth(h):
+    return lambda words: {"translit ipa": h.get("translit") == "ipa", "translit usual": h.get("translit") != "ipa",
+                          "marks on": h.get("marks") == "on", "marks off": h.get("marks") == "off"}[words]
+
+
+FOLDER_DESCRIPTION = ("Makes this folder's reading edition by Parseh's method. Use when working in this book's folder, "
+                      "or when told to read AGENTS.md.")
+
+
+def build_for_book(L, G, options, values, sources=None):
+    """THE SKILL AS A BOOK'S OWN FOLDER HOLDS IT (`.claude/skills/parseh-book/` and `.agents/skills/parseh-book/`, where
+    lane H writes the files of `.files`): the same method, settled for THIS book -- its language, its options, the values
+    of its names -- so that an agent working in the folder meets none of the generic skill's marks and no request.  Only the
+    book's own language file is kept, and a pointer is the path of the file in backticks.  -> Skill; its hash is the
+    generic skill's, so that the folder says which one it was made from."""
+    gen = build("parseh-book", sources)
+    opts = promptkit.resolve("book-new", L, options)
+    h = parse_header(render_header("parseh-book", gen.version, gen.hash, WHAT["book-new"], (L.code, G.code), None,
+                                   _fields("book-new", L, opts, None), note=False))
+    suffix = ("-ipa" if h.get("translit") == "ipa" else "") + ("-marks" if h.get("marks") == "on" else "")
+    lang_path = "references/lang/%s%s.md" % (L.code, suffix)
+    if lang_path not in gen.files:
+        raise SkillError("the skill has no %s" % lang_path)
+    vals = dict(promptkit._common("book-new", L, G, opts), **values)
+    byword = {k.lower().replace("_", " "): v for k, v in vals.items()}
+    truth = _book_truth(h)
+
+    def settle(text):
+        text = re.sub(r"⟦read ([^⟧]+)⟧", lambda m: "`%s`" % (lang_path if "<language>" in m.group(1) else m.group(1)), text)
+        return promptkit.squeeze(resolve(text, truth, lambda n: byword[n]))
+
+    refs = {}
+    for path, text in gen.files.items():
+        if path == "SKILL.md" or (path.startswith("references/lang/") and path != lang_path):
+            continue
+        refs[path] = preface_of(text) + BODY_RULE + settle(body_of(text))
+    method = settle(_region(gen.files["SKILL.md"], RULES_OPEN, RULES_CLOSE))
+    listed = ["- `%s` — %s" % (p, re.match(r"# (.+)", t).group(1)) for p, t in sorted(refs.items())]
+    body = ["# parseh-book", "",
+            "This folder holds a book that Parseh is making in place. What follows is the method of the job, settled for this "
+            "book: its language (%s), the language of its meanings (%s) and the choices made for it. Read it first, and "
+            "open the files listed below where it points at them." % (L.name, G.name), "",
+            "## The method", "", method, "", "## References", ""] + listed + [
+            "", "Made by Parseh `%s` from its parseh-book skill, hash `%s`." % (gen.version, gen.hash)]
+    files = OrderedDict([("SKILL.md", '---\nname: parseh-book\ndescription: "%s"\n---\n' % FOLDER_DESCRIPTION +
+                          "\n".join(body) + "\n")])
+    for path in sorted(refs):
+        files[path] = refs[path]
+    return Skill("parseh-book", files, gen.hash, gen.version)
 
 
 # ======================================================================================================

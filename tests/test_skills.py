@@ -424,6 +424,27 @@ class TheTwoRoadsAreOneForTheBookSkill(unittest.TestCase):
                 expected = promptkit.squeeze(promptkit.render(METHOD, flags, values, inc, "method"))
                 compare(self, got, expected, "book %s %s %s" % (code, translit, marks))
 
+    def test_the_skill_a_books_own_folder_holds_is_settled_for_that_book(self):
+        # lane H writes these files into `.claude/skills/parseh-book/` and `.agents/skills/parseh-book/` of a folder
+        L, G = languages.get("fa"), languages.gloss_or_default("en")
+        vals = self.values(L, G)
+        sk = skills.build_for_book(L, G, {"marks": "marks"}, vals, sources=TMP)
+        self.assertEqual(skills.validate(sk), [])
+        self.assertEqual(skills.check_zip("parseh-book", sk.zip_bytes()), [])
+        for path, text in sk.files.items():
+            self.assertNotRegex(text, "[⟦⟧⟨⟩]", path)
+        self.assertEqual([p for p in sk.files if p.startswith("references/lang/")], ["references/lang/fa-marks.md"])
+        self.assertIn("Write the short vowels.", sk.files["SKILL.md"])
+        self.assertNotIn("Leave `fa` as it is.", sk.files["SKILL.md"])
+        options = promptkit.resolve("book-new", L, {"marks": "marks"})
+        values = dict(promptkit._common("book-new", L, G, options), **vals)
+        inc = {"LANG_CONVENTIONS": "`references/lang/fa-marks.md`", "MEANING_RULE": "`references/meaning.md`"}
+        expected = promptkit.squeeze(promptkit.render(METHOD, promptkit.surface_flags("book-new", L, options), values, inc,
+                                                      "method"))
+        self.assertIn(expected, sk.files["SKILL.md"])
+        self.assertIn("/x/books/b", sk.files["references/batches.md"])
+        self.assertIn("Persian", sk.files["references/meaning.md"])
+
     def test_what_the_method_says_that_nothing_in_a_request_decides_is_refused(self):
         d = tempfile.mkdtemp(dir=TMP)
         with open(os.path.join(d, "method.md"), "w", encoding="utf-8") as f:

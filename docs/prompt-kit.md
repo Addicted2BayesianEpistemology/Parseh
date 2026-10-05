@@ -309,7 +309,9 @@ result to the prompt road for every surface, language, mode, box and exercise ty
 The short request is `Parseh request · <skill> · <version> · <hash> · …` (`parse_header`), then the data;
 `for_region`, `for_new_video`, `for_studio`, `for_exercises` and `for_book` make it from a prompt's own
 `Assembled`, and the routes that hand a prompt out answer with it as `skill`. A prompt of the person's of
-kind `added` follows the header; one in place of Parseh's cannot travel (`available: false`).
+kind `added` follows the header; one in place of Parseh's cannot travel (`available: false`). A book made in
+place keeps its own copy of the book's skill in its folder (`skills.build_for_book(L, G, options, values).files`:
+every mark settled for that book, only its language's file), where an agent that looks for a skill finds it.
 A skill is checked by `skills.validate` (front matter with `name` and `description` only; a description of 200
 characters at most, no `<` or `>`; SKILL.md under 500 lines; every reference named in it) and its zip by
 `skills.check_zip`. Do not scan, list or touch `lib/asrskill/`: those skills are the a0.4.3 branch's own.
