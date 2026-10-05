@@ -233,6 +233,12 @@ async function reviewAndUse(page) {
   await inPhase(page, 'review', 'post-ASR transcript workspace', 60000);
   eq(await value(page, '#transcript'), before, 'ASR completion does not insert text');
   eq(await value(page, '#transcript'), before, 'opening review does not insert text');
+  // a start opens "Transcribe & review" and it stays open; a page that was left (Return to Add Video) or reloaded while the
+  // job ran has the window closed, and the review waits behind "Resume transcript review"
+  if (!(await page.$eval('#stt_workspace', d => d.open))) {
+    eq(await text(page, '#stt_open'), 'Resume transcript review', 'the window is closed: the review waits behind its button');
+    await page.click('#stt_open');
+  }
   await page.click('#stt_use');
   await inPhase(page, 'idle', 'explicit Use finishes the review');
 }
@@ -489,6 +495,22 @@ await section('c2', 'while a film is transcribed: what is held, and Cancel', asy
   eq([await shown(page, '#stt_go'), await shown(page, '#stt_cancel')], [false, true], 'Transcribe is gone while it runs, Cancel is there (no second start from here)');
   const second = await api('/youtube/api/transcribe/start', {source: 'film', path: f, lang: 'fa', model: 'large-v3-turbo', processing: 'cpu'});
   eq([second.status, second.j.code], [409, 'busy'], 'and the computer refuses a second one');
+  // a0.4.3: a start opens "Transcribe & review", a modal window with the video, the progress and Cancel.  The page
+  // behind it cannot be reached at all while it is open (a click on a card lands on the window's backdrop)...
+  eq(await page.$eval('#stt_workspace', d => [d.open, d.matches(':modal')]), [true, true], 'the transcription opened its window, a modal one');
+  eq(await page.evaluate(() => { const card = document.querySelector('.path[data-src="yt"]');
+                                 card.scrollIntoView({block: 'center'});     // (the page was scrolled down to the box)
+                                 const r = card.getBoundingClientRect();
+                                 const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                                 return !!hit && !hit.closest('.path') && !!hit.closest('#stt_workspace'); }), true,
+     'and behind it the other source card is out of reach: a press there lands on the window');
+  // ...until the person returns to the page.  The job goes on, and "Open transcription" is the way back in
+  await page.click('#stt_back');
+  await until(async () => !(await page.$eval('#stt_workspace', d => d.open)), 'Return to Add Video closes the window');
+  eq([await phase(page), await shown(page, '#stt_open'), await text(page, '#stt_open')], ['working', true, 'Open transcription'],
+     'the job goes on, and the way back is a button on the page');
+  eq([await shown(page, '#stt_go'), await shown(page, '#stt_cancel')], [false, false],
+     'no Transcribe on the page, and Cancel stays in the window (no second start from here either)');
   // held: the video, its language, the model -- each answers, and nothing changes
   const toast = () => page.evaluate(() => { const t = document.getElementById('parseh-toast'); return t && t.classList.contains('show') ? t.textContent : ''; });
   const HELD = 'a transcription is running — cancel it first';
@@ -508,9 +530,12 @@ await section('c2', 'while a film is transcribed: what is held, and Cancel', asy
   eq([await value(page, '#path'), await toast()], [f, HELD], 'and the film\'s path cannot be typed into');
   await page.selectOption('#gloss', 'it');
   eq(await value(page, '#gloss'), 'it', 'the language of the glosses is not part of the transcript, and is free');
-  // Cancel: nothing written, nothing left, nothing stuck
+  // Cancel (it is in the window: the way back in first): nothing written, nothing left, nothing stuck
+  await page.click('#stt_open');
+  await until(() => shown(page, '#stt_cancel'), 'the window is open again, with Cancel');
   await page.click('#stt_cancel');
   await inPhase(page, 'idle', 'Cancel ends it');
+  eq(await page.$eval('#stt_workspace', d => d.open), false, 'and closes the window');
   eq(await inBox(page), 'my own words', 'the box is exactly as it was');
   assert(/was cancelled\. The transcript in the box was not touched\./.test(await text(page, '#stt_note')), 'and it says so: ' + await text(page, '#stt_note'));
   const st = await api('/youtube/api/transcribe/status', {job});
@@ -620,6 +645,9 @@ await section('c4', 'editing the transcript while ASR runs discards stale review
   const {context, page} = await newPage();
   await openAdd(page, {by: 'empty'}); await blockReady(page); await chooseFilm(page);
   await page.click('#stt_go'); await inPhase(page, 'working', 'running');
+  // (the window of a0.4.3 holds the page behind it: the box is typed into from the page, once it is returned to)
+  await page.click('#stt_back');
+  await until(async () => !(await page.$eval('#stt_workspace', d => d.open)), 'back on the page');
   await page.fill('#transcript', 'typed while it ran');
   await inPhase(page, 'idle', 'stale result discarded', 40000);
   eq(await inBox(page), 'typed while it ran', 'the edited box stays untouched');
@@ -736,12 +764,14 @@ await section('d', 'failures are sentences, and nothing is left stuck', async ()
   await setFake({delay: 0.7, load_delay: 0.7});
   await page.fill('#transcript', '');
   let asks = 0;
-  const startsBefore = seen(page, /transcribe\/start/);
+  const startsBefore = seen(page, /transcribe\/start/), usesBefore = seen(page, /transcribe\/use/);
   await page.route('**/transcribe/result', r => (++asks <= 2 ? r.abort() : r.continue()));
   await page.click('#stt_go');
   await reviewAndUse(page);
-  eq([await inBox(page), asks, seen(page, /transcribe\/start/) - startsBefore], [PANEL_FA, 4, 1],
-     'result retried until answered, then reopened after explicit review; only one job was ever started for it');
+  // (the words are asked for until they are given -- twice unanswered, the third answers; they are not asked for again
+  // after "Use this transcript", which is a route of its own: a0.4.3 holds them in the page as the pending review)
+  eq([await inBox(page), asks, seen(page, /transcribe\/start/) - startsBefore, seen(page, /transcribe\/use/) - usesBefore], [PANEL_FA, 3, 1, 1],
+     'result retried until answered (twice silent, the third answers), then used by the explicit Use alone; only one job was ever started for it');
   await page.unroute('**/transcribe/result');
 
   // installed a moment ago, gone now: the page finds out when it asks
@@ -960,10 +990,28 @@ await section('f', 'every language, two widths, three themes, left to right and 
     const vw = document.documentElement.clientWidth;
     if (document.documentElement.scrollWidth > vw + 1) bad.push('the page scrolls sideways: ' + document.documentElement.scrollWidth + ' > ' + vw);
     if (s.scrollWidth > s.clientWidth + 1) bad.push('the block overflows itself: ' + s.scrollWidth + ' > ' + s.clientWidth);
+    // a0.4.3: while it works, the block's window ("Transcribe & review") is a modal one that takes the screen, not the
+    // block's place on the page: it is held to the screen, and what is in it to the window, below
     for (const e of s.querySelectorAll('*')) {
-      if (!e.getClientRects().length || e.closest('[hidden]')) continue;
+      if (!e.getClientRects().length || e.closest('[hidden]') || e.closest('#stt_workspace')) continue;
       const b = e.getBoundingClientRect();
       if (b.width && (b.left < r.left - 1 || b.right > r.right + 1)) bad.push((e.id || e.tagName) + ' sticks out: ' + Math.round(b.left) + '..' + Math.round(b.right) + ' of ' + Math.round(r.left) + '..' + Math.round(r.right));
+    }
+    const w = document.getElementById('stt_workspace');
+    if (w && w.open) {
+      const wr = w.getBoundingClientRect(), vh = document.documentElement.clientHeight;
+      if (wr.left < -1 || wr.right > vw + 1 || wr.top < -1 || wr.bottom > vh + 1)
+        bad.push('the window leaves the screen: ' + [wr.left, wr.top, wr.right, wr.bottom].map(Math.round) + ' of ' + vw + 'x' + vh);
+      if (w.scrollWidth > w.clientWidth + 1) bad.push('the window overflows itself sideways: ' + w.scrollWidth + ' > ' + w.clientWidth);
+      // its head is part of it, above its columns (the page's bare `header` rule once pinned it to the top of the screen)
+      const head = w.querySelector('header'), cols = w.querySelector('.stt-workspace-columns');
+      if (head && cols && (getComputedStyle(head).position === 'fixed' || head.getBoundingClientRect().bottom > cols.getBoundingClientRect().top + 1))
+        bad.push('the window\'s head is not above its columns: ' + getComputedStyle(head).position + ' ' + Math.round(head.getBoundingClientRect().bottom) + ' > ' + Math.round(cols.getBoundingClientRect().top));
+      for (const e of w.querySelectorAll('*')) {
+        if (!e.getClientRects().length || e.closest('[hidden]')) continue;
+        const b = e.getBoundingClientRect();
+        if (b.width && (b.left < wr.left - 1 || b.right > wr.right + 1)) bad.push('in the window, ' + (e.id || e.tagName) + ' sticks out: ' + Math.round(b.left) + '..' + Math.round(b.right) + ' of ' + Math.round(wr.left) + '..' + Math.round(wr.right));
+      }
     }
     return bad;
   });
@@ -1005,9 +1053,9 @@ await section('f', 'every language, two widths, three themes, left to right and 
     await chooseFilm(page, {lang: 'ja', seconds: 4});
     await page.click('#stt_go');
     await until(async () => /Loading|Transcribing/.test(await say(page)), `${label}: at work`, 30000);
+    await shot(page, `f-working-${width}-${theme}-${dir}`);
     eq(await fits(page), [], `${label}: the block at work fits`);
     assert(await shown(page, '#stt_bar') && await shown(page, '#stt_cancel'), `${label}: a bar and Cancel`);
-    await shot(page, `f-working-${width}-${theme}-${dir}`);
     await page.click('#stt_cancel');
     await inPhase(page, 'idle', `${label}: cancelled`);
     await context.close();

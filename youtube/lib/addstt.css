@@ -57,7 +57,8 @@
 .addvid .stt-workspace[open]{display:flex;flex-direction:column}
 .addvid .stt-workspace::backdrop{background:rgba(0,0,0,.52)}
 .addvid .stt-workspace *{box-sizing:border-box}
-.addvid .stt-workspace-head{display:flex;align-items:center;gap:16px;padding:16px 20px;
+/* the window's head is a <header>, and the page's bare header rule (lib/style.css) would pin it to the screen's top edge */
+.addvid .stt-workspace-head{position:static;z-index:auto;transform:none;display:flex;align-items:center;gap:16px;padding:16px 20px;
   border-bottom:1px solid var(--rule);flex:none;flex-wrap:wrap}
 .addvid .stt-workspace-head h2{font-size:18px;margin:0}
 .addvid .stt-workspace-step{font-size:12px;color:var(--dim);flex:1}
