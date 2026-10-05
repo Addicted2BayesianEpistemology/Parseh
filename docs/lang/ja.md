@@ -1,6 +1,6 @@
 # Japanese — the annotation conventions
 
-How a Japanese sentence becomes a glossed line: what goes into each field
+{{?new}}How a Japanese sentence becomes a glossed line: what goes into each field
 and how it is written. These rules bind both the reading editions and the
 video captions; they are embedded into every prompt that asks for Japanese
 annotation, so they are written as instructions to the annotator.
@@ -14,7 +14,7 @@ gloss is written in is the book's or the video's own choice, `"gloss"` in
 `book.json` / `video.json`, and English when the key is absent. This file
 is about Japanese as the language being **taught**: the examples below
 gloss into English because they must gloss into something, and every rule
-that turns on the gloss language says so.
+that turns on the gloss language says so.{{/new}}
 
 ## The text field
 
@@ -27,8 +27,8 @@ no word separator, so a sentence is split into chunks at the boundaries
 you choose, and the chunks joined back with **nothing between them** must
 reproduce the sentence exactly, character for character — a machine checks
 that. (A source that does put spaces in the text keeps them, inside the
-chunk they fall in.) **Never correct the text in `fa`** — the correction
-goes in `note` (videos) or in the vocabulary line (books).
+chunk they fall in.) **Never correct the text in `fa`**{{?new}} — the correction goes in {{?video}}`note`{{/video}}{{?book}}the
+vocabulary line{{/book}}{{/new}}.
 
 There are no marks to strip: the plain pass shows the same text without
 the reading over it.
@@ -97,7 +97,7 @@ over:
   `（` `）` are ordinary text.
 
 In a book the line is the last argument of `\chrw`,
-`\chrw{}{山へ柴刈りに、}{やまへしばかりに、}{yama e shibakari ni,}{…}{…}{山(やま) へ 柴刈り(しばかり) に 、}`;
+{{?classic}}`\chrw{}{山へ柴刈りに、}{やまへしばかりに、}{yama e shibakari ni,}{…}{…}{山(やま) へ 柴刈り(しばかり) に 、}`{{/classic}}{{?ipa}}`\chrw{}{山へ柴刈りに、}{やまへしばかりに、}{jama e ɕibakaɾi ni,}{…}{…}{山(やま) へ 柴刈り(しばかり) に 、}`{{/ipa}};
 in a video it is the chunk's `"words"`. **Every chunk of Japanese text
 carries its words, and they start from the machine's**: the toolbox proposes
 the division and the readings when a text is added, and they are a draft to
@@ -114,7 +114,7 @@ has none yet, the readings are a dictionary's, which is not the sentence's
 
 ## Transliteration
 
-`tr` is **Hepburn rōmaji**, written from the reading:
+{{?classic}}`tr` is **Hepburn rōmaji**, written from the reading:
 
 - Long vowels with macrons: **ō ū** (`Tōkyō`, `kūki`), `ei` written `ei`
   (`sensei`), `ii` written `ii`.
@@ -137,26 +137,46 @@ written in. Never respell the reading in the gloss language's orthography:
 `sci` for し in an Italian book, `ş` for し in a Turkish one, `ou` for う in
 a French one would each make one edition unreadable to everybody else,
 and the reading is in `kana` beside it for whoever wants the sound without
-the convention.
+the convention.{{/classic}}{{?ipa}}`tr` is the pronunciation of the chunk, written in **IPA** from its reading: the broad
+(phonemic) IPA of standard Tokyo Japanese, with no slashes and no square brackets, and one scheme from the first
+chunk to the last. `kana` stays the reading, in hiragana, and is never IPA.
+
+- Vowels **a i ɯ e o**; a long vowel is written long with **ː** (`koːen`, `kɯːki`), and so are `ei` and `ou` where
+  they are said long (`seɴseː`, `ɡakkoː`).
+- Consonants: **k ɡ s z t d n h b p m j ɾ w**; し is **ɕ**, じ and ぢ are **dʑ**, ち is **tɕ**, つ is **ts**,
+  ふ is **ɸ**, ひ is **ç**; the small ゃ ゅ ょ give **j** (`kja`, `ɕa`, `tɕɯ`).
+- **ん** is **ɴ** everywhere. **っ** doubles the following consonant (`ɡakkoː`, `kitte`, `mattɕa`).
+- The particles は, へ, を as they sound: **wa, e, o**.
+- Words separated by spaces at the boundaries a dictionary would draw (`kandʑi o kakɯ`); a particle is its own
+  word; a verb and its auxiliaries stay together (`tabeteimasɯ`). No capitals except proper names. Pitch accent is
+  not written, and a vowel between voiceless consonants is written as it is spelt, not devoiced.
+
+`tr` is on every glossed chunk, like `kana`.
+
+IPA is built on no one's spelling and so does not follow the gloss language: it is the same in a book glossed in
+Italian or in Turkish as in one glossed in English, and the reading is in `kana` beside it for whoever wants the
+kana.{{/ipa}}
 
 ## Vocabulary
 
 `voc` is written in the voice of the books' gloss blocks: headword +
-rōmaji + meaning.
+{{?classic}}rōmaji{{/classic}}{{?ipa}}IPA{{/ipa}} + meaning.
 
 - A **verb** is given as its **dictionary form, -masu stem and -te form**,
   then the meaning, with its **class** in brackets after it:
-  `\vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}`;
-  `\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}`;
+  {{?classic}}`\vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}`;
+  `\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}`;{{/classic}}{{?ipa}}`\vb{書く}{kakɯ}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}`;
+  `\vb{食べる}{tabeɾɯ}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}`;{{/ipa}}
   `する` and `来る` are `irregular`; a **-suru** compound is whole in every
   slot,
-  `\vb{勉強する}{benkyō suru}{勉強し}{benkyō shi}{勉強して}{benkyō shite}{to study (suru)}`.
+  {{?classic}}`\vb{勉強する}{benkyō suru}{勉強し}{benkyō shi}{勉強して}{benkyō shite}{to study (suru)}`{{/classic}}{{?ipa}}`\vb{勉強する}{beɴkjoː sɯɾɯ}{勉強し}{beɴkjoː ɕi}{勉強して}{beɴkjoː ɕite}{to study (suru)}`{{/ipa}}.
   The form in the text is tied to it: `書いて · 書く, te-form`; `食べました ·
   食べる, past polite`.
-- An **adjective** names its class: `\dw{高い}{takai} (i-adj.) high, expensive`;
-  `\dw{静か}{shizuka} (na-adj.) quiet`.
-- A **noun** is `\dw{漢字}{kanji} Chinese character`; a counter is named as
-  such (`\dw{人}{nin} counter for people`).
+- An **adjective** names its class: {{?classic}}`\dw{高い}{takai} (i-adj.) high, expensive`;
+  `\dw{静か}{shizuka} (na-adj.) quiet`{{/classic}}{{?ipa}}`\dw{高い}{takai} (i-adj.) high, expensive`;
+  `\dw{静か}{ɕizɯka} (na-adj.) quiet`{{/ipa}}.
+- A **noun** is {{?classic}}`\dw{漢字}{kanji} Chinese character`{{/classic}}{{?ipa}}`\dw{漢字}{kaɴdʑi} Chinese character`{{/ipa}}; a counter is named as
+  such ({{?classic}}`\dw{人}{nin} counter for people`{{/classic}}{{?ipa}}`\dw{人}{niɴ} counter for people`{{/ipa}}).
 - A **particle** doing something a learner may not expect is **named**:
   `\pw{に} particle, direction`, `\pw{と} particle, quotation`; the ordinary
   particles are never glossed (below).
@@ -167,9 +187,9 @@ rōmaji + meaning.
   `\emph`, `\nobreak`), as the Persian editions do, and its entries are
   parted by `; `: `\vb` for every verb, `\dw` for every other headword. The
   seven slots of `\vb` are, in this order,
-  **dictionary form, -masu stem, -te form**, each with its rōmaji and never
+  **dictionary form, -masu stem, -te form**, each with its {{?classic}}rōmaji{{/classic}}{{?ipa}}IPA{{/ipa}} and never
   with kana (the chunk's kana line carries the reading), then the meaning —
-  `\vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}` — and
+  {{?classic}}`\vb{書く}{kaku}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}`{{/classic}}{{?ipa}}`\vb{書く}{kakɯ}{書き}{kaki}{書いて}{kaite}{to write (godan; tr.)}`{{/ipa}} — and
   the edition prints *stem* and *-te* before the second and third forms,
   so never put another form (the past, the potential) into those slots.
 - What the three forms do not name goes in **one parenthesis after the
@@ -186,35 +206,18 @@ rōmaji + meaning.
   - `hon.` or `hum.` for a verb that is honorific or humble (いらっしゃる,
     おっしゃる, 参る, 申す), which a gloss like *to come* would hide.
 
-  `\vb{来る}{kuru}{来}{ki}{来て}{kite}{to come (irregular; intr.)}`,
+  {{?classic}}`\vb{来る}{kuru}{来}{ki}{来て}{kite}{to come (irregular; intr.)}`,
   `\vb{いらっしゃる}{irassharu}{いらっしゃい}{irasshai}{いらっしゃって}{irasshatte}{to
-  come, to go, to be (godan; intr.; hon.)}`.
-{{?video}}- A video's line is written exactly as a book's; a line with no macro at
-  all is plain text, and is also accepted. Japanese script inside it is fine —
-  the player shows it in the target font — and, as in a book, a headword takes
-  its rōmaji and never its kana (the chunk's `kana` and `words` carry the
-  reading). What a video adds is the form its chunk has, where it is none of
+  come, to go, to be (godan; intr.; hon.)}`{{/classic}}{{?ipa}}`\vb{来る}{kɯɾɯ}{来}{ki}{来て}{kite}{to come (irregular; intr.)}`,
+  `\vb{いらっしゃる}{iɾaɕɕaɾɯ}{いらっしゃい}{iɾaɕɕai}{いらっしゃって}{iɾaɕɕatte}{to
+  come, to go, to be (godan; intr.; hon.)}`{{/ipa}}.
+{{?video}}- What a video adds is the form its chunk has, where it is none of
   the three the `\vb` prints, nor one its parenthesis names: it is named after
   the entry, outside it, with its sound,
-  `\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}; here
-  \pw{食べました} \textit{tabemashita}, past polite`.
-{{/video}}- The gloss editor's sources sidebar, in the reader and in the player, now
-  proposes this entry from the dictionary for a verb it recognises: the
-  three forms with the rōmaji the dictionary gives them (the -te form is its
-  past with た made て, 書いた kaita → 書いて kaite), the class it records,
-  checked against those forms — so 帰る, which looks ichidan, comes out
-  godan, as its stem 帰り says — `tr.`/`intr.` only where it records one
-  (about half the verbs; the rest are left without, not guessed), and
-  `hon.`/`hum.` where the sense it prints is tagged so. A verb the chunk
-  writes in another of the dictionary's spellings is proposed in the
-  chunk's: 飲んだ gives 飲む, though the dictionary files it under のむ. It
-  is a **draft for you to correct**: the meaning is the dictionary's first
-  sense, which is often a definition rather than the one equivalent wanted
-  here, or not the sense of the passage; an auxiliary after the -te form
-  (いる in 書いている, しまう, みる) is proposed as a verb of its own, and is
-  glossed instead as the construction, `\textit{-te iru}`. Where it could not
-  fill a slot, the button says which.
-
+  {{?classic}}`\vb{食べる}{taberu}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}; here
+  \pw{食べました} \textit{tabemashita}, past polite`{{/classic}}{{?ipa}}`\vb{食べる}{tabeɾɯ}{食べ}{tabe}{食べて}{tabete}{to eat (ichidan; tr.)}; here
+  \pw{食べました} \textit{tabemaɕita}, past polite`{{/ipa}}.
+{{/video}}
 One equivalent in the gloss language rather than a string of synonyms; no
 etymologies of kanji; **an empty `voc` is the right answer** for a chunk
 needing nothing. The repetition rule is Frank's own: a full entry the
@@ -255,3 +258,29 @@ where Japanese breathes. Never split a **word from its particle**
 (`赤い花`, `大きな家`), or the copula from what it follows (`学生です`).
 Punctuation stays with the chunk before it. A very short sentence (`はい`,
 `行こう`) is one chunk; that is normal and not a fault.
+
+## Example
+
+{{?note}}No speaker has reviewed this example yet: a Japanese reader should read the chunks, the kana, the
+rōmaji, the IPA and the word lines before the prompt is trusted.{{/note}}Three chunks of one sentence, as an answer
+writes them: the same shape in every prompt. The meanings here are written in English because an example has to
+be written in something; yours are written in the gloss language of this prompt.
+
+{{?classic}}```json
+{"chunks": [
+  {"fa": "毎朝、", "kana": "まいあさ、", "tr": "maiasa,", "voc": "\\dw{毎朝}{maiasa} every morning", "en": "every morning,", "words": "毎朝(まいあさ) 、"},
+  {"fa": "新聞を", "kana": "しんぶんを", "tr": "shinbun o", "voc": "\\dw{新聞}{shinbun} newspaper", "en": "newspaper", "words": "新聞(しんぶん) を"},
+  {"fa": "読みます。", "kana": "よみます。", "tr": "yomimasu.", "voc": "\\vb{読む}{yomu}{読み}{yomi}{読んで}{yonde}{to read (godan; tr.)}", "en": "read.", "words": "読みます(よみます) 。"}
+]}
+```{{/classic}}{{?ipa}}```json
+{"chunks": [
+  {"fa": "毎朝、", "kana": "まいあさ、", "tr": "maiasa,", "voc": "\\dw{毎朝}{maiasa} every morning", "en": "every morning,", "words": "毎朝(まいあさ) 、"},
+  {"fa": "新聞を", "kana": "しんぶんを", "tr": "ɕiɴbɯɴ o", "voc": "\\dw{新聞}{ɕiɴbɯɴ} newspaper", "en": "newspaper", "words": "新聞(しんぶん) を"},
+  {"fa": "読みます。", "kana": "よみます。", "tr": "jomimasɯ.", "voc": "\\vb{読む}{jomɯ}{読み}{jomi}{読んで}{joɴde}{to read (godan; tr.)}", "en": "read.", "words": "読みます(よみます) 。"}
+]}
+```{{/ipa}}
+
+What to notice: the particle を is a word of its own in `tr` and in `words`, and is never glossed; `kana` is the
+reading of the whole chunk, the punctuation where the text has it, and `words` run together say the same; the
+verb's `\vb` gives the dictionary form, the -masu stem and the -te form with the class (`godan`), while the chunk
+shows the polite form, which the stem builds (読み + ます).
