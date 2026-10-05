@@ -2244,7 +2244,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
       const r = b.getBoundingClientRect(), top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       b.focus();
       return {open: w.open, modal: w.matches(':modal'), framed: w.contains(document.getElementById('stt_frame')),
-              coveredBy: top === w ? 'the workspace' : top && (top.id || top.tagName), focusable: document.activeElement === b};
+              coveredBy: top && w.contains(top) ? 'the workspace' : top && (top.id || top.tagName), focusable: document.activeElement === b};
     });
     eq(behind, {open: true, modal: true, framed: true, coveredBy: 'the workspace', focusable: false},
        'the video waits in the modal workspace: "Edit the transcript…" behind it is covered, and cannot be focused');
