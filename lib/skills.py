@@ -38,7 +38,7 @@ from collections import OrderedDict
 HERE = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.dirname(HERE)
 for _p in (HERE, os.path.join(ROOT, "markdown", "app"), os.path.join(ROOT, "markdown", "exlex"),
-           os.path.join(ROOT, "markdown"), os.path.join(ROOT, "youtube", "lib")):
+           os.path.join(ROOT, "youtube", "lib")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import glossregion                                              # noqa: E402

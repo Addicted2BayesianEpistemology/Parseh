@@ -138,8 +138,6 @@ import promptkit          # noqa: E402  the choices a person makes for one promp
 import promptspage        # noqa: E402  Settings -> Your prompts
 import getarasaac         # noqa: E402  the ARASAAC pictograms: their words and their pictures (§8.40, W9)
 import arasaacpage        # noqa: E402  Settings -> Pictograms (ARASAAC)
-import skills             # noqa: E402  the prompts as skills for a chatbot (§9, a0.4.2)
-import skillspage         # noqa: E402  Settings -> Skills for your chatbot
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
 import make_index           # noqa: E402  what a built reader says about itself
 import mobile               # noqa: E402  the mobile interface's own pages (/m/books/)
@@ -208,6 +206,9 @@ studio.set_base(STUDIO_BASE)
 # a latex block that cannot be drawn names the page that mends it: this
 # server's Settings -> LaTeX drawings (the studio alone has none)
 import latexdraw                                               # noqa: E402
+# AFTER THE STUDIO, which puts its own folders on sys.path: the skills read its box catalogue (§9, a0.4.2)
+import skills             # noqa: E402  the prompts as skills for a chatbot
+import skillspage         # noqa: E402  Settings -> Skills for your chatbot
 studio.htmlgen.set_latex(latexdraw.draw, latexdraw.draw_all, settings="/settings/latex/",
                          peek=latexdraw.peek)
 

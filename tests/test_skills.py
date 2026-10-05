@@ -338,6 +338,18 @@ class TheTwoRoadsAreOneForTheMarkdownSkill(unittest.TestCase):
                 for translit, _m in skills._variants("studio-doc", L):
                     self.doc_road(L.code, list(p.boxes), "intermediate", "page", translit)
 
+    def test_any_set_of_boxes_a_page_can_tick(self):
+        # a fixed pseudo-random sample of the 2^21 sets, with a level, a length and a scheme, in every language
+        import random
+        rnd = random.Random(20261005)
+        levels = [i for i, _n, _l in promptboxes.LEVELS]
+        lengths = [i for i, _n, _l in promptboxes.LENGTHS]
+        for L in languages.LANGS.values():
+            variants = [t for t, _m in skills._variants("studio-doc", L)]
+            for _ in range(12):
+                boxes = [b for b in promptboxes.BOX_IDS if rnd.random() < 0.5]
+                self.doc_road(L.code, boxes, rnd.choice(levels), rnd.choice(lengths), rnd.choice(variants))
+
     def test_the_default_boxes_and_a_level_and_a_length(self):
         for level in [i for i, _n, _l in promptboxes.LEVELS]:
             for length in [i for i, _n, _l in promptboxes.LENGTHS]:
