@@ -256,9 +256,16 @@ try {
   const posted = [];                       // every region/prepare request the pages sent: {path, body}
   async function open(url, name, {refuseStorage = false} = {}) {
     const page = await context.newPage();
+    // WHAT THE ROW KEEPS is refused (every access throws), and nothing else: the player's own storage reads
+    // (youtube/lib/player.js, at load) are older than the row and not what this proves
     if (refuseStorage) await page.addInitScript(() => {
-      const boom = () => { throw new Error('storage refused'); };
-      Object.defineProperty(window, 'localStorage', {get: boom});
+      for (const m of ['getItem', 'setItem', 'removeItem']) {
+        const real = Storage.prototype[m];
+        Storage.prototype[m] = function (k, ...rest) {
+          if (/^parseh_llmrow_/.test(String(k))) throw new Error('storage refused');
+          return real.call(this, k, ...rest);
+        };
+      }
     });
     page.on('pageerror', e => errors.push(name + ' pageerror: ' + e.message));
     page.on('response', r => {
