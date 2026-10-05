@@ -620,8 +620,8 @@ try {
       await page.evaluate(t => { document.documentElement.setAttribute('data-theme', t); if (document.body) document.body.setAttribute('data-theme', t); }, theme);
       await sleep(150);
       const box = await locator.evaluate(el => { el.scrollIntoView({block: 'center'}); const r = el.getBoundingClientRect(); return {l: r.left, r: r.right, w: innerWidth, page: document.documentElement.scrollWidth}; });
-      assert(box.l >= -0.5 && box.r <= box.w + 0.5 && box.page <= box.w + 1, `${name}: inside the window and the page no wider (${theme}, ${w} px)`);
       if (SHOTS) await page.screenshot({path: `${SHOTS}/${name}-${theme}-${w}.png`});
+      assert(box.l >= -0.5 && box.r <= box.w + 0.5 && box.page <= box.w + 1, `${name}: inside the window and the page no wider (${theme}, ${w} px) ${JSON.stringify(box)}`);
     }
     await page.setViewportSize({width: 1280, height: 900});
     await page.evaluate(() => { document.documentElement.setAttribute('data-theme', 'light'); if (document.body) document.body.setAttribute('data-theme', 'light'); });
