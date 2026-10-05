@@ -3547,7 +3547,9 @@ def test_corpus():
     # form's translit -- in the spelling the text uses (spelled).
     check("put(CH.voc, vb.tex" in reader,
           "the book's sidebar puts a verb hit's \\vb into the vocabulary")
-    check("srcPut('voc', vb.here" in player,
+    # (vbEntry is the entry hung on the chunk's word -- vb.here -- or, where the video's vocabulary line is a
+    # book's macros, the same entry as the book's \vb: a0.4.2)
+    check("srcPut('voc', vbEntry(vb), VOC_JOIN)" in player and "function vbEntry(vb)" in player and "vb.here" in player,
           "the player's puts the verb's entry, hung on the chunk's word")
     # ...AND A VERB THAT IS MORE THAN ONE WORD HAS A BUTTON OF ITS OWN.  فکر
     # کردن is one verb: the light verb's \vb and the \bw for the word it
@@ -3561,7 +3563,7 @@ def test_corpus():
           "a compound has its own button in the book, and it puts the \\vb and "
           "the \\bw as one entry")
     check("(vb.compound && vb.compound.plain) ? vb.compound : null" in player
-          and "srcPut('voc', cp.plain" in player,
+          and "srcPut('voc', cpEntry(cp), VOC_JOIN)" in player and "cp.plain" in player,
           "and one in the player, which puts the compound's own plain line")
     for name, src in (("the book", reader), ("the player", player)):
         check("is ONE verb written in two words" in src
