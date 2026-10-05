@@ -145,19 +145,16 @@ SETTINGS = {
                          "pins can be fetched, each checked against its hash."),
     "speech.remove": (None, "It frees the space the program or a model took."),
     "speech.stop": (None, "It stops an install this page started."),
-    # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) puts two things
-    # under the computer's roof.  Making the book's folder writes a folder
-    # under books/ in which an agent will be told to run Parseh's own tools
-    # -- so what it makes is what Parseh will run -- and opening that folder
-    # starts the system's file manager on this computer's own screen.  Finish
-    # runs the book's checks and its full build on this computer, and hands
-    # the book to the reader's doors.  Reading the making panel, looking at
-    # the reader (a build of it), the draft PDF and writing an ask are not
-    # here: any device that has been let in may.
-    "making.folder": (RUN, "An agent opened in the folder it makes runs %s's own tools there, "
-                           "and the folder is opened on this computer's own screen." % NAME),
-    "making.finish": (RUN, "Finish runs the book's checks and its full build on this computer, "
-                           "and ends the making."),
+    # A BOOK MADE BY AN AGENT, IN PLACE (TO-DO §8.40, a0.4.2) HAS NO KEY HERE.
+    # It had two (making the folder, and Finish), both the computer's alone, and
+    # the owner took that back on 2026-09-29: "there is no actual reason to
+    # restrict it to the local and make it impossible from remote".  Making the
+    # folder, giving it text a part at a time, the making panel, an ask, Finish
+    # and reopening are open to every device that has been let in; the agent
+    # that runs tools in the folder is started by the person, on the computer.
+    # Only OPENING THE FOLDER stays the computer's, because it opens a file
+    # manager on that computer's own screen: a fact about the request
+    # (serve.py's `here`), not a permission, so it is no setting.
     # YOUR OWN PROMPTS ARE NOT RISKY (brief §8.4, a0.4.2).  A prompt is text
     # that a person copies into a chatbot: writing one, or taking one away,
     # decides nothing Parseh will run -- no model of Parseh's own runs, nothing
@@ -187,7 +184,8 @@ SETTINGS = {
 # SETTINGS WHOSE CONTROL IS NOT ON A PAGE OF SETTINGS, because it sits on the
 # page of the thing it acts on (the add-a-book page, a book's reader): no door
 # lists them, and tests/test_settings_risk.py says so instead of losing them.
-ELSEWHERE = ("making.folder", "making.finish")
+# None today: the two a book made by an agent had are gone (see above).
+ELSEWHERE = ()
 
 # Asking how things stand is not a setting: open to every device let in, and
 # a phone may always SEE what it may not change.

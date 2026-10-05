@@ -38,11 +38,31 @@ NOTES.md, ASKS.md, making.json     the journal, the person's asks, the record of
 3. `annot/*.json` is the truth; the `.tex` chapters are assembled from it by `assemble.py` and never edited by hand. A correction goes into the JSON; the `.tex` is built again.
 4. Before EVERY batch, read `ASKS.md` again. Do what an entry asks from the next batch on, write in `NOTES.md` what you changed because of it, and ask the person in your own chat if an ask goes against the method.
 5. Keep `NOTES.md`: the source's oddities, the decisions, what is open.
-6. Keep `making.json` (below) every time you finish something. Never change its `state`, `parseh` or `started`. When `state` says `finished`, stop: the book is the person's now.
+6. Keep `making.json` (below) every time you finish something, changing only your own fields: read it again just before you write it, because Parseh writes `state`, `parseh`, `started`, `parts` and `more_coming` in it while you work, and those are never yours. When `state` says `finished`, stop: the book is the person's now -- unless a later entry in `ASKS.md` says `reopened`.
 
 ## `making.json`
 
-`stage`: `source` (the original recovered), `chapters` (the chapter table written), `batch`, `done` (every batch is in). `on`: one line, what you are on. `chapters`: `[{"chapter": 1, "paragraphs": 24}, ...]`. `batches`: `{"done": 3, "of": 12}`. `checks`: what the tools last said, e.g. `{"check_batch": "0 errors", "assemble": "ALL PARAGRAPHS CLEAN", "verify_book": "clean"}`. `updated`: the time you wrote it, UTC (`2026-09-29T14:20:01Z`).
+`stage`: `source` (the original recovered), `chapters` (the chapter table written), `batch`, `done` (every batch is in), `waiting` (every part is in and more text is coming). `on`: one line, what you are on. `chapters`: `[{"chapter": 1, "paragraphs": 24, "part": 1}, ...]` (`part`, the part its first paragraphs came from, is optional). `batches`: `{"done": 3, "of": 12}`. `checks`: what the tools last said, e.g. `{"check_batch": "0 errors", "assemble": "ALL PARAGRAPHS CLEAN", "verify_book": "clean"}`. `sources`: which parts of the text you have recovered (below). `updated`: the time you wrote it, UTC (`2026-09-29T14:20:01Z`).
+
+## The text in parts
+
+The person may give the text a bit at a time, from any device, as files or pasted. The original is **part 1**; every part is an entry of `parts` in `making.json` (Parseh writes it, with `more_coming`: never you): its `n`, its `file` in `original/`, its PDF `pages`, its `label`, and where it goes -- `chapter` is `new` (a chapter of its own), `last` (more of the last chapter) or `auto` (you decide from the text), and `join` is `paragraph` when the part was cut in the middle of a paragraph and its first paragraph goes on the last one of the part before.
+
+**Before every batch**, with `ASKS.md` (a new part is noted there too), read `making.json` again and take, in order, every part whose `n` is not in `sources.done`:
+
+1. Look at it first -- `--look` writes nothing, and `--book` lets the tool number the paragraphs on from what the book holds:
+
+   ```bash
+   {{PYTHON}} {{LIB}}/sourcetext.py "{{BOOK_DIR}}/original/part-002-name.pdf" --lang {{LANG}} --from A --to B --book {{BOOK_DIR}} --look
+   ```
+
+   (`--from`/`--to` only for a PDF with `pages`.) It says how many paragraphs there are and what to look at: an epub's headings, a text that starts in lower case, a book whose last paragraph ends without a full stop.
+2. Decide what `auto` leaves to you: a heading opens a new chapter; a start in the middle of a sentence is a part cut in the middle of a paragraph. A part may hold several chapters: split it where the source does. Write what you decided, part by part, in `NOTES.md`.
+3. Recover it: the same command without `--look`, with `--chapter new`, `last` or a chapter's number. It writes `source/paras/chN_pNN.txt` and adds to `source/clean.txt`. Run it once: run again, it would put the part in twice. For a part cut in the middle of a paragraph, join its first paragraph to the last one of the part before (the file and `clean.txt`) and annotate THAT paragraph again: its source changed, so its batch is redone (Step 2, e-h).
+4. Make the chapter lists again (`chapter_src.py --book {{BOOK_DIR}} --all`), bring the chapter table in `NOTES.md` and `making.json` (`chapters`; `batches.of` grows) up to date and show it to the person in your own chat, as after Step 1.
+5. Write `sources`, which is yours alone: `{"done": [1, 2], "of": 3, "decided": {"2": "a new chapter: it opens with a heading"}}`.
+
+Then the batches of the new paragraphs, as Step 2 says. When every part is in `sources.done` and every batch is in: with `more_coming` false, write `stage`: `done`, say **the text is complete** and stop (Finish is the person's); with it true, write `stage`: `waiting`, say you are waiting for the next part, and read `making.json` again when you are told one has come.
 
 ## What the finished book is
 
@@ -91,13 +111,13 @@ These are binding for every chunk of this book.
 
 ### Step 1 -- the source text, once and carefully
 
-If the original is a PDF with a text layer:
+Recover the text with Parseh's own tool, which reads a PDF with a text layer, an epub and a plain text file alike (the original is part 1; every later part goes the same way, see above):
 
 ```bash
-{{PYTHON}} {{LIB}}/extract_pdf.py "{{ORIGINAL}}" {{PAGE_ARGS}} --lang {{LANG}} --out {{BOOK_DIR}}/source/clean.txt --paras {{BOOK_DIR}}/source/paras --tag ch1
+{{PYTHON}} {{LIB}}/sourcetext.py "{{ORIGINAL}}" {{PAGE_ARGS}} --lang {{LANG}} --out {{BOOK_DIR}}/source/clean.txt --paras {{BOOK_DIR}}/source/paras --tag ch1
 ```
 
-Look at what came out: bidi controls, presentation forms, private-use marks, a running header to `--drop`, marks orphaned across a space, words split by a real space, and whatever the conventions say about the script of {{LANG_NAME}}. If the original is an epub or plain text, recover `source/clean.txt` yourself to the same shape -- one paragraph per line, the edition's own spelling kept -- and write the paragraph files `source/paras/chN_pNN.txt` from it.
+Look at what came out: bidi controls, presentation forms, private-use marks, a running header to `--drop`, marks orphaned across a space, words split by a real space, and whatever the conventions say about the script of {{LANG_NAME}}. The edition's own spelling is kept.
 
 Then decide the **chapter structure** from the source itself, write the paragraph files `source/paras/chN_pNN.txt` for every chapter, and make the chapter lists:
 
@@ -167,7 +187,7 @@ The shape (Persian glossed in English; the same shape for every language and eve
 
 ### Step 3 -- the whole book
 
-When every chapter is closed: `verify_book.py` clean, every batch `\input` in `main.tex`. Write `making.json` (`stage`: `done`, the last `checks`), report the totals -- chapters, paragraphs, subparagraphs, chunks -- and the open questions in `NOTES.md`, and tell the person. The person presses **Finish** in Parseh (it runs the full build and the last verification); you do not.
+When every chapter is closed: `verify_book.py` clean, every batch `\input` in `main.tex`. Write `making.json` (`stage`: `done` -- or `waiting`, if more text is coming --, the last `checks`), report the totals -- chapters, paragraphs, subparagraphs, chunks -- and the open questions in `NOTES.md`, and tell the person. The person presses **Finish** in Parseh (it runs the full build and the last verification); you do not.
 
 ## How to work with the person
 

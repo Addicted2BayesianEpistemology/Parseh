@@ -165,6 +165,12 @@ WRITES = (
     ("POST", "/books/english/mini-en/__making/ask"),
     ("POST", "/books/english/mini-en/__making/open"),
     ("POST", "/books/english/mini-en/__making/finish"),
+    # and the text given to that agent a part at a time, said to be all of it, or taken back by
+    # reopening, and a file or a text added onto a book that is already here
+    ("POST", "/books/english/mini-en/__making/part?name=a.txt"),
+    ("POST", "/books/english/mini-en/__making/more"),
+    ("POST", "/books/english/mini-en/__making/reopen"),
+    ("POST", "/books/english/mini-en/__append?name=a.txt"),
     ("POST", "/anki/sync/upload"),
     ("POST", "/exercises/api/import"),
     ("POST", "/youtube/api/upload"),

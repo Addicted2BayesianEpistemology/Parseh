@@ -7,10 +7,10 @@ not part of anybody's use of Parseh, and not a model.  A real agent cannot be ru
 test; this does, deterministically, what the instructions in the book's AGENTS.md tell an
 agent to do, by calling Parseh's own tools with Parseh's own Python, by their full paths:
 
-    python3 tests/making_agent.py original <model book> <out.txt>
+    python3 tests/making_agent.py original <model book> <out.txt> [--first N] [--count N]
         the two-paragraph original a run is made from: the text of the first two paragraphs of
         a fixture edition (tests/fixtures/books/<folder>/mini-xx), so that every language of the
-        registry has one
+        registry has one -- or, for a part of the text given later, paragraphs N and on (0-based)
     python3 tests/making_agent.py step <book folder> <model book>
         the next stage, and stop -- so that a browser test can look at the book between two
     python3 tests/making_agent.py run <book folder> <model book> [--pause SECONDS]
@@ -33,7 +33,15 @@ THE STAGES, in the order an agent does them, each a rest point the panel can be 
                (the scripted part -- a real agent writes them); lib/check_batch.py, merge_batch.py,
                normalize_batch.py and assemble.py, which must say ALL PARAGRAPHS CLEAN; \\input{chN.tex}
                added to main.tex; making.json and NOTES.md kept
-    final      lib/verify_book.py, and the record says every batch is in
+    final      lib/verify_book.py, and the record says every batch is in: `done`, or `waiting` when
+               the person has not said that this is all the text
+    part N     THE TEXT IN PARTS (docs/new-book-prompt.md, "The text in parts"): before every batch it
+               reads making.json again, and takes the next part not in `sources.done` -- the file
+               recovered by lib/sourcetext.py with --book, so that the paragraphs are numbered on
+               from the book's, a chapter to a paragraph as this script always works, the chapter
+               lists and the table made again, `sources` written and what it decided said in
+               NOTES.md.  It never writes `parts` or `more_coming`, and writes making.json from what it
+               reads just before, so that what Parseh wrote meanwhile is kept
 
 WHAT IT UNDERSTANDS IN ASKS.md, because it has to do something checkable with an ask: one that says
 "capitals" makes the meanings of every later batch capitals, one that says "lower case" puts them back;
@@ -122,9 +130,10 @@ def model_paragraphs(model, count=2):
     return out
 
 
-def write_original(model, out):
+def write_original(model, out, first=0, count=2):
+    """The text of paragraphs `first` .. `first + count - 1` of the model, as a file."""
     with io.open(out, "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n\n".join(t for t, _s in model_paragraphs(model)) + "\n")
+        f.write("\n\n".join(t for t, _s in model_paragraphs(model, first + count)[first:]) + "\n")
     return out
 
 
@@ -179,11 +188,16 @@ def read_asks(book, upto):
     seen = int(doc.get("asks_read", 0))
     case = doc.get("meanings", "")
     got = entries(book)
+    # the last word about stopping wins: a `reopened` entry takes back the `finished` before it
+    stopped = [("finished" in h) for h, _b in got[seen:] if "finished" in h or "reopened" in h]
+    if stopped and stopped[-1]:
+        raise SystemExit("ASKS.md says the person finished this book: stopping")
     for head, body in got[seen:]:
-        if "finished" in head:
-            raise SystemExit("ASKS.md says the person finished this book: stopping")
         low = body.lower()
-        if "about a chunk" in head:
+        if "finished" in head or "reopened" in head or "a part was added" in head or "all the text" in head \
+                or "more text is coming" in head:
+            note(book, "- ASKS.md, %s: read (making.json says the rest)." % head)
+        elif "about a chunk" in head:
             note(book, "- ASKS.md, %s: %s -- an ask about one chunk: noted, and left for a person to judge."
                  % (head, " ".join(body.split())[:160]))
         elif "capitals" in low or "upper case" in low:
@@ -208,6 +222,17 @@ def find_original(book):
     return files[0]
 
 
+def parts_of(doc):
+    return sorted((p for p in (doc.get("parts") or []) if isinstance(p, dict) and isinstance(p.get("n"), int)),
+                  key=lambda p: p["n"])
+
+
+def untaken(doc):
+    """The parts in making.json that `sources.done` does not hold yet, in order -- Parseh wrote the list."""
+    done = (doc.get("sources") or {}).get("done") or []
+    return [p for p in parts_of(doc) if p["n"] not in done]
+
+
 def next_stage(book):
     doc = read_json(os.path.join(book, "making.json"), {})
     if doc.get("state") == "finished":
@@ -217,38 +242,95 @@ def next_stage(book):
         return "source"
     if stage == "source":
         return "chapters"
+    if untaken(doc):                    # BEFORE EVERY BATCH: a part that came in meanwhile is taken first
+        return "part"
     b = doc.get("batches") or {}
-    if stage in ("chapters", "batch") and int(b.get("done", 0)) < int(b.get("of", 0)):
+    if int(b.get("done", 0)) < int(b.get("of", 0)):
         return "batch"
-    return "final" if stage != "done" else "done"
+    # every part is in and every batch: `done` says the text is complete, `waiting` that the next is awaited
+    return "idle" if stage == ("waiting" if doc.get("more_coming") else "done") else "final"
+
+
+def book_language(book):
+    return read_json(os.path.join(book, "book.json"), {}).get("language", "fa")
+
+
+def recover(book, entry, *where):
+    """THE ONE RECOVERY OF A FILE'S TEXT, as the instructions give it: lib/sourcetext.py by its full path."""
+    pages = ["--from", str(entry["pages"][0]), "--to", str(entry["pages"][1])] if entry.get("pages") else []
+    return tool(book, "sourcetext.py", os.path.join(book, *entry["file"].split("/")), *pages,
+                "--lang", book_language(book), *where)
+
+
+def one_chapter_each(book, chapter, count):
+    """The tool puts the paragraphs of a file in ONE chapter; this script makes a chapter of every paragraph
+    (a small original, and a book that can be seen growing chapter by chapter): paragraph i of chapter
+    `chapter` becomes paragraph 0 of chapter `chapter + i`."""
+    d = os.path.join(book, "source", "paras")
+    names = [os.path.join(d, "ch%d_p%02d.txt" % (chapter, i)) for i in range(count)]
+    texts = [io.open(n, encoding="utf-8").read() for n in names]
+    for n in names:
+        os.unlink(n)
+    for i, t in enumerate(texts):
+        with io.open(os.path.join(d, "ch%d_p00.txt" % (chapter + i)), "w", encoding="utf-8", newline="\n") as f:
+            f.write(t)
 
 
 def do_source(book):
-    text = io.open(find_original(book), encoding="utf-8").read()
-    paras = [" ".join(p.split()) for p in re.split(r"\n\s*\n", text) if p.strip()]
+    doc = read_json(os.path.join(book, "making.json"), {})
+    first = next((p for p in parts_of(doc) if p["n"] == 1), None) or {"file": os.path.relpath(find_original(book), book).replace(os.sep, "/")}
     os.makedirs(os.path.join(book, "source", "paras"), exist_ok=True)
-    with io.open(os.path.join(book, "source", "clean.txt"), "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n".join(paras) + "\n")
-    for i, p in enumerate(paras):
-        # a paragraph a chapter: a small original, and a book that can be seen growing chapter by chapter
-        with io.open(os.path.join(book, "source", "paras", "ch%d_p00.txt" % (i + 1)), "w",
-                     encoding="utf-8", newline="\n") as f:
-            f.write(p + "\n")
-    note(book, "\n## 1. The source\n\nRecovered from `%s`: %d paragraphs, one to a chapter."
-         % (os.path.relpath(find_original(book), book).replace(os.sep, "/"), len(paras)))
-    keep(book, stage="source", on="the original is recovered: %d paragraphs" % len(paras))
-    return "source recovered: %d paragraphs" % len(paras)
+    said = recover(book, first, "--out", os.path.join(book, "source", "clean.txt"),
+                   "--paras", os.path.join(book, "source", "paras"), "--tag", "ch1")
+    count = int(re.match(r"(\d+) paragraphs", said).group(1))
+    one_chapter_each(book, 1, count)
+    note(book, "\n## 1. The source\n\nRecovered from `%s` with sourcetext.py: %d paragraphs, one to a chapter."
+         % (first["file"], count))
+    keep(book, stage="source", on="the original is recovered: %d paragraphs" % count)
+    return "source recovered: %d paragraphs" % count
 
 
 def do_chapters(book):
     n = len(glob.glob(os.path.join(book, "source", "paras", "ch*_p00.txt")))
     tool(book, "chapter_src.py", "--book", book, "--all")
-    table = [{"chapter": i + 1, "paragraphs": 1} for i in range(n)]
+    table = [{"chapter": i + 1, "paragraphs": 1, "part": 1} for i in range(n)]
     note(book, "\n## 2. The chapters\n\n| chapter | paragraphs |\n|---|---|\n" +
          "\n".join("| %d | 1 |" % (i + 1) for i in range(n)))
+    doc = read_json(os.path.join(book, "making.json"), {})
     keep(book, stage="chapters", chapters=table, batches={"done": 0, "of": n},
+         sources={"done": [1], "of": max(1, len(parts_of(doc))), "decided": {"1": "the first original"}},
          on="the chapter table is written: %d chapters" % n)
     return "chapter table: %d chapters" % n
+
+
+def do_part(book):
+    """The next part not in `sources.done`: recovered NUMBERED ON from the book's, its chapters made, the
+    tables brought up to date, `sources` written.  Never `parts` or `more_coming`: those are Parseh's."""
+    doc = read_json(os.path.join(book, "making.json"), {})
+    part = untaken(doc)[0]
+    if part.get("chapter") not in ("new", "auto") or part.get("join"):
+        raise SystemExit("this script makes a chapter of every paragraph: give a part `new` or `auto`, not %r/%r"
+                         % (part.get("chapter"), part.get("join")))
+    before = len(glob.glob(os.path.join(book, "source", "paras", "ch*_p00.txt")))
+    # LOOK FIRST, as the instructions say (it writes nothing), and only then recover it -- once
+    looked = recover(book, part, "--book", book, "--chapter", "new", "--look")
+    if "nothing written" not in looked or len(glob.glob(os.path.join(book, "source", "paras", "ch*_p*.txt"))) != before:
+        raise SystemExit("--look wrote something:\n" + looked)
+    said = recover(book, part, "--book", book, "--chapter", "new")
+    count = int(re.match(r"(\d+) paragraphs", said).group(1))
+    one_chapter_each(book, before + 1, count)
+    tool(book, "chapter_src.py", "--book", book, "--all")
+    table = (doc.get("chapters") or []) + [{"chapter": before + 1 + i, "paragraphs": 1, "part": part["n"]} for i in range(count)]
+    b = doc.get("batches") or {}
+    src = doc.get("sources") or {}
+    why = "a new chapter for every paragraph (this script's rule)" + (", as the person asked" if part["chapter"] == "new" else "")
+    note(book, "\n## Part %d\n\nRecovered from `%s` by sourcetext.py, numbered on from chapter %d: %d paragraphs. Decided: %s."
+         % (part["n"], part["file"], before, count, why))
+    keep(book, stage="batch", chapters=table, batches={"done": int(b.get("done", 0)), "of": int(b.get("of", 0)) + count},
+         sources={"done": sorted(set(src.get("done") or []) | {part["n"]}), "of": len(parts_of(doc)),
+                  "decided": dict(src.get("decided") or {}, **{str(part["n"]): why})},
+         on="part %d is taken: chapters %d-%d to annotate" % (part["n"], before + 1, before + count))
+    return "part %d taken: %d paragraphs from chapter %d" % (part["n"], count, before + 1)
 
 
 def input_line(book, chapter_file):
@@ -310,10 +392,15 @@ def do_batch(book, model):
 
 def do_final(book):
     out = tool(book, "verify_book.py", "--book", book)
-    checks = read_json(os.path.join(book, "making.json"), {}).get("checks") or {}
+    doc = read_json(os.path.join(book, "making.json"), {})
+    checks = doc.get("checks") or {}
     checks["verify_book"] = "clean"
-    note(book, "\n## Done\n\nverify_book: every paragraph reproduces its source. Open questions: none.")
-    keep(book, stage="done", checks=checks, on="every batch is in and verify_book is clean; ready to finish")
+    more = bool(doc.get("more_coming"))
+    note(book, "\n## %s\n\nverify_book: every paragraph reproduces its source. Open questions: none."
+         % ("Waiting for the next part" if more else "Done: the text is complete"))
+    keep(book, stage="waiting" if more else "done", checks=checks,
+         on=("every part so far is in and verify_book is clean; waiting for the next part" if more else
+             "the text is complete: every batch is in and verify_book is clean; ready to finish"))
     return "final: " + out.splitlines()[-1].strip()
 
 
@@ -321,9 +408,10 @@ def step(book, model):
     which = next_stage(book)
     if which == "finished":
         return "finished: the person ended the making; nothing more to do"
-    if which == "done":
-        return "already done"
-    return {"source": do_source, "chapters": do_chapters, "batch": lambda b: do_batch(b, model),
+    if which == "idle":
+        return "already done" if read_json(os.path.join(book, "making.json"), {}).get("stage") == "done" \
+            else "waiting for the next part"
+    return {"source": do_source, "chapters": do_chapters, "part": do_part, "batch": lambda b: do_batch(b, model),
             "final": do_final}[which](book)
 
 
@@ -331,7 +419,7 @@ def run(book, model, pause):
     while True:
         said = step(book, model)
         print(said, flush=True)
-        if said.startswith(("finished", "already done", "final")):
+        if said.startswith(("finished", "already done", "waiting", "final")):
             return
         time.sleep(pause)
 
@@ -389,6 +477,8 @@ def main(argv=None):
     p = sub.add_parser("original")
     p.add_argument("model")
     p.add_argument("out")
+    p.add_argument("--first", type=int, default=0)
+    p.add_argument("--count", type=int, default=2)
     p = sub.add_parser("step")
     p.add_argument("book")
     p.add_argument("model")
@@ -404,7 +494,7 @@ def main(argv=None):
     p.add_argument("--phone", action="store_true")
     a = ap.parse_args(argv)
     if a.cmd == "original":
-        print(write_original(a.model, a.out))
+        print(write_original(a.model, a.out, a.first, a.count))
     elif a.cmd == "step":
         print(step(os.path.realpath(a.book), os.path.realpath(a.model)))
     elif a.cmd == "run":

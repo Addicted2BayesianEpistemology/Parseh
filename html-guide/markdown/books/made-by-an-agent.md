@@ -26,7 +26,8 @@ copy, with Parseh's own tools run by Parseh's own Python (the instructions
 give its full path, so nothing is installed or activated) and writing nowhere
 but in that folder. Beside the book's own files the folder holds:
 
-- **`original/`** The text the book is made from, as you chose it.
+- **`original/`** The text the book is made from, as you chose it: the first
+  file, and a file for every part you add later.
 - **`AGENTS.md`** The instructions: where the tools are, the rules, what to
   keep. A plain file any agent can be told to read, and several read by
   themselves; `CLAUDE.md` is one line pointing at it.
@@ -51,7 +52,8 @@ cannot collide.
 making stands and when the agent last wrote — *being made · batch 2 of 6 ·
 3 minutes ago* — and moves by itself while the page is open. The stage is one
 of: *not started yet*, *source recovered*, *chapter table*, *batch N of M*,
-*all batches in* and, once you finish it, nothing at all.
+*all batches in*, *waiting for the next part* and, once you finish it,
+nothing at all.
 
 **In the reader** the header has a button, **being made · batch 2 of 6**, which
 opens the **making panel**. It is a panel any device let in can read, on a
@@ -79,7 +81,8 @@ phone too, and it is drawn again by itself every few seconds while it is open:
 - **What the tools said.** The last words of `check_batch`, `assemble` and
   `verify_book`, as the agent kept them in `making.json`.
 - **The agent's notes.** The end of `NOTES.md`.
-- **What to change from now on**, **the folder** and **finish** — below.
+- **The text**, **what to change from now on**, **the folder** and
+  **finish** — below.
 
 ## While it is made, the reader does not edit
 
@@ -96,9 +99,10 @@ assembly of that batch would erase it. So while a book is being made:
 - the passes, the glosses' clouds, the dictionary, the narration and the
   builds work exactly as in any book;
 - and the server refuses the doors that write a chapter — an edit, a cut or a
-  join, a chapter's name or a section, an LLM's answer, the free mark, more
-  text — whatever the page does, answering *This book is being made by an
-  agent … editing is off until the making is finished*.
+  join, a chapter's name or a section, an LLM's answer, the free mark —
+  whatever the page does, answering *This book is being made by an agent …
+  editing is off until the making is finished*. (More text is not one of
+  them: added by hand it becomes a part the agent takes, below.)
 
 Finishing ends all of it.
 
@@ -131,13 +135,54 @@ Whether a batch already built is redone because of an ask is the agent's to
 propose and yours to accept, in its chat: nothing already checked is changed
 behind your back.
 
+## The text, a part at a time
+
+A long book, or several, cannot always be given in one file. The text can come
+in **parts**, a bit at a time, from any device let in, over as many days as
+you like, and the agent takes each part as it comes:
+
+- **The first file is part 1.** The panel lists every part under **the
+  text**: its label or file, its size and pages, where it goes, and where it
+  stands — *not taken by the agent yet*, *taken by the agent* or *in the
+  book*.
+- **Give the agent more text** is a box in the panel (and **add to a book**,
+  on the add page, reaches the same door): a file — a PDF with a text layer
+  and the pages to read, counted from 0, an epub or a plain text file — or
+  text you paste; where it goes — *the agent decides where it goes* (the
+  default), *a new chapter*, *on in the last chapter*, or *on in the last
+  paragraph* when you cut the text in the middle of one; a label, if you like;
+  and **this is all the text** when it is the last. A file is sent from the
+  page, never named by a path on the computer, so it works from another
+  device, and there is no limit to its size but the disk's.
+- **The agent takes it before its next batch.** It looks at the list before
+  every batch, recovers the part with Parseh's own tool, numbering its
+  paragraphs on from the book's, makes its chapters as you said, brings its
+  chapter table up to date and shows it to you in its own chat. Where you left
+  the decision to it, it writes what it decided in `NOTES.md` and the panel
+  shows it under the part, so that you can correct it with an ask.
+- **this is all the text.** While more may come, an agent that has taken every
+  part and made every batch says it is *waiting for the next part*; once you
+  say there is no more, it says the text is complete and stops. **more text is
+  coming** takes that back.
+
+The agent makes every part of a book it is making, because what it writes is
+assembled from its own files. To gloss a text yourself — blank chunks at the
+end of the book, glossed in the reader a region at a time with a chatbot
+([Glossing a stretch with an LLM](doc:Glossing a stretch with an LLM)) or by
+hand — finish the making first, then use **add to a book** and choose *I gloss
+it myself*.
+
 ## Finish
 
-When the agent says every batch is in — the stage reads **all batches in** —
-**finish…**, in the panel, ends the making. It is the computer's: from another
-device the panel says so where the button would be. It asks *Has the agent
-stopped?* first, because the agent must not write in the folder any more, and
-then, as jobs whose progress you can watch:
+When the agent says every batch is in — the stage reads **all batches in** or
+**waiting for the next part** — **finish…**, in the panel, ends the making,
+from any device let in. It asks *Has the agent stopped?* first, because the
+agent must not write in the folder any more. If a part has not been taken yet,
+or the agent has not said it is done, the panel says so before you press
+(*part 3 has not been taken by the agent yet*, *the agent has not said it is
+done: its record says "batch 4 of 12"*) and asks *Finish anyway?*: a second
+press goes through, as it must for an agent that forgot to record. It then
+runs, as jobs whose progress you can watch:
 
 1. **checks every paragraph against its source** (`verify_book`), and says in
    words what it found: *every paragraph reproduces its source (24
@@ -158,17 +203,30 @@ as the record of how the book was made; nothing of Parseh's assembles it
 again. If either is not clean, the panel says which and what to do, the book
 is still being made, and you can finish again once it is mended.
 
+## Reopening a finished book
+
+A finished book can be reopened, so that a part you add next month goes on
+where the making stopped. On the add page, **add to a book**, choose the
+finished book and *the agent makes it*: the making is reopened — the book
+is *being made* again and its reader does not edit, `annot/`, `original/` and
+`NOTES.md` are as they were, and the reader and the PDF stay as they are until
+the agent assembles again — and the text becomes the next part. An agent that
+stopped when you finished finds a last entry in `ASKS.md`, *reopened*, which
+takes the first back; tell it to carry on.
+
 ## Who may do what
 
-| Any device let in | The computer Parseh runs on |
-|---|---|
-| read the making panel; **look at it now**; **the PDF of these chapters**; write an ask, and ask about a chunk | **make the book's folder** and see the instructions before it is made; **open the folder**; **finish** |
+Every device let in may do all of it: make the book's folder and see the
+instructions, give the agent text, say it is all the text, read the panel,
+**look at it now**, make the PDF of the chapters, write an ask, **finish** and
+reopen. These doors only write files under `books/` and start Parseh's own
+build, like the doors every device already has; the agent that runs Parseh's
+tools in the folder is started by you, on the computer.
 
-The second column changes what Parseh will run — an agent runs Parseh's own
-tools in that folder, and Finish runs a build here — so a phone or another
-computer that has been let in is refused in the words *That is changed on the
-computer Parseh runs on and nowhere else, because it changes what Parseh will
-run*, and the panel shows the reason instead of a button
+One thing is the computer's own act, and is not a permission: **open the
+folder** shows it in the file manager on the screen of the computer Parseh
+runs on. From another device the panel shows the folder's path to copy, and
+says why there is no button
 ([From a phone or another computer](doc:From a phone or another computer)).
 
 ## What `making.json` says
@@ -180,15 +238,19 @@ first thing to read if you hand the folder to another agent:
 |---|---|---|
 | `state` | Parseh's | `making`, or `finished`: written when the folder is made and by Finish, never by the agent |
 | `parseh`, `started` | Parseh's | the version of Parseh the folder was made under, and when |
-| `stage` | the agent's | `source`, `chapters`, `batch` or `done` |
+| `parts`, `more_coming` | Parseh's | the text given so far, part by part (the first original is part 1), and whether more may come |
+| `stage` | the agent's | `source`, `chapters`, `batch`, `done` or `waiting` |
 | `on` | the agent's | one line: what it is on now |
-| `chapters` | the agent's | the chapter table: `[{"chapter": 1, "paragraphs": 24}, …]` |
+| `chapters` | the agent's | the chapter table: `[{"chapter": 1, "paragraphs": 24}, …]`, each row may say which `part` it came from |
 | `batches` | the agent's | `{"done": 3, "of": 12}` |
 | `checks` | the agent's | what the tools last said |
+| `sources` | the agent's | which parts it has taken, `{"done": [1, 2], "of": 3}`, and what it decided for each |
 | `updated` | the agent's | when it last wrote the file |
 
 A file the agent wrote wrongly, or half, never stops the panel: what cannot
-be read is said, and the book stays locked.
+be read is said, and the book stays locked. Parseh keeps its own copy of the
+list of parts in `original/parts.json`, and puts it back into `making.json` if
+an agent that wrote the whole file from what it read earlier left a part out.
 
 ## What a finished book carries
 

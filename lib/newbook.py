@@ -19,7 +19,11 @@ that one alone:
      book's own path so no slug ever travels in a body.  Its body is
      three keys -- text, how, chapter -- and NOT ONE of the identity
      fields: the language, the gloss and the title are the book's
-     already, read from its book.json.
+     already, read from its book.json.  The text may be a file instead
+     (a PDF with its pages, an epub, a text file), sent as the body and
+     recovered by lib/sourcetext.py.  For a book an agent is making, or
+     one it made and the person wants it to go on with, the text is
+     handed to the AGENT as a part (lib/making.py add_part) instead.
 
   3. made by an agent, in place.  The book's facts and its original -- a
      file the person picks, uploaded, so no path is typed on the server --
@@ -28,8 +32,8 @@ that one alone:
      use.  Parseh never starts an agent.  Nothing is copied and nothing is
      brought back: the agent works on the real tree, and the book is on
      the library from the first minute, marked being made, where its
-     making panel watches it grow.  Making the folder is the computer's
-     alone (lib/settingspage.py, `making.folder`).
+     making panel watches it grow.  Every device let in may make the
+     folder; only opening it is the computer's.
 
 What used to be a single fifteen-field block above three mutually
 exclusive actions, with the mapping stated only in prose, is now
@@ -118,8 +122,10 @@ def shelf():
 
     The href is worked out from the DIRECTORY rather than from the slug,
     so a book from before languages (lying directly under books/) is
-    addressed correctly too.  `making` marks a book an agent is still
-    making: nothing is added to it from a page, and it is no example.
+    addressed correctly too.  `state` says whether an agent made the book
+    ("making", "finished", or "none" for one nobody made that way): text
+    added to one it is making becomes a part the agent takes, and a book
+    it is making is no example.
     """
     out = []
     for b in all_books():
@@ -132,6 +138,7 @@ def shelf():
                     "folder": b.lang.folder, "dirname": os.path.basename(b.dir),
                     "lang": b.language, "lang_name": b.lang.name,
                     "dir": b.lang.dir, "making": making.is_making(b.dir),
+                    "state": making.state(b.dir),
                     "name": b.meta.get("title_latin") or b.meta.get("title") or rel})
     return out
 
@@ -187,18 +194,15 @@ MAIN_TEX = r'''%% {{TITLE_LATIN}} - {{AUTHOR_LATIN}} ({{LANG_NAME}}, glossed in 
 \end{document}'''
 
 
-def page(may_make=True):
-    """The page.  `may_make` is whether the device asking may make a book's
-    folder (making.folder, lib/settingspage.py): where it may not, the button
-    is shut and the reason is said under it, in the server's own words."""
-    import settingspage
+def page():
+    """The page.  Every device let in may make a book's folder and add text to
+    one (the owner, 2026-09-29): nothing on it is shut by who is asking."""
     refs = references()
     langs = lang_records()
     glosses = gloss_records()
     books = shelf()
     data = {"refs": refs, "langs": langs, "glosses": glosses, "books": books,
             "default_lang": languages.DEFAULT, "default_gloss": languages.DEFAULT_GLOSS,
-            "may_make": bool(may_make), "may_said": settingspage.refusal("making.folder"),
             "original_exts": list(making.ORIGINAL_EXTS)}
     # The ways a draft may be cut, named once (lib/chunker.py) so this page
     # and the video's cannot come to disagree about what they offer.  All of
@@ -219,14 +223,16 @@ def page(may_make=True):
     # each option carries the book's own language: the text box of the way
     # that adds to a book takes ITS face and direction, never the identity
     # select's, which is about a book that does not exist yet
-    # (a book an agent is still making is listed, greyed: what is added to it
-    # would collide with the batches the agent writes)
+    # (a book an agent is still making is listed and chosen like any other, and what is
+    # added to it is handed to the agent as a part: blank chunks put into it would be
+    # erased by its next batch)
     into_opts = "".join(
-        '<option value="%s" data-lang="%s" data-dir="%s" data-langname="%s" data-name="%s"%s>'
+        '<option value="%s" data-lang="%s" data-dir="%s" data-langname="%s" data-name="%s" data-state="%s">'
         '%s &mdash; %s%s</option>'
-        % (esc(b["path"]), esc(b["lang"]), esc(b["dir"]), esc(b["lang_name"]), esc(b["name"]),
-           " disabled" if b["making"] else "", esc(b["name"]), esc(b["rel"]),
-           " (being made)" if b["making"] else "") for b in books)
+        % (esc(b["path"]), esc(b["lang"]), esc(b["dir"]), esc(b["lang_name"]), esc(b["name"]), esc(b["state"]),
+           esc(b["name"]), esc(b["rel"]),
+           " (being made)" if b["making"] else " (made by an agent)" if b["state"] == "finished" else "")
+        for b in books)
     lang_opts = "".join('<option value="%s">%s &mdash; %s</option>'
                         % (esc(L["code"]), esc(L["name"]), esc(L["native"]))
                         for L in langs)
@@ -512,6 +518,14 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   </div>
   <span class="fieldnote">Its language, its glosses and its title are the book&rsquo;s already
     &mdash; they are not asked again.</span>
+  <div id="addwho" hidden style="margin-top:10px">
+    <label class="inline"><input type="radio" name="addwho" id="addwho_agent" value="agent" checked>
+      The agent makes it</label>
+    <span class="fieldnote" id="addwho_agent_note"></span>
+    <label class="inline" style="margin-top:8px"><input type="radio" name="addwho" id="addwho_me" value="me">
+      I gloss it myself</label>
+    <span class="fieldnote" id="addwho_me_note"></span>
+  </div>
   </div>
 </section>
 
@@ -526,6 +540,11 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     More of the last chapter</label>
   <span class="fieldnote">Continues it, its paragraphs numbered on from the ones already there.
     This is the only thing on the page that edits a file that already exists.</span>
+  <label class="inline" id="addauto_row" style="margin-top:10px" hidden><input type="radio" name="addwhere" id="addwhere_auto" value="auto">
+    Let the agent decide</label>
+  <span class="fieldnote" id="addauto_note" hidden>It reads the start of the text: a chapter heading begins a new
+    chapter, a start in the middle of a sentence goes on in the last paragraph, and what it decided is
+    written in <code>NOTES.md</code> and shown in the making panel.</span>
   </div>
 </section>
 
@@ -535,10 +554,15 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   <label><span id="aptext_lbl">The text</span> &mdash; a blank line between paragraphs, or one
     to a line
     <textarea id="aptext" data-tl rows="10" spellcheck="false"></textarea></label>
-  <div class="row">
+  <label>Or a file &mdash; a PDF with a text layer, an epub or a plain text file
+    <input type="file" id="apfile" accept=".pdf,.epub,.txt,application/pdf,application/epub+zip,text/plain">
+    <span class="fieldnote" id="apfilenote">Sent as it is and read here; with a file chosen, the box above is not used.</span></label>
+  <label>PDF pages, first&ndash;last <input id="appages" placeholder="13-21">
+    <span class="fieldnote" id="appagesnote">Counted from 0, for a PDF only. Leave empty for the whole file.</span></label>
+  <div class="row" id="ahowrow">
     <label class="inline">Cut the text into ''' + how_opts("ahow") + r'''</label>
   </div>
-  <span class="fieldnote">A chunk is what a reader hovers. <b>Sense groups</b> needs this
+  <span class="fieldnote" id="ahownote">A chunk is what a reader hovers. <b>Sense groups</b> needs this
     language&rsquo;s installed dictionary and falls back to one chunk per sentence without it
     &mdash; either way you can re-cut any chunk in the reader.</span>
   </div>
@@ -596,10 +620,13 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
 <section class="step" id="step-llm-2">
   <div class="shead"><span class="num">2</span><h2>Make the book&rsquo;s folder</h2></div>
   <div class="sbody">
-  <div class="note warn" id="mklock" hidden></div>
   <p class="why">The folder is made in <code>books/</code>, with the original inside it and the
     instructions for the agent. The book is on <a href="/books/">the library page</a> at once,
     marked <b>being made</b>.</p>
+  <label class="inline"><input type="checkbox" id="alltext"> this is all the text</label>
+  <span class="fieldnote">Left unticked, you may give the agent more text later &mdash; another file, or
+    pasted, from the making panel in the book&rsquo;s reader or from <b>add to a book</b> on this page
+    &mdash; and it takes each part as it comes. The file you chose is part 1.</span>
   <div class="row">
     <button type="button" class="wbtn" id="mkfolder">make the book&rsquo;s folder</button>
     <span class="stat" id="mkstat"></span>
@@ -635,8 +662,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   <span id="foot-all">A book is written paragraph by paragraph: the reader is rebuilt the
   moment text lands, the PDF with the next <code>./build.sh</code>.</span>
   <span id="foot-llm" hidden>The instructions are written by Parseh into the book&rsquo;s folder
-  (<code>AGENTS.md</code>); the conventions per language are <code>docs/lang/&lt;code&gt;.md</code>.
-  Making the folder is done on the computer Parseh runs on.</span>
+  (<code>AGENTS.md</code>); the conventions per language are <code>docs/lang/&lt;code&gt;.md</code>.</span>
 </footer>
 <script id="data" type="application/json">''' + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + r'''</script>
 <script>
@@ -672,7 +698,8 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   if (saved.addwhere === 'last') { if ($('addwhere_last')) $('addwhere_last').checked = true; }
   if (saved.examples && $('examples')) $('examples').checked = true;
   function addWhere() {
-    return ($('addwhere_last') && $('addwhere_last').checked) ? 'last' : 'new';
+    return ($('addwhere_last') && $('addwhere_last').checked) ? 'last'
+         : ($('addwhere_auto') && $('addwhere_auto').checked && !$('addauto_row').hidden) ? 'auto' : 'new';
   }
   // the language: the draft's if there is one, else the toolbox's shared
   // preference (the chip rows' pick, Parseh.lang), else the registry's default
@@ -822,7 +849,43 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     ta.setAttribute('dir', dir);
     $('aptext_lbl').textContent = name ? ('The text, in ' + name) : 'The text';
     $('addlang').textContent = name;
+    applyWho();
   }
+  // WHO GLOSSES THE TEXT, for a book an agent made.  Being made, the agent takes it as a PART: blank
+  // chunks put into a book whose truth is annot/ would be erased by its next assembly, so "I gloss it
+  // myself" is only after the making is finished.  Finished, either: by hand as any book's, or by
+  // the agent, which reopens the making first.  A book nobody made this way has no such choice.
+  function intoState() {
+    var sel = $('addinto'), o = sel ? sel.options[sel.selectedIndex] : null;
+    return o ? (o.getAttribute('data-state') || 'none') : 'none';
+  }
+  function byAgent() {
+    return intoState() !== 'none' && $('addwho_agent').checked;
+  }
+  function applyWho() {
+    var st = intoState();
+    if (!$('addwho')) return;
+    $('addwho').hidden = st === 'none';
+    $('addwho_me').disabled = st === 'making';
+    // a finished book starts at "I gloss it myself": nothing is being made, so the plain way is the default
+    if (st !== lastState) { $('addwho_me').checked = st === 'finished'; $('addwho_agent').checked = st !== 'finished'; }
+    lastState = st;
+    if (st === 'making') $('addwho_agent').checked = true;
+    $('addwho_agent_note').textContent = st === 'making'
+      ? 'The text becomes the next part: the agent takes it before its next batch, as the place below says.'
+      : st === 'finished' ? 'This reopens the making: the text becomes a part, and the agent takes it when you tell it to carry on.' : '';
+    $('addwho_me_note').textContent = st === 'making'
+      ? 'Only once the making is finished: the agent writes this book from its own files, so blank chunks put in now would be erased by its next batch.'
+      : st === 'finished' ? 'Blank chunks at the end of the book, glossed in the reader a region at a time with an LLM, or by hand.' : '';
+    var agent = byAgent();
+    $('addauto_row').hidden = $('addauto_note').hidden = !agent;
+    // the agent deciding is what a part starts as; the person's own pick stays until the way changes
+    if (agent && !wasAgent) $('addwhere_auto').checked = true;
+    if (!agent && $('addwhere_auto').checked) $('addwhere_new').checked = true;
+    wasAgent = agent;
+    $('ahowrow').hidden = $('ahownote').hidden = agent;
+  }
+  var wasAgent = false, lastState = '';
   function render() {
     // THE NOTE UNDER THE SLUG IS NOT WAY 3'S ALONE: "Write it here, by hand"
     // names a slug in the same identity block, and its door creates the very
@@ -866,6 +929,21 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
       : (pages && file && ext !== '.pdf') ? 'A page range is for a PDF: it is ignored for this file.'
       : 'Counted from 0, for a PDF only. Leave empty for the whole file.';
     if (instructions && instructions.open()) refreshSoon();
+  }
+  // the file chosen to be added, named with its size and what is wrong with it, before anything is sent
+  function addNotes() {
+    if (!$('apfile')) return;
+    var f = $('apfile').files[0], ext = f ? (f.name.match(/\.[^.]*$/) || [''])[0].toLowerCase() : '';
+    var known = D.original_exts.indexOf(ext) >= 0;
+    $('apfilenote').className = 'fieldnote' + (f && !known ? ' warn' : '');
+    $('apfilenote').textContent = !f ? 'Sent as it is and read here; with a file chosen, the box above is not used.'
+      : !known ? f.name + ' is not a PDF, an epub or a plain text file: it cannot be read.'
+      : f.name + ', ' + size(f.size) + '.';
+    var pages = val('appages').trim(), range = /^\d+\s*[-–]\s*\d+$/.test(pages);
+    $('appagesnote').className = 'fieldnote' + (pages && (!range || (f && ext !== '.pdf')) ? ' warn' : '');
+    $('appagesnote').textContent = (pages && !range) ? 'The page range is ignored: write it 13-21.'
+      : (pages && f && ext !== '.pdf') ? 'A page range is for a PDF: it is ignored for this file.'
+      : 'Counted from 0, for a PDF only. Leave empty for the whole file.';
   }
   function size(n) {
     return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' kB' : (n / 1048576).toFixed(1) + ' MB';
@@ -938,7 +1016,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     tick('step-new-1', !!val('title').trim());
     tick('step-new-2', !!val('chtext').trim());
     tick('step-add-1', !!val('addinto'));
-    tick('step-add-3', !!val('aptext').trim());
+    tick('step-add-3', !!val('aptext').trim() || !!($('apfile') && $('apfile').files.length));
     tick('step-llm-1', !!(val('title').trim() && $('original').files.length));
     gate();
   }
@@ -951,10 +1029,8 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     $('mkempty').disabled = !!why;
     $('mkempty').title = why;
     $('mkwhy').textContent = why;
-    // the folder's button says why it cannot be pressed, in words: the computer's
-    // alone (D.may_said is the server's own sentence), then what is missing
-    var L = langRec(), mwhy = !D.may_make ? 'making the folder is the computer\'s alone: see above'
-             : !val('title').trim() ? 'the title comes first'
+    // the folder's button says why it cannot be pressed, in words: what is missing
+    var L = langRec(), mwhy = !val('title').trim() ? 'the title comes first'
              : !$('original').files.length ? 'choose the original first'
              : taken(slugNow(), L.folder) ? 'a book is already at books/' + L.folder + '/' + slugNow() +
                '/ -- choose another slug' : '';
@@ -962,7 +1038,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     $('mkfolder').title = mwhy;
     $('mkfwhy').textContent = mwhy;
     var awhy = !val('addinto') ? 'there is no book here to add to yet'
-             : !val('aptext').trim() ? 'paste the text first' : '';
+             : !val('aptext').trim() && !($('apfile') && $('apfile').files.length) ? 'paste the text, or choose a file, first' : '';
     if ($('addto')) {
       $('addto').disabled = !!awhy;
       $('addto').title = awhy;
@@ -1064,17 +1140,34 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   // Onto a book that is already here.  It posts to the BOOK's own address --
   // the select carries it -- so no slug travels in a body and the route
   // resolves it exactly as __delete does.
+  // THE TEXT GOES AS A FILE OR AS PASTED TEXT, to one of two doors: __append (blank chunks, glossed by the
+  // person) or, for a book an agent makes, __making/part (a part the agent takes).  A file is the body,
+  // named in the query with its page range; the agent's door reopens a finished making first.
+  function sendText(into, file, text, agent, act) {
+    var where = addWhere(), door = into + (agent ? '/__making/part' : '/__append'), post = function (url, init) {
+      return fetch(url, init).then(function (r) { return r.json(); });
+    };
+    var go = function () {
+      if (file)
+        return post(act.url(door + '?name=' + encodeURIComponent(file.name) + '&pages=' + encodeURIComponent(val('appages').trim()) +
+                            '&chapter=' + where + '&how=' + encodeURIComponent(val('ahow'))),
+                    {method: 'POST', headers: {'Content-Type': 'application/octet-stream'}, body: file});
+      return post(act.url(door), {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                  body: JSON.stringify({text: text, how: val('ahow'), chapter: where})});
+    };
+    if (agent && intoState() === 'finished')
+      return post(into + '/__making/reopen', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
+        .then(function (o) { if (!o.ok) return o; return go(); });
+    return go();
+  }
   if ($('addto')) $('addto').onclick = function () {
-    var text = val('aptext'), into = val('addinto');
+    var text = val('aptext'), into = val('addinto'), file = $('apfile').files[0], agent = byAgent();
     if (!into) { Parseh.toast('there is no book here to add to yet', true); return; }
-    if (!text.trim()) { Parseh.toast('paste the text first', true); $('aptext').focus(); return; }
+    if (!text.trim() && !file) { Parseh.toast('paste the text, or choose a file, first', true); $('aptext').focus(); return; }
     var res = $('addresult'); res.hidden = true;
     $('addstat').textContent = 'adding…'; $('addto').disabled = true;
-    var act = working('Adding text to the book');
-    fetch(act.url(into + '/__append'), {method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text: text, how: val('ahow'), chapter: addWhere()})})
-      .then(function (r) { return r.json(); })
+    var act = working('Adding text to the book'), reopened = agent && intoState() === 'finished';
+    sendText(into, file, text, agent, act)
       .then(function (j) {
         act.end(!!j.ok);
         $('addto').disabled = false; $('addstat').textContent = ''; res.hidden = false;
@@ -1086,6 +1179,20 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
         }
         var href = into + '/reader/';
         var parts = into.replace(/^\/books\//, '').split('/');
+        if (j.part) {
+          // handed to the agent: nothing is cut or written here, the agent does it from the part
+          res.innerHTML = '<div class="note good"><b>Added as part ' + j.part.n + '.</b> The agent takes it ' +
+            'before its next batch' + (reopened ? ' &mdash; the making was reopened: tell it to carry on' : '') +
+            '. It goes ' + (j.part.chapter === 'auto' ? 'where the agent decides' : j.part.chapter === 'new' ? 'in a chapter of its own' :
+              'on in the last chapter') + '.<div class="row"><a class="wbtn" href="' + esc(href) +
+            '">Open the reader &rarr;</a><button type="button" class="wbtn quiet" id="addmore">Add another part</button></div></div>';
+          var more = $('addmore');
+          if (more) more.onclick = function () { val('aptext', ''); $('apfile').value = ''; save(); ticks(); addNotes();
+                                                 $('aptext').focus(); res.hidden = true; };
+          if (reopened) { var o = $('addinto').options[$('addinto').selectedIndex]; if (o) o.setAttribute('data-state', 'making'); applyWho(); }
+          res.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+          return;
+        }
         var h = '<div class="note good"><b>Added.</b> ' + j.paragraphs + ' paragraphs, ' +
           j.sentences + ' sentences, ' + j.chunks + ' blank chunks, ' +
           (j.where === 'new' ? 'as chapter ' : 'onto the end of chapter ') + j.chapter + '.' +
@@ -1105,7 +1212,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
         // reader is one click away.
         var again = $('addmore');
         if (again) again.onclick = function () {
-          val('aptext', ''); save(); ticks(); $('aptext').focus();
+          val('aptext', ''); $('apfile').value = ''; save(); ticks(); addNotes(); $('aptext').focus();
           res.hidden = true;
         };
         res.scrollIntoView({behavior: 'smooth', block: 'nearest'});
@@ -1179,10 +1286,6 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(function () { instructions.refresh(); }, 400);
   }
-  if (!D.may_make) {
-    $('mklock').hidden = false;
-    $('mklock').textContent = D.may_said;
-  }
   // the folder is made from the file the person picked, sent as the body of the
   // request -- so it is copied by the server, on this computer or on Windows,
   // with no path typed anywhere -- and the book's facts ride in the address
@@ -1196,6 +1299,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     var facts = bookFields(file.name);
     facts.reference = val('ref');
     facts.examples = !!$('examples').checked;
+    facts.more_coming = !$('alltext').checked;
     fetch(act.url('/books/__make?name=' + encodeURIComponent(file.name) +
                   '&book=' + encodeURIComponent(JSON.stringify(facts))),
       {method: 'POST', headers: {'Content-Type': 'application/octet-stream'}, body: file})
@@ -1211,21 +1315,23 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
         }
         var base = '/books/' + j.dir;
         D.books.push({path: base, rel: j.dir, folder: j.folder, dirname: j.slug, lang: j.language,
-                      making: true, name: val('title_latin').trim() || j.slug});
+                      making: true, state: 'making', name: val('title_latin').trim() || j.slug});
         render();
         gate();
         res.innerHTML = '<div class="note good"><b>The folder is made</b>, and the book is on ' +
           '<a href="/books/">the library page</a>, marked <b>being made</b>.' +
           '<code class="bigpath">' + esc(j.path) + '</code>' +
           '<div class="row"><button type="button" class="wbtn quiet" id="mkcopy">copy the path</button>' +
-          '<button type="button" class="wbtn quiet" id="mkopen">open the folder</button>' +
+          // opening a folder is the computer's own act (a file manager on its screen): another device is told so
+          (j.here ? '<button type="button" class="wbtn quiet" id="mkopen">open the folder</button>' : '') +
           '<a class="wbtn" href="' + esc(base) + '/reader/">open the reader &rarr;</a></div>' +
+          (j.here ? '' : '<span class="fieldnote" id="mkopensaid">' + esc(j.open_said) + '</span>') +
           '<p class="handover">Open this folder in the agent you use, and tell it: ' +
           '<b>read AGENTS.md and begin</b>.</p>' +
           '<span class="fieldnote">Parseh does not start an agent and does not choose one for you: ' +
           'any agent that works in a folder will do.</span></div>' + afterWrote(j);
         $('mkcopy').onclick = function () { Parseh.copy(j.path, true); };
-        $('mkopen').onclick = function () {
+        if ($('mkopen')) $('mkopen').onclick = function () {
           fetch(base + '/__making/open', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                           body: '{}'})
             .then(function (r) { return r.json(); })
@@ -1253,9 +1359,18 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   ['original', 'examples'].forEach(function (k) {
     $(k).addEventListener('change', function () { save(); ticks(); render(); });
   });
-  ['addwhere_new', 'addwhere_last'].forEach(function (k) {
+  ['addwhere_new', 'addwhere_last', 'addwhere_auto'].forEach(function (k) {
     var el = $(k);
     if (el) el.addEventListener('change', function () { save(); });
+  });
+  ['addwho_agent', 'addwho_me'].forEach(function (k) {
+    var el = $(k);
+    if (el) el.addEventListener('change', function () { applyWho(); save(); });
+  });
+  ['apfile', 'appages'].forEach(function (k) {
+    var el = $(k);
+    if (el) { el.addEventListener('input', function () { ticks(); addNotes(); });
+              el.addEventListener('change', function () { ticks(); addNotes(); }); }
   });
   if ($('addinto')) $('addinto').addEventListener('change', function () { applyInto(); });
   $('lang').addEventListener('change', function () {
