@@ -53,6 +53,11 @@ once all its sound has arrived.
 
 The page has these sections, one under the other.
 
+**Whisper program** comes first, because every model runs on it. It is a row
+like a model's: what it costs, where it is kept, **Get it** and **Remove**.
+Pressing **Get it** on a model brings it too (below), so it is only pressed
+here to get the program alone.
+
 **Automatically run a second Whisper pass** is a checkbox. It starts checked
 and rechecks the first pass's suspect words after dictionary checks, adding
 possible alternatives without replacing the transcript or its timestamps.
@@ -97,7 +102,6 @@ tokenizer, audio-preprocessing and licence assets. Italian and Hindi adapters
 have already been merged. You do not need PyTorch, PEFT, conversion commands or
 a model-hosting application to install a Whisper model in Parseh.
 
-**Whisper program** is installed with the first Whisper model.
 **Processor** says what the transcript will be made on — [below](#the-processor).
 Hardware remains a separate choice from model and language.
 

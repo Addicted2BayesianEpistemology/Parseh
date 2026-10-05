@@ -76,7 +76,7 @@ def page(jobs=None, where="", device=""):
 <p class="sub">Choose a Whisper model for each language. Transcription runs on this computer; your audio stays here.</p>
 <p class="whomay">%(gate)s <span>Install only what you need. Downloads are checked before use.</span></p>
 <div id="sp-band" class="band"></div>
-<section class="shared about"><label><input type="checkbox" id="sp_second_pass"%(second_checked)s>
+<section class="shared about" id="sp-second" hidden><label><input type="checkbox" id="sp_second_pass"%(second_checked)s>
 Automatically run a second Whisper pass</label>
 <p>Recheck suspect words after transcription. You can also run it later for a section or a single word.</p>
 <p id="sp_preferences_status" role="status" aria-live="polite"></p></section>
@@ -167,6 +167,7 @@ SCRIPT = r"""
   var catalogueLanguage = '', installedOnly = false, preferenceSay = '';
   var uploads = {};
   var secondPass = document.getElementById('sp_second_pass');
+  var second = document.getElementById('sp-second');     // its box (a page that has no such box keeps the bare checkbox)
   secondPass.addEventListener('change', function () {
     var previous = S.preferences.second_pass;
     secondPass.disabled = true;
@@ -519,9 +520,10 @@ SCRIPT = r"""
     var rows = parts();
     var alignRows = alignerParts();
     rows.concat(alignRows).forEach(function (r) { ROWS[r.id] = r; });
-    var html = catalogue(rows) +
-      '<h2 class="part">Whisper program</h2><section class="shared">' + row(rows[0]) + '</section>' +
-      processor() + languages(alignRows);
+    // THE PROGRAM COMES FIRST: every model below runs on it, and a model is fetched together with it.
+    // The choice about the second pass is a choice about those models, so it follows the program.
+    var html = '<h2 class="part">Whisper program</h2><section class="shared">' + row(rows[0]) + '</section>' +
+      '<div id="sp-second-slot"></div>' + catalogue(rows) + processor() + languages(alignRows);
     drawBand();
     if (html === drawn) return;
     drawn = html;
@@ -531,8 +533,14 @@ SCRIPT = r"""
     var now = document.activeElement, inside = now && root.contains(now) && now !== root;
     var tok = inside ? focusToken(now) : (!now || now === document.body ? held : null);
     held = null;
+    // the box of the second pass is not drawn here: it is a page element with its own listener, moved into
+    // its place under the program each time, with the keyboard if it had it
+    var kept = second && second.contains(document.activeElement) ? document.activeElement : null;
     root.innerHTML = html;
-    if (tok) refocus(tok);
+    var slot = root.querySelector('#sp-second-slot');
+    if (second && slot) { slot.appendChild(second); second.hidden = false; }
+    if (kept) { try { kept.focus({preventScroll: true}); } catch (e) {} }
+    else if (tok) refocus(tok);
   }
   function drawBand() {
     var who = S.where === 'self' ? 'You are on <b>the computer Parseh runs on</b>.' :

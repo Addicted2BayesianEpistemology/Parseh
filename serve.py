@@ -463,6 +463,9 @@ STATIC_PREFIXES = ("/lib/fonts/", "/lib/mathjax/", "/audiobook/", "/books/",
                    # reader's own worker, never written through the server
                    "/mt/")
 STATIC_FILES = {"/lib/lmlikelihoodsettings.js", "/lib/llmsettings.js", "/youtube/lib/asrreview.js", "/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js",
+                # the form and navigation styles of the Settings pages that hold
+                # forms: speech to text, LLM Integration, LM likelihood, About
+                "/lib/settings-tools.css",
                 # the row of controls every page that hands out a prompt draws:
                 # copy, the size, the reminder (lib/llmrow.js, a0.4.2)
                 "/lib/llmrow.js",

@@ -1,10 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Compact navigation and forms for optional speech/model settings. */
-.settings.tools .sdoors {gap:6px;margin-bottom:24px;}
-.settings.tools .sdoor {flex:0 1 auto;padding:7px 11px;border-radius:7px;}
-.settings.tools .sdoor b {font-size:13px;font-weight:500;}
-.settings.tools .sdoor small,.settings.tools .sdoor .gate {display:none;}
-.settings.tools .sdoor.on b {font-weight:600;}
+/* Forms for the Settings pages that hold them (speech to text, LLM Integration, LM likelihood, About).
+   The row of doors is NOT restyled here: it is the same on every page of Settings (lib/settingspage.py). */
 .settings.tools .sub {line-height:1.55;}
 .settings.tools fieldset {min-width:0;border:1px solid var(--rule);border-radius:10px;padding:16px 18px;margin:16px 0;background:var(--card);}
 .settings.tools legend {padding:0 6px;font-weight:600;font-size:16px;}
@@ -26,12 +22,10 @@
 .settings.tools [role=status]:empty {display:none;}
 .settings.tools .selected-model {font-size:14px;overflow-wrap:anywhere;}
 .settings.tools .privacy {font-size:13px;color:var(--dim);line-height:1.5;}
-.settings.tools .footer-links {font-size:13px;display:flex;flex-wrap:wrap;gap:8px 18px;}
-.settings.tools .footer-links a,.settings.tools .help a {color:var(--accent);}
+.settings.tools .help a {color:var(--accent);}
 @media(max-width:620px) {
   .settings.tools .form-grid {grid-template-columns:minmax(0,1fr);gap:12px;}
   .settings.tools fieldset {padding:12px;}
   .settings.tools details.options > .option-body {padding:0 12px 12px;}
   .settings.tools .actions button {flex:1 1 auto;white-space:normal;}
-  .settings.tools .sdoor {padding:7px 9px;}
 }

@@ -77,8 +77,13 @@ def page(where):
 <p id="llm_status" role="status" aria-live="polite"></p>
 <p class="help" id="llm_last_test"></p></div>
 <p class="privacy">Reviews send transcript text to the saved destination. Audio stays on the Parseh computer. Your API key is saved only on that computer.</p>
-<p class="footer-links"><a href="/settings/lm-likelihood/">Local LM likelihood model (experimental)</a><a href="/guide/lookup-and-languages/llm-integration.html">Setup help</a></p>
+<p class="foot">What is set here is kept on the Parseh computer, in <code>config/llm.json</code>, and an
+update keeps it. <a href="/guide/site/lookup-and-languages/llm-integration.html">LLM Integration guide</a> &middot;
+<a href="/settings/lm-likelihood/">Local LM likelihood model (experimental)</a> &middot;
+<a href="/licences/">Licences</a></p>
 </main><p data-layout="mobile">LLM Integration is configured in the Browser interface. Switch to Browser using the interface control above.</p>''' % (settingspage.settings_doors(PAGE), lock, "true" if can else "false", "" if can else "disabled")
-    return settingspage.frame("LLM Integration — Parseh", "Settings", "Settings", "/guide/", main,
+    return settingspage.frame("LLM Integration &mdash; %s settings" % settingspage.NAME,
+                              '<a href="/settings/">settings</a> &middot; llm integration',
+                              "LLM Integration", "/guide/", main,
                               style=".tools h3{font-size:14px;margin:18px 0 8px;} .tools #llm_profile_info{overflow-wrap:anywhere}",
                               extra_head='<link rel="stylesheet" href="/lib/settings-tools.css"><script defer src="/lib/llmsettings.js"></script>')

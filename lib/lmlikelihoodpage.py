@@ -69,8 +69,13 @@ def page(where):
 </fieldset></details></form>
 <div class="connection-status"><p id="lm_status" role="status" aria-live="polite"></p></div>
 <p class="privacy">Reviews run locally and need free RAM or GPU memory. A higher-ranked suggestion still needs your review.</p>
-<p class="footer-links"><a href="/guide/lookup-and-languages/lm-likelihood.html">Setup help</a><a href="/settings/llm/">Connected LLM settings</a></p>
+<p class="foot">What is set here is kept on the Parseh computer, in <code>config/lm-likelihood.json</code>, and an
+update keeps it. The models stay where your model application keeps them: Parseh only reads them.
+<a href="/guide/site/lookup-and-languages/lm-likelihood.html">LM likelihood guide</a> &middot;
+<a href="/settings/llm/">Connected LLM settings</a> &middot;
+<a href="/licences/">Licences</a></p>
 </main><p data-layout="mobile">LM likelihood is available in the Browser interface. Switch to Browser using the interface control above.</p>''' % (settingspage.settings_doors(PAGE), settingspage.lockline('likelihood.worker', where),
     'true' if can else 'false', '' if can else 'disabled', '' if can else 'disabled', '' if can else 'disabled')
-    return settingspage.frame('LM likelihood · experimental — Parseh', 'Settings', 'Settings', '/guide/', main,
+    return settingspage.frame('LM likelihood &middot; experimental &mdash; %s settings' % settingspage.NAME,
+        '<a href="/settings/">settings</a> &middot; lm likelihood &middot; experimental', 'LM likelihood', '/guide/', main,
         extra_head='<link rel="stylesheet" href="/lib/settings-tools.css"><script defer src="/lib/lmlikelihoodsettings.js"></script>')

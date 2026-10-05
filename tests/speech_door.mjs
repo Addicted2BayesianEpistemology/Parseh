@@ -146,6 +146,23 @@ async function suite(phone) {
       has(await page.locator('.whomay').innerText(), 'any device let in', "the door's pill says who may");
       has(await page.locator('.whomay').innerText(), 'only the files Parseh pins can be fetched',
           'and why that is safe: what can be fetched is fixed');
+      // THE PROGRAM COMES FIRST (the owner, 2026-10-05): every model runs on it and is fetched with it; the second pass
+      // is a choice about those models, so it follows the program, and the models come after both
+      const order = await page.evaluate(() => Array.from(document.querySelectorAll('#sp h2.part, #sp-second')).map(
+        e => e.id === 'sp-second' ? 'second pass' : e.textContent.trim().split(/\s+/).slice(0, 2).join(' ').toLowerCase()));
+      eq(order.slice(0, 3).join(' | '), 'whisper program | second pass | whisper models',
+         'the Whisper program is above the rest, then the second pass, then the models: ' + order.join(' | '));
+      eq(await page.locator('#sp #sp-second').isVisible(), true, 'and the second pass box is shown, in its place under the program');
+      // the page draws itself again after a press and every second while something is fetched: the box is moved
+      // back into its place each time, and a keyboard that was on its checkbox stays there
+      await page.focus('#sp_second_pass');
+      await page.evaluate(() => { const s = document.getElementById('sp_language'); s.value = s.options[1].value;
+                                  s.dispatchEvent(new Event('change', {bubbles: true})); });
+      eq(await page.evaluate(() => document.activeElement && document.activeElement.id), 'sp_second_pass',
+         'a new drawing leaves the keyboard on the second pass checkbox');
+      eq(await page.locator('#sp #sp-second').count(), 1, 'and the box is still there once, under the program');
+      await page.evaluate(() => { const s = document.getElementById('sp_language'); s.value = '';
+                                  s.dispatchEvent(new Event('change', {bubbles: true})); });
       eq(await page.locator('[data-lock]').count(), 0, 'no lock line');
       eq(await page.locator('.gate:not(.open)').evaluateAll(els => els.filter(e => e.closest('.whomay')).length), 0,
          "and none of this page's own pills says the computer only");
