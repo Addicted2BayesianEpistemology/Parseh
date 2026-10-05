@@ -78,7 +78,7 @@ Two hosts, and nothing else — no account, no key, and nothing of yours sent:
 
 - **`api.arasaac.org`** gives the **word lists**: for each language you tick,
   one list of every pictogram with the words that name it in that language.
-  A list comes as 5 to 8 MB of JSON, of which Parseh keeps about a fifth: the
+  A list comes as 5 to 8 MB of JSON, of which Parseh keeps only a part: the
   words, and a few facts about each pictogram.
 - **`static.arasaac.org`** gives the **pictures**: one PNG for each of the
   13,829 pictograms, at 300 or at 500 pixels.
@@ -114,7 +114,7 @@ politely, and again only for what has changed.
   **Japanese** is not offered, and the line says why: ARASAAC has no words in
   it. **Hindi** is not either: its list holds one word, and that one is
   Spanish. **Turkish** is offered, and its line says honestly that its words
-  name 2,666 of the 13,829.
+  name 2,656 of the 13,829.
 - **Size of the pictures.** **300 pixels**, the one to start with, or **500
   pixels**, sharper on a large page, at twice the cost. All the pictures are
   of one size: changing it fetches them all again.

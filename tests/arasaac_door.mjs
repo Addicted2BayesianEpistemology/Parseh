@@ -164,7 +164,7 @@ async function suite(phone) {
       assert(hi.no && hi.text.includes('ARASAAC has almost no words in this language yet (1)'), 'Hindi too: it has one word');
       has(langs[0].text, '26,578 words, naming every pictogram', 'English says how many words, and that they name every pictogram');
       has(langs[0].text, '7.6 MB to fetch', 'and what its list costs');
-      has(langs.find(l => l.code === 'tr').text, '2,793 words, naming 2,666 of 13,829 pictograms', 'Turkish is honest about how few it has');
+      has(langs.find(l => l.code === 'tr').text, '2,783 words, naming 2,656 of 13,829 pictograms', 'Turkish is honest about how few it has');
       // the size of the pictures, and the plan before the button
       eq(await page.locator('input[name=px]').count(), 2, 'two sizes');
       eq(await page.locator('input[name=px]:checked').getAttribute('value'), '300', '300 pixels is the one to start with');
@@ -397,6 +397,15 @@ async function suite(phone) {
             eq(small.join(' | '), '', `${w}px ${theme}: every button is at least 40 pixels tall and every box or dot has a line at least 36`);
           }
           await shot(`j-${w}-${theme}`);
+          if (SHOTS && w === 390) {
+            // A WHOLE PAGE OF A PHONE IS FOUR THOUSAND PIXELS TALL AND UNREADABLE WHEN SHOWN SMALL: what a person
+            // sees on the screen, in the two places that matter -- the licence first, the cost beside its button last
+            for (const [name, sel, block] of [['about', '#ar .about', 'start'], ['plan', '#ar .go-row', 'end']]) {
+              await page.evaluate(([s, b]) => document.querySelector(s).scrollIntoView({block: b}), [sel, block]);
+              await page.screenshot({path: `${SHOTS}/arasaac-${tag}-j-390-${theme}-${name}.png`});
+            }
+            await page.evaluate(() => scrollTo(0, 0));
+          }
         }
       }
       await page.setViewportSize({width: 1280, height: 900});

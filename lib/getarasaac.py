@@ -36,8 +36,8 @@ numbers, and an id is an integer out of the answer the API gave.
 
 WHAT IT TAKES, AND HOW MUCH (MEASURED, 2026-10-02: MEASURED below).  Every
 language's answer lists all 13,829 pictograms -- the same ids, with the
-language's words where it has any -- at 5 to 8 MB of JSON, which carries about
-four times what Parseh keeps (the words, and a few facts).  The pictures come
+language's words where it has any -- at 5 to 8 MB of JSON, of which Parseh keeps
+a part only (the words, and a few facts: 2.4 MB of Spanish's 8.2, 0.1 of Turkish's 5.2).  The pictures come
 one at a time on one connection, 11 kB each at 300 pixels and 23 kB at 500
 (a random 400 of the ids, both sizes): 159 MB and 321 MB for the lot.  A
 person is told that before anything is fetched.

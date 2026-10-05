@@ -199,7 +199,10 @@ class Served(unittest.TestCase):
                 p.stop()
 
     def test_a_device_that_has_not_been_let_in_gets_nothing(self):
+        # THE WI-FI IS ALLOWED TO CONNECT (else the socket is closed before a word is said, and there is
+        # no 403 to read): what is held is the next question, whether this device has been let in
         ps = [patch.object(network, "where", lambda ip, doc=None: network.LAN),
+              patch.object(network, "may_connect", lambda ip, doc=None: True),
               patch.object(network, "needs_code", lambda ip, doc=None: True),
               patch.object(network, "let_in", lambda *a, **k: False)]
         for p in ps:
