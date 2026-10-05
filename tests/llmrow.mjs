@@ -35,6 +35,8 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //  ask)     Ask LLM in the sources sidebar of the reader and of the player: the size before the copy, and a first
 //           line that names the prompt, the languages and the Parseh that wrote it, the number read from the
 //           server (GET /__version) and equal to the VERSION file.
+//  menu)    the prompt menu on its own: a place the store does not offer has none; the handle (prompt(), promptId(), the
+//           kind a skill needs, onPrompt); the prompts of one language only; `menu: false`; the menu without a row.
 //  own)     the menu in the row, on every surface that has the row (the studio's page in the hub and on its own, its
 //           exercise dialog, the add page, the tidy, the player's and the reader's panels, Ask LLM in both): a prompt of
 //           your own is written (new), changed (edit, save), kept under another name (save as), chosen, copied,
@@ -1032,6 +1034,22 @@ try {
     eq([shape.replaced.instructions, shape.replaced.version, shape.replaced.data.split('\n')[0]],
        ['Just translate.', 'Parseh prompt · ask · Persian → English · custom: mine', FRAME],
        'and "in place of" stand alone, named on the first line, the data still Parseh\'s');
+    // A PERSON'S OWN WORDS for this place: the names Parseh fills in are filled here, a block is kept only where it is true
+    // for this prompt, a name left over is refused in words, and the person's text comes from the computer
+    const own = await page.evaluate(async () => {
+      const o = {sourceName: 'Persian', sourceCode: 'fa', sourceNative: 'فارسی', trLabel: 'transliteration', targetName: 'English', targetCode: 'en',
+                 sentence: 'x', before: [], after: [], words: [], pairs: [], instructionsKind: 'replace'};
+      const filled = ParsehLLM.parts(Object.assign({}, o, {instructions: 'From {{LANGUAGE}} ({{LANGUAGE_NATIVE}}, {{LANGUAGE_CODE}}) into {{GLOSS_LANGUAGE}} ({{GLOSS_CODE}}) with {{TR_LABEL}}.{{?classic}} Usual.{{/classic}}{{?ipa}} IPA.{{/ipa}}{{?video}} Video.{{/video}}'})).instructions;
+      let left = '';
+      try { ParsehLLM.parts(Object.assign({}, o, {instructions: 'Use {{NOPE}} here.'})); } catch (e) { left = e.message; }
+      let gone = '';
+      try { await ParsehLLM.own('pgone0000'); } catch (e) { gone = e.message; }
+      return {filled, left, gone, none: await ParsehLLM.own(''), data: ParsehLLM.parts(o).data.split('\n')[0]};
+    });
+    eq(own.filled, 'From Persian (فارسی, fa) into English (en) with transliteration. Usual.', 'Ask LLM fills the names in a person\'s text, keeps `classic` (the usual scheme) and leaves out the blocks that are not true for it');
+    assert(/\{\{NOPE\}\}.*does not fill in/.test(own.left), `a name Ask LLM does not fill in is refused in words that name it (${own.left.slice(0, 60)})`);
+    assert(/no prompt of yours with that id/.test(own.gone) && own.none === null, 'a prompt that is gone is said in the computer\'s words, and none chosen is Parseh\'s own');
+    eq(own.data, FRAME, 'the data opens with the sentence that says it is never an order');
     let r = await sized(page, '#chside');
     eq([r.copy, r.skill, r.menu], ['Ask LLM', false, false], 'the reader\'s sidebar: the button is still called Ask LLM');
     eq(await text(page, '#chside .llmrow-note'), 'paste it into a chatbot, then paste its translation below.', 'and says where the answer goes');
@@ -1064,6 +1082,74 @@ try {
     assert(askLine.test(prompt), `the player's prompt: ${JSON.stringify(prompt.split('\n')[0])}`);
     eq(String(codePoints(prompt)), r.chars, `and its size said before is the size copied (${r.chars} characters)`);
     await look(page, 'ask-player', {scope: '#cloud .eside'});
+    await ctx.close();
+  });
+
+  /* ---------------- menu) the prompt menu's handle: what a page, and the skill's button, may ask of the row ---------------- */
+  await section('menu', 'the prompt menu on its own: the places the store does not offer, the handle, the languages, the menu without a row', async () => {
+    const ctx = await context();
+    const page = await open(ctx, `${B}/licences/`, 'menu', async p => {
+      await p.addStyleTag({url: `${B}/lib/parseh.css`});
+      await p.addScriptTag({url: `${B}/lib/llmrow.js`});
+      await p.waitForFunction(() => window.ParsehLLMRow);
+    });
+    const store = `${B}/settings/api/prompts/`;
+    const keep = async (surface, p) => (await callStore(store, 'save', Object.assign({surface}, p))).prompt;
+    await page.evaluate(() => { window.picked = []; const s = document.createElement('div'); s.id = 'slot'; document.body.appendChild(s); });
+    const mount = (opts) => page.evaluate(async opts => {
+      document.getElementById('slot').textContent = '';
+      window.picked = [];
+      window.row = ParsehLLMRow.mount(document.getElementById('slot'), Object.assign({onPrompt: c => window.picked.push(c && c.name)}, opts));
+      await window.row.promptReady();
+    }, opts);
+    const state = () => page.evaluate(() => ({prompt: window.row.prompt(), id: window.row.promptId(), picked: window.picked,
+      menu: !!document.querySelector('#slot .llmrow-pm') && !document.querySelector('#slot .llmrow-pm').hidden && document.querySelector('#slot .llmrow-pm').getClientRects().length > 0,
+      options: [...document.querySelectorAll('#slot .llmrow-pm select option')].map(o => o.textContent)}));
+    // a place the store does not offer: no menu, and the handle says Parseh's own
+    await mount({surface: 'lab-menu'});
+    eq(await state(), {prompt: null, id: '', picked: [], menu: false, options: []}, 'a place the store does not offer has no menu, and the row says Parseh\u2019s own');
+    // a place it offers
+    const added = await keep('ask', {name: 'ZZ menu added', kind: 'added', text: 'ZZ-H-ADDED.'});
+    const whole = await keep('ask', {name: 'ZZ menu whole', kind: 'replace', text: 'ZZ-H-WHOLE {{LANGUAGE}}.'});
+    const only = await keep('ask', {name: 'ZZ menu italian', kind: 'added', text: 'ZZ-H-IT.', languages: ['it']});
+    await mount({surface: 'ask', lang: 'fa', options: false});
+    let s = await state();
+    eq([s.menu, s.options, s.id, s.prompt], [true, ['Parseh\u2019s', 'ZZ menu added', 'ZZ menu whole'], '', null],
+       'a place it offers: the menu lists Parseh\u2019s own and the prompts for this language -- the one for Italian is not here');
+    await page.selectOption('#slot .llmrow-pm select', {label: 'ZZ menu whole'});
+    s = await state();
+    eq([s.prompt, s.id, s.picked], [{id: whole.id, name: 'ZZ menu whole', kind: 'replace', languages: [], stale: false}, whole.id, ['ZZ menu whole']],
+       'a choice: row.prompt() says which, with its kind (what a skill\u2019s request needs), row.promptId() is the id a request names, and onPrompt is told');
+    // one for a language, chosen, and the language changes: it is not offered there, Parseh\u2019s own is chosen again, and the page is told
+    await page.selectOption('#slot .llmrow-pm select', {label: 'ZZ menu added'});
+    await page.evaluate(async () => { await window.row.setLang('it'); });
+    s = await state();
+    eq([s.options, s.id], [['Parseh\u2019s', 'ZZ menu added', 'ZZ menu whole', 'ZZ menu italian'], added.id], 'another language: its own prompt is offered as well');
+    await page.selectOption('#slot .llmrow-pm select', {label: 'ZZ menu italian'});
+    await page.evaluate(async () => { await window.row.setLang('fa'); });
+    s = await state();
+    eq([s.options, s.id, s.picked.slice(-1)], [['Parseh\u2019s', 'ZZ menu added', 'ZZ menu whole'], '', [null]],
+       'back to Persian: the prompt for Italian is gone from the menu, Parseh\u2019s own is chosen again, and the page is told');
+    eq(await page.evaluate(() => localStorage.getItem('parseh_llmrow_prompt_ask')), (await callStore(store, 'list', {surface: 'ask', lang: 'it'})).prompts.find(p => p.name === 'ZZ menu italian').id,
+       'what this device chose last is kept, and is not forgotten because the language moved on');
+    // menu: false -- a page that draws its own, or none
+    await mount({surface: 'ask', lang: 'fa', options: false, menu: false});
+    eq(await state(), {prompt: null, id: '', picked: [], menu: false, options: []}, '`menu: false` draws none, and the handle says Parseh\u2019s own');
+    // the menu without a row, for the page that chooses before it has a prompt (the add page)
+    const alone = await page.evaluate(async ([want]) => {
+      const el = document.createElement('div');
+      document.body.appendChild(el);
+      const got = [];
+      const m = ParsehLLMRow.menu(el, {surface: 'ask', lang: 'fa', onPrompt: c => got.push(c && c.name)});
+      await m.ready();
+      const sel = el.querySelector('select');
+      sel.value = [...sel.options].find(o => o.textContent === want).value;
+      sel.dispatchEvent(new Event('change'));
+      return {id: m.id(), prompt: m.prompt(), got, row: !!el.querySelector('.llmrow-copy')};
+    }, ['ZZ menu added']);
+    eq([alone.id === added.id, alone.prompt.kind, alone.got, alone.row], [true, 'added', ['ZZ menu added'], false], 'the menu without a row: the same id and kind, the page told, and no copy button');
+    // the editor of a menu that shows no row: the menu is the only place to write one
+    for (const p of [added, whole, only]) await callStore(store, 'delete', {id: p.id});
     await ctx.close();
   });
 

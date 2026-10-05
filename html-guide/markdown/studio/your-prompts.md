@@ -14,8 +14,9 @@ choose it at the button that copies the prompt. **Parseh's own prompts are
 never changed or deleted by any of this**: yours stand beside them, and
 choosing Parseh's again is one click.
 
-Parseh runs no model and sends nothing anywhere. A prompt is only text that
-you copy; your prompts change what you copy, and nothing else.
+A prompt is only text that you copy and carry to a chatbot yourself: writing
+one, or choosing it, runs no model and sends nothing. Your prompts change what
+you copy, and nothing else.
 
 ## Where there is a prompt
 
@@ -34,6 +35,50 @@ Every place that hands out a prompt has its own list of yours:
 
 A prompt you wrote for one of these is offered only there: a prompt for a
 stretch of a video does not appear at the button for a stretch of a book.
+
+## Writing one: the menu beside the button
+
+Every button that copies a prompt has a menu in front of it, **prompt:
+Parseh's ▾**, and three small buttons: **new**, **edit** and **delete**. The
+menu lists Parseh's own prompt for that place and yours, and the one chosen
+is the one the button copies; the size said under the button is its size. On
+the add page, where the prompt is prepared before there is a button to copy
+it with, the menu is above **Prepare the prompt**, with the choices that
+belong to it. A place where the computer has no prompts of yours to offer
+(it does not answer) has no menu, and the prompt is Parseh's own.
+
+- **new.** Opens an editor under the buttons (in the exercise dialog, at the
+  top of what scrolls): a **name**, **what it is** (*added after Parseh's
+  instructions*, the default, or *in place of Parseh's instructions*, which
+  begins as a copy of Parseh's own words), **which language** (every one, or
+  one) and the **text**. Under the text it lists the names Parseh fills in,
+  each a button that puts it where the cursor is, and shows, greyed, what
+  stays Parseh's.
+- **save.** Keeps it, chooses it, and from then on the button copies it. A
+  name Parseh does not fill in, or a name that another prompt of yours has for
+  the place, is refused in words, and nothing is kept.
+- **edit.** Opens the prompt chosen as it was saved. **save** keeps the
+  changes; **save as…** asks for a name and keeps what is written as a new
+  prompt, leaving the first as it was. The button copies the prompt as it was
+  last saved, and the editor says when what you typed is not saved yet.
+- **delete.** Asks first, in the row (*delete "name"? it cannot be got back*),
+  and then Parseh's own is chosen again. **edit** and **delete** are off while
+  Parseh's own is chosen: it is never changed or deleted from here.
+- **close.** Leaves the editor, and asks before it throws away what you
+  changed. **Esc** does the same, and leaves what is round the editor (the
+  transcript being mended, the sidebar) as it was.
+
+The menu remembers on this device which prompt was used last, for each place;
+one that has gone, or is for another language than the page's, is Parseh's own
+again. The prompts are yours on every device that is let in; what each device
+has chosen is its own.
+
+A prompt in place of Parseh's whose starting words Parseh has changed since
+says so under the buttons: *Parseh's prompt changed since you started from
+it.* **see what changed** shows the lines, what Parseh added marked **+** and
+what it took away marked **-**; **mine stands** says that yours stands as it is,
+and the note goes. If another device deletes the prompt you have chosen, the
+row says it is gone and Parseh's own is chosen.
 
 ## Two kinds
 
@@ -182,4 +227,6 @@ Before a0.4.2 the studio kept **one** custom prompt, a file in its library
 **my studio prompt (from before a0.4.2)**, for the studio's prompt, in place of
 Parseh's; the file is taken out of the library, and it is moved once and
 never again. It is a prompt like the others: rename it, edit it, export it or
-delete it.
+delete it. Nothing chooses it for you: it is in the menu of the studio's
+prompt page under that name. It has none of the boxes' blocks, so it is copied
+whole and the boxes are greyed (see [the LLM prompt page](llm-prompt.md#your-own-prompt)).

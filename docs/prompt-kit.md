@@ -205,16 +205,53 @@ The doors take `prompt=<id>` in their body: `POST /youtube/api/region/prompt` an
 `video_prompt`, which resolve it against the stretch's language), `/youtube/api/prepare`
 (`ytpages.assembled_full`), `/youtube/api/transcript` with `prompt` an id where
 `true` is Parseh's own (`tidy.assembled`). The answer then carries
-`custom: {id, name, kind}`. **Not wired yet, by design (Lane F2):** the studio's
-`GET /api/prompt` and `POST /api/exercise-prompt`, `ask` (`lib/llm.js`, which already
-takes `instructions`, `instructionsKind` and `custom`) and the make-a-book page. A
-`studio-doc` prompt of kind `added` goes after the boxes: hand the kit
-`chosen.instructions` with the box flags, or `chosen.text` as an extra; a `replace`
-one takes the boxes only if its text carries the `{{?id}}` markers, which
-`prompts.markers(chosen.text)` lists. Where the kit refuses a prompt of yours at the
-door (it named something Parseh no longer fills in), say it with
-`prompts.unmade(chosen, error)`: the kit's words speak of a bug in a template, which a
-person's prompt is not.
+`custom: {id, name, kind}`. The studio's two routes take it too: `GET /api/prompt?target=fa&prompt=<id>`
+and `POST /api/exercise-prompt` with `prompt` in the body (`markdown/app/server.py`
+`studio_prompt(..., chosen=)` and `exercise_prompt(..., chosen=)`). Their answer's `custom` is
+what THIS answer was made from, `false` for Parseh's own and `{id, name, kind}` for a person's, and
+a request that names no prompt gets Parseh's own, whatever the page used to keep (the one custom
+prompt the studio kept before a0.4.2 is a prompt among the others now, chosen like them). A
+prompt of kind `added` goes after Parseh's instructions and takes the boxes (and, for the
+exercises, the types) like Parseh's own; one `replace` takes them only if its text carries their
+`{{?id}}` blocks (`promptboxes.has_box_marks`; for exercises also a type's `{{?type_…}}`), and is
+otherwise copied whole: every box this language is offered, and every type, then says
+`disabled: "<the one sentence>"` (`server.INERT`) and the page draws it once above them. Where the
+kit refuses a prompt of yours at the door (it named something Parseh no longer fills in), say it
+with `prompts.unmade(chosen, error)`: the kit's words speak of a bug in a template, which a
+person's prompt is not. An id that is gone answers 404, one for another place or language 400, in
+words. **Not wired here:** the make-a-book page (Lane H): mount the row with surface `book-new`
+and put `row.promptId()` in the request that makes the folder.
+
+### The menu in the row
+
+`lib/llmrow.js` draws it (`promptMenu`, one bounded function) wherever the store offers the place:
+**prompt: Parseh's ▾** with **new**, **edit** and **delete** beside it (the last two are off while
+Parseh's own is chosen, which is never changed), and an editor under the row, or in the element a
+page gives as `editorHost`: its name, what it is (*added* or *in place of* Parseh's, which begins as
+a copy of Parseh's own words), the language, the text, the names it may use (each a button that
+puts it where the cursor is) and what stays Parseh's greyed under it, with **save**, **save as…**
+and **close**. A prompt of kind `replace` that began from words Parseh has changed since says so
+under the buttons, with **see what changed** (the line diff) and **mine stands**. A delete is asked
+in the row. The choice is remembered on this device per place (`parseh_llmrow_prompt_<surface>`,
+every access in `try`); one that is gone, or is for another language, is Parseh's own again.
+
+```js
+var row = ParsehLLMRow.mount(el, {surface, lang, promptsUrl, onPrompt, menu, editorHost, ...});
+row.prompt()        // null (Parseh's own) or {id, name, kind, languages, stale}: `kind` is what a skill's request needs
+row.promptId()      // what a request names as `prompt`: '' for Parseh's own, and until the list has come
+row.promptReady()   // a promise, kept when the list has come (a page waits for it where it asks at once)
+row.verifyPrompt()  // after a request for it was refused: is it still there?  If not, Parseh's own is chosen
+ParsehLLMRow.menu(el, {surface, lang, onPrompt})   // the menu alone, for a page with no row yet (the add page)
+```
+
+A page puts `row.promptId()` where its options already go: the studio's query, the dialog's body,
+the add page's `prepare`, the tidy's `prompt` (an id where `true` is Parseh's own), the stretches'
+`prompt`. The row asks the store (`list`) for the place and the language, so a place the store
+does not offer has no menu (R1: the data says which places have prompts, never this file). Ask LLM
+builds its prompt in the page: `ParsehLLM.own(id)` reads the person's text from the store, `prompt`
+fills the names ({{LANGUAGE}}, {{LANGUAGE_NATIVE}}, {{LANGUAGE_CODE}}, {{TR_LABEL}},
+{{GLOSS_LANGUAGE}}, {{GLOSS_CODE}}) and the data opens with the sentence that says it is never an
+order (`prompts.ASK_FRAME`, held equal to `lib/llm.js` by a test).
 
 ### The API the row's menu calls
 
