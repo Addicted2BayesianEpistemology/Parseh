@@ -488,7 +488,9 @@ def instructions_text(facts, options=None):
         "LANG_DIGIT_EXAMPLE": L.to_native_digits("3"), "LANG_LABEL_EXAMPLE": L.to_native_digits("3.1"),
         "KANA_RULE": rule, "WORDS_STEP": step, "KANA_EXAMPLE": example,
     }
-    return promptkit.assemble("book-new", L, G, values=values).text
+    # the book's own scheme for its transliteration, and what the page chose of the short vowels
+    asked = promptkit.given({"translit": book.get("translit"), "marks": (options or {}).get("marks")})
+    return promptkit.assemble("book-new", L, G, values=values, options=asked).text
 
 
 CLAUDE_LINE = "Read AGENTS.md in this folder before anything else, and follow it.\n"
@@ -558,6 +560,11 @@ def _identity(fields, need=True):
                          "behind)" % wanted)
     got.update(slug=slug or "new-book", lang=L, gloss=G,
                upper=upper or (got["title_latin"] or slug or "new-book").upper())
+    # THE SCHEME OF THE BOOK'S TRANSLITERATION is a fact of the book (book.json "translit"), written
+    # only when it is not the language's usual one: "ipa", or "" (promptkit.OPTIONS; a value that is
+    # neither is refused in words)
+    got["translit"] = "ipa" if promptkit.resolve(
+        "book-new", L, promptkit.given(fields)).get("translit") == "ipa" else ""
     return got
 
 
@@ -620,7 +627,7 @@ def facts_for(identity, orig_file, pages, options, dest, shelf=None):
                  "title_en": identity["title_en"], "author": identity["author"],
                  "author_latin": identity["author_latin"], "year": identity["year"],
                  "blurb": identity["blurb"], "language": L.code, "language_name": L.name,
-                 "gloss": G.code, "gloss_name": G.name},
+                 "gloss": G.code, "gloss_name": G.name, "translit": identity["translit"]},
         "original": {"file": "%s/%s" % (ORIGINAL, orig_file), "pages": pages},
         "reference": reference, "examples": examples,
         "examples_dir": os.path.join(shelf, L.folder)}
@@ -716,6 +723,8 @@ def make(fields, original, options=None, into=None):
                 "audio": None, "transcript": None, "source_pdf": "%s/%s" % (ORIGINAL, name)}
         if pages:
             meta["source_pages"] = pages
+        if ident["translit"]:
+            meta["translit"] = ident["translit"]
         _write_json(os.path.join(tree, "book.json"), meta)
         values = {"TITLE": ident["title"], "AUTHOR": ident["author"],
                   "TITLE_LATIN": meta["title_latin"], "AUTHOR_LATIN": ident["author_latin"],

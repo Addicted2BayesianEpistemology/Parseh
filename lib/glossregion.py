@@ -3,9 +3,10 @@
 """Gloss a region of a book or a video with an LLM: the prompt that asks for
 it, and the answer put back, chunk by chunk, through the doors a hand uses.
 
-    book_prompt(book, first, last, regloss, perfield)          -> {prompt, region, ...}
+    book_prompt(book, first, last, regloss, perfield, prompt, translit, marks)
+                                                               -> {prompt, region, options, ...}
     book_apply(book, first, last, answer, regloss, perfield, confirm)
-    video_prompt(vdir, frm, to, regloss, perfield)
+    video_prompt(vdir, frm, to, regloss, perfield, prompt, translit, marks)
     video_apply(vdir, frm, to, answer, regloss, perfield, confirm)
     json_blocks(text)                   the JSON documents in a pasted answer
 
@@ -667,10 +668,13 @@ def _about(ctx, counts):
     return "\n".join(out)
 
 
-def assembled(ctx, units, mode, instructions=None, custom=None):
+def assembled(ctx, units, mode, instructions=None, custom=None, options=None):
     """The prompt for these units, in the parts the kit made it of.  The
     instructions are a person's own where they are given (lib/prompts.py),
-    and `custom` names them in the version line.
+    and `custom` names them in the version line.  `options` is what the
+    request chose of the scheme of the transliteration and the short vowels
+    (lib/promptkit.py OPTIONS); what it leaves unsaid is the book's or the
+    video's own record of the scheme (its `translit`), else the default.
     -> (promptkit.Assembled, counts)"""
     L, G = ctx["L"], ctx["G"]
     book = ctx["surface"] == "book"
@@ -701,19 +705,30 @@ def assembled(ctx, units, mode, instructions=None, custom=None):
     return promptkit.assemble(
         "%s-region" % ctx["surface"], L, G, mode=mode, flags=flags, values=subs,
         verbatim={"ABOUT": _about(ctx, counts), "DATA": data},
-        instructions=instructions, custom=custom), counts
+        instructions=instructions, custom=custom,
+        options=promptkit.resolve("%s-region" % ctx["surface"], L, options, _facts(ctx))), counts
 
 
-def render(ctx, units, mode, instructions=None, custom=None):
+def _facts(ctx):
+    """What the book's or the video's own record says of the options of a prompt: the scheme its
+    transliteration is written in (book.json, video.json: "translit")."""
+    return {"translit": ctx["meta"].get("translit")}
+
+
+def render(ctx, units, mode, instructions=None, custom=None, options=None):
     """The prompt for these units.  -> (text, counts)"""
-    a, counts = assembled(ctx, units, mode, instructions, custom)
+    a, counts = assembled(ctx, units, mode, instructions, custom, options)
     return a.text, counts
 
 
-def _prompt(ctx, units, mode, prompt=None):
+def _prompt(ctx, units, mode, prompt=None, options=None):
     """`prompt` is the id of one of the person's own prompts, or nothing for
     Parseh's: the instructions of it in place of Parseh's, the answer contract
-    and the data Parseh's still."""
+    and the data Parseh's still.  `options` is what the request said of the
+    scheme of the transliteration and the short vowels, as it said it: a value
+    that is none of the option's is refused in words, one that does not apply
+    (the short vowels of Italian) is left out, and the answer's `options` says
+    what each came to."""
     if not units:
         raise Refused("nothing in this region can be sent: %s" % ctx["region"])
     try:
@@ -723,12 +738,16 @@ def _prompt(ctx, units, mode, prompt=None):
     except prompts.PromptsError as e:
         raise Refused(str(e))
     try:
-        text, counts = render(ctx, units, mode, chosen and chosen.instructions,
-                              chosen and chosen.name)
+        made, counts = assembled(ctx, units, mode, chosen and chosen.instructions,
+                                 chosen and chosen.name, options)
+    except promptkit.OptionError as e:
+        raise Refused(str(e))
     except promptkit.PromptError as e:
         raise Refused(prompts.unmade(chosen, e) if chosen else
                       "the prompt could not be made: %s" % e)
-    r = dict(counts, prompt=text, region=ctx["region"], folded=ctx["folded"],
+    r = dict(counts, prompt=made.text, region=ctx["region"], folded=ctx["folded"],
+             options=promptkit.describe("%s-region" % ctx["surface"], ctx["L"], made.options,
+                                        _facts(ctx)),
              **ctx["echo"])
     if chosen:
         r["custom"] = {"id": chosen.id, "name": chosen.name, "kind": chosen.kind}
@@ -745,15 +764,20 @@ def _prompt(ctx, units, mode, prompt=None):
     return r
 
 
-def book_prompt(book, first, last, regloss=False, perfield=False, prompt=None):
-    """The prompt for a book region.  -> {prompt, region, units, chunks, fill,
-    glossed, folded, notes, custom?}"""
+def book_prompt(book, first, last, regloss=False, perfield=False, prompt=None,
+                translit=None, marks=None):
+    """The prompt for a book region.  `translit` ("ipa" or "classic") and
+    `marks` ("1", "0": the short vowels) are the options of the prompt, left
+    to the book's own record and the defaults where not said.
+    -> {prompt, region, units, chunks, fill, glossed, folded, notes, options,
+    custom?}"""
     mode = _mode(regloss, perfield)
     ctx, units, _folded, _known = _book_units(book, first, last)
-    return _prompt(ctx, units, mode, prompt)
+    return _prompt(ctx, units, mode, prompt, _asked(translit, marks))
 
 
-def video_prompt(vdir, frm, to, regloss=False, perfield=False, prompt=None):
+def video_prompt(vdir, frm, to, regloss=False, perfield=False, prompt=None,
+                 translit=None, marks=None):
     """The prompt for a video region.  -> as book_prompt, folded always 0"""
     mode = _mode(regloss, perfield)
     ctx, units, _segs = _video_units(vdir, frm, to)
@@ -761,7 +785,12 @@ def video_prompt(vdir, frm, to, regloss=False, perfield=False, prompt=None):
         raise Refused("nothing in this region can be glossed: it holds no chunk of "
                       "%s text, only plain captions and the video's own framing"
                       % ctx["L"].name)
-    return _prompt(ctx, units, mode, prompt)
+    return _prompt(ctx, units, mode, prompt, _asked(translit, marks))
+
+
+def _asked(translit, marks):
+    """The options a request named -> {name: value}, nothing for what it left out."""
+    return promptkit.given({"translit": translit, "marks": marks})
 
 
 # --- the answer ---------------------------------------------------------

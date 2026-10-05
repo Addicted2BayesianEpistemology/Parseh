@@ -56,6 +56,7 @@ The fields of the row that carry a decision:
 | `words` | chunks carry a word line, each word with its reading (Japanese, Chinese) — and a reading-alone pass follows pass 1 |
 | `vertical` | it can be set in columns: a vertical last pass, and the studio's `vertical` |
 | `require_tr`, `translit_label` | whether every chunk needs a transliteration, and what the line is called |
+| `ipa` | what the prompts' IPA setting makes of the language: left out, a person may ask for IPA in place of the usual scheme; `usual` says the usual scheme already is IPA (English); `none` offers no setting (Chinese, whose words are written in pinyin) |
 | `vocal_label`, `bare_label` | what pass 1 and the bare pass are called |
 | `vb_forms`, `vb_labels` | what a verb entry's three forms are, and the two labels it prints ([Verb entries](language-by-language.md#verb-entries)) |
 | `vb_video_bare` | a video's verb entries written without the marks (Arabic's are unvowelled); set by hand, there is no flag |

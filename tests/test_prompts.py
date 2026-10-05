@@ -780,16 +780,18 @@ class Assembling(unittest.TestCase):
 class VersionLine(unittest.TestCase):
     def test_its_shape(self):
         v = version.VERSION
-        self.assertEqual(K.version_line("video-region", "fa", "en"), "Parseh prompt · video-region · fa → en · " + v)
+        # a language with short vowels says its setting for them last (brief 3.10): `no marks` is the
+        # default of a stretch of a book or a video and of a video from scratch
+        self.assertEqual(K.version_line("video-region", "fa", "en"), "Parseh prompt · video-region · fa → en · " + v + " · no marks")
         self.assertEqual(K.version_line("studio-doc", "it"), "Parseh prompt · studio-doc · it · " + v)
         self.assertEqual(K.version_line("book-region", "ja", "it", "regloss"),
                          "Parseh prompt · book-region · ja → it · %s · re-gloss" % v)
         self.assertEqual(K.version_line("book-region", "ja", "it", "perfield"),
                          "Parseh prompt · book-region · ja → it · %s · per field" % v)
         self.assertEqual(K.version_line("video-region", "fa", "en", "fill"),
-                         "Parseh prompt · video-region · fa → en · " + v)
+                         "Parseh prompt · video-region · fa → en · " + v + " · no marks")
         self.assertEqual(K.version_line("video-new", "fa", "en", None, "my rules"),
-                         "Parseh prompt · video-new · fa → en · %s · custom: my rules" % v)
+                         "Parseh prompt · video-new · fa → en · %s · no marks · custom: my rules" % v)
         self.assertEqual(K.version_line("studio-doc", "fa", None, None, True),
                          "Parseh prompt · studio-doc · fa · %s · custom" % v)
 
@@ -855,7 +857,7 @@ def _read_as(code, surface):
     lines a block leaves behind collapsed as the cut collapses them.  A shipped
     file marks what belongs to a book or a video only, so what a prompt takes of
     it is compared to this and not to the raw text."""
-    return re.sub(r"\n{3,}", "\n\n", K.blocks(_file(code), K.surface_flags(surface)))
+    return re.sub(r"\n{3,}", "\n\n", K.blocks(_file(code), K.surface_flags(surface, code)))
 
 
 def _headings(text):
@@ -1087,7 +1089,7 @@ class Assemblers(ControlledMachine):
         h = Handler({"markdown": "---\ntitle: T\ntarget: fa\n---\n\nLesson", "decks": []})
         studio_server.api_exercise_prompt(h)
         # the old keys are kept, and what the dialog draws its boxes and types from is added (E-CONTRACT)
-        self.assertEqual(sorted(h.answer), ["boxes", "preticked", "prompt", "size", "types", "vocabulary"])
+        self.assertEqual(sorted(h.answer), ["boxes", "options", "preticked", "prompt", "size", "types", "vocabulary"])
         p = h.answer["prompt"]
         self.assertTrue(p.startswith(K.version_line("studio-exercises", "fa")))
         self.assertIn("Return the complete updated Markdown document in one fenced", p)
@@ -2537,6 +2539,92 @@ class AnswerShapes(unittest.TestCase):
                     self.assertEqual(stored, self.DOC.replace("title: Slow", "title: Slow %d" % i), label)
             finally:
                 studio_server.store.use_library(was)
+
+
+# --- the content of the options, which waits for lane D2 (brief 3.9, 3.10) -----------------------------------------
+# The MECHANISM of the two options is lane T's (tests/test_prompt_options.py); what a language file SAYS under each
+# value is lane D2's, and these rows hold it.  A row marked PENDING("D2") is run all the same, and skipped with its
+# reason and the number of prompts that still fail it; the day it passes everywhere it fails, until D2 turns its
+# `waits_for` into the assertion beneath (`self.assertEqual(failures, [])`) -- the check is written, only the mark is theirs.
+#
+# THE USUAL SCHEME'S OWN WORDS, by language: one phrase of the Transliteration section as it stands today that only the
+# usual scheme says, so that an IPA prompt which still carries it still describes the scheme it was asked to leave.
+# English's usual scheme already is IPA and Chinese is offered no IPA setting (the registry's `ipa`): neither has one.
+USUAL_SCHEME_SAYS = {
+    "fa": "**š** = ش", "ar": "never `kh`", "hi": "**ष is ś, like श.**", "ja": "**Hepburn rōmaji**",
+    "it": "IPA-lite pronunciation aid", "es": "IPA-lite pronunciation aid",
+    "fr": "The scheme is a respelling, not IPA", "de": "**pronunciation line, given only where the spelling misleads**",
+    "tr": "**Never respell the alphabet.**",
+}
+TAKE_THE_FILE = ("studio-doc", "studio-exercises", "video-region", "book-region", "video-new", "book-new")
+
+
+def waits_for(test, lane, why, failures, total):
+    """A row that waits for a lane: skipped, with its reason, while it fails; a failure the day it passes."""
+    if not failures:
+        test.fail("PENDING(%s) %s passes on all %d: take the mark off, so that it is checked from now on" % (lane, why, total))
+    test.skipTest("PENDING(%s): %s -- still fails on %d of %d (%s)" % (lane, why, len(failures), total, "; ".join(failures[:3])))
+
+
+class TheContentOfTheOptions(ControlledMachine):
+    def ipa_languages(self):
+        return [c for c in languages.CODES if languages.get(c).ipa == "offered"]
+
+    def test_each_phrase_of_the_usual_scheme_is_in_the_usual_prompt_it_stands_for(self):
+        # so the list above cannot rot: a file whose usual scheme is reworded names a phrase that is gone
+        self.assertEqual(sorted(USUAL_SCHEME_SAYS), sorted(c for c in self.ipa_languages() if c not in ("zh",)))
+        for code, phrase in USUAL_SCHEME_SAYS.items():
+            for surface in TAKE_THE_FILE:
+                self.assertIn(phrase, K.language_text(surface, code), (code, surface))
+
+    def usual_rules_in_ipa(self):
+        failures, total = [], 0
+        for code, phrase in USUAL_SCHEME_SAYS.items():
+            for surface in TAKE_THE_FILE:
+                total += 1
+                if phrase in K.language_text(surface, code, options={"translit": "ipa"}):
+                    failures.append("%s %s still says %r" % (surface, code, phrase))
+        return failures, total
+
+    def test_the_ipa_prompt_carries_no_rule_of_the_usual_scheme__PENDING_D2(self):
+        failures, total = self.usual_rules_in_ipa()
+        waits_for(self, "D2", "an IPA prompt describes no rule of the usual scheme (brief 3.9)", failures, total)
+        # D2: replace the line above with  self.assertEqual(failures, [])
+
+    def files_without_an_ipa_note(self):
+        missing = []
+        for code in self.ipa_languages():
+            text = _file(code)
+            for flag in ("ipa", "classic"):
+                if "{{?%s}}" % flag not in text:
+                    missing.append("docs/lang/%s.md has no {{?%s}} block" % (code, flag))
+        template = _file("_template")
+        for flag in ("ipa", "classic"):
+            if "{{?%s}}" % flag not in template:
+                missing.append("docs/lang/_template.md has no {{?%s}} block: a language added later would start without it" % flag)
+        return missing
+
+    def test_every_language_file_and_the_template_carry_the_ipa_note_and_the_usual_text__PENDING_D2(self):
+        failures = self.files_without_an_ipa_note()
+        waits_for(self, "D2", "every language file says IPA in a block of its own beside the usual scheme",
+                  failures, 2 * (len(self.ipa_languages()) + 1))
+
+    def files_without_the_marks_paragraphs(self):
+        return ["docs/lang/%s.md has no {{?%s}} block" % (c, flag)
+                for c in languages.CODES if languages.get(c).strip_range
+                for flag in ("marks", "nomarks") if "{{?%s}}" % flag not in _file(c)]
+
+    def test_the_harakat_paragraphs_of_persian_and_arabic_carry_the_marks_flags__PENDING_D2(self):
+        failures = self.files_without_the_marks_paragraphs()
+        waits_for(self, "D2", "the harakat paragraphs are marked by the option and not by the surface (brief 3.10)",
+                  failures, sum(1 for c in languages.CODES if languages.get(c).strip_range) * 2)
+
+    def test_a_language_with_no_short_vowels_has_no_marks_block_in_its_file(self):
+        # a language WITHOUT `strip` never gets the option: no block of its file is for it
+        for code in languages.CODES:
+            if not languages.get(code).strip_range:
+                for flag in ("marks", "nomarks"):
+                    self.assertNotIn("{{?%s}}" % flag, _file(code), code)
 
 
 if __name__ == "__main__":

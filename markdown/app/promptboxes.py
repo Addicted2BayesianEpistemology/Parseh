@@ -308,11 +308,12 @@ def legacy_text(L):
     return (a.instructions + "\n\n" + a.contract).strip() + "\n"
 
 
-def dialect_text(L, on, types=None):
+def dialect_text(L, on, types=None, options=None):
     """What the exercise prompt teaches of the page's dialect: the studio's rules, only the ticked boxes
-    and the reserved list, without the task, the front matter or the structure of a whole document."""
+    and the reserved list, without the task, the front matter or the structure of a whole document.
+    `options` is the scheme of the transliteration the request chose (lib/promptkit.py OPTIONS)."""
     return promptkit.assemble("studio-doc", L, flags=flags(L, on, types, exercising=True), values=values(L),
-                              includes=includes()).instructions
+                              includes=includes(), options=options).instructions
 
 
 # --- sizes ---------------------------------------------------------------------------

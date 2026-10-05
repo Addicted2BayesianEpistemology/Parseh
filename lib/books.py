@@ -55,7 +55,7 @@ NARR_FIRST = "n1"
 # its list of recordings -- and every one of them writes the shape this module
 # reads, so the number is kept here.  RAISE IT when the shape changes so that
 # the Parseh before this one would read a book wrong; a field added that an
-# older reader ignores (as "gloss" was) is not such a change.
+# older reader ignores (as "gloss" was, and "translit" is) is not such a change.
 BOOK_FORMAT = 1
 
 
@@ -359,6 +359,15 @@ class Book:
         line (lib/wordline.py, check).  False for a book that says nothing,
         which is every book written in the order it is read."""
         return bool(self.meta.get("reorders"))
+
+    @property
+    def translit(self):
+        """book.json's "translit": "ipa" -- the book's transliteration is IPA and
+        not the language's usual scheme, so that the prompts ask for IPA by
+        default and the checks written for the usual scheme step aside.  ""
+        for a book that says nothing, which is every book made before the
+        setting existed."""
+        return "ipa" if self.meta.get("translit") == "ipa" else ""
 
     def rel_from_reader(self, path):
         """A path expressed relative to reader/index.html."""

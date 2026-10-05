@@ -134,6 +134,7 @@ import speechpage         # noqa: E402  Settings -> Speech to text (§7.23)
 import latexpage          # noqa: E402  Settings -> LaTeX drawings (§8.39)
 import latexthemes        # noqa: E402  the themes a latex block is drawn with
 import prompts            # noqa: E402  the prompts a person wrote for a chatbot (§8, a0.4.2)
+import promptkit          # noqa: E402  the choices a person makes for one prompt (lib/promptkit.py OPTIONS)
 import promptspage        # noqa: E402  Settings -> Your prompts
 import languages            # noqa: E402  the registry: names, folders, the CSS tokens
 import make_index           # noqa: E402  what a built reader says about itself
@@ -3170,6 +3171,14 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_json({"version": version.VERSION})
+        if path == "/__prompt/options":
+            # THE CHOICES A PERSON MAKES FOR ONE PROMPT, which lib/llmrow.js draws beside
+            # the copy button: the scheme of its transliteration, the short vowels.  Read
+            # only, and decided here (lib/promptkit.py OPTIONS) so that no page holds a
+            # table of which language has what
+            if method != "GET":
+                return self._method_not_allowed()
+            return self._prompt_options()
         if path == "/guide":
             return self._redirect("/guide/")
         if path.startswith("/guide/"):
@@ -3699,7 +3708,8 @@ class Handler(SimpleHTTPRequestHandler):
         except ValueError:
             return self.send_json({"ok": False, "error": "the book's facts did not arrive as JSON"}, 400)
         options = {"reference": str(fields.pop("reference", "") or ""),
-                   "examples": bool(fields.pop("examples", False))}
+                   "examples": bool(fields.pop("examples", False)),
+                   "marks": fields.pop("marks", None)}
         name = (self.query.get("name") or [""])[0]
         original = {"name": name, "path": self._spool} if self._spool else {"name": name, "data": self._raw}
         try:
@@ -3722,7 +3732,8 @@ class Handler(SimpleHTTPRequestHandler):
             return
         body = self._json_body()
         fields = body.get("book") if isinstance(body.get("book"), dict) else {}
-        options = {"reference": str(body.get("reference") or ""), "examples": bool(body.get("examples"))}
+        options = {"reference": str(body.get("reference") or ""), "examples": bool(body.get("examples")),
+                   "marks": body.get("marks")}
         try:
             text = making.instructions_for(fields, options)
         except ValueError as e:
@@ -5341,6 +5352,36 @@ class Handler(SimpleHTTPRequestHandler):
             flags[k] = v
         return flags, None
 
+    def _prompt_options(self):
+        """The options of a prompt, for ?surface=<surface>&lang=<code>: the ones that apply
+        there, each with its words, its default and what stands now.  With ?book=<its address,
+        /books/persian/mini-fa> or ?video=<its id> what that book's or video's own record says
+        of the scheme of its transliteration is what stands (`fact`: true)."""
+        q = lambda key: (self.query.get(key) or [""])[0]
+        surface = q("surface")
+        if surface not in promptkit.SURFACES:
+            return self.send_json({"ok": False, "error": "%r is not a place a prompt is handed out from"
+                                   % surface}, 400)
+        L = languages.LANGS.get(q("lang"))
+        if L is None:
+            return self.send_json({"ok": False, "error": "%r is not a language of Parseh" % q("lang")}, 400)
+        # NO FACTS WITHOUT A RECORD: the page that asks for a book or a video that is not made yet
+        # (the add page) has nothing a prompt could mix with, and a record that will not read says
+        # nothing of the scheme
+        facts = None
+        try:
+            if q("book"):
+                where = book_dir(q("book") if q("book").startswith("/books/") else "/books/" + q("book").strip("/"))
+                if where:
+                    facts = {"translit": booklib.Book(where).meta.get("translit")}
+            elif q("video"):
+                where = video_dir(q("video"))
+                if where:
+                    facts = {"translit": annwrite._meta(where).get("translit")}
+        except (OSError, ValueError):
+            facts = None
+        self.send_json({"ok": True, "options": promptkit.describe(surface, L, None, facts)})
+
     def _book_region(self, what):
         """Part of a book glossed by an LLM (lib/glossregion.py): `prompt`
         is what the page copies for the chatbot, `apply` the chatbot's
@@ -5374,7 +5415,8 @@ class Handler(SimpleHTTPRequestHandler):
                                    "reply, pasted as it came"}, 400)
         try:
             if what == "prompt":
-                r = glossregion.book_prompt(book, first, last, prompt=body.get("prompt"), **flags)
+                r = glossregion.book_prompt(book, first, last, prompt=body.get("prompt"),
+                                            translit=body.get("translit"), marks=body.get("marks"), **flags)
             else:
                 r = glossregion.book_apply(book, first, last, answer, **flags)
         except glossregion.NotFound as e:
@@ -5722,7 +5764,8 @@ class Handler(SimpleHTTPRequestHandler):
                                    "reply, pasted as it came"}, 400)
         try:
             if what == "prompt":
-                r = glossregion.video_prompt(d, frm, to, prompt=body.get("prompt"), **flags)
+                r = glossregion.video_prompt(d, frm, to, prompt=body.get("prompt"),
+                                             translit=body.get("translit"), marks=body.get("marks"), **flags)
             else:
                 r = glossregion.video_apply(d, frm, to, answer, **flags)
         except glossregion.NotFound as e:

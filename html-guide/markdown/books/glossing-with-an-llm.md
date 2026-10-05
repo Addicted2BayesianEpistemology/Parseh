@@ -130,6 +130,34 @@ it.
 
 Paste the prompt into the chatbot.
 
+## The scheme of the transliteration
+
+Under **copy the prompt** the sheet has a choice labelled with the
+language's own word for its transliteration line — *transliteration* for
+Persian, Arabic and Hindi, *rōmaji* for Japanese, *pronunciation* for
+Italian and the other Latin-script languages — **usual scheme** or **IPA**.
+With IPA the prompt asks for the International Phonetic Alphabet everywhere
+the answer carries a transliteration: the `tr` line and the sound of every
+`\dw`, `\vb` and `\bw` of the vocabulary line. Nothing else changes: the
+text, the kana and the language of the meanings are what they were.
+English's usual line already is IPA, and the choice says so; Chinese has
+no IPA setting yet, because its word line is written in pinyin. The first
+line of the prompt ends **· IPA** when it asks for it, and the choice is
+remembered on this device, one for each language.
+
+**A book is in one scheme.** The scheme chosen when the book was made is
+kept in the book (`book.json`'s `translit`), and every prompt for a stretch
+of it asks for that one: the sheet shows it as the book's own. Choosing the
+other for a single prompt is allowed, and the sheet then says that a book
+that mixes two schemes is harder to read, and offers **make … the book's
+setting**, which changes the book itself. A book that says nothing is in the
+usual scheme, so choosing IPA for a stretch of it is choosing the other, and
+that button is how a book becomes an IPA one. A Persian book that says IPA is
+not held to the checks written for the usual scheme (`/ey/` and *češm*);
+the checker says in a note that it did not run them. The PDF sets IPA
+letters the main face lacks in a second face, as it does for any
+transliteration.
+
 ## Filling from the answer
 
 Paste the chatbot's whole reply into **the LLM's answer** and press **fill

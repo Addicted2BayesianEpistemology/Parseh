@@ -118,6 +118,11 @@ class Lang:
         self.words = bool(d.get("words"))
         self.require_tr = bool(d.get("require_tr", True))
         self.translit_label = d.get("translit_label") or "transliteration"
+        # WHAT THE PROMPTS' IPA SETTING MAKES OF THIS LANGUAGE (lib/promptkit.py OPTIONS): "offered"
+        # (a row that says nothing: a person may ask for IPA in place of the usual scheme), "usual"
+        # (the usual scheme already IS IPA: English) or "none" (the setting is not offered: Chinese,
+        # whose word line is written in pinyin, which no converter turns into IPA yet)
+        self.ipa = d.get("ipa") if d.get("ipa") in ("usual", "none") else "offered"
         self.reading_label = d.get("reading_label")
         self.vocal_label = d.get("vocal_label") or "the sentence"
         self.bare_label = d.get("bare_label")

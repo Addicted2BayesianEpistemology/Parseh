@@ -1031,6 +1031,20 @@ def serve_llmrow_js(h):
                  {"Cache-Control": "no-cache"})
 
 
+def serve_prompt_options(h):
+    """The choices a person makes for one prompt, which the row (lib/llmrow.js)
+    draws beside the copy button: the scheme of the transliteration.  The
+    toolbox answers this path itself (serve.py, with a book's or a video's own
+    record as well); run on its own the studio answers it here, for
+    ?surface=<studio-doc|studio-exercises>&lang=<code>."""
+    surface, L = _q1(h, "surface"), languages.LANGS.get(_q1(h, "lang"))
+    if surface not in promptkit.SURFACES:
+        return h.send_json({"ok": False, "error": "%r is not a place a prompt is handed out from" % surface}, 400)
+    if L is None:
+        return h.send_json({"ok": False, "error": "%r is not a language of Parseh" % _q1(h, "lang")}, 400)
+    h.send_json({"ok": True, "options": promptkit.describe(surface, L)})
+
+
 def serve_app_css(h):
     """The studio's sheet, and the chrome around it, under the one name.
 
@@ -1947,8 +1961,8 @@ def api_exercise_prompt(h):
         markdown = str(body.get("markdown") or "")
         a, rows = exercise_prompt(markdown, body.get("decks") or [], boxes=body.get("boxes"),
                                   types=body.get("types"), level=body.get("level"),
-                                  length=body.get("length"))
-    except promptboxes.Refused as e:
+                                  length=body.get("length"), translit=body.get("translit"))
+    except (promptboxes.Refused, promptkit.OptionError) as e:
         return h.send_json({"error": str(e)}, 400)
     except promptkit.PromptError as e:
         return h.send_json({"error": "the prompt could not be made: %s" % e}, 400)
@@ -1956,20 +1970,24 @@ def api_exercise_prompt(h):
                  "boxes": promptboxes.catalog(a.target, a.boxes, exercising=True),
                  "types": promptboxes.types_catalog(a.target, a.types),
                  "preticked": {"boxes": a.page_boxes, "types": a.page_types},
+                 "options": promptkit.describe("studio-exercises", a.target, a.options),
                  "size": promptboxes.size(a.text)})
 
 
-def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length=""):
+def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length="", translit=None):
     """The prompt that has a model add exercises to a page, in its three
     parts (lib/promptkit.py), and the known words from the Anki decks it
     carries.  Its dialect is built from the boxes ticked -- by default the
-    ones the page already uses -- and its exercises from the types ticked.
+    ones the page already uses -- and its exercises from the types ticked;
+    `translit` is the scheme of the transliteration the request chose
+    ("ipa" or "classic", promptkit.OPTIONS).
     -> (promptkit.Assembled, rows); what the request came to is on the Assembled, for the route that
     answers with it: `target`, `boxes` and `types` ticked, and what the page uses as `page_boxes` and
     `page_types` (all the types, when it holds no exercise)"""
     rows = _deck_vocabulary(decks)
     fm, _blocks = mdparser.parse(markdown)
     target = languages.get_or_default(fm["target"])
+    options = promptkit.resolve("studio-exercises", target, promptkit.given({"translit": translit}))
     page_boxes, page_types = promptboxes.page_uses(markdown)
     page_types = page_types or list(promptboxes.TYPE_IDS)
     on_boxes = page_boxes if boxes is None else promptboxes.ticked(boxes)
@@ -1984,12 +2002,12 @@ def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length
     # here, not a page, and the instructions above say what to return (the studio's own contract, which
     # asks for a file, is not part of it).  The custom authoring prompt is the studio page's choice and
     # does not carry over: the dialog has its own.
-    conventions = promptkit.language_text("studio-exercises", target)
+    conventions = promptkit.language_text("studio-exercises", target, options=options)
     promptkit.check("\n".join(extras + [conventions]), "studio-exercises")  # Parseh's own
     extras.append("## The page's Markdown dialect\n\n"
                   "What follows describes what the page's Markdown dialect lets an exercise use; where it "
                   "differs from the output instructions above, the instructions above win.\n\n"
-                  + "\n\n".join(x for x in (promptboxes.dialect_text(target, on_boxes, on_types),
+                  + "\n\n".join(x for x in (promptboxes.dialect_text(target, on_boxes, on_types, options),
                                             conventions) if x))
     data = [promptboxes.level_length(level, length)]
     if rows:
@@ -2005,17 +2023,18 @@ def exercise_prompt(markdown, decks=(), boxes=None, types=None, level="", length
                 "whole page:\n```markdown\n%s\n```" % markdown.rstrip())
     a = promptkit.assemble("studio-exercises", target,
                            flags=promptboxes.flags(target, on_boxes, on_types, exercising=True),
-                           extras=extras, data="\n\n".join(x for x in data if x))
+                           extras=extras, data="\n\n".join(x for x in data if x), options=options)
     a.target, a.boxes, a.types = target, on_boxes, on_types
     a.page_boxes, a.page_types = page_boxes, page_types
     return a, rows
 
 
-def lang_block(code):
+def lang_block(code, options=None):
     """The language's conventions (docs/lang/<code>.md) for the prompt page,
     cut to what a document needs (lib/promptkit.py) and read at request time;
-    empty when the file is not there."""
-    return promptkit.language_text("studio-doc", languages.get_or_default(code))
+    empty when the file is not there.  `options`: what the request chose of the
+    scheme of the transliteration (promptkit.OPTIONS)."""
+    return promptkit.language_text("studio-doc", languages.get_or_default(code), options=options)
 
 
 def _target_line(L):
@@ -2036,11 +2055,11 @@ def _prompt_record(L):
     return out
 
 
-def _prompt_tail(L, text, custom):
+def _prompt_tail(L, text, custom, options=None):
     """What follows the instructions on the prompt page: the language's
     conventions and, where the text lacks it, the rule for the boxes of a
     right-to-left target."""
-    blocks = [lang_block(L.code)]
+    blocks = [lang_block(L.code, options)]
     # The shipped prompt contains this rule itself so it also works when
     # copied directly from disk. Add it here for every custom override (and
     # for an older shipped prompt that lacks it), preserving the guarantee
@@ -2052,22 +2071,26 @@ def _prompt_tail(L, text, custom):
     return "\n\n".join(x for x in blocks if x)
 
 
-def studio_prompt(L, custom_text=None, boxes=None, level="", length=""):
+def studio_prompt(L, custom_text=None, boxes=None, level="", length="", translit=None):
     """The authoring prompt for a target language, in its three parts
     (lib/promptkit.py): the instructions -- Parseh's, with only the boxes
     ticked (by default the lesson's), or the text of a custom prompt -- with
     the language's conventions after them, then the answer contract, then
     the learner's level and the length asked for, one line each.  The
-    question is the data, and is added by whoever copies.
+    question is the data, and is added by whoever copies.  `translit` is the
+    scheme of the transliteration the request chose ("ipa" or "classic",
+    promptkit.OPTIONS).
     -> promptkit.Assembled"""
     custom = custom_text is not None
     on = promptboxes.ticked(boxes)
-    tail = _prompt_tail(L, custom_text, True) if custom else lang_block(L.code)
+    options = promptkit.resolve("studio-doc", L, promptkit.given({"translit": translit}))
+    tail = _prompt_tail(L, custom_text, True, options) if custom else lang_block(L.code, options)
     promptkit.check(tail, "studio-doc")         # Parseh's own, put in by hand
     return promptkit.assemble("studio-doc", L, custom=custom, lead=_target_line(L),
                               instructions=custom_text, flags=promptboxes.flags(L, on),
                               values=promptboxes.values(L), includes=promptboxes.includes(),
-                              extras=[tail], data=promptboxes.level_length(level, length))
+                              extras=[tail], data=promptboxes.level_length(level, length),
+                              options=options)
 
 
 def _query_or_none(h, key):
@@ -2105,14 +2128,16 @@ def api_prompt_get(h):
     out["lang_block"] = _prompt_tail(L, out["text"], custom)
     try:
         on = promptboxes.ticked(_query_or_none(h, "boxes"))
-        level, length = _q1(h, "level"), _q1(h, "length")
-        a = studio_prompt(L, out["text"] if custom else None, on, level, length)
+        level, length, translit = _q1(h, "level"), _q1(h, "length"), _q1(h, "translit")
+        a = studio_prompt(L, out["text"] if custom else None, on, level, length, translit)
         out.update(prompt=a.text, header=a.header, contract=a.contract,
                    boxes=promptboxes.catalog(L, on), presets=promptboxes.presets(),
                    levels=promptboxes.levels(), lengths=promptboxes.lengths(),
-                   always_chars=len(studio_prompt(L, out["text"] if custom else None, []).text),
+                   options=promptkit.describe("studio-doc", L, a.options),
+                   always_chars=len(studio_prompt(L, out["text"] if custom else None, [],
+                                                  translit=translit).text),
                    size=promptboxes.size(a.text))
-    except promptboxes.Refused as e:
+    except (promptboxes.Refused, promptkit.OptionError) as e:
         return h.send_json({"error": str(e)}, 400)
     except promptkit.PromptError as e:
         # a custom prompt from before the kit may say what the kit refuses; the
@@ -2407,6 +2432,7 @@ ROUTES = [
     ("GET",    r"^/static/app\.css$",                     serve_app_css),
     ("GET",    r"^/static/app\.js$",                      serve_app_js),
     ("GET",    r"^/lib/llmrow\.js$",                      serve_llmrow_js),
+    ("GET",    r"^/__prompt/options$",                    serve_prompt_options),
     ("GET",    r"^/static/mathjax\.js$",                  serve_math_js),
     ("GET",    r"^/static/mathjax\.css$",                 serve_math_css),
     ("GET",    r"^/static/mathjax/(.+)$",                  serve_math_lib),
