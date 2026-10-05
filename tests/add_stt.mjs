@@ -369,8 +369,9 @@ await section('b', 'installed: the models, the processor, and what is remembered
   await page.selectOption('#stt_model', 'large-v3');
   await page.selectOption('#stt_proc', 'cuda');
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('yt_add_stt')));
-  eq(kept, {model: 'large-v3', processing: 'cuda', exact: true},
-     'the model, processor and exact-word-times choice are kept in localStorage');
+  // (a0.4.3 also remembers the model chosen for the video's language)
+  eq(kept, {models_by_language: {fa: 'large-v3'}, model: 'large-v3', processing: 'cuda', exact: true},
+     'the model (and the one for this language), processor and exact-word-times choice are kept in localStorage');
   await page.reload();
   await page.waitForSelector('#transcript', {state: 'visible'});
   await blockReady(page);
