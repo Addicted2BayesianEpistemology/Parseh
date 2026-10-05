@@ -238,18 +238,29 @@ function initEdit() {
   }
 
   async function exercisePrompt() {
-    const data = await api("/api/exercise-decks");
+    const code = encodeURIComponent(lang().code);
+    // ONLY THE DECKS OF THIS PAGE'S LANGUAGE: a Persian page is not offered a Japanese deck's words (brief §7.6).
+    // The levels and the lengths are the server's lists, which the exercise prompt's answer does not carry: they
+    // come with the prompt page's, asked for with no box ticked, which is its shortest
+    const [data, lists] = await Promise.all([
+      api("/api/exercise-decks?target=" + code),
+      api("/api/prompt?target=" + code + "&boxes=").catch(() => ({})),
+    ]);
     const root = $("#modal-root"); root.innerHTML = "";
     const ov = document.createElement("div"); ov.className = "modal-overlay";
     ov.innerHTML = `<div class="modal ex-prompt-modal" role="dialog" aria-modal="true">
       <h3>Generate exercises with an LLM</h3>
       <p>The page itself is always included. Optionally add vocabulary the learner already knows from these Anki decks.</p>
-      <div class="ex-decks"></div>
+      <div class="ex-prompt-body">
+        <div class="ex-decks"></div>
+        <div data-x="boxes"></div>
+        <div data-x="under"></div>
+      </div>
       <div data-x="row"></div>
       <div class="row"><span class="pv-status ex-copy-status"></span>
         <button class="btn" data-x="cancel">Close</button></div></div>`;
     const list = $(".ex-decks", ov);
-    if (!(data.decks || []).length) list.innerHTML = '<span class="pv-status">No Anki decks installed — the prompt works without them.</span>';
+    if (!(data.decks || []).length) list.innerHTML = `<span class="pv-status">No ${lang().name} Anki deck installed — the prompt works without one.</span>`;
     for (const d of data.decks || []) {
       const label = document.createElement("label"); label.className = "ex-deck";
       const ck = document.createElement("input"); ck.type = "checkbox"; ck.value = d.path;
@@ -257,30 +268,55 @@ function initEdit() {
       text.textContent = `${d.name} · ${d.language} · ${d.cards} card${d.cards === 1 ? "" : "s"}`;
       label.append(ck, text); list.appendChild(label);
     }
-    /* THE PROMPT is made by the server from this page and the decks ticked, as
-       the dialog opens and each time a deck is ticked; the row (lib/llmrow.js)
-       holds it, says how long it is before the copy, and copies exactly it.
-       What the decks added to it is said as soon as it is made. */
+    /* WHAT THE PROMPT TEACHES (static/promptpick.js, the panel the prompt page draws too): the dialect's
+       boxes and the twelve exercise types come ticked from what THIS PAGE already uses -- the server
+       reads it with the parser and says it in `preticked` -- and are the person's to change from there.
+       Nothing is remembered between two openings: what a page uses is not what another one does, and
+       the studio page's own choices (its boxes, its prompt) are that page's and do not come here. */
+    const teach = ParsehPromptPick.boxes($('[data-x="boxes"]', ov), {
+      level: 4, types: "the exercises to ask for",
+      why: "the page's own marks are ticked, so the exercises can use what the page uses; whatever you do not " +
+        "tick is still named in the prompt as reserved, so the model does not write it by accident.",
+      onChange: () => row && row.invalidate(),
+    });
+    const under = ParsehPromptPick.line($('[data-x="under"]', ov), {
+      surface: "studio-exercises", lang: lang().code, remember: null,
+      onChange: () => row && row.invalidate(),
+    });
+    under.draw(lists);
+    /* THE PROMPT is made by the server from this page, the boxes and types ticked and the decks ticked,
+       as the dialog opens and each time one changes; the row (lib/llmrow.js) holds it, says how long it
+       is before the copy, and copies exactly it.  What the decks added to it is said as soon as it is
+       made.  The first ask names neither boxes nor types: the answer says what the page uses. */
+    const say = text => { $(".ex-copy-status", ov).textContent = text; };
     const row = window.ParsehLLMRow ? ParsehLLMRow.mount($('[data-x="row"]', ov), {
       surface: "studio-exercises", cls: "btn primary",
       remind: "paste it into your chatbot, then put the exercises it writes into this page.",
       getText: async () => {
         const decks = $$('input[type="checkbox"]:checked', list).map(x => x.value);
-        const result = await api("/api/exercise-prompt", {method: "POST", json: {markdown: src.value, decks}});
+        const body = Object.assign({markdown: src.value, decks}, under.params());
+        if (teach.boxes()) body.boxes = teach.boxes();
+        if (teach.types()) body.types = teach.types();
+        if (body.types && !body.types.length) {
+          say("tick at least one exercise type: there is nothing to ask for without one");
+          return "";
+        }
+        const result = await api("/api/exercise-prompt", {method: "POST", json: body});
+        teach.draw(result);
         const known = result.vocabulary;
-        $(".ex-copy-status", ov).textContent = known
-          ? `${known} known item${known === 1 ? "" : "s"} from your decks ${known === 1 ? "is" : "are"} in it` : "";
+        say(known ? `${known} known item${known === 1 ? "" : "s"} from your decks ${known === 1 ? "is" : "are"} in it` : "");
         return result.prompt;
       },
       measure: () => ov.isConnected,
     }) : null;
-    const close = () => { if (row) row.destroy(); root.innerHTML = ""; };
+    const close = () => { if (row) row.destroy(); under.destroy(); root.innerHTML = ""; };
     $('[data-x="cancel"]', ov).addEventListener("click", close);
     ov.addEventListener("click", e => { if (e.target === ov) close(); });
     root.appendChild(ov);
     if (row) {
       list.addEventListener("change", () => row.invalidate());
-      row.refresh();
+      // the first prompt waits for the options, so that it is made the way it will be asked for
+      under.ready().then(() => row.refresh());
     } else $('[data-x="row"]', ov).textContent = "The prompt helper could not be loaded.";
   }
 
