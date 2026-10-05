@@ -275,8 +275,8 @@ function initEdit() {
        the studio page's own choices (its boxes, its prompt) are that page's and do not come here. */
     const teach = ParsehPromptPick.boxes($('[data-x="boxes"]', ov), {
       level: 4, types: "the exercises to ask for",
-      why: "the page's own marks are ticked, so the exercises can use what the page uses; whatever you do not " +
-        "tick is still named in the prompt as reserved, so the model does not write it by accident.",
+      why: "ticked from what this page already uses. whatever you do not tick is still named in the prompt " +
+        "as reserved, so the model does not write it by accident.",
       onChange: () => row && row.invalidate(),
     });
     const under = ParsehPromptPick.line($('[data-x="under"]', ov), {

@@ -3,15 +3,17 @@
 //      STUDIO_PROMPT_SHOTS=<dir>   saves the page and the dialog at 1280 and 390 px in the three themes
 //      STUDIO_PROMPT_MODES=studio  (or parseh) runs one mount; the other is only a smoke of the page and the dialog
 //      STUDIO_PROMPT_KEEPGOING=1   goes on past a section that fails and lists them (to see what an old page fails)
+//      STUDIO_PROMPT_ONLY=a1,b1    runs only those sections (a development aid)
 //
 // THE STUDIO'S PROMPT PAGE AND ITS EXERCISE DIALOG: the boxes, the presets, the level and the length, the
 // scheme of the transliteration, and the sizes (static/promptpick.js, app.js initPrompt, editor.js exercisePrompt),
 // driven against the REAL routes of tests/studio_harness.py in a real Chromium.  What the page draws is compared with
-// what the route answers, read at the time and never written here: no box id, count or size of a catalogue is a
-// constant of this file (the one id it names is `colourparts`, the box the a0.4.3 dialect added, and `exercises`,
-// `rtl` and `reading` in the places where the route's own `shown` flag is what is asserted).  A stub in front of the
-// route (page.route) is used only for what no real route sends yet: a box a person's own prompt turns off
-// (`disabled`), a box the page has never heard of, a slow answer, and a deck list.
+// what the route answers, read at the time: what a box is called, says, weighs and belongs to, which boxes a language
+// has, what a preset holds, how many types there are -- none of it is written in this file.  The ids it names are
+// stimuli (boxes it ticks to see the prompt move: math, latex, vocab ...) and `colourparts`, the box of the a0.4.3
+// dialect, whose place in its group and absence from every preset but `all` are asserted against the route's data.
+// A stub in front of the route (page.route) is used only for what no real route sends yet: a box a person's own
+// prompt turns off (`disabled`), a box the page has never heard of, a slow answer, and a deck list.
 //
 //  a1) the page draws the route's boxes, groups, lines and sizes; the one line about what is not ticked; the
 //      lesson ticked; the prompt in the box is the route's; the total is the row's own count
@@ -40,6 +42,7 @@ const python = Deno.env.get('PARSEH_PYTHON') || 'python3';
 const modes = (Deno.env.get('STUDIO_PROMPT_MODES') || 'studio,parseh').split(',');
 const SHOTS = Deno.env.get('STUDIO_PROMPT_SHOTS') || '';
 const KEEP = !!Deno.env.get('STUDIO_PROMPT_KEEPGOING');
+const ONLY = (Deno.env.get('STUDIO_PROMPT_ONLY') || '').split(',').filter(Boolean);
 if (SHOTS) await Deno.mkdir(SHOTS, {recursive: true});
 let passed = 0;
 const failed = [];
@@ -59,6 +62,7 @@ async function until(fn, what, ms = 10000) {
   }
 }
 async function section(name, what, fn) {
+  if (ONLY.length && !ONLY.includes(name)) return;
   console.log(`\n-- ${name}) ${what}`);
   try { await fn(); } catch (e) {
     if (!KEEP) throw e;
@@ -131,8 +135,9 @@ async function suite(mode) {
     page.on('dialog', d => { problems.push(`${name}: native dialog ${d.message()}`); d.dismiss(); });
     return page;
   };
-  const prompt = async (ctx, name, target) => {
+  const prompt = async (ctx, name, target, before) => {
     const page = watch(await ctx.newPage(), name);
+    if (before) before(page);
     await page.goto(url('/prompt'));
     if (target) await page.selectOption('#prompt-target', target);
     await page.waitForSelector('#prompt-boxes .pp-box');
@@ -184,7 +189,9 @@ async function suite(mode) {
 
     await section('a1', 'the page draws what the route answers', async () => {
       const ctx = await context();
-      const page = await prompt(ctx, 'a1');
+      const asked = [];
+      const page = await prompt(ctx, 'a1', null, p => p.on('request', r => { if (/\/api\/prompt\?/.test(r.url())) asked.push(r.url()); }));
+      eq(asked.length, 1, 'opened with nothing remembered, the page asks the server for its prompt once');
       const s = await read(page);
       eq(s.boxes.map(b => b.id), shownIds(fa), `the boxes drawn are the ${shownIds(fa).length} the route says Persian can use, in its order`);
       eq(s.boxes.map(b => [b.name, b.line, b.group]), fa.boxes.filter(b => b.shown).map(b => [b.name, b.line, b.group]),
@@ -343,7 +350,11 @@ async function suite(mode) {
       await setBoxes(page, mine);
       const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('parseh_prompt_boxes')));
       eq(saved.sort(), [...mine].sort(), 'the ticked set is kept under parseh_prompt_boxes, as ids');
+      const again = [];
+      page.on('request', r => { if (/\/api\/prompt\?/.test(r.url())) again.push(decodeURIComponent(r.url())); });
       await page.reload(); await page.waitForSelector('#prompt-boxes .pp-box'); await settle(page);
+      eq(again.length, 1, 'a reload asks once, with what was kept');
+      assert(/boxes=/.test(again[0]) && mine.every(id => again[0].includes(id)), 'and names those boxes');
       eq(await ticked(page), shownIds(fa).filter(id => mine.includes(id)), 'after a reload the same boxes are ticked');
       assert((await read(page)).text === norm((await promptRoute('fa', {boxes: mine})).prompt), 'and the prompt is the one for them');
       eq((await read(page)).presets.filter(p => p.on).map(p => p.id), [], 'with no preset showing');
@@ -438,12 +449,18 @@ async function suite(mode) {
       await until(() => held.length === 1, 'the first ask is out, and held by the stub');
       await page.click('#prompt-boxes [data-box="latex"] .pp-name');
       await settle(page);
-      await sleep(1200);
+      // what the box holds, sampled every few milliseconds while the slow answer comes in: it is the old choice's
+      // prompt, and it must never be drawn -- not even for the moment it takes the page to ask again and put it right
+      const lenOld = norm((await promptRoute('fa', {boxes: [...lesson.boxes, 'math']})).prompt).length;
+      await page.evaluate(() => { window.__lens = []; window.__t = setInterval(() => window.__lens.push(document.querySelector('#prompt-text').value.length), 4); });
+      await sleep(1300);
+      const lens = await page.evaluate(() => { clearInterval(window.__t); return window.__lens; });
+      assert(lens.length > 100 && !lens.includes(lenOld), `the slow answer, made for the choice before, was never drawn (${lens.length} samples of the box)`);
       s = await read(page);
       const both = (await ticked(page)).filter(id => id !== NEW.id);
       assert(both.includes('math') && both.includes('latex'), 'both boxes are ticked');
       const wantBoth = await promptRoute('fa', {boxes: both});
-      assert(s.text === norm(wantBoth.prompt), 'the box shows the prompt for both: the slow answer that came late was not drawn over it');
+      assert(s.text === norm(wantBoth.prompt), 'the box shows the prompt for both');
       assert(!s.copyOff, 'and the copy button is on again');
       await ctx.close();
     });
@@ -679,6 +696,9 @@ async function suite(mode) {
           if (SHOTS) {
             await page.evaluate(() => scrollTo(0, 0));
             await page.screenshot({path: `${SHOTS}/${mode}-page-${theme}-${vw}-top.png`});
+            await page.evaluate(() => document.querySelector('#question').scrollIntoView({block: 'center'}));
+            await page.screenshot({path: `${SHOTS}/${mode}-page-${theme}-${vw}-question.png`});
+            await page.evaluate(() => scrollTo(0, 0));
             await page.screenshot({path: `${SHOTS}/${mode}-page-${theme}-${vw}-full.png`, fullPage: true});
           }
           await ctx.close();
@@ -706,7 +726,11 @@ async function suite(mode) {
           eq([g.inside, g.wide, g.copyHit, g.closeHit], [true, false, true, true], `dialog ${theme} ${vw}px: whole inside the window, the copy button and Close reachable`);
           assert(g.scrolls, `dialog ${theme} ${vw}px: its boxes scroll inside it, the copy row stays in view`);
           eq(g.theme, theme === 'light' ? 'paper' : theme, `dialog ${theme} ${vw}px: in that theme`);
-          if (SHOTS) await page.screenshot({path: `${SHOTS}/${mode}-dialog-${theme}-${vw}.png`});
+          if (SHOTS) {
+            await page.screenshot({path: `${SHOTS}/${mode}-dialog-${theme}-${vw}.png`});
+            await page.evaluate(() => { const b = document.querySelector('.ex-prompt-body'); b.scrollTop = b.scrollHeight; });
+            await page.screenshot({path: `${SHOTS}/${mode}-dialog-${theme}-${vw}-types.png`});
+          }
           await ctx.close();
         }
       }

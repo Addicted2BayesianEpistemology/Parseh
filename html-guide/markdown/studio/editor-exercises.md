@@ -177,16 +177,19 @@ the job needs:
   right-to-left boxes, which is why that box is not offered here, and the
   exercises box is not either: the types are the exercises. A prompt you
   saved on the prompt page is that page's own and does not come here.
-- **For a learner at** and **length**, one line each, as on the prompt page.
+- **For a learner at** and **length**, one line each, as on the prompt page,
+  and where the language has one the scheme of its transliteration (**usual
+  scheme** or **IPA**). Nothing is remembered between two openings except
+  that scheme: what a page uses is not what another one does.
 - **Known vocabulary.** Under those, the dialog lists your Anki decks **of
   the page's language** (the ones the toolbox builds for you; see the
   [cards and Anki section](../cards-and-anki/_index.md)), each with its
   language and its number of cards: tick some, and their words — with
   readings, transliterations and meanings — go into the prompt as vocabulary
   the learner already knows, for the model to use where it helps. None is
-  needed: *No Anki decks installed — the prompt works without them.*
+  needed: *No Persian Anki deck installed — the prompt works without one.*
 
-The dialog shows the size of the prompt. **Copy complete prompt** puts on the
+The dialog shows the size of the prompt. **copy the prompt** puts on the
 clipboard, in one piece: the instructions for writing exercises, the
 description of the dialect, the target language's conventions, the known
 vocabulary, and the page. The line beside the button says how many known

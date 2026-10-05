@@ -38,18 +38,21 @@ A model that cannot make a file answers in the chat instead: see
 
 ## The page
 
-- **target language** is a menu in the prompt's head: the language the
-  document will be *about*. It starts on the language the toolbox is set
+- **target language** is a menu at the top, above the boxes: the language
+  the document will be *about*. It starts on the language the toolbox is set
   to. What it changes is what is copied: a first line stating the target
   (*target: fa — this document is about Persian: write `target: fa` in the
   front matter*), the boxes the language can use, the rules that are
   written differently for a script of its own than for a Latin-script
   language, and, under the rules, that language's own conventions — its
   transliteration scheme, its reading rule, what to hyphenate.
-- **Teach the model to write:** is the set of boxes below. Each has its
-  name, one line on what it lets the model write, and how many characters
-  it adds. Ticking or unticking one changes the prompt and the size at
-  once. See [the boxes](#the-boxes).
+- **Teach the model to write:** is the set of boxes below. A line above
+  them says that whatever you leave unticked is still named in the prompt as
+  reserved. Each box has its name, one line on what it lets the model
+  write, and how many characters it adds. Ticking or unticking one changes
+  the prompt and the size at once, and a total stays in view at the foot of
+  the window while you tick: the prompt without your question, and how much
+  of it is there whatever you tick. See [the boxes](#the-boxes).
 - **The presets** tick a set in one press. See [presets](#presets).
 - **The prompt box** shows what will be copied, and its size: *about N
   characters (about M tokens)*. A chatbot counts about four characters to a
@@ -62,7 +65,12 @@ A model that cannot make a file answers in the chat instead: see
   compounds.*
 - **For a learner at** and **length** are two choices under the question,
   each copied as one line at the end of the prompt. See
-  [level and length](#level-and-length).
+  [level and length](#level-and-length). A third choice stands with them
+  where the language has one: the scheme of its transliteration, labelled
+  with the language's own word for it (*transliteration*, *rōmaji*,
+  *pronunciation*), **usual scheme** or **IPA**. With IPA the prompt's first
+  line ends **· IPA**, and the choice is remembered on this device, one for
+  each language. Chinese has none yet.
 
 The ticked boxes, the level and the length are remembered on this device,
 one set for every language: change the target language and the same boxes
@@ -208,7 +216,9 @@ your document* has that line in it.
 
 - **Edit prompt** makes the prompt box editable. It shows the prompt alone,
   without the language's conventions, which belong to the language and are
-  added again when you copy.
+  added again when you copy. While you edit, the boxes and the choices under
+  the question are greyed, with the reason: they work again when you save or
+  cancel.
 - **Save custom prompt** keeps your version: from then on it is the prompt
   this page shows and copies, for every language, and the badge says
   **custom**. **Cancel** leaves editing without saving.
