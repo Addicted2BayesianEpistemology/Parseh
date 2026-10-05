@@ -262,7 +262,8 @@ try {
 
   /* ---------------- helpers over a page ---------------- */
   const optional = (status, method, path) => status === 404 && method === 'GET' &&
-    (/^\/mt\/[^/]+\/meta\.json$/.test(path) || /\/waveform\.json$/.test(path) || path === '/favicon.ico');
+    (/^\/mt\/[^/]+\/meta\.json$/.test(path) || /\/waveform\.json$/.test(path) || path === '/favicon.ico' ||
+     /^\/books\/[^/]+\/[^/]+\/timings\.json$/.test(path));   // a fixture book has no timings: the reader asks, and goes on
   const posted = [];                       // every region/prepare request the pages sent: {path, body}
   async function open(url, name, {refuseStorage = false} = {}) {
     const page = await context.newPage();
