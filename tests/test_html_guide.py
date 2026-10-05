@@ -1347,34 +1347,30 @@ class TheGuideItself(unittest.TestCase):
         self.assertEqual(["site/%s" % (t + ".html" if t == "showcase" else t + "/index.html") for t in tops],
                          want)
 
-    def test_the_workflow_publishes_the_pages_mode(self):
+    def test_the_workflow_only_checks_that_the_guide_compiles(self):
+        # the guide is PUBLISHED by a workflow in another repository
+        # (parseh-io/guide, run by hand); this one compiles it on every push
+        # that touches what the guide is made of, and publishes nothing
         wf = (ROOT / ".github" / "workflows" / "guide-pages.yml").read_text(encoding="utf-8")
-        for said in ("python3 html-guide/build.py --pages _site", "actions/upload-pages-artifact",
-                     "actions/deploy-pages", "pages: write", "id-token: write", "workflow_dispatch",
-                     "chmod -c -R +rX _site",
-                     # the one-time setting that publishes the committed pages
-                     "Source: Deploy from a", "Branch: main, folder / (root)"):
+        for said in ("python3 html-guide/build.py --pages _site", "lib/icons/**", "lib/project.py",
+                     "parseh-io/guide", "PUBLISHES NOTHING", "name: guide compiles"):
             self.assertIn(said, wf)
-        # a push only compiles, as a check: the committed pages are what
-        # GitHub Pages publishes, and only a run by hand publishes instead
-        self.assertRegex(wf, r"(?m)^  deploy:\n    needs: build\n(?:    #.*\n)*"
-                             r"    if: github\.event_name == 'workflow_dispatch' && github\.ref_name == 'main'$")
+        for gone in ("actions/upload-pages-artifact", "actions/deploy-pages", "actions/configure-pages",
+                     "pages: write", "id-token: write", "workflow_dispatch", "environment:", "deploy:",
+                     "chmod", "concurrency"):
+            self.assertNotIn(gone, wf)
         from engine.export import WORKFLOW
-        self.assertIn("chmod -c -R +rX _site", WORKFLOW)
+        self.assertIn("chmod -c -R +rX _site", WORKFLOW)      # an exported project's own workflow still publishes
         try:
             import yaml
         except ImportError:
             return
         doc = yaml.safe_load(wf)
-        self.assertEqual(doc[True]["push"]["branches"], ["main"])     # `on:` reads as True
-        self.assertEqual(doc["jobs"]["deploy"]["needs"], "build")
-        self.assertEqual(doc["jobs"]["deploy"]["if"],
-                         "github.event_name == 'workflow_dispatch' && github.ref_name == 'main'")
-        steps = doc["jobs"]["build"]["steps"]
-        publishing = [st for st in steps if "uses" in st and ("configure-pages" in st["uses"]
-                                                              or "upload-pages-artifact" in st["uses"])]
-        self.assertEqual([st.get("if") for st in publishing], ["github.event_name == 'workflow_dispatch'"] * 2)
-        self.assertEqual(doc["permissions"], {"contents": "read", "pages": "write", "id-token": "write"})
+        self.assertEqual(list(doc[True]), ["push"])                      # `on:` reads as True
+        self.assertEqual(doc[True]["push"]["branches"], ["main"])
+        self.assertEqual(doc["permissions"], {"contents": "read"})
+        self.assertEqual(list(doc["jobs"]), ["compile"])
+        self.assertIn("lib/icons/**", doc[True]["push"]["paths"])
 
     def test_the_repository_root_serves_the_committed_guide(self):
         # GitHub Pages "Deploy from a branch" serves the repository's root:
