@@ -663,6 +663,7 @@ try {
   console.log(`\nprompt_options: ${passed} checks passed`);
 } catch (e) {
   console.log(String(e && e.stack || e));
+  console.log('\npage errors:\n' + errors.join('\n'));
   console.log('\nhub log:\n' + log.join('').slice(-1500));
   console.log(`\nprompt_options: ${passed} checks passed, then a failure`);
   Deno.exitCode = 1;
