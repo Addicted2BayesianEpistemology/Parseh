@@ -137,37 +137,41 @@ Parseh-mine's update from GitHub; everything under *Afterwards*.
 
 ## The known-red baseline
 
-Some suites are red before any release work starts. They must be known
-**first**, so that a red suite in step 1 can be told apart: one on this list
-is old breakage, anything else is new, and new breakage stops the release.
+**There is none: every suite is green** (a0.4.4, 2026-10-05). A red suite in
+step 1 is new breakage and stops the release, unless it is under *Flaky*
+below and passes when run again alone.
 
-Measured on 2026-09-25, on the finished a0.3.2 tree before its commit, one
-suite at a time, with `TMPDIR` on the main disk — again the same day on the
-finished a0.4.0 tree (the same three reds, failing the same way) — once more
-on 2026-09-28 on the `a0.4.0` tag in a worktree (the same three reds again;
-`activity` green on a second run alone; a worktree lacks the git-ignored
-fonts and built fixture readers, so copy them from the checkout first or six
-unit tests of `test_mobile_pages` and `test_offline_notes` fail for that
-reason alone) — and a last time the same day on the finished a0.4.1 tree,
-which gave the same three reds; the counts below are that last run's, but
-for `timings`, which was flaky there and has been mended since (below):
+It was not always so. Three suites were red from a0.3.0 to a0.4.3 —
+`decomposition`, `exercises` and `studio_narrow` — and were mended on
+2026-10-05, each by finding out whose fault it was: `decomposition` and
+`exercises` were wrong TESTS (the first appended its click target under a
+floating bar on a hand-assembled page and now serves the real player page;
+the second expected the wrong arrow for a right-to-left fixture and served
+its mocked editor page without the files the real one links), and
+`studio_narrow` was a REAL layout fault (the editor bar's group of insert
+buttons could not shrink, so the bar was wider than the screen from 721 to
+about 780 px and the colour palette ran off the edge; it wraps now, with no
+control hidden). The same day the suites of a0.4.3's work, which had not been
+run on this machine, were brought up to what it now does (`add_stt`,
+`youtube_capture`, `speech_door`, `editor_dir`, `draft_end_to_end` and
+`smoke.py`'s two player checks), and that turned up one more real fault: the
+title bar of the transcription window was a `<header>`, which the video pages'
+stylesheet pins to the top of the screen.
 
-| Suite | State | How it fails |
+Measured on 2026-10-05 on the finished a0.4.4 tree, one suite at a time,
+with `TMPDIR` on the main disk:
+
+| Suite | State | Result |
 |---|---|---|
-| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 2236 tests … OK (skipped=14)` |
-| `python3 tests/smoke.py` | green | `1849 passed, 0 failed, 21 skipped` |
-| `tests/decomposition.mjs` | **red** | `TimeoutError: locator.click: Timeout 7000ms exceeded` waiting for `.test-extra [data-character="想"]`: the mode bar's *Choose a kanji in the text.* (with `#novid` and `#captimes`) covers it — `tests/decomposition.mjs:119` |
-| `tests/exercises.mjs` | **red** | `page.evaluate: Error: a line of chunks points its arrows along the line` — `tests/exercises.mjs:91`. A second red hides behind it: the mocked editor page never shows `.ex-edit` (a 30 s timeout). Mending the first will not turn it green. |
-| `tests/studio_narrow.mjs` | **red** | `FAIL: from 280 to 1440 px the editor never scrolls sideways …`: at 730 and 740 px the page is 741 px wide and `ins-br` is off screen; its parts b and c never run |
-| the other 47 `tests/*.mjs` | green | those under *Flaky* below fail now and then, and pass on a second run, alone |
+| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 3328 tests … OK (skipped=14)` |
+| `python3 tests/smoke.py` | green | `1893 passed, 0 failed, 21 skipped` |
+| the 68 `tests/*.mjs` | green | those under *Flaky* below fail now and then, and pass on a second run, alone |
 
-The three reds are old: they failed the same way on a0.3.0, before this
-version's work began (measured again on 2026-09-24). `timings` was not one of
-them: its test read the answer of `/youtube/api/times` the moment the sheet
-closed, before Playwright had read its body, and failed for that now and then
-(in a0.4.1's runs of 2026-09-28 and 2026-09-29; it passed on the `a0.4.0`
-tag). It waits for the answer now (a0.4.2), so a red `timings` is new
-breakage.
+A new red is breakage: in a worktree on the previous release's tag, run the
+same suite — if it is red there too, it is old; if not, it is yours. (A worktree
+lacks the git-ignored fonts and built fixture readers: copy them from the
+checkout first, or six unit tests of `test_mobile_pages` and
+`test_offline_notes` fail for that reason alone.)
 
 **Flaky, not broken.** These have failed now and then and passed when the
 suite was run again alone. They depend on timing — a browser that is slow
@@ -190,6 +194,11 @@ breakage:
 - `tests/studio_audio.mjs`: *the pasted clip plays*;
 - `tests/studio_starter_media.mjs`: *timed out: the editor draws the new
   picture*;
+- `tests/arasaac_door.mjs`, its phone pass, section *g*: *both languages can be
+  removed now (got 0, want 2)* (once in a full run; green alone, 286 checks);
+- `tests/cardkit.mjs`: *a clip recorded in the browser and one cut from a tab's
+  recording each fade 8 ms at both ends* (a measured fade, 22 ms in a run on a
+  loaded machine; green alone, 150 checks);
 - any suite that stops with *Target page, context or browser has been
   closed*: Chromium itself crashed (`coredumpctl list chrome` shows it).
 
