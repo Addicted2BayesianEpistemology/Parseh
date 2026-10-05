@@ -781,6 +781,10 @@ def _prompt(ctx, units, mode, prompt=None, options=None):
              **ctx["echo"])
     if chosen:
         r["custom"] = {"id": chosen.id, "name": chosen.name, "kind": chosen.kind}
+    # THE SHORT REQUEST for a chat that has the skill (lib/skills.py), made from the same prompt
+    import skills
+    r["skill"] = skills.safe(lambda: skills.for_region("%s-region" % ctx["surface"], made, ctx["L"], ctx["G"], mode,
+                                                       chosen), "parseh-gloss")
     notes = []
     if not counts["fill"]:
         notes.append("nothing here is left to gloss: every chunk is glossed already"

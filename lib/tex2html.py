@@ -8629,6 +8629,8 @@ async function rgText() {
   // a refusal is the server's sentence, shown as it came
   if (!j.ok) throw new Error(j.error || 'the prompt was refused');
   const text = j.fill ? j.prompt : '';
+  // THE SHORT REQUEST for a chat that has the skill is made with the prompt: the row holds it beside it
+  if (rgRow.skillOf) rgRow.skillOf(j.fill ? j.skill : null);
   // by its text, since two askings can overlap and be answered out of order
   rgMade.push({j, text});
   if (rgMade.length > 4) rgMade.shift();

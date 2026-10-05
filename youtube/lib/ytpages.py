@@ -1747,7 +1747,12 @@ def api_prepare(h):
         return h.send_json({"ok": False, "error": prompts.unmade(chosen, e) if chosen else
                             "the prompt could not be made: %s" % e}, 400)
     prompt = made.text
+    import skills
     return h.send_json({"ok": True, "id": vid, "lang": L.code, "folder": L.folder,
+                        # the short request for a chat that has the skill (lib/skills.py), made from the same prompt
+                        "skill": skills.safe(lambda: skills.for_new_video(made, L, G, chosen,
+                                                                          data.get("glossary") or None),
+                                             "parseh-gloss"),
                         "options": promptkit.describe("video-new", L, made.options),
                         "custom": chosen and {"id": chosen.id, "name": chosen.name,
                                               "kind": chosen.kind},
@@ -2813,6 +2818,8 @@ ADD_PAGE_JS = r'''
         // (a prompt of numbered captions and fenced JSON keeps its line breaks)
         $('prow').hidden = false;
         promptRow.update(PROMPT);
+        // the short request for a chat that has the skill was made with the prompt: the row holds it beside it
+        if (promptRow.skillOf) promptRow.skillOf(j.skill);
       }).catch(function (e) { $('pstat').textContent = ''; Parseh.toast(String(e), true); });
   };
   // A stray line some copies of the transcript panel repeat on every

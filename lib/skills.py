@@ -461,7 +461,7 @@ def _build_gloss():
         "2. Open the ONE file the header points to, and no other. For a stretch of a book or of a video: "
         "`references/stretch/<language><choices>.md`; for a video from scratch: `references/scratch/<language>"
         "<choices>.md`. `<language>` is the code before the arrow. `<choices>` is `-ipa` when the header says "
-        "`translit: ipa`, then `-marks` when it says `marks: on`, and nothing otherwise. The files there are "
+        "`translit: ipa`, then `-marks` when it says `marks: on`, and nothing otherwise. The files that exist "
         "are listed under \"Languages\" below; a language that is not listed has none, and you say so.",
         "3. Read the file from the line `---`. It is the complete set of instructions for this request, and you "
         "follow it exactly. How to read its marks is under \"Reading a file\" below.",
@@ -1044,6 +1044,15 @@ def _answer(name, text, prompt_chars, sk):
 
 def _unavailable(name, why):
     return {"name": name, "available": False, "why": why}
+
+
+def safe(make, name):
+    """The short request, or the reason there is none: a route hands it out beside its prompt, and a fault in
+    making it never takes the prompt with it."""
+    try:
+        return make()
+    except (SkillError, promptkit.PromptError, KeyError, ValueError, OSError, ImportError) as e:
+        return _unavailable(name, "the request for the skill could not be made: %s" % e)
 
 
 def _kind(chosen):
