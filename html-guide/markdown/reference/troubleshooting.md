@@ -253,3 +253,13 @@ backup](../exercises/export-import-backup.md).
 More in [The Working… indicator](../getting-started/working-indicator.md)
 and [Browser and Mobile](../getting-started/mobile-mode.md).
 
+
+## Skills for your chatbot
+
+| What you see | What it means, and what to do |
+|---|---|
+| The chatbot answers a request with *I do not have the parseh-gloss skill*. | The skill is not installed in that chat. Install it ([Skills for your chatbot](../studio/skills.md)), or use **copy the prompt**, which needs no skill. |
+| The chatbot says the request is for a newer skill than the one installed. | You updated Parseh after downloading the skill. Download it again from **Settings → Skills for your chatbot** and install it over the old one. |
+| The row says *your skill may be older than this Parseh — download it again*. | This device remembers the last skill it downloaded, and Parseh would make another one now. Download it again. |
+| **copy the request for the skill** is off and says the prompt takes the place of Parseh's. | A prompt of yours that is *in place of* Parseh's cannot travel in a request: the skill carries Parseh's instructions. Use **copy the prompt**, or choose Parseh's own or an *added* prompt. |
+| A skill uploaded to claude.ai is not used. | Check the skill's switch in **Customize → Skills**, and that code execution is on in **Settings → Capabilities**; on a Team or Enterprise plan an Owner decides ([Skills for your chatbot](../studio/skills.md)). |

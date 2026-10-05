@@ -483,6 +483,62 @@ class TheShortRequest(unittest.TestCase):
         self.assertFalse(skills.for_new_video(a, L, G, glossary="ci-stories")["available"])
 
 
+class FakeHandler(object):
+    """What a route function of the studio asks of its handler: the query, a JSON body, and a way to answer."""
+
+    def __init__(self, query=None, body=None):
+        self.query, self.body, self.path = query or {}, body or {}, "/api/x"
+        self.sent = None
+
+    def _json_body(self):
+        return self.body
+
+    def send_json(self, obj, code=200):
+        self.sent = (code, obj)
+
+
+class TheRoutesHandOutTheRequestBesideThePrompt(unittest.TestCase):
+    def test_a_stretch_of_a_video_and_of_a_book(self):
+        for kind, make in (("videos", lambda p: glossregion.video_prompt(p, 0, 3, regloss=True)),
+                           ("books", lambda p: glossregion.book_prompt(p, 0, 5, perfield=True))):
+            path, tmp = promptlab._fixture(kind, languages.get("fa"))
+            try:
+                got = make(path)
+            finally:
+                if tmp:
+                    shutil.rmtree(tmp, ignore_errors=True)
+            k = got["skill"]
+            self.assertTrue(k["available"], k)
+            h = skills.parse_header(k["text"])
+            self.assertEqual((h["skill"], h["lang"], h["mode"]), ("parseh-gloss", "fa", "regloss" if kind == "videos" else "perfield"))
+            self.assertEqual(h["what"], skills.WHAT["video-region" if kind == "videos" else "book-region"])
+            self.assertLess(k["chars"], len(got["prompt"]))
+
+    def test_the_studio_page_and_the_exercise_dialog(self):
+        h = FakeHandler({"target": ["fa"], "boxes": ["vocab,gloss"], "level": ["beginner"]})
+        studio.api_prompt_get(h)
+        code, out = h.sent
+        self.assertEqual(code, 200)
+        self.assertTrue(out["skill"]["available"])
+        self.assertEqual(skills.parse_header(out["skill"]["text"])["features"], "vocab, gloss")
+        h = FakeHandler(body={"markdown": PAGE % "it", "boxes": ["lists"], "types": ["flashcard"]})
+        studio.api_exercise_prompt(h)
+        code, out = h.sent
+        self.assertEqual(code, 200)
+        self.assertEqual(skills.parse_header(out["skill"]["text"])["types"], "flashcard")
+        self.assertIn("```markdown", out["skill"]["text"])
+
+    def test_a_fault_in_making_the_request_never_takes_the_prompt_with_it(self):
+        with mock.patch.object(skills, "build", side_effect=skills.SkillError("the method is not here")):
+            h = FakeHandler({"target": ["fa"]})
+            studio.api_prompt_get(h)
+        code, out = h.sent
+        self.assertEqual(code, 200)
+        self.assertTrue(out["prompt"])
+        self.assertFalse(out["skill"]["available"])
+        self.assertIn("the method is not here", out["skill"]["why"])
+
+
 class ThePersonsOwnAreNotThisModulesToList(unittest.TestCase):
     """R6 of the a0.4.3 merge: the owner's own skills (lib/asrskill/) are none of this lane's."""
 

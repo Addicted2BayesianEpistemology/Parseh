@@ -237,3 +237,11 @@ not in the library, so the library's **Backup** does not carry them: export
 them from **Settings → Your prompts** if you want a copy. The editor's **Exercises ▾ → Generate with LLM…** has its own boxes
 and does not use it: see [Exercises in the
 editor](editor-exercises.md#generate-with-llm).
+
+## A skill, for a chatbot that keeps them
+
+If your chatbot can keep a skill, **copy the request for the skill** beside **copy the
+prompt** puts a short request on the clipboard instead of the whole prompt: one line that
+names the language, the boxes you ticked, the level and the length, and then your question.
+The skill itself is downloaded from **Settings → Skills for your chatbot** and installed once
+in the chatbot: see [Skills for your chatbot](skills.md).

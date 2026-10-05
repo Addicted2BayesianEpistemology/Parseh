@@ -1109,8 +1109,10 @@ def for_new_video(a, L, G, chosen=None, glossary=None):
 
 
 def _named(L, boxes, exercising):
+    """The boxes a request names, in the catalogue's order and only those this language is offered (the others
+    are not taught by the prompt either)."""
     shown = promptboxes.shown_ids(L, exercising)
-    return [b for b in boxes if b in shown]
+    return [b for b in promptboxes.BOX_IDS if b in boxes and b in shown]
 
 
 def _level_name(level):
