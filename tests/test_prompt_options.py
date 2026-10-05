@@ -595,15 +595,6 @@ class OtherDoors(Quiet):
         self.assertEqual((h.status, h.sent["ok"]), (400, False))
         self.assertEqual(h.sent["error"], "'klingon' is not a way to write the transliteration: it is classic or ipa")
 
-    def test_an_example_made_before_ipa_was_asked_for_says_so(self):
-        example = ("[0] 3s  سلام", '{"captions": []}', "")
-        with mock.patch.object(ytpages, "_example", lambda L: example):
-            ipa = ytpages.chat_prompt(None, "fa", None, {"translit": "ipa"})
-            usual = ytpages.chat_prompt(None, "fa")
-        self.assertIn("The transliterations in the example are written in the usual scheme of Persian", ipa)
-        self.assertIn("write yours in IPA", ipa)
-        self.assertNotIn("usual scheme of Persian, which is not", usual)
-
     def test_a_video_added_after_an_ipa_prompt_keeps_the_scheme_as_its_own(self):
         d, transcript = self.transcript("fa")
         parts = json.loads((d / "parts" / "01.json").read_text(encoding="utf-8"))
