@@ -2133,7 +2133,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
   // of a response of a page it has left (Network.getResponseBody: "No resource with given identifier
   // found"): reading it after the click, or chained onto waitForResponse, is a race the page wins whenever
   // it navigates first.  So the test answers for the page: it fetches the door's answer itself, keeps its
-  // body, and hands the same answer on.  Set before the click; the promise holds the door's body.
+  // body, and hands the same answer on.  Set before the click; `.body` is a promise of the door's body.
   async function watchEmpty(page) {
     let kept, lost;
     const body = new Promise((ok, bad) => { kept = ok; lost = bad; });
@@ -2147,7 +2147,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
         await route.fulfill({response: r});
       } catch (e) { lost(e); }
     });
-    return body;
+    return {body};       // (not the promise itself: an async function would wait for it before returning)
   }
   const fakeLog = () => Deno.readTextFile(STTF + '/fake.log').then(t => t.split('\n').filter(Boolean).map(l => JSON.parse(l)), () => []);
   const status = (page, job) => page.request.post(`${BASE}/youtube/api/transcribe/status`, {data: {job}}).then(r => r.json());
@@ -2303,7 +2303,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     // and now the video, the way a pasted transcript adds one
     const empty = await watchEmpty(page);
     await page.click('#empty');
-    const made = await empty;
+    const made = await empty.body;
     eq([made.ok, made.waveform], [true, {kept: true, buckets: wave.peaks.length}], 'the door that made the video was given the token and kept the waveform');
     await page.waitForURL(new RegExp(`/youtube/v/${NID}/$`), {timeout: 30000});
     const beside = await readJson(`${VIDEOS}/italian/${NID}/waveform.json`);
@@ -2493,7 +2493,7 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     await page.selectOption('#lang', 'fa');
     const empty = await watchEmpty(page);
     await page.click('#empty');
-    const made = await empty;
+    const made = await empty.body;
     eq([made.ok, 'waveform' in made], [true, false], 'the video that is not the recorded one is made without its waveform (the token was not sent)');
     eq((await names(HOLD, /\.json$/)).length, 1, 'and the held one is not spent on it');
     await context.close();
