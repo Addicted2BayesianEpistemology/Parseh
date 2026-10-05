@@ -81,6 +81,38 @@ const appScript = (await Deno.readTextFile(root+'/markdown/app/static/app.js'))
 const appCss = (await Deno.readTextFile(root+'/markdown/app/static/sheet.css'))
   + '\n' + (await Deno.readTextFile(root+'/markdown/app/static/app.css'));
 const langsCss = await Deno.readTextFile(root+'/lib/langs.css');
+// Every file of the studio's own that the editor page links, answered as the
+// server answers it (app.js with its case fold spliced in, app.css as sheet +
+// chrome).  The page was split into app.js + exform.js + editor.js and given a
+// {{STUDIO}} prefix after this suite was written; a route list that knew only
+// app.js left the editor with no editor at all, and no `.ex-edit` ever drawn.
+const studioFiles = {
+  '/static/app.js': [appScript, 'text/javascript'],
+  '/static/app.css': [appCss, 'text/css'],
+  '/static/langs.css': [langsCss, 'text/css'],
+  '/static/exform.js': [await Deno.readTextFile(root+'/markdown/app/static/exform.js'), 'text/javascript'],
+  '/static/editor.js': [await Deno.readTextFile(root+'/markdown/app/static/editor.js'), 'text/javascript'],
+  '/static/promptpick.js': [await Deno.readTextFile(root+'/markdown/app/static/promptpick.js'), 'text/javascript'],
+  '/static/mathjax.js': [await Deno.readTextFile(root+'/lib/mathjax.js'), 'text/javascript'],
+  '/static/mathjax.css': [await Deno.readTextFile(root+'/lib/mathjax.css'), 'text/css'],
+  '/static/mobile.css': [await Deno.readTextFile(root+'/markdown/app/static/mobile.css'), 'text/css'],
+  '/static/mode.js': [await Deno.readTextFile(root+'/markdown/app/static/mode.js'), 'text/javascript'],
+  '/static/latexwait.js': [await Deno.readTextFile(root+'/markdown/app/static/latexwait.js'), 'text/javascript'],
+  '/lib/llmrow.js': [await Deno.readTextFile(root+'/lib/llmrow.js'), 'text/javascript'],
+};
+const studioFile = (route, u, path=u.pathname) => {
+  const f = studioFiles[path];
+  return f ? route.fulfill({body:f[0], contentType:f[1]}) : null;
+};
+// the three snippets every studio page carries in its head and its bar (the
+// interface mode, the switch, the app tags), the very text deckroutes fills in
+const pageSnippets = JSON.parse(new TextDecoder().decode((await new Deno.Command(python,{
+  args:['-c',"import sys,json;sys.path[:0]=['markdown/app','markdown/exlex','lib'];import deckroutes as d;print(json.dumps({'MODE_SCRIPT':d.MODE_SCRIPT,'MODE_SWITCH':d.MODE_SWITCH,'APP_HEAD':d.APP_HEAD}))"],
+  stdout:'piped',stderr:'piped'}).output()).stdout));
+// and the recordings the editor's Audio button takes, as server._edit_mapping writes them
+const audioKeys = JSON.parse(new TextDecoder().decode((await new Deno.Command(python,{
+  args:['-c',"import sys,json;sys.path[:0]=['markdown/app','markdown/exlex','lib'];import htmlgen,audiofile;print(json.dumps({'AUDIO_ACCEPT':htmlgen.esc(audiofile.ACCEPT),'AUDIO_HUMAN':htmlgen.esc(audiofile.HUMAN)}))"],
+  stdout:'piped',stderr:'piped'}).output()).stdout));
 try {
   const page = await browser.newPage();
   const errors=[]; page.on('pageerror', e=>errors.push(e.message));
@@ -127,13 +159,15 @@ try {
       'the first box cannot go earlier, and can go later');
     assert([...order.querySelectorAll('.ex-item')].pop().querySelector('[data-move="later"]').disabled,
       'and the last cannot go later');
+    // This fixture is `target: ar`, so its line runs right to left and the
+    // arrows point the way the box will really go: "earlier" is to the RIGHT
+    // (→), "later" to the left (←).  The left-to-right line is checked below,
+    // outside this page, on a document whose target is English.
     const glyph=el=>getComputedStyle(el,'::before').content;
-    assert(glyph(order.querySelector('[data-move="earlier"]'))==='"←"'
-      &&glyph(order.querySelector('[data-move="later"]'))==='"→"',
-      'a line of chunks points its arrows along the line');
-    const list=document.querySelector('[data-subtype="order-sentences"] .ex-sequence');
-    if(list) assert(glyph(list.querySelector('[data-move="earlier"]'))==='"↑"',
-      'a list of lines points them up and down');
+    assert(getComputedStyle(order).direction==='rtl','the Arabic line runs right to left');
+    assert(glyph(order.querySelector('[data-move="earlier"]'))==='"→"'
+      &&glyph(order.querySelector('[data-move="later"]'))==='"←"',
+      'a line of chunks that runs right to left points its arrows along the line: earlier is →, later is ←');
     // the second box, moved one place earlier, changes places with the first
     const was=names();
     order.querySelectorAll('.ex-item')[1].querySelector('[data-move="earlier"]').click();
@@ -194,6 +228,46 @@ try {
   console.log(result);
   if (Deno.env.get('PARSEH_TEST_ARTIFACTS'))
     await page.screenshot({path:Deno.env.get('PARSEH_TEST_ARTIFACTS')+'/exercises.png',fullPage:true});
+
+  // THE ARROWS ON A LINE THAT RUNS LEFT TO RIGHT.  The page above is Arabic,
+  // where "earlier" is to the right; a Spanish document runs the other way, so
+  // there "earlier" is ← and "later" is →, and a list of lines (not a line of
+  // chunks) points up and down whichever language it is in.
+  const ltrDoc = `---
+title: Left to right
+target: es
+---
+
+:::exercise construct-sentence
+prompt: Order.
+- [1] uno
+- [2] dos
+- [3] tres
+:::
+
+:::exercise order-sentences
+prompt: Order the lines.
+- [1] uno
+- [2] dos
+:::`;
+  await page.setContent(`<body data-page="noop"><article id="sheet" class="sheet" data-lang="es">${(await renderedDoc(false, ltrDoc)).html}</article><div id="modal-root"></div></body>`);
+  await page.addStyleTag({content:appCss});
+  await page.addStyleTag({path:root+'/lib/langs.css'});
+  console.log(await page.evaluate(() => {
+    const assert=(v,m)=>{if(!v)throw Error(m)};
+    const glyph=el=>getComputedStyle(el,'::before').content;
+    const line=document.querySelector('[data-subtype="construct-sentence"] .ex-sequence');
+    const list=document.querySelector('[data-subtype="order-sentences"] .ex-sequence');
+    assert(line&&list,'the Spanish page has a line of chunks and a list of lines');
+    assert(getComputedStyle(line).direction==='ltr','the Spanish line runs left to right');
+    assert(glyph(line.querySelector('[data-move="earlier"]'))==='"←"'
+      &&glyph(line.querySelector('[data-move="later"]'))==='"→"',
+      'a line of chunks that runs left to right points its arrows along the line: earlier is ←, later is →');
+    assert(glyph(list.querySelector('[data-move="earlier"]'))==='"↑"'
+      &&glyph(list.querySelector('[data-move="later"]'))==='"↓"',
+      'a list of lines points them up and down');
+    return 'arrows along a left-to-right line, and up and down in a list, passed';
+  }));
 
   const plainPrompt = `---
 title: Prompt weight
@@ -565,15 +639,21 @@ prompt: |
   let editHtml=await Deno.readTextFile(root+'/markdown/app/templates/edit.html');
   const initial=`---\ntitle: Authoring\ntarget: ar\n---\n\n:::exercise single-choice\nprompt: Existing question\n- [x] answer\n- [ ] distractor\n:::`;
   const previewDoc=await renderedDoc(true, initial);
-  const replacements={BASE:'',TITLE:'Authoring',DOC_ID:'',TARGET:'ar',MARKDOWN:initial,
-    LANG_JSON:JSON.stringify(previewDoc.lang_record),LANGS_JSON:JSON.stringify([previewDoc.lang_record])};
-  for(const [key,value] of Object.entries(replacements))editHtml=editHtml.replaceAll(`{{${key}}}`,value);
+  // every {{KEY}} server.py's page_edit fills: STUDIO is the studio's own
+  // prefix (empty here, where the studio is the whole site), PROSE_JSON the
+  // `lang:` record, and the three that say there is no shelf of decks or notes
+  const replacements={BASE:'',STUDIO:'',TITLE:'Authoring',DOC_ID:'',TARGET:'ar',MARKDOWN:initial,
+    LANG_JSON:JSON.stringify(previewDoc.lang_record),LANGS_JSON:JSON.stringify([previewDoc.lang_record]),
+    PROSE_JSON:JSON.stringify({code:'en',name:'English',native:'English',dir:'ltr',babel:'english',taught:true}),
+    DECKS_BASE:'',NOTES_SOURCE:'',NAMES_MARK:'',...audioKeys};
+  for(const [key,value] of Object.entries(replacements))editHtml=editHtml.replaceAll(`{{${key}}}`,()=>value);
+  // a key the template gained and this page does not fill would be served as
+  // literal braces, and a script path with braces in it is a file that is never found
+  if(/\{\{[A-Z_]+\}\}/.test(editHtml))throw Error('edit template placeholder left: '+editHtml.match(/\{\{[A-Z_]+\}\}/)[0]);
   await editor.route('**/*',async route=>{
     const u=new URL(route.request().url());
     if(u.pathname==='/edit')return route.fulfill({body:editHtml,contentType:'text/html'});
-    if(u.pathname==='/static/app.js')return route.fulfill({body:appScript,contentType:'text/javascript'});
-    if(u.pathname==='/static/app.css')return route.fulfill({body:appCss,contentType:'text/css'});
-    if(u.pathname==='/static/langs.css')return route.fulfill({body:langsCss,contentType:'text/css'});
+    if(studioFile(route,u))return;
     if(u.pathname==='/api/preview'){
       const request=route.request().postDataJSON();
       return route.fulfill({json:{ok:true,doc:await renderedDoc(true,request.markdown)}});
@@ -650,9 +730,7 @@ prompt: |
   await pairsPage.route('**/*',async route=>{
     const u=new URL(route.request().url());
     if(u.pathname==='/edit')return route.fulfill({body:pairsHtml,contentType:'text/html'});
-    if(u.pathname==='/static/app.js')return route.fulfill({body:appScript,contentType:'text/javascript'});
-    if(u.pathname==='/static/app.css')return route.fulfill({body:appCss,contentType:'text/css'});
-    if(u.pathname==='/static/langs.css')return route.fulfill({body:langsCss,contentType:'text/css'});
+    if(studioFile(route,u))return;
     if(u.pathname==='/api/preview')
       return route.fulfill({json:{ok:true,doc:await renderedDoc(true,route.request().postDataJSON().markdown)}});
     return route.fulfill({json:{}});
@@ -824,8 +902,10 @@ explanation-incorrect: No, north.
     if(path==='/page')return new Response(`<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head>
       <body data-page="noop"><article id="sheet" class="sheet" data-lang="ar">${picsHtml}</article>
       <div id="modal-root"></div><div id="toast" class="toast" hidden></div>
-      <script src="/app.js"></script></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8'}});
+      <script src="/app.js"></script><script src="/exform.js"></script></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8'}});
     if(path==='/app.js')return new Response(appScript,{headers:{'Content-Type':'text/javascript'}});
+    // the exercise form (openExercisePicker, openExerciseMarkdown) is exform.js's since the split
+    if(path==='/exform.js')return new Response(studioFiles['/static/exform.js'][0],{headers:{'Content-Type':'text/javascript'}});
     if(path==='/app.css')return new Response(appCss,{headers:{'Content-Type':'text/css'}});
     if(/^\/media\/x\/images\/[a-z]+\.png$/.test(path))return new Response(PNG_1PX,{headers:{'Content-Type':'image/png'}});
     return new Response('no',{status:404});
@@ -1198,7 +1278,7 @@ print(json.dumps({'errors':b['errors'],'raw':b['raw_fields'],'card':h[h.index('<
   const docMeta={id:'browser-doc-abc123',uid:'0123456789ab',title:'Browser exercises',tags:[],
     created:'2026-09-01T10:00:00',updated:'2026-09-01T10:00:00',build:{status:'none'}};
   let docHtml=await Deno.readTextFile(root+'/markdown/app/templates/doc.html');
-  const docMap={BASE:'',DECKS_BASE:'/exercises',NOTES_SOURCE:'',DOC_ID:docMeta.id,TITLE:docMeta.title,TARGET:'ar',TARGET_NAME:'Arabic',
+  const docMap={...pageSnippets,BASE:'',STUDIO:'',DECKS_BASE:'/exercises',NOTES_SOURCE:'',DOC_ID:docMeta.id,TITLE:docMeta.title,TARGET:'ar',TARGET_NAME:'Arabic',
     LANG:'en',ARTICLE:docRender.html,TOC:'',BACKLINKS:'',BACKLINKS_N:'0',META_JSON:JSON.stringify(docMeta),LANG_JSON:JSON.stringify(docRender.lang_record),
     LANGS_JSON:JSON.stringify([docRender.lang_record]),
     GLOSSES_JSON:JSON.stringify([{fa:'كتاب',kana:'',translit:'kitāb',tr:'book',guessed:false,lemma:false}])};
@@ -1222,9 +1302,7 @@ print(json.dumps({'errors':b['errors'],'raw':b['raw_fields'],'card':h[h.index('<
     if(u.pathname==='/plain')return route.fulfill({body:plainHtml,contentType:'text/html'});
     if(u.pathname==='/books/arabic/grammar/notes/doc')return route.fulfill({body:notesHtml,contentType:'text/html'});
     const asset=u.pathname.replace(/^\/books\/arabic\/grammar\/notes(?=\/)/,'');
-    if(asset==='/static/app.js')return route.fulfill({body:appScript,contentType:'text/javascript'});
-    if(asset==='/static/app.css')return route.fulfill({body:appCss,contentType:'text/css'});
-    if(asset==='/static/langs.css')return route.fulfill({body:langsCss,contentType:'text/css'});
+    if(studioFile(route,u,asset))return;
     if(asset==='/api/tags')return route.fulfill({json:{tags:[]}});
     if(u.pathname.startsWith('/exercises/')){
       const body=req.postData()?req.postDataJSON():null;
