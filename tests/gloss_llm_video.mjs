@@ -67,6 +67,12 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //     boxes; the answer fills them and its change to the meaning is kept out.
 //     The caption is picked by clicks on its time, which play nothing either;
 //     the panel shut (Esc, or its ✕), a click on a caption plays again.
+// g3) the short vowels (Persian: Japanese and Italian have no such control): "short vowels: write
+//     them" ends the prompt's first line "· marks", and an answer whose text is the phrase's own with
+//     marks added is filled with its gloss -- the report says "vowelled 1", the file and the page carry
+//     the marks, the caption's own text and the phrases the answer did not gloss are not touched; a phrase
+//     that has marks keeps them and the report says so; "as they are", the gloss lands and no mark does;
+//     each fill sent the choice the panel showed then.
 //  h) the divide sheet cuts a phrase that carries a note, and joins it back:
 //     neither is refused (the page no longer sends the note), and the note
 //     survives on disk and in the cloud.
@@ -595,7 +601,7 @@ try {
   const VIDS = [
     {key: 'fa', id: 'fA6bK2mQ8sT', name: 'Persian', blank: [4, 1], del: [2, 1], one: [3, 1, 'tr'],
      region: [1, 3], free: {at: [5, 0], to: 'نه مرسی،'}, regloss: [4, 5], perfield: [3, 0], divide: [1, 2],
-     widths: true},
+     marks: [1, 1], widths: true},
     {key: 'ja', id: 'aB3dE5fG7hI', name: 'Japanese', blank: [6, 0], del: [2, 1], one: [3, 1, 'kana'],
      region: [2, 4], free: {at: [5, 0], to: 'その本は'}, regloss: [5, 6], perfield: [7, 0], divide: [4, 2]},
     {key: 'it', id: 'kL9mN1oP3qR', name: 'Italian', blank: [6, 1], del: [2, 0], one: [3, 1, 'en'],
@@ -1102,6 +1108,77 @@ try {
       eq(done.en, 'a meaning somebody wrote', `${key}: on disk the meaning is the one somebody wrote`);
       assert(wantTodo[pj].every(f => done[f] === (f === 'kana' ? 'ありがとう' : 'filled ' + f)), `${key}: and its empty boxes are filled`);
       await page.click('#rgperfield');
+    }
+
+    /* ---------------- g3) ---------------- */
+    // THE SHORT VOWELS (brief 3.10): the panel's control for them is there for Persian and for no language
+    // that has none, and the choice it shows when the answer is filled is what the server is told -- which
+    // is all the server needs to write the marks into a phrase's text, and to leave it where it must
+    const MARKS = '#rgrow .llmrow-opt[data-option="marks"]';
+    if (!V.marks) {
+      await page.waitForSelector('#rgrow .llmrow-opt[data-option="translit"]');
+      eq(await page.evaluate(sel => document.querySelectorAll(sel).length, MARKS), 0,
+         `${key}: g3) the panel has no control for the short vowels: ${V.name} has none`);
+    } else {
+      console.log(' g3) the short vowels: the panel\'s control, and what the answer may write into the text');
+      await page.waitForSelector(MARKS + ' select');
+      eq(await page.evaluate(sel => { const l = document.querySelector(sel), s = l.querySelector('select');
+                                      return [l.textContent.split(':')[0], s.value, [...s.options].map(o => o.textContent)]; }, MARKS),
+         ['short vowels', 'nomarks', ['as they are', 'write them']], `${key}: the control says "short vowels", on "as they are", and offers "write them"`);
+      const vow = (s, mark) => s.replace(/\p{L}/gu, '$&' + mark), FATHA = 'َ', DAMMA = 'ُ';
+      const bodies = [];
+      const onRequest = r => { if (/\/youtube\/api\/region\/apply$/.test(r.url())) bodies.push(JSON.parse(r.postData())); };
+      page.on('request', onRequest);
+      // a phrase's gloss deleted, the run picked on it, the control set, the prompt copied, and the
+      // answer given the gloss it had and this text; filled -> the report, the file and the page
+      const round = async (i, j, choice, fa) => {
+        const was = (await annOf(key)).segments[i].chunks[j];
+        await openEdit(page, i, j);
+        await page.click('#cloud .edel');
+        await waitStat(page, /^gloss deleted/);
+        await closeEdit(page);
+        await pickRun(page, i, i, 'time');
+        await page.selectOption(MARKS + ' select', choice);
+        const {prompt} = await copyPrompt(page);
+        const d = dataOf(prompt), mine = d.captions[0].chunks[j];
+        eq([mine.todo, mine.fa], [true, was.fa], `${key}: the phrase asked for is «${was.fa}», and only it`);
+        // a phrase glossed already is sent as context: a model that vowels it too must not move it
+        d.captions[0].chunks.forEach((c, k) => { if (k !== j && !c.plain) c.fa = vow(c.fa, FATHA); });
+        delete mine.todo;
+        Object.assign(mine, glossOf(was), {fa});
+        await paste(page, fence(d));
+        const rep = await fill(page);
+        return {prompt, rep, was, now: (await annOf(key)).segments[i]};
+      };
+      const [mi, mj] = V.marks, snap0 = (await annOf(key)).segments[mi];
+      const first = await round(mi, mj, 'marks', vow(snap0.chunks[mj].fa, FATHA));
+      assert(/ · marks$/.test(first.prompt.split('\n')[0]) && first.prompt.replace(/\s+/g, ' ').includes('with its short vowels added and nothing else changed'),
+             `${key}: "write them": the first line ends "· marks", and the prompt says what the text may then be`);
+      eq(first.rep.tally, 'filled 1 · completed 0 · replaced 0 · vowelled 1', `${key}: the report says it: filled 1 · completed 0 · replaced 0 · vowelled 1`);
+      eq(first.rep.lists, {}, `${key}: nothing kept, dropped or unanswered`);
+      eq([first.now.chunks[mj].fa, glossOf(first.now.chunks[mj])], [vow(first.was.fa, FATHA), glossOf(first.was)],
+         `${key}: on disk the phrase carries its marks beside the gloss it had`);
+      eq([first.now.text, first.now.chunks.map((c, k) => k === mj ? null : c.fa)],
+         [snap0.text, snap0.chunks.map((c, k) => k === mj ? null : c.fa)],
+         `${key}: the caption's own text is the transcript's, and the phrases the answer did not gloss are not touched, though it vowelled them`);
+      eq((await text(page, W(mi, mj))).replace(/\s+/g, ' ').trim(), vow(first.was.fa, FATHA), `${key}: the phrase on the page shows its marks, drawn again where it stands`);
+      assert(await stayed(page), `${key}: with no reload`);
+      // the same phrase asked for again, answered with other marks: it has its own, and keeps them
+      const second = await round(mi, mj, 'marks', vow(first.was.fa, DAMMA));
+      eq(second.rep.tally, 'filled 1 · completed 0 · replaced 0 · vowelled 0', `${key}: a phrase that has marks keeps them: vowelled 0`);
+      assert((second.rep.lists['kept'] || []).length === 1 && /already has its marks -- left as it is/.test(second.rep.lists['kept'][0]),
+             `${key}: and the report says so: ${JSON.stringify((second.rep.lists['kept'] || [])[0])}`);
+      eq(second.now.chunks[mj].fa, vow(first.was.fa, FATHA), `${key}: on disk the marks are the first ones`);
+      // "as they are": the same kind of answer writes the gloss and not one mark
+      const [ni, nj] = [mi, mj ? mj - 1 : mj + 1];
+      const third = await round(ni, nj, 'nomarks', vow((await annOf(key)).segments[ni].chunks[nj].fa, FATHA));
+      assert(/ · no marks$/.test(third.prompt.split('\n')[0]) && !third.prompt.replace(/\s+/g, ' ').includes('with its short vowels added'),
+             `${key}: "as they are": the line ends "· no marks", and the prompt never speaks of adding them`);
+      eq(third.rep.tally, 'filled 1 · completed 0 · replaced 0', `${key}: the report has no count of marks: filled 1 · completed 0 · replaced 0`);
+      eq(third.now.chunks[nj].fa, third.was.fa, `${key}: and the phrase's text is as it was`);
+      eq(bodies.map(b => b.marks), ['marks', 'marks', 'nomarks'], `${key}: each fill sent the choice the panel showed then`);
+      page.off('request', onRequest);
+      ann = await annOf(key);
     }
 
     if (V.shutBy === '✕') await page.click('#rgclose');
