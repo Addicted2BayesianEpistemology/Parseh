@@ -25,7 +25,7 @@ misspelling the ASR made. Chunks split only at spaces; joined back with
 single spaces they must reproduce the sentence exactly, and a machine
 checks that. **Never correct the text in `fa`**{{?new}} — the correction goes in {{?video}}`note`{{/video}}{{?book}}the
 vocabulary line{{/book}}{{/new}}.{{?nomarks}} It carries no short vowels of your making: the
-text is copied as the source has it, a caption as YouTube has it.{{/nomarks}}{{?marks}} The short
+text is copied as the source has it{{?video}}, a caption as YouTube has it{{/video}}.{{/nomarks}}{{?marks}} The short
 vowels are asked for in this prompt: `fa` is then the source's text WITH the
 tashkil added and nothing else changed — by the rules under Reading.{{/marks}}
 

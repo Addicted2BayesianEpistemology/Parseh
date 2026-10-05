@@ -135,6 +135,9 @@ class TheExample(unittest.TestCase):
                         if ch.get("voc"):
                             texwrite._check_voc(ch["voc"], where)          # a book's line
                             texparse.parse_voc(ch["voc"], code)
+                        if "words" in ch:                                  # a book's word line, at a book's door
+                            texwrite._check_words(ch["words"], languages.get(code), where)
+                            self.assertEqual(texwrite._words_fit(ch, languages.get(code), False, where), [])
                         errors, warnings = [], []
                         check_annotations.check_chunk(ch, where, errors.append, warnings.append, lang=code)
                         self.assertEqual(errors, [], "a video's chunk")
