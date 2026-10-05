@@ -471,7 +471,7 @@ try {
   async function openSheet(page) {
     await page.waitForSelector('#rgn');
     // the button is in the HTML before the reader's script has run: after a reload the click came first
-    await page.waitForFunction(() => typeof rgShown !== 'undefined');
+    await page.waitForFunction(() => { try { return typeof rgShown === 'boolean'; } catch (e) { return false; } });
     await page.click('#rgn');
     await page.waitForFunction(() => rgShown);
     await page.check('#rgregloss');
