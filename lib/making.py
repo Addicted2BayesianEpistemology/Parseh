@@ -1014,20 +1014,21 @@ INSTRUCTIONS_AGAIN_SAID = ("The instructions are written again. The agent you op
 
 
 def skill_files(facts, options=None):
-    """THE SEAM FOR LANE G (lib/skills.py): the project skill of this book -> {path inside the skill's folder:
-    text}, `SKILL.md` and its `references/`; empty where lib/skills.py is not there.
+    """THE PROJECT SKILL of this book -> {path inside the skill's folder: text}, `SKILL.md` and its `references/`;
+    empty where lib/skills.py is not there.
 
-    The contract is `skills.build("parseh-book", parts=[(name, text), ...])` -> that dict: the parts are
-    resolved_parts() -- the entry first, then the references in METHOD_ORDER -- so the skill is the same words
-    as the instructions, never a copy written by hand.  Only the import may fail quietly: whatever else goes
-    wrong in the skill is a bug and says so."""
+    lib/skills.py (lane G) makes it, `skills.build_for_book(L, G, options, values)`: the method of the job as the
+    parts of docs/book-method/ say it, settled for THIS book -- its language, its options, the values of its names
+    -- so that the skill is the same words as the instructions' and never a copy written by hand.  Only the import
+    may fail quietly: whatever else goes wrong in the skill is a bug and says so."""
     try:
         import skills
     except ImportError:
         return {}
-    parts = resolved_parts(facts, options)
+    book = facts["book"]
+    L, G = languages.get(book["language"]), languages.gloss_or_default(book["gloss"])
     try:
-        return skills.build(SKILL, parts=parts)
+        return dict(skills.build_for_book(L, G, _asked(facts, options), method_values(facts)).files)
     except Exception as e:                  # a bug of Parseh's, said in words and not as a stack, and nothing is written
         raise ValueError("the project skill could not be made (%s): nothing was written" % (e or type(e).__name__))
 
@@ -1275,11 +1276,9 @@ def facts_for(identity, orig_file, pages, options, dest, shelf=None):
         "examples_dir": os.path.join(shelf, L.folder)}
 
 
-def instructions_for(fields, options=None, into=None):
-    """What the folder's AGENTS.md would say for what is in the form now, written
-    nowhere: the page shows it, and copies it for an agent that does not read the
-    file by itself.  The form may be half filled -- what is missing reads as a
-    placeholder -- but a reference that is not on the shelf is still refused."""
+def form_facts(fields, options=None, into=None):
+    """The facts of the make page's form as it stands, half filled or not -> facts (what instructions_text and
+    the skill's request are made from); a reference that is not on the shelf is still refused."""
     options = options or {}
     into = into or booklib.BOOKS_DIR
     ident = _identity(fields, need=False)
@@ -1292,7 +1291,31 @@ def instructions_for(fields, options=None, into=None):
     except ValueError:
         pages = None
     dest = os.path.join(into, ident["lang"].folder, ident["slug"])
-    return instructions_text(facts_for(ident, name, pages, options, dest, into), options)
+    return facts_for(ident, name, pages, options, dest, into)
+
+
+def instructions_for(fields, options=None, into=None):
+    """What the folder's AGENTS.md would say for what is in the form now, written
+    nowhere: the page shows it, and copies it for an agent that does not read the
+    file by itself.  The form may be half filled -- what is missing reads as a
+    placeholder -- but a reference that is not on the shelf is still refused."""
+    options = options or {}
+    return instructions_text(form_facts(fields, options, into), options)
+
+
+def skill_request_for(facts, options, chars):
+    """THE SHORT REQUEST FOR THE BOOK'S SKILL (lib/skills.py, lane G), which the row beside the instructions offers
+    to copy for a chat that has the parseh-book skill installed: `chars` is the size of the instructions it stands
+    in for.  None where there is no skills module; a reason, said in words, where it cannot be made."""
+    try:
+        import skills
+    except ImportError:
+        return None
+    book = facts["book"]
+    L, G = languages.get(book["language"]), languages.gloss_or_default(book["gloss"])
+    chosen = _chosen((options or {}).get("prompt"), L)
+    return skills.safe(lambda: skills.for_book(L, G, _asked(facts, options), method_values(facts), chars, chosen),
+                       "parseh-book")
 
 
 NOTES_START = """\

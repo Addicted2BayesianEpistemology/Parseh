@@ -577,6 +577,8 @@ class Served(unittest.TestCase):
         try:
             status, _, got = self.ask("POST", "/books/__making/instructions", {"book": {"lang": "fa", "gloss": "en"}})
             self.assertEqual((status, got["ok"]), (200, True), "the instructions are shown to a phone too")
+            self.assertTrue(got["skill"]["available"] and got["skill"]["text"].startswith("Parseh request · parseh-book · "),
+                            "and so is the request for the book's skill, beside them")
             status, got = self.ask_raw("POST", "/books/__make?name=cane.txt&book=" + facts, b"Il cane corre.\n")
             self.assertEqual((status, got["ok"], got["here"], got["open_said"]), (200, True, False, making.OPEN_SAID), got)
             self.assertTrue((root / "books" / "italian" / "il-cane" / "original" / "cane.txt").is_file(), "a phone made a folder")

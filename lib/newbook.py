@@ -1253,6 +1253,8 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (!j.ok) throw new Error(j.error || 'the instructions could not be made');
+        // the request for the parseh-book skill, which the row offers beside the copy of the instructions
+        if (instructions && instructions.skillOf) instructions.skillOf(j.skill || null);
         return j.text;
       });
   }
@@ -1295,7 +1297,8 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
       open: function () { return det.open; }, setLang: function (code) { row.setLang(code); },
       options: function () { return row.options(); },
       // the person's own prompt for the instructions, chosen in the row's menu ('' is Parseh's)
-      promptId: function () { return typeof row.promptId === 'function' ? row.promptId() : ''; }
+      promptId: function () { return typeof row.promptId === 'function' ? row.promptId() : ''; },
+      skillOf: function (spec) { if (typeof row.skillOf === 'function') row.skillOf(spec); }
     };
   }
   var instructions = null;

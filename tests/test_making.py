@@ -28,6 +28,7 @@ import os
 import shutil
 import subprocess
 import sys
+import types
 import tempfile
 import threading
 import time
@@ -263,7 +264,10 @@ class TheInstructionsSeam(unittest.TestCase):
         facts = making.facts_for(making._identity(FIELDS), "Il-Gatto.txt", None, {}, d, into)
         for name in ("AGENTS.md", "CLAUDE.md"):
             os.unlink(os.path.join(d, name))
-        self.assertEqual(making.write_instructions(d, facts, {}), ["AGENTS.md", "CLAUDE.md"])
+        written = making.write_instructions(d, facts, {})
+        self.assertEqual(written[:2], ["AGENTS.md", "CLAUDE.md"])
+        # then the project skill, in both places where the agents that look for one find it, and nothing else
+        self.assertTrue(all(w.startswith((".claude/skills/parseh-book/", ".agents/skills/parseh-book/")) for w in written[2:]), written)
         self.assertEqual(Path(d, "NOTES.md").read_text(encoding="utf-8"), "journal")
 
     def test_claude_md_is_one_line_pointing_at_agents_md(self):
@@ -1521,7 +1525,9 @@ class WriteTheInstructionsAgain(unittest.TestCase):
         (d / "CLAUDE.md").write_text("old", encoding="utf-8")
         before = self.snapshot(d)
         asked = making.rewrite_instructions(str(d))
-        self.assertEqual(asked["written"], ["AGENTS.md", "CLAUDE.md"])
+        self.assertEqual(asked["written"][:2], ["AGENTS.md", "CLAUDE.md"])
+        self.assertTrue(all(w.startswith((".claude/skills/parseh-book/", ".agents/skills/parseh-book/")) for w in asked["written"][2:]),
+                        asked["written"])
         self.assertEqual(asked["said"], making.INSTRUCTIONS_AGAIN_SAID)
         self.assertIn("tell it to read AGENTS.md again", asked["said"])
         self.assertEqual(self.snapshot(d), before, "NOTES.md, ASKS.md, making.json, annot/ and the agent's scripts are untouched")
@@ -1605,9 +1611,9 @@ class TheProjectSkill(unittest.TestCase):
 
         class Skills(object):
             @staticmethod
-            def build(name, parts):
-                calls.append((name, [n for n, _ in parts]))
-                return files
+            def build_for_book(L, G, options, values, sources=None):
+                calls.append((L.code, G.code))
+                return types.SimpleNamespace(files=files)
         return mock.patch.dict(sys.modules, {"skills": Skills}), calls
 
     def test_the_skill_is_written_whole_into_both_places_and_nothing_beside_it_is_touched(self):
@@ -1616,7 +1622,7 @@ class TheProjectSkill(unittest.TestCase):
         with patcher:
             into, r = made(self)
         d = Path(r["path"])
-        self.assertEqual(calls, [("parseh-book", [making.METHOD_ENTRY] + list(making.METHOD_ORDER))])
+        self.assertEqual(calls, [(FIELDS["lang"], FIELDS["gloss"])])
         for home in (".claude/skills", ".agents/skills"):
             self.assertEqual((d / home / "parseh-book" / "SKILL.md").read_text(encoding="utf-8"), files["SKILL.md"], home)
             self.assertEqual((d / home / "parseh-book" / "references" / "a.md").read_text(encoding="utf-8"), "a\n")
@@ -1634,6 +1640,31 @@ class TheProjectSkill(unittest.TestCase):
         self.assertFalse((d / ".claude" / "skills" / "parseh-book" / "stale.md").exists())
         self.assertTrue((d / ".agents" / "skills" / "parseh-book" / "SKILL.md").is_file())
 
+    def test_the_real_builder_makes_the_books_skill_from_the_real_method(self):
+        into, r = made(self)
+        d = Path(r["path"])
+        for home in (".claude/skills", ".agents/skills"):
+            skill = d / home / "parseh-book"
+            text = (skill / "SKILL.md").read_text(encoding="utf-8")
+            self.assertTrue(text.startswith("---\nname: parseh-book\n"), home)
+            names = sorted(p.relative_to(skill).as_posix() for p in skill.rglob("*") if p.is_file())
+            self.assertIn("references/lang/it.md", names)
+            self.assertGreaterEqual(len([n for n in names if n.startswith("references/")]), 8, names)
+            self.assertEqual([n for n in names if n.startswith("references/lang/")], ["references/lang/it.md"],
+                             "only the book's own language file is kept")
+
+    def test_the_row_beside_the_instructions_has_the_request_for_the_books_skill(self):
+        facts = making.form_facts(FIELDS, {})
+        text = making.instructions_text(facts, {})
+        got = making.skill_request_for(facts, {}, len(text))
+        self.assertTrue(got["available"], got)
+        self.assertEqual(got["name"], "parseh-book")
+        self.assertTrue(got["text"].startswith("Parseh request · parseh-book · "), got["text"][:80])
+        self.assertIn("it → en", got["text"].split("\n", 1)[0])
+        self.assertEqual(got["prompt_chars"], len(text), "the size line says what the request stands in for")
+        with patch.dict(sys.modules, {"skills": None}):
+            self.assertIsNone(making.skill_request_for(facts, {}, len(text)), "no skills module, no request")
+
     def test_a_skill_that_would_land_outside_its_folder_is_refused_before_a_file_is_written(self):
         for bad in ("../x.md", "/etc/x.md", "a/../../x.md", "a\\b.md"):
             patcher, _calls = self.stand_in({"SKILL.md": "x", bad: "y"})
@@ -1645,7 +1676,7 @@ class TheProjectSkill(unittest.TestCase):
     def test_a_skill_builder_that_fails_refuses_in_words_and_writes_nothing(self):
         class Broken(object):
             @staticmethod
-            def build(name, parts):
+            def build_for_book(L, G, options, values, sources=None):
                 raise KeyError("references")
         into = os.path.join(tmpdir(self), "books")
         with patch.dict(sys.modules, {"skills": Broken}), self.assertRaisesRegex(ValueError, "the project skill could not be made"):

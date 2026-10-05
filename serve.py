@@ -3768,10 +3768,12 @@ class Handler(SimpleHTTPRequestHandler):
         options = {"reference": str(body.get("reference") or ""), "examples": bool(body.get("examples")),
                    "marks": body.get("marks"), "prompt": str(body.get("prompt") or "")}
         try:
-            text = making.instructions_for(fields, options)
+            facts = making.form_facts(fields, options)
+            text = making.instructions_text(facts, options)
         except ValueError as e:
             return self.send_json({"ok": False, "error": str(e)}, 400)
-        self.send_json({"ok": True, "text": text, "chars": len(text)})
+        self.send_json({"ok": True, "text": text, "chars": len(text),
+                        "skill": making.skill_request_for(facts, options, len(text))})
 
     def _making(self, book, method, what):
         """One book being made: what its panel shows (GET), an ask written to
