@@ -109,6 +109,10 @@ const studioFile = (route, u, path=u.pathname) => {
 const pageSnippets = JSON.parse(new TextDecoder().decode((await new Deno.Command(python,{
   args:['-c',"import sys,json;sys.path[:0]=['markdown/app','markdown/exlex','lib'];import deckroutes as d;print(json.dumps({'MODE_SCRIPT':d.MODE_SCRIPT,'MODE_SWITCH':d.MODE_SWITCH,'APP_HEAD':d.APP_HEAD}))"],
   stdout:'piped',stderr:'piped'}).output()).stdout));
+// and the recordings the editor's Audio button takes, as server._edit_mapping writes them
+const audioKeys = JSON.parse(new TextDecoder().decode((await new Deno.Command(python,{
+  args:['-c',"import sys,json;sys.path[:0]=['markdown/app','markdown/exlex','lib'];import htmlgen,audiofile;print(json.dumps({'AUDIO_ACCEPT':htmlgen.esc(audiofile.ACCEPT),'AUDIO_HUMAN':htmlgen.esc(audiofile.HUMAN)}))"],
+  stdout:'piped',stderr:'piped'}).output()).stdout));
 try {
   const page = await browser.newPage();
   const errors=[]; page.on('pageerror', e=>errors.push(e.message));
@@ -641,8 +645,11 @@ prompt: |
   const replacements={BASE:'',STUDIO:'',TITLE:'Authoring',DOC_ID:'',TARGET:'ar',MARKDOWN:initial,
     LANG_JSON:JSON.stringify(previewDoc.lang_record),LANGS_JSON:JSON.stringify([previewDoc.lang_record]),
     PROSE_JSON:JSON.stringify({code:'en',name:'English',native:'English',dir:'ltr',babel:'english',taught:true}),
-    DECKS_BASE:'',NOTES_SOURCE:'',NAMES_MARK:''};
+    DECKS_BASE:'',NOTES_SOURCE:'',NAMES_MARK:'',...audioKeys};
   for(const [key,value] of Object.entries(replacements))editHtml=editHtml.replaceAll(`{{${key}}}`,()=>value);
+  // a key the template gained and this page does not fill would be served as
+  // literal braces, and a script path with braces in it is a file that is never found
+  if(/\{\{[A-Z_]+\}\}/.test(editHtml))throw Error('edit template placeholder left: '+editHtml.match(/\{\{[A-Z_]+\}\}/)[0]);
   await editor.route('**/*',async route=>{
     const u=new URL(route.request().url());
     if(u.pathname==='/edit')return route.fulfill({body:editHtml,contentType:'text/html'});
