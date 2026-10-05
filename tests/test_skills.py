@@ -556,7 +556,20 @@ class ThePersonsOwnAreNotThisModulesToList(unittest.TestCase):
         self.assertTrue(set(names) <= set(skills.NAMES))
         for c in skills.catalog():
             self.assertTrue({"name", "what", "files", "chars", "skill_md", "biggest", "zip", "version", "hash",
-                             "file"} <= set(c))
+                             "file", "available"} <= set(c))
+
+    def test_a_skill_whose_sources_are_not_in_order_is_said_and_the_others_stay(self):
+        real = skills.build
+
+        def build(name, sources=None):
+            if name == "parseh-markdown":
+                raise skills.SkillError("a part is missing")
+            return real(name, sources)
+        with mock.patch.object(skills, "build", build):
+            got = {c["name"]: c for c in skills.catalog()}
+        self.assertFalse(got["parseh-markdown"]["available"])
+        self.assertIn("a part is missing", got["parseh-markdown"]["why"])
+        self.assertTrue(got["parseh-gloss"]["available"])
 
 
 if __name__ == "__main__":

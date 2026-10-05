@@ -43,6 +43,10 @@ def view():
 
 def _card(c):
     name = c["name"]
+    if not c.get("available", True):
+        return ('<section class="sk" data-skill="%s" data-unavailable><h2><code>%s</code></h2><p class="what">%s</p>'
+                '<p class="old">This skill cannot be made now: %s</p></section>'
+                % (esc(name), esc(name), esc(c["what"]), esc(c["why"])))
     return """<section class="sk" data-skill="%(name)s" data-hash="%(hash)s">
 <h2><code>%(name)s</code></h2>
 <p class="what">%(what)s</p>
@@ -143,7 +147,7 @@ of</i> %(name)s&rsquo;s cannot travel in it, because the skill carries %(name)s&
 </section>
 <p class="foot">Made when you ask, from the same parts as the prompts, and kept nowhere. <a href="%(guide)s">Skills for
 your chatbot</a>, in the guide.</p>
-</main>""" % {"doors": settingspage.settings_doors(PAGE), "gate": settingspage.gate(()), "name": settingspage.NAME,
+</main>""" % {"doors": settingspage.settings_doors(PAGE), "gate": settingspage.gate(settingspage.door_keys(PAGE)), "name": settingspage.NAME,
               "cards": cards, "tools": _tools(), "guide": esc(GUIDE)}
     return settingspage.frame("Skills for your chatbot &mdash; %s settings" % settingspage.NAME,
                               '<a href="/settings/">settings</a> &middot; skills for your chatbot',
@@ -160,13 +164,14 @@ STYLE = r"""
 .sk-page .old{margin:6px 0 0;font-size:13.5px;border-inline-start:3px solid var(--warn);padding:2px 0 2px 10px}
 .sk-page .row{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .sk-page a.primary{display:inline-block;padding:.45rem .9rem;border-radius:8px;border:1px solid var(--accent,#be3455);
-  background:var(--accent,#be3455);color:#fff;text-decoration:none;font-weight:600}
+  background:var(--accent,#be3455);color:var(--accent-fg,#fff);text-decoration:none;font-weight:600}
 .sk-page a.primary:hover{filter:brightness(1.08)}
 .sk-page .said{font-size:13.5px;min-height:1.4em}
 .sk-page .tool{margin:.7rem 0;padding:.1rem 0 .1rem 12px;border-inline-start:3px solid var(--rule)}
 .sk-page .tool h3{margin:.1rem 0;font-size:15px}
 .sk-page .tool p{margin:.2rem 0;font-size:14px}
 .sk-page .tool .links{color:var(--dim);font-size:13px}
+.sk-page .tool .links a,.sk-page .foot a{color:var(--accent,#be3455);text-decoration:underline}
 .sk-page code{overflow-wrap:anywhere}
 """
 
@@ -176,7 +181,7 @@ SCRIPT = r"""
   var KEY = '%s';
   function get(name) { try { return localStorage.getItem(KEY + name); } catch (e) { return null; } }
   function put(name, hash) { try { localStorage.setItem(KEY + name, hash); return true; } catch (e) { return false; } }
-  Array.prototype.forEach.call(document.querySelectorAll('[data-skill]'), function (card) {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-skill]:not([data-unavailable])'), function (card) {
     var name = card.getAttribute('data-skill'), hash = card.getAttribute('data-hash');
     var old = get(name);
     // WHAT THIS DEVICE DOWNLOADED LAST is remembered (in try: storage may be refused), and said when it is not what

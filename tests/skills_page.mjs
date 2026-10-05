@@ -223,6 +223,7 @@ async function suite(h) {
         await page.locator('#llm-row .llmrow-skill').click();
         await until(async () => (await page.evaluate(() => navigator.clipboard.readText())).includes('Prefer British spellings.'), 'an added prompt follows the header');
         has((await page.evaluate(() => navigator.clipboard.readText())).split('\n')[0], 'custom: british', 'and is named in it');
+        has(await text('#llm-row .llmrow-skillnote'), 'Your prompt “british” goes with it', 'and the row says that it goes with the request');
         await pick('my own way');
         await until(async () => (await text('#llm-row .llmrow-skillnote')).includes('takes the place of Parseh'), 'a prompt in place of Parseh’s is said to be unable to travel');
         assert(await page.locator('#llm-row .llmrow-skill').isDisabled(), 'and the button is off');
@@ -240,6 +241,18 @@ async function suite(h) {
             eq(over, 0, `${w}px ${theme}: nothing wider than the screen`);
             const small = await page.evaluate(() => Array.from(document.querySelectorAll('main a.primary')).filter(e => { const r = e.getBoundingClientRect(); return r.height < 32; }).length);
             eq(small, 0, `${w}px ${theme}: the download is big enough to press`);
+            // the words are readable against their ground in every theme (WCAG contrast of the computed colours)
+            const ratios = await page.evaluate(() => {
+              const rgb = c => { const m = c.match(/[\d.]+/g).map(Number); return {r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1}; };
+              const lum = ({r, g, b}) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+              const bg = el => { for (; el; el = el.parentElement) { const c = rgb(getComputedStyle(el).backgroundColor); if (c.a > 0.5) return c; } return {r: 255, g: 255, b: 255}; };
+              return ['.tool .links a', '.sk .what', '.sk .facts', '.tool p', 'a.primary'].map(sel => {
+                const el = document.querySelector('main ' + sel);
+                const a = lum(rgb(getComputedStyle(el).color)), b = lum(bg(el));
+                return [sel, Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 10) / 10];
+              });
+            });
+            for (const [sel, ratio] of ratios) assert(ratio >= 4.5 || (sel === 'a.primary' && ratio >= 3), `${w}px ${theme}: ${sel} is readable against its ground (contrast ${ratio})`);
             await shot(`${w}-${theme}`);
           }
         }

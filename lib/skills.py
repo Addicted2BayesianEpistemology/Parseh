@@ -691,7 +691,9 @@ def _build_markdown():
         "conventions.",
         "3. Read the rules below, with the marks settled as \"Reading the rules\" says, and open the file of "
         "each feature the header's `features:` names, where the rules point at it, and no other.",
-        "4. For exercises, also open `references/exercises.md` (it points at the file of each type `types:` names).",
+        "4. For exercises, also open `references/exercises.md` (it points at the file of each type `types:` names): "
+        "the rules below then describe the dialect of the page, what an exercise may use, and where they differ from "
+        "that file, that file wins.",
         "5. `level:` and `length:` each add one line of the table below, unless they say `not said`.",
         "6. Answer as \"How to answer\" says (a document), or as `references/exercises.md` says (exercises).", "",
         "## Reading the rules", "",
@@ -967,9 +969,15 @@ def catalog():
     """What Settings draws, for each skill this tree can make: what it does, its size, version and hash."""
     out = []
     for n in available():
-        sk = build(n)
+        try:
+            sk = build(n)
+        except SkillError as e:
+            # a skill whose sources are not in order says so on its card, and the others are still there
+            out.append({"name": n, "what": WHAT_IT_DOES[n], "description": DESCRIPTIONS[n], "available": False,
+                        "why": str(e)})
+            continue
         out.append(dict(sk.sizes(), name=n, what=WHAT_IT_DOES[n], description=DESCRIPTIONS[n], version=sk.version,
-                        hash=sk.hash, file="%s.zip" % n))
+                        hash=sk.hash, file="%s.zip" % n, available=True))
     return out
 
 
