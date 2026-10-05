@@ -81,6 +81,26 @@ const appScript = (await Deno.readTextFile(root+'/markdown/app/static/app.js'))
 const appCss = (await Deno.readTextFile(root+'/markdown/app/static/sheet.css'))
   + '\n' + (await Deno.readTextFile(root+'/markdown/app/static/app.css'));
 const langsCss = await Deno.readTextFile(root+'/lib/langs.css');
+// Every file of the studio's own that the editor page links, answered as the
+// server answers it (app.js with its case fold spliced in, app.css as sheet +
+// chrome).  The page was split into app.js + exform.js + editor.js and given a
+// {{STUDIO}} prefix after this suite was written; a route list that knew only
+// app.js left the editor with no editor at all, and no `.ex-edit` ever drawn.
+const studioFiles = {
+  '/static/app.js': [appScript, 'text/javascript'],
+  '/static/app.css': [appCss, 'text/css'],
+  '/static/langs.css': [langsCss, 'text/css'],
+  '/static/exform.js': [await Deno.readTextFile(root+'/markdown/app/static/exform.js'), 'text/javascript'],
+  '/static/editor.js': [await Deno.readTextFile(root+'/markdown/app/static/editor.js'), 'text/javascript'],
+  '/static/promptpick.js': [await Deno.readTextFile(root+'/markdown/app/static/promptpick.js'), 'text/javascript'],
+  '/static/mathjax.js': [await Deno.readTextFile(root+'/lib/mathjax.js'), 'text/javascript'],
+  '/static/mathjax.css': [await Deno.readTextFile(root+'/lib/mathjax.css'), 'text/css'],
+  '/lib/llmrow.js': [await Deno.readTextFile(root+'/lib/llmrow.js'), 'text/javascript'],
+};
+const studioFile = (route, u) => {
+  const f = studioFiles[u.pathname];
+  return f ? route.fulfill({body:f[0], contentType:f[1]}) : null;
+};
 try {
   const page = await browser.newPage();
   const errors=[]; page.on('pageerror', e=>errors.push(e.message));
@@ -127,13 +147,15 @@ try {
       'the first box cannot go earlier, and can go later');
     assert([...order.querySelectorAll('.ex-item')].pop().querySelector('[data-move="later"]').disabled,
       'and the last cannot go later');
+    // This fixture is `target: ar`, so its line runs right to left and the
+    // arrows point the way the box will really go: "earlier" is to the RIGHT
+    // (→), "later" to the left (←).  The left-to-right line is checked below,
+    // outside this page, on a document whose target is English.
     const glyph=el=>getComputedStyle(el,'::before').content;
-    assert(glyph(order.querySelector('[data-move="earlier"]'))==='"←"'
-      &&glyph(order.querySelector('[data-move="later"]'))==='"→"',
-      'a line of chunks points its arrows along the line');
-    const list=document.querySelector('[data-subtype="order-sentences"] .ex-sequence');
-    if(list) assert(glyph(list.querySelector('[data-move="earlier"]'))==='"↑"',
-      'a list of lines points them up and down');
+    assert(getComputedStyle(order).direction==='rtl','the Arabic line runs right to left');
+    assert(glyph(order.querySelector('[data-move="earlier"]'))==='"→"'
+      &&glyph(order.querySelector('[data-move="later"]'))==='"←"',
+      'a line of chunks that runs right to left points its arrows along the line: earlier is →, later is ←');
     // the second box, moved one place earlier, changes places with the first
     const was=names();
     order.querySelectorAll('.ex-item')[1].querySelector('[data-move="earlier"]').click();
@@ -194,6 +216,46 @@ try {
   console.log(result);
   if (Deno.env.get('PARSEH_TEST_ARTIFACTS'))
     await page.screenshot({path:Deno.env.get('PARSEH_TEST_ARTIFACTS')+'/exercises.png',fullPage:true});
+
+  // THE ARROWS ON A LINE THAT RUNS LEFT TO RIGHT.  The page above is Arabic,
+  // where "earlier" is to the right; a Spanish document runs the other way, so
+  // there "earlier" is ← and "later" is →, and a list of lines (not a line of
+  // chunks) points up and down whichever language it is in.
+  const ltrDoc = `---
+title: Left to right
+target: es
+---
+
+:::exercise construct-sentence
+prompt: Order.
+- [1] uno
+- [2] dos
+- [3] tres
+:::
+
+:::exercise order-sentences
+prompt: Order the lines.
+- [1] uno
+- [2] dos
+:::`;
+  await page.setContent(`<body data-page="noop"><article id="sheet" class="sheet" data-lang="es">${(await renderedDoc(false, ltrDoc)).html}</article><div id="modal-root"></div></body>`);
+  await page.addStyleTag({content:appCss});
+  await page.addStyleTag({path:root+'/lib/langs.css'});
+  console.log(await page.evaluate(() => {
+    const assert=(v,m)=>{if(!v)throw Error(m)};
+    const glyph=el=>getComputedStyle(el,'::before').content;
+    const line=document.querySelector('[data-subtype="construct-sentence"] .ex-sequence');
+    const list=document.querySelector('[data-subtype="order-sentences"] .ex-sequence');
+    assert(line&&list,'the Spanish page has a line of chunks and a list of lines');
+    assert(getComputedStyle(line).direction==='ltr','the Spanish line runs left to right');
+    assert(glyph(line.querySelector('[data-move="earlier"]'))==='"←"'
+      &&glyph(line.querySelector('[data-move="later"]'))==='"→"',
+      'a line of chunks that runs left to right points its arrows along the line: earlier is ←, later is →');
+    assert(glyph(list.querySelector('[data-move="earlier"]'))==='"↑"'
+      &&glyph(list.querySelector('[data-move="later"]'))==='"↓"',
+      'a list of lines points them up and down');
+    return 'arrows along a left-to-right line, and up and down in a list, passed';
+  }));
 
   const plainPrompt = `---
 title: Prompt weight
@@ -565,15 +627,18 @@ prompt: |
   let editHtml=await Deno.readTextFile(root+'/markdown/app/templates/edit.html');
   const initial=`---\ntitle: Authoring\ntarget: ar\n---\n\n:::exercise single-choice\nprompt: Existing question\n- [x] answer\n- [ ] distractor\n:::`;
   const previewDoc=await renderedDoc(true, initial);
-  const replacements={BASE:'',TITLE:'Authoring',DOC_ID:'',TARGET:'ar',MARKDOWN:initial,
-    LANG_JSON:JSON.stringify(previewDoc.lang_record),LANGS_JSON:JSON.stringify([previewDoc.lang_record])};
-  for(const [key,value] of Object.entries(replacements))editHtml=editHtml.replaceAll(`{{${key}}}`,value);
+  // every {{KEY}} server.py's page_edit fills: STUDIO is the studio's own
+  // prefix (empty here, where the studio is the whole site), PROSE_JSON the
+  // `lang:` record, and the three that say there is no shelf of decks or notes
+  const replacements={BASE:'',STUDIO:'',TITLE:'Authoring',DOC_ID:'',TARGET:'ar',MARKDOWN:initial,
+    LANG_JSON:JSON.stringify(previewDoc.lang_record),LANGS_JSON:JSON.stringify([previewDoc.lang_record]),
+    PROSE_JSON:JSON.stringify({code:'en',name:'English',native:'English',dir:'ltr',babel:'english',taught:true}),
+    DECKS_BASE:'',NOTES_SOURCE:'',NAMES_MARK:''};
+  for(const [key,value] of Object.entries(replacements))editHtml=editHtml.replaceAll(`{{${key}}}`,()=>value);
   await editor.route('**/*',async route=>{
     const u=new URL(route.request().url());
     if(u.pathname==='/edit')return route.fulfill({body:editHtml,contentType:'text/html'});
-    if(u.pathname==='/static/app.js')return route.fulfill({body:appScript,contentType:'text/javascript'});
-    if(u.pathname==='/static/app.css')return route.fulfill({body:appCss,contentType:'text/css'});
-    if(u.pathname==='/static/langs.css')return route.fulfill({body:langsCss,contentType:'text/css'});
+    if(studioFile(route,u))return;
     if(u.pathname==='/api/preview'){
       const request=route.request().postDataJSON();
       return route.fulfill({json:{ok:true,doc:await renderedDoc(true,request.markdown)}});
@@ -650,9 +715,7 @@ prompt: |
   await pairsPage.route('**/*',async route=>{
     const u=new URL(route.request().url());
     if(u.pathname==='/edit')return route.fulfill({body:pairsHtml,contentType:'text/html'});
-    if(u.pathname==='/static/app.js')return route.fulfill({body:appScript,contentType:'text/javascript'});
-    if(u.pathname==='/static/app.css')return route.fulfill({body:appCss,contentType:'text/css'});
-    if(u.pathname==='/static/langs.css')return route.fulfill({body:langsCss,contentType:'text/css'});
+    if(studioFile(route,u))return;
     if(u.pathname==='/api/preview')
       return route.fulfill({json:{ok:true,doc:await renderedDoc(true,route.request().postDataJSON().markdown)}});
     return route.fulfill({json:{}});
