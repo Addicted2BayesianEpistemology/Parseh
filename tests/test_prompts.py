@@ -75,7 +75,7 @@ WAITS = "waits for the a0.4.3 dialect (markdown/exlex/segcolour.py)"
 # (`StudioBoxes` measures the other presets against the old prompt).
 SIZES = {
     #        studio-doc     studio-exercises  video-new      video-region   book-region    transcript-tidy  book-new
-    "fa": ((16137, 18600), (19078, 22000), (30695, 35300), (20604, 23700), (19730, 22700), (2696, 3200), (32808, 37800)),
+    "fa": ((16413, 18900), (19715, 22700), (27766, 32000), (19276, 22200), (18222, 21000), (2815, 3300), (31910, 36700)),
     "ar": ((16799, 19400), (19739, 22700), (30569, 35200), (21027, 24200), (20705, 23900), (2687, 3100), (32685, 37600)),
     "it": ((16408, 18900), (14541, 16800), (30602, 35200), (21032, 24200), (20710, 23900), (2747, 3200), (32652, 37600)),
     "ja": ((17663, 20400), (15565, 17900), (33877, 39000), (24592, 28300), (24866, 28600), (2636, 3100), (34581, 39800)),
@@ -944,14 +944,15 @@ class LanguageCut(unittest.TestCase):
         self.assertIn("\n## Transliteration\n", "\n" + K.language_text("studio-doc", "fa"))
 
     def test_the_cuts_take_out_what_the_brief_expects_of_them(self):
-        # the studio prompt loses 10 - 15 K of the language file (9.8 K in Italian, 18 K in Chinese:
-        # the files differ); a region prompt loses Chunking and most of The text field -- what
+        # the studio prompt loses 8 - 15 K of the language file (9.8 K in Italian, 18 K in Chinese:
+        # the files differ, and one that lost the sources sidebar's paragraph is shorter by it: lane D2);
+        # a region prompt loses Chunking and most of The text field -- what
         # D's marking of the sources sidebar's paragraph and the opening adds is D's.  `whole`
         # is a book's file, which holds no sentence that only a video's line needs, and a region
         # prompt is measured against the whole of its own surface's file for the same reason.
         for code in self.CODES:
             whole = len(K.language_text("book-new", code))
-            self.assertGreater(whole - len(K.language_text("studio-doc", code)), 9000, code)
+            self.assertGreater(whole - len(K.language_text("studio-doc", code)), 8000, code)
             self.assertLess(whole - len(K.language_text("studio-doc", code)), 18500, code)
             for who in ("book", "video"):
                 own = len(K.language_text(who + "-new", code))

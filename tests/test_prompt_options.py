@@ -630,6 +630,11 @@ class OtherDoors(Quiet):
         page = "---\ntitle: T\ntarget: fa\n---\n\nLesson"
         a, _rows = studio_server.exercise_prompt(page, translit="ipa")
         self.assertEqual(a.text.split("\n")[0], "Parseh prompt · studio-exercises · fa · %s · IPA" % V)
+        # NO SHIPPED FILE IS WITHOUT ITS IPA NOTE NOW (lane D2): the general paragraph is for a file that has none
+        with tempfile.TemporaryDirectory() as td:
+            Path(td, "fa.md").write_text("# Persian\n\n## Transliteration\n\nThe usual scheme.\n", encoding="utf-8")
+            with mock.patch.object(K, "LANG_DOCS", td):
+                a, _rows = studio_server.exercise_prompt(page, translit="ipa")
         self.assertIn("This prompt asks for IPA", a.text, "a file with no IPA note of its own is given the general one")
 
     def test_the_studios_routes_take_and_refuse_it_and_answer_with_what_the_page_draws(self):
