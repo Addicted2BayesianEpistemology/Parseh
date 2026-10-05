@@ -1,0 +1,2393 @@
+{
+  "format_version": 1,
+  "models": [
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "established",
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": true,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": true,
+      "hint": "The one to start with: about half the download, and several times faster than large-v3 on a CPU. It needs about 2.2 GB of memory there.",
+      "id": "large-v3-turbo",
+      "label": "faster-whisper / large-v3-turbo",
+      "language": null,
+      "languages": [],
+      "licence": "MIT",
+      "limitations": [],
+      "memory": "about 2.2 GB",
+      "option": "standard",
+      "package": {
+        "files": {
+          "config.json": {
+            "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+            "size": 2263
+          },
+          "model.bin": {
+            "sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            "size": 340
+          },
+          "tokenizer.json": {
+            "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+            "size": 2710337
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "repo": "dropbox-dash/faster-whisper-large-v3-turbo",
+        "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
+      },
+      "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+      "source": "dropbox-dash/faster-whisper-large-v3-turbo",
+      "tag": "Recommended · faster and lighter"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 32,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "established",
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": true,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": true,
+      "hint": "The higher-accuracy option, for what the turbo model gets wrong: twice the download, about five times slower on a CPU, and it needs about 6 GB of memory there. A small graphics card may not hold it; Parseh then continues on the CPU.",
+      "id": "large-v3",
+      "label": "faster-whisper / large-v3",
+      "language": null,
+      "languages": [],
+      "licence": "MIT",
+      "limitations": [],
+      "memory": "about 6 GB",
+      "option": "standard",
+      "package": {
+        "files": {
+          "config.json": {
+            "sha256": "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9",
+            "size": 2394
+          },
+          "model.bin": {
+            "sha256": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
+            "size": 3087284237
+          },
+          "preprocessor_config.json": {
+            "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            "size": 340
+          },
+          "tokenizer.json": {
+            "sha256": "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+            "size": 2480617
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "repo": "Systran/faster-whisper-large-v3",
+        "revision": "edaa852ec7e145841d8ffdb056a99866b5f0a478"
+      },
+      "revision": "edaa852ec7e145841d8ffdb056a99866b5f0a478",
+      "source": "Systran/faster-whisper-large-v3",
+      "tag": "Higher accuracy · larger and slower"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "777f311eb4bf137b4a34510f7e696d3a64f5a780c4f086fd8957a896009a60de",
+              "size": 3863
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "c110394db17050bfbdb620f1e9e588dbad19fd2e617067c2392c2853795f39af",
+              "size": 1200
+            },
+            "generation_config.json": {
+              "sha256": "fef8f720cab2827cbfd07499f7573dc68fa94e956971a6d700bbef5bf6e419ec",
+              "size": 3719
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "b9446fce68a888995f6d03a836859a1544e1022b562683ecb9cc0b276d11c4a6",
+              "size": 3235581408
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+              "size": 357
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer_config.json": {
+              "sha256": "3c75940dfce3a294fca7041a5faff011677f1b68fa85e47511bb8cf6dccaded6",
+              "size": 282873
+            },
+            "vocab.json": {
+              "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+              "size": 1036558
+            }
+          },
+          "repo": "vhdm/whisper-large-fa-v1",
+          "revision": "95485391406953c01ffc06724af5a08cb517a325"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Fine-tuned on clean Persian audio; noisy, accented and dialectal speech may be less reliable.",
+      "id": "fa-fast",
+      "label": "Persian · Fast",
+      "language": "fa",
+      "languages": [
+        "fa"
+      ],
+      "licence": "MIT",
+      "limitations": [
+        "Fine-tuned on clean Persian audio; noisy, accented and dialectal speech may be less reliable."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "fast",
+      "package": {
+        "files": {
+          "LICENCE-SOURCES.json": {
+            "sha256": "57dac18d17e53e196e2a3bde3fc1a34f7c78190c32b7c0f046c5803dd539ccc4",
+            "size": 703
+          },
+          "LICENSE-MIT.txt": {
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "NOTICE.txt": {
+            "sha256": "b57a30de6b9bd8366515044ec136960134744cab817ae152c59c4e3c4d5bbe71",
+            "size": 919
+          },
+          "PACKAGE-PROVENANCE.json": {
+            "sha256": "d9e1b03fc169de5289b07807f8f8afe93f8070ed073aa05d30e7aa004c3d193f",
+            "size": 2550
+          },
+          "README.md": {
+            "sha256": "bce4152c785df0e497f98e15aa15d918a0e8545ec9217e5252bede37e0c4f94e",
+            "size": 2592
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "777f311eb4bf137b4a34510f7e696d3a64f5a780c4f086fd8957a896009a60de",
+            "size": 3863
+          },
+          "config.json": {
+            "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+            "size": 2263
+          },
+          "model.bin": {
+            "sha256": "e569bc0943b5415d5e2a39d26aeffa7989d0dbec034bd1e786737b0dc9b4308c",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+            "size": 357
+          },
+          "tokenizer.json": {
+            "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b",
+            "size": 3930645
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "MIT",
+        "repo": "parseh/whisper-fa-fast-ct2",
+        "revision": "4ea3520380bd565c96299bbec27eb390f6cad1e9"
+      },
+      "revision": "95485391406953c01ffc06724af5a08cb517a325",
+      "source": "vhdm/whisper-large-fa-v1",
+      "tag": "Fast"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 32,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "093e025a7253712774784e59f7e90d7002a45c980fc7ce16303d6b4c174c73fb",
+              "size": 2131
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "da0a248bb39211278019117cc6f0528af234422e0f50731a7f57e7a29e6fc47e",
+              "size": 1202
+            },
+            "generation_config.json": {
+              "sha256": "51af27dd57415d70f3f6fc813e24d18e0dae9cccf95a3631708d237efc67e631",
+              "size": 3850
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model-00001-of-00002.safetensors": {
+              "sha256": "0830076bf44532970d62932089396549d5c8c430655065517e92f1d4ce66c2fb",
+              "size": 4993448880
+            },
+            "model-00002-of-00002.safetensors": {
+              "sha256": "1e393d0f267d0c11166aeeb5fd2eb1b6aa17003f9112d7e031c3872ab3198715",
+              "size": 1180663192
+            },
+            "model.safetensors.index.json": {
+              "sha256": "42cd1e689ab096987f668b944b9440547114e00ecfe49304e3bc70167234d5b3",
+              "size": 111598
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+              "size": 357
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer_config.json": {
+              "sha256": "3c75940dfce3a294fca7041a5faff011677f1b68fa85e47511bb8cf6dccaded6",
+              "size": 282873
+            },
+            "vocab.json": {
+              "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+              "size": 1036558
+            }
+          },
+          "repo": "nezamisafa/whisper-persian-v4",
+          "revision": "b84fc89f5d8c6a08acbd0930c74010f8bb555253"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": true,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Larger model; accuracy is an intended trade-off, not a guarantee. Published domain details are limited.",
+      "id": "fa-accuracy",
+      "label": "Persian · Accuracy, slower",
+      "language": "fa",
+      "languages": [
+        "fa"
+      ],
+      "licence": "Apache-2.0",
+      "limitations": [
+        "Larger model; accuracy is an intended trade-off, not a guarantee. Published domain details are limited."
+      ],
+      "memory": "about 6 GB",
+      "option": "accuracy-candidate",
+      "package": {
+        "files": {
+          "LICENCE-SOURCES.json": {
+            "sha256": "57dac18d17e53e196e2a3bde3fc1a34f7c78190c32b7c0f046c5803dd539ccc4",
+            "size": 703
+          },
+          "LICENSE-Apache-2.0.txt": {
+            "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+            "size": 10280
+          },
+          "LICENSE-MIT.txt": {
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "NOTICE.txt": {
+            "sha256": "14a3f931ea421b1ca13bbc536ac9e5f0e78eab4bd29243999f1839a6bd41f759",
+            "size": 955
+          },
+          "PACKAGE-PROVENANCE.json": {
+            "sha256": "335aad4355eaacf81846ed07f8999657483b94fd30538434ea4b1982f26ae86f",
+            "size": 3030
+          },
+          "README.md": {
+            "sha256": "6d76eba539ef5e91e28d4af33ee309b5eec7f2f8c4acdc92aa76f529a6de9cbb",
+            "size": 2649
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "093e025a7253712774784e59f7e90d7002a45c980fc7ce16303d6b4c174c73fb",
+            "size": 2131
+          },
+          "config.json": {
+            "sha256": "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9",
+            "size": 2394
+          },
+          "model.bin": {
+            "sha256": "51d980a1190477381ebb55906eb2bb6cc7b4558ae1d7ceefa8eca3a3c16f6e07",
+            "size": 3087284237
+          },
+          "preprocessor_config.json": {
+            "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+            "size": 357
+          },
+          "tokenizer.json": {
+            "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b",
+            "size": 3930645
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "Apache-2.0",
+        "repo": "parseh/whisper-fa-accuracy-ct2",
+        "revision": "0c13882d7ce997cac22a88e3f0464b39fa94b748"
+      },
+      "revision": "b84fc89f5d8c6a08acbd0930c74010f8bb555253",
+      "source": "nezamisafa/whisper-persian-v4",
+      "tag": "Accuracy candidate · slower"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "4a390034e0f8c07edaa3fa0488d262397b2c90308a18431204e04351a0e64f46",
+              "size": 11250
+            },
+            "config.json": {
+              "sha256": "470de3ac21e47820c80eaf8afdd8e1cfaf68de1a84a474b709ec658f027a444e",
+              "size": 1253
+            },
+            "generation_config.json": {
+              "sha256": "121e12ab8025d6f3dbabcedb76950637bfd182c0136c3ddddc090644256e61ab",
+              "size": 4489
+            },
+            "model.safetensors": {
+              "sha256": "8275bbcf030713296e2c70e596b6495a3b1e96f8279fa3bd59a38b26cc1f0834",
+              "size": 3235581408
+            },
+            "processor_config.json": {
+              "sha256": "8efb801da889b24fc64a28d0af16d376852508aefb97d497a4c6d2200b114a33",
+              "size": 410
+            },
+            "tokenizer.json": {
+              "sha256": "5a47b463cf9e79fdb8aa9e0129211da87d93f2d1ec00ec489d8e54a0452c6d30",
+              "size": 3931381
+            },
+            "tokenizer_config.json": {
+              "sha256": "91e822715e0dbd67af27d69f88c212d159d161a63e9efa2be86df5fac39f557a",
+              "size": 2105
+            }
+          },
+          "repo": "oddadmix/whisper-large-v3-turbo-arabic-dialectal-v2",
+          "revision": "b12b09bc6601f2116410ccc9716596de0301c24a"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Trained for 13 Arabic dialects; Maghrebi dialects remain particularly difficult. Outputs omit diacritics.",
+      "id": "ar-dialectal",
+      "label": "Arabic · Dialectal",
+      "language": "ar",
+      "languages": [
+        "ar"
+      ],
+      "licence": "Apache-2.0",
+      "limitations": [
+        "Trained for 13 Arabic dialects; Maghrebi dialects remain particularly difficult. Outputs omit diacritics."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "dialectal",
+      "package": {
+        "files": {
+          "LICENCE-SOURCES.json": {
+            "sha256": "57dac18d17e53e196e2a3bde3fc1a34f7c78190c32b7c0f046c5803dd539ccc4",
+            "size": 703
+          },
+          "LICENSE-Apache-2.0.txt": {
+            "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+            "size": 10280
+          },
+          "LICENSE-MIT.txt": {
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "NOTICE.txt": {
+            "sha256": "06ce19d9e1135e3b7a7eca84bba88f40cf88d40b291ee9ebfc26cc120619df54",
+            "size": 995
+          },
+          "PACKAGE-PROVENANCE.json": {
+            "sha256": "557666180b597d3bbf4c814e18d2ac0203d550918cd05f5208f37bf26cd27984",
+            "size": 2080
+          },
+          "README.md": {
+            "sha256": "264f4124585e58827bfa67b198abbf1eeb52fab29757a180a5977f0fefd5dbf2",
+            "size": 2707
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "4a390034e0f8c07edaa3fa0488d262397b2c90308a18431204e04351a0e64f46",
+            "size": 11250
+          },
+          "config.json": {
+            "sha256": "c805eff43fc2a1d00d5cfa315e4b2230895f34994257c185959808a116e7c4f0",
+            "size": 1405
+          },
+          "model.bin": {
+            "sha256": "4aca0f89c91c285121fd12d11e0874bde4459fb7f1d281c1bd0fc6ae6f0efd08",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "02051956d42fbab481cba9b17d28c2019c5e15cefde01699a0253e75a130d648",
+            "size": 316
+          },
+          "tokenizer.json": {
+            "sha256": "5a47b463cf9e79fdb8aa9e0129211da87d93f2d1ec00ec489d8e54a0452c6d30",
+            "size": 3931381
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "Apache-2.0",
+        "repo": "parseh/whisper-ar-dialectal-ct2",
+        "revision": "e2b6cfcd9c8b91135fe4d2426f7c719f6be03993"
+      },
+      "revision": "b12b09bc6601f2116410ccc9716596de0301c24a",
+      "source": "oddadmix/whisper-large-v3-turbo-arabic-dialectal-v2",
+      "tag": "Dialectal Arabic"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": {
+          "repo": "openai/whisper-large-v3-turbo",
+          "revision": "41f01f3fe87f28c78e2fbf8b568835947dd65ed9"
+        },
+        "base_files": {
+          "files": {
+            "README.md": {
+              "sha256": "aaef74a740faca90fa1899c4233ebe17f2093b9846d0acf16d9131bf650e9585",
+              "size": 21196
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "c5b526b3e3cd64cd8940dabb45e8ba726629e22d8ed389c29b552f9140daf04a",
+              "size": 1256
+            },
+            "generation_config.json": {
+              "sha256": "cce11bfe3aaa6ae9e072ea2637caaec8795e68d9b67e655a5af16ee509681a4c",
+              "size": 3772
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "542566a422ae4f3fd23f1ba11add198fca01bbf82e66e6a2857b3f608b1eb9d1",
+              "size": 1617824864
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+              "size": 2710337
+            },
+            "tokenizer_config.json": {
+              "sha256": "844b642c73a91359722f47b35705f7174686df33d252695d8572cf9ac03a6389",
+              "size": 282843
+            },
+            "vocab.json": {
+              "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+              "size": 1036558
+            }
+          },
+          "repo": "openai/whisper-large-v3-turbo",
+          "revision": "41f01f3fe87f28c78e2fbf8b568835947dd65ed9"
+        },
+        "merge_lora": true,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "798f9486ff4a5f2badf6403ff84da77ae03adfc00d209ac08b709d880d668db4",
+              "size": 1457
+            },
+            "adapter_config.json": {
+              "sha256": "5de7999bef1d578e3203564c7b2ef7908b542e59d0c15cde37283e344d335c1c",
+              "size": 1105
+            },
+            "adapter_model.safetensors": {
+              "sha256": "066db094c78276dc8c80bcb1fefd8bd7d1592c9d3943aae154626577e3acdfe4",
+              "size": 26237160
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+              "size": 357
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b",
+              "size": 3930645
+            },
+            "tokenizer_config.json": {
+              "sha256": "3c75940dfce3a294fca7041a5faff011677f1b68fa85e47511bb8cf6dccaded6",
+              "size": 282873
+            },
+            "vocab.json": {
+              "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971",
+              "size": 835528
+            }
+          },
+          "repo": "Corviinuss/whisper-large-v3-turbo-italian-lora",
+          "revision": "5e9fb8c09b2cf0c094ac683b52374e43817dca6d"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Adapter must be merged before conversion; comparative conversational evaluation is limited.",
+      "id": "it-turbo",
+      "label": "Italian · Language-specific",
+      "language": "it",
+      "languages": [
+        "it"
+      ],
+      "licence": "MIT",
+      "limitations": [
+        "Adapter must be merged before conversion; comparative conversational evaluation is limited."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "language-specific",
+      "package": {
+        "files": {
+          "BASE-MODEL-CARD.md": {
+            "sha256": "aaef74a740faca90fa1899c4233ebe17f2093b9846d0acf16d9131bf650e9585",
+            "size": 21196
+          },
+          "LICENCE-SOURCES.json": {
+            "sha256": "57dac18d17e53e196e2a3bde3fc1a34f7c78190c32b7c0f046c5803dd539ccc4",
+            "size": 703
+          },
+          "LICENSE-MIT.txt": {
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "NOTICE.txt": {
+            "sha256": "04080c6005d02191578929895338faeca6a16de303257c800fd266d660600305",
+            "size": 1094
+          },
+          "PACKAGE-PROVENANCE.json": {
+            "sha256": "1301b219c56efbd5bad28e20bf0fa1c35227fe23a60b69f8f3c337d280fe7f75",
+            "size": 4534
+          },
+          "README.md": {
+            "sha256": "88d0fa9c1962f44cd915a42660be1c91350589c5d98d5ce7c858d2ce83ae1411",
+            "size": 2675
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "798f9486ff4a5f2badf6403ff84da77ae03adfc00d209ac08b709d880d668db4",
+            "size": 1457
+          },
+          "config.json": {
+            "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+            "size": 2263
+          },
+          "model.bin": {
+            "sha256": "43c6b7eaacbec459df5a993a283267a9dc5e12eb06adb1cb00eedf3d15b6bb27",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+            "size": 357
+          },
+          "tokenizer.json": {
+            "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b",
+            "size": 3930645
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "MIT",
+        "repo": "parseh/whisper-it-turbo-ct2",
+        "revision": "13a4cbcd51b4fa1c79f70deffa588583353e275e"
+      },
+      "revision": "5e9fb8c09b2cf0c094ac683b52374e43817dca6d",
+      "source": "Corviinuss/whisper-large-v3-turbo-italian-lora",
+      "tag": "Language-specific"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 2,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "87aba4786babe83c4ef7914ee4b8e029d776169b599a92013643b28792825343",
+              "size": 24245
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "65d5e7e4c8bb84a04edeff0a04fa422de14d9d38c3152f6869d4275dec9cc60c",
+              "size": 1287
+            },
+            "generation_config.json": {
+              "sha256": "748d850251411dc53679b1a01ecacd44d25b37a8498cc2ccc0457f4b0c06d82f",
+              "size": 3898
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "0a96a84e307bbb90128a9fd5a45b4f803be212aadef633e24c088fa1ba30f727",
+              "size": 1512875008
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "f70c9740a90657b489cf05b0fa0605c1d497db542f11a70a8cc80a025c94c7d8",
+              "size": 2481381
+            },
+            "tokenizer_config.json": {
+              "sha256": "c86c7398ba7f81f784569ea0ae165e252c4a006acc56906f04e5ee3300cf043e",
+              "size": 282863
+            },
+            "vocab.json": {
+              "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971",
+              "size": 835528
+            }
+          },
+          "repo": "kotoba-tech/kotoba-whisper-v2.0",
+          "revision": "7eb575277d18909a4af8a24e3ae8cce2e99794ae"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "chunk_length": 15,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Distilled from Japanese TV speech. Corrected alignment heads need empirical timing validation. Japanese word segmentation remains unchanged.",
+      "id": "ja-kotoba-v2",
+      "label": "Japanese · Kotoba v2",
+      "language": "ja",
+      "languages": [
+        "ja"
+      ],
+      "licence": "Apache-2.0",
+      "limitations": [
+        "Distilled from Japanese TV speech. Corrected alignment heads need empirical timing validation. Japanese word segmentation remains unchanged."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "language-specific",
+      "package": {
+        "alignment_repair": {
+          "original_heads": [
+            [
+              7,
+              0
+            ],
+            [
+              10,
+              17
+            ],
+            [
+              12,
+              18
+            ],
+            [
+              13,
+              12
+            ],
+            [
+              16,
+              1
+            ],
+            [
+              17,
+              14
+            ],
+            [
+              19,
+              11
+            ],
+            [
+              21,
+              4
+            ],
+            [
+              24,
+              1
+            ],
+            [
+              25,
+              6
+            ]
+          ],
+          "reason": "Original metadata names teacher layers absent from the two-layer student. Use all final decoder-layer heads; timing accuracy is not validated.",
+          "selected_heads": [
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              1
+            ],
+            [
+              1,
+              2
+            ],
+            [
+              1,
+              3
+            ],
+            [
+              1,
+              4
+            ],
+            [
+              1,
+              5
+            ],
+            [
+              1,
+              6
+            ],
+            [
+              1,
+              7
+            ],
+            [
+              1,
+              8
+            ],
+            [
+              1,
+              9
+            ],
+            [
+              1,
+              10
+            ],
+            [
+              1,
+              11
+            ],
+            [
+              1,
+              12
+            ],
+            [
+              1,
+              13
+            ],
+            [
+              1,
+              14
+            ],
+            [
+              1,
+              15
+            ],
+            [
+              1,
+              16
+            ],
+            [
+              1,
+              17
+            ],
+            [
+              1,
+              18
+            ],
+            [
+              1,
+              19
+            ]
+          ]
+        },
+        "file_sources": {
+          "PACKAGE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "kotoba-tech/kotoba-whisper-v2.0-faster",
+            "revision": "f44edd35eaeb2274e85ac7b31fb2c6f59ff1c4bc"
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "kotoba-tech/kotoba-whisper-v2.0",
+            "revision": "7eb575277d18909a4af8a24e3ae8cce2e99794ae"
+          },
+          "config.json": {
+            "file": "config.json",
+            "repo": "kotoba-tech/kotoba-whisper-v2.0-faster",
+            "revision": "f44edd35eaeb2274e85ac7b31fb2c6f59ff1c4bc"
+          },
+          "model.bin": {
+            "file": "model.bin",
+            "repo": "kotoba-tech/kotoba-whisper-v2.0-faster",
+            "revision": "f44edd35eaeb2274e85ac7b31fb2c6f59ff1c4bc"
+          },
+          "preprocessor_config.json": {
+            "file": "preprocessor_config.json",
+            "repo": "kotoba-tech/kotoba-whisper-v2.0-faster",
+            "revision": "f44edd35eaeb2274e85ac7b31fb2c6f59ff1c4bc"
+          },
+          "tokenizer.json": {
+            "file": "tokenizer.json",
+            "repo": "kotoba-tech/kotoba-whisper-v2.0-faster",
+            "revision": "f44edd35eaeb2274e85ac7b31fb2c6f59ff1c4bc"
+          },
+          "vocabulary.json": {
+            "file": "vocabulary.json",
+            "repo": "kotoba-tech/kotoba-whisper-v2.0-faster",
+            "revision": "f44edd35eaeb2274e85ac7b31fb2c6f59ff1c4bc"
+          }
+        },
+        "files": {
+          "LICENSE-Apache-2.0.txt": {
+            "bundled": "LICENSE-Apache-2.0.txt",
+            "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+            "size": 10280
+          },
+          "LICENSE-MIT.txt": {
+            "bundled": "LICENSE-MIT.txt",
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "PACKAGE-MODEL-CARD.md": {
+            "sha256": "0bbf88741e205b60f75e84d91e1d586deb7f9f67da3b3b52b37316d81ffd9393",
+            "size": 3216
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "87aba4786babe83c4ef7914ee4b8e029d776169b599a92013643b28792825343",
+            "size": 24245
+          },
+          "config.json": {
+            "bundled": "kotoba-v2-config.json",
+            "sha256": "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21",
+            "size": 2690
+          },
+          "model.bin": {
+            "sha256": "60d2bc2e33de9d43f2745be09caefe1161acab670f6796d4a750d8d848382b36",
+            "size": 1512927867
+          },
+          "preprocessor_config.json": {
+            "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            "size": 340
+          },
+          "tokenizer.json": {
+            "sha256": "f70c9740a90657b489cf05b0fa0605c1d497db542f11a70a8cc80a025c94c7d8",
+            "size": 2481381
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "MIT",
+        "repo": "kotoba-tech/kotoba-whisper-v2.0-faster",
+        "revision": "f44edd35eaeb2274e85ac7b31fb2c6f59ff1c4bc",
+        "upstream_config": {
+          "sha256": "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9",
+          "size": 2394
+        }
+      },
+      "revision": "7eb575277d18909a4af8a24e3ae8cce2e99794ae",
+      "source": "kotoba-tech/kotoba-whisper-v2.0",
+      "tag": "Language-specific"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "c178a5bd7983dfd3c209b447b215d71e8aaa9d18d9f4dff434a6defc5c57c955",
+              "size": 18253
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "be7c050fd403de6172d023baf6a25b89064695993baf7db77c571b8e32e0c72b",
+              "size": 1294
+            },
+            "generation_config.json": {
+              "sha256": "1f7e9b7b7423717e53e05cb63da0c6405f7c0b60fdb99b54969b82e457f23101",
+              "size": 3614
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "25df465ec17c1f097887b857ac214f12d419459faa1f564946d1862719c23afb",
+              "size": 3235581408
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "2643978e28839bf07b107b647217dfd7568344cb87eab65e1fd3685c511f2571",
+              "size": 2481353
+            },
+            "tokenizer_config.json": {
+              "sha256": "c86c7398ba7f81f784569ea0ae165e252c4a006acc56906f04e5ee3300cf043e",
+              "size": 282863
+            },
+            "vocab.json": {
+              "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971",
+              "size": 835528
+            }
+          },
+          "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+          "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Four decoder layers; quality depends on the recording and domain.",
+      "id": "fr-distil-dec4",
+      "label": "French · Language-specific",
+      "language": "fr",
+      "languages": [
+        "fr"
+      ],
+      "licence": "MIT",
+      "limitations": [
+        "Four decoder layers; quality depends on the recording and domain."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "language-specific",
+      "package": {
+        "file_sources": {
+          "PACKAGE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+            "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+            "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+          },
+          "config.json": {
+            "file": "ctranslate2/config.json",
+            "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+            "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+          },
+          "model.bin": {
+            "file": "ctranslate2/model.bin",
+            "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+            "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+          },
+          "preprocessor_config.json": {
+            "file": "ctranslate2/preprocessor_config.json",
+            "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+            "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+          },
+          "tokenizer.json": {
+            "file": "ctranslate2/tokenizer.json",
+            "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+            "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+          },
+          "vocabulary.json": {
+            "file": "ctranslate2/vocabulary.json",
+            "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+            "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+          }
+        },
+        "files": {
+          "LICENSE-MIT.txt": {
+            "bundled": "LICENSE-MIT.txt",
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "PACKAGE-MODEL-CARD.md": {
+            "sha256": "c178a5bd7983dfd3c209b447b215d71e8aaa9d18d9f4dff434a6defc5c57c955",
+            "size": 18253
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "c178a5bd7983dfd3c209b447b215d71e8aaa9d18d9f4dff434a6defc5c57c955",
+            "size": 18253
+          },
+          "config.json": {
+            "sha256": "a0feddc18de0c285ed147e5483c8d1bc911bd45e23104ae0726d79594e7a6b1d",
+            "size": 3300
+          },
+          "model.bin": {
+            "sha256": "c51a647664eb640e41f76105db4fa27fa0c7c6c1b3e3579be14e6ca74f271eb1",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            "size": 340
+          },
+          "tokenizer.json": {
+            "sha256": "2643978e28839bf07b107b647217dfd7568344cb87eab65e1fd3685c511f2571",
+            "size": 2481353
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "MIT",
+        "repo": "bofenghuang/whisper-large-v3-french-distil-dec4",
+        "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23"
+      },
+      "revision": "a0ce74c16e81b7f54c30ed7fcd6cec790c4fda23",
+      "source": "bofenghuang/whisper-large-v3-french-distil-dec4",
+      "tag": "Language-specific"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "3488bbc1d9112b9df8b68f2021a49f08770a821a6343d9d3b981abd372fcb896",
+              "size": 5767
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "e11686c9793b761c9634f8738892a7fc594e87ffb5d132bd025c8029ac263ca9",
+              "size": 1290
+            },
+            "generation_config.json": {
+              "sha256": "1db97f5ab6a3ade6f82ef9a0de9613a98e2f5f525aaee053bc2f5e71c397323f",
+              "size": 3771
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "62fdb20d35c7668c44e074702d586462888d178978d709399a0455af1c66cd1f",
+              "size": 1617825448
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer_config.json": {
+              "sha256": "a6c04c291dc677477ba3802cb1bf649e2bec33b7e5d231c6d959ed7f6a297bb9",
+              "size": 282862
+            },
+            "vocab.json": {
+              "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+              "size": 1036558
+            }
+          },
+          "repo": "primeline/whisper-large-v3-turbo-german",
+          "revision": "9e7012dad9247f07553aac8a99c4d50ad7c3d36d"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Fine-tuned on German ASR data. Published aggregate accuracy does not guarantee better results for your video.",
+      "id": "de-turbo",
+      "label": "German · Language-specific",
+      "language": "de",
+      "languages": [
+        "de"
+      ],
+      "licence": "Apache-2.0",
+      "limitations": [
+        "Fine-tuned on German ASR data. Published aggregate accuracy does not guarantee better results for your video."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "language-specific",
+      "package": {
+        "file_sources": {
+          "PACKAGE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "jimmymeister/whisper-large-v3-turbo-german-ct2",
+            "revision": "cf135709e07f448230f9664393be5fe338d83ab3"
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "primeline/whisper-large-v3-turbo-german",
+            "revision": "9e7012dad9247f07553aac8a99c4d50ad7c3d36d"
+          },
+          "config.json": {
+            "file": "config.json",
+            "repo": "jimmymeister/whisper-large-v3-turbo-german-ct2",
+            "revision": "cf135709e07f448230f9664393be5fe338d83ab3"
+          },
+          "model.bin": {
+            "file": "model.bin",
+            "repo": "jimmymeister/whisper-large-v3-turbo-german-ct2",
+            "revision": "cf135709e07f448230f9664393be5fe338d83ab3"
+          },
+          "preprocessor_config.json": {
+            "file": "preprocessor_config.json",
+            "repo": "jimmymeister/whisper-large-v3-turbo-german-ct2",
+            "revision": "cf135709e07f448230f9664393be5fe338d83ab3"
+          },
+          "tokenizer.json": {
+            "file": "tokenizer.json",
+            "repo": "jimmymeister/whisper-large-v3-turbo-german-ct2",
+            "revision": "cf135709e07f448230f9664393be5fe338d83ab3"
+          },
+          "vocabulary.json": {
+            "file": "vocabulary.json",
+            "repo": "jimmymeister/whisper-large-v3-turbo-german-ct2",
+            "revision": "cf135709e07f448230f9664393be5fe338d83ab3"
+          }
+        },
+        "files": {
+          "LICENSE-Apache-2.0.txt": {
+            "bundled": "LICENSE-Apache-2.0.txt",
+            "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+            "size": 10280
+          },
+          "PACKAGE-MODEL-CARD.md": {
+            "sha256": "998156d440a2899e4b208d1937a9cf68db97ad8301cdc4548a03ea3fa0c57ae5",
+            "size": 5527
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "3488bbc1d9112b9df8b68f2021a49f08770a821a6343d9d3b981abd372fcb896",
+            "size": 5767
+          },
+          "config.json": {
+            "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+            "size": 2263
+          },
+          "model.bin": {
+            "sha256": "5cbf337ed600d7c58100c131943827350ae866dfabdfb4c0ae80ef44bfe6d6e2",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            "size": 340
+          },
+          "tokenizer.json": {
+            "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+            "size": 2710337
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "Apache-2.0",
+        "repo": "jimmymeister/whisper-large-v3-turbo-german-ct2",
+        "revision": "cf135709e07f448230f9664393be5fe338d83ab3"
+      },
+      "revision": "9e7012dad9247f07553aac8a99c4d50ad7c3d36d",
+      "source": "primeline/whisper-large-v3-turbo-german",
+      "tag": "Language-specific"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "d957696ff3663559ffaf4cb257c4c5a13b7768e36037722b52cde0a747530e5d",
+              "size": 3214
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "1fcd2b0e1dcba88ca17efc607a93550020f2d358a9909cf9f10464f544e0409a",
+              "size": 1251
+            },
+            "generation_config.json": {
+              "sha256": "3bdac21594212a655546f3e4f2bcf59f9927d662d709caffe0e9ffb14f7c6b25",
+              "size": 3719
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "a5f624d70e08d0bf7ae8624bea6adc5faa82be6b3da5f3815f0ae8e235853538",
+              "size": 3235581408
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+              "size": 2710337
+            },
+            "tokenizer_config.json": {
+              "sha256": "844b642c73a91359722f47b35705f7174686df33d252695d8572cf9ac03a6389",
+              "size": 282843
+            },
+            "vocab.json": {
+              "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+              "size": 1036558
+            }
+          },
+          "repo": "selimc/whisper-large-v3-turbo-turkish",
+          "revision": "e914cebbaa5f7eefd2b77c2441f2d9a5e30e0286"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Common Voice fine-tune; comparative conversational evaluation is limited.",
+      "id": "tr-turbo",
+      "label": "Turkish · Language-specific",
+      "language": "tr",
+      "languages": [
+        "tr"
+      ],
+      "licence": "MIT",
+      "limitations": [
+        "Common Voice fine-tune; comparative conversational evaluation is limited."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "language-specific",
+      "package": {
+        "file_sources": {
+          "PACKAGE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "vincespeed/faster-whisper-large-v3-turbo-turkish",
+            "revision": "9155d21dbb68f11ca836fb255af870f3f582723b"
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "selimc/whisper-large-v3-turbo-turkish",
+            "revision": "e914cebbaa5f7eefd2b77c2441f2d9a5e30e0286"
+          },
+          "config.json": {
+            "file": "config.json",
+            "repo": "vincespeed/faster-whisper-large-v3-turbo-turkish",
+            "revision": "9155d21dbb68f11ca836fb255af870f3f582723b"
+          },
+          "model.bin": {
+            "file": "model.bin",
+            "repo": "vincespeed/faster-whisper-large-v3-turbo-turkish",
+            "revision": "9155d21dbb68f11ca836fb255af870f3f582723b"
+          },
+          "preprocessor_config.json": {
+            "file": "preprocessor_config.json",
+            "repo": "vincespeed/faster-whisper-large-v3-turbo-turkish",
+            "revision": "9155d21dbb68f11ca836fb255af870f3f582723b"
+          },
+          "tokenizer.json": {
+            "file": "tokenizer.json",
+            "repo": "vincespeed/faster-whisper-large-v3-turbo-turkish",
+            "revision": "9155d21dbb68f11ca836fb255af870f3f582723b"
+          },
+          "vocabulary.json": {
+            "file": "vocabulary.json",
+            "repo": "vincespeed/faster-whisper-large-v3-turbo-turkish",
+            "revision": "9155d21dbb68f11ca836fb255af870f3f582723b"
+          }
+        },
+        "files": {
+          "LICENSE-MIT.txt": {
+            "bundled": "LICENSE-MIT.txt",
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "PACKAGE-MODEL-CARD.md": {
+            "sha256": "1251275a3b567f5e982ef7ec3b98ef6fc44f712b71687642353665121b23e070",
+            "size": 1525
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "d957696ff3663559ffaf4cb257c4c5a13b7768e36037722b52cde0a747530e5d",
+            "size": 3214
+          },
+          "config.json": {
+            "sha256": "27ec8ecb8ba05f3ac81522a7a035bd5ab19a5b567640bf68ccec90ded4fc1726",
+            "size": 2487
+          },
+          "model.bin": {
+            "sha256": "58c0db3e7fd9149c1ef093b37d7efd4f2e0235772145bd623a80717e48144237",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            "size": 340
+          },
+          "tokenizer.json": {
+            "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+            "size": 2710337
+          },
+          "vocabulary.json": {
+            "sha256": "697ee5a65726e46b4d294d1a243d98e1878f5d81caba17891b1c5ebab7a912a9",
+            "size": 1119981
+          }
+        },
+        "licence": "MIT",
+        "repo": "vincespeed/faster-whisper-large-v3-turbo-turkish",
+        "revision": "9155d21dbb68f11ca836fb255af870f3f582723b"
+      },
+      "revision": "e914cebbaa5f7eefd2b77c2441f2d9a5e30e0286",
+      "source": "selimc/whisper-large-v3-turbo-turkish",
+      "tag": "Language-specific"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 2,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "47b5c920fe91b05e354b19813e0c4de3a01ca2e6bf4488b4cb18ad25ab180779",
+              "size": 34791
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "515a10a9979258d3fc71cf79b2cd055c189f07d78879a15bd9bc282673308b85",
+              "size": 1249
+            },
+            "generation_config.json": {
+              "sha256": "b521c66612bd95be36c154f2d3904f6e4ea3be481a18a48f293d66791f60cf98",
+              "size": 4249
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "76ec9f754fc4b4810845dc36b71d1897c1342e702810c179e1569690084cfb0c",
+              "size": 3025686376
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb",
+              "size": 2480645
+            },
+            "tokenizer_config.json": {
+              "sha256": "c86c7398ba7f81f784569ea0ae165e252c4a006acc56906f04e5ee3300cf043e",
+              "size": 282863
+            },
+            "vocab.json": {
+              "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971",
+              "size": 835528
+            }
+          },
+          "repo": "distil-whisper/distil-large-v3.5",
+          "revision": "728a7691f3ff1d3d971528d3203a6e9559165d41"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. English-only distilled model; long-form quality can differ from standard Turbo.",
+      "id": "en-distil-v3.5",
+      "label": "English · Distil v3.5",
+      "language": "en",
+      "languages": [
+        "en"
+      ],
+      "licence": "MIT",
+      "limitations": [
+        "English-only distilled model; long-form quality can differ from standard Turbo."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "language-specific",
+      "package": {
+        "file_sources": {
+          "PACKAGE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "distil-whisper/distil-large-v3.5-ct2",
+            "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "distil-whisper/distil-large-v3.5",
+            "revision": "728a7691f3ff1d3d971528d3203a6e9559165d41"
+          },
+          "config.json": {
+            "file": "config.json",
+            "repo": "distil-whisper/distil-large-v3.5-ct2",
+            "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+          },
+          "model.bin": {
+            "file": "model.bin",
+            "repo": "distil-whisper/distil-large-v3.5-ct2",
+            "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+          },
+          "preprocessor_config.json": {
+            "file": "preprocessor_config.json",
+            "repo": "distil-whisper/distil-large-v3.5-ct2",
+            "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+          },
+          "tokenizer.json": {
+            "file": "tokenizer.json",
+            "repo": "distil-whisper/distil-large-v3.5-ct2",
+            "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+          },
+          "vocabulary.json": {
+            "file": "vocabulary.json",
+            "repo": "distil-whisper/distil-large-v3.5-ct2",
+            "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+          }
+        },
+        "files": {
+          "LICENSE-MIT.txt": {
+            "bundled": "LICENSE-MIT.txt",
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "PACKAGE-MODEL-CARD.md": {
+            "sha256": "116cdb8e1678e45c677ec1fc952db341824588ea9bc0edd6f48ff28f28b5ac5b",
+            "size": 2777
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "47b5c920fe91b05e354b19813e0c4de3a01ca2e6bf4488b4cb18ad25ab180779",
+            "size": 34791
+          },
+          "config.json": {
+            "sha256": "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21",
+            "size": 2690
+          },
+          "model.bin": {
+            "sha256": "c58b88b8585ffcd2135fddaaf421ce72cb223b32edea70d156aed1dea319a119",
+            "size": 1512927867
+          },
+          "preprocessor_config.json": {
+            "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            "size": 340
+          },
+          "tokenizer.json": {
+            "sha256": "b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb",
+            "size": 2480645
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "MIT",
+        "repo": "distil-whisper/distil-large-v3.5-ct2",
+        "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+      },
+      "revision": "728a7691f3ff1d3d971528d3203a6e9559165d41",
+      "source": "distil-whisper/distil-large-v3.5",
+      "tag": "Language-specific"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": {
+          "repo": "openai/whisper-large-v3-turbo",
+          "revision": "41f01f3fe87f28c78e2fbf8b568835947dd65ed9"
+        },
+        "base_files": {
+          "files": {
+            "README.md": {
+              "sha256": "aaef74a740faca90fa1899c4233ebe17f2093b9846d0acf16d9131bf650e9585",
+              "size": 21196
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "c5b526b3e3cd64cd8940dabb45e8ba726629e22d8ed389c29b552f9140daf04a",
+              "size": 1256
+            },
+            "generation_config.json": {
+              "sha256": "cce11bfe3aaa6ae9e072ea2637caaec8795e68d9b67e655a5af16ee509681a4c",
+              "size": 3772
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "542566a422ae4f3fd23f1ba11add198fca01bbf82e66e6a2857b3f608b1eb9d1",
+              "size": 1617824864
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+              "size": 2710337
+            },
+            "tokenizer_config.json": {
+              "sha256": "844b642c73a91359722f47b35705f7174686df33d252695d8572cf9ac03a6389",
+              "size": 282843
+            },
+            "vocab.json": {
+              "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+              "size": 1036558
+            }
+          },
+          "repo": "openai/whisper-large-v3-turbo",
+          "revision": "41f01f3fe87f28c78e2fbf8b568835947dd65ed9"
+        },
+        "merge_lora": true,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "375b4daddf38b0f1e8e8e71a70a23c243f77e582de8dd410e0c32ce8ede5793b",
+              "size": 7253
+            },
+            "adapter_config.json": {
+              "sha256": "1096b80d3a11fcaf1c8f2adfd69f641862a36a411c1d86683492b671e533769b",
+              "size": 1167
+            },
+            "adapter_model.safetensors": {
+              "sha256": "5843594e3716120008e3c8ebb7d3a0aff7d948d2f08ec955440e82c375c4f272",
+              "size": 111475752
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+              "size": 357
+            },
+            "results.json": {
+              "sha256": "dda4e6f2078c2e4bd1457ed077ac52a320ffe2d52cc2b3bf4f2e23fc7f05b8b7",
+              "size": 522
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b",
+              "size": 3930645
+            },
+            "tokenizer_config.json": {
+              "sha256": "3c75940dfce3a294fca7041a5faff011677f1b68fa85e47511bb8cf6dccaded6",
+              "size": 282873
+            },
+            "vocab.json": {
+              "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971",
+              "size": 835528
+            }
+          },
+          "repo": "Tachyeon/whisper-large-v3-turbo-hindi-lora",
+          "revision": "303feec7ed704109e18f38e414aaa595b3ca73c0"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Read-speech evaluation; conversational Hindi and Hinglish are unverified. Adapter must be merged before conversion.",
+      "id": "hi-fast",
+      "label": "Hindi · Fast",
+      "language": "hi",
+      "languages": [
+        "hi"
+      ],
+      "licence": "Apache-2.0",
+      "limitations": [
+        "Read-speech evaluation; conversational Hindi and Hinglish are unverified. Adapter must be merged before conversion."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "fast",
+      "package": {
+        "files": {
+          "BASE-MODEL-CARD.md": {
+            "sha256": "aaef74a740faca90fa1899c4233ebe17f2093b9846d0acf16d9131bf650e9585",
+            "size": 21196
+          },
+          "LICENCE-SOURCES.json": {
+            "sha256": "57dac18d17e53e196e2a3bde3fc1a34f7c78190c32b7c0f046c5803dd539ccc4",
+            "size": 703
+          },
+          "LICENSE-Apache-2.0.txt": {
+            "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+            "size": 10280
+          },
+          "LICENSE-MIT.txt": {
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "NOTICE.txt": {
+            "sha256": "8c44608377782d25e8168639bf032f27678593dd8159d4fef3c3e9563069a880",
+            "size": 1096
+          },
+          "PACKAGE-PROVENANCE.json": {
+            "sha256": "e3330096858de597eeafbf98c79ec54a5ac000d5746a59487cb16126a3505937",
+            "size": 4669
+          },
+          "README.md": {
+            "sha256": "87e460c842644cd18d0c35da7ea4963d54638aae9ca21dcd5424d4fd845d4989",
+            "size": 2684
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "375b4daddf38b0f1e8e8e71a70a23c243f77e582de8dd410e0c32ce8ede5793b",
+            "size": 7253
+          },
+          "config.json": {
+            "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+            "size": 2263
+          },
+          "model.bin": {
+            "sha256": "f4f7871b8bcf83ce95e918c959da0bd5dd0582e27e47cadeb6c43fd3b1329531",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+            "size": 357
+          },
+          "tokenizer.json": {
+            "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b",
+            "size": 3930645
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "Apache-2.0",
+        "repo": "parseh/whisper-hi-fast-ct2",
+        "revision": "e1deb38c4cd4a01f942c811d304a02aad8f71b26"
+      },
+      "revision": "303feec7ed704109e18f38e414aaa595b3ca73c0",
+      "source": "Tachyeon/whisper-large-v3-turbo-hindi-lora",
+      "tag": "Fast"
+    },
+    {
+      "architecture": {
+        "d_model": 1024,
+        "decoder_attention_heads": 16,
+        "decoder_layers": 24,
+        "encoder_layers": 24,
+        "num_mel_bins": 80
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "0f10ffad55cb0654660de268b52b7bbde611729e11e90a7cf1b90d6a44965fe4",
+              "size": 6879
+            },
+            "added_tokens.json": {
+              "sha256": "9715fd2243b6f06a5858b5e32950d2853f73dd5bc201aafcf76f5082a2d8acd1",
+              "size": 34604
+            },
+            "config.json": {
+              "sha256": "512eaa63e76c040a0df1d343cae885bbd7a2ca0401e05977b0b76c49cc44f777",
+              "size": 1232
+            },
+            "generation_config.json": {
+              "sha256": "d242695519c32b365df89884d4ae6a49495b2c0194735b2347e134b127c8fe81",
+              "size": 2839
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "a3f9d723c6a18003ca14fb09a7fe11c8ee37ef66e9ad0673e5819733cd5d78ae",
+              "size": 3055544304
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "a6a76d28c93edb273669eb9e0b0636a2bddbb1272c3261e47b7ca6dfdbac1b8d",
+              "size": 339
+            },
+            "special_tokens_map.json": {
+              "sha256": "e67ae3a0aaa99abcd9f187138e12db1f65c16a14761c50ef10eef2c174a7a691",
+              "size": 2194
+            },
+            "tokenizer.json": {
+              "sha256": "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566",
+              "size": 2480466
+            },
+            "tokenizer_config.json": {
+              "sha256": "21a4fc0483c14b87f4e0bbc177a9a357479bfa7c95aaf21ad53d71e9c5afafb9",
+              "size": 282713
+            },
+            "vocab.json": {
+              "sha256": "50d6a919f0a0601d56a04eb583c780d18553aa388254ba3158eb6a00f13e2c1a",
+              "size": 1036584
+            }
+          },
+          "repo": "collabora/whisper-medium-hindi",
+          "revision": "af0b8398ef214823c6c449232d3d15bdd7c53313"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": true,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Medium architecture, 24 decoder layers; potentially slower than Turbo. Accuracy is an intended trade-off, not a guarantee. Attribution is required.",
+      "id": "hi-accuracy",
+      "label": "Hindi · Accuracy candidate",
+      "language": "hi",
+      "languages": [
+        "hi"
+      ],
+      "licence": "CC-BY-4.0",
+      "limitations": [
+        "Medium architecture, 24 decoder layers; potentially slower than Turbo. Accuracy is an intended trade-off, not a guarantee. Attribution is required."
+      ],
+      "memory": "about 3 GB",
+      "option": "accuracy-candidate",
+      "package": {
+        "file_sources": {
+          "PACKAGE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "collabora/faster-whisper-medium-hindi",
+            "revision": "049320ea7e87aa6632c970fd99651ec7692fc206"
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "collabora/whisper-medium-hindi",
+            "revision": "af0b8398ef214823c6c449232d3d15bdd7c53313"
+          },
+          "config.json": {
+            "file": "config.json",
+            "repo": "collabora/faster-whisper-medium-hindi",
+            "revision": "049320ea7e87aa6632c970fd99651ec7692fc206"
+          },
+          "model.bin": {
+            "file": "model.bin",
+            "repo": "collabora/faster-whisper-medium-hindi",
+            "revision": "049320ea7e87aa6632c970fd99651ec7692fc206"
+          },
+          "preprocessor_config.json": {
+            "file": "preprocessor_config.json",
+            "repo": "collabora/faster-whisper-medium-hindi",
+            "revision": "049320ea7e87aa6632c970fd99651ec7692fc206"
+          },
+          "tokenizer.json": {
+            "file": "tokenizer.json",
+            "repo": "collabora/faster-whisper-medium-hindi",
+            "revision": "049320ea7e87aa6632c970fd99651ec7692fc206"
+          },
+          "vocabulary.json": {
+            "file": "vocabulary.json",
+            "repo": "collabora/faster-whisper-medium-hindi",
+            "revision": "049320ea7e87aa6632c970fd99651ec7692fc206"
+          }
+        },
+        "files": {
+          "LICENSE-CC-BY-4.0.txt": {
+            "bundled": "LICENSE-CC-BY-4.0.txt",
+            "sha256": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+            "size": 17023
+          },
+          "PACKAGE-MODEL-CARD.md": {
+            "sha256": "27d3d5e80951f80082624cffe952c3afc360425d479daf4e785967a850d47ecf",
+            "size": 821
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "0f10ffad55cb0654660de268b52b7bbde611729e11e90a7cf1b90d6a44965fe4",
+            "size": 6879
+          },
+          "config.json": {
+            "sha256": "bf067d32f8917b29491b74bfce8d383e5fb162044e417d5ec88a975181dd790f",
+            "size": 1399
+          },
+          "model.bin": {
+            "sha256": "c1a6b918f40aa047b89a5ef8c57f5ed6c23c37e6043b89db19867030b956e987",
+            "size": 1527906453
+          },
+          "preprocessor_config.json": {
+            "sha256": "a6a76d28c93edb273669eb9e0b0636a2bddbb1272c3261e47b7ca6dfdbac1b8d",
+            "size": 339
+          },
+          "tokenizer.json": {
+            "sha256": "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566",
+            "size": 2480466
+          },
+          "vocabulary.json": {
+            "sha256": "5ad28279db5e546349708b9a74736e2c018737ac5a600f1048f1f26c99b85b47",
+            "size": 1068103
+          }
+        },
+        "licence": "CC-BY-4.0",
+        "repo": "collabora/faster-whisper-medium-hindi",
+        "revision": "049320ea7e87aa6632c970fd99651ec7692fc206"
+      },
+      "revision": "af0b8398ef214823c6c449232d3d15bdd7c53313",
+      "source": "collabora/whisper-medium-hindi",
+      "tag": "Accuracy candidate · slower"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "a0a1b0aedda4611e9b810e88f9c92d99115d197fcc963decff9692fae5070682",
+              "size": 2020
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "4bf7a63b13abc357d2400cfe17abfd27ad4a2080233cb69a4f30393a31e76477",
+              "size": 1288
+            },
+            "generation_config.json": {
+              "sha256": "20300fba711aaf9ab35146131cda017ea9f67a4a074a881b97c0da1c20c36247",
+              "size": 2909
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "3e8c56871deee26822a18dc99d19704a4d74134d565f9a26452617fe57d02212",
+              "size": 3235581408
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb",
+              "size": 2480645
+            },
+            "tokenizer_config.json": {
+              "sha256": "844b642c73a91359722f47b35705f7174686df33d252695d8572cf9ac03a6389",
+              "size": 282843
+            },
+            "vocab.json": {
+              "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971",
+              "size": 835528
+            }
+          },
+          "repo": "adriszmar/whisper-large-v3-turbo-es",
+          "revision": "b32b7042f31dbf695857e3a81037a43b97f1eee1"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Fine-tuned on Spanish Mozilla Common Voice 17; results can differ on conversational speech.",
+      "id": "es-turbo",
+      "label": "Spanish · Language-specific",
+      "language": "es",
+      "languages": [
+        "es"
+      ],
+      "licence": "MIT",
+      "limitations": [
+        "Fine-tuned on Spanish Mozilla Common Voice 17; results can differ on conversational speech."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "language-specific",
+      "package": {
+        "files": {
+          "LICENCE-SOURCES.json": {
+            "sha256": "57dac18d17e53e196e2a3bde3fc1a34f7c78190c32b7c0f046c5803dd539ccc4",
+            "size": 703
+          },
+          "LICENSE-MIT.txt": {
+            "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d",
+            "size": 1063
+          },
+          "NOTICE.txt": {
+            "sha256": "37cc6a7f081aa69589a6243ac2686440406681cec43e392f708b2fa1b25a60ac",
+            "size": 951
+          },
+          "PACKAGE-PROVENANCE.json": {
+            "sha256": "9e0a97cdb7ba0e3b4fde29fcbeae204172b195cd91faffc7cfdb65ac9c68ec3b",
+            "size": 2786
+          },
+          "README.md": {
+            "sha256": "abfac0569425bd9f1fe0ec8a47e8264409031a8c617d21c3618aaaaceeb43096",
+            "size": 2641
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "a0a1b0aedda4611e9b810e88f9c92d99115d197fcc963decff9692fae5070682",
+            "size": 2020
+          },
+          "config.json": {
+            "sha256": "c805eff43fc2a1d00d5cfa315e4b2230895f34994257c185959808a116e7c4f0",
+            "size": 1405
+          },
+          "model.bin": {
+            "sha256": "9be7a91a9fb34663c47ce082481b52d96c2addcb6899c000f80b7a7cd3958e76",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "654cf18d3e163b948ceaf9766da56ce0b52de265d58673cf61c9376f126bd499",
+            "size": 357
+          },
+          "tokenizer.json": {
+            "sha256": "5c1bf30c9e716e1477bedef846b01be0013daecb89e9e3ef7ab89b23c178df1b",
+            "size": 3930645
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "MIT",
+        "repo": "parseh/whisper-es-turbo-ct2",
+        "revision": "fdef6f9d0e3eb5527bb75becb6ffdf5b7f25641d"
+      },
+      "revision": "b32b7042f31dbf695857e3a81037a43b97f1eee1",
+      "source": "adriszmar/whisper-large-v3-turbo-es",
+      "tag": "Language-specific"
+    },
+    {
+      "architecture": {
+        "d_model": 1280,
+        "decoder_attention_heads": 20,
+        "decoder_layers": 4,
+        "encoder_layers": 32,
+        "num_mel_bins": 128
+      },
+      "compatibility": "package-verified",
+      "conversion": {
+        "base": null,
+        "merge_lora": false,
+        "quantization": "float16",
+        "source_files": {
+          "files": {
+            "README.md": {
+              "sha256": "a8507d5233e2be2cd0e6cce7fc659fd7c78374e8a31b663045ed5345c0d13fdc",
+              "size": 3009
+            },
+            "added_tokens.json": {
+              "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+              "size": 34648
+            },
+            "config.json": {
+              "sha256": "c5b526b3e3cd64cd8940dabb45e8ba726629e22d8ed389c29b552f9140daf04a",
+              "size": 1256
+            },
+            "generation_config.json": {
+              "sha256": "cce11bfe3aaa6ae9e072ea2637caaec8795e68d9b67e655a5af16ee509681a4c",
+              "size": 3772
+            },
+            "merges.txt": {
+              "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+              "size": 493869
+            },
+            "model.safetensors": {
+              "sha256": "e64e584bf09e5719bb1daa8a9256f08811d2ac621a39e56affaeefe2c32e2425",
+              "size": 3235581464
+            },
+            "normalizer.json": {
+              "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+              "size": 52666
+            },
+            "preprocessor_config.json": {
+              "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+              "size": 340
+            },
+            "special_tokens_map.json": {
+              "sha256": "baea4ea09372eb4fca86b4e4346139fd73cb807d5087e9de0948e971739c3e74",
+              "size": 2186
+            },
+            "tokenizer.json": {
+              "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+              "size": 2710337
+            },
+            "tokenizer_config.json": {
+              "sha256": "844b642c73a91359722f47b35705f7174686df33d252695d8572cf9ac03a6389",
+              "size": 282843
+            },
+            "vocab.json": {
+              "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+              "size": 1036558
+            }
+          },
+          "repo": "BELLE-2/Belle-whisper-large-v3-turbo-zh",
+          "revision": "7bfc7e7f88e002b7cce90567a532a10a5e8e55a1"
+        }
+      },
+      "decoding": {
+        "beam_size": 5,
+        "condition_on_previous_text": false,
+        "task": "transcribe",
+        "temperature": 0
+      },
+      "fully_compatible": false,
+      "hint": "Installs separately and runs locally. Mandarin-focused fine-tune; regional/dialect coverage differs. Chinese word segmentation remains unchanged.",
+      "id": "zh-turbo",
+      "label": "Mandarin Chinese · Language-specific",
+      "language": "zh",
+      "languages": [
+        "zh"
+      ],
+      "licence": "Apache-2.0",
+      "limitations": [
+        "Mandarin-focused fine-tune; regional/dialect coverage differs. Chinese word segmentation remains unchanged."
+      ],
+      "memory": "about 2.2 GB",
+      "option": "language-specific",
+      "package": {
+        "file_sources": {
+          "PACKAGE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "flateon/Belle-whisper-large-v3-turbo-zh-ct2",
+            "revision": "65c8d6f4fd62590871a0ed3dad64b34820b78906"
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "file": "README.md",
+            "repo": "BELLE-2/Belle-whisper-large-v3-turbo-zh",
+            "revision": "7bfc7e7f88e002b7cce90567a532a10a5e8e55a1"
+          },
+          "config.json": {
+            "file": "config.json",
+            "repo": "flateon/Belle-whisper-large-v3-turbo-zh-ct2",
+            "revision": "65c8d6f4fd62590871a0ed3dad64b34820b78906"
+          },
+          "model.bin": {
+            "file": "model.bin",
+            "repo": "flateon/Belle-whisper-large-v3-turbo-zh-ct2",
+            "revision": "65c8d6f4fd62590871a0ed3dad64b34820b78906"
+          },
+          "preprocessor_config.json": {
+            "file": "preprocessor_config.json",
+            "repo": "flateon/Belle-whisper-large-v3-turbo-zh-ct2",
+            "revision": "65c8d6f4fd62590871a0ed3dad64b34820b78906"
+          },
+          "tokenizer.json": {
+            "file": "tokenizer.json",
+            "repo": "flateon/Belle-whisper-large-v3-turbo-zh-ct2",
+            "revision": "65c8d6f4fd62590871a0ed3dad64b34820b78906"
+          },
+          "vocabulary.json": {
+            "file": "vocabulary.json",
+            "repo": "flateon/Belle-whisper-large-v3-turbo-zh-ct2",
+            "revision": "65c8d6f4fd62590871a0ed3dad64b34820b78906"
+          }
+        },
+        "files": {
+          "LICENSE-Apache-2.0.txt": {
+            "bundled": "LICENSE-Apache-2.0.txt",
+            "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+            "size": 10280
+          },
+          "PACKAGE-MODEL-CARD.md": {
+            "sha256": "684ac6b6f234e8ea06a421732352243e599a8e24e9084347c4d37ba53d740965",
+            "size": 1494
+          },
+          "SOURCE-MODEL-CARD.md": {
+            "sha256": "a8507d5233e2be2cd0e6cce7fc659fd7c78374e8a31b663045ed5345c0d13fdc",
+            "size": 3009
+          },
+          "config.json": {
+            "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+            "size": 2263
+          },
+          "model.bin": {
+            "sha256": "ced2cf89d8932bfa3a6e0e03be0b7b24e6c4d88ce7fe53102e0bac41db9f748a",
+            "size": 1617884929
+          },
+          "preprocessor_config.json": {
+            "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            "size": 340
+          },
+          "tokenizer.json": {
+            "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+            "size": 2710337
+          },
+          "vocabulary.json": {
+            "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            "size": 1068114
+          }
+        },
+        "licence": "Apache-2.0",
+        "repo": "flateon/Belle-whisper-large-v3-turbo-zh-ct2",
+        "revision": "65c8d6f4fd62590871a0ed3dad64b34820b78906"
+      },
+      "revision": "7bfc7e7f88e002b7cce90567a532a10a5e8e55a1",
+      "source": "BELLE-2/Belle-whisper-large-v3-turbo-zh",
+      "tag": "Language-specific"
+    }
+  ],
+  "verified_on": "2026-10-04"
+}

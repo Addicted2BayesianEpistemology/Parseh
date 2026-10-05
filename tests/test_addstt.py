@@ -28,6 +28,7 @@ import http.client
 import io
 import json
 import os
+from pathlib import Path
 import re
 import shutil
 import socket
@@ -36,6 +37,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 for _p in ("lib", "youtube/lib", "tests"):
@@ -43,6 +45,8 @@ for _p in ("lib", "youtube/lib", "tests"):
         sys.path.insert(0, os.path.join(ROOT, _p))
 import addstt_fakes                                           # noqa: E402
 import stt_fakes                                              # noqa: E402
+import speechconfig                                          # noqa: E402
+import speechmodels                                          # noqa: E402
 import sttpanel                                               # noqa: E402
 import wavefile                                               # noqa: E402
 import ytpages                                                # noqa: E402
@@ -109,7 +113,7 @@ class ThePage(unittest.TestCase):
         # (addfilm.js, which looks at the path and sends a file, comes after them: it
         # reads the path box and records nothing)
         self.assertEqual(js, ["/youtube/lib/subedit.js", "/youtube/lib/tabcapture.js",
-                              "/youtube/lib/addstt.js", "/youtube/lib/addfilm.js"],
+                              "/youtube/lib/asrreview.js", "/youtube/lib/addstt.js", "/youtube/lib/addfilm.js"],
                          "the recording is loaded before the block that uses it")
         self.assertIn('href="/youtube/lib/addstt.css"', self.page)
         src = read(ADDSTT_JS)
@@ -123,7 +127,9 @@ class ThePage(unittest.TestCase):
         # what the page's script says of speech to text is the glue, and no more
         glue = [ln for ln in ytpages.ADD_PAGE_JS.splitlines() if "stt" in ln.lower()]
         self.assertLess(len(glue), 45, "\n".join(glue))
-        self.assertLess(len(read(ADDSTT_JS).splitlines()), 1200, "the block is a file, not the page")
+        # Review is another reusable file, loaded before the add-flow glue.
+        self.assertNotIn('stt_review_likelihood', ytpages.ADD_PAGE_JS)
+        self.assertEqual(self.page.count('/youtube/lib/asrreview.js'), 1)
 
     def test_the_server_sends_both_files(self):
         import serve
@@ -133,8 +139,8 @@ class ThePage(unittest.TestCase):
 
     def test_the_css_keeps_to_the_pages_own_tokens_and_logical_sides(self):
         css = re.sub(r"/\*.*?\*/", "", read(ADDSTT_CSS), flags=re.S)
-        self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b", css), ["#0b0b0b"],
-                         "no colour is named but the video frame's black: the three themes carry the rest")
+        self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b", css), ["#0b0b0b", "#fff"],
+                         "only the video frame's black and its white overlay are fixed; the three themes carry the rest")
         for what in ("margin-left", "margin-right", "padding-left", "padding-right", "text-align:left",
                      "text-align:right", "float:", "left:", "right:"):
             self.assertNotIn(what, css.replace(" ", ""), what + ": a page turned right to left would break")
@@ -176,18 +182,31 @@ class TheSlice(unittest.TestCase):
     """The stand-in keeps the shape of lib/getstt.py's slim slice."""
 
     def test_the_stand_in_says_what_the_real_one_says(self):
-        with tempfile.TemporaryDirectory() as td:
+        real_module = stt_fakes._real()
+        with tempfile.TemporaryDirectory() as td, \
+                patch.object(speechconfig, 'CONFIG', Path(td) / 'speech.json'), \
+                patch.object(real_module, 'STT_DIR', os.path.join(td, 'real-stt')):
             fake = addstt_fakes.make(td).summary()
-        real = stt_fakes._real().summary()
+            real = real_module.summary()
         json.dumps(fake)
         json.dumps(real)
         self.assertEqual(sorted(fake), sorted(real))
         self.assertEqual(sorted(fake["runtime"]), sorted(real["runtime"]))
         self.assertEqual([sorted(m) for m in fake["models"]], [sorted(m) for m in real["models"]])
         self.assertEqual([m["id"] for m in fake["models"]], [m["id"] for m in real["models"]])
+        self.assertEqual(tuple(m['id'] for m in fake['models']), speechmodels.MODELS)
         for a, b in zip(fake["models"], real["models"]):
-            for key in ("label", "tag", "hint"):
-                self.assertEqual(a[key], b[key], "the texts are the real module's own")
+            for key in ('label', 'tag', 'hint', 'languages', 'language', 'option', 'available',
+                        'availability_reason', 'compatibility', 'source',
+                        'package_revision', 'licence', 'fully_compatible', 'distribution',
+                        'package', 'download'):
+                self.assertEqual(a[key], b[key], key + ': catalogue metadata matches the real module')
+            provenance = speechmodels.provenance(a['id'])
+            self.assertEqual(a['source'], provenance['source'])
+            self.assertEqual(a['package_revision'], provenance['package_revision'])
+            self.assertEqual(a['revision'],
+                             provenance['package_revision'] if a['ready'] else '')
+        self.assertEqual(fake['preferences'], real['preferences'])
         self.assertEqual([p["id"] for p in fake["processing"]], [p["id"] for p in real["processing"]])
         self.assertEqual([sorted(p) for p in fake["processing"]], [sorted(p) for p in real["processing"]])
         self.assertEqual(sorted(fake["languages"]), sorted(real["languages"]))
@@ -199,7 +218,8 @@ class TheSlice(unittest.TestCase):
             self.assertEqual(fake.summary()["default_model"], "large-v3-turbo")
             addstt_fakes.configure(td, models=["large-v3"], cuda={"ready": True, "name": "A card"})
             s = fake.summary()
-            self.assertEqual([m["ready"] for m in s["models"]], [False, True])
+            self.assertEqual({m['id']: m['ready'] for m in s['models']},
+                             {model: model == 'large-v3' for model in speechmodels.MODELS})
             self.assertEqual(s["default_model"], "large-v3")
             self.assertEqual([p["ready"] for p in s["processing"]], [True, True, True])
             addstt_fakes.configure(td, runtime=False)
@@ -207,6 +227,25 @@ class TheSlice(unittest.TestCase):
             addstt_fakes.configure(td, runtime=True, no_lang=["hi"])
             self.assertFalse(fake.summary()["languages"]["hi"])
             self.assertTrue(fake.summary()["languages"]["fa"])
+
+    def test_the_stand_in_follows_language_selection_and_second_pass_preferences(self):
+        with tempfile.TemporaryDirectory() as td, \
+                patch.object(speechconfig, 'CONFIG', Path(td) / 'speech.json'):
+            fake = addstt_fakes.make(td)
+            self.assertEqual(fake.summary()['preferences'], speechconfig.load())
+            speechconfig.save({'second_pass': False, 'models_by_language': {'fa': 'fa-fast'}})
+            self.assertEqual(fake.summary()['preferences'], {
+                'format_version': 1, 'second_pass': False, 'models_by_language': {'fa': 'fa-fast'}})
+            addstt_fakes.configure(td, models=['fa-fast'])
+            self.assertEqual([m['id'] for m in fake.summary()['models'] if m['ready']], ['fa-fast'])
+
+    def test_the_stand_in_does_not_read_the_hosts_preferences(self):
+        with tempfile.TemporaryDirectory() as td, \
+                patch.object(speechconfig, 'CONFIG', Path(td) / 'host-speech.json'):
+            speechconfig.save({'second_pass': False, 'models_by_language': {'fa': 'fa-fast'}})
+            fake = addstt_fakes.make(os.path.join(td, 'fixture'))
+            self.assertEqual(fake.summary()['preferences'], {
+                'format_version': 1, 'second_pass': True, 'models_by_language': {}})
 
 
 # ------------------------------------------------------------ a Whisper result
@@ -405,6 +444,7 @@ class AServerWithoutSpeechToText(unittest.TestCase):
         cls.addClassCleanup(cls.td.cleanup)
         cls.log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False, dir=os.environ.get("TMPDIR"))
         cls.addClassCleanup(os.unlink, cls.log.name)
+        cls.addClassCleanup(cls.log.close)
         cls.port = free_port()
         env = dict(os.environ, ADDSTT_ROOT=ROOT, ADDSTT_EMPTY=os.path.join(cls.td.name, "stt"))
         cls.proc = subprocess.Popen([sys.executable, "-u", "-c", BOOT, str(cls.port)], cwd=ROOT,
@@ -457,7 +497,8 @@ class AServerWithoutSpeechToText(unittest.TestCase):
         st, j = self.ask("POST", "/lookup/api/speech", {})
         self.assertEqual(st, 200)
         self.assertIs(j["installed"], False)
-        self.assertEqual([m["ready"] for m in j["models"]], [False, False])
+        self.assertEqual(tuple(m['id'] for m in j['models']), speechmodels.MODELS)
+        self.assertTrue(all(m['ready'] is False for m in j['models']))
         self.assertIsNone(j["default_model"])
         self.assertEqual(j["settings"], "/settings/speech/")
 

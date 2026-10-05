@@ -1,36 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Settings -> Speech to text (TO-DO §7.23, a0.4.1): the program that turns a
-video's sound into a transcript, the two models it reads, and what this
-computer will run them on.
+"""Speech settings: a shared model catalogue and independent optional audio tools.
 
-A DOOR OF ITS OWN, drawn the way the LaTeX drawings are (lib/latexpage.py):
-the owner decided on 2026-09-28 that speech to text is not a section of the
-reading help.  It is not about reading what nobody has glossed; it is a tool of
-the page a video is ADDED on, and the page that installs it says so.  The
-reading help carries one line pointing here.
-
-ANY DEVICE THAT HAS BEEN LET IN MAY DO ALL OF IT -- get, remove, stop -- and the
-door's pill says so (lib/settingspage.py SETTINGS says why: whoever presses the
-button, the only bytes that can arrive are the ones Parseh pins, each checked
-against its hash).  So this page draws no lock and no dead button; its
-buttons are hidden only where the table said no, which it never does today.
-
-THE ROWS ARE THE READING HELP'S ROWS (lib/lookuppage.py ROW_JS and STYLE): a
-state that is a glyph, a word and a colour, a bar that moves with the time
-left, Get it / Stop / Remove.  A person reads this page as they read that one.
-What is new is the processor: the CPU that always works, and an NVIDIA
-graphics card that is used only when Parseh has proved it can be -- with what
-is missing, said in words, when it cannot, and a button that looks again.
-
-WHAT THE PAGE SAYS ABOUT THE PROCESSOR is worked out by lib/getstt.py and
-arrives in the state; the requirements of a graphics card are made from its
-GPU_NEEDS table, so that a later version of the program changes one place and
-this page says the new thing.  The first sentence about the processor is that
-the CPU already works: a card can make speech to text faster, and none is
-required.
-
-The routes are serve.py's (`/lookup/api/speech`, `speechcheck`, `getspeech`,
-`dropspeech`, `stopspeech`, each in lib/settingspage.py ROUTES).
+The server owns catalogue validation and installation. This page renders its
+status, including unavailable packages, without inventing model compatibility.
+All mutations follow settingspage's admitted-device rules. Download rows reuse
+lookuppage's progress and focus helpers; nothing is installed when the page opens.
 """
 import html
 import os
@@ -43,11 +17,12 @@ import getstt                                                # noqa: E402
 import languages                                             # noqa: E402
 import lookuppage                                            # noqa: E402
 import settingspage                                          # noqa: E402
+import speechconfig
 
 PAGE = "/settings/speech/"
 GUIDE = getstt.GUIDE
 # the three settings this page's buttons are, and only these
-KEYS = ("speech.get", "speech.remove", "speech.stop")
+KEYS = ("speech.get", "speech.remove", "speech.stop", "speech.preferences")
 
 
 def esc(s):
@@ -74,12 +49,14 @@ def view(jobs=None, where="", device=""):
     from the next one every time it asks how things stand (`speech` with
     {"full": true}, or `speechcheck`)."""
     st = getstt.status()
-    kept = st["runtime"]["size"] + sum(m["size"] for m in st["models"].values())
+    kept = (st["runtime"]["size"] + sum(m["size"] for m in st["models"].values())
+            + sum(a["size"] for a in st.get("aligners", {}).values()))
     try:
         free = lookuppage.disk_free(getstt.STT_DIR)
     except OSError:
         free = None
     return {"ok": True, "speech": st,
+            "preferences": speechconfig.load(),
             "jobs": {"speech": jobs or {}},
             "sizes": {"speech:%s" % k: getstt.plan(k) for k in getstt.PARTS},
             "credits": credits(),
@@ -93,38 +70,51 @@ def view(jobs=None, where="", device=""):
 def page(jobs=None, where="", device=""):
     """/settings/speech/, the whole page."""
     v = view(jobs, where, device)
-    main = """<main class="settings rh sp">
+    main = """<main class="settings rh sp tools">
 %(doors)s
 <h1 class="idx">speech to text</h1>
-<p class="sub">A transcript made on this computer, while you add a video. It is optional:
-nothing is fetched until you press a button here, and no sound and no transcript is ever
-sent to a speech-recognition service.</p>
-<p class="whomay">%(gate)s <span>Any device that has been let in may get, remove or stop what is on
-this page. Whoever presses the button, only the files %(name)s pins can be fetched, each checked
-against its own hash.</span></p>
+<p class="sub">Choose a Whisper model for each language. Transcription runs on this computer; your audio stays here.</p>
+<p class="whomay">%(gate)s <span>Install only what you need. Downloads are checked before use.</span></p>
 <div id="sp-band" class="band"></div>
+<section class="shared about"><label><input type="checkbox" id="sp_second_pass"%(second_checked)s>
+Automatically run a second Whisper pass</label>
+<p>Recheck suspect words after transcription. You can also run it later for a section or a single word.</p>
+<p id="sp_preferences_status" role="status" aria-live="polite"></p></section>
 <div id="sp"><p class="rh-wait">Reading what is here&hellip;</p></div>
-<p class="foot">What is fetched here lives in the <code>stt/</code> folder &mdash;
-<code>runtime/</code> for the program, <code>models/</code> for the models, and <code>tmp/</code> for
-the sound of a video while it is being transcribed, which is deleted when it has been &mdash; and
-nothing else of %(name)s depends on it. It is offered only on the page a video is added on:
-<a href="/youtube/add/">Add a video</a>. Every licence is also on the
-<a href="/licences/">licences</a> page. <a href="%(guide)s" data-guide>How speech to text works</a>,
-in the guide.</p>
+<p class="foot">Use these tools in <a href="/youtube/add/">Add a video</a>.
+Captured sound is kept privately until you use or discard the pending transcript.
+<a href="%(guide)s" data-guide>Speech to text guide</a> &middot;
+<a href="/licences/">Licences</a></p>
 </main>""" % {"doors": settingspage.settings_doors(PAGE), "gate": settingspage.gate(KEYS),
-              "name": settingspage.NAME, "guide": esc(GUIDE)}
+              "name": settingspage.NAME, "guide": esc(GUIDE),
+              "second_checked": ' checked' if v['preferences']['second_pass'] else ''}
     script = ('<script id="sp-state" type="application/json">%s</script>\n<script>%s</script>'
               % (settingspage._in_script(v), SCRIPT))
     return settingspage.frame("Speech to text &mdash; %s settings" % settingspage.NAME,
                               '<a href="/settings/">settings</a> &middot; speech to text',
                               "Speech to text", GUIDE, main,
-                              style=lookuppage.STYLE + STYLE, script=script)
+                              style=lookuppage.STYLE + STYLE, script=script,
+                              extra_head='<link rel="stylesheet" href="/lib/settings-tools.css">')
 
 
 STYLE = r"""
+#sp_second_pass{width:auto;margin-inline-end:.5rem}
+.sp .catalogue-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--rule)}
+.sp .catalogue-controls label{display:flex;flex-direction:column;gap:5px;font-size:13px;margin:0;min-width:0}
+.sp .catalogue-controls select{max-width:100%;min-width:180px}
+.sp .catalogue-controls .installed-filter{flex-direction:row;align-items:center;padding-bottom:8px}
+.sp .catalogue-controls input[type=checkbox]{width:auto;margin-inline-end:5px}
+.sp .catalogue-section{font-size:13px;font-weight:600;color:var(--dim);padding:10px 16px;margin:0;border-top:1px solid var(--rule)}
+.sp .catalogue-section:first-child{border-top:0}
+.sp .catalogue-empty{padding:14px 16px;color:var(--dim);font-size:14px}
+.sp .catalogue-selection{padding:12px 16px;border-top:1px solid var(--rule);font-size:13px}
+.sp .catalogue-selection label{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.sp .catalogue-selection select{max-width:100%;width:auto}
+.sp .catalogue-selection p{margin:6px 0 0;color:var(--dim)}
 .sp .whomay{display:flex;gap:8px 10px;align-items:baseline;flex-wrap:wrap;margin:.2rem 0 1rem;font-size:13.5px;color:var(--dim)}
 .sp .whomay .gate{flex:none}
 .sp section.about{padding:14px 16px}
+.sp .shared>.about{padding:12px 16px}
 .sp .about a{color:var(--accent)}
 .sp .about p{margin:.35rem 0;font-size:14px}
 .sp .about ul{margin:.4rem 0 .2rem;padding-inline-start:1.25rem;font-size:14px}
@@ -145,6 +135,7 @@ STYLE = r"""
 .sp .modes dt{font-weight:600}
 .sp .modes dd{margin:0;color:var(--dim)}
 .sp .langs{display:flex;flex-wrap:wrap;gap:6px 8px;padding:12px 16px 14px}
+.sp .sp-aligners{border-top:1px solid var(--rule);margin-top:2px}
 .sp .lang-chip{display:inline-flex;align-items:baseline;gap:7px;border:1px solid var(--rule);border-radius:8px;
   padding:3px 10px;font-size:13.5px;background:var(--boxbg)}
 .sp .lang-chip .nat{font-size:16px;color:var(--accent)}
@@ -173,6 +164,23 @@ SCRIPT = r"""
   var checking = false;    // the graphics card is being looked at
   var checked = false;     // ...and was, once, on opening
   var polling = null;
+  var catalogueLanguage = '', installedOnly = false, preferenceSay = '';
+  var uploads = {};
+  var secondPass = document.getElementById('sp_second_pass');
+  secondPass.addEventListener('change', function () {
+    var previous = S.preferences.second_pass;
+    secondPass.disabled = true;
+    document.getElementById('sp_preferences_status').textContent = 'Saving…';
+    fetch('/settings/api/speech/save', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({second_pass:secondPass.checked})}).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) throw new Error(j.error || 'Could not save this preference.');
+      S.preferences = j.preferences;
+      document.getElementById('sp_preferences_status').textContent = 'Saved. Applies to new transcriptions.';
+    }).catch(function (e) {
+      secondPass.checked = previous;
+      document.getElementById('sp_preferences_status').textContent = e.message || 'Could not save this preference.';
+    }).then(function () { secondPass.disabled = false; });
+  });
   /*ROW_JS*/
 
   var J = function () { return (S.jobs || {}).speech || {}; };
@@ -197,7 +205,7 @@ SCRIPT = r"""
     if (j && j.running) {
       var pc = j.total ? Math.min(99, Math.floor(100 * j.done / j.total)) : null;
       return {cls: 'run', glyph: j.phase === 'build' ? '↻' : '↓',
-              word: (j.phase === 'build' ? 'Installing' : 'Downloading') + (pc != null ? ' · ' + pc + '%' : '')};
+              word: (j.phase === 'upload' ? 'Uploading' : j.phase === 'build' ? 'Installing' : 'Downloading') + (pc != null ? ' · ' + pc + '%' : '')};
     }
     if (r.withModel) return {cls: 'run', glyph: '↓', word: 'Comes first, with the model'};
     if (r.na) return {cls: 'na', glyph: '–', word: 'Not available'};
@@ -207,7 +215,7 @@ SCRIPT = r"""
     return {cls: 'not', glyph: '○', word: 'Not yet'};
   }
 
-  /* ---- the rows: the program, then the two models */
+  /* ---- rows drawn from the shared catalogue */
   function parts() {
     var sp = S.speech, rt = sp.runtime, lic = S.credits || {}, rows = [];
     var rtPlan = size('runtime');
@@ -218,19 +226,79 @@ SCRIPT = r"""
                kept: rt.size, reinstall: rt.state !== 'absent', noResume: true});
     Object.keys(sp.models).forEach(function (id) {
       var m = sp.models[id];
-      rows.push({id: id, name: m.label, tag: m.tag, 'for': m.hint, have: m.have, state: m.state, why: m.why,
-                 na: rt.state === 'unavailable' && !m.have, naWhy: rt.why, credit: lic['speech:' + id],
+      var description = m.language ? 'For ' + languageName(m.language) + ' speech.' :
+        (id === 'large-v3-turbo' ? 'A fast multilingual choice for everyday transcription.' : 'A larger multilingual model. Uses more memory and takes longer.');
+      rows.push({id: id, name: m.label, tag: m.tag, 'for': description, description: m.hint, have: m.have, state: m.state, why: m.why,
+                 languages: m.languages || (m.language ? [m.language] : []), available: m.available !== false,
+                 option: m.option, limitations: m.limitations || [],
+                 source:typeof m.source === 'string' ? {repo:m.source,revision:m.revision} : m.source,
+                 distribution:m.distribution, package:m.package, packageImported:!!m.package_imported,
+                 packageRevision: m.package_revision || m.revision, compatibility: m.compatibility,
+                 fullyCompatible: m.fully_compatible,
+                 na: m.available === false || rt.state === 'unavailable' && !m.have,
+                 naWhy: m.availability_reason || m.why || rt.why,
+                 credit: lic['speech:' + id] || (m.licence ? {who:esc(m.source && m.source.repo || m.repo || m.label),licence:esc(m.licence)} : null),
                  facts: m.have ? GB(m.size) + ' · ' + esc(m.repo) + (m.built ? ' · ' + built(m.built) : '') : '',
                  kept: m.size, needsProgram: !rt.ready, memory: m.memory});
     });
-    rows.forEach(function (r) { r.job = J()[r.id] || null; });
+    rows.forEach(function (r) { r.job = uploads[r.id] || J()[r.id] || null; });
     // the program comes first when a model is fetched: its own row says where it is
-    var first = Object.keys(sp.models).filter(function (id) { var j = J()[id]; return j && j.running; })[0];
+    var first = Object.keys(sp.models).concat(Object.keys(sp.aligners || {}).map(function (code) {
+      return 'align-' + code;
+    })).filter(function (id) { var j = J()[id]; return j && j.running; })[0];
     if (first && !rt.ready && !rows[0].job) rows[0].withModel = first;
     rows.forEach(function (r) { r.usable = r.id === 'runtime' || rt.ready; });
     return rows;
   }
 
+  function alignerParts() {
+    var sp = S.speech, rt = sp.runtime, lic = S.credits || {}, rows = [];
+    Object.keys(sp.aligners || {}).forEach(function (code) {
+      var a = sp.aligners[code], native = a.native && a.native !== a.name ? ' — ' + a.native : '';
+      rows.push({id: a.id || ('align-' + code), name: 'Exact word times · ' + a.name + native,
+                 'for': a.hint || 'Optional — Whisper works without it; this makes word times exact.',
+                 have: a.have, state: a.state, why: a.why,
+                 na: rt.state === 'unavailable' && !a.have, naWhy: rt.why,
+                 credit: lic['speech:' + (a.id || ('align-' + code))],
+                 facts: a.have ? GB(a.size) + ' · ' + esc(a.repo) + (a.built ? ' · ' + built(a.built) : '') : '',
+                 kept: a.size, needsProgram: !rt.ready});
+    });
+    rows.forEach(function (r) { r.job = J()[r.id] || null; r.usable = rt.ready; });
+    return rows;
+  }
+
+  function languageName(code) {
+    var found = (S.languages || []).filter(function (L) { return L.code === code; })[0];
+    return found ? found.name : code;
+  }
+  function modelMatches(r, code) { return !code || !r.languages.length || r.languages.indexOf(code) >= 0; }
+  function catalogue(rows) {
+    var models = rows.filter(function (r) { return r.id !== 'runtime'; });
+    var offered = {};
+    models.forEach(function (r) { r.languages.forEach(function (code) { offered[code] = true; }); });
+    var options = '<option value="">All languages</option>' + Object.keys(offered).sort(function (a,b) { return languageName(a).localeCompare(languageName(b)); }).map(function (code) {
+      return '<option value="' + esc(code) + '"' + (code === catalogueLanguage ? ' selected' : '') + '>' + esc(languageName(code)) + '</option>';
+    }).join('');
+    var shown = models.filter(function (r) { return modelMatches(r, catalogueLanguage) && (!installedOnly || r.have || r.job && r.job.running); });
+    var standard = shown.filter(function (r) { return !r.languages.length; }), specific = shown.filter(function (r) { return r.languages.length; });
+    var html = '<h2 class="part">Whisper models</h2><section class="shared"><div class="catalogue-controls">' +
+      '<label for="sp_language">Language<select id="sp_language" data-model-language>' + options + '</select></label>' +
+      '<label class="installed-filter"><input type="checkbox" id="sp_installed_only" data-installed-only' + (installedOnly ? ' checked' : '') + '>Installed only</label></div>';
+    if (standard.length) html += '<h3 class="catalogue-section">Standard models · all supported languages</h3>' + standard.map(row).join('');
+    if (specific.length) html += '<h3 class="catalogue-section">Language-specific models</h3>' + specific.map(row).join('');
+    if (!shown.length) html += '<p class="catalogue-empty">No installed model matches this filter. Turn off “Installed only” to see the available choices.</p>';
+    if (catalogueLanguage) {
+      var choices = models.filter(function (r) { return modelMatches(r, catalogueLanguage) && r.have && r.usable && r.state === 'ready'; });
+      var selected = ((S.preferences || {}).models_by_language || {})[catalogueLanguage] || '';
+      html += '<div class="catalogue-selection"><label for="sp_preferred_model">Preferred model for ' + esc(languageName(catalogueLanguage)) +
+        '<select id="sp_preferred_model" data-preferred-model' + (!choices.length ? ' disabled' : '') + '><option value="">Choose when transcribing</option>' +
+        choices.map(function (r) { return '<option value="' + esc(r.id) + '"' + (r.id === selected ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join('') + '</select></label>' +
+        '<p>' + (choices.length ? 'Used for new transcriptions. You can choose another model on Add a video.' : 'Install a model above to select it.') + '</p>' +
+        '<p id="sp_model_preference_status" role="status" aria-live="polite">' + esc(preferenceSay) + '</p></div>';
+    }
+    html += '</section><p class="foot">Fast and accuracy choices describe intended trade-offs; a larger model can still make mistakes. Unavailable packages stay listed so their limits are clear.</p>';
+    return html;
+  }
   /* ---- the size line of a part not installed: measured, said before anything starts */
   function sizeLine(r) {
     var p = size(r.id), bits = [];
@@ -238,7 +306,7 @@ SCRIPT = r"""
       var dl = '<b>' + GB(p.download) + '</b> to download';
       if (p.kept != null) dl += ', kept as about <b>' + GB(p.kept) + '</b>';
       bits.push(dl);
-      if (r.needsProgram) bits.push('this includes the speech program, which comes first');
+      if (r.needsProgram) bits.push('this includes ' + (r.programLabel || 'the speech program') + ', which comes first');
       if (p.disk_peak != null && p.disk_peak > (p.download || 0) * 1.1)
         bits.push('needs about ' + GB(p.disk_peak) + ' free while it is fetched');
     }
@@ -262,11 +330,11 @@ SCRIPT = r"""
       note = '<div class="bar' + (pc == null ? ' loose' : '') + '" role="progressbar" aria-label="' + esc(r.name) + '"' +
         (pc != null ? ' aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(pc) + '"><i style="width:' + pc.toFixed(1) + '%"></i>' : '><i></i>') + '</div>' +
         (j.say ? '<div class="note">' + esc(j.say) + '</div>' : '');
-      act = may('speech.stop') ? '<button class="plain" type="button" data-stop="' + esc(id) + '" aria-label="Stop getting ' + esc(r.name) + '">Stop</button>' : '';
+      act = may('speech.stop') ? '<button class="plain" type="button" ' + (uploads[id] ? 'data-upload-stop' : 'data-stop') + '="' + esc(id) + '" aria-label="Stop getting ' + esc(r.name) + '">Stop</button>' : '';
     } else if (r.withModel) {
       note = '<div class="note">It is installed first, as part of getting ' + esc(r.withModel) + ': see the bar below.</div>';
     } else if (r.na) {
-      note = '<div class="note">' + esc(r.why || r.naWhy || 'Not available on this computer.') + '</div>';
+      note = '<div class="note">' + esc(r.naWhy || r.why || 'Not available on this computer.') + '</div>';
       // a program that is here and cannot run (a folder brought to another kind of computer) is still
       // the person's to take away: nothing to get, but the room it holds can be given back
       if (r.have && may('speech.remove')) act += '<button class="plain" type="button" data-remove="' + esc(id) + '" aria-label="Remove ' + esc(r.name) + '">Remove…</button>';
@@ -276,19 +344,24 @@ SCRIPT = r"""
       if (OLD[r.state]) {
         note = '<div class="note' + (r.state === 'broken' ? ' bad' : '') + '">' + esc(r.why) + '</div>';
         act += may('speech.get') ? '<button class="go" type="button" data-get="' + esc(id) + '">' +
-          (r.id === 'runtime' ? 'Install it again' : 'Get it again') + '</button>' : '';
+          (r.noResume ? 'Install it again' : 'Get it again') + '</button>' : '';
       }
       if (j.error) note += '<div class="note bad">The last try stopped: ' + esc(said(j.error)) + '</div>';
       else if (j.stopped) note += '<div class="note">You stopped the last try; what is here is unchanged.</div>';
       if (may('speech.remove')) act += '<button class="plain" type="button" data-remove="' + esc(id) + '" aria-label="Remove ' + esc(r.name) + '">Remove…</button>';
     } else {
       facts = sizeLine(r);
-      if (r.id === 'runtime' && !j.stopped && !j.error)
+      if (r.distribution === 'local-package' && r.package && !r.packageImported) {
+        facts = esc(r.package.name || 'Prepared model ZIP') + ' · ' + GB(r.package.size);
+        note = '<div class="note">Choose the prepared package ZIP. Parseh checks it, then installs the model without conversion tools.</div>';
+        act = may('speech.get') ? '<button class="go" type="button" data-import="' + esc(id) + '">Import &amp; install…</button>' : '';
+      } else {
+      if (r.noResume && !j.stopped && !j.error)
         note = '<div class="note">It is installed by pip, which cannot carry on a half-fetched file: if you stop it, it starts again from the beginning.</div>';
       if (j.stopped) {
         note = '<div class="note bad">You stopped it' + (j.done ? ' at ' + GB(j.done) : '') + '. ' +
-          (r.id === 'runtime' ? 'The program starts again from the beginning.' : 'Getting it again carries on from there.') + '</div>';
-        act = '<button class="go" type="button" data-get="' + esc(id) + '">' + (r.id === 'runtime' ? 'Try again' : 'Carry on') + '</button>';
+          (r.noResume ? 'The program starts again from the beginning.' : 'Getting it again carries on from there.') + '</div>';
+        act = '<button class="go" type="button" data-get="' + esc(id) + '">' + (r.noResume ? 'Try again' : 'Carry on') + '</button>';
       } else if (j.error) {
         note = '<div class="note bad">' + esc(said(j.error)) + '</div>';
         act = '<button class="go" type="button" data-get="' + esc(id) + '">Try again</button>';
@@ -297,9 +370,22 @@ SCRIPT = r"""
         act = '<button class="go" type="button" data-get="' + esc(id) + '" aria-label="Get it: ' + esc(lower(r.name)) + '">Get it</button>';
       }
       if (!may('speech.get')) act = '';
+      }
     }
     if (q) note += ask(q, id);
     var credit = r.credit ? '<div class="it-lic">' + r.credit.who + ' · ' + r.credit.licence + '</div>' : '';
+    if (r.source || r.limitations && r.limitations.length || r.compatibility) {
+      var detail = '<details class="tech"><summary>Model details and limitations</summary>';
+      if (r.description) detail += '<p>' + esc(r.description) + '</p>';
+      if (r.limitations && r.limitations.length) detail += '<ul class="need">' + r.limitations.map(function (text) { return '<li>' + esc(text) + '</li>'; }).join('') + '</ul>';
+      if (r.compatibility && r.fullyCompatible === false && r.available !== false)
+        detail += '<p>Package files are verified. Recording-specific timing and transcription quality still need evaluation.</p>';
+      detail += '<dl>';
+      if (r.source) detail += '<dt>Source</dt><dd>' + esc(r.source.repo || '') + '</dd><dt>Source version</dt><dd>' + esc(r.source.revision || 'Not published') + '</dd>';
+      if (r.packageRevision) detail += '<dt>Package version</dt><dd>' + esc(r.packageRevision) + '</dd>';
+      detail += '</dl></details>';
+      note += detail;
+    }
     return '<div class="it' + (j.running ? ' busy' : '') + '" data-row="' + esc(id) + '"><div class="it-main"><div class="it-head">' +
       '<span class="it-name">' + esc(r.name) + '</span>' + (r.tag ? '<span class="tagline">' + esc(r.tag) + '</span>' : '') +
       pill(st.cls, st.glyph, st.word) + '</div>' +
@@ -383,19 +469,7 @@ SCRIPT = r"""
     return '<h2 class="part">Processor</h2><section class="shared">' + cpuRow + gpuRow + modes + '</section>';
   }
 
-  function about() {
-    var sp = S.speech, t = sp.models['large-v3-turbo'].download, l = sp.models['large-v3'].download;
-    // (a kind of computer with no build of the program has no size of it to say)
-    var rtDl = (S.sizes['speech:runtime'] || {}).download;
-    return '<section class="shared about"><p><b>What it is.</b> Whisper, a speech-recognition model, run on this computer by faster-whisper. ' +
-      'It turns the sound of a video you are adding into a timed transcript, which you can edit before the video is added.</p><ul>' +
-      '<li>It is optional. Until you get it here, nothing is fetched and nothing changes.</li>' +
-      '<li>It happens on this computer: no sound and no transcript is sent to a speech-recognition service.</li>' +
-      '<li>It works on a computer with no graphics card. Long videos take a while on the CPU.</li>' +
-      '<li>The models are large: ' + GB(t) + ' and ' + GB(l) + (rtDl != null ? ', and the program is ' + GB(rtDl) + ' more' : '') + '.</li>' +
-      '<li>It is offered only on the page a video is added on, <a href="/youtube/add/">Add a video</a>: not on a video already in your library.</li></ul></section>';
-  }
-  function languages() {
+  function languages(aligners) {
     var chips = S.languages.map(function (L) {
       return '<span class="lang-chip' + (L.whisper ? '' : ' no') + '"><span class="nat" lang="' + esc(L.code) + '"' + (L.rtl ? ' dir="rtl"' : '') + '>' +
         esc(L.native) + '</span><span>' + esc(L.name) + '</span><i>' + (L.whisper ? '✓' : 'not offered') + '</i></span>';
@@ -403,7 +477,9 @@ SCRIPT = r"""
     var some = S.languages.filter(function (L) { return !L.whisper; });
     return '<h2 class="part">Languages <span class="aside">— every language Parseh has' +
       (some.length ? '; Whisper does not list ' + some.map(function (L) { return esc(L.name); }).join(', ') : '') + '</span></h2>' +
-      '<section class="shared"><div class="langs">' + chips + '</div></section>';
+      '<section class="shared"><div class="langs">' + chips + '</div>' +
+      (aligners && aligners.length ? '<div class="sp-aligners">' + aligners.map(row).join('') + '</div>' : '') +
+      '</section>';
   }
 
   var ROWS = {};
@@ -441,9 +517,11 @@ SCRIPT = r"""
   function draw() {
     ROWS = {};
     var rows = parts();
-    rows.forEach(function (r) { ROWS[r.id] = r; });
-    var html = about() + processor() +
-      '<h2 class="part">The program and the models</h2><section class="shared">' + rows.map(row).join('') + '</section>' + languages();
+    var alignRows = alignerParts();
+    rows.concat(alignRows).forEach(function (r) { ROWS[r.id] = r; });
+    var html = catalogue(rows) +
+      '<h2 class="part">Whisper program</h2><section class="shared">' + row(rows[0]) + '</section>' +
+      processor() + languages(alignRows);
     drawBand();
     if (html === drawn) return;
     drawn = html;
@@ -470,6 +548,14 @@ SCRIPT = r"""
     return fetch('/lookup/api/' + what, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})
       .then(function (r) { return r.json().then(function (j) { j.status = r.status; return j; }); });
   }
+  function savePreference(url, body) {
+    return fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) throw new Error(j.error || 'Could not save this preference.');
+        S.preferences = j.preferences;
+        return j;
+      });
+  }
   function busy() {
     return Object.keys(J()).some(function (k) { return J()[k].running || J()[k].waiting; });
   }
@@ -492,6 +578,46 @@ SCRIPT = r"""
     if (window.ParsehActivity) ParsehActivity.poke(200);
     refresh().then(function () { schedule(1000); });
   }
+  function importPackage(id) {
+    var r = ROWS[id];
+    if (!r || !r.package || uploads[id]) return;
+    var input = document.createElement('input'); input.type = 'file'; input.accept = '.zip,application/zip';
+    input.style.display = 'none'; document.body.appendChild(input);
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0]; input.remove();
+      if (!file) return;
+      if (r.package.size && file.size !== r.package.size) {
+        asking[id] = {kind:'bad',said:'This ZIP does not match the expected package size. Choose ' + (r.package.name || 'the prepared model package') + '.'}; drawn=null; draw(); return;
+      }
+      delete asking[id];
+      var xhr = new XMLHttpRequest(), job = uploads[id] = {running:true,phase:'upload',done:0,total:file.size,say:'Uploading the prepared package…',request:xhr};
+      xhr.open('POST', '/settings/api/speech/import-package?model=' + encodeURIComponent(id));
+      xhr.setRequestHeader('Content-Type', 'application/zip'); xhr.responseType = 'json'; xhr.timeout = 600000;
+      xhr.upload.addEventListener('progress', function (event) {
+        if (!uploads[id]) return;
+        job.done=event.loaded; job.total=event.lengthComputable ? event.total : file.size;
+        if (job.done >= job.total) job.say='Checking the package before installation…';
+        draw();
+      });
+      function finish(error) {
+        delete uploads[id];
+        if (error) asking[id]={kind:'bad',said:error};
+        drawn=null; draw();
+        if (!error) kick();
+      }
+      xhr.addEventListener('load', function () {
+        var answer = xhr.response;
+        if (xhr.status >= 200 && xhr.status < 300 && answer && answer.ok) finish();
+        else finish(answer && answer.error || 'The prepared package could not be imported. The existing model is unchanged.');
+      });
+      xhr.addEventListener('error', function () { finish('The package upload did not finish. Choose it again to retry.'); });
+      xhr.addEventListener('timeout', function () { finish('The package upload timed out. Choose it again to retry.'); });
+      xhr.addEventListener('abort', function () { finish('Package upload cancelled. The existing model is unchanged.'); });
+      drawn=null; draw(); xhr.send(file);
+    }, {once:true});
+    input.addEventListener('cancel', function () { input.remove(); }, {once:true});
+    input.click();
+  }
   function check() {
     if (checking) return;
     checking = true; draw();
@@ -507,6 +633,14 @@ SCRIPT = r"""
     // drawing must not be skipped as "nothing changed": it is what gives the button back)
     function press() { held = document.activeElement === b ? focusToken(b) : null; drawn = null; b.disabled = true; }
     if (b.hasAttribute('data-check')) { check(); return; }
+    if ((id = b.getAttribute('data-import'))) { importPackage(id); return; }
+    if ((id = b.getAttribute('data-upload-stop'))) {
+      if (uploads[id]) {
+        post('stopspeech', {key:id}).then(function () { refresh(); }, function () {});
+        uploads[id].request.abort();
+      }
+      return;
+    }
     if ((id = b.getAttribute('data-get'))) {
       press(); delete asking[id];
       post('getspeech', {key: id}).then(function (j) {
@@ -516,7 +650,9 @@ SCRIPT = r"""
       return;
     }
     if ((id = b.getAttribute('data-remove'))) {
-      var r = ROWS[id], what = id === 'runtime' ? 'the speech program' : 'the ' + id + ' model';
+      var r = ROWS[id], what = id === 'runtime' ? 'the speech program'
+        : id.indexOf('align-') === 0 ? 'exact word times for ' + id.slice(6)
+        : 'the ' + id + ' model';
       asking[id] = {kind: 'remove', said: 'Remove ' + esc(what) + '? It frees ' + (GB(r.kept) || 'a little room') +
                     '; getting it back is a ' + GB(size(id).download) + ' download.' +
                     (id === 'runtime' ? ' The models stay, but cannot be used until the program is back.' : '')};
@@ -534,6 +670,25 @@ SCRIPT = r"""
         if (!j.ok) { asking[id] = {kind: 'bad', said: j.error || 'That was refused.'}; draw(); return; }
         refresh();
       }).catch(function () { lost(id); });
+    }
+  });
+  root.addEventListener('change', function (e) {
+    var control = e.target;
+    if (control.hasAttribute('data-model-language')) {
+      catalogueLanguage = control.value; preferenceSay = ''; draw(); return;
+    }
+    if (control.hasAttribute('data-installed-only')) {
+      installedOnly = control.checked; draw(); return;
+    }
+    if (control.hasAttribute('data-preferred-model')) {
+      var code = catalogueLanguage, old = ((S.preferences || {}).models_by_language || {})[code] || '';
+      control.disabled = true; preferenceSay = 'Saving…';
+      savePreference('/settings/api/speech/select-model', {language:code,model:control.value}).then(function () {
+        preferenceSay = 'Saved for ' + languageName(code) + '.'; drawn = null; draw();
+      }).catch(function (err) {
+        control.value = old; preferenceSay = err.message || 'Could not save this choice.'; drawn = null; draw();
+      });
+      return;
     }
   });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });

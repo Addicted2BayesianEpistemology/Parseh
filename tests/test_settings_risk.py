@@ -57,12 +57,13 @@ def routes_in_serve():
     found = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) \
-                and node.value.startswith("/settings/api/") and len(node.value) > 14:
+                and node.value.startswith("/settings/api/") and len(node.value) > 14 and not node.value.endswith('/'):
             found.add(node.value)
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):
             continue
-        if node.name == "_lookup_api":
+        if node.name in ("_lookup_api", "_llm_api", "_likelihood_api"):
+            prefix = {"_lookup_api": "/lookup/api/", "_llm_api": "/settings/api/llm/", "_likelihood_api": "/settings/api/lm-likelihood/"}[node.name]
             for c in ast.walk(node):
                 if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name) \
                         and c.left.id == "what":
@@ -70,7 +71,7 @@ def routes_in_serve():
                         values = comp.elts if isinstance(comp, (ast.Tuple, ast.List, ast.Set)) else [comp]
                         for v in values:
                             if isinstance(v, ast.Constant) and isinstance(v.value, str):
-                                found.add("/lookup/api/" + v.value)
+                                found.add(prefix + v.value)
         if node.name == "_reading_key":
             for c in ast.walk(node):
                 if isinstance(c, ast.Tuple) and len(c.elts) == 3 \
@@ -196,8 +197,10 @@ class Table(unittest.TestCase):
     def test_speech_to_text_is_a_door_of_its_own_and_the_only_one_that_lists_its_keys(self):
         doors = {d[0]: d for d in settingspage.DOORS}
         self.assertEqual(len(settingspage.DOORS), len(doors), "a door has an address of its own")
+        self.assertIn('/settings/llm/', doors)
+        self.assertIn('/settings/lm-likelihood/', doors)
         href, name, what, keys = doors["/settings/speech/"]
-        self.assertEqual((name, keys), ("Speech to text", ("speech.get", "speech.remove", "speech.stop")))
+        self.assertEqual((name, keys), ("Speech to text", ("speech.get", "speech.remove", "speech.stop", "speech.preferences")))
         self.assertTrue(settingspage.open_to_all(keys))
         self.assertIn("any device let in", settingspage.gate(keys))
         # ...and it is NOT on the reading help's door (the owner: not a section of that page)
@@ -210,7 +213,7 @@ class Table(unittest.TestCase):
                          "every setting is on some door")
         self.assertEqual(sorted(set(settingspage.ELSEWHERE) & set(listed)), [])
         row = settingspage.settings_doors("/settings/speech/")
-        self.assertEqual(row.count('<a class="sdoor'), len(settingspage.DOORS))
+        self.assertEqual(row.count('<a class="sdoor'), len(settingspage.DOORS) - 2)
         self.assertIn('class="sdoor on" href="/settings/speech/" aria-current="page"', row)
 
     def test_the_route_finder_sees_every_speech_route(self):
@@ -452,6 +455,45 @@ class Served(unittest.TestCase):
         return [patch.object(network, "where", lambda ip, doc=None: network.LAN),
                 patch.object(network, "may_connect", lambda ip, doc=None: True),
                 patch.object(network, "let_in", lambda *a, **k: True)]
+
+    def test_likelihood_worker_host_only_model_choice_remote_and_status_redacted(self):
+        import contextlib
+        import lmlikelihoodconfig as lc
+        from test_lm_likelihood import write_gguf
+        import lmgguf
+        model_path = self.tmp / 'installed-model-blob'
+        write_gguf(model_path)
+        model = dict(lmgguf.inspect(model_path), model_id='installed-model', source='unsloth')
+        with patch.object(lc, 'CONFIG', self.tmp / 'likelihood-settings.json'), \
+                patch.object(lc, 'runtime_status', return_value={'available': False, 'say': 'Not installed.'}), \
+                patch.object(lc, 'discover', return_value=([model], [])):
+            status, _, response = self.ask('POST', '/settings/api/lm-likelihood/save', {'source': 'unsloth'})
+            self.assertEqual(status, 200)
+            with contextlib.ExitStack() as stack:
+                for p in self.as_phone():
+                    stack.enter_context(p)
+                self.assertEqual(self.ask('POST', '/settings/api/lm-likelihood/save', {'path': str(model_path)})[0], 403)
+                self.assertEqual(self.ask('POST', '/settings/api/lm-likelihood/install', {})[0], 403)
+                status, _, inventory = self.ask('POST', '/settings/api/lm-likelihood/models', {})
+                self.assertEqual(status, 200)
+                self.assertNotIn('path', inventory['models'][0])
+                status, _, chosen = self.ask('POST', '/settings/api/lm-likelihood/select', {'id': inventory['models'][0]['id']})
+                self.assertEqual(status, 200)
+                self.assertEqual(chosen['model'], 'installed-model')
+                self.assertNotIn('settings', chosen)
+                self.assertNotIn(str(model_path), json.dumps(chosen))
+                status, _, page = self.ask('GET', '/settings/lm-likelihood/')
+                self.assertEqual(status, 200)
+                self.assertIn('<fieldset disabled>', page)
+                self.assertNotIn(str(model_path), page)
+                self.assertIn('id="lm_models"', page)
+
+    def test_likelihood_feature_request_cannot_override_model_or_worker(self):
+        for key in ('path', 'python', 'model', 'base_url', 'gpu_layers'):
+            status, _, response = self.ask('POST', '/youtube/api/transcribe/review-likelihood',
+                                           {'job': 'ABCDEFGHIJKLMNOP', 'source_sha256': 'source', 'revision': 'rev', key: 'override'})
+            self.assertEqual(status, 400)
+            self.assertEqual(response['code'], 'bad-review')
 
     def stubbed(self, **mods):
         return patch.dict(sys.modules, mods)
@@ -965,7 +1007,7 @@ class Served(unittest.TestCase):
             self.assertIn('href="/settings/reading-help/"', text, "Settings' doors, in a row")
             self.assertIn('aria-current="page"', text)
         state = json.loads(phone.split('<script id="sp-state" type="application/json">', 1)[1].split("</script>", 1)[0])
-        self.assertEqual(state["may"], {"speech.get": True, "speech.remove": True, "speech.stop": True})
+        self.assertEqual(state["may"], {"speech.get": True, "speech.remove": True, "speech.stop": True, "speech.preferences": True})
         self.assertEqual(state["where"], network.LAN)
         card = hub.split('href="/settings/speech/"', 1)[1].split("</a>", 1)[0]
         self.assertIn("Speech to text", card)
@@ -984,7 +1026,9 @@ class Served(unittest.TestCase):
         status, _, got = self.ask("POST", "/lookup/api/status", {})
         self.assertEqual(status, 200)
         self.assertEqual(got["speech"]["runtime"]["state"], "absent")
-        self.assertEqual(sorted(got["speech"]["models"]), ["large-v3", "large-v3-turbo"])
+        import getstt
+        self.assertEqual(sorted(got["speech"]["models"]), sorted(getstt.MODELS))
+        self.assertTrue({'large-v3', 'large-v3-turbo'}.issubset(got['speech']['models']))
         self.assertEqual(got["jobs"]["speech"], {})
         for part in ("runtime", "large-v3-turbo", "large-v3"):
             self.assertIn("speech:" + part, got["sizes"])
@@ -1002,7 +1046,9 @@ class Served(unittest.TestCase):
                           "busy", "settings"} - set(got), set())
         self.assertFalse(got["installed"])
         self.assertEqual(got["settings"], "/settings/speech/")
-        self.assertEqual([m["id"] for m in got["models"]], ["large-v3-turbo", "large-v3"])
+        import getstt
+        self.assertEqual([m["id"] for m in got["models"]], list(getstt.MODELS))
+        self.assertEqual([m['id'] for m in got['models'][:2]], ['large-v3-turbo', 'large-v3'])
         self.assertEqual([m["id"] for m in got["processing"]], ["auto", "cpu", "cuda"])
         status, _, full = self.ask("POST", "/lookup/api/speech", {"full": True})
         self.assertEqual({"ok", "speech", "jobs", "sizes", "credits", "languages", "kept", "free", "may"}
@@ -1086,10 +1132,14 @@ class Served(unittest.TestCase):
     def test_a_computer_that_cannot_run_the_program_is_told_why_and_nothing_starts(self):
         import getstt
         with patch.object(getstt, "unavailable_reason", lambda: "This Parseh runs on Python 3.11, and the "
-                                                                "speech program is built for Python 3.12 only."):
-            status, _, got = self.ask("POST", "/lookup/api/getspeech", {"key": "runtime"})
-        self.assertEqual(status, 409)
-        self.assertIn("Python 3.12", got["error"])
+                                                                "speech program is built for Python 3.12 only."), \
+                patch.object(self.serve, "reading_plan") as plan:
+            for key in getstt.PARTS:
+                with self.subTest(key=key):
+                    status, _, got = self.ask("POST", "/lookup/api/getspeech", {"key": key})
+                    self.assertEqual(status, 409)
+                    self.assertIn("Python 3.12", got["error"])
+            plan.assert_not_called()
         self.assertEqual(self.serve.STT_JOBS, {})
 
     def test_a_name_that_is_not_a_part_never_reaches_a_folder(self):

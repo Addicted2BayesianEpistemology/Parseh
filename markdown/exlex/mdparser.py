@@ -32,6 +32,7 @@ from texgen import (parse_mark_fields, LA_RE, tl_re,  # noqa: E402
                     is_fa_only_paragraph, _is_pure_fa_paragraph,
                     set_target, cur_lang, spread_slots, is_target_line,
                     SLOT_RE, SLOT_SPLIT_RE)
+from segcolour import parse_at as parse_segmented  # noqa: E402
 
 # `lang:` is the prose language (hyphenation); `target:` the language being
 # learned -- a registry code, Persian when absent (docs/languages.md, 5).
@@ -969,7 +970,13 @@ def parse(text, target=None, card=False):
                 txt, voce_gloss = _split_voce_gloss(txt)
                 fields = [f.strip() for f in txt.split("|")]
                 # the lemma may carry a colour mark: `## [آهسته]{teal} | …`
-                f0, fa_color, head_fields = fields[0], None, {}
+                f0, fa_color, head_fields, fa_segments = fields[0], None, {}, None
+                seg = parse_segmented(f0, 0)
+                if seg and seg.end == len(f0) \
+                        and _is_lemma_head(L, seg.plain_text.strip(), len(fields)):
+                    f0 = seg.plain_text.strip()
+                    fa_segments = [(p.text, p.colour) for p in seg.pieces]
+                    head_fields = dict(seg.marks)
                 mw = _HEAD_MARK.fullmatch(f0)
                 if mw and _is_lemma_head(L, mw.group(1).strip(), len(fields)):
                     f0 = mw.group(1).strip()
@@ -1001,6 +1008,7 @@ def parse(text, target=None, card=False):
                     translit = rest[0] if len(rest) > 0 else ""
                     blocks.append({"type": "voce", "_line": i,
                                    "fa": f0, "fa_color": fa_color,
+                                   "fa_segments": fa_segments,
                                    "kana": kana,
                                    "translit": translit or head_fields.get("translit", ""),
                                    "etym": rest[1] if len(rest) > 1 else "",

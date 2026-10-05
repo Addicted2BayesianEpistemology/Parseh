@@ -40,9 +40,28 @@ def _log(kind, **fields):
         f.write(json.dumps(fields) + "\n")
 
 
+class Word:
+    def __init__(self, start, end, word, config=None):
+        self.start, self.end, self.word, self.probability = start, end, word, 0.9
+        if (CONFIG if config is None else config).get('leading_word_spaces'):
+            self.word = ' '+word
+        evidence = (CONFIG if config is None else config).get("word_evidence", {}).get(word, {})
+        if "score" in evidence:
+            self.probability = evidence["score"]
+        if "alternatives" in evidence:
+            self.alternatives = evidence["alternatives"]
+        scalar_type = (CONFIG if config is None else config).get('numpy_word_scalars')
+        if scalar_type:
+            import numpy as np
+            scalar = {'float32': np.float32, 'float64': np.float64}[scalar_type]
+            self.start, self.end = scalar(start), scalar(end)
+            self.probability = scalar(self.probability) if self.probability is not None else None
+
+
 class Segment:
-    def __init__(self, start, end, text):
+    def __init__(self, start, end, text, words=None):
         self.start, self.end, self.text = start, end, text
+        self.words = words or []
 
 
 class TranscriptionInfo:
@@ -73,29 +92,47 @@ class WhisperModel:
         elif device == "cpu" and CONFIG.get("cpu_load_error"):
             raise RuntimeError(CONFIG["cpu_load_error"])
         self.device = device
+        self.second_calls = 0
 
     def transcribe(self, audio, language=None, beam_size=5, vad_filter=False,
                    task="transcribe", **rest):
+        config = CONFIG
+        if beam_size == 10:
+            requests = CONFIG.get('second_pass', [])
+            if self.second_calls < len(requests):
+                config = dict(CONFIG, **requests[self.second_calls])
+            self.second_calls += 1
         _log("transcribe", language=language, beam_size=beam_size, vad_filter=vad_filter,
              task=task, samples=len(audio), audio_type=type(audio).__name__,
              dtype=str(getattr(audio, "dtype", "")), rest=sorted(rest), device=self.device,
+             options=rest,
              peak=float(max(abs(float(audio.max())), abs(float(audio.min())))) if len(audio)
              else 0.0)
         duration = len(audio) / 16000.0
-        made = CONFIG.get("segments")
+        made = config.get("segments")
         if made is None:
             made = []
             t = 0.0
             while t < duration and len(made) < 8:
                 made.append([t, min(duration, t + 1.9), " fake words %d" % (len(made) + 1)])
                 t += 2.0
-        delay = float(CONFIG.get("delay") or 0)
+        delay = float(config.get("delay") or 0)
         lazy = CONFIG.get("cuda_lazy_error") if self.device == "cuda" else CONFIG.get("cpu_lazy_error")
 
+        want_words = bool(rest.get("word_timestamps"))
         def generate():
+            if config.get('second_exit'):
+                os._exit(17)
+            if config.get('second_error'):
+                raise RuntimeError('fake crop failure')
             if lazy:
                 raise RuntimeError(lazy)
             for start, end, text in made:
                 time.sleep(delay)
-                yield Segment(float(start), float(end), text)
+                bits = text.split()
+                span = float(end) - float(start)
+                words = [Word(float(start) + span * i / len(bits),
+                              float(start) + span * (i + 1) / len(bits), bit, config)
+                         for i, bit in enumerate(bits)] if want_words and bits and not config.get('no_words') else []
+                yield Segment(float(start), float(end), text, words)
         return generate(), TranscriptionInfo(language, duration)

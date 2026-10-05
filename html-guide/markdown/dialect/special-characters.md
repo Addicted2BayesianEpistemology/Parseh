@@ -154,7 +154,7 @@ Markdown for you.
 | **=** | ` = ` with its spaces, for a gloss ([Glosses](colours-and-pronunciation.md#glosses)) |
 | **note** | asks for a footnote's name and text; the citation at the cursor, the text among the notes in reading order ([Footnotes](footnotes-and-links.md)) |
 | **link** | `[testo](https://)`, the cursor after `https://` |
-| **colour** | `[]{teal}`, the cursor between the brackets |
+| **colour** | applies the active foreground colour to the selected text; the arrow beside it chooses another colour or **No colour** |
 | **tl** | the selection wrapped in `[…]{tl}` (the long form over several lines), or an empty one |
 | **kana** | the selection wrapped in `[…]{kana:}`, the cursor ready for the reading — Japanese documents only |
 | **block** | the selection wrapped in `[…]{la}`, or an empty one |

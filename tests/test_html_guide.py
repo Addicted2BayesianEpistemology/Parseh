@@ -1271,6 +1271,23 @@ class TheTokensAreTheToolbox_s(unittest.TestCase):
 
 # ------------------------------------------------------------------ the real guide, and its copy
 class TheGuideItself(unittest.TestCase):
+    def test_export_modules_support_the_guide_s_python_38_minimum(self):
+        import ast
+        import segcolour
+        from engine.manifest import MODULE_FILES
+
+        # The guide also builds outside Parseh's Python environment.  Check
+        # the advertised grammar, and defer annotations that older Python
+        # versions cannot evaluate (built-in generics and union notation).
+        modules = [ROOT / rel for rel in MODULE_FILES if rel.endswith(".py")]
+        modules += [GUIDE / "build.py"] + list((GUIDE / "engine").glob("*.py"))
+        for path in modules:
+            with self.subTest(path=path.relative_to(ROOT)):
+                ast.parse(path.read_text(encoding="utf-8"), feature_version=(3, 8))
+        for cls in (segcolour.Piece, segcolour.SegmentedColourRun):
+            for annotation in cls.__annotations__.values():
+                self.assertIsInstance(annotation, str)
+
     def test_the_guide_s_own_pages_compile_clean(self):
         with tempfile.TemporaryDirectory() as td:
             report = Site(GUIDE).build(Path(td) / "site")
@@ -1386,6 +1403,7 @@ class TheGuideItself(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             for rel in ("engine/vendor/markdown/app/htmlgen.py", "engine/vendor/lib/languages.json",
                         "engine/vendor/lib/author.py",
+                        "engine/vendor/markdown/exlex/segcolour.py",
                         "engine/vendor/markdown/app/static/app.js", ".github/workflows/pages.yml"):
                 self.assertTrue((dest / rel).is_file(), rel)
             self.assertIn("site/", (dest / ".gitignore").read_text(encoding="utf-8"))

@@ -78,12 +78,9 @@ try {
   assert((await page.locator('.xp-unsaved').count()) === 0, 'pointing at a word says nothing yet: no click has been made');
   if (SHOTS) await page.screenshot({path: `${SHOTS}/export-cloud.png`});
 
-  await page.locator('.fapal button[data-color]').first().click();
-  await page.waitForFunction(() => document.querySelector('.fa[data-fa]').parentElement.classList.contains('fac'),
-                             null, {timeout: 3000});
-  assert(true, 'a colour chosen in it colours the word on the open page');
-  const toastText = await page.locator('#toast').textContent();
-  assert(/^Marked \w+$/.test(toastText.trim()), `its toast is plain, the notice being the page's job: "${toastText}"`);
+  assert((await page.locator('.fapal button[data-color], .fapal input[type="color"], .fapal .none').count()) === 0,
+         'the exported linguistic cloud constructs no colour controls');
+  await page.locator('.fapal .tr-add').first().click();
 
   await page.waitForSelector('.xp-unsaved.xp-unsaved-on', {timeout: 3000});
   const said = await page.evaluate(() => {
@@ -107,9 +104,6 @@ try {
   assert(said.z > said.toastZ, `above the toast (${said.z} over ${said.toastZ})`);
   if (SHOTS) await page.screenshot({path: `${SHOTS}/export-cloud-notice.png`});
 
-  await word.hover();
-  await page.locator('.fapal .tr-add').first().click();
-  assert((await page.locator('.xp-unsaved').count()) === 1, 'a second click brings no second line');
   await page.locator('.fapal .tr-in').first().fill('salaam');
   await page.locator('.fapal .tr-in').first().press('Enter');
   await page.waitForFunction(() => document.querySelector('.fa[data-fa]').dataset.translit === 'salaam',
@@ -119,9 +113,8 @@ try {
   await page.waitForSelector('.xp-unsaved', {state: 'detached', timeout: 6000});
   assert(true, 'the line goes by itself after a few seconds');
   await word.hover();
-  await page.locator('.fapal button[data-color]').nth(1).click();
   await page.waitForTimeout(700);
-  assert((await page.locator('.xp-unsaved').count()) === 0, 'and it does not come back at a later click');
+  assert((await page.locator('.xp-unsaved').count()) === 0, 'and pointing later does not bring it back');
 
   assert(asked.length === 0, 'nothing was asked of any server: ' + JSON.stringify(asked.slice(0, 3)));
   const keys = await page.evaluate(() => [...Object.keys(localStorage), ...Object.keys(sessionStorage)]);
@@ -131,7 +124,7 @@ try {
   await page.waitForSelector('.fa[data-fa]');
   const after = await state(page.locator('.fa[data-fa]').first());
   assert(JSON.stringify(after) === JSON.stringify(before) && (await page.locator('.fac').count()) === facBefore,
-         'a reload forgets both changes: the page is as it was exported');
+         'a reload forgets the page-only linguistic change: the page is as it was exported');
 
   // a reload is a first time again; Escape puts the line away; and a click
   // on text that is no word of the target language says nothing
@@ -171,10 +164,8 @@ try {
   assert(onPhone.text === 'Changes made here are not saved' && onPhone.whole && onPhone.oneLine && onPhone.hit && !onPhone.sideways,
          'a tap opens the cloud and brings the line, whole and on one line, on a phone, in nobody\'s way: ' + JSON.stringify(onPhone));
   if (SHOTS) await phone.screenshot({path: `${SHOTS}/export-cloud-phone.png`});
-  await phone.locator('.fapal button[data-color]').first().tap();
-  await phone.waitForFunction(() => document.querySelector('.fa[data-fa]').parentElement.classList.contains('fac'),
-                              null, {timeout: 3000});
-  assert((await phone.locator('.xp-unsaved').count()) <= 1, 'a tap on a colour colours the word on the phone too');
+  assert((await phone.locator('.fapal button[data-color], .fapal input[type="color"], .fapal .none').count()) === 0,
+         'the phone cloud has no colour controls either');
   assert(errors.length === 0, 'no script error: ' + errors.join(' | '));
   console.log(`Exported cloud passed (${passed} checks)`);
 } finally {

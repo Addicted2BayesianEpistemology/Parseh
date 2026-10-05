@@ -291,7 +291,7 @@ class Starters(unittest.TestCase):
         # the export's own notice of the first click is in the page's script
         for needed in ("function bindExercises", "function applyTypo", "function clipWindow",
                        "function bindFootnoteClouds", "function armClipReplay",
-                       "function bindColorPalette", "function bindPageCloud"):
+                       "function bindWordCloud", "function bindPageCloud"):
             self.assertIn(needed, js)
         for never in ("function initDoc", "function initIndex", "function docColorApplier",
                       "function docMarkApplier", "function bindImageLayout", "function api(", "fetch(", "XMLHttpRequest",

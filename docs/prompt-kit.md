@@ -1,8 +1,9 @@
 # The prompt kit
 
-`lib/promptkit.py` assembles every prompt Parseh hands to a chatbot. Parseh
-runs no model and sends nothing: it writes the prompt, and checks and files the
-answer. This page is for whoever changes a prompt.
+`lib/promptkit.py` assembles every copyable prompt Parseh hands to a chatbot.
+It writes the prompt, and the relevant feature checks and files the answer.
+Browser ASR review also offers an explicit API route through the separate LLM
+adapter. This page is for whoever changes a copyable prompt.
 
 ## A surface, and its three parts
 
@@ -18,6 +19,7 @@ file, and the file is the whole prompt.
 | `book-new` | `docs/new-book-prompt.md`, made from the parts in `docs/book-method/` | `making.instructions_text`: the folder's `AGENTS.md`, the page's preview and the `parseh-book` skill |
 | `transcript-tidy` | `PROMPT` in `youtube/lib/tidy.py` | `tidy.assembled` |
 | `ask` | `lib/llm.js` | the browser |
+| `asr-suspect`, `asr-full`, `asr-workspace` | `docs/asr-*-prompt.md` | `asrexternal.assembled` |
 
 Every prompt has three parts, in this order:
 
@@ -336,7 +338,9 @@ characters at most, no `<` or `>`; SKILL.md under 500 lines; every reference nam
    takes the language's conventions.
 3. Write its assembler: build the values, call `assemble`, return the `Assembled`.
 4. Teach `lib/promptlab.py` `build` to make one, and add its row to `SIZES`
-   and to `MEASURED` in `tests/test_prompts.py`.
+   and to `MEASURED` in `tests/test_prompts.py` when using a measured fixture
+   budget. The three ASR surfaces use the explicit UTF-8 prompt limit and
+   bounded batches instead.
 
 ## The lab and the tests
 

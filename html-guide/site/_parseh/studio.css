@@ -598,6 +598,23 @@ html[data-sheet="dark"] :is(.pz,.modal-overlay){--fac-crimson: #E4808A; --fac-in
 :is(.pz,.modal-overlay) .fac-teal{color: var(--fac-teal);}
 :is(.pz,.modal-overlay) .fac-violet{color: var(--fac-violet);}
 :is(.pz,.modal-overlay) .fac-amber{color: var(--fac-amber);}
+:is(.pz,.modal-overlay) .segmented-colour-run .seg-colour{display: inline;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  font-stretch: inherit;
+  font-variant: inherit;
+  font-kerning: inherit;
+  font-feature-settings: inherit;
+  font-variation-settings: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  writing-mode: inherit;
+  direction: inherit;
+  unicode-bidi: normal;
+  margin: 0;
+  padding: 0;}
 :is(.pz,.modal-overlay) .fapal{position: absolute; z-index: 70; display: flex; align-items: center;
   gap: .3rem; padding: .3rem .4rem;
   background: var(--chrome-panel); border: 1px solid var(--chrome-line);
@@ -607,17 +624,6 @@ html[data-sheet="dark"] :is(.pz,.modal-overlay){--fac-crimson: #E4808A; --fac-in
   display: inline-flex; align-items: center; justify-content: center;}
 :is(.pz,.modal-overlay) .fapal button:hover{transform: scale(1.18);}
 :is(.pz,.modal-overlay) .fapal button.on{border-color: var(--chrome-fg);}
-:is(.pz,.modal-overlay) .fapal input[type="color"]{width: 1.15rem; height: 1.15rem; border-radius: 50%;
-  border: 2px solid transparent; padding: 0; background: none;
-  cursor: pointer;}
-:is(.pz,.modal-overlay) .fapal input[type="color"]::-webkit-color-swatch-wrapper{padding: 0;}
-:is(.pz,.modal-overlay) .fapal input[type="color"]::-webkit-color-swatch{border: 1px dashed var(--chrome-mut); border-radius: 50%;}
-:is(.pz,.modal-overlay) .fapal input[type="color"].on{border-color: var(--chrome-fg);}
-:is(.pz,.modal-overlay) .fapal input[type="color"]:hover{transform: scale(1.18);}
-:is(.pz,.modal-overlay) .fapal .none{background: var(--chrome-bg); color: var(--chrome-mut);
-  border: 1px solid var(--chrome-line);}
-:is(.pz,.modal-overlay) .fapal .lbl{font-size: .68rem; color: var(--chrome-mut); padding: 0 .15rem 0 .3rem;
-  white-space: nowrap;}
 :is(.pz,.modal-overlay) .fapal .tr-edit{display: inline-flex; align-items: center;}
 :is(.pz,.modal-overlay) .fapal .tr-val,:is(.pz,.modal-overlay) .fapal .tr-add{width: auto; height: auto; border-radius: 6px; padding: .1rem .35rem;
   font-size: .72rem; font-style: italic; line-height: 1.3;
@@ -1084,6 +1090,22 @@ body.links-open :is(.pz,.modal-overlay) .linkspane{transform: none; visibility: 
 :is(.pz,.modal-overlay) .preview-scroll .sheet{margin: 1rem auto 3rem;}
 :is(.pz,.modal-overlay) .insert-group{display: inline-flex; gap: .15rem; margin-right: .3rem;}
 :is(.pz,.modal-overlay) .insert-group .btn{padding: .3rem .45rem;}
+:is(.pz,.modal-overlay) .colour-tool{display: inline-flex; position: relative;}
+:is(.pz,.modal-overlay) .colour-tool .colour-main{display: inline-flex; align-items: center; gap: .3rem; border-radius: 6px 0 0 6px;}
+:is(.pz,.modal-overlay) .colour-tool .colour-pick > summary{border-radius: 0 6px 6px 0; padding-inline: .32rem;}
+:is(.pz,.modal-overlay) .colour-tool .menu{left: 0; right: auto; min-width: 11rem;}
+:is(.pz,.modal-overlay) .colour-tool .menu button,:is(.pz,.modal-overlay) .colour-custom{display: flex; align-items: center; gap: .48rem;}
+:is(.pz,.modal-overlay) .colour-active,:is(.pz,.modal-overlay) .colour-chip{display: inline-block; width: .78rem; height: .78rem; flex: none; border-radius: 50%; background: var(--fac-teal);}
+:is(.pz,.modal-overlay) .colour-active.fac-crimson,:is(.pz,.modal-overlay) .colour-chip.fac-crimson{background: var(--fac-crimson);}
+:is(.pz,.modal-overlay) .colour-active.fac-indigo,:is(.pz,.modal-overlay) .colour-chip.fac-indigo{background: var(--fac-indigo);}
+:is(.pz,.modal-overlay) .colour-active.fac-teal,:is(.pz,.modal-overlay) .colour-chip.fac-teal{background: var(--fac-teal);}
+:is(.pz,.modal-overlay) .colour-active.fac-violet,:is(.pz,.modal-overlay) .colour-chip.fac-violet{background: var(--fac-violet);}
+:is(.pz,.modal-overlay) .colour-active.fac-amber,:is(.pz,.modal-overlay) .colour-chip.fac-amber{background: var(--fac-amber);}
+:is(.pz,.modal-overlay) .colour-chip.custom{background: conic-gradient(#d23 0 20%, #fc3 0 40%, #3a6 0 60%, #38c 0 80%, #a4c 0);}
+:is(.pz,.modal-overlay) .colour-chip.none{background: transparent; border: 1px solid var(--chrome-line); color: var(--chrome-mut); text-align: center; line-height: .68rem;}
+:is(.pz,.modal-overlay) .colour-custom{padding: .45rem .6rem; cursor: pointer; font-size: .88rem;}
+:is(.pz,.modal-overlay) .colour-custom:hover{background: var(--chrome-bg); border-radius: 5px;}
+:is(.pz,.modal-overlay) .colour-custom input{width: 1.5rem; height: 1.2rem; margin-left: auto; padding: 0; border: 0; background: transparent;}
 @media (max-width: 720px){
 body[data-page="edit"] :is(.pz,.modal-overlay) .topbar{flex-wrap: wrap; gap: .4rem;}
 body[data-page="edit"] :is(.pz,.modal-overlay) .topbar-actions{display: contents;}

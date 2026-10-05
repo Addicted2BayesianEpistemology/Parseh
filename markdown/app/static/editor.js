@@ -776,12 +776,96 @@ function initEdit() {
                    ["#ins-guill", "«»", 1],
                    ["#ins-gloss", " = ", 0],
                    ["#ins-link", "[testo](https://)", 1],
-                   ["#ins-color", "[]{teal}", 7],
                    ["#ins-br", "⏎", 0]];
   for (const [sel, text, back2] of inserts) {
     const b = $(sel);
     if (b) b.addEventListener("click", () => insertAtCursor(text, back2));
   }
+
+  /* Selection-first foreground colour.  The browser owns grapheme
+     boundaries; the server owns Parseh's semantic source transform and
+     canonical serialisation. */
+  const colourButton = $("#ins-color"), colourMenu = $("#colour-menu");
+  const colourDetails = colourMenu && colourMenu.closest("details");
+  const colourSwatch = colourButton && $(".colour-active", colourButton);
+  let activeColour = "teal";
+  function graphemeRange(text, a, b) {
+    if (a === b) return [a, b];
+    let starts = [0];
+    if (typeof Intl !== "undefined" && Intl.Segmenter) {
+      const segmenter = new Intl.Segmenter(lang().code || undefined,
+                                           {granularity: "grapheme"});
+      starts = [...segmenter.segment(text)].map(part => part.index);
+      starts.push(text.length);
+    } else {
+      starts = [0];
+      let at = 0, previous = "", regional = 0;
+      const mark = ch => /[\u0300-\u036f\u0483-\u0489\u0591-\u05c7\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed\u0900-\u0903\u093a-\u094f\u0981-\u0983\u09bc-\u09cd\u0a01-\u0a03\u0a3c-\u0a4d\u0a70-\u0a71\u0a81-\u0a83\u0abc-\u0acd\u0b01-\u0b03\u0b3c-\u0b4d\u0b82\u0bbe-\u0bcd\u0c00-\u0c04\u0c3e-\u0c56\u0c81-\u0c83\u0cbc-\u0ccd\u0d00-\u0d03\u0d3b-\u0d4d\u0e31\u0e34-\u0e3a\u0e47-\u0e4e\u3099-\u309a\ufe00-\ufe0f]/u.test(ch);
+      const virama = ch => /[\u094d\u09cd\u0a4d\u0acd\u0b4d\u0bcd\u0c4d\u0ccd\u0d3b\u0d3c\u0d4d]/u.test(ch);
+      const ri = ch => { const cp = ch.codePointAt(0); return cp >= 0x1f1e6 && cp <= 0x1f1ff; };
+      for (const ch of text) {
+        const size = ch.length;
+        const cp = ch.codePointAt(0);
+        const modifier = cp >= 0x1f3fb && cp <= 0x1f3ff;
+        const joins = mark(ch) || modifier || ch === "\u200d"
+          || previous === "\u200d" || virama(previous)
+          || (ri(ch) && regional % 2 === 1);
+        if (at && !joins) starts.push(at);
+        regional = ri(ch) ? regional + 1 : 0;
+        previous = ch;
+        at += size;
+      }
+      starts.push(text.length);
+    }
+    let left = 0, right = text.length;
+    for (const edge of starts) {
+      if (edge <= a) left = edge;
+      if (edge >= b) { right = edge; break; }
+    }
+    return [left, right];
+  }
+  function showActiveColour(colour) {
+    if (!colourSwatch || !colour) return;
+    colourSwatch.className = "colour-active";
+    colourSwatch.style.background = "";
+    if (colour.startsWith("#")) colourSwatch.style.background = colour;
+    else colourSwatch.classList.add("fac-" + colour);
+  }
+  async function applyEditorColour(colour, remember = true) {
+    let a = src.selectionStart, b = src.selectionEnd;
+    [a, b] = graphemeRange(src.value, a, b);
+    try {
+      const data = await api("/api/colour-selection", {method: "POST", json: {
+        markdown: src.value, start: a, end: b, color: colour || null,
+      }});
+      setSource(data.markdown, data.caret, data.caret);
+      src.focus();
+      if (remember && colour) {
+        activeColour = colour;
+        showActiveColour(colour);
+      }
+      toast(colour ? `Marked ${colour}` : "Colour removed from the selection");
+    } catch (e) {
+      toast(e.message || "Select text to colour", true);
+      src.focus();
+    } finally {
+      if (colourDetails) colourDetails.open = false;
+    }
+  }
+  if (colourButton) colourButton.addEventListener("click", () =>
+    applyEditorColour(activeColour));
+  if (colourMenu) colourMenu.addEventListener("click", e => {
+    const choice = e.target.closest("button[data-editor-colour]");
+    if (!choice) return;
+    e.preventDefault();
+    const colour = choice.dataset.editorColour || null;
+    applyEditorColour(colour, !!colour);
+  });
+  const customColour = $("#editor-custom-colour");
+  if (customColour) customColour.addEventListener("change", e => {
+    const colour = "#" + e.target.value.slice(1).toUpperCase();
+    applyEditorColour(colour);
+  });
   // every entry of the Exercises menu opens a dialog over it, and a menu
   // left standing behind one is a menu whose next use closes it instead of
   // opening it -- so the menu shuts as the entry is pressed
@@ -1283,17 +1367,9 @@ function initEdit() {
     setTimeout(alignPanes, 0);
   }}).close);
 
-  /* colour palette over the preview: rewrites the (possibly unsaved)
-     editor buffer through the same server-side logic the reading view
-     uses, so occurrence targeting is identical */
-  bindColorPalette(sheet, {
-    apply: async body => {
-      const data = await api("/api/recolor",
-                             {method: "POST",
-                              json: Object.assign({markdown: src.value}, body)});
-      setSource(data.markdown);
-      preview();
-    },
+  /* The preview cloud edits linguistic annotations only.  Foreground
+     colour is a source-selection command in the toolbar below. */
+  bindWordCloud(sheet, {
     applyTranslit: async body => {
       const data = await api("/api/translit",
                              {method: "POST",

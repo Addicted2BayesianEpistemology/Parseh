@@ -20,6 +20,10 @@
 \usepackage{amssymb}
 \usepackage[a4paper,%%MARGINS%%]{geometry}
 \usepackage{xcolor}
+% A partially coloured word is shaped once, then full-word coloured copies
+% are clipped over it.  Splitting an Arabic-script word into separate
+% \textcolor runs would change its joining forms.
+\usepackage{trimclip}
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{enumitem}

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Browser test of the page's hover editors landing on the copy of a word
 // they were opened on, against the REAL routes on a temporary library
-// (tests/studio_harness.py).  The colour palette, the transliteration field
-// and the target-text overlay name what they edit by (text, occurrence);
+// (tests/studio_harness.py).  The compatibility colour endpoint, the
+// linguistic cloud and the target-text overlay name what they edit by
+// (text, occurrence);
 // the page numbers each run and block, store.py finds the n-th one in the
 // source (tests/test_run_occurrences.py has every construct).  Driven here:
 //   a) the French starter's reading view: the second l'homme on the page (a
@@ -93,21 +94,25 @@ try {
   page.on('pageerror', e => errors.push(e.message));
 
   const run = (text, occ) => page.locator(`#sheet [data-fa="${text}"][data-occ="${occ}"]`);
-  /* Hover the run as a person would, see the cloud come up on screen next
-     to it, and pick a colour in it. */
+  /* The legacy occurrence API is still exercised here as a compatibility
+     surface.  Colour is no longer exposed by the word cloud; the new
+     selection-first toolbar has its own partial-colour browser test. */
   async function colour(text, occ, name) {
     const span = run(text, occ);
     assert(await span.count() === 1, `the page offers ${text} #${occ} once`);
-    await span.scrollIntoViewIfNeeded();
-    await span.hover();
-    const pal = page.locator('.fapal');
-    await until(() => pal.isVisible(), 'the colour cloud opens');
-    const seen = await pal.evaluate(p => {
-      const r = p.getBoundingClientRect();
-      return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth && r.width > 50;
-    });
-    assert(seen, `the cloud over ${text} #${occ} is on the screen`);
-    await pal.locator(`button[data-color="${name}"]`).click();
+    if (page.url().endsWith('/edit')) {
+      const markdown = await page.locator('#src').inputValue();
+      const data = await api('POST', '/api/recolor', {markdown, text, occurrence: occ, color: name});
+      await page.locator('#src').evaluate((el, value) => {
+        el.value = value;
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+      }, data.markdown);
+    } else {
+      const id = await page.locator('body').getAttribute('data-doc-id');
+      await api('POST', `/api/docs/${id}/color`, {text, occurrence: occ, color: name});
+      await page.reload();
+      await page.waitForSelector('#sheet');
+    }
   }
   // the colour a run is drawn in, as the browser draws it
   const drawn = (text, occ) => run(text, occ).evaluate(e => getComputedStyle(e).color);
@@ -138,7 +143,11 @@ try {
     assert(await drawn("l'homme", 1) === await teal() && await drawn("l'homme", 0) === ink,
            "and it is the one drawn in teal on the page, the first as it was");
     // the transliteration field of the same cloud, on the same run
-    await run("l'homme", 1).hover();
+    // Dispatch directly: the preceding compatibility write reloads the
+    // page while Chrome leaves its physical pointer at the old document's
+    // coordinates, which can synthesize an immediate mouseout unrelated to
+    // the occurrence behaviour this test covers.
+    await run("l'homme", 1).dispatchEvent('mouseover');
     await until(() => page.locator('.fapal').isVisible(), 'the cloud opens again');
     await page.locator('.fapal .tr-edit[data-kind="translit"] .tr-add').click();
     await page.locator('.fapal .tr-edit[data-kind="translit"] .tr-in').fill('lɔm');

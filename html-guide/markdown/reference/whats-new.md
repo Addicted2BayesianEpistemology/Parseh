@@ -15,7 +15,121 @@ change. A new version comes in from **Settings → Updating Parseh**
 ([Updating Parseh](../getting-started/updating.md)), which compiles this
 guide and rebuilds the readers by itself.
 
-## a0.4.2 — not yet released
+## a0.4.3 — not yet released
+
+### More Whisper models
+
+**Settings → Speech to text** lists standard and language-specific Whisper
+models, filters them by language, and remembers a preferred installed model for
+each language. Persian and Hindi have separate fast and accuracy-oriented
+choices. Models install independently, with cancellation, resume and verified
+files; these labels do not guarantee better recognition on every recording.
+
+See [Speech to text](../lookup-and-languages/speech-to-text.md).
+
+### A transcript workspace with reusable tools
+
+Transcription now opens straight into editing, with no review-method gate.
+Try correction tools on the same pending draft, keep manual edits and locks,
+and use the transcript when ready. **Settings → Speech to text** has an
+**Automatically run a second Whisper pass** checkbox; the second pass can
+also run later for remaining suspect words, a section, or one selected word.
+It adds audio-based alternatives without changing original text or timestamps.
+See [Adding a video](../videos/adding-a-video.md#speech-to-text).
+
+### Check, pause and continue a transcript
+
+Select a section or review one word with LM likelihood while keeping the full
+surrounding context. Lock checked words before another review, or choose
+**Select best for all** to put the latest method's first choices into the
+pending draft. The similar-sound filter starts enabled and can be turned off
+for another pass. **Save & pause** keeps the review on disk; **Continue pending
+transcription** on Videos restores it after a browser or server restart.
+Settings and ordinary review controls are shorter, with technical details
+folded away. **Settings → About** shows version, installation information and
+the locations of `serve.sh` and the Windows launcher. See
+[LM likelihood](../lookup-and-languages/lm-likelihood.md) and
+[About Parseh](../getting-started/about.md).
+
+### Review a transcript before using it
+
+Whisper results now open directly in the transcript workspace. Inspect low ASR
+scores without sending text anywhere, or ask an already configured LLM for
+validated word-level proposals; accept or reject them in a pending draft.
+Only **Use this transcript** fills the box. **Settings → LLM Integration**
+adds a reusable OpenAI-compatible connection, Ollama/Unsloth/generic presets,
+served-model discovery, remote model selection, local credential controls and a connection test.
+Short sentence replies, word-count progress, local failure recovery, a single
+retry action, keyboard word edits and inspectable LLM responses keep review
+under your control. A downloadable correction skill can be installed and
+invoked through Unsloth's Agent Skills API.
+Saved Studio share links load installed model variants/options through the API.
+Separate review models and skills support a whole-text check, including confident
+Whisper words and spans split across ASR pieces. See
+[LLM Integration](../lookup-and-languages/llm-integration.md).
+Word playback pauses shortly after the selected span. Installed dictionaries
+add a separate suspect-word cue using the readers' base-form rules, and the
+inspector compares meanings for the original, Whisper alternatives and proposed
+LLM replacements.
+The existing faster-whisper backend exposes native beam alternatives where
+they map exactly to a source word, with sequence scores labeled separately
+from word probabilities. The low-ASR-score threshold remains 0.5. An additional reasoning workspace
+review gives a tool-capable model a temporary blanked transcript and CSV evidence,
+first skimming unblanked text and then resolving numbered entries with isolated
+Python. Its model selection is separate; existing review methods remain available.
+Each of the three methods also supports an external chatbot through a copied
+prompt and pasted answer. No configured endpoint is needed. Workspace review
+can download its text/CSV files for an external service with file/code tools.
+Imported proposals are checked and remain in the pending draft until accepted
+and explicitly used.
+An additional [LM likelihood](../lookup-and-languages/lm-likelihood.md)
+method searches raw model probabilities for candidate words and ranks the original,
+every Whisper alternative and those candidates using fixed original context.
+Select installed GGUF weights separately from chat models. Its isolated CPU/GPU
+worker reports numerical scores, candidate origins and incomplete coverage;
+changes still require explicit acceptance and Use.
+
+### Colour meaningful parts of a word
+
+Studio can colour a stem, affix, radical or ending without splitting the
+word. Select the exact letters and use the split **colour** control; another
+selection may receive another colour, and **No colour** removes only the
+selected part. Persian and Arabic keep their cursive joining, Unicode
+graphemes stay whole, and the word remains one unit for copying, search,
+glosses and its pronunciation cloud. The same colours reach the PDF and a
+downloaded HTML page. Word clouds now contain linguistic annotations only;
+colour is an authoring operation. See [Colours and
+pronunciation](../dialect/colours-and-pronunciation.md#colouring-part-of-a-word)
+and [the editor](../studio/editor.md#insert-at-cursor).
+
+### Exact word times while adding a video
+
+Speech to text can now keep the word boundaries it heard while you correct a
+transcript. Settings offers an optional, per-language exact-word-time network:
+it is local, hash-checked before it is installed, and leaves Whisper's captions
+unchanged. The add page remembers whether to use it; Whisper still works when
+it is absent or switched off. The editor uses a recorded word at a new caption
+boundary, preserves a start you set yourself, offers undo and redo, and can
+tidy from ordinary text cues or from recorded pauses. The captured audio is
+not retained. See [Speech to text](../lookup-and-languages/speech-to-text.md),
+[Adding a video](../videos/adding-a-video.md#speech-to-text) and
+[Mending the transcript](../videos/mending-the-transcript.md).
+
+### Target-language cards stay in reading order
+
+A Markdown or exercise-deck card made from a book or video now marks its
+target and every context line as target language automatically. This keeps
+right-to-left punctuation and line wrapping in their correct reading order;
+Anki cards and fields that already contain markup stay unchanged. See
+[the reader](../books/reader.md#making-a-card).
+
+### Keyboard skipping in Mobile mode
+
+On a keyboard, Mobile mode's ← and → now do the same chosen-seconds move as
+↺ and ↻. Shift keeps a book reader's subparagraph keys, while a video skips.
+See [Mobile mode](../getting-started/mobile-mode.md).
+
+## a0.4.2 — 30 September 2026
 
 ### The meaning under a phrase is a gloss
 

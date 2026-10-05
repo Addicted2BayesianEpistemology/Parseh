@@ -36,7 +36,21 @@
       <button class="btn ghost" id="ins-gloss" title="Gloss equals (spaces around)">=</button>
       <button class="btn ghost" id="ins-note" title="Footnote: opens a box for its name and text, puts the reference at the cursor and the note itself in order with the others — bottom of the page in the PDF, hover cloud on the web">note</button>
       <button class="btn ghost" id="ins-link" title="Link: [text](url)">link</button>
-      <button class="btn ghost" id="ins-color" title="Colour mark: [متن]{teal}">colour</button>
+      <span class="colour-tool">
+        <button class="btn ghost colour-main" id="ins-color" type="button" title="Apply the active colour to the selected text"><span class="colour-active" aria-hidden="true"></span>colour</button>
+        <details class="dropdown colour-pick">
+          <summary class="btn ghost" title="Choose a colour" aria-label="Choose a colour">▾</summary>
+          <div class="menu" id="colour-menu">
+            <button type="button" data-editor-colour="crimson"><span class="colour-chip fac-crimson"></span>crimson</button>
+            <button type="button" data-editor-colour="indigo"><span class="colour-chip fac-indigo"></span>indigo</button>
+            <button type="button" data-editor-colour="teal"><span class="colour-chip fac-teal"></span>teal</button>
+            <button type="button" data-editor-colour="violet"><span class="colour-chip fac-violet"></span>violet</button>
+            <button type="button" data-editor-colour="amber"><span class="colour-chip fac-amber"></span>amber</button>
+            <label class="colour-custom"><span class="colour-chip custom"></span>custom colour<input type="color" id="editor-custom-colour" value="#8E2B34"></label>
+            <button type="button" data-editor-colour=""><span class="colour-chip none">×</span>No colour</button>
+          </div>
+        </details>
+      </span>
       <button class="btn ghost" id="ins-tl" title="Target-language block: wraps the selected text in [ … ]{tl} (multiline form when the selection spans lines) — one unit in the target language's direction and font, punctuation, emoji and Latin words kept inside it; for a Latin-script target this is also how a single run is marked">tl</button>
       <button class="btn ghost" id="ins-kana" hidden title="Reading mark: [text]{kana:…} — the kana reading of the selected text (the transliteration can share the braces: {kana:… translit:…})">kana</button>
       <button class="btn ghost" id="ins-la" title="Latin block: wraps the selected paragraph in [ … ]{la} — click it in the reading view to set alignment, background, width and sideways shift (the image knobs)">block</button>

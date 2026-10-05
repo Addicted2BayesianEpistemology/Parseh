@@ -127,6 +127,8 @@ def _says(surface, L, G):
                 r"^- gloss language: \*\*%s\*\* \(`%s`\)" % (re.escape(G.name), re.escape(G.code))]
     if surface == "transcript-tidy":
         return [r"transcript of a video in %s," % name]
+    if surface.startswith("asr-"):
+        return [r"^Language: %s \(%s\)\." % (name, code)]
     return [r"in %s, glossed in %s" % (name, re.escape(G.name))]
 
 
@@ -136,6 +138,9 @@ def names_the_language(a, c):
 
 
 def within_its_budget(a, c):
+    if c.surface.startswith("asr-"):
+        import asrexternal
+        return [] if len(a.text.encode("utf-8")) <= asrexternal.MAX_PROMPT else ["external review exceeds its prompt limit"]
     budget = SIZES[c.code][MEASURED.index(c.surface)][1]
     return ["%d characters, budget %d" % (len(a.text), budget)] if len(a.text) > budget else []
 
@@ -317,7 +322,7 @@ def has_no_avoid_math(a, c):
     return ["still says to avoid math"] if re.search(r"avoid[^.]*\bmath\b", a.text) else []
 
 
-ALL_SURFACES = tuple(K.SURFACES[:-1])          # `ask` is JavaScript's
+ALL_SURFACES = tuple(s for s in K.SURFACES if s != "ask")  # `ask` is JavaScript's
 PROJECT = "youtube/PROMPT.md"                    # handed over as a file, as it is
 CHECKS = (
     Check("no_placeholder_left", "a resolved prompt never carries `{{` (brief 3.2)",

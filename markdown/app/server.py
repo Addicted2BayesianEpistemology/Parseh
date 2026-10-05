@@ -1599,6 +1599,35 @@ def api_recolor(h):
     h.send_json({"markdown": markdown})
 
 
+def api_colour_selection(h):
+    """Pure selection-first colouring for Studio's unsaved source buffer."""
+    body = h._json_body() or {}
+    source = body.get("markdown", "")
+
+    # A textarea reports UTF-16 code-unit offsets; Python strings are
+    # indexed by Unicode code point.  Convert at the HTTP boundary so an
+    # emoji before the selection cannot move a colour edit into source
+    # markup.  Grapheme expansion in the browser normally makes every edge
+    # an exact boundary; consuming a split surrogate is the safe fallback.
+    def from_utf16(value):
+        try:
+            wanted = max(0, int(value))
+        except (TypeError, ValueError):
+            wanted = 0
+        units = 0
+        for i, ch in enumerate(source):
+            if units >= wanted:
+                return i
+            units += 2 if ord(ch) > 0xFFFF else 1
+        return len(source)
+
+    start, end = from_utf16(body.get("start", 0)), from_utf16(body.get("end", 0))
+    markdown, caret = store.colour_selection_markdown(
+        source, start, end, body.get("color") or None)
+    caret_utf16 = sum(2 if ord(ch) > 0xFFFF else 1 for ch in markdown[:caret])
+    h.send_json({"markdown": markdown, "caret": caret_utf16})
+
+
 def api_color(h, doc_id):
     """Set/clear the colour mark on one run, in the markdown."""
     body = h._json_body()
@@ -2548,6 +2577,7 @@ ROUTES = [
     ("POST",   r"^/api/docs/([a-z0-9\-]+)/build$",        api_build),
     ("POST",   r"^/api/preview$",                         api_preview),
     ("POST",   r"^/api/recolor$",                         api_recolor),
+    ("POST",   r"^/api/colour-selection$",                api_colour_selection),
     ("POST",   r"^/api/translit$",                        api_translit_pure),
     ("POST",   r"^/api/kana$",                            api_kana_pure),
     ("POST",   r"^/api/tl-edit$",                         api_tl_edit),

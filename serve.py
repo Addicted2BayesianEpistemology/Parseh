@@ -130,6 +130,11 @@ import corpus             # noqa: E402  and the sentences somebody translated
 import getmt              # noqa: E402  and the model that runs in the page
 import getstt             # noqa: E402  speech to text: its program, its models, its processor
 import lookuppage         # noqa: E402  the page that sets the dictionaries up
+import llmconfig
+import llmadapter
+import llmpage
+import lmlikelihoodpage
+import lmlikelihoodconfig
 import speechpage         # noqa: E402  Settings -> Speech to text (§7.23)
 import latexpage          # noqa: E402  Settings -> LaTeX drawings (§8.39)
 import latexthemes        # noqa: E402  the themes a latex block is drawn with
@@ -174,6 +179,7 @@ import clips               # noqa: E402  the tray a card's recording is cut into
 import guidebuild          # noqa: E402  the HTML guide: its files, and its compile as a job
 import sttjobs             # noqa: E402  the transcription job of the add page (needs no speech runtime to import)
 import wavefile            # noqa: E402  waveform.json: one cleaner, one writer, and the hold
+import wordtimes           # noqa: E402  held/adopted word-time tape of a transcription
 import version             # noqa: E402  which Parseh this is: VERSION, read once (§16.1)
 import author              # noqa: E402  who made it, and his two links: the hub's foot (lib/author.py)
 
@@ -456,7 +462,7 @@ STATIC_PREFIXES = ("/lib/fonts/", "/lib/mathjax/", "/audiobook/", "/books/",
                    # the translation engine and its models: read by the
                    # reader's own worker, never written through the server
                    "/mt/")
-STATIC_FILES = {"/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js",
+STATIC_FILES = {"/lib/lmlikelihoodsettings.js", "/lib/llmsettings.js", "/youtube/lib/asrreview.js", "/lib/parseh.css", "/lib/parseh.js", "/lib/llm.js", "/lib/mt.js",
                 # the row of controls every page that hands out a prompt draws:
                 # copy, the size, the reminder (lib/llmrow.js, a0.4.2)
                 "/lib/llmrow.js",
@@ -1801,6 +1807,7 @@ def update_daily():
 #   waiting              True while it waits its turn in that queue
 READING_KINDS = ("dict", "components", "corpus", "model", "synonyms", "speech")
 CANCELS = {}                    # (kind, key) -> the Event its Stop button sets
+SPEECH_START_LOCKS = {}         # validated catalogue parts; one start per part
 PLANS = {}                      # (kind, key) -> (when, plan): what it was said to cost
 PLAN_FOR = 600                  # seconds a plan is believed before it is asked again
 QUEUE = []                      # the steps "get everything" waits to run: [(kind, key)]
@@ -1862,7 +1869,7 @@ def reading_check(kind, key):
             return (("a language translated into itself is a copy" if kind == "model" else
                      "a language glossed in itself has nothing to translate"), 400)
     elif kind == "speech":
-        # a part is one of three exact names: nothing else is ever a path
+        # A part is a shared catalogue ID: nothing a browser sends becomes a path.
         if key not in getstt.PARTS:
             return "no such part of speech to text", 400
     elif key:
@@ -1935,14 +1942,30 @@ def reading_named(kind, key):
     return "the %s %s" % (_lang_pair(key), what)
 
 
-def reading_start(kind, key, queue=None, wait=False):
+def _speech_start_lock(key):
+    with DECOMPOSITION_LOCK:
+        return SPEECH_START_LOCKS.setdefault(key, threading.RLock())
+
+
+def reading_start(kind, key, queue=None, wait=False, _import_cancel=None):
+    # Different models may install independently. Simultaneous presses for
+    # the same part must share the first job's cancellation event, rather than
+    # start two writers to its resumable staging folder.
+    if kind == 'speech' and isinstance(key, str) and key in getstt.PARTS:
+        with _speech_start_lock(key):
+            return _reading_start(kind, key, queue, wait, _import_cancel)
+    return _reading_start(kind, key, queue, wait, _import_cancel)
+
+
+def _reading_start(kind, key, queue=None, wait=False, _import_cancel=None):
     """Start getting (kind, key): -> (answer, status).  In a thread of its
     own, or -- `wait`, for the queue's own worker -- in this one."""
     bad, status = reading_check(kind, key)
     if bad:
         return {"ok": False, "error": bad}, status
     job = reading_job(kind, key)
-    if job and job.get("running"):
+    if job and job.get("running") and not (
+            _import_cancel is not None and CANCELS.get((kind, key)) is _import_cancel):
         return {"ok": True, "already": True}, 200
     if job and job.get("waiting") and not wait:
         # pressed directly while it waits in a queue: it goes now, and the
@@ -1959,9 +1982,11 @@ def reading_start(kind, key, queue=None, wait=False):
             return {"ok": False, "error": "%s is written without spaces between its words, "
                     "so its dictionary comes first: the sentences are cut into words "
                     "with it" % languages.LANGS[code].name}, 409
-    if kind == "speech" and getstt.unavailable_reason():
-        # NO BUTTON WAS OFFERED, and a route asked anyway is told why
-        return {"ok": False, "error": getstt.unavailable_reason()}, 409
+    if kind == "speech":
+        unavailable = getstt.unavailable_reason()
+        if unavailable:
+            # NO BUTTON WAS OFFERED, and a route asked anyway is told why.
+            return {"ok": False, "error": unavailable}, 409
     try:
         plan = reading_plan(kind, key)
     except Exception as e:
@@ -1975,7 +2000,7 @@ def reading_start(kind, key, queue=None, wait=False):
         "running": True, "say": "starting…", "error": "", "started": time.time(),
         "phase": "download", "done": plan.get("have") or 0, "total": plan.get("download"),
         "stopped": False, "queue": queue, "waiting": False})
-    cancel = threading.Event()
+    cancel = _import_cancel if _import_cancel is not None else threading.Event()
     CANCELS[(kind, key)] = cancel
 
     def progress(done, total=None, phase="download"):
@@ -3025,6 +3050,14 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError:
                 self.close_connection = True
                 return self.send_json({"error": "bad Content-Length"}, 400)
+            if method == 'POST' and path == '/settings/api/speech/import-package':
+                # Model packages are gigabytes. Verify admission and the pinned
+                # release identity before streaming directly to disk.
+                refused = self._refused(path)
+                if refused:
+                    self.close_connection = True
+                    return refused
+                return self._speech_package_stream(n)
             if method == "POST" and path.endswith(("/__narration/audio", "/__narration/import")):
                 # an audiobook is hundreds of megabytes: it goes straight to
                 # a file, never through the buffer below or its cap
@@ -4442,6 +4475,24 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": False, "error": "nothing to POST here"}, 404)
         if method != "GET":
             return self._method_not_allowed()
+        if sub == "/api/transcribe/media":
+            # Only a job capability, never a filesystem path supplied by a page.
+            # send_file streams Range requests so the review player can seek.
+            try:
+                path = sttjobs.review_media((self.query.get("job") or [""])[0])
+            except sttjobs.Refusal as e:
+                return self.send_json({"ok": False, "error": e.say, "code": e.code}, e.status)
+            return self.send_file(path)
+        if sub == "/api/transcribe/external-files":
+            try:
+                index = (self.query.get("index") or [""])[0]
+                if not re.fullmatch(r"[0-9]{1,6}", index):
+                    raise sttjobs.Refusal("bad-review", "Choose a workspace prompt batch.")
+                data = sttjobs.external_files((self.query.get("job") or [""])[0],
+                    (self.query.get("source_sha256") or [""])[0], (self.query.get("session") or [""])[0], int(index))
+            except sttjobs.Refusal as error:
+                return self.send_json({"ok": False, "error": error.say, "code": error.code}, error.status)
+            return self.send_bytes(data, "application/zip", extra={"Content-Disposition": 'attachment; filename="parseh-review-workspace.zip"', "Cache-Control": "no-store"})
         if sub == "/api/backup":
             return self._shelf_backup("video")
         m = re.match(r"^/v/([^/]+)/__download/?$", sub)
@@ -5594,9 +5645,14 @@ class Handler(SimpleHTTPRequestHandler):
         the answer, {} when the request named none.  A token that is not one,
         or a job that held nothing, is ignored: the video is made either way
         and the player can still draw the sound."""
-        if "wave" not in body:
-            return {}
-        return {"waveform": wavefile.adopt(body.get("wave"), video_dir) or {"kept": False}}
+        out = {}
+        if "wave" in body:
+            out["waveform"] = wavefile.adopt(body.get("wave"), video_dir) or {"kept": False}
+        if "wordtimes" in body:
+            out["wordtimes"] = wordtimes.adopt(body.get("wordtimes"), video_dir,
+                                                 body.get("transcript") or "",
+                                                 body.get("lang") or "")
+        return out
 
     def _video_local(self):
         """A video that is a FILE ON THIS MACHINE, drafted from its subtitles.
@@ -5715,7 +5771,7 @@ class Handler(SimpleHTTPRequestHandler):
         other route takes only the token the job made.  Every answer is
         {"ok": true, ...} or {"ok": false, "error": <a sentence>, "code": <a
         slug>}, and none of them is a traceback."""
-        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result"):
+        if what not in ("start", "audio", "marks", "wave", "status", "cancel", "result", "review", "review-likelihood", "whisper-second-pass", "retry-review", "cancel-review", "use", "dictionary", "external-start", "external-action", "save-draft", "pending", "resume"):
             return self.send_json({"ok": False, "error": "nothing to POST here",
                                    "code": "no-such-route"}, 404)
 
@@ -5734,12 +5790,57 @@ class Handler(SimpleHTTPRequestHandler):
                 raise sttjobs.Refusal("bad-request", getattr(e, "said", None)
                                       or "The request could not be read.")
             token = body.get("job")
+            if what == "pending":
+                if body:
+                    raise sttjobs.Refusal("bad-draft", "Listing pending reviews accepts no overrides.")
+                return sttjobs.pending_reviews()
+            if what == "resume":
+                if set(body) != {"job"}:
+                    raise sttjobs.Refusal("bad-draft", "Choose a saved transcription.")
+                return sttjobs.resume_review(token)
+            if what == "save-draft":
+                if set(body) - {"job", "source_sha256", "draft", "generation"}:
+                    raise sttjobs.Refusal("bad-draft", "The draft contains unknown fields.")
+                return sttjobs.save_review_draft(token, body.get("source_sha256"), body.get("draft"), body.get("generation"))
+            if what == "review-likelihood":
+                if set(body) - {"job", "source_sha256", "revision", "word_ids", "phonetic_filter"}:
+                    raise sttjobs.Refusal("bad-review", "The likelihood request accepts no model, path or runtime overrides.")
+                return sttjobs.review_likelihood(token, body.get("source_sha256"), body.get("revision"), body.get("word_ids"), body.get("phonetic_filter"))
+            if what == 'whisper-second-pass':
+                if set(body) - {'job', 'source_sha256', 'word_ids'}:
+                    raise sttjobs.Refusal('bad-review', 'Whisper rechecks accept only words from the original transcript.')
+                return sttjobs.review_whisper_second(token, body.get('source_sha256'), body.get('word_ids'))
+            if what in ("external-start", "external-action"):
+                allowed = ({"job", "source_sha256", "task", "word_ids"} if what == "external-start" else
+                           {"job", "source_sha256", "session", "action", "index", "answer"})
+                if set(body) - allowed:
+                    raise sttjobs.Refusal("bad-review", "The external review request contains unknown settings.")
+                if what == "external-start":
+                    return sttjobs.external_start(token, body.get("source_sha256"), body.get("task"), body.get("word_ids"))
+                return sttjobs.external_action(token, body.get("source_sha256"), body.get("session"), body.get("action"), body.get("index"), body.get("answer"))
+            if what == "dictionary":
+                if set(body) - {"job", "source_sha256", "word_id"}:
+                    raise sttjobs.Refusal("bad-review", "The dictionary request contains unknown settings.")
+                return sttjobs.review_dictionary(token, body.get("source_sha256"), body.get("word_id"))
+            if what in ("review", "retry-review", "cancel-review", "use"):
+                allowed = ({"job", "source_sha256", "mode", "connection_id", "instruction_mode", "task"} if what == "review" else
+                           {"job", "source_sha256", "connection_id", "word_ids", "instruction_mode", "task"} if what == "retry-review" else
+                           {"job", "source_sha256", "decisions", "manual_edits"} if what == "use" else {"job"})
+                if set(body) - allowed:
+                    raise sttjobs.Refusal("bad-review", "The review request contains unknown settings.")
+                if what == "review":
+                    return sttjobs.review(token, body.get("mode"), body.get("source_sha256"), body.get("connection_id"), instruction_mode=body.get("instruction_mode", "prompt"), task=body.get("task", "suspect"))
+                if what == "retry-review":
+                    return sttjobs.review(token, "llm", body.get("source_sha256"), body.get("connection_id"), body.get("word_ids", []), body.get("instruction_mode", "prompt"), body.get("task", "suspect"))
+                if what == "cancel-review":
+                    return sttjobs.cancel_review(token)
+                return sttjobs.use_review(token, body.get("source_sha256"), body.get("decisions", {}), body.get("manual_edits", {}))
             if what == "start":
                 # ANY DEVICE LET IN may start one (the owner): the bound is the one
                 # slot, and Cancel
                 source, lang = sttjobs.source_of(body)
                 return sttjobs.start(source, lang, body.get("model"), body.get("processing"),
-                                     body.get("duration"))
+                                     body.get("duration"), body.get("exact", True))
             if what == "marks":
                 return sttjobs.marks(token, body.get("marks"))
             if what == "wave":
@@ -6622,7 +6723,9 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "GET":
                 return self._method_not_allowed()
             return self.send_html(settingspage.hub(dict_tags(), updatepage.door_tags(ROOT),
-                                                   speechpage.door_tags(), arasaacpage.door_tags()))
+                                                   speechpage.door_tags(),
+                                                   '<span class="tag">%s</span>' % ("configured" if llmconfig.load() else "unconfigured"),
+                                                   arasaacpage.door_tags()))
         if path in ("/settings/network", "/settings/network/index.html"):
             return self._redirect("/settings/network/")
         if path == "/settings/network/":
@@ -6651,6 +6754,25 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._method_not_allowed()
             return self.send_html(speechpage.page(reading_jobs()["speech"], self._where(),
                                                   self._whose_device()))
+        if path in ("/settings/llm", "/settings/llm/index.html"):
+            return self._redirect("/settings/llm/")
+        if path in ("/settings/about", "/settings/about/index.html"):
+            return self._redirect("/settings/about/")
+        if path == "/settings/about/":
+            if method != "GET":
+                return self._method_not_allowed()
+            import aboutpage
+            return self.send_html(aboutpage.page(self._where()))
+        if path == "/settings/llm/":
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(llmpage.page(self._where()))
+        if path in ("/settings/lm-likelihood", "/settings/lm-likelihood/index.html"):
+            return self._redirect(lmlikelihoodpage.PAGE)
+        if path == lmlikelihoodpage.PAGE:
+            if method != "GET":
+                return self._method_not_allowed()
+            return self.send_html(lmlikelihoodpage.page(self._where()))
         if path == LATEX_PAGE.rstrip("/"):
             return self._redirect(LATEX_PAGE)
         if path == LATEX_PAGE:
@@ -6698,6 +6820,30 @@ class Handler(SimpleHTTPRequestHandler):
             if method != "POST":
                 return self._method_not_allowed()
             return self._pair()
+        if path.startswith("/settings/api/llm/"):
+            return self._llm_api(method, path)
+        if path in ("/settings/api/speech/save", "/settings/api/speech/select-model"):
+            if method != "POST":
+                return self._method_not_allowed()
+            import speechconfig
+            try:
+                body = self._json_body()
+                if path.endswith('/select-model'):
+                    if not isinstance(body, dict) or set(body) != {'language', 'model'}:
+                        raise ValueError('Choose a language and a listed speech model.')
+                    preferences = speechconfig.select(body['language'], body['model'])
+                else:
+                    preferences = speechconfig.save(body)
+            except ValueError as e:
+                return self.send_json({"ok": False, "error": str(e)}, 400)
+            except OSError:
+                return self.send_json({"ok": False, "error": "The speech preference could not be saved."}, 500)
+            return self.send_json({"ok": True, "preferences": preferences})
+        if path == '/settings/api/speech/import-package':
+            return self._method_not_allowed()
+        if path in ("/settings/api/lm-likelihood/status", "/settings/api/lm-likelihood/save", "/settings/api/lm-likelihood/models",
+                    "/settings/api/lm-likelihood/select", "/settings/api/lm-likelihood/install", "/settings/api/lm-likelihood/unload"):
+            return self._likelihood_api(method, path)
         if path in UPDATE_ROUTES:
             return self._update_api(method, path)
         if path in LATEX_ROUTES:
@@ -6724,6 +6870,188 @@ class Handler(SimpleHTTPRequestHandler):
             gone = network.forget("" if body.get("all") else body.get("id"))
             return self.send_json({"ok": True, "forgotten": gone})
         return self._not_found()
+
+    def _speech_package_stream(self, length):
+        import download
+        import speechpackages
+        import speechmodels
+        model = (self.query.get('model') or [''])[0]
+        try:
+            if set(self.query) != {'model'} or len(self.query['model']) != 1:
+                raise speechpackages.PackageError('Choose one model from Speech to text settings.')
+            package = speechpackages.pin(model)
+            if length != package['package_size'] or length > speechpackages.MAX_ARCHIVE:
+                raise speechpackages.PackageError('This ZIP does not match the expected model package size.')
+        except speechpackages.PackageError as e:
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': str(e)}, 400)
+        # The same job entry and Stop action cover upload, verification, and
+        # installation. An upload may never replace an active install.
+        with _speech_start_lock(model), DECOMPOSITION_LOCK:
+            previous = reading_job('speech', model)
+            if previous and previous.get('running'):
+                self.close_connection = True
+                return self.send_json({'ok': False, 'error': 'This model is already being installed. Stop it first.'}, 409)
+            cancel = threading.Event()
+            state = {
+                'running': True, 'say': 'Uploading the prepared model package…', 'error': '',
+                'started': time.time(), 'phase': 'upload', 'done': 0, 'total': length,
+                'stopped': False, 'waiting': False}
+            reading_table('speech')[model] = state
+            CANCELS[('speech', model)] = cancel
+        # ZIP + extracted assets coexist during verification. Keep the previous
+        # complete model and package intact until every new asset is checked.
+        need = length + sum(size for _sha, size in package['files'].values())
+        if disk_free(getstt.STT_DIR) < need:
+            state.update(running=False, error='There is not enough disk space for this model package.')
+            CANCELS.pop(('speech', model), None)
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': state['error']}, 507)
+        timeout = self.connection.gettimeout()
+        self.connection.settimeout(30)
+        try:
+            def progress(done, total, phase):
+                state.update(done=done, total=total, phase=phase,
+                             say='Uploading the prepared model package…' if phase == 'upload' else 'Checking the model package…')
+                activity.progress(getattr(self, '_act', None), done=done, total=total, stage=phase)
+            with getstt.using(model):
+                speechpackages.import_stream(model, self.rfile, length, cancel=cancel, progress=progress)
+                self._received()
+                download.check(cancel)
+            # Finish verification before starting the normal installer. It
+            # verifies again while making a resumable local copy, uses the
+            # same immutable catalogue, and gets the runtime when needed.
+            download.check(cancel)
+            PLANS.pop(('speech', model), None)
+            answer, code = reading_start('speech', model, _import_cancel=cancel)
+            return self.send_json(answer, code)
+        except download.Cancelled:
+            state.update(stopped=True, say='stopped')
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': 'Package import cancelled. The existing model is unchanged.'}, 409)
+        except (speechpackages.PackageError, speechmodels.CatalogueError) as e:
+            state['error'] = str(e)
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': str(e)}, 400)
+        except (OSError, EOFError):
+            state['error'] = 'The package upload or disk operation did not finish. Choose the package again to retry.'
+            self.close_connection = True
+            return self.send_json({'ok': False, 'error': state['error']}, 400)
+        finally:
+            self.connection.settimeout(timeout)
+            # Once installation starts, it owns a fresh entry and event.
+            if reading_job('speech', model) is state and CANCELS.get(('speech', model)) is cancel:
+                CANCELS.pop(('speech', model), None)
+                state.update(running=False, finished=time.time())
+
+    def _likelihood_api(self, method, path):
+        from lmgguf import ScoringError
+        if method != "POST":
+            return self._method_not_allowed()
+        crossed = self._cross_site(path)
+        if crossed:
+            return self.send_json({"ok": False, "error": crossed}, 403)
+        if len(self._body()) > 65536:
+            return self.send_json({"ok": False, "error": "The scoring settings request is too large."}, 413)
+        what = path.rsplit("/", 1)[-1]
+        try:
+            body = self._json_body()
+            if what in ("status", "models", "install", "unload") and body:
+                raise ScoringError("bad-config", "This action uses saved settings and accepts no overrides.")
+            if what == "save":
+                lmlikelihoodconfig.save(body)
+            elif what == "select":
+                if set(body) != {"id"}:
+                    raise ScoringError("bad-config", "Select a model from the discovered host inventory.")
+                lmlikelihoodconfig.select(body["id"])
+            elif what == "models":
+                return self.send_json(dict(lmlikelihoodconfig.inventory(), ok=True))
+            elif what == "install":
+                lmlikelihoodconfig.install()
+            elif what == "unload":
+                import lmlikelihood
+                with sttjobs.LOCK:
+                    tokens = [j["id"] for j in sttjobs.JOBS.values() if j.get("review_choice") == "likelihood" and j["state"] == sttjobs.CORRECTING]
+                for token in tokens:
+                    sttjobs.cancel_review(token)
+                lmlikelihood.unload_all()
+            elif what != "status":
+                return self._not_found()
+            return self.send_json(dict(lmlikelihoodconfig.status(settingspage.may("likelihood.worker", self._where())), ok=True))
+        except ScoringError as e:
+            return self.send_json({"ok": False, "code": e.code, "error": e.say}, 400)
+
+    def _llm_api(self, method, path):
+        if method != "POST":
+            return self._method_not_allowed()
+        crossed = self._cross_site(path)
+        if crossed:
+            return self.send_json({"ok": False, "error": crossed}, 403)
+        if len(self._body()) > llmconfig.MAX_CONFIG:
+            return self.send_json({"ok": False, "error": "The LLM settings request is too large."}, 413)
+        what = path.rsplit("/", 1)[-1]
+        try:
+            body = self._json_body()
+            if what in ("status", "models-saved", "test", "skill-status", "skill-install", "audit-skill-status", "audit-skill-install") and body:
+                raise llmconfig.LLMError("bad-config", "This request uses the saved connection and accepts no overrides.")
+            if what == "status":
+                out = llmconfig.view()
+                out["likelihood"] = lmlikelihoodconfig.status()
+            elif what == "save":
+                out = llmconfig.save(body)
+            elif what == "reset":
+                out = llmconfig.reset()
+            elif what == "import-link":
+                out = llmconfig.share_link(body.get("link"))
+            elif what == "models":
+                out = {"models": llmadapter.adapter(llmconfig.preview(body)).models()}
+            elif what == "select-model":
+                out = llmconfig.select_model(body)
+            elif what == "review-model":
+                out = llmconfig.review_model(body)
+            elif what == "review-prepare":
+                import llmprofiles
+                out = llmprofiles.prepare(body)
+            elif what in ("profile-save", "profile-remove", "profile-apply"):
+                import llmprofiles
+                out = {"profile-save": llmprofiles.save, "profile-remove": llmprofiles.remove,
+                       "profile-apply": llmprofiles.apply}[what](body)
+            elif what == "models-saved":
+                config = llmconfig.load()
+                if config is None:
+                    raise llmconfig.LLMError("unconfigured", "Configure an endpoint on the Parseh host first.")
+                out = {"models": llmadapter.adapter(config).models()}
+            elif what in ("skill-status", "skill-install", "audit-skill-status", "audit-skill-install"):
+                import asrcorrection
+                config = llmconfig.load()
+                if not config or config.get("adapter") != "unsloth-agent-skills":
+                    raise llmconfig.LLMError("skills-unavailable", "Select the Unsloth Agent Skills adapter in LLM Integration first.")
+                client = llmadapter.adapter(config)
+                audit = what.startswith("audit-")
+                name = asrcorrection.AUDIT_SKILL_NAME if audit else asrcorrection.SKILL_NAME
+                description = asrcorrection.AUDIT_SKILL_DESCRIPTION if audit else asrcorrection.SKILL_DESCRIPTION
+                if what.endswith("skill-install"):
+                    out = client.install_skill(name, description, asrcorrection.skill_instructions("full" if audit else "suspect"))
+                else:
+                    out = client.skill_status(name)
+            elif what == "test":
+                config = llmconfig.load()
+                if config is None:
+                    raise llmconfig.LLMError("unconfigured", "Save a connection and model first.")
+                try:
+                    test = llmadapter.adapter(config).test()
+                except llmconfig.LLMError as e:
+                    llmconfig.record_test(config, {"say": e.say, "ok": False})
+                    raise
+                out = llmconfig.record_test(config, dict(test, ok=True))
+            else:
+                return self._not_found()
+            return self.send_json(dict(out, ok=True, can_install_skill=settingspage.may("llm.connection", self._where())))
+        except llmconfig.LLMError as e:
+            return self.send_json({"ok": False, "code": e.code, "error": e.say}, 400)
+        except Exception:
+            # Never echo settings bodies, credentials or endpoint responses.
+            return self.send_json({"ok": False, "error": "The LLM connection could not be read or saved."}, 500)
 
     # ------------------------------------------------------------ updating Parseh
     def _update_api(self, method, path):

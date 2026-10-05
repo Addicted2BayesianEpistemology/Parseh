@@ -100,14 +100,14 @@ to it.
 ## Glosses, colours, exercises
 
 The page is not only for reading. A click on a word of the target language
-copies it; pointing at it offers a palette to colour it or write its
-transliteration; **⇄ Glosses** turns every gloss of the document into a
+copies it; pointing at it shows or edits its pronunciation or reading;
+**⇄ Glosses** turns every gloss of the document into a
 table and a flashcard drill; the exercises can be answered and checked;
 a flashcard opens large with **⤢ Enlarge**; and **+ Deck** copies an
 exercise into a deck. All of it is on
 [Reading, annotating and practising](reading-tools.md). The hint at the end
 of the typography bar says the first of it: *click the target text to copy
-· hover it to colour · click an image, or ⚙ on a player, to lay it out.*
+· hover it for its pronunciation · click an image, or ⚙ on a player, to lay it out.*
 
 ## Download ▾ {#download}
 

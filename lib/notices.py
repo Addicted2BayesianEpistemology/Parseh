@@ -88,6 +88,8 @@ LICENCE_URLS = {
     "LPPL-1.3": "https://www.latex-project.org/lppl/",
     "MIT": "https://opensource.org/license/mit",
     "CC BY-SA 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/",
+    "CC-BY-NC-SA-4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
     "CC BY-SA 3.0": "https://creativecommons.org/licenses/by-sa/3.0/",
     "CC BY 2.0 FR": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
     "MPL 2.0": "https://www.mozilla.org/MPL/2.0/",
@@ -172,8 +174,8 @@ def carried():
 
 def speech_credits():
     """Whose work speech to text is: {"speech:runtime": (whose, the licences as
-    HTML), "speech:<model>": ...} for the program and for each of its two
-    models.  Read from lib/getstt.py's constants, so the licence beside a part
+    HTML), "speech:<model>": ...} for the program and for each catalogue
+    model.  Read from lib/getstt.py's constants, so the licence beside a part
     on its page is the one named on the Licences page.
 
     THE PROGRAM CARRIES SEVERAL LICENCES, and each is said with what carries
@@ -191,7 +193,22 @@ def speech_credits():
                + esc(getstt.RUNTIME_REST))
     out = {"speech:runtime": (esc(getstt.SOURCE), licence)}
     for model in getstt.MODELS:
-        out["speech:" + model] = (esc(getstt.MODEL_SOURCE), licence_link(getstt.MODEL_LICENCE))
+        info = getstt.MODEL_INFO[model]
+        source = info.get('source', getstt.MODEL_SOURCE)
+        model_licence = info.get('licence', getstt.MODEL_LICENCE)
+        package = getstt.MODEL_PINS.get(model, {})
+        package_source = package.get('repo')
+        package_licence = info.get('package_licence') or model_licence
+        attribution = esc(source)
+        if package_source and package_source != source:
+            attribution += ' (CTranslate2 package: %s)' % esc(package_source)
+        licence = licence_link(model_licence)
+        if package_licence != model_licence:
+            licence += ' (source); %s (CTranslate2 package)' % licence_link(package_licence)
+        out["speech:" + model] = (attribution, licence)
+    for code, pin in getstt.ALIGN_PINS.items():
+        out["speech:align-" + code] = (
+            esc("Parseh %s CTC alignment network" % code), licence_link(pin["licence"]))
     return out
 
 
@@ -241,6 +258,7 @@ def fetched():
     """What the reading help downloads when somebody asks it to, each with the
     licence its downloader records in the file it builds."""
     import decomposition
+    import getstt
     who = credits()
     out = [work("Dictionaries", "One per language, in <code>dict/</code>: what the words of "
                 "a chunk nobody has glossed mean.", *who["dict"]),
@@ -264,12 +282,17 @@ def fetched():
         "CTranslate2, PyAV and what they need &mdash; installed by pip from PyPI when you ask for "
         "it under <a href=\"/settings/speech/\">Speech to text</a>, in Settings. Every package "
         "is checked against a hash that travels with Parseh.", *who["speech:runtime"]))
-    out.append(work(
-        "Speech to text: the models",
-        "In <code>stt/models/</code>: OpenAI&rsquo;s Whisper large-v3-turbo and large-v3 in "
-        "CTranslate2&rsquo;s format, fetched from Hugging Face at a fixed version when you ask "
-        "for them under <a href=\"/settings/speech/\">Speech to text</a>. Every file is checked "
-        "against its own hash.", *who["speech:large-v3-turbo"]))
+    model_notices = ''.join('<dt>%s</dt><dd>%s &mdash; %s</dd>\n' %
+                            (esc(getstt.MODEL_INFO[model]['label']), *who['speech:' + model])
+                            for model in getstt.MODELS)
+    out.append('<section class="work">\n<h3>Speech to text: the models</h3>\n'
+               '<p class="what">In <code>stt/models/</code>: OpenAI Whisper large-v3-turbo '
+               'and large-v3, and language-specific Whisper models, in CTranslate2&rsquo;s '
+               'format. Available packages are fetched from Hugging Face at a fixed '
+               'version when you ask for them under <a href="/settings/speech/">Speech '
+               'to text</a>. Every file is checked against its own hash. Sources and '
+               'converted packages keep their own licences, listed below.</p>\n'
+               '<dl>%s</dl>\n</section>\n' % model_notices)
     out.append(work(
         "ARASAAC pictograms",
         "In <code>arasaac/</code>: some fourteen thousand pictograms and the words that name them in "

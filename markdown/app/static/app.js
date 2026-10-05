@@ -1965,24 +1965,19 @@ function bindFootnoteClouds(container) {
   container.addEventListener("focusin", place);
 }
 
-/* Hovering a run of the target language (or a lemma heading) opens a
-   small palette; clicking a swatch writes the colour into the markdown
-   source, so it reaches the PDF too.  `opts.apply(payload, span)` performs
-   the write: the reading view saves the stored document, the editor
-   rewrites its (possibly unsaved) buffer.  `opts.applyTranslit` and
-   `opts.applyKana` do the same for the transliteration and, for a
+/* Hovering a run of the target language (or a lemma heading) opens its
+   linguistic cloud.  `opts.applyTranslit` and `opts.applyKana` write the
+   transliteration and, for a
    language with a reading, the kana -- two independent halves of the
    same mark, each with its own field at the head of the cloud.
    `opts.only(span)`, when given, says which runs open the cloud at all;
    `opts.host` is the element the cloud is put in instead of <body>; and
    `opts.onlyHere` marks a page that keeps nothing, which only changes what
    the toasts say -- the cloud itself is the same. */
-function bindColorPalette(container, opts) {
-  if (!opts || !opts.apply) return;
+function bindWordCloud(container, opts) {
+  if (!opts) return;
   let pal = null, target = null, hideTimer = null;
-  let picker = null, pickerPinned = false, pickerSpan = null;
-  // an open text field pins the cloud open the same way the native
-  // colour picker does, and remembers which run it belongs to
+  // an open text field pins the cloud and remembers which run it belongs to
   let editPinned = false, trSpan = null;
   // the mark fields the current language has: the reading first (it sits
   // above the transliteration everywhere else), then the transliteration.
@@ -2008,10 +2003,6 @@ function bindColorPalette(container, opts) {
     return out;
   }
 
-  const colors = ["crimson", "indigo", "teal", "violet", "amber"];
-  const PAL_HEX = {crimson: "#8E2B34", indigo: "#2F3E8F", teal: "#13605C",
-                   violet: "#5C2E7E", amber: "#8A5A0B"};
-
   function build(L) {
     MARKS = markFields(L);
     pal = document.createElement("div");
@@ -2028,42 +2019,7 @@ function bindColorPalette(container, opts) {
         `<input class="tr-in" hidden spellcheck="false" autocomplete="off"` +
         ` placeholder="${escAttr(m.label)}" aria-label="${escAttr(capital(m.label))}"` +
         `${m.kind === "kana" ? ` lang="${L.code}"` : ""}>` +
-      `</span>`).join("") +
-      `<span class="lbl">colour</span>`;
-    for (const c of colors) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.dataset.color = c;
-      b.title = c;
-      b.style.background = `var(--fac-${c})`;
-      b.addEventListener("click", ev => { ev.stopPropagation(); apply(c); });
-      pal.appendChild(b);
-    }
-    // arbitrary colour: the swatch IS a native colour input, which opens
-    // the system HSV picker initialised to the word's current colour
-    picker = document.createElement("input");
-    picker.type = "color";
-    picker.title = "any colour (opens the HSV picker)";
-    picker.value = PAL_HEX.crimson;
-    picker.addEventListener("click", ev => {
-      ev.stopPropagation();
-      pickerPinned = true;              // keep the palette while it's open
-      pickerSpan = target;
-      clearTimeout(hideTimer);
-    });
-    picker.addEventListener("change", ev => {
-      ev.stopPropagation();
-      pickerPinned = false;
-      apply(("#" + picker.value.slice(1).toUpperCase()), pickerSpan);
-    });
-    pal.appendChild(picker);
-    const none = document.createElement("button");
-    none.type = "button";
-    none.className = "none";
-    none.textContent = "✕";
-    none.title = "no colour";
-    none.addEventListener("click", ev => { ev.stopPropagation(); apply(null); });
-    pal.appendChild(none);
+      `</span>`).join("");
     MARKS.forEach(bindMarkEditor);
     pal.addEventListener("mouseenter", () => clearTimeout(hideTimer));
     pal.addEventListener("mouseleave", scheduleHide);
@@ -2178,32 +2134,19 @@ function bindColorPalette(container, opts) {
     }
   }
 
-  function currentColor(span) {
-    if (span.dataset.color) return span.dataset.color;   // voce lemma
-    const wrap = span.parentElement;
-    return wrap && wrap.classList.contains("fac")
-      ? wrap.dataset.color : null;
-  }
-
   function show(span) {
     // a cloud built for another language is thrown away: its fields, face
     // and labels are that language's (never while a field is open in it)
     const L = langOf(span);
-    if (pal && pal.dataset.lang !== L.code && !editPinned && !pickerPinned) {
+    if (pal && pal.dataset.lang !== L.code && !editPinned) {
       pal.remove();
       pal = null;
     }
     if (!pal) build(L);
     target = span;
     showMarks(span);
-    const cur = currentColor(span);
-    $$("button[data-color]", pal).forEach(b =>
-      b.classList.toggle("on", b.dataset.color === cur));
-    // initialise the HSV picker on the word's colour (crimson if none)
-    const isHex = cur && cur.startsWith("#");
-    picker.classList.toggle("on", !!isHex);
-    picker.value = isHex ? cur.toLowerCase()
-      : (PAL_HEX[cur] || PAL_HEX.crimson).toLowerCase();
+    if (![...pal.querySelectorAll(".tr-val, .tr-add, .tr-in")]
+        .some(control => !control.hidden)) return hide();
     pal.style.visibility = "hidden";
     pal.style.display = "flex";
     const r = span.getBoundingClientRect();
@@ -2217,30 +2160,11 @@ function bindColorPalette(container, opts) {
   }
 
   function hide() {
-    if (pickerPinned || editPinned) return;   // a field is open in it
+    if (editPinned) return;   // a field is open in it
     if (pal) pal.style.display = "none";
     target = null;
   }
   function scheduleHide() { hideTimer = setTimeout(hide, 220); }
-
-  async function apply(color, spanArg) {
-    const span = spanArg || target;
-    if (!span) return;
-    const body = {
-      text: span.dataset.fa,
-      occurrence: Number(span.dataset.occ),
-      color: color,
-    };
-    try {
-      await opts.apply(body, span);
-      hide();
-      toast(opts.onlyHere
-        ? (color ? `Marked ${color}` : "Colour removed")
-        : (color ? `Marked ${color} — saved in the markdown` : "Colour removed"));
-    } catch (e) {
-      toast("Could not set the colour: " + e.message, true);
-    }
-  }
 
   container.addEventListener("mouseover", e => {
     const span = e.target.closest(".fa[data-fa], .voce-fa[data-fa]");
@@ -2250,43 +2174,27 @@ function bindColorPalette(container, opts) {
     if (span !== target) show(span);
   });
   container.addEventListener("mouseout", e => {
-    if (e.target.closest(".fa[data-fa], .voce-fa[data-fa]")) scheduleHide();
+    const span = e.target.closest(".fa[data-fa], .voce-fa[data-fa]");
+    if (!span) return;
+    // Moving between a segmented word and one of its visual children is
+    // still inside the same semantic word, and must not start the close
+    // timer.  The same guard avoids a synthetic child/parent transition
+    // closing an ordinary run's cloud just after it opens.
+    if (e.relatedTarget && span.contains(e.relatedTarget)) return;
+    scheduleHide();
   });
   window.addEventListener("scroll", hide, {passive: true});
 }
 
-/* THE CLOUD ON A PAGE THAT KEEPS NOTHING -- an exported page, and the guide
-   (the owner, 2026-09-25 and 2026-09-28): the studio's own cloud, whose
-   colours and marks are written onto this open page and nowhere else.  No
-   server is asked and nothing is stored: the appliers below touch the DOM
-   and are gone with the tab.  `only(span)` picks the runs that open it (the
+/* THE CLOUD ON A PAGE THAT KEEPS NOTHING -- an exported page, and the guide:
+   the studio's linguistic cloud, whose marks are written onto this open
+   page and nowhere else.  No server is asked and nothing is stored; edits
+   are gone with the tab.  `only(span)` picks the runs that open it (the
    guide's: those that carry a transliteration or a reading) and `host` is
    where the cloud is put (the guide's layer, inside the scope its rules
    are written under). */
 function bindPageCloud(container, opts) {
   opts = opts || {};
-  const colour = (body, span) => {
-    let wrap = span.parentElement && span.parentElement.classList.contains("fac")
-      ? span.parentElement : null;
-    if (!body.color) {
-      if (!wrap) return;
-      wrap.className = "fac";
-      wrap.style.color = "";
-      delete wrap.dataset.color;
-      if (!wrap.dataset.translit && !wrap.dataset.kana) wrap.replaceWith(...wrap.childNodes);
-      return;
-    }
-    if (!wrap) {
-      wrap = document.createElement("span");
-      span.replaceWith(wrap);
-      wrap.appendChild(span);
-    }
-    wrap.className = "fac";
-    wrap.style.color = "";
-    if (body.color.startsWith("#")) wrap.style.color = body.color;
-    else wrap.classList.add("fac-" + body.color);
-    wrap.dataset.color = body.color;
-  };
   const mark = kind => (body, span) => {
     const v = (body[kind] || "").trim();
     if (v) span.dataset[kind] = v;
@@ -2294,9 +2202,9 @@ function bindPageCloud(container, opts) {
     if (span.parentElement && span.parentElement.dataset[kind] && !v)
       delete span.parentElement.dataset[kind];
   };
-  bindColorPalette(container, {apply: colour, applyTranslit: mark("translit"),
-                               applyKana: mark("kana"), onlyHere: true,
-                               only: opts.only, host: opts.host});
+  bindWordCloud(container, {applyTranslit: mark("translit"),
+                            applyKana: mark("kana"), onlyHere: true,
+                            only: opts.only, host: opts.host});
 }
 
 /* The reading view's appliers: save on the server, then patch the DOM in
@@ -2334,6 +2242,12 @@ function docMarkApplier(docId, kind) {
   return async (body, span) => {
     const data = await api(`/api/docs/${docId}/${kind}`,
                            {method: "POST", json: body});
+    if (span.classList.contains("segmented-colour-run")) {
+      if (data[kind]) span.dataset[kind] = data[kind];
+      else delete span.dataset[kind];
+      if (onSourceChanged) onSourceChanged(data.meta);
+      return;
+    }
     let wrap = span.parentElement;
     const wrapped = wrap && wrap.classList.contains("fac");
     if (data[kind]) {
@@ -2354,47 +2268,6 @@ function docMarkApplier(docId, kind) {
   };
 }
 const docTranslitApplier = docId => docMarkApplier(docId, "translit");
-
-function docColorApplier(docId) {
-  const paint = (el, color) => {
-    el.classList.remove(
-      ...[...el.classList].filter(c => c === "fac" || c.startsWith("fac-")));
-    el.style.color = "";
-    delete el.dataset.color;
-    if (!color) return;
-    el.classList.add("fac");
-    if (color.startsWith("#")) el.style.color = color;   // arbitrary hex
-    else el.classList.add("fac-" + color);               // palette name
-    el.dataset.color = color;
-  };
-  return async (body, span) => {
-    const data = await api(`/api/docs/${docId}/color`,
-                           {method: "POST", json: body});
-    const color = body.color;
-    if (span.classList.contains("voce-fa")) {
-      paint(span, color);
-      span.classList.add("voce-fa");     // paint() must not drop identity
-    } else {
-      const wrap = span.parentElement;
-      const wrapped = wrap && wrap.classList.contains("fac");
-      if (color) {
-        if (wrapped) {
-          paint(wrap, color);
-        } else {
-          const w = document.createElement("span");
-          span.replaceWith(w);
-          w.appendChild(span);
-          paint(w, color);
-        }
-      } else if (wrapped) {
-        if (wrap.dataset.translit || wrap.dataset.kana)
-          paint(wrap, null);                          // keep the marks
-        else wrap.replaceWith(span);
-      }
-    }
-    if (typeof onSourceChanged === "function") onSourceChanged(data.meta);
-  };
-}
 
 let onSourceChanged = null;
 
@@ -3111,7 +2984,7 @@ function bindExercises(container, opts = {}) {
       // the word as the bank shows it: its script, its direction, its reading
       for (const node of word.childNodes) b.appendChild(node.cloneNode(true));
       // a copy to choose from, not a word of the document: the page's hover
-      // tools (the colour palette of the reading view) are not offered on it
+      // tools (the linguistic cloud of the reading view) are not offered on it
       $$("[data-fa], [data-occ], [data-tl-src], [data-rtl-src]", b).forEach(x =>
         ["data-fa", "data-occ", "data-tl-src", "data-rtl-src"].forEach(a => x.removeAttribute(a)));
       cloud.appendChild(b);
@@ -4394,9 +4267,8 @@ function initDoc() {
   let getTypo = bindTypoControls(DOC_ID);
   bindPersianCopy(sheet);
   bindFootnoteClouds(sheet);
-  bindColorPalette(sheet, {apply: docColorApplier(DOC_ID),
-                           applyTranslit: docMarkApplier(DOC_ID, "translit"),
-                           applyKana: docMarkApplier(DOC_ID, "kana")});
+  bindWordCloud(sheet, {applyTranslit: docMarkApplier(DOC_ID, "translit"),
+                        applyKana: docMarkApplier(DOC_ID, "kana")});
   bindImageLayout(sheet, {save: async payload => {
     const data = await api(`/api/docs/${DOC_ID}/image-layout`,
                            {method: "POST", json: payload});

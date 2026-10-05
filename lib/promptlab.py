@@ -99,6 +99,14 @@ def build(surface, lang, mode=None, gloss=None, options=None):
         raise LabError("`ask` is assembled in the browser (lib/llm.js): there is nothing to print here")
     if mode not in (None, "fill", "perfield", "regloss"):
         raise LabError("a mode is fill, perfield or regloss")
+    if surface.startswith("asr-"):
+        import asrcorrection
+        import asrexternal
+        sample = L.native + "."
+        request = asrcorrection.evidence([{"text": sample, "start": 0, "end": 1,
+            "words": [{"text": sample, "start": 0, "end": 1, "score": .2}]}], sample, L.code)
+        task = surface[4:]
+        return asrexternal.assembled(request, task, asrexternal.batches(request, task)[0])
     options = promptkit.given(options or {})
     if surface in ("studio-doc", "studio-exercises"):
         import server as studio

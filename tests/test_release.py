@@ -74,7 +74,8 @@ LEFT_OUT = ("tests/test_x.py", "tests/fixtures/a.txt", "docs/demo-books.gif",
             ".github/workflows/release.yml", ".gitattributes", ".gitignore", ".nojekyll",
             "index.html", "lib/icons/make.mjs", "youtube/docs/glossary-ci-stories.md",
             "lib/wavealign_lab.py", "youtube/.gitignore", "youtube/serve.py", "youtube/serve.sh",
-            "dist/parseh-old.zip")
+            "dist/parseh-old.zip", "tools/speech-package.py", "tools/speech-hub.py",
+            "tools/speech-qualify.py")
 # and what must come out, beside them: the folders Parseh writes into, and
 # neighbours of what was left out, which prove the rules are not too wide
 KEPT = ("clips/README.md", "exercises/README.md", "config/.gitkeep", "dict/.gitkeep",

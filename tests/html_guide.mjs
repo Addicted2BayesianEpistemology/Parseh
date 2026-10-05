@@ -162,7 +162,8 @@ const cloudFacts = page => page.evaluate(() => {
   };
   return {shown: cs.display !== 'none' && cs.visibility !== 'hidden', inPz: !!p.closest('.pz'),
           inLayer: !!p.closest('.g-cloud-layer'), lang: p.dataset.lang, bg: cs.backgroundColor,
-          ink: getComputedStyle(p.querySelector('.lbl')).color, radius: cs.borderTopLeftRadius,
+          ink: getComputedStyle(p.querySelector('.tr-val, .tr-add')).color,
+          radius: cs.borderTopLeftRadius,
           x: r.left + r.width / 2, top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width,
           fields: [...p.querySelectorAll('.tr-edit')].map(field), text: p.innerText.replace(/\s+/g, ' ').trim(),
           here: !!p.querySelector('.fapal-here'), sideways: document.documentElement.scrollWidth > innerWidth};
@@ -420,7 +421,6 @@ try {
                                    .filter(([k, v]) => v && typeof v === 'object' && v.translit_label));
     const CODES = Object.keys(REG);
     const MIXED = FILE + '/site/dialect/colours-and-pronunciation.html';
-    const INK = {light: 'rgb(99, 83, 88)', sepia: 'rgb(122, 112, 87)', dark: 'rgb(172, 155, 161)'};
     const setTheme = async t => { await page.evaluate(t => { localStorage.setItem('parseh_theme', t); Guide.theme.apply(); }, t); };
     await page.goto(MIXED);
     await page.evaluate(() => document.fonts.ready);
@@ -451,18 +451,11 @@ try {
     assert(standsOn(got, 1280), 'with the sidebar shut the cloud goes with the word: ' + JSON.stringify([got.cloud.x, got.word.x]));
     await leaveCloud(page);
     await page.click('[data-guide-side]');
-    // a colour chosen there colours the word on this open page, and the page keeps nothing
+    // The guide shares the linguistic cloud, never the editor colour tool.
     got = await openCloud(page, tond);
-    await page.locator('.fapal button[data-color="teal"]').click();
-    assert(await tond.evaluate(w => w.parentElement.classList.contains('fac-teal') && w.parentElement.dataset.translit === 'tond'),
-           'a colour chosen in it colours the word on the page and leaves its transliteration');
-    await leaveCloud(page);
-    await openCloud(page, tond);
-    await page.locator('.fapal .none').click();
-    assert(await tond.evaluate(w => w.parentElement.classList.contains('fac') && w.parentElement.dataset.translit === 'tond' && !w.parentElement.dataset.color),
-           'and taking the colour away keeps the transliteration, which is what the cloud shows next');
-    got = await openCloud(page, tond);
-    assert(got.cloud.fields[0].value === 'tond', 'so the cloud still opens on it, showing it');
+    assert((await page.locator('.fapal button[data-color], .fapal input[type="color"], .fapal .none').count()) === 0,
+           'the cloud constructs no colour swatch, custom picker or remove-colour control');
+    assert(got.cloud.fields[0].value === 'tond', 'the cloud still shows the transliteration');
     assert((await page.locator('.xp-unsaved').count()) === 0, 'nothing about saving was put over the page by any of it');
     await leaveCloud(page);
 
@@ -503,8 +496,8 @@ try {
       await setTheme(theme);
       const g = await openCloud(page, tond);
       const now = await page.evaluate(() => document.documentElement.dataset.theme);
-      assert(now === theme && g.cloud.bg === PAPER[theme] && g.cloud.ink === INK[theme],
-             `in ${theme} the cloud is ${g.cloud.bg}, its label ${g.cloud.ink}`);
+      assert(now === theme && g.cloud.bg === PAPER[theme],
+             `in ${theme} the linguistic cloud uses the sheet background ${g.cloud.bg}`);
       if (SHOTS) await page.screenshot({path: `${SHOTS}/guide-cloud-persian-${theme}-1280.png`});
       await leaveCloud(page);
     }
@@ -650,9 +643,8 @@ try {
       const g = await openCloud(pp, pp.locator('.fa[data-fa="تند"]').first(), true);
       assert(g.cloud.bg === PAPER[theme], `on a phone in ${theme} the cloud is ${g.cloud.bg}`);
       if (SHOTS) await pp.screenshot({path: `${SHOTS}/guide-cloud-persian-${theme}-390.png`});
-      await pp.locator('.fapal button[data-color="indigo"]').tap();
-      assert(await pp.locator('.fa[data-fa="تند"]').first().evaluate(w => w.parentElement.classList.contains('fac-indigo')),
-             `and a tap on a colour colours the word on the phone, in ${theme} too`);
+      assert((await pp.locator('.fapal button[data-color], .fapal input[type="color"], .fapal .none').count()) === 0,
+             `and the ${theme} phone cloud has no colour controls`);
       await leaveCloud(pp, true);
     }
   }

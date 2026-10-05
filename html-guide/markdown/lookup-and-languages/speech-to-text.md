@@ -1,7 +1,7 @@
 ---
 title: Speech to text
 weight: 12
-description: Settings → Speech to text (/settings/speech/) — an optional program and two Whisper models that make a transcript on this computer while you add a video; the processor (the CPU always, an NVIDIA graphics card when Parseh can prove it works), what each part costs, who may get and remove them, where the files are, and whose work they are.
+description: Install standard and language-specific Whisper models, choose a preferred model per language, and optionally add second-pass checks and exact word times.
 ---
 
 A video you add needs a transcript, and the transcript is usually what
@@ -41,9 +41,9 @@ anywhere on it.
 It is safe to leave open because **nothing a device sends becomes anything
 that is fetched.** The only bytes that can ever arrive are the ones this
 version of Parseh names: the packages of one hash-pinned list, each checked
-against a SHA-256 Parseh ships with, and the files of two models at one
-fixed version of their repository, each checked against its own. A model is
-one of two names and a way of running it one of three. Whoever presses the
+against a SHA-256 Parseh ships with, and complete model packages at fixed
+revisions, each checked against their own. A model comes from the shared
+catalogue and a way of running it is one of three. Whoever presses the
 button gets the same files. Removing a part is refused while an install or
 a transcription is using it — and a transcription of a YouTube video is using
 it from the moment it starts, for as long as the video plays, and not only
@@ -51,17 +51,22 @@ once all its sound has arrived.
 
 ## What is on the page
 
-The page has four parts, one under the other.
+The page has these sections, one under the other.
 
-**What it is** says in five lines what is written here: it is optional, it
-happens on this computer and nothing is sent to a speech-recognition
-service, it works with no graphics card, the models are large, and it is
-offered only while adding a video ([how the page uses it](../videos/adding-a-video.md#speech-to-text)).
+**Automatically run a second Whisper pass** is a checkbox. It starts checked
+and rechecks the first pass's suspect words after dictionary checks, adding
+possible alternatives without replacing the transcript or its timestamps.
+Turn it off to review sooner. The same tool remains available later in
+**Transcribe & review**, for a selected section or an individual word.
 
-**Processor** says what the transcript will be made on — [below](#the-processor).
+**Whisper models** has a **Language** filter and **Installed only** checkbox.
+Standard models stay available for all Whisper languages. The language-specific
+section lists additional choices for the language you pick. Choose an installed
+**Preferred model** to remember it for new videos in that language; Add a video
+also lets you choose another and remembers the choice on this host.
 
-**The program and the models** are three rows, made the way every row of
-the reading help is made: a state with a sign and a word, what it holds or
+Each model uses the same installation controls as
+the reading help: a state with a sign and a word, what it holds or
 would cost, a bar with the time left while it comes, **Stop**, and whose
 work it is, with its licence, on the last line.
 
@@ -71,11 +76,32 @@ work it is, with its licence, on the last line.
 | **faster-whisper / large-v3-turbo** — *Recommended · faster and lighter* | the model to start with | 1.6 GB; `stt/models/large-v3-turbo/` |
 | **faster-whisper / large-v3** — *Higher accuracy · larger and slower* | the model for what the turbo one gets wrong | 3.1 GB; `stt/models/large-v3/` |
 
-Those are the only two models. There is no smaller one, no other program and
-no service: the processor is a separate choice from the model, and the two
-are never confused.
+Language-specific choices include Persian **Fast** and **Accuracy, slower**,
+Arabic dialectal, Italian, Japanese, French, German, Turkish, English, Hindi
+**Fast** and **Accuracy candidate**, Spanish and Mandarin Chinese. These labels
+describe intended trade-offs; they do not guarantee fewer errors. Open **Model
+details and limitations** for source/package versions and domain or resource
+limits. A checkpoint awaiting a complete verified package stays visible as
+**Not available**, with a reason. An installable package is not automatically
+a promise of accurate transcription or timing on your recordings.
 
-**Getting a model gets everything it needs.** Pressing **Get it** on a model
+Choose **Get it** to download a model. Persian fast, Persian accuracy/slower,
+Arabic dialectal, Italian, Hindi fast and Spanish are hosted separately in the
+Parseh organisation on Hugging Face. Other choices use their pinned upstream
+packages. Parseh checks every file before installation; **Stop** cancels the
+download and **Carry on** resumes it. Models are optional downloads and are
+not included in the Parseh release. Once installed, every model works offline.
+
+These prepared packages already contain CTranslate2 weights and matching
+tokenizer, audio-preprocessing and licence assets. Italian and Hindi adapters
+have already been merged. You do not need PyTorch, PEFT, conversion commands or
+a model-hosting application to install a Whisper model in Parseh.
+
+**Whisper program** is installed with the first Whisper model.
+**Processor** says what the transcript will be made on — [below](#the-processor).
+Hardware remains a separate choice from model and language.
+
+**Getting a Whisper model gets its speech program.** Pressing **Get it** on a model
 when the program is not there installs the program first and then the model,
 under one bar, and the row says so before it starts (*this includes the
 speech program, which comes first*). Nothing is fetched by pressing anything
@@ -87,6 +113,16 @@ All eleven of Parseh's are ticked: Persian, Arabic, Italian, Japanese,
 French, German, Turkish, English, Hindi, Spanish and Chinese. A language you
 added yourself is ticked if Whisper has a code for it, and marked *not
 offered* if it does not.
+
+Under each offered language is an **Exact word times** row. Its separate,
+optional CTC network is about 340–361 MiB installed, and its row says the
+size before **Get it**, download progress, **Stop** or **Remove**, its licence
+and its attribution. It is not needed to transcribe: Whisper works with no
+such network. When installed, it lets the add page make word boundaries from
+the recording while leaving Whisper's captions unchanged. All eleven offered
+languages have one; each download is pinned to an immutable public
+`parseh/aligner-<language>` revision and hash-checked before it is installed
+under `stt/aligners/<language>/`.
 
 ### A row's states
 
@@ -218,9 +254,12 @@ characters is refused with a sentence, unless Windows has long paths turned on.
 | Path | What it is |
 |---|---|
 | `stt/runtime/<generation>-cp312/` | the program, made by pip from `lib/stt-requirements.txt`. The folder's **name is the record**: the number of this version's pinned list, and the Python it was made for — which is how *installed by an older Parseh* and *for another Python* are told without any file of records. |
-| `stt/models/<model>/` | a model's five files and a `meta.json` saying where it is from and when it was made. |
+| `stt/models/<model>/` | a model's weights, offline tokenizer/preprocessing assets and licence files, plus `meta.json` recording source and package revisions. |
 | `stt/models/<model>.part/` | a model that was stopped, kept for the next press. |
-| `stt/tmp/` | the sound of a video while it is being transcribed. **Deleted** when the job ends, and swept again whenever Parseh starts, in case it was stopped in between. |
+| `stt/packages/<model>/<revision>/` | temporary verified ZIP assets, kept for retry until installation succeeds. The installed model and your original ZIP remain afterwards. |
+| `stt/tmp/` | temporary transcription work. Captured audio needed for a pending review is moved privately before this folder is cleaned. |
+| `youtube/videos/.pending-transcriptions/` | private saved review drafts and their captured audio, deleted when you use or discard the transcript. Local films are read in place. |
+| `config/speech.json` | per-language model choices and the optional automatic second-pass setting. |
 
 None of it is in Parseh's own environment: the program is never on the
 server's own path (it brings its own numpy), and everything that uses it —
@@ -249,10 +288,19 @@ Each row says whose work it is and its licence, linked, and
   in the Linux one), are under the licence each comes with. Parseh, which is
   GPL-3.0-or-later, ships none of it: your own press of **Get it** fetches it
   from PyPI.
-- The models: OpenAI's Whisper large-v3 and large-v3-turbo, converted to
+- Standard models: OpenAI's Whisper large-v3 and large-v3-turbo, converted to
   CTranslate2's format (by Systran, and by Mobius Labs for the turbo one; the
   repository is now `dropbox-dash/faster-whisper-large-v3-turbo`), under the
   MIT licence, fetched from Hugging Face at a fixed version.
+- Language-specific models retain their source authors, checkpoints and
+  licences in the catalogue, installation rows and complete packages. The
+  converted package's identity is recorded separately from its source checkpoint.
+- Exact-word-time networks: Parseh's `aligner-zh`, `aligner-ja`, `aligner-hi`,
+  `aligner-ar`, `aligner-fa`, `aligner-tr`, `aligner-es`, `aligner-de`,
+  `aligner-fr`, `aligner-it` and `aligner-en` repositories on Hugging Face,
+  fetched at the pinned revision. They run through onnxruntime; their notices
+  and licences travel with each installed row (Apache-2.0, except Hindi MIT
+  and Turkish CC-BY-4.0).
 
 The hosts it talks to, and only when you press a button, are `pypi.org` and
 `files.pythonhosted.org` for the program, and `huggingface.co` (which answers

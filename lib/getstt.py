@@ -34,16 +34,16 @@ older Parseh", "by a newer one" and "for another Python" are worked out from
 the disk and there is no store, no format row and nothing for a step back to
 a0.4.0 to mind.  A model's folder carries a meta.json in the manner of mt/'s.
 
-THE MODELS are the two conversions of OpenAI's Whisper large-v3 and
-large-v3-turbo that faster-whisper itself names, each at a pinned COMMIT of its
-repository with the size and SHA-256 of all five files it needs.  They go
+THE MODELS are standard and language-specific Whisper conversions from the
+shared lib/speechmodels.json catalogue, each at a pinned source and package
+revision with the size and SHA-256 of every required offline asset. They go
 through lib/download.py like every other optional download -- resumed, stopped
 between two blocks, checked before they are put in place -- into
 `stt/models/<id>/`, and are loaded later from that path with the network
 switched off.  All five files matter: without tokenizer.json faster-whisper
 reaches for the network.
 
-WHAT MAY BE FETCHED IS FIXED HERE.  A model is one of two names, a processing
+WHAT MAY BE FETCHED IS FIXED IN THE CATALOGUE. A model is a listed ID, a processing
 mode one of three, and the only bytes that can arrive are the hash-checked
 wheels and the pinned files -- so whoever presses the button, nothing a client
 sends becomes a path, a repository, a device or a package.
@@ -60,6 +60,7 @@ about it is made from that.
 import argparse
 import contextlib
 import functools
+import hashlib
 import io
 import json
 import os
@@ -79,6 +80,8 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import download       # noqa: E402  resumable, stoppable, and says how far
 import version        # noqa: E402  who is asking: UA
+from alignerpins import ALIGN_PINS  # noqa: E402  public, immutable CTC networks
+import speechmodels  # noqa: E402  the shared immutable model catalogue
 
 STT_DIR = os.path.join(ROOT, "stt")
 REQUIREMENTS = os.path.join(HERE, "stt-requirements.txt")
@@ -140,10 +143,12 @@ COMPUTE = {"cpu": "int8", "cuda": ("int8_float16", "float16")}
 SCAN_FOR_CUBLAS = True
 
 MODES = ("auto", "cpu", "cuda")
-MODELS = ("large-v3-turbo", "large-v3")     # the ONLY two identifiers
-ALLOWED_MODELS = frozenset(MODELS)
-DEFAULT_MODEL = "large-v3-turbo"
-PARTS = ("runtime",) + MODELS               # what a job may name
+MODELS = speechmodels.MODELS
+ALLOWED_MODELS = speechmodels.ALLOWED_MODELS
+DEFAULT_MODEL = speechmodels.DEFAULT_MODEL
+ALIGNERS = tuple(sorted(ALIGN_PINS))
+ALIGN_PARTS = tuple("align-" + code for code in ALIGNERS)
+PARTS = ("runtime",) + MODELS + ALIGN_PARTS
 SETTINGS_PAGE = "/settings/speech/"
 GUIDE = "/guide/site/lookup-and-languages/speech-to-text.html"
 
@@ -153,49 +158,9 @@ GUIDE = "/guide/site/lookup-and-languages/speech-to-text.html"
 # The turbo conversion is `dropbox-dash/…` now; faster-whisper 1.2.1 still
 # names the old `mobiuslabsgmbh/…`, which answers with a redirect to it.  The
 # two repositories' tokenizer.json and config.json differ: nothing is shared.
-MODEL_PINS = {
-    "large-v3-turbo": {
-        "repo": "dropbox-dash/faster-whisper-large-v3-turbo",
-        "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
-        "files": {
-            "config.json": ("b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e", 2263),
-            "model.bin": ("e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da", 1617884929),
-            "preprocessor_config.json": ("7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711", 340),
-            "tokenizer.json": ("297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd", 2710337),
-            "vocabulary.json": ("c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1", 1068114),
-        },
-    },
-    "large-v3": {
-        "repo": "Systran/faster-whisper-large-v3",
-        "revision": "edaa852ec7e145841d8ffdb056a99866b5f0a478",
-        "files": {
-            "config.json": ("a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9", 2394),
-            "model.bin": ("69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1", 3087284237),
-            "preprocessor_config.json": ("7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711", 340),
-            "tokenizer.json": ("6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca", 2480617),
-            "vocabulary.json": ("c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1", 1068114),
-        },
-    },
-}
+MODEL_PINS = speechmodels.MODEL_PINS
 MODEL_URL = "https://huggingface.co/%(repo)s/resolve/%(revision)s/%(file)s"
-
-# WHAT A PART SAYS ABOUT ITSELF on the page and to the add page: the label
-# the two models are always shown by, the trade-off, and what they need.
-MODEL_INFO = {
-    "large-v3-turbo": {
-        "label": "faster-whisper / large-v3-turbo",
-        "tag": "Recommended · faster and lighter",
-        "hint": "The one to start with: about half the download, and several times faster than "
-                "large-v3 on a CPU. It needs about 2.2 GB of memory there.",
-        "memory": "about 2.2 GB"},
-    "large-v3": {
-        "label": "faster-whisper / large-v3",
-        "tag": "Higher accuracy · larger and slower",
-        "hint": "The higher-accuracy option, for what the turbo model gets wrong: twice the "
-                "download, about five times slower on a CPU, and it needs about 6 GB of memory "
-                "there. A small graphics card may not hold it; Parseh then continues on the CPU.",
-        "memory": "about 6 GB"},
-}
+MODEL_INFO = speechmodels.MODEL_INFO
 
 # WHAT EACH COSTS, in bytes, MEASURED on 2026-09-28: the wheels pip takes on
 # each kind of computer (every file re-hashed against PyPI's digest), what
@@ -213,6 +178,11 @@ MEASURED = {
     "large-v3-turbo": sum(s for _h, s in MODEL_PINS["large-v3-turbo"]["files"].values()),
     "large-v3": sum(s for _h, s in MODEL_PINS["large-v3"]["files"].values()),
 }
+# The published model is overwhelmingly the download. Supporting metadata is
+# pinned and checked too, but intentionally not a second network probe.
+MEASURED.update({key: sum(size for _sha, size in pin["files"].values()) for key, pin in MODEL_PINS.items()})
+MEASURED.update({"align-" + code: sum(size or 0 for _sha, size in pin["files"].values())
+                 for code, pin in ALIGN_PINS.items()})
 # below these, pip finds no wheel: the newest pins raise the floor of the two Macs
 RUNTIME_FLOORS = {"macOS arm64": 14, "macOS x86_64": 13}
 # THE LONGEST PATH INSIDE THE PROGRAM'S FOLDER, in characters, from the pinned wheels' own
@@ -286,6 +256,30 @@ def _models_dir():
     return os.path.join(STT_DIR, "models")
 
 
+def _aligners_dir():
+    return os.path.join(STT_DIR, "aligners")
+
+
+def aligner_code(key):
+    """The language code named by an optional ``align-<code>`` part."""
+    if not isinstance(key, str) or not key.startswith("align-"):
+        raise ValueError("%r is not an exact-word-times part" % (key,))
+    code = key[len("align-"):]
+    if code not in ALIGN_PINS:
+        raise ValueError("%r is not an exact-word-times language" % (code,))
+    return code
+
+
+def aligner_dir(code):
+    if not isinstance(code, str) or code not in ALIGN_PINS:
+        raise ValueError("%r is not an exact-word-times language" % (code,))
+    return os.path.join(_aligners_dir(), code)
+
+
+def _aligner_part(code):
+    return aligner_dir(code) + ".part"
+
+
 def runtime_folder():
     """Where THIS Parseh's program lives once it is installed."""
     return os.path.join(_runtimes_dir(), "%d-%s" % (PIN["generation"], PYTAG))
@@ -316,7 +310,7 @@ def model_dir(key):
 def check_model(key):
     """`key` if it is a model, else a SpeechError a route answers with."""
     if not isinstance(key, str) or key not in ALLOWED_MODELS:
-        raise SpeechError("bad-model", "Choose one of the two speech models: %s."
+        raise SpeechError("bad-model", "Choose a listed speech model: %s."
                           % " or ".join(MODELS))
     return key
 
@@ -573,6 +567,9 @@ def model_info(key):
     """One model: state absent | ready | older | newer | broken, size, built,
     why -- from its folder and its meta.json, by presence and size (a
     3 GB file is hashed when it is fetched, never at every status)."""
+    if key not in MODEL_PINS:
+        return {'state':'unavailable', 'have':False, 'ready':False, 'size':0,
+                'built':'', 'revision':'', 'why':MODEL_INFO[key]['availability_reason']}
     pin = MODEL_PINS[key]
     path = model_dir(key)
     row = {"state": "absent", "have": False, "ready": False, "size": 0, "built": "",
@@ -621,6 +618,60 @@ def model_ready(key):
     if not isinstance(key, str) or key not in ALLOWED_MODELS:
         return False
     return model_info(key)["ready"]
+
+
+def aligner_info(code):
+    """One public CTC network, checked from its immutable sidecar record.
+
+    ``meta.json`` belongs to the network and tells the aligner how to decode;
+    Parseh's own source/revision record is therefore the hidden sidecar rather
+    than a replacement for that file.
+    """
+    if not isinstance(code, str) or code not in ALIGN_PINS:
+        raise ValueError("%r is not an exact-word-times language" % (code,))
+    pin, path = ALIGN_PINS[code], aligner_dir(code)
+    row = {"state": "absent", "have": False, "ready": False, "size": 0,
+           "built": "", "revision": "", "why": ""}
+    if not os.path.isdir(path):
+        return row
+    meta = {}
+    try:
+        with io.open(os.path.join(path, ".parseh.json"), encoding="utf-8") as f:
+            meta = json.load(f)
+    except (OSError, ValueError):
+        pass
+    if not isinstance(meta, dict):
+        meta = {}
+    sizes = {}
+    for name in pin["files"]:
+        try:
+            sizes[name] = os.path.getsize(os.path.join(path, name))
+        except OSError:
+            sizes[name] = None
+    row.update(have=True, size=sum(s for s in sizes.values() if s),
+               built=meta.get("built", ""), revision=meta.get("revision", ""))
+    if meta.get("revision") and meta["revision"] != pin["revision"]:
+        row.update(state="older", why="It was fetched at another version of the alignment network.")
+        return row
+    # A known byte size is checked on every status read. The remaining files
+    # were hash checked at download time and retain a sidecar revision record.
+    bad = [n for n, (_sha, want) in pin["files"].items()
+           if sizes[n] is None or (want is not None and sizes[n] != want)]
+    if bad or meta.get("revision") != pin["revision"]:
+        row.update(state="broken", why="The alignment network's folder is incomplete (%s). Get it again."
+                   % (bad[0] if bad else ".parseh.json"))
+        return row
+    row.update(state="ready", ready=True)
+    return row
+
+
+def aligner_ready(code):
+    return isinstance(code, str) and code in ALIGN_PINS and aligner_info(code)["ready"]
+
+
+def aligner_path(code):
+    """A ready local network directory for the isolated worker, else None."""
+    return aligner_dir(code) if aligner_ready(code) else None
 
 
 def installed():
@@ -757,6 +808,9 @@ def sweep():
     clear(STT_DIR, only=lambda n: n.startswith(("runtime.part-", ".trash")))
     clear(_runtimes_dir(), only=lambda n: n.startswith((".trash", ".old")))
     clear(_models_dir(), only=lambda n: n.startswith((".trash", ".old")))
+    clear(_aligners_dir(), only=lambda n: n.startswith((".trash", ".old")))
+    import speechpackages
+    speechpackages.sweep()
 
 
 def _rmtree(path):
@@ -1140,28 +1194,38 @@ def plan(key, *, probe=True):
     and what they unpack to) and what stays plus the model still to come."""
     if key not in PARTS:
         raise ValueError("%r is not a part of speech to text" % (key,))
+    if key in ALLOWED_MODELS and key not in MODEL_PINS:
+        return dict(download.plan(None), why=MODEL_INFO[key]['availability_reason'])
     rt_dl, rt_kept = _runtime_plan()
     need_rt = not runtime_ready()
     if key == "runtime":
         if rt_dl is None:
             return download.plan(None)
         return download.plan(rt_dl, measured=True, kept=rt_kept, have=0, peak=rt_dl + rt_kept)
-    model = MEASURED[key]
-    have = _part_bytes(_model_part(key))
+    size = MEASURED[key]
+    if key.startswith("align-"):
+        have = _part_bytes(_aligner_part(aligner_code(key)))
+    else:
+        have = _part_bytes(_model_part(key))
+    local_package = MODEL_PINS.get(key, {}).get('distribution') == 'local-package'
     if not need_rt:
-        return download.plan(model, measured=True, kept=model, have=have,
-                             peak=max(model - have, 0))
+        return download.plan(0 if local_package else size, measured=True, kept=size,
+                             have=0 if local_package else have,
+                             peak=max(size - have, 0))
     if rt_dl is None:
         return download.plan(None)
-    dl = rt_dl + model
-    peak = max(rt_dl + rt_kept, rt_kept + max(model - have, 0))
-    return download.plan(dl, measured=True, kept=model + rt_kept, have=have, peak=peak)
+    dl = rt_dl + (0 if local_package else size)
+    peak = max(rt_dl + rt_kept, rt_kept + max(size - have, 0))
+    return download.plan(dl, measured=True, kept=size + rt_kept,
+                         have=0 if local_package else have, peak=peak)
 
 
 def part_name(key):
     """What a part is called in a sentence."""
     if key == "runtime":
         return "the speech-to-text program"
+    if key.startswith("align-"):
+        return "the %s exact-word-times network" % aligner_code(key)
     return "the %s speech model" % key
 
 
@@ -1339,7 +1403,7 @@ def _fetch_all(files, say, progress, cancel, base=0, whole=None):
     already here, whole and matching its digest, is not fetched again --
     which is how a model stopped after its second file carries on at its
     third."""
-    whole = whole or sum(f[3] for f in files)
+    whole = whole or sum(f[3] or 0 for f in files)
     before = 0
     for url, dest, sha, size in files:
         say("    %s" % os.path.basename(dest))
@@ -1359,7 +1423,7 @@ def _fetch_all(files, say, progress, cancel, base=0, whole=None):
             except OSError as e:
                 raise SystemExit("getstt: could not download (%s). What came is kept: the next "
                                  "try carries on from there." % e)
-        before += size
+        before += size or 0
 
 
 def _tidy(part, names):
@@ -1384,8 +1448,38 @@ def _install_model(key, say, progress, cancel, base=0, whole=None):
     os.makedirs(part, exist_ok=True)
     _tidy(part, list(pin["files"]))
     say("  %s, from %s at a fixed version" % (MODEL_INFO[key]["label"], pin["repo"]))
-    files = [(MODEL_URL % {"repo": pin["repo"], "revision": pin["revision"], "file": name},
-              os.path.join(part, name), sha, size) for name, (sha, size) in pin["files"].items()]
+    files = []
+    local = None
+    if pin.get('distribution') == 'local-package':
+        import speechpackages
+        local = speechpackages.folder(key)
+        if local is None:
+            raise SystemExit('getstt: import the prepared model package in Speech to text settings first.')
+    copied = 0
+    for name, (sha, size) in pin['files'].items():
+        bundled = speechmodels.bundled_file(key, name)
+        if local is not None:
+            try:
+                speechpackages.copy_verified(local / name, os.path.join(part, name), sha, size,
+                    cancel=cancel, progress=(lambda done, offset=copied:
+                        progress(base + offset + done, whole or MEASURED[key], 'copy')) if progress else None)
+            except speechpackages.PackageError as e:
+                raise SystemExit('getstt: ' + str(e)) from None
+            copied += size
+        elif bundled:
+            download.check(cancel)
+            with open(bundled, 'rb') as asset:
+                raw = asset.read(size + 1) if size < (1 << 20) else None
+            if raw is None or len(raw) != size or hashlib.sha256(raw).hexdigest() != sha:
+                raise SystemExit('getstt: a bundled model asset failed its checksum.')
+            with open(os.path.join(part, name), 'wb') as f:
+                f.write(raw)
+        else:
+            # Existing pins may be patched by fake-server tests; preserve that
+            # URL contract while catalogue assets may come from matching sources.
+            url = (speechmodels.file_url(key, name) if key not in ('large-v3-turbo', 'large-v3') else
+                   MODEL_URL % {'repo':pin['repo'], 'revision':pin['revision'], 'file':name})
+            files.append((url, os.path.join(part, name), sha, size))
     _fetch_all(files, say, progress, cancel, base=base, whole=whole)
     # every one of the five, in place, before it is called installed: with
     # tokenizer.json missing faster-whisper would reach for the network
@@ -1393,18 +1487,76 @@ def _install_model(key, say, progress, cancel, base=0, whole=None):
         p = os.path.join(part, name)
         if not os.path.isfile(p) or os.path.getsize(p) != size:
             raise SystemExit("getstt: %s did not arrive whole. Try again." % name)
+    if key not in speechmodels.STANDARD_MODELS:
+        try:
+            speechmodels.validate_assets(key, part)
+        except speechmodels.CatalogueError as e:
+            raise SystemExit('getstt: ' + str(e)) from None
+    download.check(cancel)
     meta = {"model": key, "repo": pin["repo"], "revision": pin["revision"],
             "files": {n: s for n, (_h, s) in pin["files"].items()},
-            "source": MODEL_SOURCE, "licence": MODEL_LICENCE, "pin": PIN["generation"],
+            "source": MODEL_INFO[key].get('source', MODEL_SOURCE),
+            "source_revision": MODEL_INFO[key].get('revision', ''),
+            "licence": MODEL_INFO[key].get('licence', MODEL_LICENCE), "pin": PIN["generation"],
+            "provenance": speechmodels.provenance(key),
             "built": time.strftime("%Y-%m-%d")}
     with io.open(os.path.join(part, "meta.json"), "w", encoding="utf-8") as f:
         f.write(json.dumps(meta, indent=1))
     # beside the old one and moved over it, closed first: Windows will not
     # move a folder holding an open file
+    _publish_model(part, final)
+    if local is not None:
+        # The uploaded ZIP and resumable import assets are temporary. Preserve
+        # the user's original ZIP and maintainer outputs, but free imported
+        # copies once the verified installed model is complete.
+        try:
+            speechpackages.remove(key)
+        except OSError:
+            say('  the model is installed; some temporary import files could not be removed')
+    say("  %s: %s" % (key, _mb(model_info(key)["size"])))
+
+
+def _publish_model(part, final):
+    """An old complete model survives a failed final rename, including Windows."""
+    backup = os.path.join(os.path.dirname(final), '.old-%d-%s' % (os.getpid(), os.path.basename(final)))
+    replaced = os.path.isdir(final)
+    if replaced:
+        _rmtree(backup)
+        os.replace(final, backup)
+    try:
+        os.replace(part, final)
+    except OSError:
+        if replaced:
+            os.replace(backup, final)
+        raise
+    if replaced:
+        _rmtree(backup)
+
+
+def _install_aligner(code, say, progress, cancel, base=0, whole=None):
+    """Fetch an immutable CTC network without replacing its decoding meta."""
+    pin, part, final = ALIGN_PINS[code], _aligner_part(code), aligner_dir(code)
+    os.makedirs(_aligners_dir(), exist_ok=True)
+    os.makedirs(part, exist_ok=True)
+    _tidy(part, list(pin["files"]) + [".parseh.json"])
+    say("  exact word times for %s, from %s at a fixed version" % (code, pin["repo"]))
+    files = [(MODEL_URL % {"repo": pin["repo"], "revision": pin["revision"], "file": name},
+              os.path.join(part, name), sha, size)
+             for name, (sha, size) in pin["files"].items()]
+    _fetch_all(files, say, progress, cancel, base=base, whole=whole)
+    for name, (_sha, size) in pin["files"].items():
+        path = os.path.join(part, name)
+        if not os.path.isfile(path) or (size is not None and os.path.getsize(path) != size):
+            raise SystemExit("getstt: %s did not arrive whole. Try again." % name)
+    record = {"language": code, "repo": pin["repo"], "revision": pin["revision"],
+              "files": {n: s for n, (_h, s) in pin["files"].items()},
+              "licence": pin["licence"], "built": time.strftime("%Y-%m-%d")}
+    with io.open(os.path.join(part, ".parseh.json"), "w", encoding="utf-8") as f:
+        json.dump(record, f, indent=1)
     if os.path.isdir(final):
         _take_away(final)
     os.replace(part, final)
-    say("  %s: %s" % (key, _mb(model_info(key)["size"])))
+    say("  exact word times for %s: %s" % (code, _mb(aligner_info(code)["size"])))
 
 
 @contextlib.contextmanager
@@ -1430,6 +1582,12 @@ def build(key, say=print, progress=None, cancel=None):
     download.Cancelled.  Returns the bytes it now takes."""
     if key not in PARTS:
         raise ValueError("%r is not a part of speech to text" % (key,))
+    if key in ALLOWED_MODELS and key not in MODEL_PINS:
+        raise SystemExit('getstt: ' + MODEL_INFO[key]['availability_reason'])
+    if key in ALLOWED_MODELS and MODEL_PINS[key].get('distribution') == 'local-package' and not model_ready(key):
+        import speechpackages
+        if not speechpackages.available(key):
+            raise SystemExit('getstt: import the prepared model package in Speech to text settings first.')
     reason = unavailable_reason()
     if reason:
         raise SystemExit("getstt: %s" % reason)
@@ -1442,7 +1600,21 @@ def build(key, say=print, progress=None, cancel=None):
                     return runtime()["size"]
                 _install_runtime(say, progress, cancel)
             return runtime()["size"]
-        if model_ready(key):
+        if key.startswith("align-"):
+            code = aligner_code(key)
+            if aligner_ready(code):
+                say("  exact word times for %s are already installed" % code)
+                return aligner_info(code)["size"]
+            total = MEASURED[key]
+            with _install_turn(say, cancel):
+                base = 0
+                if not runtime_ready():
+                    total += rt_dl
+                    _install_runtime(say, progress, cancel, base=0, whole=total)
+                    base = rt_dl
+            _install_aligner(code, say, progress, cancel, base=base, whole=total)
+            return aligner_info(code)["size"]
+        if model_ready(key) and runtime_ready():
             # as the program's guard above: a press on a page that is out of date is not
             # gigabytes fetched again to replace the same bytes (an older, newer or broken
             # model is not `ready`, and is still got again)
@@ -1456,6 +1628,9 @@ def build(key, say=print, progress=None, cancel=None):
                 total += rt_dl
                 _install_runtime(say, progress, cancel, base=0, whole=total)
                 base = rt_dl
+        if model_ready(key):
+            say('  the %s model is already installed; its speech program is ready' % key)
+            return model_info(key)['size']
         _install_model(key, say, progress, cancel, base=base, whole=total)
         return model_info(key)["size"]
 
@@ -1463,11 +1638,13 @@ def build(key, say=print, progress=None, cancel=None):
 def discard(key):
     """Throw away what a stopped download left (a model's .part folder).
     The installed part, if any, is untouched.  Returns the bytes freed."""
+    if not isinstance(key, str) or key not in PARTS:
+        raise ValueError("%r is not a part of speech to text" % (key,))
     if key == "runtime":
         freed = _tree_size(_stage_folder()) if os.path.isdir(_stage_folder()) else 0
         _rmtree(_stage_folder())
         return freed
-    part = _model_part(check_model(key))
+    part = _aligner_part(aligner_code(key)) if key.startswith("align-") else _model_part(check_model(key))
     freed = _part_bytes(part)
     _rmtree(part)
     return freed
@@ -1486,9 +1663,15 @@ def remove(key):
         freed = _take_away(_runtimes_dir())
         _rmtree(_stage_folder())
         forget_hardware()
+    elif key.startswith("align-"):
+        code = aligner_code(key)
+        freed = _take_away(aligner_dir(code))
+        _rmtree(_aligner_part(code))
     else:
         freed = _take_away(model_dir(key))
         _rmtree(_model_part(key))
+        import speechpackages
+        freed += speechpackages.remove(key)
     return freed
 
 
@@ -1508,7 +1691,8 @@ def worker_env():
     env = {"PYTHONPATH": where, "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1",
            "PYTHONSAFEPATH": "1", "PYTHONIOENCODING": "utf-8", "HF_HUB_OFFLINE": "1",
            "TRANSFORMERS_OFFLINE": "1", "HF_HOME": os.path.join(tmp_dir(), "hf"),
-           "HF_HUB_DISABLE_TELEMETRY": "1", "TOKENIZERS_PARALLELISM": "false"}
+           "HF_HUB_DISABLE_TELEMETRY": "1", "ORT_DISABLE_TELEMETRY": "1",
+           "TOKENIZERS_PARALLELISM": "false"}
     with _HW_LOCK:
         found = (_HW["data"] or {}).get("cublas_dir")
     if found:
@@ -1541,10 +1725,31 @@ def _models_status():
     for key in MODELS:
         m = model_info(key)
         info = MODEL_INFO[key]
-        out[key] = dict(m, id=key, label=info["label"], tag=info["tag"], hint=info["hint"],
-                        memory=info["memory"], repo=MODEL_PINS[key]["repo"],
-                        pinned=MODEL_PINS[key]["revision"], download=MEASURED[key],
+        pin = MODEL_PINS.get(key, {})
+        out[key] = dict(info, **m)
+        out[key].update(id=key, label=info["label"], tag=info["tag"], hint=info["hint"],
+                        memory=info["memory"], repo=pin.get('repo', info.get('source', '')),
+                        pinned=pin.get('revision', ''), download=MEASURED.get(key),
                         ready=bool(m["ready"] and rt["ready"]), files_ready=m["ready"])
+        if pin.get('distribution') == 'local-package':
+            import speechpackages
+            out[key].update(package=speechpackages.describe(key),
+                            package_imported=speechpackages.available(key))
+    return out
+
+
+def _aligners_status():
+    rt, out = runtime(), {}
+    import languages
+    for code in ALIGNERS:
+        a, pin = aligner_info(code), ALIGN_PINS[code]
+        L = languages.LANGS.get(code)
+        out[code] = dict(a, id="align-" + code, language=code,
+                         name=L.name if L else code, native=L.native if L else code,
+                         repo=pin["repo"], pinned=pin["revision"], licence=pin["licence"],
+                         download=MEASURED["align-" + code],
+                         ready=bool(a["ready"] and rt["ready"]), files_ready=a["ready"],
+                         hint="Optional — Whisper works without it; this makes word times exact.")
     return out
 
 
@@ -1556,6 +1761,7 @@ def status():
     hw = cached_hardware()
     rt = runtime()
     needs = gpu_needs_text()
+    import speechconfig
     return {
         "dir": "stt/",
         "pin": {"generation": PIN["generation"], "python": PIN["python"],
@@ -1563,6 +1769,8 @@ def status():
                 "gpu": dict(GPU_NEEDS), "help": GUIDE + "#how-to-enable-gpu-acceleration"},
         "runtime": dict(rt, download=_runtime_plan()[0]),
         "models": _models_status(),
+        "preferences": speechconfig.load(),
+        "aligners": _aligners_status(),
         "hardware": hw,
         "requirements": [{"what": w, "link": l} for w, l in needs],
         "requirements_note": gpu_note(),
@@ -1582,15 +1790,24 @@ def summary(where=None):
     it is not used -- it is the interface's argument, and stays."""
     rt = runtime()
     models = _models_status()
+    aligners = _aligners_status()
     hw = hardware()
     ready = [k for k in MODELS if models[k]["ready"]]
+    import speechconfig
     return {"ok": True,
             "installed": bool(rt["ready"] and ready),
             "runtime": {"state": rt["state"], "version": rt["version"], "why": rt["why"]},
-            "models": [{"id": k, "label": models[k]["label"], "tag": models[k]["tag"],
-                        "hint": models[k]["hint"], "have": models[k]["have"],
-                        "ready": models[k]["ready"], "size": models[k]["size"],
-                        "download": models[k]["download"]} for k in MODELS],
+            "models": [{name: models[k].get(name) for name in
+                        ('id','label','tag','hint','have','ready','size','download','languages',
+                         'language','option','available','availability_reason','compatibility',
+                         'source','revision','package_revision','licence','fully_compatible',
+                         'distribution','package','package_imported')} for k in MODELS],
+            "preferences": speechconfig.load(),
+            "aligners": [{"id": "align-" + k, "language": k, "name": aligners[k]["name"],
+                          "native": aligners[k]["native"], "have": aligners[k]["have"],
+                          "ready": aligners[k]["ready"], "files_ready": aligners[k]["files_ready"],
+                          "size": aligners[k]["size"], "download": aligners[k]["download"],
+                          "hint": aligners[k]["hint"]} for k in ALIGNERS],
             "default_model": next((k for k in MODELS if models[k]["ready"]), None),
             "processing": processing(hw),
             "languages": speech_languages(),

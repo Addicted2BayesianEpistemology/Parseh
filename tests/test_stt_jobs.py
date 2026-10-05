@@ -137,7 +137,12 @@ class Base(unittest.TestCase):
         self.fail("the job is still %r, wanted %r" % (s and s["state"], states))
 
     def done(self, token, timeout=40):
-        return self.wait(token, ("done", "failed", "cancelled"), timeout)
+        status = self.wait(token, ("awaiting-review-choice", "done", "failed", "cancelled"), timeout)
+        if status["state"] == "awaiting-review-choice":
+            evidence = sttjobs.result(token)["review"]["evidence"]
+            sttjobs.review(token, "whisper", evidence["source_sha256"])
+            return sttjobs.status(token)
+        return status
 
     def until(self, test, what, timeout=20):
         end = time.time() + timeout
@@ -275,11 +280,12 @@ class Start(Base):
                 self.assertEqual((status, body["code"]), (400, "bad-duration"))
         self.assertEqual(sttjobs.JOBS, {})
 
-    def test_the_two_models_and_the_three_modes_are_all_there_is(self):
-        self.assertEqual(sttjobs.MODELS, ("large-v3-turbo", "large-v3"))
+    def test_the_standard_models_keep_the_three_processing_modes(self):
+        self.assertEqual(sttjobs.MODELS, sttjobs.speechmodels.MODELS)
+        self.assertEqual(sttjobs.MODELS[:2], ('large-v3-turbo', 'large-v3'))
         self.assertEqual(sttjobs.MODES, ("auto", "cpu", "cuda"))
         stt_fakes.configure(self.root, cuda_ready=True)
-        for model in sttjobs.MODELS:
+        for model in sttjobs.speechmodels.STANDARD_MODELS:
             for mode in sttjobs.MODES:
                 with self.subTest(model=model, mode=mode):
                     job = self.start_film(model=model, processing=mode)["job"]
@@ -288,10 +294,47 @@ class Start(Base):
         paths = sorted(set(r["path"] for r in self.records("construct")))
         self.assertEqual([os.path.basename(p) for p in paths], ["large-v3", "large-v3-turbo"])
 
+    def test_language_specific_model_records_exact_provenance_and_decodes_both_passes(self):
+        import speechconfig
+        speechconfig.save({'second_pass': True})
+        stt_fakes.configure(self.root, models=['fa-fast'], fake={
+            'segments': [[0, 3, ' سلام جهان']],
+            'word_evidence': {'جهان': {'score': .2, 'alternatives': [{'text':'دنیا', 'score':None}]}}})
+        job = self.start_film(model='fa-fast')['job']
+        status = self.done(job)
+        self.assertEqual(status['model_revision'], sttjobs.speechmodels.provenance('fa-fast'))
+        result = sttjobs.result(job)
+        self.assertEqual(result['model_revision'], status['model_revision'])
+        self.assertEqual(result['review']['evidence']['second_pass']['total'], 1)
+        calls = self.records('transcribe')
+        self.assertEqual([(call['language'], call['task'], call['beam_size']) for call in calls],
+                         [('fa', 'transcribe', 5), ('fa', 'transcribe', 10)])
+        self.assertFalse(calls[-1]['options']['condition_on_previous_text'])
+        self.assertEqual(calls[-1]['options']['temperature'], 0)
+        source_word = result['review']['evidence']['segments'][0]['words'][1]
+        self.assertEqual((source_word['text'], source_word['start'], source_word['end'], source_word['asr_confidence']),
+                         ('جهان', 1.5, 3, .2))
+        self.assertIn('دنیا', [item['text'] for item in source_word['asr_alternatives']])
+
+    def test_language_specific_model_cannot_be_used_for_another_language(self):
+        stt_fakes.configure(self.root, models=['fa-fast'])
+        status, body = self.refused(self.start_film, model='fa-fast', lang='ja')
+        self.assertEqual(status, 400)
+        self.assertFalse(self.records('construct'))
+
+    def test_changed_catalogue_revision_invalidates_saved_model_before_loading(self):
+        job = self.start_film()['job']
+        self.done(job)
+        state = sttjobs.JOBS[job]
+        state['model_revision'] = dict(state['model_revision'], package_revision='0' * 40)
+        with self.assertRaises(sttjobs.Refusal) as caught:
+            sttjobs._spec(self.gs, state, recheck=True)
+        self.assertEqual(caught.exception.code, 'model-changed')
+
     def test_extra_fields_a_client_might_send_are_not_part_of_the_signature(self):
         import inspect
         params = list(inspect.signature(sttjobs.start).parameters)
-        self.assertEqual(params, ["source", "lang", "model", "processing", "duration"])
+        self.assertEqual(params, ["source", "lang", "model", "processing", "duration", "exact"])
         with self.assertRaises(TypeError):
             sttjobs.start({"kind": "film", "path": self.film()}, "fa", TURBO, "cpu",
                           device="cuda")
@@ -665,14 +708,13 @@ class Films(Base):
         # (that it is the SAME text, read again, is tests/test_stt_route.py's: it holds the first
         # answer, a known Persian string, beside the second)
 
-    def test_a_finished_job_is_forgotten_after_a_while(self):
+    def test_a_finished_pending_review_can_be_restored_after_memory_retention(self):
         got = self.start_film()
         self.done(got["job"])
         with mock.patch.object(sttjobs, "KEEP", 0.0):
             time.sleep(0.05)
-            status, body = self.refused(sttjobs.status, got["job"])
-        self.assertEqual((status, body["code"]), (404, "no-such-job"))
-        self.assertEqual(sttjobs.JOBS, {})
+            self.assertIn(sttjobs.status(got["job"])["state"], ("done", "awaiting-review-choice"))
+        self.assertIn("text", sttjobs.result(got["job"]))
 
     def test_the_answer_of_a_job_that_is_not_done_is_not_finished(self):
         self.fake(load_delay=0.8)
@@ -1000,6 +1042,8 @@ class Cancel(Base):
     def test_a_job_that_is_over_has_nothing_to_stop(self):
         got = self.start_film()
         self.done(got["job"])
+        review = sttjobs.result(got['job'])['review']['evidence']
+        sttjobs.use_review(got['job'], review['source_sha256'], {})
         self.assertEqual(sttjobs.cancel(got["job"]), {"cancelled": False})
         self.assertEqual(sttjobs.status(got["job"])["state"], "done")
         self.assertIn("text", sttjobs.result(got["job"]))

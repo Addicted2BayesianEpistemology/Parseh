@@ -53,7 +53,8 @@ import os, runpy, sys
 root, work = os.environ["PARSEH_TEST_ROOT"], os.environ["STT_ROUTE_WORK"]
 sys.path[:0] = [os.path.join(root, "lib"), os.path.join(root, "youtube", "lib"),
                 os.path.join(root, "tests")]
-import stt_fakes, prefs, network, offline, ytpages
+import stt_fakes, prefs, network, offline, ytpages, llmconfig
+llmconfig.ROOT = work
 sys.modules["getstt"] = stt_fakes.make(os.path.join(work, "fake"))
 ytpages.VIDEOS = os.path.join(work, "videos")
 prefs.STORE = os.path.join(work, "config", "prefs.json")
@@ -179,6 +180,11 @@ class Server:
         s = None
         while time.time() < end:
             code, s = self.status(job)
+            if code == 200 and s["state"] == "awaiting-review-choice" and "done" in states:
+                _, pending = self.post("result", {"job": job})
+                self.post("review", {"job": job, "mode": "whisper",
+                                    "source_sha256": pending["review"]["evidence"]["source_sha256"]})
+                continue
             if code == 200 and s["state"] in states:
                 return s
             time.sleep(0.05)
@@ -290,7 +296,9 @@ class Route(unittest.TestCase):
         self.assertEqual(rec["rest"], [])
         (heard,) = s.records("transcribe")
         self.assertEqual((heard["language"], heard["beam_size"], heard["vad_filter"], heard["task"],
-                          heard["rest"]), ("fa", 5, True, "transcribe", []))
+                          heard["rest"]), ("fa", 5, True, "transcribe", ['condition_on_previous_text', 'temperature', "word_timestamps"]))
+        self.assertEqual(heard['options']['temperature'], 0)
+        self.assertNotIn('prompt', heard['options'])
 
     def test_the_job_is_on_the_activity_list_without_its_token(self):
         s = self.s

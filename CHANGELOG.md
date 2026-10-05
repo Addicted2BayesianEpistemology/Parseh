@@ -1,4 +1,47 @@
-## [a0.4.2] - unreleased
+## [a0.4.3] - unreleased
+### Added
+- A standalone reasoning-workspace CSV checker, shipped with the helper and skill, for draft checks, exact source spans and required-entry coverage
+- Standard and language-specific Whisper models in one pinned catalogue, with independent resumable installs, per-language model choices and model provenance in transcription jobs
+- Optional Hugging Face downloads for Persian fast/accuracy, Arabic, Italian, Hindi fast and Spanish, including merged LoRA models, matching offline assets and original licence notices
+- Settings → About with version, author, launch-script locations and installation information using the host's native paths
+- Saved pending transcription reviews, with pause/resume from Videos across server and browser restarts
+- Checked-word locks, selected-section review, single-word LM likelihood and bulk selection of the latest method's best choices
+- Optional similar-sound and candidate search-probability filters for additional model-derived words; every genuine Whisper alternative remains eligible
+- LM likelihood review with installed-model selection, raw-token candidate search, numerical rankings and an isolated CPU/GPU scoring worker
+- External chatbot copy/paste review for suspect words, whole text and reasoning workspaces, with bounded prompts, validated answer import and downloadable text/CSV workspace files
+- Additional reasoning workspace review with numbered transcript blanks, CSV evidence, isolated Python tools, separate model selection and two-pass word progress; existing review modes and thresholds stay unchanged
+- Browser transcription workspace with video beside the transcript, word/caption replay, ±1/2/5-second playback controls, caption filters and a persistent word editor
+- Brief word playback with automatic pause, installed-dictionary suspect flags and original/replacement meanings in browser transcript review
+- Dictionary meanings for native Whisper alternatives alongside their recognition scores in the word inspector
+- Native faster-whisper beam alternatives mapped to source words, with sequence log scores kept separate from word probabilities
+- Browser Settings → LLM Integration: a reusable OpenAI-compatible endpoint, host-local credentials, model discovery and Unsloth run-settings link import
+- Review-first Whisper results with short sentence LLM replies, word-count progress, local failure recovery, retry of unresolved words, keyboard edits and inspectable responses
+- Remote installed-model profiles from Studio links, with explicit API loading of quantization, KV cache, context and vision options
+- Separate models, prompts and downloadable skills for suspect-word and whole-text review, including confident words and contiguous ASR spans
+- Individual pending draft decisions and explicit Use this transcript preserve the existing box and timing guards
+- Optional, local exact word times for every speech-to-text language, with hash-pinned int8 CTC networks and a remembered add-page switch
+- A Parseh-made transcript carries its word timing through the add-page editor and stores it with the matching video
+- Two transcript tidy cues: the existing text cues and recorded pauses
+- Mobile-mode keyboard arrows skip narration or video by the selected amount
+- Partial-word foreground colours in Studio, with selection-first editing, Unicode-safe boundaries, one-word linguistic clouds, PDF and standalone-HTML output
+
+### Changed
+- Transcript word editors can include adjacent words for a short-span correction; reasoning workspaces can join split words across suspect/confident neighbors
+- Transcription opens directly into a shared editing workspace; correction methods are reusable tools, with optional automatic and later per-word/section Whisper rechecks
+- All four transcript-correction methods are labeled experimental; LM likelihood offers no-cutoff, suggested 0.1 and custom cutoff choices
+- LLM settings and transcript review show simpler controls, with technical setup and numerical diagnostics folded away
+- Markdown and exercise-deck cards made from books or videos mark target and context fields as the target language automatically
+- Studio and exported word clouds are linguistic only; foreground colour is applied from the source editor
+
+### Fixed
+- Speech program and model downloads no longer fail before their progress starts
+- Exported guides include the segmented-colour parser needed for independent builds
+- Speech model notices list every catalogue source and converted package with its own licence
+- Persian dictionary lookup recognizes colloquial copulas and combined nominal endings, with direct entries preferred and dictionary-backed stem guards
+- LM likelihood candidate search preserves source whitespace with SentencePiece tokenizers, including PersianMind
+- Partial-word colours compile and remain visible in PDFs, including headings, target-language blocks and exercise prompts
+
+## [a0.4.2] - 2026-09-30
 ### Added
 - Glosses an LLM writes are aligned to their chunks: a meaning says what its own words say, in the text's order
 - Every prompt is assembled by one kit from its instructions, its answer contract and its data, and opens with a version line

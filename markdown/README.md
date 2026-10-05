@@ -296,7 +296,7 @@ runs breakable (`_CARD`).
 video — has no layout number and no ⚙ handle, and a click on a picture there
 turns the card rather than opening a panel; its layout is written by hand.
 A field drawn as blocks offers nothing to the hover editors either: no
-colour palette, no transliteration or kana cloud, no ✎ on a target block, no layout panel on a `{la}` block. Those
+transliteration or kana cloud, no ✎ on a target block, no layout panel on a `{la}` block. Those
 editors find a word by its occurrence, and `store` blanks such fields before
 it counts (`mdparser.card_spans`), so the n-th word the page offers stays the
 n-th the source holds. A field that is one plain paragraph is offered and
@@ -709,20 +709,19 @@ transliteration and translation, `Next`
 independently at random, so every gloss comes up once before any
 repeats, with a counter; the deck reshuffles on wrap.
 
-### Annotation by hover and click
+### Colour by selection; linguistic annotation by hover
 
-**Colour marks.** Hover a word of the target language and a palette
-appears with the five named hues plus a **custom swatch that opens the
-system HSV picker**, initialised to the word's current colour (or crimson
-if it has none); the choice is stored as `[متن]{#2F6B8F}`. Named or hex,
-it is written straight back into the markdown, so it survives, reaches the
-PDF (`\textcolor[HTML]{…}`), and is visible to the LLM the next time the
-document is revised. Hovering still leaves click-to-copy working;
-clicking a swatch is what colours.
+**Colour marks.** In the source editor, select exactly the letters or words
+to colour and use the split **colour** control. Its main button applies the
+active colour; its palette chooses a named hue, custom hex, or no colour.
+A partial word is stored as a semantic segmented run, for example
+`[[ک[ت]{crimson}[ا]{indigo}ب]]{translit:ketāb}`. It renders and behaves as
+one target-language word whose flattened value is `کتاب`. The reading view
+and preview cloud construct no colour controls.
 
 **Transliteration.** A word — or a short 2–3 word group — can carry
 `[تند]{translit:tond}`, invisible in both outputs but shown in the hover
-overlay next to the swatches, and used by the glossary. In a Japanese
+overlay, and used by the glossary. In a Japanese
 document the same mark carries the reading too, `{kana:かんじ
 translit:kanji}`, and the overlay shows the kana above the rōmaji.
 
@@ -731,16 +730,16 @@ cloud is a button — click it and it becomes a text field, prefilled;
 Enter saves, Esc cancels, clicking away saves. A run that has none yet
 shows a **+** instead, which opens the same empty field. Saving an
 empty field removes the annotation, and if that was the run's only mark
-the brackets go too, leaving the bare word. Lemma headings are the one
-exception: they already carry a transliteration in the heading itself
-(`## فارسی | translit | …`), so the cloud shows it read-only rather
-than inviting a second, competing copy.
+the brackets go too, leaving the bare word. Lemma headings already carry
+their transliteration in the heading itself (`## فارسی | translit | …`),
+where it is visible beside the headword, so they do not open an empty cloud
+with a second, competing copy.
 
-Colour and transliteration share one mark (`{teal translit:tond}`), and
-each is edited without disturbing the other: recolouring an annotated
-run keeps its translit, and retranslitering a coloured run keeps its
-colour. In the editor the same controls rewrite the unsaved buffer
-instead of the file, undoable with ⌘Z like any other edit.
+Colour and transliteration share one ordinary mark (`{teal
+translit:tond}`); a segmented run keeps linguistic marks on its outer
+wrapper. Selection colouring preserves those fields, and a cloud edit
+preserves every inner colour piece. Each source selection command is one
+editor history transaction, undoable with ⌘Z like any other edit.
 
 **Which copy is edited.** A word that appears several times is named by its
 text and its place among the words with that text, and the server finds that

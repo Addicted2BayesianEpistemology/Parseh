@@ -166,10 +166,13 @@ RUNNABLE = ("install.sh", "serve.sh", "build.sh", "Parseh.command", "serve.py")
 # where a person's own things live: a release carries only the scaffolding
 CONTENT = ("books/", "youtube/videos/", "markdown/library/", "exercises/", "clips/",
            "youtube/anki/", "config/", "dict/", "corpus/", "mt/", "components/", "texmf/",
-           "stt/", "arasaac/")
+           "stt/", "llm-scoring/", "arasaac/")
 SCAFFOLDING = (".gitkeep", "README.md")
 # never in a release, whatever .gitattributes says
 NEVER = (".tls/", "tests/", ".github/", ".runtime/", ".parseh-update/", "dist/",
+         ":memory:.ses",
+         "docs/lm-likelihood-evaluation.md",
+         "tools/", ".speech-release-build/",
          # the LaTeX drawings, made from their blocks and made again at will
          "markdown/latex/",
          "old stuff/", "test for books/", "Parseh-Personal/")

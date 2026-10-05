@@ -186,6 +186,12 @@ have lost.
   of a YouTube video's sound, twenty numbers a second between 0 and 1,
   recorded once by [**● draw the sound**](the-timings.md#the-picture-of-the-sound).
   A film has none: the server reads the film.
+- **`wordtimes.json`** is optional, and appears only when this video was added
+  from a matching transcript Parseh made. It is the `parseh-wordtimes/1`
+  capture track: ordered words with video-clock starts and ends, their source
+  (Whisper, the optional aligner, or an honest worked-out value), and any
+  accepted person-set boundary. The player does not edit or depend on it in
+  this version; it travels in a video bundle for later timing work.
 - **`media.<ext>`** is the film of [a film on this machine](a-film-on-this-machine.md).
   It is kept out of git; the rest can be.
 - **`media-orig.<ext>`** exists only for a sound a browser could not play: the

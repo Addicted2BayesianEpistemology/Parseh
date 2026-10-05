@@ -79,6 +79,9 @@ is fetched the same way: its program (faster-whisper, CTranslate2 and
 onnxruntime under the MIT licence, PyAV under BSD-3-Clause with the
 FFmpeg libraries and codecs it carries under their own) from PyPI, and its
 two models (OpenAI's Whisper, under the MIT licence) from Hugging Face.
+The optional exact-word-time networks are likewise fetched only when asked,
+from Parseh's hash-pinned per-language Hugging Face repositories; their own
+Apache-2.0 notices travel with them (Hindi is MIT and Turkish CC-BY-4.0).
 
 **The ARASAAC pictograms**, which also have a page of their own,
 [Settings → Pictograms (ARASAAC)](../studio/pictograms.md#whose-pictures-these-are),

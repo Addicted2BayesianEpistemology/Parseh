@@ -135,6 +135,12 @@ heard — and **tap the speed chip** to choose how fast the narration plays
 for every book on this phone. The seconds are under **⋯**, **Listening**,
 as well, since a hold is not something you can see.
 
+On a keyboard in Mobile mode, **←** and **→** do the same back/on move as
+↺ and ↻, by that chosen number of seconds. In a book, **Shift+←** and
+**Shift+→** keep their reader meaning — previous and next subparagraph; a
+video has no subparagraph walker, so shifted arrows skip there too. Fields,
+menus and open sheets keep their own arrow keys.
+
 Under **⋯**: the **passes** (and **gloss** and **hover** — in hover mode a
 tap on a chunk opens its gloss), the **listening** (continuous, loop, stop
 at a change, **hover ⏸** — the narration waits while a gloss is open —, how

@@ -300,10 +300,17 @@ class DataFormats(unittest.TestCase):
         import prompts
         import texpackages
         import getarasaac
+        import wordtimes
+        import llmconfig
+        import lmlikelihoodconfig
+        import asrpending
+        import speechconfig
         got = version.formats()
         self.assertEqual(set(got), set(version.FORMATS))
-        held = {"parseh-timings": timestamp.TIMINGS_FORMAT, "parseh-review": timestamp.REVIEW_FORMAT,
+        held = {"parseh-speech": speechconfig.STORE_FORMAT, "parseh-pending-transcription": asrpending.FORMAT, "parseh-llm": llmconfig.STORE_FORMAT, "parseh-lm-likelihood": lmlikelihoodconfig.STORE_FORMAT,
+                "parseh-timings": timestamp.TIMINGS_FORMAT, "parseh-review": timestamp.REVIEW_FORMAT,
                 "parseh-parts": merge_parts.PARTS_FORMAT, "parseh-waveform": serve.WAVEFORM_FORMAT,
+                "parseh-wordtimes": wordtimes.WORDTIMES_FORMAT,
                 "parseh-library": store.LIBRARY_FORMAT, "parseh-anki": anki_store.STORE_FORMAT,
                 "parseh-clips": clips.INFO_FORMAT, "parseh-dictionary": lookup.DB_FORMAT,
                 "parseh-corpus": corpus.DB_FORMAT, "parseh-components": getdecomposition.PACK_FORMAT,
@@ -373,13 +380,13 @@ class DataFormats(unittest.TestCase):
     KEPT = {"books/": ("parseh-book", "parseh-reading", "parseh-timings", "parseh-review",
                        "parseh-annot"),
             "youtube/videos/": ("parseh-video", "parseh-annotations", "parseh-parts",
-                                "parseh-waveform"),
+                                "parseh-waveform", "parseh-wordtimes", "parseh-pending-transcription"),
             "markdown/library/": ("parseh-library",),
             "exercises/": ("parseh-exercise-deck", "parseh-schedule"),
             "clips/": ("parseh-clips",),
             "youtube/anki/": ("parseh-anki",),
             "config/": ("parseh-prefs", "parseh-network", "parseh-languages", "parseh-digests",
-                        "parseh-wheres", "parseh-updates", "parseh-latex", "parseh-prompts"),
+                        "parseh-wheres", "parseh-updates", "parseh-latex", "parseh-prompts", "parseh-llm", "parseh-lm-likelihood", "parseh-speech"),
             "texmf/": ("parseh-texmf",),
             "dict/": ("parseh-dictionary",),
             "corpus/": ("parseh-corpus",),
@@ -391,6 +398,8 @@ class DataFormats(unittest.TestCase):
             # newer, another Python) -- so there is no row, and a step back to a
             # version that lacks the folder has nothing to warn about
             "stt/": (),
+            # Isolated numerical runtime/toolchain, with no Parseh data store.
+            "llm-scoring/": (),
             # the ARASAAC pictograms keep a manifest, their facts and each language's words
             # in one shape, which an older Parseh does not know
             "arasaac/": ("parseh-arasaac",)}
@@ -430,6 +439,7 @@ class DataFormats(unittest.TestCase):
         for fmt, name in (("parseh-library", "markdown/library/"), ("parseh-anki", "youtube/anki/"),
                           ("parseh-timings", "timings.json"), ("parseh-review", "review.json"),
                           ("parseh-parts", "parts/*.json"), ("parseh-waveform", "waveform.json"),
+                          ("parseh-wordtimes", "wordtimes.json"),
                           ("parseh-dictionary", "dict/"), ("parseh-corpus", "corpus/"),
                           ("parseh-components", "components/")):
             self.assertIn(name, version.what(fmt), fmt)

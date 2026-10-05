@@ -253,8 +253,9 @@ if command -v lualatex >/dev/null 2>&1; then
   if [ -n "$want_pdf" ] && command -v tlmgr >/dev/null 2>&1; then
     # a minimal TeX Live (TinyTeX) has none of these
     # (extsizes: the studio's large print, its 14, 17 and 20 pt classes;
-    # pgf: TikZ, which draws a flashcard's round frame on paper)
-    for pkg in luatexbase fancyhdr environ etoolbox geometry xcolor fontspec babel-english tex-gyre hyperref bookmark microtype enumitem needspace titlesec booktabs graphics extsizes pgf; do
+    # pgf: TikZ, which draws a flashcard's round frame on paper;
+    # adjustbox: trimclip, which colours part of one shaped word)
+    for pkg in luatexbase fancyhdr environ etoolbox geometry xcolor fontspec babel-english tex-gyre hyperref bookmark microtype enumitem needspace titlesec booktabs graphics adjustbox extsizes pgf; do
       tlmgr info --only-installed "$pkg" >/dev/null 2>&1 \
         && good "tex: $pkg" || { bad "tex: $pkg"; tlmgr install "$pkg" || true; }
     done

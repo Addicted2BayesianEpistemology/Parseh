@@ -37,7 +37,7 @@ theme of the reading view each is drawn a shade lighter so that it still
 reads. The name may be written in any case (`{Teal}`), and a hex colour
 with small or capital letters.
 
-What a colour mark may hold:
+What an ordinary whole-run colour mark may hold:
 
 - **Anything short of another mark**: a word of the target language, a
   group of them, a Latin word, a stretch marked `{tl}`. A colour cannot
@@ -52,20 +52,47 @@ What a colour mark may hold:
   studio's, and a colour mark on it is dropped
   ([Special characters](special-characters.md)).
 
-You rarely type these. In the reading view, point at a word of the target
-language and a small cloud opens with the five colours and a **custom
-swatch** that opens your system's colour picker; a click writes the mark
-into the document, `{teal}` or `{#2F6B8F}`.
+You rarely type these. In Studio, select the letters, word or stretch in
+the source and press **colour**. The button applies its current colour;
+the arrow beside it chooses one of the five names, a custom colour, or
+**No colour**. A palette choice applies immediately to the selection. With
+no selection Studio colours the word under the caret, or asks you to select
+text when there is no word there. One undo reverses one colour operation.
 
-{{< figure src="shots/reading-cloud.png" alt="A Persian word in teal, pointed at: above it a cloud with its transliteration, mi-ravam, the word colour, five coloured dots, a sixth for any colour, and a cross" caption="Pointing at [می‌روم]{teal translit:mi-ravam}: its transliteration at the head of the cloud, then the colours, the custom swatch, and ✕ to take the colour off. Below, a link to another document and, dashed, one waiting for its document." >}}
- In the editor's preview the
-same cloud rewrites the text you are editing, and one undo takes it back.
-The editor's **colour** button types an empty `[]{teal}` with the cursor
-between the brackets.
+The cloud that appears when you point at a target-language word is for its
+pronunciation or reading. It has no colour controls. This keeps colouring an
+authoring operation and lets a reader inspect a word without changing it.
 
 **On paper** a colour is printed as it is. A PDF built **Black and white**
 — the photocopier's option of the PDF menu — prints every coloured word in
 black.
+
+## Colouring part of a word
+
+Selecting only part of a word colours exactly that part. If `تا` is selected
+inside `کتاب` and crimson is chosen, Studio writes:
+
+```parseh-example
+[[ک[تا]{crimson}ب]]
+```
+
+Several pieces may have different colours, while the complete text remains
+one word:
+
+```parseh-example
+[[ک[ت]{crimson}[ا]{indigo}ب]]{translit:ketāb} = *book*
+```
+
+The nested brackets divide the colours visually. They do not add spaces or
+joining characters: Persian and Arabic letters keep their normal cursive
+joining. The transliteration after the closing `]]` belongs to the complete
+word, so pointing at any coloured piece shows `ketāb` for `کتاب`. Japanese
+`kana:` and `reading:` belong to the complete word in the same way.
+
+Studio merges adjacent pieces of the same colour. If every letter ends up in
+one colour it returns to the shorter ordinary spelling, `[کتاب]{teal}`; if
+all colours are removed it returns to plain `کتاب`. Copying, searching,
+glosses and lookups use the flattened word, not the brackets.
 
 ## Transliteration
 
@@ -95,17 +122,16 @@ first**:
 - The same key written twice keeps its last value.
 - On paper only the colour, if there is one, is printed.
 
-The same cloud that colours a word edits its transliteration: the
+The word cloud edits its transliteration: the
 transliteration at its head is a button — click it, type, press Enter
 (Esc cancels, clicking away saves); a word without one shows **+**
 instead. An empty field removes the transliteration, and the brackets go
 too when it was the word's only mark.
 
-The headword of a vocabulary entry is the one exception: pointing at it
-opens the colour cloud **only** — a swatch writes `## [کتاب]{teal} | …`
-into the heading, **✕** takes the colour off. Its transliteration (and
-its reading, in Japanese) is written in the heading's own parts and shown
-in the entry itself; the cloud neither shows nor edits it
+A vocabulary headword's transliteration (and its reading, in Japanese) is
+written in the heading's own parts and shown in the entry itself, so a
+headword with no separate linguistic action opens no empty cloud. To colour
+one, select its text in Studio and use **colour**
 ([Headings](headings.md#a-coloured-headword)).
 
 What the transliteration is called, and how it is written, depends on the

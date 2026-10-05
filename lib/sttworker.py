@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The child that listens: ONE transcription, reported on stdout as JSON lines.
+"""One transcription session, reported on stdout as JSON lines.
 
     python3 sttworker.py <spec.json>          # made by lib/sttjobs.py, never by hand
 
@@ -17,12 +17,18 @@ not UTF-8; the server's json.loads gives the Unicode back exactly):
     {"t":"device","device":"cpu"|"cuda","fell_back":false}
     {"t":"loading"}
     {"t":"progress","done":<media seconds>,"total":<media seconds>}
+    {"t":"first-pass","segments":[...],...}
+    {"t":"second-pass","done":<suspect words>,"total":<suspect words>,...}
     {"t":"done","segments":[{"start","end","text"}],"duration":<s>,"language":"fa"}
     {"t":"error","code":"...","say":"a human sentence"}
 
-THE SPEC is the only input: {source_path, audio_kind:"pcm16"|"media", lang,
+THE SPEC selects the source: {source_path, audio_kind:"pcm16"|"media", lang,
 model_path, device, cpu_threads, compute:{cpu:"int8", cuda:[...]}, mode,
-film, parent}.  Every value was made by the server from inputs it had
+film, parent, second_pass}. When second_pass is true, the server returns one
+stdin line {word_ids:[...]} after checking the first result in the dictionary.
+This fixed list refers only to first-pass words. The loaded model and original
+audio are reused; cropped decoding adds evidence without changing source text.
+Every value was made by the server from inputs it had
 checked, and is checked AGAIN here against short lists of what is allowed:
 a value that is not on them never reaches CTranslate2 -- the precision
 formats, the device and the model path are Parseh's to choose, never a
@@ -41,6 +47,8 @@ TEXT IS KEPT AS WHISPER GIVES IT: no transliteration, no translation
 """
 import gc
 import json
+import math
+from numbers import Real
 import os
 import re
 import sys
@@ -66,6 +74,7 @@ SAYS = {
     "film-undecodable": "The local film could not be decoded.",
     "no-sound": "There is no sound in it to listen to.",
     "model-load": "The model could not be loaded.",
+    'word-timestamps': 'The selected speech model could not provide word timestamps. Its package needs compatibility review.',
     "no-memory": "The computer ran out of memory for this model.",
     "gpu-error": "CUDA was requested but could not be initialized. "
                  "Choose Automatic or CPU to use the processor instead.",
@@ -102,6 +111,20 @@ def log(where, exc=None):
 
 
 # ------------------------------------------------------------------- the spec
+_CATALOGUE = None
+
+
+def catalogue():
+    global _CATALOGUE
+    if _CATALOGUE is None:
+        import importlib.util
+        path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'speechmodels.py')
+        module_spec = importlib.util.spec_from_file_location('parseh_speechmodels', path)
+        _CATALOGUE = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(_CATALOGUE)
+    return _CATALOGUE
+
+
 def read_spec(path):
     """The spec, checked value by value -> a dict this file may act on."""
     try:
@@ -123,11 +146,37 @@ def read_spec(path):
     if not isinstance(lang, str) or not LANG_RE.match(lang):
         raise Refused("bad-spec")
     spec["lang"] = lang
+    models = catalogue()
+    ident = raw.get('model_id', models.DEFAULT_MODEL)
+    if not isinstance(ident, str) or ident not in models.ALLOWED_MODELS or not models.compatible(ident, lang):
+        raise Refused('bad-spec')
+    spec['model_id'] = ident
+    spec['decoding'] = models.decoding(ident)
     model = raw.get("model_path")
     if not isinstance(model, str) or not model or "\0" in model or not os.path.isabs(model) \
             or not os.path.isdir(model):
         raise Refused("bad-spec")
     spec["model_path"] = model
+    aligner = raw.get("aligner_path")
+    if aligner is not None:
+        if not isinstance(aligner, str) or not os.path.isabs(aligner) or not os.path.isdir(aligner):
+            raise Refused("bad-spec")
+        # The worker will only read these immutable, server-selected files.
+        if not os.path.isfile(os.path.join(aligner, "model.int8.onnx")):
+            raise Refused("bad-spec")
+    spec["aligner_path"] = aligner
+    if type(raw.get("second_pass", False)) is not bool:
+        raise Refused("bad-spec")
+    spec["second_pass"] = raw.get("second_pass", False)
+    recheck = raw.get('recheck')
+    if recheck is not None:
+        if (not isinstance(recheck, dict) or set(recheck) != {'segments', 'word_ids'}
+                or not isinstance(recheck['segments'], list) or len(recheck['segments']) > 200000
+                or not isinstance(recheck['word_ids'], list) or len(recheck['word_ids']) > 200000
+                or any(not isinstance(w, str) or not re.fullmatch(r's\d+w\d+', w) for w in recheck['word_ids'])
+                or len(set(recheck['word_ids'])) != len(recheck['word_ids'])):
+            raise Refused('bad-spec')
+    spec['recheck'] = recheck
     mode = raw.get("mode")
     device = raw.get("device")
     if mode not in MODES or device not in ("cpu", "cuda"):
@@ -285,8 +334,31 @@ def load_model(WhisperModel, spec, device):
     raise last
 
 
-def listen(WhisperModel, spec, audio, device, fell_back):
-    """One try on one device -> (segments, language).  The generator that
+def word_alternatives(word):
+    """Capability hook for recognizers exposing genuine N-best candidates.
+
+    Native beam candidates carry sequence log scores separately from nullable
+    word probabilities. Other recognizers can supply their own word scores.
+    """
+    raw = getattr(word, "alternatives", None)
+    if not isinstance(raw, list):
+        return {"asr_alternatives": [], "alternatives_available": False}
+    kept = []
+    for item in raw:
+        if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+            continue
+        sc = item.get("score")
+        sc = float(sc) if isinstance(sc, Real) and not isinstance(sc, bool) and math.isfinite(sc) and 0 <= sc <= 1 else None
+        candidate = {"text": item["text"], "score": sc}
+        seq = item.get("sequence_score")
+        if item.get("score_kind") == "sequence_log_score" and isinstance(seq, Real) and not isinstance(seq, bool) and math.isfinite(seq):
+            candidate.update(sequence_score=float(seq), score_kind="sequence_log_score")
+        kept.append(candidate)
+    return {"asr_alternatives": kept, "alternatives_available": True}
+
+
+def listen(WhisperModel, spec, audio, device, fell_back, after_first=None):
+    """One try on one device -> (segments, language, word warning).  The generator that
     transcribe() returns does the actual work as it is consumed, so this is
     where a GPU that loaded and cannot compute shows itself."""
     send({"t": "device", "device": device, "fell_back": fell_back})
@@ -302,30 +374,201 @@ def listen(WhisperModel, spec, audio, device, fell_back):
             raise Refused("no-memory" if is_memory(e) else "model-load")
         seconds = len(audio) / float(SAMPLE_RATE)
         try:
-            found, info = model.transcribe(audio, language=spec["lang"], beam_size=BEAM_SIZE,
-                                           vad_filter=True, task="transcribe")
+            # This is the owner's chosen single pass unless an installed CTC
+            # aligner will time the unchanged caption pass afterwards.
+            word_warning = ""
+            word_times = True  # retain Whisper evidence even when a CTC aligner follows
+            profile = spec.get('decoding', catalogue().decoding(spec.get('model_id', catalogue().DEFAULT_MODEL)))
+            decode = {'language':spec['lang'], 'task':'transcribe', 'beam_size':profile['beam_size'],
+                      'temperature':profile['temperature'],
+                      'condition_on_previous_text':profile['condition_on_previous_text'], 'vad_filter':True}
+            try:
+                found, info = model.transcribe(audio, **decode,
+                                               **({"word_timestamps": True} if word_times else {}))
+            except (TypeError, ValueError, AttributeError):
+                if spec.get('model_id', catalogue().DEFAULT_MODEL) not in catalogue().STANDARD_MODELS:
+                    raise Refused('word-timestamps')
+                if not word_times:
+                    raise
+                found, info = model.transcribe(audio, **decode)
+                word_times, word_warning = False, "Word timestamps were not available from this speech runtime."
             total = float(getattr(info, "duration", 0) or 0) or seconds
             out, last = [], 0.0
             for s in found:
-                out.append({"start": round(float(s.start), 3), "end": round(float(s.end), 3),
-                            "text": str(s.text)})
+                row = {"start": round(float(s.start), 3), "end": round(float(s.end), 3),
+                       "text": str(s.text)}
+                if word_times:
+                    words = []
+                    for w in (getattr(s, "words", None) or []):
+                        try:
+                            text = str(getattr(w, "word", "")).strip()
+                            start, end = float(getattr(w, "start")), float(getattr(w, "end"))
+                        except (TypeError, ValueError):
+                            continue
+                        score = getattr(w, "probability", None)
+                        if isinstance(score, Real) and not isinstance(score, bool) and math.isfinite(score) and 0 <= score <= 1:
+                            score = round(float(score), 6)
+                        else:
+                            score = None
+                        if text and math.isfinite(start) and math.isfinite(end):
+                            words.append({"start": round(max(0.0, start), 3),
+                                          "end": round(max(start, end), 3), "text": text,
+                                          "score": score, **word_alternatives(w)})
+                    if words:
+                        row["words"] = words
+                    else:
+                        if row['text'].strip() and spec.get('model_id', catalogue().DEFAULT_MODEL) not in catalogue().STANDARD_MODELS:
+                            raise Refused('word-timestamps')
+                        word_warning = "Word timestamps were not returned for this transcription."
+                out.append(row)
                 now = time.time()
                 if now - last >= TICK:
                     last = now
                     send({"t": "progress", "done": min(float(s.end), total), "total": total})
+        except Refused:
+            raise
         except Exception as e:                               # noqa: BLE001
             log("the transcription stopped on the %s" % device, e)
             if device == "cuda":
                 raise gpu_refusal(e)
             raise Refused("no-memory" if is_memory(e) else "failed")
         send({"t": "progress", "done": total, "total": total})
-        return out, getattr(info, "language", None) or spec["lang"]
+        language = getattr(info, "language", None) or spec["lang"]
+        if after_first is not None:
+            after_first(model, out, language, word_warning)
+        return out, language, word_warning
     finally:
         # the generator holds the model, and a failure's traceback holds the
         # generator: let all three go before anything else is loaded, so two
         # copies of a multi-gigabyte model are never alive together
         model = found = info = None
         gc.collect()
+
+
+def second_pass(model, spec, audio, segments, language, warning, rules, word_ids=None):
+    """The server checks dictionaries while this worker retains its one model.
+
+    Only stable first-pass IDs cross stdin. All crop coordinates are from the
+    original audio, never the browser/video-clock remapping. Killing this child
+    interrupts native decoding as well as the dictionary handoff.
+    Crop word times serve alignment only: they never replace segment/word times
+    on the original transcript or its playback timing tape. Only alternatives
+    and second-pass diagnostics are attached to the source ASR evidence.
+    """
+    seconds = len(audio)/float(SAMPLE_RATE)
+    for segment in segments:
+        if 'asr_words' not in segment:
+            segment['asr_words'] = [dict(w) for w in segment.get('words', [])]
+    if word_ids is None:
+        send({'t': 'first-pass', 'segments': segments, 'duration': seconds,
+              'language': language, 'word_warning': warning, 'word_source': 'whisper'})
+        line = sys.stdin.readline(64 << 20)
+    else:
+        line = json.dumps({'word_ids': word_ids})
+    try:
+        request = json.loads(line)
+        ids = request['word_ids']
+        if not isinstance(ids, list) or len(ids) > 200000 or any(
+                not isinstance(i, str) or not re.fullmatch(r's\d+w\d+', i) for i in ids):
+            raise ValueError()
+        if len(set(ids)) != len(ids):
+            raise ValueError()
+    except (ValueError, KeyError, TypeError):
+        ids = []
+    flat, by_id = [], {}
+    for si, segment in enumerate(segments):
+        for wi, word in enumerate(segment.get('asr_words', [])):
+            wid = word.get('word_id', 's%dw%d' % (si, wi))
+            by_id[wid] = word
+            flat.append(word)
+    summary = {'done': 0, 'total': len(ids), 'failures': []}
+    send({'t': 'second-pass', **summary})
+    import numpy as np
+    import bisect
+    timed = sorted((w for w in flat if rules.number(w.get('start')) is not None and
+                    rules.number(w.get('end')) is not None), key=lambda w: w['start'])
+    starts = [w['start'] for w in timed]
+    longest = max((max(0, w['end']-w['start']) for w in timed), default=0)
+    for wid in ids:
+        target = by_id.get(wid)
+        reason, bounds, best = None, None, None
+        try:
+            if target is None:
+                raise ValueError('missing-timestamps')
+            target['asr_alternatives'] = rules.merge(target, [])
+            left, right = rules.crop_bounds([], target, seconds)
+            margin = rules.PAUSE_RADIUS+.2
+            nearby = timed[bisect.bisect_left(starts, left-longest-margin):bisect.bisect_right(starts, right+margin)]
+            left, right = rules.crop_bounds(nearby, target, seconds)
+            # Inspect only the small regions around the proposed crop edges.
+            # Silence of at least 160 ms supplies additional nearby pause points.
+            pauses = []
+            frame = SAMPLE_RATE//50
+            for edge in (left, right):
+                lo = max(0, int((edge-rules.PAUSE_RADIUS)*SAMPLE_RATE))
+                hi = min(len(audio), int((edge+rules.PAUSE_RADIUS)*SAMPLE_RATE))
+                block = audio[lo:hi]
+                n = len(block)//frame
+                if n:
+                    rms = np.sqrt(np.mean(block[:n*frame].reshape(n, frame)**2, axis=1))
+                    quiet = rms <= max(.003, float(rms.max())*.04)
+                    run_start = None
+                    for i in range(n+1):
+                        if i < n and quiet[i]:
+                            if run_start is None:
+                                run_start = i
+                        elif run_start is not None:
+                            if i-run_start >= 8:
+                                pauses.append((lo+(run_start+i)*frame/2)/SAMPLE_RATE)
+                            run_start = None
+            left, right = rules.crop_bounds(nearby, target, seconds, pauses)
+            bounds = {'crop_start': round(left, 3), 'crop_end': round(right, 3)}
+            # Round outward: the whole suspect and boundary words remain inside.
+            lo, hi = int(math.floor(left*SAMPLE_RATE)), int(math.ceil(right*SAMPLE_RATE))
+            left, right = lo/SAMPLE_RATE, min(hi, len(audio))/SAMPLE_RATE
+            decoded, info = model.transcribe(
+                audio[lo:hi], language=spec['lang'], temperature=0, beam_size=10,
+                word_timestamps=True, condition_on_previous_text=False,
+                initial_prompt=None, prefix=None, vad_filter=False, task='transcribe')
+            words = []
+            for segment in decoded:
+                for w in getattr(segment, 'words', None) or []:
+                    raw_text = str(getattr(w, 'word', ''))
+                    text = raw_text.strip()
+                    a, b = rules.number(getattr(w, 'start', None)), rules.number(getattr(w, 'end', None))
+                    score = rules.number(getattr(w, 'probability', None))
+                    score = score if score is not None and 0 <= score <= 1 else None
+                    if text and a is not None and b is not None:
+                        words.append({'text': text, 'start': a, 'end': b, 'score': score,
+                                      'space_before': bool(raw_text[:1].isspace()),
+                                      **word_alternatives(w)})
+            context = [w for w in nearby if left <= w['start'] <= w['end'] <= right]
+            index = next((i for i, w in enumerate(context) if w is target), None)
+            if index is None:
+                raise ValueError('missing-timestamps')
+            additions = rules.attributable(context, index, words, left, right)
+            best = next((a['text'] for a in additions if any(o.get('hypothesis') == 'original'
+                        for o in a.get('origins', []))), None)
+            target['asr_alternatives'] = rules.merge(target, additions)
+            target['alternatives_available'] = True
+        except ValueError as e:
+            reason = str(e) if str(e) in rules.REASONS else 'transcription-failed'
+        except Exception:  # A bad crop must not invalidate the first transcription.
+            reason = 'transcription-failed'
+        if reason:
+            summary['failures'].append({'word_id': wid, 'reason': reason})
+        record = {'state': 'failed' if reason else 'complete', **(bounds or {})}
+        if best is not None and not reason:
+            record['best_candidate'] = best
+        if reason:
+            record['reason'] = reason
+        if target is not None:
+            target['second_pass'] = record
+        summary['done'] += 1
+        send({'t': 'second-pass', 'done': summary['done'], 'total': summary['total'],
+              'word_id': wid, **record, **({'word_evidence': target} if target is not None else {})})
+        decoded = info = words = None  # release lazy generators before the next crop
+    return summary
 
 
 def run(spec):
@@ -339,18 +582,59 @@ def run(spec):
         log("the speech runtime could not be imported", e)
         raise Refused("broken")
 
+    # PYTHONSAFEPATH deliberately keeps lib/ off this child's import path.
+    # Load only this trusted stdlib capability, without exposing lib's NumPy
+    # or other server modules ahead of the isolated speech runtime.
+    import importlib.util
+    capability = importlib.util.spec_from_file_location(
+        "parseh_asralternatives", os.path.join(os.path.dirname(os.path.abspath(__file__)), "asralternatives.py"))
+    module = importlib.util.module_from_spec(capability)
+    capability.loader.exec_module(module)
+    WhisperModel = module.capable_model(WhisperModel, 10)
+    capability = importlib.util.spec_from_file_location(
+        'parseh_whispersecond', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whispersecond.py'))
+    rules = importlib.util.module_from_spec(capability)
+    capability.loader.exec_module(rules)
+
     audio = load_pcm(np, spec["source_path"]) if spec["audio_kind"] == "pcm16" \
         else load_media(np, spec)
     if len(audio) < 1:
         raise Refused("no-sound")
     seconds = len(audio) / float(SAMPLE_RATE)
+    if spec.get('recheck') is not None:
+        device = 'cpu' if spec['mode'] == 'cpu' else spec['device']
+        send({'t': 'device', 'device': device, 'fell_back': False})
+        send({'t': 'loading'})
+        model = None
+        try:
+            try:
+                model = load_model(WhisperModel, spec, device)
+            except Exception as e:
+                if device != 'cuda' or spec['mode'] != 'auto':
+                    raise Refused('no-memory' if is_memory(e) else 'model-load')
+                gc.collect()
+                model = load_model(WhisperModel, spec, 'cpu')
+                send({'t': 'device', 'device': 'cpu', 'fell_back': True})
+            segments = spec['recheck']['segments']
+            summary = second_pass(model, spec, audio, segments, spec['lang'], '', rules,
+                                  spec['recheck']['word_ids'])
+            send({'t': 'done', 'second_pass': summary})
+            return
+        finally:
+            model = None
+            gc.collect()
     send({"t": "progress", "done": 0.0, "total": seconds})
     mode = spec["mode"]
     # `cpu` never reaches for the card, whatever else the spec says
     first = "cuda" if mode == "cuda" or (mode == "auto" and spec["device"] == "cuda") else "cpu"
     fell = None
+    summary = None
+    def after_first(model, segments, language, warning):
+        nonlocal summary
+        summary = second_pass(model, spec, audio, segments, language, warning, rules)
+    callback = after_first if spec.get('second_pass') else None
     try:
-        segments, language = listen(WhisperModel, spec, audio, first, False)
+        segments, language, word_warning = listen(WhisperModel, spec, audio, first, False, callback)
     except Refused as e:
         # ONE fall back, and only for `auto` on a card: an explicit choice of
         # the card is answered with the card's own error and not hidden
@@ -362,9 +646,32 @@ def run(spec):
         # before the second one loads a model of its own
         log("falling back to the CPU once (%s)" % fell)
         gc.collect()
-        segments, language = listen(WhisperModel, spec, audio, "cpu", True)
+        segments, language, word_warning = listen(WhisperModel, spec, audio, "cpu", True, callback)
+    word_source = "whisper"
+    # Keep acoustic evidence separate: a CTC alignment score is not Whisper confidence.
+    for segment in segments:
+        if 'asr_words' not in segment:
+            segment["asr_words"] = [dict(w) for w in segment.get("words", [])]
+    if spec.get("aligner_path"):
+        try:
+            import ctcalign
+            send({"t": "aligning", "done": 0, "total": len(segments)})
+            segments, made, missed = ctcalign.align_segments(
+                audio, segments, spec["aligner_path"],
+                progress=lambda done, total: send({"t": "aligning", "done": done, "total": total}))
+            if made:
+                word_source = "aligner"
+                if missed:
+                    word_warning = "%d caption%s could not be aligned; their starts remain caption guesses." % (
+                        missed, "" if missed == 1 else "s")
+            else:
+                word_warning = "Exact word times could not be made; the transcript was kept."
+        except Exception as e:                               # noqa: BLE001 - optional enhancement
+            log("the optional aligner stopped", e)
+            word_warning = "Exact word times could not be made; the transcript was kept."
     send({"t": "done", "segments": segments, "duration": round(seconds, 3),
-          "language": language})
+          "language": language, "word_warning": word_warning, "word_source": word_source,
+          **({'second_pass': summary} if summary is not None else {})})
 
 
 def main(argv):

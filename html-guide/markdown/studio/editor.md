@@ -125,12 +125,19 @@ next new document starts again from its own `lang:`.
 ## Insert at cursor
 
 The bar's **Insert at cursor** group puts a piece of the dialect in at the
-cursor. Only four buttons wrap the text you selected — **tl**, **kana**,
-**block** and **math**; with nothing selected they put in an empty mark
-with the cursor inside it. Every other one puts its piece **in place of**
-a selection: select *WORD* and press **colour** and you get `[]{teal}`,
-with *WORD* gone. Press them with nothing selected — or undo (Ctrl+Z),
-which brings the selection's text back.
+cursor. **tl**, **kana**, **block** and **math** wrap selected text; with
+nothing selected they put in an empty mark with the cursor inside it. The
+colour control is selection-first: select the letters, word or stretch you
+want to colour and press **colour**. Its main button applies the active
+colour exactly to the selection; the arrow beside it chooses another colour,
+a custom colour, or **No colour**, and applies that choice immediately.
+
+For example, select `تا` inside `کتاب` and choose crimson. Studio writes
+`[[ک[تا]{crimson}ب]]`, preserving the word as one Persian word. Selecting
+another part can give it another colour; selecting an already coloured part
+and choosing **No colour** removes only that part's colour. With no selection,
+the word under the caret is used when there is one. The command never writes
+an empty `[]{teal}`, and one undo reverses the complete operation.
 
 | Button | What it puts in |
 |---|---|
@@ -142,7 +149,7 @@ which brings the selection's text back.
 | `=` | the `=` of a gloss, with a space on each side |
 | `note` | a footnote, through a dialog (below) |
 | `link` | a web link, `[testo](https://)`, the cursor where the address goes |
-| `colour` | a colour mark, `[]{teal}`, the cursor inside the brackets |
+| `colour` | applies the active foreground colour to exactly the selected text; its arrow opens the colour palette |
 | `tl` | wraps the selection as a block of the target language, `[…]{tl}` — over several lines when the selection is — and is how a run of a Latin-script target is marked |
 | `kana` | wraps the selection as `[…]{kana:}`, the cursor where the reading goes (only for a language with a reading: Japanese) |
 | `block` | wraps the selection as a Latin block, `[…]{la}` |
