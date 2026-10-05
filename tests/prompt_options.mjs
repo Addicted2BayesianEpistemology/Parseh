@@ -614,11 +614,12 @@ try {
   // with what was written; the element is looked at in the three themes at 1280 and 390 px (screenshots when asked).
   // Whether a missing letter prints as a box is the face's, which a headless browser cannot say for another computer's
   // fonts: the PDF is held by tests/test_ipa_book_pdf.py, and the screenshots are for a person to look at.
-  async function themed(page, name, locator) {
+  async function themed(page, name, locator, again) {
     for (const [theme, w, h] of THEMES) {
       await page.setViewportSize({width: w, height: h});
       await page.evaluate(t => { document.documentElement.setAttribute('data-theme', t); if (document.body) document.body.setAttribute('data-theme', t); }, theme);
       await sleep(150);
+      if (again) await again();
       const box = await locator.evaluate(el => { el.scrollIntoView({block: 'center'}); const r = el.getBoundingClientRect(); return {l: r.left, r: r.right, w: innerWidth, page: document.documentElement.scrollWidth}; });
       if (SHOTS) await page.screenshot({path: `${SHOTS}/${name}-${theme}-${w}.png`});
       assert(box.l >= -0.5 && box.r <= box.w + 0.5 && box.page <= box.w + 1, `${name}: inside the window and the page no wider (${theme}, ${w} px) ${JSON.stringify(box)}`);
@@ -649,9 +650,12 @@ try {
       await page.waitForFunction(() => { const c = document.querySelector('#cloud'); return !c.hidden && c.querySelector('.tr'); });
       const tr = await page.evaluate(() => document.querySelector('#cloud .tr').textContent.trim());
       assert(IPA_OF[key].includes(tr), `${key} player: the cloud of a phrase says its IPA as written (${tr})`);
-      // the IPA line is judged, not the cloud's place: the cloud was put by the 1280 px layout where it was pointed at,
-      // and the window is then narrowed under it (the player puts it again at the next hover)
-      await themed(page, `player-${key}-ipa-cloud`, page.locator('#cloud .tr').first());
+      // a cloud is put where it is pointed at: after the window is narrowed it is pointed at again, as a person would
+      await themed(page, `player-${key}-ipa-cloud`, page.locator('#cloud'), async () => {
+        await page.mouse.move(0, 0);
+        await page.locator('#segs .seg .fa .w').first().hover();
+        await page.waitForFunction(() => { const c = document.querySelector('#cloud'); return !c.hidden && c.querySelector('.tr'); });
+      });
       await page.close();
     }
     // the studio: a heading's transliteration is drawn on the sheet, and a mark's is carried for the reader to point at
