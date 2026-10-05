@@ -77,7 +77,7 @@ SIZES = {
     #        studio-doc     studio-exercises  video-new      video-region   book-region    transcript-tidy  book-new
     "fa": ((16137, 18600), (19078, 22000), (30695, 35300), (20604, 23700), (19730, 22700), (2696, 3200), (32808, 37800)),
     "ar": ((16799, 19400), (19739, 22700), (30569, 35200), (21027, 24200), (20705, 23900), (2687, 3100), (32685, 37600)),
-    "it": ((16408, 18900), (14541, 16800), (30602, 35200), (21032, 24200), (20710, 23900), (2747, 3200), (32652, 37600)),
+    "it": ((16774, 19300), (15268, 17600), (30115, 34700), (20905, 24100), (19894, 22900), (2866, 3300), (33488, 38600)),
     "ja": ((17663, 20400), (15565, 17900), (33877, 39000), (24592, 28300), (24866, 28600), (2636, 3100), (34581, 39800)),
     "fr": ((20407, 23500), (18543, 21400), (38721, 44600), (26973, 31100), (26605, 30600), (2795, 3300), (40715, 46900)),
     "de": ((19954, 23000), (18090, 20900), (39098, 45000), (27027, 31100), (26485, 30500), (2758, 3200), (41124, 47300)),
@@ -914,12 +914,14 @@ class LanguageCut(unittest.TestCase):
             self.assertEqual(("Words" in secs), languages.get(code).words, code)
 
     def test_the_note_on_writing_the_script_is_found_where_it_stands(self):
+        # THE NOTE IS THE STUDIO'S: a file marks it {{?studio}} (lane D2), and a prompt that glosses never has it
+        marked = ("it",)
         for code in ("it", "de", "fr", "es", "en"):
             text = K.language_text("studio-doc", code)
             self.assertIn("[…]{tl}", text, code)
             self.assertIn("## The text field", text, code)
             self.assertNotIn("{tl}", K.language_text("video-region", code), code)
-            self.assertIn("{tl}", K.language_text("video-new", code), code)
+            self.assertEqual("{tl}" in K.language_text("video-new", code), code not in marked, code)
         tr = K.language_text("studio-doc", "tr")
         self.assertIn("Runs of Turkish are **marked** in the studio", tr)
         self.assertTrue(tr.index("## The text field") < tr.index("Runs of Turkish"))

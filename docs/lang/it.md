@@ -1,6 +1,6 @@
 # Italian — the annotation conventions
 
-How an Italian sentence becomes a glossed line: what goes into each field
+{{?new}}How an Italian sentence becomes a glossed line: what goes into each field
 and how it is written. These rules bind both the reading editions and the
 video captions; they are embedded into every prompt that asks for Italian
 annotation, so they are written as instructions to the annotator.
@@ -14,7 +14,7 @@ gloss is written in is the book's or the video's own choice, `"gloss"` in
 `book.json` / `video.json`, and English when the key is absent. This file
 is about Italian as the language being **taught**: the examples below gloss
 into English because they must gloss into something, and every rule that
-turns on the gloss language says so.
+turns on the gloss language says so.{{/new}}
 
 ## The text field
 
@@ -23,24 +23,24 @@ apostrophes and elisions (`l'uomo`, `un'ora`, `po'`), same punctuation, the
 source's own oddities included — a regional form, an old spelling, an ASR
 slip in a caption. Chunks split only at spaces; joined back with single
 spaces they must reproduce the sentence exactly, and a machine checks
-that. **Never correct the text in `fa`** — the correction goes in `note`
-(videos) or in the vocabulary line (books).
+that. **Never correct the text in `fa`**{{?new}} — the correction goes in
+{{?video}}`note`{{/video}}{{?book}}the vocabulary line{{/book}}{{/new}}.
 
 Italian is plain text: there are no marks to add and none to strip. The
 written accents are part of the spelling (`è`, `perché`, `città`) and stay
 exactly as the source has them; do not add a stress accent to a word the
 source writes without one — stress, when it helps, is shown in `tr` and
-nowhere else. There is one pass with help and one with the chunks; there is
-no "bare" pass, because the text is already bare.
+nowhere else.{{?book}} There is one pass with help and one with the chunks; there is
+no "bare" pass, because the text is already bare.{{/book}}
 
-Italian has no character range of its own in the registry and could not be
+{{?studio}}Italian has no character range of its own in the registry and could not be
 given one: it is written in the alphabet the toolbox's own prose is written
 in. So nothing detects a run of Italian — and where the glosses are in
 another Latin-script language, English or French or Turkish, nothing tells
 the two apart by eye either. Wherever the format asks you to mark the
 target text (a studio document's `[…]{tl}` mark), mark every Italian run;
 in a book chunk or a video chunk `fa` is Italian by definition and needs no
-mark.
+mark.{{/studio}}
 
 ## Reading
 
@@ -48,28 +48,51 @@ This language has no reading field.
 
 ## Transliteration
 
-`tr` is an **IPA-lite pronunciation aid, only where it helps**, and it may
+{{?classic}}`tr` is an **IPA-lite pronunciation aid, only where it helps**, and it may
 be omitted — most chunks need none. Use it for what the spelling does not
 show:
 
 - the **open and closed e and o**: `è` for /ɛ/ and `é` for /e/, `ò` for
-  /ɔ/ and `ó` for /o/ (`pésca` peach, `pèsca` fishing; `bótte` barrel,
+  /ɔ/ and `ó` for /o/ (`pèsca` peach, `pésca` fishing; `bótte` barrel,
   `bòtte` blows);
 - the **stress**, when it falls anywhere but the penultimate syllable or is
   ambiguous, marked on the stressed vowel as the dictionary marks it — a
   grave on `à`, `ì`, `ù` and on an open `è`, `ò`, an acute on a closed `é`,
   `ó` (`àncora` anchor, `ancóra` still; `tàvolo`, `telèfono`, `capìscono`);
 - the voiced and voiceless **s** and **z** where they matter (`s` = /s/,
-  `ṡ` = /z/; `z` = /ts/, `ż` = /dz/): `càṡa`, `ròṡa`, `żèro`, `pizza`;
+  `ṡ` = /z/; `z` = /ts/, `ż` = /dz/): `caṡa`, `ròṡa`, `żèro`, `pizza`;
 - the sounds a reader coming from any other language misreads: `gli` as `ʎ`
-  (`fàmiʎa`), `gn` as `ɲ` (`gnòcchi` → `ɲòkki`), `sc` before e/i as `ʃ`
-  (`pésce` → `péʃe`), doubled consonants written double. Only `gn` is
-  spelt the same elsewhere (a French reader has it already); `gli` and `sc`
-  are Italian's alone, so these stay whatever the glosses are written in.
+  (`famiʎʎa`), `gn` as `ɲ` (`gnòcchi` → `ɲòkki`), `sc` before e/i as `ʃ`
+  (`pésce` → `péʃʃe`), doubled consonants written double — and `gli` and
+  `sc` are always long between vowels, so they are written double too. Only
+  `gn` is spelt the same elsewhere (a French reader has it already); `gli`
+  and `sc` are Italian's alone, so these stay whatever the glosses are
+  written in.
 
 Write the whole chunk in `tr` when you give one, not a single word out of
 it. Never write `tr` for a word whose pronunciation is regular and
-unambiguous.
+unambiguous.{{/classic}}{{?ipa}}`tr` is written in **IPA**: broad (phonemic), for standard
+Italian, with no slashes and no square brackets round it. It is **only where
+it helps**, and it may be omitted — most chunks need none, because the spelling
+nearly says the sound. Give one for what the spelling does not show:
+
+- the **stress**, when it falls anywhere but the penultimate syllable or is
+  ambiguous, with `ˈ` before the stressed syllable (`ˈankora` anchor, `anˈkora`
+  still; `ˈtavolo`, `teˈlɛfono`, `kaˈpiskono`);
+- the **open and closed e and o**, which the spelling never shows: `ɛ` and
+  `e`, `ɔ` and `o` (`ˈpɛska` peach, `ˈpeska` fishing; `ˈbotte` barrel, `ˈbɔtte`
+  blows);
+- the voiced and voiceless **s** and **z**: `s` is /s/ and `z` /z/ (`ˈkaza`,
+  `ˈrɔza`), and the affricates are `ts` and `dz` (`ˈpittsa`, `ˈdzɛro`), with
+  `tʃ` and `dʒ` for *c* and *g* before e or i (`ˈtʃena`, `ˈdʒiro`);
+- the sounds a reader coming from any other language misreads: `ʎ` for *gli*,
+  `ɲ` for *gn*, `ʃ` for *sc* before e or i (`faˈmiʎʎa`, `ˈɲɔkki`, `ˈpeʃʃe`).
+  Doubled consonants are written double (`ˈfatto`), and the three above are
+  always long between vowels, so they are written double too.
+
+Write the whole chunk in `tr` when you give one, not a single word out of
+it. Never write `tr` for a word whose pronunciation is regular and
+unambiguous.{{/ipa}}
 
 ## Vocabulary
 
@@ -80,17 +103,17 @@ meaning, with the grammar a learner needs to recognise the form.
   past participle, and its auxiliary when that is *essere*, as a `\vb` prints
   it: `andare · pres. vado · p.p. andato · to go (aux. essere)`. No
   conjugation class: the infinitive's own ending and the first person
-  (`finisco`, `dormo`) already say it. An **irregular form** in the text is
-  tied to its infinitive:
-  `vado · andare, 1sg pres.`; `fatto · fare, past participle`; `andrò ·
-  andare, fut.`.
+  (`finisco`, `dormo`) already say it. Whatever form the text has, the entry
+  is the verb's, under its infinitive: `vado`, `fatto` and `andrò` all get the
+  `\vb` of `andare`.
 - A **noun** carries its **gender** and, when it is not regular, its
-  plural: `la mano (f., pl. le mani) · hand`; `il problema (m., pl. i
-  problemi) · problem`; `l'uovo (m., pl. le uova) · egg`.
+  plural: `\dw{mano}{} hand, f., pl. \pw{le mani}`; `\dw{problema}{} problem,
+  m., pl. \pw{i problemi}`; `\dw{uovo}{} egg, m., pl. \pw{le uova}`.
 - An **adjective** is given in the masculine singular; a form that changes
   (`bello / bel / bell'`, `buono / buon`) is named.
-- A **clitic** combination is spelled out the first time (`glielo = gli +
-  lo`); a **preposition + article** contraction is named (`nel = in + il`).
+- A **clitic** combination is spelled out the first time (`\dw{glielo}{} gli +
+  lo`); a **preposition + article** contraction is named (`\dw{nel}{} in +
+  il`).
 - Name what was stripped: the plural, the feminine, the diminutive
   (`-ino`, `-etto`), the superlative (`-issimo`), the adverb ending
   (`-mente`).
@@ -101,11 +124,15 @@ meaning, with the grammar a learner needs to recognise the form.
   **infinitive, first person present, past participle**, each with its
   pronunciation, then the meaning; the edition prints *pres.* and *p.p.*
   before the second and third forms, so never put another form into those
-  slots. A form's pronunciation is its **stress, and only where it is not on
+  slots. {{?classic}}A form's pronunciation is its **stress, and only where it is not on
   the next-to-last syllable** — the form with the stressed vowel marked
   (`prèndere`, `àbito`, `telèfono`, `andàrsene`), empty for `parlare`,
   `vedere`, `prendo`: an open or closed `e` or `o` is left to the chunk's
-  own `tr`. A pronominal verb is the infinitive with its clitic and the
+  own `tr`.{{/classic}}{{?ipa}}A form's pronunciation is given **only where the stress is
+  not on the next-to-last syllable** — the form in IPA, with `ˈ` before the
+  stressed syllable (`ˈprɛndere`, `ˈabito`, `teˈlɛfono`, `anˈdarsene`), empty
+  for `parlare`, `vedere`, `prendo`: an open or closed `e` or `o` is left to
+  the chunk's own `tr`.{{/ipa}} A pronominal verb is the infinitive with its clitic and the
   present with its own (`alzarsi`, `mi alzo`; `andarsene`, `me ne vado`),
   and the participle bare (`alzato`, `andato`). A verb used only in the
   third person (`accadere`, `nevicare`) has no first person to give, and is
@@ -128,33 +155,15 @@ meaning, with the grammar a learner needs to recognise the form.
     \pw{mi accorsi}`).
 
   `\vb{andare}{}{vado}{}{andato}{}{to go (aux. \pw{essere})}`,
-  `\vb{prendere}{prèndere}{prendo}{}{preso}{}{to take (p.r. \pw{presi})}`,
+  {{?classic}}`\vb{prendere}{prèndere}{prendo}{}{preso}{}{to take (p.r. \pw{presi})}`{{/classic}}{{?ipa}}`\vb{prendere}{ˈprɛndere}{prendo}{}{preso}{}{to take (p.r. \pw{presi})}`{{/ipa}},
   `\vb{venire}{}{vengo}{}{venuto}{}{to come (aux. \pw{essere}; p.r.
   \pw{venni})}`, `\vb{parlare}{}{parlo}{}{parlato}{}{to speak}` — the last
   with nothing in brackets, because nothing about it is out of the ordinary.
-{{?video}}- A video's line is written exactly as a book's; a line with no macro at all
-  is plain text, and is also accepted. What a video adds is the form its chunk
-  has, where it is none of the three the `\vb` prints, nor one its parenthesis
-  names: it is named after the entry, outside it,
+- A form in the text that is none of the three the `\vb` prints, nor one its
+  parenthesis names — a tense or a person the entry does not show — is named
+  after the entry, outside it, with what it is:
+  `\vb{andare}{}{vado}{}{andato}{}{to go (aux. \pw{essere})}; here \pw{andrò}, fut.`,
   `\vb{parlare}{}{parlo}{}{parlato}{}{to speak}; here \pw{parlavo}, 1sg imperfect`.
-{{/video}}- The gloss editor's sources sidebar, in the reader and in the player, now
-  proposes this entry from the dictionary for a verb it recognises, the
-  auxiliary and an irregular passato remoto included, and for a form the
-  dictionary only knows as a compound (`alzandosi`, `dimmelo`, `farlo`) the
-  entry of the verb it is a form of. It is a **draft for you to correct**:
-  its meaning is the dictionary's first sense cut to one equivalent, which
-  is often not the one the chunk needs (`dovere` comes as "to owe"). Where a
-  reflexive pronoun stands before the word and the dictionary lists the two
-  together as a form of the pronominal verb (`si alzò`, `mi alzo`, `me ne
-  vado`, `si è alzato`), it proposes the pronominal verb (`alzarsi`,
-  `andarsene`) — but with `si` it cannot know a reflexive from an impersonal
-  or passive one (`si dice`, `si vendono case` are `dire`, `vendere`), and
-  the button says so. The auxiliary is the one the dictionary's head line
-  gives, and that is sometimes wider than usage: `sapere` and `usare` come
-  with *avere/essere*, the *essere* for a sense this text will hardly have
-  (to taste of, to be in fashion) — trim it to what the chunk uses. Correct
-  the draft before it is saved; where it could not fill a slot, the button
-  says which.
 
 One equivalent in the gloss language rather than a string of synonyms; no
 etymologies; **an empty `voc` is the right answer** for a chunk needing
@@ -210,3 +219,25 @@ their noun (`nella casa`, `a Roma`), a **negation from its verb** (`non
 so`), or an auxiliary from its participle (`ho visto`, `è andata`). A very
 short sentence (`Sì.`, `Vieni!`) is one chunk; that is normal and not a
 fault.
+
+## Example
+
+One sentence of Italian, answered: its chunks as they stand in the list of your
+answer. The `en` of each chunk says only what that chunk says, in the order of
+the Italian.
+
+```json
+{"chunks": [
+  {"fa": "Mi piace molto", "tr": "{{?classic}}mi piace mòlto{{/classic}}{{?ipa}}mi ˈpjatʃe ˈmɔlto{{/ipa}}", "voc": "\\vb{piacere}{}{piaccio}{}{piaciuto}{}{to be pleasing (aux. \\pw{essere}; p.r. \\pw{piacqui})}; here \\pw{piace}, 3sg pres.", "en": "I like very much"},
+  {"fa": "questa canzone,", "voc": "\\dw{canzone}{} song, f.", "en": "this song,"},
+  {"fa": "ma non so cantarla.", "tr": "{{?classic}}ma non sò cantarla{{/classic}}{{?ipa}}ma non ˈsɔ kanˈtarla{{/ipa}}", "voc": "\\vb{sapere}{}{so}{}{saputo}{}{to know, to know how to (p.r. \\pw{seppi})}; \\vb{cantare}{}{canto}{}{cantato}{}{to sing}; here \\pw{cantarla} = \\pw{cantare} + \\pw{la}", "en": "but I do not know how to sing it."}
+]}
+```
+
+Notice: the read-in-a-row `en` is stiff English (*I like very much | this song*)
+and right, because the Italian puts the subject after the verb; `piace` is none
+of the three forms the `\vb` prints, so it is named after the entry, outside it;
+the sound slots stay empty because every verb here is stressed on its
+next-to-last syllable; the second chunk has no `tr`, its spelling saying all
+there is to say; and the clitic `-la` stays in its verb's chunk, spelled out
+after the entry.
