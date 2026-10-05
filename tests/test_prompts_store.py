@@ -534,7 +534,9 @@ class ResolvingAnId(Stored):
             self.assertIn(surface, P.LABELS)
         whole = P.parseh("book-new")["text"]
         self.assertIn("### The per-paragraph JSON", whole, "the whole prompt, the JSON's part too")
-        self.assertNotIn("{{?", whole)
+        # the marks of the parts are gone; the blocks of the short vowels stay as written, which the kit settles for each book
+        for mark in ("{{?contract}}", "{{?data}}"):
+            self.assertNotIn(mark, whole)
 
     def test_the_blocks_a_text_uses_are_told_apart_from_the_marks_of_the_parts(self):
         self.assertEqual(P.markers("{{?vocab}}a{{/vocab}} {{?gloss}}{{?vocab}}b{{/vocab}}{{/gloss}} {{LANGUAGE}}"),
