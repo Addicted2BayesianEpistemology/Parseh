@@ -326,7 +326,8 @@ eq(await clip(page), BOOK, 'copy the path copies the path');
 await page.click('#mkopen');
 for (let i = 0; i < 30 && !(await exists(INSTALL + '/opened.txt')); i++) await sleep(100);
 eq((await Deno.readTextFile(INSTALL + '/opened.txt')).trim(), BOOK, 'open the folder asks the system\'s file manager for it');
-eq(await tree(BOOK), ['AGENTS.md', 'ASKS.md', 'CLAUDE.md', 'NOTES.md', 'annot/', 'book.json', 'main.tex',
+// (the project skill, in .claude/skills/ and .agents/skills/, is written beside them where lane G's builder is: not listed here)
+eq((await tree(BOOK)).filter(n => !/^\.(claude|agents)\//.test(n)), ['AGENTS.md', 'ASKS.md', 'CLAUDE.md', 'NOTES.md', 'annot/', 'book.json', 'main.tex',
                       'making.json', 'original/parts.json', 'original/the-clock.txt', 'reader/index.html', 'source/paras/'].filter(n => !n.endsWith('/')),
    'the folder holds what the brief says, Parseh\'s list of the parts, and the reader');
 eq(await Deno.readTextFile(BOOK + '/original/the-clock.txt'), ORIGINAL_TEXT, 'the original is the uploaded file, byte for byte');

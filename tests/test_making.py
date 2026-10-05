@@ -84,7 +84,8 @@ class TheFolder(unittest.TestCase):
         # the original is where the book's own folder says it is: not others/, which no update keeps
         self.assertEqual(meta["source_pdf"], "original/Il-Gatto.txt")
         self.assertNotIn("source_pages", meta, "a page range is a PDF's")
-        self.assertEqual(sorted(r["files"]), sorted(
+        # the project skill (lane G's lib/skills.py) is written beside them where it is there: its own tests say how
+        self.assertEqual(sorted(f for f in r["files"] if not f.startswith((".claude/", ".agents/"))), sorted(
             ["AGENTS.md", "ASKS.md", "CLAUDE.md", "NOTES.md", "book.json", "main.tex",
              "making.json", "original/Il-Gatto.txt"]))
 
