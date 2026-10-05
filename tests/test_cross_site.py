@@ -170,6 +170,8 @@ WRITES = (
     ("POST", "/books/english/mini-en/__making/part?name=a.txt"),
     ("POST", "/books/english/mini-en/__making/more"),
     ("POST", "/books/english/mini-en/__making/reopen"),
+    # and what that agent reads, written again: the file it obeys is rewritten, and so are the skill folders
+    ("POST", "/books/english/mini-en/__making/instructions"),
     ("POST", "/books/english/mini-en/__append?name=a.txt"),
     ("POST", "/anki/sync/upload"),
     ("POST", "/exercises/api/import"),

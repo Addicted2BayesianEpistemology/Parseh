@@ -264,6 +264,7 @@ def page():
 <link rel="stylesheet" href="/lib/langs.css">
 <link rel="stylesheet" href="/youtube/lib/style.css">
 <script src="/lib/parseh.js"></script>
+<script src="/lib/llmrow.js"></script>
 <style>
 /* Both add pages sit at body.wizard main{max-width:820px} (youtube/lib/style.css),
    which already has its matching footer rule.  The 860px this page used to
@@ -928,7 +929,7 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     $('pagesnote').textContent = (pages && !range) ? 'The page range is ignored: write it 13-21.'
       : (pages && file && ext !== '.pdf') ? 'A page range is for a PDF: it is ignored for this file.'
       : 'Counted from 0, for a PDF only. Leave empty for the whole file.';
-    if (instructions && instructions.open()) refreshSoon();
+    if (instructions) refreshSoon();
   }
   // the file chosen to be added, named with its size and what is wrong with it, before anything is sent
   function addNotes() {
@@ -1228,22 +1229,27 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   // rule and Python's upper() does not, so it is sent already made.
   function bookFields(originalName) {
     var L = langRec();
-    return {lang: L.code, gloss: val('gloss'), slug: val('slug').trim(), title: val('title').trim(),
-            title_latin: val('title_latin').trim(), title_en: val('title_en').trim(),
-            author: val('author').trim(), author_latin: val('author_latin').trim(),
-            year: val('year').trim(), blurb: val('blurb').trim(), pages: val('pages').trim(),
-            title_latin_upper: (val('title_latin').trim() || slugNow()).toLocaleUpperCase(L.code),
-            original: originalName || ''};
+    var f = {lang: L.code, gloss: val('gloss'), slug: val('slug').trim(), title: val('title').trim(),
+             title_latin: val('title_latin').trim(), title_en: val('title_en').trim(),
+             author: val('author').trim(), author_latin: val('author_latin').trim(),
+             year: val('year').trim(), blurb: val('blurb').trim(), pages: val('pages').trim(),
+             title_latin_upper: (val('title_latin').trim() || slugNow()).toLocaleUpperCase(L.code),
+             original: originalName || ''};
+    // the scheme of the transliteration is a fact of the book, written into it; the row says which
+    var chosen = instructions ? instructions.options() : {};
+    if (chosen.translit) f.translit = chosen.translit;
+    return f;
   }
   // THE INSTRUCTIONS, WHAT THE SERVER WOULD WRITE INTO THE FOLDER: the same
   // text the folder gets, produced by lib/making.py, so this page fills none
   // of its placeholders and cannot say one thing while the folder says another.
   function getInstructions() {
-    var f = $('original').files[0];
+    var f = $('original').files[0], chosen = instructions ? instructions.options() : {};
     return fetch('/books/__making/instructions', {method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({book: bookFields(f ? f.name : ''), reference: val('ref'),
-                            examples: !!$('examples').checked})})
+                            examples: !!$('examples').checked, marks: chosen.marks || null,
+                            prompt: instructions ? instructions.promptId() : ''})})
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (!j.ok) throw new Error(j.error || 'the instructions could not be made');
@@ -1252,40 +1258,68 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
   }
   // THE ONE SEAM FOR THE LLM ROW (lib/llmrow.js, brief 3.6): everything a
   // person presses to hand the instructions over is drawn by this function
-  // alone, so the row -- the prompt menu, the size line, both copy buttons --
-  // takes its place here in one line once it is merged.  `getText()` answers
-  // the text as a promise; what the row shows and copies is what it returns.
+  // alone -- the prompt menu of their own prompts, the size line before the
+  // copy, the choices (the scheme of the transliteration, the short vowels of a
+  // language that has them), the skill request -- and each of them is the
+  // row's, never this page's.  `getText()` answers the text as a promise;
+  // what the row shows and copies is what it returns, and the folder gets the
+  // same text, because the server makes both.
   function mountInstructionsRow(mount, getText) {
     mount.innerHTML =
       '<details id="ishow"><summary>the instructions, as they will be written</summary>' +
-      '<pre class="cmd wrap" id="itext"></pre></details>' +
-      '<div class="row"><button type="button" class="wbtn quiet" id="icopy">copy the instructions</button>' +
-      '<span class="stat" id="ilen"></span></div>';
+      '<pre class="cmd wrap" id="itext"></pre></details><div id="irow"></div>';
     var box = mount.querySelector('#itext'), det = mount.querySelector('#ishow');
-    var len = mount.querySelector('#ilen'), copyBtn = mount.querySelector('#icopy');
-    function refresh() {
-      return getText().then(function (t) {
-        box.textContent = t;
-        len.className = 'stat';
-        len.textContent = t.length.toLocaleString() + ' characters';
-        return t;
-      }).catch(function (e) {
-        box.textContent = '';
-        len.className = 'stat warn';
-        len.textContent = String(e && e.message || e);
-        return '';
-      });
+    var none = {options: function () { return {}; }, promptId: function () { return ''; },
+                setLang: function () {}, refresh: function () { return Promise.resolve(''); },
+                invalidate: function () {}, open: function () { return false; }};
+    if (!window.ParsehLLMRow) {
+      mount.querySelector('#irow').textContent = 'the instructions helper could not be loaded';
+      return none;
     }
-    det.addEventListener('toggle', function () { if (det.open) refresh(); });
-    copyBtn.onclick = function () { refresh().then(function (t) { if (t) Parseh.copy(t, true); }); };
-    return {refresh: refresh, open: function () { return det.open; }};
+    var row = ParsehLLMRow.mount(mount.querySelector('#irow'), {
+      surface: 'book-new', lang: langRec().code, cls: 'wbtn quiet',
+      label: 'copy the instructions',
+      ids: {copy: 'icopy', size: 'ilen', say: 'icopysay'},
+      remind: 'paste them into an agent that does not read AGENTS.md from the folder.',
+      getText: function () {
+        return getText().then(function (t) { box.textContent = t; return t; });
+      },
+      box: function () { det.open = true; return box; },
+      // a size to say as soon as there is something to say it of: the sheet open, or a title written
+      measure: function () { return det.open || !!val('title').trim(); },
+      onOption: function () { refreshSoon(); }
+    });
+    det.addEventListener('toggle', function () { if (det.open) row.refresh(); });
+    return {
+      refresh: function () { return row.refresh(); }, invalidate: function () { row.invalidate(); },
+      open: function () { return det.open; }, setLang: function (code) { row.setLang(code); },
+      options: function () { return row.options(); },
+      // the person's own prompt for the instructions, chosen in the row's menu ('' is Parseh's)
+      promptId: function () { return typeof row.promptId === 'function' ? row.promptId() : ''; }
+    };
   }
-  var instructions = mountInstructionsRow($('instrmount'), getInstructions);
-  var refreshTimer = null;
+  var instructions = null;
+  var refreshTimer = null, seenThen = '';
+  // the page asks for this on every change of anything; what is held is dropped only when what the
+  // instructions are made from has changed (a press of the copy button changes none of it)
+  function madeFrom() {
+    var f = $('original').files[0];
+    return JSON.stringify([bookFields(f ? f.name : ''), val('ref'), !!$('examples').checked,
+                           instructions ? instructions.options() : {}, instructions ? instructions.promptId() : '']);
+  }
   function refreshSoon() {
     clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(function () { instructions.refresh(); }, 400);
+    refreshTimer = setTimeout(function () {
+      if (!instructions) return;
+      var seen = madeFrom();
+      if (seen === seenThen) return;
+      seenThen = seen;
+      instructions.invalidate();
+    }, 400);
   }
+  instructions = mountInstructionsRow($('instrmount'), getInstructions);
+  seenThen = madeFrom();
+  $('lang').addEventListener('change', function () { instructions.setLang(val('lang')); });
   // the folder is made from the file the person picked, sent as the body of the
   // request -- so it is copied by the server, on this computer or on Windows,
   // with no path typed anywhere -- and the book's facts ride in the address
@@ -1300,6 +1334,10 @@ a.wbtn{display:inline-block;text-decoration:none;color:var(--accent-fg)}
     facts.reference = val('ref');
     facts.examples = !!$('examples').checked;
     facts.more_coming = !$('alltext').checked;
+    // what the row says of the short vowels, and the person's own prompt for the instructions, if one is chosen
+    var chosen = instructions.options();
+    if (chosen.marks) facts.marks = chosen.marks;
+    if (instructions.promptId()) facts.prompt = instructions.promptId();
     fetch(act.url('/books/__make?name=' + encodeURIComponent(file.name) +
                   '&book=' + encodeURIComponent(JSON.stringify(facts))),
       {method: 'POST', headers: {'Content-Type': 'application/octet-stream'}, body: file})
