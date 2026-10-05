@@ -52,7 +52,11 @@ import ytpages                                                  # noqa: E402
 
 FIX = ROOT / "tests" / "fixtures"
 V = version.VERSION
-SURFACES = tuple(s for s in K.SURFACES if s != "ask")
+# the prompts these tests hold to the options: every one a size is measured for (tests/test_prompts.py MEASURED), which
+# is every prompt but `ask`.  A place the kit gains later (the transcript review's asr-* prompts, the a0.4.3 branch)
+# takes no option -- A043-NEWS.md R2 -- and is held by the tests of its own.
+import test_prompts as _sizes                                      # noqa: E402
+SURFACES = tuple(s for s in K.SURFACES if s in _sizes.MEASURED)
 GLOSSED = ("video-new", "video-region", "book-region", "book-new")
 STUDIO = ("studio-doc", "studio-exercises")
 KINDS = {"book-region": "books", "video-region": "videos"}
