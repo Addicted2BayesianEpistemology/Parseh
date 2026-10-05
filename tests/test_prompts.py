@@ -1069,29 +1069,38 @@ class Assemblers(ControlledMachine):
         self.assertLess(a["prompt"].index(a["lang_block"][:60]), a["prompt"].index(a["contract"][:60]))
 
     def test_the_studio_route_for_a_custom_prompt_is_the_persons_text_whole_and_still_has_the_contract_after_it(self):
-        with mock.patch.object(studio_server.store, "get_prompt", lambda: {"text": "Custom rules.", "custom": True}):
-            h = Handler(query={"target": ["ar"]})
+        # a person's own prompt is chosen in the row's menu and asked for by its id (lib/prompts.py)
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(studio_server.prompts, "STORE", os.path.join(td, "config", "prompts.json")):
+            pid = studio_server.prompts.save({"surface": "studio-doc", "name": "mine", "kind": "replace", "text": "Custom rules."})["id"]
+            h = Handler(query={"target": ["ar"], "prompt": [pid]})
             studio_server.api_prompt_get(h)
         a = h.answer
-        self.assertEqual(a["text"], "Custom rules.")
-        self.assertIn("Mixed-direction sequences for Arabic — binding", a["lang_block"])
-        self.assertTrue(a["header"].endswith(" · custom"))
+        self.assertIn("Mixed-direction sequences for Arabic — binding", a["prompt"], "the rule for the boxes of a right-to-left target goes with it")
+        self.assertTrue(a["header"].endswith(" · custom: mine"))
         self.assertLess(a["prompt"].index("Custom rules."), a["prompt"].index("creating a markdown file"))
         self.assertNotIn("prompt_error", a)
 
-    def test_a_custom_prompt_the_kit_refuses_is_told_and_the_page_keeps_its_text(self):
-        with mock.patch.object(studio_server.store, "get_prompt", lambda: {"text": "Say {{THIS}}.", "custom": True}):
-            h = Handler(query={"target": ["fa"]})
+    def test_a_custom_prompt_the_kit_refuses_is_told_in_words_and_is_no_prompt(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(studio_server.prompts, "STORE", os.path.join(td, "config", "prompts.json")):
+            pid = studio_server.prompts.save({"surface": "studio-doc", "name": "mine", "kind": "replace", "text": "Say it."})["id"]
+            # Parseh moved on since: the name it was saved with is not one the kit fills in now
+            with open(studio_server.prompts.STORE, encoding="utf-8") as f:
+                kept = json.load(f)
+            kept["prompts"][0]["text"] = "Say {{THIS}}."
+            with open(studio_server.prompts.STORE, "w", encoding="utf-8") as f:
+                json.dump(kept, f)
+            h = PathHandler("/api/prompt?target=fa&prompt=" + pid)
             studio_server.api_prompt_get(h)
-        self.assertEqual(h.answer["text"], "Say {{THIS}}.")
-        self.assertIn("THIS", h.answer["prompt_error"])
+        self.assertEqual(h.code, 400)
+        self.assertIn("THIS", h.answer["error"])
         self.assertNotIn("prompt", h.answer)
 
     def test_the_exercise_route_keeps_its_shape_and_the_authoring_prompts_contract_is_not_in_it(self):
         h = Handler({"markdown": "---\ntitle: T\ntarget: fa\n---\n\nLesson", "decks": []})
         studio_server.api_exercise_prompt(h)
         # the old keys are kept, and what the dialog draws its boxes and types from is added (E-CONTRACT)
-        self.assertEqual(sorted(h.answer), ["boxes", "options", "preticked", "prompt", "size", "types", "vocabulary"])
+        self.assertEqual(sorted(h.answer), ["boxes", "custom", "options", "preticked", "prompt", "size", "types", "vocabulary"])
+        self.assertIs(h.answer["custom"], False, "Parseh's own: no prompt of the person's was asked for")
         p = h.answer["prompt"]
         self.assertTrue(p.startswith(K.version_line("studio-exercises", "fa")))
         self.assertIn("Return the complete updated Markdown document in one fenced", p)
@@ -1367,10 +1376,11 @@ class StudioPromptRoutes(unittest.TestCase):
             h = Handler({"text": "My own prompt."})
             studio_server.api_prompt_put(h)
             self.assertEqual(h.answer, {"text": "My own prompt.", "custom": True})
-            h = Handler(query={"target": ["fa"]})
+            # what is kept is one of the person's own prompts now, and is chosen like the others: by its id
+            h = Handler(query={"target": ["fa"], "prompt": [studio_server.prompts.STUDIO_ID]})
             studio_server.api_prompt_get(h)
-            self.assertEqual((h.answer["text"], h.answer["custom"]), ("My own prompt.", True))
-            self.assertTrue(h.answer["prompt"].startswith(K.version_line("studio-doc", "fa", None, None, True)))
+            self.assertEqual((h.answer["text"], h.answer["custom"]["name"]), ("My own prompt.", studio_server.prompts.STUDIO_NAME))
+            self.assertTrue(h.answer["prompt"].startswith(K.version_line("studio-doc", "fa", None, None, studio_server.prompts.STUDIO_NAME)))
             h = Handler()
             studio_server.api_prompt_delete(h)
             self.assertFalse(h.answer["custom"])

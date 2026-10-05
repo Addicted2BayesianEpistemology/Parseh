@@ -1085,6 +1085,9 @@ try {
     await ctx.close();
   });
 
+  // a prompt store's route, asked of the computer directly (the person's own prompts are kept by it)
+  const callStore = async (base, what, body) => (await fetch(base + what, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})).json();
+
   /* ---------------- menu) the prompt menu's handle: what a page, and the skill's button, may ask of the row ---------------- */
   await section('menu', 'the prompt menu on its own: the places the store does not offer, the handle, the languages, the menu without a row', async () => {
     const ctx = await context();
@@ -1267,7 +1270,6 @@ try {
     await page.waitForFunction(s => /^copied/.test(document.querySelector(s + ' .llmrow-say').textContent), scope);
     return clip(page);
   }
-  const callStore = async (base, what, body) => (await fetch(base + what, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})).json();
   await section('own', 'your own prompts: the menu in the row on every surface -- new, edit, save, save as, delete, choose, copy, remembered', async () => {
     // LLMROW_OWN=<words> runs only the surfaces whose name has them (a development aid)
     for (const spec of ownSpecs) {
