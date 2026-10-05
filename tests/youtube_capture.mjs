@@ -2281,9 +2281,11 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
            `the marks and the shape went before the last piece: ${JSON.stringify(calls.filter(x => !/^status/.test(x)))}`);
     assert(lastAt > -1 && calls.indexOf('result') > lastAt, 'and the words were asked for after it');
     // and now the video, the way a pasted transcript adds one
-    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url()));
+    // the body is read the moment the answer comes: the page goes to the video's own page on it, and
+    // Playwright cannot read the body of a response of the page it has left (as tests/timings.mjs)
+    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url())).then(r => r.json());
     await page.click('#empty');
-    const made = await (await empty).json();
+    const made = await empty;
     eq([made.ok, made.waveform], [true, {kept: true, buckets: wave.peaks.length}], 'the door that made the video was given the token and kept the waveform');
     await page.waitForURL(new RegExp(`/youtube/v/${NID}/$`), {timeout: 30000});
     const beside = await readJson(`${VIDEOS}/italian/${NID}/waveform.json`);
@@ -2302,7 +2304,8 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     await toReady(page);
     eq(await page.evaluate(() => { const w = document.getElementById('stt_workspace'); return [w.open, w.contains(document.getElementById('stt_frame'))]; }),
        [false, false], 'no workspace is over the page, and the frame is in the page');
-    assert(await onScreen(page, '#subedit'), '"Edit the transcript…" can be pressed');
+    await page.evaluate(() => document.getElementById('subedit').scrollIntoView({block: 'center'}));
+    assert(await onScreen(page, '#subedit'), '"Edit the transcript…" is there to be pressed: nothing is over it');
     await page.click('#subedit');
     eq([await page.locator('.se-box').count(), await page.evaluate(() => document.getElementById('parseh-toast').textContent)],
        [0, 'the video in the frame above is being recorded — finish or cancel that first'], '"Edit the transcript…" is put off while the video is loaded here');
@@ -2470,9 +2473,11 @@ console.log('n) the add page: a YouTube video recorded through the tab, and tran
     assert(await page.evaluate(() => document.getElementById('stt_tied').hidden), 'a different address: no longer tied');
     assert(/no longer tied to speech to text: the video changed/.test(await text(page, '#stt_note')), await text(page, '#stt_note'));
     await page.selectOption('#lang', 'fa');
-    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url()));
+    // the body is read the moment the answer comes: the page goes to the video's own page on it, and
+    // Playwright cannot read the body of a response of the page it has left (as tests/timings.mjs)
+    const empty = page.waitForResponse(r => /\/api\/empty$/.test(r.url())).then(r => r.json());
     await page.click('#empty');
-    const made = await (await empty).json();
+    const made = await empty;
     eq([made.ok, 'waveform' in made], [true, false], 'the video that is not the recorded one is made without its waveform (the token was not sent)');
     eq((await names(HOLD, /\.json$/)).length, 1, 'and the held one is not spent on it');
     await context.close();
