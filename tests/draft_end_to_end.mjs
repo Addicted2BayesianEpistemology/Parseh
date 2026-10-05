@@ -866,7 +866,9 @@ try {
     eq(await add.evaluate(() => [document.getElementById('stt').getAttribute('data-state'),
          [...document.querySelectorAll('#stt button, #stt select, #stt a[href]')].filter(e => e.getClientRects().length && !e.disabled).map(e => e.id)]),
        ['absent', ['stt_setup']], 'no speech to text: the page offers the way to set it up, and no button or picker that would do nothing');
-    eq(asked.filter(x => /transcribe|huggingface|pypi/.test(x)), [], 'and it touched no transcription route, and fetched nothing of a model');
+    // (a0.4.3: opening the page lists the reviews saved for later, so that Videos can offer to continue one: a read
+    // from the disk that starts nothing and sends nothing)
+    eq(asked.filter(x => /transcribe(?!\/pending)|huggingface|pypi/.test(x)), [], 'and it touched no transcription route, and fetched nothing of a model');
     eq(abroad.slice(nAsked), [], 'the add page asked nothing of the network, only the computer what it has');
     eq(asked.filter(x => /^\/lookup\/api\//.test(x)), ['/lookup/api/speech'], 'and the one thing it asked was that');
     const nAbroad = abroad.length;
