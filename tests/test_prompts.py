@@ -352,8 +352,10 @@ CHECKS = (
           STUDIO, {}, has_no_avoid_math),
     # --- rows that wait for the lane that rewrites the words they are about ---
     Check("has_no_harakat_rule_of_a_reading_edition_in_a_video",
-          "a reading edition's harakat are a book's (brief 3.8); the language files still say them in "
-          "unmarked paragraphs (the text field, the sources sidebar's) which D marks {{?book}} or moves",
+          "a reading edition's harakat are a book's (brief 3.8) UNLESS the marks option is on, and these prompts "
+          "are built in the default state, `no marks` (3.10: TheContractOfTheShortVowels holds the other); the "
+          "language files still say them in unmarked paragraphs (the text field, the sources sidebar's) which D "
+          "marks {{?marks}} or {{?nomarks}}, or moves",
           ("video-region", "video-new"), {"video-region": "D", "video-new": "D"},
           has_no_harakat_rule_of_a_reading_edition),
     Check("says_a_plain_line_is_accepted_once",
@@ -659,7 +661,7 @@ class Marks(unittest.TestCase):
                                  (surface, flags))
 
     def test_flat_takes_the_marks_out_and_nothing_else(self):
-        for surface, flags in (("video-new", {"example": True}), ("studio-exercises", None), ("book-new", {})):
+        for surface, flags in (("video-new", {"example": True, "marks": True}), ("studio-exercises", None), ("book-new", {})):
             with open(K.TEMPLATES[surface], encoding="utf-8") as f:
                 text = f.read()
             if flags is None:
@@ -2625,6 +2627,51 @@ class TheContentOfTheOptions(ControlledMachine):
             if not languages.get(code).strip_range:
                 for flag in ("marks", "nomarks"):
                     self.assertNotIn("{{?%s}}" % flag, _file(code), code)
+
+
+# --- the answer contract of the short vowels (brief 3.10, lane M) -------------------------------------------------
+# The contract is the TEMPLATES' (docs/region-prompt.md, youtube/docs/chat-prompt.md): in the state "write them" a
+# prompt says that `fa` may come back with its short vowels added, in the chunks marked todo, and nothing else
+# changed; in the other state it says what it always said, byte for byte.  How to vowel is the language file's (lane
+# D2), and the applier that holds an answer to this contract is lib/glossregion.py (tests/test_glossregion.py).
+class TheContractOfTheShortVowels(ControlledMachine):
+    REGION = ("The one exception is the short vowels", "with its short vowels added and nothing else changed",
+              "for the short vowels put in", "short vowels in its `fa`")
+    NEW = ("The one addition this prompt asks for is the short vowels", "the short vowels put in, and nothing else changed")
+
+    def cases(self, codes):
+        return [(surface, code, mode, self.REGION if surface in REGIONS else self.NEW)
+                for code in codes for surface in ("video-region", "book-region", "video-new")
+                for mode in ((None, "perfield", "regloss") if surface in REGIONS else (None,))]
+
+    def test_a_prompt_that_asks_for_the_short_vowels_says_what_fa_may_then_be(self):
+        for surface, code, mode, says in self.cases(("fa", "ar")):
+            with self.subTest(surface=surface, language=code, mode=mode):
+                a = promptlab.build(surface, code, mode, None, {"marks": "1"})
+                flat = _flat(a.text)
+                self.assertTrue(a.header.endswith(" · marks"), a.header)
+                self.assertNotIn("{{", a.text)
+                for phrase in says:
+                    self.assertIn(phrase, flat)
+                if surface in REGIONS:
+                    # the contract names the chunks it is about, and keeps the rule that fa is a person's
+                    self.assertIn("Never change `fa`", flat)
+                    self.assertIn("every chunk not marked `\"todo\": true`, comes back with its `fa` exactly as received", flat)
+
+    def test_a_prompt_that_leaves_the_text_as_it_is_is_the_prompt_it_always_was(self):
+        for surface, code, mode, says in self.cases(("fa", "ar")):
+            with self.subTest(surface=surface, language=code, mode=mode):
+                a = promptlab.build(surface, code, mode, None, {"marks": "0"})
+                self.assertEqual(a.text, promptlab.build(surface, code, mode).text, "the default is `no marks`")
+                for phrase in says:
+                    self.assertNotIn(phrase, _flat(a.text))
+
+    def test_a_language_with_no_short_vowels_is_asked_for_none_and_told_nothing_of_them(self):
+        for surface, code, mode, says in self.cases(("it", "ja", "zh", "en")):
+            with self.subTest(surface=surface, language=code, mode=mode):
+                a = promptlab.build(surface, code, mode, None, {"marks": "1"})
+                self.assertEqual(a.text, promptlab.build(surface, code, mode).text)
+                self.assertNotIn("short vowel", _flat(a.text), (surface, code))
 
 
 if __name__ == "__main__":

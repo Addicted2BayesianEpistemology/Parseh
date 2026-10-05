@@ -5,9 +5,9 @@ it, and the answer put back, chunk by chunk, through the doors a hand uses.
 
     book_prompt(book, first, last, regloss, perfield, prompt, translit, marks)
                                                                -> {prompt, region, options, ...}
-    book_apply(book, first, last, answer, regloss, perfield, confirm)
+    book_apply(book, first, last, answer, regloss, perfield, confirm, marks)
     video_prompt(vdir, frm, to, regloss, perfield, prompt, translit, marks)
-    video_apply(vdir, frm, to, answer, regloss, perfield, confirm)
+    video_apply(vdir, frm, to, answer, regloss, perfield, confirm, marks)
     json_blocks(text)                   the JSON documents in a pasted answer
 
 serve.py wires the routes (<book>/reader/__region/prompt and /apply,
@@ -53,14 +53,30 @@ chatbot that ignored half of it:
     REPLACED.  Without `confirm` nothing is written when anything would
     be replaced: the answer says how many, and the page asks.
 
-Only kana, tr, voc and en are ever written.  fa, words, col, free, note and
-plain never are: a chunk whose fa does not match the page's (after the
-language's normalisation -- NFC, its marks stripped, whitespace collapsed,
-or dropped where the language has no word separator) is dropped; an answer
-that changed one of the others is told so in `kept`.  An answer that divides
-a sentence differently cannot land, because the division is a person's: the
-chunks it re-divided are dropped, and the ones before and after the change,
-which are still the page's own chunks, may land.
+Only kana, tr, voc and en are ever written -- and one more thing, when the
+request asks for it (`marks`, brief 3.10: for a language whose record has
+`strip`, Persian and Arabic): the SHORT VOWELS of a chunk's fa.  fa, words, col,
+free, note and plain never are otherwise: a chunk whose fa does not match the
+page's (after the language's normalisation -- NFC, its marks stripped,
+whitespace collapsed, or dropped where the language has no word separator) is
+dropped; an answer that changed one of the others is told so in `kept`.  An
+answer that divides a sentence differently cannot land, because the division
+is a person's: the chunks it re-divided are dropped, and the ones before and
+after the change, which are still the page's own chunks, may land.
+
+THE SHORT VOWELS (_vowelled).  The request says whether they are asked for, and
+this decides it again, from the request and the language's record, never from
+the prompt or the page.  An answer's fa is then written, along with the gloss
+of the chunk it lands with, ONLY WHEN it is the page's own text with marks
+added and nothing else -- not a letter, a space, a joiner or a stop -- and
+ONLY INTO A CHUNK THAT HAS NONE: a person's marks are judgement, and a word is
+either fully vowelled or wrong, so a chunk half vowelled by hand is not
+completed here.  It goes through the same door as the gloss, so the door's own
+checks run (a book's fidelity to source/paras/, a video's to its transcript;
+both set the marks aside, and the keys of timings.json hash the text with them
+stripped, so no timing is lost).  A chunk the answer glosses but whose marks
+cannot be taken is written without them, and `kept` says why; the count
+`vowelled` is in the report.
 
 NEVER HALF A GLOSS.  A chunk the answer would leave written but incomplete
 is dropped whole ("would leave it half glossed: missing tr").  Hand edits may
@@ -78,6 +94,7 @@ import math
 import os
 import re
 import sys
+import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -885,6 +902,53 @@ def _pairs(unit, chunks, L, rep):
     return head + tail
 
 
+def _marks_on(ctx, marks):
+    """Whether this request asks for the short vowels, said as the prompt's
+    request said it (`marks`: "1" or "0", or the option's own words) and
+    resolved by the kit: the surface's default where it says nothing -- no,
+    so an apply that does not mention them is the apply it always was -- and
+    never for a language whose record has no `strip`.  A word that is none of
+    the option's is refused, in the kit's words, before anything is read."""
+    try:
+        chosen = promptkit.resolve("%s-region" % ctx["surface"], ctx["L"],
+                                   promptkit.given({"marks": marks}))
+    except promptkit.OptionError as e:
+        raise Refused(str(e))
+    return chosen.get("marks") == "marks"
+
+
+def _vowelled(ctx, p, a, guarded):
+    """The fa the answer's chunk `a` may put in the page's chunk `p`, or None:
+    the answer's own text when it is the page's with marks added and nothing
+    else, and the page's chunk has none (the module's docstring says why).
+
+    COMPARED EXACTLY, NOT AS _pairs MATCHES THEM.  _pairs sets the marks
+    aside and collapses whitespace, which is what lets a chunk be found; here
+    the text that is WRITTEN must be the page's to the letter, the space and
+    the joiner, so only the marks are stripped (and NFC, which orders them).
+    `guarded` is told why marks the answer carried were not taken, and is told
+    nothing when it carried none: that is what a model gives that was not
+    asked for them, or did not do it, and it is the same answer as before."""
+    if not ctx.get("marks"):
+        return None
+    got = a.get("fa")
+    if not isinstance(got, str):
+        return None
+    L = ctx["L"]
+    page = unicodedata.normalize("NFC", p["fa"]).strip()
+    got = unicodedata.normalize("NFC", got).strip()
+    if got == page or L.strip(got) == got:
+        return None
+    if L.strip(page) != page:
+        guarded.append("`fa` already has its marks -- left as it is")
+    elif L.strip(got) != page:
+        guarded.append("`fa` differs from the page's in more than its marks (a space, "
+                       "say) -- left as it is")
+    else:
+        return got
+    return None
+
+
 def _decide(ctx, unit, p, a, mode, rep):
     """What the answer's chunk `a` does to the page's chunk `p`: an action,
     or None -- with every reason it does less than it asks in `rep`, and
@@ -951,6 +1015,10 @@ def _decided(ctx, unit, p, a, mode, rep, guarded):
             why += " (\\%s has no kana slot)" % p.get("macro", "ch")
         rep.drop(unit, p, why)
         return None
+    # THE SHORT VOWELS GO WITH A GLOSS THAT LANDS, and are checked below by the same doors
+    vowels = _vowelled(ctx, p, a, guarded)
+    if vowels is not None:
+        changes = dict(changes, fa=vowels)
     for f, v in changes.items():
         m = wordline.NOT_TEXT.search(v)
         if m:
@@ -1092,9 +1160,11 @@ def plan(ctx, units, entries, mode, rep, others):
 
 
 def _counts(actions):
-    c = {"fill": 0, "complete": 0, "replace": 0}
+    c = {"fill": 0, "complete": 0, "replace": 0, "vowelled": 0}
     for act in actions:
         c[act["kind"]] += 1
+        if "fa" in act["changes"]:
+            c["vowelled"] += 1
     return c
 
 
@@ -1104,27 +1174,32 @@ def _apply(ctx, units, entries, mode, confirm, others, write):
     rep = _Report(_book_where if ctx["surface"] == "book" else _video_where)
     actions, unanswered = plan(ctx, units, entries, mode, rep, others)
     c = _counts(actions)
+    # `marks` says the short vowels were asked for, so that the page reports "vowelled N" (0 included)
     base = dict(ctx["echo"], region=ctx["region"], folded=ctx["folded"], kept=rep.kept,
-                unanswered=unanswered)
+                unanswered=unanswered, marks=bool(ctx.get("marks")))
     if mode == "regloss" and not confirm and c["replace"]:
         # nothing is written until the page has said so, with the number
         return dict(base, confirm_needed=True, replace=c["replace"], fill=c["fill"],
                     dropped=rep.dropped, notes=rep.notes, written=[],
-                    filled=0, completed=0, replaced=0, wrote=False)
+                    filled=0, completed=0, replaced=0, vowelled=0, wrote=False)
     done = write(actions, rep)
     d = _counts(done)
     return dict(base, confirm_needed=False, filled=d["fill"], completed=d["complete"],
-                replaced=d["replace"], dropped=rep.dropped, notes=rep.notes,
-                wrote=bool(done),
+                replaced=d["replace"], vowelled=d["vowelled"], dropped=rep.dropped,
+                notes=rep.notes, wrote=bool(done),
                 written=[act["chunk"]["n"] if ctx["surface"] == "book"
                          else [act["unit"]["i"], act["chunk"]["j"]] for act in done])
 
 
-def book_apply(book, first, last, answer, regloss=False, perfield=False, confirm=False):
-    """Put an LLM's answer for a book region into the chapter files.
+def book_apply(book, first, last, answer, regloss=False, perfield=False, confirm=False,
+               marks=None):
+    """Put an LLM's answer for a book region into the chapter files.  `marks`
+    ("1", "0") is the short vowels as the request asks them (_marks_on): with
+    them the answer's fa may be written too, and `vowelled` counts the chunks.
 
-    -> {confirm_needed, filled, completed, replaced, kept, dropped, unanswered,
-        notes, written (data-c numbers), chunks, wrote, region, folded}
+    -> {confirm_needed, filled, completed, replaced, vowelled, marks, kept,
+        dropped, unanswered, notes, written (data-c numbers), chunks, wrote,
+        region, folded}
     or, for a re-gloss that would replace anything and was not confirmed,
        {confirm_needed: true, replace, fill, kept, dropped, ...} with nothing
        written.  The caller rebuilds the reader once when `wrote`.
@@ -1136,6 +1211,7 @@ def book_apply(book, first, last, answer, regloss=False, perfield=False, confirm
     answer box)."""
     mode = _mode(regloss, perfield)
     ctx, units, folded, known = _book_units(book, first, last)
+    ctx["marks"] = _marks_on(ctx, marks)
     entries = _entries(answer, "book")
 
     def others(key):
@@ -1169,7 +1245,8 @@ def book_apply(book, first, last, answer, regloss=False, perfield=False, confirm
     return r
 
 
-def video_apply(vdir, frm, to, answer, regloss=False, perfield=False, confirm=False):
+def video_apply(vdir, frm, to, answer, regloss=False, perfield=False, confirm=False,
+                marks=None):
     """Put an LLM's answer for a video region into annotations.json.
 
     -> as book_apply, with `written` as [segment, chunk] pairs and `segments`
@@ -1177,6 +1254,7 @@ def video_apply(vdir, frm, to, answer, regloss=False, perfield=False, confirm=Fa
        player can redraw exactly those."""
     mode = _mode(regloss, perfield)
     ctx, units, segs = _video_units(vdir, frm, to)
+    ctx["marks"] = _marks_on(ctx, marks)
     entries = _entries(answer, "video")
 
     def others(key):

@@ -8705,7 +8705,7 @@ function rgReport(j, missed) {
       ' — press the button again to write them; nothing has been written yet';
   } else {
     text += 'filled ' + (j.filled || 0) + ' · completed ' + (j.completed || 0) +
-            ' · replaced ' + (j.replaced || 0);
+            ' · replaced ' + (j.replaced || 0) + (j.marks ? ' · vowelled ' + (j.vowelled || 0) : '');
     if (!j.wrote) text += ' — nothing was written';
     if (j.reader && !j.reader.ok)
       text += '\nthe .tex files are written, but the reader would not rebuild: ' +
@@ -8742,7 +8742,10 @@ async function rgFill() {
   btn.disabled = true;
   rgSay(confirm ? 'replacing…' : 'reading the answer…', false);
   const range = await rgRange();
-  const j = range ? await rgPost('apply', Object.assign(range, flags, {answer, confirm}))
+  // THE SHORT VOWELS the row shows now go with the answer as they went with the prompt: whether the
+  // answer's `fa` may be written is the server's to decide, from this word and the language's record
+  const marks = rgRow.options ? rgRow.options().marks : undefined;
+  const j = range ? await rgPost('apply', Object.assign(range, flags, {answer, confirm}, marks ? {marks} : {}))
                   : {ok: false, error: 'what is picked holds no chunk to fill'};
   btn.disabled = !(rgPicker && rgPicker.get());
   if (!j.ok) { rgSay(j.error || 'the answer was refused', true); return; }

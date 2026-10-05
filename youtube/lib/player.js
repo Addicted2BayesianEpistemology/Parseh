@@ -5790,6 +5790,13 @@
     Object.keys(extra || {}).forEach(function (k) { b[k] = extra[k]; });
     return b;
   }
+  // THE SHORT VOWELS the row shows now go with the answer as they went with the prompt: whether the
+  // answer's `fa` may be written is the server's to decide, from this word and the language's record
+  function rgMarks(body) {
+    var o = rgRow.options ? rgRow.options() : {};
+    if (o.marks) body.marks = o.marks;
+    return body;
+  }
   // through the ask that cannot hang (lib/parseh.js): a computer gone quiet
   // is said at once rather than waited on for ever, and a write is not even
   // tried while the page knows it is away
@@ -5876,7 +5883,7 @@
     rgDisarm();
     rgBusy = true; rgPaint();
     rgSay(RG.report, confirm ? 'replacing…' : 'reading the answer…');
-    rgAsk('apply', rgBody({ answer: answer, confirm: confirm })).then(function (j) {
+    rgAsk('apply', rgBody(rgMarks({ answer: answer, confirm: confirm }))).then(function (j) {
       if (!j || !j.ok) throw new Error((j && j.error) || 'the answer was refused');
       rgBusy = false;
       rgApplied(j);
@@ -5931,7 +5938,8 @@
         '. Nothing is written yet: press the button again within four seconds to go ahead.'));
     } else {
       tally.textContent = 'filled ' + (+j.filled || 0) + ' · completed ' + (+j.completed || 0) +
-                          ' · replaced ' + (+j.replaced || 0);
+                          ' · replaced ' + (+j.replaced || 0) +
+                          (j.marks ? ' · vowelled ' + (+j.vowelled || 0) : '');
       if (!j.wrote) tally.appendChild(document.createTextNode('\nnothing was written'));
     }
     box.appendChild(tally);
