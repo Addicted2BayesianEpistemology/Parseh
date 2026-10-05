@@ -80,7 +80,6 @@ STORE_FORMAT = 1
 EXPORT_FORMAT = "parseh-prompt/1"
 
 NAME = "Parseh"
-SURFACES = promptkit.SURFACES
 KINDS = ("added", "replace")
 NAME_MAX = 60
 TEXT_MAX = 300000
@@ -112,6 +111,12 @@ DATA = {
     "transcript-tidy": "the transcript, as its panel shows it",
     "ask": "the sentence, the sentences round it, the dictionary's rows and the translated examples",
 }
+
+# the places a person may put a prompt of their own in: the places the kit hands
+# a prompt out from AND this file has the words for.  The kit can gain a place
+# before the menu on it exists (the browser review of a transcript hands out its
+# own prompts, a0.4.3): such a place is not offered, and nothing here breaks on it
+SURFACES = tuple(s for s in promptkit.SURFACES if s in LABELS and s in DATA)
 
 # ASK LLM'S OWN WORDS ARE JAVASCRIPT'S (lib/llm.js builds the prompt in the
 # page, offline too), and the kit has no template for them -- a test of its

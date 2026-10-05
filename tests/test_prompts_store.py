@@ -91,6 +91,24 @@ class Stored(unittest.TestCase):
         return str(cm.exception)
 
 
+class ThePlacesOfTheStore(unittest.TestCase):
+    """The places a person may replace are the kit's places this file has words for: the kit can gain
+    a place (the browser review of a transcript, a0.4.3) before a menu on it exists, and the store
+    must neither offer it nor break on it."""
+
+    def test_a_place_is_offered_when_the_kit_hands_it_out_and_this_file_names_it(self):
+        offered = tuple(s for s in K.SURFACES if s in P.LABELS and s in P.DATA)
+        self.assertEqual(P.SURFACES, offered)
+        self.assertTrue(P.SURFACES, "the store offers no place at all")
+
+    def test_no_label_or_data_line_is_left_for_a_place_the_kit_no_longer_has(self):
+        self.assertEqual(sorted(set(P.LABELS) - set(K.SURFACES)), [])
+        self.assertEqual(sorted(set(P.DATA) - set(K.SURFACES)), [])
+
+    def test_a_place_with_a_label_has_its_data_line_too(self):
+        self.assertEqual(sorted(set(P.LABELS) ^ set(P.DATA)), [])
+
+
 class TheStore(Stored):
     def test_a_new_prompt_is_added_after_parsehs_unless_it_says_otherwise(self):
         p = P.save({"surface": "video-region", "name": "British spellings", "text": MINE})
