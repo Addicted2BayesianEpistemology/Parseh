@@ -84,7 +84,7 @@ SIZES = {
     "tr": ((18457, 21300), (16951, 19500), (37675, 43400), (27125, 31200), (26173, 30100), (2865, 3300), (41064, 47300)),
     "en": ((22654, 26100), (21148, 24400), (40876, 47100), (29596, 34100), (28478, 32800), (2930, 3400), (43600, 50200)),
     "hi": ((18245, 21000), (16286, 18800), (33993, 39100), (23691, 27300), (23945, 27600), (2692, 3100), (36086, 41500)),
-    "es": ((18075, 20800), (16208, 18700), (39886, 45900), (28935, 33300), (29167, 33600), (2664, 3100), (41928, 48300)),
+    "es": ((18139, 20900), (16633, 19200), (38592, 44400), (27945, 32200), (27276, 31400), (2783, 3300), (41707, 48000)),
     "zh": ((19058, 22000), (17124, 19700), (42340, 48700), (29741, 34300), (29847, 34400), (2620, 3100), (43126, 49600)),
 }
 MEASURED = ("studio-doc", "studio-exercises", "video-new", "video-region", "book-region",
@@ -915,17 +915,18 @@ class LanguageCut(unittest.TestCase):
 
     def test_the_note_on_writing_the_script_is_found_where_it_stands(self):
         # THE NOTE IS THE STUDIO'S: a file marks it {{?studio}} (lane D2), and a prompt that glosses never has it
-        marked = ("it", "en", "fr", "de")
         for code in ("it", "de", "fr", "es", "en"):
             text = K.language_text("studio-doc", code)
             self.assertIn("[…]{tl}", text, code)
             self.assertIn("## The text field", text, code)
-            self.assertNotIn("{tl}", K.language_text("video-region", code), code)
-            self.assertEqual("{tl}" in K.language_text("video-new", code), code not in marked, code)
+            for surface in ("video-region", "book-region", "video-new", "book-new"):
+                self.assertNotIn("{tl}", K.language_text(surface, code), (code, surface))
         tr = K.language_text("studio-doc", "tr")
         self.assertIn("Runs of Turkish are **marked** in the studio", tr)
         self.assertTrue(tr.index("## The text field") < tr.index("Runs of Turkish"))
         self.assertNotIn("Chunking", tr)
+        for surface in ("video-region", "book-region", "video-new", "book-new"):
+            self.assertNotIn("{tl}", K.language_text(surface, "tr"), surface)
         for code in ("fa", "ar", "hi", "ja", "zh"):
             self.assertNotIn("The text field", _names("studio-doc", code), code)
 
