@@ -45,6 +45,8 @@ DESCRIBE_GITHUB_IO = {
     "html-guide/README.md",                    # where the project's own guide is published from
     "html-guide/markdown/writing-this-guide/compiling.md",
     ".github/workflows/guide-pages.yml",
+    "html-guide/engine/bar.py",                # the bar is the site's twin: it says whose repository that is
+    "tests/test_guide_published.py",
 }
 
 

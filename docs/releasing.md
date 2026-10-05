@@ -771,7 +771,7 @@ releases, **Go back to <previous>**).
 organisation `parseh-io`. It was moved there by a *transfer* of the
 repository the owner's own account held, not by making a new one, so that its
 releases, its tags and the road every earlier install updates by came along.
-The author's profile (`Bruno Ursino on GitHub`, at the foot of the hub) is a
+The author's profile (the GitHub link at the foot of the hub) is a
 **person's** address and stays where he is; it is not the project's, and
 `lib/author.py` and `lib/project.py` say so.
 

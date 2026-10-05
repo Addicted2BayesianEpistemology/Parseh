@@ -562,6 +562,8 @@ body[data-page="doc"] :is(.pz,.modal-overlay) .ex-flashcard figure.img:hover img
 :is(.pz,.modal-overlay) .ex-field-style{margin-top: .15rem;}
 :is(.pz,.modal-overlay) .ex-field-style summary{cursor: pointer; color: var(--accent); font-size: .76rem;}
 :is(.pz,.modal-overlay) .ex-field-style .ex-field-cols{margin-top: .5rem;}
+:is(.pz,.modal-overlay) .modal.ex-form-modal .ex-field-style .ex-side-toggle{display: flex; align-items: center; gap: .4rem; margin-top: .6rem;}
+:is(.pz,.modal-overlay) .modal.ex-form-modal .ex-field-style .ex-side-toggle input{width: auto; padding: 0; margin: 0;}
 :is(.pz,.modal-overlay) .ex-form-preview-status{min-height: 1.15em;}
 :is(.pz,.modal-overlay) .sheet.ex-form-preview{width: 100%; max-width: none; margin: 0; padding: .75rem;
   border: 1px solid var(--chrome-line); border-radius: 9px;
@@ -1126,13 +1128,57 @@ body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .dropdown .menu{right: .9
 :is(.pz,.modal-overlay) #prompt-text[readonly]{opacity: .92;}
 :is(.pz,.modal-overlay) #question{font-family: inherit; font-size: .95rem;}
 :is(.pz,.modal-overlay) .prompt-target{display: inline-flex; align-items: center; gap: .4rem;
-  font-size: .8rem; font-weight: 400; color: var(--chrome-mut); margin-left: auto; margin-right: .8rem;}
+  font-size: .8rem; font-weight: 400; color: var(--chrome-mut);}
 :is(.pz,.modal-overlay) .prompt-target select{padding: .2rem .4rem; font-size: .82rem;}
 :is(.pz,.modal-overlay) .qlabel{margin: 1.2rem 0 .4rem;}
 :is(.pz,.modal-overlay) .row{display: flex; gap: .8rem; align-items: center; margin: .8rem 0;}
 :is(.pz,.modal-overlay) .workflow-hint{margin-top: 1.6rem; padding: .9rem 1.1rem; border-radius: 10px;
   background: var(--chrome-panel); border: 1px solid var(--chrome-line);
   color: var(--chrome-mut); font-size: .86rem; line-height: 1.6;}
+:is(.pz,.modal-overlay) .pp{background: var(--chrome-panel); border: 1px solid var(--chrome-line);
+  border-radius: 10px; padding: .8rem 1rem; margin: .8rem 0 1rem;}
+:is(.pz,.modal-overlay) .pp-title{margin: 0 0 .25rem; font-size: 1rem;}
+:is(.pz,.modal-overlay) .pp .pp-why{margin: 0 0 .7rem; color: var(--chrome-mut); font-size: .84rem;}
+:is(.pz,.modal-overlay) .pp-busy{margin: 0 0 .7rem; color: var(--warn); font-size: .84rem;}
+:is(.pz,.modal-overlay) .pp-busy:empty{display: none;}
+:is(.pz,.modal-overlay) .pp-presets{display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 .8rem;}
+:is(.pz,.modal-overlay) .pp-preset{border: 1px solid var(--chrome-line); background: var(--chrome-panel);
+  color: var(--chrome-mut); border-radius: 99px; padding: .22rem .75rem;
+  font-size: .82rem; cursor: pointer;}
+:is(.pz,.modal-overlay) .pp-preset:not([aria-pressed="true"]):hover:not(:disabled){border-color: var(--accentlt); color: var(--accent);}
+:is(.pz,.modal-overlay) .pp-preset[aria-pressed="true"]{background: var(--accent); border-color: var(--accent); color: var(--accent-fg);}
+:is(.pz,.modal-overlay) .pp-preset:disabled{opacity: .5; cursor: not-allowed;}
+:is(.pz,.modal-overlay) .pp-group{border: 0; margin: 0 0 .55rem; padding: 0; min-width: 0;}
+:is(.pz,.modal-overlay) .pp-group legend{padding: 0; margin: 0 0 .1rem; color: var(--chrome-mut); font-size: .76rem; font-weight: 700;}
+:is(.pz,.modal-overlay) .pp-box{display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: .55rem;
+  align-items: baseline; padding: .3rem .35rem; border-radius: 6px; cursor: pointer;}
+:is(.pz,.modal-overlay) .pp-box:hover{background: var(--chrome-bg);}
+:is(.pz,.modal-overlay) .pp-box input{grid-row: 1 / span 3; align-self: start; margin: .2rem 0 0; accent-color: var(--accent);}
+:is(.pz,.modal-overlay) .pp-name{font-weight: 600; overflow-wrap: anywhere;}
+:is(.pz,.modal-overlay) .pp-size{color: var(--chrome-mut); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap;}
+:is(.pz,.modal-overlay) .pp-says{grid-column: 2 / 4; color: var(--chrome-mut); font-size: .8rem; overflow-wrap: anywhere;}
+:is(.pz,.modal-overlay) .pp-offwhy{grid-column: 2 / 4; color: var(--warn); font-size: .78rem; font-style: italic;}
+:is(.pz,.modal-overlay) .pp-offwhy:empty{display: none;}
+:is(.pz,.modal-overlay) .pp-box.pp-off{cursor: not-allowed;}
+:is(.pz,.modal-overlay) .pp-box.pp-off .pp-name,:is(.pz,.modal-overlay) .pp-box.pp-off .pp-says{opacity: .55;}
+:is(.pz,.modal-overlay) .pp-total{position: sticky; bottom: 0; margin: .6rem -1rem -.8rem; padding: .55rem 1rem;
+  background: var(--chrome-panel); border-top: 1px solid var(--chrome-line);
+  border-radius: 0 0 10px 10px; font-size: .84rem; color: var(--chrome-fg);}
+:is(.pz,.modal-overlay) .pp-total:empty{display: none;}
+:is(.pz,.modal-overlay) .pp-under{display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: .6rem 0 0;}
+:is(.pz,.modal-overlay) .pp-under:empty{display: none;}
+:is(.pz,.modal-overlay) .pp-pick{display: inline-flex; align-items: center; gap: .4rem; font-size: .84rem; color: var(--chrome-mut);}
+:is(.pz,.modal-overlay) .pp-pick select,:is(.pz,.modal-overlay) .pp-options select{max-width: 100%; padding: .2rem .4rem; font: inherit; font-size: .84rem;
+  border: 1px solid var(--chrome-line); border-radius: 6px;
+  background: var(--chrome-panel); color: var(--chrome-fg);}
+:is(.pz,.modal-overlay) .pp-options .llmrow,:is(.pz,.modal-overlay) .pp-options .llmrow-opts{margin: 0;}
+:is(.pz,.modal-overlay) .pp-options .llmrow-opt{color: var(--chrome-mut); font-size: .84rem;}
+:is(.pz,.modal-overlay) .modal.ex-prompt-modal{max-height: calc(100vh - 2rem);}
+:is(.pz,.modal-overlay) .ex-prompt-body{display: flex; flex-direction: column; gap: .8rem; min-height: 0; overflow-y: auto;}
+:is(.pz,.modal-overlay) .ex-prompt-body > *{flex-shrink: 0;}
+:is(.pz,.modal-overlay) .ex-prompt-body .pp{margin: 0; background: var(--chrome-bg);}
+:is(.pz,.modal-overlay) .ex-prompt-body .pp-box:hover{background: var(--chrome-panel);}
+:is(.pz,.modal-overlay) .ex-prompt-body .pp-under{margin: 0;}
 .modal-overlay{position: fixed; inset: 0; z-index: 100; background: rgba(23,18,20,.55);
   display: flex; align-items: center; justify-content: center; padding: 1rem;}
 :is(.pz,.modal-overlay) .modal{background: var(--chrome-panel); color: var(--chrome-fg);

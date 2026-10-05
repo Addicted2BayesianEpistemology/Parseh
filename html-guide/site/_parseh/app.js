@@ -1206,7 +1206,10 @@ function flipCard(card) {
    cram page.  The two sides swap names, so `.ex-card-front` is still the
    side shown first for everything that reads it (flipCard, the recording
    played first, the enlarged copy).  A card already turned (a preview shows
-   both sides) is left as it is, and one drawn once is not drawn again. */
+   both sides) is left as it is, and one drawn once is not drawn again.
+   The example, the notes and the source (data-extra) go with the answer, which
+   the draw has just changed: each goes to the other side, after that side's
+   own fields, and each side keeps them in the order they were drawn in. */
 function drawFirstSide(card) {
   if (card.dataset.first !== "random" || card.dataset.drawn || card.classList.contains("flipped")) return;
   card.dataset.drawn = "1";
@@ -1215,6 +1218,8 @@ function drawFirstSide(card) {
   front.className = "ex-card-back"; back.className = "ex-card-front";
   front.hidden = true; back.hidden = false;
   card.insertBefore(back, front);
+  const [fromFront, fromBack] = [front, back].map(side => $$(":scope > [data-extra]", side));
+  back.append(...fromFront); front.append(...fromBack);
 }
 
 function escAttr(s) {
@@ -4889,7 +4894,6 @@ function initPrompt() {
   const sel = $("#prompt-target");
   let current = {text: "", custom: false, target: "fa", target_name: "Persian",
                  lang_block: ""};
-  let editing = false;
   bindStopServer();
 
   /* The target-language select: the prompt text is generic and says to
@@ -4910,26 +4914,98 @@ function initPrompt() {
     return `target: ${current.target} — this document is about ${current.target_name}: `
       + `write \`target: ${current.target}\` in the front matter.\n\n`;
   }
-  function fullText() {
-    return ta.value.trim() + (current.lang_block
-      ? "\n\n" + current.lang_block.trim() : "") + "\n";
-  }
   function show(p) {
     current = p;
     // WHAT THE BOX SHOWS is the prompt the server assembled (the version line, the target
     // line, the instructions, the language's conventions, the answer contract), so that what
     // it shows is what is copied; a server that does not send one is composed the old way
-    ta.value = editing ? p.text : p.prompt ? p.prompt.replace(/\n*$/, "\n")
+    ta.value = p.prompt ? p.prompt.replace(/\n*$/, "\n")
       : guidance() + p.text.trim() + (p.lang_block ? "\n\n" + p.lang_block.trim() : "") + "\n";
-    badge.textContent = (p.custom ? "custom" : "default (exlex/PROMPT.md)")
+    // THE BADGE NAMES THE PROMPT: Parseh's own, or the one of the person's the menu in the row chose
+    badge.textContent = (p.custom ? `your prompt: ${p.custom.name || "custom"}` : "default (exlex/PROMPT.md)")
       + ` · ${p.target_name}`;
     badge.className = "badge " + (p.custom ? "warn" : "");
+    teach.draw(p);
+    choices.draw(p);
+    teach.total(p.prompt || "", p.always_chars);
     sync();
   }
-  const load = () => api("/api/prompt?target=" + encodeURIComponent(sel.value))
-    .then(show).catch(e => toast(e.message, true));
-  sel.addEventListener("change", load);
-  load();
+
+  /* WHAT THE MODEL IS TAUGHT TO WRITE, and for whom (static/promptpick.js): the boxes, the
+     presets, the level and the length are drawn from the server's answer, and the choice is
+     asked of the server again a moment after the last change -- only the newest answer is
+     shown, a slow one that comes late is dropped.  The ticked boxes, the level and the length
+     are remembered on this device, one set for every language; the scheme of the
+     transliteration is the row's own control, remembered per language. */
+  const teach = ParsehPromptPick.boxes($("#prompt-boxes"), {presets: true, total: true, remember: "boxes", onChange: ask});
+  const choices = ParsehPromptPick.line($("#prompt-under"), {
+    surface: "studio-doc", lang: sel.value, remember: "",
+    ids: {level: "prompt-level", length: "prompt-length"}, onChange: ask});
+  let timer = 0, seq = 0, making = false;
+  function query(plain) {
+    const q = ["target=" + encodeURIComponent(sel.value)];
+    // a `boxes=` with nothing after it is "none ticked" -- the key stays when the list is empty
+    if (!plain && teach.boxes()) q.push("boxes=" + encodeURIComponent(teach.boxes().join(",")));
+    if (!plain) for (const [k, v] of Object.entries(choices.params()))
+      q.push(k + "=" + encodeURIComponent(v));
+    // THE PROMPT THE MENU IN THE ROW CHOSE (a person's own; Parseh's own is none): kept in the plain ask too, so
+    // that what is shown is always the prompt the menu says
+    if (row && row.promptId()) q.push("prompt=" + encodeURIComponent(row.promptId()));
+    return "/api/prompt?" + q.join("&");
+  }
+  // WHAT IS HELD WAS MADE FOR THE CHOICES BEFORE THIS ONE: not to be copied meanwhile
+  function outdated() {
+    making = true;
+    if (row) row.disable("the prompt is being made again for what you changed");
+  }
+  function ask() {
+    clearTimeout(timer);
+    // an answer on its way was made for what was asked before this: it is not shown, and not said if it is refused
+    seq++;
+    outdated();
+    timer = setTimeout(() => load(), 150);
+  }
+  async function load(plain = false, again = 0) {
+    clearTimeout(timer);
+    const mine = ++seq;
+    let p;
+    try {
+      p = await api(query(plain));
+    } catch (e) {
+      if (mine !== seq) return;
+      // WHAT THIS DEVICE REMEMBERED can be something a newer Parseh refuses (a box it no longer
+      // has): the plain ask gets the default, the draw puts back the ids the server does know
+      // and the ask below is made once more with them
+      if (e.status === 400 && !plain) { teach.stale(); return load(true, again); }
+      // THE PROMPT CHOSEN MAY BE ONE ANOTHER DEVICE DELETED SINCE (the route says it is gone): the row finds out,
+      // says so in its own words, chooses Parseh's own and asks again -- and then nothing more need be said here
+      if (row && row.promptId() && e.status === 404) {
+        const was = row.promptId();
+        await row.verifyPrompt();
+        if (row.promptId() !== was) return;
+      }
+      toast(e.message, true);
+      if (row) row.disable("the prompt could not be made again: change a box to try once more");
+      return;
+    }
+    if (mine !== seq) return;
+    // WHAT THE ANSWER CORRECTED (a remembered set the server only partly knew, a plain ask made for the
+    // default, a box it turned off) is asked for once more -- and what is shown meanwhile is not the
+    // prompt for the choices yet, so it is not to be copied
+    const more = (plain || !teach.agrees(p)) && again < 2;
+    if (more) outdated(); else making = false;
+    show(p);
+    if (more) load(false, again + 1);
+  }
+  sel.addEventListener("change", async () => {
+    clearTimeout(timer);
+    outdated();
+    await choices.setLang(sel.value);     // the scheme of the transliteration is chosen per language
+    // the menu lists the prompts of this language; a choice that is not for it is Parseh's own again, and the
+    // prompt is asked for once more by the row's own say-so (onPrompt)
+    if (row) await row.setLang(sel.value);
+    load();
+  });
 
   /* WHAT IS COPIED: the prompt as the box shows it -- while it is being edited
      the box holds the editable text alone, and the target line and the
@@ -4938,14 +5014,18 @@ function initPrompt() {
      says how long it is before anything is copied, and copies exactly it. */
   function copyText() {
     const q = question.value.trim();
-    const prompt = editing ? guidance() + fullText() : ta.value;
+    const prompt = ta.value;
     return q ? prompt.replace(/\n*$/, "\n") + "\n" + q + "\n" : prompt;
   }
+  // THE PROMPT MENU is the row's: it lists the prompts of the person's own for this language, and what it chooses
+  // is asked of the server as `prompt=<id>` (query).  The options are the choices' own, drawn under the question
   const row = window.ParsehLLMRow ? ParsehLLMRow.mount($("#llm-row"), {
     surface: "studio-doc", cls: "btn primary big", ids: {copy: "btn-copy-all"},
     title: "Put the prompt on the clipboard, with your question after it when you have written one",
     remind: "paste it into your chatbot, then bring its answer back with Upload .md or Paste LLM answer.",
     box: () => ta,
+    lang: sel.value, options: false, promptsUrl: BASE + "/api/prompts/",
+    onPrompt: () => ask(),
   }) : null;
   if (!row) $("#llm-row").textContent = "The prompt helper could not be loaded.";
   // a prompt not loaded yet has nothing to copy; and a button says what it copies:
@@ -4953,43 +5033,21 @@ function initPrompt() {
   const sync = () => {
     if (!row || !current.text) return;
     row.update(copyText());
+    // the short request for a chat that has the skill: its header (the server's) and, after a blank line, the question
+    const k = current.skill;
+    if (row.skillOf) {
+      const q = question.value.trim();
+      row.skillOf(k && k.available ? Object.assign({}, k, {text: k.text.replace(/\n*$/, "\n\n") + (q ? q + "\n" : "")}) : k);
+    }
+    // the button stays off while the prompt is being made again for a choice just changed (ask)
+    if (!making) row.enable();
     row.label(question.value.trim() ? "copy the prompt and your question" : "copy the prompt");
   };
   question.addEventListener("input", sync);
-  ta.addEventListener("input", () => { if (editing) sync(); });
 
-  const btnEdit = $("#btn-edit-prompt"), btnSave = $("#btn-save-prompt"),
-        btnCancel = $("#btn-cancel-edit"), btnReset = $("#btn-reset-prompt");
-  btnEdit.addEventListener("click", () => {
-    editing = true;
-    ta.value = current.text;        // the text alone, without the block
-    ta.readOnly = false; ta.focus();
-    sync();
-    btnEdit.classList.add("hidden");
-    btnSave.classList.remove("hidden");
-    btnCancel.classList.remove("hidden");
-  });
-  const endEdit = () => {
-    editing = false;
-    ta.readOnly = true;
-    btnEdit.classList.remove("hidden");
-    btnSave.classList.add("hidden");
-    btnCancel.classList.add("hidden");
-  };
-  // a save or a reset answers with the bare prompt record (text, custom): the prompt the
-  // box shows is assembled by the server, so it is asked for again
-  btnSave.addEventListener("click", async () => {
-    await api("/api/prompt?target=" + encodeURIComponent(sel.value),
-              {method: "PUT", json: {text: ta.value}});
-    endEdit(); await load(); toast("Custom prompt saved");
-  });
-  btnCancel.addEventListener("click", () => { endEdit(); show(current); });
-  btnReset.addEventListener("click", async () => {
-    if (current.custom &&
-        !confirm("Discard the custom prompt and return to the default?")) return;
-    await api("/api/prompt?target=" + encodeURIComponent(sel.value), {method: "DELETE"});
-    endEdit(); await load(); toast("Prompt reset to default");
-  });
+  // the first prompt is asked for once the options are known, so that it is made the way it will be asked for
+  // and the choice of prompt is known, where this device remembers one
+  Promise.all([choices.ready(), row ? row.promptReady() : null]).then(() => load());
 }
 
 /* ---------------- boot ---------------- */
