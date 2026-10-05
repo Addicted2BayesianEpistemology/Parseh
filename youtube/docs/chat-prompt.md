@@ -75,7 +75,10 @@ Every `[i]` line must appear in your answer exactly once, in order.
   named after Persian, the toolbox's first language — joined back with
   the language's word separator, must reproduce the caption
   **verbatim** — same letters, same punctuation, same joiners, the
-  transcript's mistakes included. That is the one test a machine will
+  transcript's mistakes included.{{?marks}} The one addition this prompt asks
+  for is the short vowels: the caption's text WITH them put in, by the rules
+  of the conventions above, and nothing else changed — the machine sets the
+  marks aside before it compares.{{/marks}} That is the one test a machine will
   run, and it is unforgiving.
 - {{TR_RULE}}; `voc` on a word's **first** appearance in the video and
   rarely after; `note` only when something needs saying (an ASR slip,
@@ -92,7 +95,8 @@ Every `[i]` line must appear in your answer exactly once, in order.
 
 - every `[i]` caption once, in order, `i` and `start` exactly as given;
 - `fa` verbatim, chunks split only at the language's word separator,
-  nothing corrected in `fa`;
+  nothing corrected in `fa`{{?marks}} (the short vowels put in, and nothing
+  else changed){{/marks}};
 {{WORDS_CHECK}}- {{TR_RULE}}, in the transliteration scheme of the {{LANGUAGE}}
   conventions above;
 - every meaning in {{GLOSS_LANGUAGE}}, saying what its own chunk says and no

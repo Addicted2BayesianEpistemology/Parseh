@@ -158,6 +158,40 @@ the checker says in a note that it did not run them. The PDF sets IPA
 letters the main face lacks in a second face, as it does for any
 transliteration.
 
+## The short vowels
+
+For Persian and Arabic the sheet has one more choice beside the scheme:
+**short vowels: as they are** or **write them**. *As they are* is the way it
+always was: the prompt tells the chatbot never to change a chunk's text, not
+a letter and not a mark, and its first line ends **· no marks**. *Write them*
+asks for the short vowels (the harakat) in the text of every chunk to gloss,
+by the rules of the language's conventions — the way a reading edition's
+vowelled pass is written — and nothing else changed. The first line ends
+**· marks**. The choice is remembered on this device, and a language that has
+no short vowels is not offered it.
+
+What lands is decided when you press **fill from the answer**, from the choice
+the sheet shows then, and not by the prompt:
+
+- the answer's text is written, with the chunk's gloss, only if it is the
+  book's own text **with marks added and nothing else** — not a letter, a
+  space, a joiner or a stop. An answer that changes a letter, a joiner or a
+  stop is dropped, as ever (*text does not match*); one whose only other change
+  is a space is written without its marks, and the report says so;
+- only into a chunk that **has none**: a chunk that already has marks, whoever
+  wrote them, keeps its own (*already has its marks — left as it is*), because
+  marks are judgement and a word is either vowelled completely or wrong;
+- only into a chunk the answer glosses: a chunk kept whole, one already glossed,
+  is not touched — its text is not either.
+
+The marks go in through the chunk sheet's own door with its checks, so a
+paragraph still has to reproduce `source/paras/` once the marks are set aside
+(a chunk whose letters changed is not written), and the contents entry of a
+paragraph follows its first words. The keys of `timings.json` hash the text
+without its marks, so no timing is lost, and the bare pass of the PDF still
+strips them. Parseh does not judge whether a mark is the right one: read them
+beside the transliteration.
+
 ## Filling from the answer
 
 Paste the chatbot's whole reply into **the LLM's answer** and press **fill
@@ -170,8 +204,9 @@ and a subparagraph given twice is taken from the later block.
 Each chunk of the answer is matched to the book's by its subparagraph and
 its place in it, and its text must be the book's text (vowel marks and
 spacing aside). Then only its **transliteration, reading, vocabulary and
-meaning** are written, through the chunk sheet's own door, with the chunk
-sheet's own checks. The reader is rebuilt once, the chunks written are
+meaning** are written — and, if you chose to write the short vowels, its text
+with them ([above](#the-short-vowels)) — through the chunk sheet's own door,
+with the chunk sheet's own checks. The reader is rebuilt once, the chunks written are
 drawn again where they stand — no reload: the answer stays in its box — and
 **PDF behind the text — build it** appears in the header.
 
@@ -189,19 +224,23 @@ stretch or a checkbox — it goes back to **fill from the answer**.
 
 ## The report
 
-Under the button: *filled N · completed N · replaced N*.
+Under the button: *filled N · completed N · replaced N*, and *· vowelled N*
+when the short vowels were chosen.
 
 | Count | Means |
 |---|---|
 | **filled** | chunks that had no gloss, and now have one |
 | **completed** | chunks that had a gloss and had empty boxes filled (the second checkbox): a half gloss made whole, or a vocabulary line or an optional transliteration added to a whole one |
 | **replaced** | glossed chunks glossed afresh (**re-gloss**) |
+| **vowelled** | chunks whose text now carries its marks — fewer than the chunks glossed where some had marks already, or the answer did not vowel them |
 
 Then, one line to a chunk, what did not land:
 
 - **kept** — a chunk that is protected, which the answer tried to change:
   it is *already glossed — left as it is*, or the answer changed its word
-  line or its colour, which an answer never writes.
+  line or its colour, which an answer never writes; or its text *already has
+  its marks*, or the answer changed it in *more than its marks* (a space,
+  say): the gloss landed, the text did not move.
 - **dropped** — a chunk the answer gave that could not be written, and why:
   it is outside the stretch you picked (another stretch, a folded
   paragraph); its text does not match the book's; the answer divides the

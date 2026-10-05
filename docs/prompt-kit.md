@@ -138,6 +138,13 @@ promptkit.given(body_or_query)                                 # the options a r
   `GET /__prompt/options?surface=…&lang=…[&book=…|&video=…]`; a page puts what the row
   says in the request that makes the prompt (`row.options()`) and gets `options` back.
   A choice is remembered on this device per language (the scheme) or per surface (the marks).
+- **The short vowels are also a contract with the answer.** With `marks` the templates of a
+  stretch (`docs/region-prompt.md`) and of a video from scratch (`youtube/docs/chat-prompt.md`) say
+  that `fa` may come back with its short vowels added and nothing else changed; the apply routes
+  take the same `marks` and `lib/glossregion.py` decides again, from the request and the language's
+  record, what may be written: the answer's `fa`, with the gloss it lands with, only when it is the
+  page's own text with marks added and nothing else, and only into a chunk that has none, through the
+  doors of a hand edit. The report counts `vowelled` and says why a chunk's marks were kept out.
 - **The book's or the video's own record**: `translit` is written when a book is made
   (`making.make`) or a video added (`ytpages.api_add`) with IPA chosen, and changed through
   `bookmeta.edit_meta` and `ytpages.edit_meta`. It is an optional key an older Parseh ignores, so no

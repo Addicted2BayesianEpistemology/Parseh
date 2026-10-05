@@ -430,9 +430,10 @@ class InThePrompt(Quiet):
         self.assertEqual(promptlab.build("video-region", "zh", None, None, {"translit": "ipa"}).text,
                          promptlab.build("video-region", "zh").text)
 
-    def test_the_marks_setting_changes_the_version_line_and_nothing_else_until_the_language_files_use_it(self):
-        # lane D2 marks the harakat paragraphs of fa.md and ar.md with the two flags; until then the words of
-        # the prompt are the same whichever is chosen, and the line above them says which was asked for
+    def test_the_marks_setting_is_said_in_the_version_line_whichever_it_is(self):
+        # the line above the prompt says which was asked for; what the words below it say of each is the
+        # answer contract of the templates (tests/test_prompts.py TheContractOfTheShortVowels) and lane D2's
+        # paragraphs of the language files
         for code in ("fa", "ar"):
             on = promptlab.build("video-region", code, None, None, {"marks": "1"})
             off = promptlab.build("video-region", code, None, None, {"marks": "0"})

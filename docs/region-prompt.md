@@ -44,7 +44,8 @@ section of the conventions below).{{/words}}
 
 What each chunk asks of you:
 
-{{?keep}}- `"todo": true` — **gloss this chunk**: write its {{FIELD_LIST}}.
+{{?keep}}- `"todo": true` — **gloss this chunk**: write its {{FIELD_LIST}}{{?marks}}, and put the
+  short vowels in its `fa` (rule 2){{/marks}}.
 {{?seeded}}  Such a chunk may already carry a `{{READING_FIELD}}` the software
   read off its words: it is a proposal, not somebody's writing — keep it
   where it is right and correct it where it is not.
@@ -58,7 +59,8 @@ What each chunk asks of you:
   word, the same meaning where the sense is the same, and the repetition rule
   (below) counts what its `voc` already gave.
 {{/keep}}{{?regloss}}- `"todo": true` on every chunk not marked plain, whether it carries a
-  gloss now or none: **gloss it afresh**, its {{FIELD_LIST}}. Nothing
+  gloss now or none: **gloss it afresh**, its {{FIELD_LIST}}{{?marks}} (and put the
+  short vowels in its `fa`, rule 2){{/marks}}. Nothing
   already written is shown, and nothing already written survives: what you
   answer is the whole gloss of the chunk.
 {{/regloss}}- `"plain": true` — text that is never glossed (a foreign word, a run of
@@ -73,7 +75,14 @@ What each chunk asks of you:
    and is kept as sent: a chunk you divide differently is thrown away, gloss
    and all.
 2. **Never change `fa`**, not a letter, not a mark, not a space — the
-   {{SURFACE_NOUN}}'s own oddities and mistakes included. What is wrong in
+   {{SURFACE_NOUN}}'s own oddities and mistakes included.{{?marks}} The one
+   exception is the short vowels, which this prompt asks for: in a chunk
+   marked `"todo": true`, `fa` may come back **with its short vowels added, by
+   the rules of the conventions below, and nothing else changed** — not a
+   letter, not a space, not a joiner, not a stop, and no mark the text has
+   already. A chunk that has a short vowel in `fa` already, and every chunk not
+   marked `"todo": true`, comes back with its `fa` exactly as received. Change
+   anything else in `fa` and the chunk is thrown away, gloss and all.{{/marks}} What is wrong in
    the text is said in {{?book}}the vocabulary line{{/book}}{{?video}}the
    meaning or the vocabulary line{{/video}}, never corrected in
    `fa`.{{?video}} Where the conventions below send a correction to `note`,
@@ -145,7 +154,8 @@ These rules are {{LANGUAGE}}'s own; they bind every chunk you gloss.
 
 The JSON below, **whole**, with the chunks to do filled in: every
 {{UNIT}} in the order given, with its {{ADDRESS}} unchanged, every chunk in
-its place with its `fa` unchanged{{?keep}}, and every chunk not to do exactly
+its place with its `fa` unchanged{{?marks}} (or, in a chunk marked
+`"todo": true`, with its short vowels added and nothing else changed){{/marks}}{{?keep}}, and every chunk not to do exactly
 as it was{{/keep}}. You may keep the `"todo"` keys or drop them; they are
 ignored. Put it inside **one** ```` ```json ```` fence and write nothing else
 in the message.
@@ -159,7 +169,9 @@ the later block — which is also how a correction is sent.{{/contract}}
 ## Before you answer, check
 
 - every {{UNIT}} once, in order, its {{ADDRESS}} exactly as given;
-- every chunk in its place, as many chunks as you were given, `fa` unchanged;
+- every chunk in its place, as many chunks as you were given, `fa` unchanged{{?marks}}
+  but, in a chunk marked `"todo": true`, for the short vowels put in — every
+  letter, space, joiner and stop as it was{{/marks}};
 - {{REQUIRED}} on every chunk you glossed, in the scheme of the {{LANGUAGE}}
   conventions above;
 - every meaning in {{GLOSS_LANGUAGE}}, saying what its own chunk says and no

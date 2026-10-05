@@ -126,6 +126,38 @@ choosing IPA for a stretch of it is choosing the other, and that button is how
 a video becomes an IPA one. A video that says IPA is not held to the checks
 written for the usual scheme.
 
+## The short vowels
+
+For Persian and Arabic the panel has one more choice beside the scheme:
+**short vowels: as they are** or **write them**. *As they are* is the way it
+always was: the prompt tells the chatbot never to change a phrase's text, not
+a letter and not a mark, and its first line ends **· no marks**. *Write them*
+asks for the short vowels (the harakat) in the text of every phrase to gloss,
+by the rules of the language's conventions: the caption then is YouTube's text
+**with** the marks added, and nothing else changed. The first line ends
+**· marks**. The choice is remembered on this device, and a language that has
+no short vowels is not offered it.
+
+What lands is decided when you press **fill from the answer**, from the choice
+the panel shows then, and not by the prompt:
+
+- the answer's text is written, with the phrase's gloss, only if it is the
+  player's own text **with marks added and nothing else** — not a letter, a
+  space, a joiner or a stop. An answer that changes a letter, a joiner or a
+  stop is dropped, as ever (*text does not match*); one whose only other change
+  is a space is written without its marks, and the report says so;
+- only into a phrase that **has none**: a phrase that already has marks, whoever
+  wrote them, keeps its own (*already has its marks — left as it is*), because
+  marks are judgement and a word is either vowelled completely or wrong;
+- only into a phrase the answer glosses: a phrase kept whole, one already
+  glossed, is not touched — its text is not either.
+
+The marks go in through the ✎ form's door with its checks, the caption's own
+text stays what the transcript has (the fidelity check sets marks aside, so
+a video with vowelled phrases passes it), and nothing is lost of the
+timings. Parseh does not judge whether a mark is the right one: read them
+beside the transliteration.
+
 ## Filling from the answer
 
 Paste the chatbot's whole reply into **the LLM's answer** and press **fill
@@ -138,7 +170,9 @@ the caption's (to a twentieth of a second): an answer to another video, or
 to another run, does not land by mistake. Each phrase is matched by its
 place in the caption, its text must be the player's text (vowel marks and
 spacing aside), and then only its **transliteration, kana, vocabulary and
-meaning** are written, through the ✎ form's door and its checks. The
+meaning** are written — and, if you chose to write the short vowels, its
+text with them ([above](#the-short-vowels)) — through the ✎ form's door and
+its checks. The
 captions written are drawn again where they stand — the video keeps its
 place, and the answer stays in its box. A ✎ form left open on one of them
 is closed first, and the report says so: what it showed has just been
@@ -161,12 +195,17 @@ checkbox — it goes back to **fill from the answer**.
 Under the button: *filled N · completed N · replaced N* — phrases that had
 no gloss and now have one; phrases that had a gloss and had empty boxes
 filled (a half gloss made whole, or a vocabulary line or an optional
-transliteration added to a whole one); glossed phrases glossed afresh.
-Then, one line to a phrase, what did not land:
+transliteration added to a whole one); glossed phrases glossed afresh. With
+the short vowels chosen it ends *· vowelled N*: the phrases whose text now
+carries its marks, which may be fewer than the phrases glossed. Then, one
+line to a phrase, what did not land:
 
 - **kept** — a phrase that is protected, which the answer tried to change:
   *already glossed — left as it is*, or a plain phrase, or the answer
-  changed its words, its colour or its note, which an answer never writes.
+  changed its words, its colour or its note, which an answer never writes;
+  or the text of a phrase that *already has its marks*, or that the answer
+  changed in *more than its marks* (a space, say): the gloss landed, the text
+  did not move.
 - **dropped** — a phrase the answer gave that could not be written, and
   why: its caption is outside the run you picked; its start does not match
   (*another video or another region?*); its text does not match the

@@ -5432,7 +5432,8 @@ class Handler(SimpleHTTPRequestHandler):
                 r = glossregion.book_prompt(book, first, last, prompt=body.get("prompt"),
                                             translit=body.get("translit"), marks=body.get("marks"), **flags)
             else:
-                r = glossregion.book_apply(book, first, last, answer, **flags)
+                r = glossregion.book_apply(book, first, last, answer,
+                                           marks=body.get("marks"), **flags)
         except glossregion.NotFound as e:
             return self.send_json({"ok": False, "error": str(e)}, 404)
         except (glossregion.Refused, texwrite.Refused) as e:
@@ -5781,7 +5782,8 @@ class Handler(SimpleHTTPRequestHandler):
                 r = glossregion.video_prompt(d, frm, to, prompt=body.get("prompt"),
                                              translit=body.get("translit"), marks=body.get("marks"), **flags)
             else:
-                r = glossregion.video_apply(d, frm, to, answer, **flags)
+                r = glossregion.video_apply(d, frm, to, answer,
+                                            marks=body.get("marks"), **flags)
         except glossregion.NotFound as e:
             return self.send_json({"ok": False, "error": str(e)}, 404)
         except glossregion.Refused as e:

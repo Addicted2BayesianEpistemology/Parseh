@@ -255,7 +255,11 @@ answer carries a transliteration, and the video is then kept in IPA — every
 later prompt for a stretch of it asks for it too. Persian and Arabic have a
 second choice, **short vowels: as they are** or **write them**. Both are
 remembered on this device, and the first line of the prompt says what was
-chosen (**· IPA**, **· marks**, **· no marks**).
+chosen (**· IPA**, **· marks**, **· no marks**). With *write them* the answer's
+phrases carry the caption's text with its short vowels put in and nothing else
+changed; the page's checks set the marks aside, so such an answer passes them,
+and the caption's own text stays what YouTube had
+([more](glossing-with-an-llm.md#the-short-vowels)).
 
 **Prepare & copy the prompt** reads the transcript with the language you
 picked and puts a self-contained prompt on the clipboard. It holds:

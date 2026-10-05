@@ -124,7 +124,7 @@ language — which then has no phrases — and its `chunks`, the phrases:
 
 | Field | Holds |
 |---|---|
-| `fa` | the phrase's text — named after Persian, the toolbox's first language, whatever the language is |
+| `fa` | the phrase's text — named after Persian, the toolbox's first language, whatever the language is. In Persian and Arabic it is the caption's text as YouTube has it, bare, unless somebody wrote the short vowels into it — by hand in the ✎ form, or with an LLM's answer when **write them** was chosen ([glossing with an LLM](glossing-with-an-llm.md#the-short-vowels)); the timings and the fidelity check set the marks aside, so either way the phrase is the same phrase |
 | `words` | Japanese, Chinese: the phrase's words, each with its reading in ASCII parentheses; joined with nothing they must be `fa` exactly |
 | `kana` | Japanese: the reading of the whole phrase |
 | `tr` | the transliteration — required where the language wants one, optional for a language in Latin letters |
