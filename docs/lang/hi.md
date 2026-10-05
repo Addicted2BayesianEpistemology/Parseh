@@ -1,6 +1,6 @@
 # Hindi — the annotation conventions
 
-How a Hindi sentence becomes a glossed line: what goes into each field and
+{{?new}}How a Hindi sentence becomes a glossed line: what goes into each field and
 how it is written. These rules bind both the reading editions and the video
 captions; they are embedded whole into every prompt that asks for Hindi
 annotation, so they are written as instructions to the annotator.
@@ -14,15 +14,15 @@ in is the book's or the video's own choice, `"gloss"` in `book.json` /
 `video.json`, and English when the key is absent. This file is about Hindi
 as the language being **taught**: the examples below gloss into English
 because they must gloss into something, and every rule that turns on the
-gloss language says so.
+gloss language says so.{{/new}}
 
 ## The text field
 
 `fa` reproduces the source **verbatim**: same spelling, same punctuation, the
 source's own oddities included. Chunks split only at spaces, and joined back
 they must reproduce the sentence exactly — a machine checks that. **Never
-correct the text in `fa`**; the correction goes in `note` (videos) or in the
-vocabulary line (books).
+correct the text in `fa`**{{?new}}; the correction goes in {{?video}}`note`{{/video}}{{?book}}the
+vocabulary line{{/book}}{{/new}}.
 
 Devanagari writes its vowels, so a reading edition adds **nothing** to the
 text a caption has: there is no layer of marks here as there is in Persian
@@ -55,7 +55,7 @@ appears, and nothing asks for one.
 
 ## Transliteration
 
-`tr` is the transliteration of what is actually **said**, not of the letters
+{{?classic}}`tr` is the transliteration of what is actually **said**, not of the letters
 one at a time, and not of the dictionary form.
 
 Vowels: **a ā i ī u ū e ai o au**. Consonants by row —
@@ -116,12 +116,34 @@ The scheme does not follow the gloss language: **ś** is ś and **x** is x in a
 book glossed in Italian or in French as much as in one glossed in English. It
 transliterates the Hindi rather than respelling it in somebody's orthography,
 and every edition of this series must be readable by a reader who has learnt
-it once.
+it once.{{/classic}}{{?ipa}}`tr` is the pronunciation of what is actually **said**, written in **IPA**: the broad (phonemic)
+IPA of standard Hindi, with no slashes and no square brackets, and one scheme from the first chunk to the
+last — not the letters one at a time, and not the dictionary form.
+
+Vowels: **ə aː ɪ iː ʊ uː eː ɛː oː ɔː**, and a nasalised vowel carries the tilde (**ɛ̃ː**, **ãː**, **ĩː**), for
+the anusvāra and the candrabindu alike; before a stop the homorganic nasal is written out as a consonant
+instead (`हिंदी` *ɦɪndiː*, `पंच` *pəɲtʃ*, `अंग` *əŋɡ*). Consonants by row: **k kʰ ɡ ɡʱ ŋ** · **tʃ tʃʰ dʒ dʒʱ ɲ** ·
+**ʈ ʈʰ ɖ ɖʱ ɳ** · **t tʰ d dʱ n** · **p pʰ b bʱ m** · **j ɾ l ʋ** · **ʃ s ɦ**: ष is **ʃ** like श, and ह is
+**ɦ**. The nukta letters are **q x ɣ z f** (क़ ख़ ग़ ज़ फ़) and **ɽ ɽʱ** (ड़ ढ़); ऋ is **ɾɪ**, because that is what
+Hindi says (`ऋषि` *ɾɪʃɪ*). The nukta is written when the page has it and not when it has not: never restore one
+silently.
+
+**The schwa is the whole difficulty, and this line is where it is solved**: report the speech. A final schwa is
+never said (`कमल` *kəməl*) and a schwa between two consonants that are themselves followed by a vowel drops
+(`समझना` *səmədʒʱnaː*), while it survives where dropping it would leave an unsayable cluster (`प्रेम` *pɾeːm*, but
+`धरम` *dʱəɾəm*); where a word is commonly said both ways, write the way the speaker says it. A geminate is
+written long (`सच्चा` *sətʃːaː*, `पत्ता` *pətːaː*) and the visarga is **h** (`दुःख` *dʊhkʰ*). No stress is written.
+The postpositions and the other grammatical words are written apart, as the page has them: hyphenate only where
+one word contains two — the honorific **-dʒiː** (`रामजी` *raːm-dʒiː*), an echo pair (`चाय-वाय` *tʃaːj-ʋaːj*) and
+a solid Sanskrit compound whose parts are separately meaningful (`राष्ट्रपति` *raːʃʈɾə-pəti*).
+
+IPA does not follow the gloss language: it is the same in a book glossed in Italian or in French as in one
+glossed in English, and every edition of this series must be readable by a reader who has learnt it once.{{/ipa}}
 
 ## Vocabulary
 
 `voc` is written in the voice of the books' gloss blocks: headword +
-transliteration + meaning. Name what was stripped from the form in the text.
+{{?classic}}transliteration{{/classic}}{{?ipa}}IPA{{/ipa}} + meaning. Name what was stripped from the form in the text.
 One equivalent in the gloss language rather than a string of synonyms, and
 **an empty `voc` is the right answer** for a chunk that needs nothing.
 
@@ -130,29 +152,33 @@ The line uses four macros and nothing else: `\dw{fa}{rom} gloss` ·
 `\pw{fa}` — plus `\textit`, `\emph`, `\nobreak` — and its entries are parted
 by `; `.
 
-{{?video}}A video's line is written exactly as a book's; a line with no macro at
-all is plain text, and is also accepted. What a video adds is the form its chunk
-has, where it is none of the three the `\vb` prints, nor one its parenthesis
-names: it is named after the entry, outside it, with its sound,
-`\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\pw{ने})}; here \pw{करेगा}
-\textit{karegā}, future`.
+{{?video}}What a video adds is the form its chunk has, where it is none of the three
+the `\vb` prints, nor one its parenthesis names: it is named after the entry,
+outside it, with its sound,
+{{?classic}}`\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\pw{ने})}; here \pw{करेगा}
+\textit{karegā}, future`{{/classic}}{{?ipa}}`\vb{करना}{kəɾnaː}{कर}{kəɾ}{किया}{kɪjaː}{to do (+\pw{ने})}; here \pw{करेगा}
+\textit{kəɾeːɡaː}, future`{{/ipa}}.
 {{/video}}
 
 **Every noun is given with its gender**, `m.` or `f.`, without exception.
 Hindi agreement runs off the gender of a noun the reader cannot see it in:
-`किताब kitāb f. book`, `मकान makān m. house`, `बात bāt f. thing said`. A
+{{?classic}}`किताब kitāb f. book`, `मकान makān m. house`, `बात bāt f. thing said`{{/classic}}{{?ipa}}`किताब kɪtaːb f. book`, `मकान məkaːn m. house`, `बात baːt f. thing said`{{/ipa}}. A
 noun whose gender is not given has not been glossed.
 
 **Every verb gets a `\vb`**, in the order the page prints it: the infinitive,
 then the **stem**, then the **perfective**, masculine singular.
 
-```
+{{?classic}}```
 \vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{to do (+\pw{ने})}
 \vb{जाना}{jānā}{जा}{jā}{गया}{gayā}{to go}
 \vb{होना}{honā}{हो}{ho}{हुआ}{huā}{to be, to happen}
-```
+```{{/classic}}{{?ipa}}```
+\vb{करना}{kəɾnaː}{कर}{kəɾ}{किया}{kɪjaː}{to do (+\pw{ने})}
+\vb{जाना}{dʒaːnaː}{जा}{dʒaː}{गया}{ɡəjaː}{to go}
+\vb{होना}{ɦoːnaː}{हो}{ɦoː}{हुआ}{ɦʊaː}{to be, to happen}
+```{{/ipa}}
 
-The stem is the infinitive minus *-nā* and is almost never worth a second
+The stem is the infinitive minus {{?classic}}*-nā*{{/classic}}{{?ipa}}*-naː*{{/ipa}} and is almost never worth a second
 look; the **perfective is why the entry exists**, because that is where the
 handful of irregulars live — करना/किया, जाना/गया, होना/हुआ, देना/दिया,
 लेना/लिया. Give a regular perfective anyway: a reader who has met three
@@ -182,64 +208,43 @@ say so in the line.
 
 Two things Hindi does that a gloss must not flatten:
 
-- **The transitive/intransitive pair.** `खुलना khulnā to open (of itself)`
-  and `खोलना kholnā to open (something)` are two verbs, not one verb in two
+- **The transitive/intransitive pair.** {{?classic}}`खुलना khulnā to open (of itself)`
+  and `खोलना kholnā to open (something)`{{/classic}}{{?ipa}}`खुलना kʰʊlnaː to open (of itself)`
+  and `खोलना kʰoːlnaː to open (something)`{{/ipa}} are two verbs, not one verb in two
   uses; likewise टूटना/तोड़ना, बनना/बनाना, दिखना/दिखाना. Gloss the one that
   is in the text, and name its partner where the difference is the point of
   the sentence.
-- **The conjunct and the compound.** In a conjunct verb (`काम करना` *kām
-  karnā*, `याद आना` *yād ānā*) the light verb carries no meaning of its own:
+- **The conjunct and the compound.** In a conjunct verb ({{?classic}}`काम करना` *kām
+  karnā*, `याद आना` *yād ānā*{{/classic}}{{?ipa}}`काम करना` *kaːm kəɾnaː*, `याद आना` *jaːd aːnaː*{{/ipa}}) the light verb carries no meaning of its own:
   give the `\vb` for the light verb with **no meaning in its seventh
   argument** and a `\bw` for the word it carries — the rule `docs/lang/fa.md`
-  states for Persian, and the two languages do the same thing. The ने mark
+  states for Persian, and the two languages do the same thing — the `\bw` run
+  straight onto the `\vb`, with no `; ` between them, which is what makes the
+  pair one entry in the line. The ने mark
   stays, because the conjunct takes ने exactly when its light verb does:
-  `\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{(+\pw{ने})}\bw{काम}{kām}{m. work}`,
+  {{?classic}}`\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{(+\pw{ने})}\bw{काम}{kām}{m. work}`{{/classic}}{{?ipa}}`\vb{करना}{kəɾnaː}{कर}{kəɾ}{किया}{kɪjaː}{(+\pw{ने})}\bw{काम}{kaːm}{m. work}`{{/ipa}},
   and for `याद आना` the seventh argument is simply empty. The exceptions are
   the conjuncts with a subject in को — `दिखाई देना`, `सुनाई देना` take no ने
   though `देना` does — and the list names them. In a compound verb
-  (`कर लिया` *kar liyā*, `चला गया` *calā gayā*) the second verb is an aspect
+  ({{?classic}}`कर लिया` *kar liyā*, `चला गया` *calā gayā*{{/classic}}{{?ipa}}`कर लिया` *kəɾ lɪjaː*, `चला गया` *tʃəlaː ɡəjaː*{{/ipa}}) the second verb is an aspect
   and not an action: say what it adds (completion, suddenness, doing-for-
   oneself) and never gloss its dictionary meaning.
 
 Name the language a loanword came **from**, which has nothing to do with the
-language the gloss is written in: `कमरा kamrā m. room — Port. câmara`,
+language the gloss is written in: {{?classic}}`कमरा kamrā m. room — Port. câmara`,
 `किताब kitāb f. book — Ar.`, `दोस्त dost m. friend — Pers.`,
-`स्टेशन sṭeśan m. station — Eng.`. Hindi's vocabulary comes in four layers
+`स्टेशन sṭeśan m. station — Eng.`{{/classic}}{{?ipa}}`कमरा kəmɾaː m. room — Port. câmara`,
+`किताब kɪtaːb f. book — Ar.`, `दोस्त doːst m. friend — Pers.`,
+`स्टेशन sʈeːʃən m. station — Eng.`{{/ipa}}. Hindi's vocabulary comes in four layers
 (tadbhava, Sanskrit tatsama, Perso-Arabic, English) and a reader who is told
 which layer a word is in learns the next word of that layer free.
 
-What was stripped from the form in the text is named: the oblique (`लड़के`
-*laṛke* ← `लड़का` *laṛkā*), the oblique plural (`लड़कों` *laṛkoṁ*), the
-feminine plural (`लड़कियाँ` *laṛkiyāṁ*), and the postposition when it has
-fused with a pronoun (`मुझे` *mujhe* = `मुझ` + `को`, `इसे` *ise* = `इस` +
-`को`).
-
-The gloss editor's sources sidebar, in the reader and in the player, now
-proposes the `\vb` from the dictionary for a verb it recognises — the stem,
-the perfective and the ने mark, each with its transliteration. The forms are
-the dictionary's conjugation table and the sounds are its romanisation of
-each form, respelt into this scheme (its tilde is ṁ, its `ŕ` is *ri*, its
-`ṣ` is *ś*), so the schwa is right form by form — *samajhnā* but *samjhā*.
-It is still a **draft for you to correct**: the ने mark is a proposal and
-never a fact, and the meaning is the dictionary's first sense rather than
-the text's (`रखना` comes as *to keep* where the text may mean *to put*).
-The chunk decides two things. In a conjunct the light verb comes with no
-meaning and the row names the `\bw` still to write; the second verb of a
-compound, the `रहा` of the progressive and the `था` or `है` after a
-participle get no `\vb` at all, only the `\dw` they always had, because what
-they add is yours to say.
-
-A conjunct also gets a **button of its own**, headed *conjunct verb* — the
-word this file uses, so that it is never confused with the compound, which
-gets no `\vb` — and it puts the pair in as the one entry it is:
-`\vb{करना}{karnā}{कर}{kar}{किया}{kiyā}{(+\pw{ने})}\bw{काम}{kām}{to work}`,
-the `\bw` run straight onto the `\vb`{{?video}}, in a video as in a book{{/video}}.
-The noun's romanisation is the head of the conjunct's own (*kām karnā* gives
-*kām*), and its gloss is the **conjunct's** meaning, the one the row names;
-the noun's own gender and sense (`m. work`, as above) are yours to put in
-its place, as every draft here is yours to correct. Where the dictionary could not fill a slot — a
-verb with no table has no perfective, a rare verb has no ने mark — the
-button says which. Correct it before it is saved.
+What was stripped from the form in the text is named: the oblique ({{?classic}}`लड़के`
+*laṛke* ← `लड़का` *laṛkā*{{/classic}}{{?ipa}}`लड़के` *ləɽkeː* ← `लड़का` *ləɽkaː*{{/ipa}}), the oblique plural ({{?classic}}`लड़कों` *laṛkoṁ*{{/classic}}{{?ipa}}`लड़कों` *ləɽkõː*{{/ipa}}), the
+feminine plural ({{?classic}}`लड़कियाँ` *laṛkiyāṁ*{{/classic}}{{?ipa}}`लड़कियाँ` *ləɽkɪjãː*{{/ipa}}), and the postposition when it has
+fused with a pronoun ({{?classic}}`मुझे` *mujhe* = `मुझ` + `को`, `इसे` *ise* = `इस` +
+`को`{{/classic}}{{?ipa}}`मुझे` *mʊdʒʱeː* = `मुझ` + `को`, `इसे` *ɪseː* = `इस` +
+`को`{{/ipa}}).
 
 The meaning is what the gloss language is for; the labels around it — *stem*,
 *perf.*, *m.*, *f.*, `+ने` and `±ने`, the ones the edition prints from the
@@ -290,3 +295,29 @@ Never split:
 - a **verb from its negation** (`नहीं आया`), nor from the auxiliary that
   carries its tense (`आ रहा है`, `गया था`) — the auxiliary is where the
   sentence says *when*.
+
+## Example
+
+{{?note}}No speaker has reviewed this example yet: a Hindi reader should read the chunks, the transliteration and
+the IPA before the prompt is trusted.{{/note}}Three chunks of one sentence, as an answer writes them: the same shape in every prompt. The
+meanings here are written in English because an example has to be written in something; yours are written in
+the gloss language of this prompt.
+
+{{?classic}}```json
+{"chunks": [
+  {"fa": "मैंने कल", "tr": "maiṁne kal", "voc": "\\dw{कल}{kal} yesterday (or tomorrow: the tense of the verb says which)", "en": "I yesterday"},
+  {"fa": "एक नई किताब", "tr": "ek naī kitāb", "voc": "\\dw{नया}{nayā} new, f. \\pw{नई} \\textit{naī}; \\dw{किताब}{kitāb} f. book — Ar.", "en": "a new book"},
+  {"fa": "पढ़ी", "tr": "paṛhī", "voc": "\\vb{पढ़ना}{paṛhnā}{पढ़}{paṛh}{पढ़ा}{paṛhā}{to read (+\\pw{ने})}", "en": "read"}
+]}
+```{{/classic}}{{?ipa}}```json
+{"chunks": [
+  {"fa": "मैंने कल", "tr": "mɛ̃ːneː kəl", "voc": "\\dw{कल}{kəl} yesterday (or tomorrow: the tense of the verb says which)", "en": "I yesterday"},
+  {"fa": "एक नई किताब", "tr": "eːk nəiː kɪtaːb", "voc": "\\dw{नया}{nəjaː} new, f. \\pw{नई} \\textit{nəiː}; \\dw{किताब}{kɪtaːb} f. book — Ar.", "en": "a new book"},
+  {"fa": "पढ़ी", "tr": "pəɽʱiː", "voc": "\\vb{पढ़ना}{pəɽʱnaː}{पढ़}{pəɽʱ}{पढ़ा}{pəɽʱaː}{to read (+\\pw{ने})}", "en": "read"}
+]}
+```{{/ipa}}
+
+What to notice: the sentence keeps Hindi's order, the verb last, so the `en` lines read stiffly (*I yesterday* | *a new
+book* | *read*) and that is meant; the case marker is left to `voc` and `en` carries no bracket for it; the verb's
+`\vb` gives the masculine perfective and the ने mark, while the chunk shows the feminine `पढ़ी`, which agrees with
+the book; every noun has its gender; `मैं` is never glossed.
