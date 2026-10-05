@@ -144,8 +144,9 @@ async function suite(phone) {
       eq(JSON.stringify(st.may), JSON.stringify({'speech.get': true, 'speech.remove': true, 'speech.stop': true, 'speech.preferences': true}),
          'every button is allowed, from here too');
       has(await page.locator('.whomay').innerText(), 'any device let in', "the door's pill says who may");
-      has(await page.locator('.whomay').innerText(), 'only the files Parseh pins can be fetched',
-          'and why that is safe: what can be fetched is fixed');
+      // (a0.4.3 shortened the sentence: what can be fetched is fixed, and the page says downloads are checked)
+      has(await page.locator('.whomay').innerText(), 'Downloads are checked before use',
+          'and why that is safe: what is fetched is checked');
       // THE PROGRAM COMES FIRST (the owner, 2026-10-05): every model runs on it and is fetched with it; the second pass
       // is a choice about those models, so it follows the program, and the models come after both
       const order = await page.evaluate(() => Array.from(document.querySelectorAll('#sp h2.part, #sp-second')).map(

@@ -275,7 +275,9 @@ await section('a', 'speech to text is not installed: a link, and nothing dead', 
          'and says in a line what it is and that it is optional: ' + said);
   assert(await shown(page, '#transcript') && await shown(page, '#subedit'), 'the transcript box and its editor are as they were');
   // nothing was asked of anyone because the page was opened
-  eq(seen(page, /transcribe/), 0, 'no transcription route was touched');
+  // (a0.4.3: the page lists the reviews saved for later when it opens, so that Videos can offer to continue one: a read,
+  // answered from the disk; nothing starts, nothing is sent)
+  eq(seen(page, /transcribe(?!\/pending)/), 0, 'no transcription route was touched, but the list of saved reviews');
   eq(page.reqs.filter(r => / @/.test(r[1])).length, 0, 'nothing left the machine (' + JSON.stringify(page.reqs.filter(r => / @/.test(r[1]))) + ')');
   eq(page.reqs.filter(r => /lookup\/api/.test(r[1])).map(r => r[1]), ['/lookup/api/speech'], 'the one thing asked was what the computer has');
   await shot(page, 'a-absent-1280');
@@ -390,7 +392,7 @@ await section('b2', 'an install made in another tab appears with no reload; a la
   await setState();                                            // "installed in another tab"
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await inPhase(page, 'idle', 'the block appears when the page is looked at again');
-  eq(await seen(page, /transcribe/), 0, 'and still nothing of a transcription was touched');
+  eq(await seen(page, /transcribe(?!\/pending)/), 0, 'and still nothing of a transcription was touched');
   // Whisper does not know Hindi (a person's own language would be so): nothing is offered
   await setState({no_lang: ['hi']});
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
