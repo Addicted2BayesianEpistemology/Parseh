@@ -341,7 +341,9 @@ class TheBuildAndTheSheet(unittest.TestCase):
         self.assertIn("html.pg-reader header :is(#listenfollow,#listenscroll):disabled{display:none}", base)
         self.assertIn("html.pg-sheet :is(.pf-bar,.kp-bar){display:none!important}", base)
         self.assertNotIn("pg-reader", self.CSS)
-        self.assertNotIn("pg-sheet", self.CSS)
+        # the generic rule is parseh.css's; the player's own sheet rules (html.m-player.pg-sheet[data-mode=mobile]) are
+        # mobile-only and live in mobile.css (lane D), so only the generic one must not be repeated there
+        self.assertNotIn("html.pg-sheet :is(.pf-bar,.kp-bar)", self.CSS)
 
     def test_the_mobile_layer_draws_no_menu_of_its_own(self):
         js = read(ROOT / "lib" / "mobilereader.js")
