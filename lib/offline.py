@@ -90,6 +90,10 @@ SHARED = (
     # carries the button and a panel built by this script, and a script or a sheet the phone
     # has not got is a page whose ⚙ does nothing -- or draws bare -- with the computer away
     "/lib/pagesettings.js", "/lib/pagesettings.css",
+    # THE PAGE ZOOM, which parseh.js writes a tag for as the first thing on every
+    # page and the studio's templates carry a tag of their own for: a kept page
+    # must open offline with it, or its parser stops on a script nobody kept
+    "/lib/pagezoom.js",
     # what a reader of a book an agent is making adds to itself (parseh.js loads it
     # into every reader; it asks one question and does nothing for any other book)
     "/lib/making.js",
