@@ -202,3 +202,56 @@ html[data-mode=mobile] .lr-gl,.lp-sheet .lr-gl,html[data-mode=mobile] .lr-fold,.
 .lp-main .lp-status{font-size:13.5px}
 html[data-mode=mobile] .lp-main{max-width:var(--m-col,480px);margin:0 auto;padding:12px 16px 72px}
 html[data-mode=mobile] .lp-main h1.idx{margin:6px 0 2px}
+
+/* ===================================================== ON THE PAGE ITSELF
+   What the reader's layer (lib/later-reader.js) and the player (youtube/lib/
+   player.js) draw over their own text: the flagged chunk's line, the cloud's
+   button, the ⚑ beside the pencil, and the strip over the card sheet when
+   cards are made one after another.  Colours as above: the tokens, and never
+   the accent for a word -- the accent colours a line and a border, and says
+   which state a button is in by its glyph as well. */
+
+/* THE DOOR, drawn only where there is something to open.  A phone draws it from the
+   first flag on (lib/later-reader.js); an author rule would otherwise beat `hidden`. */
+.later-btn[hidden]{display:none!important}
+
+/* A FLAGGED CHUNK: a dotted line in the accent, 2px, under the chunk in the pass
+   that has chunks (level 1, the row's text in level 2, and the video's phrase).  It
+   is not the hover mode's faint 1px line nor the sparse book's -- it is thicker and
+   in the accent, and lower, so that it is told from them by its shape and not by its
+   colour alone -- and the rule says !important because it is the person's own mark
+   and the page's other underlines are written with more weight than a class.  The
+   text is never touched, so Diacritics, the highlight and the colours do not know it. */
+.later-mark{text-decoration:underline dotted var(--accent,#be3455) 2px!important;
+  text-decoration-skip-ink:none!important;text-underline-offset:.3em!important}
+/* where the chunk was brought to by ▶ or by a link: lit for a moment (no motion, nothing to turn off) */
+.later-flash{background:var(--hl,#f7dde5)!important;box-shadow:0 0 0 3px var(--hl,#f7dde5);border-radius:3px}
+
+/* THE CLOUD'S BUTTON, dressed as the page's own buttons in the cloud are (the reader's
+   .mkcard .mkcopy .mkedit; the player styles every button of its row) */
+#cloud .mklater{font:inherit;font-size:11.5px;color:var(--dim,#635358);background:var(--bg,#f3eff1);
+  border:1px solid var(--rule,#e3d9dd);border-radius:5px;padding:3px 8px;cursor:pointer;margin-left:4px}
+#cloud .mklater:hover,#cloud .mklater.on{border-color:var(--accent,#be3455)}
+#cloud .mklater.on{color:var(--ink,#241e21);box-shadow:inset 0 0 0 1px var(--accent,#be3455)}
+
+/* THE ⚑ BESIDE THE PENCIL (#chpen, the reader's): where the pencil is, one place to its
+   left, the same size and weight.  Browser layout only: a phone has no pencil. */
+.later-flag{position:fixed;z-index:79;font:inherit;font-size:12px;line-height:1;padding:3px 6px;
+  border:1px solid var(--rule,#e3d9dd);border-radius:6px;background:var(--card,#fff);
+  color:var(--dim,#635358);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.14)}
+.later-flag:hover,.later-flag.on{border-color:var(--accent,#be3455)}
+.later-flag.on{color:var(--ink,#241e21);box-shadow:0 2px 6px rgba(0,0,0,.14),inset 0 0 0 1px var(--accent,#be3455)}
+.later-flag[hidden]{display:none}
+html[data-mode=mobile] .later-flag{display:none!important}
+
+/* «item 2 of 7 · Skip · Stop»: the first thing in the card sheet while cards are made one
+   after another (lib/later-cards.js) */
+.lq-strip{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:6px 8px 6px 12px;
+  border:1px solid var(--accent,#be3455);border-radius:8px;background:var(--bg,#f3eff1);
+  color:var(--ink,#241e21);font:13px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  text-transform:none;letter-spacing:0}
+.lq-n{flex:1 1 auto;font-weight:600;font-variant-numeric:tabular-nums}
+.lq-b{font:inherit;font-size:13px;margin:0;padding:4px 12px;border:1px solid var(--rule,#e3d9dd);
+  background:var(--card,#fff);color:var(--ink,#241e21);border-radius:8px;cursor:pointer}
+.lq-b:hover{border-color:var(--accent,#be3455)}
+.lq-strip :focus-visible{outline:2px solid var(--accent,#be3455);outline-offset:2px}

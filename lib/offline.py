@@ -98,6 +98,10 @@ SHARED = (
     # list.  The reader and the player load them, and /later/ is in the shell:
     # without them a phone could flag a chunk on the train and not see the list
     "/lib/later.js", "/lib/later.css",
+    # and what the two pages give it: the cards made from the list (lib/later-cards.js, the
+    # player's page loads it itself) and the book reader's four ways to flag, its marks and
+    # its going to a chunk (lib/later-reader.js, which parseh.js loads into every reader)
+    "/lib/later-cards.js", "/lib/later-reader.js",
     # what a reader of a book an agent is making adds to itself (parseh.js loads it
     # into every reader; it asks one question and does nothing for any other book)
     "/lib/making.js",

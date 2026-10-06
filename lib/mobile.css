@@ -300,7 +300,7 @@ html.m-reader[data-mode=mobile] header{flex-direction:row;flex-wrap:wrap;align-i
   gap:6px;padding:6px 10px}
 html.m-reader[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
 html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#toc,#typo,[data-parseh-gear],.px-ask,
-  .kp-off,.kp-again,.kp-wait,#listenfollow,#listenscroll,#seekwrap,#pos,#warn,#audio,
+  .later-btn,.kp-off,.kp-again,.kp-wait,#listenfollow,#listenscroll,#seekwrap,#pos,#warn,#audio,
   [data-layout=mobile]){display:none!important}
 /* the Keep buttons (lib/keep.js) are the sheet's: the gear brings them into its
    last group while it is up, and out of the sheet they are not on the page.  The
@@ -333,6 +333,19 @@ html.m-reader[data-mode=mobile] header a.home:not(.glyph){order:2}
 html.m-reader[data-mode=mobile] header #toc{order:6;font-size:0;padding:0}
 html.m-reader[data-mode=mobile] header #toc::before{content:"\2630";font-size:20px;line-height:1}
 html.m-reader[data-mode=mobile] header #typo{order:7}
+/* REVIEW LATER (lib/later-reader.js): «⚑ 3», between the text size and the gear -- drawn only
+   once something is flagged, since the line holds six targets of 48px and this is a seventh:
+   under 400px the line is drawn closer (2px between, 4px at the edges) so that seven fit down
+   to 360px, and under 360px it takes a line of its own below the six rather than push the "?"
+   off the first.  The word «later» is for the screen with room; the glyph and the number are
+   what a finger finds, and the button's own label says the rest.  (`button.later-btn`: the rule
+   above that sets every header button's padding is as heavy as a class and a tag, and this is
+   written after it.) */
+html.m-reader[data-mode=mobile] header button.later-btn{order:8;padding:6px 2px;min-width:48px;font-size:15px}
+html.m-reader[data-mode=mobile] header .later-btn .lb-word{display:none}
+@media (min-width:360px) and (max-width:399px){
+  html.m-reader[data-mode=mobile] header:has(.later-btn:not([hidden])){column-gap:2px;padding-inline:4px}
+}
 html.m-reader[data-mode=mobile] header [data-parseh-gear]{order:9;margin-inline-start:auto;
   font-size:20px;line-height:1}
 /* "?" -- what a button does, for a screen with no mouse to rest on it
@@ -342,7 +355,10 @@ html.m-reader[data-mode=mobile] header .px-ask{order:10}
    on the first line, where it is seen at once */
 html.m-reader[data-mode=mobile] header :is(.kp-off,.kp-again,.kp-wait){order:11}
 @media (max-width:359px){
-  html.m-reader[data-mode=mobile] header{gap:4px;padding:6px 6px}
+  /* 3px, not 4: the six targets of a 320px line are 288px and five gaps, and 308px is all the
+     line has -- at 4px they met it to the pixel and the "?" went down a line on its own */
+  html.m-reader[data-mode=mobile] header{gap:3px;padding:6px 6px}
+  html.m-reader[data-mode=mobile] header button.later-btn{order:12;flex:1 1 100%}
 }
 /* THE LISTENING LINE: listening on its own (the gear's "Listen on its own", or
    the page's own listen button) draws a line under the first one -- the highlight
@@ -658,8 +674,8 @@ html.m-player[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
    stop, and whatever a later player adds that nobody here has named -- is not
    on a phone at all */
 html.m-player[data-mode=mobile] header > :not(a.home,.ttl,#follow,#hoverpause,#aloud,#pin,
-  #dictmode,#defmode,#defmt,#theme,#typo,.px-ask,.kp-btn,.kp-off,.kp-again,.kp-wait,[data-layout=mobile],
-  [data-parseh-gear]){display:none!important}
+  #dictmode,#defmode,#defmt,#theme,#typo,.px-ask,.later-btn,.kp-btn,.kp-off,.kp-again,.kp-wait,
+  [data-layout=mobile],[data-parseh-gear]){display:none!important}
 html.m-player[data-mode=mobile] header #dl{display:none!important}
 html.m-player[data-mode=mobile] header :is(button,select,a.home){min-height:48px;
   font-size:15px;padding:6px 12px;border-radius:10px;-webkit-tap-highlight-color:transparent}
@@ -677,6 +693,20 @@ html.m-player[data-mode=mobile] header .ttl .lat{display:none}
 html.m-player[data-mode=mobile] header #typo{order:4}
 html.m-player[data-mode=mobile] header .m-vfull{order:4}
 html.m-player[data-mode=mobile] header .px-ask{order:5}
+/* REVIEW LATER (youtube/lib/player.js): «⚑ 3» after the text size, drawn only once something is
+   flagged -- and then the title gives way on a narrow phone, as it does at 340px, for the target
+   a finger finds (the "?" and the gear after it keep their places: the same order, later in the
+   line).  Its word «later» is left to the screen with room. */
+html.m-player[data-mode=mobile] header button.later-btn{order:5;padding:6px 2px;min-width:48px;font-size:15px}
+html.m-player[data-mode=mobile] header .later-btn .lb-word{display:none}
+@media (max-width:399px){
+  html.m-player[data-mode=mobile] header:has(.later-btn:not([hidden])) .ttl{display:none}
+}
+/* and at 320px the six targets of that line are 288px and five gaps: drawn closer (3px between, 6px at the
+   edges) they are 303px of the 308 the line has, where 6px and 10px would have sent the "?" down a line */
+@media (max-width:359px){
+  html.m-player[data-mode=mobile] header:has(.later-btn:not([hidden])){column-gap:3px;padding-inline:6px}
+}
 html.m-player[data-mode=mobile] header :is(.kp-off,.kp-again,.kp-wait){order:7}
 html.m-player[data-mode=mobile] header .m-rmore{order:6;margin-inline-start:auto;font-size:20px;
   line-height:1;letter-spacing:.06em}
