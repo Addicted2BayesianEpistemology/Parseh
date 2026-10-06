@@ -8,10 +8,11 @@ without loading the studio's renderer into its own process.
 """
 
 # the modules the engine imports, by their path in Parseh; lib/author.py is
-# the foot's two links (standard library only), so a guide exported with
+# the foot's two links and lib/project.py the address of the first, the
+# project's repository (both standard library only), so a guide exported with
 # `build.py --export` can still be compiled
 MODULE_FILES = ("lib/languages.py", "lib/languages.json", "lib/latexthemes.py",
-                "lib/author.py",
+                "lib/author.py", "lib/project.py",
                 "markdown/exlex/mdparser.py", "markdown/exlex/texgen.py",
                 "markdown/exlex/segcolour.py",
                 "markdown/app/htmlgen.py")

@@ -143,6 +143,52 @@ class Fonts(unittest.TestCase):
             self.assertIn(notice, ofl, "OFL.txt carries the copyright notice of " + family)
             self.assertTrue(home.startswith("https://"), home)
 
+    def test_what_is_said_of_chorus_is_where_it_is_used(self):
+        # TeX Gyre Chorus sets no document: it sets the NAME Parseh, in the bar of every page of Parseh and in
+        # the hub's big title (a0.5.0; before, only in the bar of the guide published on the web).  The three
+        # places that say where it goes say that, and none says it "goes only into that layout" any more.
+        import notices
+        page = notices.page()
+        para = page[page.index("TeX Gyre Pagella, TeX Gyre Heros and TeX Gyre Chorus"):]
+        para = para[:para.index("</div>")] if "</div>" in para else para[:2000]
+        self.assertIn("Chorus is the odd one out: no document is set in it, only the name Parseh, in the bar of "
+                      "every page of Parseh and in the hub&rsquo;s title", para)
+        self.assertNotIn("goes only into that layout", page)
+        readme = (FONTS / "README.md").read_text(encoding="utf-8")
+        chorus = readme[readme.index("**TeX Gyre Chorus**"):readme.index("## Adding a face")]
+        for said in ("no document is set in it", "the bar of every page of Parseh", "the big title at the top of the hub",
+                     "the studio's bars", "*Parseh guide*"):
+            self.assertIn(said, chorus.replace("\n", " "), said)
+        self.assertNotIn("not into the studio", readme)
+        self.assertNotIn("only into that layout", readme)
+        guide = (ROOT / "html-guide" / "markdown" / "reference" / "licences.md").read_text(encoding="utf-8")
+        self.assertIn("Chorus sets no document, only the name Parseh, in the bar of every page of Parseh", guide)
+        self.assertNotIn("only into the guide published on the web", guide)
+        top = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertNotIn("Chorus only in the guide published on the web", top)
+
+    def test_the_studio_provisions_the_face_its_bar_sets_the_name_in(self):
+        # app.css names TeX Gyre Chorus for the name in the studio's bar (.hublink); like the faces its sheet is set in,
+        # server.py copies it from lib/fonts into static/fonts when it starts, and a phone keeps it with the others
+        import tempfile
+        import server
+        import offline
+        name = "texgyrechorus-mediumitalic.otf"
+        self.assertIn((name, None), server.WEB_FONTS)
+        css = (ROOT / "markdown" / "app" / "static" / "app.css").read_text(encoding="utf-8")
+        self.assertIn("url(fonts/%s)" % name, css)
+        with tempfile.TemporaryDirectory() as td, patch.object(server, "STATIC", Path(td)):
+            server.ensure_web_fonts()
+            self.assertEqual((Path(td) / "fonts" / name).read_bytes(), (FONTS / name).read_bytes())
+            # and the walk the phone's list is made by finds it where it was put (its memory of file
+            # checksums is the temporary tree's too, never config/)
+            with patch.object(offline, "STUDIO_STATIC", td), \
+                    patch.object(offline, "DIGESTS", str(Path(td) / "digests.json")):
+                self.assertIn("/studio/static/fonts/" + name, [x["url"] for x in offline.studio_faces("/studio")])
+        # the toolbox's own pages load it from /lib/fonts/, and the phone keeps that copy in the shared list
+        self.assertIn("/lib/fonts/" + name, offline.SHARED)
+        self.assertIn("url(fonts/%s)" % name, (ROOT / "lib" / "parseh.css").read_text(encoding="utf-8"))
+
     def test_the_licence_texts_are_there_whole(self):
         ofl = (FONTS / "OFL.txt").read_text(encoding="utf-8")
         for part in ("SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007", "PREAMBLE", "DEFINITIONS",

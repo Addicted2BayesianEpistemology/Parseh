@@ -13,6 +13,11 @@
 // line on the Settings hub -- only the two links, whose visible words are
 // "GitHub" and "imbrunoursino.net" -- and, on /licences/, his name beside "the
 // author".  Links only: nothing is fetched from either address.
+// And, decided 2026-10-06: at a FOOT (the hub in both layouts, the Settings hub,
+// the guide) the word "GitHub" leads to PARSEH's repository
+// (lib/project.py) and a screen reader and a hover say "Parseh on GitHub"; the
+// Licences page, where his name stands beside "the author", keeps his own profile,
+// "Bruno Ursino on GitHub".
 //
 // Against the REAL hub (serve.main, booted by tests/cardkit_harness.py serve
 // over a temporary toolbox, as tests/mobile_mode.mjs does) and the guide
@@ -32,7 +37,8 @@
 //   settings the Settings hub's foot line, and no other page of Settings has one
 //   licences the page names him beside "the author", with the two links
 //   guide    the front page's foot and a compiled page's foot: the same two
-//            links, AA in the three themes, a target a finger can hit
+//            links, AA in the three themes, a target a finger can hit; and
+//            the guide's own header, "Parseh guide", is not set in Chorus
 //   rtl      the hub has no interface language, so no right-to-left one to
 //            open it in: dir=rtl is put on the page by hand, as a stand-in --
 //            the links stay inside the window and swap sides
@@ -62,10 +68,13 @@ async function run(args, opts = {}) {
   return {code: o.code, out: td.decode(o.stdout) + td.decode(o.stderr)};
 }
 
-const GITHUB = 'https://github.com/Addicted2BayesianEpistemology';
+const GITHUB = 'https://github.com/Addicted2BayesianEpistemology';   // HIS profile: where his name stands (licences)
+const PROJECT = 'https://github.com/parseh-io/Parseh';                // PARSEH's repository: a foot's GitHub
 const SITE = 'https://imbrunoursino.net/';
 const HOSTS = /^https?:\/\/(?:[^/]*\.)?(?:github\.com|imbrunoursino\.net)(?:[:/]|$)/;
-const LABELS = ['Bruno Ursino on GitHub', "imbrunoursino.net, Bruno Ursino's website"];
+const SITE_LABEL = "imbrunoursino.net, Bruno Ursino's website";
+const LABELS = ['Parseh on GitHub', SITE_LABEL];                    // a foot's
+const PERSON_LABELS = ['Bruno Ursino on GitHub', SITE_LABEL];       // beside his name
 const THEMES = ['light', 'dark', 'sepia'];
 const PARTS = (Deno.env.get('SIGNATURE_PARTS') || 'hub,mobile,settings,licences,guide,rtl').split(',');
 const browser = await chromium.launch({executablePath: Deno.env.get('CHROME_BIN'), headless: true});
@@ -114,10 +123,12 @@ const measure = (page, scope, only = 'a') => page.evaluate(([sel, only]) => {
           shown: host.innerText.replace(/\s+/g, ' ').trim(), dir: getComputedStyle(host).direction};
 }, [scope, only]);
 
-// what one place must be, at one width in one theme
-function checkFoot(m, where, {finger = 0, aa = true} = {}) {
+// what one place must be, at one width in one theme: a FOOT's GitHub is Parseh's repository,
+// `person` makes it his profile (the author line, where his name stands)
+function checkFoot(m, where, {finger = 0, aa = true, person = false} = {}) {
   assert(!m.missing, `${where}: the foot is there (${m.missing || ''})`);
-  eq(m.links.map(a => [a.href, a.text]), [[GITHUB, 'GitHub'], [SITE, 'imbrunoursino.net']], `${where}: two links, and the words they say`);
+  const first = person ? GITHUB : PROJECT;
+  eq(m.links.map(a => [a.href, a.text]), [[first, 'GitHub'], [SITE, 'imbrunoursino.net']], `${where}: two links, and the words they say`);
   for (const a of m.links) {
     eq([a.target, a.rel], ['_blank', 'noopener noreferrer'], `${where}: ${a.text} opens in a tab of its own, telling the site nothing`);
     assert(a.drawn && a.l >= 0 && a.r <= m.w, `${where}: ${a.text} is drawn, inside the window (${Math.round(a.l)}..${Math.round(a.r)} of ${m.w})`);
@@ -125,7 +136,8 @@ function checkFoot(m, where, {finger = 0, aa = true} = {}) {
     if (aa) assert(a.ratio >= 4.5, `${where}: ${a.text} is readable against its ground (AA), ${a.ratio}:1`);
     if (finger) assert(a.h >= finger, `${where}: ${a.text} is ${Math.round(a.h)}px high (a finger's height is ${finger})`);
   }
-  eq(m.links.map(a => [a.label, a.title]), LABELS.map(x => [x, x]), `${where}: a screen reader and a hover read who they are`);
+  eq(m.links.map(a => [a.label, a.title]), (person ? PERSON_LABELS : LABELS).map(x => [x, x]),
+     `${where}: a screen reader and a hover read whose they are`);
   assert(m.sideways <= 0, `${where}: the page does not scroll sideways (${m.sideways})`);
 }
 
@@ -220,12 +232,13 @@ async function partHub(B) {
     }
     // the words a screen reader announces are the label, once, and only in the layout that is showing
     eq([await page.getByRole('link', {name: LABELS[0]}).count(), await page.getByRole('link', {name: LABELS[1]}).count()], [1, 1],
-       `${tag}: a screen reader finds each link once, by his name`);
+       `${tag}: a screen reader finds each link once, by the project's name and by his`);
+    eq(await page.getByRole('link', {name: PERSON_LABELS[0]}).count(), 0, `${tag}: the hub has no link to his profile`);
     await page.evaluate(() => Parseh.theme.set('light'));
     // a load, and three themes looked at, with nothing clicked
     await sleep(600);
     noneAsked(ctx, tag + ' on load, and through three themes');
-    await clicked(ctx, page, `.hub-browser .foot a[href="${GITHUB}"]`, GITHUB, tag + ' GitHub');
+    await clicked(ctx, page, `.hub-browser .foot a[href="${PROJECT}"]`, PROJECT, tag + ' GitHub (the project)');
     await clicked(ctx, page, `.hub-browser .foot a[href="${SITE}"]`, SITE, tag + ' site');
     // hover: the title is the hover, and a mouse gets the pointer's own cursor
     if (!vp.touch) eq(await page.evaluate(() => getComputedStyle(document.querySelector('.hub-browser .foot a')).cursor), 'pointer', `${tag}: a mouse gets a hand`);
@@ -276,7 +289,7 @@ async function partMobile(B) {
     if (w === 390) {
       eq([await page.getByRole('link', {name: LABELS[0]}).count(), await page.getByRole('link', {name: LABELS[1]}).count()], [1, 1],
          `${tag}: a screen reader finds each link once`);
-      await clicked(ctx, page, `.hub-mobile .m-by a[href="${GITHUB}"]`, GITHUB, tag + ' GitHub');
+      await clicked(ctx, page, `.hub-mobile .m-by a[href="${PROJECT}"]`, PROJECT, tag + ' GitHub (the project)');
       await clicked(ctx, page, `.hub-mobile .m-by a[href="${SITE}"]`, SITE, tag + ' site');
     }
     await ctx.close();
@@ -334,6 +347,8 @@ async function partSettings(B) {
     await settle(page);
     eq(await page.evaluate(([g, s]) => document.querySelectorAll(`a[href="${g}"], a[href="${s}"]`).length, [GITHUB, SITE]), 0,
        `${path}: no signature (only the hub has one)`);
+    eq(await page.evaluate(sel => document.querySelectorAll(sel).length, 'a[aria-label="Parseh on GitHub"]'), 0,
+       `${path}: no foot's GitHub link either`);
   }
   await ctx.close();
 }
@@ -357,7 +372,8 @@ async function partLicences(B) {
     for (const theme of THEMES) {
       await page.evaluate(t => Parseh.theme.set(t), theme);
       await settle(page);
-      checkFoot(await measure(page, 'main.notices p[data-sig]'), `${vp.width}px ${theme}`);
+      // his name stands beside "the author", so GitHub is HIS profile here ("Bruno Ursino on GitHub")
+      checkFoot(await measure(page, 'main.notices p[data-sig]'), `${vp.width}px ${theme}`, {person: true});
       await page.locator('main.notices p[data-sig]').scrollIntoViewIfNeeded();
       await shot(page, `${tag}-${theme}`);
     }
@@ -400,7 +416,11 @@ async function partGuide() {
         eq(await page.evaluate(() => document.querySelectorAll('footer.g-foot').length), 1, `${tag}: one foot`);
         await page.evaluate(() => { localStorage.setItem('parseh_theme', 'light'); Guide.theme.apply(); });
         noneAsked(ctx, tag);
-        if (vp.width === 1280) await clicked(ctx, page, `footer.g-foot a[href="${GITHUB}"]`, GITHUB, tag + ' GitHub');
+        // the guide's own header is the guide's: its name is not set in the face that sets Parseh's (lib/fonts/README.md)
+        const head = await page.evaluate(() => { const n = document.querySelector('.g-top .g-brand .g-name'); const cs = getComputedStyle(n);
+                                                  return {text: n.textContent, family: cs.fontFamily, size: cs.fontSize, weight: cs.fontWeight}; });
+        assert(head.text === 'Parseh guide' && !/Chorus/.test(head.family), `${tag}: the guide's own header says "Parseh guide" and is not in Chorus: ${JSON.stringify(head)}`);
+        if (vp.width === 1280) await clicked(ctx, page, `footer.g-foot a[href="${PROJECT}"]`, PROJECT, tag + ' GitHub (the project)');
         await ctx.close();
       }
     }

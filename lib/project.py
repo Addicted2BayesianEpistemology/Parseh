@@ -19,8 +19,11 @@ around, as they import lib/author.py.  No version is written here either
 (tests/test_version.py scans for one): `agent()` is handed it.
 
 THE PERSON IS NOT THE PROJECT.  The author's own GitHub profile is
-lib/author.py's, the GitHub link at the foot of the hub: a person's,
-who stays where he is when the project moves.
+lib/author.py's, the GitHub link of the author line (the Licences page, About,
+the README): a person's, who stays where he is when the project moves.  The
+GitHub link at the foot of the hub, of the Settings hub and of the guide is the
+PROJECT'S -- GITHUB_URL below, which the page that draws the foot hands to
+lib/author.py (author.foot_links), as the exported pages' foot links it too.
 
 THE ADDRESSES A PERSON IS GIVEN and THE ONES A MACHINE FETCHES are told apart
 on purpose:

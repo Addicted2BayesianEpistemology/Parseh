@@ -32,7 +32,9 @@
 //      view; turned on its side mid-note, the page stays where it was; the
 //      tag field typed in with the keyboard up is not under the topbar; on a
 //      desktop nothing of this happens -- the topbar scrolls away with the
-//      page and the toolbar stays pinned, both laid out as before
+//      page and the toolbar stays pinned, both laid out as before; the name
+//      in the topbar is painted in TeX Gyre Chorus and the letter beside it
+//      is not (the owner, 2026-10-06)
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/studio_narrow.mjs
 //   NARROW_PARTS=b (or a, c) runs one part; SHOTS=<dir> saves the screenshots
 //   (the editor at each width, its menu open; the reading page's bars)
@@ -381,6 +383,20 @@ try {
              `${at}, at the top: the topbar at 0, the toolbar under it, Edit and Contents reached by a tap (${JSON.stringify(s)})`);
       const pair = (s.top.b - s.top.t) + (s.tool.b - s.tool.t), head = s.tool.b;
       assert(pair <= H * 0.3, `${at}: the two bars together are a small part of the screen (${pair} of ${H} px)`);
+      // the name in the topbar is set in TeX Gyre Chorus (the owner, 2026-10-06) and the letter beside it is not:
+      // what the browser PAINTS is asked of it, and the bar took no more of the screen for the new face
+      {
+        await cdp.send('DOM.enable');
+        await cdp.send('CSS.enable');
+        const {root} = await cdp.send('DOM.getDocument', {depth: 0});
+        const faces = async sel => {
+          const {nodeId} = await cdp.send('DOM.querySelector', {nodeId: root.nodeId, selector: sel});
+          return (await cdp.send('CSS.getPlatformFontsForNode', {nodeId})).fonts.map(f => f.familyName);
+        };
+        const name = await faces('.topbar .hublink'), letter = await faces('.topbar .hublink .glyph');
+        assert(name.length === 1 && name[0] === 'TeX Gyre Chorus' && !letter.includes('TeX Gyre Chorus'),
+               `${at}: the name in the topbar is painted in TeX Gyre Chorus (${name.join(', ')}), the letter beside it is not (${letter.join(', ')})`);
+      }
       if (SHOTS) await page.screenshot({path: `${SHOTS}/reading-${W}-top.png`});
 
       // just past a finger's first move, the head of the page still on the screen: nothing goes away

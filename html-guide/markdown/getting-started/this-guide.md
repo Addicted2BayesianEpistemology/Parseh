@@ -90,7 +90,7 @@ once the guide is compiled.*
 - Every heading has its own address: point at it and click the **#**
   beside it, and the address bar holds a link to that very place.
 - The foot of every page, and of the front page, has two links,
-  **GitHub** and **imbrunoursino.net**, to the GitHub account and the
+  **GitHub**, to Parseh's own repository, and **imbrunoursino.net**, to the
   website of Bruno Ursino, who made Parseh — the same two as the hub's
   foot. Each opens in a tab of its own; nothing is fetched from either
   address until you click.

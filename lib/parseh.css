@@ -66,7 +66,10 @@
    (lib/languages.json names the stacks).  Nothing else
    in this file is per language: WHICH face an element gets comes from
    /lib/langs.css, generated from the registry, which sets --tl-font,
-   --tl-alt, --tl-dir and --tl-alt-lh on every element with data-lang. */
+   --tl-alt, --tl-dir and --tl-alt-lh on every element with data-lang.
+   The last face is no language's: TeX Gyre Chorus sets the NAME Parseh, in the
+   bar of every page and in the hub's big title, as it does on the website
+   (the bar's .home, .hub .brand .lat, and lib/mobile.css's twins). */
 @font-face{font-family:Vazirmatn;src:url(fonts/Vazirmatn.woff2) format('woff2');
   font-weight:100 900;font-display:swap}
 @font-face{font-family:'Noto Nastaliq Urdu';
@@ -75,6 +78,8 @@
   src:url(fonts/NotoNaskhArabic.woff2) format('woff2');font-display:swap}
 @font-face{font-family:'Noto Serif Devanagari';
   src:url(fonts/NotoSerifDevanagari.woff2) format('woff2');font-display:swap}
+@font-face{font-family:'TeX Gyre Chorus';
+  src:url(fonts/texgyrechorus-mediumitalic.otf) format('opentype');font-display:swap}
 
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -96,8 +101,18 @@ body{margin:0;background:var(--bg);color:var(--ink);
    simply carry the home link inside them. */
 .parseh-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   padding:8px 14px;background:var(--card);border-bottom:1px solid var(--rule)}
+/* the NAME is set in TeX Gyre Chorus, the face the website sets it in.  It is
+   drawn small for its size, so 20px stands where 15px of the sans stood, and
+   it takes no more room than that name did (about 47px): a bar that was one
+   row at some width is one row still -- at 22px the video list's was two, at
+   340px, and the settings of the pictograms' two on a wide phone (measured at
+   twelve widths from 320 to 1280, against the bars as they were).  The line is 1
+   so that a taller face does not stretch the bar (the glyph, 28px, is the
+   tallest thing in the link, and it keeps its own face below).  The face has
+   one weight and says so: asking for 600 would be faked bold */
 .parseh-bar .home{display:inline-flex;align-items:center;gap:8px;
-  text-decoration:none;color:var(--ink);font-weight:600;font-size:15px}
+  text-decoration:none;color:var(--ink);
+  font-family:'TeX Gyre Chorus','Apple Chancery',cursive;font-weight:400;font-size:20px;line-height:1}
 /* the پ of the home link is the brand, Persian on every page -- including a
    Japanese reader whose <html data-lang="ja"> would otherwise hand it the
    gothic face -- so it names the Persian token, not the inherited one */
@@ -298,7 +313,13 @@ footer.idx a{color:var(--dim)}
    data-lang="fa": the toolbox's name is Persian whatever is being learned */
 .hub .brand .fa{font-family:var(--tl-alt,'Noto Nastaliq Urdu',Vazirmatn,serif);font-size:44px;
   line-height:1.6;direction:var(--tl-dir,rtl);color:var(--accent)}
-.hub .brand .lat{font-size:30px;font-weight:600;letter-spacing:.01em}
+/* the Latin name, in TeX Gyre Chorus as on the website's front page; one weight,
+   so 400 and not the 600 the sans had (a browser would fake the bold).  The
+   face is small for its size, hence 38px where the sans had 30; and 1.33 is the
+   line that keeps the title's row as tall as it was (76px), so the hub under it
+   has not moved */
+.hub .brand .lat{font-family:'TeX Gyre Chorus','Apple Chancery',cursive;
+  font-size:38px;font-weight:400;line-height:1.33;letter-spacing:.01em}
 .hub .tagline{color:var(--dim);font-size:15px;margin:0 0 34px}
 .hub .tagline+.parseh-langs{margin:-16px 0 30px}
 .hub .doors{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}

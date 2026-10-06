@@ -29,11 +29,15 @@ Edit the two together.
 WHERE THEY DIFFER, ON PURPOSE:
   * the NAME is the site's too: TeX Gyre Chorus, the face the site sets it in,
     which travels with Parseh (lib/fonts/texgyrechorus-mediumitalic.otf, the
-    GUST Font License like Pagella and Heros) and is copied into the PUBLISHED
-    layout alone, beside the guide's other fonts (site.py, `_runtime`); the
-    rule that names it is FONT_FACE below, written with the page's own
-    relative address, and the guide fetches nothing from another folder of
-    the domain.
+    GUST Font License like Pagella and Heros).  Since a0.5.0 it also sets the
+    name in Parseh's own bars and in the studio's, so the studio's stylesheet,
+    which the guide carries (site/_parseh/studio.css), names it too and every
+    compile copies the file beside the guide's other fonts (site.py,
+    `_runtime`) -- but only THIS layout draws anything in it: the rule that
+    sets the name here is .ps-name below, and the rule that names the face for
+    it is FONT_FACE, written with the page's own relative address, so that the
+    guide fetches nothing from another folder of the domain.  The guide's own
+    header, "Parseh guide" (g-top, .g-brand .g-name), is NOT set in it.
   * the bar SCROLLS AWAY, the site's sticks: the guide has a header of its
     own that sticks, and on a phone nothing of Parseh's is to stay fixed over
     the text.
@@ -51,8 +55,9 @@ the window and must not run under it.
 
 FRONT = "index.html"
 
-# the faces the bar names that the guide's own stylesheet does not: copied into
-# site/_parseh/fonts/ of the published layout, from lib/fonts/ (site.py)
+# the faces the bar names, so that the published layout carries them whatever the
+# studio's stylesheet names: copied into site/_parseh/fonts/, from lib/fonts/
+# (site.py)
 FONT_FILES = ("texgyrechorus-mediumitalic.otf",)
 # the site's own rule (assets/site.css), with the address of the file as the page
 # that carries it reaches it: `%s` is the way to site/_parseh/fonts/ ("../_parseh/fonts/")

@@ -35,10 +35,23 @@
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 1rem; padding-bottom: .2rem;
 }
-/* the way back to the hub: Parseh's glyph, same on every page of the toolbox */
+/* TeX Gyre Chorus sets the NAME Parseh in the bar, as it does in every other bar
+   of Parseh (lib/parseh.css) and on the website.  The studio's faces are
+   provisioned by server.py into static/fonts, and this one with them
+   (WEB_FONTS); no document is set in it, so it is named here, with the chrome,
+   and not in sheet.css with the faces a document is set in. */
+@font-face { font-family: "TeX Gyre Chorus"; font-display: swap;
+  src: url(fonts/texgyrechorus-mediumitalic.otf) format("opentype"); }
+
+/* the way back to the hub: Parseh's glyph, same on every page of the toolbox.
+   The name is drawn small for its size, so 1.2rem stands where .88rem of the
+   sans stood; the line is 1 so that the bar keeps its height (the glyph, 1.45rem,
+   is the tallest thing in the link); the face has one weight, and the
+   browser would fake a bold */
 .hublink {
   display: inline-flex; align-items: center; gap: .4rem; text-decoration: none;
-  color: var(--chrome-mut); font-size: .88rem; padding: .28rem .55rem .28rem .3rem;
+  color: var(--chrome-mut); padding: .28rem .55rem .28rem .3rem;
+  font-family: "TeX Gyre Chorus", "Apple Chancery", cursive; font-size: 1.2rem; line-height: 1;
   border-radius: 6px; border: 1px solid transparent; white-space: nowrap;
 }
 .hublink:hover { color: var(--accent); border-color: var(--chrome-line); }

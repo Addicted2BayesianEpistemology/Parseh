@@ -176,6 +176,22 @@ class TheReadersRead(unittest.TestCase):
         links = re.findall(r'href="([^"]+)"', webexport._footer())
         self.assertEqual(links, [project.GITHUB_URL, project.GUIDE_URL])
 
+    def test_the_feet_of_the_hub_the_settings_hub_and_the_guide_link_the_project_not_the_person(self):
+        # lib/author.py is standard library only and cannot read this module, so each page that draws a foot
+        # hands it the address (the owner, 2026-10-06): a move of the project is this module's one edit
+        import author
+        import settingspage
+        page = settingspage.hub()
+        foot = re.search(r'<p class="foot">(.*?)</p>', page[page.index('<main class="settings">'):], re.S).group(1)
+        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', foot), [project.GITHUB_URL, author.SITE_URL])
+        self.assertIn('aria-label="%s on GitHub"' % project.NAME, foot)
+        self.assertNotIn(author.GITHUB_URL, page)
+        front = (ROOT / "html-guide" / "index.html").read_text(encoding="utf-8")
+        guide_foot = re.search(r'<footer class="g-foot">(.*?)</footer>', front, re.S).group(1)
+        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', guide_foot), [project.GITHUB_URL, author.SITE_URL])
+        # and the author line, where his name stands, is his profile
+        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', author.links()), [author.GITHUB_URL, author.SITE_URL])
+
     def test_the_phone_app_fetches_its_icons_from_under_the_domain(self):
         import mobile
         self.assertEqual(mobile.PUBLIC_ICONS, project.ICONS_URL)

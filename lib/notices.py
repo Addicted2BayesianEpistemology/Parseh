@@ -146,8 +146,9 @@ def carried():
         "<code>lib/fonts/</code>: %s. They travel with Parseh, so a machine with no TeX "
         "installation still has them; the studio copies them into its own static folder "
         "when it starts, and the guide&rsquo;s build into its site, with their licence "
-        "beside them. (Chorus sets the name Parseh in the bar of the guide published on "
-        "the web, and goes only into that layout.) From "
+        "beside them. (Chorus is the odd one out: no document is set in it, only the name "
+        "Parseh, in the bar of every page of Parseh and in the hub&rsquo;s title, as on "
+        "the website.) From "
         "<a href=\"https://www.gust.org.pl/projects/e-foundry/tex-gyre\" "
         "rel=\"noopener\" target=\"_blank\">gust.org.pl</a>."
         % ", ".join("<code>%s</code>" % esc(f) for fam in GUST_FONTS for f in fam[3]),

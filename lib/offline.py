@@ -110,6 +110,10 @@ SHARED = (
     "/lib/cardkit.js", "/lib/cardkit.css", "/lib/timeline.js", "/lib/timeline.css",
     "/lib/fonts/Vazirmatn.woff2", "/lib/fonts/NotoNastaliqUrdu.woff2",
     "/lib/fonts/NotoNaskhArabic.woff2", "/lib/fonts/NotoSerifDevanagari.woff2",
+    # the face that sets the NAME Parseh in the bar of every page and in the hub's
+    # title (lib/parseh.css): 100 kB, once, so that a page opened with the computer
+    # asleep writes the name as it is written when the computer is there
+    "/lib/fonts/texgyrechorus-mediumitalic.otf",
     # THE ICON EVERY PAGE OF THE APP CARRIES.  lib/parseh.js (appHead) hangs
     # <link rel="apple-touch-icon" href="/lib/icons/apple-touch-icon.png"> in
     # the head of every page that was not built with the app's tags already,
