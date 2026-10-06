@@ -1221,7 +1221,7 @@
       // say there are any, since without them the entry looks as if not
       if (DICT.defines && !opts.defs && localStorage.getItem('yt_defs') === null)
         h += '<div class="dnone">the dictionary explains these words in ' +
-             esc(L.name || L.code) + ': “definitions”, in the header, shows what it says</div>';
+             esc(L.name || L.code) + ': “Show the dictionary\'s definitions”, in the ⚙ panel, shows what it says</div>';
       var src = (j.source && j.source.source) || 'a dictionary';
       if (j.source && j.source.licence) src += ' · ' + j.source.licence;
       if (defsTranslated())

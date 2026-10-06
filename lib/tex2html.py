@@ -4898,7 +4898,7 @@ function dictFill(box, j) {
       const n = document.createElement('div');
       n.className = 'dnone';
       n.textContent = 'the dictionary explains these words in ' + LANG.name +
-                      ': “definitions”, in the header, shows what it says';
+                      ': “Show the dictionary\'s definitions”, in the ⚙ panel, shows what it says';
       dd.appendChild(n);
     }
     const src = document.createElement('div');
